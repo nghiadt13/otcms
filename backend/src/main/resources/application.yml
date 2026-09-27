@@ -1,0 +1,32 @@
+spring:
+  application:
+    name: otcms-api
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+  flyway:
+    enabled: true
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${SUPABASE_AUTH_ISSUER}
+          jwk-set-uri: ${SUPABASE_JWKS_URL}
+
+server:
+  port: ${PORT:8080}
+
+otcms:
+  cors:
+    allowed-origin: ${CORS_ALLOWED_ORIGIN:http://localhost:3000}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info

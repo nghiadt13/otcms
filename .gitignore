@@ -1,0 +1,17 @@
+.env
+.env.*
+!.env.example
+**/node_modules/
+**/.next/
+**/target/
+**/.DS_Store
+.idea/
+.vscode/
+*.log
+*.dcm
+*.dicom
+*.nii
+*.nii.gz
+*.mha
+*.nrrd
+orthanc-data/

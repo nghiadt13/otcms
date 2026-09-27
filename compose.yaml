@@ -1,0 +1,31 @@
+# Local imaging laboratory only. Never load identifiable patient studies here.
+services:
+  orthanc:
+    image: orthancteam/orthanc:26.7.0
+    environment:
+      ORTHANC__NAME: OTCMS Local Archive
+      ORTHANC__AUTHENTICATION_ENABLED: "false"
+      DICOM_WEB_PLUGIN_ENABLED: "true"
+    ports:
+      - "127.0.0.1:8042:8042"
+      - "127.0.0.1:4242:4242"
+    volumes:
+      - orthanc-data:/var/lib/orthanc/db
+
+  ohif:
+    image: ohif/app:v3.12.18
+    volumes:
+      - ./infra/imaging/ohif-app-config.js:/usr/share/nginx/html/app-config.js:ro
+
+  imaging-gateway:
+    image: nginx:1.28.0-alpine
+    depends_on:
+      - orthanc
+      - ohif
+    ports:
+      - "127.0.0.1:3001:80"
+    volumes:
+      - ./infra/imaging/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+
+volumes:
+  orthanc-data:
