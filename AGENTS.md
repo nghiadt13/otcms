@@ -4,13 +4,13 @@
 
 ## Nguồn yêu cầu
 
-- Dùng `docs/requirements/UC_description.html` (bản UC01–UC90) làm căn cứ cho phạm vi hiện tại. Khi tài liệu khác mâu thuẫn, xác nhận lại với nhóm trước khi triển khai.
-- Phạm vi UC01–UC90 loại quản lý kho/vật tư, nhân sự, lịch làm việc, nghỉ phép, lương và màn hình tự gán quyền. Không khôi phục các tính năng này chỉ vì chúng xuất hiện trong tài liệu cũ.
+- Dùng `docs/requirements/UC_description.html` (bản UC01–UC79) làm căn cứ cho phạm vi hiện tại. Khi tài liệu khác mâu thuẫn, xác nhận lại với nhóm trước khi triển khai.
+- Phạm vi UC01–UC79 bao gồm quản lý hồ sơ giới thiệu bác sĩ, ca làm việc của bác sĩ/lễ tân/kỹ thuật viên và giờ nhận lịch khám của bác sĩ; loại quản lý kho/vật tư, hồ sơ nhân sự, nghỉ phép, lương và màn hình tự gán quyền. Không khôi phục các tính năng bị loại chỉ vì chúng xuất hiện trong tài liệu cũ.
 - Vai trò phòng khám là cố định theo SRS. Quyền phải được kiểm tra tại backend cho từng thao tác và bản ghi; việc ẩn nút hoặc trang ở frontend chỉ hỗ trợ giao diện.
 
 ## Kiến trúc backend
 
-- Xây một ứng dụng Spring Boot REST theo Clean Architecture trong modular monolith. Dùng một Maven module ban đầu; chia Java package theo **feature nghiệp vụ** như `appointment`, `visit`, `clinical`, `imaging`, `billing`. Không chia package nghiệp vụ theo actor như `doctor` hay `receptionist` vì nhiều actor cùng dùng một feature.
+- Xây một ứng dụng Spring Boot REST theo Clean Architecture trong modular monolith. Dùng một Maven module ban đầu; chia Java package theo **feature nghiệp vụ** như `appointment`, `schedule`, `visit`, `clinical`, `imaging`, `billing`. Không chia package nghiệp vụ theo actor như `doctor` hay `receptionist` vì nhiều actor cùng dùng một feature.
 - Bên trong feature, dùng `domain`, `application`, `adapter/in/web`, `adapter/out/persistence` và adapter tích hợp khác khi cần. Một UC là một thao tác/use case, không mặc định là một package riêng.
 - `domain` chứa mô hình và luật nghiệp vụ thuần Java; không import Spring, JPA, HTTP hay SDK bên ngoài. `application` điều phối use case và khai báo port. Adapter nhận/trả HTTP, lưu dữ liệu hoặc gọi dịch vụ ngoài và phụ thuộc vào port. Chiều phụ thuộc đi vào `application`/`domain`.
 - Một Maven module chưa tự ngăn import sai giữa các package. Khi tạo mã nguồn, bảo vệ chiều phụ thuộc bằng code review và kiểm tra kiến trúc tự động nếu nhóm thống nhất dùng công cụ đó.
@@ -21,7 +21,11 @@
 ## Kiến trúc frontend
 
 - Dùng NextJS App Router. `src/app` sở hữu URL, `page.tsx`, `layout.tsx` và trạng thái route. `src/features/<feature>` sở hữu component, hook, schema và lời gọi API của nghiệp vụ đó; component dùng chung đặt trong `src/components`.
-- Route có thể theo khu vực sử dụng (`patient`, `staff`, `admin`); code tái sử dụng chia theo feature. Giữ `page.tsx` mỏng: ghép giao diện và gọi feature, không đặt quy tắc nghiệp vụ trong route.
+- Route theo khu vực sử dụng (`public`, `patient`, `staff`, `admin`) nằm trong route group `(khu-vực)` có root layout và CSS riêng, để thay đổi giao diện của khu này không lan sang khu khác (xem `docs/architecture.md`); code tái sử dụng chia theo feature. Giữ `page.tsx` mỏng: ghép giao diện và gọi feature, không đặt quy tắc nghiệp vụ trong route.
+- **Rào chắn phụ thuộc frontend** (ESLint `no-restricted-imports` trong `eslint.config.mjs`, `npm run lint` sẽ báo lỗi): một feature chỉ import chính nó và mã dùng chung (`src/components`, `src/lib`, `src/hooks`); không import feature khác hay `src/app`. Muốn kết hợp nhiều feature thì ghép ở `app/` hoặc ở `admin-shell` (lớp ghép khung admin, được import mọi feature). Mã dùng chung không import feature hay `app/`. Import ngoài feature dùng alias `@/`. Feature mới tự được bảo vệ vì danh sách lấy từ thư mục `src/features`; khi thêm một lớp ghép khác ngoài `admin-shell`, thêm tên vào `COMPOSITION_FEATURES` trong file cấu hình.
+- **Trang đặc biệt của Next**: mỗi khu có `error.tsx` (Client Component; prop là `error` và `retry`, **không** phải `reset` như Next cũ) và, khi màn dùng dữ liệu bất đồng bộ phía server, `loading.tsx` cùng `not-found.tsx` đặt trong thư mục khu. Vì có nhiều root layout nên 404 cho URL không khớp route nào do `src/app/global-not-found.tsx` xử lý (bật bằng `experimental.globalNotFound` trong `next.config.ts`); lỗi ở chính root layout do `src/app/global-error.tsx`. Hai file `global-*` tự dựng `<html>` và tự nạp CSS.
+- **Test frontend**: Vitest + Testing Library, môi trường `happy-dom`, file `*.test.ts(x)` đặt cạnh mã nguồn, thiết lập chung ở `src/test/setup.ts`. Test hook/component đi qua lớp API giả như màn hình thật; khi nối backend thì mock ở ranh giới `apiRequest`, không mock hook. Async Server Component không test được bằng Vitest, dùng E2E (chưa thiết lập).
+- **Form và validation**: chưa chọn thư viện vì chưa có màn nào cần. Khi màn đầu tiên cần form nhiều trường hoặc validation dùng chung với backend, chọn **một** giải pháp cho cả dự án, đặt schema ở `src/features/<feature>/schema/`, rồi cập nhật mục này và `docs/dependencies.md` trong cùng thay đổi. Cho đến lúc đó giữ state cục bộ như `RoomFormDialog`.
 - Gọi Spring Boot qua một API client chung. Không nhân đôi workflow nghiệp vụ trong Next Route Handlers hoặc truy cập trực tiếp bảng hồ sơ bệnh nhân, hóa đơn, study từ trình duyệt.
 - Khi tích hợp viewer, chạy OHIF độc lập với dependency của NextJS. Mọi đường truy cập DICOMweb có dữ liệu người dùng phải đi qua cơ chế xác thực và kiểm tra quyền theo study. Compose local hiện chỉ dùng ảnh giả trên `127.0.0.1`, chưa có phân quyền.
 
@@ -54,6 +58,6 @@ Tên class phải phản ánh hành động hoặc khái niệm nghiệp vụ. T
 
 - Với thay đổi nghiệp vụ, đối chiếu UC liên quan và kiểm tra quyền của các actor có liên quan, nhất là truy cập hồ sơ và phát hành ảnh.
 - Với thay đổi ranh giới module, quy tắc đặt tên hoặc cách quản lý dependency, cập nhật tài liệu này trong cùng thay đổi.
-- Trong `frontend`, dùng `npm ci`, `npm run dev`, `npm run lint`, `npm run build`. Node.js 24 LTS là phiên bản chuẩn của nhóm.
+- Trong `frontend`, dùng `npm ci`, `npm run dev`, `npm run lint`, `npm test` (chạy một lần; `npm run test:watch` để theo dõi), `npm run build`. Node.js 24 LTS là phiên bản chuẩn của nhóm.
 - Trong `backend`, dùng `./mvnw spring-boot:run` hoặc `./mvnw package -DskipTests` (PowerShell: `./mvnw.cmd`). Java 17 là phiên bản chuẩn của nhóm.
 - Xem `README.md` để cấu hình môi trường local và `docs/architecture.md` để biết cây thư mục theo feature.

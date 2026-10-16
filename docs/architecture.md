@@ -24,6 +24,7 @@ backend/src/main/java/com/otcms/
 ├── account/
 ├── patient/
 ├── appointment/
+├── schedule/
 ├── reception/
 ├── visit/
 ├── clinical/
@@ -51,18 +52,34 @@ Supabase Auth xác thực danh tính. `role` trong JWT là PostgreSQL role, **kh
 ```text
 frontend/src/
 ├── app/
-│   ├── layout.tsx, page.tsx, globals.css
-│   ├── login/page.tsx
-│   └── workspace/page.tsx
+│   ├── global-not-found.tsx             404 cho URL không khớp route (nhiều root layout nên cần file riêng)
+│   ├── global-error.tsx                 lỗi ở chính root layout
+│   ├── (public)/                        root layout riêng, chỉ Tailwind thuần (public.css)
+│   │   ├── layout.tsx, page.tsx, error.tsx
+│   │   ├── login/page.tsx
+│   │   └── workspace/page.tsx
+│   └── (admin)/                         root layout riêng: theme shadcn + font Geist
+│       ├── layout.tsx
+│       └── admin/                       layout shell + 13 màn quản trị (UC07–UC79)
+│           └── error.tsx, loading.tsx, not-found.tsx   hiển thị trong khung sidebar/header
 ├── features/
-│   └── auth/components/SignInForm.tsx
-├── components/                         UI dùng lại khi phát sinh
-└── lib/
-    ├── api/client.ts                    Gọi Spring API kèm access token
-    └── supabase/browser.ts              Chỉ dùng Supabase Auth
+│   ├── auth/components/SignInForm.tsx
+│   ├── admin-shell/                     sidebar (nhóm thu gọn), header, ô tài khoản, adminNavigation.ts (nguồn duy nhất cho menu)
+│   ├── notifications/                   chuông thông báo (UC64), api giả
+│   └── rooms/                           feature mẫu: types, api (giả), hooks, components
+├── components/
+│   ├── ui/                              shadcn/ui (sinh bằng CLI, ít sửa tay)
+│   └── PageHeader.tsx                   UI dùng chung
+├── styles/app-theme.css                 theme shadcn (biến màu, @layer base); chỉ root layout cần nó mới import
+├── lib/
+│   ├── api/client.ts                    Gọi Spring API kèm access token
+│   └── supabase/browser.ts              Chỉ dùng Supabase Auth
+└── test/setup.ts                        Thiết lập chung cho Vitest; `*.test.ts(x)` nằm cạnh mã nguồn
 ```
 
-Khi triển khai một feature, đặt `components/`, `hooks/`, `api/`, `schema/` và `types/` bên trong `src/features/<feature>/` theo nhu cầu thực tế. URL ở `app/` có thể chia theo khu vực patient/staff/admin; không tạo bản sao logic theo vai trò. `NEXT_PUBLIC_*` chỉ chứa thông tin công khai.
+Chiều phụ thuộc frontend được ESLint ép buộc: `app` → `features` → `components`/`lib`/`hooks`; feature không import feature khác (trừ lớp ghép `admin-shell`), mã dùng chung không import ngược lên feature hay `app`. Chi tiết và cách mở rộng ở `AGENTS.md`.
+
+Khi triển khai một feature, đặt `components/`, `hooks/`, `api/`, `schema/` và `types/` bên trong `src/features/<feature>/` theo nhu cầu thực tế. Mỗi khu vực (public, admin, sau này patient/staff) là một route group `(tên)` có **root layout riêng** để CSS không lan sang khu khác; URL không đổi. Chuyển giữa hai khu là tải lại cả trang (hành vi của Next với nhiều root layout), còn trong một khu vẫn chuyển trang phía client. Khu mới cần theme shadcn thì import `styles/app-theme.css` trong root layout của nó. Không tạo bản sao logic theo vai trò. `NEXT_PUBLIC_*` chỉ chứa thông tin công khai.
 
 ## DICOM/MRI
 
