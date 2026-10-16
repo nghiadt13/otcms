@@ -1,6 +1,6 @@
 # OTCMS
 
-Orthopedic Clinic Management System — nền tảng quản lý phòng khám chỉnh hình theo [UC01–UC90](docs/requirements/UC_description.html).
+Orthopedic Clinic Management System — nền tảng quản lý phòng khám chỉnh hình theo [UC01–UC79](docs/requirements/UC_description.html).
 
 ## Công nghệ và phiên bản nền
 
