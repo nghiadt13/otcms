@@ -4,7 +4,7 @@
 
 ## Nguồn yêu cầu
 
-- Dùng `docs/requirements/UC_description.html` (bản UC01–UC79) làm căn cứ cho phạm vi hiện tại. Khi tài liệu khác mâu thuẫn, xác nhận lại với nhóm trước khi triển khai.
+- Căn cứ cho phạm vi hiện tại là bản UC01–UC79, sẽ đặt tại `docs/requirements/UC_description.html`. **Hiện chưa có trong repository** vì nghiệp vụ đang được chỉnh sửa; sẽ bổ sung sau khi nhóm chốt. Trong lúc chờ, số UC ghi trong code (ví dụ `ucs` ở `adminNavigation.ts`) chỉ là tạm theo bản UC đang soạn: không triển khai luật nghiệp vụ dựa vào chúng khi chưa xác nhận với nhóm, và cập nhật lại số UC khi tài liệu được thêm. Khi tài liệu khác mâu thuẫn, xác nhận lại với nhóm trước khi triển khai.
 - Phạm vi UC01–UC79 bao gồm quản lý hồ sơ giới thiệu bác sĩ, ca làm việc của bác sĩ/lễ tân/kỹ thuật viên và giờ nhận lịch khám của bác sĩ; loại quản lý kho/vật tư, hồ sơ nhân sự, nghỉ phép, lương và màn hình tự gán quyền. Không khôi phục các tính năng bị loại chỉ vì chúng xuất hiện trong tài liệu cũ.
 - Vai trò phòng khám là cố định theo SRS. Quyền phải được kiểm tra tại backend cho từng thao tác và bản ghi; việc ẩn nút hoặc trang ở frontend chỉ hỗ trợ giao diện.
 

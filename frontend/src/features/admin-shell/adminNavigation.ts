@@ -19,7 +19,7 @@ export type AdminNavItem = {
   title: string;
   href: string;
   icon: LucideIcon;
-  /** UC trong UC_description.html mà màn hình này phục vụ. */
+  /** UC mà màn hình này phục vụ. Tạm theo bản UC đang soạn; đối chiếu lại khi UC_description.html được thêm vào docs/requirements. */
   ucs: string;
   description: string;
 };
