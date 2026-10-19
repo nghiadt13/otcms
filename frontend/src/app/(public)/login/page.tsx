@@ -1,21 +1,27 @@
+import type { Metadata } from "next";
 import Link from "next/link";
+import { AuthCard, authLinkClass } from "@/features/auth/components/AuthCard";
 import { SignInForm } from "@/features/auth/components/SignInForm";
 
+export const metadata: Metadata = { title: "Đăng nhập | OTCMS" };
+
+// UC01 Đăng nhập: một màn chung cho bệnh nhân, nhân viên, quản trị viên và chủ
+// phòng khám; vai trò quyết định chức năng mở ra sau khi đăng nhập (BR-01).
 export default function LoginPage() {
   return (
-    <main className="flex min-h-screen items-center justify-center bg-slate-50 px-6 py-12">
-      <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
-        <Link className="text-sm font-semibold text-teal-700" href="/">
-          ← OTCMS
-        </Link>
-        <h1 className="mt-8 text-2xl font-semibold text-slate-900">
-          Đăng nhập
-        </h1>
-        <p className="mt-2 text-sm text-slate-600">
-          Sử dụng tài khoản Supabase Auth của phòng khám.
-        </p>
-        <SignInForm />
-      </div>
-    </main>
+    <AuthCard
+      description="Dùng email và mật khẩu tài khoản phòng khám của bạn."
+      footer={
+        <>
+          Bệnh nhân chưa có tài khoản?{" "}
+          <Link className={authLinkClass} href="/register">
+            Đăng ký
+          </Link>
+        </>
+      }
+      title="Đăng nhập"
+    >
+      <SignInForm />
+    </AuthCard>
   );
 }

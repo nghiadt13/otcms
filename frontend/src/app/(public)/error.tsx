@@ -18,14 +18,14 @@ export default function PublicError({
   }, [error]);
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center gap-4 bg-slate-50 px-6 text-center text-slate-900">
+    <main className="flex min-h-screen flex-col items-center justify-center gap-4 bg-canvas px-6 text-center text-slate-900">
       <h1 className="text-2xl font-semibold">Đã có lỗi xảy ra</h1>
       <p className="max-w-md text-sm text-slate-600">
         Không tải được trang này. Hãy thử lại hoặc quay về trang chủ.
       </p>
       <div className="flex gap-3">
         <button
-          className="rounded-lg bg-teal-700 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-800"
+          className="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white hover:bg-brand-hover"
           onClick={() => retry()}
           type="button"
         >

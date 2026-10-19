@@ -42,7 +42,12 @@ export function NotificationBell() {
       >
         <Bell />
         {unreadCount > 0 ? (
-          <span className="absolute top-0.5 right-0.5 flex min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] leading-4 font-medium text-white">
+          // Đặt ở góc ngoài nút để không che chuông; viền màu nền tách badge khỏi icon.
+          // Số đã có trong aria-label của nút nên ẩn khỏi trình đọc màn hình.
+          <span
+            aria-hidden
+            className="absolute -top-1 -right-1 flex min-w-4 items-center justify-center rounded-full bg-coral px-1 text-[10px] leading-4 font-semibold text-coral-ink ring-2 ring-background"
+          >
             {unreadCount}
           </span>
         ) : null}

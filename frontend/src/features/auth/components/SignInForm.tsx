@@ -1,72 +1,112 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { Mail } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { getSupabaseBrowserClient } from "@/lib/supabase/browser";
+import { useRef, useState, type FormEvent } from "react";
+import { signIn } from "../api/authApi";
+import type { AuthMessageCode } from "../authMessages";
+import { focusFirstInvalidField } from "../focusFirstInvalidField";
+import { validateEmail } from "../schema/authFieldRules";
+import { toAuthMessageCode } from "../types/auth";
+import { AuthAlert } from "./AuthAlert";
+import { authLinkClass } from "./AuthCard";
+import { AuthSubmitButton } from "./AuthSubmitButton";
+import { AuthTextField } from "./AuthTextField";
+import { PasswordField } from "./PasswordField";
 
-export function SignInForm() {
+// UC01 Đăng nhập. Mọi trường hợp bị từ chối (thiếu thông tin, sai mật khẩu, tài
+// khoản không đủ điều kiện) đều hiện cùng MSG-01 để không lộ tài khoản nào tồn
+// tại; lỗi dịch vụ hiện MSG-04. `defaultEmail` dùng khi vừa đăng ký xong (UC06).
+export function SignInForm({ defaultEmail = "" }: { defaultEmail?: string }) {
   const router = useRouter();
-  const [email, setEmail] = useState("");
+  const formRef = useRef<HTMLFormElement>(null);
+  const [email, setEmail] = useState(defaultEmail);
   const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<{
+    email?: string;
+    password?: string;
+  }>({});
+  const [message, setMessage] = useState<AuthMessageCode | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setError(null);
-    setSubmitting(true);
+    const errors = {
+      email: validateEmail(email),
+      password: password ? undefined : "Nhập mật khẩu.",
+    };
+    setFieldErrors(errors);
+    if (errors.email || errors.password) {
+      setMessage("MSG-01");
+      focusFirstInvalidField(formRef.current);
+      return;
+    }
 
+    setMessage(null);
+    setSubmitting(true);
     try {
-      const { error: authError } =
-        await getSupabaseBrowserClient().auth.signInWithPassword({
-          email,
-          password,
-        });
-      if (authError) throw authError;
+      await signIn(email, password);
       router.replace("/workspace");
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Không thể đăng nhập.");
-    } finally {
+      setMessage(toAuthMessageCode(cause));
       setSubmitting(false);
     }
   }
 
   return (
-    <form className="mt-8 space-y-5" onSubmit={handleSubmit}>
-      <label className="block text-sm font-medium text-slate-700">
-        Email
-        <input
-          className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 outline-teal-700"
-          autoComplete="email"
-          type="email"
-          value={email}
-          onChange={(event) => setEmail(event.target.value)}
-          required
-        />
-      </label>
-      <label className="block text-sm font-medium text-slate-700">
-        Mật khẩu
-        <input
-          className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 outline-teal-700"
+    <form
+      className="mt-8 space-y-5"
+      noValidate
+      onSubmit={handleSubmit}
+      ref={formRef}
+    >
+      {message && <AuthAlert code={message} tone="error" />}
+
+      <AuthTextField
+        autoComplete="email"
+        error={fieldErrors.email}
+        icon={Mail}
+        inputMode="email"
+        label="Email"
+        onChange={(event) => {
+          setEmail(event.target.value);
+          setFieldErrors((current) => ({ ...current, email: undefined }));
+        }}
+        placeholder="ten@email.com"
+        required
+        type="email"
+        value={email}
+      />
+
+      <div>
+        <PasswordField
           autoComplete="current-password"
-          type="password"
-          value={password}
-          onChange={(event) => setPassword(event.target.value)}
+          error={fieldErrors.password}
+          label="Mật khẩu"
+          onChange={(event) => {
+            setPassword(event.target.value);
+            setFieldErrors((current) => ({ ...current, password: undefined }));
+          }}
           required
+          value={password}
         />
-      </label>
-      {error && (
-        <p role="alert" className="text-sm text-red-700">
-          {error}
-        </p>
-      )}
-      <button
-        className="w-full rounded-lg bg-teal-700 px-4 py-2 font-semibold text-white hover:bg-teal-800 disabled:opacity-60"
-        disabled={submitting}
-        type="submit"
+        <div className="mt-2 flex justify-end">
+          <Link
+            className={`text-base ${authLinkClass}`}
+            href="/forgot-password"
+          >
+            Quên mật khẩu?
+          </Link>
+        </div>
+      </div>
+
+      <AuthSubmitButton
+        submitting={submitting}
+        submittingLabel="Đang đăng nhập..."
       >
-        {submitting ? "Đang đăng nhập..." : "Đăng nhập"}
-      </button>
+        Đăng nhập
+      </AuthSubmitButton>
     </form>
   );
 }

@@ -1,5 +1,6 @@
 "use client";
 
+import { Bone } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
@@ -20,11 +21,10 @@ import { AdminNavGroup } from "./AdminNavGroup";
 export function AdminSidebar() {
   const pathname = usePathname();
   const activeHref = findActiveNavItem(pathname)?.href;
-  // Trạng thái do người dùng tự bấm; chưa bấm thì nhóm chứa trang hiện tại tự mở.
+  // Trạng thái do người dùng tự bấm; chưa bấm thì mọi nhóm mặc định mở.
   const [userOpen, setUserOpen] = useState<Record<string, boolean>>({});
 
-  const isGroupOpen = (label: string, hasActive: boolean) =>
-    userOpen[label] ?? hasActive;
+  const isGroupOpen = (label: string) => userOpen[label] ?? true;
 
   const handleOpenChange = (label: string, open: boolean) =>
     setUserOpen((current) => ({ ...current, [label]: open }));
@@ -39,8 +39,8 @@ export function AdminSidebar() {
               render={<Link href="/admin" />}
               tooltip="OTCMS Quản trị"
             >
-              <span className="flex size-8 items-center justify-center rounded-lg bg-primary text-sm font-bold text-primary-foreground">
-                OT
+              <span className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+                <Bone aria-hidden className="size-4" />
               </span>
               <span className="grid flex-1 text-left leading-tight">
                 <span className="truncate font-semibold">OTCMS</span>
@@ -59,10 +59,7 @@ export function AdminSidebar() {
             key={group.label}
             group={group}
             activeHref={activeHref}
-            open={isGroupOpen(
-              group.label,
-              group.items.some((item) => item.href === activeHref),
-            )}
+            open={isGroupOpen(group.label)}
             onOpenChange={(open) => handleOpenChange(group.label, open)}
           />
         ))}

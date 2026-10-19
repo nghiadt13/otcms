@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
-import "./public.css";
+import "@/styles/app-theme.css";
+import { appFont } from "@/lib/fonts";
 
-// Root layout của khu công khai (trang chủ, đăng nhập, workspace). Chỉ nạp
-// Tailwind thuần; theme shadcn nằm ở `styles/app-theme.css` và chỉ khu `(admin)`
-// nạp, nên đổi theme admin không làm đổi giao diện các trang này.
-// Chuyển giữa hai root layout `(public)` và `(admin)` là tải lại cả trang.
+// Root layout của khu công khai (trang chủ, đăng nhập, đăng ký, workspace). Nạp
+// cùng theme shadcn với khu admin (`styles/app-theme.css`) để mọi khu dùng chung
+// component `components/ui` và token màu. Chuyển giữa hai root layout `(public)`
+// và `(admin)` vẫn là tải lại cả trang.
 export const metadata: Metadata = {
   title: "OTCMS | Quản lý phòng khám chỉnh hình",
   description: "Orthopedic Clinic Management System",
@@ -16,7 +17,7 @@ export default function PublicRootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="vi">
+    <html lang="vi" className={appFont.variable}>
       <body>{children}</body>
     </html>
   );

@@ -19,14 +19,14 @@ import type {
   AdminNavItem,
 } from "../adminNavigation";
 
-// Mục đang mở: nền màu nhấn + chữ đậm + icon đổi màu + thanh dọc ở mép trái.
+// Mục đang mở: nền màu nhấn + chữ đậm + icon đổi màu + thanh dọc teal ở mép trái.
 const activeItemClass = cn(
-  "relative data-active:bg-teal-50 data-active:font-semibold data-active:text-teal-800",
-  "data-active:hover:bg-teal-100 data-active:[&_svg]:text-teal-700",
-  "dark:data-active:bg-teal-950 dark:data-active:text-teal-200 dark:data-active:hover:bg-teal-900",
-  "dark:data-active:[&_svg]:text-teal-300",
+  "relative data-active:bg-sidebar-accent data-active:font-semibold data-active:text-sidebar-accent-foreground",
+  "data-active:hover:bg-brand-muted data-active:[&_svg]:text-brand",
+  "dark:data-active:hover:bg-brand-hover/40",
+  "dark:data-active:[&_svg]:text-brand-bright",
   "data-active:before:absolute data-active:before:inset-y-1.5 data-active:before:left-0",
-  "data-active:before:w-[3px] data-active:before:rounded-full data-active:before:bg-teal-600",
+  "data-active:before:w-[3px] data-active:before:rounded-full data-active:before:bg-brand dark:data-active:before:bg-brand-bright",
 );
 
 type AdminNavGroupProps = {
@@ -84,16 +84,25 @@ export function AdminNavGroup({
           <span>{group.label}</span>
           <ChevronRight
             className={cn(
-              "size-3.5 transition-transform duration-200",
+              "size-3.5 transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none",
               open && "rotate-90",
             )}
           />
         </CollapsibleTrigger>
+        {/* Mở/đóng mượt: Base UI đo chiều cao thật vào --collapsible-panel-height,
+            chiều cao chạy từ 0 khi mở (starting-style) và về 0 khi đóng (data-closed),
+            kèm mờ dần; ẩn hẳn (invisible) để không tab vào link bị thu. Khi sidebar thu thành icon thì bỏ giới hạn. */}
         <CollapsibleContent
           keepMounted
-          className="group-data-[collapsible=icon]:block!"
+          className={cn(
+            "h-(--collapsible-panel-height) overflow-hidden opacity-100",
+            "transition-[height,opacity,visibility] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]",
+            "data-closed:invisible data-closed:h-0 data-closed:opacity-0 data-starting-style:h-0 data-starting-style:opacity-0",
+            "motion-reduce:transition-none",
+            "group-data-[collapsible=icon]:block! group-data-[collapsible=icon]:h-auto! group-data-[collapsible=icon]:opacity-100! group-data-[collapsible=icon]:visible!",
+          )}
         >
-          <SidebarMenu className="mx-3.5 mt-0.5 border-l border-sidebar-border pl-2.5 group-data-[collapsible=icon]:mx-0 group-data-[collapsible=icon]:mt-0 group-data-[collapsible=icon]:border-0 group-data-[collapsible=icon]:pl-0">
+          <SidebarMenu className="mx-3.5 mt-0.5 w-auto gap-1 border-l border-sidebar-border pl-2.5 group-data-[collapsible=icon]:mx-0 group-data-[collapsible=icon]:mt-0 group-data-[collapsible=icon]:border-0 group-data-[collapsible=icon]:pl-0">
             {group.items.map((item) => (
               <NavLink
                 key={item.href}

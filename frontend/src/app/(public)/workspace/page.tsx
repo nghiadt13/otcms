@@ -30,10 +30,10 @@ export default function WorkspacePage() {
   }
 
   return (
-    <main className="min-h-screen bg-slate-50 px-6 py-12 text-slate-900">
+    <main className="min-h-screen bg-canvas px-6 py-12 text-slate-900">
       <div className="mx-auto max-w-3xl">
         <div className="flex items-center justify-between gap-4">
-          <Link className="font-semibold text-teal-700" href="/">
+          <Link className="font-semibold text-brand" href="/">
             OTCMS
           </Link>
           <button
@@ -51,7 +51,7 @@ export default function WorkspacePage() {
             : "Đang kiểm tra phiên đăng nhập..."}
         </p>
         <Link
-          className="mt-6 inline-block rounded-lg bg-teal-700 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-800"
+          className="mt-6 inline-block rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white hover:bg-brand-hover"
           href="/admin"
         >
           Vào khu vực quản trị
