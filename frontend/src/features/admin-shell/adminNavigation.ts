@@ -175,3 +175,37 @@ export function findActiveNavItem(pathname: string): AdminNavItem | undefined {
     )
     .sort((a, b) => b.href.length - a.href.length)[0];
 }
+
+export type AdminBreadcrumb = {
+  groupLabel: string;
+  itemTitle: string;
+};
+
+/** Tìm thông tin breadcrumb gồm nhóm cha và tên trang từ cấu hình menu admin. */
+export function findActiveBreadcrumb(
+  pathname: string,
+): AdminBreadcrumb | undefined {
+  const matches: { groupLabel: string; item: AdminNavItem }[] = [];
+
+  for (const group of adminNavGroups) {
+    for (const item of group.items) {
+      const isMatch =
+        item.href === "/admin"
+          ? pathname === "/admin"
+          : pathname === item.href || pathname.startsWith(`${item.href}/`);
+      if (isMatch) {
+        matches.push({ groupLabel: group.label, item });
+      }
+    }
+  }
+
+  if (matches.length === 0) return undefined;
+
+  matches.sort((a, b) => b.item.href.length - a.item.href.length);
+  const best = matches[0];
+
+  return {
+    groupLabel: best.groupLabel,
+    itemTitle: best.item.title,
+  };
+}

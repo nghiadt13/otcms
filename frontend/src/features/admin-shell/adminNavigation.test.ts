@@ -1,7 +1,11 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { adminNavItems, findActiveNavItem } from "./adminNavigation";
+import {
+  adminNavItems,
+  findActiveBreadcrumb,
+  findActiveNavItem,
+} from "./adminNavigation";
 
 describe("findActiveNavItem", () => {
   it("chỉ khớp /admin với đúng đường dẫn /admin", () => {
@@ -18,6 +22,34 @@ describe("findActiveNavItem", () => {
 
   it("không khớp nhầm mục có tiền tố giống nhau", () => {
     expect(findActiveNavItem("/admin/roomsX")).toBeUndefined();
+  });
+});
+
+describe("findActiveBreadcrumb", () => {
+  it("trả về đúng nhóm cha và tên trang cho /admin/accounts", () => {
+    const breadcrumb = findActiveBreadcrumb("/admin/accounts");
+    expect(breadcrumb?.groupLabel).toBe("Tài khoản và nhân sự");
+    expect(breadcrumb?.itemTitle).toBe("Tài khoản người dùng");
+  });
+
+  it("trả về đúng nhóm cha cho /admin (Tổng quan > Bảng điều khiển)", () => {
+    const breadcrumb = findActiveBreadcrumb("/admin");
+    expect(breadcrumb?.groupLabel).toBe("Tổng quan");
+    expect(breadcrumb?.itemTitle).toBe("Bảng điều khiển");
+  });
+
+  it("trả về đúng nhóm cha cho các trang khác", () => {
+    const rooms = findActiveBreadcrumb("/admin/rooms");
+    expect(rooms?.groupLabel).toBe("Vận hành phòng khám");
+    expect(rooms?.itemTitle).toBe("Phòng khám");
+
+    const audit = findActiveBreadcrumb("/admin/audit-logs");
+    expect(audit?.groupLabel).toBe("Hệ thống");
+    expect(audit?.itemTitle).toBe("Nhật ký hoạt động");
+  });
+
+  it("trả về undefined cho đường dẫn không tồn tại", () => {
+    expect(findActiveBreadcrumb("/admin/khong-ton-tai")).toBeUndefined();
   });
 });
 
