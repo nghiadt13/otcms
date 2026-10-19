@@ -11,7 +11,7 @@ Orthopedic Clinic Management System — nền tảng quản lý phòng khám ch�
 | Dữ liệu và đăng nhập | Supabase PostgreSQL, Supabase Auth; Spring xác thực access token bằng JWKS |
 | Ảnh y khoa | Orthanc 26.7.0, OHIF 3.12.18, DICOMweb; Docker Compose cho local |
 
-Backend là một ứng dụng Spring Boot chia package theo feature và theo chiều phụ thuộc Clean Architecture. Frontend dùng App Router; route chỉ ghép giao diện, nghiệp vụ nằm trong `src/features`. Xem [kiến trúc chi tiết](docs/architecture.md), [quyết định dependency](docs/dependencies.md) và [quy ước làm việc](AGENTS.md).
+Backend là một ứng dụng Spring Boot chia package theo feature và theo chiều phụ thuộc Clean Architecture. Frontend dùng App Router; route chỉ ghép giao diện, nghiệp vụ nằm trong `src/features`. Xem [kiến trúc chi tiết](docs/architecture.md), [quyết định dependency](docs/dependencies.md), [quy tắc giao diện](docs/ui-guidelines.md) và [quy ước làm việc](AGENTS.md).
 
 ## Cấu trúc
 
@@ -37,6 +37,7 @@ Chưa có migration nghiệp vụ vì thiết kế bảng bệnh nhân, lượt 
 
 ## Chạy local
 
+- Cả hai cùng lúc: tại gốc repository, chạy `./scripts/start-dev.ps1` (mở backend và frontend trong hai cửa sổ PowerShell riêng; cần `backend/.env` và đã `npm ci` ở `frontend`; không bật Docker).
 - Frontend: trong `frontend`, chạy `npm ci` rồi `npm run dev`; mở `http://localhost:3000`.
 - Backend: tại gốc repository, chạy `./scripts/start-backend.ps1` trong PowerShell. Script nạp `backend/.env` cho tiến trình rồi gọi Maven Wrapper. API chạy ở `http://localhost:8080`, trạng thái ở `/api/v1/system/status`, OpenAPI ở `/swagger-ui/index.html`.
 - DICOM local: bật Docker Desktop rồi chạy `docker compose up -d`; mở OHIF tại `http://localhost:3001` và Orthanc Explorer tại `http://localhost:8042`.

@@ -4,9 +4,30 @@
 
 ## Nguồn yêu cầu
 
-- Căn cứ cho phạm vi hiện tại là bản UC01–UC79, sẽ đặt tại `docs/requirements/UC_description.html`. **Hiện chưa có trong repository** vì nghiệp vụ đang được chỉnh sửa; sẽ bổ sung sau khi nhóm chốt. Trong lúc chờ, số UC ghi trong code (ví dụ `ucs` ở `adminNavigation.ts`) chỉ là tạm theo bản UC đang soạn: không triển khai luật nghiệp vụ dựa vào chúng khi chưa xác nhận với nhóm, và cập nhật lại số UC khi tài liệu được thêm. Khi tài liệu khác mâu thuẫn, xác nhận lại với nhóm trước khi triển khai.
+- Căn cứ cho phạm vi hiện tại là bản UC01–UC79: mỗi UC là một file `docs/requirements/UC<số>-<tên>.md`, còn nội dung Business Rule (BR) và Application Message (MSG) mà UC tham chiếu nằm duy nhất trong `docs/appendix-rules.md`. Các UC đang được bổ sung dần; với UC chưa có file trong `docs/requirements/`, số UC ghi trong code (ví dụ `ucs` ở `adminNavigation.ts`) chỉ là tạm: không triển khai luật nghiệp vụ dựa vào chúng khi chưa xác nhận với nhóm, và cập nhật lại số UC khi file được thêm. Khi tài liệu khác mâu thuẫn, xác nhận lại với nhóm trước khi triển khai.
 - Phạm vi UC01–UC79 bao gồm quản lý hồ sơ giới thiệu bác sĩ, ca làm việc của bác sĩ/lễ tân/kỹ thuật viên và giờ nhận lịch khám của bác sĩ; loại quản lý kho/vật tư, hồ sơ nhân sự, nghỉ phép, lương và màn hình tự gán quyền. Không khôi phục các tính năng bị loại chỉ vì chúng xuất hiện trong tài liệu cũ.
 - Vai trò phòng khám là cố định theo SRS. Quyền phải được kiểm tra tại backend cho từng thao tác và bản ghi; việc ẩn nút hoặc trang ở frontend chỉ hỗ trợ giao diện.
+
+### Tra cứu UC, BR, MSG nhanh
+
+UC spec nằm ở `docs/requirements/UC<số>-<tên>.md`, mỗi file có frontmatter `id`, `name`, `br: [...]`, `msg: [...]`; trong thân chỉ ghi mã `[BR-xx]`/`[MSG-xx]`. Nội dung BR/MSG chỉ có trong `docs/appendix-rules.md`, mỗi mã là một dòng bảng bắt đầu bằng `| BR-xx |` hoặc `| MSG-xx |`. **Không đọc cả `appendix-rules.md`**; grep đúng mã cần dùng (chạy từ thư mục `otcms`, dùng Bash/Git Bash):
+
+```bash
+# Danh mục UC kèm mã BR/MSG (không mở từng file)
+grep -H -E '^(id|name|br|msg):' docs/requirements/*.md
+
+# Nội dung BR/MSG cụ thể (escape dấu | cho đúng dòng bảng)
+grep -E '^\| (BR-02|MSG-01) \|' docs/appendix-rules.md
+
+# Toàn bộ BR/MSG của một UC, một lệnh
+codes=$(grep -hE '^(br|msg):' docs/requirements/UC01-*.md | grep -oE '(BR|MSG)-[0-9]+' | paste -sd'|')
+grep -E "^\| ($codes) \|" docs/appendix-rules.md
+
+# Ngược lại: UC nào dùng một BR/MSG (-w để BR-2 không khớp BR-25)
+grep -lw 'BR-25' docs/requirements/*.md
+```
+
+File UC ngắn (~50 dòng) nên đọc trọn khi cần luồng; chỉ grep appendix. Mã luôn có 2 chữ số (`BR-02`, không phải `BR-2`).
 
 ## Kiến trúc backend
 
@@ -25,6 +46,7 @@
 - **Rào chắn phụ thuộc frontend** (ESLint `no-restricted-imports` trong `eslint.config.mjs`, `npm run lint` sẽ báo lỗi): một feature chỉ import chính nó và mã dùng chung (`src/components`, `src/lib`, `src/hooks`); không import feature khác hay `src/app`. Muốn kết hợp nhiều feature thì ghép ở `app/` hoặc ở `admin-shell` (lớp ghép khung admin, được import mọi feature). Mã dùng chung không import feature hay `app/`. Import ngoài feature dùng alias `@/`. Feature mới tự được bảo vệ vì danh sách lấy từ thư mục `src/features`; khi thêm một lớp ghép khác ngoài `admin-shell`, thêm tên vào `COMPOSITION_FEATURES` trong file cấu hình.
 - **Trang đặc biệt của Next**: mỗi khu có `error.tsx` (Client Component; prop là `error` và `retry`, **không** phải `reset` như Next cũ) và, khi màn dùng dữ liệu bất đồng bộ phía server, `loading.tsx` cùng `not-found.tsx` đặt trong thư mục khu. Vì có nhiều root layout nên 404 cho URL không khớp route nào do `src/app/global-not-found.tsx` xử lý (bật bằng `experimental.globalNotFound` trong `next.config.ts`); lỗi ở chính root layout do `src/app/global-error.tsx`. Hai file `global-*` tự dựng `<html>` và tự nạp CSS.
 - **Test frontend**: Vitest + Testing Library, môi trường `happy-dom`, file `*.test.ts(x)` đặt cạnh mã nguồn, thiết lập chung ở `src/test/setup.ts`. Test hook/component đi qua lớp API giả như màn hình thật; khi nối backend thì mock ở ranh giới `apiRequest`, không mock hook. Async Server Component không test được bằng Vitest, dùng E2E (chưa thiết lập).
+- **Giao diện**: mọi màn hình mới theo [`docs/ui-guidelines.md`](docs/ui-guidelines.md) (bảng màu Teal + Coral, font Be Vietnam Pro, thang chữ và khoảng cách, bố cục `PageHeader` → lọc → nội dung, đủ trạng thái tải/trống/lỗi). Khu admin chỉ dùng token màu ngữ nghĩa, không viết màu Tailwind thô hay mã hex trong component. Đổi màu/font thì sửa `src/styles/brand-palette.css` và cập nhật tài liệu đó trong cùng thay đổi.
 - **Form và validation**: chưa chọn thư viện vì chưa có màn nào cần. Khi màn đầu tiên cần form nhiều trường hoặc validation dùng chung với backend, chọn **một** giải pháp cho cả dự án, đặt schema ở `src/features/<feature>/schema/`, rồi cập nhật mục này và `docs/dependencies.md` trong cùng thay đổi. Cho đến lúc đó giữ state cục bộ như `RoomFormDialog`.
 - Gọi Spring Boot qua một API client chung. Không nhân đôi workflow nghiệp vụ trong Next Route Handlers hoặc truy cập trực tiếp bảng hồ sơ bệnh nhân, hóa đơn, study từ trình duyệt.
 - Khi tích hợp viewer, chạy OHIF độc lập với dependency của NextJS. Mọi đường truy cập DICOMweb có dữ liệu người dùng phải đi qua cơ chế xác thực và kiểm tra quyền theo study. Compose local hiện chỉ dùng ảnh giả trên `127.0.0.1`, chưa có phân quyền.
