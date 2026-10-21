@@ -1,5 +1,8 @@
-import { AdminPlaceholderPage } from "@/features/admin-shell/components/AdminPlaceholderPage";
+import type { Metadata } from "next";
+import { AnnouncementManagement } from "@/features/announcements/components/AnnouncementManagement";
+
+export const metadata: Metadata = { title: "Thông báo phòng khám" };
 
 export default function AdminAnnouncementsPage() {
-  return <AdminPlaceholderPage href="/admin/announcements" />;
+  return <AnnouncementManagement />;
 }

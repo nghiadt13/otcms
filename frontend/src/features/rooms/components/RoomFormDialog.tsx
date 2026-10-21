@@ -1,6 +1,7 @@
 "use client";
 
 import { type FormEvent, useState } from "react";
+import { FieldError } from "@/components/admin/FieldError";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -12,51 +13,56 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { Textarea } from "@/components/ui/textarea";
-import { cn } from "@/lib/utils";
+import { isApiError, toFieldErrorMap } from "@/lib/api/apiError";
 import {
-  ROOM_SERVICE_OPTIONS,
-  ROOM_TYPE_OPTIONS,
-  type Room,
-  type RoomInput,
-  type RoomType,
-} from "../types/room";
+  ROOM_CATEGORY_LABELS,
+  SERVICE_CATEGORIES,
+  type ServiceCategory,
+} from "@/lib/domain/clinicCategories";
+import { formatAppMessage } from "@/lib/messages/appMessages";
+import { notifySuccess } from "@/lib/messages/notify";
+import { createRoom, updateRoom } from "../api/roomApi";
+import { useRoomServiceOptions } from "../hooks/useRoomServiceOptions";
+import { ROOM_SAVED_TEXT, notifyRoomError } from "../roomMessages";
+import {
+  type RoomFormErrors,
+  keepServiceIdsOfCategory,
+  validateRoomForm,
+} from "../schema/roomFieldRules";
+import type { Room } from "../types/room";
+import { RoomServicePicker } from "./RoomServicePicker";
 
 type RoomFormDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** null = thêm phòng mới. */
+  /** null = thêm phòng mới; có giá trị = sửa (tên và loại chỉ đọc). */
   room: Room | null;
-  onSubmit: (input: RoomInput) => Promise<void>;
+  /** Lưu thành công; cha cập nhật danh sách. */
+  onSaved: (room: Room, mode: "create" | "edit") => void;
+  /** Phòng không còn (404) khi sửa; cha tải lại danh sách. */
+  onGone: () => void;
 };
 
-export function RoomFormDialog({
-  open,
-  onOpenChange,
-  room,
-  onSubmit,
-}: RoomFormDialogProps) {
+export function RoomFormDialog({ open, onOpenChange, room, onSaved, onGone }: RoomFormDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>{room ? "Sửa phòng" : "Thêm phòng"}</DialogTitle>
+          <DialogTitle>{room ? `Sửa phòng ${room.name}` : "Thêm phòng"}</DialogTitle>
           <DialogDescription>
-            Loại phòng và dịch vụ hỗ trợ dùng khi xếp bệnh nhân vào phòng.
+            {room
+              ? "Chỉ đổi được mô tả và dịch vụ hỗ trợ."
+              : "Dịch vụ hỗ trợ phải cùng loại với phòng."}
           </DialogDescription>
         </DialogHeader>
-        {/* Nội dung form gắn/gỡ cùng dialog nên state tự đặt lại mỗi lần mở. */}
+        {/* Form gắn/gỡ cùng dialog nên state tự đặt lại mỗi lần mở. */}
         <RoomForm
           room={room}
           onCancel={() => onOpenChange(false)}
-          onSubmit={onSubmit}
+          onSaved={onSaved}
+          onGone={onGone}
         />
       </DialogContent>
     </Dialog>
@@ -66,94 +72,108 @@ export function RoomFormDialog({
 function RoomForm({
   room,
   onCancel,
-  onSubmit,
+  onSaved,
+  onGone,
 }: {
   room: Room | null;
   onCancel: () => void;
-  onSubmit: (input: RoomInput) => Promise<void>;
+  onSaved: RoomFormDialogProps["onSaved"];
+  onGone: () => void;
 }) {
-  const [name, setName] = useState(room?.name ?? "");
-  const [type, setType] = useState<RoomType | null>(room?.type ?? null);
+  const mode = room ? "edit" : "create";
+  const [name, setName] = useState("");
+  const [type, setType] = useState<ServiceCategory | "">(room?.type ?? "");
   const [description, setDescription] = useState(room?.description ?? "");
-  const [services, setServices] = useState<string[]>(
-    room?.supportedServices ?? [],
+  const [serviceIds, setServiceIds] = useState<string[]>(
+    room?.supportedServices.map((s) => s.id) ?? [],
   );
-  const [errors, setErrors] = useState<{ name?: string; type?: string }>({});
-  const [formError, setFormError] = useState<string | null>(null);
+  const [errors, setErrors] = useState<RoomFormErrors>({});
   const [saving, setSaving] = useState(false);
 
-  const toggleService = (service: string) =>
-    setServices((current) =>
-      current.includes(service)
-        ? current.filter((item) => item !== service)
-        : [...current, service],
-    );
+  // Tải mọi dịch vụ đang cung cấp một lần, lọc theo loại phía client để đổi loại không nháy.
+  const all = useRoomServiceOptions();
+  const options = type ? all.options.filter((o) => o.category === type) : [];
+
+  function changeType(next: ServiceCategory | "") {
+    setType(next);
+    setErrors((e) => ({ ...e, type: undefined }));
+    // Đổi loại: bỏ mọi dịch vụ không còn khớp (spec 06).
+    if (next) setServiceIds((ids) => keepServiceIdsOfCategory(ids, all.options, next));
+    else setServiceIds([]);
+  }
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
-    const nextErrors: typeof errors = {};
-    if (!name.trim()) nextErrors.name = "Nhập tên phòng.";
-    else if (name.trim().length > 50)
-      nextErrors.name = "Tên phòng tối đa 50 ký tự.";
-    if (!type) nextErrors.type = "Chọn loại phòng.";
-    setErrors(nextErrors);
-    if (nextErrors.name || nextErrors.type || !type) return;
+    const found = validateRoomForm({ name, type, description, serviceIds }, mode);
+    setErrors(found);
+    if (Object.keys(found).length > 0 || saving) return;
 
     setSaving(true);
-    setFormError(null);
     try {
-      await onSubmit({
-        name,
-        type,
-        description: description.trim(),
-        supportedServices: services,
-      });
+      const saved = room
+        ? await updateRoom(room.id, { description: description.trim(), serviceIds })
+        : await createRoom({
+            name: name.trim(),
+            type: type as ServiceCategory,
+            description: description.trim(),
+            serviceIds,
+          });
+      notifySuccess(ROOM_SAVED_TEXT);
+      onSaved(saved, mode);
       onCancel();
-    } catch (cause) {
-      setFormError(
-        cause instanceof Error ? cause.message : "Không lưu được phòng.",
-      );
+    } catch (err) {
+      if (isApiError(err) && err.fieldErrors?.length) {
+        setErrors(toFieldErrorMap(err.fieldErrors) as RoomFormErrors);
+      } else {
+        notifyRoomError(err);
+        if (isApiError(err) && err.status === 404) {
+          onGone();
+          onCancel();
+        }
+      }
     } finally {
       setSaving(false);
     }
   }
 
+  const fieldMessage = (key: keyof RoomFormErrors) =>
+    errors[key] ? <FieldError message={formatAppMessage(errors[key])} /> : null;
+
   return (
-    <form className="space-y-4" onSubmit={handleSubmit} noValidate>
+    <form className="space-y-4" onSubmit={(e) => void handleSubmit(e)} noValidate>
       <div className="space-y-2">
-        <Label htmlFor="room-name">Tên phòng</Label>
+        <Label htmlFor="room-name">
+          {room ? "Tên hoặc mã phòng (chỉ đọc)" : "Tên hoặc mã phòng"}
+        </Label>
         <Input
           id="room-name"
-          value={name}
-          onChange={(event) => setName(event.target.value)}
+          value={room ? room.name : name}
+          onChange={(e) => setName(e.target.value)}
+          disabled={Boolean(room) || saving}
           aria-invalid={Boolean(errors.name)}
+          required={!room}
         />
-        {errors.name ? (
-          <p className="text-sm text-destructive">{errors.name}</p>
-        ) : null}
+        {fieldMessage("name")}
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="room-type">Loại phòng</Label>
-        <Select items={ROOM_TYPE_OPTIONS} value={type} onValueChange={setType}>
-          <SelectTrigger
-            id="room-type"
-            className="w-full"
-            aria-invalid={Boolean(errors.type)}
-          >
-            <SelectValue placeholder="Chọn loại phòng" />
-          </SelectTrigger>
-          <SelectContent>
-            {ROOM_TYPE_OPTIONS.map((option) => (
-              <SelectItem key={option.value} value={option.value}>
-                {option.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        {errors.type ? (
-          <p className="text-sm text-destructive">{errors.type}</p>
-        ) : null}
+        <Label htmlFor="room-type">{room ? "Loại phòng (chỉ đọc)" : "Loại phòng"}</Label>
+        <NativeSelect
+          id="room-type"
+          className="w-full"
+          value={type}
+          onChange={(e) => changeType(e.target.value as ServiceCategory | "")}
+          disabled={Boolean(room) || saving}
+          aria-invalid={Boolean(errors.type)}
+        >
+          <NativeSelectOption value="">Chọn loại phòng</NativeSelectOption>
+          {SERVICE_CATEGORIES.map((c) => (
+            <NativeSelectOption key={c} value={c}>
+              {ROOM_CATEGORY_LABELS[c]}
+            </NativeSelectOption>
+          ))}
+        </NativeSelect>
+        {fieldMessage("type")}
       </div>
 
       <div className="space-y-2">
@@ -162,50 +182,37 @@ function RoomForm({
           id="room-description"
           rows={3}
           value={description}
-          onChange={(event) => setDescription(event.target.value)}
+          disabled={saving}
+          onChange={(e) => setDescription(e.target.value)}
         />
       </div>
 
-      <div className="space-y-2">
-        <Label>Dịch vụ hỗ trợ</Label>
-        <div className="flex flex-wrap gap-2">
-          {ROOM_SERVICE_OPTIONS.map((service) => {
-            const selected = services.includes(service);
-            return (
-              <button
-                key={service}
-                type="button"
-                aria-pressed={selected}
-                onClick={() => toggleService(service)}
-                className={cn(
-                  "rounded-full border px-3 py-1 text-sm transition-colors",
-                  selected
-                    ? "border-primary bg-primary text-primary-foreground"
-                    : "hover:bg-muted",
-                )}
-              >
-                {service}
-              </button>
-            );
-          })}
-        </div>
+      <div className="space-y-2" role="group" aria-labelledby="room-services-label">
+        <Label id="room-services-label">Dịch vụ hỗ trợ</Label>
+        <RoomServicePicker
+          hasCategory={Boolean(type)}
+          options={options}
+          loading={all.loading}
+          error={all.error}
+          onRetry={all.reload}
+          selectedIds={serviceIds}
+          currentServices={room?.supportedServices}
+          onChange={(ids) => {
+            setServiceIds(ids);
+            setErrors((e) => ({ ...e, serviceIds: undefined }));
+          }}
+          disabled={saving}
+          invalid={Boolean(errors.serviceIds)}
+        />
+        {fieldMessage("serviceIds")}
       </div>
 
-      {formError ? (
-        <p className="text-sm text-destructive">{formError}</p>
-      ) : null}
-
       <DialogFooter>
-        <Button
-          type="button"
-          variant="outline"
-          onClick={onCancel}
-          disabled={saving}
-        >
+        <Button type="button" variant="outline" onClick={onCancel} disabled={saving}>
           Hủy
         </Button>
-        <Button type="submit" disabled={saving}>
-          {saving ? "Đang lưu..." : "Lưu"}
+        <Button type="submit" disabled={saving || all.loading || Boolean(all.error)}>
+          {saving ? "Đang lưu..." : room ? "Lưu thay đổi" : "Thêm phòng"}
         </Button>
       </DialogFooter>
     </form>

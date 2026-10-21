@@ -1,84 +1,123 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
-import type { RoomInput } from "../types/room";
+import { beforeEach, describe, expect, it } from "vitest";
+import { ApiError } from "@/lib/api/apiError";
+import {
+  changeRoomStatus,
+  createRoom,
+  getRoom,
+  listRoomServiceOptions,
+  listRooms,
+  resetRoomMockStore,
+  updateRoom,
+} from "./roomApi";
+import { MOCK_MISSING_ROOM_ID, MOCK_SERVICES } from "./roomMockData";
 
-const newRoom: RoomInput = {
-  name: "Phòng thủ thuật 1",
-  type: "procedure",
-  description: "Bó bột và tiêm khớp.",
-  supportedServices: ["Bó bột"],
-};
+const emptyFilters = { q: "", type: "", status: "", serviceId: "" } as const;
+const list = (over: Partial<Parameters<typeof listRooms>[0]> = {}) =>
+  listRooms({ ...emptyFilters, ...over });
 
-// roomApi giữ dữ liệu trong biến cấp module, nên nạp lại module cho mỗi test để
-// các test không ảnh hưởng nhau. Hàm giả có độ trễ (setTimeout) → dùng fake timer.
-async function loadApi() {
-  vi.resetModules();
-  vi.useFakeTimers();
-  return import("./roomApi");
+async function expectApiError(promise: Promise<unknown>, status: number, code: string) {
+  const err = await promise.then(
+    () => null,
+    (e: unknown) => e,
+  );
+  expect(err).toBeInstanceOf(ApiError);
+  expect((err as ApiError).status).toBe(status);
+  expect((err as ApiError).code).toBe(code);
+  return err as ApiError;
 }
 
-// Chờ một lời gọi API giả: tua hết độ trễ rồi trả kết quả (hoặc ném lỗi).
-// Dùng allSettled để lỗi bị bắt ngay, không thành "unhandled rejection".
-async function settled<T>(promise: Promise<T>): Promise<T> {
-  const outcome = Promise.allSettled([promise]);
-  await vi.runAllTimersAsync();
-  const [result] = await outcome;
-  if (result.status === "rejected") throw result.reason;
-  return result.value;
-}
+const xray = MOCK_SERVICES.find((s) => s.name === "X-quang")!;
+const exam = MOCK_SERVICES.find((s) => s.name === "Khám chỉnh hình")!;
 
-describe("roomApi (API giả)", () => {
-  afterEach(() => {
-    vi.useRealTimers();
+describe("roomApi", () => {
+  beforeEach(() => resetRoomMockStore());
+
+  it("23 phòng, 2 trang, sắp theo tên", async () => {
+    const page0 = await list();
+    expect(page0.totalItems).toBe(23);
+    expect(page0.totalPages).toBe(2);
+    expect(page0.items).toHaveLength(20);
+    expect((await list({ page: 1 })).items).toHaveLength(3);
   });
 
-  it("liệt kê dữ liệu mẫu và trả bản sao, không lộ state nội bộ", async () => {
-    const api = await loadApi();
-
-    const first = await settled(api.listRooms());
-    expect(first.length).toBeGreaterThan(0);
-
-    first[0].name = "Bị sửa ở ngoài";
-    const second = await settled(api.listRooms());
-    expect(second[0].name).not.toBe("Bị sửa ở ngoài");
+  it("lọc theo q, type, status, serviceId", async () => {
+    expect((await list({ q: "p10" })).items.every((r) => r.name.includes("P10"))).toBe(true);
+    expect((await list({ type: "IMAGING" })).totalItems).toBe(8);
+    expect((await list({ status: "UNAVAILABLE" })).totalItems).toBe(3);
+    const byService = await list({ serviceId: xray.id });
+    expect(byService.items.every((r) => r.type === "IMAGING")).toBe(true);
+    expect((await list({ q: "khongco" })).items).toEqual([]);
   });
 
-  it("tạo phòng mới ở trạng thái sẵn sàng và cắt khoảng trắng tên", async () => {
-    const api = await loadApi();
+  it("lọc sai enum → 400 MSG-54; q đặc biệt → 403 / 500", async () => {
+    await expectApiError(list({ type: "PROCEDURE" as never }), 400, "MSG-54");
+    await expectApiError(list({ q: "khong-quyen" }), 403, "MSG-50");
+    await expectApiError(list({ q: "loi-may-chu" }), 500, "MSG-04");
+  });
 
-    const room = await settled(
-      api.createRoom({ ...newRoom, name: "  Phòng thủ thuật 1  " }),
+  it("service-options đúng loại; loại sai → 400", async () => {
+    const imaging = await listRoomServiceOptions("IMAGING");
+    expect(imaging).toHaveLength(3);
+    expect(imaging.every((o) => o.category === "IMAGING")).toBe(true);
+    expect(await listRoomServiceOptions()).toHaveLength(9);
+    await expectApiError(listRoomServiceOptions("PROCEDURE"), 400, "MSG-54");
+  });
+
+  it("tạo phòng 201: AVAILABLE, đủ allowedActions", async () => {
+    const room = await createRoom({
+      name: "P201",
+      type: "EXAMINATION",
+      description: "Mới",
+      serviceIds: [exam.id],
+    });
+    expect(room.status).toBe("AVAILABLE");
+    expect(room.allowedActions).toEqual(["edit", "changeStatus"]);
+    expect((await getRoom(room.id)).name).toBe("P201");
+  });
+
+  it("tên trùng (không phân biệt hoa thường) → 409 MSG-98 trên name", async () => {
+    const err = await expectApiError(
+      createRoom({ name: "p101", type: "EXAMINATION", description: "", serviceIds: [exam.id] }),
+      409,
+      "MSG-98",
     );
-
-    expect(room.name).toBe("Phòng thủ thuật 1");
-    expect(room.status).toBe("available");
+    expect(err.fieldErrors).toEqual([{ field: "name", code: "MSG-98" }]);
   });
 
-  it("từ chối tên phòng trùng, không phân biệt hoa thường", async () => {
-    const api = await loadApi();
-
-    await expect(
-      settled(api.createRoom({ ...newRoom, name: "PHÒNG X-QUANG" })),
-    ).rejects.toThrow("Tên phòng đã tồn tại.");
-  });
-
-  it("cho phép sửa phòng giữ nguyên tên của chính nó", async () => {
-    const api = await loadApi();
-
-    const room = await settled(
-      api.updateRoom("room-003", { ...newRoom, name: "Phòng X-quang" }),
+  it("dịch vụ sai loại → 400 MSG-62 trên serviceIds", async () => {
+    const err = await expectApiError(
+      createRoom({ name: "P202", type: "EXAMINATION", description: "", serviceIds: [xray.id] }),
+      400,
+      "MSG-62",
     );
-
-    expect(room.id).toBe("room-003");
+    expect(err.fieldErrors?.[0].field).toBe("serviceIds");
   });
 
-  it("đổi trạng thái phòng và báo lỗi khi không có phòng", async () => {
-    const api = await loadApi();
+  it("PUT chỉ đổi mô tả và dịch vụ, giữ tên và loại", async () => {
+    const before = (await list({ q: "P101" })).items[0];
+    const after = await updateRoom(before.id, { description: "Mô tả mới", serviceIds: [exam.id] });
+    expect(after.description).toBe("Mô tả mới");
+    expect(after.supportedServices.map((s) => s.id)).toEqual([exam.id]);
+    expect(after.name).toBe(before.name);
+    expect(after.type).toBe(before.type);
+  });
 
-    const room = await settled(api.setRoomStatus("room-001", "unavailable"));
-    expect(room.status).toBe("unavailable");
+  it("đổi trạng thái; phòng đang dùng → 409 MSG-64 và giữ status cũ", async () => {
+    const p101 = (await list({ q: "P101" })).items[0];
+    expect((await changeRoomStatus(p101.id, "UNAVAILABLE")).status).toBe("UNAVAILABLE");
 
-    await expect(
-      settled(api.setRoomStatus("khong-co", "available")),
-    ).rejects.toThrow("Không tìm thấy phòng.");
+    const busy = (await list({ q: "CĐHA-02" })).items[0];
+    await expectApiError(changeRoomStatus(busy.id, "UNAVAILABLE"), 409, "MSG-64");
+    expect((await getRoom(busy.id)).status).toBe("AVAILABLE");
+  });
+
+  it("id không tồn tại → 404 MSG-50", async () => {
+    await expectApiError(getRoom(MOCK_MISSING_ROOM_ID), 404, "MSG-50");
+    await expectApiError(
+      updateRoom(MOCK_MISSING_ROOM_ID, { description: "", serviceIds: [exam.id] }),
+      404,
+      "MSG-50",
+    );
+    await expectApiError(changeRoomStatus(MOCK_MISSING_ROOM_ID, "AVAILABLE"), 404, "MSG-50");
   });
 });

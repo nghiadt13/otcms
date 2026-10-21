@@ -1,136 +1,134 @@
 "use client";
 
 import { Plus } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useCallback, useState } from "react";
+import { ConfirmActionDialog } from "@/components/admin/ConfirmActionDialog";
+import { TablePagination } from "@/components/admin/TablePagination";
 import { PageHeader } from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { useRooms } from "../hooks/useRooms";
-import {
-  ROOM_STATUS_LABELS,
-  type Room,
-  type RoomInput,
-  type RoomStatus,
-} from "../types/room";
+import { useRoomList } from "../hooks/useRoomList";
+import { useRoomStatusChange } from "../hooks/useRoomStatusChange";
+import type { Room } from "../types/room";
+import { RoomDetailSheet } from "./RoomDetailSheet";
+import { RoomFilters } from "./RoomFilters";
 import { RoomFormDialog } from "./RoomFormDialog";
 import { RoomsTable } from "./RoomsTable";
 
-type StatusFilter = RoomStatus | "all";
-
-const statusFilterOptions: { value: StatusFilter; label: string }[] = [
-  { value: "all", label: "Tất cả trạng thái" },
-  { value: "available", label: ROOM_STATUS_LABELS.available },
-  { value: "unavailable", label: ROOM_STATUS_LABELS.unavailable },
-];
-
 export function RoomManagement() {
-  const { rooms, loading, error, reload, addRoom, editRoom, changeStatus } =
-    useRooms();
-  const [query, setQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
-  const [dialogOpen, setDialogOpen] = useState(false);
+  const list = useRoomList();
+  const { data, loading, error, filters, page, setPage, setFilters, reload, replaceItem } = list;
+
+  const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Room | null>(null);
-  const [actionError, setActionError] = useState<string | null>(null);
+  const [detailId, setDetailId] = useState<string | null>(null);
+  const [detailRefresh, setDetailRefresh] = useState(0);
 
-  const visibleRooms = useMemo(() => {
-    const keyword = query.trim().toLowerCase();
-    return rooms.filter(
-      (room) =>
-        (statusFilter === "all" || room.status === statusFilter) &&
-        (!keyword || room.name.toLowerCase().includes(keyword)),
-    );
-  }, [rooms, query, statusFilter]);
+  const closeDetail = useCallback(() => setDetailId(null), []);
+  const handleGone = useCallback(() => {
+    setDetailId(null);
+    reload();
+  }, [reload]);
 
-  const openCreate = () => {
+  const status = useRoomStatusChange({
+    onChanged: (room) => {
+      replaceItem((item) => item.id === room.id, room);
+      setDetailRefresh((n) => n + 1);
+    },
+    onGone: handleGone,
+  });
+
+  function openCreate() {
     setEditing(null);
-    setDialogOpen(true);
-  };
-  const openEdit = (room: Room) => {
+    setFormOpen(true);
+  }
+  function openEdit(room: Room) {
     setEditing(room);
-    setDialogOpen(true);
-  };
-  const handleSubmit = (input: RoomInput) =>
-    editing ? editRoom(editing.id, input) : addRoom(input);
-
-  async function handleStatusChange(room: Room, status: RoomStatus) {
-    setActionError(null);
-    try {
-      await changeStatus(room.id, status);
-    } catch (cause) {
-      setActionError(
-        cause instanceof Error ? cause.message : "Không đổi được trạng thái.",
-      );
+    setFormOpen(true);
+  }
+  function handleSaved(room: Room, mode: "create" | "edit") {
+    if (mode === "create") reload();
+    else {
+      replaceItem((item) => item.id === room.id, room);
+      setDetailRefresh((n) => n + 1);
     }
   }
+
+  const rooms = data?.items ?? [];
+  const hasFilter = Boolean(
+    filters.q || filters.type || filters.status || filters.serviceId,
+  );
+  const suspending = status.next === "UNAVAILABLE";
+  const roomName = status.target?.name ?? "";
 
   return (
     <>
       <PageHeader
         title="Phòng khám"
-        description="Quản lý phòng, loại phòng, dịch vụ hỗ trợ và trạng thái sử dụng."
+        description="Quản lý phòng khám, chẩn đoán hình ảnh và xét nghiệm."
         actions={
-          <Button onClick={openCreate}>
+          <Button className="w-full sm:w-auto" onClick={openCreate}>
             <Plus /> Thêm phòng
           </Button>
         }
       />
 
-      <div className="mb-4 flex flex-wrap gap-3">
-        <Input
-          className="max-w-xs"
-          placeholder="Tìm theo tên phòng"
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          aria-label="Tìm theo tên phòng"
-        />
-        <Select
-          items={statusFilterOptions}
-          value={statusFilter}
-          onValueChange={(value) => setStatusFilter(value ?? "all")}
-        >
-          <SelectTrigger className="w-48" aria-label="Lọc theo trạng thái">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {statusFilterOptions.map((option) => (
-              <SelectItem key={option.value} value={option.value}>
-                {option.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      {error || actionError ? (
-        <p className="mb-4 text-sm text-destructive">
-          {error ?? actionError}{" "}
-          {error ? (
-            <Button variant="link" className="h-auto p-0" onClick={reload}>
-              Thử lại
-            </Button>
-          ) : null}
-        </p>
-      ) : null}
-
-      <RoomsTable
-        rooms={visibleRooms}
-        loading={loading}
-        onEdit={openEdit}
-        onStatusChange={handleStatusChange}
+      <RoomFilters
+        searchText={list.searchText}
+        onSearchChange={list.setSearchText}
+        filters={filters}
+        onFilterChange={setFilters}
       />
 
+      <RoomsTable
+        rooms={rooms}
+        loading={loading}
+        error={error}
+        filtered={hasFilter}
+        onRetry={reload}
+        onView={(room) => setDetailId(room.id)}
+        onEdit={openEdit}
+        onRequestStatusChange={status.requestChange}
+        pendingRoomId={status.pendingId}
+      />
+      {!loading && !error && data ? (
+        <TablePagination
+          page={page}
+          totalPages={data.totalPages}
+          totalItems={data.totalItems}
+          onPageChange={setPage}
+        />
+      ) : null}
+
       <RoomFormDialog
-        open={dialogOpen}
-        onOpenChange={setDialogOpen}
+        open={formOpen}
+        onOpenChange={setFormOpen}
         room={editing}
-        onSubmit={handleSubmit}
+        onSaved={handleSaved}
+        onGone={reload}
+      />
+
+      <RoomDetailSheet
+        roomId={detailId}
+        refreshToken={detailRefresh}
+        onClose={closeDetail}
+        onLoadFailed={handleGone}
+        onRequestStatusChange={status.requestChange}
+      />
+
+      <ConfirmActionDialog
+        open={status.target !== null}
+        onOpenChange={(open) => !open && status.cancel()}
+        title={
+          suspending ? `Tạm ngưng phòng ${roomName}?` : `Đánh dấu sẵn sàng cho phòng ${roomName}?`
+        }
+        description={
+          suspending
+            ? "Phòng sẽ không được dùng để phân công bệnh nhân hay xếp ca."
+            : "Phòng được dùng lại."
+        }
+        confirmLabel={suspending ? "Tạm ngưng" : "Đánh dấu sẵn sàng"}
+        pendingLabel="Đang cập nhật..."
+        onConfirm={status.confirm}
       />
     </>
   );

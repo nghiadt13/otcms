@@ -1,129 +1,135 @@
+import { clone, mockDelay, mockFail, paginate } from "@/lib/api/mockServer";
+import type { PageResponse } from "@/lib/api/pagination";
+import { STAFF_ROLES } from "@/lib/domain/clinicRoles";
+import {
+  generateInitialPassword,
+  validateInitialPassword,
+  validateUsername,
+} from "../schema/accountFieldRules";
 import type {
-  AccountStatus,
-  CreateStaffInput,
-  StaffRole,
-  UserAccount,
+  AccountDetail,
+  AccountListItem,
+  AccountListQuery,
+  CreateAccountInput,
+  IssuedCredential,
 } from "../types/account";
-import { initialAccounts } from "./accountMockData";
+import { accountStore, computeAllowedActions } from "./accountMockData";
 
-let accounts: UserAccount[] = initialAccounts.map((account) => ({ ...account }));
+// Lớp API giả cho /api/v1/admin/accounts. Chữ ký khớp phase-02 mục 7: khi nối BE thật
+// chỉ đổi thân hàm sang `apiRequest`. Mật khẩu khởi tạo chỉ có trong phản hồi tạo/cấp lại.
 
-const wait = (ms = 250) => new Promise((resolve) => setTimeout(resolve, ms));
+const MAX_QUERY_LENGTH = 100;
+const DELAY_MS = 120;
 
-function assertUniqueEmail(email: string, ignoreId?: string) {
-  const normalized = email.trim().toLowerCase();
-  const duplicated = accounts.some(
-    (account) =>
-      account.id !== ignoreId &&
-      account.email.trim().toLowerCase() === normalized,
-  );
-  if (duplicated) {
-    // MSG-13: Email không thể dùng để tạo tài khoản mới
-    throw new Error(
-      "Email này không thể dùng để tạo tài khoản mới. Vui lòng chọn email khác.",
-    );
-  }
+// Danh sách không mang `staffProfile` (chỉ có ở chi tiết).
+const toListItem = (account: AccountDetail): AccountListItem => {
+  const item: Partial<AccountDetail> = { ...account };
+  delete item.staffProfile;
+  return item as AccountListItem;
+};
+
+function findOrFail(id: string): AccountDetail {
+  const found = accountStore().find((account) => account.id === id);
+  // Mã 404 chờ chốt (MSG-14 theo spec 02, MSG-50 theo phase-00): mock dùng MSG-14.
+  return found ?? mockFail(404, "MSG-14");
 }
 
-export async function listAccounts(): Promise<UserAccount[]> {
-  await wait();
-  return accounts.map((account) => ({ ...account }));
+function refreshActions(account: AccountDetail) {
+  account.allowedActions = computeAllowedActions(account);
 }
 
-export async function createStaffAccount(
-  input: CreateStaffInput,
-): Promise<UserAccount> {
-  await wait();
-  assertUniqueEmail(input.email);
+export async function listAccounts(
+  query: AccountListQuery,
+  signal?: AbortSignal,
+): Promise<PageResponse<AccountListItem>> {
+  await mockDelay(DELAY_MS, signal);
+  const keyword = query.q?.trim().toLowerCase() ?? "";
+  if (keyword.length > MAX_QUERY_LENGTH) mockFail(400, "MSG-54");
 
-  const today = new Date();
-  const dateStr = `${String(today.getDate()).padStart(2, "0")}/${String(
-    today.getMonth() + 1,
-  ).padStart(2, "0")}/${today.getFullYear()}`;
+  const matched = accountStore()
+    .filter((account) => !query.role || account.accountType === query.role)
+    .filter((account) => !query.status || account.status === query.status)
+    .filter(
+      (account) =>
+        !keyword ||
+        [account.username, account.email, account.fullName].some((field) =>
+          field?.toLowerCase().includes(keyword),
+        ),
+    )
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    .map(toListItem);
+  return clone(paginate(matched, query));
+}
 
-  const newAccount: UserAccount = {
-    id: `user-${crypto.randomUUID().slice(0, 8)}`,
-    fullName: input.fullName.trim(),
-    email: input.email.trim().toLowerCase(),
-    phone: input.phone.trim(),
-    role: input.role,
-    status: "pending_invitation",
-    createdAt: dateStr,
-    lastSignInAt: null,
+export async function getAccount(id: string): Promise<AccountDetail> {
+  await mockDelay(DELAY_MS);
+  return clone(findOrFail(id));
+}
+
+export async function createAccount(
+  input: CreateAccountInput,
+): Promise<IssuedCredential> {
+  await mockDelay(DELAY_MS);
+  const username = input.username.trim();
+
+  const fieldErrors = [
+    ...(STAFF_ROLES.includes(input.role)
+      ? []
+      : [{ field: "role", code: "MSG-12" as const }]),
+    ...(validateUsername(username)
+      ? [{ field: "username", code: "MSG-12" as const }]
+      : []),
+    ...(validateInitialPassword(input.initialPassword)
+      ? [{ field: "initialPassword", code: "MSG-12" as const }]
+      : []),
+  ];
+  if (fieldErrors.length) mockFail(400, "MSG-12", undefined, fieldErrors);
+
+  // Tên đăng nhập đặc biệt để thử các nhánh lỗi.
+  if (username === "khong.quyen") mockFail(403, "MSG-14");
+  if (username === "loi.tao") mockFail(500, "MSG-16");
+  if (accountStore().some((account) => account.username === username))
+    mockFail(409, "MSG-13", { username }, [{ field: "username", code: "MSG-13" }]);
+
+  const account: AccountDetail = {
+    id: crypto.randomUUID(),
+    accountType: input.role,
+    username,
+    email: null,
+    fullName: null,
+    status: "ACTIVE",
+    createdAt: new Date().toISOString(),
+    allowedActions: [],
+    staffProfile: null,
   };
-
-  accounts = [newAccount, ...accounts];
-  return { ...newAccount };
+  refreshActions(account);
+  accountStore().push(account);
+  return { id: account.id, username, initialPassword: input.initialPassword };
 }
 
-export async function lockAccount(
+async function changeStatus(
   id: string,
-  reason: string,
-  lockedBy = "Admin OTCMS",
-): Promise<UserAccount> {
-  await wait(180);
-  const current = accounts.find((acc) => acc.id === id);
-  if (!current) throw new Error("Không tìm thấy tài khoản.");
-
-  const now = new Date().toISOString();
-  const updated: UserAccount = {
-    ...current,
-    status: "inactive",
-    lockReason: reason.trim(),
-    lockedBy,
-    lockedAt: now,
-  };
-  accounts = accounts.map((acc) => (acc.id === id ? updated : acc));
-  return { ...updated };
+  target: "ACTIVE" | "INACTIVE",
+): Promise<AccountDetail> {
+  await mockDelay(DELAY_MS);
+  const account = findOrFail(id);
+  // Đã ở trạng thái đích (ví dụ kích hoạt tài khoản đang Active): không cho phép.
+  if (account.status === target) mockFail(409, "MSG-42");
+  account.status = target;
+  refreshActions(account);
+  return clone(account);
 }
 
-export async function unlockAccount(id: string): Promise<UserAccount> {
-  await wait(150);
-  const current = accounts.find((acc) => acc.id === id);
-  if (!current) throw new Error("Không tìm thấy tài khoản.");
+export const activateAccount = (id: string) => changeStatus(id, "ACTIVE");
+export const deactivateAccount = (id: string) => changeStatus(id, "INACTIVE");
 
-  const updated: UserAccount = {
-    ...current,
-    status: "active",
-    lockReason: null,
-    lockedBy: null,
-    lockedAt: null,
-  };
-  accounts = accounts.map((acc) => (acc.id === id ? updated : acc));
-  return { ...updated };
-}
-
-export async function updateAccountRole(
+export async function reissueAccountPassword(
   id: string,
-  newRole: StaffRole,
-): Promise<UserAccount> {
-  await wait(200);
-  const current = accounts.find((acc) => acc.id === id);
-  if (!current) throw new Error("Không tìm thấy tài khoản.");
-  if (current.role === "admin" || current.role === "patient") {
-    throw new Error("Không thể thay đổi vai trò của tài khoản này qua chức năng quản lý nhân viên.");
-  }
-
-  const updated: UserAccount = { ...current, role: newRole };
-  accounts = accounts.map((acc) => (acc.id === id ? updated : acc));
-  return { ...updated };
-}
-
-export async function updateAccountStatus(
-  id: string,
-  status: AccountStatus,
-): Promise<UserAccount> {
-  if (status === "inactive") {
-    return lockAccount(id, "Tạm khóa bởi quản trị viên");
-  }
-  return unlockAccount(id);
-}
-
-export async function resendStaffInvitation(id: string): Promise<void> {
-  await wait(200);
-  const current = accounts.find((acc) => acc.id === id);
-  if (!current) throw new Error("Không tìm thấy tài khoản.");
-  if (current.status !== "pending_invitation") {
-    throw new Error("Tài khoản này đã được kích hoạt, không thể gửi lại lời mời.");
-  }
+): Promise<IssuedCredential> {
+  await mockDelay(DELAY_MS);
+  const account = findOrFail(id);
+  // Bệnh nhân tự khôi phục bằng OTP email, Admin không cấp lại.
+  if (account.accountType === "PATIENT" || !account.username)
+    mockFail(403, "MSG-14");
+  return { id, username: account.username, initialPassword: generateInitialPassword() };
 }

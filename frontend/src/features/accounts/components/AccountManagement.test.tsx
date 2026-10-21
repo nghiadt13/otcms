@@ -1,71 +1,148 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it } from "vitest";
+import { Toaster } from "sonner";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { accountStore, resetAccountMockStore } from "../api/accountMockData";
 import { AccountManagement } from "./AccountManagement";
 
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
+
+const renderScreen = () =>
+  render(
+    <>
+      <Toaster />
+      <AccountManagement />
+    </>,
+  );
+
+// Debounce 250 ms + độ trễ API giả: để dư thời gian cho máy chậm.
+const SLOW = { timeout: 4000 };
+const loaded = () => screen.findByText(/Trang 1\/3/, undefined, SLOW);
+async function search(user: ReturnType<typeof userEvent.setup>, text: string) {
+  await user.click(searchBox());
+  await user.paste(text);
+}
+const searchBox = () => screen.getByRole("searchbox", { name: "Tìm tài khoản" });
+
+beforeEach(() => resetAccountMockStore());
+
 describe("AccountManagement", () => {
-  it("tải danh sách tài khoản mẫu rồi tìm kiếm theo tên (có debounce)", async () => {
-    render(<AccountManagement />);
+  it("hiện bảng với cột đúng spec, nhân viên dùng tên đăng nhập, bệnh nhân dùng email", async () => {
+    renderScreen();
+    await loaded();
+    expect(screen.getAllByText(/@mail\.vn$/).length).toBeGreaterThan(0);
+    for (const name of ["Định danh", "Họ tên", "Loại tài khoản", "Trạng thái", "Ngày tạo"])
+      expect(screen.getByRole("columnheader", { name })).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: "Tạo tài khoản" })).toHaveLength(1);
+    expect(screen.getByText(/Trang 1\/3/)).toBeInTheDocument();
+  });
+
+  it("trạng thái trống khi chưa có tài khoản và khi bộ lọc không khớp", async () => {
+    const user = userEvent.setup();
+    renderScreen();
+    await loaded();
+
+    await search(user, "khong-co-ai");
+    expect(
+      await screen.findByText(
+        "Không có tài khoản nào khớp bộ lọc. Bỏ bớt bộ lọc hoặc thử từ khóa khác.",
+        undefined,
+        SLOW,
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("trạng thái trống khi chưa có dữ liệu dạy cách tạo tài khoản", async () => {
+    accountStore().splice(0);
+    renderScreen();
+    expect(
+      await screen.findByText(
+        "Chưa có tài khoản nào. Bấm Tạo tài khoản để cấp tài khoản cho nhân viên phòng khám.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("lỗi tải (từ khóa quá dài) hiện thông báo và nút Thử lại", async () => {
+    const user = userEvent.setup();
+    renderScreen();
+    await loaded();
+
+    await search(user, "a".repeat(101));
+    expect(
+      await screen.findAllByText(
+        "Tiêu chí lọc chưa hợp lệ. Vui lòng kiểm tra lại.",
+        undefined,
+        SLOW,
+      ),
+    ).not.toHaveLength(0);
+    expect(screen.getByRole("button", { name: "Thử lại" })).toBeInTheDocument();
+  });
+
+  it("đổi bộ lọc thì về trang đầu", async () => {
+    const user = userEvent.setup();
+    renderScreen();
+    await loaded();
+
+    await user.click(screen.getByRole("button", { name: "Sau" }));
+    expect(await screen.findByText(/Trang 2\/3/, undefined, SLOW)).toBeInTheDocument();
+
+    await user.selectOptions(
+      screen.getByRole("combobox", { name: "Loại tài khoản" }),
+      "PATIENT",
+    );
+    expect(await screen.findByText(/Trang 1\/2/, undefined, SLOW)).toBeInTheDocument();
+  });
+
+  it("menu dòng theo allowedActions; Vô hiệu hóa -> xác nhận -> dòng đổi trạng thái", async () => {
+    const user = userEvent.setup();
+    renderScreen();
+    await loaded();
+    await search(user, "letan.an");
+    expect(
+      await screen.findByText(/Trang 1\/1/, undefined, SLOW),
+    ).toBeInTheDocument();
+
+    const row = screen.getByRole("row", { name: /letan\.an/ });
+    expect(within(row).getByText("Đang hoạt động")).toBeInTheDocument();
+    await user.click(
+      within(row).getByRole("button", { name: "Thao tác cho letan.an" }),
+    );
+    expect(screen.queryByRole("menuitem", { name: "Kích hoạt" })).not.toBeInTheDocument();
+    await user.click(await screen.findByRole("menuitem", { name: "Vô hiệu hóa" }));
+
+    expect(await screen.findByText("Vô hiệu hóa tài khoản?")).toBeInTheDocument();
+    const confirm = screen.getAllByRole("button", { name: "Vô hiệu hóa" }).at(-1)!;
+    await user.click(confirm);
 
     expect(
-      await screen.findByText("BS. Nguyễn Văn Long"),
+      await screen.findByText("Trạng thái tài khoản đã được cập nhật thành Đã vô hiệu hóa."),
     ).toBeInTheDocument();
-    expect(screen.getByText("Hoàng Đức An")).toBeInTheDocument();
-
-    await userEvent.type(
-      screen.getByRole("textbox", { name: "Tìm kiếm người dùng" }),
-      "Nguyễn Văn Long",
+    await waitFor(() =>
+      expect(
+        within(screen.getByRole("row", { name: /letan\.an/ })).getByText("Đã vô hiệu hóa"),
+      ).toBeInTheDocument(),
     );
 
-    // Chờ debounce 250ms hoàn thành
-    await waitFor(() => {
-      expect(screen.queryByText("Hoàng Đức An")).not.toBeInTheDocument();
-    });
-    expect(screen.getByText("BS. Nguyễn Văn Long")).toBeInTheDocument();
+    // Giờ chỉ còn Kích hoạt.
+    await user.click(
+      screen.getByRole("button", { name: "Thao tác cho letan.an" }),
+    );
+    expect(await screen.findByRole("menuitem", { name: "Kích hoạt" })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "Vô hiệu hóa" })).not.toBeInTheDocument();
   });
 
-  it("mở hộp thoại tạo tài khoản nhân viên khi bấm nút chính", async () => {
-    render(<AccountManagement />);
-
-    const createButton = await screen.findByRole("button", {
-      name: "Tạo tài khoản nhân viên",
-    });
-    await userEvent.click(createButton);
-
+  it("mở chi tiết ở Sheet khi bấm Xem", async () => {
+    const user = userEvent.setup();
+    renderScreen();
+    await loaded();
+    await search(user, "letan.an");
     expect(
-      screen.getByRole("heading", { name: "Tạo tài khoản nhân viên" }),
+      await screen.findByText(/Trang 1\/1/, undefined, SLOW),
     ).toBeInTheDocument();
-    expect(screen.getByLabelText("Họ và tên")).toBeInTheDocument();
-    expect(screen.getByLabelText("Email đăng nhập")).toBeInTheDocument();
-    expect(screen.getByLabelText("Số điện thoại")).toBeInTheDocument();
-  });
+    await user.click(screen.getByRole("button", { name: "Xem tài khoản letan.an" }));
 
-  it("mở side drawer chi tiết khi bấm vào một dòng", async () => {
-    render(<AccountManagement />);
-
-    const row = await screen.findByText("BS. Nguyễn Văn Long");
-    await userEvent.click(row);
-
-    expect(
-      await screen.findByRole("heading", { name: "Thông tin tài khoản" }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "Khóa tài khoản người dùng" }),
-    ).toBeInTheDocument();
-    expect(screen.getAllByText("long.nv@otcms.vn").length).toBeGreaterThanOrEqual(1);
-  });
-
-  it("lọc danh sách khi bấm vào tab tóm tắt trạng thái", async () => {
-    render(<AccountManagement />);
-
-    await screen.findByText("BS. Nguyễn Văn Long");
-
-    // Bấm tab "Tạm khóa"
-    const inactiveTab = screen.getByRole("tab", { name: /Tạm khóa/i });
-    await userEvent.click(inactiveTab);
-
-    // Bùi Minh Tâm là inactive, BS Long là active
-    expect(await screen.findByText("Bùi Minh Tâm")).toBeInTheDocument();
-    expect(screen.queryByText("BS. Nguyễn Văn Long")).not.toBeInTheDocument();
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+    expect(await screen.findByText("Liên hệ công việc")).toBeInTheDocument();
+    expect(screen.getByText("0901 234 567")).toBeInTheDocument();
   });
 });

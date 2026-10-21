@@ -4,8 +4,8 @@
 
 ## Nguồn yêu cầu
 
-- Căn cứ cho phạm vi hiện tại là bản UC01–UC79: mỗi UC là một file `docs/requirements/UC<số>-<tên>.md`, còn nội dung Business Rule (BR) và Application Message (MSG) mà UC tham chiếu nằm duy nhất trong `docs/appendix-rules.md`. Các UC đang được bổ sung dần; với UC chưa có file trong `docs/requirements/`, số UC ghi trong code (ví dụ `ucs` ở `adminNavigation.ts`) chỉ là tạm: không triển khai luật nghiệp vụ dựa vào chúng khi chưa xác nhận với nhóm, và cập nhật lại số UC khi file được thêm. Khi tài liệu khác mâu thuẫn, xác nhận lại với nhóm trước khi triển khai.
-- Phạm vi UC01–UC79 bao gồm quản lý hồ sơ giới thiệu bác sĩ, ca làm việc của bác sĩ/lễ tân/kỹ thuật viên và giờ nhận lịch khám của bác sĩ; loại quản lý kho/vật tư, hồ sơ nhân sự, nghỉ phép, lương và màn hình tự gán quyền. Không khôi phục các tính năng bị loại chỉ vì chúng xuất hiện trong tài liệu cũ.
+- Căn cứ cho phạm vi hiện tại là bản UC01–UC78: mỗi UC là một file `docs/requirements/UC<số>-<tên>.md`, còn nội dung Business Rule (BR) và Application Message (MSG) mà UC tham chiếu nằm duy nhất trong `docs/appendix-rules.md`. Các UC đang được bổ sung dần; với UC chưa có file trong `docs/requirements/`, số UC ghi trong code (ví dụ `ucs` ở `adminNavigation.ts`) chỉ là tạm: không triển khai luật nghiệp vụ dựa vào chúng khi chưa xác nhận với nhóm, và cập nhật lại số UC khi file được thêm. Khi tài liệu khác mâu thuẫn, xác nhận lại với nhóm trước khi triển khai.
+- Phạm vi UC01–UC78 bao gồm quản lý hồ sơ giới thiệu bác sĩ, ca làm việc của bác sĩ/lễ tân/kỹ thuật viên và giờ nhận lịch khám của bác sĩ; loại quản lý kho/vật tư, hồ sơ nhân sự, nghỉ phép, lương và màn hình tự gán quyền. Không khôi phục các tính năng bị loại chỉ vì chúng xuất hiện trong tài liệu cũ.
 - Vai trò phòng khám là cố định theo SRS. Quyền phải được kiểm tra tại backend cho từng thao tác và bản ghi; việc ẩn nút hoặc trang ở frontend chỉ hỗ trợ giao diện.
 
 ### Tra cứu UC, BR, MSG nhanh

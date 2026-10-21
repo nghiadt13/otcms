@@ -37,7 +37,7 @@ Hướng: **Teal + Coral**. Teal là màu chính, mang cảm giác y tế, tin c
 - **Không đặt chữ trắng lên nền coral** (tương phản 2.7:1, không đạt). Chữ trên nền coral dùng `text-coral-ink`.
 - **Coral không bao giờ mang nghĩa lỗi.** Lỗi và thao tác nguy hiểm dùng `destructive`. Không dùng coral cho thanh chỉ báo mục đang chọn hay đường viền lớn: thử rồi, trông lạc tông.
 - Mọi cặp chữ/nền phải đạt tương phản ≥ 4.5:1 (chữ thường) hoặc ≥ 3:1 (chữ ≥ 18px đậm, icon). Kiểm bằng công cụ contrast trước khi thêm cặp màu mới.
-- Cảnh báo (chưa nghiêm trọng) tạm dùng thang `amber` như ở `/workspace`; khi màn admin đầu tiên cần thì thêm token `warning`.
+- Trạng thái thành công/cảnh báo dùng token `success` / `warning` (chữ trên nền `*-soft`, ≥ 6:1), qua `StatusBadge` ở `components/admin`. Không dùng thang `amber`/`green` thô trong khu admin.
 - Có sẵn token dark mode trong `.dark`, nhưng app chưa có nút bật. Màn mới vẫn dùng token để dark mode tự đúng.
 
 ## 2. Chữ
@@ -78,7 +78,7 @@ Dùng thang 4px của Tailwind (`1` = 4px). Không dùng giá trị lẻ kiểu 
 1. `PageHeader` với `title`, `description` (một câu nói màn này làm gì) và `actions` (nút chính, đặt bên phải).
 2. Thanh tìm kiếm/lọc.
 3. Nội dung chính: bảng trong khung `rounded-lg border`, hoặc lưới `Card`.
-4. Thêm/sửa dùng `Dialog`; xác nhận thao tác không hoàn tác dùng `AlertDialog`.
+4. Thêm/sửa dùng `Dialog`; xác nhận thao tác không hoàn tác dùng `AlertDialog`. Form có bảng con hoặc editor dài (chỉ số xét nghiệm, nội dung website) dùng `Sheet` rộng `sm:max-w-3xl` thay `Dialog`.
 
 - **Tránh khuôn "template"** (audit 2026-10-17): không đặt nhãn/kicker hay pill phía trên tiêu đề; không dựng khối bằng lưới thẻ giống hệt nhau kiểu ô icon + tiêu đề + mô tả (dùng danh sách có vạch chia, thanh liền khối hoặc bảng); không đánh số 01/02/03 khi nội dung không phải trình tự; không rải chấm coral trang trí; không dùng minh họa SVG ghép từ hình cơ bản khi đã có ảnh thật; không hiện mã UC cho người dùng cuối (trừ trang chờ đang dựng).
 - Một màn chỉ có **một** nút `default` (màu chính). Thao tác khác dùng `outline`, `ghost` hoặc `link`.

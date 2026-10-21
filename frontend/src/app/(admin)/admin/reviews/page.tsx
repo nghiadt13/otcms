@@ -1,5 +1,8 @@
-import { AdminPlaceholderPage } from "@/features/admin-shell/components/AdminPlaceholderPage";
+import type { Metadata } from "next";
+import { ReviewModerationManagement } from "@/features/patient-reviews/components/ReviewModerationManagement";
+
+export const metadata: Metadata = { title: "Đánh giá bệnh nhân" };
 
 export default function AdminReviewsPage() {
-  return <AdminPlaceholderPage href="/admin/reviews" />;
+  return <ReviewModerationManagement />;
 }

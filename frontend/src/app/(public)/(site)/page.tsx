@@ -6,8 +6,8 @@ import { HomeHero } from "@/features/clinic-website/components/HomeHero";
 import { HomeQuickAccess } from "@/features/clinic-website/components/HomeQuickAccess";
 import { HomeVisitSteps } from "@/features/clinic-website/components/HomeVisitSteps";
 import { HomeWhyUs } from "@/features/clinic-website/components/HomeWhyUs";
-import { listFeaturedDoctors } from "@/features/doctor-profiles/api/doctorProfileApi";
-import { FeaturedDoctors } from "@/features/doctor-profiles/components/FeaturedDoctors";
+import { listFeaturedDoctors } from "@/features/staff-profiles/api/staffProfileApi";
+import { FeaturedDoctors } from "@/features/staff-profiles/components/FeaturedDoctors";
 import { listFeaturedReviews } from "@/features/patient-reviews/api/patientReviewApi";
 import { FeaturedReviews } from "@/features/patient-reviews/components/FeaturedReviews";
 

@@ -11,6 +11,7 @@
 | `typescript` 5.9.3, `@types/*` | Kiểm tra kiểu |
 | `tailwindcss` 4.3.3 + PostCSS | CSS giao diện |
 | `@base-ui/react` 1.9.0, `class-variance-authority` 0.7.1, `cn` 0.4.0, `lucide-react` 1.57.0, `tw-animate-css` 1.4.0, `shadcn` 4.21.5 | shadcn/ui (style `base-nova`): component chép vào `src/components/ui`, thêm bằng `npx shadcn@latest add <tên>`. CLI mặc định ghi phiên bản `^`; bỏ dấu `^` để khớp quy ước khóa phiên bản. |
+| `sonner` 2.0.8, `cmdk` 1.1.1, `next-themes` 0.4.6 | Toast (`lib/messages/notify.ts`), ô lệnh và chuyển theme của shadcn `sonner`/`command`; thêm ở phase 00 màn Admin. |
 | `eslint-config-next` 16.3.6 + `eslint` 9.39.5 | Lint theo Next |
 | `prettier` 3.9.9 | Format code |
 | `vitest` 4.1.12, `@vitejs/plugin-react`, `vite-tsconfig-paths`, `happy-dom` 21.0.3, `@testing-library/react`/`dom`/`jest-dom`/`user-event` | Unit và component test (`npm test`) |

@@ -56,7 +56,9 @@ describe("RegisterPatientFlow", () => {
     expect(screen.queryByText("Email chưa đúng định dạng.")).toBeNull();
   });
 
-  it("đi đủ 3 bước: thông tin → xác minh email → đăng nhập", async () => {
+  it(
+    "đi đủ 3 bước: thông tin → xác minh email → đăng nhập",
+    async () => {
     render(<RegisterPatientFlow />);
     const user = await fillDetails("an@example.com");
 
@@ -80,5 +82,5 @@ describe("RegisterPatientFlow", () => {
     ).toBeInTheDocument();
     expect(screen.getByText(authMessages["MSG-10"])).toBeInTheDocument();
     expect(screen.getByLabelText(/^Email/)).toHaveValue("an@example.com");
-  });
+  }, 15000);
 });

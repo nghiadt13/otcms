@@ -1,5 +1,8 @@
-import { AdminPlaceholderPage } from "@/features/admin-shell/components/AdminPlaceholderPage";
+import type { Metadata } from "next";
+import { WebsiteContentManagement } from "@/features/clinic-website/components/WebsiteContentManagement";
+
+export const metadata: Metadata = { title: "Nội dung website" };
 
 export default function AdminWebsiteContentPage() {
-  return <AdminPlaceholderPage href="/admin/website-content" />;
+  return <WebsiteContentManagement />;
 }

@@ -43,7 +43,7 @@ describe("findActiveBreadcrumb", () => {
     expect(rooms?.groupLabel).toBe("Vận hành phòng khám");
     expect(rooms?.itemTitle).toBe("Phòng khám");
 
-    const audit = findActiveBreadcrumb("/admin/audit-logs");
+    const audit = findActiveBreadcrumb("/admin/activity-logs");
     expect(audit?.groupLabel).toBe("Hệ thống");
     expect(audit?.itemTitle).toBe("Nhật ký hoạt động");
   });

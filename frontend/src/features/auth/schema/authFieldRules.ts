@@ -1,3 +1,4 @@
+import { passwordPolicy } from "@/lib/domain/passwordPolicy";
 import type { PatientRegistrationInput } from "../types/auth";
 import { validateDateOfBirth } from "./dateOfBirth";
 
@@ -5,25 +6,9 @@ import { validateDateOfBirth } from "./dateOfBirth";
 // kiểm tra lại (BR-04, BR-10, BR-16). Chưa chọn thư viện form (xem AGENTS.md) nên
 // giữ hàm thuần, trả về thông báo ngắn cho từng trường.
 
-// Chính sách mật khẩu tạm (BR-04 chưa chốt cụ thể). Đổi ở đây là đổi cho cả
-// đăng ký, đặt lại mật khẩu và gợi ý hiển thị.
-export const passwordPolicy = [
-  {
-    id: "length",
-    label: "Tối thiểu 8 ký tự",
-    test: (v: string) => v.length >= 8,
-  },
-  {
-    id: "letter",
-    label: "Có ít nhất một chữ cái",
-    test: (v: string) => /\p{L}/u.test(v),
-  },
-  {
-    id: "digit",
-    label: "Có ít nhất một chữ số",
-    test: (v: string) => /\d/.test(v),
-  },
-] as const;
+// Chính sách mật khẩu (BR-04) nằm ở lib/domain/passwordPolicy.ts; re-export để
+// các import cũ trong auth vẫn chạy.
+export { passwordPolicy };
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 const phonePattern = /^(0|\+84)\d{9}$/;

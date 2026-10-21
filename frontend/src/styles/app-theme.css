@@ -24,6 +24,12 @@
   --color-input: var(--input);
   --color-border: var(--border);
   --color-destructive: var(--destructive);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-success-soft: var(--success-soft);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-warning-soft: var(--warning-soft);
   --color-accent-foreground: var(--accent-foreground);
   --color-accent: var(--accent);
   --color-muted-foreground: var(--muted-foreground);
@@ -66,6 +72,13 @@
   --accent: #e6f4f1;
   --accent-foreground: var(--color-brand-hover);
   --destructive: #dc2626;
+  /* Chữ success/warning đặt trên nền *-soft (≥ 6:1); *-foreground là chữ trên nền đặc. */
+  --success: #166534;
+  --success-foreground: #ffffff;
+  --success-soft: #e4f4ea;
+  --warning: #92400e;
+  --warning-foreground: #ffffff;
+  --warning-soft: #fdf1d3;
   --border: #dce8e6;
   --input: #cfdfdc;
   --ring: #14b8a6;
@@ -101,6 +114,12 @@
   --accent: #173230;
   --accent-foreground: var(--color-brand-muted);
   --destructive: #f87171;
+  --success: #4ade80;
+  --success-foreground: #052e16;
+  --success-soft: #12301f;
+  --warning: #fbbf24;
+  --warning-foreground: #1c1203;
+  --warning-soft: #3a2a0a;
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
   --ring: #14b8a6;

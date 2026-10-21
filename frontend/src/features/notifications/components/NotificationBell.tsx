@@ -1,105 +1,99 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 import { Bell } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+  Popover,
+  PopoverContent,
+  PopoverTitle,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { ADMIN_ROUTES } from "@/lib/routes/adminRoutes";
 import { cn } from "@/lib/utils";
-import { useNotifications } from "../hooks/useNotifications";
+import { useNotificationList } from "../hooks/useNotificationList";
+import { useUnreadNotificationCount } from "../hooks/useUnreadNotificationCount";
+import type { NotificationItem } from "../types/notification";
+import { NotificationDetailSheet } from "./NotificationDetailSheet";
+import { RecentNotificationsList } from "./RecentNotificationsList";
 
-// Định dạng "16/10 09:42" theo giờ địa phương của trình duyệt.
-const pad = (value: number) => String(value).padStart(2, "0");
-const formatTime = (iso: string) => {
-  const date = new Date(iso);
-  return `${pad(date.getDate())}/${pad(date.getMonth() + 1)} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
-};
+const RECENT_COUNT = 5;
 
+// Chỉ mount khi popover mở nên danh sách tải lúc mở chuông.
+function RecentPanel({
+  onOpenItem,
+}: {
+  onOpenItem: (item: NotificationItem) => void;
+}) {
+  const list = useNotificationList(RECENT_COUNT);
+  return <RecentNotificationsList list={list} onOpenItem={onOpenItem} />;
+}
+
+/** Chuông ở header: badge số chưa đọc, popover 5 thông báo mới nhất, Sheet chi tiết. */
 export function NotificationBell() {
-  const { notifications, unreadCount, markRead, markAllRead } =
-    useNotifications();
+  const unreadCount = useUnreadNotificationCount();
+  const [popoverOpen, setPopoverOpen] = useState(false);
+  const [selected, setSelected] = useState<NotificationItem | null>(null);
+  const [sheetOpen, setSheetOpen] = useState(false);
+
+  function openItem(item: NotificationItem) {
+    setSelected(item);
+    setPopoverOpen(false);
+    setSheetOpen(true);
+  }
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger
-        render={
-          <Button
-            variant="ghost"
-            size="icon"
-            className="relative"
-            aria-label={
-              unreadCount > 0
-                ? `Thông báo, ${unreadCount} chưa đọc`
-                : "Thông báo"
-            }
-          />
-        }
-      >
-        <Bell />
-        {unreadCount > 0 ? (
-          // Đặt ở góc ngoài nút để không che chuông; viền màu nền tách badge khỏi icon.
-          // Số đã có trong aria-label của nút nên ẩn khỏi trình đọc màn hình.
-          <span
-            aria-hidden
-            className="absolute -top-1 -right-1 flex min-w-4 items-center justify-center rounded-full bg-coral px-1 text-[10px] leading-4 font-semibold text-coral-ink ring-2 ring-background"
-          >
-            {unreadCount}
-          </span>
-        ) : null}
-      </DropdownMenuTrigger>
-      <DropdownMenuContent className="w-80" align="end">
-        <div className="flex items-center justify-between px-1.5 py-1.5">
-          <span className="text-sm font-medium">Thông báo</span>
-          <Button
-            variant="link"
-            size="xs"
-            disabled={unreadCount === 0}
-            onClick={() => void markAllRead()}
-          >
-            Đánh dấu đã đọc
-          </Button>
-        </div>
-        <DropdownMenuSeparator />
-        {notifications.length === 0 ? (
-          <p className="px-2 py-6 text-center text-sm text-muted-foreground">
-            Chưa có thông báo nào.
-          </p>
-        ) : (
-          notifications.map((item) => (
-            <DropdownMenuItem
-              key={item.id}
-              className="items-start gap-2 py-2"
-              render={<Link href={item.href ?? "/admin"} />}
-              onClick={() => void markRead(item.id)}
+    <>
+      <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
+        <PopoverTrigger
+          render={
+            <Button
+              variant="ghost"
+              size="icon"
+              className="relative"
+              aria-label={
+                unreadCount > 0
+                  ? `Thông báo của bạn, ${unreadCount} chưa đọc`
+                  : "Thông báo của bạn"
+              }
+            />
+          }
+        >
+          <Bell aria-hidden />
+          {unreadCount > 0 ? (
+            // Số đã nằm trong aria-label nên ẩn khỏi trình đọc màn hình.
+            <span
+              aria-hidden
+              className="absolute -top-1 -right-1 flex min-w-4 items-center justify-center rounded-full bg-coral px-1 text-[10px] leading-4 font-semibold text-coral-ink tabular-nums ring-2 ring-background"
             >
-              <span
-                aria-hidden
-                className={cn(
-                  "mt-1.5 size-2 shrink-0 rounded-full",
-                  item.read ? "bg-transparent" : "bg-primary",
-                )}
-              />
-              <span className="grid gap-0.5">
-                <span className="text-sm font-medium">{item.title}</span>
-                <span className="text-xs text-muted-foreground">
-                  {item.body}
-                </span>
-                <time
-                  dateTime={item.createdAt}
-                  className="text-xs text-muted-foreground"
-                >
-                  {formatTime(item.createdAt)}
-                </time>
-              </span>
-            </DropdownMenuItem>
-          ))
-        )}
-      </DropdownMenuContent>
-    </DropdownMenu>
+              {unreadCount > 9 ? "9+" : unreadCount}
+            </span>
+          ) : null}
+        </PopoverTrigger>
+        <PopoverContent
+          align="end"
+          className="w-[min(22rem,calc(100vw-2rem))]"
+        >
+          <div className="flex items-center justify-between gap-2">
+            <PopoverTitle>Thông báo của bạn</PopoverTitle>
+            <Link
+              href={ADMIN_ROUTES.notifications}
+              onClick={() => setPopoverOpen(false)}
+              className={cn(buttonVariants({ variant: "link", size: "sm" }))}
+            >
+              Xem tất cả
+            </Link>
+          </div>
+          <RecentPanel onOpenItem={openItem} />
+        </PopoverContent>
+      </Popover>
+      <NotificationDetailSheet
+        item={selected}
+        open={sheetOpen}
+        onOpenChange={setSheetOpen}
+        onMarkedRead={setSelected}
+      />
+    </>
   );
 }

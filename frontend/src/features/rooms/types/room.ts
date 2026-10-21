@@ -1,40 +1,48 @@
-// Kiểu dữ liệu phòng khám (UC65–UC68). Đây là bản nháp contract: khi backend
-// chốt DTO thì đối chiếu lại các trường ở đây.
+import type { ServiceCategory } from "@/lib/domain/clinicCategories";
 
-export type RoomType = "examination" | "imaging" | "procedure";
-export type RoomStatus = "available" | "unavailable";
+// Hình JSON đúng contract `/api/v1/admin/rooms`. Loại phòng dùng chung enum với loại dịch vụ (BR-57).
+
+export type RoomStatus = "AVAILABLE" | "UNAVAILABLE";
+export type RoomAction = "edit" | "changeStatus";
+
+export type SupportedService = { id: string; name: string };
 
 export type Room = {
   id: string;
+  /** Tên hoặc mã phòng, duy nhất. */
   name: string;
-  type: RoomType;
+  type: ServiceCategory;
   description: string;
-  supportedServices: string[];
   status: RoomStatus;
+  supportedServices: SupportedService[];
+  allowedActions: RoomAction[];
 };
 
-/** Dữ liệu người dùng nhập khi thêm/sửa phòng. Trạng thái đổi riêng (UC68). */
-export type RoomInput = Omit<Room, "id" | "status">;
+export type RoomCreateInput = {
+  name: string;
+  type: ServiceCategory;
+  description: string;
+  serviceIds: string[];
+};
+export type RoomUpdateInput = { description: string; serviceIds: string[] };
+export type RoomStatusInput = { status: RoomStatus };
 
-export const ROOM_TYPE_OPTIONS: { value: RoomType; label: string }[] = [
-  { value: "examination", label: "Phòng khám" },
-  { value: "imaging", label: "Chẩn đoán hình ảnh" },
-  { value: "procedure", label: "Thủ thuật" },
-];
+export type RoomServiceOption = {
+  id: string;
+  name: string;
+  category: ServiceCategory;
+};
+export type RoomServiceOptionsResponse = { items: RoomServiceOption[] };
+
+/** Bộ lọc danh sách; giá trị rỗng bị bỏ khi gửi. */
+export type RoomListFilters = {
+  q: string;
+  type: ServiceCategory | "";
+  status: RoomStatus | "";
+  serviceId: string;
+};
 
 export const ROOM_STATUS_LABELS: Record<RoomStatus, string> = {
-  available: "Sẵn sàng",
-  unavailable: "Tạm ngưng",
+  AVAILABLE: "Sẵn sàng",
+  UNAVAILABLE: "Tạm ngưng",
 };
-
-// Tạm thời cố định; sau này lấy từ danh mục dịch vụ (UC69–UC72).
-export const ROOM_SERVICE_OPTIONS = [
-  "Khám chỉnh hình",
-  "Tái khám",
-  "X-quang",
-  "MRI",
-  "CT",
-  "Siêu âm",
-  "Bó bột",
-  "Tiêm khớp",
-];
