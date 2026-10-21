@@ -24,7 +24,10 @@ export function AppointmentDetailSheet({
   onClose,
 }: AppointmentDetailSheetProps) {
   return (
-    <Sheet open={appointment !== null} onOpenChange={(open) => !open && onClose()}>
+    <Sheet
+      open={appointment !== null}
+      onOpenChange={(open) => !open && onClose()}
+    >
       <SheetContent className="data-[side=right]:w-full data-[side=right]:sm:max-w-md">
         <SheetHeader>
           <SheetTitle>Chi tiết lịch hẹn</SheetTitle>
@@ -34,7 +37,14 @@ export function AppointmentDetailSheet({
           <div className="px-4 pb-4">
             <DetailList
               items={[
-                { label: "Ngày giờ", value: <span className="tabular-nums">{formatDateTime(appointment.startAt)}</span> },
+                {
+                  label: "Ngày giờ",
+                  value: (
+                    <span className="tabular-nums">
+                      {formatDateTime(appointment.startAt)}
+                    </span>
+                  ),
+                },
                 {
                   label: "Bệnh nhân",
                   value: (
@@ -49,13 +59,23 @@ export function AppointmentDetailSheet({
                   ),
                 },
                 { label: "Dịch vụ", value: appointment.serviceName },
-                { label: "Bác sĩ", value: appointment.doctor?.fullName ?? "Chưa chỉ định" },
-                { label: "Trạng thái", value: <AppointmentStatusBadge status={appointment.status} /> },
+                {
+                  label: "Bác sĩ",
+                  value: appointment.doctor?.fullName ?? "Chưa chỉ định",
+                },
+                {
+                  label: "Trạng thái",
+                  value: <AppointmentStatusBadge status={appointment.status} />,
+                },
                 {
                   label: "Phí khám",
                   value: (
-                    <StatusBadge tone={appointment.examFeePaid ? "success" : "warning"}>
-                      {appointment.examFeePaid ? "Đã thanh toán" : "Chưa thanh toán"}
+                    <StatusBadge
+                      tone={appointment.examFeePaid ? "success" : "warning"}
+                    >
+                      {appointment.examFeePaid
+                        ? "Đã thanh toán"
+                        : "Chưa thanh toán"}
                     </StatusBadge>
                   ),
                 },

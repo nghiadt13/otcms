@@ -2,7 +2,8 @@ import type { ActorRole } from "@/lib/domain/clinicRoles";
 
 // Tài khoản của chính người đang đăng nhập (GET /api/v1/me).
 
-export type MyAccountAction = "updateAvatar" | "removeAvatar" | "changePassword";
+export type MyAccountAction =
+  "updateAvatar" | "removeAvatar" | "changePassword";
 
 // Giá trị trạng thái khớp phase 02 (accounts): ACTIVE | INACTIVE.
 export type MyAccountStatus = "ACTIVE" | "INACTIVE";

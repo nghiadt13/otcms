@@ -5,7 +5,10 @@ import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { usePagedList } from "@/hooks/usePagedList";
 import type { ServiceCategory } from "@/lib/domain/clinicCategories";
 import { listServiceCatalog } from "../api/serviceCatalogApi";
-import type { ServiceCatalogItem, ServiceStatus } from "../types/serviceCatalog";
+import type {
+  ServiceCatalogItem,
+  ServiceStatus,
+} from "../types/serviceCatalog";
 
 type Filters = {
   q: string;

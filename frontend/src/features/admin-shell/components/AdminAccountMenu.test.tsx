@@ -39,7 +39,9 @@ function setup() {
 }
 
 async function openMenu() {
-  await userEvent.click(await screen.findByRole("button", { name: /admin\.hoa/ }));
+  await userEvent.click(
+    await screen.findByRole("button", { name: /admin\.hoa/ }),
+  );
 }
 
 describe("AdminAccountMenu", () => {
@@ -56,15 +58,23 @@ describe("AdminAccountMenu", () => {
     expect(
       await screen.findByRole("menuitem", { name: /Hồ sơ tài khoản/ }),
     ).toHaveAttribute("href", "/admin/account");
-    expect(screen.getByRole("menuitem", { name: /Đổi mật khẩu/ })).toBeInTheDocument();
-    expect(screen.getByRole("menuitem", { name: /Đăng xuất/ })).toBeInTheDocument();
+    expect(
+      screen.getByRole("menuitem", { name: /Đổi mật khẩu/ }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("menuitem", { name: /Đăng xuất/ }),
+    ).toBeInTheDocument();
   });
 
   it("Đổi mật khẩu mở dialog và dialog còn đó sau khi menu đóng", async () => {
     setup();
     await openMenu();
-    await userEvent.click(await screen.findByRole("menuitem", { name: /Đổi mật khẩu/ }));
-    expect(await screen.findByRole("dialog", { name: "Đổi mật khẩu" })).toBeInTheDocument();
+    await userEvent.click(
+      await screen.findByRole("menuitem", { name: /Đổi mật khẩu/ }),
+    );
+    expect(
+      await screen.findByRole("dialog", { name: "Đổi mật khẩu" }),
+    ).toBeInTheDocument();
     expect(screen.getByLabelText("Mật khẩu hiện tại")).toBeInTheDocument();
   });
 
@@ -72,7 +82,9 @@ describe("AdminAccountMenu", () => {
     window.sessionStorage.setItem("otcms.staff.session", "{} ");
     setup();
     await openMenu();
-    await userEvent.click(await screen.findByRole("menuitem", { name: /Đăng xuất/ }));
+    await userEvent.click(
+      await screen.findByRole("menuitem", { name: /Đăng xuất/ }),
+    );
     await waitFor(() => expect(replace).toHaveBeenCalledWith("/staff-login"));
     expect(window.sessionStorage.getItem("otcms.staff.session")).toBeNull();
     expect(signOut).not.toHaveBeenCalled();

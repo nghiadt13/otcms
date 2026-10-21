@@ -19,14 +19,19 @@ export function buildMockCsv(result: ReportResult): string {
       ? [...section.rows, section.totalRow]
       : section.rows;
     for (const row of rows)
-      lines.push(section.columns.map((c) => csvCell(row[c.key] ?? null)).join(","));
+      lines.push(
+        section.columns.map((c) => csvCell(row[c.key] ?? null)).join(","),
+      );
     lines.push("");
   }
   return BOM + lines.join("\r\n");
 }
 
 /** Tên tệp không dấu: bao-cao-thanh-toan-2026-10-01-2026-10-20.csv */
-export function mockExportFilename(result: ReportResult, subjectLabel: string): string {
+export function mockExportFilename(
+  result: ReportResult,
+  subjectLabel: string,
+): string {
   const slug = subjectLabel
     .normalize("NFD")
     .replace(/[̀-ͯ]/g, "")

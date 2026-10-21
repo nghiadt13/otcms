@@ -37,7 +37,9 @@ export function AccountManagement() {
       <PageHeader
         title="Tài khoản người dùng"
         description="Cấp tài khoản cho nhân viên và tra cứu tài khoản bệnh nhân."
-        actions={<Button onClick={() => setCreateOpen(true)}>Tạo tài khoản</Button>}
+        actions={
+          <Button onClick={() => setCreateOpen(true)}>Tạo tài khoản</Button>
+        }
       />
 
       <AccountsFilterBar

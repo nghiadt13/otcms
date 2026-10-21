@@ -51,7 +51,8 @@ export function validateStaffProfileInput(
 ): StaffProfileFieldErrors {
   const errors: StaffProfileFieldErrors = {};
   const name = values.displayName.trim();
-  if (name.length === 0 || name.length > NAME_MAX) errors.displayName = "MSG-12";
+  if (name.length === 0 || name.length > NAME_MAX)
+    errors.displayName = "MSG-12";
   if (!isValidWorkContact(values.workContact)) errors.workContact = "MSG-12";
   if (role === "ORTHOPEDIC_DOCTOR" && values.doctor) {
     if (values.doctor.qualifications.length > QUALIFICATIONS_MAX)

@@ -15,7 +15,11 @@ const emptyFilters = { q: "", type: "", status: "", serviceId: "" } as const;
 const list = (over: Partial<Parameters<typeof listRooms>[0]> = {}) =>
   listRooms({ ...emptyFilters, ...over });
 
-async function expectApiError(promise: Promise<unknown>, status: number, code: string) {
+async function expectApiError(
+  promise: Promise<unknown>,
+  status: number,
+  code: string,
+) {
   const err = await promise.then(
     () => null,
     (e: unknown) => e,
@@ -41,7 +45,9 @@ describe("roomApi", () => {
   });
 
   it("lọc theo q, type, status, serviceId", async () => {
-    expect((await list({ q: "p10" })).items.every((r) => r.name.includes("P10"))).toBe(true);
+    expect(
+      (await list({ q: "p10" })).items.every((r) => r.name.includes("P10")),
+    ).toBe(true);
     expect((await list({ type: "IMAGING" })).totalItems).toBe(8);
     expect((await list({ status: "UNAVAILABLE" })).totalItems).toBe(3);
     const byService = await list({ serviceId: xray.id });
@@ -77,7 +83,12 @@ describe("roomApi", () => {
 
   it("tên trùng (không phân biệt hoa thường) → 409 MSG-98 trên name", async () => {
     const err = await expectApiError(
-      createRoom({ name: "p101", type: "EXAMINATION", description: "", serviceIds: [exam.id] }),
+      createRoom({
+        name: "p101",
+        type: "EXAMINATION",
+        description: "",
+        serviceIds: [exam.id],
+      }),
       409,
       "MSG-98",
     );
@@ -86,7 +97,12 @@ describe("roomApi", () => {
 
   it("dịch vụ sai loại → 400 MSG-62 trên serviceIds", async () => {
     const err = await expectApiError(
-      createRoom({ name: "P202", type: "EXAMINATION", description: "", serviceIds: [xray.id] }),
+      createRoom({
+        name: "P202",
+        type: "EXAMINATION",
+        description: "",
+        serviceIds: [xray.id],
+      }),
       400,
       "MSG-62",
     );
@@ -95,7 +111,10 @@ describe("roomApi", () => {
 
   it("PUT chỉ đổi mô tả và dịch vụ, giữ tên và loại", async () => {
     const before = (await list({ q: "P101" })).items[0];
-    const after = await updateRoom(before.id, { description: "Mô tả mới", serviceIds: [exam.id] });
+    const after = await updateRoom(before.id, {
+      description: "Mô tả mới",
+      serviceIds: [exam.id],
+    });
     expect(after.description).toBe("Mô tả mới");
     expect(after.supportedServices.map((s) => s.id)).toEqual([exam.id]);
     expect(after.name).toBe(before.name);
@@ -104,20 +123,33 @@ describe("roomApi", () => {
 
   it("đổi trạng thái; phòng đang dùng → 409 MSG-64 và giữ status cũ", async () => {
     const p101 = (await list({ q: "P101" })).items[0];
-    expect((await changeRoomStatus(p101.id, "UNAVAILABLE")).status).toBe("UNAVAILABLE");
+    expect((await changeRoomStatus(p101.id, "UNAVAILABLE")).status).toBe(
+      "UNAVAILABLE",
+    );
 
     const busy = (await list({ q: "CĐHA-02" })).items[0];
-    await expectApiError(changeRoomStatus(busy.id, "UNAVAILABLE"), 409, "MSG-64");
+    await expectApiError(
+      changeRoomStatus(busy.id, "UNAVAILABLE"),
+      409,
+      "MSG-64",
+    );
     expect((await getRoom(busy.id)).status).toBe("AVAILABLE");
   });
 
   it("id không tồn tại → 404 MSG-50", async () => {
     await expectApiError(getRoom(MOCK_MISSING_ROOM_ID), 404, "MSG-50");
     await expectApiError(
-      updateRoom(MOCK_MISSING_ROOM_ID, { description: "", serviceIds: [exam.id] }),
+      updateRoom(MOCK_MISSING_ROOM_ID, {
+        description: "",
+        serviceIds: [exam.id],
+      }),
       404,
       "MSG-50",
     );
-    await expectApiError(changeRoomStatus(MOCK_MISSING_ROOM_ID, "AVAILABLE"), 404, "MSG-50");
+    await expectApiError(
+      changeRoomStatus(MOCK_MISSING_ROOM_ID, "AVAILABLE"),
+      404,
+      "MSG-50",
+    );
   });
 });

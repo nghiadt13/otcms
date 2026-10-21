@@ -2,7 +2,8 @@ import type { ClinicContact } from "./websiteContent";
 
 // Kiểu cho màn quản trị nội dung website (UC72–UC73). Khác `websiteContent.ts`
 // (bản công khai {contact, hero}); không dùng chung tên để tránh nhầm.
-export type WebsiteContentType = "CLINIC_INFO" | "HEALTH_ARTICLE" | "ABOUT_PAGE";
+export type WebsiteContentType =
+  "CLINIC_INFO" | "HEALTH_ARTICLE" | "ABOUT_PAGE";
 export type WebsiteContentAction = "edit" | "viewOnWebsite";
 
 export const WEBSITE_CONTENT_TYPES: WebsiteContentType[] = [
@@ -42,7 +43,12 @@ export type WebsiteContentDetail = WebsiteContentListItem &
 // POST có type; PUT không gửi type (loại không đổi khi sửa).
 export type WebsiteContentCreatePayload =
   | { type: "CLINIC_INFO"; title: string; body: ClinicContact }
-  | { type: "HEALTH_ARTICLE"; title: string; body: string; imageUrl: string | null }
+  | {
+      type: "HEALTH_ARTICLE";
+      title: string;
+      body: string;
+      imageUrl: string | null;
+    }
   | { type: "ABOUT_PAGE"; title: string; body: string };
 
 export type WebsiteContentUpdatePayload = {

@@ -25,7 +25,10 @@ export function DashboardOverview() {
   );
 
   const cells = useMemo(() => (data ? buildSummaryCells(data) : []), [data]);
-  const blocks = useMemo(() => (data ? buildDashboardBlocks(data) : []), [data]);
+  const blocks = useMemo(
+    () => (data ? buildDashboardBlocks(data) : []),
+    [data],
+  );
 
   // Kỳ sai từ BE (400) hiện dưới ô ngày cùng chỗ với lỗi kiểm ở FE và giữ số cũ.
   const periodError =

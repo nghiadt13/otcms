@@ -21,22 +21,47 @@ type ShiftDetailSheetProps = {
 };
 
 /** Chi tiết ca đã qua hoặc đã bắt đầu: chỉ xem, không sửa/xóa. */
-export function ShiftDetailSheet({ shift, onOpenChange }: ShiftDetailSheetProps) {
+export function ShiftDetailSheet({
+  shift,
+  onOpenChange,
+}: ShiftDetailSheetProps) {
   return (
     <Sheet open={shift !== null} onOpenChange={onOpenChange}>
       <SheetContent className="w-full data-[side=right]:sm:max-w-md">
         <SheetHeader>
           <SheetTitle>Ca đã qua, chỉ xem</SheetTitle>
-          <SheetDescription>Ca đã qua hoặc đã bắt đầu không sửa hay xóa được.</SheetDescription>
+          <SheetDescription>
+            Ca đã qua hoặc đã bắt đầu không sửa hay xóa được.
+          </SheetDescription>
         </SheetHeader>
         {shift ? (
           <div className="px-4">
             <DetailList
               items={[
-                { label: "Nhân viên", value: `${shift.staffName} · ${ROLE_LABELS[shift.role]}` },
-                { label: "Ngày", value: <span className="tabular-nums">{dayMonthYear(shift.date)}</span> },
-                { label: "Giờ", value: <span className="tabular-nums">{shift.startTime}–{shift.endTime}</span> },
-                { label: "Phòng", value: `${shift.roomName} · ${ROOM_CATEGORY_LABELS[shift.roomCategory]}` },
+                {
+                  label: "Nhân viên",
+                  value: `${shift.staffName} · ${ROLE_LABELS[shift.role]}`,
+                },
+                {
+                  label: "Ngày",
+                  value: (
+                    <span className="tabular-nums">
+                      {dayMonthYear(shift.date)}
+                    </span>
+                  ),
+                },
+                {
+                  label: "Giờ",
+                  value: (
+                    <span className="tabular-nums">
+                      {shift.startTime}–{shift.endTime}
+                    </span>
+                  ),
+                },
+                {
+                  label: "Phòng",
+                  value: `${shift.roomName} · ${ROOM_CATEGORY_LABELS[shift.roomCategory]}`,
+                },
               ]}
             />
           </div>

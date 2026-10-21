@@ -16,9 +16,13 @@ export function StaffProfileManagement() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   // `?accountId=` (từ màn Tài khoản) chỉ đọc một lần để mở sẵn form tạo.
-  const [initialAccountId] = useState(() => searchParams.get("accountId") ?? "");
+  const [initialAccountId] = useState(
+    () => searchParams.get("accountId") ?? "",
+  );
   const [createOpen, setCreateOpen] = useState(initialAccountId !== "");
-  const [sheet, setSheet] = useState<{ id: string; edit: boolean } | null>(null);
+  const [sheet, setSheet] = useState<{ id: string; edit: boolean } | null>(
+    null,
+  );
   const list = useStaffProfileList();
 
   useEffect(() => {

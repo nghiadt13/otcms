@@ -24,7 +24,11 @@ import { AffectedAppointmentsNotice } from "./AffectedAppointmentsNotice";
 import { ShiftFormFields, type RoomChoice } from "./ShiftFormFields";
 
 /** `shift` có giá trị = sửa; không có = thêm, có thể điền sẵn nhân viên và ngày. */
-export type ShiftFormTarget = { shift?: Shift; staffId?: string; date?: string };
+export type ShiftFormTarget = {
+  shift?: Shift;
+  staffId?: string;
+  date?: string;
+};
 
 type ShiftFormDialogProps = {
   open: boolean;
@@ -49,7 +53,9 @@ export function ShiftFormDialog(props: ShiftFormDialogProps) {
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>{target?.shift ? "Sửa ca làm việc" : "Thêm ca làm việc"}</DialogTitle>
+          <DialogTitle>
+            {target?.shift ? "Sửa ca làm việc" : "Thêm ca làm việc"}
+          </DialogTitle>
           <DialogDescription>
             {target?.shift
               ? "Nhân viên của ca không đổi được. Muốn đổi người, xóa ca rồi thêm ca mới."
@@ -88,16 +94,25 @@ function ShiftForm({
   const [roomTouched, setRoomTouched] = useState(Boolean(editing));
   const [pending, setPending] = useState(false);
 
-  const role = editing?.role ?? staff.find((s) => s.staffId === values.staffId)?.role;
+  const role =
+    editing?.role ?? staff.find((s) => s.staffId === values.staffId)?.role;
   const suggested = role ? suggestRoomCategory(role) : null;
 
   // Phòng gợi ý lên đầu; phòng đang gắn với ca nhưng không còn Sẵn sàng vẫn hiện kèm chú thích.
   const roomChoices: RoomChoice[] = [
     ...[...rooms]
-      .sort((a, b) => Number(b.category === suggested) - Number(a.category === suggested))
+      .sort(
+        (a, b) =>
+          Number(b.category === suggested) - Number(a.category === suggested),
+      )
       .map((room) => ({ roomId: room.roomId, label: room.name })),
     ...(editing && !rooms.some((r) => r.roomId === editing.roomId)
-      ? [{ roomId: editing.roomId, label: `${editing.roomName} (Không sẵn sàng)` }]
+      ? [
+          {
+            roomId: editing.roomId,
+            label: `${editing.roomName} (Không sẵn sàng)`,
+          },
+        ]
       : []),
   ];
 
@@ -105,7 +120,8 @@ function ShiftForm({
     setValues((current) => ({ ...current, ...patch }));
     setErrors((current) => {
       const next = { ...current };
-      for (const key of Object.keys(patch) as ShiftFormField[]) delete next[key];
+      for (const key of Object.keys(patch) as ShiftFormField[])
+        delete next[key];
       return next;
     });
   };
@@ -114,7 +130,8 @@ function ShiftForm({
     const nextRole = staff.find((s) => s.staffId === staffId)?.role;
     const category = nextRole ? suggestRoomCategory(nextRole) : null;
     const patch: Partial<ShiftFormValues> = { staffId: staffId ?? "" };
-    if (!roomTouched) patch.roomId = rooms.find((r) => r.category === category)?.roomId ?? "";
+    if (!roomTouched)
+      patch.roomId = rooms.find((r) => r.category === category)?.roomId ?? "";
     change(patch);
   }
 
@@ -164,7 +181,13 @@ function ShiftForm({
     }
     const mapped = toFieldErrorMap(error.fieldErrors);
     const fields: ShiftFormErrors = {};
-    for (const key of ["staffId", "date", "startTime", "endTime", "roomId"] as const)
+    for (const key of [
+      "staffId",
+      "date",
+      "startTime",
+      "endTime",
+      "roomId",
+    ] as const)
       if (mapped[key]) fields[key] = mapped[key];
     setErrors(fields);
   }
@@ -209,7 +232,12 @@ function ShiftForm({
           </Button>
         ) : null}
         <div className="ml-auto flex gap-2">
-          <Button type="button" variant="outline" disabled={pending} onClick={() => onOpenChange(false)}>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={pending}
+            onClick={() => onOpenChange(false)}
+          >
             Hủy
           </Button>
           <Button type="submit" disabled={pending}>

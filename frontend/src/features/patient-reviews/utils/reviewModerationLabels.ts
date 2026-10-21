@@ -51,18 +51,24 @@ export function decisionLabel(
 ): { label: string; pending: string } {
   if (action === "approve")
     return { label: "Duyệt và hiển thị", pending: "Đang duyệt..." };
-  if (action === "unhide") return { label: "Hiện lại", pending: "Đang hiện lại..." };
+  if (action === "unhide")
+    return { label: "Hiện lại", pending: "Đang hiện lại..." };
   return status === "PENDING"
     ? { label: "Từ chối", pending: "Đang ẩn..." }
     : { label: "Ẩn đánh giá", pending: "Đang ẩn..." };
 }
 
 export function hasExtraFilters(filters: ReviewFilters): boolean {
-  return Boolean(filters.rating || filters.replied || filters.from || filters.to);
+  return Boolean(
+    filters.rating || filters.replied || filters.from || filters.to,
+  );
 }
 
 /** Câu trạng thái trống dạy cách dùng, khác nhau theo tab và theo việc có đang lọc. */
-export function emptyTextFor(status: ReviewFilters["status"], filtered: boolean) {
+export function emptyTextFor(
+  status: ReviewFilters["status"],
+  filtered: boolean,
+) {
   if (filtered)
     return "Không có đánh giá khớp bộ lọc. Thử đổi khoảng ngày hoặc bỏ bớt bộ lọc.";
   switch (status) {

@@ -77,7 +77,8 @@ export function UnpaidItemFilterBar({
         disabled={serviceOptionsFailed || isFee}
         onChange={(event) =>
           onChange({
-            serviceId: event.target.value === ALL ? undefined : event.target.value,
+            serviceId:
+              event.target.value === ALL ? undefined : event.target.value,
           })
         }
       >
@@ -103,11 +104,13 @@ export function UnpaidItemFilterBar({
         }}
       >
         <NativeSelectOption value={ALL}>Tất cả loại khoản</NativeSelectOption>
-        {(Object.keys(UNPAID_ITEM_KIND_LABELS) as UnpaidItemKind[]).map((kind) => (
-          <NativeSelectOption key={kind} value={kind}>
-            {UNPAID_ITEM_KIND_LABELS[kind]}
-          </NativeSelectOption>
-        ))}
+        {(Object.keys(UNPAID_ITEM_KIND_LABELS) as UnpaidItemKind[]).map(
+          (kind) => (
+            <NativeSelectOption key={kind} value={kind}>
+              {UNPAID_ITEM_KIND_LABELS[kind]}
+            </NativeSelectOption>
+          ),
+        )}
       </NativeSelect>
     </FilterBar>
   );

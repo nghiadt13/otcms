@@ -60,7 +60,9 @@ export function IssuedPasswordStep({
         <dl className="grid gap-3 text-sm">
           <div>
             <dt className="text-xs text-muted-foreground">Tên đăng nhập</dt>
-            <dd className="mt-0.5 font-medium break-all">{credential.username}</dd>
+            <dd className="mt-0.5 font-medium break-all">
+              {credential.username}
+            </dd>
           </div>
           <div>
             <dt className="text-xs text-muted-foreground">Mật khẩu</dt>

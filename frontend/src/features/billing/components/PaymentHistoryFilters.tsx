@@ -5,10 +5,7 @@ import { FilterBar } from "@/components/admin/FilterBar";
 import { SearchField } from "@/components/admin/SearchField";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { formatAppMessage } from "@/lib/messages/appMessages";
-import {
-  PAYMENT_METHOD_LABELS,
-  type PaymentMethod,
-} from "../types/payment";
+import { PAYMENT_METHOD_LABELS, type PaymentMethod } from "../types/payment";
 
 type PaymentHistoryFiltersProps = {
   from: string;
@@ -62,8 +59,12 @@ export function PaymentHistoryFilters({
         }}
       >
         <ToggleGroupItem value={ALL}>Tất cả</ToggleGroupItem>
-        <ToggleGroupItem value="CASH">{PAYMENT_METHOD_LABELS.CASH}</ToggleGroupItem>
-        <ToggleGroupItem value="VNPAY">{PAYMENT_METHOD_LABELS.VNPAY}</ToggleGroupItem>
+        <ToggleGroupItem value="CASH">
+          {PAYMENT_METHOD_LABELS.CASH}
+        </ToggleGroupItem>
+        <ToggleGroupItem value="VNPAY">
+          {PAYMENT_METHOD_LABELS.VNPAY}
+        </ToggleGroupItem>
       </ToggleGroup>
     </FilterBar>
   );

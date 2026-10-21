@@ -4,14 +4,21 @@ import { FieldError } from "@/components/admin/FieldError";
 import { FilterBar } from "@/components/admin/FilterBar";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
+import {
+  NativeSelect,
+  NativeSelectOption,
+} from "@/components/ui/native-select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatAppMessage } from "@/lib/messages/appMessages";
 import type {
   ReportFormErrors,
   ReportFormValues,
 } from "../schema/reportFieldRules";
-import type { ReportBreakdown, ReportSubjectCode, ReportSubjectOption } from "../types/report";
+import type {
+  ReportBreakdown,
+  ReportSubjectCode,
+  ReportSubjectOption,
+} from "../types/report";
 import { BREAKDOWN_LABELS } from "../types/reportLabels";
 
 type ReportFormProps = {
@@ -41,7 +48,8 @@ export function ReportForm({
 }: ReportFormProps) {
   const selected = subjects.find((s) => s.code === values.subject);
   const breakdownOptions = selected?.breakdownOptions ?? [];
-  const noSubjects = !subjectsLoading && !subjectsError && subjects.length === 0;
+  const noSubjects =
+    !subjectsLoading && !subjectsError && subjects.length === 0;
   const message = (code?: string) =>
     code ? formatAppMessage(code as `MSG-${string}`) : undefined;
 

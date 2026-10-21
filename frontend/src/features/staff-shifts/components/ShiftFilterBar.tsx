@@ -3,7 +3,11 @@
 import { FilterBar } from "@/components/admin/FilterBar";
 import { Label } from "@/components/ui/label";
 import { NativeSelect } from "@/components/ui/native-select";
-import { ROLE_LABELS, STAFF_ROLES, type StaffRole } from "@/lib/domain/clinicRoles";
+import {
+  ROLE_LABELS,
+  STAFF_ROLES,
+  type StaffRole,
+} from "@/lib/domain/clinicRoles";
 import type { ShiftFilters } from "../hooks/useShiftWeek";
 import type { RoomOption, StaffOption } from "../types/shift";
 import { StaffPickerCombobox } from "./StaffPickerCombobox";
@@ -39,11 +43,18 @@ export function ShiftFilterBar({
   return (
     <FilterBar>
       <div className="grid w-full gap-1 sm:w-auto">
-        <Label htmlFor="shift-filter-staff" className="text-xs text-muted-foreground">Nhân viên</Label>
+        <Label
+          htmlFor="shift-filter-staff"
+          className="text-xs text-muted-foreground"
+        >
+          Nhân viên
+        </Label>
         <StaffPickerCombobox
           id="shift-filter-staff"
           allowAll
-          staff={filters.role ? staff.filter((s) => s.role === filters.role) : staff}
+          staff={
+            filters.role ? staff.filter((s) => s.role === filters.role) : staff
+          }
           value={filters.staffId}
           onChange={(staffId) => onChange({ staffId })}
           loading={optionsLoading}
@@ -52,7 +63,12 @@ export function ShiftFilterBar({
         />
       </div>
       <div className="grid w-full gap-1 sm:w-auto">
-        <Label htmlFor="shift-filter-role" className="text-xs text-muted-foreground">Vai trò</Label>
+        <Label
+          htmlFor="shift-filter-role"
+          className="text-xs text-muted-foreground"
+        >
+          Vai trò
+        </Label>
         <NativeSelect
           id="shift-filter-role"
           className="w-full sm:w-52"
@@ -61,21 +77,32 @@ export function ShiftFilterBar({
         >
           <option value="">Tất cả vai trò</option>
           {STAFF_ROLES.map((role) => (
-            <option key={role} value={role}>{ROLE_LABELS[role]}</option>
+            <option key={role} value={role}>
+              {ROLE_LABELS[role]}
+            </option>
           ))}
         </NativeSelect>
       </div>
       <div className="grid w-full gap-1 sm:w-auto">
-        <Label htmlFor="shift-filter-room" className="text-xs text-muted-foreground">Phòng</Label>
+        <Label
+          htmlFor="shift-filter-room"
+          className="text-xs text-muted-foreground"
+        >
+          Phòng
+        </Label>
         <NativeSelect
           id="shift-filter-room"
           className="w-full sm:w-52"
           value={filters.roomId ?? ""}
-          onChange={(event) => onChange({ roomId: event.target.value || undefined })}
+          onChange={(event) =>
+            onChange({ roomId: event.target.value || undefined })
+          }
         >
           <option value="">Tất cả phòng</option>
           {rooms.map((room) => (
-            <option key={room.roomId} value={room.roomId}>{room.name}</option>
+            <option key={room.roomId} value={room.roomId}>
+              {room.name}
+            </option>
           ))}
         </NativeSelect>
       </div>

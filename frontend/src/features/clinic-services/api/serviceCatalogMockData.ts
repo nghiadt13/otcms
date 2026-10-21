@@ -46,8 +46,7 @@ const imaging = (
   modality: ServiceModality,
   price: number,
   extra: Partial<Seed> = {},
-) =>
-  make({ id: sid(n), name, type: "IMAGING", modality, price, ...extra });
+) => make({ id: sid(n), name, type: "IMAGING", modality, price, ...extra });
 
 const ind = (
   name: string,

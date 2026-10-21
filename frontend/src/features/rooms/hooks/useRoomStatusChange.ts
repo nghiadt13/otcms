@@ -37,7 +37,8 @@ export function useRoomStatusChange({ onChanged, onGone }: Options) {
       notifyRoomError(err);
       if (isApiError(err) && err.status === 404) onGone(target.id);
       // 409/404: đóng hộp xác nhận (trả về bình thường). Lỗi khác: ném để hộp giữ mở.
-      if (!isApiError(err) || (err.status !== 409 && err.status !== 404)) throw err;
+      if (!isApiError(err) || (err.status !== 409 && err.status !== 404))
+        throw err;
     } finally {
       setPendingId(null);
     }

@@ -30,8 +30,7 @@ export function useDoctorAvailability(
         if (!controller.signal.aborted) setResult({ key: currentKey, data });
       })
       .catch((error: unknown) => {
-        if (!controller.signal.aborted)
-          setResult({ key: currentKey, error });
+        if (!controller.signal.aborted) setResult({ key: currentKey, error });
       });
     return () => controller.abort();
   }, [doctorId, from, to, token, enabled]);

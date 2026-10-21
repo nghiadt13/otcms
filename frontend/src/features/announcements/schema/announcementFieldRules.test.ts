@@ -15,9 +15,9 @@ describe("validateAnnouncementDraft", () => {
   });
 
   it("nội dung chỉ có khoảng trắng là trống", () => {
-    expect(validateAnnouncementDraft({ ...valid, body: " \n  " })).toHaveProperty(
-      "body",
-    );
+    expect(
+      validateAnnouncementDraft({ ...valid, body: " \n  " }),
+    ).toHaveProperty("body");
   });
 
   it("tiêu đề trống là lỗi", () => {
@@ -27,14 +27,14 @@ describe("validateAnnouncementDraft", () => {
   });
 
   it("chưa chọn nhóm là lỗi", () => {
-    expect(validateAnnouncementDraft({ ...valid, audience: "" })).toHaveProperty(
-      "audience",
-    );
+    expect(
+      validateAnnouncementDraft({ ...valid, audience: "" }),
+    ).toHaveProperty("audience");
   });
 
   it("không chọn kênh là lỗi", () => {
-    expect(validateAnnouncementDraft({ ...valid, channels: [] })).toHaveProperty(
-      "channels",
-    );
+    expect(
+      validateAnnouncementDraft({ ...valid, channels: [] }),
+    ).toHaveProperty("channels");
   });
 });

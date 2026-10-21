@@ -71,10 +71,7 @@ export function NotificationBell() {
             </span>
           ) : null}
         </PopoverTrigger>
-        <PopoverContent
-          align="end"
-          className="w-[min(22rem,calc(100vw-2rem))]"
-        >
+        <PopoverContent align="end" className="w-[min(22rem,calc(100vw-2rem))]">
           <div className="flex items-center justify-between gap-2">
             <PopoverTitle>Thông báo của bạn</PopoverTitle>
             <Link

@@ -4,7 +4,10 @@ import { DateRangeFilter } from "@/components/admin/DateRangeFilter";
 import { FilterBar } from "@/components/admin/FilterBar";
 import { SearchField } from "@/components/admin/SearchField";
 import { Label } from "@/components/ui/label";
-import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
+import {
+  NativeSelect,
+  NativeSelectOption,
+} from "@/components/ui/native-select";
 import { formatAppMessage } from "@/lib/messages/appMessages";
 import type { MsgCode } from "@/lib/api/apiError";
 import { CATEGORY_FILTER_LABELS } from "../labels/activityLabels";
@@ -46,7 +49,10 @@ export function ActivityLogFilterBar({
         >
           <NativeSelectOption value="">Tất cả</NativeSelectOption>
           {(
-            Object.entries(CATEGORY_FILTER_LABELS) as [ActivityCategory, string][]
+            Object.entries(CATEGORY_FILTER_LABELS) as [
+              ActivityCategory,
+              string,
+            ][]
           ).map(([value, label]) => (
             <NativeSelectOption key={value} value={value}>
               {label}

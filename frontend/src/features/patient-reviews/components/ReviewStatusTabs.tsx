@@ -16,7 +16,11 @@ type ReviewStatusTabsProps = {
 };
 
 /** Tab theo trạng thái kèm số đếm toàn phòng khám; cuộn ngang ở màn hẹp. */
-export function ReviewStatusTabs({ status, counts, onChange }: ReviewStatusTabsProps) {
+export function ReviewStatusTabs({
+  status,
+  counts,
+  onChange,
+}: ReviewStatusTabsProps) {
   return (
     <Tabs
       value={toUiValue(status)}
@@ -30,7 +34,11 @@ export function ReviewStatusTabs({ status, counts, onChange }: ReviewStatusTabsP
         className="max-w-full justify-start overflow-x-auto"
       >
         {STATUS_TABS.map((tab) => (
-          <TabsTrigger key={tab.value} value={tab.value} className="flex-none px-3">
+          <TabsTrigger
+            key={tab.value}
+            value={tab.value}
+            className="flex-none px-3"
+          >
             {tab.label}
             {counts ? (
               <span className="tabular-nums text-muted-foreground">

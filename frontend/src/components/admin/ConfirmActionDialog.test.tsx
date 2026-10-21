@@ -37,9 +37,7 @@ describe("ConfirmActionDialog", () => {
     const onOpenChange = setup(() => Promise.reject(new Error("x")));
     await userEvent.click(screen.getByRole("button", { name: "Vô hiệu hóa" }));
     await waitFor(() =>
-      expect(
-        screen.getByRole("button", { name: "Vô hiệu hóa" }),
-      ).toBeEnabled(),
+      expect(screen.getByRole("button", { name: "Vô hiệu hóa" })).toBeEnabled(),
     );
     expect(onOpenChange).not.toHaveBeenCalledWith(false);
   });

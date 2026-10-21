@@ -4,13 +4,13 @@ import { DateRangeFilter } from "@/components/admin/DateRangeFilter";
 import { FilterBar } from "@/components/admin/FilterBar";
 import { SearchField } from "@/components/admin/SearchField";
 import { Label } from "@/components/ui/label";
-import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
+import {
+  NativeSelect,
+  NativeSelectOption,
+} from "@/components/ui/native-select";
 import { messageFromRangeError } from "../schema/appointmentMessages";
 import { STATUS_VALUES } from "../schema/appointmentUrlRules";
-import type {
-  AppointmentStatus,
-  DoctorLookupItem,
-} from "../types/appointment";
+import type { AppointmentStatus, DoctorLookupItem } from "../types/appointment";
 import { STATUS_LABELS } from "./AppointmentStatusBadge";
 import { DoctorCombobox } from "./DoctorCombobox";
 
@@ -63,7 +63,8 @@ export function AppointmentFilters(props: AppointmentFiltersProps) {
           value={props.status ?? ""}
           onChange={(event) =>
             props.onStatusChange(
-              (event.target.value || undefined) as AppointmentStatus | undefined,
+              (event.target.value || undefined) as
+                AppointmentStatus | undefined,
             )
           }
         >

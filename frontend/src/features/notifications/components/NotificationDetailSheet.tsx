@@ -83,7 +83,9 @@ export function NotificationDetailSheet({
                   {record.available ? (
                     <Link
                       href={RECORD_ROUTES[record.kind]}
-                      className={cn(buttonVariants({ variant: "link", size: "sm" }))}
+                      className={cn(
+                        buttonVariants({ variant: "link", size: "sm" }),
+                      )}
                     >
                       Mở
                     </Link>

@@ -15,7 +15,10 @@ import { UnpaidItemsTable } from "./UnpaidItemsTable";
 export function UnpaidItemsManagement() {
   const list = useUnpaidItems();
   const services = useUnpaidItemServiceOptions();
-  const [selected, setSelected] = useState<{ id: string; itemName: string } | null>(null);
+  const [selected, setSelected] = useState<{
+    id: string;
+    itemName: string;
+  } | null>(null);
 
   return (
     <>

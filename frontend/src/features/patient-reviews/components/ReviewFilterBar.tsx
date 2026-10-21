@@ -50,7 +50,11 @@ function SingleChoice({ label, value, options, onChange }: SingleChoiceProps) {
         onValueChange={(next) => onChange(fromUiValue(next[0]))}
       >
         {options.map((option) => (
-          <ToggleGroupItem key={option.value} value={option.value} className={ITEM_CLASS}>
+          <ToggleGroupItem
+            key={option.value}
+            value={option.value}
+            className={ITEM_CLASS}
+          >
             {option.label}
           </ToggleGroupItem>
         ))}
@@ -88,13 +92,17 @@ export function ReviewFilterBar({
         label="Số sao"
         value={filters.rating}
         options={RATING_OPTIONS}
-        onChange={(rating) => onFilterChange({ rating: rating as ReviewFilters["rating"] })}
+        onChange={(rating) =>
+          onFilterChange({ rating: rating as ReviewFilters["rating"] })
+        }
       />
       <SingleChoice
         label="Phản hồi"
         value={filters.replied}
         options={REPLIED_OPTIONS}
-        onChange={(replied) => onFilterChange({ replied: replied as ReviewFilters["replied"] })}
+        onChange={(replied) =>
+          onFilterChange({ replied: replied as ReviewFilters["replied"] })
+        }
       />
       {hasExtraFilters(filters) || dateDraft.from || dateDraft.to ? (
         <Button variant="link" onClick={onClear}>

@@ -66,7 +66,8 @@ export function dayMonthYear(iso: string): string {
 
 /** Nhãn kỳ: "19/10 – 25/10/2026", hoặc "T3, 20/10/2026" cho kỳ Ngày. */
 export function rangeLabel(anchor: string, period: ShiftPeriod): string {
-  if (period === "day") return `${weekdayShort(anchor)}, ${dayMonthYear(anchor)}`;
+  if (period === "day")
+    return `${weekdayShort(anchor)}, ${dayMonthYear(anchor)}`;
   const { from, to } = getShiftRange(anchor, "week");
   const fromLabel =
     from.slice(0, 4) === to.slice(0, 4) ? dayMonth(from) : dayMonthYear(from);

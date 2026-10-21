@@ -19,7 +19,11 @@ function toDate(value: string | Date): Date {
     : new Date(value);
 }
 
-const dateParts = { day: "2-digit", month: "2-digit", year: "numeric" } as const;
+const dateParts = {
+  day: "2-digit",
+  month: "2-digit",
+  year: "numeric",
+} as const;
 
 export function formatDate(value: string | Date): string {
   const p = parts(toDate(value), dateParts);

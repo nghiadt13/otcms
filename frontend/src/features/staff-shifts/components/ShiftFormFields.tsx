@@ -4,9 +4,16 @@ import { FieldError } from "@/components/admin/FieldError";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NativeSelect } from "@/components/ui/native-select";
-import { ROOM_CATEGORY_LABELS, type ServiceCategory } from "@/lib/domain/clinicCategories";
+import {
+  ROOM_CATEGORY_LABELS,
+  type ServiceCategory,
+} from "@/lib/domain/clinicCategories";
 import { ROLE_LABELS } from "@/lib/domain/clinicRoles";
-import { describeShiftFieldError, type ShiftFormErrors, type ShiftFormValues } from "../schema/shiftFieldRules";
+import {
+  describeShiftFieldError,
+  type ShiftFormErrors,
+  type ShiftFormValues,
+} from "../schema/shiftFieldRules";
 import type { Shift, StaffOption } from "../types/shift";
 import { StaffPickerCombobox } from "./StaffPickerCombobox";
 
@@ -60,7 +67,10 @@ export function ShiftFormFields({
         {editing ? (
           <p id="shift-staff" className="text-sm">
             {editing.staffName}
-            <span className="text-muted-foreground"> · {ROLE_LABELS[editing.role]} (chỉ đọc)</span>
+            <span className="text-muted-foreground">
+              {" "}
+              · {ROLE_LABELS[editing.role]} (chỉ đọc)
+            </span>
           </p>
         ) : (
           <>
@@ -144,7 +154,9 @@ export function ShiftFormFields({
         </NativeSelect>
         {suggestedCategory ? (
           <p className="text-xs text-muted-foreground">
-            Gợi ý theo vai trò: {ROOM_CATEGORY_LABELS[suggestedCategory].toLowerCase()}. Bạn có thể chọn phòng khác.
+            Gợi ý theo vai trò:{" "}
+            {ROOM_CATEGORY_LABELS[suggestedCategory].toLowerCase()}. Bạn có thể
+            chọn phòng khác.
           </p>
         ) : null}
         <FieldError message={err("roomId")} />

@@ -12,7 +12,10 @@ export const UNPAID_ITEM_KIND_LABELS: Record<UnpaidItemKind, string> = {
   SERVICE_ORDER: "Chỉ định",
 };
 
-export const UNPAID_ITEM_REFERENCE_LABELS: Record<UnpaidItemReferenceType, string> = {
+export const UNPAID_ITEM_REFERENCE_LABELS: Record<
+  UnpaidItemReferenceType,
+  string
+> = {
   APPOINTMENT: "Lịch hẹn",
   VISIT: "Lượt khám",
 };
@@ -58,7 +61,10 @@ export interface UnpaidItemSummary {
   totalPriceVnd: number;
 }
 
-export type UnpaidItemPage = PageResponse<UnpaidItem, { summary: UnpaidItemSummary }>;
+export type UnpaidItemPage = PageResponse<
+  UnpaidItem,
+  { summary: UnpaidItemSummary }
+>;
 
 export interface UnpaidItemFilter {
   /** yyyy-MM-dd, tính cả ngày. */

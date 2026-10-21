@@ -45,7 +45,10 @@ function detailItems(account: AccountDetail) {
     isStaff
       ? { label: "Tên đăng nhập", value: account.username }
       : { label: "Email", value: account.email },
-    { label: "Loại tài khoản", value: ACCOUNT_TYPE_LABELS[account.accountType] },
+    {
+      label: "Loại tài khoản",
+      value: ACCOUNT_TYPE_LABELS[account.accountType],
+    },
     {
       label: "Trạng thái",
       value: (
@@ -56,7 +59,9 @@ function detailItems(account: AccountDetail) {
     },
     {
       label: "Ngày tạo",
-      value: <span className="tabular-nums">{formatDate(account.createdAt)}</span>,
+      value: (
+        <span className="tabular-nums">{formatDate(account.createdAt)}</span>
+      ),
     },
   ];
   if (!isStaff) return [...items, { label: "Họ tên", value: account.fullName }];
@@ -113,7 +118,9 @@ export function AccountDetailSheet({
       <Sheet open onOpenChange={(open) => !open && onClose()}>
         <SheetContent className="w-full data-[side=right]:w-full data-[side=right]:sm:max-w-md">
           <SheetHeader>
-            <SheetTitle>{detail ? accountFullName(detail) : "Chi tiết tài khoản"}</SheetTitle>
+            <SheetTitle>
+              {detail ? accountFullName(detail) : "Chi tiết tài khoản"}
+            </SheetTitle>
             <SheetDescription>
               {detail
                 ? `${ACCOUNT_TYPE_LABELS[detail.accountType]} · ${STATUS_LABELS[detail.status]}`

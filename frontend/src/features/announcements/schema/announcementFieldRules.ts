@@ -6,15 +6,19 @@ export type AnnouncementDraftErrors = Partial<
 >;
 
 /** Câu lỗi dưới từng ô; dùng chung cho kiểm tra phía FE và `fieldErrors` từ BE. */
-export const ANNOUNCEMENT_FIELD_MESSAGES: Record<AnnouncementDraftField, string> =
-  {
-    title: "Nhập tiêu đề thông báo.",
-    body: "Nhập nội dung thông báo.",
-    audience: "Chọn nhóm người nhận.",
-    channels: "Chọn ít nhất một kênh gửi.",
-  };
+export const ANNOUNCEMENT_FIELD_MESSAGES: Record<
+  AnnouncementDraftField,
+  string
+> = {
+  title: "Nhập tiêu đề thông báo.",
+  body: "Nhập nội dung thông báo.",
+  audience: "Chọn nhóm người nhận.",
+  channels: "Chọn ít nhất một kênh gửi.",
+};
 
-const FIELDS = Object.keys(ANNOUNCEMENT_FIELD_MESSAGES) as AnnouncementDraftField[];
+const FIELDS = Object.keys(
+  ANNOUNCEMENT_FIELD_MESSAGES,
+) as AnnouncementDraftField[];
 
 export function isDraftField(value: string): value is AnnouncementDraftField {
   return (FIELDS as string[]).includes(value);

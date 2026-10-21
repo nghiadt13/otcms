@@ -18,7 +18,9 @@ describe("defaultPaymentFilters", () => {
   });
 
   it("tính theo giờ Việt Nam: 18:00 UTC ngày 19 đã là ngày 20", () => {
-    expect(defaultPaymentFilters(new Date("2026-10-19T18:00:00Z")).to).toBe("2026-10-20");
+    expect(defaultPaymentFilters(new Date("2026-10-19T18:00:00Z")).to).toBe(
+      "2026-10-20",
+    );
   });
 });
 
@@ -42,10 +44,14 @@ describe("usePaymentHistory", () => {
   it("từ > đến: có rangeError và không gọi thêm listPayments", async () => {
     const spy = vi.spyOn(paymentApi, "listPayments");
     const { result } = renderHook(() => usePaymentHistory());
-    await waitFor(() => expect(result.current.loading).toBe(false), { timeout: 4000 });
+    await waitFor(() => expect(result.current.loading).toBe(false), {
+      timeout: 4000,
+    });
     const calls = spy.mock.calls.length;
 
-    act(() => result.current.setDateRange({ from: "2026-10-20", to: "2026-10-01" }));
+    act(() =>
+      result.current.setDateRange({ from: "2026-10-20", to: "2026-10-01" }),
+    );
     expect(result.current.rangeError).toBe("MSG-54");
     expect(spy.mock.calls.length).toBe(calls);
 
@@ -56,7 +62,9 @@ describe("usePaymentHistory", () => {
   it("đổi method về trang 0 và gửi method; q được debounce rồi trim", async () => {
     const spy = vi.spyOn(paymentApi, "listPayments");
     const { result } = renderHook(() => usePaymentHistory());
-    await waitFor(() => expect(result.current.loading).toBe(false), { timeout: 4000 });
+    await waitFor(() => expect(result.current.loading).toBe(false), {
+      timeout: 4000,
+    });
     act(() => result.current.setPage(1));
     await waitFor(() => expect(result.current.page).toBe(1));
 
@@ -66,8 +74,12 @@ describe("usePaymentHistory", () => {
 
     act(() => result.current.setSearchText("  Bích "));
     expect(result.current.filters.q).toBe(""); // chưa qua 250 ms
-    await waitFor(() => expect(result.current.filters.q).toBe("Bích"), { timeout: 2000 });
-    await waitFor(() => expect(result.current.loading).toBe(false), { timeout: 4000 });
+    await waitFor(() => expect(result.current.filters.q).toBe("Bích"), {
+      timeout: 2000,
+    });
+    await waitFor(() => expect(result.current.loading).toBe(false), {
+      timeout: 4000,
+    });
     expect(spy).toHaveBeenLastCalledWith(
       expect.objectContaining({ q: "Bích", method: "CASH", page: 0 }),
       expect.anything(),

@@ -10,11 +10,7 @@ import { notifyError } from "@/lib/messages/notify";
 import { STAFF_ROLES, type StaffRole } from "@/lib/domain/clinicRoles";
 import { listShifts } from "../api/shiftApi";
 import type { Shift, ShiftPeriod, ShiftView } from "../types/shift";
-import {
-  getShiftRange,
-  isIsoDate,
-  stepAnchor,
-} from "../utils/shiftWeekRange";
+import { getShiftRange, isIsoDate, stepAnchor } from "../utils/shiftWeekRange";
 
 /** Từ 640px trở lên mới dùng được lưới tuần. */
 export const GRID_MEDIA_QUERY = "(min-width: 640px)";
@@ -73,7 +69,9 @@ export function useShiftWeek() {
         else next.delete(key);
       }
       const text = next.toString();
-      router.replace(text ? `${pathname}?${text}` : pathname, { scroll: false });
+      router.replace(text ? `${pathname}?${text}` : pathname, {
+        scroll: false,
+      });
     },
     [query, router, pathname],
   );
@@ -134,7 +132,8 @@ export function useShiftWeek() {
     /** Đổi độ rộng kỳ, giữ ngày neo. */
     setPeriod: (next: ShiftPeriod) => update({ period: next }),
     setView: (next: ShiftView) => update({ view: next }),
-    setAnchor: (iso: string) => update({ date: iso === today ? undefined : iso }),
+    setAnchor: (iso: string) =>
+      update({ date: iso === today ? undefined : iso }),
     setFilters: (patch: ShiftFilters) =>
       update({
         ...("staffId" in patch ? { staffId: patch.staffId } : {}),

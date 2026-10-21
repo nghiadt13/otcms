@@ -36,7 +36,8 @@ export function ReviewDetailSheet({
     });
   const view = detail ?? selected;
   const positiveShown =
-    detail?.allowedActions.some((a) => a === "approve" || a === "unhide") ?? false;
+    detail?.allowedActions.some((a) => a === "approve" || a === "unhide") ??
+    false;
 
   return (
     <Sheet open={selected !== null} onOpenChange={(open) => !open && onClose()}>
@@ -52,8 +53,14 @@ export function ReviewDetailSheet({
             <div className="grid flex-1 content-start gap-6 px-4">
               <DetailList
                 items={[
-                  { label: "Điểm", value: <ReviewRatingStars rating={view.rating} /> },
-                  { label: "Ngày khám", value: formatDate(view.visit.visitDate) },
+                  {
+                    label: "Điểm",
+                    value: <ReviewRatingStars rating={view.rating} />,
+                  },
+                  {
+                    label: "Ngày khám",
+                    value: formatDate(view.visit.visitDate),
+                  },
                   { label: "Bác sĩ", value: view.visit.doctorName },
                   { label: "Dịch vụ", value: view.visit.serviceName },
                   {
@@ -69,9 +76,13 @@ export function ReviewDetailSheet({
               <section className="grid gap-1.5">
                 <h3 className="text-sm font-medium">Nội dung đánh giá</h3>
                 {view.content ? (
-                  <p className="text-sm whitespace-pre-line break-words">{view.content}</p>
+                  <p className="text-sm whitespace-pre-line break-words">
+                    {view.content}
+                  </p>
                 ) : (
-                  <p className="text-sm text-muted-foreground">Không có nội dung.</p>
+                  <p className="text-sm text-muted-foreground">
+                    Không có nội dung.
+                  </p>
                 )}
               </section>
               {detail ? (

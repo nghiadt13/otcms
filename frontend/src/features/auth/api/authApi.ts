@@ -27,8 +27,12 @@ export async function signIn(email: string, password: string): Promise<void> {
 }
 
 /** Staff/admin credentials are verified by Spring Boot against the application DB. */
-export async function signInStaff(email: string, password: string): Promise<void> {
-  const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8080";
+export async function signInStaff(
+  email: string,
+  password: string,
+): Promise<void> {
+  const apiBaseUrl =
+    process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8080";
   let response: Response;
   try {
     response = await fetch(`${apiBaseUrl}/api/auth/staff/login`, {
@@ -51,7 +55,10 @@ export async function signInStaff(email: string, password: string): Promise<void
       accountId: string;
       accountType: string;
     };
-    if (!session.accessToken || !["STAFF", "ADMIN"].includes(session.accountType))
+    if (
+      !session.accessToken ||
+      !["STAFF", "ADMIN"].includes(session.accountType)
+    )
       throw new Error("Invalid staff session response");
     saveStaffSession({
       accessToken: session.accessToken,

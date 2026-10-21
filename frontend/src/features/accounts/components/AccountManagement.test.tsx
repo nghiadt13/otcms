@@ -22,7 +22,8 @@ async function search(user: ReturnType<typeof userEvent.setup>, text: string) {
   await user.click(searchBox());
   await user.paste(text);
 }
-const searchBox = () => screen.getByRole("searchbox", { name: "Tìm tài khoản" });
+const searchBox = () =>
+  screen.getByRole("searchbox", { name: "Tìm tài khoản" });
 
 beforeEach(() => resetAccountMockStore());
 
@@ -31,9 +32,17 @@ describe("AccountManagement", () => {
     renderScreen();
     await loaded();
     expect(screen.getAllByText(/@mail\.vn$/).length).toBeGreaterThan(0);
-    for (const name of ["Định danh", "Họ tên", "Loại tài khoản", "Trạng thái", "Ngày tạo"])
+    for (const name of [
+      "Định danh",
+      "Họ tên",
+      "Loại tài khoản",
+      "Trạng thái",
+      "Ngày tạo",
+    ])
       expect(screen.getByRole("columnheader", { name })).toBeInTheDocument();
-    expect(screen.getAllByRole("button", { name: "Tạo tài khoản" })).toHaveLength(1);
+    expect(
+      screen.getAllByRole("button", { name: "Tạo tài khoản" }),
+    ).toHaveLength(1);
     expect(screen.getByText(/Trang 1\/3/)).toBeInTheDocument();
   });
 
@@ -84,13 +93,17 @@ describe("AccountManagement", () => {
     await loaded();
 
     await user.click(screen.getByRole("button", { name: "Sau" }));
-    expect(await screen.findByText(/Trang 2\/3/, undefined, SLOW)).toBeInTheDocument();
+    expect(
+      await screen.findByText(/Trang 2\/3/, undefined, SLOW),
+    ).toBeInTheDocument();
 
     await user.selectOptions(
       screen.getByRole("combobox", { name: "Loại tài khoản" }),
       "PATIENT",
     );
-    expect(await screen.findByText(/Trang 1\/2/, undefined, SLOW)).toBeInTheDocument();
+    expect(
+      await screen.findByText(/Trang 1\/2/, undefined, SLOW),
+    ).toBeInTheDocument();
   });
 
   it("menu dòng theo allowedActions; Vô hiệu hóa -> xác nhận -> dòng đổi trạng thái", async () => {
@@ -107,19 +120,31 @@ describe("AccountManagement", () => {
     await user.click(
       within(row).getByRole("button", { name: "Thao tác cho letan.an" }),
     );
-    expect(screen.queryByRole("menuitem", { name: "Kích hoạt" })).not.toBeInTheDocument();
-    await user.click(await screen.findByRole("menuitem", { name: "Vô hiệu hóa" }));
+    expect(
+      screen.queryByRole("menuitem", { name: "Kích hoạt" }),
+    ).not.toBeInTheDocument();
+    await user.click(
+      await screen.findByRole("menuitem", { name: "Vô hiệu hóa" }),
+    );
 
-    expect(await screen.findByText("Vô hiệu hóa tài khoản?")).toBeInTheDocument();
-    const confirm = screen.getAllByRole("button", { name: "Vô hiệu hóa" }).at(-1)!;
+    expect(
+      await screen.findByText("Vô hiệu hóa tài khoản?"),
+    ).toBeInTheDocument();
+    const confirm = screen
+      .getAllByRole("button", { name: "Vô hiệu hóa" })
+      .at(-1)!;
     await user.click(confirm);
 
     expect(
-      await screen.findByText("Trạng thái tài khoản đã được cập nhật thành Đã vô hiệu hóa."),
+      await screen.findByText(
+        "Trạng thái tài khoản đã được cập nhật thành Đã vô hiệu hóa.",
+      ),
     ).toBeInTheDocument();
     await waitFor(() =>
       expect(
-        within(screen.getByRole("row", { name: /letan\.an/ })).getByText("Đã vô hiệu hóa"),
+        within(screen.getByRole("row", { name: /letan\.an/ })).getByText(
+          "Đã vô hiệu hóa",
+        ),
       ).toBeInTheDocument(),
     );
 
@@ -127,8 +152,12 @@ describe("AccountManagement", () => {
     await user.click(
       screen.getByRole("button", { name: "Thao tác cho letan.an" }),
     );
-    expect(await screen.findByRole("menuitem", { name: "Kích hoạt" })).toBeInTheDocument();
-    expect(screen.queryByRole("menuitem", { name: "Vô hiệu hóa" })).not.toBeInTheDocument();
+    expect(
+      await screen.findByRole("menuitem", { name: "Kích hoạt" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("menuitem", { name: "Vô hiệu hóa" }),
+    ).not.toBeInTheDocument();
   });
 
   it("mở chi tiết ở Sheet khi bấm Xem", async () => {
@@ -139,7 +168,9 @@ describe("AccountManagement", () => {
     expect(
       await screen.findByText(/Trang 1\/1/, undefined, SLOW),
     ).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Xem tài khoản letan.an" }));
+    await user.click(
+      screen.getByRole("button", { name: "Xem tài khoản letan.an" }),
+    );
 
     expect(await screen.findByRole("dialog")).toBeInTheDocument();
     expect(await screen.findByText("Liên hệ công việc")).toBeInTheDocument();

@@ -6,7 +6,10 @@ import type { PageQuery } from "@/lib/api/pagination";
 import { usePagedList } from "./usePagedList";
 
 type Filters = { q: string };
-const rows = Array.from({ length: 45 }, (_, i) => ({ id: i, name: `Dòng ${i}` }));
+const rows = Array.from({ length: 45 }, (_, i) => ({
+  id: i,
+  name: `Dòng ${i}`,
+}));
 
 const fetcher = async (query: Filters & PageQuery) =>
   paginate(
@@ -37,10 +40,13 @@ describe("usePagedList", () => {
   it("báo lỗi bằng câu MSG và cho tải lại", async () => {
     let fail = true;
     const { result } = renderHook(() =>
-      usePagedList(async (query: Filters & PageQuery) => {
-        if (fail) throw new ApiError(500, { code: "MSG-04" });
-        return paginate(rows, query);
-      }, { q: "" }),
+      usePagedList(
+        async (query: Filters & PageQuery) => {
+          if (fail) throw new ApiError(500, { code: "MSG-04" });
+          return paginate(rows, query);
+        },
+        { q: "" },
+      ),
     );
     await waitFor(() => expect(result.current.error).toContain("sự cố"));
     fail = false;

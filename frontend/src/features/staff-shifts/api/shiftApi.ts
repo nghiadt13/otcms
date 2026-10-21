@@ -39,7 +39,8 @@ export function resetShiftMockStore() {
   nextId = 1;
 }
 
-const pause = (signal?: AbortSignal) => mockDelay(shiftMockConfig.delayMs, signal);
+const pause = (signal?: AbortSignal) =>
+  mockDelay(shiftMockConfig.delayMs, signal);
 
 /** Gắn `allowedActions` theo thời điểm hiện tại khi trả ra. */
 const present = (shift: Shift): Shift =>
@@ -107,7 +108,9 @@ export async function listShifts(
         (!query.role || s.role === query.role) &&
         (!query.roomId || s.roomId === query.roomId),
     )
-    .sort((a, b) => `${a.date}${a.startTime}`.localeCompare(`${b.date}${b.startTime}`))
+    .sort((a, b) =>
+      `${a.date}${a.startTime}`.localeCompare(`${b.date}${b.startTime}`),
+    )
     .map(present);
   return { items };
 }
@@ -122,13 +125,19 @@ export async function createShift(input: ShiftInput): Promise<Shift> {
   return present(created);
 }
 
-export async function updateShift(id: string, input: ShiftUpdateInput): Promise<Shift> {
+export async function updateShift(
+  id: string,
+  input: ShiftUpdateInput,
+): Promise<Shift> {
   await pause();
   const current = findShift(id);
   if (!current) mockFail(404, "MSG-33");
   // Ca đã qua hoặc đã bắt đầu: không còn sửa được.
   if (!actionsFor(current).includes("edit")) mockFail(409, "MSG-33");
-  if (current.role === "ORTHOPEDIC_DOCTOR" && (appointments[id]?.length ?? 0) > 0)
+  if (
+    current.role === "ORTHOPEDIC_DOCTOR" &&
+    (appointments[id]?.length ?? 0) > 0
+  )
     mockFail(409, "MSG-36");
   const staff = MOCK_STAFF.find((s) => s.staffId === current.staffId)!;
   validateAssignment({ ...input, staffId: current.staffId }, staff, id);
@@ -142,7 +151,10 @@ export async function deleteShift(id: string): Promise<void> {
   const current = findShift(id);
   if (!current) mockFail(404, "MSG-33");
   if (!actionsFor(current).includes("delete")) mockFail(409, "MSG-33");
-  if (current.role === "ORTHOPEDIC_DOCTOR" && (appointments[id]?.length ?? 0) > 0)
+  if (
+    current.role === "ORTHOPEDIC_DOCTOR" &&
+    (appointments[id]?.length ?? 0) > 0
+  )
     mockFail(409, "MSG-36");
   shifts = shifts.filter((s) => s.id !== id);
 }
@@ -154,7 +166,8 @@ export async function listAffectedAppointments(
   await pause(signal);
   const shift = findShift(shiftId);
   if (!shift) mockFail(404, "MSG-33");
-  const all = shift.role === "ORTHOPEDIC_DOCTOR" ? (appointments[shiftId] ?? []) : [];
+  const all =
+    shift.role === "ORTHOPEDIC_DOCTOR" ? (appointments[shiftId] ?? []) : [];
   return {
     shiftId,
     totalItems: all.length,
@@ -170,9 +183,9 @@ export async function listStaffOptions(
 ): Promise<StaffOptionsResponse> {
   await pause(signal);
   return {
-    items: MOCK_STAFF.filter((s) => s.eligible && (!role || s.role === role)).map(
-      ({ staffId, fullName, role: r }) => ({ staffId, fullName, role: r }),
-    ),
+    items: MOCK_STAFF.filter(
+      (s) => s.eligible && (!role || s.role === role),
+    ).map(({ staffId, fullName, role: r }) => ({ staffId, fullName, role: r })),
   };
 }
 
@@ -182,9 +195,9 @@ export async function listRoomOptions(
 ): Promise<RoomOptionsResponse> {
   await pause(signal);
   return {
-    items: MOCK_ROOMS.filter((r) => r.ready && (!category || r.category === category)).map(
-      ({ roomId, name, category: c }) => ({ roomId, name, category: c }),
-    ),
+    items: MOCK_ROOMS.filter(
+      (r) => r.ready && (!category || r.category === category),
+    ).map(({ roomId, name, category: c }) => ({ roomId, name, category: c })),
   };
 }
 

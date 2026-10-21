@@ -1,5 +1,8 @@
 import { ExternalLink, Pencil } from "lucide-react";
-import { RowActionsMenu, type RowAction } from "@/components/admin/RowActionsMenu";
+import {
+  RowActionsMenu,
+  type RowAction,
+} from "@/components/admin/RowActionsMenu";
 import { TableFrame } from "@/components/admin/TableFrame";
 import { TablePagination } from "@/components/admin/TablePagination";
 import { TableStateRows } from "@/components/admin/TableStateRows";
@@ -40,14 +43,23 @@ function rowActions(
 ): RowAction[] {
   const actions: RowAction[] = [];
   if (item.allowedActions.includes("edit"))
-    actions.push({ key: "edit", label: "Sửa", icon: Pencil, onSelect: () => onEdit(item) });
+    actions.push({
+      key: "edit",
+      label: "Sửa",
+      icon: Pencil,
+      onSelect: () => onEdit(item),
+    });
   if (item.allowedActions.includes("viewOnWebsite"))
     actions.push({
       key: "view",
       label: "Xem trên website",
       icon: ExternalLink,
       onSelect: () =>
-        window.open(websiteContentPublicPath(item), "_blank", "noopener,noreferrer"),
+        window.open(
+          websiteContentPublicPath(item),
+          "_blank",
+          "noopener,noreferrer",
+        ),
     });
   return actions;
 }
@@ -99,7 +111,9 @@ export function WebsiteContentTable({
                     <TableCell className="max-w-72 whitespace-normal font-medium">
                       {item.title}
                     </TableCell>
-                    <TableCell>{WEBSITE_CONTENT_TYPE_LABELS[item.type]}</TableCell>
+                    <TableCell>
+                      {WEBSITE_CONTENT_TYPE_LABELS[item.type]}
+                    </TableCell>
                     <TableCell className="tabular-nums">
                       {formatDateTime(item.publishedAt)}
                     </TableCell>

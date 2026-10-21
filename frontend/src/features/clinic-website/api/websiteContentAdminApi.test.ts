@@ -80,7 +80,10 @@ describe("createWebsiteContent / updateWebsiteContent", () => {
   it("PUT giữ publishedAt và đổi updatedAt", async () => {
     const before = websiteContentStore().find((i) => i.type === "ABOUT_PAGE")!;
     const { publishedAt, updatedAt } = before;
-    const updated = await updateWebsiteContent(before.id, { title: "Tên khác", body: "Mới" });
+    const updated = await updateWebsiteContent(before.id, {
+      title: "Tên khác",
+      body: "Mới",
+    });
     expect(updated.publishedAt).toBe(publishedAt);
     expect(updated.updatedAt).not.toBe(updatedAt);
     expect(updated.title).toBe("Tên khác");
@@ -100,15 +103,27 @@ describe("createWebsiteContent / updateWebsiteContent", () => {
       createWebsiteContent({
         type: "CLINIC_INFO",
         title: "Liên hệ",
-        body: { clinicName: "PK", address: "Địa chỉ", hotline: "", email: "", openingHours: ["T2"] },
+        body: {
+          clinicName: "PK",
+          address: "Địa chỉ",
+          hotline: "",
+          email: "",
+          openingHours: ["T2"],
+        },
       }),
     );
-    expect(err.fieldErrors).toEqual([{ field: "body.hotline", code: "MSG-69" }]);
+    expect(err.fieldErrors).toEqual([
+      { field: "body.hotline", code: "MSG-69" },
+    ]);
   });
 
   it("tiêu đề 'Lỗi dịch vụ' trả 500; PUT id 404 trả MSG-50", async () => {
     const serverError = await failure(
-      createWebsiteContent({ type: "ABOUT_PAGE", title: "Lỗi dịch vụ", body: "x" }),
+      createWebsiteContent({
+        type: "ABOUT_PAGE",
+        title: "Lỗi dịch vụ",
+        body: "x",
+      }),
     );
     expect([serverError.status, serverError.code]).toEqual([500, "MSG-04"]);
     const notFound = await failure(
@@ -120,7 +135,9 @@ describe("createWebsiteContent / updateWebsiteContent", () => {
 
 describe("uploadWebsiteImage", () => {
   it("nhận jpeg và trả url", async () => {
-    const result = await uploadWebsiteImage(new File(["x"], "a.jpg", { type: "image/jpeg" }));
+    const result = await uploadWebsiteImage(
+      new File(["x"], "a.jpg", { type: "image/jpeg" }),
+    );
     expect(result.url).toMatch(/^\/media\/website\/.+\.jpg$/);
   });
 

@@ -44,7 +44,10 @@ export function PhotoUploadField({
     if (!file) return;
     onChange(file);
     // File sai định dạng/dung lượng bị form từ chối; chỉ xem trước khi hợp lệ.
-    if (!PHOTO_ACCEPTED_TYPES.includes(file.type) || file.size > PHOTO_MAX_BYTES)
+    if (
+      !PHOTO_ACCEPTED_TYPES.includes(file.type) ||
+      file.size > PHOTO_MAX_BYTES
+    )
       return;
     if (previewRef.current) URL.revokeObjectURL(previewRef.current);
     previewRef.current = URL.createObjectURL(file);

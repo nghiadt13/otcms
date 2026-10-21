@@ -88,8 +88,13 @@ export function ReviewTable({
                     </button>
                   </TableCell>
                   <TableCell className="min-w-44">
-                    <span className="tabular-nums">{formatDate(review.visit.visitDate)}</span>
-                    <span className="text-muted-foreground"> · {review.visit.doctorName}</span>
+                    <span className="tabular-nums">
+                      {formatDate(review.visit.visitDate)}
+                    </span>
+                    <span className="text-muted-foreground">
+                      {" "}
+                      · {review.visit.doctorName}
+                    </span>
                   </TableCell>
                   <TableCell>
                     <ReviewRatingStars rating={review.rating} />
@@ -98,7 +103,9 @@ export function ReviewTable({
                     {review.content ? (
                       <span className="line-clamp-2">{review.content}</span>
                     ) : (
-                      <span className="text-muted-foreground">Không có nội dung.</span>
+                      <span className="text-muted-foreground">
+                        Không có nội dung.
+                      </span>
                     )}
                   </TableCell>
                   <TableCell>
@@ -110,7 +117,9 @@ export function ReviewTable({
                     {review.replied ? (
                       "Đã phản hồi"
                     ) : (
-                      <span className="text-muted-foreground">Chưa phản hồi</span>
+                      <span className="text-muted-foreground">
+                        Chưa phản hồi
+                      </span>
                     )}
                   </TableCell>
                 </TableRow>

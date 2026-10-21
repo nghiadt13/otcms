@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { isApiError } from "@/lib/api/apiError";
-import { NON_EXISTENT_ACCOUNT_ID, resetAccountMockStore } from "./accountMockData";
+import {
+  NON_EXISTENT_ACCOUNT_ID,
+  resetAccountMockStore,
+} from "./accountMockData";
 import {
   activateAccount,
   createAccount,
@@ -56,9 +59,9 @@ describe("listAccounts", () => {
   it("không trả hồ sơ nhân viên trong danh sách và không có Administrator", async () => {
     const all = await listAccounts({ size: 100 });
     expect(all.items.every((a) => !("staffProfile" in a))).toBe(true);
-    expect(
-      all.items.some((a) => (a.accountType as string) === "ADMIN"),
-    ).toBe(false);
+    expect(all.items.some((a) => (a.accountType as string) === "ADMIN")).toBe(
+      false,
+    );
   });
 
   it("từ khóa dài hơn 100 ký tự -> 400 MSG-54", async () => {
@@ -69,7 +72,10 @@ describe("listAccounts", () => {
 describe("createAccount", () => {
   it("201 trả mật khẩu một lần; GET sau đó không có mật khẩu", async () => {
     const issued = await createAccount(valid);
-    expect(issued).toMatchObject({ username: "letan.moi", initialPassword: valid.initialPassword });
+    expect(issued).toMatchObject({
+      username: "letan.moi",
+      initialPassword: valid.initialPassword,
+    });
 
     const detail = await getAccount(issued.id);
     expect(JSON.stringify(detail)).not.toContain(valid.initialPassword);
@@ -105,14 +111,23 @@ describe("createAccount", () => {
   });
 
   it("403 MSG-14 và 500 MSG-16 theo tên đăng nhập thử", async () => {
-    await expectApiError(createAccount({ ...valid, username: "khong.quyen" }), 403, "MSG-14");
-    await expectApiError(createAccount({ ...valid, username: "loi.tao" }), 500, "MSG-16");
+    await expectApiError(
+      createAccount({ ...valid, username: "khong.quyen" }),
+      403,
+      "MSG-14",
+    );
+    await expectApiError(
+      createAccount({ ...valid, username: "loi.tao" }),
+      500,
+      "MSG-16",
+    );
   });
 });
 
 describe("đổi trạng thái", () => {
   it("vô hiệu hóa rồi kích hoạt, allowedActions đổi theo", async () => {
-    const [first] = (await listAccounts({ role: "PATIENT", status: "ACTIVE" })).items;
+    const [first] = (await listAccounts({ role: "PATIENT", status: "ACTIVE" }))
+      .items;
     const off = await deactivateAccount(first.id);
     expect(off.status).toBe("INACTIVE");
     expect(off.allowedActions).toEqual(["activate"]);
@@ -130,7 +145,11 @@ describe("đổi trạng thái", () => {
 
   it("id không có -> 404", async () => {
     await expectApiError(getAccount(NON_EXISTENT_ACCOUNT_ID), 404, "MSG-14");
-    await expectApiError(deactivateAccount(NON_EXISTENT_ACCOUNT_ID), 404, "MSG-14");
+    await expectApiError(
+      deactivateAccount(NON_EXISTENT_ACCOUNT_ID),
+      404,
+      "MSG-14",
+    );
   });
 });
 

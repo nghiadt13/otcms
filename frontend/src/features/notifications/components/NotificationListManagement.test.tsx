@@ -6,7 +6,9 @@ import { resetNotificationMockStore } from "../api/notificationApi";
 import { MOCK_NOTIFICATIONS } from "../api/notificationMockData";
 import { NotificationListManagement } from "./NotificationListManagement";
 
-vi.mock("next/navigation", () => ({ usePathname: () => "/admin/notifications" }));
+vi.mock("next/navigation", () => ({
+  usePathname: () => "/admin/notifications",
+}));
 vi.mock("@/lib/messages/notify", () => ({
   notifySuccess: vi.fn(),
   notifyError: vi.fn(),
@@ -43,7 +45,9 @@ describe("NotificationListManagement", () => {
   it("danh sách rỗng: hướng dẫn rõ ràng và không có nút đánh dấu tất cả", async () => {
     resetNotificationMockStore([]);
     render(<NotificationListManagement />);
-    expect(await screen.findByText("Bạn chưa có thông báo nào.")).toBeInTheDocument();
+    expect(
+      await screen.findByText("Bạn chưa có thông báo nào."),
+    ).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Đánh dấu tất cả đã đọc" }),
     ).not.toBeInTheDocument();
@@ -63,9 +67,13 @@ describe("NotificationListManagement", () => {
       (await screen.findAllByRole("button", { name: first.title }))[0],
     );
     const sheet = await screen.findByRole("dialog");
-    await userEvent.click(within(sheet).getByRole("button", { name: "Đánh dấu đã đọc" }));
+    await userEvent.click(
+      within(sheet).getByRole("button", { name: "Đánh dấu đã đọc" }),
+    );
     await waitFor(() =>
-      expect(notifySuccess).toHaveBeenCalledWith("Đã đánh dấu thông báo là đã đọc."),
+      expect(notifySuccess).toHaveBeenCalledWith(
+        "Đã đánh dấu thông báo là đã đọc.",
+      ),
     );
     await waitFor(() =>
       expect(
@@ -75,20 +83,30 @@ describe("NotificationListManagement", () => {
   });
 
   it("bản ghi liên quan không còn: không có nút Mở, hiện câu báo không còn", async () => {
-    const gone = MOCK_NOTIFICATIONS.find((item) => item.relatedRecord && !item.relatedRecord.available)!;
+    const gone = MOCK_NOTIFICATIONS.find(
+      (item) => item.relatedRecord && !item.relatedRecord.available,
+    )!;
     resetNotificationMockStore([gone]);
     render(<NotificationListManagement />);
-    await userEvent.click(await screen.findByRole("button", { name: gone.title }));
+    await userEvent.click(
+      await screen.findByRole("button", { name: gone.title }),
+    );
     const sheet = await screen.findByRole("dialog");
-    expect(within(sheet).queryByRole("link", { name: "Mở" })).not.toBeInTheDocument();
+    expect(
+      within(sheet).queryByRole("link", { name: "Mở" }),
+    ).not.toBeInTheDocument();
     expect(within(sheet).getByRole("status")).toHaveTextContent("không còn");
   });
 
   it("bản ghi liên quan còn: có liên kết Mở", async () => {
-    const live = MOCK_NOTIFICATIONS.find((item) => item.relatedRecord?.available)!;
+    const live = MOCK_NOTIFICATIONS.find(
+      (item) => item.relatedRecord?.available,
+    )!;
     resetNotificationMockStore([live]);
     render(<NotificationListManagement />);
-    await userEvent.click(await screen.findByRole("button", { name: live.title }));
+    await userEvent.click(
+      await screen.findByRole("button", { name: live.title }),
+    );
     const sheet = await screen.findByRole("dialog");
     expect(within(sheet).getByRole("link", { name: "Mở" })).toBeInTheDocument();
   });

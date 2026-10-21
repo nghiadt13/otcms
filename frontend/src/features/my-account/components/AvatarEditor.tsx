@@ -48,7 +48,10 @@ export function AvatarEditor({ account }: AvatarEditorProps) {
     const picked = event.target.files?.[0];
     event.target.value = "";
     if (!picked) return;
-    if (!AVATAR_ACCEPTED_TYPES.includes(picked.type) || picked.size > AVATAR_MAX_BYTES) {
+    if (
+      !AVATAR_ACCEPTED_TYPES.includes(picked.type) ||
+      picked.size > AVATAR_MAX_BYTES
+    ) {
       setFile(null);
       setError(AVATAR_ERROR);
       return;
@@ -106,9 +109,14 @@ export function AvatarEditor({ account }: AvatarEditorProps) {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
         <Avatar className="size-16">
           {shownUrl ? (
-            <AvatarImage src={shownUrl} alt={`Ảnh đại diện của ${account.username}`} />
+            <AvatarImage
+              src={shownUrl}
+              alt={`Ảnh đại diện của ${account.username}`}
+            />
           ) : null}
-          <AvatarFallback>{account.username.slice(0, 2).toUpperCase()}</AvatarFallback>
+          <AvatarFallback>
+            {account.username.slice(0, 2).toUpperCase()}
+          </AvatarFallback>
         </Avatar>
         <div className="flex flex-wrap items-center gap-2">
           <input
@@ -130,7 +138,11 @@ export function AvatarEditor({ account }: AvatarEditorProps) {
             </Button>
           ) : null}
           {canRemove && !file ? (
-            <Button variant="ghost" disabled={busy} onClick={() => void handleRemove()}>
+            <Button
+              variant="ghost"
+              disabled={busy}
+              onClick={() => void handleRemove()}
+            >
               {pending === "remove" ? "Đang gỡ..." : "Gỡ ảnh"}
             </Button>
           ) : null}

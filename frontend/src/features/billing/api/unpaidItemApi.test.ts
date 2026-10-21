@@ -38,13 +38,17 @@ describe("listUnpaidItems", () => {
 
   it("lọc kind và serviceId đúng, summary theo tập đã lọc", async () => {
     const fees = await listUnpaidItems({ kind: "CONSULTATION_FEE", size: 100 });
-    expect(fees.items.every((item) => item.kind === "CONSULTATION_FEE")).toBe(true);
+    expect(fees.items.every((item) => item.kind === "CONSULTATION_FEE")).toBe(
+      true,
+    );
     expect(fees.summary.totalPriceVnd).toBe(sum(fees.items));
 
     const serviceId = MOCK_SERVICE_OPTIONS[1].id;
     const byService = await listUnpaidItems({ serviceId, size: 100 });
     expect(byService.totalItems).toBeGreaterThan(0);
-    expect(byService.items.every((item) => item.serviceId === serviceId)).toBe(true);
+    expect(byService.items.every((item) => item.serviceId === serviceId)).toBe(
+      true,
+    );
 
     const none = await listUnpaidItems({ kind: "CONSULTATION_FEE", serviceId });
     expect(none.items).toEqual([]);
@@ -60,10 +64,14 @@ describe("listUnpaidItems", () => {
   });
 
   it("q khớp tên và SĐT; q toàn khoảng trắng bị bỏ", async () => {
-    expect((await listUnpaidItems({ q: " trần văn " })).totalItems).toBeGreaterThan(0);
+    expect(
+      (await listUnpaidItems({ q: " trần văn " })).totalItems,
+    ).toBeGreaterThan(0);
     const phone = UNPAID_ITEM_SEED[1].patient.phone!;
     const byPhone = await listUnpaidItems({ q: phone });
-    expect(byPhone.items.every((item) => item.patient.phone === phone)).toBe(true);
+    expect(byPhone.items.every((item) => item.patient.phone === phone)).toBe(
+      true,
+    );
     expect((await listUnpaidItems({ q: "   " })).totalItems).toBe(26);
   });
 
@@ -85,12 +93,18 @@ describe("listUnpaidItems", () => {
   });
 
   it("seed có đủ ca bắt buộc", () => {
-    expect(UNPAID_ITEM_SEED.some((item) => item.patient.phone === null)).toBe(true);
-    expect(UNPAID_ITEM_SEED.some((item) => item.patient.fullName.length > 40)).toBe(true);
-    expect(UNPAID_ITEM_SEED.some((item) => item.allowedActions.length === 0)).toBe(true);
-    expect(new Set(UNPAID_ITEM_SEED.map((item) => item.reference.type))).toEqual(
-      new Set(["APPOINTMENT", "VISIT"]),
+    expect(UNPAID_ITEM_SEED.some((item) => item.patient.phone === null)).toBe(
+      true,
     );
+    expect(
+      UNPAID_ITEM_SEED.some((item) => item.patient.fullName.length > 40),
+    ).toBe(true);
+    expect(
+      UNPAID_ITEM_SEED.some((item) => item.allowedActions.length === 0),
+    ).toBe(true);
+    expect(
+      new Set(UNPAID_ITEM_SEED.map((item) => item.reference.type)),
+    ).toEqual(new Set(["APPOINTMENT", "VISIT"]));
   });
 });
 
@@ -106,14 +120,18 @@ describe("getUnpaidItem", () => {
   });
 
   it("404 (kết thúc 0404 hoặc không có trong kho) và 403 (kết thúc 0403) đều MSG-50", async () => {
-    await expect(getUnpaidItem(UNPAID_ITEM_NOT_FOUND_ID)).rejects.toMatchObject({
-      status: 404,
-      code: "MSG-50",
-    });
-    await expect(getUnpaidItem(UNPAID_ITEM_FORBIDDEN_ID)).rejects.toMatchObject({
-      status: 403,
-      code: "MSG-50",
-    });
+    await expect(getUnpaidItem(UNPAID_ITEM_NOT_FOUND_ID)).rejects.toMatchObject(
+      {
+        status: 404,
+        code: "MSG-50",
+      },
+    );
+    await expect(getUnpaidItem(UNPAID_ITEM_FORBIDDEN_ID)).rejects.toMatchObject(
+      {
+        status: 403,
+        code: "MSG-50",
+      },
+    );
   });
 });
 

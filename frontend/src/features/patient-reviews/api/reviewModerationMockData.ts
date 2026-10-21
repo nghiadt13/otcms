@@ -37,7 +37,11 @@ const PATIENTS = [
   "Hoàng Thị Lan",
   "Bùi Gia Bảo",
 ];
-const DOCTORS = ["BS. Trần Quốc Bảo", "BS. Lê Minh Châu", "BS. Nguyễn Hải Đăng"];
+const DOCTORS = [
+  "BS. Trần Quốc Bảo",
+  "BS. Lê Minh Châu",
+  "BS. Nguyễn Hải Đăng",
+];
 const SERVICES = [
   "Khám chỉnh hình",
   "Chụp X-quang",

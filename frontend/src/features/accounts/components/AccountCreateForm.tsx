@@ -75,7 +75,9 @@ export function AccountCreateForm({
   function handleError(error: unknown) {
     const status = isApiError(error) ? error.status : 500;
     if (status === 400 || status === 409) {
-      const map = toFieldErrorMap(isApiError(error) ? error.fieldErrors : undefined);
+      const map = toFieldErrorMap(
+        isApiError(error) ? error.fieldErrors : undefined,
+      );
       const next: FieldErrors = {};
       for (const [field, code] of Object.entries(map))
         next[field as FieldName] = formatAppMessage(code);
@@ -90,7 +92,11 @@ export function AccountCreateForm({
   }
 
   return (
-    <form onSubmit={(event) => void submit(event)} noValidate className="grid gap-4">
+    <form
+      onSubmit={(event) => void submit(event)}
+      noValidate
+      className="grid gap-4"
+    >
       <DialogHeader>
         <DialogTitle>Tạo tài khoản nhân viên</DialogTitle>
         <DialogDescription>
@@ -98,7 +104,11 @@ export function AccountCreateForm({
         </DialogDescription>
       </DialogHeader>
 
-      <div className="grid gap-2" role="group" aria-labelledby="account-role-label">
+      <div
+        className="grid gap-2"
+        role="group"
+        aria-labelledby="account-role-label"
+      >
         <Label id="account-role-label">Vai trò *</Label>
         <RadioGroup
           value={role}
@@ -166,7 +176,12 @@ export function AccountCreateForm({
       </div>
 
       <DialogFooter>
-        <Button type="button" variant="outline" disabled={pending} onClick={onCancel}>
+        <Button
+          type="button"
+          variant="outline"
+          disabled={pending}
+          onClick={onCancel}
+        >
           Hủy
         </Button>
         <Button type="submit" disabled={pending}>

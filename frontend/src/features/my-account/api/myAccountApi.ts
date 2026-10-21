@@ -43,7 +43,10 @@ export async function getMyAccount(signal?: AbortSignal): Promise<MyAccount> {
 /** PUT /api/v1/me/avatar (multipart, part `file`) */
 export async function updateMyAvatar(file: File): Promise<MyAccount> {
   await mockDelay(LATENCY_MS);
-  if (!AVATAR_ACCEPTED_TYPES.includes(file.type) || file.size > AVATAR_MAX_BYTES) {
+  if (
+    !AVATAR_ACCEPTED_TYPES.includes(file.type) ||
+    file.size > AVATAR_MAX_BYTES
+  ) {
     mockFail(400, "MSG-08", undefined, [{ field: "file", code: "MSG-08" }]);
   }
   store = {

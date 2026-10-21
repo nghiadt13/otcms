@@ -1,6 +1,9 @@
 import { clone, mockDelay, mockFail, paginate } from "@/lib/api/mockServer";
 import type { PageQuery, PageResponse } from "@/lib/api/pagination";
-import { SERVICE_CATEGORIES, type ServiceCategory } from "@/lib/domain/clinicCategories";
+import {
+  SERVICE_CATEGORIES,
+  type ServiceCategory,
+} from "@/lib/domain/clinicCategories";
 import type {
   Room,
   RoomCreateInput,
@@ -41,7 +44,9 @@ function findRoom(id: string): Room {
 function resolveServices(ids: string[], type: ServiceCategory) {
   const refs = ids.map((id) => MOCK_SERVICES.find((s) => s.id === id));
   if (ids.length === 0 || refs.some((s) => !s || s.category !== type))
-    mockFail(400, "MSG-62", undefined, [{ field: "serviceIds", code: "MSG-62" }]);
+    mockFail(400, "MSG-62", undefined, [
+      { field: "serviceIds", code: "MSG-62" },
+    ]);
   return refs.map((s) => ({ id: s!.id, name: s!.name }));
 }
 
@@ -77,7 +82,9 @@ export async function listRoomServiceOptions(
 ): Promise<RoomServiceOption[]> {
   await mockDelay(120, signal);
   if (category && !isCategory(category)) mockFail(400, "MSG-54");
-  return clone(MOCK_SERVICES.filter((s) => !category || s.category === category));
+  return clone(
+    MOCK_SERVICES.filter((s) => !category || s.category === category),
+  );
 }
 
 export async function getRoom(id: string, signal?: AbortSignal): Promise<Room> {
@@ -108,7 +115,10 @@ export async function createRoom(input: RoomCreateInput): Promise<Room> {
 }
 
 /** Chỉ đổi mô tả và dịch vụ; tên và loại giữ nguyên (UC66). */
-export async function updateRoom(id: string, input: RoomUpdateInput): Promise<Room> {
+export async function updateRoom(
+  id: string,
+  input: RoomUpdateInput,
+): Promise<Room> {
   await mockDelay();
   const room = findRoom(id);
   room.supportedServices = resolveServices(input.serviceIds, room.type);
@@ -116,7 +126,10 @@ export async function updateRoom(id: string, input: RoomUpdateInput): Promise<Ro
   return clone(room);
 }
 
-export async function changeRoomStatus(id: string, status: RoomStatus): Promise<Room> {
+export async function changeRoomStatus(
+  id: string,
+  status: RoomStatus,
+): Promise<Room> {
   await mockDelay();
   const room = findRoom(id);
   if (status === "UNAVAILABLE" && room.name === MOCK_IN_USE_ROOM_NAME)

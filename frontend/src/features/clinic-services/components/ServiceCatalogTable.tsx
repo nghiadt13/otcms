@@ -68,22 +68,40 @@ export function ServiceCatalogTable({
           {!loading && !error
             ? items.map((item) => (
                 <TableRow key={item.id}>
-                  <TableCell className="max-w-80 whitespace-normal font-medium">{item.name}</TableCell>
+                  <TableCell className="max-w-80 whitespace-normal font-medium">
+                    {item.name}
+                  </TableCell>
                   <TableCell>{CATEGORY_LABELS[item.type]}</TableCell>
-                  <TableCell>{item.modality ? MODALITY_LABELS[item.modality] : "—"}</TableCell>
-                  <TableCell className="text-right tabular-nums">{formatCurrencyVnd(item.price)}</TableCell>
                   <TableCell>
-                    <StatusBadge tone={item.status === "ACTIVE" ? "success" : "neutral"}>
+                    {item.modality ? MODALITY_LABELS[item.modality] : "—"}
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    {formatCurrencyVnd(item.price)}
+                  </TableCell>
+                  <TableCell>
+                    <StatusBadge
+                      tone={item.status === "ACTIVE" ? "success" : "neutral"}
+                    >
                       {SERVICE_STATUS_LABELS[item.status]}
                     </StatusBadge>
                   </TableCell>
                   <TableCell>
                     <div className="flex justify-end gap-1">
-                      <Button variant="ghost" size="sm" aria-label={`Xem ${item.name}`} onClick={() => onView(item.id)}>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        aria-label={`Xem ${item.name}`}
+                        onClick={() => onView(item.id)}
+                      >
                         Xem
                       </Button>
                       {item.allowedActions.includes("edit") ? (
-                        <Button variant="outline" size="sm" aria-label={`Sửa ${item.name}`} onClick={() => onEdit(item.id)}>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          aria-label={`Sửa ${item.name}`}
+                          onClick={() => onEdit(item.id)}
+                        >
                           Sửa
                         </Button>
                       ) : null}

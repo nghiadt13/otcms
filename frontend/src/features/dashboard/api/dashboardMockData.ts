@@ -155,9 +155,9 @@ export function buildEmptyOverview(
     appointments: {
       status: "READY",
       total: { ...zero },
-      byStatus: (
-        ["BOOKED", "CHECKED_IN", "CANCELLED", "NO_SHOW"] as const
-      ).map((code) => ({ code, ...zero })),
+      byStatus: (["BOOKED", "CHECKED_IN", "CANCELLED", "NO_SHOW"] as const).map(
+        (code) => ({ code, ...zero }),
+      ),
     },
     visits: {
       status: "READY",

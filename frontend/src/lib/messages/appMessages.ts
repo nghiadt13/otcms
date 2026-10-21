@@ -53,7 +53,8 @@ export const APP_MESSAGES: Record<string, string> = {
   "MSG-69": "Nội dung thiếu hoặc chưa phù hợp để đăng.",
   "MSG-70": "Đã đăng nội dung.",
   "MSG-71": "Đã gỡ nội dung.",
-  "MSG-72": "Khoảng thời gian chưa hợp lệ. Ngày bắt đầu phải trước ngày kết thúc.",
+  "MSG-72":
+    "Khoảng thời gian chưa hợp lệ. Ngày bắt đầu phải trước ngày kết thúc.",
   "MSG-73": "Đã tạo báo cáo.",
   "MSG-80": "Không có thông báo nào.",
   "MSG-89": "Chuyển lịch hẹn không thành công. Vui lòng thử lại.",

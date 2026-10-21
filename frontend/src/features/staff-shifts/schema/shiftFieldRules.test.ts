@@ -32,7 +32,9 @@ describe("validateShiftForm", () => {
 
   it("khi sửa không bắt buộc nhân viên", () => {
     expect(
-      validateShiftForm({ ...valid, staffId: "" }, TODAY, { requireStaff: false }),
+      validateShiftForm({ ...valid, staffId: "" }, TODAY, {
+        requireStaff: false,
+      }),
     ).toEqual({});
   });
 
@@ -47,11 +49,15 @@ describe("validateShiftForm", () => {
   it("ngày quá khứ bị chặn khi thêm và khi sửa; hôm nay hợp lệ", () => {
     for (const requireStaff of [true, false]) {
       expect(
-        validateShiftForm({ ...valid, date: "2026-10-19" }, TODAY, { requireStaff }),
+        validateShiftForm({ ...valid, date: "2026-10-19" }, TODAY, {
+          requireStaff,
+        }),
       ).toEqual({ date: "MSG-34" });
     }
     expect(
-      validateShiftForm({ ...valid, date: TODAY }, TODAY, { requireStaff: true }),
+      validateShiftForm({ ...valid, date: TODAY }, TODAY, {
+        requireStaff: true,
+      }),
     ).toEqual({});
   });
 });

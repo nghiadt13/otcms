@@ -53,7 +53,11 @@ export function ReassignDoctorDialog({
     >
       <DialogContent className="sm:max-w-md">
         {appointment ? (
-          <ReassignBody key={appointment.id} appointment={appointment} {...handlers} />
+          <ReassignBody
+            key={appointment.id}
+            appointment={appointment}
+            {...handlers}
+          />
         ) : null}
       </DialogContent>
     </Dialog>
@@ -78,7 +82,11 @@ function ReassignBody({
   // Lịch không còn dùng được khi tải ứng viên: toast, đóng, tải lại.
   useEffect(() => {
     const error = eligible.error;
-    if (!error || handledError.current === error || !isStaleAppointmentError(error))
+    if (
+      !error ||
+      handledError.current === error ||
+      !isStaleAppointmentError(error)
+    )
       return;
     handledError.current = error;
     notifyError(error);
@@ -89,21 +97,30 @@ function ReassignBody({
     eligible.error && !isStaleAppointmentError(eligible.error)
       ? messageFromError(eligible.error)
       : null;
-  const noCandidates = !eligible.loading && !loadError && eligible.doctors?.length === 0;
-  const canNotify = noCandidates && appointment.allowedActions.includes("notifyNoReplacement");
+  const noCandidates =
+    !eligible.loading && !loadError && eligible.doctors?.length === 0;
+  const canNotify =
+    noCandidates && appointment.allowedActions.includes("notifyNoReplacement");
 
   async function submit() {
     setSubmitting(true);
     setFieldError(undefined);
     try {
-      const updated = await reassignAppointmentDoctor(appointment.id, selectedId);
+      const updated = await reassignAppointmentDoctor(
+        appointment.id,
+        selectedId,
+      );
       notifySuccess(reassignSuccessText(updated.doctor?.fullName ?? ""));
       onChanged(updated);
     } catch (error) {
       if (isStaleAppointmentError(error)) {
         notifyError(error);
         onStale();
-      } else if (isApiError(error) && error.status === 409 && error.code === "MSG-24") {
+      } else if (
+        isApiError(error) &&
+        error.status === 409 &&
+        error.code === "MSG-24"
+      ) {
         // Bác sĩ vừa chọn không còn khả dụng: giữ Dialog, chọn lại từ danh sách mới.
         notifyError(error);
         setSelectedId("");
@@ -134,7 +151,9 @@ function ReassignBody({
           {
             label: "Giờ hẹn",
             value: (
-              <span className="tabular-nums">{formatDateTime(appointment.startAt)}</span>
+              <span className="tabular-nums">
+                {formatDateTime(appointment.startAt)}
+              </span>
             ),
           },
           {

@@ -44,7 +44,10 @@ export function ChangePasswordForm({
 
   // Báo lỗi khi rời ô; xóa lỗi cũ của ô khi người dùng sửa lại.
   const touch = (field: Field) =>
-    setErrors((prev) => ({ ...prev, [field]: validators[field]() ?? undefined }));
+    setErrors((prev) => ({
+      ...prev,
+      [field]: validators[field]() ?? undefined,
+    }));
   const clear = (field: Field) =>
     setErrors((prev) => ({ ...prev, [field]: undefined }));
 

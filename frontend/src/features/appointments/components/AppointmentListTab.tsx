@@ -11,7 +11,10 @@ import { useAppointmentList } from "../hooks/useAppointmentList";
 import type { useAppointmentUrlState } from "../hooks/useAppointmentUrlState";
 import type { useDoctorLookup } from "../hooks/useDoctorLookup";
 import { NOTIFY_SUCCESS_TEXT } from "../schema/appointmentMessages";
-import { rangeErrorCode, resolveListRange } from "../schema/appointmentUrlRules";
+import {
+  rangeErrorCode,
+  resolveListRange,
+} from "../schema/appointmentUrlRules";
 import type { Appointment } from "../types/appointment";
 import { AppointmentDetailSheet } from "./AppointmentDetailSheet";
 import { AppointmentFilters } from "./AppointmentFilters";
@@ -109,7 +112,10 @@ export function AppointmentListTab({ url, lookup }: AppointmentListTabProps) {
           onPageChange={list.setPage}
         />
       ) : null}
-      <AppointmentDetailSheet appointment={viewing} onClose={() => setViewing(null)} />
+      <AppointmentDetailSheet
+        appointment={viewing}
+        onClose={() => setViewing(null)}
+      />
       <ReassignDoctorDialog
         appointment={reassigning}
         onClose={() => setReassigning(null)}

@@ -44,7 +44,10 @@ describe("listAnnouncements", () => {
   it("lọc theo tiêu đề, nhóm và ngày đăng", async () => {
     const byQ = await listAnnouncements({ ...empty, q: "thứ bảy" });
     expect(byQ.items).toHaveLength(1);
-    const byAudience = await listAnnouncements({ ...empty, audience: "PUBLIC" });
+    const byAudience = await listAnnouncements({
+      ...empty,
+      audience: "PUBLIC",
+    });
     expect(byAudience.items.every((i) => i.audience === "PUBLIC")).toBe(true);
     const byDate = await listAnnouncements({
       ...empty,

@@ -44,10 +44,11 @@ export function useActivityLogList() {
     draft.to,
   );
 
-  const list = usePagedList<
-    ActivityLogItem,
-    ActivityLogFilters
-  >((query, signal) => listActivityLogs(query, signal), draft, PAGE_SIZE);
+  const list = usePagedList<ActivityLogItem, ActivityLogFilters>(
+    (query, signal) => listActivityLogs(query, signal),
+    draft,
+    PAGE_SIZE,
+  );
   const { filters, setFilters } = list;
 
   const applied = useMemo<ActivityLogFilters>(

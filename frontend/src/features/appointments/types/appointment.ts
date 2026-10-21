@@ -2,7 +2,8 @@ import type { PageResponse } from "@/lib/api/pagination";
 
 // Hình khớp 1-1 với JSON hợp đồng API (plan phase-05 mục 7).
 
-export type AppointmentStatus = "BOOKED" | "CHECKED_IN" | "CANCELLED" | "NO_SHOW";
+export type AppointmentStatus =
+  "BOOKED" | "CHECKED_IN" | "CANCELLED" | "NO_SHOW";
 export type AppointmentAction = "reassign" | "notifyNoReplacement";
 export type SlotStatus = "FREE" | "BOOKED";
 export type AppointmentTab = "list" | "availability";

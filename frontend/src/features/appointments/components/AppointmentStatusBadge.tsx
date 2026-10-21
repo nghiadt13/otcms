@@ -21,6 +21,8 @@ export function AppointmentStatusBadge({
   status: AppointmentStatus;
 }) {
   return (
-    <StatusBadge tone={STATUS_TONES[status]}>{STATUS_LABELS[status]}</StatusBadge>
+    <StatusBadge tone={STATUS_TONES[status]}>
+      {STATUS_LABELS[status]}
+    </StatusBadge>
   );
 }

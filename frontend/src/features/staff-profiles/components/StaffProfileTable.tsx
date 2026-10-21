@@ -1,5 +1,8 @@
 import { Eye, Pencil } from "lucide-react";
-import { RowActionsMenu, type RowAction } from "@/components/admin/RowActionsMenu";
+import {
+  RowActionsMenu,
+  type RowAction,
+} from "@/components/admin/RowActionsMenu";
 import { StatusBadge } from "@/components/admin/StatusBadge";
 import { TableFrame } from "@/components/admin/TableFrame";
 import { TableStateRows } from "@/components/admin/TableStateRows";

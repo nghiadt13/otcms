@@ -71,7 +71,10 @@ describe("notificationApi", () => {
 
   it("kho rỗng trả danh sách rỗng; failList trả 500 MSG-04", async () => {
     resetNotificationMockStore([]);
-    expect(await listMyNotifications()).toMatchObject({ items: [], totalItems: 0 });
+    expect(await listMyNotifications()).toMatchObject({
+      items: [],
+      totalItems: 0,
+    });
     resetNotificationMockStore(MOCK_NOTIFICATIONS, { failList: true });
     const err = await failure(listMyNotifications());
     expect([err.status, err.code]).toEqual([500, "MSG-04"]);

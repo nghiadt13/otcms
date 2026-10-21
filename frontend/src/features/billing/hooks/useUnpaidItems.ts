@@ -19,10 +19,11 @@ import { useBillingDetail } from "./useBillingDetail";
 
 /** Danh sách khoản chưa thanh toán (phân trang phía server, `summary` do BE tính toàn kỳ lọc). */
 export function useUnpaidItems() {
-  const list = usePagedList<UnpaidItem, UnpaidItemFilter, { summary: UnpaidItemSummary }>(
-    listUnpaidItems,
-    {},
-  );
+  const list = usePagedList<
+    UnpaidItem,
+    UnpaidItemFilter,
+    { summary: UnpaidItemSummary }
+  >(listUnpaidItems, {});
   const { filters } = list;
   return {
     items: list.data?.items ?? [],
@@ -37,7 +38,11 @@ export function useUnpaidItems() {
     error: list.error,
     reload: list.reload,
     hasFilter: Boolean(
-      filters.from || filters.to || filters.q || filters.serviceId || filters.kind,
+      filters.from ||
+      filters.to ||
+      filters.q ||
+      filters.serviceId ||
+      filters.kind,
     ),
   };
 }

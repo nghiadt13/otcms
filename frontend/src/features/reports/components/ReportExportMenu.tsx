@@ -15,7 +15,10 @@ type ReportExportMenuProps = {
 };
 
 /** Nút "Xuất báo cáo" mở menu hai định dạng; chọn xong menu đóng, nút hiện "Đang xuất...". */
-export function ReportExportMenu({ exporting, onExport }: ReportExportMenuProps) {
+export function ReportExportMenu({
+  exporting,
+  onExport,
+}: ReportExportMenuProps) {
   const [open, setOpen] = useState(false);
   return (
     <Popover open={open} onOpenChange={setOpen}>

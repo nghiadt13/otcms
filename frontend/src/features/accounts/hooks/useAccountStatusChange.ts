@@ -37,7 +37,8 @@ export function useAccountStatusChange({
 
   const confirm = useCallback(async () => {
     if (!target) return;
-    const call = target.action === "activate" ? activateAccount : deactivateAccount;
+    const call =
+      target.action === "activate" ? activateAccount : deactivateAccount;
     try {
       const updated = await call(target.id);
       notifySuccess(

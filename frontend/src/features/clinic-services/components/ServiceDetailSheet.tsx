@@ -18,9 +18,15 @@ import { CATEGORY_LABELS } from "@/lib/domain/clinicCategories";
 import { formatCurrencyVnd } from "@/lib/format/formatCurrencyVnd";
 import { notifyError, notifySuccess } from "@/lib/messages/notify";
 import { discontinueServiceCatalog } from "../api/serviceCatalogApi";
-import { isStaleServiceError, useServiceDetail } from "../hooks/useServiceDetail";
+import {
+  isStaleServiceError,
+  useServiceDetail,
+} from "../hooks/useServiceDetail";
 import { serviceDetailToDraft } from "../schema/serviceFormDraft";
-import { MODALITY_LABELS, type ServiceCatalogDetail } from "../types/serviceCatalog";
+import {
+  MODALITY_LABELS,
+  type ServiceCatalogDetail,
+} from "../types/serviceCatalog";
 import { IndicatorTable } from "./IndicatorTable";
 
 type ServiceDetailSheetProps = {
@@ -65,7 +71,9 @@ export function ServiceDetailSheet({
         <SheetHeader>
           <SheetTitle>{detail?.name ?? "Chi tiết dịch vụ"}</SheetTitle>
           <SheetDescription>
-            {detail ? CATEGORY_LABELS[detail.type] : "Đang tải thông tin dịch vụ."}
+            {detail
+              ? CATEGORY_LABELS[detail.type]
+              : "Đang tải thông tin dịch vụ."}
           </SheetDescription>
           {detail?.status === "DISCONTINUED" ? (
             <div className="pt-1">
@@ -79,7 +87,10 @@ export function ServiceDetailSheet({
         {detail && detail.allowedActions.length > 0 ? (
           <SheetFooter className="flex-col-reverse border-t sm:flex-row sm:justify-between">
             {detail.allowedActions.includes("discontinue") ? (
-              <Button variant="destructive" onClick={() => setConfirmOpen(true)}>
+              <Button
+                variant="destructive"
+                onClick={() => setConfirmOpen(true)}
+              >
                 Ngừng cung cấp
               </Button>
             ) : (
@@ -113,19 +124,34 @@ function DetailBody({ detail }: { detail: ServiceCatalogDetail }) {
       <DetailList
         items={[
           { label: "Loại dịch vụ", value: CATEGORY_LABELS[detail.type] },
-          { label: "Phương thức", value: detail.modality ? MODALITY_LABELS[detail.modality] : "—" },
-          { label: "Giá", value: <span className="tabular-nums">{formatCurrencyVnd(detail.price)}</span> },
+          {
+            label: "Phương thức",
+            value: detail.modality ? MODALITY_LABELS[detail.modality] : "—",
+          },
+          {
+            label: "Giá",
+            value: (
+              <span className="tabular-nums">
+                {formatCurrencyVnd(detail.price)}
+              </span>
+            ),
+          },
           {
             label: "Khung giờ",
             value:
               detail.bookingDetails.slotMinutes === null ? (
                 "—"
               ) : (
-                <span className="tabular-nums">{detail.bookingDetails.slotMinutes} phút</span>
+                <span className="tabular-nums">
+                  {detail.bookingDetails.slotMinutes} phút
+                </span>
               ),
           },
           { label: "Mô tả", value: detail.description || "—" },
-          { label: "Ghi chú dặn bệnh nhân", value: detail.bookingDetails.patientNote || "—" },
+          {
+            label: "Ghi chú dặn bệnh nhân",
+            value: detail.bookingDetails.patientNote || "—",
+          },
         ]}
       />
       {detail.type === "LABORATORY" ? (
