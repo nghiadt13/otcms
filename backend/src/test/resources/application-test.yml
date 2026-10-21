@@ -1,0 +1,32 @@
+spring:
+  config:
+    activate:
+      on-profile: test
+  datasource:
+    # Test profile is pinned to a dedicated loopback database. Never reuse
+    # SUPABASE_DB_URL or credentials from the developer .env file.
+    url: jdbc:postgresql://127.0.0.1:5432/otcms_test_db
+    username: postgres
+    password: admin
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      connection-timeout: 5000
+      maximum-pool-size: 5
+      minimum-idle: 1
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: false
+    show-sql: false
+  flyway:
+    enabled: true
+    baseline-on-migrate: false
+
+appointment:
+  booking:
+    readiness:
+      required: false
+

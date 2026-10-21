@@ -1,0 +1,460 @@
+openapi: 3.1.0
+info:
+  title: OTCMS Appointment and Visit Workflow API
+  version: 1.0.0
+  description: >-
+    FEAT-002 HTTP contract for appointment booking, availability, lifecycle, and
+    Visit workflows consumed by appointment acceptance criteria. The document
+    is a static FEAT-002 workflow contract snapshot; compare it with the
+    runtime-generated full API document and owning controllers when APIs
+    change. The running backend serves its generated document at /v3/api-docs
+    and Swagger UI at /swagger-ui/index.html.
+servers:
+  - url: http://localhost:8080
+    description: Local backend
+tags:
+  - name: Appointments
+  - name: Availability
+  - name: Visit workflow
+  - name: Readiness
+security:
+  - bearerAuth: []
+paths:
+  /api/v1/appointments/availability:
+    get:
+      tags: [Availability]
+      summary: Find public appointment availability
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/serviceId'
+        - $ref: '#/components/parameters/from'
+        - $ref: '#/components/parameters/to'
+        - $ref: '#/components/parameters/doctorId'
+      responses:
+        '200':
+          description: Available slots (empty list is a successful result)
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AvailabilityResponse'}
+        '400': {$ref: '#/components/responses/ClientError'}
+        '429': {$ref: '#/components/responses/ApiError'}
+        '503': {$ref: '#/components/responses/ApiError'}
+  /api/v1/staff/appointments/availability:
+    get:
+      tags: [Availability]
+      summary: Find staff appointment availability
+      parameters:
+        - $ref: '#/components/parameters/serviceId'
+        - $ref: '#/components/parameters/from'
+        - $ref: '#/components/parameters/to'
+        - $ref: '#/components/parameters/doctorId'
+      responses:
+        '200':
+          description: Available slots
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AvailabilityResponse'}
+        '400': {$ref: '#/components/responses/ClientError'}
+        '401': {$ref: '#/components/responses/ApiError'}
+        '403': {$ref: '#/components/responses/ApiError'}
+        '503': {$ref: '#/components/responses/ApiError'}
+  /api/v1/appointments/{appointmentId}/reschedule-availability:
+    get:
+      tags: [Availability]
+      summary: Find slots for rescheduling an appointment
+      parameters:
+        - $ref: '#/components/parameters/appointmentId'
+        - $ref: '#/components/parameters/from'
+        - $ref: '#/components/parameters/to'
+      responses:
+        '200':
+          description: Candidate slots
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AvailabilityResponse'}
+        '400': {$ref: '#/components/responses/ClientError'}
+        '401': {$ref: '#/components/responses/ApiError'}
+        '403': {$ref: '#/components/responses/ApiError'}
+        '404': {$ref: '#/components/responses/ApiError'}
+  /api/v1/appointments/{appointmentId}/reassignment-availability:
+    get:
+      tags: [Availability]
+      summary: Find candidate Doctors for reassignment
+      parameters:
+        - $ref: '#/components/parameters/appointmentId'
+        - $ref: '#/components/parameters/from'
+        - $ref: '#/components/parameters/to'
+      responses:
+        '200':
+          description: Candidate Doctor slots
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AvailabilityResponse'}
+        '400': {$ref: '#/components/responses/ClientError'}
+        '401': {$ref: '#/components/responses/ApiError'}
+        '403': {$ref: '#/components/responses/ApiError'}
+        '404': {$ref: '#/components/responses/ApiError'}
+  /api/v1/appointments:
+    get:
+      tags: [Appointments]
+      summary: List appointments visible to the authenticated actor
+      parameters:
+        - {name: page, in: query, schema: {type: integer, minimum: 0, default: 0}}
+        - {name: size, in: query, schema: {type: integer, minimum: 1, maximum: 100, default: 20}}
+        - {name: from, in: query, description: Inclusive clinic-local date, schema: {type: string, format: date}}
+        - {name: to, in: query, description: Inclusive clinic-local date, schema: {type: string, format: date}}
+        - {name: status, in: query, schema: {type: string, enum: [CONFIRMED, CHECKED_IN, IN_PROGRESS, COMPLETED, CANCELLED, NO_SHOW]}}
+        - {name: doctorId, in: query, schema: {type: string, format: uuid}}
+        - {name: patientProfileId, in: query, schema: {type: string, format: uuid}}
+      responses:
+        '200':
+          description: Scoped appointment page
+          headers:
+            X-Correlation-ID: {$ref: '#/components/headers/CorrelationId'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AppointmentPage'}
+        '400': {$ref: '#/components/responses/ClientError'}
+        '401': {$ref: '#/components/responses/ApiError'}
+        '403': {$ref: '#/components/responses/ApiError'}
+    post:
+      tags: [Appointments]
+      summary: Book an appointment
+      description: Patient may book only for the currently linked self profile; Receptionist may book for an existing profile, including one without an account. Actor/source are server-derived.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/CreateAppointmentRequest'}
+      responses:
+        '201':
+          description: Appointment created
+          headers:
+            Location: {schema: {type: string, format: uri-reference}}
+            X-Correlation-ID: {$ref: '#/components/headers/CorrelationId'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Appointment'}
+        '400': {$ref: '#/components/responses/ClientError'}
+        '401': {$ref: '#/components/responses/ApiError'}
+        '403': {$ref: '#/components/responses/ApiError'}
+        '409': {$ref: '#/components/responses/ApiError'}
+        '503': {$ref: '#/components/responses/ApiError'}
+  /api/v1/appointments/{id}:
+    get:
+      tags: [Appointments]
+      summary: Read one scoped appointment
+      parameters:
+        - $ref: '#/components/parameters/id'
+      responses:
+        '200':
+          description: Appointment details
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Appointment'}
+        '401': {$ref: '#/components/responses/ApiError'}
+        '403': {$ref: '#/components/responses/ApiError'}
+        '404': {$ref: '#/components/responses/ApiError'}
+  /api/v1/appointments/{id}/reschedule:
+    patch:
+      tags: [Appointments]
+      summary: Reschedule an appointment
+      parameters: [{$ref: '#/components/parameters/id'}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/RescheduleAppointmentRequest'}
+      responses:
+        '200': {description: Appointment rescheduled, content: {application/json: {schema: {$ref: '#/components/schemas/Appointment'}}}}
+        '400': {$ref: '#/components/responses/ClientError'}
+        '401': {$ref: '#/components/responses/ApiError'}
+        '403': {$ref: '#/components/responses/ApiError'}
+        '409': {$ref: '#/components/responses/ApiError'}
+        '503': {$ref: '#/components/responses/ApiError'}
+  /api/v1/appointments/{id}/cancel:
+    post:
+      tags: [Appointments]
+      summary: Cancel an appointment
+      parameters: [{$ref: '#/components/parameters/id'}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/CancelAppointmentRequest'}
+      responses:
+        '200': {description: Appointment cancelled, content: {application/json: {schema: {$ref: '#/components/schemas/Appointment'}}}}
+        '400': {$ref: '#/components/responses/ClientError'}
+        '401': {$ref: '#/components/responses/ApiError'}
+        '403': {$ref: '#/components/responses/ApiError'}
+        '409': {$ref: '#/components/responses/ApiError'}
+        '503': {$ref: '#/components/responses/ApiError'}
+  /api/v1/appointments/{id}/reassign:
+    post:
+      tags: [Appointments]
+      summary: Reassign an appointment to another eligible Doctor
+      parameters: [{$ref: '#/components/parameters/id'}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ReassignAppointmentRequest'}
+      responses:
+        '200': {description: Appointment reassigned, content: {application/json: {schema: {$ref: '#/components/schemas/Appointment'}}}}
+        '400': {$ref: '#/components/responses/ClientError'}
+        '401': {$ref: '#/components/responses/ApiError'}
+        '403': {$ref: '#/components/responses/ApiError'}
+        '409': {$ref: '#/components/responses/ApiError'}
+        '503': {$ref: '#/components/responses/ApiError'}
+  /api/v1/appointments/{id}/check-in:
+    post:
+      tags: [Appointments]
+      summary: Atomically check in a scheduled appointment
+      parameters:
+        - $ref: '#/components/parameters/id'
+        - $ref: '#/components/parameters/idempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/CheckInRequest'}
+      responses:
+        '200': {description: Existing or newly checked-in Visit, content: {application/json: {schema: {$ref: '#/components/schemas/CheckInResponse'}}}}
+        '400': {$ref: '#/components/responses/ClientError'}
+        '401': {$ref: '#/components/responses/ApiError'}
+        '403': {$ref: '#/components/responses/ApiError'}
+        '409': {$ref: '#/components/responses/ApiError'}
+        '503': {$ref: '#/components/responses/ApiError'}
+  /api/v1/appointments/{id}/status:
+    patch:
+      tags: [Appointments]
+      summary: Mark no-show (Receptionist) or advance scheduled care (Doctor)
+      parameters: [{$ref: '#/components/parameters/id'}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/UpdateAppointmentStatusRequest'}
+      responses:
+        '200': {description: Appointment updated, content: {application/json: {schema: {$ref: '#/components/schemas/Appointment'}}}}
+        '400': {$ref: '#/components/responses/ClientError'}
+        '401': {$ref: '#/components/responses/ApiError'}
+        '403': {$ref: '#/components/responses/ApiError'}
+        '409': {$ref: '#/components/responses/ApiError'}
+        '503': {$ref: '#/components/responses/ApiError'}
+  /api/v1/visits/{visitId}/follow-up-appointments:
+    post:
+      tags: [Visit workflow]
+      summary: Create a Doctor-authorized follow-up from completed Visit evidence
+      parameters: [{$ref: '#/components/parameters/visitId'}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/FollowUpRequest'}
+      responses:
+        '201':
+          description: Follow-up appointment created
+          headers:
+            Location: {schema: {type: string, format: uri-reference}}
+            X-Correlation-ID: {$ref: '#/components/headers/CorrelationId'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Appointment'}
+        '400': {$ref: '#/components/responses/ClientError'}
+        '401': {$ref: '#/components/responses/ApiError'}
+        '403': {$ref: '#/components/responses/ApiError'}
+        '409': {$ref: '#/components/responses/ApiError'}
+        '503': {$ref: '#/components/responses/ApiError'}
+  /api/v1/visits/walk-ins:
+    post:
+      tags: [Visit workflow]
+      summary: Create an atomic Receptionist walk-in Visit
+      description: Idempotent creation of Visit, reception, audit and replay evidence. Exact replay returns the stored 201 response. Does not mutate a referenced appointment.
+      parameters: [{$ref: '#/components/parameters/idempotencyKey'}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/WalkInRequest'}
+      responses:
+        '201': {description: Walk-in created or exact replay, content: {application/json: {schema: {$ref: '#/components/schemas/WalkInResponse'}}}}
+        '400': {$ref: '#/components/responses/ClientError'}
+        '401': {$ref: '#/components/responses/ApiError'}
+        '403': {$ref: '#/components/responses/ApiError'}
+        '409': {$ref: '#/components/responses/ApiError'}
+        '503': {$ref: '#/components/responses/ApiError'}
+  /api/v1/system/production-readiness:
+    get:
+      tags: [Readiness]
+      summary: Read safe production readiness gate state
+      responses:
+        '200':
+          description: Gate state (boolean only)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductionReadinessStatus'
+        '401': {$ref: '#/components/responses/ApiError'}
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Supply the authenticated access token. Cookie/session mode may also be used by configured clients.
+  parameters:
+    id: {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+    appointmentId: {name: appointmentId, in: path, required: true, schema: {type: string, format: uuid}}
+    visitId: {name: visitId, in: path, required: true, schema: {type: string, format: uuid}}
+    serviceId: {name: serviceId, in: query, schema: {type: string, format: uuid}}
+    doctorId: {name: doctorId, in: query, schema: {type: string, format: uuid}}
+    from: {name: from, in: query, description: Inclusive clinic-local date, schema: {type: string, format: date}}
+    to: {name: to, in: query, description: Inclusive clinic-local date, schema: {type: string, format: date}}
+    idempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema: {type: string, minLength: 1, maxLength: 128}
+    correlationId:
+      name: X-Correlation-ID
+      in: header
+      description: Optional caller correlation value; response returns the resolved value.
+      required: false
+      schema: {type: string, maxLength: 128}
+  headers:
+    CorrelationId:
+      description: Request correlation identifier
+      schema: {type: string}
+  responses:
+    ClientError:
+      description: Invalid request or business-state conflict
+      headers:
+        X-Correlation-ID: {$ref: '#/components/headers/CorrelationId'}
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ApiError'}
+    ApiError:
+      description: Safe API error envelope
+      headers:
+        X-Correlation-ID: {$ref: '#/components/headers/CorrelationId'}
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ApiError'}
+  schemas:
+    ProductionReadinessStatus:
+      type: object
+      properties:
+        commandEndpointsEnabled: {type: boolean}
+      required: [commandEndpointsEnabled]
+      additionalProperties: false
+    CreateAppointmentRequest:
+      type: object
+      additionalProperties: false
+      required: [serviceId, doctorId, startTime, purpose]
+      properties:
+        patientProfileId: {type: string, format: uuid, description: Optional for Patient self-booking; required for Receptionist-assisted booking.}
+        serviceId: {type: string, format: uuid}
+        doctorId: {type: string, format: uuid}
+        startTime: {type: string, format: date-time, description: Offset date-time with explicit offset.}
+        purpose: {type: string, minLength: 1, maxLength: 1002}
+    RescheduleAppointmentRequest:
+      type: object
+      additionalProperties: false
+      required: [startTime]
+      properties:
+        startTime: {type: string, format: date-time}
+        reason: {type: string, maxLength: 1000}
+    CancelAppointmentRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        reason: {type: string, maxLength: 1000}
+    ReassignAppointmentRequest:
+      type: object
+      additionalProperties: false
+      required: [doctorId, reason]
+      properties:
+        doctorId: {type: string, format: uuid}
+        reason: {type: string, minLength: 1, maxLength: 1000}
+    CheckInRequest:
+      type: object
+      additionalProperties: false
+    UpdateAppointmentStatusRequest:
+      type: object
+      additionalProperties: false
+      required: [targetStatus]
+      properties:
+        targetStatus: {type: string, enum: [NO_SHOW, IN_PROGRESS, COMPLETED]}
+        reason: {type: string, maxLength: 1000, description: Receptionist NO_SHOW reason; prohibited for Doctor transitions.}
+    FollowUpRequest:
+      type: object
+      additionalProperties: false
+      required: [serviceId, doctorId, startTime, purpose, reason]
+      properties:
+        serviceId: {type: string, format: uuid}
+        doctorId: {type: string, format: uuid}
+        startTime: {type: string, format: date-time}
+        purpose: {type: string, minLength: 1}
+        reason: {type: string, minLength: 1}
+    WalkInRequest:
+      type: object
+      additionalProperties: false
+      required: [patientProfileId]
+      properties:
+        patientProfileId: {type: string, format: uuid}
+        priorAppointmentId: {type: string, format: uuid, nullable: true}
+    Appointment:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        patientProfileId: {type: string, format: uuid}
+        serviceId: {type: string, format: uuid}
+        doctorId: {type: string, format: uuid}
+        status: {type: string, enum: [CONFIRMED, CHECKED_IN, IN_PROGRESS, COMPLETED, CANCELLED, NO_SHOW]}
+        bookingSource: {type: string}
+        purpose: {type: string}
+        startTime: {type: string, format: date-time}
+        endTime: {type: string, format: date-time}
+        durationMinutes: {type: integer}
+        bufferMinutes: {type: integer}
+        occupiedUntil: {type: string, format: date-time}
+        visitId: {type: string, format: uuid, nullable: true}
+        sourceVisitId: {type: string, format: uuid, nullable: true}
+        createdAt: {type: string, format: date-time}
+        updatedAt: {type: string, format: date-time}
+    AppointmentPage:
+      type: object
+      properties:
+        items: {type: array, items: {$ref: '#/components/schemas/Appointment'}}
+        page: {type: integer}
+        size: {type: integer}
+        totalElements: {type: integer, format: int64}
+        totalPages: {type: integer}
+    AvailabilityResponse:
+      type: object
+      properties:
+        slots:
+          type: array
+          items:
+            type: object
+            properties:
+              serviceId: {type: string, format: uuid}
+              doctorId: {type: string, format: uuid}
+              doctorDisplayName: {type: string}
+              startTime: {type: string, format: date-time}
+              endTime: {type: string, format: date-time}
+              occupiedUntil: {type: string, format: date-time}
+    CheckInResponse:
+      type: object
+      properties:
+        appointmentId: {type: string, format: uuid}
+        visitId: {type: string, format: uuid}
+        checkedInAt: {type: string, format: date-time}
+    WalkInResponse:
+      type: object
+      properties:
+        visitId: {type: string, format: uuid}
+        patientProfileId: {type: string, format: uuid}
+        priorAppointmentId: {type: string, format: uuid, nullable: true}
+        arrivedAt: {type: string, format: date-time}
