@@ -1,5 +1,8 @@
 package fu.fa26.sep490.g58.otcms_be.auth.security;
 
+import fu.fa26.sep490.g58.otcms_be.common.security.AuthenticatedAccount;
+import fu.fa26.sep490.g58.otcms_be.common.security.AccountRole;
+
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -19,8 +22,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     public JwtAuthenticationFilter(JwtTokenService tokens){this.tokens=tokens;}
     @Override protected void doFilterInternal(HttpServletRequest request,HttpServletResponse response,FilterChain chain)throws ServletException,IOException{
         String value=request.getHeader(HttpHeaders.AUTHORIZATION);
-        if(value!=null&&value.startsWith("Bearer "))try{var c=tokens.validate(value.substring(7));var p=new AuthenticatedAccount(c.accountId(),c.accountType(),c.sessionId());SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(p,null,List.of(new SimpleGrantedAuthority("ROLE_"+c.accountType().name()))));}catch(JwtTokenService.JwtValidationException ignored){SecurityContextHolder.clearContext();}
+        if(value!=null&&value.startsWith("Bearer "))try{var c=tokens.validate(value.substring(7));var p=new AuthenticatedAccount(c.accountId(),AccountRole.valueOf(c.accountType().name()),c.sessionId());SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(p,null,List.of(new SimpleGrantedAuthority("ROLE_"+c.accountType().name()))));}catch(JwtTokenService.JwtValidationException ignored){SecurityContextHolder.clearContext();}
         chain.doFilter(request,response);
-    }
-    public record AuthenticatedAccount(java.util.UUID accountId,fu.fa26.sep490.g58.otcms_be.auth.entity.AccountType accountType,java.util.UUID sessionId){}
+}
 }

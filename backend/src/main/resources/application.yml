@@ -32,6 +32,15 @@ spring:
     enabled: true
     baseline-on-migrate: false
 
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    operations-sorter: alpha
+    tags-sorter: alpha
+  show-actuator: false
+
 # Enable SPRING_PROFILES_ACTIVE=supabase when the application must write to
 # Supabase. That profile activates a fail-fast guard which rejects localhost
 # datasource URLs and remote PostgreSQL URLs without sslmode=require.
@@ -50,6 +59,9 @@ app:
     max-attempts: ${APP_EMAIL_MAX_ATTEMPTS:2}
   auth:
     rate-limit-hmac-secret: ${APP_AUTH_RATE_LIMIT_HMAC_SECRET:}
+    staff-network:
+      allowed-cidrs: ${APP_AUTH_STAFF_ALLOWED_CIDRS:127.0.0.1/32,::1/128}
+      trusted-proxy-cidrs: ${APP_AUTH_STAFF_TRUSTED_PROXY_CIDRS:}
     google:
       issuer: ${GOOGLE_OIDC_ISSUER:https://accounts.google.com}
       audience: ${GOOGLE_OIDC_CLIENT_ID:}
@@ -66,3 +78,26 @@ app:
       cookie-secure: ${APP_AUTH_COOKIE_SECURE:true}
       patient-origins: ${APP_AUTH_PATIENT_ORIGINS:https://patient.otcms.local}
       staff-origins: ${APP_AUTH_STAFF_ORIGINS:https://staff.otcms.local}
+
+appointment:
+  booking:
+    max-horizon-days: ${APPOINTMENT_BOOKING_MAX_HORIZON_DAYS:30}
+    online-minimum-notice-minutes: ${APPOINTMENT_BOOKING_ONLINE_MINIMUM_NOTICE_MINUTES:120}
+    patient-change-deadline-minutes: ${APPOINTMENT_BOOKING_PATIENT_CHANGE_DEADLINE_MINUTES:1440}
+    check-in-early-minutes: ${APPOINTMENT_BOOKING_CHECK_IN_EARLY_MINUTES:30}
+    check-in-late-grace-minutes: ${APPOINTMENT_BOOKING_CHECK_IN_LATE_GRACE_MINUTES:15}
+    slot-interval-minutes: ${APPOINTMENT_BOOKING_SLOT_INTERVAL_MINUTES:15}
+    clinic-time-zone: ${APPOINTMENT_BOOKING_CLINIC_TIME_ZONE:Asia/Ho_Chi_Minh}
+    public-rate-limit:
+      requests: ${APPOINTMENT_BOOKING_PUBLIC_RATE_LIMIT_REQUESTS:60}
+      window-seconds: ${APPOINTMENT_BOOKING_PUBLIC_RATE_LIMIT_WINDOW_SECONDS:60}
+      trusted-proxy-cidrs: ${APPOINTMENT_BOOKING_PUBLIC_RATE_LIMIT_TRUSTED_PROXY_CIDRS:}
+    readiness:
+      required: ${APPOINTMENT_BOOKING_READINESS_REQUIRED:true}
+      evidence-file: ${APPOINTMENT_BOOKING_READINESS_EVIDENCE_FILE:}
+      evidence-sha256: ${APPOINTMENT_BOOKING_READINESS_EVIDENCE_SHA256:}
+      evidence-signature: ${APPOINTMENT_BOOKING_READINESS_EVIDENCE_SIGNATURE:}
+      verification-public-key: ${APPOINTMENT_BOOKING_READINESS_PUBLIC_KEY:}
+      release-id: ${APP_RELEASE_ID:}
+      migration-version: ${APP_EXPECTED_MIGRATION_VERSION:}
+      expected-owner: ${APPOINTMENT_BOOKING_READINESS_OWNER:Owner Long}

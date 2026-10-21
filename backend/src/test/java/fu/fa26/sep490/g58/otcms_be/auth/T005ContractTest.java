@@ -1,8 +1,8 @@
 package fu.fa26.sep490.g58.otcms_be.auth;
 
-import fu.fa26.sep490.g58.otcms_be.auth.controller.AuthExceptionHandler;
-import fu.fa26.sep490.g58.otcms_be.auth.controller.StaffNetworkPolicy;
-import fu.fa26.sep490.g58.otcms_be.auth.service.CredentialLoginException;
+import fu.fa26.sep490.g58.otcms_be.auth.exception.AuthExceptionHandler;
+import fu.fa26.sep490.g58.otcms_be.auth.security.StaffNetworkPolicy;
+import fu.fa26.sep490.g58.otcms_be.auth.exception.CredentialLoginException;
 import fu.fa26.sep490.g58.otcms_be.common.api.ErrorResponse;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;

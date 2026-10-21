@@ -1,8 +1,12 @@
 package fu.fa26.sep490.g58.otcms_be.auth;
+import fu.fa26.sep490.g58.otcms_be.auth.security.StaffNetworkPolicy;
 
 import fu.fa26.sep490.g58.otcms_be.auth.controller.*;
-import fu.fa26.sep490.g58.otcms_be.auth.dto.*;
-import fu.fa26.sep490.g58.otcms_be.auth.entity.AccountType;
+import fu.fa26.sep490.g58.otcms_be.auth.exception.*;
+import fu.fa26.sep490.g58.otcms_be.auth.exception.*;
+import fu.fa26.sep490.g58.otcms_be.auth.model.dto.request.*;
+import fu.fa26.sep490.g58.otcms_be.auth.model.dto.response.*;
+import fu.fa26.sep490.g58.otcms_be.auth.model.entity.enums.AccountType;
 import fu.fa26.sep490.g58.otcms_be.auth.security.CsrfTokenService;
 import fu.fa26.sep490.g58.otcms_be.auth.service.AuthSessionService;
 import fu.fa26.sep490.g58.otcms_be.auth.service.CredentialLoginService;
@@ -54,13 +58,34 @@ class T006A12EvidenceTest {
         var allowed = source.getCorsConfiguration(new org.springframework.mock.web.MockHttpServletRequest("OPTIONS", "/api/auth/refresh"));
         org.junit.jupiter.api.Assertions.assertNotNull(allowed);
         org.junit.jupiter.api.Assertions.assertEquals(List.of("https://patient.example.test", "https://staff.example.test"), allowed.getAllowedOrigins());
+        org.junit.jupiter.api.Assertions.assertTrue(allowed.getAllowedHeaders().contains("X-Correlation-ID"));
+        org.junit.jupiter.api.Assertions.assertTrue(allowed.getExposedHeaders().contains("X-Correlation-ID"));
         org.junit.jupiter.api.Assertions.assertTrue(allowed.getAllowCredentials());
+
+        var corsFilter = new org.springframework.web.filter.CorsFilter(source);
+        var preflight = new org.springframework.mock.web.MockHttpServletRequest("OPTIONS", "/api/v1/appointments");
+        preflight.addHeader("Origin", "https://patient.example.test");
+        preflight.addHeader("Access-Control-Request-Method", "POST");
+        preflight.addHeader("Access-Control-Request-Headers", "content-type,x-correlation-id");
+        var preflightResponse = new org.springframework.mock.web.MockHttpServletResponse();
+        corsFilter.doFilter(preflight, preflightResponse, (request, response) -> { });
+        org.junit.jupiter.api.Assertions.assertEquals("https://patient.example.test",
+                preflightResponse.getHeader("Access-Control-Allow-Origin"));
+        org.junit.jupiter.api.Assertions.assertTrue(preflightResponse.getHeader("Access-Control-Allow-Headers")
+                .toLowerCase().contains("x-correlation-id"));
+
+        var actualRequest = new org.springframework.mock.web.MockHttpServletRequest("GET", "/api/v1/appointments");
+        actualRequest.addHeader("Origin", "https://patient.example.test");
+        var actualResponse = new org.springframework.mock.web.MockHttpServletResponse();
+        corsFilter.doFilter(actualRequest, actualResponse, (request, response) -> { });
+        org.junit.jupiter.api.Assertions.assertTrue(actualResponse.getHeader("Access-Control-Expose-Headers")
+                .contains("X-Correlation-ID"));
     }
 
     @Test
     void staffRefreshAndLogoutRejectUntrustedClientThroughRealController() throws Exception {
         AuthSessionService sessions = mock(AuthSessionService.class);
-        when(sessions.accountTypeForRefresh("staff-refresh")).thenReturn(Optional.of(AccountType.STAFF));
+        when(sessions.accountTypeForRefresh("staff-refresh")).thenReturn(Optional.of(AccountType.RECEPTIONIST));
         var policy = new StaffNetworkPolicy();
         policy.setAllowedCidrs(List.of("10.0.0.0/8"));
         var mvc = MockMvcBuilders.standaloneSetup(new SessionSecurityController(new CsrfTokenService(), sessions, properties, policy)).build();

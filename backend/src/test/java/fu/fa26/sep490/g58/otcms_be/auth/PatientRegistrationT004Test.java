@@ -1,15 +1,15 @@
 package fu.fa26.sep490.g58.otcms_be.auth;
 
 import fu.fa26.sep490.g58.otcms_be.auth.controller.PatientRegistrationController;
-import fu.fa26.sep490.g58.otcms_be.auth.dto.RegistrationResponse;
-import fu.fa26.sep490.g58.otcms_be.auth.service.RegistrationException;
+import fu.fa26.sep490.g58.otcms_be.auth.model.dto.response.RegistrationResponse;
+import fu.fa26.sep490.g58.otcms_be.auth.exception.RegistrationException;
 import fu.fa26.sep490.g58.otcms_be.auth.service.RegistrationService;
 import fu.fa26.sep490.g58.otcms_be.config.AuthProperties;
-import fu.fa26.sep490.g58.otcms_be.auth.service.RegistrationServiceImpl;
+import fu.fa26.sep490.g58.otcms_be.auth.service.impl.RegistrationServiceImpl;
 import fu.fa26.sep490.g58.otcms_be.auth.repository.*;
-import fu.fa26.sep490.g58.otcms_be.auth.entity.*;
-import fu.fa26.sep490.g58.otcms_be.auth.port.EmailDeliveryPort;
-import jakarta.persistence.EntityManager;
+import fu.fa26.sep490.g58.otcms_be.auth.model.entity.*;
+import fu.fa26.sep490.g58.otcms_be.auth.model.entity.enums.*;
+import fu.fa26.sep490.g58.otcms_be.auth.service.EmailDeliveryService;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
@@ -58,7 +58,7 @@ class PatientRegistrationT004Test {
     @Test
     void rateLimitIdentifierIsDeterministicHmacAndNeverRawIp() throws Exception {
         AuthProperties p = new AuthProperties(null, new AuthProperties.RateLimit(5, 3600), new AuthProperties.RateLimit(3, 3600), null, null, null, "v1", "v1", "test-secret");
-        RegistrationServiceImpl service = new RegistrationServiceImpl(mock(AccountRepository.class), mock(PatientProfileRepository.class), mock(ConsentEvidenceRepository.class), mock(EmailVerificationChallengeRepository.class), mock(AuthenticationAuditRepository.class), mock(EmailDeliveryPort.class), p, mock(EntityManager.class));
+        RegistrationServiceImpl service = new RegistrationServiceImpl(mock(AccountRepository.class), mock(PatientProfileRepository.class), mock(ConsentEvidenceRepository.class), mock(EmailVerificationChallengeRepository.class), mock(AuthenticationAuditRepository.class), mock(EmailDeliveryService.class), p, mock(AuthConcurrencyRepository.class));
         Method method = RegistrationServiceImpl.class.getDeclaredMethod("hmacIdentifier", String.class);
         method.setAccessible(true);
         String rawIp = "203.0.113.7";
@@ -84,11 +84,11 @@ class PatientRegistrationT004Test {
     void resendLocksAccountSupersedesCurrentChallengeAndSendsNewOtp() {
         AccountRepository accounts = mock(AccountRepository.class);
         EmailVerificationChallengeRepository challenges = mock(EmailVerificationChallengeRepository.class);
-        EmailDeliveryPort mail = mock(EmailDeliveryPort.class);
+        EmailDeliveryService mail = mock(EmailDeliveryService.class);
         RegistrationServiceImpl service = new RegistrationServiceImpl(accounts, mock(PatientProfileRepository.class),
                 mock(ConsentEvidenceRepository.class), challenges, mock(AuthenticationAuditRepository.class), mail,
-                properties(), mock(EntityManager.class));
-        UUID id = UUID.randomUUID(); Account account = new Account(); account.setId(id);
+                properties(), mock(AuthConcurrencyRepository.class));
+        UUID id = UUID.randomUUID(); AccountJpaEntity account = new AccountJpaEntity(); account.setId(id);
         account.setNormalizedEmail("alice@example.com"); account.setStatus(AccountStatus.PENDING_VERIFICATION);
         when(accounts.findByNormalizedEmail("alice@example.com")).thenReturn(java.util.Optional.of(account));
         when(accounts.findByIdForUpdate(id)).thenReturn(java.util.Optional.of(account));
@@ -105,10 +105,10 @@ class PatientRegistrationT004Test {
         AccountRepository accounts = mock(AccountRepository.class);
         EmailVerificationChallengeRepository challenges = mock(EmailVerificationChallengeRepository.class);
         AuthenticationAuditRepository audits = mock(AuthenticationAuditRepository.class);
-        EmailDeliveryPort mail = mock(EmailDeliveryPort.class);
+        EmailDeliveryService mail = mock(EmailDeliveryService.class);
         RegistrationServiceImpl service = new RegistrationServiceImpl(accounts, mock(PatientProfileRepository.class),
-                mock(ConsentEvidenceRepository.class), challenges, audits, mail, properties(), mock(EntityManager.class));
-        UUID id = UUID.randomUUID(); Account account = new Account(); account.setId(id);
+                mock(ConsentEvidenceRepository.class), challenges, audits, mail, properties(), mock(AuthConcurrencyRepository.class));
+        UUID id = UUID.randomUUID(); AccountJpaEntity account = new AccountJpaEntity(); account.setId(id);
         account.setNormalizedEmail("alice@example.com"); account.setStatus(AccountStatus.PENDING_VERIFICATION);
         when(accounts.findByNormalizedEmail("alice@example.com")).thenReturn(java.util.Optional.of(account));
         when(accounts.findByIdForUpdate(id)).thenReturn(java.util.Optional.of(account));
@@ -122,7 +122,7 @@ class PatientRegistrationT004Test {
     private RegistrationServiceImpl service() {
         return new RegistrationServiceImpl(mock(AccountRepository.class), mock(PatientProfileRepository.class),
                 mock(ConsentEvidenceRepository.class), mock(EmailVerificationChallengeRepository.class),
-                mock(AuthenticationAuditRepository.class), mock(EmailDeliveryPort.class), properties(), mock(EntityManager.class));
+                mock(AuthenticationAuditRepository.class), mock(EmailDeliveryService.class), properties(), mock(AuthConcurrencyRepository.class));
     }
 
     private AuthProperties properties() {

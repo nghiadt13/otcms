@@ -1,8 +1,8 @@
 package fu.fa26.sep490.g58.otcms_be.auth;
 
 import fu.fa26.sep490.g58.otcms_be.auth.controller.PasswordRecoveryController;
-import fu.fa26.sep490.g58.otcms_be.auth.controller.StaffNetworkPolicy;
-import fu.fa26.sep490.g58.otcms_be.auth.dto.ForgotPasswordRequest;
+import fu.fa26.sep490.g58.otcms_be.auth.security.StaffNetworkPolicy;
+import fu.fa26.sep490.g58.otcms_be.auth.model.dto.request.ForgotPasswordRequest;
 import fu.fa26.sep490.g58.otcms_be.auth.service.PasswordRecoveryService;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.web.servlet.MockMvc;
@@ -15,7 +15,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class T010PasswordRecoveryControllerTest {
     @Test void patientForgotReturnsGenericAcceptedResponse() throws Exception {
         PasswordRecoveryService service = mock(PasswordRecoveryService.class);
-        when(service.forgot("patient@example.test", fu.fa26.sep490.g58.otcms_be.auth.entity.AccountType.PATIENT))
+        when(service.forgot("patient@example.test", fu.fa26.sep490.g58.otcms_be.auth.model.entity.enums.AccountType.PATIENT))
                 .thenReturn(PasswordRecoveryService.GENERIC_MESSAGE);
         MockMvc mvc = MockMvcBuilders.standaloneSetup(new PasswordRecoveryController(service, new StaffNetworkPolicy())).build();
         mvc.perform(post("/api/auth/patient/forgot-password").contentType("application/json")
@@ -34,7 +34,7 @@ class T010PasswordRecoveryControllerTest {
     @Test void staffForgotIsDeniedOutsideAllowedNetwork() throws Exception {
         PasswordRecoveryService service = mock(PasswordRecoveryService.class);
         StaffNetworkPolicy policy = new StaffNetworkPolicy(); policy.setAllowedCidrs(java.util.List.of("10.0.0.0/8"));
-        MockMvc mvc = MockMvcBuilders.standaloneSetup(new PasswordRecoveryController(service, policy)).setControllerAdvice(new fu.fa26.sep490.g58.otcms_be.auth.controller.AuthExceptionHandler()).build();
+        MockMvc mvc = MockMvcBuilders.standaloneSetup(new PasswordRecoveryController(service, policy)).setControllerAdvice(new fu.fa26.sep490.g58.otcms_be.auth.exception.AuthExceptionHandler()).build();
         mvc.perform(post("/api/auth/staff/forgot-password").with(r -> { r.setRemoteAddr("192.168.1.10"); return r; })
                         .contentType("application/json").content("{\"email\":\"staff@example.test\"}"))
                 .andExpect(status().isForbidden());

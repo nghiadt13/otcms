@@ -1,8 +1,8 @@
 package fu.fa26.sep490.g58.otcms_be.auth;
 
 import fu.fa26.sep490.g58.otcms_be.auth.controller.SessionSecurityController;
-import fu.fa26.sep490.g58.otcms_be.auth.controller.StaffNetworkPolicy;
-import fu.fa26.sep490.g58.otcms_be.auth.dto.SessionTokenResponse;
+import fu.fa26.sep490.g58.otcms_be.auth.security.StaffNetworkPolicy;
+import fu.fa26.sep490.g58.otcms_be.auth.model.dto.response.SessionTokenResponse;
 import fu.fa26.sep490.g58.otcms_be.auth.security.CsrfTokenService;
 import fu.fa26.sep490.g58.otcms_be.auth.service.AuthSessionService;
 import fu.fa26.sep490.g58.otcms_be.config.SessionSecurityProperties;

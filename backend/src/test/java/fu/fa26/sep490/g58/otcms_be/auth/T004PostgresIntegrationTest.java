@@ -1,16 +1,18 @@
 package fu.fa26.sep490.g58.otcms_be.auth;
 
-import fu.fa26.sep490.g58.otcms_be.auth.entity.*;
+import fu.fa26.sep490.g58.otcms_be.auth.model.entity.*;
+import fu.fa26.sep490.g58.otcms_be.auth.model.entity.enums.*;
 import fu.fa26.sep490.g58.otcms_be.auth.repository.*;
-import fu.fa26.sep490.g58.otcms_be.auth.service.RegistrationException;
+import fu.fa26.sep490.g58.otcms_be.auth.exception.RegistrationException;
 import fu.fa26.sep490.g58.otcms_be.auth.service.RegistrationService;
-import fu.fa26.sep490.g58.otcms_be.auth.dto.RegistrationRequest;
+import fu.fa26.sep490.g58.otcms_be.auth.model.dto.request.RegistrationRequest;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.test.context.TestPropertySource;
+import fu.fa26.sep490.g58.otcms_be.support.LocalPostgresTest;
 
 import java.time.*;
 import java.util.UUID;
@@ -23,6 +25,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * replace persistence/concurrency evidence with mocks.
  */
 @SpringBootTest
+@LocalPostgresTest
 @TestPropertySource(properties = "app.auth.rate-limit-hmac-secret=t004-test-secret")
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class T004PostgresIntegrationTest {
@@ -40,6 +43,7 @@ class T004PostgresIntegrationTest {
     void cleanup() {
         jdbc.update("delete from authentication_audits where method = 'REGISTRATION' and outcome = 'RATE_LIMIT_ATTEMPT'");
         jdbc.update("delete from authentication_audits where correlation_id like ?", PREFIX + "%");
+        jdbc.update("delete from authentication_audits where account_id in (select id from accounts where normalized_email like ?)", PREFIX + "%");
         jdbc.update("delete from email_verification_challenges where account_id in (select id from accounts where normalized_email like ?)", PREFIX + "%");
         jdbc.update("delete from consent_evidence where account_id in (select id from accounts where normalized_email like ?)", PREFIX + "%");
         jdbc.update("delete from patient_profiles where account_id in (select id from accounts where normalized_email like ?)", PREFIX + "%");
@@ -48,6 +52,7 @@ class T004PostgresIntegrationTest {
 
     @BeforeEach
     void isolatePersistedRateLimitState() {
+        cleanup();
         jdbc.update("delete from authentication_audits where method = 'REGISTRATION' and outcome = 'RATE_LIMIT_ATTEMPT'");
     }
 
@@ -60,8 +65,9 @@ class T004PostgresIntegrationTest {
 
         registration.register(request, "198.51.100.9");
 
-        Account account = accounts.findByNormalizedEmail(email).orElseThrow();
+        AccountJpaEntity account = accounts.findByNormalizedEmail(email).orElseThrow();
         assertEquals(AccountStatus.PENDING_VERIFICATION, account.getStatus());
+        assertEquals(1, jdbc.queryForObject("select count(*) from patient_profiles where account_id = ? and id is not null and id <> account_id", Integer.class, account.getId()));
         assertEquals(2, consents.findAll().stream().filter(c -> c.getAccount().getId().equals(account.getId())).count());
         assertEquals(1, challenges.countByAccountIdAndCreatedAtAfter(account.getId(), Instant.EPOCH));
         assertEquals(1, jdbc.queryForObject("select count(*) from consent_evidence where account_id = ? and actor_type = 'GUARDIAN'", Integer.class, account.getId()));
@@ -70,18 +76,18 @@ class T004PostgresIntegrationTest {
     @Test
     @Order(2)
     void databaseEnforcesOneCurrentOtpChallengeAndPersistsRateAuditWithoutRawIp() {
-        Account account = new Account();
+        AccountJpaEntity account = new AccountJpaEntity();
         account.setNormalizedEmail(PREFIX + "constraint@example.com");
         account.setAccountType(AccountType.PATIENT); account.setStatus(AccountStatus.PENDING_VERIFICATION);
         account.setCreatedAt(Instant.now()); account.setUpdatedAt(Instant.now());
         accounts.saveAndFlush(account);
 
-        EmailVerificationChallenge first = challenge(account, "hash-a");
+        EmailVerificationChallengeJpaEntity first = challenge(account, "hash-a");
         challenges.saveAndFlush(first);
-        EmailVerificationChallenge second = challenge(account, "hash-b");
+        EmailVerificationChallengeJpaEntity second = challenge(account, "hash-b");
         assertThrows(Exception.class, () -> challenges.saveAndFlush(second));
 
-        AuthenticationAudit audit = new AuthenticationAudit();
+        AuthenticationAuditJpaEntity audit = new AuthenticationAuditJpaEntity();
         audit.setOccurredAt(Instant.now()); audit.setMethod("REGISTRATION"); audit.setOutcome("RATE_LIMIT_ATTEMPT");
         audit.setIdentifierHmac("a".repeat(64)); audit.setCorrelationId(PREFIX + "audit"); audit.setClientIp(null); audit.setDurationMs(0);
         audits.saveAndFlush(audit);
@@ -115,18 +121,18 @@ class T004PostgresIntegrationTest {
         // The production email adapter is deliberately a no-op in this profile; verify
         // the persisted pending/audit contract directly for an unavailable delivery outcome.
         String email = PREFIX + "partial@example.com";
-        Account account = new Account(); account.setNormalizedEmail(email); account.setAccountType(AccountType.PATIENT);
+        AccountJpaEntity account = new AccountJpaEntity(); account.setNormalizedEmail(email); account.setAccountType(AccountType.PATIENT);
         account.setStatus(AccountStatus.PENDING_VERIFICATION); account.setCreatedAt(Instant.now()); account.setUpdatedAt(Instant.now());
         accounts.saveAndFlush(account);
-        AuthenticationAudit audit = new AuthenticationAudit(); audit.setOccurredAt(Instant.now()); audit.setMethod("EMAIL_VERIFICATION");
+        AuthenticationAuditJpaEntity audit = new AuthenticationAuditJpaEntity(); audit.setOccurredAt(Instant.now()); audit.setMethod("EMAIL_VERIFICATION");
         audit.setOutcome("REGISTRATION_EMAIL_DELIVERY_UNAVAILABLE"); audit.setAccount(account); audit.setCorrelationId(PREFIX + "email"); audit.setDurationMs(0);
         audits.saveAndFlush(audit);
         assertEquals(AccountStatus.PENDING_VERIFICATION, accounts.findById(account.getId()).orElseThrow().getStatus());
         assertEquals(1, jdbc.queryForObject("select count(*) from authentication_audits where account_id = ? and outcome = ?", Integer.class, account.getId(), "REGISTRATION_EMAIL_DELIVERY_UNAVAILABLE"));
     }
 
-    private EmailVerificationChallenge challenge(Account account, String hash) {
-        EmailVerificationChallenge c = new EmailVerificationChallenge();
+    private EmailVerificationChallengeJpaEntity challenge(AccountJpaEntity account, String hash) {
+        EmailVerificationChallengeJpaEntity c = new EmailVerificationChallengeJpaEntity();
         c.setAccount(account); c.setOtpHash(hash); c.setExpiresAt(Instant.now().plusSeconds(600)); c.setCreatedAt(Instant.now()); c.setFailedAttempts(0);
         return c;
     }

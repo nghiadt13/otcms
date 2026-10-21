@@ -1,7 +1,10 @@
 package fu.fa26.sep490.g58.otcms_be.auth.controller;
 
-import fu.fa26.sep490.g58.otcms_be.auth.dto.*;
-import fu.fa26.sep490.g58.otcms_be.auth.service.*;
+import fu.fa26.sep490.g58.otcms_be.auth.model.dto.request.EmailRequest;
+import fu.fa26.sep490.g58.otcms_be.auth.model.dto.request.OtpRequest;
+import fu.fa26.sep490.g58.otcms_be.auth.model.dto.request.RegistrationRequest;
+import fu.fa26.sep490.g58.otcms_be.auth.service.RegistrationService;
+import fu.fa26.sep490.g58.otcms_be.auth.exception.RegistrationException;
 import fu.fa26.sep490.g58.otcms_be.common.api.ErrorResponse;
 import jakarta.validation.Valid;
 import org.springframework.http.*;

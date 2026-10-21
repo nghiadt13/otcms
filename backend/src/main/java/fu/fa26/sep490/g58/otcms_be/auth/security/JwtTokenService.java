@@ -1,6 +1,7 @@
 package fu.fa26.sep490.g58.otcms_be.auth.security;
 
-import fu.fa26.sep490.g58.otcms_be.auth.entity.AccountType;
+
+import fu.fa26.sep490.g58.otcms_be.auth.model.entity.enums.AccountType;
 import fu.fa26.sep490.g58.otcms_be.config.SessionSecurityProperties;
 import org.springframework.stereotype.Service;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -58,6 +59,29 @@ public class JwtTokenService {
     private static JwtValidationException invalid(){return new JwtValidationException();}
     private static String enc(String value) { return Base64.getUrlEncoder().withoutPadding().encodeToString(value.getBytes(StandardCharsets.UTF_8)); }
     private static String enc(byte[] value) { return Base64.getUrlEncoder().withoutPadding().encodeToString(value); }
-    public record Claims(UUID accountId,AccountType accountType,UUID sessionId,long iat,long exp){}
+        public static class Claims {
+    private final UUID accountId;
+    private final AccountType accountType;
+    private final UUID sessionId;
+    private final long iat;
+    private final long exp;
+    public Claims(UUID accountId, AccountType accountType, UUID sessionId, long iat, long exp) {
+        this.accountId = accountId;
+        this.accountType = accountType;
+        this.sessionId = sessionId;
+        this.iat = iat;
+        this.exp = exp;
+    }
+    public UUID getAccountId() { return accountId; }
+    public UUID accountId() { return accountId; }
+    public AccountType getAccountType() { return accountType; }
+    public AccountType accountType() { return accountType; }
+    public UUID getSessionId() { return sessionId; }
+    public UUID sessionId() { return sessionId; }
+    public long getIat() { return iat; }
+    public long iat() { return iat; }
+    public long getExp() { return exp; }
+    public long exp() { return exp; }
+}
     public static final class JwtValidationException extends RuntimeException { public JwtValidationException(){super("Invalid access token");} }
 }

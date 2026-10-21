@@ -1,6 +1,6 @@
 package fu.fa26.sep490.g58.otcms_be.auth.repository;
 
-import fu.fa26.sep490.g58.otcms_be.auth.entity.AuthSession;
+import fu.fa26.sep490.g58.otcms_be.auth.model.entity.AuthSessionJpaEntity;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -13,17 +13,17 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
-public interface AuthSessionRepository extends JpaRepository<AuthSession, UUID> {
-    Optional<AuthSession> findByRefreshTokenHash(String refreshTokenHash);
+public interface AuthSessionRepository extends JpaRepository<AuthSessionJpaEntity, UUID> {
+    Optional<AuthSessionJpaEntity> findByRefreshTokenHash(String refreshTokenHash);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query("select s from AuthSession s where s.refreshTokenHash = :refreshTokenHash")
-    Optional<AuthSession> findByRefreshTokenHashForUpdate(@Param("refreshTokenHash") String refreshTokenHash);
+    @Query("select s from AuthSessionJpaEntity s where s.refreshTokenHash = :refreshTokenHash")
+    Optional<AuthSessionJpaEntity> findByRefreshTokenHashForUpdate(@Param("refreshTokenHash") String refreshTokenHash);
 
-    List<AuthSession> findAllByAccountIdAndRevokedAtIsNullOrderByCreatedAtAscIdAsc(UUID accountId);
-    List<AuthSession> findAllByAccountId(UUID accountId);
-    Page<AuthSession> findAllByTokenFamilyIdAndRevokedAtIsNull(UUID tokenFamilyId, Pageable pageable);
+    List<AuthSessionJpaEntity> findAllByAccountIdAndRevokedAtIsNullOrderByCreatedAtAscIdAsc(UUID accountId);
+    List<AuthSessionJpaEntity> findAllByAccountId(UUID accountId);
+    Page<AuthSessionJpaEntity> findAllByTokenFamilyIdAndRevokedAtIsNull(UUID tokenFamilyId, Pageable pageable);
 
-    @Query("select s from AuthSession s where s.expiresAt < :cutoff or s.revokedAt < :cutoff")
-    Page<AuthSession> findPurgeCandidates(@Param("cutoff") Instant cutoff, Pageable pageable);
+    @Query("select s from AuthSessionJpaEntity s where s.expiresAt < :cutoff or s.revokedAt < :cutoff")
+    Page<AuthSessionJpaEntity> findPurgeCandidates(@Param("cutoff") Instant cutoff, Pageable pageable);
 }
