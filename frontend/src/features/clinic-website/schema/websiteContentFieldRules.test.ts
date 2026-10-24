@@ -11,7 +11,7 @@ import {
 } from "./websiteContentFieldRules";
 import { buildWebsiteContentSeed } from "../api/websiteContentAdminMockData";
 import { websiteContentPublicPath } from "./websiteContentPublicPath";
-
+import { formatAppMessage } from "@/lib/messages/appMessages";
 const clinicForm = (over: Partial<WebsiteContentForm["clinic"]> = {}): WebsiteContentForm => ({
   ...emptyWebsiteContentForm(),
   type: "CLINIC_INFO",
@@ -39,7 +39,7 @@ describe("validateWebsiteContentForm", () => {
       title: "Bài",
       body: "  \n ",
     });
-    expect(errors.body).toBe("Nội dung thiếu hoặc chưa phù hợp để đăng.");
+    expect(errors.body).toBe(formatAppMessage("MSG-69"));
   });
 
   it("thông tin phòng khám: thiếu hotline, email sai, giờ mở cửa rỗng", () => {
@@ -72,7 +72,7 @@ describe("payload mapping", () => {
 describe("helpers", () => {
   it("fieldErrors của API thành thông báo theo ô", () => {
     const map = fieldErrorsToFormErrors([{ field: "body.hotline", code: "MSG-69" }]);
-    expect(map["body.hotline"]).toMatch(/chưa phù hợp để đăng/);
+    expect(map["body.hotline"]).toBe(formatAppMessage("MSG-69"));
   });
 
   it("hasTypeSpecificContent bỏ qua tiêu đề", () => {

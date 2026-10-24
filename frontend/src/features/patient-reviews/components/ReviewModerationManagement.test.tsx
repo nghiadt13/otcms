@@ -9,7 +9,7 @@ import {
   reviewStore,
 } from "../api/reviewModerationMockData";
 import { ReviewModerationManagement } from "./ReviewModerationManagement";
-
+import { formatAppMessage } from "@/lib/messages/appMessages";
 // Bọc API để đếm lời gọi mà vẫn chạy mock thật bên dưới.
 vi.mock("../api/reviewModerationApi", async (original) => {
   const real = await original<typeof import("../api/reviewModerationApi")>();
@@ -89,7 +89,7 @@ describe("ReviewModerationManagement", () => {
     const after = vi.mocked(api.listModerationReviews).mock.calls.length;
     await user.type(screen.getByLabelText("Từ ngày"), "2026-10-10");
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Tiêu chí lọc chưa hợp lệ",
+      formatAppMessage("MSG-54"),
     );
     expect(vi.mocked(api.listModerationReviews).mock.calls.length).toBe(after);
   });
@@ -155,7 +155,7 @@ describe("ReviewModerationManagement", () => {
 
     await user.type(box, "Cảm ơn bạn");
     await user.click(within(dialog).getByRole("button", { name: "Gửi phản hồi" }));
-    const error = await within(dialog).findByText(/Phản hồi chưa hợp lệ/, undefined, SLOW);
+    const error = await within(dialog).findByText(formatAppMessage("MSG-57"), undefined, SLOW);
     expect(box).toHaveAttribute("aria-invalid", "true");
     expect(box.getAttribute("aria-describedby")).toContain(error.id);
   });
@@ -181,7 +181,7 @@ describe("ReviewModerationManagement", () => {
     const dialog = await sheet();
     const getCalls = vi.mocked(api.getModerationReview).mock.calls.length;
     await user.click(await within(dialog).findByRole("button", { name: "Duyệt và hiển thị" }, SLOW));
-    expect(await screen.findByText(/Trạng thái đã thay đổi/, undefined, SLOW)).toBeInTheDocument();
+    expect(await screen.findByText(formatAppMessage("MSG-56"), undefined, SLOW)).toBeInTheDocument();
     await waitFor(() =>
       expect(vi.mocked(api.getModerationReview).mock.calls.length).toBe(getCalls + 1),
     );

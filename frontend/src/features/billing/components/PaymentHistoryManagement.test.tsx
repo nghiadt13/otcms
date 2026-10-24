@@ -9,7 +9,7 @@ import { formatCurrencyVnd } from "@/lib/format/formatCurrencyVnd";
 const money = (amount: number) => formatCurrencyVnd(amount).replace(/\s/g, " ");
 import { PaymentHistoryDetailSheet } from "./PaymentHistoryDetailSheet";
 import { PaymentHistoryManagement } from "./PaymentHistoryManagement";
-
+import { formatAppMessage } from "@/lib/messages/appMessages";
 // Debounce 250 ms + độ trễ API giả: để dư thời gian cho máy chậm.
 const SLOW = { timeout: 4000 };
 const loaded = () => screen.findByText(/Trang 1\/3/, undefined, SLOW);
@@ -108,7 +108,7 @@ describe("PaymentHistoryManagement", () => {
 
     fireEvent.change(screen.getByLabelText("Đến ngày"), { target: { value: "2026-09-01" } });
     expect(
-      await screen.findByText("Tiêu chí lọc chưa hợp lệ. Vui lòng kiểm tra lại."),
+      await screen.findByText(formatAppMessage("MSG-54")),
     ).toBeInTheDocument();
     expect(screen.getByText("Chọn lại khoảng ngày để xem thanh toán.")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Thử lại" })).not.toBeInTheDocument();
@@ -123,7 +123,7 @@ describe("PaymentHistoryManagement", () => {
     await loaded();
     await search(user, "ERR-500");
     const retry = await screen.findByRole("button", { name: "Thử lại" }, SLOW);
-    expect(screen.getByRole("alert")).toHaveTextContent("Hệ thống đang gặp sự cố");
+    expect(screen.getByRole("alert")).toHaveTextContent(formatAppMessage("MSG-04"));
     const calls = spy.mock.calls.length;
     await user.click(retry);
     await waitFor(() => expect(spy.mock.calls.length).toBe(calls + 1), SLOW);
@@ -180,7 +180,7 @@ describe("PaymentHistoryDetailSheet", () => {
       <PaymentHistoryDetailSheet paymentId={PAYMENT_FORBIDDEN_ID} receiptNumber="PT-2026-000999" onClose={() => {}} />,
     );
     const alert = await screen.findByRole("alert", undefined, SLOW);
-    expect(alert).toHaveTextContent("không còn hoặc bạn không đủ quyền");
+    expect(alert).toHaveTextContent(formatAppMessage("MSG-50"));
     expect(screen.queryByRole("button", { name: "Thử lại" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Đóng" })).toBeInTheDocument();
   });

@@ -11,7 +11,7 @@ import { ShiftListView } from "./ShiftListView";
 
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn(), warning: vi.fn() } }));
 import { toast } from "sonner";
-
+import { formatAppMessage } from "@/lib/messages/appMessages";
 // Dùng dữ liệu thật từ lớp API giả, không dựng tay: nút hiện theo allowedActions của BE.
 function Harness({ shifts }: { shifts: Shift[] }) {
   const [deleting, setDeleting] = useState<Shift | null>(null);
@@ -80,7 +80,7 @@ describe("ShiftListView", () => {
     expect(screen.getByText(/của Võ Thanh Tâm sẽ bị xóa\./)).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("button", { name: "Xóa ca" }));
-    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Đã lưu ca làm việc."));
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith(formatAppMessage("MSG-93")));
     await waitFor(() => expect(screen.queryAllByText("Võ Thanh Tâm").length).toBe(before - 1));
     expect((await loadShifts()).some((s) => s.id === "sh-xn-am")).toBe(false);
   });

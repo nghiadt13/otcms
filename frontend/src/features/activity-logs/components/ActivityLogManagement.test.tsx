@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@/lib/api/apiError";
 import { resetActivityLogStore } from "../api/activityLogApi";
 import { ActivityLogManagement } from "./ActivityLogManagement";
-
+import { formatAppMessage } from "@/lib/messages/appMessages";
 const { notifyError } = vi.hoisted(() => ({ notifyError: vi.fn() }));
 vi.mock("@/lib/messages/notify", () => ({ notifyError }));
 
@@ -72,7 +72,7 @@ describe("ActivityLogManagement", () => {
     const calls = apiSpy.list.mock.calls.length;
     const from = screen.getByLabelText("Từ ngày");
     fireEvent.change(from, { target: { value: "2099-01-01" } });
-    expect(await screen.findByRole("alert")).toHaveTextContent("Tiêu chí lọc chưa hợp lệ");
+    expect(await screen.findByRole("alert")).toHaveTextContent(formatAppMessage("MSG-54"));
     await new Promise((r) => setTimeout(r, 350));
     expect(apiSpy.list.mock.calls.length).toBe(calls);
   });
@@ -88,7 +88,7 @@ describe("ActivityLogManagement", () => {
     const user = userEvent.setup();
     await renderLoaded();
     fireEvent.change(screen.getByLabelText("Bản ghi bị tác động"), { target: { value: "loi-may-chu" } });
-    expect(await screen.findByText(/Hệ thống đang gặp sự cố/)).toBeInTheDocument();
+    expect(await screen.findByText(formatAppMessage("MSG-04"))).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("Bản ghi bị tác động"), { target: { value: "" } });
     await user.click(screen.getByRole("button", { name: "Thử lại" }));
     await screen.findByText(/bản ghi · Trang 1\/7/);
@@ -128,7 +128,7 @@ describe("ActivityLogManagement", () => {
     apiSpy.detail.mockRejectedValueOnce(new ApiError(500, { code: "MSG-04" }));
     await openFirstDetail(user);
     const dialog = await screen.findByRole("dialog");
-    expect(await within(dialog).findByText(/Hệ thống đang gặp sự cố/)).toBeInTheDocument();
+    expect(await within(dialog).findByText(formatAppMessage("MSG-04"))).toBeInTheDocument();
     await user.click(within(dialog).getByRole("button", { name: "Thử lại" }));
     expect(await within(dialog).findByText("Mã bản ghi")).toBeInTheDocument();
   });

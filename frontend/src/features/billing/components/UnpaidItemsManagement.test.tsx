@@ -11,7 +11,7 @@ import {
 } from "../api/unpaidItemMockData";
 import { UnpaidItemDetailSheet } from "./UnpaidItemDetailSheet";
 import { UnpaidItemsManagement } from "./UnpaidItemsManagement";
-
+import { formatAppMessage } from "@/lib/messages/appMessages";
 // formatCurrencyVnd dùng khoảng trắng không ngắt; Testing Library chuẩn hóa DOM về khoảng trắng thường.
 const money = (amount: number) => formatCurrencyVnd(amount).replace(/\s/g, " ");
 // Debounce 250 ms + độ trễ API giả: để dư thời gian cho máy chậm.
@@ -75,7 +75,7 @@ describe("UnpaidItemsManagement", () => {
     );
     render(<UnpaidItemsManagement />);
     const retry = await screen.findByRole("button", { name: "Thử lại" }, SLOW);
-    expect(screen.getByRole("alert")).toHaveTextContent("Hệ thống đang gặp sự cố");
+    expect(screen.getByRole("alert")).toHaveTextContent(formatAppMessage("MSG-04"));
     await user.click(retry);
     await loaded();
     expect(screen.queryByRole("button", { name: "Thử lại" })).not.toBeInTheDocument();
@@ -92,7 +92,7 @@ describe("UnpaidItemsManagement", () => {
 
     fireEvent.change(screen.getByLabelText("Đến ngày"), { target: { value: "2026-10-01" } });
     expect(
-      await screen.findByText("Tiêu chí lọc chưa hợp lệ. Vui lòng kiểm tra lại."),
+      await screen.findByText(formatAppMessage("MSG-54")),
     ).toBeInTheDocument();
     expect(spy.mock.calls.length).toBe(calls);
     expect(screen.getByText(/Trang 1\/\d/)).toBeInTheDocument(); // bảng giữ kết quả cũ
@@ -142,7 +142,7 @@ describe("UnpaidItemDetailSheet", () => {
       <UnpaidItemDetailSheet itemId={UNPAID_ITEM_NOT_FOUND_ID} itemName="Phí khám" onClose={() => {}} />,
     );
     const alert = await screen.findByRole("alert", undefined, SLOW);
-    expect(alert).toHaveTextContent("không còn hoặc bạn không đủ quyền");
+    expect(alert).toHaveTextContent(formatAppMessage("MSG-50"));
     expect(screen.queryByText("Bệnh nhân")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Thử lại" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Đóng" })).toBeInTheDocument();

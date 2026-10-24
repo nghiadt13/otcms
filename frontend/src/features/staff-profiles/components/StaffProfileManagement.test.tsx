@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { resetStaffProfileMockStore } from "../api/staffProfileMockData";
 import { StaffProfileManagement } from "./StaffProfileManagement";
-
+import { formatAppMessage } from "@/lib/messages/appMessages";
 const push = vi.fn();
 const replace = vi.fn();
 let search = "";
@@ -85,7 +85,7 @@ describe("StaffProfileManagement", () => {
     const dialog = await screen.findByRole("dialog", {}, TIMEOUT);
     await within(dialog).findByRole("combobox", {}, TIMEOUT);
     expect(toastError).toHaveBeenCalledWith(
-      expect.stringContaining("không đủ điều kiện"),
+      formatAppMessage("MSG-23"),
       expect.anything(),
     );
     expect(within(dialog).getByRole("combobox")).toHaveTextContent("Chọn tài khoản");

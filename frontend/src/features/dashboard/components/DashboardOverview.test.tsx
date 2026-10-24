@@ -15,7 +15,7 @@ import type {
   DashboardPeriod,
 } from "../types/dashboardOverview";
 import { DashboardOverview } from "./DashboardOverview";
-
+import { formatAppMessage } from "@/lib/messages/appMessages";
 // Đi qua lớp API giả (không mock hook): chỉ thay thân getDashboardOverview để bỏ độ trễ.
 vi.mock("../api/dashboardApi", () => ({ getDashboardOverview: vi.fn() }));
 const api = vi.mocked(getDashboardOverview);
@@ -100,7 +100,7 @@ describe("DashboardOverview", () => {
     setDates("2026-10-20", "2026-10-14");
     await user.click(screen.getByRole("button", { name: "Xem" }));
 
-    expect(screen.getByRole("alert")).toHaveTextContent(/Khoảng thời gian chưa hợp lệ/);
+    expect(screen.getByRole("alert")).toHaveTextContent(formatAppMessage("MSG-72"));
     expect(api).toHaveBeenCalledTimes(1);
     expect(collectedCell()).toBeInTheDocument();
   });
@@ -110,7 +110,7 @@ describe("DashboardOverview", () => {
     api.mockRejectedValueOnce(new ApiError(500, { code: "MSG-04" }));
     render(<DashboardOverview />);
 
-    expect(await screen.findByRole("alert")).toHaveTextContent(/Hệ thống đang gặp sự cố/);
+    expect(await screen.findByRole("alert")).toHaveTextContent(formatAppMessage("MSG-04"));
     await user.click(screen.getByRole("button", { name: "Thử lại" }));
 
     expect(await screen.findByText("Lịch hẹn", { selector: "dt" })).toBeInTheDocument();
@@ -122,7 +122,7 @@ describe("DashboardOverview", () => {
     api.mockRejectedValueOnce(new ApiError(403, { code: "MSG-50" }));
     render(<DashboardOverview />);
 
-    expect(await screen.findByRole("alert")).toHaveTextContent(/không đủ quyền/);
+    expect(await screen.findByRole("alert")).toHaveTextContent(formatAppMessage("MSG-50"));
     expect(screen.queryByRole("button", { name: "Thử lại" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Xem" })).toBeDisabled();
   });
@@ -135,7 +135,7 @@ describe("DashboardOverview", () => {
     api.mockRejectedValueOnce(new ApiError(400, { code: "MSG-72" }));
     await user.click(screen.getByRole("button", { name: "Hôm nay" }));
 
-    expect(await screen.findByRole("alert")).toHaveTextContent(/Khoảng thời gian chưa hợp lệ/);
+    expect(await screen.findByRole("alert")).toHaveTextContent(formatAppMessage("MSG-72"));
     expect(collectedCell()).toBeInTheDocument();
   });
 

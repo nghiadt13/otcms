@@ -4,7 +4,7 @@ import { addDays, todayIsoDate } from "@/lib/format/formatDate";
 import { resetShiftMockStore } from "../api/shiftApi";
 import { shiftMockConfig } from "../api/shiftMockData";
 import { useShiftWeek } from "./useShiftWeek";
-
+import { formatAppMessage } from "@/lib/messages/appMessages";
 // Giả lập thanh địa chỉ: useSearchParams đọc `url.search`, router.replace ghi lại và báo component vẽ lại.
 const url = vi.hoisted(() => ({ search: "", listeners: new Set<() => void>() }));
 
@@ -96,7 +96,7 @@ describe("useShiftWeek", () => {
     mockViewport(true);
     url.search = "date=2030-01-07";
     const { result } = renderHook(() => useShiftWeek());
-    await waitFor(() => expect(result.current.error).toContain("sự cố"));
+    await waitFor(() => expect(result.current.error).toBe(formatAppMessage("MSG-04")));
     expect(result.current.forbidden).toBe(false);
   });
 });

@@ -7,7 +7,7 @@ import { listRoomOptions, listShifts, listStaffOptions, resetShiftMockStore } fr
 import { shiftMockConfig } from "../api/shiftMockData";
 import type { RoomOption, Shift, StaffOption } from "../types/shift";
 import { ShiftFormDialog, type ShiftFormTarget } from "./ShiftFormDialog";
-
+import { formatAppMessage } from "@/lib/messages/appMessages";
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn(), warning: vi.fn() } }));
 
 const today = todayIsoDate();
@@ -109,7 +109,7 @@ describe("ShiftFormDialog", () => {
     expect(screen.getByRole("button", { name: "Đang lưu..." })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Hủy" })).toBeDisabled();
 
-    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Đã lưu ca làm việc."));
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith(formatAppMessage("MSG-93")));
     expect(handlers.onOpenChange).toHaveBeenCalledWith(false);
     expect(handlers.onSaved).toHaveBeenCalled();
   });
