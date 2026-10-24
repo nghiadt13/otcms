@@ -12,6 +12,8 @@ Quy tắc chung khi dựng màn hình mới để mọi khu (public, admin, sau 
 | Component nền                            | `frontend/src/components/ui/*` (shadcn, style `base-nova`) |
 | Tiêu đề trang                            | `frontend/src/components/PageHeader.tsx`                   |
 | Khung admin, menu                        | `frontend/src/features/admin-shell/`                       |
+| Khung khu bệnh nhân, menu                | `frontend/src/features/patient-shell/`                     |
+| Tiêu đề, khối trống, chọn người khám (portal) | `frontend/src/components/patient/`                    |
 
 ## 1. Màu sắc
 
@@ -127,3 +129,32 @@ Mỗi màn có dữ liệu phải xử lý đủ bốn trạng thái:
 - [ ] Xem ở 375px và ở desktop, không tràn ngang ngoài bảng
 - [ ] Đi hết màn bằng bàn phím, focus nhìn thấy được
 - [ ] `npm run lint`, `npm test`, `npm run build` đều qua
+
+## 9. Khu bệnh nhân (`/portal`)
+
+Thiết kế theo nguyên tắc **đặt được bằng một tay, đọc được không cần kính**. Người dùng chủ yếu dùng điện thoại; có người lớn tuổi, có con dùng hộ cha mẹ. Họ không vội nhưng sợ nhầm người, sợ mất tiền và sợ đọc sai kết quả. Khu này dùng cùng bảng màu, font và token với khu khác; khác ở cỡ chữ, cách hiện "của ai" và mật độ thông tin.
+
+| Việc | Quy định |
+| --- | --- |
+| Cỡ chữ | Như màn xác thực (mục 2): tiêu đề trang `text-2xl`, nội dung, nhãn và nút `text-base`, ghi chú `text-sm`. |
+| Ô nhập và nút | Cao `h-12`, vùng chạm ≥ 44px. Nút dùng `publicButtonClass` (`components/brand/publicButtonStyles.ts`). |
+| Bố cục | Một cột `max-w-3xl`. Header dùng chung: logo, menu nhóm (từ `md`), ô tài khoản; trên màn hẹp, nút "Đặt lịch khám" nằm hàng riêng, rộng hết chiều ngang. |
+| Tiêu đề trang | `PortalPageHeader`: đúng một `h1`, mô tả một câu, nút (nếu có) đúng một `default`. |
+| "Của ai" | Mọi dòng lịch hẹn, lượt khám, khoản tiền, kết quả ghi tên người khám và quan hệ (`CARE_RELATIONSHIP_LABELS`). Khi tài khoản có từ hai hồ sơ trở lên, đầu trang có `ProfileScopeSelect` ("Người khám": "Tất cả" và từng hồ sơ); giá trị đồng bộ `?profileId=`. |
+| Tiền | Luôn ghi số tiền và trạng thái bằng chữ. Trước khi trả tiền hiện câu không hoàn tiền (BR-53). |
+| Danh sách | List có vạch chia trong một khung (`divide-y`, `rounded-lg border`), cả dòng là link. Không dùng thẻ nổi bóng đổ lớn. |
+| Trạng thái | Luôn `StatusBadge` (chữ + màu). |
+| Trống | `PortalEmptyState`: một câu dạy cách dùng và một nút gợi ý việc tiếp theo (ví dụ "Thêm hồ sơ bệnh nhân"). Không viết "Không có dữ liệu". |
+| Lỗi | `role="alert"` màu `destructive`, nói rõ chuyện gì và cách khắc phục, kèm nút "Thử lại". |
+| Chữ | Câu ngắn, tiếng Việt, viết hoa chữ đầu câu, nút là động từ. Không hiện mã UC/BR/MSG. |
+
+**Không** dùng trong khu này: ảnh bác sĩ làm hero, gradient, emoji hay ký tự thay icon, đếm ngược, biểu đồ sức khỏe, chấm màu không có chữ, animation trang trí.
+
+**Luồng đặt lịch** (dùng cho màn đặt lịch): một trang cuộn tiến dần, không wizard nhiều trang. Thứ tự: Người khám → Dịch vụ → Ngày → Giờ → Bác sĩ (tùy chọn) → Xác nhận. Khối mở khi khối trước đã chọn; khối đã chọn thu gọn thành một dòng tóm tắt có nút "Đổi". Tiêu đề khối là câu hỏi ("Ai đi khám?", "Khám ngày nào?"), không đánh số.
+
+- **Ngày:** dải 14 ngày cuộn ngang (`ToggleGroup`); mỗi ô ghi thứ, ngày và "Còn giờ" hoặc "Hết giờ" bằng chữ.
+- **Giờ:** lưới nút chia "Buổi sáng" và "Buổi chiều", số dùng `tabular-nums`.
+- **Bác sĩ:** mặc định "Phòng khám sắp xếp bác sĩ"; bác sĩ có ca vào giờ đã chọn hiện dạng `RadioGroup`.
+- **Xác nhận:** ghi phí khám và "Thanh toán trực tuyến sau khi đặt hoặc tại quầy khi đến". Hộp thoại hủy nói thẳng hậu quả về tiền (BR-53).
+
+**Kỹ thuật:** thứ tự focus theo thứ tự đọc; chuyển động 150–250ms, ease-out, kèm `motion-reduce:transition-none`; ở 375px không cuộn ngang cả trang (bảng thì cuộn trong khung).
