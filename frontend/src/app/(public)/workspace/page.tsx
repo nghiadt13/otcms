@@ -56,6 +56,12 @@ export default function WorkspacePage() {
         >
           Vào khu vực quản trị
         </Link>
+        <Link
+          className="ml-3 mt-6 inline-block rounded-lg border border-brand px-4 py-2 text-sm font-semibold text-brand hover:bg-brand-soft"
+          href="/reception"
+        >
+          Vào khu vực lễ tân
+        </Link>
         <p className="mt-6 rounded-xl border border-amber-200 bg-amber-50 p-5 text-amber-900">
           Đây là màn hình khởi đầu. Các màn hình nghiệp vụ và kiểm tra vai trò
           theo bản ghi sẽ được bổ sung cùng từng use case.
