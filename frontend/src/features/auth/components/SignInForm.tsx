@@ -3,10 +3,15 @@
 import { Mail } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
+import {
+  clearMockSignedInKind,
+  setMockSignedInKind,
+} from "@/lib/session/mockSignedInKind";
 import { signIn } from "../api/authApi";
 import type { AuthMessageCode } from "../authMessages";
 import { focusFirstInvalidField } from "../focusFirstInvalidField";
+import { safePortalNext } from "../safePortalNext";
 import { validateEmail } from "../schema/authFieldRules";
 import { toAuthMessageCode } from "../types/auth";
 import { AuthAlert } from "./AuthAlert";
@@ -15,10 +20,19 @@ import { AuthSubmitButton } from "./AuthSubmitButton";
 import { AuthTextField } from "./AuthTextField";
 import { PasswordField } from "./PasswordField";
 
-// UC01 Đăng nhập. Mọi trường hợp bị từ chối (thiếu thông tin, sai mật khẩu, tài
-// khoản không đủ điều kiện) đều hiện cùng MSG-01 để không lộ tài khoản nào tồn
-// tại; lỗi dịch vụ hiện MSG-04. `defaultEmail` dùng khi vừa đăng ký xong (UC06).
-export function SignInForm({ defaultEmail = "" }: { defaultEmail?: string }) {
+// UC01 Đăng nhập bệnh nhân (email + mật khẩu). Mọi trường hợp bị từ chối (thiếu thông tin,
+// sai mật khẩu, tài khoản không đủ điều kiện) đều hiện cùng MSG-01 để không lộ tài khoản
+// nào tồn tại; lỗi dịch vụ hiện MSG-04. Thành công thì về `next` nếu là đường dẫn an toàn
+// trong khu bệnh nhân, không thì về /portal. `defaultEmail` dùng khi vừa đăng ký xong (UC06).
+export function SignInForm({
+  defaultEmail = "",
+  next,
+  submitLabel = "Đăng nhập",
+}: {
+  defaultEmail?: string;
+  next?: string;
+  submitLabel?: string;
+}) {
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
   const [email, setEmail] = useState(defaultEmail);
@@ -29,6 +43,9 @@ export function SignInForm({ defaultEmail = "" }: { defaultEmail?: string }) {
   }>({});
   const [message, setMessage] = useState<AuthMessageCode | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  // Mở màn đăng nhập nghĩa là chưa có phiên (đăng xuất cũng đi qua đây): bỏ phiên giả của khu bệnh nhân.
+  useEffect(() => clearMockSignedInKind(), []);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -47,7 +64,9 @@ export function SignInForm({ defaultEmail = "" }: { defaultEmail?: string }) {
     setSubmitting(true);
     try {
       await signIn(email, password);
-      router.replace("/workspace");
+      // Giả lập: phiên thật nằm ở Supabase; ghi loại tài khoản giả để `/api/v1/me` giả trả đúng bệnh nhân.
+      setMockSignedInKind("PATIENT");
+      router.replace(safePortalNext(next));
     } catch (cause) {
       setMessage(toAuthMessageCode(cause));
       setSubmitting(false);
@@ -105,7 +124,7 @@ export function SignInForm({ defaultEmail = "" }: { defaultEmail?: string }) {
         submitting={submitting}
         submittingLabel="Đang đăng nhập..."
       >
-        Đăng nhập
+        {submitLabel}
       </AuthSubmitButton>
     </form>
   );

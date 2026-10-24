@@ -13,10 +13,6 @@ vi.mock("next/navigation", () => ({
 async function fillDetails(email: string) {
   const user = userEvent.setup();
   await user.type(screen.getByLabelText(/Họ và tên/), "Nguyễn Văn An");
-  await user.type(screen.getByLabelText(/Ngày sinh/), "20051990");
-  expect(screen.getByLabelText(/Ngày sinh/)).toHaveValue("20/05/1990");
-  await user.selectOptions(screen.getByLabelText(/Giới tính/), "female");
-  await user.type(screen.getByLabelText(/Số điện thoại/), "0901234567");
   await user.type(screen.getByLabelText(/^Email/), email);
   await user.type(screen.getByLabelText(/^Mật khẩu/), "matkhau123");
   await user.type(screen.getByLabelText(/Nhập lại mật khẩu/), "matkhau123");
@@ -27,6 +23,13 @@ async function fillDetails(email: string) {
 }
 
 describe("RegisterPatientFlow", () => {
+  it("không hỏi ngày sinh, giới tính hay số điện thoại (đó là hồ sơ bệnh nhân, UC13)", () => {
+    render(<RegisterPatientFlow />);
+    expect(screen.queryByLabelText(/Ngày sinh/)).toBeNull();
+    expect(screen.queryByLabelText(/Giới tính/)).toBeNull();
+    expect(screen.queryByLabelText(/Số điện thoại/)).toBeNull();
+  });
+
   it("báo lỗi MSG-08 và giữ ở bước 1 khi thiếu thông tin", async () => {
     render(<RegisterPatientFlow />);
     await userEvent.click(screen.getByRole("button", { name: "Tiếp tục" }));
@@ -57,7 +60,7 @@ describe("RegisterPatientFlow", () => {
   });
 
   it(
-    "đi đủ 3 bước: thông tin → xác minh email → đăng nhập",
+    "đi đủ 3 bước: thông tin → xác minh email → vào cổng bệnh nhân",
     async () => {
     render(<RegisterPatientFlow />);
     const user = await fillDetails("an@example.com");
@@ -82,5 +85,8 @@ describe("RegisterPatientFlow", () => {
     ).toBeInTheDocument();
     expect(screen.getByText(authMessages["MSG-10"])).toBeInTheDocument();
     expect(screen.getByLabelText(/^Email/)).toHaveValue("an@example.com");
+    expect(
+      screen.getByRole("button", { name: "Vào cổng bệnh nhân" }),
+    ).toBeInTheDocument();
   }, 15000);
 });

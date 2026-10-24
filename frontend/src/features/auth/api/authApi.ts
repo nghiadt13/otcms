@@ -53,9 +53,10 @@ export async function registerPatient(
   input: PatientRegistrationInput,
 ): Promise<void> {
   await wait();
-  // Khi nối backend: gửi ngày sinh qua `dateOfBirthToIso` (yyyy-mm-dd), không
-  // gửi `confirmPassword`.
-  // Backend thật kiểm tra trùng khóa định danh và trả MSG-08 chung (BR-10).
+  // Khi nối backend: gửi `fullName`, `email`, `password` (không gửi `confirmPassword`,
+  // `consent`); phía Supabase là `auth.signUp(email, password, { data: { displayName } })`
+  // rồi gửi OTP. Ngày sinh, giới tính, SĐT không gửi ở đây (thuộc hồ sơ, UC13).
+  // Backend thật kiểm tra trùng khóa định danh (BR-11) và trả MSG-08 chung (BR-03).
   pendingRegistrations.add(input.email.trim().toLowerCase());
 }
 
