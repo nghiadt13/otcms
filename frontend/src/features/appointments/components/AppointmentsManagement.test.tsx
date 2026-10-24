@@ -24,7 +24,7 @@ import { toast } from "sonner";
 import { getDoctorAvailability, resetAppointmentMock } from "../api/appointmentApi";
 import { DOCTOR_IDS } from "../api/appointmentMockData";
 import { AppointmentsManagement } from "./AppointmentsManagement";
-
+import { formatAppMessage } from "@/lib/messages/appMessages";
 const WEEK = "from=2026-10-20&to=2026-10-27";
 
 function open(search: string) {
@@ -79,7 +79,7 @@ describe("AppointmentsManagement - khung màn", () => {
 
   it("khoảng ngày sai: MSG-54 dưới Đến ngày, không có dòng nào", async () => {
     open("from=2026-10-25&to=2026-10-21");
-    expect(await screen.findByText(/Tiêu chí lọc chưa hợp lệ/)).toBeInTheDocument();
+    expect(await screen.findByText(formatAppMessage("MSG-54"))).toBeInTheDocument();
     expect(screen.getByText("Sửa khoảng ngày để xem lịch hẹn.")).toBeInTheDocument();
   });
 });
@@ -129,7 +129,7 @@ describe("AppointmentsManagement - chuyển bác sĩ", () => {
     await userEvent.click(screen.getByRole("button", { name: "Chuyển lịch hẹn" }));
     await waitFor(() =>
       expect(toast.error).toHaveBeenCalledWith(
-        "Lịch hẹn không còn ở trạng thái Đã đặt nên không thể chuyển.",
+        formatAppMessage("MSG-32"),
         expect.anything(),
       ),
     );
@@ -144,7 +144,7 @@ describe("AppointmentsManagement - chuyển bác sĩ", () => {
     await userEvent.click(screen.getByRole("button", { name: "Chuyển lịch hẹn" }));
     await waitFor(() =>
       expect(toast.error).toHaveBeenCalledWith(
-        "Bác sĩ vừa chọn không còn khả dụng. Vui lòng chọn người khác.",
+        formatAppMessage("MSG-24"),
         expect.anything(),
       ),
     );
@@ -170,7 +170,7 @@ describe("AppointmentsManagement - giờ trống", () => {
 
   it("bác sĩ không nhận đặt lịch: MSG-24 dưới ô bác sĩ, không gọi API", async () => {
     open(`tab=availability&doctorId=${DOCTOR_IDS.yen}`);
-    expect(await screen.findByText(/không còn khả dụng/)).toBeInTheDocument();
+    expect(await screen.findByText(formatAppMessage("MSG-24"))).toBeInTheDocument();
     expect(getDoctorAvailability).not.toHaveBeenCalled();
   });
 
@@ -179,15 +179,18 @@ describe("AppointmentsManagement - giờ trống", () => {
     expect(
       await screen.findByText("Chưa có giờ trống để hiển thị. Chọn ngày hoặc tuần khác."),
     ).toBeInTheDocument();
-    expect(toast.warning).toHaveBeenCalledWith(
-      "Không có giờ hẹn trống trong khoảng thời gian đã chọn. Vui lòng chọn thời gian khác.",
+    // Toast bắn trong useEffect sau khi dữ liệu về: chờ thay vì kiểm ngay, tránh race khi máy bận.
+    await waitFor(() =>
+      expect(toast.warning).toHaveBeenCalledWith(
+        "Không có giờ hẹn trống trong khoảng thời gian đã chọn. Vui lòng chọn thời gian khác.",
+      ),
     );
   });
 
   it("lỗi 5xx: thông báo trong lưới kèm Thử lại, không toast", async () => {
     open(`tab=availability&doctorId=${DOCTOR_IDS.bao}&from=2026-10-21&to=2026-10-21`);
     expect(await screen.findByRole("button", { name: "Thử lại" })).toBeInTheDocument();
-    expect(screen.getByText(/Hệ thống đang gặp sự cố/)).toBeInTheDocument();
+    expect(screen.getByText(formatAppMessage("MSG-04"))).toBeInTheDocument();
     expect(toast.error).not.toHaveBeenCalled();
   });
 });

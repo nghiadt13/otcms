@@ -5,13 +5,13 @@ import { FilterBar } from "@/components/admin/FilterBar";
 import { SearchField } from "@/components/admin/SearchField";
 import { Label } from "@/components/ui/label";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
+import { APPOINTMENT_STATUS_LABELS } from "@/lib/domain/clinicVisit";
 import { messageFromRangeError } from "../schema/appointmentMessages";
 import { STATUS_VALUES } from "../schema/appointmentUrlRules";
 import type {
   AppointmentStatus,
   DoctorLookupItem,
 } from "../types/appointment";
-import { STATUS_LABELS } from "./AppointmentStatusBadge";
 import { DoctorCombobox } from "./DoctorCombobox";
 
 type AppointmentFiltersProps = {
@@ -70,7 +70,7 @@ export function AppointmentFilters(props: AppointmentFiltersProps) {
           <NativeSelectOption value="">Tất cả trạng thái</NativeSelectOption>
           {STATUS_VALUES.map((status) => (
             <NativeSelectOption key={status} value={status}>
-              {STATUS_LABELS[status]}
+              {APPOINTMENT_STATUS_LABELS[status]}
             </NativeSelectOption>
           ))}
         </NativeSelect>
