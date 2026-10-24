@@ -4,7 +4,6 @@ import {
   createStaffProfile,
   getStaffProfile,
   listEligibleStaffAccounts,
-  listFeaturedDoctors,
   listStaffProfiles,
   removeStaffProfile,
   updateStaffProfile,
@@ -132,7 +131,6 @@ describe("createStaffProfile", () => {
     });
     expect(created.doctor?.isPublic).toBe(false);
     expect(created.publicUrl).toBeNull();
-    expect((await listFeaturedDoctors()).map((d) => d.id)).not.toContain(created.id);
   });
 });
 
@@ -156,7 +154,7 @@ describe("updateStaffProfile", () => {
     );
   });
 
-  it("bật công khai cập nhật publicUrl và danh sách trang chủ", async () => {
+  it("bật công khai cập nhật publicUrl trỏ tới trang bác sĩ công khai", async () => {
     const id = await findId("bs.yen");
     const detail = await getStaffProfile(id);
     const updated = await updateStaffProfile(id, {
@@ -164,8 +162,7 @@ describe("updateStaffProfile", () => {
       workContact: detail.workContact,
       doctor: { ...detail.doctor!, isPublic: true },
     });
-    expect(updated.publicUrl).toBe(`/bac-si/${id}`);
-    expect((await listFeaturedDoctors(10)).map((d) => d.id)).toContain(id);
+    expect(updated.publicUrl).toBe(`/doctors/${id}`);
   });
 });
 
@@ -176,27 +173,15 @@ describe("removeStaffProfile", () => {
     expect((await getStaffProfile(id)).status).toBe("ACTIVE");
   });
 
-  it("bs.minh gỡ được, chuyển REMOVED và biến khỏi trang chủ", async () => {
+  it("bs.minh gỡ được và chuyển REMOVED", async () => {
     const id = await findId("bs.minh");
     await expect(removeStaffProfile(id)).resolves.toBeUndefined();
     const detail = await getStaffProfile(id);
     expect(detail.status).toBe("REMOVED");
     expect(detail.allowedActions).toEqual([]);
-    expect((await listFeaturedDoctors(10)).map((d) => d.id)).not.toContain(id);
   });
 
   it("hồ sơ không tồn tại trả 404 MSG-23", async () => {
     await expectApiError(getStaffProfile("khong-co"), 404, "MSG-23");
-  });
-});
-
-describe("listFeaturedDoctors", () => {
-  it("chỉ gồm bác sĩ Active và công khai", async () => {
-    const featured = await listFeaturedDoctors(10);
-    expect(featured.map((d) => d.displayName).sort()).toEqual([
-      "BS. Lê Minh Quân",
-      "BS. Nguyễn Văn Trung",
-      "ThS.BS. Trần Thu Hà",
-    ]);
   });
 });

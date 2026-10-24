@@ -26,7 +26,7 @@ import {
 // Thanh menu chính, dính trên cùng khi cuộn. Thiết kế cho desktop: logo, menu
 // ngang (mục đang mở có gạch dưới màu primary) và nút "Đặt lịch khám"; từ lg
 // hotline đã có ở dải SiteTopBar ngay trên nên header không lặp lại.
-// Dưới lg (SiteTopBar ẩn), menu nằm trong Sheet (shadcn) và Sheet mang hotline
+// Dưới xl, bảy mục menu không vừa một hàng nên menu nằm trong Sheet (shadcn) và Sheet mang hotline
 // để người dùng điện thoại bấm gọi. Esc, bẫy focus và trả focus về nút ☰ do Sheet lo.
 export function SiteHeader({ hotline }: { hotline: string }) {
   const pathname = usePathname();
@@ -41,7 +41,7 @@ export function SiteHeader({ hotline }: { hotline: string }) {
       <div className={`${publicContainerClass} flex h-16 items-center lg:h-20`}>
         <OtcmsLogo tone="onLight" />
 
-        <nav aria-label="Menu chính" className="ml-12 hidden h-full lg:block">
+        <nav aria-label="Menu chính" className="ml-12 hidden h-full xl:block">
           <ul className="flex h-full items-center gap-2">
             {items.map((item) => (
               <li className="relative h-full" key={item.href}>
@@ -83,7 +83,7 @@ export function SiteHeader({ hotline }: { hotline: string }) {
               render={
                 <Button
                   aria-label="Mở menu"
-                  className="-ml-3 size-11 lg:hidden [&_svg:not([class*='size-'])]:size-6"
+                  className="-ml-3 size-11 xl:hidden [&_svg:not([class*='size-'])]:size-6"
                   variant="ghost"
                 />
               }

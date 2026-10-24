@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { cn } from "@/lib/utils";
 import {
   parseMarkdown,
   type BlockNode,
@@ -66,10 +67,17 @@ function Block({ block }: { block: BlockNode }) {
   );
 }
 
-export function WebsiteContentBody({ markdown }: { markdown: string }) {
+// `className` cho phép trang công khai đặt cỡ chữ lớn hơn admin (text-sm mặc định).
+export function WebsiteContentBody({
+  markdown,
+  className,
+}: {
+  markdown: string;
+  className?: string;
+}) {
   const blocks = parseMarkdown(markdown);
   return (
-    <div className="space-y-3 text-sm text-foreground">
+    <div className={cn("space-y-3 text-sm text-foreground", className)}>
       {blocks.map((block, index) => (
         <Block key={index} block={block} />
       ))}

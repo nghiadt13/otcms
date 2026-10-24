@@ -2,13 +2,14 @@ import { MessageSquareReply, Star } from "lucide-react";
 import { publicContainerClass } from "@/components/brand/publicLayout";
 import { PublicSectionHeading } from "@/components/brand/PublicSectionHeading";
 import { Card } from "@/components/ui/card";
+import { formatDate } from "@/lib/format/formatDate";
 import { cn } from "@/lib/utils";
-import type { PatientReview } from "../types/patientReview";
+import type { PublicReview } from "../types/publicReview";
 
 // Khối "Bệnh nhân nói gì": đánh giá đầu tiên là thẻ lớn bên trái (kèm phản hồi
-// của phòng khám nếu có, BR-60), hai đánh giá sau xếp chồng bên phải. Chỉ hiện
+// của phòng khám nếu có, BR-56), hai đánh giá sau xếp chồng bên phải. Chỉ hiện
 // đánh giá đã công khai; không có thì ẩn khối.
-export function FeaturedReviews({ reviews }: { reviews: PatientReview[] }) {
+export function FeaturedReviews({ reviews }: { reviews: PublicReview[] }) {
   if (reviews.length === 0) return null;
   const [highlight, ...others] = reviews;
   return (
@@ -36,7 +37,7 @@ function ReviewCard({
   review,
   large = false,
 }: {
-  review: PatientReview;
+  review: PublicReview;
   large?: boolean;
 }) {
   return (
@@ -65,17 +66,18 @@ function ReviewCard({
             />
           ))}
         </p>
-        <blockquote
-          className={cn(
-            "mt-5 leading-8 text-pretty text-foreground",
-            large ? "text-xl xl:text-2xl xl:leading-10" : "text-lg",
-          )}
-        >
-          “{review.content}”
-        </blockquote>
-        <figcaption className="mt-6 text-base">
-          <span className="font-semibold">{review.authorLabel}</span>
-          <span className="text-muted-foreground"> · {review.serviceName}</span>
+        {review.text ? (
+          <blockquote
+            className={cn(
+              "mt-5 leading-8 text-pretty text-foreground",
+              large ? "text-xl xl:text-2xl xl:leading-10" : "text-lg",
+            )}
+          >
+            “{review.text}”
+          </blockquote>
+        ) : null}
+        <figcaption className="mt-6 text-base text-muted-foreground">
+          <time dateTime={review.createdAt}>{formatDate(review.createdAt)}</time>
         </figcaption>
         {large && review.clinicReply && (
           <div className="mt-auto pt-8">
