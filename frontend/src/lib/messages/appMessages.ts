@@ -113,9 +113,12 @@ export const APP_MESSAGES: Record<string, string> = {
     "Không thể xem danh sách chờ hoặc lượt khám này. Vui lòng tải lại và kiểm tra quyền truy cập.",
   "MSG-39":
     "Thông tin chưa hợp lệ hoặc chưa đầy đủ. Vui lòng kiểm tra và thử lại.",
-  // MSG-48: R3 gọi tham số {amount}; giữ {balance} theo caller, giá trị là số tiền vừa ghi nhận.
-  "MSG-48": "Đã ghi nhận thanh toán {balance}. Phiếu thu đã được tạo.",
+  "MSG-48": "Đã ghi nhận thanh toán {amount}. Phiếu thu đã được tạo.",
   "MSG-94": "Đã tiếp nhận bệnh nhân. Số thứ tự {number}, phòng {room}.",
+  // Khu Lễ tân /reception (gộp nhánh thien-quang 25/10/2026), câu chữ theo R3 Drive.
+  "MSG-19":
+    "Không thể truy cập hồ sơ bệnh nhân này. Vui lòng kiểm tra lại thông tin hoặc quyền truy cập.",
+  "MSG-43": "Thông tin lượt khám đã được cập nhật.",
 };
 
 /** Thay `{tham số}` trong câu MSG. Tham số thiếu giữ nguyên để dễ phát hiện. */

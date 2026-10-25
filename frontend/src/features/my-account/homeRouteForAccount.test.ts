@@ -17,7 +17,7 @@ describe("homeRouteForAccount", () => {
   it.each(["RECEPTIONIST", "ORTHOPEDIC_DOCTOR", "IMAGING_TECHNICIAN", "LAB_TECHNICIAN"] as const)(
     "nhân viên %s vào khu lễ tân",
     (role) => {
-      expect(homeRouteForAccount({ ...MOCK_MY_ACCOUNT, role })).toBe("/staff");
+      expect(homeRouteForAccount({ ...MOCK_MY_ACCOUNT, role })).toBe("/reception");
     },
   );
 });

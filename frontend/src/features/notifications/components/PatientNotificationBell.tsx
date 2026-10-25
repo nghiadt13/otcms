@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { Bell } from "lucide-react";
+import { UnreadCountBadge } from "@/components/shell/UnreadCountBadge";
 import { buttonVariants } from "@/components/ui/button";
 import { useLinkedProfiles } from "@/hooks/useLinkedProfiles";
 import { PATIENT_ROUTES } from "@/lib/routes/patientRoutes";
@@ -29,15 +30,7 @@ export function PatientNotificationBell() {
       href={PATIENT_ROUTES.notifications}
     >
       <Bell aria-hidden className="size-5" />
-      {unreadCount > 0 ? (
-        // Số đã nằm trong aria-label nên ẩn khỏi trình đọc màn hình.
-        <span
-          aria-hidden
-          className="absolute top-1 right-0.5 flex min-w-4 items-center justify-center rounded-full bg-coral px-1 text-[10px] leading-4 font-semibold text-coral-ink tabular-nums ring-2 ring-background"
-        >
-          {unreadCount > 9 ? "9+" : unreadCount}
-        </span>
-      ) : null}
+      <UnreadCountBadge count={unreadCount} className="top-1 right-0.5" />
     </Link>
   );
 }

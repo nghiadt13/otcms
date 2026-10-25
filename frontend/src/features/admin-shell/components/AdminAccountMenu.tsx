@@ -122,7 +122,10 @@ export function AdminAccountMenu() {
           </DropdownMenu>
         </SidebarMenuItem>
       </SidebarMenu>
-      <ChangePasswordDialog open={passwordOpen} onOpenChange={setPasswordOpen} />
+      <ChangePasswordDialog
+        open={passwordOpen}
+        onOpenChange={setPasswordOpen}
+      />
     </>
   );
 }

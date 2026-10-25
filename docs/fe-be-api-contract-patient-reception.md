@@ -1,8 +1,8 @@
 # Hợp đồng API FE ↔ BE — khu Bệnh nhân, Lễ tân, trang công khai
 
-Cập nhật: 24/10/2026 · Người tổng hợp: NghiaDT (điều phối FE) · Nguồn: code FE `frontend/src` + ghi chú từng phase (`plans/261024-1610-fe-patient-reception-implementation/api-notes/`).
+Cập nhật: 25/10/2026 (gộp khu Lễ tân `/reception` từ nhánh `thien-quang`) · Người tổng hợp: NghiaDT (điều phối FE) · Nguồn: code FE `frontend/src` + ghi chú từng phase (`plans/261024-1610-fe-patient-reception-implementation/api-notes/`).
 
-FE đã dựng xong khu `/portal` (bệnh nhân), `/staff` (Lễ tân: tiếp nhận, hàng đợi, lịch hẹn) và các trang công khai trên **lớp API giả**. Mỗi hàm trong `features/<feature>/api/*Api.ts` đã đúng URL, method, DTO và hình lỗi mà BE cần trả. Tài liệu này là thứ BE làm theo để khi nối chỉ đổi lớp api, không sửa màn hình.
+FE đã dựng xong khu `/portal` (bệnh nhân), `/reception` (Lễ tân: hồ sơ, lịch hẹn, tiếp nhận, hàng đợi, thu phí, tra cứu) và các trang công khai trên **lớp API giả**. Mỗi hàm trong `features/<feature>/api/*Api.ts` đã đúng URL, method, DTO và hình lỗi mà BE cần trả. Tài liệu này là thứ BE làm theo để khi nối chỉ đổi lớp api, không sửa màn hình.
 
 Nguồn nghiệp vụ: R3 SRS bản Drive (số BR/MSG theo bản Drive; `docs/appendix-rules.md` trong repo là bản cũ 19/10, đánh số BR lệch) và đặc tả tách tài khoản/hồ sơ 23/10.
 
@@ -21,7 +21,7 @@ Nguồn nghiệp vụ: R3 SRS bản Drive (số BR/MSG theo bản Drive; `docs/a
   "fieldErrors": [{ "field": "phone", "code": "MSG-17" }] }
 ```
 
-  `fieldErrors` → hiện dưới ô; còn lại → toast. 400 dữ liệu sai · 403 không đủ quyền (MSG-40 khu bệnh nhân, MSG-38/40 khu Lễ tân, xem câu hỏi) · 404 không còn hoặc không thuộc tài khoản (MSG-41, không lộ là có tồn tại) · 409 xung đột trạng thái/trùng · 5xx MSG-04.
+  `fieldErrors` → hiện dưới ô; còn lại → toast. 400 dữ liệu sai · 403 không đủ quyền (MSG-40) · 404 không còn hoặc không thuộc tài khoản (MSG-41, không lộ là có tồn tại) · 409 xung đột trạng thái/trùng · 5xx MSG-04.
 - **Phạm vi dữ liệu**: tài nguyên của chính người đăng nhập dùng `/api/v1/me/...`; dữ liệu nghiệp vụ dùng `/api/v1/<nghiệp vụ>` và **BE lọc theo tài khoản** (hồ sơ đã gắn qua liên kết, gồm "Bản thân"). FE không gửi id người dùng. Lọc một người khám dùng query `profileId=`.
 - **Xác thực**: FE gắn `Authorization: Bearer <Supabase access token>` qua `apiRequest` (`lib/api/client.ts`). Trang công khai `/api/v1/public/**` phải gọi được **khi chưa đăng nhập** → BE mở không cần token, FE cần thêm biến thể `apiRequest` không gắn token khi nối.
 - Vai trò ứng dụng nằm trong dữ liệu tài khoản (`GET /api/v1/me` trả `kind`/`role`); không dùng claim `role` của Supabase.
@@ -29,7 +29,7 @@ Nguồn nghiệp vụ: R3 SRS bản Drive (số BR/MSG theo bản Drive; `docs/a
 ## 2. Cách nối BE (FE làm khi BE xong từng nhóm)
 
 1. Trong file `api/*Api.ts` của feature, đổi cờ `USE_MOCK` (hoặc nhánh mock) sang gọi `apiRequest` — nhánh thật đã viết sẵn ở hầu hết hàm.
-2. Xóa module chỉ phục vụ mock (đều có comment "xóa khi nối BE"): `lib/mock/*` (kho bệnh nhân, registry phí khám dùng chung), `lib/session/mockCurrentActor.ts`, `lib/session/mockSignedInKind.ts`, `features/appointments/components/BookingMockStoreBootstrap.tsx`, `features/notifications/components/PatientNotificationMockBootstrap.tsx`, các file `*MockData.ts`/`*MockStore.ts`.
+2. Xóa module chỉ phục vụ mock (đều có comment "xóa khi nối BE"): `lib/mock/*` (registry phí khám dùng chung), adapter lệnh `features/patient-reception/api/receptionApi.ts` + `receptionSeed.ts` (xem R00), `lib/session/mockCurrentActor.ts`, `lib/session/mockSignedInKind.ts`, `features/appointments/components/BookingMockStoreBootstrap.tsx`, `features/notifications/components/PatientNotificationMockBootstrap.tsx`, các file `*MockData.ts`/`*MockStore.ts`.
 3. Test component đi qua lớp API giả; khi nối, mock ở ranh giới `apiRequest` (không mock hook) — xem `otcms/AGENTS.md`.
 
 ## 3. Bảng tra endpoint theo nghiệp vụ
@@ -62,29 +62,56 @@ Cột "Chi tiết" trỏ tới mục phụ lục cùng file (DTO, lỗi, luật 
 | --- | --- | --- | --- |
 | GET | `/api/v1/appointments/bookable-services` | Đặt lịch (chỉ dịch vụ Khám) | P03 |
 | GET | `/api/v1/appointments/open-times` | Ngày/giờ còn trống, bác sĩ có ca | P03 |
-| POST | `/api/v1/appointments` | Đặt lịch (bệnh nhân và Lễ tân) | P03, I01 |
-| GET | `/api/v1/appointments` | Danh sách lịch: khu bệnh nhân (`profileId`, `tab`) và Lễ tân (`date`, `doctorId`, `status`, `q`) | P04, S02 |
+| POST | `/api/v1/appointments` | Đặt lịch (bệnh nhân và Lễ tân) | P03, I01, R00 |
+| GET | `/api/v1/appointments` | Danh sách lịch: khu bệnh nhân (`profileId`, `tab`) và Lễ tân (`date`, `doctorId`, `status`, `patientId`, `q`) | P04, R00 |
 | GET | `/api/v1/appointments/{id}` | Chi tiết lịch hẹn | P04 |
 | POST | `/api/v1/appointments/{id}/cancel` | Bệnh nhân hủy trước check-in | P04 |
-| GET | `/api/v1/appointments/booking-patients/{patientId}` | Lễ tân đặt hộ: thông tin người khám | S02 |
-| GET | `/api/v1/appointments/doctors` | Bộ lọc bác sĩ khu Lễ tân (mới, ngoài spec) | S02 |
-| GET | `/api/v1/appointments/{id}/eligible-doctors` | Chuyển bác sĩ cùng giờ | S02 |
-| POST | `/api/v1/appointments/{id}/reassign` | Chuyển bác sĩ | S02, I02b |
-| POST | `/api/v1/appointments/{id}/notify-no-replacement` | Báo bệnh nhân khi không có bác sĩ thay (AF1) | S02 |
 
-### 3.4 Tiếp nhận, hàng đợi tại quầy (UC10, UC29, UC30, phí khám UC54)
-| Method | URL | Dùng ở | Chi tiết |
+### 3.4 Khu Lễ tân `/reception` (UC04, UC05, UC10, UC11, UC13 AF2, UC20–UC22, UC24, UC25, UC29–UC34, UC41, UC52–UC58, UC63, UC64, UC71)
+FE hiện gọi **một adapter lệnh** (`features/patient-reception/api/receptionApi.ts`: `loadReception()` + `executeReception(command, version)`). Khi nối, mỗi lệnh thành một endpoint dưới đây và `loadReception` tách thành các GET theo màn. Chi tiết DTO, lỗi, luật kiểm: phụ lục **R00**.
+
+| Method | URL | Lệnh FE / màn | UC |
 | --- | --- | --- | --- |
-| GET | `/api/v1/patients/lookup` | Tìm hồ sơ: mã BN, hoặc SĐT + ngày sinh (+ họ tên khi nhiều kết quả) | S04a |
-| POST | `/api/v1/patients` | Tạo hồ sơ vãng lai (email không bắt buộc, cần hỏi đồng ý) | S04a |
-| GET | `/api/v1/reception/today-appointments` | Danh sách lịch hôm nay ở màn Tiếp nhận | S04b |
-| GET | `/api/v1/reception/check-in-context` | Bối cảnh tiếp nhận theo `appointmentId` hoặc `patientId` | S04b |
-| GET | `/api/v1/reception/priority-groups` | Nhóm ưu tiên | S04b |
-| POST | `/api/v1/reception/exam-fee-payments` | Thu phí khám: tiền mặt / tạo QR VNPay | S04b |
-| GET | `/api/v1/reception/exam-fee-payments/{id}` | Poll trạng thái QR (3 giây) | S04b |
-| POST | `/api/v1/reception/check-ins` | Tiếp nhận → cấp số thứ tự, phòng | S04b |
-| GET | `/api/v1/reception/queue` | Hàng đợi tiếp nhận (chỉ xem, tự tải 20 giây) | S05 |
-| GET | `/api/v1/reception/queue/{queueEntryId}` | Tóm tắt lượt khám trong Sheet | S05 |
+| GET | `/api/v1/patients/lookup?phone=&dob=&name=` | Tìm hồ sơ `/reception/patients` | UC10, BR-14 |
+| GET | `/api/v1/patients/{id}` | Chi tiết hồ sơ hành chính (không tiền sử, dị ứng) | UC11 |
+| POST | `/api/v1/patients` | `save-patient` (tạo, không tạo tài khoản) | UC10 |
+| PATCH | `/api/v1/patients/{id}` | `save-patient` (sửa) | UC11 |
+| GET | `/api/v1/patients/{id}/care-links?status=PENDING` | Yêu cầu liên kết chờ xác minh tại quầy | UC13 AF2 |
+| POST | `/api/v1/care-links/{id}/confirm` | `confirm-link` | UC13 AF2 |
+| GET | `/api/v1/appointments?date=&doctorId=&status=&patientId=&q=` | Danh sách `/reception/appointments` (dùng chung URL với khu bệnh nhân, BE lọc theo vai trò) | UC24 |
+| GET | `/api/v1/appointments/open-times?date=&serviceId=&doctorId=` | Giờ trống, bác sĩ có ca (dùng chung P03) | UC20 |
+| POST | `/api/v1/appointments` | `book` (dùng chung P03; Lễ tân gửi `patientId`) | UC21 |
+| GET | `/api/v1/appointments/{id}/eligible-doctors` | Bác sĩ thay thế cùng giờ | UC22 |
+| POST | `/api/v1/appointments/{id}/reassign` | `reassign` | UC22 |
+| POST | `/api/v1/appointments/{id}/notify-no-replacement` | `notify-unavailable` (AF1) | UC22 |
+| GET | `/api/v1/reception/check-in-candidates?date=` | Màn Tiếp nhận hôm nay `/reception` | UC29 |
+| GET | `/api/v1/reception/priority-groups` | Nhóm ưu tiên (cấu hình) | UC29, BR-31 |
+| POST | `/api/v1/reception/walk-in-fees` | `prepare-walk-in` (lập phí khám khách trực tiếp) | UC29, UC54 |
+| POST | `/api/v1/reception/check-ins` | `check-in` → số thứ tự, phòng | UC29 |
+| GET | `/api/v1/queue-entries?date=&roomId=&status=` | Danh sách đã vào hàng đợi | UC30 |
+| GET | `/api/v1/rooms/{roomId}/queue?kind=EXAM\|REVIEW\|SERVICE` | Hàng đợi một phòng `/reception/queues` | UC32 |
+| POST | `/api/v1/rooms/{roomId}/queue/call-next` | `call-next` | UC32 |
+| POST | `/api/v1/queue-entries/{id}/arrive` · `/absent` · `/return` | `queue-action` | UC32 |
+| POST | `/api/v1/queue-entries/{id}/reorder` | `reorder` | UC33 |
+| POST | `/api/v1/queue-entries/{id}/move-room` | `move-room` (chỉ hàng đợi dịch vụ) | UC31 |
+| GET | `/api/v1/queue-entries/changes?date=` | Lịch sử điều phối (lý do, trước/sau) | UC31, UC33 |
+| GET | `/api/v1/visits?date=&status=&q=` | `/reception/visits` | UC34 |
+| GET | `/api/v1/visits/{id}/progress` | Tiến trình lượt (dùng chung P05, không trả nội dung y khoa) | UC34 |
+| POST | `/api/v1/visits/{id}/transfer-doctor` | `transfer-doctor` (bác sĩ phụ trách vắng) | UC31 AF1 |
+| GET | `/api/v1/service-orders?date=&status=&q=` | `/reception/orders` | UC52 |
+| GET | `/api/v1/payments/unpaid-items?patientId=&contextId=` | `/reception/payments` | UC57 |
+| POST | `/api/v1/payments/cash` | `pay-cash` | UC54 |
+| POST | `/api/v1/payments/counter-qr` | `start-qr` (VNPay QR tại quầy) | UC54 |
+| GET | `/api/v1/payments/counter-qr/{id}` | Trạng thái QR (poll) | UC54 |
+| POST | `/api/v1/payments/vnpay/ipn` | VNPay gọi BE (thay nút `demo-gateway` của mock) | UC54, UC55 |
+| GET | `/api/v1/payments?from=&to=&q=&method=` | `/reception/payment-history` (dùng chung P06, phạm vi toàn phòng khám) | UC56 |
+| GET | `/api/v1/payments/{id}` | Biên lai, in | UC53, UC58 |
+| GET | `/api/v1/result-sheets?q=&date=` · `/api/v1/result-sheets/{id}` | `/reception/results` (chỉ xem, in) | UC41 |
+| GET | `/api/v1/rooms?available=` | `/reception/rooms` (kèm số người chờ) | UC64 |
+| GET | `/api/v1/services?active=true` | `/reception/services` | UC71 |
+| GET | `/api/v1/me/shifts?from=&to=` | `/reception/schedule` | UC25 |
+| GET · POST | `/api/v1/me/notifications` · `/{id}/read` | `read-notice` (dùng chung P08) | UC63 |
+| GET · PUT/DELETE · POST | `/api/v1/me` · `/api/v1/me/avatar` · `/api/v1/me/password` | `/reception/account`, `avatar` (dùng chung P01) | UC03–UC05 |
 
 ### 3.5 Lượt khám, thanh toán (UC34, UC53, UC55, UC56)
 | Method | URL | Dùng ở | Chi tiết |
@@ -129,13 +156,13 @@ Cột "Chi tiết" trỏ tới mục phụ lục cùng file (DTO, lỗi, luật 
 - **Quyền theo bản ghi**: mọi dữ liệu khu bệnh nhân chỉ thuộc hồ sơ đã gắn với tài khoản; ngoài phạm vi → 404 MSG-41 (không lộ tồn tại). Vãng lai không có tài khoản không nhận thông báo (BR-68 theo đặc tả).
 - **Đặt lịch**: chỉ dịch vụ Khám; giờ phải còn trống lúc ghi (trùng → 409 MSG-30); không đổi giờ (BR-22); chỉ bệnh nhân hủy lịch Booked trước check-in; Lễ tân/Admin chỉ chuyển bác sĩ cùng giờ.
 - **Tiền**: số tiền, khoản được trả, trạng thái do BE tính; FE gửi tạm tính và dừng nếu BE trả tổng khác. Trả trùng/đã trả → 409 MSG-49. Không trả một phần online. Chặn SUCCESS muộn của QR VNPay khi Lễ tân đã chuyển sang tiền mặt.
-- **Tiếp nhận**: một lịch chỉ check-in một lần (409 MSG-37); quay lại ≤ 7 ngày không thu phí; `peopleAhead` do BE tính có xét ưu tiên để phiếu số và hàng đợi khớp nhau.
+- **Tiếp nhận, hàng đợi, thu phí tại quầy**: xem R00 §4 (một lượt hoạt động mỗi bệnh nhân, quay lại ≤ 7 ngày không thu phí khám, một phòng một người đang gọi, đổi thứ tự phải có lý do, chống thu trùng và khóa thu khi VNPay chưa rõ kết quả).
 - **Hồ sơ**: tìm theo BR-14 mới (mã BN, hoặc SĐT + ngày sinh + họ tên khi nhiều kết quả, không trả danh sách người khác); gắn online chỉ khi email trùng email đã xác minh; tối đa một "Bản thân" mỗi tài khoản và mỗi hồ sơ (MSG-21).
 - **Kết quả, ảnh**: chỉ khối được phép hiện mới có trong `visibleBlocks`; `viewerUrl` chỉ cấp khi study đã phát hành, kèm token kiểm theo study.
 
 ## 5. Câu hỏi mở cho BE / nhóm (gom từ các phase)
 
-1. Mã 403 khu Lễ tân: MSG-38 hay MSG-40 (hai màn đang dùng khác nhau).
+1. ~~Mã 403 khu Lễ tân~~: đã chốt MSG-40 theo UC31–UC34 (MSG-38 chỉ khi không xem được danh sách chờ UC30).
 2. Lỗi trùng hồ sơ (409) và tiền sử bị sửa đồng thời (STALE) chưa có mã MSG — đang dùng `detail: "DUPLICATE_PROFILE"` / `"STALE"`.
 3. Câu "không hoàn tiền" trước khi trả và thông báo thanh toán chưa có mã MSG trong R3.
 4. Đăng ký tài khoản: BE gọi Supabase `auth.signUp` (với `data.displayName`) hay FE gọi trực tiếp?
@@ -149,6 +176,103 @@ Cột "Chi tiết" trỏ tới mục phụ lục cùng file (DTO, lỗi, luật 
 ## Phụ lục — Chi tiết theo phase (DTO, lỗi, URL giữa màn)
 
 Nội dung dưới đây ghép nguyên văn từ ghi chú của từng phase, đã bỏ các mục chỉ mô tả dữ liệu giả.
+
+### R00 · Khu Lễ tân `/reception` (gộp nhánh `thien-quang` 25/10/2026)
+
+Nguồn: `features/patient-reception` (types.ts, api/receptionApi.ts, schema/receptionRules.ts, schema/receptionMessages.ts) và `docs/receptionist-ui.md`. Mã lỗi đã khớp phần Exceptions của từng UC trong R3 Drive (25/10/2026). Bản `/staff/*` cũ (S00, S02, S04a, S04b, S05, I02b) đã gỡ khi gộp; khu bệnh nhân không đổi.
+
+#### 1. Cách FE gọi hiện tại và khi nối
+
+- `loadReception()` trả cả `ReceptionState` (ảnh chụp toàn bộ dữ liệu mẫu). Khi nối, FE thay bằng các GET ở bảng 3.4, mỗi màn chỉ tải phần mình cần.
+- `executeReception(command, expectedVersion)` chạy một lệnh nguyên tử: kiểm lại trạng thái sau độ trễ, sai thì không ghi gì. `version` là số phiên bản của **cả kho mock**; BE dùng phiên bản theo bản ghi (`version` trong DTO hoặc header `If-Match`), sai phiên bản → 409 MSG-42 rồi FE tải lại.
+- Lỗi mock là `ApiError` (`lib/api/apiError.ts`) đúng hình ProblemDetail + `code` ở §1, FE hiển thị bằng `messageFromError`. Thông báo thành công lấy theo lệnh trong `schema/receptionMessages.ts`: BE **không** cần trả câu chữ, chỉ cần trả bản ghi mới (và số thứ tự/phòng khi tiếp nhận).
+- Hai lệnh chỉ có ở mock: `demo-gateway` (giả lập VNPay gọi về, thay bằng IPN thật) và mật khẩu mẫu `Demo12345` của `changeReceptionPassword` (thay bằng `POST /api/v1/me/password`).
+
+#### 2. DTO (tên trường như FE; enum gửi lên BE dùng `UPPER_SNAKE` theo §1, FE đổi khi nối)
+
+```ts
+Patient        { id, name, dob, sex: "Nam"|"Nữ"|"Khác", phone, address, nationalId, email }   // không có tiền sử, dị ứng
+PatientInput   = Patient trừ id
+CareLink       { id, patientId, accountName, accountEmail, relationship, status: PENDING|CONFIRMED, evidence? }
+Appointment    { id, patientId, doctorId, serviceId, date, time: "HH:mm", status: BOOKED|CHECKED_IN|CANCELLED|NO_SHOW, notice? }
+Visit          { id, patientId, doctorId, appointmentId?, firstCheckIn: date, status: WAITING|EXAMINING|AWAITING|COMPLETED|INCOMPLETE|LEFT, priority, followUp }
+QueueEntry     { id, visitId, roomId, kind: EXAM|SERVICE|REVIEW, number: "101-003", date, joinedAt, status: WAITING|SERVING|ABSENT|DONE|CLOSED,
+                 priority, position, calledAt?, callerId? }   // "đang gọi" = WAITING + calledAt, không thêm trạng thái ngoài SRS
+Order          { id, visitId, serviceId, roomId, round, status: PENDING|PAID|RESULTS|CANCELLED, resultAt?, cancellationReason? }
+Charge         { id, patientId, contextId, serviceId, orderId?, amount, status: PENDING|PAID|CANCELLED, createdAt, paymentId? }
+                 // contextId = id lịch hẹn, id lượt khám, hoặc phí khám khách trực tiếp trước khi có lượt
+Payment        { id, patientId, patientName, contextId, items: { chargeId, name, amount }[], amount, method: CASH|VNPAY,
+                 cashReceived?, createdAt, receivedBy, reference? }   // patientName chụp lúc thu, biên lai bất biến
+QrTransaction  { id, chargeIds, amount, status: PENDING|SUCCEEDED|FAILED, expiresAt, needsReconciliation, paymentId? }
+ResultSheet    { id, visitId, version, replaced, issuedAt, diagnosis, conclusion, advice, doctorName }
+Room           { id, name, category: EXAM|IMAGING|LAB, available, serviceIds, waitingCount }
+Doctor         { id, name, roomId, absent }      Shift { id, staffId, date, start, end, roomId }
+Service        { id, name, category, price, active }
+Priority       NORMAL|EMERGENCY|CHILD|PREGNANT|DISABILITY|ELDERLY|MERIT
+QueueChange    { id, at, actor, action, reason, before, after }
+```
+
+Danh sách bản ghi có thao tác nên trả `allowedActions` (§1) thay cho việc FE tự suy như mock (ví dụ `["checkIn","collectFee"]`, `["call","markAbsent","return","reorder","moveRoom"]`).
+
+#### 3. Endpoint, body, lỗi
+
+| Endpoint | Body / query | Trả | Lỗi (status · MSG) |
+| --- | --- | --- | --- |
+| `GET /patients/lookup` | `phone` + `dob` bắt buộc, `name` khi nhiều kết quả | `{ items: Patient[] }` (nhiều kết quả: FE hiện MSG-18 và hỏi họ tên) | 400 MSG-54 |
+| `POST /patients` | `PatientInput` + `identityConfirmed: true` | 201 `Patient` | 400 MSG-17 (+`fieldErrors`) · trùng họ tên + SĐT + ngày sinh hoặc trùng số định danh → 409 MSG-18 |
+| `PATCH /patients/{id}` | như trên | 200 `Patient` | 400 MSG-17 · 404 MSG-19 · 409 MSG-18 |
+| `POST /care-links/{id}/confirm` | `{ evidence (≥5 ký tự), identityConfirmed: true }` | 200 `CareLink` | 400 MSG-17 · 404/409 MSG-21 (không còn chờ, hoặc hồ sơ đã đủ email và định danh) |
+| `POST /appointments` | `{ patientId, serviceId, date, time, doctorId? }` | 201 `Appointment` + tạo `Charge` phí khám PENDING | 404/409 MSG-29 (bệnh nhân/dịch vụ không đặt được, trùng giờ của chính bệnh nhân) · 400 MSG-31 (giờ đã qua) · 409 MSG-30 (hết chỗ) |
+| `POST /appointments/{id}/reassign` | `{ doctorId }` | 200 `Appointment` (giờ giữ nguyên) | 404 MSG-29 · 409 MSG-32 (không còn Booked, bác sĩ hiện tại không vắng) · 409 MSG-24 (bác sĩ mới không trống cùng giờ) |
+| `POST /appointments/{id}/notify-no-replacement` | — | 200 `Appointment` (`notice`) | 404 MSG-29 · 409 MSG-32 · còn bác sĩ thay được → 409 MSG-42 |
+| `POST /reception/walk-in-fees` | `{ patientId, serviceId }` | 201 `Charge` | 404 MSG-18 · 400 MSG-39 (không phải dịch vụ khám đang cung cấp) · 409 MSG-37 (đang có lượt hoạt động) · 409 MSG-42 (đã lập phí) · 409 MSG-41 (không có bác sĩ trực) |
+| `POST /reception/check-ins` | `{ patientId, appointmentId?, returnVisitId?, priority, present: true }` | 201 `{ visit, entries: QueueEntry[] }` | 400 MSG-39 (chưa xác nhận có mặt, nhóm ưu tiên sai) · 404 MSG-18 · 409 MSG-37 (lịch không hợp lệ hôm nay, chưa trả phí khám, trùng lượt, quá hạn 7 ngày, còn chỉ định chưa thu) · 409 MSG-41 (bác sĩ/phòng không sẵn sàng) |
+| `POST /rooms/{roomId}/queue/call-next` | `{ kind: EXAM\|REVIEW }` | 200 `QueueEntry` | 409 MSG-42 (không phải phòng khám có bác sĩ trực, phòng đang gọi/đang khám, bệnh nhân đang ở phòng khác) · 404 MSG-41 (hết người chờ) |
+| `POST /queue-entries/{id}/arrive\|absent\|return` | — | 200 `QueueEntry` | 403 MSG-40 (không phải lễ tân đã gọi, khác ngày, hàng đợi dịch vụ) · 409 MSG-42 |
+| `POST /queue-entries/{id}/reorder` | `{ position, priority, reason (≥5) }` | 200 `QueueEntry[]` của phòng | 400 MSG-39 · 409 MSG-42 (đã được gọi, chen trước người đang gọi) |
+| `POST /queue-entries/{id}/move-room` | `{ roomId, reason (≥5) }` | 200 `QueueEntry` mới | 400 MSG-39 · 409 MSG-42 (đã gọi, phòng khám, phòng mới không làm đủ dịch vụ đang chờ) |
+| `POST /visits/{id}/transfer-doctor` | `{ doctorId, reason (≥5) }` | 200 `Visit` | 400 MSG-39 · 409 MSG-42 (bác sĩ cũ không vắng, đang phục vụ) · 409 MSG-41 (bác sĩ mới không trực) |
+| `POST /payments/cash` | `{ chargeIds, cashReceived, confirmed: true }` | 201 `Payment` | 400 MSG-49 (rỗng, trùng, khác bệnh nhân/ngữ cảnh) · 400 MSG-39 (tiền nhận < tổng, chưa xác nhận) · 404 MSG-50 · 409 MSG-49 (không còn PENDING) · 409 MSG-52 (đang chờ VNPay/cần đối soát) · 409 MSG-41 (chưa có phòng cho dịch vụ đã thu) |
+| `POST /payments/counter-qr` | `{ chargeIds }` | 201 `QrTransaction` + payload QR | như `cash` (trừ MSG-39) |
+| `GET /payments/counter-qr/{id}` | — | `QrTransaction` | 404 MSG-50 · từ chối → `FAILED` (FE hiện MSG-53) |
+| `GET /payments`, `GET /payments/{id}` | `from`, `to`, `q`, `method` | trang `Payment` / `Payment` | 400 MSG-54 · 404 MSG-50 |
+| `POST /me/notifications/{id}/read` | — | 204 | 404 MSG-50 |
+| `PUT /me/avatar` · `POST /me/password` | multipart ảnh JPG/PNG/WebP ≤ 2 MB · `{ currentPassword, newPassword }` | 200 / 204 | 400 MSG-08 |
+| GET chỉ đọc khác (`visits`, `service-orders`, `result-sheets`, `rooms`, `services`, `me/shifts`, `queue-entries`) | lọc theo bảng 3.4 | trang hoặc `{ items }` | 400 MSG-54 · 403 MSG-40 · 404 MSG-41/MSG-50 · 5xx MSG-04 |
+
+Thông báo thành công FE tự hiển thị: MSG-90 (hồ sơ, xác minh liên kết), MSG-26, MSG-27 `{doctor}`, MSG-94 `{number}` `{room}`, MSG-43 (mọi thao tác hàng đợi/chuyển phòng/chuyển bác sĩ), MSG-48 `{amount}`, MSG-52 (tạo QR, chưa rõ kết quả), MSG-53, MSG-60, MSG-05, MSG-07.
+
+#### 4. Luật BE bắt buộc kiểm (mock đã làm, BE phải làm lại phía server)
+
+- **Hồ sơ**: tìm theo SĐT + ngày sinh, thêm họ tên khi nhiều kết quả (BR-14); không trả danh sách người khác. Hồ sơ tạo tại quầy không tạo tài khoản. Dữ liệu trả cho Lễ tân không có tiền sử, dị ứng. Xác minh liên kết chỉ khi yêu cầu đang chờ và hồ sơ thiếu email hoặc số định danh; lưu căn cứ giấy tờ vào lịch sử.
+- **Lịch hẹn**: giờ trống theo ca, bước 20 phút; chỉ dịch vụ khám đang cung cấp; khóa khung giờ khi ghi. Lễ tân không đổi giờ, không hủy lịch (BR-22). Đổi bác sĩ chỉ khi bác sĩ hiện tại vắng, giữ nguyên giờ, gửi MSG-96/MSG-27; không có người thay thì giữ lịch Booked và gửi MSG-89. Lịch Booked quá giờ kết thúc ca → NO_SHOW (không hủy, không hoàn phí).
+- **Tiếp nhận (UC29)**: bệnh nhân có mặt và phí khám đã trả (lịch hẹn hoặc phí khách trực tiếp) trước khi tạo lượt; một bệnh nhân một lượt hoạt động. Khách trực tiếp không tự tạo lịch hẹn; phí khám gắn sang lượt mới. Quay lại trong ngày 1–7 của lượt đang chờ kết luận: tiếp tục cùng lượt, không thu lại phí khám; ngày 8 lượt chuyển INCOMPLETE, hủy chỉ định chưa có kết quả, không hoàn tiền. Bác sĩ phụ trách vắng thì chặn, phải chuyển bác sĩ trước.
+- **Hàng đợi (UC30–UC33, BR-29)**: sắp theo nhóm ưu tiên cấu hình (cấp cứu trước, các nhóm ưu tiên ngang nhau, rồi thông thường) và thời điểm vào; số thứ tự theo phòng theo ngày. Một phòng chỉ một người đang gọi/đang khám; một bệnh nhân không bị gọi ở hai phòng cùng lúc. Chỉ lễ tân đã gọi mới ghi vắng/quay lại trong cùng ngày; quay lại xếp theo thời điểm quay lại. Lễ tân chỉ gọi ở phòng khám; phòng dịch vụ do kỹ thuật viên gọi. Đổi vị trí và chuyển phòng phải có lý do, lưu trước/sau (`QueueChange`).
+- **Chuyển phòng/bác sĩ (UC31, BR-34)**: chuyển phòng dịch vụ chỉ sang phòng làm được mọi dịch vụ đang chờ của bệnh nhân. Chuyển phòng khám = chuyển bác sĩ phụ trách sang bác sĩ đang trực, chỉ khi bác sĩ cũ vắng; gửi MSG-88 cho bác sĩ mới.
+- **Thu phí (UC54, BR-48–BR-51)**: một giao dịch cho các khoản cùng bệnh nhân và cùng lịch/lượt, trả trọn từng khoản, giá theo khoản; chống thu trùng; tiền mặt phải xác nhận và ≥ tổng, tính tiền thừa. Một payment một biên lai bất biến mang tên bệnh nhân lúc thu. Thu xong chỉ định: đưa bệnh nhân vào hàng đợi phòng phù hợp ít người chờ (dùng lại hàng đợi đang có nếu phòng đó làm được), không tự quay về bác sĩ khi mới xong một dịch vụ.
+- **VNPay tại quầy**: PENDING không đánh dấu PAID; IPN thành công idempotent và phải xác minh chữ ký; quá hạn 15 phút hoặc chưa rõ kết quả → khóa thu lại (`needsReconciliation`) đến khi đối soát; giao dịch bị từ chối phải tạo yêu cầu mới.
+- **Giới hạn vai trò**: Lễ tân không đóng lượt, không sửa kết quả, không ra chỉ định, không kê đơn, không sửa ca/phòng/danh mục, chỉ đổi ảnh đại diện (thông tin liên hệ nhân viên chỉ đọc theo UC04).
+
+#### 5. URL giữa các màn (query param)
+
+| Màn | URL | Ghi chú |
+| --- | --- | --- |
+| Tiếp nhận | `/reception?patientId=<id>` | Mở hộp tiếp nhận cho bệnh nhân; từ hồ sơ, lịch hẹn, tiến trình lượt |
+| Lịch hẹn | `/reception/appointments?patientId=<id>` | Lọc lịch của bệnh nhân (bỏ lọc ngày) |
+| Thu phí | `/reception/payments?patientId=<id>&contextId=<lịch hẹn \| lượt>` | Chọn sẵn nhóm khoản thu |
+| Hàng đợi | `/reception/queues?roomId=<id>` | Thiếu hoặc sai thì mở phòng đầu tiên |
+| Tiến trình | `/reception/visits?visitId=<id>` | Mở chi tiết lượt |
+
+Chỉ chứa id, không chứa tên hay SĐT.
+
+#### 6. Câu hỏi mở cho BE / nhóm
+
+1. Phiên bản bản ghi để chống ghi đè (mock dùng một `version` cho cả kho): BE trả `version` trong DTO hay dùng `ETag`/`If-Match`?
+2. Trùng hồ sơ khi tạo/sửa: R3 không có câu "đã có hồ sơ", FE đang dùng MSG-18. Nhóm có muốn thêm mã riêng?
+3. R3 không có MSG thành công cho "lập phí khám khách trực tiếp" và "đã báo bệnh nhân không có bác sĩ thay"; FE không hiện toast, chỉ cập nhật trạng thái trên màn.
+4. Tiền mặt không đủ/chưa xác nhận đang dùng MSG-39 (R3 không có mã riêng cho thanh toán tại quầy).
+5. Cấu hình nhóm ưu tiên và thứ tự (mock cố định) lấy từ đâu; đồng hồ máy chủ dùng giờ Việt Nam.
+6. Mã bệnh nhân/số thứ tự: mock dùng `BN0001`, `101-003`. BE chốt định dạng.
 
 ### P00 · API notes — P00 (nền khu bệnh nhân + dùng chung)
 
@@ -217,7 +341,7 @@ FE hiện chạy lớp API giả cùng chữ ký hàm; bảng dưới là hợp 
 
 #### Hợp đồng URL giữa màn (query)
 - `/login?next=<đường dẫn>`: FE chỉ nhận `next` là đường dẫn bắt đầu bằng `/portal` (không `//`, không `\`, không ký tự điều khiển, không URL tuyệt đối); còn lại về `/portal`. CTA "Đặt lịch khám": `/login?next=/portal/appointments/new`.
-- `/workspace`: không tham số. Chuyển theo tài khoản (`homeRouteForAccount`): PATIENT → `/portal`; ADMIN và CLINIC_OWNER → `/admin`; nhân viên khác → `/staff`.
+- `/workspace`: không tham số. Chuyển theo tài khoản (`homeRouteForAccount`): PATIENT → `/portal`; ADMIN và CLINIC_OWNER → `/admin`; nhân viên khác → `/reception`.
 - `/portal/account`, `/portal/account/password`: không tham số.
 
 #### Ghi chú nghiệp vụ BE phải kiểm
@@ -313,7 +437,7 @@ Khi nối thật: `GET` ghép query bằng `toQueryString` (`lib/api/pagination.
 
 - BookingFlow **không tự đưa gì lên URL**: lựa chọn người khám, dịch vụ, ngày, giờ, bác sĩ đều ở state trong trang.
 - Khu bệnh nhân (P04, `/portal/appointments/new`): không cần `?profileId=`. Trang gọi `useLinkedProfiles()` rồi truyền `profiles` vào `<BookingFlow variant="patient" />`; khối "Ai đi khám?" nằm trong luồng. Sau khi đặt, `onBooked(appointment)` → trang hiện `BookingResult`; link chi tiết dùng `appointment.id`.
-- Khu Lễ tân (S02, `/staff/appointments/new?patientId=`): trang đọc `?patientId=`, lấy `BookingPatient` (`getBookingPatient`, API của S02), truyền `<BookingFlow variant="staff" patient={...} />`. Đổi người: đặt `key={patient.id}` để dựng lại luồng.
+- Khu Lễ tân `/reception/appointments?patientId=` dùng form đặt lịch riêng của `patient-reception` (R00), gọi cùng `POST /api/v1/appointments` với `patientId`.
 
 #### Quy ước mã người khám (cần BE thống nhất)
 
@@ -484,7 +608,7 @@ Ví dụ `GET /api/v1/visits/vis-lan-await/progress` (rút gọn):
 
 1. **Phạm vi (BR-19, luồng AF1):** lượt của người thân đã gắn được xem; hồ sơ đã bỏ gắn thì lượt không còn trong danh sách và chi tiết trả 403 MSG-40. FE không tự kiểm.
 2. **Không có kết quả (BR-35):** endpoint này không trả kết quả, chẩn đoán, đơn thuốc, ảnh. Kết quả đi qua phase 07.
-3. **Hàng đợi:** chỉ trả `WAITING`, `BEING_SERVED`, `ABSENT` của lượt. Không trả `DONE`/`CLOSED`. `peopleAhead` = số `WAITING` đứng trước trong cùng phòng theo thứ tự BE (cùng quy tắc với hàng đợi Lễ tân, xem câu hỏi 3 của S05).
+3. **Hàng đợi:** chỉ trả `WAITING`, `BEING_SERVED`, `ABSENT` của lượt. Không trả `DONE`/`CLOSED`. `peopleAhead` = số `WAITING` đứng trước trong cùng phòng theo thứ tự BE (cùng quy tắc với hàng đợi Lễ tân, xem R00 §4).
 4. **`allowedActions`:** `payOrders` khi có chỉ định `PENDING_PAYMENT` và lượt chưa đóng; `viewResults` khi `COMPLETED` hoặc `INCOMPLETE` (BR-35); `review` khi `COMPLETED` (phase 08 quyết chi tiết). FE không suy từ trạng thái.
 5. **`returnDeadline` (BR-65):** BE tính: ngày check-in đầu là ngày thứ nhất, hết hạn cuối ngày thứ bảy (kể cả ngày đó). Chỉ có khi `AWAITING_CONCLUSION`.
 6. **`roomName` của chỉ định:** `null` khi chưa gắn phòng. FE không suy phòng từ cấu hình.
@@ -771,296 +895,3 @@ Quy ước chung: ngày/giờ ISO có offset `+07:00`; tiền VND nguyên; enum 
 - Nút đặt lịch công khai chỉ dẫn vào luồng đăng nhập; FE không chọn sẵn bác sĩ (đặt bắt đầu từ thời gian).
 - Trạng thái "Còn giờ"/"Hết giờ" là ước lượng cho khách; màn đặt lịch phải kiểm lại khi chọn giờ (BR-25).
 - Admin: `publicUrl` của hồ sơ bác sĩ trả `/doctors/{id}` (trước đây `/bac-si/{id}`, không có route).
-
-### S00 · API notes — S00 (khung khu Lễ tân)
-
-Phase S00 không gọi endpoint nghiệp vụ nào. Không có `api/*Api.ts` mới.
-
-| Method | URL | Ghi chú |
-| --- | --- | --- |
-| POST | Supabase Auth `signOut` (SDK `getSupabaseBrowserClient().auth.signOut()`, không phải REST `/api/v1`) | Menu tài khoản "Đăng xuất". Lỗi bị nuốt, luôn chuyển về `/login`. |
-
-Danh tính hiển thị lấy từ `getMockCurrentActor("staff")` (`lib/session/mockCurrentActor.ts`, giả, xóa khi có `/api/v1/me`). BE cần:
-- `GET /api/v1/me` trả `accountId`, `role` (enum `AccountType`: `RECEPTIONIST` | `ORTHOPEDIC_DOCTOR` | `IMAGING_TECHNICIAN` | `LAB_TECHNICIAN` | `PATIENT`), `displayName`. FE dùng để hiển thị tên/vai trò và lọc mục menu theo vai trò. Quyền thật vẫn do BE kiểm từng thao tác.
-
-### S04a · API notes S04a: `features/patients` (tìm và tạo hồ sơ bệnh nhân tại quầy)
-
-Nguồn: phase-02 §6–§8 + cập nhật 24/10 (r3-change-spec: tìm theo mã bệnh nhân, `email?`, giữ `hasAccount`).
-FE hiện chạy mock: `USE_MOCK = true` trong `frontend/src/features/patients/api/patientApi.ts`. Nhánh `apiRequest` đã viết sẵn, BE xong thì đổi cờ.
-
-#### 1. Endpoint
-
-| Method | URL | Query / body | Response | Lỗi (HTTP · MSG) | Hàm FE | Ghi chú BE phải kiểm |
-| --- | --- | --- | --- | --- | --- | --- |
-| GET | `/api/v1/patients/lookup` | Query, đúng một cách: `patientCode` (string, dạng `BN-000123`) **hoặc** `phone` (string, 10 chữ số, bắt đầu 0) + `dateOfBirth` (string, `YYYY-MM-DD`) + `fullName` (string, tùy chọn: chỉ gửi khi lần trước trả MULTIPLE) | `200` `PatientLookupResponse`: `{ result: "SINGLE" \| "NONE" \| "MULTIPLE", matches: PatientMatch[] }` | 400 MSG-17 + `fieldErrors` (`patientCode`, `phone`, `dateOfBirth`, `fullName`) · 403 MSG-40 · 5xx MSG-04 | `lookupPatients(query: PatientLookupQuery, signal?)` · `api/patientApi.ts` | Xem mục 3 (quy tắc tìm, BR-14). MULTIPLE luôn `matches: []`. |
-| POST | `/api/v1/patients` | Body `CreateWalkInPatientRequest`: `{ fullName: string; dateOfBirth: string (YYYY-MM-DD); sex: "MALE" \| "FEMALE"; phone: string (10 số); address: string; citizenId: string \| null; email?: string }` | `201` `PatientMatch` (`hasAccount: false`) | 400 MSG-17 + `fieldErrors` (`fullName`, `dateOfBirth`, `sex`, `phone`, `address`, `citizenId`, `email`) · 409 MSG-18 (`params.existing: true`) · 403 MSG-40 · 5xx MSG-04 | `createWalkInPatient(body: CreateWalkInPatientRequest, signal?)` · `api/patientApi.ts` | UC10. Sinh `patientCode` duy nhất. Không tạo tài khoản (BR-15). Trùng: xem mục 3. |
-
-Kiểu dùng chung (`features/patients/types/patient.ts`):
-- `PatientMatch` = `{ id: string; patientCode: string; fullName: string; dateOfBirth: string; sex: "MALE" \| "FEMALE"; hasAccount: boolean }`.
-- `PatientLookupQuery` = `{ patientCode: string } \| { phone: string; dateOfBirth: string; fullName?: string }`.
-- `PatientLookupResponse` = `{ result: "SINGLE" \| "NONE" \| "MULTIPLE"; matches: PatientMatch[] }`.
-- `Sex` = `"MALE" \| "FEMALE"`.
-
-Quy ước chung: `PatientMatch` không có SĐT, địa chỉ, email, CCCD ở bất kỳ response nào của feature này (FE không hiển thị, giữ tối thiểu dữ liệu cá nhân). Không có tiền sử, dị ứng (BR-12).
-
-#### 2. Hợp đồng URL giữa màn (FE)
-
-| Từ | Đến | URL | Ghi chú |
-| --- | --- | --- | --- |
-| `PatientLookup` (prop `selectHref`) | màn chứa khối | `${selectHref}?patientId=<id>` | Chọn một kết quả, hoặc tạo xong. Thay mọi tham số khác (`push`). Hiện dùng: `/staff/check-in` (S04b), `/staff/appointments/new` (S02). |
-| Trang chứa khối | — | `?patientId=` | `id` là định danh mờ (mock: `pat-an`), không chứa tên hay SĐT. |
-
-SĐT, ngày sinh, họ tên, mã bệnh nhân **không** đưa lên URL của trang. Chỉ đi trong query của `GET /lookup` (theo hợp đồng trên).
-
-#### 3. Quy tắc nghiệp vụ BE phải kiểm
-
-**Tìm (BR-14, tìm trước):**
-- Theo `patientCode`: 1 hồ sơ → SINGLE; không có → NONE.
-- Theo `phone` + `dateOfBirth`:
-  - 0 hồ sơ → NONE, `matches: []`.
-  - 1 hồ sơ → SINGLE (bỏ qua `fullName` nếu có).
-  - Nhiều hồ sơ, không có `fullName` → MULTIPLE, `matches: []` (không lộ ai).
-  - Nhiều hồ sơ, có `fullName` → lọc theo họ tên (không phân biệt hoa thường, gọn khoảng trắng): 1 → SINGLE; 0 → NONE; nhiều → MULTIPLE `[]`.
-- Quyền: chỉ vai trò Lễ tân; 403 MSG-40 khi không đủ quyền.
-
-**Tạo (UC10, BR-15):**
-- Trùng (409 MSG-18): khớp 1 hồ sơ theo `phone` + `dateOfBirth` thì trùng, bất kể tên. Khớp nhiều hồ sơ thì trùng chỉ khi họ tên trùng một hồ sơ trong đó.
-- `patientCode` cấp mới, duy nhất. `hasAccount` luôn `false` khi tạo.
-- `email` chỉ lưu khi có gửi. Không có cờ đồng ý riêng (xem câu hỏi mở).
-- `citizenId` là `null` khi lễ tân để trống.
-
-**Dữ liệu FE gửi đã chuẩn hóa** (BE vẫn kiểm lại, không tin tuyệt đối):
-- `phone`: chỉ chữ số, `^0\d{9}$`.
-- `dateOfBirth`: `YYYY-MM-DD` có thật, từ 1900-01-01 đến hôm nay (giờ Việt Nam), không ở tương lai.
-- `patientCode`: `^BN-\d{6}$`.
-- `fullName`: gọn khoảng trắng, ≥ 2 từ, mỗi từ có chữ cái, chỉ chữ cái (kể cả có dấu), khoảng trắng, `.`, `'`, `-`; tối đa 100 ký tự.
-- `address`: không rỗng, tối đa 255 ký tự.
-- `citizenId`: `null` hoặc `^[A-Za-z0-9]{8,12}$` (viết hoa).
-- `email`: bỏ khi rỗng; có thì tối đa 254 ký tự, dạng `a@b.c`.
-- `sex`: bắt buộc, `MALE` hoặc `FEMALE` (FE không chọn sẵn).
-
-#### 5. Câu hỏi mở cho BE
-
-1. Định dạng mã bệnh nhân: FE đang chấp nhận `BN-` + 6 chữ số (ví dụ `BN-000123`), khớp mọi ví dụ trong spec. R3 còn để mở. Nếu BE đổi định dạng, sửa `PATIENT_CODE_PATTERN` trong `schema/patientFieldRules.ts`.
-2. Đồng ý ghi email: spec chỉ yêu cầu lễ tân hỏi bệnh nhân (câu hỏi hiển thị dưới ô email). Hợp đồng không có cờ `emailConsent`. Có cần cờ và lưu lại người đồng ý hay không.
-3. `params.existing: true` của 409 MSG-18: BE gửi theo spec. `ApiError.params` của FE chỉ nhận `string | number`, nên FE không đọc và mock không gửi.
-4. Nhiều hồ sơ cùng SĐT + ngày sinh và họ tên không khớp ai: mock trả NONE (không MULTIPLE). BE xác nhận.
-5. `PatientMatch` không có `email`. Nếu màn tiếp nhận cần hiện email (R3: "hiển thị và tìm theo mã bệnh nhân"), bổ sung ở `GET /reception/check-in-context` (phase 04), không thêm vào đây.
-
-### S04b · API notes — S04b · Tiếp nhận bệnh nhân `/staff/check-in` (UC29, phí khám của UC54)
-
-Tiền tố: `/api/v1/reception/`. Auth: Bearer (session Supabase) qua `apiRequest`. Enum `UPPER_SNAKE`, key `camelCase`, tiền số nguyên VND, ngày `YYYY-MM-DD`, thời điểm ISO `+07:00`.
-FE: `frontend/src/features/reception/api/checkInApi.ts` (`USE_MOCK = true`; nhánh `apiRequest` đã viết sẵn). DTO: `features/reception/types/checkIn.ts`.
-
-#### 1. Endpoint
-
-| # | Method · URL | Query / body | Response | Lỗi (HTTP · MSG) | FE (hàm) | Ghi chú BE phải kiểm |
-| --- | --- | --- | --- | --- | --- | --- |
-| 1 | `GET /api/v1/reception/today-appointments` | `status`: `BOOKED` \| `CHECKED_IN` \| rỗng (= tất cả). FE **luôn gửi** `status=` tường minh | `{ items: TodayAppointmentRow[], counts: { waiting: int, checkedIn: int } }` | 400 MSG-39 (status lạ) · 403 MSG-40 · 5xx MSG-04 | `listTodayAppointments(status, signal)` · `checkInApi.ts` | Thiếu tham số thì BE mặc định BOOKED, FE không dựa vào đó. `counts` luôn theo cả ngày, không phụ thuộc `status`. Sắp theo `startAt`. Không phân trang (< 200 dòng). Lọc tên/SĐT làm ở FE. |
-| 2 | `GET /api/v1/reception/check-in-context` | đúng một trong `appointmentId` \| `patientId` | `CheckInContext` (xem §2) | 400 MSG-39 (thiếu/thừa tham số) · 403 MSG-40 · 404 MSG-41 · 5xx MSG-04 | `getCheckInContext({appointmentId} \| {patientId}, signal)` · `checkInApi.ts` | Xem §3 (BR-26, BR-66, BR-27, BR-12). Không trả tiền sử/dị ứng. |
-| 3 | `GET /api/v1/reception/priority-groups` | — | `{ items: { code: string, label: string }[] }` | 403 MSG-40 · 5xx MSG-04 | `listPriorityGroups(signal)` · `checkInApi.ts` | Danh mục cấu hình (BR-31). "Không ưu tiên" là lựa chọn của FE (gửi `null`). |
-| 4 | `POST /api/v1/reception/exam-fee-payments` | `{ patientId: string, appointmentId: string \| null, serviceId: string \| null, method: "CASH" \| "VNPAY" }` | `201` `ExamFeePayment` (§2) | 400 MSG-39 · 403 MSG-40 · 404 MSG-41 · 409 MSG-49 · 5xx MSG-04 | `collectExamFee(body)` · `checkInApi.ts` | FE **không gửi số tiền**: BE tính theo giá chốt của lịch (BR-59) hoặc giá dịch vụ vãng lai. Đúng một trong `appointmentId`/`serviceId`. Lịch phải `BOOKED` và phí `PENDING_PAYMENT`, nếu không → 409 MSG-49. CASH → `SUCCESS` + `receiptNo`. VNPAY → `PENDING` + `vnpay`. |
-| 5 | `GET /api/v1/reception/exam-fee-payments/{id}` | — | `ExamFeePayment` | 403 MSG-40 · 404 MSG-41 · 5xx MSG-04 | `getExamFeePayment(id, signal)` · `checkInApi.ts` | FE hỏi mỗi 3 giây khi `PENDING`, dừng ở `SUCCESS`/`FAILED`, khi FE thấy hết hạn, hoặc khi rời màn. Lỗi 5xx: FE giữ poll và báo "chưa kiểm tra được". |
-| 6 | `POST /api/v1/reception/check-ins` | `{ patientId: string, appointmentId: string \| null, visitId: string \| null, serviceId: string \| null, priorityGroupCode: string \| null, examFeePaymentId: string \| null }` | `201` `CheckInResult` (§2) | 400 MSG-39 (không đúng một lựa chọn, mã nhóm lạ) · 403 MSG-40 · 409 MSG-37 (lịch hủy/đã tiếp nhận/không hợp lệ) · 409 MSG-49 (phí chưa trả) · 5xx MSG-04 | `checkInPatient(body)` · `checkInApi.ts` | Đúng một trong `appointmentId` (lịch hẹn), `visitId` (quay lại 7 ngày), `serviceId` (vãng lai). Kiểm lại phí ở BE (BR-26), không tin FE. `examFeePaymentId` phải là khoản `SUCCESS` của đúng bệnh nhân và lịch/dịch vụ. |
-
-Tất cả lỗi có `code` MSG trong ProblemDetail. FE không hiện mã; chữ theo `lib/messages/appMessages.ts`.
-
-#### 2. DTO (rút gọn, tên trường đúng như FE)
-
-- `TodayAppointmentRow`: `appointmentId`, `startAt`, `patientName`, `patientCode`, `phone`, `serviceName`, `doctorName`, `roomName`, `isFollowUp: boolean`, `examFeeStatus: PAID|PENDING_PAYMENT|NOT_REQUIRED`, `status: BOOKED|CHECKED_IN|CANCELLED|NO_SHOW`.
-- `CheckInContext`: `patient { id, patientCode, fullName, dateOfBirth, sex: MALE|FEMALE, phone }`, `options: CheckInOption[]`, `ineligible: { appointmentId, startAt, reason: ALREADY_CHECKED_IN|CANCELLED|NO_SHOW|NOT_TODAY, checkedIn?: { at, queueNumber, roomName } }[]`, `notice: PREVIOUS_VISIT_INCOMPLETE | null`.
-- `CheckInOption` (phân biệt theo `kind`):
-  - `APPOINTMENT`: `appointmentId, startAt, serviceName, visitType: FIRST_VISIT|FOLLOW_UP, doctorName, roomName, examFee { amount, status, paidOnline }`
-  - `RETURN_VISIT`: `visitId, firstCheckInDate, dayOfPeriod (1–7), nextQueue { type: SERVICE|RESULT_REVIEW, roomName, doctorName }, examFee` (luôn `NOT_REQUIRED`, `amount: 0`)
-  - `WALK_IN`: `services: { id, name, price }[]` (chỉ dịch vụ Khám)
-- `ExamFeePayment`: `id, method: CASH|VNPAY, amount, status: SUCCESS|PENDING|FAILED, receiptNo: string | null, vnpay: { qrImageUrl, transactionRef, expiresAt } | null`
-- `CheckInResult`: `visitId, queueEntryId, queueNumber: int, queueType: EXAMINATION|SERVICE|RESULT_REVIEW, roomName, doctorName, priorityLabel: string | null, peopleAhead: int`
-
-#### 3. Ghi chú nghiệp vụ cho BE
-
-> **Lưu ý đánh số BR:** mã BR trong file này lấy từ phase S04b và phân tích nghiệp vụ (bản R3 trên Drive). `docs/appendix-rules.md` đánh số BR khác (ví dụ BR-26 ở appendix là quy tắc đặt lịch, BR-12 là vai trò nhân viên). BE đối chiếu theo nội dung nghiệp vụ, không theo số.
-
-1. **Quyền**: chỉ Lễ tân, và chỉ với bệnh nhân lễ tân phục vụ (phân tích §3.1). Sai quyền → 403 MSG-40, không phải 404.
-2. **Điều kiện cứng (BR-26)**: người xác định được, có mặt (FE tick, BE không kiểm được), phí `PAID`/`NOT_REQUIRED`. Phí chưa trả → 409 MSG-49 ở `check-ins`. FE vẽ nút theo `missing[]` của nó, nhưng BE là nguồn đúng.
-3. **Options do BE quyết** (FE không suy): lịch hôm nay còn `BOOKED` → `APPOINTMENT`; visit `AWAITING_CONCLUSION` trong 7 ngày (BR-66) → `RETURN_VISIT`, không thu phí; không có visit mở và chưa tiếp nhận hôm nay → `WALK_IN`; lượt trước `INCOMPLETE` quá 7 ngày → `notice` + `WALK_IN` (AF3). Lịch không đủ điều kiện → `ineligible` kèm lý do (BR-64 quá ca → `NO_SHOW`).
-4. **Vãng lai (BR-27, NF-07)**: không tạo `Appointment`. BE chọn phòng ít người chờ nhất và bác sĩ có ca ở phòng đó. FE không gửi phòng/bác sĩ.
-5. **Số thứ tự**: theo phòng trong ngày, tăng dần; `peopleAhead` = số bản ghi `WAITING` đang chờ trong cùng phòng (cách mock đang tính; BE quyết theo hàng đợi thật). Nhóm ưu tiên đưa vào thứ tự hàng đợi theo BR-29 (BE sắp, FE chỉ hiển thị).
-6. **VNPay**: `qrImageUrl` là ảnh PNG dạng data URL (FE không lưu, không log). `expiresAt` = tạo + ~15 phút (BR-51); hết hạn không có kết quả → `FAILED`. Khi lễ tân chuyển sang tiền mặt lúc QR đang `PENDING`, FE bỏ khoản đó: **BE phải bảo đảm khoản PENDING đó không thể thành SUCCESS sau khi đã thu tiền mặt** (xem câu hỏi mở).
-7. **Thu tiền mặt**: FE không gửi `amount`. Khoản thu trọn vẹn (BR-49), không hoàn (BR-53). Sau khi thu tiền mặt, FE khóa đổi lựa chọn trong phiên này.
-8. **Đụng độ**: hai lễ tân cùng tiếp nhận một lịch → người sau nhận 409 MSG-37, FE tải lại `check-in-context` và hiện "đã tiếp nhận lúc … · Số …" (cần `checkedIn` đầy đủ trong `ineligible`).
-9. **Hồ sơ**: `check-in-context` không được trả tiền sử hay dị ứng (BR-12). Màn chỉ cần `patient` như trên.
-10. **Phân biệt trạng thái**: `today-appointments?status=` rỗng phải trả cả đã hủy và không đến; `counts` không đổi theo `status`.
-
-#### 4. Contract URL giữa màn (query param)
-
-- `/staff/check-in` — màn trống (gợi ý tìm bệnh nhân).
-- `/staff/check-in?appointmentId=<id>` — FE đặt khi chọn một dòng trong "Lịch hẹn hôm nay". Đây là đích ưu tiên khi cả hai tham số có mặt.
-- `/staff/check-in?patientId=<id>` — `PatientLookup` (feature `patients`) đẩy sang sau khi chọn hoặc tạo hồ sơ (`selectHref="/staff/check-in"`).
-- Chỉ chứa id, không chứa tên hay SĐT. Khi tiếp nhận xong, FE bỏ tham số (`/staff/check-in`).
-- Link ra ngoài: `/staff/reception-queue` (phase S05).
-
-#### 5. Câu hỏi mở cho BE
-
-1. Khoản VNPay `PENDING` bị bỏ vì lễ tân thu tiền mặt: BE hủy khoản đó ngay khi nhận thu tiền mặt, hay từ chối `SUCCESS` muộn? (tránh thu hai lần)
-2. Có trả `peopleAhead` theo cùng thứ tự với BE (nhóm ưu tiên trước) hay theo giờ vào hàng?
-3. `CheckInOption.APPOINTMENT.examFee.paidOnline` có cần kèm thời điểm và kênh trả (VNPay/ngân hàng) để hiện chi tiết không? Hiện FE chỉ hiện "Đã trả trực tuyến trước khi đến."
-
-### S05 · API notes — S05 · Hàng đợi tiếp nhận `/staff/reception-queue` (UC30, chỉ xem)
-
-Tiền tố: `/api/v1/reception/`. Auth: Bearer (session Supabase) qua `apiRequest`. Enum `UPPER_SNAKE`, key `camelCase`, thời điểm ISO `+07:00`, số nguyên thuần.
-FE: `frontend/src/features/reception/api/receptionQueueApi.ts` (`USE_MOCK = true`; nhánh `apiRequest` đã viết sẵn). DTO: `features/reception/types/receptionQueue.ts`.
-
-#### 1. Endpoint
-
-| # | Method · URL | Query / body | Response | Lỗi (HTTP · MSG) | FE (hàm) | Ghi chú BE phải kiểm |
-| --- | --- | --- | --- | --- | --- | --- |
-| 1 | `GET /api/v1/reception/queue` | `roomId`: string, không bắt buộc (bỏ trống = mọi phòng). `status`: lặp, `WAITING` \| `BEING_SERVED` \| `ABSENT`. FE **luôn gửi** `status` tường minh; thiếu thì BE mặc định `WAITING`, `ABSENT`. Không phân trang. | `ReceptionQueueResponse` (§2) | 400 MSG-39 (`status` lạ/rỗng, `roomId` rỗng hoặc không thuộc phòng khám) · 403 MSG-38 (không phải Lễ tân) · 5xx MSG-04 | `getReceptionQueue(query, signal)` · `receptionQueueApi.ts` | Xem §3 (quyền, thứ tự, lọc, đếm). Lọc tên và số thứ tự làm ở FE. |
-| 2 | `GET /api/v1/reception/queue/{queueEntryId}` | — | `ReceptionVisitSummary` (§2) | 400 MSG-39 (id rỗng) · 403 MSG-38 · 404 MSG-38 (không có bản ghi) · 410 MSG-38 (đã rời hàng: xong, đã đóng, hoặc hàng dịch vụ) · 5xx MSG-04 | `getReceptionVisitSummary(queueEntryId, signal)` · `receptionQueueApi.ts` | Chỉ hành chính và hàng đợi. Không trả tiền sử, dị ứng, chẩn đoán. |
-
-Tất cả lỗi có `code` MSG trong ProblemDetail. FE không hiện mã; chữ theo `lib/messages/appMessages.ts` (MSG-04, MSG-38, MSG-39).
-
-#### 2. DTO (tên trường đúng như FE)
-
-- `ReceptionQueueResponse`:
-  - `items: ReceptionQueueRow[]`
-  - `counts: { total: int, waiting: int, absent: int }`
-  - `rooms: { id: string, name: string }[]`
-  - `generatedAt: ISO+07:00`
-- `ReceptionQueueRow`:
-  - `queueEntryId: string`
-  - `queueNumber: int` (số trong phòng, cột "Số")
-  - `position: int | null` (vị trí trong hàng Đang chờ của phòng; null khi khác)
-  - `patientName: string`, `patientCode: string`
-  - `roomId: string`, `roomName: string`
-  - `queueType: EXAMINATION | RESULT_REVIEW`
-  - `appointmentStartAt: ISO+07:00 | null` (null = vãng lai hoặc quay lại)
-  - `priorityLabel: string | null`
-  - `status: WAITING | BEING_SERVED | ABSENT`
-  - `joinedAt: ISO+07:00` (giờ vào hàng)
-- `ReceptionVisitSummary`:
-  - `queueEntryId`, `queueNumber: int`, `roomName: string`
-  - `patient: { fullName: string, patientCode: string, sex: MALE | FEMALE, age: int }`
-  - `checkedInAt: ISO+07:00`, `appointmentStartAt: ISO+07:00 | null`
-  - `visitType: FIRST_VISIT | FOLLOW_UP`
-  - `responsibleDoctorName: string`, `priorityLabel: string | null`
-  - `queueType: EXAMINATION | RESULT_REVIEW`
-  - `queueStatus: WAITING | BEING_SERVED | ABSENT`
-  - `peopleAhead: int | null` (null khi không đang chờ)
-  - `visitStatus: WAITING_FOR_EXAMINATION | IN_EXAMINATION | AWAITING_CONCLUSION | COMPLETED | INCOMPLETE | CANCELLED_LEFT`
-
-#### 3. Ghi chú nghiệp vụ cho BE
-
-> Số BR theo phân tích và phase (R3). `docs/appendix-rules.md` đánh số khác. Đối chiếu theo nội dung. Ánh xạ: quyền xem hàng đợi = appendix BR-32; hàng đợi phải thấy đang chờ và đang phục vụ = appendix BR-34; chỉ Lễ tân đổi vị trí = appendix BR-35 (màn này không có thao tác đó).
-
-1. **Quyền**: chỉ Lễ tân xem được hàng đợi. Sai quyền → 403 (FE hiện "không có quyền", không có Thử lại). Phase S05 ghi **MSG-38** cho 403; S04b ghi **MSG-40** cho 403 cùng loại quyền. BE chọn một mã thống nhất (xem §5).
-2. **Thứ tự (BR-29)**: trong từng phòng, Đang chờ xếp theo nhóm ưu tiên trước, rồi giờ vào hàng. `position` là vị trí BE tính (1 = đến lượt gọi kế). FE không sắp lại; thứ tự của `items` là thứ tự BE trả.
-3. **Trạng thái đưa ra**: chỉ `WAITING`, `BEING_SERVED`, `ABSENT`. Không trả `DONE` và `CLOSED`. Không trả hàng dịch vụ (`queueType` = `SERVICE`, thuộc kỹ thuật viên, UC46).
-4. **Lọc**: `status` lặp; FE gửi: mặc định `WAITING`+`ABSENT`; "Tất cả" thêm `BEING_SERVED`. Lọc tên hoặc số thứ tự làm ở FE.
-5. **Đếm (`counts`)**: đếm theo cả ngày, không theo `roomId` và `status`. `total` = bệnh nhân đã tiếp nhận hôm nay vào hàng khám hoặc đọc kết quả, kể cả đã xong (FE hiện "N đã tiếp nhận hôm nay · N đang chờ · N vắng mặt"). Cần xác nhận định nghĩa `total`.
-6. **Phòng (`rooms`)**: danh sách phòng khám, không lọc theo `roomId` đang chọn.
-7. **Vắng mặt (BR-28 của phân tích)**: `ABSENT` phải hiện (lễ tân trả lại ở UC32). Màn này không có nút đánh dấu vắng.
-8. **Tóm tắt (`peopleAhead`)**: số bản ghi `WAITING` đứng trước trong cùng phòng, theo thứ tự BE (kể cả ưu tiên). Khi không đang chờ: null.
-9. **Quay lại đọc kết quả** (`queueType` = `RESULT_REVIEW`): có `appointmentStartAt` = null. Mock coi cùng hàng phòng với khám (đếm `peopleAhead` chung phòng).
-10. **Riêng tư (BR-12 của phân tích)**: tóm tắt không có tiền sử, dị ứng, chẩn đoán.
-11. **Bản ghi đã rời hàng**: `GET queue/{id}` trả 410 khi bản ghi đã `DONE`/`CLOSED` hoặc là hàng dịch vụ; 404 khi không tồn tại. FE đóng Sheet và tải lại bảng khi 404/410.
-12. **Tần suất**: FE tự tải lại mỗi 20 giây khi tab hiển thị, không realtime. BE không cần push.
-
-#### 4. Contract URL giữa màn (query param)
-
-- `/staff/reception-queue`: không có query param. Bộ lọc phòng, trạng thái và ô tìm nằm trong state của màn, không lên URL (tên bệnh nhân không được nằm trên đường dẫn).
-- Link vào: từ màn Tiếp nhận (`/staff/check-in`, nút "Xem hàng đợi tiếp nhận") và từ mục menu "Hàng đợi tiếp nhận".
-- Link ra: "Tiếp nhận bệnh nhân" → `/staff/check-in`.
-
-#### 5. Câu hỏi mở cho BE
-
-1. Mã 403 của queue và của tóm tắt: MSG-38 (phase S05) hay MSG-40 (S04b, quyền tiếp nhận)? Chọn một.
-2. `counts.total`: xác nhận định nghĩa "đã tiếp nhận hôm nay, kể cả đã xong" (theo ví dụ "18 bệnh nhân · 11 đang chờ · 2 vắng mặt" của phase S05 thì đúng như vậy).
-3. `peopleAhead` của tiếp nhận (S04b, `checkInPatientMock`) đếm mọi `WAITING` của phòng, chưa tính nhóm ưu tiên. Màn này dùng vị trí theo BR-29. Thống nhất một cách khi nối BE, để phiếu số và màn hàng đợi ra cùng con số.
-4. `visitType` của khách vãng lai: BE xác định theo lịch sử (FE chưa có nguồn). Mock tạm dùng khám lần đầu.
-5. `visitStatus` theo `queueType`/`status`: mock dùng `WAITING_FOR_EXAMINATION` (khám, đang chờ hoặc vắng), `IN_EXAMINATION` (khám, đang phục vụ), `AWAITING_CONCLUSION` (đọc kết quả). Xác nhận với luồng lượt khám (UC31–UC33).
-6. Thứ tự giữa các nhóm ưu tiên (ví dụ cấp cứu trước người từ 75 tuổi): BE quyết theo cấu hình BR-31; FE chỉ hiển thị thứ tự trả về.
-
-### S02 · S02 — Ghi chú API cho BE: lịch hẹn và đặt lịch của Lễ tân (UC10, UC21, UC22, UC24)
-
-Nguồn code: `otcms/frontend/src/features/appointments/api/staffAppointmentApi.ts` (lớp API giả, chữ ký khớp REST). Quy ước chung như P03: JSON; ngày `YYYY-MM-DD`; thời điểm ISO `+07:00`; tiền số nguyên VND; enum `UPPER_SNAKE`; key `camelCase`. Lỗi: ProblemDetail + `code` (mã MSG) + `fieldErrors: [{ field, code }]`. FE đọc `code`.
-
-#### 1. Endpoint FE gọi
-
-| # | Method · URL | Query / body | Response (200/201) | Lỗi (HTTP · MSG) | FE định nghĩa | Ghi chú BE phải kiểm |
-| --- | --- | --- | --- | --- | --- | --- |
-| 1 | `GET /api/v1/appointments` | Query: `date` string `YYYY-MM-DD` (tùy, mặc định hôm nay giờ VN) · `doctorId` string (tùy) · `status` `AppointmentStatus` (tùy) · `q` string (tùy: tên hoặc SĐT) · `page` int (0-based) · `size` int (mặc định 20, tối đa 100) | `PageResponse<StaffAppointment>` = `{ items, page, size, totalItems, totalPages }` | 400 MSG-54 (`fieldErrors`: `date`, `status`) · 403 MSG-40 · 5xx MSG-04 | `listStaffAppointments(query, signal?)` · hook `useStaffAppointmentList` | Sắp `startAt` tăng dần (FE không gửi `sort`). Phạm vi theo vai trò (BR-19, BR-21). `q` là dữ liệu cá nhân: không ghi log, không đưa lên URL. `allowedActions` theo mục 3. |
-| 2 | `GET /api/v1/appointments/booking-patients/{patientId}` | Path: `patientId` string (mã từ tìm bệnh nhân, ví dụ `pat-an`) | `BookingPatient` = `{ id: string, fullName: string, dateOfBirth: date, relationship: null }` | 403 MSG-29 (bị khóa đặt lịch hoặc ngoài quyền) · 404 MSG-29 (không có hồ sơ) · 5xx MSG-04 | `getBookingPatient(patientId, signal?)` · hook `useBookingPatient` | Trả đúng mã người đặt mà open-times/POST nhận: nếu người đó đã gắn tài khoản thì `id` là `LinkedProfile.id` (UUID) (P03 mục "Quy ước mã người khám"). `relationship` luôn `null` ở khu Lễ tân. |
-| 3 | `GET /api/v1/appointments/doctors` **(mới, ngoài §7 phase-02)** | — | `{ items: { id: string, fullName: string, bookable: boolean }[] }` | 5xx MSG-04 | `listStaffDoctors(signal?)` · hook `useStaffDoctorLookup` | Dùng cho bộ lọc "Bác sĩ". Gồm mọi bác sĩ có lịch hoặc ca, không chỉ bác sĩ đang nhận đặt; `bookable` = đang nhận đặt mới. Có thể dùng chung nguồn với danh sách bác sĩ của admin. |
-| 4 | `GET /api/v1/appointments/{id}/eligible-doctors` | Path: `id` string | `{ items: { id: string, fullName: string }[] }` (rỗng = AF1) | 404 MSG-29 · 409 MSG-32 (lịch không còn Đã đặt) · 5xx MSG-04 | `listStaffEligibleDoctors(appointmentId, signal?)` · qua `useEligibleDoctors` | Bác sĩ có ca đúng giờ, đang nhận đặt, không có lịch Đã đặt/Đã tiếp nhận khác đúng giờ đó; không gồm bác sĩ hiện tại (BR-20, BR-25). |
-| 5 | `POST /api/v1/appointments/{id}/reassign` | Path `id` · body `{ doctorId: string }` | `StaffAppointment` (bản ghi sau khi chuyển) | 400 MSG-12 (`fieldErrors`: `doctorId`) · 404 MSG-29 · 409 MSG-32 · 409 MSG-24 (bác sĩ không còn nhận giờ này) · 5xx MSG-04 | `reassignStaffAppointmentDoctor(appointmentId, doctorId)` · qua `useReassignDoctorFlow` | BR-22: chỉ đổi bác sĩ, **giờ giữ nguyên**. Kiểm quyền, trạng thái và tính khả dụng của bác sĩ trong cùng giao dịch có khóa. Phòng (`roomName`) theo bác sĩ mới. |
-| 6 | `POST /api/v1/appointments/{id}/notify-no-replacement` | Path `id` · không body | `StaffAppointment` | 404 MSG-29 · 409 MSG-32 · 5xx MSG-04 | `notifyStaffNoReplacement(appointmentId)` · qua `useReassignDoctorFlow` | Chỉ khi lịch Đã đặt và không có bác sĩ thay. Gửi một lần. Lịch vẫn Đã đặt. BE gửi thông báo cho bệnh nhân (nội dung MSG-89 của R3). |
-
-##### Kiểu dữ liệu
-
-**StaffAppointment** = `{ id: string; startAt: string /* ISO +07:00 */; patient: { id: string; patientCode: string /* BN-000123 */; fullName: string; dateOfBirth: string /* YYYY-MM-DD */; phone: string | null }; bookedFor: { kind: "SELF" } | { kind: "DEPENDENT"; accountHolderName: string }; service: { id: string; name: string }; isFollowUp: boolean; doctor: { id: string; fullName: string }; roomName: string; examFee: { amount: number /* VND */; status: "PAID" | "PENDING_PAYMENT" | "NOT_REQUIRED" }; status: "BOOKED" | "CHECKED_IN" | "CANCELLED" | "NO_SHOW"; allowedActions: ("checkIn" | "reassign" | "notifyNoReplacement")[] }`
-
-Không có trường nào khác (không SĐT người đặt, không tiền sử, không dị ứng: BR-12). `phone` là `null` khi hồ sơ chưa có số.
-
-**DoctorRef** = `{ id: string; fullName: string }`. **BookingPatient** = `{ id: string; fullName: string; dateOfBirth: string; relationship: null }`.
-
-#### 2. Hợp đồng URL giữa màn (query param, FE)
-
-| Từ | Đến | URL | Ghi chú |
-| --- | --- | --- | --- |
-| Danh sách Lễ tân | chính nó | `/staff/appointments?date=YYYY-MM-DD&doctorId=<id>&status=<STATUS>` | Đổi bộ lọc = replace. Thiếu `date` = hôm nay (giờ VN). `q` không lên URL. Trang đọc: `date`, `doctorId`, `status`. |
-| Danh sách | Đặt lịch | `/staff/appointments/new` | Nút "Đặt lịch" và mục menu. |
-| `/staff/appointments/new` | chính nó | `?patientId=<id>` | `id` từ `PatientLookup` (`PatientMatch.id`, định danh mờ, ví dụ `pat-an`). Không có tên, SĐT, ngày sinh trên URL. Mã không dùng được (404/403 MSG-29) thì FE xóa param. |
-| Danh sách, Sheet, kết quả đặt | Tiếp nhận | `/staff/check-in?appointmentId=<appointment.id>` | Chỉ hiện khi `checkIn` ∈ `allowedActions` (danh sách) hoặc lịch vừa đặt là hôm nay (kết quả đặt). Phase 04 xử lý màn đích. |
-
-#### 3. Quy tắc nghiệp vụ BE phải kiểm
-
-- **BR-19, BR-21 (phạm vi):** Lễ tân chỉ thấy lịch và đặt cho người trong phạm vi phục vụ. Kiểm ở mọi endpoint, không chỉ ở danh sách.
-- **BR-22:** Lễ tân không hủy, không đổi giờ. Trên khu Lễ tân chỉ có chuyển bác sĩ cùng giờ và báo bệnh nhân khi không có bác sĩ thay (lịch vẫn Đã đặt). FE không có nút hủy hay đổi giờ.
-- **`allowedActions` (BE quyết định; kho giả tính như sau):**
-  - `checkIn`: lịch `BOOKED` có ngày là hôm nay (giờ VN).
-  - `reassign`: lịch `BOOKED`.
-  - `notifyNoReplacement`: lịch `BOOKED`, không có bác sĩ thay (danh sách ứng viên rỗng), chưa báo.
-  - `CHECKED_IN`, `CANCELLED`, `NO_SHOW`: không có thao tác (`[]`).
-- **BR-20, BR-25:** ứng viên chuyển = bác sĩ có ca đúng giờ, đang nhận đặt, không bận giờ đó.
-- **BR-14:** `getBookingPatient` chỉ cho người lễ tân đã tìm được (đi qua tìm kiếm trước).
-- **Mã người khám:** `patientId` của `booking-patients/{id}` và `patientId` của open-times/POST phải là một mã cho cùng một người (P03).
-- **Chuyển bác sĩ:** khóa lịch và bác sĩ trong một giao dịch. Hai lễ tân cùng chuyển một lịch thì người sau nhận 409 MSG-32 hoặc MSG-24.
-
-#### 4. Câu hỏi mở cho BE / nhóm
-
-1. `GET /api/v1/appointments/doctors` là endpoint mới (không có trong §7 phase-02). Dùng chung nguồn danh sách bác sĩ của admin, hay tạo mới?
-2. `BookingPatient` không có mã BN (`patientCode`), nên khối đặt lịch của Lễ tân chỉ hiện tên và ngày sinh. Phase wireframe có hiện BN-000123 ở đây. Nếu cần, thêm `patientCode` vào `BookingPatient` (kiểu P03).
-3. Kho giả: chuyển bác sĩ và "báo bệnh nhân" chỉ lưu trong khu Lễ tân (`staffAppointmentMockStore.ts`). Kho lịch chung `bookingMockStore.ts` chưa có lệnh ghi cập nhật, nên lịch đã chuyển chưa hiện ở khu bệnh nhân và chưa chặn đặt trùng bác sĩ mới ở P03. Cần lệnh cập nhật trong kho chung (chủ P03) để hai khu nhất quán. Trên BE thật không có vấn đề này.
-4. Ngày sinh của An lệch giữa hai mock: `linkedProfilesMockStore` là 1992-07-21, `patientMockData` là 1958-03-12. Khối đặt lịch của Lễ tân hiện 1992 (theo hồ sơ gắn), còn tìm kiếm ra 1958. Đã nêu ở P03 và S04a, chưa sửa.
-5. Seed hôm nay có 4 lịch (P03). Phase-02 §8 yêu cầu ≥ 25 dòng (2 trang) và một lịch AF1 (không bác sĩ thay). Seed chung không thuộc phạm vi S02 nên chưa bổ sung. Test AF1 tạo lịch qua `createAppointment` rồi kiểm.
-6. MSG-89 trong `appMessages.ts` ("Chuyển lịch hẹn không thành công…") không khớp R3, trong đó MSG-89 là thông báo BE gửi cho bệnh nhân khi không có bác sĩ thay. Khu Lễ tân không dùng mã này. Chưa sửa vì bảng MSG chỉ thêm dòng mới.
-7. `StaffAppointment.patient.phone` là `string | null` (phase ghi `string`), vì kho có hồ sơ chưa có SĐT.
-8. Khi `checkIn` vẫn còn ở lịch `BOOKED` đã quá giờ hôm nay: BE quyết định có khóa không.
-
-### I02b · API notes — I02b (thống nhất mock dùng chung + sửa nhỏ sau nghiệm thu)
-
-Không thêm endpoint. Chỉ đổi hành vi của endpoint đã có trong lớp API giả, để hai khu (Lễ tân và Bệnh nhân)
-đọc cùng một kho lịch như BE một DB. Kho giả chỉ dùng trong lớp API giả, xóa khi nối BE.
-
-#### 1. Endpoint bị ảnh hưởng (hợp đồng BE phải giữ)
-
-| # | Method · URL | Thay đổi ở FE/mock (I02b) | Ghi chú BE phải kiểm |
-| --- | --- | --- | --- |
-| 1 | `POST /api/v1/appointments/{id}/reassign` (S02) · body `{ doctorId: string }` → `StaffAppointment` | Bác sĩ và phòng mới được ghi vào lịch chung (`bookingMockStore`). Khu bệnh nhân (`GET /api/v1/appointments`, `GET /api/v1/appointments/{id}`) thấy bác sĩ và phòng mới ngay; giờ trống (`GET /api/v1/appointments/open-times`) bỏ bác sĩ mới và mở lại bác sĩ cũ ở giờ đó. Lỗi không đổi: 400 MSG-12, 404 MSG-29, 409 MSG-32, 409 MSG-24. | Một giao dịch có khóa: kiểm bác sĩ mới còn ca và trống đúng giờ, đổi `doctor` + `roomName` (phòng theo bác sĩ mới), giờ giữ nguyên (BR-22, BR-25). Khu bệnh nhân và giờ trống đọc cùng một bản ghi. |
-| 2 | `GET /api/v1/appointments/doctors` (S02) → `{ items: { id, fullName, bookable }[] }` | `bookable` = đang nhận đặt mới **hôm nay** (có ca, không vắng). Trước đây luôn `true`. | BE tính cờ theo lịch làm việc và tình trạng vắng của ngày hôm nay, cùng nguồn với giờ trống. |
-| 3 | `GET /api/v1/appointments/open-times` (P03, đọc bởi P03 và đặt lịch Lễ tân) | Bác sĩ vắng hôm nay (mock: BS. Lê Quang Minh) không nằm trong bất kỳ giờ trống nào của hôm nay. | Vắng cả ngày → không là bác sĩ nhận đặt, không tính vào giờ trống. |
-| 4 | `GET /api/v1/appointments/{id}/eligible-doctors` (S02) | Không đổi hình trả. Lịch 08:00 hôm nay của bác sĩ vắng (`apt-1041`) trả rỗng: AF1. | Rỗng khi không bác sĩ nào có ca cùng giờ, còn trống, và không phải bác sĩ hiện tại (BR-20, BR-25). |
-| 5 | `GET /api/v1/appointments?date=` (S02) và `GET /api/v1/appointments` (P04) | Không đổi hình. Mock thêm 2 dòng hôm nay 08:00 (`apt-1041` AF1, `apt-1042`). | Chỉ là dữ liệu mẫu, không phải hợp đồng. |
-
-#### 3. Quy tắc nghiệp vụ BE phải kiểm (mới rõ hơn)
-
-- **Chuyển bác sĩ là thay đổi lịch chung:** không có "bản sao" riêng ở khu Lễ tân. Sau chuyển, lịch hiện đúng bác sĩ mới cho cả hai khu và giờ trống phản ánh ngay.
-- **Bác sĩ vắng:** một bác sĩ vắng cả ngày không nhận đặt mới và không là ứng viên chuyển của ngày đó. Lịch đã có của bác sĩ vắng vẫn còn; Lễ tân chuyển được nếu có ứng viên, nếu không thì chỉ còn "Báo cho bệnh nhân" (AF1).
-- **Nhóm ưu tiên ≥ 75 tuổi:** FE chỉ gửi mã nhóm. BE quyết theo ngày sinh và cấu hình (BR-31); demo dùng Nguyễn Thị Lan.
-
-#### 4. Câu hỏi mở cho BE
-
-1. Chuyển bác sĩ lúc đang có ca khám (`CHECKED_IN`): không có trong mock (chỉ chuyển lịch Đã đặt). BE quyết có cho phép không.
-2. Cờ `bookable` của bác sĩ vắng: BE trả `false` hay bỏ hẳn bác sĩ khỏi danh sách bộ lọc? Mock trả `false`.
-3. Hai dòng AF1 hôm nay (Minh 08:00 và Tuấn 08:00) không có ai thay: BE gửi thông báo "không có bác sĩ thay" (MSG-89 theo R3) một lần; mock chỉ ghi cờ trong khu Lễ tân (`staffAppointmentMockStore`). Cần BE xác nhận nơi lưu cờ đã báo.
-4. Màn Tiếp nhận (S04b, `checkInMock*`) và danh sách lịch Lễ tân (S02, `bookingMockStore`) còn hai kho lịch mock tách nhau: lịch hôm nay của hai màn không trùng nhau. Khi nối BE thì một nguồn.

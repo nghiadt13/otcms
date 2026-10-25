@@ -58,15 +58,15 @@ frontend/src/
 │   │   ├── layout.tsx, error.tsx
 │   │   ├── (site)/                      trang công khai có header/footer chung: page.tsx (trang chủ), services/, doctors/, reviews/, announcements/, gioi-thieu/, bai-viet/[id]/ (+ loading/error/not-found)
 │   │   ├── login/, register/, forgot-password/, reset-password/   UC01, UC06, UC02 (page.tsx mỏng, gọi features/auth; /login nhận ?next= trong /portal)
-│   │   └── workspace/page.tsx           chuyển trang theo vai trò: bệnh nhân → /portal, Lễ tân → /staff, admin → /admin
+│   │   └── workspace/page.tsx           chuyển trang theo vai trò: bệnh nhân → /portal, Lễ tân → /reception, admin → /admin
 │   ├── (patient)/                       khu bệnh nhân (/portal): root layout riêng, theme shadcn + font Be Vietnam Pro
 │   │   ├── layout.tsx
 │   │   └── portal/                      layout (PatientPortalHeader + một cột max-w-3xl + Toaster), page.tsx (trang chủ: khung + _home/), error.tsx, loading.tsx, not-found.tsx; các route của phase 01–08
 │   │       ├── _home/                   private folder: ghép trang chủ từ nhiều feature (lượt khám, lịch hẹn, thanh toán, gợi ý hồ sơ); feature không import chéo nên việc ghép nằm ở app/
 │   │       ├── visits/                  danh sách và chi tiết lượt khám (phase 05)
 │   │       └── account/, profiles/, appointments/, payments/, results/, prescriptions/, images/, notifications/, reviews/
-│   ├── (staff)/                         khu Lễ tân (/staff): root layout riêng; staff/ có sidebar + header công cụ
-│   │   └── staff/                       check-in/ (UC29 + phí khám), reception-queue/ (UC30), appointments/ + appointments/new/ (UC10, UC21, UC22, UC24); page.tsx chuyển tới check-in
+│   ├── (staff)/                         khu Lễ tân: root layout riêng, staff.css (in A4 biên lai/phiếu kết quả)
+│   │   └── reception/                   layout (ReceptionShell), page.tsx (Tiếp nhận hôm nay), [section]/ (14 màn theo patient-reception/navigation.ts), error/loading/not-found
 │   └── (admin)/                         root layout riêng: theme shadcn + font Be Vietnam Pro
 │       ├── layout.tsx
 │       └── admin/                       layout shell + 13 màn quản trị (UC07–UC79)
@@ -82,10 +82,8 @@ frontend/src/
 │   ├── clinic-visits/                   tiến độ lượt khám (UC34, BR-19/35/65): danh sách Đang diễn ra/Gần đây, chi tiết (số thứ tự từng phòng, chỉ định, nút thanh toán), hook tự tải lại 30 s khi tab hiện; api giả (kho tiến độ riêng)
 │   ├── patient-profiles/                hồ sơ bệnh nhân trong cổng (UC12–UC15, BR-16/17): danh sách, gợi ý theo email đã xác minh, tạo/sửa/bỏ gắn, tiền sử; api giả (ghi vào kho gắn dùng chung), schema, hooks, components
 │   ├── notifications/                   thông báo: chuông + Sheet admin, chuông + trang /portal/notifications (UC63), api giả
-│   ├── staff-shell/                     khu Lễ tân: StaffSidebar, StaffHeader, StaffAccountMenu, staffNavigation.ts (nguồn duy nhất cho menu /staff)
-│   ├── appointments/                    lịch hẹn: admin (danh sách, chuyển bác sĩ); booking* lõi đặt lịch dùng chung (BookingFlow variant patient/staff, bookingMockStore là kho lịch chung); components/portal (lịch hẹn bệnh nhân); components/staff (lịch hẹn Lễ tân)
-│   ├── patients/                        tìm hồ sơ tại quầy (mã BN, SĐT + ngày sinh) và tạo hồ sơ vãng lai (UC10): PatientLookup ghép vào màn Lễ tân qua app/
-│   ├── reception/                       tiếp nhận (check-in, thu phí khám tiền mặt/QR VNPay, phiếu số) và hàng đợi tiếp nhận; receptionMockStore là kho chung của hai màn
+│   ├── appointments/                    lịch hẹn: admin (danh sách, chuyển bác sĩ); booking* lõi đặt lịch dùng chung (BookingFlow, bookingMockStore là kho lịch chung); components/portal (lịch hẹn bệnh nhân)
+│   ├── patient-reception/               khu Lễ tân /reception (xem docs/receptionist-ui.md): ReceptionShell (cùng khung admin qua components/shell) + ReceptionAccountMenu + navigation.ts (menu), các màn hồ sơ/lịch hẹn/tiếp nhận/hàng đợi/thu phí/tra cứu; api/receptionApi.ts là adapter lệnh giả (lỗi mang mã MSG), schema/receptionMessages.ts ánh xạ lệnh → MSG thành công
 │   ├── billing/                         thanh toán: admin (lịch sử, khoản chưa trả); components/portal (khoản cần trả, VNPay, kết quả, lịch sử, phiếu thu)
 │   ├── medical-records/                 kết quả khám khu bệnh nhân (UC41): danh sách, chi tiết theo visibleBlocks
 │   ├── prescriptions/                   đơn thuốc khu bệnh nhân (UC44): danh sách, tài liệu đơn, in
@@ -94,6 +92,7 @@ frontend/src/
 ├── components/
 │   ├── ui/                              shadcn/ui (sinh bằng CLI, ít sửa tay)
 │   ├── brand/                           PublicSectionHeading, OtcmsLogo, publicButtonStyles (nút cỡ public dựng trên buttonVariants), publicLayout
+│   ├── shell/                           khung chung khu nhân viên (admin, lễ tân): SidebarNavGroup (nhóm menu thu gọn, gạch xanh mục đang mở), CurrentDateTime, UnreadCountBadge
 │   ├── patient/                         khu bệnh nhân: ProfileScopeSelect (chọn người khám), PortalPageHeader, PortalEmptyState (+ trạng thái chưa có hồ sơ)
 │   └── PageHeader.tsx                   UI dùng chung
 ├── hooks/

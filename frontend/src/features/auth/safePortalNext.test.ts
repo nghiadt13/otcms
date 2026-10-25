@@ -21,7 +21,7 @@ describe("safePortalNext: đích `next` an toàn", () => {
     ["giao thức javascript", "javascript:alert(1)"],
     ["đường dẫn không có dấu / đầu", "portal/appointments/new"],
     ["khu quản trị", "/admin"],
-    ["khu lễ tân", "/staff"],
+    ["khu lễ tân", "/reception"],
     ["tiền tố giống /portal", "/portalx"],
     ["lùi thư mục ra khỏi /portal", "/portal/../admin"],
     ["lùi thư mục mã hóa", "/portal/%2e%2e/admin"],

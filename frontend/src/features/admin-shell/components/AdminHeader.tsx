@@ -6,7 +6,7 @@ import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { NotificationBell } from "@/features/notifications/components/NotificationBell";
 import { findActiveBreadcrumb } from "../adminNavigation";
-import { CurrentDateTime } from "./CurrentDateTime";
+import { CurrentDateTime } from "@/components/shell/CurrentDateTime";
 
 export function AdminHeader() {
   const pathname = usePathname();

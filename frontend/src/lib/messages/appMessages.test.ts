@@ -36,7 +36,7 @@ describe("formatAppMessage", () => {
     );
   });
 
-  it("MSG-96 và MSG-48 dùng tên tham số đã chọn cho formatAppMessage", () => {
+  it("MSG-96 dùng tên tham số đã chọn, MSG-48 dùng {amount} như R3", () => {
     expect(
       formatAppMessage("MSG-96", {
         date: "25/10/2026",
@@ -47,7 +47,7 @@ describe("formatAppMessage", () => {
     ).toBe(
       "Lịch hẹn ngày 25/10/2026 lúc 09:00 của Nguyễn Văn A được chuyển sang bác sĩ BS. Minh.",
     );
-    expect(formatAppMessage("MSG-48", { balance: "150.000 ₫" })).toBe(
+    expect(formatAppMessage("MSG-48", { amount: "150.000 ₫" })).toBe(
       "Đã ghi nhận thanh toán 150.000 ₫. Phiếu thu đã được tạo.",
     );
   });
