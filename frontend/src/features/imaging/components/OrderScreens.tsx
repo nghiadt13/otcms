@@ -1,5 +1,18 @@
 "use client";
 
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { NativeSelect } from "@/components/ui/native-select";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Table,
+  TableHeader,
+  TableRow,
+  TableHead,
+  TableBody,
+  TableCell,
+} from "@/components/ui/table";
+
 import Link from "next/link";
 import { useState, type FormEvent } from "react";
 import { useImaging } from "../ImagingProvider";
@@ -57,7 +70,8 @@ export function OrderListScreen({
       />
       <div className="im-summary-strip">
         {Object.entries(statusLabels).map(([value, label]) => (
-          <button
+          <Button
+            variant="ghost"
             key={value}
             className={status === value ? "im-summary-active" : ""}
             onClick={() => {
@@ -72,7 +86,7 @@ export function OrderListScreen({
                 .length.toString()
                 .padStart(2, "0")}
             </strong>
-          </button>
+          </Button>
         ))}
       </div>
       <Panel
@@ -84,7 +98,7 @@ export function OrderListScreen({
         <div className="im-toolbar im-toolbar-wrap">
           <label className="im-search">
             <Icon name="search" />
-            <input
+            <Input
               aria-label="Tìm chỉ định"
               placeholder="Mã chỉ định, tên hoặc mã bệnh nhân…"
               value={search}
@@ -96,7 +110,7 @@ export function OrderListScreen({
           </label>
           <label className="im-filter">
             <span>Trạng thái</span>
-            <select
+            <NativeSelect
               value={status}
               onChange={(e) => {
                 setStatus(e.target.value);
@@ -109,11 +123,11 @@ export function OrderListScreen({
                   {l}
                 </option>
               ))}
-            </select>
+            </NativeSelect>
           </label>
           <label className="im-filter">
             <span>Dịch vụ</span>
-            <select
+            <NativeSelect
               value={service}
               onChange={(e) => {
                 setService(e.target.value);
@@ -124,10 +138,11 @@ export function OrderListScreen({
               {[...new Set(own.map((o) => o.service))].map((s) => (
                 <option key={s}>{s}</option>
               ))}
-            </select>
+            </NativeSelect>
           </label>
           {(search || status !== "all" || service !== "all") && (
-            <button
+            <Button
+              variant="ghost"
               className="im-text-button"
               onClick={() => {
                 setSearch("");
@@ -137,25 +152,27 @@ export function OrderListScreen({
               }}
             >
               Xóa bộ lọc
-            </button>
+            </Button>
           )}
         </div>
         <div className="im-table-scroll">
-          <table className="im-table">
-            <thead>
-              <tr>
-                <th>Mã chỉ định</th>
-                <th>Bệnh nhân</th>
-                <th>Dịch vụ</th>
-                <th>{statusMode ? "Thời điểm" : "Bác sĩ yêu cầu"}</th>
-                <th>Trạng thái</th>
-                <th>Thao tác</th>
-              </tr>
-            </thead>
-            <tbody>
+          <Table className="im-table">
+            <TableHeader>
+              <TableRow>
+                <TableHead>Mã chỉ định</TableHead>
+                <TableHead>Bệnh nhân</TableHead>
+                <TableHead>Dịch vụ</TableHead>
+                <TableHead>
+                  {statusMode ? "Thời điểm" : "Bác sĩ yêu cầu"}
+                </TableHead>
+                <TableHead>Trạng thái</TableHead>
+                <TableHead>Thao tác</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {matches.slice((current - 1) * 5, current * 5).map((o) => (
-                <tr key={o.id}>
-                  <td>
+                <TableRow key={o.id}>
+                  <TableCell>
                     <Link
                       className="im-id-link"
                       href={`/imaging/orders/${o.id}`}
@@ -165,8 +182,8 @@ export function OrderListScreen({
                     <small>
                       {o.visitId} · Đợt {o.round}
                     </small>
-                  </td>
-                  <td>
+                  </TableCell>
+                  <TableCell>
                     <div className="im-patient-cell">
                       <PatientAvatar name={o.patient} />
                       <div>
@@ -176,12 +193,12 @@ export function OrderListScreen({
                         </small>
                       </div>
                     </div>
-                  </td>
-                  <td>
+                  </TableCell>
+                  <TableCell>
                     <strong>{o.service}</strong>
                     <small>{o.room}</small>
-                  </td>
-                  <td>
+                  </TableCell>
+                  <TableCell>
                     {statusMode ? (
                       <>
                         <span>Tạo: {o.createdAt}</span>
@@ -196,22 +213,22 @@ export function OrderListScreen({
                     ) : (
                       o.doctor
                     )}
-                  </td>
-                  <td>
+                  </TableCell>
+                  <TableCell>
                     <OrderBadge status={o.status} />
-                  </td>
-                  <td>
+                  </TableCell>
+                  <TableCell>
                     <Link
                       className="im-text-button"
                       href={`/imaging/orders/${o.id}`}
                     >
                       Chi tiết <Icon name="arrow" size={14} />
                     </Link>
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </div>
         {!matches.length && <Empty />}
         <Pagination page={current} total={matches.length} onChange={setPage} />
@@ -451,35 +468,35 @@ export function OrderDetailsScreen({ id }: { id: string }) {
               subtitle="Giữ lại phiên bản trước khi có thay thế"
             >
               <div className="im-table-scroll">
-                <table className="im-table">
-                  <thead>
-                    <tr>
-                      <th>Phiên bản</th>
-                      <th>Study Instance UID</th>
-                      <th>Series / file</th>
-                      <th>Gửi lúc</th>
-                      <th>Lý do thay thế</th>
-                    </tr>
-                  </thead>
-                  <tbody>
+                <Table className="im-table">
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Phiên bản</TableHead>
+                      <TableHead>Study Instance UID</TableHead>
+                      <TableHead>Series / file</TableHead>
+                      <TableHead>Gửi lúc</TableHead>
+                      <TableHead>Lý do thay thế</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
                     {[...versions].reverse().map((v) => (
-                      <tr key={v.version}>
-                        <td>
+                      <TableRow key={v.version}>
+                        <TableCell>
                           <Badge tone={v.replaced ? "neutral" : "green"}>
                             v{v.version} ·{" "}
                             {v.replaced ? "Đã thay thế" : "Hiện hành"}
                           </Badge>
-                        </td>
-                        <td className="im-uid">{v.uid}</td>
-                        <td>
+                        </TableCell>
+                        <TableCell className="im-uid">{v.uid}</TableCell>
+                        <TableCell>
                           {v.series} series · {v.files} file
-                        </td>
-                        <td>{v.uploadedAt}</td>
-                        <td>{v.reason || "Gửi lần đầu"}</td>
-                      </tr>
+                        </TableCell>
+                        <TableCell>{v.uploadedAt}</TableCell>
+                        <TableCell>{v.reason || "Gửi lần đầu"}</TableCell>
+                      </TableRow>
                     ))}
-                  </tbody>
-                </table>
+                  </TableBody>
+                </Table>
               </div>
               {visit?.status === "Completed" && (
                 <div className="im-panel-body im-muted">
@@ -517,13 +534,14 @@ export function OrderDetailsScreen({ id }: { id: string }) {
           <span className="im-muted">
             Chỉ thực hiện khi đã đối chiếu đúng bệnh nhân.
           </span>
-          <button
+          <Button
+            variant="outline"
             className="im-button im-button-secondary"
             onClick={() => setIssueOpen(true)}
           >
             <Icon name="alert" />
             Không thể thực hiện
-          </button>
+          </Button>
         </div>
       )}
       {issueOpen && (
@@ -534,16 +552,16 @@ export function OrderDetailsScreen({ id }: { id: string }) {
           <form onSubmit={recordIssue}>
             <label className="im-field">
               Trường hợp
-              <select name="kind">
+              <NativeSelect name="kind">
                 <option>Chống chỉ định</option>
                 <option>Bệnh nhân từ chối</option>
                 <option>Thiết bị chưa sẵn sàng</option>
                 <option>Cần bệnh nhân quay lại</option>
-              </select>
+              </NativeSelect>
             </label>
             <label className="im-field">
               Lý do cụ thể
-              <textarea
+              <Textarea
                 name="reason"
                 required
                 maxLength={1000}
@@ -556,16 +574,17 @@ export function OrderDetailsScreen({ id }: { id: string }) {
               thanh toán vẫn có hiệu lực trong thời hạn lượt khám.
             </Info>
             <footer>
-              <button
+              <Button
+                variant="outline"
                 type="button"
                 className="im-button im-button-secondary"
                 onClick={() => setIssueOpen(false)}
               >
                 Quay lại
-              </button>
-              <button className="im-button" type="submit">
+              </Button>
+              <Button className="im-button" type="submit">
                 Lưu lý do
-              </button>
+              </Button>
             </footer>
           </form>
         </Modal>

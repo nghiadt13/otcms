@@ -2,7 +2,9 @@
 
 Phạm vi theo SRS bản (3), mục 1.4.2.6 và các Specification UC01, UC03–UC05, UC25, UC34, UC46, UC47, UC52, UC63, UC64. Yêu cầu mới của người dùng được dùng thay cho danh sách UC cũ trong repository. Đây là bản frontend độc lập với database và backend.
 
-Tham chiếu giao diện hiện có: bộ layout `screen-design/deliverables/layouts.json` ở thư mục cha của repository. Dùng sidebar trắng, màu xanh biển `#2563EB`, màu nhấn `#1E3A8A`, nền `#F4F7F8`, bảng dữ liệu và thẻ nội dung. Repository chưa có màn admin được triển khai để tái sử dụng trực tiếp.
+Giao diện đồng nhất với khu admin và lễ tân theo `docs/ui-guidelines.md`: màu teal từ token `primary`, font Be Vietnam Pro, sidebar thu gọn của shadcn, `PageHeader`, Button, Input, NativeSelect, Checkbox, Table, Tabs, Dialog và `StatusBadge` dùng chung. Không duy trì bảng màu, font hoặc bộ icon riêng cho kỹ thuật viên.
+
+Route nằm trong `frontend/src/app/(staff)/imaging`, dùng chung root layout và theme với lễ tân; URL vẫn là `/imaging`. Layout nghiệp vụ và trạng thái mẫu nằm trong `src/features/imaging`, không phụ thuộc vào feature admin hoặc lễ tân.
 
 ## Mở giao diện
 
@@ -11,7 +13,7 @@ Chạy `npm run dev` trong `frontend`, mở `/imaging`. Có thể vào trực ti
 - Tài khoản mẫu: `ktv.minhanh` / `Demo1234`.
 - Luồng mật khẩu được cấp: `ktv.moi` / `Demo1234`. Phải hoàn tất màn đổi mật khẩu minh họa trước khi mở các chức năng khác.
 - Đổi mật khẩu chỉ mô phỏng thao tác: không lưu hoặc thay đổi mật khẩu thật, không gọi Authentication Service.
-- Dữ liệu giả được lưu dưới khóa `otcms-imaging-preview-v1` trong localStorage. Có nút khôi phục dữ liệu mẫu ở chân trang. File DICOM không được gửi đi hoặc lưu vào localStorage.
+- Dữ liệu giả được lưu dưới khóa `otcms-imaging-preview-v1` trong localStorage. Nút khôi phục dữ liệu mẫu nằm trên thanh đầu trang và yêu cầu xác nhận. File DICOM không được gửi đi hoặc lưu vào localStorage.
 
 ## Danh sách màn hình
 

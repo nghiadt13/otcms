@@ -1,5 +1,17 @@
 "use client";
 
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { NativeSelect } from "@/components/ui/native-select";
+import {
+  Table,
+  TableHeader,
+  TableRow,
+  TableHead,
+  TableBody,
+  TableCell,
+} from "@/components/ui/table";
+
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -55,7 +67,7 @@ export function VisitProgressScreen({ id = "LK-001" }: { id?: string }) {
         <div className="im-toolbar">
           <label className="im-field im-inline-field">
             Lượt khám
-            <select
+            <NativeSelect
               aria-label="Chọn lượt khám"
               value={id}
               onChange={(e) => router.push(`/imaging/visits/${e.target.value}`)}
@@ -65,7 +77,7 @@ export function VisitProgressScreen({ id = "LK-001" }: { id?: string }) {
                   {v.id} · {v.patient}
                 </option>
               ))}
-            </select>
+            </NativeSelect>
           </label>
           <Badge
             tone={
@@ -229,20 +241,20 @@ export function VisitProgressScreen({ id = "LK-001" }: { id?: string }) {
       {section === "orders" && (
         <Panel title="Trạng thái từng chỉ định">
           <div className="im-table-scroll">
-            <table className="im-table">
-              <thead>
-                <tr>
-                  <th>Mã chỉ định</th>
-                  <th>Dịch vụ</th>
-                  <th>Phòng</th>
-                  <th>Đợt</th>
-                  <th>Trạng thái</th>
-                </tr>
-              </thead>
-              <tbody>
+            <Table className="im-table">
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Mã chỉ định</TableHead>
+                  <TableHead>Dịch vụ</TableHead>
+                  <TableHead>Phòng</TableHead>
+                  <TableHead>Đợt</TableHead>
+                  <TableHead>Trạng thái</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {orders.map((o) => (
-                  <tr key={o.id}>
-                    <td>
+                  <TableRow key={o.id}>
+                    <TableCell>
                       {o.room === CURRENT_ROOM ? (
                         <Link
                           className="im-id-link"
@@ -253,17 +265,17 @@ export function VisitProgressScreen({ id = "LK-001" }: { id?: string }) {
                       ) : (
                         o.id
                       )}
-                    </td>
-                    <td>{o.service}</td>
-                    <td>{o.room}</td>
-                    <td>Đợt {o.round}</td>
-                    <td>
+                    </TableCell>
+                    <TableCell>{o.service}</TableCell>
+                    <TableCell>{o.room}</TableCell>
+                    <TableCell>Đợt {o.round}</TableCell>
+                    <TableCell>
                       <OrderBadge status={o.status} />
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           </div>
         </Panel>
       )}
@@ -296,7 +308,7 @@ export function RoomsScreen() {
         <div className="im-toolbar im-toolbar-wrap">
           <label className="im-search">
             <Icon name="search" />
-            <input
+            <Input
               value={search}
               aria-label="Tìm phòng hoặc dịch vụ"
               placeholder="Tìm phòng, mã phòng hoặc dịch vụ…"
@@ -305,20 +317,26 @@ export function RoomsScreen() {
           </label>
           <label className="im-filter">
             <span>Loại phòng</span>
-            <select value={type} onChange={(e) => setType(e.target.value)}>
+            <NativeSelect
+              value={type}
+              onChange={(e) => setType(e.target.value)}
+            >
               <option value="all">Tất cả loại phòng</option>
               {[...new Set(rooms.map((r) => r.type))].map((t) => (
                 <option key={t}>{t}</option>
               ))}
-            </select>
+            </NativeSelect>
           </label>
           <label className="im-filter">
             <span>Tình trạng</span>
-            <select value={status} onChange={(e) => setStatus(e.target.value)}>
+            <NativeSelect
+              value={status}
+              onChange={(e) => setStatus(e.target.value)}
+            >
               <option value="all">Tất cả tình trạng</option>
               <option>Hoạt động</option>
               <option>Tạm ngưng</option>
-            </select>
+            </NativeSelect>
           </label>
         </div>
       </Panel>
@@ -354,12 +372,13 @@ export function RoomsScreen() {
                     ? "Phòng được phân công"
                     : "Thông tin tham khảo"}
                 </span>
-                <button
+                <Button
+                  variant="ghost"
                   className="im-text-button"
                   onClick={() => setSelected(r.id)}
                 >
                   Chi tiết <Icon name="arrow" size={15} />
-                </button>
+                </Button>
               </div>
             </div>
           </Panel>
@@ -400,12 +419,13 @@ export function RoomsScreen() {
             </div>
           </dl>
           <footer>
-            <button
+            <Button
+              variant="outline"
               className="im-button im-button-secondary"
               onClick={() => setSelected(null)}
             >
               Đóng
-            </button>
+            </Button>
           </footer>
         </Modal>
       )}
@@ -457,28 +477,30 @@ export function ScheduleScreen() {
       <Panel>
         <div className="im-toolbar im-toolbar-wrap">
           <div className="im-inline-between im-week-navigation">
-            <button
+            <Button
+              variant="ghost"
               className="im-icon-button"
               aria-label="Tuần trước"
               onClick={() => moveWeek(-1)}
             >
               <Icon name="back" size={18} />
-            </button>
+            </Button>
             <strong>
               {days[0].toLocaleDateString("vi-VN", { timeZone: "UTC" })} –{" "}
               {days[6].toLocaleDateString("vi-VN", { timeZone: "UTC" })}
             </strong>
-            <button
+            <Button
+              variant="ghost"
               className="im-icon-button"
               aria-label="Tuần sau"
               onClick={() => moveWeek(1)}
             >
               <Icon name="arrow" size={18} />
-            </button>
+            </Button>
           </div>
           <label className="im-filter">
             <span>Chọn ngày</span>
-            <input
+            <Input
               aria-label="Ngày xem lịch"
               type="date"
               value={selected}
@@ -487,25 +509,28 @@ export function ScheduleScreen() {
               }}
             />
           </label>
-          <button
+          <Button
+            variant="outline"
             className="im-button im-button-secondary im-button-small"
             onClick={() => setSelected(DEMO_DATE)}
           >
             Tuần hiện tại
-          </button>
+          </Button>
           <div className="im-segment-control">
-            <button
+            <Button
+              variant="ghost"
               className={view === "week" ? "im-selected" : ""}
               onClick={() => setView("week")}
             >
               Tuần
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="ghost"
               className={view === "list" ? "im-selected" : ""}
               onClick={() => setView("list")}
             >
               Danh sách
-            </button>
+            </Button>
           </div>
         </div>
         {view === "week" ? (
@@ -552,28 +577,28 @@ export function ScheduleScreen() {
           </div>
         ) : (
           <div className="im-table-scroll">
-            <table className="im-table">
-              <thead>
-                <tr>
-                  <th>Ngày</th>
-                  <th>Ca làm việc</th>
-                  <th>Thời gian</th>
-                  <th>Phòng</th>
-                </tr>
-              </thead>
-              <tbody>
+            <Table className="im-table">
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Ngày</TableHead>
+                  <TableHead>Ca làm việc</TableHead>
+                  <TableHead>Thời gian</TableHead>
+                  <TableHead>Phòng</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {days.filter(hasShift).map((d) => (
-                  <tr key={dayLabel(d)}>
-                    <td>
+                  <TableRow key={dayLabel(d)}>
+                    <TableCell>
                       {d.toLocaleDateString("vi-VN", { timeZone: "UTC" })}
-                    </td>
-                    <td>Ca sáng</td>
-                    <td>07:00 – 12:00</td>
-                    <td>Phòng X-quang 01 · XR-01</td>
-                  </tr>
+                    </TableCell>
+                    <TableCell>Ca sáng</TableCell>
+                    <TableCell>07:00 – 12:00</TableCell>
+                    <TableCell>Phòng X-quang 01 · XR-01</TableCell>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
             {!days.some(hasShift) && (
               <Empty title="Chưa có ca trong tuần này" />
             )}
@@ -630,10 +655,10 @@ export function NotificationsScreen({ id }: { id?: string }) {
                 </ActionLink>
               )}
               {!n.read && (
-                <button className="im-button" onClick={() => markRead(n.id)}>
+                <Button className="im-button" onClick={() => markRead(n.id)}>
                   <Icon name="check" />
                   Đánh dấu đã đọc
-                </button>
+                </Button>
               )}
             </div>
           </article>
@@ -658,7 +683,8 @@ export function NotificationsScreen({ id }: { id?: string }) {
             ["unread", "Chưa đọc"],
             ["read", "Đã đọc"],
           ].map(([value, label]) => (
-            <button
+            <Button
+              variant="ghost"
               role="tab"
               aria-selected={filter === value}
               className={filter === value ? "im-tab-active" : ""}
@@ -675,7 +701,7 @@ export function NotificationsScreen({ id }: { id?: string }) {
                   ).length
                 }
               </span>
-            </button>
+            </Button>
           ))}
         </div>
         <div className="im-notification-list">

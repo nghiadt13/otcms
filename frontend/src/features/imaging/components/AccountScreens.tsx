@@ -1,6 +1,12 @@
 "use client";
 
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
+
 import Image from "next/image";
+import { Card } from "@/components/ui/card";
+import { OtcmsLogo } from "@/components/brand/OtcmsLogo";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useRef, useState, type FormEvent } from "react";
@@ -74,7 +80,7 @@ export function ProfileScreen({ edit = false }: { edit?: boolean }) {
               <Badge tone="green">Tài khoản đang hoạt động</Badge>
               {edit && (
                 <>
-                  <input
+                  <Input
                     ref={input}
                     aria-label="Chọn ảnh đại diện"
                     className="im-sr-only"
@@ -82,23 +88,25 @@ export function ProfileScreen({ edit = false }: { edit?: boolean }) {
                     accept="image/png,image/jpeg,image/webp"
                     onChange={(e) => void choose(e.target.files?.[0])}
                   />
-                  <button
+                  <Button
+                    variant="outline"
                     className="im-button im-button-secondary"
                     type="button"
                     onClick={() => input.current?.click()}
                   >
                     <Icon name="upload" />
                     Chọn ảnh đại diện
-                  </button>
+                  </Button>
                   <small>JPG, PNG hoặc WebP · Tối đa 2 MB</small>
                   {avatar && (
-                    <button
+                    <Button
+                      variant="ghost"
                       type="button"
                       className="im-text-button im-danger"
                       onClick={() => setAvatar("")}
                     >
                       Xóa ảnh đang chọn
-                    </button>
+                    </Button>
                   )}
                   {error && (
                     <p className="im-form-error" role="alert">
@@ -151,9 +159,9 @@ export function ProfileScreen({ edit = false }: { edit?: boolean }) {
             <ActionLink secondary href="/imaging/profile">
               Hủy
             </ActionLink>
-            <button className="im-button" type="submit">
+            <Button className="im-button" type="submit">
               Lưu thay đổi
-            </button>
+            </Button>
           </div>
         )}
       </form>
@@ -218,7 +226,7 @@ export function ChangePasswordScreen() {
               <>
                 <label className="im-field">
                   Mật khẩu hiện tại
-                  <input
+                  <Input
                     name="current"
                     required
                     type={show ? "text" : "password"}
@@ -228,7 +236,7 @@ export function ChangePasswordScreen() {
                 </label>
                 <label className="im-field">
                   Mật khẩu mới
-                  <input
+                  <Input
                     name="next"
                     required
                     type={show ? "text" : "password"}
@@ -238,7 +246,7 @@ export function ChangePasswordScreen() {
                 </label>
                 <label className="im-field">
                   Xác nhận mật khẩu mới
-                  <input
+                  <Input
                     name="confirm"
                     required
                     type={show ? "text" : "password"}
@@ -247,10 +255,9 @@ export function ChangePasswordScreen() {
                   />
                 </label>
                 <label className="im-check">
-                  <input
-                    type="checkbox"
+                  <Checkbox
                     checked={show}
-                    onChange={(e) => setShow(e.target.checked)}
+                    onCheckedChange={(checked) => setShow(checked === true)}
                   />
                   Hiển thị mật khẩu
                 </label>
@@ -260,10 +267,10 @@ export function ChangePasswordScreen() {
                   </p>
                 )}
                 <div className="im-row-actions">
-                  <button className="im-button" type="submit">
+                  <Button className="im-button" type="submit">
                     <Icon name="lock" />
                     Cập nhật mật khẩu
-                  </button>
+                  </Button>
                   <ActionLink secondary href="/imaging/profile">
                     Quay lại
                   </ActionLink>
@@ -314,111 +321,78 @@ export function StaffLoginScreen() {
     }
   }
   return (
-    <div className="im-login">
-      <aside className="im-login-aside">
-        <Link href="/" className="im-brand">
-          <span className="im-brand-mark">+</span>
-          <strong>
-            OTCMS<span>CARE MANAGEMENT</span>
-          </strong>
-        </Link>
-        <div>
-          <span className="im-login-illustration">
-            <Icon name="layers" size={110} />
-          </span>
-          <p className="im-eyebrow">CHẨN ĐOÁN HÌNH ẢNH</p>
-          <h1>
-            Kết nối bộ ảnh.
-            <br />
-            Tiếp nối chăm sóc.
-          </h1>
-          <p>
-            Một không gian cho danh sách chờ, chỉ định và các bộ ảnh của phòng.
-          </p>
-          <div className="im-login-feature">
-            <Icon name="queue" />
-            <span>Tiếp nhận đúng bệnh nhân</span>
-          </div>
-          <div className="im-login-feature">
-            <Icon name="shield" />
-            <span>Đối chiếu đúng bộ ảnh và chỉ định</span>
-          </div>
-          <div className="im-login-feature">
-            <Icon name="upload" />
-            <span>Gửi study đến bác sĩ yêu cầu</span>
-          </div>
-        </div>
-        <small>OTCMS · Phòng khám chấn thương chỉnh hình</small>
-      </aside>
-      <main className="im-login-main">
-        <span className="im-preview-pill">Bản xem thử giao diện</span>
-        <div>
-          <Badge tone="blue">DÀNH CHO NHÂN VIÊN</Badge>
-          <h2>Chào mừng trở lại</h2>
-          <p>Đăng nhập bằng tài khoản nhân viên được cấp.</p>
-          <form onSubmit={submit}>
-            <label className="im-field">
-              Tên đăng nhập
-              <input
-                name="username"
-                autoComplete="username"
-                defaultValue="ktv.minhanh"
+    <main className="flex min-h-dvh flex-col items-center justify-center gap-6 bg-background px-4 py-8">
+      <OtcmsLogo tone="onLight" />
+      <Card className="w-full max-w-lg gap-0 rounded-xl p-6 sm:p-8">
+        <h1 className="text-3xl font-semibold tracking-tight">
+          Đăng nhập nhân viên
+        </h1>
+        <p className="mt-2 text-base text-muted-foreground">
+          Khu vực kỹ thuật viên chẩn đoán hình ảnh.
+        </p>
+        <form onSubmit={submit} className="mt-6 space-y-5">
+          <label className="im-field">
+            Tên đăng nhập
+            <Input
+              className="h-12 text-base"
+              name="username"
+              autoComplete="username"
+              defaultValue="ktv.minhanh"
+              required
+              placeholder="Nhập tên đăng nhập"
+            />
+          </label>
+          <label className="im-field">
+            Mật khẩu
+            <div className="im-password-input">
+              <Input
+                className="h-12 text-base"
+                name="password"
+                aria-label="Mật khẩu"
+                autoComplete="current-password"
                 required
-                placeholder="Nhập tên đăng nhập"
+                type={show ? "text" : "password"}
+                placeholder="Nhập mật khẩu"
               />
-            </label>
-            <label className="im-field">
-              Mật khẩu
-              <div className="im-password-input">
-                <input
-                  name="password"
-                  aria-label="Mật khẩu"
-                  autoComplete="current-password"
-                  required
-                  type={show ? "text" : "password"}
-                  placeholder="Nhập mật khẩu"
-                />
-                <button
-                  type="button"
-                  className="im-text-button"
-                  onClick={() => setShow(!show)}
-                >
-                  {show ? "Ẩn" : "Hiện"}
-                </button>
-              </div>
-            </label>
-            {error && (
-              <p className="im-form-error" role="alert">
-                {error}
-              </p>
-            )}
-            <button
-              className="im-button im-login-submit"
-              disabled={loading}
-              type="submit"
-            >
-              {loading ? "Đang đăng nhập…" : "Đăng nhập"}
-              <Icon name="arrow" size={17} />
-            </button>
-          </form>
-          <div className="im-login-help">
-            <Icon name="lock" size={18} />
-            <p>
-              Quên mật khẩu? Liên hệ Administrator để được cấp lại mật khẩu.
+              <Button
+                variant="ghost"
+                type="button"
+                className="im-text-button"
+                onClick={() => setShow(!show)}
+              >
+                {show ? "Ẩn" : "Hiện"}
+              </Button>
+            </div>
+          </label>
+          {error && (
+            <p className="text-sm text-destructive" role="alert">
+              {error}
             </p>
-          </div>
-          <div className="im-demo-login">
-            <strong>Tài khoản mẫu</strong>
-            <p>ktv.minhanh / Demo1234</p>
-            <small>
-              Dùng ktv.moi / Demo1234 để xem luồng đổi mật khẩu lần đầu.
-            </small>
-          </div>
-          <Link href="/imaging" className="im-text-button">
-            Xem trực tiếp giao diện <Icon name="arrow" size={15} />
-          </Link>
-        </div>
-      </main>
-    </div>
+          )}
+          <Button
+            className="im-button h-12 w-full text-base"
+            disabled={loading}
+            type="submit"
+          >
+            {loading ? "Đang đăng nhập…" : "Đăng nhập"}
+            <Icon name="arrow" />
+          </Button>
+        </form>
+        <p className="mt-5 text-sm text-muted-foreground">
+          Quên mật khẩu? Liên hệ quản trị viên để được cấp lại.
+        </p>
+        <details className="mt-5 border-t pt-4 text-sm text-muted-foreground">
+          <summary className="cursor-pointer">Tài khoản mẫu</summary>
+          <p className="mt-2">ktv.minhanh / Demo1234</p>
+          <p className="mt-1">ktv.moi / Demo1234: đổi mật khẩu lần đầu.</p>
+        </details>
+      </Card>
+      <Link
+        href="/imaging"
+        className="text-sm font-medium text-primary hover:underline"
+      >
+        Xem trực tiếp giao diện
+      </Link>
+    </main>
   );
 }

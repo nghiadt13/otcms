@@ -1,5 +1,10 @@
 "use client";
 
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Textarea } from "@/components/ui/textarea";
+
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useRef, useState, type FormEvent } from "react";
@@ -190,7 +195,7 @@ export function UploadScreen({ id }: { id: string }) {
                 </span>
                 <h3>Kéo thả các file DICOM vào đây</h3>
                 <p>Chọn nhiều file thuộc cùng một study</p>
-                <input
+                <Input
                   ref={input}
                   type="file"
                   multiple
@@ -199,26 +204,29 @@ export function UploadScreen({ id }: { id: string }) {
                   aria-label="Chọn file DICOM"
                   onChange={(e) => void addFiles(e.target.files)}
                 />
-                <button
+                <Button
+                  variant="outline"
                   className="im-button"
                   type="button"
                   disabled={reading}
                   onClick={() => input.current?.click()}
                 >
                   {reading ? "Đang đọc file…" : "Chọn file từ thiết bị"}
-                </button>
+                </Button>
                 <small>.dcm · Tối đa 500 MB mỗi đợt chọn</small>
               </div>
               <div className="im-inline-between im-batch-actions">
-                <button
+                <Button
+                  variant="ghost"
                   type="button"
                   className="im-text-button"
                   onClick={useSample}
                 >
                   <Icon name="layers" size={16} />
                   Dùng bộ dữ liệu mẫu
-                </button>
-                <button
+                </Button>
+                <Button
+                  variant="ghost"
                   type="button"
                   className="im-text-button"
                   disabled={!files.length}
@@ -230,7 +238,7 @@ export function UploadScreen({ id }: { id: string }) {
                   }}
                 >
                   Thêm đợt tải · {batch}
-                </button>
+                </Button>
               </div>
               {formError && (
                 <p role="alert" className="im-form-error">
@@ -255,7 +263,8 @@ export function UploadScreen({ id }: { id: string }) {
                             : "Định dạng chưa phù hợp"}
                         </small>
                       </div>
-                      <button
+                      <Button
+                        variant="ghost"
                         type="button"
                         className="im-icon-button"
                         aria-label={`Bỏ file ${f.name}`}
@@ -264,7 +273,7 @@ export function UploadScreen({ id }: { id: string }) {
                         }
                       >
                         <Icon name="close" size={16} />
-                      </button>
+                      </Button>
                     </div>
                   ))}
                   <p className="im-small im-muted">
@@ -288,7 +297,7 @@ export function UploadScreen({ id }: { id: string }) {
               <div className="im-panel-body im-form-grid">
                 <label className="im-field">
                   Mã bệnh nhân trong study
-                  <input
+                  <Input
                     value={patient}
                     onChange={(e) => setPatient(e.target.value)}
                     placeholder={order.patientId}
@@ -296,7 +305,7 @@ export function UploadScreen({ id }: { id: string }) {
                 </label>
                 <label className="im-field">
                   Mã chỉ định trong bộ ảnh
-                  <input
+                  <Input
                     value={orderCode}
                     onChange={(e) => setOrderCode(e.target.value)}
                     placeholder={id}
@@ -304,7 +313,7 @@ export function UploadScreen({ id }: { id: string }) {
                 </label>
                 <label className="im-field im-span-2">
                   Study Instance UID
-                  <input
+                  <Input
                     value={uid}
                     onChange={(e) => setUid(e.target.value)}
                     placeholder="1.2.826.0.1…"
@@ -312,7 +321,7 @@ export function UploadScreen({ id }: { id: string }) {
                 </label>
                 <label className="im-field">
                   Số series
-                  <input
+                  <Input
                     type="number"
                     min="1"
                     value={series}
@@ -328,7 +337,7 @@ export function UploadScreen({ id }: { id: string }) {
                     <span>
                       Lý do thay thế <b className="im-danger">*</b>
                     </span>
-                    <textarea
+                    <Textarea
                       value={reason}
                       maxLength={1000}
                       onChange={(e) => setReason(e.target.value)}
@@ -337,10 +346,11 @@ export function UploadScreen({ id }: { id: string }) {
                   </label>
                 )}
                 <label className="im-check im-span-2">
-                  <input
-                    type="checkbox"
+                  <Checkbox
                     checked={confirmed}
-                    onChange={(e) => setConfirmed(e.target.checked)}
+                    onCheckedChange={(checked) =>
+                      setConfirmed(checked === true)
+                    }
                   />
                   <span>
                     Tôi đã đối chiếu đúng bệnh nhân, chỉ định và các series
@@ -363,9 +373,9 @@ export function UploadScreen({ id }: { id: string }) {
           <ActionLink secondary href={`/imaging/orders/${id}`}>
             Quay lại
           </ActionLink>
-          <button type="submit" className="im-button" disabled={reading}>
+          <Button type="submit" className="im-button" disabled={reading}>
             Kiểm tra và tiếp tục <Icon name="arrow" size={16} />
-          </button>
+          </Button>
         </div>
       </form>
     </>
@@ -381,14 +391,22 @@ export function ValidationScreen({ id }: { id: string }) {
   const draft = state.drafts[id];
   if (!order || !draft)
     return (
-      <Empty
-        title="Chưa có study để kiểm tra"
-        description="Chọn chỉ định và bộ ảnh trước khi tiếp tục."
-      >
-        <ActionLink href={`/imaging/orders/${id}/upload`}>
-          Chọn bộ ảnh
-        </ActionLink>
-      </Empty>
+      <>
+        <PageHeading
+          title="Kiểm tra bộ ảnh DICOM"
+          description="Kiểm tra bộ ảnh trước khi gửi cho bác sĩ."
+        />
+        <Panel>
+          <Empty
+            title="Chưa có study để kiểm tra"
+            description="Chọn chỉ định và bộ ảnh trước khi tiếp tục."
+          >
+            <ActionLink href={`/imaging/orders/${id}/upload`}>
+              Chọn bộ ảnh
+            </ActionLink>
+          </Empty>
+        </Panel>
+      </>
     );
   const valid = !draft.errors.length;
   const visit = state.visits.find((v) => v.id === order.visitId);
@@ -581,7 +599,7 @@ export function ValidationScreen({ id }: { id: string }) {
             Về danh sách chờ <Icon name="arrow" size={16} />
           </ActionLink>
         ) : (
-          <button
+          <Button
             className="im-button"
             disabled={
               !valid ||
@@ -592,7 +610,7 @@ export function ValidationScreen({ id }: { id: string }) {
           >
             <Icon name="upload" />
             {submitting ? "Đang gửi…" : "Gửi study cho bác sĩ"}
-          </button>
+          </Button>
         )}
       </div>
     </>

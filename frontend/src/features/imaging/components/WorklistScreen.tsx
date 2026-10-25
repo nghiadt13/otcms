@@ -1,5 +1,16 @@
 "use client";
 
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Table,
+  TableHeader,
+  TableRow,
+  TableHead,
+  TableBody,
+  TableCell,
+} from "@/components/ui/table";
+
 import Link from "next/link";
 import { useState } from "react";
 import { useImaging } from "../ImagingProvider";
@@ -65,10 +76,10 @@ export function WorklistScreen() {
         title="Danh sách chờ chẩn đoán hình ảnh"
         description="Chỉ hiển thị bệnh nhân và chỉ định đã thanh toán thuộc phòng của bạn."
       >
-        <button className="im-button" onClick={callNext}>
+        <Button className="im-button" onClick={callNext}>
           <Icon name="user" />
           Gọi tiếp theo
-        </button>
+        </Button>
       </PageHeading>
       <div className="im-room-banner">
         <span className="im-room-icon">
@@ -85,7 +96,8 @@ export function WorklistScreen() {
       <Panel>
         <div className="im-tabs" role="tablist" aria-label="Nhóm hàng đợi">
           {tabs.map((t) => (
-            <button
+            <Button
+              variant="ghost"
               key={t.id}
               role="tab"
               aria-selected={tab === t.id}
@@ -105,13 +117,13 @@ export function WorklistScreen() {
                   ).length
                 }
               </span>
-            </button>
+            </Button>
           ))}
         </div>
         <div className="im-toolbar">
           <label className="im-search">
             <Icon name="search" />
-            <input
+            <Input
               aria-label="Tìm bệnh nhân trong hàng đợi"
               placeholder="Tìm tên, mã bệnh nhân hoặc số thứ tự…"
               value={search}
@@ -126,18 +138,18 @@ export function WorklistScreen() {
           </span>
         </div>
         <div className="im-table-scroll">
-          <table className="im-table">
-            <thead>
-              <tr>
-                <th>Số thứ tự</th>
-                <th>Bệnh nhân</th>
-                <th>Chỉ định đã thanh toán</th>
-                <th>Nhóm ưu tiên</th>
-                <th>Trạng thái</th>
-                <th>Thao tác</th>
-              </tr>
-            </thead>
-            <tbody>
+          <Table className="im-table">
+            <TableHeader>
+              <TableRow>
+                <TableHead>Số thứ tự</TableHead>
+                <TableHead>Bệnh nhân</TableHead>
+                <TableHead>Chỉ định đã thanh toán</TableHead>
+                <TableHead>Nhóm ưu tiên</TableHead>
+                <TableHead>Trạng thái</TableHead>
+                <TableHead>Thao tác</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {matches.slice((current - 1) * 5, current * 5).map((q) => {
                 const orders = state.orders.filter(
                   (o) =>
@@ -147,17 +159,17 @@ export function WorklistScreen() {
                 );
                 const o = orders[0];
                 return (
-                  <tr
+                  <TableRow
                     key={q.id}
                     className={
                       q.status === "Being Served" ? "im-row-serving" : ""
                     }
                   >
-                    <td>
+                    <TableCell>
                       <strong className="im-number-text">{q.number}</strong>
                       <small>Vào lúc {q.joinedAt}</small>
-                    </td>
-                    <td>
+                    </TableCell>
+                    <TableCell>
                       <div className="im-patient-cell">
                         <PatientAvatar name={o.patient} />
                         <div>
@@ -167,8 +179,8 @@ export function WorklistScreen() {
                           </small>
                         </div>
                       </div>
-                    </td>
-                    <td>
+                    </TableCell>
+                    <TableCell>
                       {orders.map((x) => (
                         <Link
                           key={x.id}
@@ -181,13 +193,13 @@ export function WorklistScreen() {
                       <small>
                         {orders.length} chỉ định · {o.visitId}
                       </small>
-                    </td>
-                    <td>
+                    </TableCell>
+                    <TableCell>
                       <Badge tone={q.priority < 9 ? "amber" : "neutral"}>
                         {q.priorityLabel}
                       </Badge>
-                    </td>
-                    <td>
+                    </TableCell>
+                    <TableCell>
                       <Badge
                         tone={
                           q.status === "Being Served"
@@ -201,8 +213,8 @@ export function WorklistScreen() {
                       >
                         {queueLabels[q.status]}
                       </Badge>
-                    </td>
-                    <td>
+                    </TableCell>
+                    <TableCell>
                       <div className="im-row-actions">
                         <Link
                           href={`/imaging/orders/${orders.find((x) => x.status === "Paid")?.id || o.id}`}
@@ -212,32 +224,34 @@ export function WorklistScreen() {
                         {q.status === "Being Served" &&
                           q.calledBy === CURRENT_USER &&
                           q.calledOn === DEMO_DATE && (
-                            <button
+                            <Button
+                              variant="ghost"
                               className="im-text-button im-danger"
                               onClick={() => markAbsent(q.id)}
                             >
                               Đánh dấu vắng
-                            </button>
+                            </Button>
                           )}
                         {q.status === "Absent" &&
                           (q.calledBy === CURRENT_USER &&
                           q.calledOn === DEMO_DATE ? (
-                            <button
+                            <Button
+                              variant="ghost"
                               className="im-text-button"
                               onClick={() => returnPatient(q.id)}
                             >
                               Trở lại hàng đợi
-                            </button>
+                            </Button>
                           ) : (
                             <small>Không thuộc quyền trả lại trong ngày</small>
                           ))}
                       </div>
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 );
               })}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </div>
         {!matches.length && (
           <Empty

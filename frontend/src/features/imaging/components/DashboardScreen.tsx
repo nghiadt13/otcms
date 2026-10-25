@@ -1,5 +1,7 @@
 "use client";
 
+import { Button } from "@/components/ui/button";
+
 import Link from "next/link";
 import { useImaging } from "../ImagingProvider";
 import { CURRENT_ROOM, ROOM_NAME } from "../demoData";
@@ -79,10 +81,14 @@ export function DashboardScreen() {
           </p>
         </div>
         <div className="im-hero-actions">
-          <button className="im-button im-button-white" onClick={callNext}>
+          <Button
+            variant="outline"
+            className="im-button im-button-white"
+            onClick={callNext}
+          >
             <Icon name="user" />
             Gọi bệnh nhân tiếp theo
-          </button>
+          </Button>
           {serving ? (
             <Link
               href={`/imaging/orders/${orders.find((o) => o.visitId === serving.visitId && o.status === "Paid")?.id || "CDHA-001"}`}

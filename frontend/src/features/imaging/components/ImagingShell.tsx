@@ -2,8 +2,29 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { Bell, Bone, LogOut, RefreshCw } from "lucide-react";
 import { useState, type ReactNode } from "react";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarGroupLabel,
+  SidebarHeader,
+  SidebarInset,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarProvider,
+  SidebarRail,
+  SidebarTrigger,
+  useSidebar,
+} from "@/components/ui/sidebar";
+import { ConfirmActionDialog } from "@/components/admin/ConfirmActionDialog";
 import { ImagingProvider, useImaging } from "../ImagingProvider";
 import { ROOM_NAME } from "../demoData";
 import { Icon } from "./ImagingUi";
@@ -11,7 +32,7 @@ import "../imaging.css";
 
 const sections = [
   {
-    title: "KHÔNG GIAN LÀM VIỆC",
+    title: "Công việc",
     links: [
       ["/imaging", "Tổng quan", "grid"],
       ["/imaging/worklist", "Danh sách chờ", "queue"],
@@ -21,7 +42,7 @@ const sections = [
     ],
   },
   {
-    title: "THÔNG TIN CÔNG VIỆC",
+    title: "Thông tin công việc",
     links: [
       ["/imaging/rooms", "Phòng dịch vụ", "room"],
       ["/imaging/schedule", "Lịch làm việc", "calendar"],
@@ -29,203 +50,227 @@ const sections = [
     ],
   },
   {
-    title: "CÁ NHÂN",
+    title: "Cá nhân",
     links: [
       ["/imaging/profile", "Tài khoản của tôi", "user"],
       ["/imaging/change-password", "Đổi mật khẩu", "lock"],
     ],
   },
 ];
-function ShellContent({ children }: { children: ReactNode }) {
+
+function Menu() {
   const pathname = usePathname();
-  const { state, toast, reset, mustChangePassword, ready } = useImaging();
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [resetOpen, setResetOpen] = useState(false);
-  const unread = state.notifications.filter((n) => !n.read).length;
-  if (!ready)
-    return (
-      <div className="imaging">
-        <main className="im-content" role="status">
-          Đang mở không gian làm việc…
-        </main>
-      </div>
-    );
-  if (pathname === "/imaging/login")
-    return <div className="imaging">{children}</div>;
-  if (mustChangePassword && pathname !== "/imaging/change-password")
-    return (
-      <div className="imaging">
-        <main className="im-content">
-          <h1>Cần đổi mật khẩu được cấp</h1>
-          <p>Hoàn tất đổi mật khẩu trước khi sử dụng không gian làm việc.</p>
-          <Link className="im-button" href="/imaging/change-password">
-            Đổi mật khẩu
-          </Link>
-        </main>
-      </div>
-    );
+  const { setOpenMobile } = useSidebar();
+  const { state } = useImaging();
   const active = (href: string) =>
     href === "/imaging" ? pathname === href : pathname.startsWith(href);
-  const currentItem = sections
-    .flatMap((s) => s.links)
-    .filter(([href]) => active(href))
-    .at(-1);
-  const current = currentItem?.[1] || "Chỉ định hình ảnh";
   return (
-    <div className="imaging">
-      <a className="im-skip" href="#im-content">
-        Chuyển đến nội dung
-      </a>
-      {menuOpen && (
-        <button
-          className="im-sidebar-overlay"
-          aria-label="Đóng menu"
-          onClick={() => setMenuOpen(false)}
-        />
-      )}
-      <aside className={`im-sidebar ${menuOpen ? "im-sidebar-open" : ""}`}>
-        <Link href="/imaging" className="im-brand">
-          <span className="im-brand-mark">+</span>
-          <div>
-            <strong>
-              OTCMS<span>CARE MANAGEMENT</span>
-            </strong>
-          </div>
-        </Link>
-        <div className="im-role">
-          <span className="im-role-icon">
-            <Icon name="layers" />
-          </span>
-          <div>
-            <strong>Chẩn đoán hình ảnh</strong>
-            <span>Không gian kỹ thuật viên</span>
-          </div>
-        </div>
-        <nav aria-label="Điều hướng kỹ thuật viên">
-          {sections.map((section) => (
-            <div className="im-nav-section" key={section.title}>
-              <p>{section.title}</p>
-              {section.links.map(([href, label, icon]) => (
-                <Link
-                  key={href}
-                  href={href}
-                  className={`im-nav-link ${active(href) ? "im-nav-active" : ""}`}
-                  aria-current={active(href) ? "page" : undefined}
-                  onClick={() => setMenuOpen(false)}
-                >
-                  <Icon name={icon} />
-                  <span>{label}</span>
-                  {href.endsWith("notifications") && unread > 0 && (
-                    <b>{unread}</b>
-                  )}
-                </Link>
-              ))}
-            </div>
-          ))}
-        </nav>
-        <div className="im-sidebar-bottom">
-          <div className="im-room-dot" />
-          <div>
-            <strong>{ROOM_NAME}</strong>
-            <span>Ca sáng · 07:00 – 12:00</span>
-          </div>
-        </div>
-        <Link className="im-logout" href="/imaging/login">
-          <Icon name="logout" />
-          Đăng xuất
-        </Link>
-      </aside>
-      <div className="im-main-shell">
-        <header className="im-topbar">
-          <div className="im-breadcrumb">
-            <button
-              className="im-icon-button im-mobile-menu"
-              aria-label="Mở menu"
-              onClick={() => setMenuOpen(true)}
+    <Sidebar collapsible="icon">
+      <SidebarHeader>
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              size="lg"
+              render={<Link href="/imaging" />}
+              tooltip="OTCMS · Chẩn đoán hình ảnh"
             >
-              <Icon name="menu" />
-            </button>
-            <span>Không gian làm việc</span>
-            <span>/</span>
-            <Link
-              href={currentItem?.[0] || "/imaging/orders"}
-              aria-label={`Quay lại ${current.toLowerCase()}`}
+              <span className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+                <Bone className="size-4" aria-hidden />
+              </span>
+              <span className="grid text-left">
+                <span className="font-semibold">OTCMS</span>
+                <span className="text-xs text-muted-foreground">
+                  Khu vực kỹ thuật viên
+                </span>
+              </span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
+      </SidebarHeader>
+      <SidebarContent>
+        {sections.map((section) => (
+          <SidebarGroup key={section.title}>
+            <SidebarGroupLabel>{section.title}</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {section.links.map(([href, label, icon]) => (
+                  <SidebarMenuItem key={href}>
+                    <SidebarMenuButton
+                      render={<Link href={href} />}
+                      tooltip={label}
+                      isActive={active(href)}
+                      onClick={() => setOpenMobile(false)}
+                    >
+                      <Icon name={icon} />
+                      <span>{label}</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        ))}
+      </SidebarContent>
+      <SidebarFooter>
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              size="lg"
+              render={<Link href="/imaging/profile" />}
+              tooltip={state.profile.name}
             >
-              {current}
-            </Link>
-          </div>
-          <div className="im-topbar-actions">
-            <span className="im-preview-pill">Dữ liệu minh họa</span>
-            <Link
-              href="/imaging/orders"
-              className="im-icon-button"
-              aria-label="Tra cứu chỉ định"
-            >
-              <Icon name="search" />
-            </Link>
-            <Link
-              className="im-icon-button im-notification-bell"
-              href="/imaging/notifications"
-              aria-label={`Thông báo, ${unread} chưa đọc`}
-            >
-              <Icon name="bell" />
-              {unread > 0 && <i />}
-            </Link>
-            <div className="im-topbar-divider" />
-            <Link href="/imaging/profile" className="im-account">
-              <span className="im-avatar">
+              <span className="flex size-7 shrink-0 items-center justify-center overflow-hidden rounded-full bg-secondary text-xs font-semibold text-secondary-foreground">
                 {state.profile.avatar ? (
                   <Image
                     src={state.profile.avatar}
                     alt="Ảnh đại diện"
-                    width={38}
-                    height={38}
+                    width={28}
+                    height={28}
                     unoptimized
                   />
                 ) : (
                   "MA"
                 )}
               </span>
-              <div>
-                <strong>{state.profile.name}</strong>
-                <span>Kỹ thuật viên CĐHA</span>
-              </div>
-            </Link>
-          </div>
-        </header>
-        <main id="im-content" className="im-content">
-          {children}
-        </main>
-        <footer className="im-footer">
-          <span>© 2026 OTCMS · Phòng khám chấn thương chỉnh hình</span>
-          <button
-            onClick={() => setResetOpen(!resetOpen)}
-            className="im-text-button"
-          >
-            Khôi phục dữ liệu mẫu
-          </button>
-          {resetOpen && (
-            <span className="im-reset-confirm">
-              Các thao tác xem thử sẽ được xóa.{" "}
-              <button
-                className="im-text-button"
-                onClick={() => {
-                  reset();
-                  setResetOpen(false);
-                }}
-              >
-                Xác nhận
-              </button>
-              <button
-                className="im-text-button"
-                onClick={() => setResetOpen(false)}
-              >
-                Giữ lại
-              </button>
-            </span>
-          )}
-        </footer>
+              <span className="grid text-left">
+                <span className="font-medium">{state.profile.name}</span>
+                <span className="text-xs text-muted-foreground">
+                  Kỹ thuật viên CĐHA
+                </span>
+              </span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
+      </SidebarFooter>
+      <SidebarRail />
+    </Sidebar>
+  );
+}
+
+function ShellContent({ children }: { children: ReactNode }) {
+  const pathname = usePathname();
+  const router = useRouter();
+  const { state, toast, reset, mustChangePassword, ready } = useImaging();
+  const [resetOpen, setResetOpen] = useState(false);
+  const [exitOpen, setExitOpen] = useState(false);
+  const unread = state.notifications.filter((n) => !n.read).length;
+  const currentItem = sections
+    .flatMap((s) => s.links)
+    .filter(([href]) =>
+      href === "/imaging" ? pathname === href : pathname.startsWith(href),
+    )
+    .at(-1);
+  if (!ready)
+    return (
+      <div
+        className="space-y-4 p-6"
+        role="status"
+        aria-label="Đang mở không gian làm việc"
+      >
+        <Skeleton className="h-8 w-64" />
+        <Skeleton className="h-64 w-full" />
       </div>
+    );
+  if (pathname === "/imaging/login")
+    return <div className="imaging">{children}</div>;
+  return (
+    <div className="imaging">
+      <a className="im-skip" href="#im-content">
+        Chuyển đến nội dung
+      </a>
+      <SidebarProvider>
+        <Menu />
+        <SidebarInset className="min-w-0">
+          <header className="flex h-14 shrink-0 items-center gap-3 border-b px-4">
+            <SidebarTrigger aria-label="Mở hoặc thu gọn menu" />
+            <Link
+              href={currentItem?.[0] ?? "/imaging"}
+              className="truncate text-sm font-medium"
+              aria-label={`Quay lại ${(currentItem?.[1] ?? "Tổng quan").toLowerCase()}`}
+            >
+              {currentItem?.[1] ?? "Chẩn đoán hình ảnh"}
+            </Link>
+            <div className="ml-auto flex items-center gap-2">
+              <span className="hidden text-xs text-muted-foreground md:block">
+                24/10/2026 · 09:10
+              </span>
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label="Khôi phục dữ liệu mẫu"
+                onClick={() => setResetOpen(true)}
+              >
+                <RefreshCw />
+              </Button>
+              <Link
+                href="/imaging/notifications"
+                className={buttonVariants({ variant: "ghost", size: "icon" })}
+                aria-label={`Thông báo, ${unread} chưa đọc`}
+              >
+                <Bell />
+              </Link>
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label="Đăng xuất"
+                onClick={() => setExitOpen(true)}
+              >
+                <LogOut />
+              </Button>
+            </div>
+          </header>
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-secondary/50 px-4 py-2 text-xs text-muted-foreground md:px-6">
+            <span>
+              Bản xem thử giao diện · dữ liệu mẫu · giờ mô phỏng 09:10
+            </span>
+            <span>{ROOM_NAME} · Ca sáng 07:00 – 12:00</span>
+          </div>
+          <main
+            id="im-content"
+            className="im-content min-w-0 flex-1 p-4 text-sm md:p-6"
+          >
+            {mustChangePassword && pathname !== "/imaging/change-password" ? (
+              <div className="space-y-4 rounded-lg border bg-card p-6">
+                <h1 className="text-2xl font-semibold tracking-tight">
+                  Cần đổi mật khẩu được cấp
+                </h1>
+                <p>
+                  Hoàn tất đổi mật khẩu trước khi sử dụng không gian làm việc.
+                </p>
+                <Link
+                  className={buttonVariants()}
+                  href="/imaging/change-password"
+                >
+                  Đổi mật khẩu
+                </Link>
+              </div>
+            ) : (
+              children
+            )}
+          </main>
+        </SidebarInset>
+      </SidebarProvider>
+      <ConfirmActionDialog
+        open={resetOpen}
+        onOpenChange={setResetOpen}
+        title="Khôi phục dữ liệu mẫu?"
+        description="Các thao tác trong bản xem thử sẽ được đặt lại."
+        confirmLabel="Khôi phục"
+        pendingLabel="Đang khôi phục..."
+        onConfirm={() => {
+          reset();
+          setResetOpen(false);
+        }}
+      />
+      <ConfirmActionDialog
+        open={exitOpen}
+        onOpenChange={setExitOpen}
+        title="Đăng xuất bản xem thử?"
+        description="Bạn sẽ quay về màn đăng nhập nhân viên."
+        confirmLabel="Đăng xuất"
+        pendingLabel="Đang đăng xuất..."
+        onConfirm={() => router.push("/imaging/login")}
+      />
       {toast && (
         <div className="im-toast" role="status" aria-live="polite">
           <Icon name="check" />
