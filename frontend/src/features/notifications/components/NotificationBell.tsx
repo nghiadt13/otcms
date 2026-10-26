@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { Bell } from "lucide-react";
+import { UnreadCountBadge } from "@/components/shell/UnreadCountBadge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
   Popover,
@@ -61,15 +62,7 @@ export function NotificationBell() {
           }
         >
           <Bell aria-hidden />
-          {unreadCount > 0 ? (
-            // Số đã nằm trong aria-label nên ẩn khỏi trình đọc màn hình.
-            <span
-              aria-hidden
-              className="absolute -top-1 -right-1 flex min-w-4 items-center justify-center rounded-full bg-coral px-1 text-[10px] leading-4 font-semibold text-coral-ink tabular-nums ring-2 ring-background"
-            >
-              {unreadCount > 9 ? "9+" : unreadCount}
-            </span>
-          ) : null}
+          <UnreadCountBadge count={unreadCount} />
         </PopoverTrigger>
         <PopoverContent align="end" className="w-[min(22rem,calc(100vw-2rem))]">
           <div className="flex items-center justify-between gap-2">

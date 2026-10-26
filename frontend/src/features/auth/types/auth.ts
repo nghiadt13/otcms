@@ -1,13 +1,9 @@
 import type { AuthMessageCode } from "../authMessages";
 
-export type Gender = "male" | "female" | "other";
-
-// Thông tin Guest nhập ở bước 1 của UC06 (danh tính, liên hệ, tài khoản).
+// Thông tin Guest nhập ở bước 1 của UC06 (R3 sau sửa 23/10): họ tên (tên hiển thị), email,
+// mật khẩu. Ngày sinh, giới tính, SĐT thuộc hồ sơ bệnh nhân (UC13), không có ở đây.
 export interface PatientRegistrationInput {
   fullName: string;
-  dateOfBirth: string; // dd/mm/yyyy như người dùng nhập (xem schema/dateOfBirth)
-  gender: Gender | "";
-  phone: string;
   email: string;
   password: string;
   confirmPassword: string;

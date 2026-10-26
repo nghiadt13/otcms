@@ -1,0 +1,31 @@
+/*
+ * In đơn thuốc: chỉ vùng .printArea được hiện khi in; header, nút và menu của trang bị ẩn.
+ * Không dùng khung hay bóng khi in, lề giấy A4 rộng 15mm.
+ */
+@media print {
+  :global(body) * {
+    visibility: hidden;
+  }
+
+  .printArea,
+  .printArea * {
+    visibility: visible;
+  }
+
+  .printArea {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    margin: 0;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    padding: 0;
+  }
+
+  @page {
+    size: A4;
+    margin: 15mm;
+  }
+}

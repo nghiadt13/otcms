@@ -21,32 +21,37 @@ import {
 } from "@/components/ui/sidebar";
 import { ROLE_LABELS } from "@/lib/domain/clinicRoles";
 import { ADMIN_ROUTES } from "@/lib/routes/adminRoutes";
-import { clearStaffSession } from "@/lib/api/staffSession";
 import { getSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { ChangePasswordDialog } from "@/features/my-account/components/ChangePasswordDialog";
 import { useMyAccount } from "@/features/my-account/hooks/useMyAccount";
 import type { MyAccount } from "@/features/my-account/types/myAccount";
 
-// Admin không có email (BR-11): hiện tên đăng nhập và vai trò.
+// Nhân viên hiện tên đăng nhập (admin không có email, BR-11) và vai trò; tài khoản bệnh nhân
+// (chỉ khi phiên giả là bệnh nhân) hiện tên hiển thị và nhãn "Bệnh nhân".
+function accountLabels(account: MyAccount): { name: string; role: string } {
+  return account.kind === "STAFF"
+    ? { name: account.username, role: ROLE_LABELS[account.role] }
+    : { name: account.displayName, role: ROLE_LABELS.PATIENT };
+}
+
 function AccountSummary({ account }: { account: MyAccount | null }) {
+  const labels = account ? accountLabels(account) : null;
   return (
     <>
       <Avatar className="size-8 rounded-lg">
         {account?.avatarUrl ? (
-          <AvatarImage src={account.avatarUrl} alt={account.username} />
+          <AvatarImage src={account.avatarUrl} alt={labels?.name} />
         ) : null}
         <AvatarFallback className="rounded-lg">
-          {account ? account.username.slice(0, 2).toUpperCase() : ""}
+          {labels ? labels.name.slice(0, 2).toUpperCase() : ""}
         </AvatarFallback>
       </Avatar>
       <span className="grid flex-1 text-left leading-tight">
-        {account ? (
+        {labels ? (
           <>
-            <span className="truncate text-sm font-medium">
-              {account.username}
-            </span>
+            <span className="truncate text-sm font-medium">{labels.name}</span>
             <span className="truncate text-xs text-muted-foreground">
-              {ROLE_LABELS[account.role]}
+              {labels.role}
             </span>
           </>
         ) : (
@@ -68,15 +73,13 @@ export function AdminAccountMenu() {
   const [passwordOpen, setPasswordOpen] = useState(false);
 
   async function signOut() {
-    clearStaffSession();
     try {
-      if (process.env.NEXT_PUBLIC_SUPABASE_URL)
-        await getSupabaseBrowserClient().auth.signOut();
+      await getSupabaseBrowserClient().auth.signOut();
     } catch {
       // Chưa cấu hình Supabase hoặc chưa đăng nhập: vẫn quay về trang đăng nhập.
     }
     // replace: nút Back không đưa người dùng quay lại khu admin.
-    router.replace("/staff-login");
+    router.replace("/login");
   }
 
   return (
@@ -88,7 +91,7 @@ export function AdminAccountMenu() {
               render={
                 <SidebarMenuButton
                   size="lg"
-                  tooltip={account?.username ?? "Tài khoản"}
+                  tooltip={account ? accountLabels(account).name : "Tài khoản"}
                 />
               }
             >

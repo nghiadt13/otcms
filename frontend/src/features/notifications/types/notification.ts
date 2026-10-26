@@ -3,8 +3,12 @@
 
 export type NotificationAction = "markRead";
 
-// TẠM: danh sách loại bản ghi liên quan chưa chốt với nhóm.
-export type NotificationRecordKind = "APPOINTMENT";
+/**
+ * Loại bản ghi liên quan. Admin chỉ nhận APPOINTMENT; khu bệnh nhân nhận cả bốn loại.
+ * Loại → đường dẫn màn do lớp ghép (app/) quyết, feature không biết route của khu khác.
+ */
+export type NotificationRecordKind =
+  "APPOINTMENT" | "VISIT" | "VISIT_RESULT" | "PAYMENT";
 
 export interface NotificationRelatedRecord {
   kind: NotificationRecordKind;

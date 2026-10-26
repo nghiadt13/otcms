@@ -8,7 +8,7 @@ import type { HomeHeroContent } from "../types/websiteContent";
 
 // Khối hai cột ảnh + chữ: vì sao khám ở đây, và lời mời tạo tài khoản bệnh nhân
 // để xem lại hồ sơ. Ảnh thật (Unsplash) bác sĩ tư vấn tại bàn khám. Ba điểm mạnh
-// lấy từ nội dung website (`highlights`) để Quản trị viên sửa được (BR-68).
+// lấy từ nội dung website (`highlights`) để Quản trị viên sửa được (BR-61).
 export function HomeWhyUs({ highlights }: Pick<HomeHeroContent, "highlights">) {
   return (
     <section aria-labelledby="why-us-title" className="bg-card py-20 lg:py-28">

@@ -60,12 +60,3 @@ export type StaffProfileFilters = {
   status: StaffProfileStatus | "";
   isPublic: "" | "true" | "false";
 };
-
-/** Bác sĩ hiện ở trang chủ công khai. */
-export type FeaturedDoctor = {
-  id: string;
-  displayName: string;
-  photoUrl: string | null;
-  specialties: string[];
-  qualifications: string;
-};

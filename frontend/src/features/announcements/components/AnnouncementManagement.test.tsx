@@ -9,6 +9,16 @@ import {
 import * as api from "../api/announcementApi";
 import type { AnnouncementDetail } from "../types/announcement";
 import { AnnouncementManagement } from "./AnnouncementManagement";
+import { formatAppMessage } from "@/lib/messages/appMessages";
+
+/** Nút Đóng ở chân Dialog, tách khỏi nút X có nhãn sr-only cùng tên "Đóng". */
+function footerClose(dialog: HTMLElement) {
+  const footer = dialog.querySelector<HTMLElement>(
+    '[data-slot="dialog-footer"]',
+  );
+  if (!footer) throw new Error("Dialog không có chân");
+  return within(footer).getByRole("button", { name: "Đóng" });
+}
 
 vi.setConfig({ testTimeout: 30000 });
 
@@ -111,7 +121,7 @@ describe("AnnouncementManagement danh sách", () => {
     await user.clear(search);
     await user.type(search, "loi-tai");
     const alert = await screen.findByText(
-      /Hệ thống đang gặp sự cố/,
+      formatAppMessage("MSG-04"),
       {},
       { timeout: 2000 },
     );
@@ -143,7 +153,7 @@ describe("AnnouncementManagement danh sách", () => {
     await user.type(screen.getByLabelText("Từ ngày"), "2026-10-20");
     await user.type(screen.getByLabelText("Đến ngày"), "2026-10-01");
     expect(
-      await screen.findByText(/Tiêu chí lọc chưa hợp lệ/),
+      await screen.findByText(formatAppMessage("MSG-54")),
     ).toBeInTheDocument();
     const callsWithBadRange = spy.mock.calls.filter(
       ([q]) => q.from && q.to && q.from > q.to,
@@ -201,7 +211,7 @@ describe("AnnouncementManagement đăng thông báo", () => {
       "Đã đăng thông báo cho nhóm người nhận đã chọn.",
     );
     expect(mockStore.announcements[0].title).toBe("Đổi giờ tiếp nhận");
-    await user.click(screen.getByRole("button", { name: "Đóng" }));
+    await user.click(footerClose(screen.getByRole("dialog")));
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   });
 

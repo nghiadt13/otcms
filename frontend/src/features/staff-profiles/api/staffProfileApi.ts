@@ -3,7 +3,6 @@ import { clone, mockDelay, mockFail, paginate } from "@/lib/api/mockServer";
 import { validateStaffProfileInput } from "../schema/staffProfileFieldRules";
 import type {
   EligibleStaffAccount,
-  FeaturedDoctor,
   StaffProfileAction,
   StaffProfileDetail,
   StaffProfileFilters,
@@ -58,7 +57,7 @@ function toDetail(record: MockStaffRecord): StaffProfileDetail {
     status: record.status,
     allowedActions: allowedActions(record),
     doctor: record.doctor ? clone(record.doctor) : null,
-    publicUrl: isLive ? `/bac-si/${record.id}` : null,
+    publicUrl: isLive ? `/doctors/${record.id}` : null,
   };
 }
 
@@ -199,21 +198,4 @@ export async function removeStaffProfile(id: string): Promise<void> {
   if (record.username === USERNAME_WITH_FUTURE_APPOINTMENTS)
     mockFail(409, "MSG-36");
   record.status = "REMOVED";
-}
-
-/** Trang chủ công khai: chỉ bác sĩ Active và đã bật công khai. */
-export async function listFeaturedDoctors(
-  limit = 4,
-): Promise<FeaturedDoctor[]> {
-  await mockDelay(80);
-  return mockStore.profiles
-    .filter((p) => p.status === "ACTIVE" && p.doctor?.isPublic)
-    .slice(0, limit)
-    .map((p) => ({
-      id: p.id,
-      displayName: p.displayName,
-      photoUrl: p.photoUrl,
-      specialties: [...(p.doctor?.specialties ?? [])],
-      qualifications: p.doctor?.qualifications ?? "",
-    }));
 }

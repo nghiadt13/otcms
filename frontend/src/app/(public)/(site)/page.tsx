@@ -1,4 +1,4 @@
-import { listFeaturedServices } from "@/features/clinic-services/api/clinicServiceApi";
+import { listFeaturedServices } from "@/features/clinic-services/api/publicServiceApi";
 import { FeaturedServices } from "@/features/clinic-services/components/FeaturedServices";
 import { getPublishedWebsiteContent } from "@/features/clinic-website/api/websiteContentApi";
 import { HomeBookingCta } from "@/features/clinic-website/components/HomeBookingCta";
@@ -6,9 +6,9 @@ import { HomeHero } from "@/features/clinic-website/components/HomeHero";
 import { HomeQuickAccess } from "@/features/clinic-website/components/HomeQuickAccess";
 import { HomeVisitSteps } from "@/features/clinic-website/components/HomeVisitSteps";
 import { HomeWhyUs } from "@/features/clinic-website/components/HomeWhyUs";
-import { listFeaturedDoctors } from "@/features/staff-profiles/api/staffProfileApi";
+import { listFeaturedDoctors } from "@/features/staff-profiles/api/publicDoctorApi";
 import { FeaturedDoctors } from "@/features/staff-profiles/components/FeaturedDoctors";
-import { listFeaturedReviews } from "@/features/patient-reviews/api/patientReviewApi";
+import { listFeaturedReviews } from "@/features/patient-reviews/api/publicReviewApi";
 import { FeaturedReviews } from "@/features/patient-reviews/components/FeaturedReviews";
 
 // Trang chủ: chỉ lấy dữ liệu công khai và ghép các khối của từng feature (ghép ở

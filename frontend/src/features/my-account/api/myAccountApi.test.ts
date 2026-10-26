@@ -23,7 +23,7 @@ beforeEach(() => resetMyAccountMockStore());
 describe("myAccountApi", () => {
   it("getMyAccount: Admin không có email, chưa có ảnh thì không có removeAvatar", async () => {
     const account = await getMyAccount();
-    expect(account.username).toBe("admin.hoa");
+    expect(account).toMatchObject({ kind: "STAFF", username: "admin.hoa" });
     expect(account).not.toHaveProperty("email");
     expect(account.allowedActions).toEqual(["updateAvatar", "changePassword"]);
   });
@@ -84,13 +84,13 @@ describe("myAccountApi", () => {
 
   it("đổi thành công thì tắt mustChangePassword", async () => {
     resetMyAccountMockStore(MOCK_MY_ACCOUNT_FIRST_LOGIN);
-    expect((await getMyAccount()).mustChangePassword).toBe(true);
+    expect(await getMyAccount()).toMatchObject({ mustChangePassword: true });
     await expect(
       changeMyPassword({
         currentPassword: "MatKhauCu1",
         newPassword: "MatKhauMoi2",
       }),
     ).resolves.toBeUndefined();
-    expect((await getMyAccount()).mustChangePassword).toBe(false);
+    expect(await getMyAccount()).toMatchObject({ mustChangePassword: false });
   });
 });

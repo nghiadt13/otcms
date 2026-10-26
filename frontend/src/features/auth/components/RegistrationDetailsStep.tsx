@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarDays, Mail, Phone, UserRound } from "lucide-react";
+import { Mail, UserRound } from "lucide-react";
 import { useRef, useState, type FormEvent } from "react";
 import { registerPatient } from "../api/authApi";
 import type { AuthMessageCode } from "../authMessages";
@@ -9,7 +9,6 @@ import {
   validateRegistration,
   type RegistrationErrors,
 } from "../schema/authFieldRules";
-import { formatDateOfBirthInput } from "../schema/dateOfBirth";
 import {
   toAuthMessageCode,
   type PatientRegistrationInput,
@@ -17,7 +16,6 @@ import {
 import { AuthAlert } from "./AuthAlert";
 import { AuthSubmitButton } from "./AuthSubmitButton";
 import { AuthTextField } from "./AuthTextField";
-import { GenderSelectField } from "./GenderSelectField";
 import { PasswordField } from "./PasswordField";
 import { PasswordMatchHint } from "./PasswordMatchHint";
 import { PasswordPolicyHint } from "./PasswordPolicyHint";
@@ -27,10 +25,10 @@ type TextKey = Exclude<keyof PatientRegistrationInput, "consent">;
 
 const legendClass = "text-base font-semibold text-foreground";
 
-// UC06 bước 1: nhập thông tin danh tính, liên hệ và tài khoản. Dữ liệu do lớp
-// cha giữ để khi quay lại từ bước xác minh ("Đổi email") không phải nhập lại.
-// Lỗi chỉ hiện khi rời ô (ô đã có nội dung) hoặc khi bấm "Tiếp tục", không hiện
-// ngay lúc đang gõ; sửa trường nào thì lỗi của trường đó được gỡ.
+// UC06 bước 1 (R3 sau sửa 23/10): họ tên (tên hiển thị), email, mật khẩu. Hồ sơ khám
+// (ngày sinh, giới tính, SĐT) được thêm sau khi đăng nhập. Dữ liệu do lớp cha giữ để khi
+// quay lại từ bước xác minh ("Đổi email") không phải nhập lại. Lỗi chỉ hiện khi rời ô (ô
+// đã có nội dung) hoặc khi bấm "Tiếp tục"; sửa trường nào thì lỗi của trường đó được gỡ.
 export function RegistrationDetailsStep({
   value,
   onChange,
@@ -99,64 +97,27 @@ export function RegistrationDetailsStep({
       {message && <AuthAlert code={message} tone="error" />}
 
       <fieldset className="space-y-4">
-        <legend className={legendClass}>Thông tin cá nhân</legend>
+        <legend className={legendClass}>Tài khoản</legend>
         <AuthTextField
           {...field("fullName")}
           icon={UserRound}
           autoComplete="name"
+          hint="Tên hiển thị trong tài khoản của bạn."
           label="Họ và tên"
           placeholder="Nguyễn Văn An"
           required
         />
-        <div className="grid gap-4 sm:grid-cols-2">
-          <AuthTextField
-            {...field("dateOfBirth")}
-            icon={CalendarDays}
-            autoComplete="bday"
-            hint="Ví dụ: 20/05/1990"
-            inputMode="numeric"
-            label="Ngày sinh"
-            onChange={(event) =>
-              update("dateOfBirth", formatDateOfBirthInput(event.target.value))
-            }
-            placeholder="dd/mm/yyyy"
-            required
-          />
-          <GenderSelectField
-            error={errors.gender}
-            onChange={(next) =>
-              update("gender", next as PatientRegistrationInput["gender"])
-            }
-            value={value.gender}
-          />
-        </div>
-      </fieldset>
-
-      <fieldset className="space-y-4">
-        <legend className={legendClass}>Liên hệ</legend>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <AuthTextField
-            {...field("phone")}
-            icon={Phone}
-            autoComplete="tel"
-            inputMode="tel"
-            label="Số điện thoại"
-            placeholder="0901234567"
-            required
-            type="tel"
-          />
-          <AuthTextField
-            {...field("email")}
-            icon={Mail}
-            autoComplete="email"
-            hint="Mã xác minh sẽ gửi tới email này."
-            inputMode="email"
-            label="Email"
-            placeholder="ten@email.com"
-            required
-            type="email"
-          />
-        </div>
+        <AuthTextField
+          {...field("email")}
+          icon={Mail}
+          autoComplete="email"
+          hint="Mã xác minh sẽ gửi tới email này."
+          inputMode="email"
+          label="Email"
+          placeholder="ten@email.com"
+          required
+          type="email"
+        />
       </fieldset>
 
       <fieldset className="space-y-4">
