@@ -78,15 +78,13 @@ describe("AdminAccountMenu", () => {
     expect(screen.getByLabelText("Mật khẩu hiện tại")).toBeInTheDocument();
   });
 
-  it("Đăng xuất xóa phiên nhân viên rồi replace về /staff-login", async () => {
-    window.sessionStorage.setItem("otcms.staff.session", "{} ");
+  it("Đăng xuất xóa phiên Supabase rồi replace về /login", async () => {
     setup();
     await openMenu();
     await userEvent.click(
       await screen.findByRole("menuitem", { name: /Đăng xuất/ }),
     );
-    await waitFor(() => expect(replace).toHaveBeenCalledWith("/staff-login"));
-    expect(window.sessionStorage.getItem("otcms.staff.session")).toBeNull();
-    expect(signOut).not.toHaveBeenCalled();
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/login"));
+    expect(signOut).toHaveBeenCalledTimes(1);
   });
 });

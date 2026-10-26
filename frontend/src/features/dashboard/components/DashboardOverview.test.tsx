@@ -15,7 +15,7 @@ import type {
   DashboardPeriod,
 } from "../types/dashboardOverview";
 import { DashboardOverview } from "./DashboardOverview";
-
+import { formatAppMessage } from "@/lib/messages/appMessages";
 // Đi qua lớp API giả (không mock hook): chỉ thay thân getDashboardOverview để bỏ độ trễ.
 vi.mock("../api/dashboardApi", () => ({ getDashboardOverview: vi.fn() }));
 const api = vi.mocked(getDashboardOverview);
@@ -121,7 +121,7 @@ describe("DashboardOverview", () => {
     await user.click(screen.getByRole("button", { name: "Xem" }));
 
     expect(screen.getByRole("alert")).toHaveTextContent(
-      /Khoảng thời gian chưa hợp lệ/,
+      formatAppMessage("MSG-72"),
     );
     expect(api).toHaveBeenCalledTimes(1);
     expect(collectedCell()).toBeInTheDocument();
@@ -133,7 +133,7 @@ describe("DashboardOverview", () => {
     render(<DashboardOverview />);
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      /Hệ thống đang gặp sự cố/,
+      formatAppMessage("MSG-04"),
     );
     await user.click(screen.getByRole("button", { name: "Thử lại" }));
 
@@ -149,7 +149,7 @@ describe("DashboardOverview", () => {
     render(<DashboardOverview />);
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      /không đủ quyền/,
+      formatAppMessage("MSG-50"),
     );
     expect(
       screen.queryByRole("button", { name: "Thử lại" }),
@@ -166,7 +166,7 @@ describe("DashboardOverview", () => {
     await user.click(screen.getByRole("button", { name: "Hôm nay" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      /Khoảng thời gian chưa hợp lệ/,
+      formatAppMessage("MSG-72"),
     );
     expect(collectedCell()).toBeInTheDocument();
   });

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { ROLE_LABELS } from "@/lib/domain/clinicRoles";
+import { formatAppMessage } from "@/lib/messages/appMessages";
 import type { IssuedCredential, StaffRole } from "../types/account";
 import { AccountCreateForm } from "./AccountCreateForm";
 import { IssuedPasswordStep } from "./IssuedPasswordStep";
@@ -29,7 +30,10 @@ export function AccountFormDialog({
     return (
       <IssuedPasswordStep
         title="Tài khoản đã tạo"
-        message={`Đã tạo tài khoản ${ROLE_LABELS[issued.role]} với tên đăng nhập ${issued.credential.username}. Mật khẩu khởi tạo chỉ hiển thị một lần.`}
+        message={formatAppMessage("MSG-11", {
+          accountRole: ROLE_LABELS[issued.role],
+          username: issued.credential.username,
+        })}
         credential={issued.credential}
         onDone={onClose}
       />
