@@ -74,12 +74,17 @@ export function nextPatientId(): string {
   return `7e4f0b10-0000-4000-8000-${String(idSequence).padStart(12, "0")}`;
 }
 
-export function findMedicalHistory(patientId: string): MedicalHistory | undefined {
+export function findMedicalHistory(
+  patientId: string,
+): MedicalHistory | undefined {
   const found = histories.get(patientId);
   return found ? structuredClone(found) : undefined;
 }
 
-export function saveMedicalHistory(patientId: string, next: MedicalHistory): void {
+export function saveMedicalHistory(
+  patientId: string,
+  next: MedicalHistory,
+): void {
   histories.set(patientId, structuredClone(next));
 }
 

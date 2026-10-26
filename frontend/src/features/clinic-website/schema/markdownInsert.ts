@@ -1,6 +1,10 @@
 // Chèn cú pháp Markdown tại con trỏ của textarea. Hàm thuần: nhận văn bản + vùng chọn,
 // trả văn bản mới + vùng chọn mới (để component đặt lại con trỏ).
-export type TextEdit = { text: string; selectionStart: number; selectionEnd: number };
+export type TextEdit = {
+  text: string;
+  selectionStart: number;
+  selectionEnd: number;
+};
 
 type Selection = { text: string; start: number; end: number };
 
@@ -8,7 +12,11 @@ type Selection = { text: string; start: number; end: number };
 export function insertBold({ text, start, end }: Selection): TextEdit {
   const chosen = text.slice(start, end) || "chữ đậm";
   const next = `${text.slice(0, start)}**${chosen}**${text.slice(end)}`;
-  return { text: next, selectionStart: start + 2, selectionEnd: start + 2 + chosen.length };
+  return {
+    text: next,
+    selectionStart: start + 2,
+    selectionEnd: start + 2 + chosen.length,
+  };
 }
 
 /** Danh sách: thêm `- ` đầu mỗi dòng của vùng chọn (dòng chứa con trỏ nếu không chọn). */
@@ -35,11 +43,18 @@ export function insertLink({ text, start, end }: Selection): TextEdit {
   const inserted = `[${label}](https://)`;
   const next = `${text.slice(0, start)}${inserted}${text.slice(end)}`;
   const urlStart = start + label.length + 3;
-  return { text: next, selectionStart: urlStart, selectionEnd: urlStart + "https://".length };
+  return {
+    text: next,
+    selectionStart: urlStart,
+    selectionEnd: urlStart + "https://".length,
+  };
 }
 
 /** Ảnh: `![mô tả](url)` tại con trỏ, thay vùng chọn. */
-export function insertImage({ text, start, end }: Selection, url: string): TextEdit {
+export function insertImage(
+  { text, start, end }: Selection,
+  url: string,
+): TextEdit {
   const inserted = `![mô tả ảnh](${url})`;
   const next = `${text.slice(0, start)}${inserted}${text.slice(end)}`;
   const caret = start + inserted.length;

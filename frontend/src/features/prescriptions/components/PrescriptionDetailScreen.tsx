@@ -20,9 +20,14 @@ import { PrescriptionDocumentView } from "./PrescriptionDocumentView";
  * Màn một đơn thuốc. 403/404 đi tới trang "không tìm thấy"; 409 (đơn chưa phát hành)
  * báo bằng toast rồi về danh sách; lỗi khác hiện thông báo kèm nút thử lại.
  */
-export function PrescriptionDetailScreen({ prescriptionId }: { prescriptionId: string }) {
+export function PrescriptionDetailScreen({
+  prescriptionId,
+}: {
+  prescriptionId: string;
+}) {
   const router = useRouter();
-  const { prescription, loading, error, reload } = usePrescriptionDocument(prescriptionId);
+  const { prescription, loading, error, reload } =
+    usePrescriptionDocument(prescriptionId);
   const code = isApiError(error) ? error.code : undefined;
   const notAccessible = code === "MSG-40" || code === "MSG-41";
   const notIssued = code === "MSG-42";
@@ -35,7 +40,8 @@ export function PrescriptionDetailScreen({ prescriptionId }: { prescriptionId: s
 
   if (notAccessible) notFound();
   if (notIssued) return null;
-  if (error) return <DetailError message={messageFromError(error)} onRetry={reload} />;
+  if (error)
+    return <DetailError message={messageFromError(error)} onRetry={reload} />;
   if (loading || !prescription) return <DetailSkeleton />;
 
   return (
@@ -66,11 +72,24 @@ function DetailSkeleton() {
   );
 }
 
-function DetailError({ message, onRetry }: { message: string; onRetry: () => void }) {
+function DetailError({
+  message,
+  onRetry,
+}: {
+  message: string;
+  onRetry: () => void;
+}) {
   return (
-    <div role="alert" className="space-y-4 rounded-lg border bg-card px-6 py-8 text-center">
+    <div
+      role="alert"
+      className="space-y-4 rounded-lg border bg-card px-6 py-8 text-center"
+    >
       <p className="text-base text-destructive">{message}</p>
-      <Button variant="outline" className="h-12 px-5 text-base" onClick={onRetry}>
+      <Button
+        variant="outline"
+        className="h-12 px-5 text-base"
+        onClick={onRetry}
+      >
         Thử lại
       </Button>
     </div>

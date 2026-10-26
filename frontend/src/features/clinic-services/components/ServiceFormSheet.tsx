@@ -13,9 +13,18 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { isApiError, toFieldErrorMap } from "@/lib/api/apiError";
 import { notifyError, notifySuccess } from "@/lib/messages/notify";
-import { createServiceCatalog, updateServiceCatalog } from "../api/serviceCatalogApi";
-import { isStaleServiceError, useServiceDetail } from "../hooks/useServiceDetail";
-import { validateServiceForm, type FieldErrorMap } from "../schema/serviceFieldRules";
+import {
+  createServiceCatalog,
+  updateServiceCatalog,
+} from "../api/serviceCatalogApi";
+import {
+  isStaleServiceError,
+  useServiceDetail,
+} from "../hooks/useServiceDetail";
+import {
+  validateServiceForm,
+  type FieldErrorMap,
+} from "../schema/serviceFieldRules";
 import {
   emptyServiceDraft,
   serviceDetailToDraft,
@@ -35,24 +44,47 @@ type ServiceFormSheetProps = {
   onStale: () => void;
 };
 
-const SHEET_WIDE_CLASS = "data-[side=right]:w-full data-[side=right]:sm:max-w-3xl";
+const SHEET_WIDE_CLASS =
+  "data-[side=right]:w-full data-[side=right]:sm:max-w-3xl";
 
-export function ServiceFormSheet({ serviceId, onClose, onSaved, onStale }: ServiceFormSheetProps) {
+export function ServiceFormSheet({
+  serviceId,
+  onClose,
+  onSaved,
+  onStale,
+}: ServiceFormSheetProps) {
   const mode = serviceId ? "edit" : "create";
   return (
     <Sheet open onOpenChange={(open) => !open && onClose()}>
       <SheetContent className={SHEET_WIDE_CLASS}>
         {serviceId ? (
-          <EditLoader serviceId={serviceId} onClose={onClose} onSaved={onSaved} onStale={onStale} />
+          <EditLoader
+            serviceId={serviceId}
+            onClose={onClose}
+            onSaved={onSaved}
+            onStale={onStale}
+          />
         ) : (
-          <FormBody mode={mode} initial={emptyServiceDraft()} onClose={onClose} onSaved={onSaved} onStale={onStale} />
+          <FormBody
+            mode={mode}
+            initial={emptyServiceDraft()}
+            onClose={onClose}
+            onSaved={onSaved}
+            onStale={onStale}
+          />
         )}
       </SheetContent>
     </Sheet>
   );
 }
 
-function EditLoader({ serviceId, onClose, onSaved, onStale }: Required<Pick<ServiceFormSheetProps, "serviceId">> & Omit<ServiceFormSheetProps, "serviceId">) {
+function EditLoader({
+  serviceId,
+  onClose,
+  onSaved,
+  onStale,
+}: Required<Pick<ServiceFormSheetProps, "serviceId">> &
+  Omit<ServiceFormSheetProps, "serviceId">) {
   const { detail } = useServiceDetail(serviceId, (stale) => {
     if (stale) onStale();
     else onClose();
@@ -73,7 +105,14 @@ function EditLoader({ serviceId, onClose, onSaved, onStale }: Required<Pick<Serv
     );
   }
   return (
-    <FormBody mode="edit" serviceId={serviceId} initial={serviceDetailToDraft(detail)} onClose={onClose} onSaved={onSaved} onStale={onStale} />
+    <FormBody
+      mode="edit"
+      serviceId={serviceId}
+      initial={serviceDetailToDraft(detail)}
+      onClose={onClose}
+      onSaved={onSaved}
+      onStale={onStale}
+    />
   );
 }
 
@@ -83,7 +122,14 @@ type FormBodyProps = Omit<ServiceFormSheetProps, "serviceId"> & {
   initial: ServiceFormDraft;
 };
 
-function FormBody({ mode, serviceId, initial, onClose, onSaved, onStale }: FormBodyProps) {
+function FormBody({
+  mode,
+  serviceId,
+  initial,
+  onClose,
+  onSaved,
+  onStale,
+}: FormBodyProps) {
   const [draft, setDraft] = useState(initial);
   const [errors, setErrors] = useState<FieldErrorMap>({});
   const [submitting, setSubmitting] = useState(false);
@@ -98,7 +144,10 @@ function FormBody({ mode, serviceId, initial, onClose, onSaved, onStale }: FormB
       const saved =
         mode === "create"
           ? await createServiceCatalog(serviceDraftToCreateRequest(draft))
-          : await updateServiceCatalog(serviceId!, serviceDraftToUpdateRequest(draft));
+          : await updateServiceCatalog(
+              serviceId!,
+              serviceDraftToUpdateRequest(draft),
+            );
       notifySuccess("MSG-65");
       onSaved(saved, mode);
     } catch (error) {
@@ -131,14 +180,29 @@ function FormBody({ mode, serviceId, initial, onClose, onSaved, onStale }: FormB
         </SheetDescription>
       </SheetHeader>
       <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-4">
-        <ServiceFormFields mode={mode} draft={draft} onChange={setDraft} errors={errors} disabled={submitting} />
+        <ServiceFormFields
+          mode={mode}
+          draft={draft}
+          onChange={setDraft}
+          errors={errors}
+          disabled={submitting}
+        />
       </div>
       <SheetFooter className="flex-col-reverse border-t sm:flex-row sm:justify-end">
-        <Button type="button" variant="outline" onClick={onClose} disabled={submitting}>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={onClose}
+          disabled={submitting}
+        >
           Hủy
         </Button>
         <Button type="submit" disabled={submitting}>
-          {submitting ? "Đang lưu..." : mode === "create" ? "Thêm dịch vụ" : "Lưu thay đổi"}
+          {submitting
+            ? "Đang lưu..."
+            : mode === "create"
+              ? "Thêm dịch vụ"
+              : "Lưu thay đổi"}
         </Button>
       </SheetFooter>
     </form>

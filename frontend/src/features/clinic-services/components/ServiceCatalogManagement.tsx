@@ -8,7 +8,10 @@ import { PageHeader } from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
 import { APP_MESSAGES } from "@/lib/messages/appMessages";
 import { useServiceCatalogList } from "../hooks/useServiceCatalogList";
-import type { ServiceCatalogDetail, ServiceCatalogItem } from "../types/serviceCatalog";
+import type {
+  ServiceCatalogDetail,
+  ServiceCatalogItem,
+} from "../types/serviceCatalog";
 import { ServiceCatalogFilters } from "./ServiceCatalogFilters";
 import { ServiceCatalogTable } from "./ServiceCatalogTable";
 import { ServiceDetailSheet } from "./ServiceDetailSheet";
@@ -35,7 +38,9 @@ export function ServiceCatalogManagement() {
   const [sheet, setSheet] = useState<OpenSheet>(null);
   const [opened, setOpened] = useState(0);
 
-  const open = (next: { kind: "create" } | { kind: "detail" | "edit"; id: string }) => {
+  const open = (
+    next: { kind: "create" } | { kind: "detail" | "edit"; id: string },
+  ) => {
     setOpened((n) => n + 1);
     setSheet({ ...next, nonce: opened + 1 } as OpenSheet);
   };
@@ -48,7 +53,8 @@ export function ServiceCatalogManagement() {
     list.replaceItem((item) => item.id === detail.id, toItem(detail));
 
   // Lọc sai (MSG-54) hiện dưới FilterBar và giữ danh sách đang có; lỗi khác thay bảng.
-  const filterError = list.error === APP_MESSAGES["MSG-54"] && list.data ? list.error : null;
+  const filterError =
+    list.error === APP_MESSAGES["MSG-54"] && list.data ? list.error : null;
   const tableError = filterError ? null : list.error;
 
   return (

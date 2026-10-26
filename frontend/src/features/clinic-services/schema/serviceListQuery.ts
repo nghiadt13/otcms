@@ -1,5 +1,8 @@
 import type { MsgCode } from "@/lib/api/apiError";
-import { SERVICE_CATEGORIES, type ServiceCategory } from "@/lib/domain/clinicCategories";
+import {
+  SERVICE_CATEGORIES,
+  type ServiceCategory,
+} from "@/lib/domain/clinicCategories";
 import type { PublicServiceQuery } from "../types/clinicService";
 
 /** Tên tìm kiếm tối đa 100 ký tự; dài hơn là tiêu chí sai (MSG-54). */
@@ -43,7 +46,8 @@ export function parseServiceListQuery(params: RawParams): ServiceListParse {
   if (q === null || q.length > SERVICE_SEARCH_MAX_LENGTH) return invalid("q");
 
   const type = readSingle(params.type);
-  if (type === null || (type !== "" && !isKnownType(type))) return invalid("type");
+  if (type === null || (type !== "" && !isKnownType(type)))
+    return invalid("type");
 
   return {
     input,

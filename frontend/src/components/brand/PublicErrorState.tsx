@@ -12,11 +12,18 @@ export function PublicErrorState({ retry }: { retry: () => void }) {
       <h1 className="text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
         Không tải được nội dung
       </h1>
-      <p className="max-w-xl text-lg leading-8 text-pretty text-muted-foreground" role="alert">
+      <p
+        className="max-w-xl text-lg leading-8 text-pretty text-muted-foreground"
+        role="alert"
+      >
         {formatAppMessage("MSG-04")}
       </p>
       <div className="flex flex-wrap justify-center gap-4">
-        <Button className={publicButtonClass("primary")} onClick={() => retry()} type="button">
+        <Button
+          className={publicButtonClass("primary")}
+          onClick={() => retry()}
+          type="button"
+        >
           Thử lại
         </Button>
         <Link className={publicButtonClass("secondary")} href="/">

@@ -13,7 +13,10 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
+import {
+  NativeSelect,
+  NativeSelectOption,
+} from "@/components/ui/native-select";
 import { Textarea } from "@/components/ui/textarea";
 import { isApiError, toFieldErrorMap } from "@/lib/api/apiError";
 import {
@@ -45,12 +48,20 @@ type RoomFormDialogProps = {
   onGone: () => void;
 };
 
-export function RoomFormDialog({ open, onOpenChange, room, onSaved, onGone }: RoomFormDialogProps) {
+export function RoomFormDialog({
+  open,
+  onOpenChange,
+  room,
+  onSaved,
+  onGone,
+}: RoomFormDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>{room ? `Sửa phòng ${room.name}` : "Thêm phòng"}</DialogTitle>
+          <DialogTitle>
+            {room ? `Sửa phòng ${room.name}` : "Thêm phòng"}
+          </DialogTitle>
           <DialogDescription>
             {room
               ? "Chỉ đổi được mô tả và dịch vụ hỗ trợ."
@@ -98,20 +109,27 @@ function RoomForm({
     setType(next);
     setErrors((e) => ({ ...e, type: undefined }));
     // Đổi loại: bỏ mọi dịch vụ không còn khớp (spec 06).
-    if (next) setServiceIds((ids) => keepServiceIdsOfCategory(ids, all.options, next));
+    if (next)
+      setServiceIds((ids) => keepServiceIdsOfCategory(ids, all.options, next));
     else setServiceIds([]);
   }
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
-    const found = validateRoomForm({ name, type, description, serviceIds }, mode);
+    const found = validateRoomForm(
+      { name, type, description, serviceIds },
+      mode,
+    );
     setErrors(found);
     if (Object.keys(found).length > 0 || saving) return;
 
     setSaving(true);
     try {
       const saved = room
-        ? await updateRoom(room.id, { description: description.trim(), serviceIds })
+        ? await updateRoom(room.id, {
+            description: description.trim(),
+            serviceIds,
+          })
         : await createRoom({
             name: name.trim(),
             type: type as ServiceCategory,
@@ -140,7 +158,11 @@ function RoomForm({
     errors[key] ? <FieldError message={formatAppMessage(errors[key])} /> : null;
 
   return (
-    <form className="space-y-4" onSubmit={(e) => void handleSubmit(e)} noValidate>
+    <form
+      className="space-y-4"
+      onSubmit={(e) => void handleSubmit(e)}
+      noValidate
+    >
       <div className="space-y-2">
         <Label htmlFor="room-name">
           {room ? "Tên hoặc mã phòng (chỉ đọc)" : "Tên hoặc mã phòng"}
@@ -157,7 +179,9 @@ function RoomForm({
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="room-type">{room ? "Loại phòng (chỉ đọc)" : "Loại phòng"}</Label>
+        <Label htmlFor="room-type">
+          {room ? "Loại phòng (chỉ đọc)" : "Loại phòng"}
+        </Label>
         <NativeSelect
           id="room-type"
           className="w-full"
@@ -187,7 +211,11 @@ function RoomForm({
         />
       </div>
 
-      <div className="space-y-2" role="group" aria-labelledby="room-services-label">
+      <div
+        className="space-y-2"
+        role="group"
+        aria-labelledby="room-services-label"
+      >
         <Label id="room-services-label">Dịch vụ hỗ trợ</Label>
         <RoomServicePicker
           hasCategory={Boolean(type)}
@@ -208,10 +236,18 @@ function RoomForm({
       </div>
 
       <DialogFooter>
-        <Button type="button" variant="outline" onClick={onCancel} disabled={saving}>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={onCancel}
+          disabled={saving}
+        >
           Hủy
         </Button>
-        <Button type="submit" disabled={saving || all.loading || Boolean(all.error)}>
+        <Button
+          type="submit"
+          disabled={saving || all.loading || Boolean(all.error)}
+        >
           {saving ? "Đang lưu..." : room ? "Lưu thay đổi" : "Thêm phòng"}
         </Button>
       </DialogFooter>

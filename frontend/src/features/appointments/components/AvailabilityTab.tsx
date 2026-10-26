@@ -14,7 +14,10 @@ import type { useAppointmentUrlState } from "../hooks/useAppointmentUrlState";
 import { useDoctorAvailability } from "../hooks/useDoctorAvailability";
 import type { useDoctorLookup } from "../hooks/useDoctorLookup";
 import { messageFromRangeError } from "../schema/appointmentMessages";
-import { rangeErrorCode, resolveAvailabilityRange } from "../schema/appointmentUrlRules";
+import {
+  rangeErrorCode,
+  resolveAvailabilityRange,
+} from "../schema/appointmentUrlRules";
 import { AvailabilityResult } from "./AvailabilityResult";
 import { DoctorCombobox } from "./DoctorCombobox";
 
@@ -41,8 +44,14 @@ export function AvailabilityTab({ url, lookup }: AvailabilityTabProps) {
   const urlDoctor = all?.find((item) => item.id === state.doctorId);
   const notBookable = urlDoctor !== undefined && !urlDoctor.bookable;
   const rangeError = rangeErrorCode(range.from, range.to);
-  const enabled = Boolean(state.doctorId) && !rangeError && !notBookable && !lookup.loading;
-  const avail = useDoctorAvailability(state.doctorId, range.from, range.to, enabled);
+  const enabled =
+    Boolean(state.doctorId) && !rangeError && !notBookable && !lookup.loading;
+  const avail = useDoctorAvailability(
+    state.doctorId,
+    range.from,
+    range.to,
+    enabled,
+  );
 
   // Phản ứng với kết quả: MSG-25 khi không còn khung trống; 404 thì bỏ chọn bác sĩ.
   const handled = useRef<unknown>(null);
@@ -51,7 +60,9 @@ export function AvailabilityTab({ url, lookup }: AvailabilityTabProps) {
     if (!outcome || handled.current === outcome) return;
     handled.current = outcome;
     if (avail.data) {
-      if (!avail.data.days.some((d) => d.slots.some((s) => s.status === "FREE")))
+      if (
+        !avail.data.days.some((d) => d.slots.some((s) => s.status === "FREE"))
+      )
         notifyWarning("MSG-25");
     } else if (isApiError(avail.error) && avail.error.status === 404) {
       notifyError(avail.error);
@@ -61,7 +72,9 @@ export function AvailabilityTab({ url, lookup }: AvailabilityTabProps) {
     }
   }, [avail.data, avail.error, update]);
 
-  const apiFields = isApiError(avail.error) ? toFieldErrorMap(avail.error.fieldErrors) : {};
+  const apiFields = isApiError(avail.error)
+    ? toFieldErrorMap(avail.error.fieldErrors)
+    : {};
   const doctorError = notBookable
     ? formatAppMessage("MSG-24")
     : apiFields.doctorId
@@ -71,15 +84,23 @@ export function AvailabilityTab({ url, lookup }: AvailabilityTabProps) {
     rangeError ?? (apiFields.to === "MSG-54" ? "MSG-54" : null),
   );
   const gridError =
-    avail.error && !doctorError && !dateError && !(isApiError(avail.error) && avail.error.status === 404)
+    avail.error &&
+    !doctorError &&
+    !dateError &&
+    !(isApiError(avail.error) && avail.error.status === 404)
       ? messageFromError(avail.error)
       : null;
-  const hasFree = Boolean(avail.data?.days.some((d) => d.slots.some((s) => s.status === "FREE")));
-  const options = (all ?? []).filter((item) => item.bookable || item.id === doctor);
+  const hasFree = Boolean(
+    avail.data?.days.some((d) => d.slots.some((s) => s.status === "FREE")),
+  );
+  const options = (all ?? []).filter(
+    (item) => item.bookable || item.id === doctor,
+  );
 
   function apply() {
     const to = mode === "week" ? addDays(from, 6) : from;
-    if (doctor === state.doctorId && from === range.from && to === range.to) avail.reload();
+    if (doctor === state.doctorId && from === range.from && to === range.to)
+      avail.reload();
     else update({ doctorId: doctor, from, to });
   }
 
@@ -103,7 +124,9 @@ export function AvailabilityTab({ url, lookup }: AvailabilityTabProps) {
           <FieldError id={`${id}-doctor-error`} message={doctorError} />
         </div>
         <div className="grid gap-1.5">
-          <span id={`${id}-mode`} className="text-sm leading-none font-medium">Chế độ</span>
+          <span id={`${id}-mode`} className="text-sm leading-none font-medium">
+            Chế độ
+          </span>
           <ToggleGroup
             variant="outline"
             aria-labelledby={`${id}-mode`}
@@ -135,7 +158,8 @@ export function AvailabilityTab({ url, lookup }: AvailabilityTabProps) {
         </Button>
       </div>
       <p className="text-sm text-muted-foreground">
-        Mỗi khung {avail.data?.slotMinutes ?? 15} phút. Chỉ xem, không đặt lịch từ màn này.
+        Mỗi khung {avail.data?.slotMinutes ?? 15} phút. Chỉ xem, không đặt lịch
+        từ màn này.
       </p>
       <AvailabilityResult
         hasDoctor={Boolean(state.doctorId)}

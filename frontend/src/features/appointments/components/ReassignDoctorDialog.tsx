@@ -60,7 +60,11 @@ export function ReassignDoctorDialog<T extends ReassignTarget>(
     >
       <DialogContent className="sm:max-w-md">
         {appointment ? (
-          <ReassignBody {...props} key={appointment.id} appointment={appointment} />
+          <ReassignBody
+            {...props}
+            key={appointment.id}
+            appointment={appointment}
+          />
         ) : null}
       </DialogContent>
     </Dialog>
@@ -86,7 +90,11 @@ function ReassignBody<T extends ReassignTarget>({
   // Lịch không còn dùng được khi tải ứng viên: toast, đóng, tải lại.
   useEffect(() => {
     const error = eligible.error;
-    if (!error || handledError.current === error || !isStaleAppointmentError(error))
+    if (
+      !error ||
+      handledError.current === error ||
+      !isStaleAppointmentError(error)
+    )
       return;
     handledError.current = error;
     notifyError(error);
@@ -97,8 +105,10 @@ function ReassignBody<T extends ReassignTarget>({
     eligible.error && !isStaleAppointmentError(eligible.error)
       ? messageFromError(eligible.error)
       : null;
-  const noCandidates = !eligible.loading && !loadError && eligible.doctors?.length === 0;
-  const canNotify = noCandidates && appointment.allowedActions.includes("notifyNoReplacement");
+  const noCandidates =
+    !eligible.loading && !loadError && eligible.doctors?.length === 0;
+  const canNotify =
+    noCandidates && appointment.allowedActions.includes("notifyNoReplacement");
 
   async function submit() {
     setSubmitting(true);
@@ -111,7 +121,11 @@ function ReassignBody<T extends ReassignTarget>({
       if (isStaleAppointmentError(error)) {
         notifyError(error);
         onStale();
-      } else if (isApiError(error) && error.status === 409 && error.code === "MSG-24") {
+      } else if (
+        isApiError(error) &&
+        error.status === 409 &&
+        error.code === "MSG-24"
+      ) {
         // Bác sĩ vừa chọn không còn khả dụng: giữ Dialog, chọn lại từ danh sách mới.
         notifyError(error);
         setSelectedId("");
@@ -142,7 +156,9 @@ function ReassignBody<T extends ReassignTarget>({
           {
             label: "Giờ hẹn",
             value: (
-              <span className="tabular-nums">{formatDateTime(appointment.startAt)}</span>
+              <span className="tabular-nums">
+                {formatDateTime(appointment.startAt)}
+              </span>
             ),
           },
           {
@@ -167,7 +183,9 @@ function ReassignBody<T extends ReassignTarget>({
           Hủy
         </Button>
         {canNotify ? (
-          <Button onClick={() => onNotifyRequest(appointment)}>Báo cho bệnh nhân</Button>
+          <Button onClick={() => onNotifyRequest(appointment)}>
+            Báo cho bệnh nhân
+          </Button>
         ) : null}
         {!noCandidates && !loadError ? (
           <Button

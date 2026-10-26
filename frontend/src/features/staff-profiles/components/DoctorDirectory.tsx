@@ -15,7 +15,10 @@ export function DoctorDirectory({ doctors }: { doctors: PublicDoctor[] }) {
         <p className="mt-2 text-base leading-7 text-muted-foreground">
           Trong lúc chờ, bạn có thể xem dịch vụ và bảng giá của phòng khám.
         </p>
-        <Link className={publicButtonClass("secondary") + " mt-6"} href="/services">
+        <Link
+          className={publicButtonClass("secondary") + " mt-6"}
+          href="/services"
+        >
           Xem dịch vụ và bảng giá
         </Link>
       </div>

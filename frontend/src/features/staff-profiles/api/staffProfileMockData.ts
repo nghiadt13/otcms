@@ -23,11 +23,7 @@ const uid = (n: number) =>
   `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
 
 const slug = (text: string) =>
-  text
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .replace(/đ/g, "d")
-    .toLowerCase();
+  text.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/đ/g, "d").toLowerCase();
 
 function doctor(
   specialties: string[],
@@ -55,7 +51,11 @@ const DOCTORS: DoctorSeed[] = [
     displayName: "BS. Nguyễn Văn Trung",
     photoUrl: "/images/home/doctor-senior-orthopedic.jpg",
     status: "ACTIVE",
-    doctor: doctor(["Cột sống", "Chấn thương thể thao"], "Thạc sĩ Y khoa", true),
+    doctor: doctor(
+      ["Cột sống", "Chấn thương thể thao"],
+      "Thạc sĩ Y khoa",
+      true,
+    ),
   },
   {
     username: "bs.minh",
@@ -99,8 +99,21 @@ const DOCTORS: DoctorSeed[] = [
 ];
 
 const FIRST = [
-  "An", "Bình", "Chi", "Dung", "Giang", "Hạnh", "Khoa", "Lan",
-  "Mai", "Nam", "Phúc", "Quang", "Sơn", "Thảo", "Uyên",
+  "An",
+  "Bình",
+  "Chi",
+  "Dung",
+  "Giang",
+  "Hạnh",
+  "Khoa",
+  "Lan",
+  "Mai",
+  "Nam",
+  "Phúc",
+  "Quang",
+  "Sơn",
+  "Thảo",
+  "Uyên",
 ];
 const FAMILY = ["Nguyễn", "Trần", "Lê", "Phạm", "Hoàng"];
 const OTHER_ROLES: [StaffRole, string, string][] = [

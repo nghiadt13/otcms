@@ -51,11 +51,7 @@ export function NewPatientProfileScreen() {
               </p>
             </div>
             {suggestions.loading ? (
-              <div
-                aria-busy="true"
-                className="space-y-3"
-                role="status"
-              >
+              <div aria-busy="true" className="space-y-3" role="status">
                 <span className="sr-only">Đang tải hồ sơ gợi ý</span>
                 <Skeleton className="h-28 w-full" />
               </div>

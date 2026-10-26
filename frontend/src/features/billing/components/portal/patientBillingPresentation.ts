@@ -2,7 +2,10 @@ import type { StatusTone } from "@/components/admin/StatusBadge";
 import { isApiError } from "@/lib/api/apiError";
 import { toQueryString } from "@/lib/api/pagination";
 import { CARE_RELATIONSHIP_LABELS } from "@/lib/domain/careRelationship";
-import { SERVICE_ORDER_STATUS_LABELS, SERVICE_ORDER_STATUS_TONE } from "@/lib/domain/clinicVisit";
+import {
+  SERVICE_ORDER_STATUS_LABELS,
+  SERVICE_ORDER_STATUS_TONE,
+} from "@/lib/domain/clinicVisit";
 import { formatDate, formatTime } from "@/lib/format/formatDate";
 import { PATIENT_ROUTES } from "@/lib/routes/patientRoutes";
 import type {
@@ -19,7 +22,8 @@ import type {
 export const NO_REFUND_NOTICE =
   "Khoản đã thanh toán không được hoàn lại, kể cả khi hủy lịch, không đến hoặc bác sĩ hủy chỉ định.";
 
-export const COUNTER_PAYMENT_HINT = "Hoặc thanh toán tại quầy lễ tân bằng tiền mặt hoặc mã QR.";
+export const COUNTER_PAYMENT_HINT =
+  "Hoặc thanh toán tại quầy lễ tân bằng tiền mặt hoặc mã QR.";
 
 /** Câu cố định khi trừ tiền mà chưa có kết quả (UC55, luồng ngoại lệ E3). */
 export const RECONCILE_NOTICE =
@@ -38,7 +42,9 @@ export const PAYABLE_ITEM_STATUS_TONE: Record<PaymentItemStatus, StatusTone> = {
   CANCELLED: SERVICE_ORDER_STATUS_TONE.CANCELLED,
 };
 
-export function isPaymentSourceKind(value: string | undefined): value is PaymentSourceKind {
+export function isPaymentSourceKind(
+  value: string | undefined,
+): value is PaymentSourceKind {
   return value === "appointment" || value === "visit";
 }
 
@@ -60,12 +66,22 @@ export function payableSourceTitle(
 
 /** Trang chi tiết nguồn (`/portal/payments/{kind}/{id}`). */
 export function sourceDetailHref(kind: PaymentSourceKind, id: string): string {
-  return kind === "appointment" ? PATIENT_ROUTES.payAppointment(id) : PATIENT_ROUTES.payVisit(id);
+  return kind === "appointment"
+    ? PATIENT_ROUTES.payAppointment(id)
+    : PATIENT_ROUTES.payVisit(id);
 }
 
 /** Trang xác nhận với nguồn, id và danh sách khoản đã chọn (`?source=&id=&items=`). */
-export function paymentConfirmHref(kind: PaymentSourceKind, id: string, itemIds: string[]): string {
-  const params = new URLSearchParams({ source: kind, id, items: itemIds.join(",") });
+export function paymentConfirmHref(
+  kind: PaymentSourceKind,
+  id: string,
+  itemIds: string[],
+): string {
+  const params = new URLSearchParams({
+    source: kind,
+    id,
+    items: itemIds.join(","),
+  });
   return `${PATIENT_ROUTES.paymentConfirm}?${params.toString()}`;
 }
 
@@ -75,16 +91,27 @@ export function paymentResultHref(paymentId: string): string {
 
 /** Tách `items=a,b` thành danh sách không trùng, bỏ phần rỗng. */
 export function parseItemIds(value: string | undefined): string[] {
-  return [...new Set((value ?? "").split(",").map((part) => part.trim()).filter(Boolean))];
+  return [
+    ...new Set(
+      (value ?? "")
+        .split(",")
+        .map((part) => part.trim())
+        .filter(Boolean),
+    ),
+  ];
 }
 
 /** Tham số URL dạng chuỗi; mảng hoặc rỗng thì coi như không có. */
-export function readStringParam(value: string | string[] | undefined): string | undefined {
+export function readStringParam(
+  value: string | string[] | undefined,
+): string | undefined {
   return typeof value === "string" && value !== "" ? value : undefined;
 }
 
 /** Ngày `yyyy-MM-dd` từ URL; sai dạng thì bỏ qua (coi như không lọc theo ngày đó). */
-export function readDateParam(value: string | string[] | undefined): string | undefined {
+export function readDateParam(
+  value: string | string[] | undefined,
+): string | undefined {
   const text = readStringParam(value);
   return text && /^\d{4}-\d{2}-\d{2}$/.test(text) ? text : undefined;
 }
@@ -93,7 +120,10 @@ export function readDateParam(value: string | string[] | undefined): string | un
  * Các khoản được chọn để trả, theo đúng thứ tự URL. Chỉ hợp lệ khi có ít nhất một khoản và mọi
  * khoản đều thuộc nguồn này, đang chờ thanh toán. Thiếu một khoản thì `null`: không cho trả.
  */
-export function pickPayableItems(items: PaymentItem[], itemIds: string[]): PaymentItem[] | null {
+export function pickPayableItems(
+  items: PaymentItem[],
+  itemIds: string[],
+): PaymentItem[] | null {
   if (itemIds.length === 0) return null;
   const picked: PaymentItem[] = [];
   for (const itemId of itemIds) {
@@ -105,9 +135,14 @@ export function pickPayableItems(items: PaymentItem[], itemIds: string[]): Payme
 }
 
 /** Tổng tạm tính: chỉ cộng khoản đang chờ thanh toán đã chọn. */
-export function sumSelectedPending(items: PaymentItem[], selectedIds: ReadonlySet<string>): number {
+export function sumSelectedPending(
+  items: PaymentItem[],
+  selectedIds: ReadonlySet<string>,
+): number {
   return items
-    .filter((item) => item.status === "PENDING_PAYMENT" && selectedIds.has(item.id))
+    .filter(
+      (item) => item.status === "PENDING_PAYMENT" && selectedIds.has(item.id),
+    )
     .reduce((total, item) => total + item.amount, 0);
 }
 
@@ -116,7 +151,11 @@ export function paymentsHref(profileId?: string): string {
   return `${PATIENT_ROUTES.payments}${toQueryString({ profileId })}`;
 }
 
-export function historyHref(filter: { from?: string; to?: string; profileId?: string }): string {
+export function historyHref(filter: {
+  from?: string;
+  to?: string;
+  profileId?: string;
+}): string {
   return `${PATIENT_ROUTES.paymentHistory}${toQueryString(filter)}`;
 }
 
@@ -126,7 +165,8 @@ export function isMissingRecordError(error: unknown): boolean {
 }
 
 /** Khung danh sách: vạch chia trong một khung, cả dòng là link (ui-guidelines mục 9). */
-export const LIST_FRAME_CLASS = "divide-y overflow-hidden rounded-lg border bg-card";
+export const LIST_FRAME_CLASS =
+  "divide-y overflow-hidden rounded-lg border bg-card";
 
 /**
  * Một dòng của khung danh sách: vùng chạm cao hơn 44px, focus vẽ bên trong dòng để khung cắt

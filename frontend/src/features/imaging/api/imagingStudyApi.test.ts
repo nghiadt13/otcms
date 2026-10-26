@@ -31,7 +31,10 @@ describe("listPatientStudies", () => {
       modality: "XRAY",
       finding: "Hẹp khe khớp gối trong; gai xương nhỏ ở bờ diện chày.",
     });
-    expect(page.items[1]).toMatchObject({ visitStatus: "INCOMPLETE", finding: null });
+    expect(page.items[1]).toMatchObject({
+      visitStatus: "INCOMPLETE",
+      finding: null,
+    });
   });
 
   it("lọc theo một hồ sơ và phân trang", async () => {
@@ -86,7 +89,9 @@ describe("getPatientStudy", () => {
   });
 
   it("trả đúng mã lỗi: 403 MSG-40, 404 MSG-41", async () => {
-    const forbidden = await failure(getPatientStudy(IMAGING_FORBIDDEN_STUDY_ID));
+    const forbidden = await failure(
+      getPatientStudy(IMAGING_FORBIDDEN_STUDY_ID),
+    );
     expect([forbidden.status, forbidden.code]).toEqual([403, "MSG-40"]);
     const missing = await failure(getPatientStudy("std-khong-co"));
     expect([missing.status, missing.code]).toEqual([404, "MSG-41"]);

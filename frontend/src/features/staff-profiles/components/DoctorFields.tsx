@@ -14,7 +14,11 @@ import {
 } from "@/components/ui/command";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { DOCTOR_SPECIALTY_OPTIONS } from "../schema/doctorSpecialtyOptions";
@@ -141,7 +145,9 @@ export function DoctorFields({
           placeholder="Lịch tư vấn, lưu ý khi đến khám"
           value={value.consultationInfo}
           aria-invalid={errors["doctor.consultationInfo"] ? true : undefined}
-          onChange={(event) => onChange({ consultationInfo: event.target.value })}
+          onChange={(event) =>
+            onChange({ consultationInfo: event.target.value })
+          }
         />
         <FieldError message={textError("doctor.consultationInfo")} />
       </div>

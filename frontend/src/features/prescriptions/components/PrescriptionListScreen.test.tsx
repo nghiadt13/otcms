@@ -29,13 +29,17 @@ describe("PrescriptionListScreen", () => {
       await screen.findByRole("link", { name: /23\/10\/2026 · 3 thuốc/ }),
     ).toHaveAttribute("href", "/portal/prescriptions/pres-an-1");
     expect(
-      screen.getByRole("link", { name: /Nguyễn Thị Lan \(Cha\/Mẹ\) · BS\. Đỗ Minh Tuấn/ }),
+      screen.getByRole("link", {
+        name: /Nguyễn Thị Lan \(Cha\/Mẹ\) · BS\. Đỗ Minh Tuấn/,
+      }),
     ).toHaveAttribute("href", "/portal/prescriptions/pres-lan-1");
   });
 
   it("hồ sơ chưa có đơn hiện câu trống", async () => {
     nav.search = `profileId=${HUY_ID}`;
     render(<PrescriptionListScreen />);
-    expect(await screen.findByText(/Chưa có đơn thuốc nào\./)).toBeInTheDocument();
+    expect(
+      await screen.findByText(/Chưa có đơn thuốc nào\./),
+    ).toBeInTheDocument();
   });
 });

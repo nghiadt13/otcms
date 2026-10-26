@@ -37,7 +37,10 @@ export function usePagedList<T, F extends object, M = object>(
     setLoading(true);
     setError(null);
     fetcherRef
-      .current({ ...filters, page, size: pageSize } as F & PageQuery, controller.signal)
+      .current(
+        { ...filters, page, size: pageSize } as F & PageQuery,
+        controller.signal,
+      )
       .then((result) => {
         if (controller.signal.aborted) return;
         setData(result);

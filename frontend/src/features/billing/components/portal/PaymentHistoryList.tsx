@@ -3,7 +3,10 @@
 import { publicButtonClass } from "@/components/brand/publicButtonStyles";
 import { Skeleton } from "@/components/ui/skeleton";
 import { messageFromError } from "@/lib/messages/appMessages";
-import { type PaymentHistoryFilter, useMyPaymentHistory } from "../../hooks/useMyPaymentHistory";
+import {
+  type PaymentHistoryFilter,
+  useMyPaymentHistory,
+} from "../../hooks/useMyPaymentHistory";
 import { PaymentErrorBlock } from "./PaymentErrorBlock";
 import { PaymentRow } from "./PaymentRow";
 import { LIST_FRAME_CLASS } from "./patientBillingPresentation";
@@ -12,8 +15,13 @@ import { LIST_FRAME_CLASS } from "./patientBillingPresentation";
  * Danh sách thanh toán đã hoàn tất theo bộ lọc. Màn cha đặt `key` theo bộ lọc, nên đổi lọc là
  * tải lại từ trang đầu.
  */
-export function PaymentHistoryList({ filters }: { filters: PaymentHistoryFilter }) {
-  const { data, loading, error, page, setPage, reload } = useMyPaymentHistory(filters);
+export function PaymentHistoryList({
+  filters,
+}: {
+  filters: PaymentHistoryFilter;
+}) {
+  const { data, loading, error, page, setPage, reload } =
+    useMyPaymentHistory(filters);
   const items = data?.items ?? [];
   const totalPages = data?.totalPages ?? 1;
 
@@ -29,12 +37,15 @@ export function PaymentHistoryList({ filters }: { filters: PaymentHistoryFilter 
       </div>
     );
   }
-  if (error) return <PaymentErrorBlock message={messageFromError(error)} onRetry={reload} />;
+  if (error)
+    return (
+      <PaymentErrorBlock message={messageFromError(error)} onRetry={reload} />
+    );
   if (items.length === 0) {
     return (
       <p className="rounded-lg border bg-card px-4 py-6 text-base text-muted-foreground">
-        Chưa có thanh toán nào trong khoảng thời gian này. Chọn lại khoảng ngày hoặc để trống
-        để xem tất cả.
+        Chưa có thanh toán nào trong khoảng thời gian này. Chọn lại khoảng ngày
+        hoặc để trống để xem tất cả.
       </p>
     );
   }
@@ -46,7 +57,10 @@ export function PaymentHistoryList({ filters }: { filters: PaymentHistoryFilter 
         ))}
       </ul>
       {totalPages > 1 ? (
-        <nav aria-label="Phân trang lịch sử" className="flex items-center justify-between gap-3">
+        <nav
+          aria-label="Phân trang lịch sử"
+          className="flex items-center justify-between gap-3"
+        >
           <button
             className={publicButtonClass("secondary")}
             disabled={page === 0}

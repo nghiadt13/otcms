@@ -81,7 +81,8 @@ function CreateDialogBody({
     // Sửa ô nào thì bỏ lỗi của ô đó.
     setErrors((current) => {
       const next = { ...current };
-      for (const key of Object.keys(patch)) delete next[key as keyof typeof next];
+      for (const key of Object.keys(patch))
+        delete next[key as keyof typeof next];
       return next;
     });
   }
@@ -110,7 +111,8 @@ function CreateDialogBody({
       const mapped: AnnouncementDraftErrors = {};
       if (isApiError(err) && err.status === 400) {
         for (const field of Object.keys(toFieldErrorMap(err.fieldErrors))) {
-          if (isDraftField(field)) mapped[field] = ANNOUNCEMENT_FIELD_MESSAGES[field];
+          if (isDraftField(field))
+            mapped[field] = ANNOUNCEMENT_FIELD_MESSAGES[field];
         }
       }
       if (Object.keys(mapped).length > 0) setErrors(mapped);
@@ -124,7 +126,8 @@ function CreateDialogBody({
         <DialogHeader>
           <DialogTitle>Đã đăng thông báo</DialogTitle>
           <DialogDescription>
-            Gửi tới {audienceLabel(result.audience)} qua {channelsText(result.channels, " và ")}.
+            Gửi tới {audienceLabel(result.audience)} qua{" "}
+            {channelsText(result.channels, " và ")}.
           </DialogDescription>
         </DialogHeader>
         <DeliveryResult result={result} />
@@ -141,7 +144,8 @@ function CreateDialogBody({
       <DialogHeader>
         <DialogTitle>Đăng thông báo</DialogTitle>
         <DialogDescription>
-          Thông báo được gửi ngay tới nhóm người nhận đã chọn, không hoàn tác được.
+          Thông báo được gửi ngay tới nhóm người nhận đã chọn, không hoàn tác
+          được.
         </DialogDescription>
       </DialogHeader>
       <form onSubmit={handleSubmit} noValidate className="grid gap-4">

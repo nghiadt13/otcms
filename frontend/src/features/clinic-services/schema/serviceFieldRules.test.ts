@@ -13,7 +13,9 @@ const exam = (patch: Partial<ServiceFormDraft> = {}): ServiceFormDraft => ({
   ...patch,
 });
 
-const labRow = (over: Partial<ReturnType<typeof emptyIndicatorDraft>> = {}) => ({
+const labRow = (
+  over: Partial<ReturnType<typeof emptyIndicatorDraft>> = {},
+) => ({
   ...emptyIndicatorDraft(),
   name: "Hb",
   unit: "g/dL",
@@ -24,9 +26,15 @@ const labRow = (over: Partial<ReturnType<typeof emptyIndicatorDraft>> = {}) => (
 
 describe("validateServiceForm", () => {
   it("báo lỗi tên trống, chỉ có khoảng trắng và chưa chọn loại khi tạo", () => {
-    expect(validateServiceForm(exam({ name: "   " }), "create").name).toBe("MSG-66");
-    expect(validateServiceForm({ ...exam(), type: null }, "create").type).toBe("MSG-66");
-    expect(validateServiceForm({ ...exam(), type: null }, "edit").type).toBeUndefined();
+    expect(validateServiceForm(exam({ name: "   " }), "create").name).toBe(
+      "MSG-66",
+    );
+    expect(validateServiceForm({ ...exam(), type: null }, "create").type).toBe(
+      "MSG-66",
+    );
+    expect(
+      validateServiceForm({ ...exam(), type: null }, "edit").type,
+    ).toBeUndefined();
   });
 
   it.each(["", "-1", "1.5", "abc"])("giá %j không hợp lệ", (price) => {
@@ -40,13 +48,18 @@ describe("validateServiceForm", () => {
   it("chẩn đoán hình ảnh bắt buộc phương thức; loại khác bỏ qua", () => {
     const imaging = { ...exam(), type: "IMAGING" as const };
     expect(validateServiceForm(imaging, "create").modality).toBe("MSG-66");
-    expect(validateServiceForm({ ...imaging, modality: "CT" }, "create")).toEqual({});
+    expect(
+      validateServiceForm({ ...imaging, modality: "CT" }, "create"),
+    ).toEqual({});
     expect(validateServiceForm(exam(), "create").modality).toBeUndefined();
   });
 
   it("khung giờ khám tối thiểu 10 phút, để trống được", () => {
     const slot = (slotMinutes: string) =>
-      validateServiceForm(exam({ bookingDetails: { slotMinutes, patientNote: "" } }), "create");
+      validateServiceForm(
+        exam({ bookingDetails: { slotMinutes, patientNote: "" } }),
+        "create",
+      );
     expect(slot("9")["bookingDetails.slotMinutes"]).toBe("MSG-66");
     expect(slot("10")).toEqual({});
     expect(slot("")).toEqual({});
@@ -61,7 +74,11 @@ describe("validateServiceForm", () => {
     const lab = {
       ...exam(),
       type: "LABORATORY" as const,
-      indicators: [labRow(), labRow(), labRow({ refMale: { min: "18", max: "17" } })],
+      indicators: [
+        labRow(),
+        labRow(),
+        labRow({ refMale: { min: "18", max: "17" } }),
+      ],
     };
     expect(validateServiceForm(lab, "create")).toEqual({
       "indicators[2].refMale.max": "MSG-66",
@@ -75,7 +92,10 @@ describe("validateServiceForm", () => {
       indicators: [labRow({ refMale: { min: "0,5", max: "0.5" } })],
     };
     expect(validateServiceForm(ok, "create")).toEqual({});
-    const bad = { ...ok, indicators: [labRow({ refFemale: { min: "abc", max: "15" } })] };
+    const bad = {
+      ...ok,
+      indicators: [labRow({ refFemale: { min: "abc", max: "15" } })],
+    };
     expect(validateServiceForm(bad, "create")).toEqual({
       "indicators[0].refFemale.min": "MSG-66",
     });

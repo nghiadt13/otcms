@@ -20,7 +20,10 @@ export function AppMessageText({
   tone: keyof typeof TONE_CLASS;
 }) {
   return (
-    <p role="status" className={`${bookingSize(variant).body} ${TONE_CLASS[tone]}`}>
+    <p
+      role="status"
+      className={`${bookingSize(variant).body} ${TONE_CLASS[tone]}`}
+    >
       {formatAppMessage(code)}
     </p>
   );

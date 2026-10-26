@@ -1,5 +1,8 @@
 import type { PaymentMethod, PaymentStatus } from "@/lib/domain/clinicVisit";
-import type { PaymentItemStatus, PaymentSourceKind } from "../types/patientBilling";
+import type {
+  PaymentItemStatus,
+  PaymentSourceKind,
+} from "../types/patientBilling";
 import {
   SEED_HISTORY,
   SEED_PATIENTS,
@@ -88,7 +91,13 @@ function toStoredSource(seed: SeedSource): StoredSource {
 }
 
 /** Thanh toán đã hoàn tất trong seed: không có nguồn trực tiếp, không có số thứ tự. */
-function toHistoryPayment([id, paidAt, patientKey, method, lines]: SeedHistoryRow): StoredPayment {
+function toHistoryPayment([
+  id,
+  paidAt,
+  patientKey,
+  method,
+  lines,
+]: SeedHistoryRow): StoredPayment {
   return {
     id,
     sourceKind: "visit",
@@ -99,7 +108,10 @@ function toHistoryPayment([id, paidAt, patientKey, method, lines]: SeedHistoryRo
     method,
     status: "SUCCESS",
     paidAt,
-    vnpayRef: method === "VNPAY" ? `VNP-${id}-${paidAt.slice(0, 10).replace(/-/g, "")}` : null,
+    vnpayRef:
+      method === "VNPAY"
+        ? `VNP-${id}-${paidAt.slice(0, 10).replace(/-/g, "")}`
+        : null,
     receiptNo: `PT-${id.slice(3)}`,
     items: lines.map(([label, amount]) => ({ label, amount })),
     queueAssignments: [],

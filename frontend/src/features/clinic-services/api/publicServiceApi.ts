@@ -1,7 +1,10 @@
 import { clone, mockDelay, mockFail } from "@/lib/api/mockServer";
 import type { PublicService, PublicServiceQuery } from "../types/clinicService";
 import { SERVICE_SEARCH_MAX_LENGTH } from "../schema/serviceListQuery";
-import { PUBLIC_SERVICE_SEED, type PublicServiceRecord } from "./publicServiceMockData";
+import {
+  PUBLIC_SERVICE_SEED,
+  type PublicServiceRecord,
+} from "./publicServiceMockData";
 
 // LỚP API GIẢ cho /api/v1/public/services (không cần đăng nhập). Chữ ký khớp REST contract;
 // khi có BE thật, giữ các hàm này và thay thân bằng lời gọi HTTP công khai. Chỉ dịch vụ
@@ -33,7 +36,9 @@ export async function listPublicServices(
   if ((query.q?.length ?? 0) > SERVICE_SEARCH_MAX_LENGTH)
     mockFail(400, "MSG-54", undefined, [{ field: "q", code: "MSG-54" }]);
   const needle = fold(query.q?.trim() ?? "");
-  const items = PUBLIC_SERVICE_SEED.filter((service) => service.status === "ACTIVE")
+  const items = PUBLIC_SERVICE_SEED.filter(
+    (service) => service.status === "ACTIVE",
+  )
     .filter((service) => !query.type || service.type === query.type)
     .filter((service) => !needle || fold(service.name).includes(needle))
     .map(toPublicService);
@@ -54,7 +59,9 @@ export async function getPublicService(
 }
 
 /** Dịch vụ nổi bật trên trang chủ: `limit` mục đầu của danh mục công khai. */
-export async function listFeaturedServices(limit = 6): Promise<PublicService[]> {
+export async function listFeaturedServices(
+  limit = 6,
+): Promise<PublicService[]> {
   const { items } = await listPublicServices();
   return items.slice(0, limit);
 }

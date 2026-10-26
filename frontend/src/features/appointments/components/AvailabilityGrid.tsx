@@ -15,12 +15,17 @@ import type { DoctorAvailability } from "../types/appointment";
 export function AvailabilityGrid({ data }: { data: DoctorAvailability }) {
   const times = [
     ...new Set(
-      data.days.flatMap((day) => day.slots.map((slot) => slot.startAt.slice(11, 16))),
+      data.days.flatMap((day) =>
+        day.slots.map((slot) => slot.startAt.slice(11, 16)),
+      ),
     ),
   ].sort();
   const lookup = new Map(
     data.days.flatMap((day) =>
-      day.slots.map((slot) => [`${day.date}|${slot.startAt.slice(11, 16)}`, slot.status] as const),
+      day.slots.map(
+        (slot) =>
+          [`${day.date}|${slot.startAt.slice(11, 16)}`, slot.status] as const,
+      ),
     ),
   );
 

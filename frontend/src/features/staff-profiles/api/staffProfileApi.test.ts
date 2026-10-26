@@ -20,7 +20,11 @@ async function findId(username: string) {
   return item.id;
 }
 
-async function expectApiError(promise: Promise<unknown>, status: number, code: string) {
+async function expectApiError(
+  promise: Promise<unknown>,
+  status: number,
+  code: string,
+) {
   const error = await promise.then(
     () => null,
     (e: unknown) => e,
@@ -52,16 +56,25 @@ describe("listStaffProfiles", () => {
   });
 
   it("lọc theo vai trò và trạng thái hồ sơ", async () => {
-    const doctors = await listStaffProfiles({ ...ALL, role: "ORTHOPEDIC_DOCTOR" });
+    const doctors = await listStaffProfiles({
+      ...ALL,
+      role: "ORTHOPEDIC_DOCTOR",
+    });
     expect(doctors.totalItems).toBe(6);
     const removed = await listStaffProfiles({ ...ALL, status: "REMOVED" });
     expect(removed.items.every((p) => p.status === "REMOVED")).toBe(true);
-    expect(removed.items.every((p) => p.allowedActions.length === 0)).toBe(true);
+    expect(removed.items.every((p) => p.allowedActions.length === 0)).toBe(
+      true,
+    );
   });
 
   it("bộ lọc công khai chỉ khớp bác sĩ; nhân viên khác có isPublic null", async () => {
     const yes = await listStaffProfiles({ ...ALL, isPublic: "true" });
-    expect(yes.items.map((p) => p.username).sort()).toEqual(["bs.ha", "bs.minh", "bs.trung"]);
+    expect(yes.items.map((p) => p.username).sort()).toEqual([
+      "bs.ha",
+      "bs.minh",
+      "bs.trung",
+    ]);
     const no = await listStaffProfiles({ ...ALL, isPublic: "false" });
     expect(no.items.every((p) => p.role === "ORTHOPEDIC_DOCTOR")).toBe(true);
     const receptionist = await listStaffProfiles({ ...ALL, q: "le.tan.hoa" });
@@ -100,9 +113,15 @@ describe("createStaffProfile", () => {
   });
 
   it("thiếu họ tên hoặc liên hệ trả 400 MSG-22 kèm fieldErrors MSG-12", async () => {
-    const account = (await listEligibleStaffAccounts()).find((a) => a.username === "le.tan.lan")!;
+    const account = (await listEligibleStaffAccounts()).find(
+      (a) => a.username === "le.tan.lan",
+    )!;
     const error = await expectApiError(
-      createStaffProfile({ accountId: account.accountId, displayName: " ", workContact: "" }),
+      createStaffProfile({
+        accountId: account.accountId,
+        displayName: " ",
+        workContact: "",
+      }),
       400,
       "MSG-22",
     );
@@ -113,21 +132,35 @@ describe("createStaffProfile", () => {
   });
 
   it("tài khoản kt.loi gặp lỗi dịch vụ MSG-04", async () => {
-    const account = (await listEligibleStaffAccounts()).find((a) => a.username === "kt.loi")!;
+    const account = (await listEligibleStaffAccounts()).find(
+      (a) => a.username === "kt.loi",
+    )!;
     await expectApiError(
-      createStaffProfile({ accountId: account.accountId, displayName: "Đặng Văn Lợi", workContact: "0977 111 222" }),
+      createStaffProfile({
+        accountId: account.accountId,
+        displayName: "Đặng Văn Lợi",
+        workContact: "0977 111 222",
+      }),
       500,
       "MSG-04",
     );
   });
 
   it("bác sĩ tạo với công khai tắt không lên danh sách trang chủ", async () => {
-    const account = (await listEligibleStaffAccounts()).find((a) => a.username === "bs.hung")!;
+    const account = (await listEligibleStaffAccounts()).find(
+      (a) => a.username === "bs.hung",
+    )!;
     const created = await createStaffProfile({
       accountId: account.accountId,
       displayName: "BS. Bùi Quốc Hùng",
       workContact: "hung@example.com",
-      doctor: { specialties: ["Cột sống"], qualifications: "", biography: "", consultationInfo: "", isPublic: false },
+      doctor: {
+        specialties: ["Cột sống"],
+        qualifications: "",
+        biography: "",
+        consultationInfo: "",
+        isPublic: false,
+      },
     });
     expect(created.doctor?.isPublic).toBe(false);
     expect(created.publicUrl).toBeNull();
@@ -142,13 +175,18 @@ describe("updateStaffProfile", () => {
       400,
       "MSG-22",
     );
-    expect(error.fieldErrors).toEqual([{ field: "displayName", code: "MSG-12" }]);
+    expect(error.fieldErrors).toEqual([
+      { field: "displayName", code: "MSG-12" },
+    ]);
   });
 
   it("hồ sơ kt.loi.xn gặp lỗi dịch vụ MSG-04", async () => {
     const id = await findId("kt.loi.xn");
     await expectApiError(
-      updateStaffProfile(id, { displayName: "KTV XN Đặng Lợi", workContact: "0977 000 111" }),
+      updateStaffProfile(id, {
+        displayName: "KTV XN Đặng Lợi",
+        workContact: "0977 000 111",
+      }),
       500,
       "MSG-04",
     );

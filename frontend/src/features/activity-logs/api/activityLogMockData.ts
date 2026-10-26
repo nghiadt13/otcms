@@ -111,7 +111,9 @@ export function buildActivityLogSeed(now = Date.now()): ActivityLogDetail[] {
       recordType,
       recordLabel: labels[(i + Math.floor(i / ACTIONS.length)) % labels.length],
       correctionReason:
-        action === "CORRECT_APPROVED_RESULT" ? REASONS[i % REASONS.length] : null,
+        action === "CORRECT_APPROVED_RESULT"
+          ? REASONS[i % REASONS.length]
+          : null,
       allowedActions: ["view"],
       recordCode: `${recordType.slice(0, 3)}-${String(1000 + i * 7).padStart(6, "0")}`,
       systemNote:

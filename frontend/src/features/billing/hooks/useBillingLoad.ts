@@ -23,7 +23,11 @@ export function useBillingLoad<T>(
   load: (signal: AbortSignal) => Promise<T>,
   key: string,
 ): BillingLoadState<T> {
-  const [state, setState] = useState<{ data: T | null; loading: boolean; error: Error | null }>({
+  const [state, setState] = useState<{
+    data: T | null;
+    loading: boolean;
+    error: Error | null;
+  }>({
     data: null,
     loading: true,
     error: null,

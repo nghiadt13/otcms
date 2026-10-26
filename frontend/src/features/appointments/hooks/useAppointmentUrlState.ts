@@ -24,7 +24,10 @@ export function useAppointmentUrlState() {
   );
 
   const update = useCallback(
-    (patch: Partial<AppointmentUrlState>, mode: "push" | "replace" = "replace") => {
+    (
+      patch: Partial<AppointmentUrlState>,
+      mode: "push" | "replace" = "replace",
+    ) => {
       const next = { ...state, ...patch };
       const url = `${pathname}${buildAppointmentQuery(next)}`;
       if (mode === "push") router.push(url);

@@ -70,7 +70,11 @@ export function MedicalHistoryEditor({
     setFieldErrors((current) => ({ ...current, [field]: undefined }));
     setPendingField(field);
     try {
-      await onSave({ ...textsOf(history), [field]: text, version: history.version });
+      await onSave({
+        ...textsOf(history),
+        [field]: text,
+        version: history.version,
+      });
       notifySuccess("MSG-90");
     } catch (error) {
       if (isStaleHistoryError(error)) {

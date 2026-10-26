@@ -100,12 +100,49 @@ interface DirectoryPatient {
  * quy về một mã: xem `resolveBookingPatient`.
  */
 const RECEPTION_DIRECTORY: readonly DirectoryPatient[] = [
-  { id: "pat-an", patientCode: "BN-000123", fullName: "Nguyễn Văn An", dateOfBirth: "1992-07-21", phone: "0912345678" },
-  { id: "pat-binh", patientCode: "BN-000124", fullName: "Trần Thị Bình", dateOfBirth: "1985-09-02", phone: "0987123456" },
-  { id: "pat-cuong", patientCode: "BN-000125", fullName: "Lê Văn Cường", dateOfBirth: "1971-11-20", phone: "0977555123" },
-  { id: "pat-em", patientCode: "BN-000127", fullName: "Bùi Thị Em", dateOfBirth: "2001-12-30", phone: "0966112233" },
-  { id: "pat-lan", patientCode: "BN-000456", fullName: "Nguyễn Thị Lan", dateOfBirth: "1936-03-14", phone: "0934567891" },
-  { id: LOCKED_PATIENT_ID, patientCode: "BN-000199", fullName: "Hồ Thị Khóa", dateOfBirth: "1990-01-01", phone: null, locked: true },
+  {
+    id: "pat-an",
+    patientCode: "BN-000123",
+    fullName: "Nguyễn Văn An",
+    dateOfBirth: "1992-07-21",
+    phone: "0912345678",
+  },
+  {
+    id: "pat-binh",
+    patientCode: "BN-000124",
+    fullName: "Trần Thị Bình",
+    dateOfBirth: "1985-09-02",
+    phone: "0987123456",
+  },
+  {
+    id: "pat-cuong",
+    patientCode: "BN-000125",
+    fullName: "Lê Văn Cường",
+    dateOfBirth: "1971-11-20",
+    phone: "0977555123",
+  },
+  {
+    id: "pat-em",
+    patientCode: "BN-000127",
+    fullName: "Bùi Thị Em",
+    dateOfBirth: "2001-12-30",
+    phone: "0966112233",
+  },
+  {
+    id: "pat-lan",
+    patientCode: "BN-000456",
+    fullName: "Nguyễn Thị Lan",
+    dateOfBirth: "1936-03-14",
+    phone: "0934567891",
+  },
+  {
+    id: LOCKED_PATIENT_ID,
+    patientCode: "BN-000199",
+    fullName: "Hồ Thị Khóa",
+    dateOfBirth: "1990-01-01",
+    phone: null,
+    locked: true,
+  },
 ];
 
 /** Người được đặt, đã quy về mã canonical (mã hồ sơ gắn tài khoản nếu người đó đã gắn). */
@@ -124,8 +161,9 @@ function fromLinked(
   holder: LinkedProfile | undefined,
 ): ResolvedBookingPatient {
   const phone =
-    RECEPTION_DIRECTORY.find((entry) => entry.patientCode === profile.patientCode)
-      ?.phone ?? null;
+    RECEPTION_DIRECTORY.find(
+      (entry) => entry.patientCode === profile.patientCode,
+    )?.phone ?? null;
   const bookedFor: BookedFor =
     profile.relationship === "SELF" || !holder
       ? { kind: "SELF" }
@@ -155,7 +193,9 @@ export function resolveBookingPatient(
 
   const entry = RECEPTION_DIRECTORY.find((item) => item.id === patientId);
   if (!entry) return null;
-  const sameLinked = linked.find((profile) => profile.patientCode === entry.patientCode);
+  const sameLinked = linked.find(
+    (profile) => profile.patientCode === entry.patientCode,
+  );
   if (sameLinked) return fromLinked(sameLinked, holder);
 
   return {

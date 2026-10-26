@@ -61,7 +61,9 @@ describe("validateProfileFields", () => {
 
   it("tên có số bị từ chối, tên có dấu tiếng Việt được chấp nhận", () => {
     expect(
-      validateProfileFields({ ...VALID, fullName: "Nguyễn Văn 2" }, ["fullName"]),
+      validateProfileFields({ ...VALID, fullName: "Nguyễn Văn 2" }, [
+        "fullName",
+      ]),
     ).toEqual({ fullName: "Họ và tên gồm ít nhất hai chữ, không có số." });
     expect(
       validateProfileFields({ ...VALID, fullName: "Đặng Thị Ỷ" }, ["fullName"]),
@@ -73,15 +75,17 @@ describe("validateProfileFields", () => {
       validateProfileFields({ ...VALID, address: "   " }, ["address"]),
     ).toEqual({ address: "Nhập địa chỉ." });
     expect(
-      validateProfileFields({ ...VALID, address: "a".repeat(256) }, ["address"]),
+      validateProfileFields({ ...VALID, address: "a".repeat(256) }, [
+        "address",
+      ]),
     ).toEqual({ address: "Địa chỉ tối đa 255 ký tự." });
   });
 
   it("số điện thoại bỏ khoảng trắng, phải bắt đầu bằng 0 và đủ 10 số", () => {
     expect(normalizePhone("0912 345.678")).toBe("0912345678");
-    expect(validateProfileFields({ ...VALID, phone: "0912 345 678" }, ["phone"])).toEqual(
-      {},
-    );
+    expect(
+      validateProfileFields({ ...VALID, phone: "0912 345 678" }, ["phone"]),
+    ).toEqual({});
     expect(validateProfileFields({ ...VALID, phone: "" }, ["phone"])).toEqual({
       phone: "Nhập số điện thoại.",
     });
@@ -89,10 +93,10 @@ describe("validateProfileFields", () => {
 
   it("số định danh và email tùy chọn: rỗng thì hợp lệ, sai dạng thì báo", () => {
     expect(
-      validateProfileFields({ ...VALID, citizenId: "079098001234", email: "" }, [
-        "citizenId",
-        "email",
-      ]),
+      validateProfileFields(
+        { ...VALID, citizenId: "079098001234", email: "" },
+        ["citizenId", "email"],
+      ),
     ).toEqual({});
     expect(
       validateProfileFields({ ...VALID, email: "an@example.com" }, ["email"]),
@@ -129,9 +133,9 @@ describe("createRequestFromValues", () => {
   });
 
   it("từ chối gửi khi chưa chọn quan hệ hoặc giới tính", () => {
-    expect(() => createRequestFromValues({ ...VALID, relationship: "" })).toThrow(
-      "Thiếu quan hệ hoặc giới tính",
-    );
+    expect(() =>
+      createRequestFromValues({ ...VALID, relationship: "" }),
+    ).toThrow("Thiếu quan hệ hoặc giới tính");
     expect(() => createRequestFromValues({ ...VALID, sex: "" })).toThrow(
       "Thiếu quan hệ hoặc giới tính",
     );

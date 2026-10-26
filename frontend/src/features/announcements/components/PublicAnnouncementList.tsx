@@ -35,7 +35,9 @@ export function PublicAnnouncementList({
               href={`/announcements/${encodeURIComponent(item.id)}`}
             >
               <div className="min-w-0 flex-1">
-                <h2 className="text-xl font-semibold text-balance">{item.title}</h2>
+                <h2 className="text-xl font-semibold text-balance">
+                  {item.title}
+                </h2>
                 <p className="mt-1 text-base text-muted-foreground">
                   <time dateTime={item.publishedAt}>
                     Đăng ngày {formatDate(item.publishedAt)}
@@ -51,7 +53,10 @@ export function PublicAnnouncementList({
         ))}
       </ul>
       {nextPageHref ? (
-        <Link className={publicButtonClass("secondary") + " mt-8"} href={nextPageHref}>
+        <Link
+          className={publicButtonClass("secondary") + " mt-8"}
+          href={nextPageHref}
+        >
           Xem thêm thông báo
         </Link>
       ) : null}

@@ -19,4 +19,7 @@ export type ReviewSummary = {
   count: number;
 };
 
-export type PublicReviewPage = PageResponse<PublicReview, { summary: ReviewSummary }>;
+export type PublicReviewPage = PageResponse<
+  PublicReview,
+  { summary: ReviewSummary }
+>;

@@ -1,5 +1,8 @@
 import type { CareRelationship } from "@/lib/domain/careRelationship";
-import type { AppointmentStatus, ExamFeeStatus } from "@/lib/domain/clinicVisit";
+import type {
+  AppointmentStatus,
+  ExamFeeStatus,
+} from "@/lib/domain/clinicVisit";
 
 // Kho giả dùng chung: phí khám của từng lịch hẹn. Cho khu thanh toán thấy lịch của kho đặt lịch
 // (feature `appointments`) mà không import feature đó. Chỉ cho lớp API giả, xóa khi nối BE; không

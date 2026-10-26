@@ -77,7 +77,9 @@ export function RecentNotificationsList({
                   item.read ? "font-normal" : "font-medium",
                 )}
               >
-                {!item.read ? <span className="sr-only">Chưa đọc: </span> : null}
+                {!item.read ? (
+                  <span className="sr-only">Chưa đọc: </span>
+                ) : null}
                 {item.title}
               </span>
               <time

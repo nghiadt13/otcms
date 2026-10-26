@@ -39,14 +39,18 @@ describe("listPublicDoctors", () => {
 
 describe("getPublicDoctor", () => {
   it("bác sĩ tắt hiển thị hoặc đã gỡ trả 404 MSG-24", async () => {
-    await expect(getPublicDoctor(byUsername("bs.yen").id)).rejects.toMatchObject({
+    await expect(
+      getPublicDoctor(byUsername("bs.yen").id),
+    ).rejects.toMatchObject({
       status: 404,
       code: "MSG-24",
     });
-    await expect(getPublicDoctor(byUsername("bs.an").id)).rejects.toMatchObject({
-      status: 404,
-      code: "MSG-24",
-    });
+    await expect(getPublicDoctor(byUsername("bs.an").id)).rejects.toMatchObject(
+      {
+        status: 404,
+        code: "MSG-24",
+      },
+    );
   });
 
   it("trả 7 ngày giờ nhận khám liên tiếp, đúng ngày hết giờ đã cấu hình", async () => {
@@ -72,8 +76,12 @@ describe("kho hồ sơ dùng chung với Admin", () => {
       workContact: yen.workContact,
       doctor: { ...yen.doctor!, isPublic: true },
     });
-    expect((await listPublicDoctors()).items.map((d) => d.id)).toContain(yen.id);
-    await expect(getPublicDoctor(yen.id)).resolves.toMatchObject({ id: yen.id });
+    expect((await listPublicDoctors()).items.map((d) => d.id)).toContain(
+      yen.id,
+    );
+    await expect(getPublicDoctor(yen.id)).resolves.toMatchObject({
+      id: yen.id,
+    });
 
     await removeStaffProfile(byUsername("bs.minh").id);
     expect((await listPublicDoctors()).items.map((d) => d.id)).not.toContain(

@@ -36,7 +36,10 @@ export function MyPaymentHistory({
   const [submitted, setSubmitted] = useState(false);
 
   const urlRangeValid = isBillingDateRangeValid(from, to);
-  const draftRangeValid = isBillingDateRangeValid(draft.from || undefined, draft.to || undefined);
+  const draftRangeValid = isBillingDateRangeValid(
+    draft.from || undefined,
+    draft.to || undefined,
+  );
   const showRangeError = !urlRangeValid || (submitted && !draftRangeValid);
 
   function applyFilter(event: FormEvent<HTMLFormElement>) {
@@ -55,7 +58,9 @@ export function MyPaymentHistory({
       />
 
       <ProfileScopeSelect
-        onChange={(next) => router.replace(historyHref({ from, to, profileId: next }))}
+        onChange={(next) =>
+          router.replace(historyHref({ from, to, profileId: next }))
+        }
         profiles={profiles.profiles}
         value={profileId}
       />
@@ -65,7 +70,10 @@ export function MyPaymentHistory({
         onSubmit={applyFilter}
       >
         <div className="grid gap-2">
-          <Label className="text-base font-medium" htmlFor="payment-history-from">
+          <Label
+            className="text-base font-medium"
+            htmlFor="payment-history-from"
+          >
             Từ ngày
           </Label>
           <Input
@@ -73,7 +81,9 @@ export function MyPaymentHistory({
             aria-invalid={showRangeError || undefined}
             className="h-12 md:text-base"
             id="payment-history-from"
-            onChange={(event) => setDraft((current) => ({ ...current, from: event.target.value }))}
+            onChange={(event) =>
+              setDraft((current) => ({ ...current, from: event.target.value }))
+            }
             type="date"
             value={draft.from}
           />
@@ -87,7 +97,9 @@ export function MyPaymentHistory({
             aria-invalid={showRangeError || undefined}
             className="h-12 md:text-base"
             id="payment-history-to"
-            onChange={(event) => setDraft((current) => ({ ...current, to: event.target.value }))}
+            onChange={(event) =>
+              setDraft((current) => ({ ...current, to: event.target.value }))
+            }
             type="date"
             value={draft.to}
           />
@@ -97,7 +109,11 @@ export function MyPaymentHistory({
         </button>
       </form>
       {showRangeError ? (
-        <p className="text-sm text-destructive" id={RANGE_ERROR_ID} role="alert">
+        <p
+          className="text-sm text-destructive"
+          id={RANGE_ERROR_ID}
+          role="alert"
+        >
           {formatAppMessage("MSG-54")}
         </p>
       ) : null}
@@ -105,7 +121,11 @@ export function MyPaymentHistory({
       {urlRangeValid ? (
         <PaymentHistoryList
           // Đổi bộ lọc trên URL thì dựng lại danh sách để tải từ trang đầu.
-          filters={{ from: from ?? "", to: to ?? "", patientId: profileId ?? "" }}
+          filters={{
+            from: from ?? "",
+            to: to ?? "",
+            patientId: profileId ?? "",
+          }}
           key={`${from ?? ""}|${to ?? ""}|${profileId ?? ""}`}
         />
       ) : null}

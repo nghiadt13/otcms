@@ -38,7 +38,8 @@ const EMPTY_NO_FILTER = (
       Hiện không có khoản nào chờ thanh toán.
     </span>
     <span className="mt-1 block">
-      Khoản mới sẽ hiện ở đây khi có phí khám hoặc chỉ định chưa thanh toán. Thu tiền do Lễ tân thực hiện.
+      Khoản mới sẽ hiện ở đây khi có phí khám hoặc chỉ định chưa thanh toán. Thu
+      tiền do Lễ tân thực hiện.
     </span>
   </>
 );
@@ -92,7 +93,9 @@ export function UnpaidItemsTable({
             ? items.map((item) => (
                 <TableRow key={item.id}>
                   <TableCell className="whitespace-normal">
-                    <span className="block break-words">{item.patient.fullName}</span>
+                    <span className="block break-words">
+                      {item.patient.fullName}
+                    </span>
                     {item.patient.phone ? (
                       <span className="block text-xs text-muted-foreground tabular-nums">
                         {item.patient.phone}
@@ -107,7 +110,9 @@ export function UnpaidItemsTable({
                       {UNPAID_ITEM_REFERENCE_LABELS[item.reference.type]}
                     </span>
                   </TableCell>
-                  <TableCell className="whitespace-normal">{item.itemName}</TableCell>
+                  <TableCell className="whitespace-normal">
+                    {item.itemName}
+                  </TableCell>
                   <TableCell className="text-right tabular-nums">
                     {formatCurrencyVnd(item.priceVnd)}
                   </TableCell>

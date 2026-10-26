@@ -25,9 +25,16 @@ export function PatientStudyDetailScreen({ studyId }: { studyId: string }) {
 
   if (error)
     return (
-      <div role="alert" className="space-y-4 rounded-lg border bg-card px-6 py-8 text-center">
+      <div
+        role="alert"
+        className="space-y-4 rounded-lg border bg-card px-6 py-8 text-center"
+      >
         <p className="text-base text-destructive">{messageFromError(error)}</p>
-        <Button variant="outline" className="h-12 px-5 text-base" onClick={reload}>
+        <Button
+          variant="outline"
+          className="h-12 px-5 text-base"
+          onClick={reload}
+        >
           Thử lại
         </Button>
       </div>

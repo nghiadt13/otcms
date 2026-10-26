@@ -1,4 +1,7 @@
-import type { AppointmentStatus, ExamFeeStatus } from "@/lib/domain/clinicVisit";
+import type {
+  AppointmentStatus,
+  ExamFeeStatus,
+} from "@/lib/domain/clinicVisit";
 import { mockDelay, mockFail, paginate } from "@/lib/api/mockServer";
 import type { PageQuery, PageResponse } from "@/lib/api/pagination";
 import {
@@ -50,13 +53,18 @@ function allowedActionsOf(
   feeStatus: ExamFeeStatus,
 ): PatientAppointmentAction[] {
   if (status !== "BOOKED") return [];
-  return feeStatus === "PENDING_PAYMENT" ? ["cancel", "payExamFee"] : ["cancel"];
+  return feeStatus === "PENDING_PAYMENT"
+    ? ["cancel", "payExamFee"]
+    : ["cancel"];
 }
 
 type Projection = Omit<PatientAppointment, "patient" | "allowedActions">;
 
 /** Gắn người khám (tên, quan hệ) từ hồ sơ đã gắn và tính `allowedActions`. */
-function withPatient(projection: Projection, profile: LinkedProfile): PatientAppointment {
+function withPatient(
+  projection: Projection,
+  profile: LinkedProfile,
+): PatientAppointment {
   return {
     ...projection,
     patient: {
@@ -64,12 +72,18 @@ function withPatient(projection: Projection, profile: LinkedProfile): PatientApp
       fullName: profile.fullName,
       relationship: profile.relationship,
     },
-    allowedActions: allowedActionsOf(projection.status, projection.examFee.status),
+    allowedActions: allowedActionsOf(
+      projection.status,
+      projection.examFee.status,
+    ),
   };
 }
 
 /** Lịch từ kho dùng chung (bỏ SĐT, mã BN, người đặt). Chưa có check-in trong kho chung. */
-function sharedView(record: StoredAppointment, profile: LinkedProfile): PatientAppointment {
+function sharedView(
+  record: StoredAppointment,
+  profile: LinkedProfile,
+): PatientAppointment {
   return withPatient(
     {
       id: record.id,
@@ -91,7 +105,10 @@ function sharedView(record: StoredAppointment, profile: LinkedProfile): PatientA
  * Lịch riêng khu bệnh nhân: giá theo dịch vụ hiện hành, trạng thái có thể đã đổi trong phiên. Trạng
  * thái phí lấy từ kho phí dùng chung (thanh toán đổi ở đó).
  */
-function ownView(seed: PatientOwnSeed, profile: LinkedProfile): PatientAppointment[] {
+function ownView(
+  seed: PatientOwnSeed,
+  profile: LinkedProfile,
+): PatientAppointment[] {
   const service = BOOKABLE_SERVICES.find((item) => item.id === seed.serviceId);
   const doctor = doctorById(seed.doctorId);
   if (!service || !doctor) return [];
@@ -108,7 +125,8 @@ function ownView(seed: PatientOwnSeed, profile: LinkedProfile): PatientAppointme
         status: cancelledOwnIds.has(seed.id) ? "CANCELLED" : seed.status,
         examFee: {
           amount: service.price,
-          status: findMockAppointmentFee(seed.id)?.examFeeStatus ?? seed.feeStatus,
+          status:
+            findMockAppointmentFee(seed.id)?.examFeeStatus ?? seed.feeStatus,
         },
         doctorUnavailable: seed.doctorUnavailable,
       },
@@ -118,14 +136,18 @@ function ownView(seed: PatientOwnSeed, profile: LinkedProfile): PatientAppointme
 }
 
 /** Mọi lịch của hồ sơ đang gắn, chưa lọc. Bỏ gắn một hồ sơ thì lịch của hồ sơ đó biến mất. */
-function myAppointments(linked: readonly LinkedProfile[]): PatientAppointment[] {
+function myAppointments(
+  linked: readonly LinkedProfile[],
+): PatientAppointment[] {
   const byId = new Map(linked.map((profile) => [profile.id, profile]));
   const shared = readStoredAppointments().flatMap((record) => {
     const profile = byId.get(record.patient.id);
     return profile ? [sharedView(record, profile)] : [];
   });
   const own = patientOwnSeeds(bookingMockNow()).flatMap((seed) => {
-    const profile = linked.find((item) => item.patientCode === seed.patientCode);
+    const profile = linked.find(
+      (item) => item.patientCode === seed.patientCode,
+    );
     return profile ? ownView(seed, profile) : [];
   });
   return [...shared, ...own];
@@ -154,13 +176,18 @@ export async function listMyAppointments(
   if (query.when !== "upcoming" && query.when !== "past")
     mockFail(400, "MSG-31", undefined, [{ field: "when", code: "MSG-31" }]);
   const linked = getLinkedProfileRecords();
-  if (query.patientId && !linked.some((profile) => profile.id === query.patientId))
+  if (
+    query.patientId &&
+    !linked.some((profile) => profile.id === query.patientId)
+  )
     mockFail(403, "MSG-29");
   const { when, patientId } = query;
   const items = myAppointments(linked)
     .filter((item) => !patientId || item.patient.id === patientId)
     .filter((item) => matchesWhen(item, when))
-    .sort((a, b) => (when === "upcoming" ? byStartThenId(a, b) : byStartThenId(b, a)));
+    .sort((a, b) =>
+      when === "upcoming" ? byStartThenId(a, b) : byStartThenId(b, a),
+    );
   return paginate(items, query);
 }
 
@@ -177,7 +204,9 @@ export async function getMyAppointment(
  * POST /api/v1/appointments/{id}/cancel: chỉ lịch Đã đặt. Lịch đã check-in ở quầy (kịch bản
  * `RACE_APPOINTMENT_ID`) hoặc đã qua → 409 MSG-32. Hủy xong giờ được nhả; phí đã trả không hoàn lại.
  */
-export async function cancelMyAppointment(id: string): Promise<PatientAppointment> {
+export async function cancelMyAppointment(
+  id: string,
+): Promise<PatientAppointment> {
   await latency();
   const current = findMine(id);
   if (current.status !== "BOOKED" || id === RACE_APPOINTMENT_ID)

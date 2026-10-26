@@ -14,10 +14,16 @@ export type ResultBlock =
   | "RESULT_SHEET";
 
 /** Chỉ hai trạng thái này được xem ở khu bệnh nhân; các giai đoạn khác ở màn lượt khám. */
-export type ResultVisitStatus = Extract<VisitStatus, "COMPLETED" | "INCOMPLETE">;
+export type ResultVisitStatus = Extract<
+  VisitStatus,
+  "COMPLETED" | "INCOMPLETE"
+>;
 
 /** Người khám, kèm quan hệ để giao diện luôn nói rõ "của ai". */
-export type ResultPatientRef = Pick<LinkedProfile, "id" | "fullName" | "relationship">;
+export type ResultPatientRef = Pick<
+  LinkedProfile,
+  "id" | "fullName" | "relationship"
+>;
 
 export interface Icd10Ref {
   code: string;

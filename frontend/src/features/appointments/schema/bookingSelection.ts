@@ -49,13 +49,16 @@ export function preselectedPatientId(
   requested: string | undefined,
   patients: readonly Pick<BookingPatient, "id">[],
 ): string | null {
-  return requested !== undefined && patients.some((patient) => patient.id === requested)
+  return requested !== undefined &&
+    patients.some((patient) => patient.id === requested)
     ? requested
     : null;
 }
 
 /** Trạng thái đầu của luồng: chỉ người khám (nếu chọn sẵn) có giá trị, các khối khác để trống. */
-export function initialBookingSelection(patientId: string | null): BookingSelection {
+export function initialBookingSelection(
+  patientId: string | null,
+): BookingSelection {
   return { ...EMPTY_BOOKING_SELECTION, patientId };
 }
 
@@ -77,7 +80,13 @@ function reopenStep(
     case "patient":
       return { ...EMPTY_BOOKING_SELECTION };
     case "service":
-      return { ...state, serviceId: null, date: null, startAt: null, doctorId: null };
+      return {
+        ...state,
+        serviceId: null,
+        date: null,
+        startAt: null,
+        doctorId: null,
+      };
     case "date":
       return { ...state, date: null, startAt: null, doctorId: null };
     case "time":
@@ -93,7 +102,13 @@ export function bookingSelectionReducer(
     case "selectPatient":
       return { ...EMPTY_BOOKING_SELECTION, patientId: action.patientId };
     case "selectService":
-      return { ...state, serviceId: action.serviceId, date: null, startAt: null, doctorId: null };
+      return {
+        ...state,
+        serviceId: action.serviceId,
+        date: null,
+        startAt: null,
+        doctorId: null,
+      };
     case "selectDate":
       return { ...state, date: action.date, startAt: null, doctorId: null };
     case "selectTime":
@@ -101,7 +116,8 @@ export function bookingSelectionReducer(
         ...state,
         startAt: action.startAt,
         doctorId:
-          state.doctorId !== null && action.doctorIdsAtTime.includes(state.doctorId)
+          state.doctorId !== null &&
+          action.doctorIdsAtTime.includes(state.doctorId)
             ? state.doctorId
             : null,
       };

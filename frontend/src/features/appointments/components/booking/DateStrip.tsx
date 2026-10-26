@@ -49,7 +49,10 @@ export function DateStrip({
     return (
       <div className="flex gap-2 overflow-hidden" aria-hidden>
         {Array.from({ length: 7 }, (_, index) => (
-          <Skeleton key={index} className={`${sizes.cell} shrink-0 rounded-lg`} />
+          <Skeleton
+            key={index}
+            className={`${sizes.cell} shrink-0 rounded-lg`}
+          />
         ))}
       </div>
     );
@@ -94,7 +97,9 @@ export function DateStrip({
                   aria-label={`${longWeekdayLabel(day.date)} ${shortDateLabel(day.date)}, ${open ? "còn giờ" : "hết giờ"}`}
                   className={`${sizes.cell} h-auto snap-start flex-col gap-0.5 rounded-lg border px-1 py-2 ${sizes.body}`}
                 >
-                  <span className={sizes.detail}>{shortWeekdayLabel(day.date)}</span>
+                  <span className={sizes.detail}>
+                    {shortWeekdayLabel(day.date)}
+                  </span>
                   <span className="font-medium tabular-nums">
                     {shortDateLabel(day.date)}
                   </span>

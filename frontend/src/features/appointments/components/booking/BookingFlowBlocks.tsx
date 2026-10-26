@@ -95,7 +95,9 @@ export function BookingFlowBlocks(props: BookingFlowBlocksProps) {
           title="Ai đi khám?"
           variant={variant}
           open={steps.patient === "open"}
-          summary={selectedPatient ? patientLabelOf(selectedPatient) : undefined}
+          summary={
+            selectedPatient ? patientLabelOf(selectedPatient) : undefined
+          }
           onChange={
             singlePatient
               ? undefined
@@ -105,7 +107,9 @@ export function BookingFlowBlocks(props: BookingFlowBlocksProps) {
           <BookingPatientChoice
             patients={patients}
             value={selection.patientId}
-            onChange={(patientId) => dispatch({ type: "selectPatient", patientId })}
+            onChange={(patientId) =>
+              dispatch({ type: "selectPatient", patientId })
+            }
             variant={variant}
             label="Ai đi khám?"
           />
@@ -125,7 +129,9 @@ export function BookingFlowBlocks(props: BookingFlowBlocksProps) {
             loading={props.servicesLoading}
             failed={props.servicesFailed}
             value={selection.serviceId}
-            onChange={(serviceId) => dispatch({ type: "selectService", serviceId })}
+            onChange={(serviceId) =>
+              dispatch({ type: "selectService", serviceId })
+            }
             onRetry={props.onRetryServices}
             variant={variant}
             label="Dịch vụ khám"
@@ -160,7 +166,9 @@ export function BookingFlowBlocks(props: BookingFlowBlocksProps) {
           title="Khám lúc mấy giờ?"
           variant={variant}
           open={steps.time === "open"}
-          summary={selection.startAt ? timeSummaryOf(selection.startAt) : undefined}
+          summary={
+            selection.startAt ? timeSummaryOf(selection.startAt) : undefined
+          }
           onChange={() => dispatch({ type: "reopen", step: "time" })}
         >
           <TimeSlotGrid
@@ -170,7 +178,11 @@ export function BookingFlowBlocks(props: BookingFlowBlocksProps) {
             dayClosed={dayTimes.length === 0}
             value={selection.startAt}
             onChange={(startAt) =>
-              dispatch({ type: "selectTime", startAt, doctorIdsAtTime: doctorIdsAt(startAt) })
+              dispatch({
+                type: "selectTime",
+                startAt,
+                doctorIdsAtTime: doctorIdsAt(startAt),
+              })
             }
             variant={variant}
             label="Giờ khám"
@@ -194,7 +206,9 @@ export function BookingFlowBlocks(props: BookingFlowBlocksProps) {
         <BookingStep title="Kiểm tra lại" variant={variant} open>
           <BookingSummary
             variant={variant}
-            patientLabel={selectedPatient ? patientLabelOf(selectedPatient) : ""}
+            patientLabel={
+              selectedPatient ? patientLabelOf(selectedPatient) : ""
+            }
             serviceName={service.name}
             price={service.price}
             startAt={selection.startAt}

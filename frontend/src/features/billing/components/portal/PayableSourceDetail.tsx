@@ -27,9 +27,17 @@ import {
  * Chi tiết một nguồn (UC53): các khoản, chọn khoản chờ thanh toán, tạm tính và đi tới xác nhận.
  * Không có nút trả một phần: chỉ trọn từng khoản được chọn (plan phase 06 §2).
  */
-export function PayableSourceDetail({ kind, id }: { kind: PaymentSourceKind; id: string }) {
+export function PayableSourceDetail({
+  kind,
+  id,
+}: {
+  kind: PaymentSourceKind;
+  id: string;
+}) {
   const { source, loading, error, reload } = usePayableSource(kind, id);
-  const [selected, setSelected] = useState<ReadonlySet<string>>(() => new Set());
+  const [selected, setSelected] = useState<ReadonlySet<string>>(
+    () => new Set(),
+  );
 
   const toggle = (itemId: string) =>
     setSelected((current) => {
@@ -42,7 +50,9 @@ export function PayableSourceDetail({ kind, id }: { kind: PaymentSourceKind; id:
   // Chỉ khoản đang chờ và còn được chọn mới vào giao dịch; giữ thứ tự của nguồn.
   const chosenIds = source
     ? source.items
-        .filter((item) => item.status === "PENDING_PAYMENT" && selected.has(item.id))
+        .filter(
+          (item) => item.status === "PENDING_PAYMENT" && selected.has(item.id),
+        )
         .map((item) => item.id)
     : [];
   const subtotal = source ? sumSelectedPending(source.items, selected) : 0;
@@ -64,7 +74,9 @@ export function PayableSourceDetail({ kind, id }: { kind: PaymentSourceKind; id:
       ) : error ? (
         <PaymentErrorBlock message={messageFromError(error)} onRetry={reload} />
       ) : source && source.items.length === 0 ? (
-        <PortalEmptyState>Nguồn này chưa có khoản cần thanh toán.</PortalEmptyState>
+        <PortalEmptyState>
+          Nguồn này chưa có khoản cần thanh toán.
+        </PortalEmptyState>
       ) : source ? (
         <div className="space-y-6">
           <ul className={LIST_FRAME_CLASS}>
@@ -80,7 +92,9 @@ export function PayableSourceDetail({ kind, id }: { kind: PaymentSourceKind; id:
 
           <div className="flex items-center justify-between gap-4 text-base">
             <span>Tạm tính</span>
-            <span className="text-lg font-semibold tabular-nums">{formatCurrencyVnd(subtotal)}</span>
+            <span className="text-lg font-semibold tabular-nums">
+              {formatCurrencyVnd(subtotal)}
+            </span>
           </div>
 
           <div className="space-y-3">
@@ -92,7 +106,9 @@ export function PayableSourceDetail({ kind, id }: { kind: PaymentSourceKind; id:
                 Thanh toán qua VNPay
               </Link>
             ) : null}
-            <p className="text-sm text-muted-foreground">{COUNTER_PAYMENT_HINT}</p>
+            <p className="text-sm text-muted-foreground">
+              {COUNTER_PAYMENT_HINT}
+            </p>
           </div>
         </div>
       ) : null}

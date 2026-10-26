@@ -27,7 +27,10 @@ export function PrescriptionList({ items }: { items: PrescriptionListItem[] }) {
                 {item.doctorName}
               </span>
             </span>
-            <ChevronRight aria-hidden className="size-5 shrink-0 text-muted-foreground" />
+            <ChevronRight
+              aria-hidden
+              className="size-5 shrink-0 text-muted-foreground"
+            />
           </Link>
         </li>
       ))}

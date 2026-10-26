@@ -93,7 +93,11 @@ describe("getVisitResult", () => {
   it("lượt Chưa hoàn tất không trả dữ liệu khám, đơn thuốc, phiếu kết quả hay kết luận", async () => {
     const result = await getVisitResult("vis-lan-incomplete");
     expect(result.status).toBe("INCOMPLETE");
-    expect(result.visibleBlocks).toEqual(["IMAGING", "LABORATORY", "ADMINISTRATIVE"]);
+    expect(result.visibleBlocks).toEqual([
+      "IMAGING",
+      "LABORATORY",
+      "ADMINISTRATIVE",
+    ]);
     expect(result.examination).toBeUndefined();
     expect(result.prescriptions).toBeUndefined();
     expect(result.resultSheets).toBeUndefined();

@@ -23,7 +23,11 @@ describe("patientAppointmentPresentation", () => {
 
   it("luôn ghi người khám kèm quan hệ", () => {
     expect(
-      patientOfLabel({ id: "p", fullName: "Nguyễn Thị Lan", relationship: "PARENT" }),
+      patientOfLabel({
+        id: "p",
+        fullName: "Nguyễn Thị Lan",
+        relationship: "PARENT",
+      }),
     ).toBe("Nguyễn Thị Lan · Cha/Mẹ");
   });
 
@@ -31,7 +35,9 @@ describe("patientAppointmentPresentation", () => {
     expect(examFeeLabel({ amount: 200000, status: "PENDING_PAYMENT" })).toBe(
       `Phí khám ${formatCurrencyVnd(200000)} · Chưa thanh toán`,
     );
-    expect(examFeeLabel({ amount: 200000, status: "PAID" })).toContain("Đã thanh toán");
+    expect(examFeeLabel({ amount: 200000, status: "PAID" })).toContain(
+      "Đã thanh toán",
+    );
   });
 
   it("câu không hoàn tiền (BR-53) ghi đúng số tiền đã trả", () => {

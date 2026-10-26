@@ -33,10 +33,15 @@ export function PublicServiceDetail({ service }: { service: PublicService }) {
         {formatCurrencyVnd(service.price)}
       </p>
       {service.description ? (
-        <p className="mt-6 text-lg leading-8 text-pretty">{service.description}</p>
+        <p className="mt-6 text-lg leading-8 text-pretty">
+          {service.description}
+        </p>
       ) : null}
 
-      <section aria-labelledby="service-booking-title" className="mt-12 border-t pt-10">
+      <section
+        aria-labelledby="service-booking-title"
+        className="mt-12 border-t pt-10"
+      >
         <h2 className="text-2xl font-semibold" id="service-booking-title">
           Thông tin đặt lịch
         </h2>

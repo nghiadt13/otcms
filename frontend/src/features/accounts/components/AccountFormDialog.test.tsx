@@ -56,18 +56,27 @@ describe("AccountFormDialog", () => {
 
     expect(
       await screen.findByText(
-        formatAppMessage("MSG-11", { accountRole: "Bác sĩ chỉnh hình", username: "bacsi.moi" }),
+        formatAppMessage("MSG-11", {
+          accountRole: "Bác sĩ chỉnh hình",
+          username: "bacsi.moi",
+        }),
       ),
     ).toBeInTheDocument();
     expect(screen.getByText("Xk7mQ2pL9vRt")).toBeInTheDocument();
-    expect(screen.getByText(/Đóng hộp thoại này là mất mật khẩu/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Đóng hộp thoại này là mất mật khẩu/),
+    ).toBeInTheDocument();
     expect(onCreated).toHaveBeenCalledTimes(1);
     // Bước kết quả không có nút X.
-    expect(screen.queryByRole("button", { name: "Đóng" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Đóng" }),
+    ).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Sao chép mật khẩu" }));
     expect(writeText).toHaveBeenCalledWith("Xk7mQ2pL9vRt");
-    expect(await screen.findByRole("button", { name: "Đã sao chép" })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("button", { name: "Đã sao chép" }),
+    ).toBeInTheDocument();
 
     // Esc không đóng bước kết quả.
     await user.keyboard("{Escape}");
@@ -87,12 +96,12 @@ describe("AccountFormDialog", () => {
     await user.click(screen.getByRole("button", { name: "Tạo tài khoản" }));
 
     expect(
-      await screen.findAllByText(
-        formatAppMessage("MSG-13"),
-      ),
+      await screen.findAllByText(formatAppMessage("MSG-13")),
     ).not.toHaveLength(0);
     expect(screen.getByLabelText("Tên đăng nhập *")).toHaveValue("trung");
-    expect(screen.getByLabelText("Mật khẩu khởi tạo *")).toHaveValue("Xk7mQ2pL9vRt");
+    expect(screen.getByLabelText("Mật khẩu khởi tạo *")).toHaveValue(
+      "Xk7mQ2pL9vRt",
+    );
     expect(onClose).not.toHaveBeenCalled();
   });
 
@@ -103,8 +112,12 @@ describe("AccountFormDialog", () => {
     await user.click(screen.getByRole("button", { name: "Tạo tài khoản" }));
 
     const alerts = await screen.findAllByRole("alert");
-    expect(alerts.map((a) => a.textContent).join(" ")).toContain("Tên đăng nhập chưa đúng quy tắc");
-    expect(alerts.map((a) => a.textContent).join(" ")).toContain("Mật khẩu chưa đạt");
+    expect(alerts.map((a) => a.textContent).join(" ")).toContain(
+      "Tên đăng nhập chưa đúng quy tắc",
+    );
+    expect(alerts.map((a) => a.textContent).join(" ")).toContain(
+      "Mật khẩu chưa đạt",
+    );
     expect(onCreated).not.toHaveBeenCalled();
   });
 
@@ -139,10 +152,14 @@ describe("AccountFormDialog", () => {
     render(<Harness />);
     await user.click(screen.getByRole("button", { name: "Tạo ngẫu nhiên" }));
 
-    const value = (screen.getByLabelText("Mật khẩu khởi tạo *") as HTMLInputElement).value;
+    const value = (
+      screen.getByLabelText("Mật khẩu khởi tạo *") as HTMLInputElement
+    ).value;
     expect(isPasswordValid(value)).toBe(true);
     expect(screen.queryByLabelText(/email/i)).not.toBeInTheDocument();
-    expect(screen.queryByRole("radio", { name: "Bệnh nhân" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("radio", { name: "Bệnh nhân" }),
+    ).not.toBeInTheDocument();
     expect(screen.getAllByRole("radio")).toHaveLength(4);
   });
 });

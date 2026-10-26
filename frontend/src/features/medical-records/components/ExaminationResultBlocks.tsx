@@ -28,7 +28,11 @@ export function buildResultSections(
   result: ExaminationResult,
 ): ResultSectionView[] {
   const visible = new Set<ResultBlock>(result.visibleBlocks);
-  const candidates: { block: ResultBlock; view: Omit<ResultSectionView, "body">; body: ReactNode }[] = [
+  const candidates: {
+    block: ResultBlock;
+    view: Omit<ResultSectionView, "body">;
+    body: ReactNode;
+  }[] = [
     {
       block: "EXAMINATION",
       view: { id: "kham", title: "Kết quả khám", shortTitle: "Khám" },

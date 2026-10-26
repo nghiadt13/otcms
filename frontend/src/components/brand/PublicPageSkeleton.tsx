@@ -7,7 +7,11 @@ const pulse = "motion-reduce:animate-none";
 
 // Khung tải đúng hình nội dung của từng kiểu trang công khai: danh sách, lưới bác sĩ,
 // trang chi tiết. Không dùng spinner giữa nội dung.
-export function PublicPageSkeleton({ variant }: { variant: PublicSkeletonVariant }) {
+export function PublicPageSkeleton({
+  variant,
+}: {
+  variant: PublicSkeletonVariant;
+}) {
   return (
     <div
       aria-busy="true"
@@ -33,7 +37,9 @@ export function PublicPageSkeleton({ variant }: { variant: PublicSkeletonVariant
         <div className="mt-12 grid gap-x-8 gap-y-12 sm:grid-cols-2 lg:grid-cols-3">
           {[0, 1, 2].map((card) => (
             <div key={card}>
-              <Skeleton className={`aspect-[4/5] w-full rounded-2xl ${pulse}`} />
+              <Skeleton
+                className={`aspect-[4/5] w-full rounded-2xl ${pulse}`}
+              />
               <Skeleton className={`mt-5 h-6 w-2/3 ${pulse}`} />
             </div>
           ))}

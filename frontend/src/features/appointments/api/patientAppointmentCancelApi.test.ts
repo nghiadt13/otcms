@@ -37,7 +37,9 @@ describe("cancelMyAppointment", () => {
     expect(item.status).toBe("CANCELLED");
     expect(item.allowedActions).toEqual([]);
 
-    const stored = readStoredAppointments().find((record) => record.id === "apt-1001");
+    const stored = readStoredAppointments().find(
+      (record) => record.id === "apt-1001",
+    );
     expect(stored?.status).toBe("CANCELLED");
 
     const upcoming = await listMyAppointments({ when: "upcoming" });
@@ -46,13 +48,18 @@ describe("cancelMyAppointment", () => {
 
   it("hủy lịch đã thanh toán vẫn được (phí không hoàn lại, xử lý ở giao diện)", async () => {
     const item = await cancelMyAppointment("apt-1003");
-    expect(item).toMatchObject({ status: "CANCELLED", examFee: { status: "PAID" } });
+    expect(item).toMatchObject({
+      status: "CANCELLED",
+      examFee: { status: "PAID" },
+    });
   });
 
   it("hủy lịch riêng khu bệnh nhân (bác sĩ vắng): chuyển sang Đã qua", async () => {
     await cancelMyAppointment("apt-2101");
     const past = await listMyAppointments({ when: "past", page: 0, size: 10 });
-    expect(past.items.find((row) => row.id === "apt-2101")?.status).toBe("CANCELLED");
+    expect(past.items.find((row) => row.id === "apt-2101")?.status).toBe(
+      "CANCELLED",
+    );
   });
 
   it("lịch đã check-in → 409 MSG-32", async () => {
@@ -63,7 +70,9 @@ describe("cancelMyAppointment", () => {
   });
 
   it("lịch đã check-in ở quầy nhưng danh sách còn Đã đặt → 409 MSG-32 và vẫn Đã đặt", async () => {
-    expect(await errorOf(cancelMyAppointment(RACE_APPOINTMENT_ID))).toMatchObject({
+    expect(
+      await errorOf(cancelMyAppointment(RACE_APPOINTMENT_ID)),
+    ).toMatchObject({
       status: 409,
       code: "MSG-32",
     });

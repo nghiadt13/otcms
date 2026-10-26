@@ -10,7 +10,9 @@ beforeEach(() => {
 describe("UnpaidSummaryLine", () => {
   it("cộng số khoản và tổng tiền chờ của mọi hồ sơ, dẫn tới trang Thanh toán", async () => {
     render(<UnpaidSummaryLine />);
-    const link = await screen.findByRole("link", { name: /Bạn có 4 khoản cần thanh toán/ });
+    const link = await screen.findByRole("link", {
+      name: /Bạn có 4 khoản cần thanh toán/,
+    });
     expect(link).toHaveAttribute("href", "/portal/payments");
     expect(screen.getByText("Tổng 2.650.000 ₫")).toBeInTheDocument();
   });

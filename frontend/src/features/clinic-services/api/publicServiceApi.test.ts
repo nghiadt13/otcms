@@ -34,7 +34,9 @@ describe("listPublicServices", () => {
   });
 
   it("tiêu chí tìm kiếm quá 100 ký tự trả 400 MSG-54 gắn vào ô q", async () => {
-    await expect(listPublicServices({ q: "a".repeat(101) })).rejects.toMatchObject({
+    await expect(
+      listPublicServices({ q: "a".repeat(101) }),
+    ).rejects.toMatchObject({
       status: 400,
       code: "MSG-54",
       fieldErrors: [{ field: "q", code: "MSG-54" }],
@@ -52,7 +54,10 @@ describe("getPublicService", () => {
   it("dịch vụ đã ngừng và mã không tồn tại đều trả 404 MSG-50", async () => {
     const retired = getPublicService("svc-film-xray-retired");
     await expect(retired).rejects.toBeInstanceOf(ApiError);
-    await expect(retired).rejects.toMatchObject({ status: 404, code: "MSG-50" });
+    await expect(retired).rejects.toMatchObject({
+      status: 404,
+      code: "MSG-50",
+    });
     await expect(getPublicService("khong-co")).rejects.toMatchObject({
       status: 404,
       code: "MSG-50",

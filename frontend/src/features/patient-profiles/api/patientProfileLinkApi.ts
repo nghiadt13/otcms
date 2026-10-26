@@ -89,7 +89,10 @@ export async function linkSuggestedProfile(
   if (body.relationship === "SELF") {
     if (linked.some((item) => item.relationship === "SELF"))
       mockFail(409, "MSG-21");
-    if (record.selfAccountId !== null && record.selfAccountId !== MOCK_ACCOUNT_ID)
+    if (
+      record.selfAccountId !== null &&
+      record.selfAccountId !== MOCK_ACCOUNT_ID
+    )
       mockFail(409, "MSG-21");
     saveClinicRecord({ ...record, selfAccountId: MOCK_ACCOUNT_ID });
   }

@@ -39,12 +39,14 @@ export function BookingResult({
             {appointment.patient.fullName} · {appointment.service.name}
           </p>
           <p className="break-words">
-            {longStartLabel(appointment.startAt)} · {appointment.doctor.fullName}{" "}
-            · {appointment.roomName}
+            {longStartLabel(appointment.startAt)} ·{" "}
+            {appointment.doctor.fullName} · {appointment.roomName}
           </p>
           <p>
             Phí khám{" "}
-            <span className="tabular-nums">{formatCurrencyVnd(examFee.amount)}</span>{" "}
+            <span className="tabular-nums">
+              {formatCurrencyVnd(examFee.amount)}
+            </span>{" "}
             · {EXAM_FEE_STATUS_LABELS[examFee.status]}
           </p>
         </div>

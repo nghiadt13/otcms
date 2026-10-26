@@ -27,11 +27,18 @@ describe("PatientStudyDetailScreen", () => {
     render(<PatientStudyDetailScreen studyId="std-an-xray-1" />);
 
     expect(
-      await screen.findByRole("heading", { level: 1, name: "X-quang khớp gối 2 tư thế" }),
+      await screen.findByRole("heading", {
+        level: 1,
+        name: "X-quang khớp gối 2 tư thế",
+      }),
     ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Mở trình xem ảnh" })).toBeDisabled();
     expect(
-      screen.getByText("Trình xem ảnh tạm thời chưa mở được. Vui lòng thử lại sau."),
+      screen.getByRole("button", { name: "Mở trình xem ảnh" }),
+    ).toBeDisabled();
+    expect(
+      screen.getByText(
+        "Trình xem ảnh tạm thời chưa mở được. Vui lòng thử lại sau.",
+      ),
     ).toBeInTheDocument();
     expect(
       screen.getByText("Hẹp khe khớp gối trong; gai xương nhỏ ở bờ diện chày."),
@@ -43,7 +50,9 @@ describe("PatientStudyDetailScreen", () => {
     vi.stubEnv("NEXT_PUBLIC_OHIF_DEV_URL", VIEWER_BASE);
     render(<PatientStudyDetailScreen studyId="std-an-xray-1" />);
 
-    const button = await screen.findByRole("button", { name: "Mở trình xem ảnh" });
+    const button = await screen.findByRole("button", {
+      name: "Mở trình xem ảnh",
+    });
     expect(button).toBeEnabled();
     await user.click(button);
     expect(window.open).toHaveBeenCalledWith(
@@ -60,7 +69,9 @@ describe("PatientStudyDetailScreen", () => {
         "Lượt khám chưa được bác sĩ kết luận nên chưa có kết luận cho ảnh này.",
       ),
     ).toBeInTheDocument();
-    expect(screen.queryByText("Tràn dịch khớp gối phải, lượng ít.")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Tràn dịch khớp gối phải, lượng ít."),
+    ).not.toBeInTheDocument();
   });
 
   it("403 gọi trang không tìm thấy", async () => {

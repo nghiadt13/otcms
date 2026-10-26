@@ -18,7 +18,8 @@ vi.mock("next/navigation", () => ({
 
 // Giữ nguyên lớp API giả; chỉ bọc để đếm lần gọi, nhờ đó kiểm được "không gọi API" khi sai ngày.
 vi.mock("../../api/patientBillingApi", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("../../api/patientBillingApi")>();
+  const actual =
+    await importOriginal<typeof import("../../api/patientBillingApi")>();
   return { ...actual, listMyPayments: vi.fn(actual.listMyPayments) };
 });
 
@@ -36,7 +37,9 @@ describe("MyPaymentHistory", () => {
   it("hiện toàn bộ thanh toán đã hoàn tất, mỗi dòng dẫn tới phiếu thu", async () => {
     const { container } = render(<MyPaymentHistory />);
     await waitFor(() => expect(historyRows(container)).toHaveLength(14));
-    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Lịch sử thanh toán");
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(
+      "Lịch sử thanh toán",
+    );
   });
 
   it("khoảng ngày trên URL đảo ngược: hiện MSG-54 và không gọi API", () => {
@@ -49,22 +52,33 @@ describe("MyPaymentHistory", () => {
     const user = userEvent.setup();
     const { container } = render(<MyPaymentHistory />);
     await waitFor(() => expect(historyRows(container)).toHaveLength(14));
-    const callsBefore = vi.mocked(patientBillingApi.listMyPayments).mock.calls.length;
+    const callsBefore = vi.mocked(patientBillingApi.listMyPayments).mock.calls
+      .length;
 
-    fireEvent.change(screen.getByLabelText("Từ ngày"), { target: { value: "2026-10-24" } });
-    fireEvent.change(screen.getByLabelText("Đến ngày"), { target: { value: "2026-10-01" } });
+    fireEvent.change(screen.getByLabelText("Từ ngày"), {
+      target: { value: "2026-10-24" },
+    });
+    fireEvent.change(screen.getByLabelText("Đến ngày"), {
+      target: { value: "2026-10-01" },
+    });
     await user.click(screen.getByRole("button", { name: "Áp dụng" }));
 
     expect(screen.getByRole("alert")).toHaveTextContent(MSG_54);
     expect(routerReplace).not.toHaveBeenCalled();
-    expect(vi.mocked(patientBillingApi.listMyPayments).mock.calls.length).toBe(callsBefore);
+    expect(vi.mocked(patientBillingApi.listMyPayments).mock.calls.length).toBe(
+      callsBefore,
+    );
   });
 
   it("áp dụng khoảng ngày hợp lệ: đổi URL theo ngày, không báo lỗi", async () => {
     const user = userEvent.setup();
     render(<MyPaymentHistory />);
-    fireEvent.change(screen.getByLabelText("Từ ngày"), { target: { value: "2026-10-18" } });
-    fireEvent.change(screen.getByLabelText("Đến ngày"), { target: { value: "2026-10-23" } });
+    fireEvent.change(screen.getByLabelText("Từ ngày"), {
+      target: { value: "2026-10-18" },
+    });
+    fireEvent.change(screen.getByLabelText("Đến ngày"), {
+      target: { value: "2026-10-23" },
+    });
     await user.click(screen.getByRole("button", { name: "Áp dụng" }));
 
     expect(routerReplace).toHaveBeenCalledWith(
@@ -74,7 +88,9 @@ describe("MyPaymentHistory", () => {
   });
 
   it("khoảng ngày hợp lệ trên URL: chỉ lấy thanh toán trong khoảng, gồm cả hai đầu", async () => {
-    const { container } = render(<MyPaymentHistory from="2026-10-18" to="2026-10-23" />);
+    const { container } = render(
+      <MyPaymentHistory from="2026-10-18" to="2026-10-23" />,
+    );
     await waitFor(() => expect(historyRows(container)).toHaveLength(2));
     expect(patientBillingApi.listMyPayments).toHaveBeenCalledWith(
       expect.objectContaining({ from: "2026-10-18", to: "2026-10-23" }),

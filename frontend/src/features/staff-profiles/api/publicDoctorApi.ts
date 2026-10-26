@@ -13,7 +13,9 @@ const LATENCY_MS = process.env.NODE_ENV === "test" ? 0 : 200;
 type PublicDoctorRecord = MockStaffRecord & { doctor: DoctorInfo };
 
 /** Bác sĩ công khai: đang hoạt động, đúng vai trò bác sĩ và đã bật hiển thị. */
-const isPublicDoctor = (record: MockStaffRecord): record is PublicDoctorRecord =>
+const isPublicDoctor = (
+  record: MockStaffRecord,
+): record is PublicDoctorRecord =>
   record.status === "ACTIVE" &&
   record.role === "ORTHOPEDIC_DOCTOR" &&
   record.doctor?.isPublic === true;

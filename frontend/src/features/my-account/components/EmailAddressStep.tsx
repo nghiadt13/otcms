@@ -91,7 +91,11 @@ export function EmailAddressStep({
         >
           Hủy
         </Button>
-        <Button className="h-12 px-5 text-base" disabled={pending} type="submit">
+        <Button
+          className="h-12 px-5 text-base"
+          disabled={pending}
+          type="submit"
+        >
           {pending ? "Đang gửi..." : "Gửi mã"}
         </Button>
       </div>

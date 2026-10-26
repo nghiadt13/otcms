@@ -126,7 +126,10 @@ function ProfileActions({
               href={PATIENT_ROUTES.profileHistory(detail.id)}
             >
               Tiền sử bệnh
-              <ChevronRight aria-hidden className="size-5 text-muted-foreground" />
+              <ChevronRight
+                aria-hidden
+                className="size-5 text-muted-foreground"
+              />
             </Link>
           </li>
         </ul>

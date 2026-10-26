@@ -57,11 +57,15 @@ export function PatientAppointmentDetail({ id }: { id: string }) {
   )?.patientCode;
 
   return (
-    <DetailFrame title={appointmentDetailTitle(appointment.startAt)} status={appointment}>
+    <DetailFrame
+      title={appointmentDetailTitle(appointment.startAt)}
+      status={appointment}
+    >
       {appointment.doctorUnavailable && appointment.status === "BOOKED" ? (
         <Alert variant="destructive">
           <AlertDescription className="text-base">
-            Bác sĩ của lịch hẹn này không thể khám và chưa có bác sĩ thay thế. Bạn có thể hủy lịch hẹn.
+            Bác sĩ của lịch hẹn này không thể khám và chưa có bác sĩ thay thế.
+            Bạn có thể hủy lịch hẹn.
             {appointment.examFee.status === "PAID"
               ? ` ${refundNotice(appointment.examFee)}`
               : ""}
@@ -70,7 +74,9 @@ export function PatientAppointmentDetail({ id }: { id: string }) {
       ) : null}
       <PatientAppointmentFacts appointment={appointment} />
       {appointment.status === "BOOKED" ? (
-        <p className="text-base text-muted-foreground">{arrivalNote(patientCode)}</p>
+        <p className="text-base text-muted-foreground">
+          {arrivalNote(patientCode)}
+        </p>
       ) : null}
       <PatientAppointmentActions
         appointment={appointment}

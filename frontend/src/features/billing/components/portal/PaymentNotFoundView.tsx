@@ -13,7 +13,10 @@ export function PaymentNotFoundView() {
       <p className="text-base text-muted-foreground">
         Không tìm thấy trang hoặc thông tin bạn cần.
       </p>
-      <Link className={publicButtonClass("secondary")} href={PATIENT_ROUTES.payments}>
+      <Link
+        className={publicButtonClass("secondary")}
+        href={PATIENT_ROUTES.payments}
+      >
         Về trang Thanh toán
       </Link>
     </div>

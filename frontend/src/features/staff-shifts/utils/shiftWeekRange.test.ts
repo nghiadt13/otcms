@@ -45,8 +45,12 @@ describe("shiftWeekRange", () => {
   it("so sánh ngày và kiểm tra định dạng", () => {
     expect(isPastDate("2026-10-19", "2026-10-20")).toBe(true);
     expect(isPastDate("2026-10-20", "2026-10-20")).toBe(false);
-    expect(rangeContains(getShiftRange("2026-10-20", "week"), "2026-10-25")).toBe(true);
-    expect(rangeContains(getShiftRange("2026-10-20", "week"), "2026-10-26")).toBe(false);
+    expect(
+      rangeContains(getShiftRange("2026-10-20", "week"), "2026-10-25"),
+    ).toBe(true);
+    expect(
+      rangeContains(getShiftRange("2026-10-20", "week"), "2026-10-26"),
+    ).toBe(false);
     expect(isIsoDate("2026-02-30")).toBe(false);
     expect(isIsoDate("20/10/2026")).toBe(false);
     expect(isIsoDate("2026-10-20")).toBe(true);

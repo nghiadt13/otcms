@@ -3,8 +3,14 @@ import { isSafeRedirectUrl } from "./patientBillingRedirect";
 
 describe("isSafeRedirectUrl", () => {
   it("chấp nhận đường dẫn nội bộ và https tới máy chủ VNPay đã cấu hình", () => {
-    expect(isSafeRedirectUrl("/portal/payments/result?paymentId=pay-mock-1")).toBe(true);
-    expect(isSafeRedirectUrl("https://sandbox.vnpayment.vn/paymentv2/vpcpay.html?x=1")).toBe(true);
+    expect(
+      isSafeRedirectUrl("/portal/payments/result?paymentId=pay-mock-1"),
+    ).toBe(true);
+    expect(
+      isSafeRedirectUrl(
+        "https://sandbox.vnpayment.vn/paymentv2/vpcpay.html?x=1",
+      ),
+    ).toBe(true);
   });
 
   it("từ chối máy chủ lạ, giao thức không an toàn và đường dẫn lệch gốc", () => {

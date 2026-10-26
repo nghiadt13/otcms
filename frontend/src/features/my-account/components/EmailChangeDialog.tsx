@@ -39,7 +39,8 @@ export function EmailChangeDialog({
         <DialogHeader>
           <DialogTitle>Đổi email</DialogTitle>
           <DialogDescription>
-            Mã xác minh gửi tới email mới. Đến khi xác minh xong, email hiện tại vẫn dùng được.
+            Mã xác minh gửi tới email mới. Đến khi xác minh xong, email hiện tại
+            vẫn dùng được.
           </DialogDescription>
         </DialogHeader>
         <EmailChangeFlow

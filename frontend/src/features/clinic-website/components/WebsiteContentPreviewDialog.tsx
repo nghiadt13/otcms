@@ -18,7 +18,11 @@ type Props = {
 };
 
 /** Xem trước từ form hiện tại. Không gọi API, không lưu. */
-export function WebsiteContentPreviewDialog({ open, onOpenChange, form }: Props) {
+export function WebsiteContentPreviewDialog({
+  open,
+  onOpenChange,
+  form,
+}: Props) {
   const { clinic } = form;
   const hours = clinic.openingHours.split("\n").filter((line) => line.trim());
   return (

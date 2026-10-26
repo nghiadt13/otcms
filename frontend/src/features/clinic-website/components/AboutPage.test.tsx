@@ -14,22 +14,30 @@ const contact: ClinicContact = {
 describe("AboutPage", () => {
   it("chưa có trang giới thiệu vẫn hiện giờ làm việc và liên hệ, không lỗi", () => {
     render(<AboutPage contact={contact} page={null} />);
-    expect(screen.getByRole("heading", { level: 1, name: "Giới thiệu phòng khám" })).toBeVisible();
+    expect(
+      screen.getByRole("heading", { level: 1, name: "Giới thiệu phòng khám" }),
+    ).toBeVisible();
     expect(screen.getByText("Thứ 7: 7:30 – 11:30")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Hotline 1900 0000" })).toHaveAttribute(
-      "href",
-      "tel:19000000",
-    );
+    expect(
+      screen.getByRole("link", { name: "Hotline 1900 0000" }),
+    ).toHaveAttribute("href", "tel:19000000");
   });
 
   it("hiện tiêu đề và nội dung trang đã đăng", () => {
     render(
       <AboutPage
         contact={contact}
-        page={{ title: "Về phòng khám", body: "Chuyên chấn thương chỉnh hình." }}
+        page={{
+          title: "Về phòng khám",
+          body: "Chuyên chấn thương chỉnh hình.",
+        }}
       />,
     );
-    expect(screen.getByRole("heading", { level: 1, name: "Về phòng khám" })).toBeVisible();
-    expect(screen.getByText("Chuyên chấn thương chỉnh hình.")).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { level: 1, name: "Về phòng khám" }),
+    ).toBeVisible();
+    expect(
+      screen.getByText("Chuyên chấn thương chỉnh hình."),
+    ).toBeInTheDocument();
   });
 });

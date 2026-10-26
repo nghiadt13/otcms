@@ -8,18 +8,51 @@ const CONSULTATION_FEE_VND = 150000;
 
 /** Nguồn tạm cho ô Dịch vụ; thay bằng danh sách dịch vụ của phase 07 khi có. */
 export const MOCK_SERVICE_OPTIONS: (ServiceOption & { priceVnd: number })[] = [
-  { id: "c3a1f0e2-5b7d-4e8a-9f12-6d4b2a1c0a01", name: "Chụp X-quang cột sống thắt lưng", priceVnd: 250000 },
-  { id: "c3a1f0e2-5b7d-4e8a-9f12-6d4b2a1c0a02", name: "Siêu âm khớp gối", priceVnd: 200000 },
-  { id: "c3a1f0e2-5b7d-4e8a-9f12-6d4b2a1c0a03", name: "Xét nghiệm công thức máu", priceVnd: 120000 },
-  { id: "c3a1f0e2-5b7d-4e8a-9f12-6d4b2a1c0a04", name: "Chụp CT khớp vai", priceVnd: 650000 },
-  { id: "c3a1f0e2-5b7d-4e8a-9f12-6d4b2a1c0a05", name: "Đo mật độ xương", priceVnd: 250000 },
-  { id: "c3a1f0e2-5b7d-4e8a-9f12-6d4b2a1c0a06", name: "Điện tim", priceVnd: 130000 },
+  {
+    id: "c3a1f0e2-5b7d-4e8a-9f12-6d4b2a1c0a01",
+    name: "Chụp X-quang cột sống thắt lưng",
+    priceVnd: 250000,
+  },
+  {
+    id: "c3a1f0e2-5b7d-4e8a-9f12-6d4b2a1c0a02",
+    name: "Siêu âm khớp gối",
+    priceVnd: 200000,
+  },
+  {
+    id: "c3a1f0e2-5b7d-4e8a-9f12-6d4b2a1c0a03",
+    name: "Xét nghiệm công thức máu",
+    priceVnd: 120000,
+  },
+  {
+    id: "c3a1f0e2-5b7d-4e8a-9f12-6d4b2a1c0a04",
+    name: "Chụp CT khớp vai",
+    priceVnd: 650000,
+  },
+  {
+    id: "c3a1f0e2-5b7d-4e8a-9f12-6d4b2a1c0a05",
+    name: "Đo mật độ xương",
+    priceVnd: 250000,
+  },
+  {
+    id: "c3a1f0e2-5b7d-4e8a-9f12-6d4b2a1c0a06",
+    name: "Điện tim",
+    priceVnd: 130000,
+  },
 ];
 
 const PATIENTS = [
-  "Nguyễn Thị Hoa", "Trần Văn Minh", "Lê Thị Bích", "Phạm Quốc Hùng",
-  "Hoàng Thị Lan", "Vũ Đình Nam", "Đặng Thu Phương", "Bùi Văn Quân",
-  "Ngô Thị Sen", "Đỗ Minh Tuấn", "Lý Thanh Vân", "Phan Văn Xuân",
+  "Nguyễn Thị Hoa",
+  "Trần Văn Minh",
+  "Lê Thị Bích",
+  "Phạm Quốc Hùng",
+  "Hoàng Thị Lan",
+  "Vũ Đình Nam",
+  "Đặng Thu Phương",
+  "Bùi Văn Quân",
+  "Ngô Thị Sen",
+  "Đỗ Minh Tuấn",
+  "Lý Thanh Vân",
+  "Phan Văn Xuân",
 ];
 const LONG_NAME = "Nguyễn Thị Hồng Ngọc Bảo Châu Phương Thảo Vy";
 const DOCTORS = ["BS. Lê Quang Huy", "BS. Trần Thu Hiền", "BS. Phạm Đức Long"];
@@ -54,15 +87,24 @@ function buildItem(i: number): UnpaidItemDetail {
     priceVnd: isFee ? CONSULTATION_FEE_VND : service.priceVnd,
     orderedAt: `${day}T${hour}:${minute}:00+07:00`,
     patient: {
-      fullName: i === LONG_NAME_INDEX ? LONG_NAME : PATIENTS[i % PATIENTS.length],
+      fullName:
+        i === LONG_NAME_INDEX ? LONG_NAME : PATIENTS[i % PATIENTS.length],
       phone:
         i === NO_PHONE_INDEX
           ? null
           : `0901${String(230000 + i * 137).padStart(6, "0")}`,
     },
     reference: isFee
-      ? { type: "APPOINTMENT", code: `LH-2610-${String(100 + i).padStart(4, "0")}`, date: addDays(day, 1) }
-      : { type: "VISIT", code: `LK-2610-${String(40 + i).padStart(4, "0")}`, date: day },
+      ? {
+          type: "APPOINTMENT",
+          code: `LH-2610-${String(100 + i).padStart(4, "0")}`,
+          date: addDays(day, 1),
+        }
+      : {
+          type: "VISIT",
+          code: `LK-2610-${String(40 + i).padStart(4, "0")}`,
+          date: day,
+        },
     orderedByDoctorName: isFee ? null : DOCTORS[i % DOCTORS.length],
     allowedActions: i === NO_ACTION_INDEX ? [] : ["view"],
   };
@@ -82,6 +124,8 @@ export const unpaidItemMockStore = {
   },
 };
 
-export function resetUnpaidItemMockStore(next: UnpaidItemDetail[] = UNPAID_ITEM_SEED) {
+export function resetUnpaidItemMockStore(
+  next: UnpaidItemDetail[] = UNPAID_ITEM_SEED,
+) {
   items = structuredClone(next);
 }

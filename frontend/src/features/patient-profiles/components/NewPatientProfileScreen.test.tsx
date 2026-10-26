@@ -41,14 +41,22 @@ describe("NewPatientProfileScreen: gợi ý và gắn", () => {
     const row = (await screen.findByText("Nguyễn Gia Bảo")).closest("li");
     expect(row).not.toBeNull();
     if (!row) return;
-    expect(within(row).getByText("Sinh 2018 · BN-000131 · Nam")).toBeInTheDocument();
+    expect(
+      within(row).getByText("Sinh 2018 · BN-000131 · Nam"),
+    ).toBeInTheDocument();
 
     const select = within(row).getByLabelText("Quan hệ");
-    expect(within(select).queryByRole("option", { name: "Bản thân" })).toBeNull();
-    expect(within(select).getByRole("option", { name: "Con" })).toBeInTheDocument();
+    expect(
+      within(select).queryByRole("option", { name: "Bản thân" }),
+    ).toBeNull();
+    expect(
+      within(select).getByRole("option", { name: "Con" }),
+    ).toBeInTheDocument();
 
     const createSelect = screen.getByLabelText("Quan hệ với bạn");
-    expect(within(createSelect).queryByRole("option", { name: "Bản thân" })).toBeNull();
+    expect(
+      within(createSelect).queryByRole("option", { name: "Bản thân" }),
+    ).toBeNull();
   });
 
   it("gắn hồ sơ gợi ý: chọn quan hệ rồi bấm Gắn, về danh sách và hồ sơ vào kho dùng chung", async () => {
@@ -66,8 +74,12 @@ describe("NewPatientProfileScreen: gợi ý và gắn", () => {
     expect(button).toBeEnabled();
     await user.click(button);
 
-    await waitFor(() => expect(nav.push).toHaveBeenCalledWith("/portal/profiles"));
-    expect(toast.success).toHaveBeenCalledWith("Đã lưu thông tin hồ sơ bệnh nhân.");
+    await waitFor(() =>
+      expect(nav.push).toHaveBeenCalledWith("/portal/profiles"),
+    );
+    expect(toast.success).toHaveBeenCalledWith(
+      "Đã lưu thông tin hồ sơ bệnh nhân.",
+    );
     expect(getLinkedProfileRecords().map((item) => item.id)).toContain(
       PROFILE_MOCK_IDS.bao,
     );
@@ -113,6 +125,8 @@ describe("NewPatientProfileScreen: tạo hồ sơ mới", () => {
         "/portal/profiles/7e4f0b10-0000-4000-8000-000000000001",
       ),
     );
-    expect(toast.success).toHaveBeenCalledWith("Đã lưu thông tin hồ sơ bệnh nhân.");
+    expect(toast.success).toHaveBeenCalledWith(
+      "Đã lưu thông tin hồ sơ bệnh nhân.",
+    );
   });
 });

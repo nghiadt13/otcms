@@ -27,8 +27,9 @@ const TODAY = "2026-10-23";
 const BINH = "pat-binh";
 
 const linkedId = (patientCode: string) =>
-  getLinkedProfileRecords().find((profile) => profile.patientCode === patientCode)
-    ?.id ?? "";
+  getLinkedProfileRecords().find(
+    (profile) => profile.patientCode === patientCode,
+  )?.id ?? "";
 
 async function failure(promise: Promise<unknown>): Promise<ApiError> {
   try {
@@ -66,7 +67,10 @@ describe("listBookableServices", () => {
 
 describe("getOpenTimes", () => {
   it("mặc định 14 ngày từ hôm nay, có serverNow và bước giờ 15 phút", async () => {
-    const response = await getOpenTimes({ serviceId: "svc-kham-tq", patientId: BINH });
+    const response = await getOpenTimes({
+      serviceId: "svc-kham-tq",
+      patientId: BINH,
+    });
     expect(response.from).toBe(TODAY);
     expect(response.to).toBe(addDays(TODAY, 13));
     expect(response.days).toHaveLength(14);
@@ -76,7 +80,10 @@ describe("getOpenTimes", () => {
 
   it("loại giờ đã qua so với đồng hồ máy chủ", async () => {
     resetBookingMock({ now: new Date("2026-10-23T08:05:00+07:00") });
-    const response = await getOpenTimes({ serviceId: "svc-kham-tq", patientId: BINH });
+    const response = await getOpenTimes({
+      serviceId: "svc-kham-tq",
+      patientId: BINH,
+    });
     const today = response.days[0];
     expect(today.times.map((time) => time.startAt)).not.toContain(
       "2026-10-23T08:00:00+07:00",
@@ -127,18 +134,33 @@ describe("getOpenTimes", () => {
 
   it("khoảng sai (từ sau đến, quá 14 ngày, quá khứ) → 400 MSG-31", async () => {
     const reversed = await failure(
-      getOpenTimes({ serviceId: "svc-kham-tq", patientId: BINH, from: "2026-10-28", to: "2026-10-27" }),
+      getOpenTimes({
+        serviceId: "svc-kham-tq",
+        patientId: BINH,
+        from: "2026-10-28",
+        to: "2026-10-27",
+      }),
     );
     expect(reversed).toMatchObject({ status: 400, code: "MSG-31" });
     expect(reversed.fieldErrors).toEqual([{ field: "to", code: "MSG-31" }]);
 
     const tooLong = await failure(
-      getOpenTimes({ serviceId: "svc-kham-tq", patientId: BINH, from: TODAY, to: addDays(TODAY, 14) }),
+      getOpenTimes({
+        serviceId: "svc-kham-tq",
+        patientId: BINH,
+        from: TODAY,
+        to: addDays(TODAY, 14),
+      }),
     );
     expect(tooLong).toMatchObject({ status: 400, code: "MSG-31" });
 
     const past = await failure(
-      getOpenTimes({ serviceId: "svc-kham-tq", patientId: BINH, from: "2026-10-20", to: "2026-10-21" }),
+      getOpenTimes({
+        serviceId: "svc-kham-tq",
+        patientId: BINH,
+        from: "2026-10-20",
+        to: "2026-10-21",
+      }),
     );
     expect(past).toMatchObject({ status: 400, code: "MSG-31" });
   });
@@ -148,23 +170,34 @@ describe("getOpenTimes", () => {
       await failure(getOpenTimes({ serviceId: "svc-xquang", patientId: BINH })),
     ).toMatchObject({ status: 404, code: "MSG-29" });
     expect(
-      await failure(getOpenTimes({ serviceId: FAILING_SERVICE_ID, patientId: BINH })),
+      await failure(
+        getOpenTimes({ serviceId: FAILING_SERVICE_ID, patientId: BINH }),
+      ),
     ).toMatchObject({ status: 500, code: "MSG-04" });
   });
 
   it("người bị khóa → 403 MSG-29; không có hồ sơ → 404 MSG-29", async () => {
     expect(
-      await failure(getOpenTimes({ serviceId: "svc-kham-tq", patientId: LOCKED_PATIENT_ID })),
+      await failure(
+        getOpenTimes({
+          serviceId: "svc-kham-tq",
+          patientId: LOCKED_PATIENT_ID,
+        }),
+      ),
     ).toMatchObject({ status: 403, code: "MSG-29" });
     expect(
-      await failure(getOpenTimes({ serviceId: "svc-kham-tq", patientId: "pat-khong-co" })),
+      await failure(
+        getOpenTimes({ serviceId: "svc-kham-tq", patientId: "pat-khong-co" }),
+      ),
     ).toMatchObject({ status: 404, code: "MSG-29" });
   });
 });
 
 describe("createAppointment", () => {
   it("phòng khám sắp xếp: BE gán bác sĩ đầu tiên còn trống, lịch vào kho chung", async () => {
-    const booked = await createAppointment(request({ startAt: "2026-10-27T10:00:00+07:00" }));
+    const booked = await createAppointment(
+      request({ startAt: "2026-10-27T10:00:00+07:00" }),
+    );
     expect(booked).toEqual({
       id: expect.stringMatching(/^apt-/),
       startAt: "2026-10-27T10:00:00+07:00",
@@ -177,26 +210,47 @@ describe("createAppointment", () => {
       isFollowUp: false,
     });
     expect(booked).not.toHaveProperty("patientPhone");
-    expect(readStoredAppointments().map((item) => item.id)).toContain(booked.id);
+    expect(readStoredAppointments().map((item) => item.id)).toContain(
+      booked.id,
+    );
   });
 
   it("chọn bác sĩ cụ thể đang nhận giờ đó: giữ đúng bác sĩ", async () => {
     const booked = await createAppointment(
-      request({ startAt: "2026-10-27T10:30:00+07:00", doctorId: DOCTOR_IDS.minh }),
+      request({
+        startAt: "2026-10-27T10:30:00+07:00",
+        doctorId: DOCTOR_IDS.minh,
+      }),
     );
     expect(booked.doctor.id).toBe(DOCTOR_IDS.minh);
   });
 
   it("giờ 09:00 hôm nay đã bị người khác giữ → 409 MSG-30; sau đó biến khỏi danh sách", async () => {
     const todayNine = `${TODAY}T${TAKEN_TODAY_TIME}:00+07:00`;
-    const before = await getOpenTimes({ serviceId: "svc-kham-tq", patientId: BINH, from: TODAY, to: TODAY });
-    expect(before.days[0].times.map((time) => time.startAt)).toContain(todayNine);
+    const before = await getOpenTimes({
+      serviceId: "svc-kham-tq",
+      patientId: BINH,
+      from: TODAY,
+      to: TODAY,
+    });
+    expect(before.days[0].times.map((time) => time.startAt)).toContain(
+      todayNine,
+    );
 
-    const error = await failure(createAppointment(request({ startAt: todayNine })));
+    const error = await failure(
+      createAppointment(request({ startAt: todayNine })),
+    );
     expect(error).toMatchObject({ status: 409, code: "MSG-30" });
 
-    const after = await getOpenTimes({ serviceId: "svc-kham-tq", patientId: BINH, from: TODAY, to: TODAY });
-    expect(after.days[0].times.map((time) => time.startAt)).not.toContain(todayNine);
+    const after = await getOpenTimes({
+      serviceId: "svc-kham-tq",
+      patientId: BINH,
+      from: TODAY,
+      to: TODAY,
+    });
+    expect(after.days[0].times.map((time) => time.startAt)).not.toContain(
+      todayNine,
+    );
     expect(
       await failure(createAppointment(request({ startAt: todayNine }))),
     ).toMatchObject({ code: "MSG-30" });
@@ -214,7 +268,10 @@ describe("createAppointment", () => {
     const tomorrow = addDays(TODAY, REFUSING_DAY_OFFSET);
     const error = await failure(
       createAppointment(
-        request({ startAt: `${tomorrow}T09:00:00+07:00`, doctorId: DOCTOR_IDS.tuan }),
+        request({
+          startAt: `${tomorrow}T09:00:00+07:00`,
+          doctorId: DOCTOR_IDS.tuan,
+        }),
       ),
     );
     expect(error).toMatchObject({ status: 409, code: "MSG-24" });
@@ -227,7 +284,11 @@ describe("createAppointment", () => {
     );
     const error = await failure(
       createAppointment(
-        request({ patientId: "pat-cuong", startAt: `${day}T11:00:00+07:00`, doctorId: DOCTOR_IDS.ha }),
+        request({
+          patientId: "pat-cuong",
+          startAt: `${day}T11:00:00+07:00`,
+          doctorId: DOCTOR_IDS.ha,
+        }),
       ),
     );
     expect(error).toMatchObject({ status: 409, code: "MSG-24" });
@@ -247,12 +308,18 @@ describe("createAppointment", () => {
     expect(offGrid.fieldErrors).toEqual([{ field: "startAt", code: "MSG-31" }]);
 
     const missing = await failure(
-      createAppointment(request({ patientId: "", startAt: "2026-10-27T08:00:00+07:00" })),
+      createAppointment(
+        request({ patientId: "", startAt: "2026-10-27T08:00:00+07:00" }),
+      ),
     );
-    expect(missing.fieldErrors).toEqual([{ field: "patientId", code: "MSG-31" }]);
+    expect(missing.fieldErrors).toEqual([
+      { field: "patientId", code: "MSG-31" },
+    ]);
 
     const beyond = await failure(
-      createAppointment(request({ startAt: `${addDays(TODAY, 14)}T08:00:00+07:00` })),
+      createAppointment(
+        request({ startAt: `${addDays(TODAY, 14)}T08:00:00+07:00` }),
+      ),
     );
     expect(beyond).toMatchObject({ status: 400, code: "MSG-31" });
   });
@@ -260,7 +327,12 @@ describe("createAppointment", () => {
   it("người bị khóa → 403 MSG-29; hồ sơ đã gỡ khỏi tài khoản → 404 MSG-29", async () => {
     expect(
       await failure(
-        createAppointment(request({ patientId: LOCKED_PATIENT_ID, startAt: "2026-10-27T08:00:00+07:00" })),
+        createAppointment(
+          request({
+            patientId: LOCKED_PATIENT_ID,
+            startAt: "2026-10-27T08:00:00+07:00",
+          }),
+        ),
       ),
     ).toMatchObject({ status: 403, code: "MSG-29" });
 
@@ -268,7 +340,9 @@ describe("createAppointment", () => {
     resetLinkedProfilesMock({ variant: "selfOnly" });
     expect(
       await failure(
-        createAppointment(request({ patientId: lan, startAt: "2026-10-27T08:00:00+07:00" })),
+        createAppointment(
+          request({ patientId: lan, startAt: "2026-10-27T08:00:00+07:00" }),
+        ),
       ),
     ).toMatchObject({ status: 404, code: "MSG-29" });
   });
@@ -279,7 +353,9 @@ describe("createAppointment", () => {
       request({ patientId: "pat-an", startAt: "2026-10-27T08:00:00+07:00" }),
     );
     expect(booked.patient).toEqual({ id: an, fullName: "Nguyễn Văn An" });
-    const stored = readStoredAppointments().find((item) => item.id === booked.id);
+    const stored = readStoredAppointments().find(
+      (item) => item.id === booked.id,
+    );
     expect(stored?.patientCode).toBe("BN-000123");
     expect(stored?.bookedFor).toEqual({ kind: "SELF" });
   });
@@ -290,7 +366,9 @@ describe("createAppointment", () => {
       request({ patientId: lan, startAt: "2026-10-27T15:00:00+07:00" }),
     );
     expect(booked.patient.id).toBe(lan);
-    const stored = readStoredAppointments().find((item) => item.id === booked.id);
+    const stored = readStoredAppointments().find(
+      (item) => item.id === booked.id,
+    );
     expect(stored?.bookedFor).toEqual({
       kind: "DEPENDENT",
       accountHolderName: "Nguyễn Văn An",
@@ -304,14 +382,20 @@ describe("kho lịch dùng chung", () => {
     expect(items.length).toBeGreaterThanOrEqual(7);
     const starts = items.map((item) => item.startAt);
     expect([...starts].sort()).toEqual(starts);
-    expect(items.some((item) => item.patient.id === linkedId("BN-000123"))).toBe(true);
+    expect(
+      items.some((item) => item.patient.id === linkedId("BN-000123")),
+    ).toBe(true);
     expect(items.some((item) => item.status === "CHECKED_IN")).toBe(true);
   });
 
   it("đọc trả về bản sao: sửa bản sao không đổi kho", () => {
-    const copy = readStoredAppointments().find((item) => item.id === "apt-1001");
+    const copy = readStoredAppointments().find(
+      (item) => item.id === "apt-1001",
+    );
     if (!copy) throw new Error("thiếu lịch mẫu apt-1001");
     copy.status = "CANCELLED";
-    expect(readStoredAppointments().find((item) => item.id === "apt-1001")?.status).toBe("BOOKED");
+    expect(
+      readStoredAppointments().find((item) => item.id === "apt-1001")?.status,
+    ).toBe("BOOKED");
   });
 });

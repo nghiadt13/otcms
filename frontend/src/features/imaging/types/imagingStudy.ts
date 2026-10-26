@@ -14,9 +14,15 @@ export const IMAGING_MODALITY_LABELS: Record<ImagingModality, string> = {
   MRI: "MRI",
 };
 
-export type ImagingVisitStatus = Extract<VisitStatus, "COMPLETED" | "INCOMPLETE">;
+export type ImagingVisitStatus = Extract<
+  VisitStatus,
+  "COMPLETED" | "INCOMPLETE"
+>;
 
-export type ImagingPatientRef = Pick<LinkedProfile, "id" | "fullName" | "relationship">;
+export type ImagingPatientRef = Pick<
+  LinkedProfile,
+  "id" | "fullName" | "relationship"
+>;
 
 /** Dòng danh sách `/portal/images`: không có `viewerUrl`. */
 export interface PatientImagingStudySummary {

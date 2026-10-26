@@ -61,23 +61,35 @@ export function RoomDetailSheet({
       <SheetContent className="w-full overflow-y-auto sm:max-w-md">
         <SheetHeader>
           <SheetTitle>{room ? room.name : "Chi tiết phòng"}</SheetTitle>
-          <SheetDescription>Thông tin phòng và dịch vụ hỗ trợ.</SheetDescription>
+          <SheetDescription>
+            Thông tin phòng và dịch vụ hỗ trợ.
+          </SheetDescription>
         </SheetHeader>
         <div className="flex flex-1 flex-col gap-6 px-4 pb-4">
           {room ? (
             <>
               <DetailList
                 items={[
-                  { label: "Loại phòng", value: ROOM_CATEGORY_LABELS[room.type] },
+                  {
+                    label: "Loại phòng",
+                    value: ROOM_CATEGORY_LABELS[room.type],
+                  },
                   {
                     label: "Trạng thái",
                     value: (
-                      <StatusBadge tone={room.status === "AVAILABLE" ? "success" : "neutral"}>
+                      <StatusBadge
+                        tone={
+                          room.status === "AVAILABLE" ? "success" : "neutral"
+                        }
+                      >
                         {ROOM_STATUS_LABELS[room.status]}
                       </StatusBadge>
                     ),
                   },
-                  { label: "Mô tả", value: room.description || "Chưa có mô tả" },
+                  {
+                    label: "Mô tả",
+                    value: room.description || "Chưa có mô tả",
+                  },
                   {
                     label: "Dịch vụ hỗ trợ",
                     value:

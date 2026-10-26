@@ -89,7 +89,9 @@ export async function createAccount(
   if (username === "khong.quyen") mockFail(403, "MSG-14");
   if (username === "loi.tao") mockFail(500, "MSG-16");
   if (accountStore().some((account) => account.username === username))
-    mockFail(409, "MSG-13", { username }, [{ field: "username", code: "MSG-13" }]);
+    mockFail(409, "MSG-13", { username }, [
+      { field: "username", code: "MSG-13" },
+    ]);
 
   const account: AccountDetail = {
     id: crypto.randomUUID(),
@@ -131,5 +133,9 @@ export async function reissueAccountPassword(
   // Bệnh nhân tự khôi phục bằng OTP email, Admin không cấp lại.
   if (account.accountType === "PATIENT" || !account.username)
     mockFail(403, "MSG-14");
-  return { id, username: account.username, initialPassword: generateInitialPassword() };
+  return {
+    id,
+    username: account.username,
+    initialPassword: generateInitialPassword(),
+  };
 }

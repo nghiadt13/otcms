@@ -15,9 +15,10 @@ export const mockLatency = (signal?: AbortSignal) =>
 /** Lỗi 400 MSG-17 kèm tên các trường sai. Danh sách rỗng thì không làm gì. */
 export function rejectFields(fields: readonly string[]): void {
   if (fields.length === 0) return;
-  const fieldErrors = fields.map(
-    (field): ApiFieldError => ({ field, code: "MSG-17" }),
-  );
+  const fieldErrors = fields.map((field): ApiFieldError => ({
+    field,
+    code: "MSG-17",
+  }));
   mockFail(400, "MSG-17", undefined, fieldErrors);
 }
 

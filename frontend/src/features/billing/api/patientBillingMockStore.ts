@@ -14,7 +14,11 @@ import {
   type StoredSource,
 } from "./patientBillingMockState";
 
-export type { StoredItem, StoredPayment, StoredSource } from "./patientBillingMockState";
+export type {
+  StoredItem,
+  StoredPayment,
+  StoredSource,
+} from "./patientBillingMockState";
 
 // KHO GIẢ trong bộ nhớ của thanh toán khu bệnh nhân. Chỉ lớp API giả dùng. Kết quả giao dịch
 // (PENDING → SUCCESS/FAILED), khóa khoản đang thanh toán và số thứ tự nằm ở đây; khi nối BE
@@ -52,13 +56,20 @@ export function isPaymentListFailing(): boolean {
  */
 export function listStoredSources(): StoredSource[] {
   const own = state.sources;
-  const shared = appointmentSourcesOf(getLinkedProfileRecords(), state.payments).filter(
-    (source) => !own.some((item) => item.kind === source.kind && item.id === source.id),
+  const shared = appointmentSourcesOf(
+    getLinkedProfileRecords(),
+    state.payments,
+  ).filter(
+    (source) =>
+      !own.some((item) => item.kind === source.kind && item.id === source.id),
   );
   return [...own, ...shared];
 }
 
-export function findStoredSource(kind: PaymentSourceKind, id: string): StoredSource | undefined {
+export function findStoredSource(
+  kind: PaymentSourceKind,
+  id: string,
+): StoredSource | undefined {
   return (
     state.sources.find((source) => source.kind === kind && source.id === id) ??
     (kind === "appointment"
@@ -97,7 +108,10 @@ function decideOutcome(
 }
 
 /** Tạo giao dịch PENDING cho các khoản đã chọn; tổng tính từ giá trong kho, không từ FE. */
-export function createStoredPayment(source: StoredSource, itemIds: string[]): StoredPayment {
+export function createStoredPayment(
+  source: StoredSource,
+  itemIds: string[],
+): StoredPayment {
   state.paymentSeq += 1;
   const items = source.items.filter((item) => itemIds.includes(item.id));
   const total = items.reduce((sum, item) => sum + item.amount, 0);
@@ -124,7 +138,10 @@ export function createStoredPayment(source: StoredSource, itemIds: string[]): St
 /** Mỗi lần kiểm tra trạng thái đẩy giao dịch một bước, giống BE nhận kết quả từ cổng. */
 export function advanceStoredPayment(payment: StoredPayment): void {
   if (payment.status !== "PENDING") return;
-  if (payment.outcome === "PENDING_THEN_SUCCESS" && payment.pendingChecksLeft > 0) {
+  if (
+    payment.outcome === "PENDING_THEN_SUCCESS" &&
+    payment.pendingChecksLeft > 0
+  ) {
     payment.pendingChecksLeft -= 1;
     return;
   }
@@ -137,7 +154,9 @@ export function advanceStoredPayment(payment: StoredPayment): void {
 
 function settleSuccess(payment: StoredPayment): void {
   const source = state.sources.find(
-    (candidate) => candidate.kind === payment.sourceKind && candidate.id === payment.sourceId,
+    (candidate) =>
+      candidate.kind === payment.sourceKind &&
+      candidate.id === payment.sourceId,
   );
   state.receiptSeq += 1;
   payment.status = "SUCCESS";
@@ -145,15 +164,20 @@ function settleSuccess(payment: StoredPayment): void {
   payment.vnpayRef = `VNP-${payment.id}`;
   payment.receiptNo = `PT-${state.receiptSeq}`;
   // Phí khám lịch hẹn nằm ở kho phí dùng chung: đánh dấu đã trả để khu đặt lịch thấy PAID.
-  if (payment.sourceKind === "appointment") markMockAppointmentFeePaid(payment.sourceId);
+  if (payment.sourceKind === "appointment")
+    markMockAppointmentFeePaid(payment.sourceId);
   if (!source) return;
-  const paidItems = source.items.filter((item) => payment.itemIds.includes(item.id));
+  const paidItems = source.items.filter((item) =>
+    payment.itemIds.includes(item.id),
+  );
   for (const item of paidItems) {
     item.status = "PAID";
     item.receipt = { paymentId: payment.id, receiptNo: payment.receiptNo };
   }
   payment.queueAssignments = paidItems.flatMap((item) =>
-    item.room ? [{ roomName: item.room, queueNumber: nextQueueNumber(item.room) }] : [],
+    item.room
+      ? [{ roomName: item.room, queueNumber: nextQueueNumber(item.room) }]
+      : [],
   );
 }
 

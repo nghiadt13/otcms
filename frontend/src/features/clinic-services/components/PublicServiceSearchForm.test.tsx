@@ -4,9 +4,18 @@ import { PublicServiceSearchForm } from "./PublicServiceSearchForm";
 import { formatAppMessage } from "@/lib/messages/appMessages";
 describe("PublicServiceSearchForm", () => {
   it("điền lại tiêu chí đang lọc và gửi GET tới /services", () => {
-    render(<PublicServiceSearchForm error={null} input={{ q: "gối", type: "EXAMINATION" }} />);
-    expect(screen.getByRole("textbox", { name: "Tên dịch vụ" })).toHaveValue("gối");
-    expect(screen.getByRole("combobox", { name: "Loại dịch vụ" })).toHaveValue("EXAMINATION");
+    render(
+      <PublicServiceSearchForm
+        error={null}
+        input={{ q: "gối", type: "EXAMINATION" }}
+      />,
+    );
+    expect(screen.getByRole("textbox", { name: "Tên dịch vụ" })).toHaveValue(
+      "gối",
+    );
+    expect(screen.getByRole("combobox", { name: "Loại dịch vụ" })).toHaveValue(
+      "EXAMINATION",
+    );
     const form = screen.getByRole("search");
     expect(form).toHaveAttribute("action", "/services");
     expect(form).toHaveAttribute("method", "get");
@@ -23,9 +32,8 @@ describe("PublicServiceSearchForm", () => {
     expect(screen.getByRole("alert")).toHaveTextContent(
       formatAppMessage("MSG-54"),
     );
-    expect(screen.getByRole("textbox", { name: "Tên dịch vụ" })).toHaveAttribute(
-      "aria-invalid",
-      "true",
-    );
+    expect(
+      screen.getByRole("textbox", { name: "Tên dịch vụ" }),
+    ).toHaveAttribute("aria-invalid", "true");
   });
 });

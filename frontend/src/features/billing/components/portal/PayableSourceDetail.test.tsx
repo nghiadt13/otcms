@@ -17,36 +17,46 @@ describe("PayableSourceDetail", () => {
     const user = userEvent.setup();
     render(<PayableSourceDetail id="vis-an-today" kind="visit" />);
 
-    const mri = await screen.findByRole("checkbox", { name: "MRI cột sống thắt lưng" });
+    const mri = await screen.findByRole("checkbox", {
+      name: "MRI cột sống thắt lưng",
+    });
     // Checkbox của base-ui dùng aria-disabled (không phải thuộc tính disabled của nút).
-    expect(screen.getByRole("checkbox", { name: "X-quang khớp gối" })).toHaveAttribute(
-      "aria-disabled",
-      "true",
-    );
-    expect(screen.getByRole("checkbox", { name: "Siêu âm khớp vai" })).toHaveAttribute(
-      "aria-disabled",
-      "true",
-    );
+    expect(
+      screen.getByRole("checkbox", { name: "X-quang khớp gối" }),
+    ).toHaveAttribute("aria-disabled", "true");
+    expect(
+      screen.getByRole("checkbox", { name: "Siêu âm khớp vai" }),
+    ).toHaveAttribute("aria-disabled", "true");
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(
       "Lượt khám 23/10/2026 · Nguyễn Văn An (Bản thân)",
     );
-    expect(screen.queryByRole("link", { name: "Thanh toán qua VNPay" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: "Thanh toán qua VNPay" }),
+    ).not.toBeInTheDocument();
 
     await user.click(mri);
     await user.click(screen.getByRole("checkbox", { name: "Công thức máu" }));
-    expect(screen.getByText("Tạm tính").nextElementSibling).toHaveTextContent(money(1450000));
-    expect(screen.getByRole("link", { name: "Thanh toán qua VNPay" })).toHaveAttribute(
+    expect(screen.getByText("Tạm tính").nextElementSibling).toHaveTextContent(
+      money(1450000),
+    );
+    expect(
+      screen.getByRole("link", { name: "Thanh toán qua VNPay" }),
+    ).toHaveAttribute(
       "href",
       "/portal/payments/pay?source=visit&id=vis-an-today&items=svc-pending%2Csvc-cbc",
     );
 
     await user.click(mri);
-    expect(screen.getByText("Tạm tính").nextElementSibling).toHaveTextContent(money(250000));
+    expect(screen.getByText("Tạm tính").nextElementSibling).toHaveTextContent(
+      money(250000),
+    );
   });
 
   it("khoản đã trả có liên kết tới phiếu thu, khoản đã hủy ghi lý do", async () => {
     render(<PayableSourceDetail id="vis-an-today" kind="visit" />);
-    const receipt = await screen.findByRole("link", { name: "Phiếu thu PT-1029" });
+    const receipt = await screen.findByRole("link", {
+      name: "Phiếu thu PT-1029",
+    });
     expect(receipt).toHaveAttribute("href", "/portal/payments/history/pm-1029");
     expect(screen.getByText("Bác sĩ thay bằng MRI")).toBeInTheDocument();
   });

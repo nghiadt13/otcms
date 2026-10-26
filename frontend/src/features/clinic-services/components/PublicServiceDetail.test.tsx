@@ -12,9 +12,20 @@ vi.mock("@/lib/supabase/browser", () => ({
 
 describe("PublicServiceDetail", () => {
   it("chỉ dịch vụ Khám có nút Đặt lịch khám, dẫn qua đăng nhập", async () => {
-    render(<PublicServiceDetail service={await getPublicService("svc-consultation")} />);
-    expect(screen.getByRole("heading", { level: 1, name: "Khám chấn thương chỉnh hình" })).toBeVisible();
-    expect(screen.getByText("Mỗi lượt khám khoảng 30 phút.")).toBeInTheDocument();
+    render(
+      <PublicServiceDetail
+        service={await getPublicService("svc-consultation")}
+      />,
+    );
+    expect(
+      screen.getByRole("heading", {
+        level: 1,
+        name: "Khám chấn thương chỉnh hình",
+      }),
+    ).toBeVisible();
+    expect(
+      screen.getByText("Mỗi lượt khám khoảng 30 phút."),
+    ).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Đặt lịch khám" })).toHaveAttribute(
       "href",
       "/login?next=/portal/appointments/new",
@@ -22,8 +33,12 @@ describe("PublicServiceDetail", () => {
   });
 
   it("chẩn đoán hình ảnh không có nút đặt lịch và ghi do bác sĩ chỉ định", async () => {
-    render(<PublicServiceDetail service={await getPublicService("svc-xray")} />);
-    expect(screen.getByText("Do bác sĩ chỉ định khi khám.")).toBeInTheDocument();
+    render(
+      <PublicServiceDetail service={await getPublicService("svc-xray")} />,
+    );
+    expect(
+      screen.getByText("Do bác sĩ chỉ định khi khám."),
+    ).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Đặt lịch khám" })).toBeNull();
     expect(screen.getByText("180.000 ₫")).toBeInTheDocument();
   });

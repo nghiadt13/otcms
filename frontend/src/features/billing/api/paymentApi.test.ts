@@ -27,7 +27,9 @@ describe("listPayments", () => {
   });
 
   it("summary tính trên toàn tập lọc, không theo trang; tổng = tiền mặt + VNPay", async () => {
-    const inRange = PAYMENT_SEED.filter((p) => p.paidAt.slice(0, 10) >= "2026-09-20");
+    const inRange = PAYMENT_SEED.filter(
+      (p) => p.paidAt.slice(0, 10) >= "2026-09-20",
+    );
     const expectedTotal = inRange.reduce((sum, p) => sum + p.amount, 0);
     const first = await listPayments({ ...DEFAULT_RANGE, page: 0 });
     const last = await listPayments({ ...DEFAULT_RANGE, page: 2 });
@@ -41,29 +43,53 @@ describe("listPayments", () => {
   });
 
   it("lọc phương thức: phương thức kia trong summary bằng 0", async () => {
-    const cash = await listPayments({ ...DEFAULT_RANGE, method: "CASH", size: 100 });
+    const cash = await listPayments({
+      ...DEFAULT_RANGE,
+      method: "CASH",
+      size: 100,
+    });
     expect(cash.items.every((item) => item.method === "CASH")).toBe(true);
     expect(cash.summary.vnpayAmount).toBe(0);
     expect(cash.summary.cashAmount).toBeGreaterThan(0);
-    const vnpay = await listPayments({ ...DEFAULT_RANGE, method: "VNPAY", size: 100 });
+    const vnpay = await listPayments({
+      ...DEFAULT_RANGE,
+      method: "VNPAY",
+      size: 100,
+    });
     expect(vnpay.items.every((item) => item.cashierName === null)).toBe(true);
     expect(vnpay.summary.cashAmount).toBe(0);
   });
 
   it("tìm theo tên không phân biệt hoa thường và theo số phiếu thu", async () => {
-    const byName = await listPayments({ ...DEFAULT_RANGE, q: "  lê THỊ bích " });
+    const byName = await listPayments({
+      ...DEFAULT_RANGE,
+      q: "  lê THỊ bích ",
+    });
     expect(byName.totalItems).toBe(2);
-    const byReceipt = await listPayments({ ...DEFAULT_RANGE, q: "PT-2026-000481" });
+    const byReceipt = await listPayments({
+      ...DEFAULT_RANGE,
+      q: "PT-2026-000481",
+    });
     expect(byReceipt.items.map((item) => item.receiptNumber)).toEqual([
       "PT-2026-000481",
     ]);
   });
 
   it("khoảng ngày gồm cả hai đầu và loại khoản ngoài kỳ", async () => {
-    const outside = await listPayments({ ...DEFAULT_RANGE, from: "2026-09-10", to: "2026-09-10" });
+    const outside = await listPayments({
+      ...DEFAULT_RANGE,
+      from: "2026-09-10",
+      to: "2026-09-10",
+    });
     expect(outside.totalItems).toBe(2);
-    const sameDay = await listPayments({ ...DEFAULT_RANGE, from: "2026-10-20", to: "2026-10-20" });
-    expect(sameDay.items.every((item) => item.paidAt.startsWith("2026-10-20"))).toBe(true);
+    const sameDay = await listPayments({
+      ...DEFAULT_RANGE,
+      from: "2026-10-20",
+      to: "2026-10-20",
+    });
+    expect(
+      sameDay.items.every((item) => item.paidAt.startsWith("2026-10-20")),
+    ).toBe(true);
   });
 
   it("không khớp hoặc kỳ trống: items rỗng, summary 0", async () => {
@@ -73,7 +99,11 @@ describe("listPayments", () => {
     ]) {
       const page = await listPayments(query);
       expect(page.items).toEqual([]);
-      expect(page.summary).toEqual({ totalAmount: 0, cashAmount: 0, vnpayAmount: 0 });
+      expect(page.summary).toEqual({
+        totalAmount: 0,
+        cashAmount: 0,
+        vnpayAmount: 0,
+      });
     }
   });
 
@@ -98,7 +128,9 @@ describe("getPaymentDetail", () => {
   it("Σ lines.price = amount, chỉ có hành động view, không có itemSummary", async () => {
     for (const seed of [PAYMENT_SEED[0], PAYMENT_SEED[2], PAYMENT_SEED[3]]) {
       const detail = await getPaymentDetail(seed.id);
-      expect(detail.lines.reduce((sum, line) => sum + line.price, 0)).toBe(detail.amount);
+      expect(detail.lines.reduce((sum, line) => sum + line.price, 0)).toBe(
+        detail.amount,
+      );
       expect(detail.allowedActions).toEqual(["view"]);
       expect(detail).not.toHaveProperty("itemSummary");
     }

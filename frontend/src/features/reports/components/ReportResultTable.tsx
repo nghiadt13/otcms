@@ -13,7 +13,11 @@ import { formatDate } from "@/lib/format/formatDate";
 import { formatDecimal1, formatInteger } from "@/lib/format/formatNumber";
 import type { ReportCell, ReportColumn, ReportSection } from "../types/report";
 
-const NUMERIC_KINDS = new Set<ReportColumn["kind"]>(["count", "money", "score"]);
+const NUMERIC_KINDS = new Set<ReportColumn["kind"]>([
+  "count",
+  "money",
+  "score",
+]);
 
 /** Định dạng ô theo `kind`; chuỗi không phải ngày (ví dụ nhãn "Tổng cộng") giữ nguyên. */
 function formatCell(

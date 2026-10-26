@@ -13,7 +13,14 @@ function Inline({ nodes }: { nodes: InlineNode[] }): ReactNode {
     if (node.kind === "bold") return <strong key={index}>{node.text}</strong>;
     if (node.kind === "image")
       // eslint-disable-next-line @next/next/no-img-element -- ảnh do Admin tải lên, kích thước chưa biết
-      return <img key={index} src={node.src} alt={node.alt} className="my-3 h-auto max-w-full rounded-lg" />;
+      return (
+        <img
+          key={index}
+          src={node.src}
+          alt={node.alt}
+          className="my-3 h-auto max-w-full rounded-lg"
+        />
+      );
     if (node.kind === "link") {
       const external = /^https?:\/\//i.test(node.href);
       return (
@@ -21,7 +28,9 @@ function Inline({ nodes }: { nodes: InlineNode[] }): ReactNode {
           key={index}
           href={node.href}
           className="text-primary underline underline-offset-2"
-          {...(external ? { target: "_blank", rel: "noopener noreferrer" } : {})}
+          {...(external
+            ? { target: "_blank", rel: "noopener noreferrer" }
+            : {})}
         >
           {node.text}
         </a>

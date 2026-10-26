@@ -10,7 +10,10 @@ import type { RoomServiceOption } from "../types/room";
  * Dịch vụ đang cung cấp theo loại (bỏ `category` = mọi loại). Cờ `active` bỏ response cũ
  * khi người dùng đổi loại nhanh. `enabled=false` thì không gọi API.
  */
-export function useRoomServiceOptions(category?: ServiceCategory, enabled = true) {
+export function useRoomServiceOptions(
+  category?: ServiceCategory,
+  enabled = true,
+) {
   const [state, setState] = useState<{
     key: string;
     options: RoomServiceOption[];
@@ -28,7 +31,8 @@ export function useRoomServiceOptions(category?: ServiceCategory, enabled = true
         if (active) setState({ key, options, error: null });
       })
       .catch((err: unknown) => {
-        if (active) setState({ key, options: [], error: messageFromError(err) });
+        if (active)
+          setState({ key, options: [], error: messageFromError(err) });
       });
     return () => {
       active = false;

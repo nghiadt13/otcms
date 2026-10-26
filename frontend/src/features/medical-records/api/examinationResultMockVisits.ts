@@ -58,8 +58,10 @@ export const MOCK_VISITS: MockVisit[] = [
       ],
       examination: {
         reason: "Đau khớp gối phải ba tháng",
-        symptoms: "Đau khi lên xuống cầu thang, cứng khớp buổi sáng khoảng 15 phút",
-        findings: "Khớp gối phải tràn dịch nhẹ, gấp gối 120°, đau khi ép mặt trong",
+        symptoms:
+          "Đau khi lên xuống cầu thang, cứng khớp buổi sáng khoảng 15 phút",
+        findings:
+          "Khớp gối phải tràn dịch nhẹ, gấp gối 120°, đau khi ép mặt trong",
         primaryDiagnoses: [
           { code: "M17.1", title: "Thoái hóa khớp gối nguyên phát" },
         ],
@@ -104,7 +106,11 @@ export const MOCK_VISITS: MockVisit[] = [
         },
       ],
       prescriptions: [
-        { id: "pres-an-1", issuedAt: "2026-10-23T10:40:00+07:00", itemCount: 3 },
+        {
+          id: "pres-an-1",
+          issuedAt: "2026-10-23T10:40:00+07:00",
+          itemCount: 3,
+        },
       ],
       administrative: AN_ADMIN,
       resultSheets: [
@@ -136,7 +142,8 @@ export const MOCK_VISITS: MockVisit[] = [
       examination: {
         reason: "Đau thắt lưng khi đứng lâu",
         symptoms: "Đau vùng thắt lưng, lan nhẹ xuống mông",
-        findings: "Vận động cột sống thắt lưng hạn chế nhẹ, không có dấu thần kinh",
+        findings:
+          "Vận động cột sống thắt lưng hạn chế nhẹ, không có dấu thần kinh",
         primaryDiagnoses: [{ code: "M54.5", title: "Đau thắt lưng" }],
         secondaryDiagnoses: [],
         treatmentDirection: "Dùng thuốc giảm đau, chườm ấm",
@@ -144,7 +151,11 @@ export const MOCK_VISITS: MockVisit[] = [
         followUpDate: null,
       },
       prescriptions: [
-        { id: "pres-lan-1", issuedAt: "2026-07-03T09:30:00+07:00", itemCount: 2 },
+        {
+          id: "pres-lan-1",
+          issuedAt: "2026-07-03T09:30:00+07:00",
+          itemCount: 2,
+        },
       ],
       administrative: LAN_ADMIN,
     },

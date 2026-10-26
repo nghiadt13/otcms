@@ -31,7 +31,9 @@ describe("PatientProfileHistoryScreen", () => {
     render(<PatientProfileHistoryScreen profileId={an} />);
 
     expect(
-      await screen.findByText("Cập nhật lần cuối 20/10/2026 bởi BS. Phạm Thu Hà"),
+      await screen.findByText(
+        "Cập nhật lần cuối 20/10/2026 bởi BS. Phạm Thu Hà",
+      ),
     ).toBeInTheDocument();
     const save = screen.getByRole("button", { name: "Lưu Dị ứng" });
     expect(save).toBeDisabled();
@@ -115,7 +117,10 @@ describe("PatientProfileHistoryScreen", () => {
     const user = userEvent.setup();
     render(<PatientProfileHistoryScreen profileId={an} />);
     await user.type(await screen.findByLabelText("Dị ứng"), " aspirin");
-    await user.type(screen.getByLabelText("Chấn thương"), " gãy xương cẳng tay");
+    await user.type(
+      screen.getByLabelText("Chấn thương"),
+      " gãy xương cẳng tay",
+    );
 
     const allergySave = screen.getByRole("button", { name: "Lưu Dị ứng" });
     const injurySave = screen.getByRole("button", { name: "Lưu Chấn thương" });
@@ -127,6 +132,8 @@ describe("PatientProfileHistoryScreen", () => {
     await user.click(allergySave);
     await waitFor(() => expect(toast.success).toHaveBeenCalledTimes(1));
     expect(screen.getByRole("button", { name: "Lưu Dị ứng" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Lưu Chấn thương" })).toBeEnabled();
+    expect(
+      screen.getByRole("button", { name: "Lưu Chấn thương" }),
+    ).toBeEnabled();
   });
 });

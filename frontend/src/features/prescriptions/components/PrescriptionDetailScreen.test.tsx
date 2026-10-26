@@ -27,18 +27,22 @@ describe("PrescriptionDetailScreen", () => {
     render(<PrescriptionDetailScreen prescriptionId="pres-an-1" />);
 
     expect(
-      await screen.findByRole("heading", { level: 1, name: "Đơn thuốc ngày 23/10/2026" }),
+      await screen.findByRole("heading", {
+        level: 1,
+        name: "Đơn thuốc ngày 23/10/2026",
+      }),
     ).toBeInTheDocument();
     expect(screen.getByText("Nguyễn Văn An (Bản thân)")).toBeInTheDocument();
-    expect(screen.getByText("M17.1 – Thoái hóa khớp gối nguyên phát")).toBeInTheDocument();
+    expect(
+      screen.getByText("M17.1 – Thoái hóa khớp gối nguyên phát"),
+    ).toBeInTheDocument();
 
     const table = screen.getByRole("table");
-    expect(within(table).getAllByRole("columnheader").map((h) => h.textContent)).toEqual([
-      "Thuốc",
-      "Liều dùng",
-      "Số lần",
-      "Cách dùng",
-    ]);
+    expect(
+      within(table)
+        .getAllByRole("columnheader")
+        .map((h) => h.textContent),
+    ).toEqual(["Thuốc", "Liều dùng", "Số lần", "Cách dùng"]);
     expect(within(table).getAllByRole("row")).toHaveLength(4);
     expect(within(table).getByText("Diclofenac 75 mg")).toBeInTheDocument();
 
@@ -60,7 +64,9 @@ describe("PrescriptionDetailScreen", () => {
   });
 
   it("403 gọi trang không tìm thấy", async () => {
-    render(<PrescriptionDetailScreen prescriptionId={PRESCRIPTION_FORBIDDEN_ID} />);
+    render(
+      <PrescriptionDetailScreen prescriptionId={PRESCRIPTION_FORBIDDEN_ID} />,
+    );
     await waitFor(() => expect(nav.notFound).toHaveBeenCalled());
   });
 });

@@ -86,11 +86,15 @@ export function AccountsTable({
                       {accountIdentifier(account)}
                     </TableCell>
                     <TableCell
-                      className={account.fullName ? undefined : "text-muted-foreground"}
+                      className={
+                        account.fullName ? undefined : "text-muted-foreground"
+                      }
                     >
                       {accountFullName(account)}
                     </TableCell>
-                    <TableCell>{ACCOUNT_TYPE_LABELS[account.accountType]}</TableCell>
+                    <TableCell>
+                      {ACCOUNT_TYPE_LABELS[account.accountType]}
+                    </TableCell>
                     <TableCell>
                       <StatusBadge tone={STATUS_TONES[account.status]}>
                         {STATUS_LABELS[account.status]}

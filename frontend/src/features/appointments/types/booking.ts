@@ -91,8 +91,7 @@ export interface BookedAppointment {
 
 /** Đặt cho chính chủ hay người phụ thuộc đã gắn (BR-21). */
 export type BookedFor =
-  | { kind: "SELF" }
-  | { kind: "DEPENDENT"; accountHolderName: string };
+  { kind: "SELF" } | { kind: "DEPENDENT"; accountHolderName: string };
 
 /**
  * Bản ghi đầy đủ trong kho giả dùng chung (xem api/bookingMockStore.ts). Các trường thêm so

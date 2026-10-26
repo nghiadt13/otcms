@@ -20,7 +20,11 @@ const EMPTY_TEXT: Record<AppointmentWhen, string> = {
 
 export function PatientAppointmentListSkeleton() {
   return (
-    <div aria-busy="true" role="status" className="rounded-lg border bg-card divide-y">
+    <div
+      aria-busy="true"
+      role="status"
+      className="rounded-lg border bg-card divide-y"
+    >
       <span className="sr-only">Đang tải lịch hẹn</span>
       {[0, 1, 2].map((row) => (
         <div className="space-y-2 px-4 py-4" key={row}>
@@ -57,7 +61,10 @@ export function PatientAppointmentListBody({
     <div className="space-y-4">
       <ul className="divide-y rounded-lg border bg-card">
         {list.items.map((appointment) => (
-          <PatientAppointmentRow appointment={appointment} key={appointment.id} />
+          <PatientAppointmentRow
+            appointment={appointment}
+            key={appointment.id}
+          />
         ))}
       </ul>
       {list.hasMore ? (

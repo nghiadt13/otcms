@@ -37,9 +37,10 @@ describe("PatientAccountProfile", () => {
     ).toBeInTheDocument();
     expect(await screen.findByText("Nguyễn Văn An")).toBeInTheDocument();
     expect(screen.getByText("an@example.com")).toBeInTheDocument();
-    expect(
-      screen.getByRole("link", { name: "Đổi mật khẩu" }),
-    ).toHaveAttribute("href", "/portal/account/password");
+    expect(screen.getByRole("link", { name: "Đổi mật khẩu" })).toHaveAttribute(
+      "href",
+      "/portal/account/password",
+    );
   });
 
   it("đổi email: OTP sai báo MSG-08; đúng mã thì email mới hiện trên màn", async () => {
@@ -47,7 +48,10 @@ describe("PatientAccountProfile", () => {
     render(<PatientAccountProfile />);
     await user.click(await screen.findByRole("button", { name: "Đổi email" }));
 
-    await user.type(await screen.findByLabelText("Email mới"), "moi@example.com");
+    await user.type(
+      await screen.findByLabelText("Email mới"),
+      "moi@example.com",
+    );
     await user.click(screen.getByRole("button", { name: "Gửi mã" }));
 
     await user.type(await screen.findByLabelText("Mã xác minh"), "000000");

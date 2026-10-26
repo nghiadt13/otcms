@@ -4,7 +4,8 @@ import { isPasswordValid } from "@/lib/domain/passwordPolicy";
 // 4–30 ký tự. Đổi quy tắc chỉ cần sửa ở đây.
 export const USERNAME_PATTERN = /^[a-z0-9._]{4,30}$/;
 
-export const USERNAME_HINT = "Chữ thường, số, dấu chấm hoặc gạch dưới; 4–30 ký tự.";
+export const USERNAME_HINT =
+  "Chữ thường, số, dấu chấm hoặc gạch dưới; 4–30 ký tự.";
 export const PASSWORD_HINT = "Ít nhất 8 ký tự, gồm chữ và số.";
 
 export const validateUsername = (value: string): string | null =>

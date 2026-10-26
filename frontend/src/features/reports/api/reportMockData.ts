@@ -1,4 +1,7 @@
-import { CATEGORY_LABELS, type ServiceCategory } from "@/lib/domain/clinicCategories";
+import {
+  CATEGORY_LABELS,
+  type ServiceCategory,
+} from "@/lib/domain/clinicCategories";
 import type {
   ReportColumn,
   ReportQuery,
@@ -8,7 +11,13 @@ import type {
   ReportSubjectCode,
   ReportSubjectOption,
 } from "../types/report";
-import { buildPaymentSections, makeSection, pick, listDays, col } from "./reportMockPayments";
+import {
+  buildPaymentSections,
+  makeSection,
+  pick,
+  listDays,
+  col,
+} from "./reportMockPayments";
 
 /** Chủ đề bị ẩn khỏi danh sách và trả 403 khi tạo. Đặt `[]` để xem đủ 7 chủ đề. */
 export const MOCK_EXCLUDED_SUBJECTS: ReportSubjectCode[] = ["PATIENT_FEEDBACK"];
@@ -32,7 +41,11 @@ export const MOCK_SUBJECTS: ReportSubjectOption[] = [
     label: "Chỉ định chờ và đã hủy",
     breakdownOptions: [],
   },
-  { code: "PATIENT_FEEDBACK", label: "Phản hồi bệnh nhân", breakdownOptions: [] },
+  {
+    code: "PATIENT_FEEDBACK",
+    label: "Phản hồi bệnh nhân",
+    breakdownOptions: [],
+  },
 ];
 
 const DOCTORS = ["BS. Phạm Quang Huy", "BS. Đỗ Thanh Mai", "BS. Vũ Đức Anh"];
@@ -55,8 +68,16 @@ function labelRows(labels: string[], salt: string): ReportRow[] {
   return labels.map((label) => ({ label, n: pick(`${salt}${label}`, 3, 60) }));
 }
 
-function countSection(title: string, head: string, countLabel: string, rows: ReportRow[]) {
-  const columns: ReportColumn[] = [col("label", head, "text"), col("n", countLabel, "count")];
+function countSection(
+  title: string,
+  head: string,
+  countLabel: string,
+  rows: ReportRow[],
+) {
+  const columns: ReportColumn[] = [
+    col("label", head, "text"),
+    col("n", countLabel, "count"),
+  ];
   return makeSection(title, columns, rows);
 }
 
@@ -71,7 +92,10 @@ function buildFeedback(): ReportSection[] {
   return [
     makeSection(
       "Tổng hợp",
-      [col("avg", "Điểm trung bình", "score"), col("n", "Số đánh giá", "count")],
+      [
+        col("avg", "Điểm trung bình", "score"),
+        col("n", "Số đánh giá", "count"),
+      ],
       [{ avg, n: total }],
       false,
     ),
@@ -87,31 +111,60 @@ function buildSections(q: ReportQuery): ReportSection[] {
   switch (q.subject) {
     case "APPOINTMENTS":
       return [
-        countSection("Theo trạng thái", "Trạng thái", "Số lịch hẹn",
-          labelRows(["Đã đặt", "Đã check-in", "Đã hủy", "Không đến"], "as")),
-        countSection("Theo bác sĩ", "Bác sĩ", "Số lịch hẹn", labelRows(DOCTORS, "ad")),
+        countSection(
+          "Theo trạng thái",
+          "Trạng thái",
+          "Số lịch hẹn",
+          labelRows(["Đã đặt", "Đã check-in", "Đã hủy", "Không đến"], "as"),
+        ),
+        countSection(
+          "Theo bác sĩ",
+          "Bác sĩ",
+          "Số lịch hẹn",
+          labelRows(DOCTORS, "ad"),
+        ),
         makeSection(
           "Theo ngày",
           [col("label", "Ngày", "date"), col("n", "Số lịch hẹn", "count")],
-          listDays(q.from, q.to).map((d) => ({ label: d, n: pick(`ag${d}`, 0, 25) })),
+          listDays(q.from, q.to).map((d) => ({
+            label: d,
+            n: pick(`ag${d}`, 0, 25),
+          })),
         ),
       ];
     case "VISITS":
       return [
-        countSection("Theo trạng thái", "Trạng thái", "Số lượt",
-          labelRows(["Đang chờ", "Đang khám", "Hoàn tất", "Đã hủy"], "vs")),
-        countSection("Theo loại", "Loại", "Số lượt", labelRows(["Khám lần đầu", "Tái khám"], "vt")),
+        countSection(
+          "Theo trạng thái",
+          "Trạng thái",
+          "Số lượt",
+          labelRows(["Đang chờ", "Đang khám", "Hoàn tất", "Đã hủy"], "vs"),
+        ),
+        countSection(
+          "Theo loại",
+          "Loại",
+          "Số lượt",
+          labelRows(["Khám lần đầu", "Tái khám"], "vt"),
+        ),
       ];
     case "CLINICAL_ORDERS":
       return [
-        countSection("Theo loại", "Loại chỉ định", "Số đã thực hiện",
-          labelRows(["Chẩn đoán hình ảnh", "Xét nghiệm"], "co")),
+        countSection(
+          "Theo loại",
+          "Loại chỉ định",
+          "Số đã thực hiện",
+          labelRows(["Chẩn đoán hình ảnh", "Xét nghiệm"], "co"),
+        ),
       ];
     case "SERVICES":
       return [
         makeSection(
           "Theo dịch vụ",
-          [col("name", "Dịch vụ", "text"), col("category", "Loại", "text"), col("n", "Số lần dùng", "count")],
+          [
+            col("name", "Dịch vụ", "text"),
+            col("category", "Loại", "text"),
+            col("n", "Số lần dùng", "count"),
+          ],
           SERVICE_ROWS.map(([name, cat]) => ({
             name,
             category: CATEGORY_LABELS[cat],
@@ -123,8 +176,12 @@ function buildSections(q: ReportQuery): ReportSection[] {
       return buildPaymentSections(q);
     case "PENDING_AND_CANCELLED":
       return [
-        countSection("Theo trạng thái", "Trạng thái", "Số chỉ định",
-          labelRows(["Chờ thanh toán", "Đã hủy"], "pc")),
+        countSection(
+          "Theo trạng thái",
+          "Trạng thái",
+          "Số chỉ định",
+          labelRows(["Chờ thanh toán", "Đã hủy"], "pc"),
+        ),
       ];
     case "PATIENT_FEEDBACK":
       return buildFeedback();
@@ -150,4 +207,3 @@ export function buildMockReport(q: ReportQuery): ReportResult {
     allowedActions: ["export"],
   };
 }
-

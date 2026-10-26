@@ -19,10 +19,19 @@ export function UnpaidSummaryLine() {
   const { sources, loading, error, reload } = usePayableSources();
 
   if (loading) return <Skeleton aria-hidden className="h-14 w-full" />;
-  if (error) return <PaymentErrorBlock message={messageFromError(error)} onRetry={reload} />;
+  if (error)
+    return (
+      <PaymentErrorBlock message={messageFromError(error)} onRetry={reload} />
+    );
 
-  const count = (sources ?? []).reduce((sum, source) => sum + source.pendingCount, 0);
-  const amount = (sources ?? []).reduce((sum, source) => sum + source.pendingAmount, 0);
+  const count = (sources ?? []).reduce(
+    (sum, source) => sum + source.pendingCount,
+    0,
+  );
+  const amount = (sources ?? []).reduce(
+    (sum, source) => sum + source.pendingAmount,
+    0,
+  );
   if (count === 0) return null;
 
   return (
@@ -31,12 +40,17 @@ export function UnpaidSummaryLine() {
       href={PATIENT_ROUTES.payments}
     >
       <span className="min-w-0">
-        <span className="block font-medium">Bạn có {count} khoản cần thanh toán</span>
+        <span className="block font-medium">
+          Bạn có {count} khoản cần thanh toán
+        </span>
         <span className="block text-sm tabular-nums text-muted-foreground">
           Tổng {formatCurrencyVnd(amount)}
         </span>
       </span>
-      <ChevronRight aria-hidden className="size-5 shrink-0 text-muted-foreground" />
+      <ChevronRight
+        aria-hidden
+        className="size-5 shrink-0 text-muted-foreground"
+      />
     </Link>
   );
 }

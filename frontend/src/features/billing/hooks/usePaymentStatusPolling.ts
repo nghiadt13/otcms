@@ -11,7 +11,8 @@ export const PAYMENT_POLL_INTERVAL_MS = 10_000;
 export const PAYMENT_POLL_WINDOW_MS = 15 * 60_000;
 
 /** CHECKING: chưa có kết quả đầu tiên từ BE. */
-export type PaymentDisplayStatus = "CHECKING" | "SUCCESS" | "PENDING" | "FAILED";
+export type PaymentDisplayStatus =
+  "CHECKING" | "SUCCESS" | "PENDING" | "FAILED";
 
 export interface PaymentStatusPolling {
   payment: PatientPayment | null;
@@ -28,7 +29,9 @@ export interface PaymentStatusPolling {
  * Đọc kết quả thanh toán từ BE, chỉ tin BE (plan phase 06 §2): PENDING thì tự kiểm lại mỗi 10 giây tối đa
  * 15 phút rồi hiển thị như thất bại. Rời trang thì dừng; lỗi thì dừng và để người dùng bấm lại.
  */
-export function usePaymentStatusPolling(paymentId: string): PaymentStatusPolling {
+export function usePaymentStatusPolling(
+  paymentId: string,
+): PaymentStatusPolling {
   const [payment, setPayment] = useState<PatientPayment | null>(null);
   const [error, setError] = useState<Error | null>(null);
   const [checking, setChecking] = useState(true);

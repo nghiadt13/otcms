@@ -94,7 +94,8 @@ export function AnnouncementDraftFields({
         </NativeSelect>
         {noAudience ? (
           <p className="text-xs text-muted-foreground">
-            Chưa có nhóm người nhận nào được phép gửi. Liên hệ quản trị hệ thống để bật nhóm.
+            Chưa có nhóm người nhận nào được phép gửi. Liên hệ quản trị hệ thống
+            để bật nhóm.
           </p>
         ) : null}
         <FieldError id={`${id}-audience-err`} message={errors.audience} />

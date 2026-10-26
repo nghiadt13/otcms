@@ -15,6 +15,13 @@ export interface PaymentHistoryFilter {
  * Lịch sử thanh toán đã hoàn tất (chỉ đọc), phân trang theo `usePagedList`. Đổi bộ lọc thì về
  * trang đầu và hủy request cũ. Khoảng ngày sai do màn chặn trước (MSG-54), hook không gọi API.
  */
-export function useMyPaymentHistory(filters: PaymentHistoryFilter, pageSize?: number) {
-  return usePagedList<PatientPayment, PaymentHistoryFilter>(listMyPayments, filters, pageSize);
+export function useMyPaymentHistory(
+  filters: PaymentHistoryFilter,
+  pageSize?: number,
+) {
+  return usePagedList<PatientPayment, PaymentHistoryFilter>(
+    listMyPayments,
+    filters,
+    pageSize,
+  );
 }

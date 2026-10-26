@@ -11,7 +11,5 @@ export default async function PatientAppointmentDetailPage({
   params: Promise<{ appointmentId: string }>;
 }) {
   const { appointmentId } = await params;
-  return (
-    <PatientAppointmentDetail key={appointmentId} id={appointmentId} />
-  );
+  return <PatientAppointmentDetail key={appointmentId} id={appointmentId} />;
 }

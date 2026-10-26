@@ -29,7 +29,8 @@ export function PublicReviewList({ page }: { page: PublicReviewPage }) {
         <span className="font-semibold text-primary tabular-nums">
           {formatDecimal1(summary.average)}/5
         </span>{" "}
-        từ <span className="tabular-nums">{summary.count}</span> đánh giá đã duyệt
+        từ <span className="tabular-nums">{summary.count}</span> đánh giá đã
+        duyệt
       </p>
 
       <ul className="mt-8 divide-y divide-border overflow-hidden rounded-2xl border bg-card">

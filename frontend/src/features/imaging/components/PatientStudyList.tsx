@@ -2,7 +2,10 @@ import { ChevronRight } from "lucide-react";
 import Link from "next/link";
 import { StatusBadge } from "@/components/admin/StatusBadge";
 import { CARE_RELATIONSHIP_LABELS } from "@/lib/domain/careRelationship";
-import { VISIT_STATUS_LABELS, VISIT_STATUS_TONE } from "@/lib/domain/clinicVisit";
+import {
+  VISIT_STATUS_LABELS,
+  VISIT_STATUS_TONE,
+} from "@/lib/domain/clinicVisit";
 import { formatDate } from "@/lib/format/formatDate";
 import { PATIENT_ROUTES } from "@/lib/routes/patientRoutes";
 import {
@@ -14,7 +17,11 @@ import {
  * Danh sách ảnh chụp: ngày, dịch vụ, loại ảnh và người bệnh (kèm quan hệ), trạng thái lượt
  * bằng chữ. Cả dòng là link tới chi tiết study.
  */
-export function PatientStudyList({ items }: { items: PatientImagingStudySummary[] }) {
+export function PatientStudyList({
+  items,
+}: {
+  items: PatientImagingStudySummary[];
+}) {
   return (
     <ul className="divide-y rounded-lg border bg-card">
       {items.map((item) => (
@@ -28,7 +35,8 @@ export function PatientStudyList({ items }: { items: PatientImagingStudySummary[
                 {formatDate(item.studyDate)} · {item.serviceName}
               </span>
               <span className="block text-base text-muted-foreground">
-                {IMAGING_MODALITY_LABELS[item.modality]} · {item.patient.fullName} (
+                {IMAGING_MODALITY_LABELS[item.modality]} ·{" "}
+                {item.patient.fullName} (
                 {CARE_RELATIONSHIP_LABELS[item.patient.relationship]})
               </span>
             </span>
@@ -38,7 +46,10 @@ export function PatientStudyList({ items }: { items: PatientImagingStudySummary[
             >
               {VISIT_STATUS_LABELS[item.visitStatus]}
             </StatusBadge>
-            <ChevronRight aria-hidden className="size-5 shrink-0 text-muted-foreground" />
+            <ChevronRight
+              aria-hidden
+              className="size-5 shrink-0 text-muted-foreground"
+            />
           </Link>
         </li>
       ))}

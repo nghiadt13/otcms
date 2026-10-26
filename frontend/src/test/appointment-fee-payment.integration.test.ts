@@ -62,7 +62,10 @@ describe("đặt lịch → thanh toán → phí đã trả (dữ liệu giả, 
     );
 
     const [fee] = (await getPayableSource("appointment", booked.id)).items;
-    expect(fee).toMatchObject({ status: "PENDING_PAYMENT", amount: booked.examFee.amount });
+    expect(fee).toMatchObject({
+      status: "PENDING_PAYMENT",
+      amount: booked.examFee.amount,
+    });
 
     const { paymentId, total, redirectUrl } = await createOnlinePayment({
       sourceKind: "appointment",
@@ -73,7 +76,11 @@ describe("đặt lịch → thanh toán → phí đã trả (dữ liệu giả, 
     expect(redirectUrl).toBe(`/portal/payments/result?paymentId=${paymentId}`);
 
     const payment = await getPayment(paymentId);
-    expect(payment).toMatchObject({ status: "SUCCESS", total: 200000, sourceId: booked.id });
+    expect(payment).toMatchObject({
+      status: "SUCCESS",
+      total: 200000,
+      sourceId: booked.id,
+    });
 
     const appointment = await getMyAppointment(booked.id);
     expect(appointment.examFee).toEqual({ amount: 200000, status: "PAID" });

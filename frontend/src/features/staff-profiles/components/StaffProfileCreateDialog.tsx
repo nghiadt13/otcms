@@ -83,7 +83,8 @@ function CreateDialogBody({
     setAccountId(account.accountId);
     setRole(account.role);
     // Điền sẵn họ tên từ tài khoản khi ô còn trống.
-    if (!form.values.displayName) form.setField("displayName", account.fullName);
+    if (!form.values.displayName)
+      form.setField("displayName", account.fullName);
   }
 
   const accountsState = useEligibleStaffAccounts((list) => {

@@ -2,7 +2,10 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
-import { createOnlinePayment, resetPatientBillingMock } from "../../api/patientBillingApi";
+import {
+  createOnlinePayment,
+  resetPatientBillingMock,
+} from "../../api/patientBillingApi";
 import { PaymentConfirm } from "./PaymentConfirm";
 import { NO_REFUND_NOTICE } from "./patientBillingPresentation";
 import { formatAppMessage } from "@/lib/messages/appMessages";
@@ -39,19 +42,28 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  Object.defineProperty(window, "location", { configurable: true, value: originalLocation });
+  Object.defineProperty(window, "location", {
+    configurable: true,
+    value: originalLocation,
+  });
 });
 
 describe("PaymentConfirm", () => {
   it("nút Chuyển sang VNPay bị khóa cho tới khi tick đồng ý, và luôn hiện câu không hoàn tiền", async () => {
     const user = userEvent.setup();
-    render(<PaymentConfirm id="vis-an-today" itemIds={["svc-cbc"]} kind="visit" />);
+    render(
+      <PaymentConfirm id="vis-an-today" itemIds={["svc-cbc"]} kind="visit" />,
+    );
 
-    const confirm = await screen.findByRole("button", { name: "Chuyển sang VNPay" });
+    const confirm = await screen.findByRole("button", {
+      name: "Chuyển sang VNPay",
+    });
     expect(confirm).toBeDisabled();
     expect(screen.getByText(NO_REFUND_NOTICE)).toBeInTheDocument();
 
-    await user.click(screen.getByRole("checkbox", { name: "Tôi đã đọc và đồng ý." }));
+    await user.click(
+      screen.getByRole("checkbox", { name: "Tôi đã đọc và đồng ý." }),
+    );
     expect(confirm).toBeEnabled();
     // Số tiền hiện ở dòng khoản và ở dòng tổng.
     expect(screen.getAllByText("250.000 ₫")).toHaveLength(2);
@@ -59,12 +71,18 @@ describe("PaymentConfirm", () => {
 
   it("đồng ý và bấm: tạo giao dịch rồi chuyển sang đường dẫn BE trả về", async () => {
     const user = userEvent.setup();
-    render(<PaymentConfirm id="vis-an-today" itemIds={["svc-cbc"]} kind="visit" />);
-    await user.click(await screen.findByRole("checkbox", { name: "Tôi đã đọc và đồng ý." }));
+    render(
+      <PaymentConfirm id="vis-an-today" itemIds={["svc-cbc"]} kind="visit" />,
+    );
+    await user.click(
+      await screen.findByRole("checkbox", { name: "Tôi đã đọc và đồng ý." }),
+    );
     await user.click(screen.getByRole("button", { name: "Chuyển sang VNPay" }));
 
     expect(assign).toHaveBeenCalledWith(
-      expect.stringMatching(/^\/portal\/payments\/result\?paymentId=pay-mock-\d+$/),
+      expect.stringMatching(
+        /^\/portal\/payments\/result\?paymentId=pay-mock-\d+$/,
+      ),
     );
     expect(routerReplace).not.toHaveBeenCalled();
   });
@@ -77,23 +95,36 @@ describe("PaymentConfirm", () => {
       itemIds: ["svc-cbc"],
     });
     const user = userEvent.setup();
-    render(<PaymentConfirm id="vis-an-today" itemIds={["svc-cbc"]} kind="visit" />);
-    await user.click(await screen.findByRole("checkbox", { name: "Tôi đã đọc và đồng ý." }));
+    render(
+      <PaymentConfirm id="vis-an-today" itemIds={["svc-cbc"]} kind="visit" />,
+    );
+    await user.click(
+      await screen.findByRole("checkbox", { name: "Tôi đã đọc và đồng ý." }),
+    );
     await user.click(screen.getByRole("button", { name: "Chuyển sang VNPay" }));
 
     expect(toast.error).toHaveBeenCalledWith(MSG_49, expect.anything());
-    expect(routerReplace).toHaveBeenCalledWith("/portal/payments/visit/vis-an-today");
+    expect(routerReplace).toHaveBeenCalledWith(
+      "/portal/payments/visit/vis-an-today",
+    );
     expect(assign).not.toHaveBeenCalled();
   });
 
   it("khoản đã trả không đủ điều kiện: báo MSG-49 và chỉ có lối chọn lại", async () => {
-    render(<PaymentConfirm id="vis-an-today" itemIds={["svc-xray-knee"]} kind="visit" />);
-    expect(await screen.findByRole("alert")).toHaveTextContent(MSG_49);
-    expect(screen.getByRole("link", { name: "Chọn lại khoản" })).toHaveAttribute(
-      "href",
-      "/portal/payments/visit/vis-an-today",
+    render(
+      <PaymentConfirm
+        id="vis-an-today"
+        itemIds={["svc-xray-knee"]}
+        kind="visit"
+      />,
     );
-    expect(screen.queryByRole("button", { name: "Chuyển sang VNPay" })).not.toBeInTheDocument();
+    expect(await screen.findByRole("alert")).toHaveTextContent(MSG_49);
+    expect(
+      screen.getByRole("link", { name: "Chọn lại khoản" }),
+    ).toHaveAttribute("href", "/portal/payments/visit/vis-an-today");
+    expect(
+      screen.queryByRole("button", { name: "Chuyển sang VNPay" }),
+    ).not.toBeInTheDocument();
   });
 
   it("chưa chọn khoản nào thì không cho trả", async () => {

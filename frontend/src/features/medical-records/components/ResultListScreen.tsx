@@ -20,7 +20,8 @@ export function ResultListScreen() {
   const pathname = usePathname();
   const profileId = useSearchParams().get("profileId") || undefined;
   const linked = useLinkedProfiles();
-  const { data, loading, error, reload, page, setPage } = useResultList(profileId);
+  const { data, loading, error, reload, page, setPage } =
+    useResultList(profileId);
 
   const changeProfile = (next: string | undefined) =>
     router.replace(
@@ -90,11 +91,24 @@ function ListSkeleton() {
   );
 }
 
-function LoadError({ message, onRetry }: { message: string; onRetry: () => void }) {
+function LoadError({
+  message,
+  onRetry,
+}: {
+  message: string;
+  onRetry: () => void;
+}) {
   return (
-    <div role="alert" className="space-y-4 rounded-lg border bg-card px-6 py-8 text-center">
+    <div
+      role="alert"
+      className="space-y-4 rounded-lg border bg-card px-6 py-8 text-center"
+    >
       <p className="text-base text-destructive">{message}</p>
-      <Button variant="outline" className="h-12 px-5 text-base" onClick={onRetry}>
+      <Button
+        variant="outline"
+        className="h-12 px-5 text-base"
+        onClick={onRetry}
+      >
         Thử lại
       </Button>
     </div>
@@ -112,7 +126,10 @@ function ListPagination({
 }) {
   if (totalPages <= 1) return null;
   return (
-    <nav aria-label="Phân trang" className="flex items-center justify-between gap-3">
+    <nav
+      aria-label="Phân trang"
+      className="flex items-center justify-between gap-3"
+    >
       <Button
         variant="outline"
         className="h-12 px-5 text-base"

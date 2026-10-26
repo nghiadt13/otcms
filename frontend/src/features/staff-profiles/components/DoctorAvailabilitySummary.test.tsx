@@ -25,9 +25,15 @@ describe("DoctorAvailabilitySummary", () => {
   });
 
   it("không liệt kê từng giờ, chỉ ghi cách xem giờ cụ thể", () => {
-    render(<DoctorAvailabilitySummary availability={[{ date: "2026-10-24", hasOpenTime: true }]} />);
+    render(
+      <DoctorAvailabilitySummary
+        availability={[{ date: "2026-10-24", hasOpenTime: true }]}
+      />,
+    );
     expect(
-      screen.getByText("Giờ cụ thể hiện khi bạn chọn bác sĩ và giờ trên màn đặt lịch."),
+      screen.getByText(
+        "Giờ cụ thể hiện khi bạn chọn bác sĩ và giờ trên màn đặt lịch.",
+      ),
     ).toBeInTheDocument();
   });
 });

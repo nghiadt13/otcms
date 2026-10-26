@@ -25,7 +25,10 @@ export function PatientAccountProfile() {
       />
 
       {error ? (
-        <div role="alert" className="mb-6 grid gap-3 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3">
+        <div
+          role="alert"
+          className="mb-6 grid gap-3 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3"
+        >
           <p className="text-base text-foreground">
             Không tải được thông tin tài khoản.
           </p>
@@ -53,7 +56,9 @@ export function PatientAccountProfile() {
             <li className="flex items-center justify-between gap-4 px-4 py-3">
               <div className="min-w-0">
                 <p className="text-sm text-muted-foreground">Email</p>
-                <p className="truncate text-base font-medium">{account.email}</p>
+                <p className="truncate text-base font-medium">
+                  {account.email}
+                </p>
               </div>
               <Button
                 aria-label="Đổi email"

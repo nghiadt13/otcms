@@ -13,7 +13,10 @@ import { useAppointmentList } from "../hooks/useAppointmentList";
 import type { useAppointmentUrlState } from "../hooks/useAppointmentUrlState";
 import type { useDoctorLookup } from "../hooks/useDoctorLookup";
 import { useReassignDoctorFlow } from "../hooks/useReassignDoctorFlow";
-import { rangeErrorCode, resolveListRange } from "../schema/appointmentUrlRules";
+import {
+  rangeErrorCode,
+  resolveListRange,
+} from "../schema/appointmentUrlRules";
 import type { Appointment } from "../types/appointment";
 import type { ReassignDoctorApi } from "../types/reassignDoctorApi";
 import { AppointmentDetailSheet } from "./AppointmentDetailSheet";
@@ -94,7 +97,10 @@ export function AppointmentListTab({ url, lookup }: AppointmentListTabProps) {
           onPageChange={list.setPage}
         />
       ) : null}
-      <AppointmentDetailSheet appointment={viewing} onClose={() => setViewing(null)} />
+      <AppointmentDetailSheet
+        appointment={viewing}
+        onClose={() => setViewing(null)}
+      />
       <ReassignDoctorDialog<Appointment>
         appointment={flow.reassigning}
         api={ADMIN_REASSIGN_API}

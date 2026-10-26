@@ -51,7 +51,8 @@ export async function listPatientStudies(
     );
   }
   await latency(signal);
-  if (query.patientId === IMAGING_LIST_ERROR_PATIENT_ID) mockFail(500, "MSG-04");
+  if (query.patientId === IMAGING_LIST_ERROR_PATIENT_ID)
+    mockFail(500, "MSG-04");
   const items = MOCK_STUDIES.filter(
     (study) => !query.patientId || study.patient.id === query.patientId,
   )
@@ -74,5 +75,8 @@ export async function getPatientStudy(
   if (id === IMAGING_FORBIDDEN_STUDY_ID) mockFail(403, "MSG-40");
   const found = MOCK_STUDIES.find((study) => study.id === id);
   if (!found) mockFail(404, "MSG-41");
-  return clone({ ...toSummary(found), viewerUrl: mockViewerUrl(found.studyUid) });
+  return clone({
+    ...toSummary(found),
+    viewerUrl: mockViewerUrl(found.studyUid),
+  });
 }

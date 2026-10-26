@@ -12,7 +12,11 @@ import {
   sumSelectedPending,
 } from "./patientBillingPresentation";
 
-const item = (id: string, amount: number, status: PaymentItem["status"]): PaymentItem => ({
+const item = (
+  id: string,
+  amount: number,
+  status: PaymentItem["status"],
+): PaymentItem => ({
   id,
   label: id,
   amount,
@@ -35,7 +39,10 @@ describe("chọn khoản để trả", () => {
   });
 
   it("chỉ hợp lệ khi có khoản và mọi khoản đều chờ thanh toán của nguồn", () => {
-    expect(pickPayableItems(items, ["b", "a"])?.map((i) => i.id)).toEqual(["b", "a"]);
+    expect(pickPayableItems(items, ["b", "a"])?.map((i) => i.id)).toEqual([
+      "b",
+      "a",
+    ]);
     expect(pickPayableItems(items, [])).toBeNull();
     expect(pickPayableItems(items, ["a", "c"])).toBeNull();
     expect(pickPayableItems(items, ["a", "khong-co"])).toBeNull();
@@ -60,13 +67,19 @@ describe("đường dẫn và nhãn", () => {
       payableSourceTitle({
         kind: "appointment",
         date: "2026-10-27T14:00:00+07:00",
-        patient: { id: "p", fullName: "Nguyễn Thị Lan", relationship: "PARENT" },
+        patient: {
+          id: "p",
+          fullName: "Nguyễn Thị Lan",
+          relationship: "PARENT",
+        },
       }),
     ).toBe("Lịch hẹn 27/10/2026 14:00 · Nguyễn Thị Lan (Cha/Mẹ)");
   });
 
   it("đường dẫn trang xác nhận mang nguồn, mã và danh sách khoản", () => {
-    expect(paymentConfirmHref("visit", "vis-an-today", ["svc-pending", "svc-cbc"])).toBe(
+    expect(
+      paymentConfirmHref("visit", "vis-an-today", ["svc-pending", "svc-cbc"]),
+    ).toBe(
       "/portal/payments/pay?source=visit&id=vis-an-today&items=svc-pending%2Csvc-cbc",
     );
     expect(sourceDetailHref("appointment", "apt-lan-27")).toBe(
@@ -75,9 +88,9 @@ describe("đường dẫn và nhãn", () => {
   });
 
   it("lọc lịch sử bỏ tham số rỗng", () => {
-    expect(historyHref({ from: "2026-10-01", to: "", profileId: undefined })).toBe(
-      "/portal/payments/history?from=2026-10-01",
-    );
+    expect(
+      historyHref({ from: "2026-10-01", to: "", profileId: undefined }),
+    ).toBe("/portal/payments/history?from=2026-10-01");
     expect(historyHref({})).toBe("/portal/payments/history");
   });
 

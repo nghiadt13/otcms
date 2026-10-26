@@ -42,7 +42,9 @@ const latency = (signal?: AbortSignal) =>
   LATENCY_MS === 0 ? Promise.resolve() : mockDelay(LATENCY_MS, signal);
 
 function summaryOf(source: StoredSource): PayableSourceSummary {
-  const pending = source.items.filter((item) => item.status === "PENDING_PAYMENT");
+  const pending = source.items.filter(
+    (item) => item.status === "PENDING_PAYMENT",
+  );
   return {
     kind: source.kind,
     id: source.id,
@@ -77,7 +79,10 @@ function toPatientPayment(payment: StoredPayment): PatientPayment {
     patientName: payment.patient.fullName,
     items: payment.items.map((item) => ({ ...item })),
     // Số thứ tự chỉ có khi giao dịch đã thành công (UC55 bước 7).
-    queueAssignments: payment.status === "SUCCESS" ? payment.queueAssignments.map((q) => ({ ...q })) : [],
+    queueAssignments:
+      payment.status === "SUCCESS"
+        ? payment.queueAssignments.map((q) => ({ ...q }))
+        : [],
     sourceKind: payment.sourceKind,
     sourceId: payment.sourceId,
   };
@@ -94,7 +99,8 @@ export async function listPayableSources(
     .map(summaryOf)
     .filter(
       (summary) =>
-        summary.pendingCount > 0 && (!query.patientId || summary.patient.id === query.patientId),
+        summary.pendingCount > 0 &&
+        (!query.patientId || summary.patient.id === query.patientId),
     )
     .sort((a, b) => b.date.localeCompare(a.date));
   return clone({ items });
@@ -129,7 +135,9 @@ export async function createOnlinePayment(
   if (itemIds.length === 0 || new Set(itemIds).size !== itemIds.length)
     mockFail(400, "MSG-12", undefined, [{ field: "itemIds", code: "MSG-12" }]);
   if (request.sourceId === FORBIDDEN_SOURCE_ID) mockFail(403, "MSG-40");
-  const source = findStoredSource(request.sourceKind, request.sourceId) ?? mockFail(404, "MSG-41");
+  const source =
+    findStoredSource(request.sourceKind, request.sourceId) ??
+    mockFail(404, "MSG-41");
 
   const locked = lockedItemIds();
   const eligible = itemIds.every((itemId) => {
@@ -149,7 +157,10 @@ export async function createOnlinePayment(
  * GET /api/v1/payments/{id}: đọc kết quả giao dịch. Mỗi lần đọc đẩy giao dịch một bước (kịch
  * bản PENDING rồi SUCCESS). 403/404 → MSG-50.
  */
-export async function getPayment(id: string, signal?: AbortSignal): Promise<PatientPayment> {
+export async function getPayment(
+  id: string,
+  signal?: AbortSignal,
+): Promise<PatientPayment> {
   await latency(signal);
   const payment = findStoredPayment(id) ?? mockFail(404, "MSG-50");
   advanceStoredPayment(payment);

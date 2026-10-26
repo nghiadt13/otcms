@@ -22,7 +22,9 @@ export default async function AnnouncementsPage({
     size: ANNOUNCEMENTS_PAGE_SIZE,
   });
   const nextPageHref =
-    result.page + 1 < result.totalPages ? `/announcements?page=${result.page + 2}` : null;
+    result.page + 1 < result.totalPages
+      ? `/announcements?page=${result.page + 2}`
+      : null;
 
   return (
     <div className={`${publicContainerClass} py-16 lg:py-24`}>
@@ -30,7 +32,10 @@ export default async function AnnouncementsPage({
         description="Thông báo của phòng khám như lịch nghỉ, thay đổi giờ khám và chương trình mới."
         title="Thông báo"
       />
-      <PublicAnnouncementList announcements={result.items} nextPageHref={nextPageHref} />
+      <PublicAnnouncementList
+        announcements={result.items}
+        nextPageHref={nextPageHref}
+      />
     </div>
   );
 }

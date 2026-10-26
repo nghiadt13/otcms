@@ -17,7 +17,12 @@ type PaymentHistoryDetailSheetProps = {
 function detailItems(payment: PaymentDetail) {
   const items = [
     { label: "Số phiếu thu", value: payment.receiptNumber },
-    { label: "Ngày giờ", value: <span className="tabular-nums">{formatDateTime(payment.paidAt)}</span> },
+    {
+      label: "Ngày giờ",
+      value: (
+        <span className="tabular-nums">{formatDateTime(payment.paidAt)}</span>
+      ),
+    },
     { label: "Bệnh nhân", value: payment.patientName },
     { label: "Phương thức", value: PAYMENT_METHOD_LABELS[payment.method] },
   ];
@@ -26,7 +31,9 @@ function detailItems(payment: PaymentDetail) {
   if (payment.vnpayTransactionCode)
     items.push({
       label: "Mã giao dịch VNPay",
-      value: <span className="tabular-nums">{payment.vnpayTransactionCode}</span>,
+      value: (
+        <span className="tabular-nums">{payment.vnpayTransactionCode}</span>
+      ),
     });
   return items;
 }

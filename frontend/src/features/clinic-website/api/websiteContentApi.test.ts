@@ -31,7 +31,8 @@ describe("getPublishedHealthArticle", () => {
   it("bài đã đăng trả nội dung công khai", async () => {
     const article = buildWebsiteContentSeed().find(
       (item) =>
-        item.type === "HEALTH_ARTICLE" && item.allowedActions.includes("viewOnWebsite"),
+        item.type === "HEALTH_ARTICLE" &&
+        item.allowedActions.includes("viewOnWebsite"),
     )!;
     const detail = await getPublishedHealthArticle(article.id);
     expect(detail).toEqual({
@@ -45,9 +46,12 @@ describe("getPublishedHealthArticle", () => {
   it("bài chưa có trang công khai hoặc không tồn tại trả 404 MSG-50", async () => {
     const unpublished = buildWebsiteContentSeed().find(
       (item) =>
-        item.type === "HEALTH_ARTICLE" && !item.allowedActions.includes("viewOnWebsite"),
+        item.type === "HEALTH_ARTICLE" &&
+        !item.allowedActions.includes("viewOnWebsite"),
     )!;
-    await expect(getPublishedHealthArticle(unpublished.id)).rejects.toMatchObject({
+    await expect(
+      getPublishedHealthArticle(unpublished.id),
+    ).rejects.toMatchObject({
       status: 404,
       code: "MSG-50",
     });

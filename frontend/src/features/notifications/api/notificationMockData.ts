@@ -34,7 +34,8 @@ const TEMPLATES: Template[] = [
   },
   {
     title: "Đánh giá mới chờ duyệt",
-    content: "Có đánh giá của bệnh nhân đang chờ duyệt hiển thị trên trang web.",
+    content:
+      "Có đánh giá của bệnh nhân đang chờ duyệt hiển thị trên trang web.",
     related: false,
   },
   {
@@ -57,7 +58,8 @@ const TEMPLATES: Template[] = [
   },
   {
     title: "Lịch hẹn đã được cập nhật",
-    content: "Lễ tân vừa đổi giờ của một lịch hẹn. Xem lại để bảo đảm không trùng ca.",
+    content:
+      "Lễ tân vừa đổi giờ của một lịch hẹn. Xem lại để bảo đảm không trùng ca.",
     related: true,
   },
 ];
@@ -98,4 +100,5 @@ function buildMockNotifications(count: number): NotificationItem[] {
 }
 
 /** 23 thông báo, mới nhất trước: 2 trang khi size = 20; đủ chưa đọc/đã đọc, có/không liên kết. */
-export const MOCK_NOTIFICATIONS: NotificationItem[] = buildMockNotifications(23);
+export const MOCK_NOTIFICATIONS: NotificationItem[] =
+  buildMockNotifications(23);

@@ -13,8 +13,15 @@ import {
 } from "@/lib/domain/clinicCategories";
 import { APP_MESSAGES } from "@/lib/messages/appMessages";
 import type { FieldErrorMap } from "../schema/serviceFieldRules";
-import { emptyIndicatorDraft, type ServiceFormDraft } from "../schema/serviceFormDraft";
-import { MODALITY_LABELS, SERVICE_MODALITIES, type ServiceModality } from "../types/serviceCatalog";
+import {
+  emptyIndicatorDraft,
+  type ServiceFormDraft,
+} from "../schema/serviceFormDraft";
+import {
+  MODALITY_LABELS,
+  SERVICE_MODALITIES,
+  type ServiceModality,
+} from "../types/serviceCatalog";
 import { IndicatorTable } from "./IndicatorTable";
 
 type ServiceFormFieldsProps = {
@@ -48,16 +55,27 @@ function Field({
       </Label>
       {children}
       {hint ? <p className="text-xs text-muted-foreground">{hint}</p> : null}
-      <FieldError id={`${id}-error`} message={error ? APP_MESSAGES[error] : null} />
+      <FieldError
+        id={`${id}-error`}
+        message={error ? APP_MESSAGES[error] : null}
+      />
     </div>
   );
 }
 
 /** Các ô của form dịch vụ; ô hiện/ẩn theo loại (khám, chẩn đoán hình ảnh, xét nghiệm). */
-export function ServiceFormFields({ mode, draft, onChange, errors, disabled }: ServiceFormFieldsProps) {
-  const set = (patch: Partial<ServiceFormDraft>) => onChange({ ...draft, ...patch });
+export function ServiceFormFields({
+  mode,
+  draft,
+  onChange,
+  errors,
+  disabled,
+}: ServiceFormFieldsProps) {
+  const set = (patch: Partial<ServiceFormDraft>) =>
+    onChange({ ...draft, ...patch });
   const invalid = (path: string) => (errors[path] ? true : undefined);
-  const describedBy = (id: string, path: string) => (errors[path] ? `${id}-error` : undefined);
+  const describedBy = (id: string, path: string) =>
+    errors[path] ? `${id}-error` : undefined;
 
   function chooseType(type: ServiceCategory) {
     // Đổi loại xóa dữ liệu của loại cũ để không gửi nhầm trường không thuộc loại.
@@ -86,18 +104,27 @@ export function ServiceFormFields({ mode, draft, onChange, errors, disabled }: S
           >
             {SERVICE_CATEGORIES.map((category) => (
               <label key={category} className="flex items-center gap-2 text-sm">
-                <RadioGroupItem value={category} aria-label={CATEGORY_LABELS[category]} />
+                <RadioGroupItem
+                  value={category}
+                  aria-label={CATEGORY_LABELS[category]}
+                />
                 {CATEGORY_LABELS[category]}
               </label>
             ))}
           </RadioGroup>
-          <FieldError message={errors.type ? APP_MESSAGES[errors.type] : null} />
+          <FieldError
+            message={errors.type ? APP_MESSAGES[errors.type] : null}
+          />
         </fieldset>
       ) : (
         <div className="space-y-1">
           <p className="text-sm font-medium">Loại dịch vụ</p>
-          <p className="text-sm">{draft.type ? CATEGORY_LABELS[draft.type] : "—"}</p>
-          <p className="text-xs text-muted-foreground">Không đổi loại sau khi tạo.</p>
+          <p className="text-sm">
+            {draft.type ? CATEGORY_LABELS[draft.type] : "—"}
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Không đổi loại sau khi tạo.
+          </p>
         </div>
       )}
 
@@ -127,7 +154,11 @@ export function ServiceFormFields({ mode, draft, onChange, errors, disabled }: S
         label="Giá (VND)"
         required
         error={errors.price}
-        hint={mode === "edit" ? "Giá mới chỉ áp dụng cho lịch hẹn và chỉ định tạo sau." : undefined}
+        hint={
+          mode === "edit"
+            ? "Giá mới chỉ áp dụng cho lịch hẹn và chỉ định tạo sau."
+            : undefined
+        }
       >
         <Input
           id="service-price"
@@ -152,13 +183,21 @@ export function ServiceFormFields({ mode, draft, onChange, errors, disabled }: S
             id="service-slot"
             value={draft.bookingDetails.slotMinutes}
             onChange={(event) =>
-              set({ bookingDetails: { ...draft.bookingDetails, slotMinutes: event.target.value } })
+              set({
+                bookingDetails: {
+                  ...draft.bookingDetails,
+                  slotMinutes: event.target.value,
+                },
+              })
             }
             disabled={disabled}
             inputMode="numeric"
             className="w-32 text-right tabular-nums"
             aria-invalid={invalid("bookingDetails.slotMinutes")}
-            aria-describedby={describedBy("service-slot", "bookingDetails.slotMinutes")}
+            aria-describedby={describedBy(
+              "service-slot",
+              "bookingDetails.slotMinutes",
+            )}
           />
         </Field>
       ) : null}
@@ -168,7 +207,12 @@ export function ServiceFormFields({ mode, draft, onChange, errors, disabled }: S
           id="service-patient-note"
           value={draft.bookingDetails.patientNote}
           onChange={(event) =>
-            set({ bookingDetails: { ...draft.bookingDetails, patientNote: event.target.value } })
+            set({
+              bookingDetails: {
+                ...draft.bookingDetails,
+                patientNote: event.target.value,
+              },
+            })
           }
           disabled={disabled}
           rows={2}
@@ -182,19 +226,26 @@ export function ServiceFormFields({ mode, draft, onChange, errors, disabled }: S
           </legend>
           <RadioGroup
             value={draft.modality ?? ""}
-            onValueChange={(value) => set({ modality: value as ServiceModality })}
+            onValueChange={(value) =>
+              set({ modality: value as ServiceModality })
+            }
             disabled={disabled}
             aria-label="Phương thức"
             className="gap-3 sm:flex sm:flex-wrap"
           >
             {SERVICE_MODALITIES.map((modality) => (
               <label key={modality} className="flex items-center gap-2 text-sm">
-                <RadioGroupItem value={modality} aria-label={MODALITY_LABELS[modality]} />
+                <RadioGroupItem
+                  value={modality}
+                  aria-label={MODALITY_LABELS[modality]}
+                />
                 {MODALITY_LABELS[modality]}
               </label>
             ))}
           </RadioGroup>
-          <FieldError message={errors.modality ? APP_MESSAGES[errors.modality] : null} />
+          <FieldError
+            message={errors.modality ? APP_MESSAGES[errors.modality] : null}
+          />
         </fieldset>
       ) : null}
 
@@ -205,7 +256,8 @@ export function ServiceFormFields({ mode, draft, onChange, errors, disabled }: S
           </h3>
           {mode === "edit" ? (
             <p className="text-xs text-muted-foreground">
-              Thay đổi chỉ áp dụng cho chỉ định tạo sau. Kết quả đã duyệt giữ nguyên.
+              Thay đổi chỉ áp dụng cho chỉ định tạo sau. Kết quả đã duyệt giữ
+              nguyên.
             </p>
           ) : null}
           <IndicatorTable

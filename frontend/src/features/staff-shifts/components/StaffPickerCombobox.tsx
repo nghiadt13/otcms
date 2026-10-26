@@ -11,7 +11,11 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { ROLE_LABELS } from "@/lib/domain/clinicRoles";
 import { cn } from "@/lib/utils";
 import type { StaffOption } from "../types/shift";
@@ -74,33 +78,54 @@ export function StaffPickerCombobox({
           />
         }
       >
-        <span className={cn("truncate", !selected && !allowAll && "text-muted-foreground")}>
+        <span
+          className={cn(
+            "truncate",
+            !selected && !allowAll && "text-muted-foreground",
+          )}
+        >
           {label}
         </span>
         <ChevronsUpDown className="text-muted-foreground" />
       </PopoverTrigger>
-      <PopoverContent align="start" className="w-[min(20rem,calc(100vw-2rem))] p-0">
+      <PopoverContent
+        align="start"
+        className="w-[min(20rem,calc(100vw-2rem))] p-0"
+      >
         {error ? (
           <div className="space-y-3 p-4 text-sm">
-            <p role="alert" className="text-destructive">{error}</p>
+            <p role="alert" className="text-destructive">
+              {error}
+            </p>
             {onRetry ? (
-              <Button variant="outline" size="sm" onClick={onRetry}>Thử lại</Button>
+              <Button variant="outline" size="sm" onClick={onRetry}>
+                Thử lại
+              </Button>
             ) : null}
           </div>
         ) : loading ? (
-          <p className="p-4 text-sm text-muted-foreground">Đang tải danh sách nhân viên...</p>
+          <p className="p-4 text-sm text-muted-foreground">
+            Đang tải danh sách nhân viên...
+          </p>
         ) : staff.length === 0 ? (
           <p className="p-4 text-sm text-muted-foreground">
-            Chưa có nhân viên nào đủ điều kiện nhận ca. Nhân viên cần tài khoản đang hoạt động và đã có hồ sơ.
+            Chưa có nhân viên nào đủ điều kiện nhận ca. Nhân viên cần tài khoản
+            đang hoạt động và đã có hồ sơ.
           </p>
         ) : (
           <Command>
-            <CommandInput placeholder="Tìm theo tên nhân viên" aria-label="Tìm nhân viên" />
+            <CommandInput
+              placeholder="Tìm theo tên nhân viên"
+              aria-label="Tìm nhân viên"
+            />
             <CommandList>
               <CommandEmpty>Không tìm thấy nhân viên phù hợp.</CommandEmpty>
               <CommandGroup>
                 {allowAll ? (
-                  <CommandItem value="Tất cả nhân viên" onSelect={() => choose(undefined)}>
+                  <CommandItem
+                    value="Tất cả nhân viên"
+                    onSelect={() => choose(undefined)}
+                  >
                     Tất cả nhân viên
                     {value === undefined ? <Check className="ml-auto" /> : null}
                   </CommandItem>
@@ -117,7 +142,9 @@ export function StaffPickerCombobox({
                         {ROLE_LABELS[option.role]}
                       </span>
                     </span>
-                    {option.staffId === value ? <Check className="ml-auto" /> : null}
+                    {option.staffId === value ? (
+                      <Check className="ml-auto" />
+                    ) : null}
                   </CommandItem>
                 ))}
               </CommandGroup>

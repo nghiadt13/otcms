@@ -28,42 +28,182 @@ export interface MockRoom {
 }
 
 export const MOCK_STAFF: MockStaff[] = [
-  { staffId: "st-bs1", fullName: "BS. Nguyễn Minh Anh", role: "ORTHOPEDIC_DOCTOR", eligible: true },
-  { staffId: "st-bs2", fullName: "BS. Lê Quốc Hưng", role: "ORTHOPEDIC_DOCTOR", eligible: true },
-  { staffId: "st-lt1", fullName: "Phạm Thu Hà", role: "RECEPTIONIST", eligible: true },
-  { staffId: "st-cdha", fullName: "Lê Quang Bình", role: "IMAGING_TECHNICIAN", eligible: true },
-  { staffId: "st-xn", fullName: "Võ Thanh Tâm", role: "LAB_TECHNICIAN", eligible: true },
-  { staffId: "st-off", fullName: "Đặng Văn Khoa", role: "LAB_TECHNICIAN", eligible: false },
+  {
+    staffId: "st-bs1",
+    fullName: "BS. Nguyễn Minh Anh",
+    role: "ORTHOPEDIC_DOCTOR",
+    eligible: true,
+  },
+  {
+    staffId: "st-bs2",
+    fullName: "BS. Lê Quốc Hưng",
+    role: "ORTHOPEDIC_DOCTOR",
+    eligible: true,
+  },
+  {
+    staffId: "st-lt1",
+    fullName: "Phạm Thu Hà",
+    role: "RECEPTIONIST",
+    eligible: true,
+  },
+  {
+    staffId: "st-cdha",
+    fullName: "Lê Quang Bình",
+    role: "IMAGING_TECHNICIAN",
+    eligible: true,
+  },
+  {
+    staffId: "st-xn",
+    fullName: "Võ Thanh Tâm",
+    role: "LAB_TECHNICIAN",
+    eligible: true,
+  },
+  {
+    staffId: "st-off",
+    fullName: "Đặng Văn Khoa",
+    role: "LAB_TECHNICIAN",
+    eligible: false,
+  },
 ];
 
 export const MOCK_ROOMS: MockRoom[] = [
-  { roomId: "rm-k1", name: "Phòng khám 1", category: "EXAMINATION", ready: true },
-  { roomId: "rm-k2", name: "Phòng khám 2", category: "EXAMINATION", ready: true },
-  { roomId: "rm-cdha1", name: "Phòng CĐHA 1", category: "IMAGING", ready: true },
-  { roomId: "rm-xn1", name: "Phòng xét nghiệm 1", category: "LABORATORY", ready: false },
+  {
+    roomId: "rm-k1",
+    name: "Phòng khám 1",
+    category: "EXAMINATION",
+    ready: true,
+  },
+  {
+    roomId: "rm-k2",
+    name: "Phòng khám 2",
+    category: "EXAMINATION",
+    ready: true,
+  },
+  {
+    roomId: "rm-cdha1",
+    name: "Phòng CĐHA 1",
+    category: "IMAGING",
+    ready: true,
+  },
+  {
+    roomId: "rm-xn1",
+    name: "Phòng xét nghiệm 1",
+    category: "LABORATORY",
+    ready: false,
+  },
 ];
 
 const appointmentsByShift: Record<string, AffectedAppointment[]> = {
   "sh-bs1-am": [
-    { appointmentId: "ap-1", startAt: "T+1T08:30:00+07:00", patientName: "Trần Thị Hoa", serviceName: "Khám chấn thương vai" },
-    { appointmentId: "ap-2", startAt: "T+1T09:15:00+07:00", patientName: "Nguyễn Văn Long", serviceName: "Tái khám gãy xương cẳng tay" },
-    { appointmentId: "ap-3", startAt: "T+1T10:00:00+07:00", patientName: "Phan Thị Mai", serviceName: "Khám đau thắt lưng" },
+    {
+      appointmentId: "ap-1",
+      startAt: "T+1T08:30:00+07:00",
+      patientName: "Trần Thị Hoa",
+      serviceName: "Khám chấn thương vai",
+    },
+    {
+      appointmentId: "ap-2",
+      startAt: "T+1T09:15:00+07:00",
+      patientName: "Nguyễn Văn Long",
+      serviceName: "Tái khám gãy xương cẳng tay",
+    },
+    {
+      appointmentId: "ap-3",
+      startAt: "T+1T10:00:00+07:00",
+      patientName: "Phan Thị Mai",
+      serviceName: "Khám đau thắt lưng",
+    },
   ],
 };
 
-type SeedShift = Omit<Shift, "staffName" | "role" | "roomName" | "roomCategory" | "allowedActions">;
+type SeedShift = Omit<
+  Shift,
+  "staffName" | "role" | "roomName" | "roomCategory" | "allowedActions"
+>;
 
 /** Ca khởi tạo; `offset` là số ngày so với hôm nay. */
 const SEED: { offset: number; shift: Omit<SeedShift, "date"> }[] = [
-  { offset: 1, shift: { id: "sh-bs1-am", staffId: "st-bs1", startTime: "08:00", endTime: "12:00", roomId: "rm-k2" } },
-  { offset: 1, shift: { id: "sh-bs1-pm", staffId: "st-bs1", startTime: "13:30", endTime: "17:30", roomId: "rm-k2" } },
-  { offset: 1, shift: { id: "sh-bs2-am", staffId: "st-bs2", startTime: "08:00", endTime: "12:00", roomId: "rm-k1" } },
-  { offset: 2, shift: { id: "sh-bs2-pm", staffId: "st-bs2", startTime: "13:00", endTime: "17:00", roomId: "rm-k1" } },
-  { offset: 2, shift: { id: "sh-cdha-am", staffId: "st-cdha", startTime: "07:30", endTime: "11:30", roomId: "rm-cdha1" } },
-  { offset: 3, shift: { id: "sh-xn-am", staffId: "st-xn", startTime: "07:00", endTime: "11:00", roomId: "rm-xn1" } },
+  {
+    offset: 1,
+    shift: {
+      id: "sh-bs1-am",
+      staffId: "st-bs1",
+      startTime: "08:00",
+      endTime: "12:00",
+      roomId: "rm-k2",
+    },
+  },
+  {
+    offset: 1,
+    shift: {
+      id: "sh-bs1-pm",
+      staffId: "st-bs1",
+      startTime: "13:30",
+      endTime: "17:30",
+      roomId: "rm-k2",
+    },
+  },
+  {
+    offset: 1,
+    shift: {
+      id: "sh-bs2-am",
+      staffId: "st-bs2",
+      startTime: "08:00",
+      endTime: "12:00",
+      roomId: "rm-k1",
+    },
+  },
+  {
+    offset: 2,
+    shift: {
+      id: "sh-bs2-pm",
+      staffId: "st-bs2",
+      startTime: "13:00",
+      endTime: "17:00",
+      roomId: "rm-k1",
+    },
+  },
+  {
+    offset: 2,
+    shift: {
+      id: "sh-cdha-am",
+      staffId: "st-cdha",
+      startTime: "07:30",
+      endTime: "11:30",
+      roomId: "rm-cdha1",
+    },
+  },
+  {
+    offset: 3,
+    shift: {
+      id: "sh-xn-am",
+      staffId: "st-xn",
+      startTime: "07:00",
+      endTime: "11:00",
+      roomId: "rm-xn1",
+    },
+  },
   // Ca đã qua: chỉ xem. "Tuần trước" và "hôm qua".
-  { offset: -7, shift: { id: "sh-past-bs1", staffId: "st-bs1", startTime: "08:00", endTime: "12:00", roomId: "rm-k2" } },
-  { offset: -1, shift: { id: "sh-past-cdha", staffId: "st-cdha", startTime: "07:30", endTime: "11:30", roomId: "rm-cdha1" } },
+  {
+    offset: -7,
+    shift: {
+      id: "sh-past-bs1",
+      staffId: "st-bs1",
+      startTime: "08:00",
+      endTime: "12:00",
+      roomId: "rm-k2",
+    },
+  },
+  {
+    offset: -1,
+    shift: {
+      id: "sh-past-cdha",
+      staffId: "st-cdha",
+      startTime: "07:30",
+      endTime: "11:30",
+      roomId: "rm-cdha1",
+    },
+  },
 ];
 
 function buildShift(seed: SeedShift): Shift {
@@ -80,7 +220,10 @@ function buildShift(seed: SeedShift): Shift {
 }
 
 /** Hành động cho phép theo ngày giờ hiện tại (giờ VN): ca đã qua hoặc đã bắt đầu chỉ xem. */
-export function actionsFor(shift: Pick<Shift, "date" | "startTime">, now = new Date()): Shift["allowedActions"] {
+export function actionsFor(
+  shift: Pick<Shift, "date" | "startTime">,
+  now = new Date(),
+): Shift["allowedActions"] {
   const today = todayIsoDate(now);
   if (shift.date < today) return ["view"];
   if (shift.date === today) {

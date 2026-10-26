@@ -19,8 +19,13 @@ export function AppointmentsManagement() {
   function changeTab(tab: AppointmentTab) {
     if (tab === state.tab) return;
     // Sang tab giờ trống mà khoảng dài hơn 7 ngày thì cắt còn 7 ngày.
-    const last = state.from ? addDays(state.from, MAX_AVAILABILITY_DAYS - 1) : undefined;
-    const to = tab === "availability" && state.to && last && state.to > last ? last : state.to;
+    const last = state.from
+      ? addDays(state.from, MAX_AVAILABILITY_DAYS - 1)
+      : undefined;
+    const to =
+      tab === "availability" && state.to && last && state.to > last
+        ? last
+        : state.to;
     update({ tab, to }, "push");
   }
 

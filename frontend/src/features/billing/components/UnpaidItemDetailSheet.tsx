@@ -47,11 +47,15 @@ function detailItems(item: UnpaidItemDetail) {
     { label: "Khoản", value: item.itemName },
     {
       label: "Giá",
-      value: <span className="tabular-nums">{formatCurrencyVnd(item.priceVnd)}</span>,
+      value: (
+        <span className="tabular-nums">{formatCurrencyVnd(item.priceVnd)}</span>
+      ),
     },
     {
       label: "Thời gian chỉ định",
-      value: <span className="tabular-nums">{formatDateTime(item.orderedAt)}</span>,
+      value: (
+        <span className="tabular-nums">{formatDateTime(item.orderedAt)}</span>
+      ),
     },
     // Phí khám không do bác sĩ chỉ định.
     { label: "Bác sĩ chỉ định", value: item.orderedByDoctorName ?? "—" },
@@ -63,11 +67,16 @@ export function UnpaidItemDetailSheet({
   itemName,
   onClose,
 }: UnpaidItemDetailSheetProps) {
-  const { detail, loading, error, retryable, reload } = useUnpaidItemDetail(itemId);
+  const { detail, loading, error, retryable, reload } =
+    useUnpaidItemDetail(itemId);
   return (
     <BillingDetailSheetFrame
       title={itemName}
-      description={detail ? UNPAID_ITEM_KIND_LABELS[detail.kind] : "Khoản đang chờ thanh toán, chỉ để xem."}
+      description={
+        detail
+          ? UNPAID_ITEM_KIND_LABELS[detail.kind]
+          : "Khoản đang chờ thanh toán, chỉ để xem."
+      }
       loading={loading}
       error={error}
       onRetry={retryable ? reload : undefined}

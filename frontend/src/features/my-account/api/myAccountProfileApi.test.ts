@@ -62,10 +62,14 @@ describe("myAccountProfileApi: tài khoản bệnh nhân", () => {
   it("tên quá ngắn hoặc quá dài: 400 MSG-12 gắn vào displayName", async () => {
     const short = await failure(updateMyDisplayName(" A "));
     expect(short.status).toBe(400);
-    expect(toFieldErrorMap(short.fieldErrors)).toEqual({ displayName: "MSG-12" });
+    expect(toFieldErrorMap(short.fieldErrors)).toEqual({
+      displayName: "MSG-12",
+    });
 
     const long = await failure(updateMyDisplayName("A".repeat(101)));
-    expect(toFieldErrorMap(long.fieldErrors)).toEqual({ displayName: "MSG-12" });
+    expect(toFieldErrorMap(long.fieldErrors)).toEqual({
+      displayName: "MSG-12",
+    });
   });
 
   it("đổi email: email cũ vẫn hiệu lực tới khi nhập đúng mã (BR-05)", async () => {

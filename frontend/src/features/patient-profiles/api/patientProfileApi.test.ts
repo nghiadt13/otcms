@@ -63,7 +63,10 @@ describe("listSuggestedProfiles", () => {
       "patientCode",
       "sex",
     ]);
-    expect(items[1]).toMatchObject({ patientCode: "BN-000130", birthYear: 1962 });
+    expect(items[1]).toMatchObject({
+      patientCode: "BN-000130",
+      birthYear: 1962,
+    });
   });
 
   it("kho gợi ý lỗi ném 500 MSG-04", async () => {
@@ -86,9 +89,9 @@ describe("linkSuggestedProfile", () => {
     });
     const { items } = await listLinkedProfiles();
     expect(items.map((item) => item.id)).toContain(bao);
-    expect((await listSuggestedProfiles()).items.map((item) => item.id)).not.toContain(
-      bao,
-    );
+    expect(
+      (await listSuggestedProfiles()).items.map((item) => item.id),
+    ).not.toContain(bao);
   });
 
   it("Bản thân khi tài khoản đã có Bản thân → 409 MSG-21", async () => {
@@ -136,7 +139,9 @@ describe("linkSuggestedProfile", () => {
       }),
     );
     expect(error).toMatchObject({ status: 400, code: "MSG-17" });
-    expect(error.fieldErrors).toEqual([{ field: "relationship", code: "MSG-17" }]);
+    expect(error.fieldErrors).toEqual([
+      { field: "relationship", code: "MSG-17" },
+    ]);
   });
 });
 
@@ -235,12 +240,12 @@ describe("unlinkPatientProfile", () => {
   it("bỏ gắn: hồ sơ biến khỏi danh sách, còn trong phòng khám và trở lại gợi ý nếu email khớp", async () => {
     await linkSuggestedProfile({ patientId: bao, relationship: "CHILD" });
     await unlinkPatientProfile(bao);
-    expect((await listLinkedProfiles()).items.map((item) => item.id)).not.toContain(
-      bao,
-    );
-    expect((await listSuggestedProfiles()).items.map((item) => item.id)).toContain(
-      bao,
-    );
+    expect(
+      (await listLinkedProfiles()).items.map((item) => item.id),
+    ).not.toContain(bao);
+    expect(
+      (await listSuggestedProfiles()).items.map((item) => item.id),
+    ).toContain(bao);
   });
 
   it("bỏ gắn Bản thân rồi gắn lại được", async () => {

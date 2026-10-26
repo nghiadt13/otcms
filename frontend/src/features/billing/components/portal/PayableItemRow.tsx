@@ -40,19 +40,26 @@ export function PayableItemRow({
         </span>
         <div className="min-w-0 flex-1 space-y-1 pt-2.5">
           <label
-            className={cn("block text-base font-medium", payable ? "cursor-pointer" : "text-muted-foreground")}
+            className={cn(
+              "block text-base font-medium",
+              payable ? "cursor-pointer" : "text-muted-foreground",
+            )}
             htmlFor={inputId}
           >
             {item.label}
           </label>
           <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-base">
-            <span className="tabular-nums">{formatCurrencyVnd(item.amount)}</span>
+            <span className="tabular-nums">
+              {formatCurrencyVnd(item.amount)}
+            </span>
             <StatusBadge tone={PAYABLE_ITEM_STATUS_TONE[item.status]}>
               {PAYABLE_ITEM_STATUS_LABELS[item.status]}
             </StatusBadge>
           </p>
           {item.cancellationReason ? (
-            <p className="text-sm text-muted-foreground">{item.cancellationReason}</p>
+            <p className="text-sm text-muted-foreground">
+              {item.cancellationReason}
+            </p>
           ) : null}
         </div>
       </div>

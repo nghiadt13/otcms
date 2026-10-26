@@ -5,7 +5,11 @@ import { WebsiteContentBody } from "./WebsiteContentBody";
 
 // Bài viết sức khỏe công khai (`/bai-viet/{id}`): tiêu đề, ngày đăng và nội dung Markdown
 // đã lọc (WebsiteContentBody không dùng HTML thô).
-export function HealthArticleView({ article }: { article: PublicHealthArticle }) {
+export function HealthArticleView({
+  article,
+}: {
+  article: PublicHealthArticle;
+}) {
   return (
     <article className="max-w-3xl">
       <PublicPageHeader title={article.title}>
@@ -16,7 +20,10 @@ export function HealthArticleView({ article }: { article: PublicHealthArticle })
           Đăng ngày {formatDate(article.publishedAt)}
         </time>
       </PublicPageHeader>
-      <WebsiteContentBody className="mt-10 text-lg leading-8" markdown={article.body} />
+      <WebsiteContentBody
+        className="mt-10 text-lg leading-8"
+        markdown={article.body}
+      />
     </article>
   );
 }

@@ -15,12 +15,20 @@ export function PatientAppointmentFacts({
   appointment: PatientAppointment;
 }) {
   const items: { label: string; value: string; numeric?: boolean }[] = [
-    { label: "Giờ khám", value: appointmentWhenLabel(appointment.startAt), numeric: true },
+    {
+      label: "Giờ khám",
+      value: appointmentWhenLabel(appointment.startAt),
+      numeric: true,
+    },
     { label: "Người khám", value: patientOfLabel(appointment.patient) },
     { label: "Dịch vụ", value: appointment.service.name },
     { label: "Bác sĩ", value: appointment.doctor.fullName },
     { label: "Phòng", value: appointment.roomName },
-    { label: "Phí khám", value: examFeeLabel(appointment.examFee), numeric: true },
+    {
+      label: "Phí khám",
+      value: examFeeLabel(appointment.examFee),
+      numeric: true,
+    },
     { label: "Loại", value: visitTypeLabel(appointment.isFollowUp) },
   ];
   return (
@@ -28,7 +36,12 @@ export function PatientAppointmentFacts({
       {items.map(({ label, value, numeric }) => (
         <div className="min-w-0" key={label}>
           <dt className="text-base text-muted-foreground">{label}</dt>
-          <dd className={cn("mt-1 break-words font-medium", numeric && "tabular-nums")}>
+          <dd
+            className={cn(
+              "mt-1 break-words font-medium",
+              numeric && "tabular-nums",
+            )}
+          >
             {value}
           </dd>
         </div>

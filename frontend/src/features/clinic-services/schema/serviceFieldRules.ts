@@ -42,7 +42,10 @@ export function validateServiceForm(
 
   if (draft.type === "EXAMINATION") {
     const slot = draft.bookingDetails.slotMinutes.trim();
-    if (slot !== "" && (!/^\d+$/.test(slot) || Number(slot) < MIN_SLOT_MINUTES)) {
+    if (
+      slot !== "" &&
+      (!/^\d+$/.test(slot) || Number(slot) < MIN_SLOT_MINUTES)
+    ) {
       errors["bookingDetails.slotMinutes"] = INVALID;
     }
   }

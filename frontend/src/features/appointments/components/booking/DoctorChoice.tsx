@@ -57,9 +57,15 @@ export function DoctorChoice({
         className="gap-0 divide-y rounded-lg border"
       >
         {rows.map((row) => (
-          <div key={row.value} className={`flex items-center gap-3 ${sizes.row}`}>
+          <div
+            key={row.value}
+            className={`flex items-center gap-3 ${sizes.row}`}
+          >
             <RadioGroupItem id={row.id} value={row.value} />
-            <Label htmlFor={row.id} className={`min-w-0 flex-1 cursor-pointer font-normal ${sizes.body}`}>
+            <Label
+              htmlFor={row.id}
+              className={`min-w-0 flex-1 cursor-pointer font-normal ${sizes.body}`}
+            >
               {row.name}
             </Label>
           </div>

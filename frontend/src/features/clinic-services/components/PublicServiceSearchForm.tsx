@@ -2,10 +2,16 @@ import { Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
+import {
+  NativeSelect,
+  NativeSelectOption,
+} from "@/components/ui/native-select";
 import { publicButtonClass } from "@/components/brand/publicButtonStyles";
 import { formatAppMessage } from "@/lib/messages/appMessages";
-import { CATEGORY_LABELS, SERVICE_CATEGORIES } from "@/lib/domain/clinicCategories";
+import {
+  CATEGORY_LABELS,
+  SERVICE_CATEGORIES,
+} from "@/lib/domain/clinicCategories";
 import { cn } from "@/lib/utils";
 import type { ServiceListError } from "../schema/serviceListQuery";
 
@@ -68,7 +74,11 @@ export function PublicServiceSearchForm({
       </Button>
 
       {error ? (
-        <p className="text-base text-destructive sm:basis-full" id={errorId} role="alert">
+        <p
+          className="text-base text-destructive sm:basis-full"
+          id={errorId}
+          role="alert"
+        >
           {formatAppMessage(error.code)}
         </p>
       ) : null}

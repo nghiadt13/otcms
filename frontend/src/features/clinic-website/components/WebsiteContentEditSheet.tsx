@@ -4,7 +4,10 @@ import { ConfirmActionDialog } from "@/components/admin/ConfirmActionDialog";
 import { FieldError } from "@/components/admin/FieldError";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
+import {
+  NativeSelect,
+  NativeSelectOption,
+} from "@/components/ui/native-select";
 import {
   Sheet,
   SheetContent,
@@ -53,7 +56,11 @@ export function WebsiteContentEditSheet({ editId, onFinish }: Props) {
 
           <div className="flex-1 overflow-y-auto p-4">
             {loading ? (
-              <div className="grid gap-4" aria-busy="true" aria-label="Đang tải nội dung">
+              <div
+                className="grid gap-4"
+                aria-busy="true"
+                aria-label="Đang tải nội dung"
+              >
                 <Skeleton className="h-8 w-full" />
                 <Skeleton className="h-8 w-full" />
                 <Skeleton className="h-48 w-full" />
@@ -71,7 +78,9 @@ export function WebsiteContentEditSheet({ editId, onFinish }: Props) {
                       id="content-type"
                       readOnly
                       disabled
-                      value={form.type ? WEBSITE_CONTENT_TYPE_LABELS[form.type] : ""}
+                      value={
+                        form.type ? WEBSITE_CONTENT_TYPE_LABELS[form.type] : ""
+                      }
                     />
                   ) : (
                     <NativeSelect
@@ -80,7 +89,9 @@ export function WebsiteContentEditSheet({ editId, onFinish }: Props) {
                       value={form.type}
                       aria-invalid={Boolean(errors.type)}
                       onChange={(event) =>
-                        editor.requestTypeChange(event.target.value as WebsiteContentType)
+                        editor.requestTypeChange(
+                          event.target.value as WebsiteContentType,
+                        )
                       }
                     >
                       <NativeSelectOption value="" disabled>
@@ -106,7 +117,9 @@ export function WebsiteContentEditSheet({ editId, onFinish }: Props) {
                     autoComplete="off"
                     value={form.title}
                     aria-invalid={Boolean(errors.title)}
-                    onChange={(event) => editor.patchForm({ title: event.target.value })}
+                    onChange={(event) =>
+                      editor.patchForm({ title: event.target.value })
+                    }
                   />
                 </WebsiteContentField>
 
@@ -135,7 +148,10 @@ export function WebsiteContentEditSheet({ editId, onFinish }: Props) {
           </div>
 
           <SheetFooter className="border-t sm:flex-row-reverse sm:justify-start">
-            <Button disabled={loading || publishing} onClick={editor.requestPublish}>
+            <Button
+              disabled={loading || publishing}
+              onClick={editor.requestPublish}
+            >
               {publishing ? "Đang đăng..." : publishLabel}
             </Button>
             <Button
@@ -145,7 +161,11 @@ export function WebsiteContentEditSheet({ editId, onFinish }: Props) {
             >
               Xem trước
             </Button>
-            <Button variant="ghost" disabled={publishing} onClick={editor.requestClose}>
+            <Button
+              variant="ghost"
+              disabled={publishing}
+              onClick={editor.requestClose}
+            >
               Hủy
             </Button>
           </SheetFooter>

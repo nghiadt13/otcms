@@ -29,7 +29,9 @@ describe("PatientProfilesScreen", () => {
     expect(self).toHaveTextContent("Bản thân");
     expect(self).toHaveTextContent("BN-000123");
 
-    const names = screen.getAllByRole("listitem").map((item) => item.textContent);
+    const names = screen
+      .getAllByRole("listitem")
+      .map((item) => item.textContent);
     expect(names[0]).toContain("Nguyễn Văn An");
     expect(names).toHaveLength(3);
   });
@@ -38,7 +40,9 @@ describe("PatientProfilesScreen", () => {
     render(<PatientProfilesScreen />);
 
     expect(
-      await screen.findByText(/Tìm thấy 2 hồ sơ khám tại phòng khám dùng email/),
+      await screen.findByText(
+        /Tìm thấy 2 hồ sơ khám tại phòng khám dùng email/,
+      ),
     ).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Xem và gắn" })).toHaveAttribute(
       "href",
@@ -62,10 +66,10 @@ describe("PatientProfilesScreen", () => {
     resetLinkedProfilesMock({ failList: true });
     render(<PatientProfilesScreen />);
 
-    expect(await screen.findByText("Không tải được hồ sơ.")).toBeInTheDocument();
     expect(
-      screen.getByText(formatAppMessage("MSG-04")),
+      await screen.findByText("Không tải được hồ sơ."),
     ).toBeInTheDocument();
+    expect(screen.getByText(formatAppMessage("MSG-04"))).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Thử lại" })).toBeEnabled();
   });
 });

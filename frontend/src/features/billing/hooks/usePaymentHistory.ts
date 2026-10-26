@@ -22,7 +22,10 @@ export function defaultPaymentFilters(now: Date): PaymentFilters {
 }
 
 /** Từ > đến → "MSG-54" (hiện dưới ô Đến); hợp lệ → null. */
-export function paymentDateRangeError(from: string, to: string): "MSG-54" | null {
+export function paymentDateRangeError(
+  from: string,
+  to: string,
+): "MSG-54" | null {
   return isBillingDateRangeValid(from, to) ? null : "MSG-54";
 }
 

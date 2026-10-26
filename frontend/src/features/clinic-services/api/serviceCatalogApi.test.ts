@@ -42,12 +42,18 @@ describe("serviceCatalogApi (mock)", () => {
   });
 
   it("lọc theo q, type, status và bỏ tham số rỗng", async () => {
-    expect((await listServiceCatalog({ q: "ct " })).items.every((i) => /ct/i.test(i.name))).toBe(true);
+    expect(
+      (await listServiceCatalog({ q: "ct " })).items.every((i) =>
+        /ct/i.test(i.name),
+      ),
+    ).toBe(true);
     const imaging = await listServiceCatalog({ type: "IMAGING" });
     expect(imaging.totalItems).toBe(8);
     const stopped = await listServiceCatalog({ status: "DISCONTINUED" });
     expect(stopped.totalItems).toBe(3);
-    expect((await listServiceCatalog({ q: "", type: undefined })).totalItems).toBe(26);
+    expect(
+      (await listServiceCatalog({ q: "", type: undefined })).totalItems,
+    ).toBe(26);
     expect((await listServiceCatalog({ q: "zzz" })).items).toEqual([]);
   });
 
@@ -58,14 +64,18 @@ describe("serviceCatalogApi (mock)", () => {
   });
 
   it("tạo trả bản ghi mới và xuất hiện trong danh sách", async () => {
-    const created = await createServiceCatalog(newExam("  Khám phục hồi chức năng "));
+    const created = await createServiceCatalog(
+      newExam("  Khám phục hồi chức năng "),
+    );
     expect(created.name).toBe("Khám phục hồi chức năng");
     expect(created.status).toBe("ACTIVE");
     expect((await listServiceCatalog({ q: "phục hồi" })).totalItems).toBe(1);
   });
 
   it("tên trùng dịch vụ đang cung cấp trả 409 MSG-66 gắn ô name", async () => {
-    const error = await failure(createServiceCatalog(newExam("  khám NỘI tổng quát ")));
+    const error = await failure(
+      createServiceCatalog(newExam("  khám NỘI tổng quát ")),
+    );
     expect(error.status).toBe(409);
     expect(error.fieldErrors).toEqual([{ field: "name", code: "MSG-66" }]);
   });
@@ -73,7 +83,10 @@ describe("serviceCatalogApi (mock)", () => {
   it("sửa giữ nguyên loại; dịch vụ đã ngừng trả 409 MSG-50", async () => {
     const { type: _type, ...update } = newExam("Khám nội tổng quát");
     void _type;
-    const saved = await updateServiceCatalog("svc-01", { ...update, price: 220000 });
+    const saved = await updateServiceCatalog("svc-01", {
+      ...update,
+      price: 220000,
+    });
     expect(saved.type).toBe("EXAMINATION");
     expect(saved.price).toBe(220000);
     const error = await failure(updateServiceCatalog("svc-disc-01", update));
@@ -85,8 +98,12 @@ describe("serviceCatalogApi (mock)", () => {
     const stopped = await discontinueServiceCatalog("svc-02");
     expect(stopped.status).toBe("DISCONTINUED");
     expect(stopped.allowedActions).toEqual([]);
-    expect((await failure(discontinueServiceCatalog("svc-02"))).code).toBe("MSG-50");
-    expect((await failure(discontinueServiceCatalog("svc-disc-01"))).status).toBe(409);
+    expect((await failure(discontinueServiceCatalog("svc-02"))).code).toBe(
+      "MSG-50",
+    );
+    expect(
+      (await failure(discontinueServiceCatalog("svc-disc-01"))).status,
+    ).toBe(409);
   });
 
   it("id không tồn tại trả 404 MSG-50", async () => {

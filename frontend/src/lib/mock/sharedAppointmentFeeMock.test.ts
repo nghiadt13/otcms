@@ -46,9 +46,13 @@ describe("kho phí khám giả dùng chung", () => {
     const found = findMockAppointmentFee("apt-test-1");
     expect(found?.examFeeAmount).toBe(200000);
     if (found) found.examFeeStatus = "PAID";
-    expect(findMockAppointmentFee("apt-test-1")?.examFeeStatus).toBe("PENDING_PAYMENT");
+    expect(findMockAppointmentFee("apt-test-1")?.examFeeStatus).toBe(
+      "PENDING_PAYMENT",
+    );
     listMockAppointmentFees()[0].examFeeStatus = "PAID";
-    expect(findMockAppointmentFee("apt-test-1")?.examFeeStatus).toBe("PENDING_PAYMENT");
+    expect(findMockAppointmentFee("apt-test-1")?.examFeeStatus).toBe(
+      "PENDING_PAYMENT",
+    );
   });
 
   it("thanh toán thành công đổi phí sang đã trả, các dữ kiện khác giữ nguyên", () => {

@@ -20,7 +20,10 @@ type Issued = { credential: IssuedCredential; role: StaffRole };
  * Tạo tài khoản nhân viên, hai bước. Phải mount có điều kiện (chỉ khi mở): đóng là gỡ
  * component nên mật khẩu một lần trong state biến mất cùng Dialog.
  */
-export function AccountFormDialog({ onCreated, onClose }: AccountFormDialogProps) {
+export function AccountFormDialog({
+  onCreated,
+  onClose,
+}: AccountFormDialogProps) {
   const [issued, setIssued] = useState<Issued | null>(null);
 
   if (issued)

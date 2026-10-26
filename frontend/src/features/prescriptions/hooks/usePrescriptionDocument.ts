@@ -9,7 +9,9 @@ import type { PrescriptionDocument } from "../types/prescription";
  * 409 (chưa phát hành) → quay về danh sách, còn lại → thử lại.
  */
 export function usePrescriptionDocument(prescriptionId: string) {
-  const [prescription, setPrescription] = useState<PrescriptionDocument | null>(null);
+  const [prescription, setPrescription] = useState<PrescriptionDocument | null>(
+    null,
+  );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<unknown>(null);
   const [reloadToken, setReloadToken] = useState(0);

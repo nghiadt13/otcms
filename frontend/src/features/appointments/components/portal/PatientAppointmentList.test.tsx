@@ -26,7 +26,8 @@ vi.mock("sonner", () => ({
 }));
 // Bọc lớp API giả bằng vi.fn để ép một lần lỗi; kho giả vẫn chạy thật.
 vi.mock("../../api/patientAppointmentApi", async (importOriginal) => {
-  const original = await importOriginal<typeof import("../../api/patientAppointmentApi")>();
+  const original =
+    await importOriginal<typeof import("../../api/patientAppointmentApi")>();
   return {
     ...original,
     listMyAppointments: vi.fn(original.listMyAppointments),
@@ -39,7 +40,9 @@ import { formatAppMessage } from "@/lib/messages/appMessages";
 const NOW = new Date("2026-10-23T07:00:00+07:00");
 
 function idOf(patientCode: string): string {
-  const profile = getLinkedProfileRecords().find((item) => item.patientCode === patientCode);
+  const profile = getLinkedProfileRecords().find(
+    (item) => item.patientCode === patientCode,
+  );
   if (!profile) throw new Error(`thiếu hồ sơ ${patientCode}`);
   return profile.id;
 }
@@ -48,7 +51,9 @@ function idOf(patientCode: string): string {
 const rows = () =>
   screen
     .queryAllByRole("link")
-    .filter((link) => link.getAttribute("href")?.startsWith("/portal/appointments/apt-"));
+    .filter((link) =>
+      link.getAttribute("href")?.startsWith("/portal/appointments/apt-"),
+    );
 
 beforeEach(() => {
   nav.search = "";
@@ -67,14 +72,12 @@ describe("PatientAppointmentList", () => {
     expect(await screen.findAllByText("Đã đặt")).toHaveLength(4);
     expect(rows()).toHaveLength(4);
     // Tên người khám cũng nằm trong ô chọn; chỉ tính dòng là link.
-    expect(screen.getByRole("link", { name: /Nguyễn Thị Lan · Cha\/Mẹ/ })).toHaveAttribute(
-      "href",
-      "/portal/appointments/apt-1003",
-    );
-    expect(screen.getByRole("link", { name: /Nguyễn Gia Huy · Con/ })).toHaveAttribute(
-      "href",
-      "/portal/appointments/apt-2101",
-    );
+    expect(
+      screen.getByRole("link", { name: /Nguyễn Thị Lan · Cha\/Mẹ/ }),
+    ).toHaveAttribute("href", "/portal/appointments/apt-1003");
+    expect(
+      screen.getByRole("link", { name: /Nguyễn Gia Huy · Con/ }),
+    ).toHaveAttribute("href", "/portal/appointments/apt-2101");
     expect(rows()[0]).toHaveAttribute("href", "/portal/appointments/apt-1001");
   });
 
@@ -91,7 +94,9 @@ describe("PatientAppointmentList", () => {
     await user.click(screen.getByRole("button", { name: "Xem thêm" }));
 
     await waitFor(() => expect(rows()).toHaveLength(14));
-    expect(screen.queryByRole("button", { name: "Xem thêm" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Xem thêm" }),
+    ).not.toBeInTheDocument();
   });
 
   it("đổi tab đẩy URL ?tab=past", async () => {
@@ -110,7 +115,9 @@ describe("PatientAppointmentList", () => {
       await screen.findByRole("combobox", { name: "Người khám" }),
       lan,
     );
-    expect(nav.replace).toHaveBeenCalledWith(`/portal/appointments?profileId=${lan}`);
+    expect(nav.replace).toHaveBeenCalledWith(
+      `/portal/appointments?profileId=${lan}`,
+    );
   });
 
   it("mã người khám trên URL đúng thì lọc; mã lạ bị bỏ qua và hiện tất cả", async () => {

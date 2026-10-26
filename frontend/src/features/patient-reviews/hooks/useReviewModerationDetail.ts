@@ -116,14 +116,18 @@ export function useReviewModerationDetail(
       if (invalid) return { ok: false, fieldError: formatAppMessage(invalid) };
       setBusy(true);
       try {
-        const detail = await replyModerationReview(reviewId, { text: text.trim() });
+        const detail = await replyModerationReview(reviewId, {
+          text: text.trim(),
+        });
         setResult({ id: reviewId, detail });
         notifySuccess(REPLY_SUCCESS);
         handlersRef.current.onChanged();
         return { ok: true };
       } catch (err) {
         // MSG-57: đỏ dưới ô, không toast.
-        const code = isApiError(err) ? toFieldErrorMap(err.fieldErrors).text : undefined;
+        const code = isApiError(err)
+          ? toFieldErrorMap(err.fieldErrors).text
+          : undefined;
         if (code) return { ok: false, fieldError: formatAppMessage(code) };
         handleActionError(err);
         return { ok: false };

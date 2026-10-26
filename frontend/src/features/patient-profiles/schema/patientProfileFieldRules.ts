@@ -1,8 +1,5 @@
 import type { CareRelationship } from "@/lib/domain/careRelationship";
-import type {
-  EditableProfileField,
-  PatientSex,
-} from "../types/patientProfile";
+import type { EditableProfileField, PatientSex } from "../types/patientProfile";
 import { validateDateOfBirthText } from "./dateOfBirthText";
 import {
   checkAddress,

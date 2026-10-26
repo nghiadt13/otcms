@@ -9,7 +9,10 @@ import { useBillingLoad } from "./useBillingLoad";
  */
 export function usePayableSources(patientId?: string) {
   const { data, loading, error, reload } = useBillingLoad(
-    (signal) => listPayableSources({ patientId }, signal).then((response) => response.items),
+    (signal) =>
+      listPayableSources({ patientId }, signal).then(
+        (response) => response.items,
+      ),
     patientId ?? "",
   );
   return { sources: data, loading, error, reload };

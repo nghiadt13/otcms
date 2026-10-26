@@ -1,7 +1,9 @@
 import { formatAppMessage } from "@/lib/messages/appMessages";
 
 /** Câu lỗi khoảng ngày cho DateRangeFilter / ô ngày (MSG-54); không lỗi thì undefined. */
-export function messageFromRangeError(code: "MSG-54" | null): string | undefined {
+export function messageFromRangeError(
+  code: "MSG-54" | null,
+): string | undefined {
   return code ? formatAppMessage(code) : undefined;
 }
 

@@ -78,11 +78,7 @@ export type ProfileRequestInput = Partial<
 >;
 
 export type MedicalHistoryField =
-  | "conditions"
-  | "allergies"
-  | "procedures"
-  | "injuries"
-  | "orthopedicHistory";
+  "conditions" | "allergies" | "procedures" | "injuries" | "orthopedicHistory";
 
 export type MedicalHistoryTexts = Record<MedicalHistoryField, string>;
 

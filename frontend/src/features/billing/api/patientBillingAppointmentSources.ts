@@ -20,7 +20,10 @@ export const appointmentFeeItemId = (appointmentId: string): string =>
   `fee-${appointmentId}`;
 
 /** Lịch còn hiệu lực có phí (đã trả hoặc chưa trả) của một hồ sơ đã gắn. */
-function isBillableFee(fee: MockAppointmentFee, linkedIds: ReadonlySet<string>): boolean {
+function isBillableFee(
+  fee: MockAppointmentFee,
+  linkedIds: ReadonlySet<string>,
+): boolean {
   return (
     fee.appointmentStatus === "BOOKED" &&
     fee.examFeeStatus !== "NOT_REQUIRED" &&

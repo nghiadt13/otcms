@@ -23,7 +23,10 @@ async function failure(promise: Promise<unknown>) {
 describe("listPrescriptions", () => {
   it("liệt kê đơn của mọi hồ sơ, mới nhất trước, kèm số thuốc và bác sĩ", async () => {
     const page = await listPrescriptions({});
-    expect(page.items.map((item) => item.id)).toEqual(["pres-an-1", "pres-lan-1"]);
+    expect(page.items.map((item) => item.id)).toEqual([
+      "pres-an-1",
+      "pres-lan-1",
+    ]);
     expect(page.items[0]).toMatchObject({
       itemCount: 3,
       doctorName: "BS. Lê Thu Hà",
@@ -68,7 +71,9 @@ describe("getPrescription", () => {
     expect([forbidden.status, forbidden.code]).toEqual([403, "MSG-40"]);
     const missing = await failure(getPrescription("pres-khong-co"));
     expect([missing.status, missing.code]).toEqual([404, "MSG-41"]);
-    const notIssued = await failure(getPrescription(PRESCRIPTION_NOT_ISSUED_ID));
+    const notIssued = await failure(
+      getPrescription(PRESCRIPTION_NOT_ISSUED_ID),
+    );
     expect([notIssued.status, notIssued.code]).toEqual([409, "MSG-42"]);
   });
 

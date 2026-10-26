@@ -56,8 +56,13 @@ describe("ResultListScreen", () => {
   it("đổi người khám đưa mã hồ sơ lên URL", async () => {
     const user = userEvent.setup();
     render(<ResultListScreen />);
-    await user.selectOptions(await screen.findByLabelText("Người khám"), HUY_ID);
-    expect(nav.replace).toHaveBeenCalledWith(`/portal/results?profileId=${HUY_ID}`);
+    await user.selectOptions(
+      await screen.findByLabelText("Người khám"),
+      HUY_ID,
+    );
+    expect(nav.replace).toHaveBeenCalledWith(
+      `/portal/results?profileId=${HUY_ID}`,
+    );
   });
 
   it("hồ sơ chưa có lượt nào hiện trạng thái trống có câu dạy cách dùng", async () => {

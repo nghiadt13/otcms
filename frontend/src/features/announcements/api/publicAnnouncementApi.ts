@@ -9,7 +9,8 @@ import { mockStore } from "./announcementMockData";
 
 const LATENCY_MS = process.env.NODE_ENV === "test" ? 0 : 200;
 
-const isPublicAudience = (item: AnnouncementDetail) => item.audience === "PUBLIC";
+const isPublicAudience = (item: AnnouncementDetail) =>
+  item.audience === "PUBLIC";
 
 function toPublicAnnouncement(item: AnnouncementDetail): PublicAnnouncement {
   return {

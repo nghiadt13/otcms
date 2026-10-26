@@ -9,7 +9,9 @@ export function FirstLoginPasswordPage() {
   const router = useRouter();
   return (
     <div className="mx-auto w-full max-w-md">
-      <h1 className="text-2xl font-semibold tracking-tight">Đặt mật khẩu mới</h1>
+      <h1 className="text-2xl font-semibold tracking-tight">
+        Đặt mật khẩu mới
+      </h1>
       <p className="mt-1 mb-6 text-sm text-muted-foreground">
         Bạn đang dùng mật khẩu khởi tạo. Hãy đặt mật khẩu mới để tiếp tục.
       </p>

@@ -64,8 +64,12 @@ describe("ChangePasswordForm", () => {
   });
 
   it("mode forced không có nút Hủy; voluntary có", () => {
-    const { unmount } = render(<ChangePasswordForm mode="forced" onDone={vi.fn()} />);
-    expect(screen.queryByRole("button", { name: "Hủy" })).not.toBeInTheDocument();
+    const { unmount } = render(
+      <ChangePasswordForm mode="forced" onDone={vi.fn()} />,
+    );
+    expect(
+      screen.queryByRole("button", { name: "Hủy" }),
+    ).not.toBeInTheDocument();
     unmount();
     render(<ChangePasswordForm mode="voluntary" onDone={vi.fn()} />);
     expect(screen.getByRole("button", { name: "Hủy" })).toBeInTheDocument();
@@ -81,20 +85,33 @@ describe("ChangePasswordForm", () => {
     const toggles = screen.getAllByRole("button", { name: "Hiện mật khẩu" });
     expect(toggles).toHaveLength(3);
     await userEvent.click(toggles[0]);
-    expect(screen.getByLabelText("Mật khẩu hiện tại")).toHaveAttribute("type", "text");
-    expect(screen.getByRole("button", { name: "Ẩn mật khẩu" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Mật khẩu hiện tại")).toHaveAttribute(
+      "type",
+      "text",
+    );
+    expect(
+      screen.getByRole("button", { name: "Ẩn mật khẩu" }),
+    ).toBeInTheDocument();
   });
 
   it("khi đang gửi: nút 'Đang lưu...' bị khóa", async () => {
     render(<ChangePasswordForm mode="forced" onDone={vi.fn()} />);
-    await userEvent.type(screen.getByLabelText("Mật khẩu hiện tại"), "MatKhauCu1");
+    await userEvent.type(
+      screen.getByLabelText("Mật khẩu hiện tại"),
+      "MatKhauCu1",
+    );
     await userEvent.type(screen.getByLabelText("Mật khẩu mới"), "MatKhauMoi2");
-    await userEvent.type(screen.getByLabelText("Nhập lại mật khẩu mới"), "MatKhauMoi2");
+    await userEvent.type(
+      screen.getByLabelText("Nhập lại mật khẩu mới"),
+      "MatKhauMoi2",
+    );
     // fireEvent chạy đồng bộ nên thấy trạng thái đang gửi trước khi mock trả về.
     fireEvent.click(screen.getByRole("button", { name: "Đổi mật khẩu" }));
     expect(screen.getByRole("button", { name: "Đang lưu..." })).toBeDisabled();
     await waitFor(() =>
-      expect(screen.getByRole("button", { name: "Đổi mật khẩu" })).toBeEnabled(),
+      expect(
+        screen.getByRole("button", { name: "Đổi mật khẩu" }),
+      ).toBeEnabled(),
     );
   });
 });

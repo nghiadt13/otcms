@@ -2,7 +2,11 @@
 
 import { useEffect, useReducer, useState } from "react";
 import { isApiError } from "@/lib/api/apiError";
-import { notifyError, notifySuccess, notifyWarning } from "@/lib/messages/notify";
+import {
+  notifyError,
+  notifySuccess,
+  notifyWarning,
+} from "@/lib/messages/notify";
 import type { LinkedProfile } from "@/lib/patient-scope/types";
 import { createAppointment } from "../../api/bookingApi";
 import { useBookableServices } from "../../hooks/useBookableServices";
@@ -132,7 +136,13 @@ export function BookingFlow(props: BookingFlowProps) {
   }
 
   async function handleSubmit() {
-    if (!ready || submitting || !patientId || !selection.serviceId || !selection.startAt)
+    if (
+      !ready ||
+      submitting ||
+      !patientId ||
+      !selection.serviceId ||
+      !selection.startAt
+    )
       return;
     setSubmitting(true);
     try {

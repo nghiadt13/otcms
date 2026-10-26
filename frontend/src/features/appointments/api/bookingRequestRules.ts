@@ -1,7 +1,10 @@
 import type { ApiFieldError } from "@/lib/api/apiError";
 import { mockFail } from "@/lib/api/mockServer";
 import { getLinkedProfileRecords } from "@/lib/patient-scope/linkedProfilesMockStore";
-import type { BookableService, CreateAppointmentRequest } from "../types/booking";
+import type {
+  BookableService,
+  CreateAppointmentRequest,
+} from "../types/booking";
 import {
   BOOKABLE_SERVICES,
   FAILING_SERVICE_ID,
@@ -66,7 +69,9 @@ export function requireBookableService(serviceId: string): BookableService {
 }
 
 /** Người được đặt: hồ sơ đang gắn hoặc người lễ tân quản lý. Bị khóa → 403 MSG-29. */
-export function requireBookablePatient(patientId: string): ResolvedBookingPatient {
+export function requireBookablePatient(
+  patientId: string,
+): ResolvedBookingPatient {
   const patient = resolveBookingPatient(patientId, getLinkedProfileRecords());
   if (!patient) mockFail(404, "MSG-29");
   if (patient.locked) mockFail(403, "MSG-29");
@@ -83,7 +88,9 @@ export interface ReadCreateRequest {
 }
 
 /** Đọc yêu cầu đặt lịch: thiếu hoặc sai dạng → 400 MSG-31 đúng ô. */
-export function readCreateRequest(body: CreateAppointmentRequest): ReadCreateRequest {
+export function readCreateRequest(
+  body: CreateAppointmentRequest,
+): ReadCreateRequest {
   const fields: string[] = [];
   if (!body.patientId) fields.push("patientId");
   if (!body.serviceId) fields.push("serviceId");

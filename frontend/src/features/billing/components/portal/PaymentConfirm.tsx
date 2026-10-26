@@ -16,7 +16,10 @@ import { notifyError } from "@/lib/messages/notify";
 import { cn } from "@/lib/utils";
 import { createOnlinePayment } from "../../api/patientBillingApi";
 import { usePayableSource } from "../../hooks/usePayableSource";
-import type { PaymentItem, PaymentSourceKind } from "../../types/patientBilling";
+import type {
+  PaymentItem,
+  PaymentSourceKind,
+} from "../../types/patientBilling";
 import { PaymentBackLink } from "./PaymentBackLink";
 import { PaymentErrorBlock } from "./PaymentErrorBlock";
 import {
@@ -56,7 +59,11 @@ export function PaymentConfirm({
     if (!source || !eligibleItems || submitting) return;
     setSubmitting(true);
     try {
-      const response = await createOnlinePayment({ sourceKind: kind, sourceId: id, itemIds });
+      const response = await createOnlinePayment({
+        sourceKind: kind,
+        sourceId: id,
+        itemIds,
+      });
       // Tổng BE khác tổng đã hiện: không chuyển sang cổng, quay về chi tiết để người dùng thấy lại.
       if (response.total !== previewTotal) {
         setSubmitting(false);
@@ -102,7 +109,8 @@ export function PaymentConfirm({
             <div className="space-y-1">
               <dt className="text-sm text-muted-foreground">Người được khám</dt>
               <dd className="font-medium">
-                {source.patient.fullName} ({CARE_RELATIONSHIP_LABELS[source.patient.relationship]})
+                {source.patient.fullName} (
+                {CARE_RELATIONSHIP_LABELS[source.patient.relationship]})
               </dd>
             </div>
             <div className="space-y-2">
@@ -110,9 +118,14 @@ export function PaymentConfirm({
               <dd>
                 <ul className="space-y-2">
                   {eligibleItems.map((item) => (
-                    <li className="flex items-start justify-between gap-4" key={item.id}>
+                    <li
+                      className="flex items-start justify-between gap-4"
+                      key={item.id}
+                    >
                       <span>{item.label}</span>
-                      <span className="shrink-0 tabular-nums">{formatCurrencyVnd(item.amount)}</span>
+                      <span className="shrink-0 tabular-nums">
+                        {formatCurrencyVnd(item.amount)}
+                      </span>
                     </li>
                   ))}
                 </ul>
@@ -120,7 +133,9 @@ export function PaymentConfirm({
             </div>
             <div className="flex items-center justify-between gap-4 border-t pt-4">
               <dt className="font-semibold">Tổng</dt>
-              <dd className="text-lg font-semibold tabular-nums">{formatCurrencyVnd(previewTotal)}</dd>
+              <dd className="text-lg font-semibold tabular-nums">
+                {formatCurrencyVnd(previewTotal)}
+              </dd>
             </div>
           </dl>
 
@@ -138,7 +153,10 @@ export function PaymentConfirm({
                 onCheckedChange={(checked) => setAgreed(checked)}
               />
             </span>
-            <Label className="pt-2.5 text-base font-normal" htmlFor="payment-agree">
+            <Label
+              className="pt-2.5 text-base font-normal"
+              htmlFor="payment-agree"
+            >
               Tôi đã đọc và đồng ý.
             </Label>
           </div>

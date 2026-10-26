@@ -10,7 +10,9 @@ describe("PublicServiceList", () => {
     const { items } = await listPublicServices(parsed.query);
     render(<PublicServiceList filtered services={items} />);
 
-    const names = screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent);
+    const names = screen
+      .getAllByRole("heading", { level: 2 })
+      .map((h) => h.textContent);
     expect(names).toHaveLength(4);
     expect(names).toEqual(
       expect.arrayContaining([
@@ -26,7 +28,9 @@ describe("PublicServiceList", () => {
   it("mỗi dòng là liên kết tới chi tiết và ghi giá bằng số VND", async () => {
     const { items } = await listPublicServices({ type: "EXAMINATION" });
     render(<PublicServiceList filtered={false} services={items} />);
-    const link = screen.getByRole("link", { name: /Khám chấn thương chỉnh hình/ });
+    const link = screen.getByRole("link", {
+      name: /Khám chấn thương chỉnh hình/,
+    });
     expect(link).toHaveAttribute("href", "/services/svc-consultation");
     expect(screen.getByText("250.000 ₫")).toBeInTheDocument();
   });
@@ -34,12 +38,13 @@ describe("PublicServiceList", () => {
   it("không có dịch vụ phù hợp thì gợi ý bỏ lọc, nhưng khi không lọc thì không hiện nút đó", () => {
     const { rerender } = render(<PublicServiceList filtered services={[]} />);
     expect(screen.getByText("Chưa có dịch vụ phù hợp.")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Xem tất cả dịch vụ" })).toHaveAttribute(
-      "href",
-      "/services",
-    );
+    expect(
+      screen.getByRole("link", { name: "Xem tất cả dịch vụ" }),
+    ).toHaveAttribute("href", "/services");
 
     rerender(<PublicServiceList filtered={false} services={[]} />);
-    expect(screen.queryByRole("link", { name: "Xem tất cả dịch vụ" })).toBeNull();
+    expect(
+      screen.queryByRole("link", { name: "Xem tất cả dịch vụ" }),
+    ).toBeNull();
   });
 });

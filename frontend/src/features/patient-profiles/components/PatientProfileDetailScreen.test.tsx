@@ -45,11 +45,15 @@ describe("PatientProfileDetailScreen", () => {
     const user = userEvent.setup();
     render(<PatientProfileDetailScreen profileId={PROFILE_MOCK_IDS.an} />);
 
-    await user.click(await screen.findByRole("button", { name: "Bỏ gắn hồ sơ" }));
+    await user.click(
+      await screen.findByRole("button", { name: "Bỏ gắn hồ sơ" }),
+    );
     const dialog = await screen.findByRole("alertdialog");
 
     expect(
-      within(dialog).getByText(/Hồ sơ và lịch sử khám tại phòng khám vẫn được giữ/),
+      within(dialog).getByText(
+        /Hồ sơ và lịch sử khám tại phòng khám vẫn được giữ/,
+      ),
     ).toBeInTheDocument();
     expect(
       within(dialog).getByText(/Đây là hồ sơ Bản thân của bạn/),
@@ -60,11 +64,17 @@ describe("PatientProfileDetailScreen", () => {
     const user = userEvent.setup();
     render(<PatientProfileDetailScreen profileId={PROFILE_MOCK_IDS.huy} />);
 
-    await user.click(await screen.findByRole("button", { name: "Bỏ gắn hồ sơ" }));
+    await user.click(
+      await screen.findByRole("button", { name: "Bỏ gắn hồ sơ" }),
+    );
     const dialog = await screen.findByRole("alertdialog");
-    await user.click(within(dialog).getByRole("button", { name: "Bỏ gắn hồ sơ" }));
+    await user.click(
+      within(dialog).getByRole("button", { name: "Bỏ gắn hồ sơ" }),
+    );
 
-    await waitFor(() => expect(nav.replace).toHaveBeenCalledWith("/portal/profiles"));
+    await waitFor(() =>
+      expect(nav.replace).toHaveBeenCalledWith("/portal/profiles"),
+    );
     expect(toast.success).toHaveBeenCalledWith(
       "Đã gỡ hồ sơ này khỏi danh sách hồ sơ bạn quản lý.",
     );

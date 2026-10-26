@@ -9,11 +9,18 @@ import {
   replyModerationReview,
   unhideModerationReview,
 } from "./reviewModerationApi";
-import { resetReviewModerationMockData, reviewIdOf } from "./reviewModerationMockData";
+import {
+  resetReviewModerationMockData,
+  reviewIdOf,
+} from "./reviewModerationMockData";
 
 const none = { status: "", rating: "", replied: "", from: "", to: "" } as const;
 
-async function expectApiError(promise: Promise<unknown>, status: number, code: string) {
+async function expectApiError(
+  promise: Promise<unknown>,
+  status: number,
+  code: string,
+) {
   const error = await promise.then(
     () => null,
     (e: unknown) => e,
@@ -28,7 +35,12 @@ beforeEach(() => resetReviewModerationMockData());
 
 describe("buildReviewListQuery", () => {
   it("bỏ giá trị rỗng, giữ replied=false", () => {
-    const qs = buildReviewListQuery({ ...none, status: "PENDING", replied: "false", page: 0 });
+    const qs = buildReviewListQuery({
+      ...none,
+      status: "PENDING",
+      replied: "false",
+      page: 0,
+    });
     const params = new URLSearchParams(qs);
     expect(params.get("status")).toBe("PENDING");
     expect(params.get("replied")).toBe("false");
@@ -50,7 +62,12 @@ describe("listModerationReviews", () => {
 
   it("counts không đổi khi lọc theo status, rating, ngày", async () => {
     const all = await listModerationReviews(none);
-    expect(all.counts).toEqual({ pending: 21, published: 15, hidden: 10, all: 46 });
+    expect(all.counts).toEqual({
+      pending: 21,
+      published: 15,
+      hidden: 10,
+      all: 46,
+    });
     const filtered = await listModerationReviews({
       ...none,
       status: "HIDDEN",
@@ -73,9 +90,15 @@ describe("listModerationReviews", () => {
   });
 
   it("lọc theo khoảng ngày gửi gồm hai đầu", async () => {
-    const res = await listModerationReviews({ ...none, from: "2026-10-19", to: "2026-10-19" });
+    const res = await listModerationReviews({
+      ...none,
+      from: "2026-10-19",
+      to: "2026-10-19",
+    });
     expect(res.items.length).toBeGreaterThan(0);
-    expect(res.items.every((r) => r.submittedAt.startsWith("2026-10-19"))).toBe(true);
+    expect(res.items.every((r) => r.submittedAt.startsWith("2026-10-19"))).toBe(
+      true,
+    );
   });
 
   it("from > to → 400 MSG-54", async () => {
@@ -117,7 +140,9 @@ describe("quyết định kiểm duyệt", () => {
 
 describe("replyModerationReview", () => {
   it("lưu phản hồi, đổi reply → editReply", async () => {
-    const after = await replyModerationReview(reviewIdOf(2), { text: "  Cảm ơn bạn.  " });
+    const after = await replyModerationReview(reviewIdOf(2), {
+      text: "  Cảm ơn bạn.  ",
+    });
     expect(after.reply?.text).toBe("Cảm ơn bạn.");
     expect(after.replied).toBe(true);
     expect(after.allowedActions).toContain("editReply");

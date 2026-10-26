@@ -22,12 +22,24 @@ beforeEach(() => {
 describe("ResultDetailScreen", () => {
   it("lượt Chưa hoàn tất chỉ hiện ảnh, xét nghiệm, hành chính và có thông báo chưa kết luận", async () => {
     render(<ResultDetailScreen visitId="vis-lan-incomplete" />);
-    expect(await screen.findByRole("heading", { name: "Xét nghiệm" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Hình ảnh" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Thông tin hành chính" })).toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: "Kết quả khám" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: "Đơn thuốc" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: "Phiếu kết quả" })).not.toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", { name: "Xét nghiệm" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Hình ảnh" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Thông tin hành chính" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "Kết quả khám" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "Đơn thuốc" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "Phiếu kết quả" }),
+    ).not.toBeInTheDocument();
     expect(screen.getByRole("status")).toHaveTextContent(
       "Lượt khám chưa được bác sĩ kết luận.",
     );
@@ -61,19 +73,21 @@ describe("ResultDetailScreen", () => {
 
   it("ẩn lượt trước hoặc lượt sau khi không có id tương ứng", async () => {
     const { unmount } = render(<ResultDetailScreen visitId="vis-an-done" />);
-    expect(await screen.findByRole("link", { name: /Lượt trước/ })).toHaveAttribute(
-      "href",
-      "/portal/results/vis-an-prev",
-    );
-    expect(screen.queryByRole("link", { name: /Lượt sau/ })).not.toBeInTheDocument();
+    expect(
+      await screen.findByRole("link", { name: /Lượt trước/ }),
+    ).toHaveAttribute("href", "/portal/results/vis-an-prev");
+    expect(
+      screen.queryByRole("link", { name: /Lượt sau/ }),
+    ).not.toBeInTheDocument();
     unmount();
 
     render(<ResultDetailScreen visitId="vis-an-prev" />);
-    expect(await screen.findByRole("link", { name: /Lượt sau/ })).toHaveAttribute(
-      "href",
-      "/portal/results/vis-an-done",
-    );
-    expect(screen.queryByRole("link", { name: /Lượt trước/ })).not.toBeInTheDocument();
+    expect(
+      await screen.findByRole("link", { name: /Lượt sau/ }),
+    ).toHaveAttribute("href", "/portal/results/vis-an-done");
+    expect(
+      screen.queryByRole("link", { name: /Lượt trước/ }),
+    ).not.toBeInTheDocument();
   });
 
   it("lượt đã đổi trạng thái (409) báo bằng toast rồi về danh sách", async () => {

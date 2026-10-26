@@ -34,32 +34,42 @@ describe("PublicReviewList", () => {
   it("đánh giá có phản hồi hiện khối 'Phản hồi từ phòng khám', đánh giá không có thì không hiện", () => {
     render(<PublicReviewList page={pageOf({})} />);
     expect(screen.getAllByText("Phản hồi từ phòng khám")).toHaveLength(1);
-    expect(screen.getByText("Cảm ơn bạn đã tin tưởng phòng khám.")).toBeInTheDocument();
+    expect(
+      screen.getByText("Cảm ơn bạn đã tin tưởng phòng khám."),
+    ).toBeInTheDocument();
     expect(screen.getByText("Bác sĩ giải thích rõ ràng.")).toBeInTheDocument();
   });
 
   it("ghi điểm trung bình và số đánh giá đã duyệt", () => {
     const { container } = render(<PublicReviewList page={pageOf({})} />);
-    expect(container).toHaveTextContent("Điểm trung bình 4,5/5 từ 12 đánh giá đã duyệt");
+    expect(container).toHaveTextContent(
+      "Điểm trung bình 4,5/5 từ 12 đánh giá đã duyệt",
+    );
   });
 
   it("còn trang sau thì có 'Xem thêm đánh giá' trỏ tới trang kế (?page= đánh số từ 1)", () => {
     render(<PublicReviewList page={pageOf({ page: 0, totalPages: 2 })} />);
-    expect(screen.getByRole("link", { name: "Xem thêm đánh giá" })).toHaveAttribute(
-      "href",
-      "/reviews?page=2",
-    );
+    expect(
+      screen.getByRole("link", { name: "Xem thêm đánh giá" }),
+    ).toHaveAttribute("href", "/reviews?page=2");
   });
 
   it("trang cuối không có 'Xem thêm đánh giá'", () => {
     render(<PublicReviewList page={pageOf({ page: 1, totalPages: 2 })} />);
-    expect(screen.queryByRole("link", { name: "Xem thêm đánh giá" })).toBeNull();
+    expect(
+      screen.queryByRole("link", { name: "Xem thêm đánh giá" }),
+    ).toBeNull();
   });
 
   it("chưa có đánh giá nào thì hiện câu trống", () => {
     render(
       <PublicReviewList
-        page={pageOf({ items: [], totalItems: 0, totalPages: 1, summary: { average: 0, count: 0 } })}
+        page={pageOf({
+          items: [],
+          totalItems: 0,
+          totalPages: 1,
+          summary: { average: 0, count: 0 },
+        })}
       />,
     );
     expect(screen.getByText("Chưa có đánh giá nào.")).toBeInTheDocument();

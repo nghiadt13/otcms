@@ -63,7 +63,8 @@ export async function getPublishedHealthArticle(
 ): Promise<PublicHealthArticle> {
   await mockDelay(LATENCY_MS);
   const found = websiteContentStore().find(
-    (item) => item.id === id && item.type === "HEALTH_ARTICLE" && isPublished(item),
+    (item) =>
+      item.id === id && item.type === "HEALTH_ARTICLE" && isPublished(item),
   );
   if (!found || found.type !== "HEALTH_ARTICLE") mockFail(404, "MSG-50");
   return {

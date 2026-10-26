@@ -12,7 +12,9 @@ const LOGIN_HREF = "/login?next=/portal/appointments/new";
 
 function renderLink() {
   render(
-    <PublicBookAppointmentLink className="cta">Đặt lịch khám</PublicBookAppointmentLink>,
+    <PublicBookAppointmentLink className="cta">
+      Đặt lịch khám
+    </PublicBookAppointmentLink>,
   );
   return screen.getByRole("link", { name: "Đặt lịch khám" });
 }

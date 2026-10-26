@@ -1,6 +1,9 @@
 import { act, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createOnlinePayment, resetPatientBillingMock } from "../../api/patientBillingApi";
+import {
+  createOnlinePayment,
+  resetPatientBillingMock,
+} from "../../api/patientBillingApi";
 import {
   PAYMENT_POLL_INTERVAL_MS,
   PAYMENT_POLL_WINDOW_MS,
@@ -56,11 +59,12 @@ describe("PaymentResultView", () => {
     expect(screen.getByRole("status")).toHaveTextContent(MSG_51);
     expect(screen.getByText("Phòng MRI 1")).toBeInTheDocument();
     expect(screen.getByText("Số 4")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Xem tiến độ lượt khám" })).toHaveAttribute(
-      "href",
-      "/portal/visits/vis-an-today",
-    );
-    expect(screen.queryByRole("button", { name: "Kiểm tra lại" })).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Xem tiến độ lượt khám" }),
+    ).toHaveAttribute("href", "/portal/visits/vis-an-today");
+    expect(
+      screen.queryByRole("button", { name: "Kiểm tra lại" }),
+    ).not.toBeInTheDocument();
   });
 
   it("PENDING quá 15 phút thì coi như thất bại: MSG-53 và nút Thử lại", async () => {
@@ -102,13 +106,17 @@ describe("PaymentResultView", () => {
       "/portal/payments/visit/vis-lan-await",
     );
     expect(
-      screen.getByText(/Nếu tài khoản đã bị trừ tiền nhưng trạng thái chưa đổi/),
+      screen.getByText(
+        /Nếu tài khoản đã bị trừ tiền nhưng trạng thái chưa đổi/,
+      ),
     ).toBeInTheDocument();
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
   });
 
   it("mã giao dịch không thuộc tài khoản: hiện không tìm thấy", async () => {
     render(<PaymentResultView paymentId="pay-mock-khong-co" />);
-    expect(await screen.findByRole("heading", { level: 1, name: "Không tìm thấy" })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", { level: 1, name: "Không tìm thấy" }),
+    ).toBeInTheDocument();
   });
 });

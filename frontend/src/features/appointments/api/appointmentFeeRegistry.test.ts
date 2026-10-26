@@ -8,10 +8,7 @@ import {
   resetLinkedProfilesMock,
 } from "@/lib/patient-scope/linkedProfilesMockStore";
 import { createAppointment } from "./bookingApi";
-import {
-  readStoredAppointments,
-  resetBookingMock,
-} from "./bookingMockStore";
+import { readStoredAppointments, resetBookingMock } from "./bookingMockStore";
 import {
   cancelMyAppointment,
   getMyAppointment,
@@ -56,7 +53,9 @@ describe("kho phí khám dùng chung: nạp dữ liệu ban đầu", () => {
       relationship: "PARENT",
       examFeeStatus: "PAID",
     });
-    expect(findMockAppointmentFee("apt-1002")?.appointmentStatus).toBe("CANCELLED");
+    expect(findMockAppointmentFee("apt-1002")?.appointmentStatus).toBe(
+      "CANCELLED",
+    );
   });
 
   it("lịch riêng khu bệnh nhân của hồ sơ đã gắn cũng có trong kho", () => {
@@ -105,9 +104,10 @@ describe("kho phí khám dùng chung: đặt mới, thanh toán, hủy", () => {
   it("thanh toán đã ghi vào kho: lịch chưa trả thành PAID, danh sách và chi tiết đều thấy; chỉ còn Hủy", async () => {
     markMockAppointmentFeePaid("apt-1001");
 
-    expect(readStoredAppointments().find((item) => item.id === "apt-1001")?.examFee.status).toBe(
-      "PAID",
-    );
+    expect(
+      readStoredAppointments().find((item) => item.id === "apt-1001")?.examFee
+        .status,
+    ).toBe("PAID");
     const item = await getMyAppointment("apt-1001");
     expect(item.examFee).toEqual({ amount: 200000, status: "PAID" });
     expect(item.allowedActions).toEqual(["cancel"]);
@@ -130,7 +130,9 @@ describe("kho phí khám dùng chung: đặt mới, thanh toán, hủy", () => {
 
   it("hủy lịch riêng khu bệnh nhân (apt-2101): kho ghi Đã hủy", async () => {
     await cancelMyAppointment("apt-2101");
-    expect(findMockAppointmentFee("apt-2101")?.appointmentStatus).toBe("CANCELLED");
+    expect(findMockAppointmentFee("apt-2101")?.appointmentStatus).toBe(
+      "CANCELLED",
+    );
   });
 
   it("hủy lịch đã trả: phí giữ là đã trả (không hoàn tiền)", async () => {
@@ -144,6 +146,8 @@ describe("kho phí khám dùng chung: đặt mới, thanh toán, hủy", () => {
   it("reset kho đặt lịch thì trạng thái thanh toán trở về dữ liệu ban đầu", () => {
     markMockAppointmentFeePaid("apt-1001");
     resetBookingMock({ now: NOW });
-    expect(findMockAppointmentFee("apt-1001")?.examFeeStatus).toBe("PENDING_PAYMENT");
+    expect(findMockAppointmentFee("apt-1001")?.examFeeStatus).toBe(
+      "PENDING_PAYMENT",
+    );
   });
 });

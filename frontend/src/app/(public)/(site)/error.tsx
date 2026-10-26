@@ -18,7 +18,9 @@ export default function SiteError({
   }, [error]);
 
   return (
-    <div className={`${publicContainerClass} flex flex-col items-center py-24 lg:py-32`}>
+    <div
+      className={`${publicContainerClass} flex flex-col items-center py-24 lg:py-32`}
+    >
       <PublicErrorState retry={retry} />
     </div>
   );

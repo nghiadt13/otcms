@@ -1,6 +1,10 @@
 import { toast } from "sonner";
 import type { MsgCode } from "@/lib/api/apiError";
-import { APP_MESSAGES, formatAppMessage, messageFromError } from "./appMessages";
+import {
+  APP_MESSAGES,
+  formatAppMessage,
+  messageFromError,
+} from "./appMessages";
 
 type Params = Record<string, string | number>;
 

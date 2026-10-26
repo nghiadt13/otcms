@@ -73,7 +73,10 @@ export function PrescriptionDocumentView({
           </dl>
         </header>
 
-        <section aria-labelledby="prescription-items-title" className="space-y-3">
+        <section
+          aria-labelledby="prescription-items-title"
+          className="space-y-3"
+        >
           <h2 id="prescription-items-title" className="text-lg font-semibold">
             Thuốc đã kê
           </h2>
@@ -81,9 +84,13 @@ export function PrescriptionDocumentView({
             <TableHeader>
               <TableRow>
                 <TableHead className="text-muted-foreground">Thuốc</TableHead>
-                <TableHead className="text-muted-foreground">Liều dùng</TableHead>
+                <TableHead className="text-muted-foreground">
+                  Liều dùng
+                </TableHead>
                 <TableHead className="text-muted-foreground">Số lần</TableHead>
-                <TableHead className="text-muted-foreground">Cách dùng</TableHead>
+                <TableHead className="text-muted-foreground">
+                  Cách dùng
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -92,9 +99,15 @@ export function PrescriptionDocumentView({
                   <TableCell className="font-medium whitespace-normal">
                     {item.medicine}
                   </TableCell>
-                  <TableCell className="whitespace-normal">{item.dose}</TableCell>
-                  <TableCell className="whitespace-normal">{item.frequency}</TableCell>
-                  <TableCell className="whitespace-normal">{item.usage}</TableCell>
+                  <TableCell className="whitespace-normal">
+                    {item.dose}
+                  </TableCell>
+                  <TableCell className="whitespace-normal">
+                    {item.frequency}
+                  </TableCell>
+                  <TableCell className="whitespace-normal">
+                    {item.usage}
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>

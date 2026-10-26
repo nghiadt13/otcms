@@ -1,6 +1,10 @@
 import { clone, mockDelay, paginate } from "@/lib/api/mockServer";
 import type { PageQuery } from "@/lib/api/pagination";
-import type { PublicReview, PublicReviewPage, ReviewSummary } from "../types/publicReview";
+import type {
+  PublicReview,
+  PublicReviewPage,
+  ReviewSummary,
+} from "../types/publicReview";
 import type { ReviewDetail } from "../types/reviewModeration";
 import { reviewStore } from "./reviewModerationMockData";
 
@@ -39,7 +43,9 @@ export async function listPublicReviews(
     .filter((review) => review.status === "PUBLISHED")
     .sort((a, b) => b.submittedAt.localeCompare(a.submittedAt));
   return clone(
-    paginate(published.map(toPublicReview), query, { summary: summarize(published) }),
+    paginate(published.map(toPublicReview), query, {
+      summary: summarize(published),
+    }),
   );
 }
 

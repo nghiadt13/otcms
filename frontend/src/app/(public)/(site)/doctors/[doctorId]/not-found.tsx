@@ -14,7 +14,10 @@ export default function DoctorNotFound() {
         <p className="mt-4 text-lg leading-8 text-pretty text-muted-foreground">
           {formatAppMessage("MSG-24")}
         </p>
-        <Link className={publicButtonClass("primary") + " mt-10"} href="/doctors">
+        <Link
+          className={publicButtonClass("primary") + " mt-10"}
+          href="/doctors"
+        >
           Xem đội ngũ bác sĩ
         </Link>
       </div>

@@ -109,7 +109,9 @@ export function CreateProfileForm({
           Quan hệ với bạn
         </Label>
         <NativeSelect
-          aria-describedby={errors.relationship ? `${relationshipId}-error` : undefined}
+          aria-describedby={
+            errors.relationship ? `${relationshipId}-error` : undefined
+          }
           aria-invalid={errors.relationship ? true : undefined}
           className="w-full [&_select]:h-12 [&_select]:px-3 [&_select]:text-base"
           disabled={pending}

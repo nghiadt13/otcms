@@ -88,10 +88,13 @@ export function PatientCancelDialog({
           <AlertDialogDescription className="text-base">
             <span className="block">
               Lịch khám {appointmentSentenceTime(appointment.startAt)} của{" "}
-              {appointment.patient.fullName} sẽ bị hủy và giờ này được mở cho người khác.
+              {appointment.patient.fullName} sẽ bị hủy và giờ này được mở cho
+              người khác.
             </span>
             {paid ? (
-              <span className="mt-2 block">{refundNotice(appointment.examFee)}</span>
+              <span className="mt-2 block">
+                {refundNotice(appointment.examFee)}
+              </span>
             ) : null}
           </AlertDialogDescription>
         </AlertDialogHeader>

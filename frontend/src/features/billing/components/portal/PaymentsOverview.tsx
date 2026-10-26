@@ -14,7 +14,11 @@ import { usePayableSources } from "../../hooks/usePayableSources";
 import { PaymentErrorBlock } from "./PaymentErrorBlock";
 import { PaymentRow } from "./PaymentRow";
 import { PayableSourceList } from "./PayableSourceList";
-import { LIST_FRAME_CLASS, historyHref, paymentsHref } from "./patientBillingPresentation";
+import {
+  LIST_FRAME_CLASS,
+  historyHref,
+  paymentsHref,
+} from "./patientBillingPresentation";
 
 /** Số dòng "Đã thanh toán gần đây" trên trang tổng quan. */
 const RECENT_COUNT = 3;
@@ -29,7 +33,10 @@ export function PaymentsOverview({ profileId }: { profileId?: string }) {
     <div className="space-y-8">
       <PortalPageHeader
         actions={
-          <Link className={publicButtonClass("secondary")} href={PATIENT_ROUTES.paymentHistory}>
+          <Link
+            className={publicButtonClass("secondary")}
+            href={PATIENT_ROUTES.paymentHistory}
+          >
             Lịch sử thanh toán
           </Link>
         }
@@ -87,7 +94,10 @@ function RecentPayments({ profileId }: { profileId?: string }) {
           <Skeleton className="h-14 w-full" />
         </div>
       ) : recent.error ? (
-        <PaymentErrorBlock message={messageFromError(recent.error)} onRetry={recent.reload} />
+        <PaymentErrorBlock
+          message={messageFromError(recent.error)}
+          onRetry={recent.reload}
+        />
       ) : payments.length === 0 ? (
         <p className="rounded-lg border bg-card px-4 py-6 text-base text-muted-foreground">
           Chưa có thanh toán nào. Thanh toán thành công sẽ hiện ở đây.

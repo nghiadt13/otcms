@@ -29,7 +29,8 @@ const vnParts = new Intl.DateTimeFormat("en-GB", {
 /** Thời điểm → ISO giờ VN có giây, ví dụ "2026-10-23T08:05:00+07:00". */
 export function vnIsoOf(instant: Date): string {
   const parts: Record<string, string> = {};
-  for (const part of vnParts.formatToParts(instant)) parts[part.type] = part.value;
+  for (const part of vnParts.formatToParts(instant))
+    parts[part.type] = part.value;
   return `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}:${parts.second}+07:00`;
 }
 

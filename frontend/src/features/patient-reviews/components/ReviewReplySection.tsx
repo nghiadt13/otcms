@@ -115,7 +115,11 @@ export function ReviewReplySection({
               </Button>
             ) : null}
             {text.trim() ? (
-              <Button variant={variant} disabled={busy} onClick={() => void submit()}>
+              <Button
+                variant={variant}
+                disabled={busy}
+                onClick={() => void submit()}
+              >
                 {sending ? "Đang gửi..." : "Gửi phản hồi"}
               </Button>
             ) : null}

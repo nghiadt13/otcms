@@ -9,7 +9,11 @@ import { SEX_LABELS } from "./profileOptions";
 
 // Danh sách hồ sơ đã gắn: một khung có vạch chia, cả dòng là link. Mỗi dòng ghi tên, quan hệ
 // (của ai) và mã bệnh nhân.
-export function PatientProfileList({ profiles }: { profiles: LinkedProfile[] }) {
+export function PatientProfileList({
+  profiles,
+}: {
+  profiles: LinkedProfile[];
+}) {
   return (
     <ul className="divide-y overflow-hidden rounded-lg border bg-card">
       {profiles.map((profile) => (
@@ -30,7 +34,10 @@ export function PatientProfileList({ profiles }: { profiles: LinkedProfile[] }) 
                 {SEX_LABELS[profile.sex]}
               </span>
             </span>
-            <ChevronRight aria-hidden className="size-5 shrink-0 text-muted-foreground" />
+            <ChevronRight
+              aria-hidden
+              className="size-5 shrink-0 text-muted-foreground"
+            />
           </Link>
         </li>
       ))}

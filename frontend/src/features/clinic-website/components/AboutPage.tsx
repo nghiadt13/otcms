@@ -20,10 +20,16 @@ export function AboutPage({
       <PublicPageHeader title={page?.title ?? DEFAULT_TITLE} />
 
       {page && page.body.trim() ? (
-        <WebsiteContentBody className="mt-10 text-lg leading-8" markdown={page.body} />
+        <WebsiteContentBody
+          className="mt-10 text-lg leading-8"
+          markdown={page.body}
+        />
       ) : null}
 
-      <section aria-labelledby="about-hours-title" className="mt-14 border-t pt-10">
+      <section
+        aria-labelledby="about-hours-title"
+        className="mt-14 border-t pt-10"
+      >
         <h2 className="text-2xl font-semibold" id="about-hours-title">
           Giờ làm việc
         </h2>

@@ -22,7 +22,8 @@ const AN = SEED_PATIENTS.an;
 const LAN = SEED_PATIENTS.lan;
 
 function fee(
-  overrides: Partial<MockAppointmentFee> & Pick<MockAppointmentFee, "appointmentId">,
+  overrides: Partial<MockAppointmentFee> &
+    Pick<MockAppointmentFee, "appointmentId">,
 ): MockAppointmentFee {
   return {
     profileId: AN.id,
@@ -50,9 +51,15 @@ beforeEach(() => {
       examFeeStatus: "PAID",
     }),
   );
-  upsertMockAppointmentFee(fee({ appointmentId: "apt-cancel-an", appointmentStatus: "CANCELLED" }));
   upsertMockAppointmentFee(
-    fee({ appointmentId: "apt-stranger", profileId: "pat-binh", patientName: "Trần Thị Bình" }),
+    fee({ appointmentId: "apt-cancel-an", appointmentStatus: "CANCELLED" }),
+  );
+  upsertMockAppointmentFee(
+    fee({
+      appointmentId: "apt-stranger",
+      profileId: "pat-binh",
+      patientName: "Trần Thị Bình",
+    }),
   );
 });
 
@@ -82,7 +89,12 @@ describe("nguồn lịch hẹn trong danh sách chờ thanh toán", () => {
 
   it("lịch đã có trong kho riêng (apt-lan-27) chỉ hiện một lần, với khoản của kho riêng", async () => {
     upsertMockAppointmentFee(
-      fee({ appointmentId: "apt-lan-27", profileId: LAN.id, patientName: LAN.fullName, relationship: "PARENT" }),
+      fee({
+        appointmentId: "apt-lan-27",
+        profileId: LAN.id,
+        patientName: LAN.fullName,
+        relationship: "PARENT",
+      }),
     );
     const { items } = await listPayableSources();
     expect(items.filter((item) => item.id === "apt-lan-27")).toHaveLength(1);
@@ -125,7 +137,9 @@ describe("chi tiết và trả tiền lịch hẹn", () => {
       sourceKind: "appointment",
       sourceId: "apt-pay-an",
       patientName: AN.fullName,
-      items: [{ label: "Phí khám · Khám chỉnh hình tổng quát", amount: 200000 }],
+      items: [
+        { label: "Phí khám · Khám chỉnh hình tổng quát", amount: 200000 },
+      ],
     });
 
     const detail = await getPayableSource("appointment", "apt-pay-an");
@@ -133,7 +147,9 @@ describe("chi tiết và trả tiền lịch hẹn", () => {
       status: "PAID",
       receipt: { paymentId, receiptNo: payment.receiptNo },
     });
-    expect((await listPayableSources()).items.map((item) => item.id)).not.toContain("apt-pay-an");
+    expect(
+      (await listPayableSources()).items.map((item) => item.id),
+    ).not.toContain("apt-pay-an");
     expect(findMockAppointmentFee("apt-pay-an")?.examFeeStatus).toBe("PAID");
   });
 

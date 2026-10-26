@@ -52,11 +52,24 @@ function DetailSkeleton() {
   );
 }
 
-function DetailError({ message, onRetry }: { message: string; onRetry: () => void }) {
+function DetailError({
+  message,
+  onRetry,
+}: {
+  message: string;
+  onRetry: () => void;
+}) {
   return (
-    <div role="alert" className="space-y-4 rounded-lg border bg-card px-6 py-8 text-center">
+    <div
+      role="alert"
+      className="space-y-4 rounded-lg border bg-card px-6 py-8 text-center"
+    >
       <p className="text-base text-destructive">{message}</p>
-      <Button variant="outline" className="h-12 px-5 text-base" onClick={onRetry}>
+      <Button
+        variant="outline"
+        className="h-12 px-5 text-base"
+        onClick={onRetry}
+      >
         Thử lại
       </Button>
     </div>

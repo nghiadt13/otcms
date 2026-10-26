@@ -67,7 +67,10 @@ export function ServicePicker({
       {services.map((service) => {
         const id = `${groupId}-${service.id}`;
         return (
-          <div key={service.id} className={`flex items-center gap-3 ${sizes.row}`}>
+          <div
+            key={service.id}
+            className={`flex items-center gap-3 ${sizes.row}`}
+          >
             <RadioGroupItem id={id} value={service.id} />
             <Label
               htmlFor={id}

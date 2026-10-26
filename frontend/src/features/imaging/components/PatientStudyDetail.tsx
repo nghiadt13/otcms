@@ -4,7 +4,10 @@ import { StatusBadge } from "@/components/admin/StatusBadge";
 import { publicButtonClass } from "@/components/brand/publicButtonStyles";
 import { Button } from "@/components/ui/button";
 import { CARE_RELATIONSHIP_LABELS } from "@/lib/domain/careRelationship";
-import { VISIT_STATUS_LABELS, VISIT_STATUS_TONE } from "@/lib/domain/clinicVisit";
+import {
+  VISIT_STATUS_LABELS,
+  VISIT_STATUS_TONE,
+} from "@/lib/domain/clinicVisit";
 import { formatDate } from "@/lib/format/formatDate";
 import {
   IMAGING_MODALITY_LABELS,
@@ -30,7 +33,10 @@ export function PatientStudyDetail({ study }: { study: PatientImagingStudy }) {
   return (
     <div className="space-y-8">
       <dl className="grid gap-x-6 gap-y-4 sm:grid-cols-[minmax(0,11rem)_minmax(0,1fr)]">
-        <Field label="Loại ảnh" value={IMAGING_MODALITY_LABELS[study.modality]} />
+        <Field
+          label="Loại ảnh"
+          value={IMAGING_MODALITY_LABELS[study.modality]}
+        />
         <Field label="Ngày chụp" value={formatDate(study.studyDate)} />
         <Field label="Số series" value={`${study.seriesCount} series`} />
         <Field
@@ -50,7 +56,10 @@ export function PatientStudyDetail({ study }: { study: PatientImagingStudy }) {
         />
       </dl>
 
-      <section aria-labelledby="study-finding-title" className="space-y-3 border-t pt-6">
+      <section
+        aria-labelledby="study-finding-title"
+        className="space-y-3 border-t pt-6"
+      >
         <h2 id="study-finding-title" className="text-xl font-semibold">
           Kết luận
         </h2>

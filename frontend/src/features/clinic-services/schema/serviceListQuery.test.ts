@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { parseServiceListQuery, SERVICE_SEARCH_MAX_LENGTH } from "./serviceListQuery";
+import {
+  parseServiceListQuery,
+  SERVICE_SEARCH_MAX_LENGTH,
+} from "./serviceListQuery";
 
 describe("parseServiceListQuery", () => {
   it("không có tiêu chí thì không lọc và không lỗi", () => {
@@ -11,7 +14,10 @@ describe("parseServiceListQuery", () => {
   });
 
   it("cắt khoảng trắng của tên và đọc đúng loại dịch vụ", () => {
-    const parsed = parseServiceListQuery({ q: "  khớp gối ", type: "EXAMINATION" });
+    const parsed = parseServiceListQuery({
+      q: "  khớp gối ",
+      type: "EXAMINATION",
+    });
     expect(parsed.query).toEqual({ q: "khớp gối", type: "EXAMINATION" });
     expect(parsed.error).toBeNull();
   });
@@ -29,7 +35,9 @@ describe("parseServiceListQuery", () => {
       field: "type",
       code: "MSG-54",
     });
-    expect(parseServiceListQuery({ type: ["IMAGING", "LABORATORY"] }).error).toEqual({
+    expect(
+      parseServiceListQuery({ type: ["IMAGING", "LABORATORY"] }).error,
+    ).toEqual({
       field: "type",
       code: "MSG-54",
     });

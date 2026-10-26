@@ -17,7 +17,11 @@ function DiagnosisList({ items, empty }: { items: Icd10Ref[]; empty: string }) {
 }
 
 /** Khối "Kết quả khám": lý do, triệu chứng, khám lâm sàng, chẩn đoán, hướng điều trị, lời dặn, tái khám. */
-export function ExaminationBlock({ examination }: { examination: ExaminationSection }) {
+export function ExaminationBlock({
+  examination,
+}: {
+  examination: ExaminationSection;
+}) {
   return (
     <ResultFieldList
       items={[
@@ -27,7 +31,10 @@ export function ExaminationBlock({ examination }: { examination: ExaminationSect
         {
           label: "Chẩn đoán chính",
           value: (
-            <DiagnosisList items={examination.primaryDiagnoses} empty="Chưa có" />
+            <DiagnosisList
+              items={examination.primaryDiagnoses}
+              empty="Chưa có"
+            />
           ),
         },
         {

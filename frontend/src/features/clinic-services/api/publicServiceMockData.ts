@@ -11,7 +11,10 @@ export type PublicServiceRecord = PublicService & {
   status: "ACTIVE" | "DISCONTINUED";
 };
 
-const exam = (slotMinutes: number, patientNote: string | null = null): PublicBookingDetails => ({
+const exam = (
+  slotMinutes: number,
+  patientNote: string | null = null,
+): PublicBookingDetails => ({
   slotMinutes,
   patientNote,
 });
@@ -28,14 +31,20 @@ export const PUBLIC_SERVICE_SEED: PublicServiceRecord[] = [
     type: "EXAMINATION",
     price: 250000,
     description: "Bác sĩ chuyên khoa khám, chẩn đoán và lên hướng điều trị.",
-    bookingDetails: exam(30, "Mang theo phim chụp cũ và đơn thuốc đang dùng, nếu có."),
+    bookingDetails: exam(
+      30,
+      "Mang theo phim chụp cũ và đơn thuốc đang dùng, nếu có.",
+    ),
   }),
   record("svc-arthroscopy", {
     name: "Nội soi khớp gối",
     type: "EXAMINATION",
     price: 9800000,
     description: "Xử lý rách sụn chêm, tái tạo dây chằng qua vết mổ nhỏ.",
-    bookingDetails: exam(30, "Bác sĩ khám trước để quyết định có cần nội soi hay không."),
+    bookingDetails: exam(
+      30,
+      "Bác sĩ khám trước để quyết định có cần nội soi hay không.",
+    ),
   }),
   record("svc-physiotherapy", {
     name: "Vật lý trị liệu phục hồi",
@@ -76,21 +85,24 @@ export const PUBLIC_SERVICE_SEED: PublicServiceRecord[] = [
     name: "Chụp CT cột sống",
     type: "IMAGING",
     price: 1200000,
-    description: "Hình cắt lớp để xem chi tiết xương khi cần đánh giá đốt sống.",
+    description:
+      "Hình cắt lớp để xem chi tiết xương khi cần đánh giá đốt sống.",
     bookingDetails: null,
   }),
   record("svc-blood-test", {
     name: "Xét nghiệm máu tổng quát",
     type: "LABORATORY",
     price: 120000,
-    description: "Công thức máu và các chỉ số cơ bản để bác sĩ đánh giá tổng quát.",
+    description:
+      "Công thức máu và các chỉ số cơ bản để bác sĩ đánh giá tổng quát.",
     bookingDetails: null,
   }),
   record("svc-crp", {
     name: "Xét nghiệm CRP định lượng",
     type: "LABORATORY",
     price: 150000,
-    description: "Đo chỉ số viêm, hỗ trợ theo dõi sau chấn thương hoặc nhiễm trùng.",
+    description:
+      "Đo chỉ số viêm, hỗ trợ theo dõi sau chấn thương hoặc nhiễm trùng.",
     bookingDetails: null,
   }),
   record("svc-uric-acid", {
@@ -104,7 +116,8 @@ export const PUBLIC_SERVICE_SEED: PublicServiceRecord[] = [
     name: "Xét nghiệm vitamin D",
     type: "LABORATORY",
     price: 350000,
-    description: "Đánh giá tình trạng xương khi nghi loãng xương hoặc thiếu vitamin D.",
+    description:
+      "Đánh giá tình trạng xương khi nghi loãng xương hoặc thiếu vitamin D.",
     bookingDetails: null,
   }),
   record(

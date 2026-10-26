@@ -1,4 +1,7 @@
-import type { AppointmentStatus, ExamFeeStatus } from "@/lib/domain/clinicVisit";
+import type {
+  AppointmentStatus,
+  ExamFeeStatus,
+} from "@/lib/domain/clinicVisit";
 import { addDays, todayIsoDate } from "@/lib/format/formatDate";
 import { vnIsoAt } from "../schema/bookingTime";
 import { DOCTOR_IDS } from "./appointmentMockData";

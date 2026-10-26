@@ -77,7 +77,9 @@ function ReviewCard({
           </blockquote>
         ) : null}
         <figcaption className="mt-6 text-base text-muted-foreground">
-          <time dateTime={review.createdAt}>{formatDate(review.createdAt)}</time>
+          <time dateTime={review.createdAt}>
+            {formatDate(review.createdAt)}
+          </time>
         </figcaption>
         {large && review.clinicReply && (
           <div className="mt-auto pt-8">

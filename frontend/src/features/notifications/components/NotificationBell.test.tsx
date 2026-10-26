@@ -57,10 +57,14 @@ describe("NotificationBell", () => {
     await openBell(/Thông báo của bạn/);
     const first = MOCK_NOTIFICATIONS[0];
     await userEvent.click(
-      await screen.findByRole("button", { name: `Đánh dấu đã đọc: ${first.title}` }),
+      await screen.findByRole("button", {
+        name: `Đánh dấu đã đọc: ${first.title}`,
+      }),
     );
     await waitFor(() =>
-      expect(notifySuccess).toHaveBeenCalledWith("Đã đánh dấu thông báo là đã đọc."),
+      expect(notifySuccess).toHaveBeenCalledWith(
+        "Đã đánh dấu thông báo là đã đọc.",
+      ),
     );
     await waitFor(async () =>
       expect((await getUnreadNotificationCount()).unreadCount).toBe(before - 1),
@@ -74,7 +78,9 @@ describe("NotificationBell", () => {
     resetNotificationMockStore([]);
     render(<NotificationBell />);
     await openBell(/Thông báo của bạn/);
-    expect(await screen.findByText("Bạn chưa có thông báo nào.")).toBeInTheDocument();
+    expect(
+      await screen.findByText("Bạn chưa có thông báo nào."),
+    ).toBeInTheDocument();
   });
 
   it("ca lỗi tải: thông báo lỗi và nút Thử lại", async () => {
@@ -82,18 +88,24 @@ describe("NotificationBell", () => {
     render(<NotificationBell />);
     await openBell(/Thông báo của bạn/);
     const alert = await screen.findByRole("alert");
-    expect(within(alert).getByRole("button", { name: "Thử lại" })).toBeInTheDocument();
+    expect(
+      within(alert).getByRole("button", { name: "Thử lại" }),
+    ).toBeInTheDocument();
   });
 
   it("bấm tiêu đề mở Sheet chi tiết, không tự đánh dấu đã đọc", async () => {
     render(<NotificationBell />);
     await openBell(/Thông báo của bạn/);
     const first = MOCK_NOTIFICATIONS[0];
-    const rows = await screen.findAllByRole("button", { name: new RegExp(first.title) });
+    const rows = await screen.findAllByRole("button", {
+      name: new RegExp(first.title),
+    });
     await userEvent.click(rows[0]);
     const sheet = await screen.findByRole("dialog");
     expect(within(sheet).getByText(first.content)).toBeInTheDocument();
-    expect(within(sheet).getByRole("button", { name: "Đánh dấu đã đọc" })).toBeInTheDocument();
+    expect(
+      within(sheet).getByRole("button", { name: "Đánh dấu đã đọc" }),
+    ).toBeInTheDocument();
     expect(notifySuccess).not.toHaveBeenCalled();
   });
 });

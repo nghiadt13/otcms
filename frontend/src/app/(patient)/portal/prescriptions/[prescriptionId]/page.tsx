@@ -12,6 +12,9 @@ export default async function PatientPrescriptionDetailPage({
 }) {
   const { prescriptionId } = await params;
   return (
-    <PrescriptionDetailScreen key={prescriptionId} prescriptionId={prescriptionId} />
+    <PrescriptionDetailScreen
+      key={prescriptionId}
+      prescriptionId={prescriptionId}
+    />
   );
 }

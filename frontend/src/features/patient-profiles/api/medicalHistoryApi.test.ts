@@ -53,7 +53,9 @@ describe("getMedicalHistory", () => {
   });
 
   it("hồ sơ có tại phòng khám nhưng không gắn với tài khoản → 403 MSG-40", async () => {
-    const error = await getMedicalHistory(binh).catch((reason: unknown) => reason);
+    const error = await getMedicalHistory(binh).catch(
+      (reason: unknown) => reason,
+    );
     expect(isApiError(error)).toBe(true);
     expect(error).toMatchObject({ status: 403, code: "MSG-40" });
   });
@@ -98,7 +100,9 @@ describe("updateMedicalHistory", () => {
     expect(isApiError(error)).toBe(true);
     expect(error).toMatchObject({ status: 400, code: "MSG-17" });
     if (isApiError(error))
-      expect(error.fieldErrors).toEqual([{ field: "procedures", code: "MSG-17" }]);
+      expect(error.fieldErrors).toEqual([
+        { field: "procedures", code: "MSG-17" },
+      ]);
   });
 
   it("hồ sơ không gắn với tài khoản → 403 MSG-40", async () => {

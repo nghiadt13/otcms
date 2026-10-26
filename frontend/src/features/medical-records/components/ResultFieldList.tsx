@@ -11,7 +11,9 @@ export function ResultFieldList({
       {items.map(({ label, value }) => (
         <div key={label} className="grid gap-1 sm:contents">
           <dt className="text-base text-muted-foreground">{label}</dt>
-          <dd className="min-w-0 text-base break-words">{value ?? "Chưa có"}</dd>
+          <dd className="min-w-0 text-base break-words">
+            {value ?? "Chưa có"}
+          </dd>
         </div>
       ))}
     </dl>

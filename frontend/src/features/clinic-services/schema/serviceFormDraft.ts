@@ -34,7 +34,9 @@ export const emptyIndicatorDraft = (): IndicatorDraft => ({
   refFemale: { min: "", max: "" },
 });
 
-export function emptyServiceDraft(type: ServiceCategory | null = null): ServiceFormDraft {
+export function emptyServiceDraft(
+  type: ServiceCategory | null = null,
+): ServiceFormDraft {
   return {
     type,
     name: "",
@@ -49,7 +51,9 @@ export function emptyServiceDraft(type: ServiceCategory | null = null): ServiceF
 const text = (value: number | null | undefined) =>
   value === null || value === undefined ? "" : String(value);
 
-export function serviceDetailToDraft(detail: ServiceCatalogDetail): ServiceFormDraft {
+export function serviceDetailToDraft(
+  detail: ServiceCatalogDetail,
+): ServiceFormDraft {
   return {
     type: detail.type,
     name: detail.name,
@@ -72,11 +76,13 @@ export function serviceDetailToDraft(detail: ServiceCatalogDetail): ServiceFormD
 /** Chấp nhận dấu phẩy thập phân kiểu Việt ("0,5"). Trả NaN nếu không phải số hữu hạn. */
 export function parseDecimal(value: string): number {
   const normalized = value.trim().replace(",", ".");
-  if (normalized === "" || !/^-?\d+(\.\d+)?$/.test(normalized)) return Number.NaN;
+  if (normalized === "" || !/^-?\d+(\.\d+)?$/.test(normalized))
+    return Number.NaN;
   return Number(normalized);
 }
 
-const emptyToNull = (value: string) => (value.trim() === "" ? null : value.trim());
+const emptyToNull = (value: string) =>
+  value.trim() === "" ? null : value.trim();
 
 /** Chỉ giữ trường thuộc loại; trường khác gửi null hoặc []. Gọi sau khi validate. */
 function buildCommon(draft: ServiceFormDraft): ServiceUpdateRequest {
@@ -86,8 +92,14 @@ function buildCommon(draft: ServiceFormDraft): ServiceUpdateRequest {
       ? draft.indicators.map((row) => ({
           name: row.name.trim(),
           unit: row.unit.trim(),
-          refMale: { min: parseDecimal(row.refMale.min), max: parseDecimal(row.refMale.max) },
-          refFemale: { min: parseDecimal(row.refFemale.min), max: parseDecimal(row.refFemale.max) },
+          refMale: {
+            min: parseDecimal(row.refMale.min),
+            max: parseDecimal(row.refMale.max),
+          },
+          refFemale: {
+            min: parseDecimal(row.refFemale.min),
+            max: parseDecimal(row.refFemale.max),
+          },
         }))
       : [];
   const slot = draft.bookingDetails.slotMinutes.trim();
@@ -104,7 +116,9 @@ function buildCommon(draft: ServiceFormDraft): ServiceUpdateRequest {
   };
 }
 
-export function serviceDraftToCreateRequest(draft: ServiceFormDraft): ServiceWriteRequest {
+export function serviceDraftToCreateRequest(
+  draft: ServiceFormDraft,
+): ServiceWriteRequest {
   if (!draft.type) throw new Error("Chưa chọn loại dịch vụ.");
   return { type: draft.type, ...buildCommon(draft) };
 }

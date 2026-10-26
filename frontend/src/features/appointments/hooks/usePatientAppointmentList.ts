@@ -54,7 +54,8 @@ export function usePatientAppointmentList(
       .then((result) => {
         if (controller.signal.aborted) return;
         setState((current) => ({
-          items: page === 0 ? result.items : [...current.items, ...result.items],
+          items:
+            page === 0 ? result.items : [...current.items, ...result.items],
           page: result.page,
           totalPages: result.totalPages,
           status: "ready",

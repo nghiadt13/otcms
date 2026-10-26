@@ -20,14 +20,17 @@ import { isDoctorBusyAt, isStartTaken } from "./bookingMockStore";
 const pad2 = (n: number) => String(n).padStart(2, "0");
 
 /** Mọi giờ bắt đầu "HH:mm" có thể đặt trong một ngày làm việc (theo ca và bước giờ). */
-export const SLOT_START_TIMES: readonly string[] = SHIFT_WINDOWS_MINUTES.flatMap(
-  ([start, end]) => {
+export const SLOT_START_TIMES: readonly string[] =
+  SHIFT_WINDOWS_MINUTES.flatMap(([start, end]) => {
     const times: string[] = [];
-    for (let minute = start; minute + SLOT_MINUTES <= end; minute += SLOT_MINUTES)
+    for (
+      let minute = start;
+      minute + SLOT_MINUTES <= end;
+      minute += SLOT_MINUTES
+    )
       times.push(`${pad2(Math.floor(minute / 60))}:${pad2(minute % 60)}`);
     return times;
-  },
-);
+  });
 
 /** Ngày cuối được phép đặt, tính từ `today`. */
 export const horizonEnd = (today: string): string =>
@@ -62,7 +65,11 @@ export function freeDoctorsAt(startAt: string, today: string): BookingDoctor[] {
 }
 
 /** Giờ trống của một ngày. Giờ không còn bác sĩ nào thì bỏ hẳn, không trả về. */
-export function openTimesOn(date: string, today: string, now: Date): OpenTime[] {
+export function openTimesOn(
+  date: string,
+  today: string,
+  now: Date,
+): OpenTime[] {
   const nowMs = now.getTime();
   return SLOT_START_TIMES.flatMap((hhmm) => {
     const startAt = vnIsoAt(date, hhmm);

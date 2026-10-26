@@ -4,7 +4,10 @@ import { StatusBadge } from "@/components/admin/StatusBadge";
 import { PortalPageHeader } from "@/components/patient/PortalPageHeader";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { CARE_RELATIONSHIP_LABELS } from "@/lib/domain/careRelationship";
-import { VISIT_STATUS_LABELS, VISIT_STATUS_TONE } from "@/lib/domain/clinicVisit";
+import {
+  VISIT_STATUS_LABELS,
+  VISIT_STATUS_TONE,
+} from "@/lib/domain/clinicVisit";
 import { formatDate } from "@/lib/format/formatDate";
 import { PATIENT_ROUTES } from "@/lib/routes/patientRoutes";
 import type { ExaminationResult } from "../types/examinationResult";
@@ -18,7 +21,11 @@ import { VisitNavigation } from "./VisitNavigation";
  * Chi tiết một lượt khám. Đầu trang nói rõ "của ai" và trạng thái; lượt Chưa hoàn tất
  * có thông báo; mục lục chỉ neo tới các khối thật sự hiện; các khối theo `visibleBlocks`.
  */
-export function ExaminationResultView({ result }: { result: ExaminationResult }) {
+export function ExaminationResultView({
+  result,
+}: {
+  result: ExaminationResult;
+}) {
   const sections = buildResultSections(result);
   const incomplete = result.status === "INCOMPLETE";
   return (

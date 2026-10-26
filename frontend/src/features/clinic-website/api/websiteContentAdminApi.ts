@@ -31,7 +31,9 @@ export const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
 
 const nowIso = () => new Date().toISOString().replace(/\.\d{3}Z$/, "+00:00");
 
-export function toListItem(detail: WebsiteContentDetail): WebsiteContentListItem {
+export function toListItem(
+  detail: WebsiteContentDetail,
+): WebsiteContentListItem {
   return {
     id: detail.id,
     type: detail.type,
@@ -69,7 +71,10 @@ export async function getWebsiteContent(
 }
 
 // Kiểm tra phía "BE": thiếu tiêu đề/nội dung → 400 MSG-69 kèm fieldErrors.
-function assertPublishable(title: string, body: WebsiteContentCreatePayload["body"]) {
+function assertPublishable(
+  title: string,
+  body: WebsiteContentCreatePayload["body"],
+) {
   const fieldErrors: ApiFieldError[] = [];
   if (!title.trim()) fieldErrors.push({ field: "title", code: "MSG-69" });
   if (typeof body === "string") {
@@ -116,7 +121,9 @@ export async function updateWebsiteContent(
     ...current,
     title: input.title.trim(),
     body: clone(input.body),
-    ...(current.type === "HEALTH_ARTICLE" ? { imageUrl: input.imageUrl ?? null } : {}),
+    ...(current.type === "HEALTH_ARTICLE"
+      ? { imageUrl: input.imageUrl ?? null }
+      : {}),
     updatedAt: nowIso(),
   } as WebsiteContentDetail;
   websiteContentStore()[index] = next;
@@ -133,7 +140,11 @@ export async function uploadWebsiteImage(
       fieldErrors: [{ field: "file", code: "MSG-69" }],
     });
   const extension =
-    file.type === "image/png" ? "png" : file.type === "image/webp" ? "webp" : "jpg";
+    file.type === "image/png"
+      ? "png"
+      : file.type === "image/webp"
+        ? "webp"
+        : "jpg";
   return {
     url: `/media/website/2026/10/${crypto.randomUUID().slice(0, 8)}.${extension}`,
   };

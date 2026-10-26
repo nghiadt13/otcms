@@ -42,7 +42,11 @@ describe("SignInForm: đích sau đăng nhập", () => {
   });
 
   it.each([
-    ["đường dẫn trong khu bệnh nhân", "/portal/appointments/new", "/portal/appointments/new"],
+    [
+      "đường dẫn trong khu bệnh nhân",
+      "/portal/appointments/new",
+      "/portal/appointments/new",
+    ],
     ["URL ngoài", "https://evil.example", "/portal"],
     ["URL giao thức tương đối", "//evil.example", "/portal"],
     ["khu quản trị", "/admin", "/portal"],
@@ -76,7 +80,11 @@ describe("SignInForm: đích sau đăng nhập", () => {
 describe("SignInForm: lỗi", () => {
   it("Supabase từ chối (4xx) thì hiện MSG-01 và không chuyển trang", async () => {
     signInWithPassword.mockResolvedValue({
-      error: new AuthApiError("Invalid login credentials", 400, "invalid_credentials"),
+      error: new AuthApiError(
+        "Invalid login credentials",
+        400,
+        "invalid_credentials",
+      ),
     });
     render(<SignInForm />);
     await submitCredentials();

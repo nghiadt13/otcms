@@ -7,7 +7,11 @@ import { DoctorAvailabilitySummary } from "./DoctorAvailabilitySummary";
 
 // Hồ sơ bác sĩ công khai (UC16 bước 3–4): ảnh và chuyên môn, giới thiệu, thông tin khám,
 // tóm tắt giờ nhận 7 ngày và nút đặt lịch. Đặt lịch bắt đầu từ thời gian, không chọn sẵn bác sĩ.
-export function DoctorPublicProfile({ doctor }: { doctor: PublicDoctorDetail }) {
+export function DoctorPublicProfile({
+  doctor,
+}: {
+  doctor: PublicDoctorDetail;
+}) {
   const initial = doctor.fullName.trim().slice(-1).toUpperCase();
   return (
     <article className="grid gap-12 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] lg:gap-16">
@@ -33,7 +37,9 @@ export function DoctorPublicProfile({ doctor }: { doctor: PublicDoctorDetail }) 
 
       <div className="min-w-0">
         {doctor.qualifications ? (
-          <p className="text-lg font-medium text-primary">{doctor.qualifications}</p>
+          <p className="text-lg font-medium text-primary">
+            {doctor.qualifications}
+          </p>
         ) : null}
         <h1 className="mt-2 text-4xl font-semibold tracking-tight text-balance sm:text-5xl">
           {doctor.fullName}
@@ -71,7 +77,9 @@ export function DoctorPublicProfile({ doctor }: { doctor: PublicDoctorDetail }) 
           </div>
         </section>
 
-        <PublicBookAppointmentLink className={publicButtonClass("primary", "lg") + " mt-10"}>
+        <PublicBookAppointmentLink
+          className={publicButtonClass("primary", "lg") + " mt-10"}
+        >
           <CalendarPlus aria-hidden />
           Đặt lịch khám
         </PublicBookAppointmentLink>

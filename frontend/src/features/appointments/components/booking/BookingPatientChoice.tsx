@@ -40,14 +40,19 @@ export function BookingPatientChoice({
           ? CARE_RELATIONSHIP_LABELS[patient.relationship]
           : null;
         return (
-          <div key={patient.id} className={`flex items-center gap-3 ${sizes.row}`}>
+          <div
+            key={patient.id}
+            className={`flex items-center gap-3 ${sizes.row}`}
+          >
             <RadioGroupItem id={id} value={patient.id} />
             <Label
               htmlFor={id}
               className="grid min-w-0 flex-1 cursor-pointer gap-0.5 font-normal"
             >
               <span className={sizes.strong}>
-                {relation ? `${patient.fullName} · ${relation}` : patient.fullName}
+                {relation
+                  ? `${patient.fullName} · ${relation}`
+                  : patient.fullName}
               </span>
               <span className={sizes.detail}>
                 Sinh ngày {formatDate(patient.dateOfBirth)}

@@ -60,7 +60,9 @@ export function resetBookingMock(options: { now?: Date } = {}): void {
 export function readStoredAppointments(): StoredAppointment[] {
   return clone(records)
     .map(withFeeStatus)
-    .sort((a, b) => a.startAt.localeCompare(b.startAt) || a.id.localeCompare(b.id));
+    .sort(
+      (a, b) => a.startAt.localeCompare(b.startAt) || a.id.localeCompare(b.id),
+    );
 }
 
 /** Thêm một lịch mới vào kho (chỉ lớp đặt lịch gọi). */
@@ -112,7 +114,10 @@ export function isDoctorBusyAt(doctorId: string, startAt: string): boolean {
 }
 
 /** Người này đã có lịch Đã đặt đúng giờ này (trùng lịch của bệnh nhân). */
-export function hasBookedPatientAt(patientId: string, startAt: string): boolean {
+export function hasBookedPatientAt(
+  patientId: string,
+  startAt: string,
+): boolean {
   return records.some(
     (record) =>
       record.patient.id === patientId &&
@@ -142,7 +147,10 @@ function withFeeStatus(record: StoredAppointment): StoredAppointment {
  * Đưa phí của một lịch vào kho phí dùng chung. Chỉ lịch của hồ sơ đã gắn: thanh toán chỉ thấy các
  * hồ sơ đó (BR-19), còn người do lễ tân quản lý thì không.
  */
-function publishFee(record: StoredAppointment, linked: readonly LinkedProfile[]): void {
+function publishFee(
+  record: StoredAppointment,
+  linked: readonly LinkedProfile[],
+): void {
   const profile = linked.find((item) => item.id === record.patient.id);
   if (!profile) return;
   upsertMockAppointmentFee({
@@ -161,8 +169,12 @@ function publishFee(record: StoredAppointment, linked: readonly LinkedProfile[])
 /** Phí của lịch riêng khu bệnh nhân (không nằm trong kho đặt lịch) để thanh toán thấy cùng dữ liệu. */
 function publishOwnFees(now: Date, linked: readonly LinkedProfile[]): void {
   for (const seed of patientOwnSeeds(now)) {
-    const profile = linked.find((item) => item.patientCode === seed.patientCode);
-    const service = BOOKABLE_SERVICES.find((item) => item.id === seed.serviceId);
+    const profile = linked.find(
+      (item) => item.patientCode === seed.patientCode,
+    );
+    const service = BOOKABLE_SERVICES.find(
+      (item) => item.id === seed.serviceId,
+    );
     if (!profile || !service) continue;
     upsertMockAppointmentFee({
       appointmentId: seed.id,

@@ -24,7 +24,9 @@ const DELAY_MS = 300;
 
 function allowedActions(record: MockStaffRecord): StaffProfileAction[] {
   if (record.status !== "ACTIVE") return [];
-  return record.doctor ? ["edit", "remove", "togglePublic"] : ["edit", "remove"];
+  return record.doctor
+    ? ["edit", "remove", "togglePublic"]
+    : ["edit", "remove"];
 }
 
 function toListItem(record: MockStaffRecord): StaffProfileListItem {
@@ -65,7 +67,10 @@ function findRecord(id: string): MockStaffRecord {
   return record;
 }
 
-function failOnFieldErrors(input: StaffProfileInput, role: MockStaffRecord["role"]) {
+function failOnFieldErrors(
+  input: StaffProfileInput,
+  role: MockStaffRecord["role"],
+) {
   const errors = validateStaffProfileInput(
     { ...input, doctor: input.doctor },
     role,
@@ -91,14 +96,20 @@ export async function listStaffProfiles(
   await mockDelay(DELAY_MS, signal);
   const q = query.q.trim().toLowerCase();
   const items = mockStore.profiles
-    .filter((p) => !q || p.displayName.toLowerCase().includes(q) || p.username.toLowerCase().includes(q))
+    .filter(
+      (p) =>
+        !q ||
+        p.displayName.toLowerCase().includes(q) ||
+        p.username.toLowerCase().includes(q),
+    )
     .filter((p) => !query.role || p.role === query.role)
     .filter((p) => !query.status || p.status === query.status)
     // `public` chỉ khớp bác sĩ: nhân viên khác bị loại khi có bộ lọc này.
     .filter(
       (p) =>
         !query.isPublic ||
-        (p.doctor !== null && p.doctor.isPublic === (query.isPublic === "true")),
+        (p.doctor !== null &&
+          p.doctor.isPublic === (query.isPublic === "true")),
     )
     .sort((a, b) => a.displayName.localeCompare(b.displayName, "vi"))
     .map(toListItem);
@@ -136,7 +147,9 @@ export async function createStaffProfile(
   // Dựng multipart như khi gọi BE thật, rồi đọc lại part `data`.
   const body = await readInput(buildStaffProfileFormData(input, photo));
   await mockDelay(DELAY_MS);
-  const account = mockStore.accounts.find((a) => a.accountId === body.accountId);
+  const account = mockStore.accounts.find(
+    (a) => a.accountId === body.accountId,
+  );
   if (!account) mockFail(409, "MSG-23");
   failOnFieldErrors(body, account.role);
   if (account.username.startsWith(USERNAME_PREFIX_SERVICE_ERROR))
@@ -153,7 +166,9 @@ export async function createStaffProfile(
     doctor: account.role === "ORTHOPEDIC_DOCTOR" ? (body.doctor ?? null) : null,
   };
   mockStore.profiles.push(record);
-  mockStore.accounts = mockStore.accounts.filter((a) => a.accountId !== account.accountId);
+  mockStore.accounts = mockStore.accounts.filter(
+    (a) => a.accountId !== account.accountId,
+  );
   return toDetail(record);
 }
 
@@ -171,7 +186,8 @@ export async function updateStaffProfile(
     mockFail(500, "MSG-04");
   record.displayName = body.displayName.trim();
   record.workContact = body.workContact.trim();
-  if (record.role === "ORTHOPEDIC_DOCTOR" && body.doctor) record.doctor = body.doctor;
+  if (record.role === "ORTHOPEDIC_DOCTOR" && body.doctor)
+    record.doctor = body.doctor;
   return toDetail(record);
 }
 

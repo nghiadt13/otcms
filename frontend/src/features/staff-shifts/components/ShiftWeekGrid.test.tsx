@@ -9,7 +9,11 @@ const TODAY = "2026-10-21"; // thứ Tư
 const days = getShiftRange(TODAY, "week").days; // 19/10 – 25/10
 
 const rows: StaffOption[] = [
-  { staffId: "st-bs1", fullName: "BS. Nguyễn Minh Anh", role: "ORTHOPEDIC_DOCTOR" },
+  {
+    staffId: "st-bs1",
+    fullName: "BS. Nguyễn Minh Anh",
+    role: "ORTHOPEDIC_DOCTOR",
+  },
   { staffId: "st-cdha", fullName: "Lê Quang Bình", role: "IMAGING_TECHNICIAN" },
 ];
 
@@ -55,20 +59,32 @@ describe("ShiftWeekGrid", () => {
     expect(headers).toHaveLength(8); // cột Nhân viên + 7 ngày
     expect(headers[1]).toHaveTextContent("T2 19/10");
     expect(headers[7]).toHaveTextContent("CN 25/10");
-    expect(screen.getByRole("rowheader", { name: /BS\. Nguyễn Minh Anh/ })).toBeInTheDocument();
-    expect(screen.getByRole("rowheader", { name: /Lê Quang Bình/ })).toBeInTheDocument();
-    expect(screen.getByText(/Chưa có ca nào trong tuần này/)).toBeInTheDocument();
+    expect(
+      screen.getByRole("rowheader", { name: /BS\. Nguyễn Minh Anh/ }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("rowheader", { name: /Lê Quang Bình/ }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/Chưa có ca nào trong tuần này/),
+    ).toBeInTheDocument();
   });
 
   it("ô ngày đã qua bị khóa; bấm ô trống hôm nay trở đi mở thêm ca điền sẵn nhân viên và ngày", async () => {
     const { onAddShift } = setup();
-    const past = screen.getByRole("button", { name: "Thêm ca cho BS. Nguyễn Minh Anh, 20/10/2026" });
+    const past = screen.getByRole("button", {
+      name: "Thêm ca cho BS. Nguyễn Minh Anh, 20/10/2026",
+    });
     expect(past).toHaveAttribute("aria-disabled", "true");
     expect(past).toHaveAttribute("title", "Ngày đã qua, chỉ xem");
     await userEvent.click(past);
     expect(onAddShift).not.toHaveBeenCalled();
 
-    await userEvent.click(screen.getByRole("button", { name: "Thêm ca cho Lê Quang Bình, 23/10/2026" }));
+    await userEvent.click(
+      screen.getByRole("button", {
+        name: "Thêm ca cho Lê Quang Bình, 23/10/2026",
+      }),
+    );
     expect(onAddShift).toHaveBeenCalledWith("st-cdha", "2026-10-23");
   });
 
@@ -77,13 +93,19 @@ describe("ShiftWeekGrid", () => {
       shift({ id: "sh-pm", startTime: "13:30", endTime: "17:30" }),
       shift({ id: "sh-am" }),
     ]);
-    const chips = screen.getAllByRole("button", { name: /^Ca \d{2}:\d{2}–\d{2}:\d{2}/ });
+    const chips = screen.getAllByRole("button", {
+      name: /^Ca \d{2}:\d{2}–\d{2}:\d{2}/,
+    });
     expect(chips).toHaveLength(2);
     expect(within(chips[0]).getByText("08:00–12:00")).toBeInTheDocument();
     expect(within(chips[1]).getByText("13:30–17:30")).toBeInTheDocument();
-    expect(screen.queryByText(/Chưa có ca nào trong tuần này/)).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(/Chưa có ca nào trong tuần này/),
+    ).not.toBeInTheDocument();
     await userEvent.click(chips[0]);
-    expect(onOpenShift).toHaveBeenCalledWith(expect.objectContaining({ id: "sh-am" }));
+    expect(onOpenShift).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "sh-am" }),
+    );
   });
 
   it("chỉ một điểm Tab; mũi tên đổi ô, Home/End và Ctrl+End nhảy đúng; Enter mở", async () => {
@@ -94,17 +116,35 @@ describe("ShiftWeekGrid", () => {
     expect(tabStops).toHaveLength(1);
 
     tabStops[0].focus();
-    expect(tabStops[0]).toHaveAttribute("aria-label", "Thêm ca cho BS. Nguyễn Minh Anh, 19/10/2026");
+    expect(tabStops[0]).toHaveAttribute(
+      "aria-label",
+      "Thêm ca cho BS. Nguyễn Minh Anh, 19/10/2026",
+    );
     await userEvent.keyboard("{ArrowRight}");
-    expect(document.activeElement).toHaveAttribute("aria-label", "Thêm ca cho BS. Nguyễn Minh Anh, 20/10/2026");
+    expect(document.activeElement).toHaveAttribute(
+      "aria-label",
+      "Thêm ca cho BS. Nguyễn Minh Anh, 20/10/2026",
+    );
     await userEvent.keyboard("{ArrowDown}");
-    expect(document.activeElement).toHaveAttribute("aria-label", "Thêm ca cho Lê Quang Bình, 20/10/2026");
+    expect(document.activeElement).toHaveAttribute(
+      "aria-label",
+      "Thêm ca cho Lê Quang Bình, 20/10/2026",
+    );
     await userEvent.keyboard("{End}");
-    expect(document.activeElement).toHaveAttribute("aria-label", "Thêm ca cho Lê Quang Bình, 25/10/2026");
+    expect(document.activeElement).toHaveAttribute(
+      "aria-label",
+      "Thêm ca cho Lê Quang Bình, 25/10/2026",
+    );
     await userEvent.keyboard("{Control>}{Home}{/Control}");
-    expect(document.activeElement).toHaveAttribute("aria-label", "Thêm ca cho BS. Nguyễn Minh Anh, 19/10/2026");
+    expect(document.activeElement).toHaveAttribute(
+      "aria-label",
+      "Thêm ca cho BS. Nguyễn Minh Anh, 19/10/2026",
+    );
     await userEvent.keyboard("{Control>}{End}{/Control}");
-    expect(document.activeElement).toHaveAttribute("aria-label", "Thêm ca cho Lê Quang Bình, 25/10/2026");
+    expect(document.activeElement).toHaveAttribute(
+      "aria-label",
+      "Thêm ca cho Lê Quang Bình, 25/10/2026",
+    );
 
     await userEvent.keyboard("{Enter}");
     expect(onAddShift).toHaveBeenCalledWith("st-cdha", "2026-10-25");
@@ -124,6 +164,8 @@ describe("ShiftWeekGrid", () => {
         onAddShift={vi.fn()}
       />,
     );
-    expect(screen.getByText(/Chưa có nhân viên nào đủ điều kiện nhận ca/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Chưa có nhân viên nào đủ điều kiện nhận ca/),
+    ).toBeInTheDocument();
   });
 });

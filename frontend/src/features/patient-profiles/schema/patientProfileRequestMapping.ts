@@ -1,11 +1,6 @@
-import {
-  dateOfBirthTextToIso,
-  isoToDateOfBirthText,
-} from "./dateOfBirthText";
+import { dateOfBirthTextToIso, isoToDateOfBirthText } from "./dateOfBirthText";
 import { normalizePhone } from "./patientProfileFieldChecks";
-import type {
-  ProfileFieldValues,
-} from "./patientProfileFieldRules";
+import type { ProfileFieldValues } from "./patientProfileFieldRules";
 import type {
   CreateProfileRequest,
   EditableProfileField,

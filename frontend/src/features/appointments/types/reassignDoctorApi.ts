@@ -22,8 +22,9 @@ export interface EligibleDoctorsApi {
   ): Promise<ItemsResponse<EligibleDoctor>>;
 }
 
-export interface ReassignDoctorApi<T extends ReassignTarget>
-  extends EligibleDoctorsApi {
+export interface ReassignDoctorApi<
+  T extends ReassignTarget,
+> extends EligibleDoctorsApi {
   /** Chuyển sang bác sĩ đã chọn, giờ không đổi. Trả bản ghi mới từ BE. */
   reassign(appointmentId: string, doctorId: string): Promise<T>;
   /** Báo cho bệnh nhân khi không có bác sĩ thay (AF1). Lịch vẫn Đã đặt. */

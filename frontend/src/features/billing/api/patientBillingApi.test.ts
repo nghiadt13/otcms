@@ -35,13 +35,20 @@ describe("listPayableSources", () => {
   });
 
   it("lọc theo hồ sơ người khám", async () => {
-    const { items } = await listPayableSources({ patientId: SEED_PATIENTS.lan.id });
-    expect(items.map((item) => item.id).sort()).toEqual(["apt-lan-27", "vis-lan-await"].sort());
+    const { items } = await listPayableSources({
+      patientId: SEED_PATIENTS.lan.id,
+    });
+    expect(items.map((item) => item.id).sort()).toEqual(
+      ["apt-lan-27", "vis-lan-await"].sort(),
+    );
   });
 
   it("lỗi máy chủ ném 500 MSG-04", async () => {
     resetPatientBillingMock({ failSources: true });
-    await expect(listPayableSources()).rejects.toMatchObject({ status: 500, code: "MSG-04" });
+    await expect(listPayableSources()).rejects.toMatchObject({
+      status: 500,
+      code: "MSG-04",
+    });
   });
 });
 
@@ -54,29 +61,38 @@ describe("getPayableSource", () => {
       "PAID",
       "CANCELLED",
     ]);
-    expect(detail.items.find((item) => item.status === "PAID")?.receipt).toEqual({
+    expect(
+      detail.items.find((item) => item.status === "PAID")?.receipt,
+    ).toEqual({
       paymentId: "pm-1029",
       receiptNo: "PT-1029",
     });
-    expect(detail.items.find((item) => item.status === "CANCELLED")?.cancellationReason).toBe(
-      "Bác sĩ thay bằng MRI",
-    );
+    expect(
+      detail.items.find((item) => item.status === "CANCELLED")
+        ?.cancellationReason,
+    ).toBe("Bác sĩ thay bằng MRI");
     expect(JSON.stringify(detail)).not.toContain("Phòng MRI");
   });
 
   it("nguồn không tồn tại hoặc sai loại → 404 MSG-41", async () => {
-    await expect(getPayableSource("visit", "vis-khong-co")).rejects.toMatchObject({
+    await expect(
+      getPayableSource("visit", "vis-khong-co"),
+    ).rejects.toMatchObject({
       status: 404,
       code: "MSG-41",
     });
-    await expect(getPayableSource("appointment", "vis-an-today")).rejects.toMatchObject({
+    await expect(
+      getPayableSource("appointment", "vis-an-today"),
+    ).rejects.toMatchObject({
       status: 404,
       code: "MSG-41",
     });
   });
 
   it("nguồn ngoài phạm vi tài khoản → 403 MSG-40", async () => {
-    await expect(getPayableSource("visit", FORBIDDEN_SOURCE_ID)).rejects.toMatchObject({
+    await expect(
+      getPayableSource("visit", FORBIDDEN_SOURCE_ID),
+    ).rejects.toMatchObject({
       status: 403,
       code: "MSG-40",
     });
@@ -85,7 +101,10 @@ describe("getPayableSource", () => {
 
 describe("createOnlinePayment", () => {
   it("tạo giao dịch PENDING, tổng do BE tính và đường dẫn chuyển về nội bộ", async () => {
-    const response = await createOnlinePayment({ ...AN_VISIT, itemIds: ["svc-cbc"] });
+    const response = await createOnlinePayment({
+      ...AN_VISIT,
+      itemIds: ["svc-cbc"],
+    });
     expect(response.total).toBe(250000);
     expect(response.paymentId).toMatch(/^pay-mock-\d+$/);
     expect(response.redirectUrl).toBe(
@@ -110,7 +129,9 @@ describe("createOnlinePayment", () => {
   });
 
   it("danh sách khoản rỗng → 400 MSG-12", async () => {
-    await expect(createOnlinePayment({ ...AN_VISIT, itemIds: [] })).rejects.toMatchObject({
+    await expect(
+      createOnlinePayment({ ...AN_VISIT, itemIds: [] }),
+    ).rejects.toMatchObject({
       status: 400,
       code: "MSG-12",
     });
@@ -118,10 +139,18 @@ describe("createOnlinePayment", () => {
 
   it("nguồn không tồn tại → 404 MSG-41; nguồn ngoài phạm vi → 403 MSG-40", async () => {
     await expect(
-      createOnlinePayment({ sourceKind: "visit", sourceId: "vis-khong-co", itemIds: ["svc-cbc"] }),
+      createOnlinePayment({
+        sourceKind: "visit",
+        sourceId: "vis-khong-co",
+        itemIds: ["svc-cbc"],
+      }),
     ).rejects.toMatchObject({ status: 404, code: "MSG-41" });
     await expect(
-      createOnlinePayment({ sourceKind: "visit", sourceId: FORBIDDEN_SOURCE_ID, itemIds: ["svc-cbc"] }),
+      createOnlinePayment({
+        sourceKind: "visit",
+        sourceId: FORBIDDEN_SOURCE_ID,
+        itemIds: ["svc-cbc"],
+      }),
     ).rejects.toMatchObject({ status: 403, code: "MSG-40" });
   });
 
@@ -166,11 +195,17 @@ describe("getPayment: kết quả chỉ do BE quyết định", () => {
   });
 
   it("tổng chẵn triệu → FAILED; khoản vẫn chờ thanh toán và trả lại được", async () => {
-    const { paymentId } = await createOnlinePayment({ ...LAN_VISIT, itemIds: ["svc-endoscopy"] });
+    const { paymentId } = await createOnlinePayment({
+      ...LAN_VISIT,
+      itemIds: ["svc-endoscopy"],
+    });
     const failed = await getPayment(paymentId);
     expect(failed).toMatchObject({ status: "FAILED", queueAssignments: [] });
 
-    const retry = await createOnlinePayment({ ...LAN_VISIT, itemIds: ["svc-endoscopy"] });
+    const retry = await createOnlinePayment({
+      ...LAN_VISIT,
+      itemIds: ["svc-endoscopy"],
+    });
     expect(retry.total).toBe(1000000);
   });
 
@@ -193,15 +228,22 @@ describe("listMyPayments: lịch sử đã hoàn tất", () => {
   });
 
   it("lọc khoảng ngày gồm cả hai đầu và theo hồ sơ", async () => {
-    const window = await listMyPayments({ from: "2026-10-18", to: "2026-10-23" });
+    const window = await listMyPayments({
+      from: "2026-10-18",
+      to: "2026-10-23",
+    });
     expect(window.items.map((item) => item.id)).toEqual(["pm-1029", "pm-1013"]);
 
     const lan = await listMyPayments({ patientId: SEED_PATIENTS.lan.id });
-    expect(lan.items.every((item) => item.patientName === "Nguyễn Thị Lan")).toBe(true);
+    expect(
+      lan.items.every((item) => item.patientName === "Nguyễn Thị Lan"),
+    ).toBe(true);
   });
 
   it("từ ngày sau đến ngày → 400 MSG-54", async () => {
-    await expect(listMyPayments({ from: "2026-10-24", to: "2026-10-01" })).rejects.toMatchObject({
+    await expect(
+      listMyPayments({ from: "2026-10-24", to: "2026-10-01" }),
+    ).rejects.toMatchObject({
       status: 400,
       code: "MSG-54",
     });
@@ -209,6 +251,9 @@ describe("listMyPayments: lịch sử đã hoàn tất", () => {
 
   it("lỗi máy chủ ném 500 MSG-04", async () => {
     resetPatientBillingMock({ failPayments: true });
-    await expect(listMyPayments({})).rejects.toMatchObject({ status: 500, code: "MSG-04" });
+    await expect(listMyPayments({})).rejects.toMatchObject({
+      status: 500,
+      code: "MSG-04",
+    });
   });
 });

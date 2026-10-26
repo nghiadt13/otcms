@@ -61,7 +61,8 @@ export function buildWebsiteContentSeed(): WebsiteContentDetail[] {
       type: "HEALTH_ARTICLE",
       title: round === 0 ? seed.title : `${seed.title} (phần ${round + 1})`,
       body: seed.body,
-      imageUrl: i % 3 === 0 ? `/media/website/2026/09/bai-viet-${i + 1}.jpg` : null,
+      imageUrl:
+        i % 3 === 0 ? `/media/website/2026/09/bai-viet-${i + 1}.jpg` : null,
       publishedAt: isoAt(40 + i * 2, 8, 10),
       updatedAt: isoAt(i * 2, 14, 30),
       publishedBy: ADMIN_NAMES[i % ADMIN_NAMES.length],

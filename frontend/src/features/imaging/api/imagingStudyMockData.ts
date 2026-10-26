@@ -58,5 +58,7 @@ export const MOCK_STUDIES: MockStudy[] = [
  */
 export function mockViewerUrl(studyUid: string): string | null {
   const base = process.env.NEXT_PUBLIC_OHIF_DEV_URL;
-  return base ? `${base}?StudyInstanceUIDs=${encodeURIComponent(studyUid)}` : null;
+  return base
+    ? `${base}?StudyInstanceUIDs=${encodeURIComponent(studyUid)}`
+    : null;
 }

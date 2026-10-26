@@ -38,7 +38,10 @@ export function StaffProfileDetailSheet({
   onChanged,
 }: StaffProfileDetailSheetProps) {
   return (
-    <Sheet open={profileId !== null} onOpenChange={(open) => !open && onClose()}>
+    <Sheet
+      open={profileId !== null}
+      onOpenChange={(open) => !open && onClose()}
+    >
       <SheetContent className="w-full data-[side=right]:w-full data-[side=right]:sm:max-w-lg">
         {profileId ? (
           // key: mở hồ sơ khác thì state (chế độ sửa, lỗi) bắt đầu lại.
@@ -130,7 +133,9 @@ function SheetBody({
               size="lg"
             />
             <div className="min-w-0">
-              <SheetTitle className="break-words">{detail.displayName}</SheetTitle>
+              <SheetTitle className="break-words">
+                {detail.displayName}
+              </SheetTitle>
               <div className="mt-1">
                 <StatusBadge
                   tone={detail.status === "ACTIVE" ? "success" : "neutral"}

@@ -23,7 +23,8 @@ async function search(text: string) {
 
 describe("RoomManagement", () => {
   beforeEach(async () => {
-    const actual = await vi.importActual<typeof import("../api/roomApi")>("../api/roomApi");
+    const actual =
+      await vi.importActual<typeof import("../api/roomApi")>("../api/roomApi");
     actual.resetRoomMockStore();
     vi.mocked(roomApi.listRooms).mockImplementation(actual.listRooms);
   });
@@ -40,10 +41,22 @@ describe("RoomManagement", () => {
     await screen.findByText("P101");
 
     await search("khongco");
-    expect(await screen.findByText(/Không có phòng nào khớp bộ lọc/, {}, { timeout: 3000 })).toBeInTheDocument();
+    expect(
+      await screen.findByText(
+        /Không có phòng nào khớp bộ lọc/,
+        {},
+        { timeout: 3000 },
+      ),
+    ).toBeInTheDocument();
 
     await search("loi-may-chu");
-    expect(await screen.findByText(/Không tải được danh sách phòng/, {}, { timeout: 3000 })).toBeInTheDocument();
+    expect(
+      await screen.findByText(
+        /Không tải được danh sách phòng/,
+        {},
+        { timeout: 3000 },
+      ),
+    ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Thử lại" })).toBeInTheDocument();
   });
 
@@ -53,36 +66,66 @@ describe("RoomManagement", () => {
     await userEvent.click(screen.getByRole("button", { name: /Thêm phòng/ }));
 
     const dialog = await screen.findByRole("dialog");
-    expect(within(dialog).getByText("Chọn loại phòng để xem dịch vụ.")).toBeInTheDocument();
+    expect(
+      within(dialog).getByText("Chọn loại phòng để xem dịch vụ."),
+    ).toBeInTheDocument();
 
-    await userEvent.selectOptions(within(dialog).getByLabelText("Loại phòng"), "EXAMINATION");
-    const orthopedic = await within(dialog).findByRole("checkbox", { name: "Khám chỉnh hình" });
+    await userEvent.selectOptions(
+      within(dialog).getByLabelText("Loại phòng"),
+      "EXAMINATION",
+    );
+    const orthopedic = await within(dialog).findByRole("checkbox", {
+      name: "Khám chỉnh hình",
+    });
     await userEvent.click(orthopedic);
     expect(orthopedic).toBeChecked();
 
-    await userEvent.selectOptions(within(dialog).getByLabelText("Loại phòng"), "IMAGING");
-    expect(within(dialog).queryByRole("checkbox", { name: "Khám chỉnh hình" })).not.toBeInTheDocument();
-    await userEvent.selectOptions(within(dialog).getByLabelText("Loại phòng"), "EXAMINATION");
-    expect(await within(dialog).findByRole("checkbox", { name: "Khám chỉnh hình" })).not.toBeChecked();
+    await userEvent.selectOptions(
+      within(dialog).getByLabelText("Loại phòng"),
+      "IMAGING",
+    );
+    expect(
+      within(dialog).queryByRole("checkbox", { name: "Khám chỉnh hình" }),
+    ).not.toBeInTheDocument();
+    await userEvent.selectOptions(
+      within(dialog).getByLabelText("Loại phòng"),
+      "EXAMINATION",
+    );
+    expect(
+      await within(dialog).findByRole("checkbox", { name: "Khám chỉnh hình" }),
+    ).not.toBeChecked();
 
-    await userEvent.type(within(dialog).getByLabelText("Tên hoặc mã phòng"), "P101");
-    await userEvent.click(within(dialog).getByRole("checkbox", { name: "Tái khám" }));
-    await userEvent.click(within(dialog).getByRole("button", { name: "Thêm phòng" }));
+    await userEvent.type(
+      within(dialog).getByLabelText("Tên hoặc mã phòng"),
+      "P101",
+    );
+    await userEvent.click(
+      within(dialog).getByRole("checkbox", { name: "Tái khám" }),
+    );
+    await userEvent.click(
+      within(dialog).getByRole("button", { name: "Thêm phòng" }),
+    );
 
-    const alert = await within(dialog).findByText(/Tên hoặc mã phòng này đã được dùng cho phòng khác/);
+    const alert = await within(dialog).findByText(
+      /Tên hoặc mã phòng này đã được dùng cho phòng khác/,
+    );
     expect(alert.closest("[role=alert]")).not.toBeNull();
   });
 
   it("dialog sửa: tên và loại chỉ đọc", async () => {
     render(<RoomManagement />);
     await screen.findByText("P101");
-    await userEvent.click(screen.getByRole("button", { name: "Sửa phòng P101" }));
+    await userEvent.click(
+      screen.getByRole("button", { name: "Sửa phòng P101" }),
+    );
 
     const dialog = await screen.findByRole("dialog");
     expect(within(dialog).getByLabelText(/Tên hoặc mã phòng/)).toBeDisabled();
     expect(within(dialog).getByLabelText(/Loại phòng/)).toBeDisabled();
     expect(within(dialog).getByLabelText("Mô tả")).toBeEnabled();
-    expect(within(dialog).getByRole("button", { name: "Lưu thay đổi" })).toBeInTheDocument();
+    expect(
+      within(dialog).getByRole("button", { name: "Lưu thay đổi" }),
+    ).toBeInTheDocument();
   });
 
   it("Switch mở xác nhận và chỉ đổi sau khi xác nhận", async () => {
@@ -93,12 +136,18 @@ describe("RoomManagement", () => {
 
     await userEvent.click(sw);
     const confirm = await screen.findByRole("alertdialog");
-    expect(within(confirm).getByText("Tạm ngưng phòng P101?")).toBeInTheDocument();
+    expect(
+      within(confirm).getByText("Tạm ngưng phòng P101?"),
+    ).toBeInTheDocument();
     expect(sw).toBeChecked();
 
-    await userEvent.click(within(confirm).getByRole("button", { name: "Tạm ngưng" }));
+    await userEvent.click(
+      within(confirm).getByRole("button", { name: "Tạm ngưng" }),
+    );
     await waitFor(() =>
-      expect(screen.getByRole("switch", { name: /phòng P101/ })).not.toBeChecked(),
+      expect(
+        screen.getByRole("switch", { name: /phòng P101/ }),
+      ).not.toBeChecked(),
     );
   });
 
@@ -110,19 +159,29 @@ describe("RoomManagement", () => {
 
     await userEvent.click(sw);
     const confirm = await screen.findByRole("alertdialog");
-    await userEvent.click(within(confirm).getByRole("button", { name: "Tạm ngưng" }));
+    await userEvent.click(
+      within(confirm).getByRole("button", { name: "Tạm ngưng" }),
+    );
 
-    await waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument(),
+    );
     expect(screen.getByRole("switch", { name: /phòng CĐHA-02/ })).toBeChecked();
   });
 
   it("Xem mở Sheet chi tiết", async () => {
     render(<RoomManagement />);
     await screen.findByText("P101");
-    await userEvent.click(screen.getByRole("button", { name: "Xem phòng P101" }));
+    await userEvent.click(
+      screen.getByRole("button", { name: "Xem phòng P101" }),
+    );
     const sheet = await screen.findByRole("dialog");
-    expect(await within(sheet).findByText("Phòng khám chỉnh hình, 3 giường khám.")).toBeInTheDocument();
-    expect(within(sheet).getByRole("button", { name: "Đánh dấu tạm ngưng" })).toBeInTheDocument();
+    expect(
+      await within(sheet).findByText("Phòng khám chỉnh hình, 3 giường khám."),
+    ).toBeInTheDocument();
+    expect(
+      within(sheet).getByRole("button", { name: "Đánh dấu tạm ngưng" }),
+    ).toBeInTheDocument();
   });
 
   it("ẩn Sửa và Switch khi thiếu allowedActions", async () => {
@@ -146,7 +205,11 @@ describe("RoomManagement", () => {
     expect(await screen.findByText("P900")).toBeInTheDocument();
     expect(screen.getByText("Chưa gán dịch vụ")).toBeInTheDocument();
     expect(screen.queryByRole("switch")).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /Sửa phòng/ })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Xem phòng P900" })).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /Sửa phòng/ }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Xem phòng P900" }),
+    ).toBeInTheDocument();
   });
 });

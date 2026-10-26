@@ -61,9 +61,15 @@ describe("listMyAppointments", () => {
     expect(first.items[0].id).toBe("apt-2001");
     expect(first.items[0].status).toBe("CHECKED_IN");
 
-    const second = await listMyAppointments({ when: "past", page: 1, size: 10 });
+    const second = await listMyAppointments({
+      when: "past",
+      page: 1,
+      size: 10,
+    });
     expect(second.items).toHaveLength(4);
-    expect(new Set([...first.items, ...second.items].map((item) => item.id)).size).toBe(14);
+    expect(
+      new Set([...first.items, ...second.items].map((item) => item.id)).size,
+    ).toBe(14);
   });
 
   it("lọc theo hồ sơ đã gắn; người khám nào cũng ghi tên và quan hệ", async () => {
@@ -112,7 +118,10 @@ describe("listMyAppointments", () => {
   it("hồ sơ bị bỏ gắn: lịch của hồ sơ đó không còn hiện", async () => {
     resetLinkedProfilesMock({ variant: "selfOnly" });
     const page = await listMyAppointments({ when: "upcoming" });
-    expect(page.items.map((item) => item.id)).toEqual(["apt-1001", RACE_APPOINTMENT_ID]);
+    expect(page.items.map((item) => item.id)).toEqual([
+      "apt-1001",
+      RACE_APPOINTMENT_ID,
+    ]);
   });
 });
 

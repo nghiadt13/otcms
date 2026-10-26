@@ -85,7 +85,12 @@ function ShiftCellView({
             shift.allowedActions.includes("edit") ? "Sửa ca" : "Xem ca"
           }`}
           onClick={() => onOpenShift(shift)}
-          className={cn(gridChip, shift.allowedActions.includes("edit") ? "" : "bg-muted text-muted-foreground")}
+          className={cn(
+            gridChip,
+            shift.allowedActions.includes("edit")
+              ? ""
+              : "bg-muted text-muted-foreground",
+          )}
         >
           <span className="text-xs font-medium tabular-nums">
             {shift.startTime}–{shift.endTime}

@@ -158,4 +158,3 @@ export const NO_SELF_CLINIC_RECORDS: ClinicPatientRecord[] = [
   HOA,
   DUC,
 ];
-

@@ -115,7 +115,8 @@ export function buildDashboardBlocks(
     {
       key: "visits",
       title: "Lượt khám và hàng đợi",
-      description: "Lượt khám theo trạng thái và số người đang chờ ở từng phòng.",
+      description:
+        "Lượt khám theo trạng thái và số người đang chờ ở từng phòng.",
       href: ADMIN_ROUTES.appointments,
       noSource: visits.status === "NO_SOURCE",
       rows:
@@ -123,7 +124,9 @@ export function buildDashboardBlocks(
           ? [
               count("Tổng lượt khám", visits.total),
               ...visits.byStatus.map((row) =>
-                count(VISIT_STATUS[row.code], row, { group: "Theo trạng thái" }),
+                count(VISIT_STATUS[row.code], row, {
+                  group: "Theo trạng thái",
+                }),
               ),
               ...visits.waitingByRoom.map((row) =>
                 count(row.roomName, row, {

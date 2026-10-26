@@ -1,6 +1,9 @@
 import { FilterBar } from "@/components/admin/FilterBar";
 import { SearchField } from "@/components/admin/SearchField";
-import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
+import {
+  NativeSelect,
+  NativeSelectOption,
+} from "@/components/ui/native-select";
 import {
   WEBSITE_CONTENT_TYPES,
   WEBSITE_CONTENT_TYPE_LABELS,

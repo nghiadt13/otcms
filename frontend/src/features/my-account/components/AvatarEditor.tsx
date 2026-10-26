@@ -50,7 +50,10 @@ export function AvatarEditor({ account, large = false }: AvatarEditorProps) {
     const picked = event.target.files?.[0];
     event.target.value = "";
     if (!picked) return;
-    if (!AVATAR_ACCEPTED_TYPES.includes(picked.type) || picked.size > AVATAR_MAX_BYTES) {
+    if (
+      !AVATAR_ACCEPTED_TYPES.includes(picked.type) ||
+      picked.size > AVATAR_MAX_BYTES
+    ) {
       setFile(null);
       setError(AVATAR_ERROR);
       return;
@@ -103,13 +106,19 @@ export function AvatarEditor({ account, large = false }: AvatarEditorProps) {
 
   return (
     <section aria-labelledby="avatar-heading" className="grid gap-3">
-      <h2 id="avatar-heading" className={large ? "text-lg font-semibold" : "text-base font-medium"}>
+      <h2
+        id="avatar-heading"
+        className={large ? "text-lg font-semibold" : "text-base font-medium"}
+      >
         Ảnh đại diện
       </h2>
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
         <Avatar className={large ? "size-20" : "size-16"}>
           {shownUrl ? (
-            <AvatarImage src={shownUrl} alt={`Ảnh đại diện của ${account.displayName}`} />
+            <AvatarImage
+              src={shownUrl}
+              alt={`Ảnh đại diện của ${account.displayName}`}
+            />
           ) : null}
           <AvatarFallback className={large ? "text-lg" : undefined}>
             {initialsOf(account.displayName)}
@@ -166,7 +175,13 @@ export function AvatarEditor({ account, large = false }: AvatarEditorProps) {
           ) : null}
         </div>
       </div>
-      <p className={large ? "text-sm text-muted-foreground" : "text-xs text-muted-foreground"}>
+      <p
+        className={
+          large
+            ? "text-sm text-muted-foreground"
+            : "text-xs text-muted-foreground"
+        }
+      >
         JPEG, PNG hoặc WEBP, tối đa 2 MB.
       </p>
       <FieldError message={error} />

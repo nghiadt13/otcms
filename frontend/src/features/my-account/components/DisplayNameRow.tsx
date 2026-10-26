@@ -79,11 +79,7 @@ export function DisplayNameRow({ displayName }: { displayName: string }) {
   }
 
   return (
-    <form
-      className="grid gap-3 px-4 py-4"
-      noValidate
-      onSubmit={handleSubmit}
-    >
+    <form className="grid gap-3 px-4 py-4" noValidate onSubmit={handleSubmit}>
       <div className="grid gap-1.5">
         <Label className="text-base" htmlFor={inputId}>
           Tên hiển thị
@@ -113,7 +109,11 @@ export function DisplayNameRow({ displayName }: { displayName: string }) {
         >
           Hủy
         </Button>
-        <Button className="h-12 px-5 text-base" disabled={pending} type="submit">
+        <Button
+          className="h-12 px-5 text-base"
+          disabled={pending}
+          type="submit"
+        >
           {pending ? "Đang lưu..." : "Lưu"}
         </Button>
       </div>

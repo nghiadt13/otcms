@@ -6,7 +6,8 @@ import {
   resetReviewModerationMockData,
 } from "./reviewModerationMockData";
 
-const publishedOf = () => reviewStore.reviews.filter((r) => r.status === "PUBLISHED");
+const publishedOf = () =>
+  reviewStore.reviews.filter((r) => r.status === "PUBLISHED");
 
 beforeEach(() => {
   resetReviewModerationMockData();
@@ -43,7 +44,10 @@ describe("listPublicReviews", () => {
   it("phân trang và tính điểm trung bình trên toàn bộ đánh giá đã duyệt", async () => {
     const published = publishedOf();
     const average =
-      Math.round((published.reduce((sum, r) => sum + r.rating, 0) / published.length) * 10) / 10;
+      Math.round(
+        (published.reduce((sum, r) => sum + r.rating, 0) / published.length) *
+          10,
+      ) / 10;
 
     const page = await listPublicReviews({ page: 1, size: 5 });
     expect(page.items).toHaveLength(5);

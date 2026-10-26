@@ -18,7 +18,10 @@ import type { PatientPayment } from "../../types/patientBilling";
 import { PaymentBackLink } from "./PaymentBackLink";
 import { PaymentErrorBlock } from "./PaymentErrorBlock";
 import { PaymentNotFoundView } from "./PaymentNotFoundView";
-import { LIST_FRAME_CLASS, isMissingRecordError } from "./patientBillingPresentation";
+import {
+  LIST_FRAME_CLASS,
+  isMissingRecordError,
+} from "./patientBillingPresentation";
 
 /**
  * Phiếu thu của một thanh toán đã hoàn tất (UC56). Chỉ xem: không in hay tải về ở khu bệnh nhân
@@ -35,7 +38,10 @@ export function ReceiptView({ paymentId }: { paymentId: string }) {
 
   return (
     <div className="space-y-8">
-      <PaymentBackLink href={PATIENT_ROUTES.paymentHistory} label="Lịch sử thanh toán" />
+      <PaymentBackLink
+        href={PATIENT_ROUTES.paymentHistory}
+        label="Lịch sử thanh toán"
+      />
       <PortalPageHeader
         description={data?.receiptNo ? `Số phiếu ${data.receiptNo}` : undefined}
         title="Phiếu thu"
@@ -64,7 +70,9 @@ function ReceiptDetails({ payment }: { payment: PatientPayment }) {
           <dd className="font-medium">{payment.patientName}</dd>
         </div>
         <div className="space-y-1">
-          <dt className="text-sm text-muted-foreground">Thời điểm thanh toán</dt>
+          <dt className="text-sm text-muted-foreground">
+            Thời điểm thanh toán
+          </dt>
           <dd className="tabular-nums">
             {payment.paidAt ? formatDateTime(payment.paidAt) : "—"}
           </dd>
@@ -75,7 +83,9 @@ function ReceiptDetails({ payment }: { payment: PatientPayment }) {
         </div>
         {payment.vnpayRef ? (
           <div className="space-y-1">
-            <dt className="text-sm text-muted-foreground">Mã giao dịch VNPay</dt>
+            <dt className="text-sm text-muted-foreground">
+              Mã giao dịch VNPay
+            </dt>
             <dd className="break-all">{payment.vnpayRef}</dd>
           </div>
         ) : null}
@@ -100,12 +110,16 @@ function ReceiptDetails({ payment }: { payment: PatientPayment }) {
               key={`${item.label}-${index}`}
             >
               <span>{item.label}</span>
-              <span className="shrink-0 tabular-nums">{formatCurrencyVnd(item.amount)}</span>
+              <span className="shrink-0 tabular-nums">
+                {formatCurrencyVnd(item.amount)}
+              </span>
             </li>
           ))}
           <li className="flex items-center justify-between gap-4 px-4 py-3 text-base font-semibold">
             <span>Tổng cộng</span>
-            <span className="shrink-0 tabular-nums">{formatCurrencyVnd(payment.total)}</span>
+            <span className="shrink-0 tabular-nums">
+              {formatCurrencyVnd(payment.total)}
+            </span>
           </li>
         </ul>
       </section>

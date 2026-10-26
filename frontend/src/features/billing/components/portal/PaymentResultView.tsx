@@ -33,11 +33,13 @@ const TITLE: Record<PaymentDisplayStatus, string> = {
  * tham số của VNPay trên URL.
  */
 export function PaymentResultView({ paymentId }: { paymentId: string }) {
-  const { payment, status, checking, error, checkNow } = usePaymentStatusPolling(paymentId);
+  const { payment, status, checking, error, checkNow } =
+    usePaymentStatusPolling(paymentId);
 
   if (error && isMissingRecordError(error)) return <PaymentNotFoundView />;
 
-  const paidList = status === "SUCCESS" && payment ? payment.queueAssignments : [];
+  const paidList =
+    status === "SUCCESS" && payment ? payment.queueAssignments : [];
 
   return (
     <div className="space-y-8">
@@ -50,7 +52,12 @@ export function PaymentResultView({ paymentId }: { paymentId: string }) {
         </div>
       ) : null}
 
-      {error ? <PaymentErrorBlock message={messageFromError(error)} onRetry={checkNow} /> : null}
+      {error ? (
+        <PaymentErrorBlock
+          message={messageFromError(error)}
+          onRetry={checkNow}
+        />
+      ) : null}
 
       {status === "SUCCESS" ? (
         <p className="text-base" role="status">
@@ -105,7 +112,9 @@ export function PaymentResultView({ paymentId }: { paymentId: string }) {
           </div>
           <div className="space-y-1">
             <dt className="text-sm text-muted-foreground">Số tiền</dt>
-            <dd className="font-semibold tabular-nums">{formatCurrencyVnd(payment.total)}</dd>
+            <dd className="font-semibold tabular-nums">
+              {formatCurrencyVnd(payment.total)}
+            </dd>
           </div>
           <div className="space-y-1">
             <dt className="text-sm text-muted-foreground">Mã thanh toán</dt>
@@ -113,7 +122,9 @@ export function PaymentResultView({ paymentId }: { paymentId: string }) {
           </div>
           {payment.vnpayRef ? (
             <div className="space-y-1">
-              <dt className="text-sm text-muted-foreground">Mã giao dịch VNPay</dt>
+              <dt className="text-sm text-muted-foreground">
+                Mã giao dịch VNPay
+              </dt>
               <dd className="break-all">{payment.vnpayRef}</dd>
             </div>
           ) : null}
@@ -135,13 +146,18 @@ export function PaymentResultView({ paymentId }: { paymentId: string }) {
               </button>
             ) : null}
             {status === "SUCCESS" && payment?.sourceKind === "visit" ? (
-              <Link className={publicButtonClass("primary")} href={PATIENT_ROUTES.visitDetail(payment.sourceId)}>
+              <Link
+                className={publicButtonClass("primary")}
+                href={PATIENT_ROUTES.visitDetail(payment.sourceId)}
+              >
                 Xem tiến độ lượt khám
               </Link>
             ) : null}
             {status === "SUCCESS" ? (
               <Link
-                className={publicButtonClass(payment?.sourceKind === "visit" ? "secondary" : "primary")}
+                className={publicButtonClass(
+                  payment?.sourceKind === "visit" ? "secondary" : "primary",
+                )}
                 href={PATIENT_ROUTES.payments}
               >
                 Về trang Thanh toán
@@ -156,7 +172,10 @@ export function PaymentResultView({ paymentId }: { paymentId: string }) {
               </Link>
             ) : null}
             {status === "FAILED" ? (
-              <Link className={publicButtonClass("secondary")} href={PATIENT_ROUTES.payments}>
+              <Link
+                className={publicButtonClass("secondary")}
+                href={PATIENT_ROUTES.payments}
+              >
                 Về trang Thanh toán
               </Link>
             ) : null}

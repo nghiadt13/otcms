@@ -10,10 +10,14 @@ import { LIST_LINK_CLASS } from "./patientBillingPresentation";
 export function PaymentRow({ payment }: { payment: PatientPayment }) {
   return (
     <li>
-      <Link className={LIST_LINK_CLASS} href={PATIENT_ROUTES.paymentDetail(payment.id)}>
+      <Link
+        className={LIST_LINK_CLASS}
+        href={PATIENT_ROUTES.paymentDetail(payment.id)}
+      >
         <span className="min-w-0">
           <span className="block font-medium">
-            {payment.paidAt ? formatDate(payment.paidAt) : "—"} · {payment.patientName}
+            {payment.paidAt ? formatDate(payment.paidAt) : "—"} ·{" "}
+            {payment.patientName}
           </span>
           <span className="block text-sm text-muted-foreground">
             {PAYMENT_METHOD_LABELS[payment.method]}

@@ -2,7 +2,10 @@ import { ChevronRight } from "lucide-react";
 import Link from "next/link";
 import { StatusBadge } from "@/components/admin/StatusBadge";
 import { CARE_RELATIONSHIP_LABELS } from "@/lib/domain/careRelationship";
-import { VISIT_STATUS_LABELS, VISIT_STATUS_TONE } from "@/lib/domain/clinicVisit";
+import {
+  VISIT_STATUS_LABELS,
+  VISIT_STATUS_TONE,
+} from "@/lib/domain/clinicVisit";
 import { formatDate } from "@/lib/format/formatDate";
 import { PATIENT_ROUTES } from "@/lib/routes/patientRoutes";
 import type { ResultVisitSummary } from "../types/examinationResult";
@@ -42,7 +45,10 @@ export function ResultVisitList({ items }: { items: ResultVisitSummary[] }) {
                 </StatusBadge>
               </span>
             </span>
-            <ChevronRight aria-hidden className="size-5 shrink-0 text-muted-foreground" />
+            <ChevronRight
+              aria-hidden
+              className="size-5 shrink-0 text-muted-foreground"
+            />
           </Link>
         </li>
       ))}

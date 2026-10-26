@@ -45,11 +45,15 @@ export function PayableSourceList({
       </div>
     );
   }
-  if (error) return <PaymentErrorBlock message={messageFromError(error)} onRetry={onRetry} />;
+  if (error)
+    return (
+      <PaymentErrorBlock message={messageFromError(error)} onRetry={onRetry} />
+    );
   if (!sources || sources.length === 0) {
     return (
       <PortalEmptyState>
-        Bạn không có khoản nào cần thanh toán. Phí khám và chỉ định sẽ hiện ở đây khi cần trả tiền.
+        Bạn không có khoản nào cần thanh toán. Phí khám và chỉ định sẽ hiện ở
+        đây khi cần trả tiền.
       </PortalEmptyState>
     );
   }
@@ -57,14 +61,22 @@ export function PayableSourceList({
     <ul className={LIST_FRAME_CLASS}>
       {sources.map((source) => (
         <li key={`${source.kind}:${source.id}`}>
-          <Link className={LIST_LINK_CLASS} href={sourceDetailHref(source.kind, source.id)}>
+          <Link
+            className={LIST_LINK_CLASS}
+            href={sourceDetailHref(source.kind, source.id)}
+          >
             <span className="min-w-0">
-              <span className="block font-medium">{payableSourceTitle(source)}</span>
+              <span className="block font-medium">
+                {payableSourceTitle(source)}
+              </span>
               <span className="block text-sm text-muted-foreground tabular-nums">
                 {summaryLine(source)}
               </span>
             </span>
-            <ChevronRight aria-hidden className="size-5 shrink-0 text-muted-foreground" />
+            <ChevronRight
+              aria-hidden
+              className="size-5 shrink-0 text-muted-foreground"
+            />
           </Link>
         </li>
       ))}
