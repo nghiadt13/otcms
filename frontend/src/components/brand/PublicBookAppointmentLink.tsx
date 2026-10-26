@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState, type ReactNode } from "react";
 import { PATIENT_ROUTES } from "@/lib/routes/patientRoutes";
-import { getSupabaseBrowserClient } from "@/lib/supabase/browser";
+import { getSession } from "@/lib/auth/authSession";
 
 // Nút "Đặt lịch khám" ở khu công khai. Khách chưa đăng nhập đi qua đăng nhập rồi quay lại
 // màn đặt lịch; người đã có phiên đi thẳng tới màn đặt lịch. Chỉ đổi đích sau khi đọc phiên
@@ -11,8 +11,7 @@ import { getSupabaseBrowserClient } from "@/lib/supabase/browser";
 const LOGIN_THEN_BOOK = `/login?next=${PATIENT_ROUTES.newAppointment}`;
 
 async function hasSignedInSession(): Promise<boolean> {
-  const { data } = await getSupabaseBrowserClient().auth.getSession();
-  return data.session !== null;
+  return (await getSession()) !== null;
 }
 
 export function PublicBookAppointmentLink({

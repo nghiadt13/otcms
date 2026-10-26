@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/sidebar";
 import { ROLE_LABELS } from "@/lib/domain/clinicRoles";
 import { ADMIN_ROUTES } from "@/lib/routes/adminRoutes";
-import { getSupabaseBrowserClient } from "@/lib/supabase/browser";
+import { signOut as endSession } from "@/lib/auth/authSession";
 import { ChangePasswordDialog } from "@/features/my-account/components/ChangePasswordDialog";
 import { useMyAccount } from "@/features/my-account/hooks/useMyAccount";
 import type { MyAccount } from "@/features/my-account/types/myAccount";
@@ -73,11 +73,8 @@ export function AdminAccountMenu() {
   const [passwordOpen, setPasswordOpen] = useState(false);
 
   async function signOut() {
-    try {
-      await getSupabaseBrowserClient().auth.signOut();
-    } catch {
-      // Chưa cấu hình Supabase hoặc chưa đăng nhập: vẫn quay về trang đăng nhập.
-    }
+    // endSession bỏ qua lỗi mạng và luôn xoá phiên phía trình duyệt.
+    await endSession();
     // replace: nút Back không đưa người dùng quay lại khu admin.
     router.replace("/login");
   }

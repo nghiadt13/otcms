@@ -5,7 +5,7 @@ import { PATIENT_NAV_ITEMS, groupPatientNavItems } from "../patientNavigation";
 import { PatientPortalHeader } from "./PatientPortalHeader";
 
 const replace = vi.fn();
-const signOut = vi.fn().mockResolvedValue({ error: null });
+const signOut = vi.hoisted(() => vi.fn());
 let pathname = "/portal";
 
 // Chỉ giả đường dẫn và router của Next; header, menu và Sheet chạy như thật.
@@ -14,15 +14,14 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace, push: vi.fn() }),
 }));
 
-// Ranh giới ngoài: client Supabase.
-vi.mock("@/lib/supabase/browser", () => ({
-  getSupabaseBrowserClient: () => ({ auth: { signOut } }),
-}));
+// Ranh giới ngoài: lớp phiên đăng nhập gọi backend.
+vi.mock("@/lib/auth/authSession", () => ({ signOut }));
 
 beforeEach(() => {
   pathname = "/portal";
   replace.mockClear();
   signOut.mockClear();
+  signOut.mockResolvedValue(undefined);
 });
 
 describe("PatientPortalHeader", () => {

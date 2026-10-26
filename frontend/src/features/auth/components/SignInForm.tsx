@@ -64,7 +64,7 @@ export function SignInForm({
     setSubmitting(true);
     try {
       await signIn(email, password);
-      // Giả lập: phiên thật nằm ở Supabase; ghi loại tài khoản giả để `/api/v1/me` giả trả đúng bệnh nhân.
+      // Giả lập: phiên thật do backend cấp (lib/auth/authSession); ghi loại tài khoản giả để `/api/v1/me` giả trả đúng bệnh nhân.
       setMockSignedInKind("PATIENT");
       router.replace(safePortalNext(next));
     } catch (cause) {

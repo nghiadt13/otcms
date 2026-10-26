@@ -18,13 +18,11 @@ const { replace, getSession } = vi.hoisted(() => ({
   getSession: vi.fn(),
 }));
 
-// Ranh giới ngoài: client Supabase (phiên) và router. Tài khoản đi qua API giả thật.
+// Ranh giới ngoài: lớp phiên đăng nhập và router. Tài khoản đi qua API giả thật.
 vi.mock("next/navigation", () => ({ useRouter: () => ({ replace }) }));
-vi.mock("@/lib/supabase/browser", () => ({
-  getSupabaseBrowserClient: () => ({ auth: { getSession } }),
-}));
+vi.mock("@/lib/auth/authSession", () => ({ getSession }));
 
-const signedIn = { data: { session: { access_token: "token-mock" } } };
+const signedIn = { accessToken: "token-mock" };
 
 beforeEach(() => {
   replace.mockClear();
@@ -36,7 +34,7 @@ beforeEach(() => {
 
 describe("RoleHomeRedirect", () => {
   it("chưa có phiên thì về đăng nhập", async () => {
-    getSession.mockResolvedValue({ data: { session: null } });
+    getSession.mockResolvedValue(null);
     render(<RoleHomeRedirect />);
     await waitFor(() => expect(replace).toHaveBeenCalledWith("/login"));
   });

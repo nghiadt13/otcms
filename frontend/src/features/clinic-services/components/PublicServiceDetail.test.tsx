@@ -4,11 +4,7 @@ import { getPublicService } from "../api/publicServiceApi";
 import { PublicServiceDetail } from "./PublicServiceDetail";
 
 // Phiên đăng nhập chưa có trong test: nút rơi về liên kết đăng nhập (đường an toàn).
-vi.mock("@/lib/supabase/browser", () => ({
-  getSupabaseBrowserClient: () => ({
-    auth: { getSession: async () => ({ data: { session: null } }) },
-  }),
-}));
+vi.mock("@/lib/auth/authSession", () => ({ getSession: async () => null }));
 
 describe("PublicServiceDetail", () => {
   it("chỉ dịch vụ Khám có nút Đặt lịch khám, dẫn qua đăng nhập", async () => {
