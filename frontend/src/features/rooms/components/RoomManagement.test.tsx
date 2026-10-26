@@ -106,7 +106,9 @@ describe("RoomManagement", () => {
       within(dialog).getByRole("button", { name: "Thêm phòng" }),
     );
 
-    const alert = await within(dialog).findByText(/Tên đã được sử dụng/);
+    const alert = await within(dialog).findByText(
+      /Tên hoặc mã phòng này đã được dùng cho phòng khác/,
+    );
     expect(alert.closest("[role=alert]")).not.toBeNull();
   });
 

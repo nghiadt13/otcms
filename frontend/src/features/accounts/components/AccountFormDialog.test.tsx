@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { isPasswordValid } from "@/lib/domain/passwordPolicy";
 import { resetAccountMockStore } from "../api/accountMockData";
 import { AccountFormDialog } from "./AccountFormDialog";
-
+import { formatAppMessage } from "@/lib/messages/appMessages";
 const onCreated = vi.fn();
 const onClose = vi.fn();
 
@@ -56,7 +56,10 @@ describe("AccountFormDialog", () => {
 
     expect(
       await screen.findByText(
-        "Đã tạo tài khoản Bác sĩ chỉnh hình với tên đăng nhập bacsi.moi. Mật khẩu khởi tạo chỉ hiển thị một lần.",
+        formatAppMessage("MSG-11", {
+          accountRole: "Bác sĩ chỉnh hình",
+          username: "bacsi.moi",
+        }),
       ),
     ).toBeInTheDocument();
     expect(screen.getByText("Xk7mQ2pL9vRt")).toBeInTheDocument();
@@ -66,7 +69,7 @@ describe("AccountFormDialog", () => {
     expect(onCreated).toHaveBeenCalledTimes(1);
     // Bước kết quả không có nút X.
     expect(
-      screen.queryByRole("button", { name: "Close" }),
+      screen.queryByRole("button", { name: "Đóng" }),
     ).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Sao chép mật khẩu" }));
@@ -93,9 +96,7 @@ describe("AccountFormDialog", () => {
     await user.click(screen.getByRole("button", { name: "Tạo tài khoản" }));
 
     expect(
-      await screen.findAllByText(
-        "Tên đăng nhập đã được sử dụng. Vui lòng chọn tên khác.",
-      ),
+      await screen.findAllByText(formatAppMessage("MSG-13")),
     ).not.toHaveLength(0);
     expect(screen.getByLabelText("Tên đăng nhập *")).toHaveValue("trung");
     expect(screen.getByLabelText("Mật khẩu khởi tạo *")).toHaveValue(
@@ -127,7 +128,7 @@ describe("AccountFormDialog", () => {
     await user.click(screen.getByRole("button", { name: "Tạo tài khoản" }));
 
     expect(
-      await screen.findByText("Bạn không có quyền thực hiện thao tác này."),
+      await screen.findByText(formatAppMessage("MSG-14")),
     ).toBeInTheDocument();
     await waitFor(() => expect(onClose).toHaveBeenCalled());
     expect(onCreated).not.toHaveBeenCalled();
@@ -142,7 +143,7 @@ describe("AccountFormDialog", () => {
     await waitFor(() => expect(onClose).toHaveBeenCalled());
     expect(onCreated).toHaveBeenCalledTimes(1);
     expect(
-      await screen.findByText(/Chưa chắc thao tác đã được lưu/),
+      await screen.findByText(formatAppMessage("MSG-16")),
     ).toBeInTheDocument();
   });
 

@@ -9,7 +9,7 @@ import {
   resetAccountMockStore,
 } from "../api/accountMockData";
 import { AccountDetailSheet } from "./AccountDetailSheet";
-
+import { formatAppMessage } from "@/lib/messages/appMessages";
 const push = vi.fn();
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
 
@@ -142,7 +142,7 @@ describe("AccountDetailSheet", () => {
     await waitFor(() => expect(onClose).toHaveBeenCalled());
     expect(onStale).toHaveBeenCalled();
     expect(
-      await screen.findByText("Bạn không có quyền thực hiện thao tác này."),
+      await screen.findByText(formatAppMessage("MSG-14")),
     ).toBeInTheDocument();
   });
 });

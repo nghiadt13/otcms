@@ -4,7 +4,7 @@ import { Toaster } from "sonner";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { accountStore, resetAccountMockStore } from "../api/accountMockData";
 import { AccountManagement } from "./AccountManagement";
-
+import { formatAppMessage } from "@/lib/messages/appMessages";
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
 
 const renderScreen = () =>
@@ -78,11 +78,7 @@ describe("AccountManagement", () => {
 
     await search(user, "a".repeat(101));
     expect(
-      await screen.findAllByText(
-        "Tiêu chí lọc chưa hợp lệ. Vui lòng kiểm tra lại.",
-        undefined,
-        SLOW,
-      ),
+      await screen.findAllByText(formatAppMessage("MSG-54"), undefined, SLOW),
     ).not.toHaveLength(0);
     expect(screen.getByRole("button", { name: "Thử lại" })).toBeInTheDocument();
   });
