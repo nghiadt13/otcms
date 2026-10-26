@@ -84,7 +84,7 @@ class CreateWalkInVisitT043PostgresIntegrationTest {
                         + "qualifications, biography, consultation_information, publicly_visible, accepting_new_bookings, in_active_directory) "
                         + "values (?, ?, 'T043 Doctor', '', 'private', '', '', '', '', true, true, true)",
                 doctorProfile, doctorAccount);
-        jdbc.update("insert into doctor_service_assignments (doctor_profile_id, service_id, active) values (?, ?, true)",
+        jdbc.update("insert into doctor_services (doctor_profile_id, service_id, active) values (?, ?, true)",
                 doctorProfile, serviceId);
     }
 
@@ -105,13 +105,13 @@ class CreateWalkInVisitT043PostgresIntegrationTest {
             first.get(20, TimeUnit.SECONDS);
             second.get(20, TimeUnit.SECONDS);
             if (failure.get() != null) throw new AssertionError("Concurrent WALK_IN replay failed", failure.get());
-            assertEquals(1, jdbc.queryForObject("select count(*) from walk_in_reception_replays "
+            assertEquals(1, jdbc.queryForObject("select count(*) from walk_in_requests "
                     + "where receptionist_account_id = ? and idempotency_key = ?", Integer.class,
                     sharedReceptionist, idempotencyKey));
-            UUID createdVisit = jdbc.queryForObject("select visit_id from walk_in_reception_replays "
+            UUID createdVisit = jdbc.queryForObject("select visit_id from walk_in_requests "
                     + "where receptionist_account_id = ? and idempotency_key = ?", UUID.class,
                     sharedReceptionist, idempotencyKey);
-            assertEquals(1, jdbc.queryForObject("select count(*) from clinic_visits where id = ? "
+            assertEquals(1, jdbc.queryForObject("select count(*) from visits where id = ? "
                     + "and patient_profile_id = ? and created_by_account_id = ? and arrived_at = ?", Integer.class,
                     createdVisit, sharedPatient, sharedReceptionist, Timestamp.from(NOW)));
             visitIds.add(createdVisit);
@@ -152,16 +152,16 @@ class CreateWalkInVisitT043PostgresIntegrationTest {
         jdbc.execute("alter table visit_audits disable trigger tr_visit_audits_no_truncate");
         try {
             for (UUID visitId : visitIds) {
-                jdbc.update("delete from walk_in_reception_replays where visit_id = ?", visitId);
-                jdbc.update("delete from visit_initial_receptions where visit_id = ?", visitId);
+                jdbc.update("delete from walk_in_requests where visit_id = ?", visitId);
+                jdbc.update("delete from visit_check_ins where visit_id = ?", visitId);
                 jdbc.update("delete from visit_audits where visit_id = ?", visitId);
-                jdbc.update("delete from clinic_visits where id = ?", visitId);
+                jdbc.update("delete from visits where id = ?", visitId);
             }
             for (UUID appointmentId : appointmentIds) {
                 jdbc.update("delete from appointment_audits where appointment_id = ?", appointmentId);
                 jdbc.update("delete from appointments where id = ?", appointmentId);
             }
-            if (doctorProfile != null) jdbc.update("delete from doctor_service_assignments where doctor_profile_id = ?", doctorProfile);
+            if (doctorProfile != null) jdbc.update("delete from doctor_services where doctor_profile_id = ?", doctorProfile);
             if (serviceId != null) jdbc.update("delete from clinic_services where id = ?", serviceId);
             if (doctorProfile != null) jdbc.update("delete from doctor_profiles where id = ?", doctorProfile);
             if (patientProfile != null) jdbc.update("delete from patient_profiles where id = ?", patientProfile);
@@ -189,19 +189,19 @@ class CreateWalkInVisitT043PostgresIntegrationTest {
                 .andExpect(jsonPath("$.arrivedAt").value(NOW.toString()))
                 .andReturn();
         // The ID is read from the persisted replay row so assertions cover the owner write path.
-        UUID visitId = jdbc.queryForObject("select visit_id from walk_in_reception_replays where receptionist_account_id = ? "
+        UUID visitId = jdbc.queryForObject("select visit_id from walk_in_requests where receptionist_account_id = ? "
                 + "and idempotency_key = 't043-create'", UUID.class, receptionist);
         visitIds.add(visitId);
-        assertEquals("WALK_IN", jdbc.queryForObject("select source from clinic_visits where id = ?", String.class, visitId));
-        assertEquals("OPEN", jdbc.queryForObject("select status from clinic_visits where id = ?", String.class, visitId));
-        assertEquals(patientProfile, jdbc.queryForObject("select patient_profile_id from clinic_visits where id = ?", UUID.class, visitId));
-        assertEquals(NOW, jdbc.queryForObject("select arrived_at from clinic_visits where id = ?", Timestamp.class, visitId).toInstant());
-        assertEquals(NOW, jdbc.queryForObject("select checked_in_at from clinic_visits where id = ?", Timestamp.class, visitId).toInstant());
-        assertEquals(1, jdbc.queryForObject("select count(*) from visit_initial_receptions where visit_id = ? and reception_type = 'WALK_IN'", Integer.class, visitId));
+        assertEquals("WALK_IN", jdbc.queryForObject("select source from visits where id = ?", String.class, visitId));
+        assertEquals("OPEN", jdbc.queryForObject("select status from visits where id = ?", String.class, visitId));
+        assertEquals(patientProfile, jdbc.queryForObject("select patient_profile_id from visits where id = ?", UUID.class, visitId));
+        assertEquals(NOW, jdbc.queryForObject("select arrived_at from visits where id = ?", Timestamp.class, visitId).toInstant());
+        assertEquals(NOW, jdbc.queryForObject("select checked_in_at from visits where id = ?", Timestamp.class, visitId).toInstant());
+        assertEquals(1, jdbc.queryForObject("select count(*) from visit_check_ins where visit_id = ? and reception_type = 'WALK_IN'", Integer.class, visitId));
         assertEquals(1, jdbc.queryForObject("select count(*) from visit_audits where visit_id = ? and actor_account_id = ? "
                 + "and action = 'WALK_IN_CREATED' and occurred_at = ? and correlation_id = ?", Integer.class,
                 visitId, receptionist, Timestamp.from(NOW), CORRELATION));
-        assertEquals(1, jdbc.queryForObject("select count(*) from walk_in_reception_replays where visit_id = ?", Integer.class, visitId));
+        assertEquals(1, jdbc.queryForObject("select count(*) from walk_in_requests where visit_id = ?", Integer.class, visitId));
         assertEquals(0, jdbc.queryForObject("select count(*) from appointments where visit_id = ?", Integer.class, visitId));
     }
 
@@ -213,11 +213,11 @@ class CreateWalkInVisitT043PostgresIntegrationTest {
         var replay = mvc.perform(createRequest(payload, "t043-replay", receptionist, AccountType.RECEPTIONIST))
                 .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
         assertEquals(first, replay);
-        UUID visitId = jdbc.queryForObject("select visit_id from walk_in_reception_replays where receptionist_account_id = ? "
+        UUID visitId = jdbc.queryForObject("select visit_id from walk_in_requests where receptionist_account_id = ? "
                 + "and idempotency_key = 't043-replay'", UUID.class, receptionist);
         visitIds.add(visitId);
-        assertEquals(1, jdbc.queryForObject("select count(*) from clinic_visits where id = ?", Integer.class, visitId));
-        assertEquals(1, jdbc.queryForObject("select count(*) from visit_initial_receptions where visit_id = ?", Integer.class, visitId));
+        assertEquals(1, jdbc.queryForObject("select count(*) from visits where id = ?", Integer.class, visitId));
+        assertEquals(1, jdbc.queryForObject("select count(*) from visit_check_ins where visit_id = ?", Integer.class, visitId));
         assertEquals(1, jdbc.queryForObject("select count(*) from visit_audits where visit_id = ?", Integer.class, visitId));
     }
 
@@ -225,13 +225,13 @@ class CreateWalkInVisitT043PostgresIntegrationTest {
     void rejectsSameKeyWithDifferentRequestAndLeavesFirstVisitUnchanged() throws Exception {
         mvc.perform(create(patientProfile, null, "t043-conflict", receptionist, AccountType.RECEPTIONIST))
                 .andExpect(status().isCreated());
-        UUID visitId = jdbc.queryForObject("select visit_id from walk_in_reception_replays where receptionist_account_id = ? "
+        UUID visitId = jdbc.queryForObject("select visit_id from walk_in_requests where receptionist_account_id = ? "
                 + "and idempotency_key = 't043-conflict'", UUID.class, receptionist);
         visitIds.add(visitId);
         mvc.perform(create(otherPatientProfile, null, "t043-conflict", receptionist, AccountType.RECEPTIONIST))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.error.code").value("IDEMPOTENCY_CONFLICT"));
-        assertEquals(1, jdbc.queryForObject("select count(*) from clinic_visits where created_by_account_id = ?", Integer.class, receptionist));
+        assertEquals(1, jdbc.queryForObject("select count(*) from visits where created_by_account_id = ?", Integer.class, receptionist));
     }
 
     @Test
@@ -241,8 +241,8 @@ class CreateWalkInVisitT043PostgresIntegrationTest {
         mvc.perform(create(UUID.randomUUID(), null, "t043-missing", receptionist, AccountType.RECEPTIONIST))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.error.code").value("RESOURCE_NOT_FOUND"));
-        assertEquals(0, jdbc.queryForObject("select count(*) from clinic_visits where created_by_account_id = ?", Integer.class, receptionist));
-        assertEquals(0, jdbc.queryForObject("select count(*) from walk_in_reception_replays where receptionist_account_id = ?", Integer.class, receptionist));
+        assertEquals(0, jdbc.queryForObject("select count(*) from visits where created_by_account_id = ?", Integer.class, receptionist));
+        assertEquals(0, jdbc.queryForObject("select count(*) from walk_in_requests where receptionist_account_id = ?", Integer.class, receptionist));
     }
 
     @Test
@@ -254,15 +254,15 @@ class CreateWalkInVisitT043PostgresIntegrationTest {
                 .andExpect(jsonPath("$.error.code").value("RESOURCE_NOT_FOUND"));
         assertEquals("CONFIRMED", jdbc.queryForObject("select status from appointments where id = ?", String.class,
                 otherPatientAppointment));
-        assertEquals(0, jdbc.queryForObject("select count(*) from clinic_visits where created_by_account_id = ?", Integer.class, receptionist));
-        assertEquals(0, jdbc.queryForObject("select count(*) from walk_in_reception_replays where receptionist_account_id = ?", Integer.class, receptionist));
+        assertEquals(0, jdbc.queryForObject("select count(*) from visits where created_by_account_id = ?", Integer.class, receptionist));
+        assertEquals(0, jdbc.queryForObject("select count(*) from walk_in_requests where receptionist_account_id = ?", Integer.class, receptionist));
     }
 
     @Test
     void auditRowsRejectUpdateDeleteAndTruncate() throws Exception {
         mvc.perform(create(patientProfile, null, "t043-immutable", receptionist, AccountType.RECEPTIONIST))
                 .andExpect(status().isCreated());
-        UUID visitId = jdbc.queryForObject("select visit_id from walk_in_reception_replays where receptionist_account_id = ? "
+        UUID visitId = jdbc.queryForObject("select visit_id from walk_in_requests where receptionist_account_id = ? "
                 + "and idempotency_key = 't043-immutable'", UUID.class, receptionist);
         visitIds.add(visitId);
         assertThrows(DataAccessException.class, () -> jdbc.update("update visit_audits set action = 'CHANGED' where visit_id = ?", visitId));
@@ -280,10 +280,10 @@ class CreateWalkInVisitT043PostgresIntegrationTest {
         mvc.perform(create(patientProfile, null, "t043-rollback", receptionist, AccountType.RECEPTIONIST))
                 .andExpect(status().isServiceUnavailable())
                 .andExpect(jsonPath("$.error.code").value("DEPENDENCY_UNAVAILABLE"));
-        assertEquals(0, jdbc.queryForObject("select count(*) from clinic_visits where created_by_account_id = ?", Integer.class, receptionist));
-        assertEquals(0, jdbc.queryForObject("select count(*) from visit_initial_receptions where receptionist_account_id = ?", Integer.class, receptionist));
+        assertEquals(0, jdbc.queryForObject("select count(*) from visits where created_by_account_id = ?", Integer.class, receptionist));
+        assertEquals(0, jdbc.queryForObject("select count(*) from visit_check_ins where receptionist_account_id = ?", Integer.class, receptionist));
         assertEquals(0, jdbc.queryForObject("select count(*) from visit_audits where actor_account_id = ?", Integer.class, receptionist));
-        assertEquals(0, jdbc.queryForObject("select count(*) from walk_in_reception_replays where receptionist_account_id = ?", Integer.class, receptionist));
+        assertEquals(0, jdbc.queryForObject("select count(*) from walk_in_requests where receptionist_account_id = ?", Integer.class, receptionist));
     }
 
     private MockHttpServletRequestBuilder create(UUID profileId, UUID priorAppointmentId, String key, UUID actor,
@@ -367,18 +367,18 @@ class CreateWalkInVisitT043PostgresIntegrationTest {
         jdbc.execute("alter table appointment_audits disable trigger tr_appointment_audits_immutable");
         try {
             String oldAccounts = "select id from accounts where normalized_email like 't043-%@example.test'";
-            String oldVisits = "select id from clinic_visits where created_by_account_id in (" + oldAccounts + ")";
+            String oldVisits = "select id from visits where created_by_account_id in (" + oldAccounts + ")";
             String oldAppointments = "select id from appointments where service_id in "
                     + "(select id from clinic_services where name = 'T043 Service') or created_by_account_id in ("
                     + oldAccounts + ")";
-            jdbc.update("delete from walk_in_reception_replays where visit_id in (" + oldVisits
+            jdbc.update("delete from walk_in_requests where visit_id in (" + oldVisits
                     + ") or receptionist_account_id in (" + oldAccounts + ")");
-            jdbc.update("delete from visit_initial_receptions where visit_id in (" + oldVisits + ")");
+            jdbc.update("delete from visit_check_ins where visit_id in (" + oldVisits + ")");
             jdbc.update("delete from visit_audits where visit_id in (" + oldVisits + ")");
-            jdbc.update("delete from clinic_visits where id in (" + oldVisits + ")");
+            jdbc.update("delete from visits where id in (" + oldVisits + ")");
             jdbc.update("delete from appointment_audits where appointment_id in (" + oldAppointments + ")");
             jdbc.update("delete from appointments where id in (" + oldAppointments + ")");
-            jdbc.update("delete from doctor_service_assignments where doctor_profile_id in "
+            jdbc.update("delete from doctor_services where doctor_profile_id in "
                     + "(select id from doctor_profiles where account_id in (" + oldAccounts + "))");
             jdbc.update("delete from clinic_services where name = 'T043 Service'");
             jdbc.update("delete from doctor_profiles where account_id in (" + oldAccounts + ")");

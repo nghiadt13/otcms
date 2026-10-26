@@ -24,7 +24,7 @@ public class CoordinationGuardRepository {
 
     public boolean lockGuardRow() {
         List<?> rows = entityManager.createNativeQuery(
-                "SELECT guard_id FROM integration_coordination_guard WHERE guard_id = 1 FOR UPDATE").getResultList();
+                "SELECT guard_id FROM transaction_guard WHERE guard_id = 1 FOR UPDATE").getResultList();
         return !rows.isEmpty();
     }
 }

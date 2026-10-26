@@ -8,7 +8,7 @@ import lombok.Setter;
 import java.time.Instant;
 import java.util.UUID;
 
-@Entity @Table(name = "external_identities", uniqueConstraints = @UniqueConstraint(name = "uk_external_identities_provider_subject", columnNames = {"provider", "provider_subject"}))
+@Entity @Table(name = "account_identities", uniqueConstraints = @UniqueConstraint(name = "uk_external_identities_provider_subject", columnNames = {"provider", "provider_subject"}))
 @Getter
 @Setter
 @NoArgsConstructor

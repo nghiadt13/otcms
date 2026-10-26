@@ -8,7 +8,7 @@ import java.time.Instant;
 import java.util.UUID;
 
 @Entity
-@Table(name = "clinic_visits")
+@Table(name = "visits")
 public class ClinicVisitJpaEntity {
     @Id
     private UUID id;
@@ -61,7 +61,9 @@ public class ClinicVisitJpaEntity {
 
     public UUID getId() { return id; }
     public UUID getPatientProfileId() { return patientProfileId; }
+    public String getSource() { return source; }
     public UUID getPriorAppointmentId() { return priorAppointmentId; }
     public Instant getArrivedAt() { return arrivedAt; }
     public Instant getCheckedInAt() { return checkedInAt; }
+    public String getStatus() { return status; }
 }

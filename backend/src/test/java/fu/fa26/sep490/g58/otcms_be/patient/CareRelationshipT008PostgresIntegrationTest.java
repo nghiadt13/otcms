@@ -83,7 +83,7 @@ class CareRelationshipT008PostgresIntegrationTest {
         assertEquals(AuthorizePatientProfileService.AuthorizationScope.SELF,
                 authorization.authorize(requester, own).scope());
         UUID relationship = UUID.randomUUID();
-        jdbc.update("insert into patient_care_relationships(id,requester_account_id,dependent_patient_profile_id,confirming_account_id,state,requested_at,confirmed_at) values (?,?,?,?,'CONFIRMED',now(),now())",
+        jdbc.update("insert into patient_caregivers(id,requester_account_id,dependent_patient_profile_id,confirming_account_id,state,requested_at,confirmed_at) values (?,?,?,?,'CONFIRMED',now(),now())",
                 relationship, requester, target, dependent);
         assertThrows(PatientAuthorizationDeniedException.class, () -> authorization.authorize(requester, target));
         assertThrows(PatientAuthorizationDeniedException.class, () -> authorization.authorize(stranger, target));

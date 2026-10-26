@@ -8,7 +8,7 @@ import java.time.Instant;
 import java.util.UUID;
 
 @Entity
-@Table(name = "doctor_operational_time_off")
+@Table(name = "doctor_time_off")
 public class DoctorOperationalTimeOffJpaEntity {
     @Id private UUID id;
     @Column(name = "doctor_profile_id", nullable = false) private UUID doctorProfileId;

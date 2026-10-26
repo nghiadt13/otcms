@@ -47,8 +47,8 @@ class T005RealLoginIntegrationTest {
 
     @AfterEach
     void cleanup() {
-        jdbc.update("delete from authentication_audits where account_id in (select id from accounts where normalized_email like ?)", PREFIX + "%");
-        jdbc.update("delete from authentication_audits where correlation_id like ?", PREFIX + "%");
+        jdbc.update("delete from auth_audits where account_id in (select id from accounts where normalized_email like ?)", PREFIX + "%");
+        jdbc.update("delete from auth_audits where correlation_id like ?", PREFIX + "%");
         jdbc.update("delete from accounts where normalized_email like ?", PREFIX + "%");
     }
 
@@ -98,10 +98,10 @@ class T005RealLoginIntegrationTest {
         CredentialLoginException limited = assertThrows(CredentialLoginException.class,
                 () -> login.login("unknown-t005@example.com", "wrong", AccountType.PATIENT, ip));
         assertEquals("RATE_LIMIT_EXCEEDED", limited.getMessage());
-        Integer count = jdbc.queryForObject("select count(*) from authentication_audits where method = 'LOGIN_IP' and outcome = 'ATTEMPT' and client_ip is null and identifier_hmac is not null", Integer.class);
+        Integer count = jdbc.queryForObject("select count(*) from auth_audits where method = 'LOGIN_IP' and outcome = 'ATTEMPT' and client_ip is null and identifier_hmac is not null", Integer.class);
         assertNotNull(count);
         assertTrue(count >= 2);
-        String rawCount = jdbc.queryForObject("select count(*) from authentication_audits where client_ip = ?", Integer.class, ip).toString();
+        String rawCount = jdbc.queryForObject("select count(*) from auth_audits where client_ip = ?", Integer.class, ip).toString();
         assertEquals("0", rawCount);
     }
 

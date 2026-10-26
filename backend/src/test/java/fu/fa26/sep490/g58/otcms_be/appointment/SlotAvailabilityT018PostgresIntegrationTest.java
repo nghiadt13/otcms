@@ -86,11 +86,11 @@ class SlotAvailabilityT018PostgresIntegrationTest {
                         + "values (?, 'T018 service', '', 60, 15, true, true)", serviceId);
         jdbc.update("insert into doctor_profiles (id, account_id, full_name, specialties, qualifications, biography, consultation_information) "
                         + "values (?, ?, 'T018 Doctor', '', '', '', '')", doctorId, doctorAccountId);
-        jdbc.update("insert into doctor_service_assignments (doctor_profile_id, service_id, active) values (?, ?, true)",
+        jdbc.update("insert into doctor_services (doctor_profile_id, service_id, active) values (?, ?, true)",
                 doctorId, serviceId);
-        jdbc.update("insert into doctor_work_shifts (id, doctor_profile_id, starts_at, ends_at) values (?, ?, ?, ?)",
+        jdbc.update("insert into doctor_shifts (id, doctor_profile_id, starts_at, ends_at) values (?, ?, ?, ?)",
                 shiftId, doctorId, Timestamp.from(dayStart), Timestamp.from(dayStart.plus(Duration.ofHours(4))));
-        jdbc.update("insert into doctor_operational_time_off (id, doctor_profile_id, starts_at, ends_at) values (?, ?, ?, ?)",
+        jdbc.update("insert into doctor_time_off (id, doctor_profile_id, starts_at, ends_at) values (?, ?, ?, ?)",
                 timeOffId, doctorId, Timestamp.from(dayStart.plus(Duration.ofMinutes(75))),
                 Timestamp.from(dayStart.plus(Duration.ofMinutes(90))));
         jdbc.update("insert into appointments (id, patient_profile_id, service_id, doctor_profile_id, status, booking_source, purpose, "
@@ -99,15 +99,15 @@ class SlotAvailabilityT018PostgresIntegrationTest {
                 appointmentId, patientId, serviceId, doctorId, Timestamp.from(dayStart.plus(Duration.ofMinutes(150))),
                 Timestamp.from(dayStart.plus(Duration.ofMinutes(210))), doctorAccountId);
         new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
-            jdbc.update("insert into clinic_visits (id, patient_profile_id, source, originating_appointment_id, arrived_at, checked_in_at, created_by_account_id) "
+            jdbc.update("insert into visits (id, patient_profile_id, source, originating_appointment_id, arrived_at, checked_in_at, created_by_account_id) "
                             + "values (?, ?, 'SCHEDULED', ?, ?, ?, ?)", visitId, patientId, appointmentId,
                     Timestamp.from(dayStart), Timestamp.from(dayStart), receptionistAccountId);
-            jdbc.update("insert into visit_initial_receptions (visit_id, receptionist_account_id, reception_type, arrived_at, checked_in_at) "
+            jdbc.update("insert into visit_check_ins (visit_id, receptionist_account_id, reception_type, arrived_at, checked_in_at) "
                             + "values (?, ?, 'APPOINTMENT_CHECK_IN', ?, ?)", visitId, receptionistAccountId,
                     Timestamp.from(dayStart), Timestamp.from(dayStart));
             jdbc.update("update appointments set status = 'CHECKED_IN', visit_id = ? where id = ?", visitId, appointmentId);
         });
-        jdbc.update("insert into visit_care_assignments (id, visit_id, doctor_profile_id, starts_at, ends_at, status) "
+        jdbc.update("insert into visit_assignments (id, visit_id, doctor_profile_id, starts_at, ends_at, status) "
                         + "values (?, ?, ?, ?, ?, 'RESERVED')", careAssignmentId, visitId, doctorId,
                 Timestamp.from(dayStart.plus(Duration.ofMinutes(195))),
                 Timestamp.from(dayStart.plus(Duration.ofMinutes(225))));
@@ -117,13 +117,13 @@ class SlotAvailabilityT018PostgresIntegrationTest {
                                UUID appointmentId, UUID visitId, UUID careAssignmentId,
                                UUID shiftId, UUID timeOffId) {
         jdbc.update("update appointments set status = 'CONFIRMED', visit_id = null where id = ?", appointmentId);
-        jdbc.update("delete from visit_care_assignments where id = ?", careAssignmentId);
-        jdbc.update("delete from visit_initial_receptions where visit_id = ?", visitId);
-        jdbc.update("delete from clinic_visits where id = ?", visitId);
+        jdbc.update("delete from visit_assignments where id = ?", careAssignmentId);
+        jdbc.update("delete from visit_check_ins where visit_id = ?", visitId);
+        jdbc.update("delete from visits where id = ?", visitId);
         jdbc.update("delete from appointments where id = ?", appointmentId);
-        jdbc.update("delete from doctor_operational_time_off where id = ?", timeOffId);
-        jdbc.update("delete from doctor_work_shifts where id = ?", shiftId);
-        jdbc.update("delete from doctor_service_assignments where doctor_profile_id = ? and service_id = ?", doctorId, serviceId);
+        jdbc.update("delete from doctor_time_off where id = ?", timeOffId);
+        jdbc.update("delete from doctor_shifts where id = ?", shiftId);
+        jdbc.update("delete from doctor_services where doctor_profile_id = ? and service_id = ?", doctorId, serviceId);
         jdbc.update("delete from clinic_services where id = ?", serviceId);
         jdbc.update("delete from patient_profiles where id = ?", patientId);
         jdbc.update("delete from doctor_profiles where id = ?", doctorId);

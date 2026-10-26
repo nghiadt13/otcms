@@ -41,11 +41,11 @@ class T004PostgresIntegrationTest {
 
     @AfterEach
     void cleanup() {
-        jdbc.update("delete from authentication_audits where method = 'REGISTRATION' and outcome = 'RATE_LIMIT_ATTEMPT'");
-        jdbc.update("delete from authentication_audits where correlation_id like ?", PREFIX + "%");
-        jdbc.update("delete from authentication_audits where account_id in (select id from accounts where normalized_email like ?)", PREFIX + "%");
-        jdbc.update("delete from email_verification_challenges where account_id in (select id from accounts where normalized_email like ?)", PREFIX + "%");
-        jdbc.update("delete from consent_evidence where account_id in (select id from accounts where normalized_email like ?)", PREFIX + "%");
+        jdbc.update("delete from auth_audits where method = 'REGISTRATION' and outcome = 'RATE_LIMIT_ATTEMPT'");
+        jdbc.update("delete from auth_audits where correlation_id like ?", PREFIX + "%");
+        jdbc.update("delete from auth_audits where account_id in (select id from accounts where normalized_email like ?)", PREFIX + "%");
+        jdbc.update("delete from email_verifications where account_id in (select id from accounts where normalized_email like ?)", PREFIX + "%");
+        jdbc.update("delete from account_consents where account_id in (select id from accounts where normalized_email like ?)", PREFIX + "%");
         jdbc.update("delete from patient_profiles where account_id in (select id from accounts where normalized_email like ?)", PREFIX + "%");
         jdbc.update("delete from accounts where normalized_email like ?", PREFIX + "%");
     }
@@ -53,7 +53,7 @@ class T004PostgresIntegrationTest {
     @BeforeEach
     void isolatePersistedRateLimitState() {
         cleanup();
-        jdbc.update("delete from authentication_audits where method = 'REGISTRATION' and outcome = 'RATE_LIMIT_ATTEMPT'");
+        jdbc.update("delete from auth_audits where method = 'REGISTRATION' and outcome = 'RATE_LIMIT_ATTEMPT'");
     }
 
     @Test
@@ -70,7 +70,7 @@ class T004PostgresIntegrationTest {
         assertEquals(1, jdbc.queryForObject("select count(*) from patient_profiles where account_id = ? and id is not null and id <> account_id", Integer.class, account.getId()));
         assertEquals(2, consents.findAll().stream().filter(c -> c.getAccount().getId().equals(account.getId())).count());
         assertEquals(1, challenges.countByAccountIdAndCreatedAtAfter(account.getId(), Instant.EPOCH));
-        assertEquals(1, jdbc.queryForObject("select count(*) from consent_evidence where account_id = ? and actor_type = 'GUARDIAN'", Integer.class, account.getId()));
+        assertEquals(1, jdbc.queryForObject("select count(*) from account_consents where account_id = ? and actor_type = 'GUARDIAN'", Integer.class, account.getId()));
     }
 
     @Test
@@ -91,7 +91,7 @@ class T004PostgresIntegrationTest {
         audit.setOccurredAt(Instant.now()); audit.setMethod("REGISTRATION"); audit.setOutcome("RATE_LIMIT_ATTEMPT");
         audit.setIdentifierHmac("a".repeat(64)); audit.setCorrelationId(PREFIX + "audit"); audit.setClientIp(null); audit.setDurationMs(0);
         audits.saveAndFlush(audit);
-        assertEquals(1, jdbc.queryForObject("select count(*) from authentication_audits where correlation_id = ? and client_ip is null and identifier_hmac = ?", Integer.class, PREFIX + "audit", "a".repeat(64)));
+        assertEquals(1, jdbc.queryForObject("select count(*) from auth_audits where correlation_id = ? and client_ip is null and identifier_hmac = ?", Integer.class, PREFIX + "audit", "a".repeat(64)));
     }
 
     @Test
@@ -128,7 +128,7 @@ class T004PostgresIntegrationTest {
         audit.setOutcome("REGISTRATION_EMAIL_DELIVERY_UNAVAILABLE"); audit.setAccount(account); audit.setCorrelationId(PREFIX + "email"); audit.setDurationMs(0);
         audits.saveAndFlush(audit);
         assertEquals(AccountStatus.PENDING_VERIFICATION, accounts.findById(account.getId()).orElseThrow().getStatus());
-        assertEquals(1, jdbc.queryForObject("select count(*) from authentication_audits where account_id = ? and outcome = ?", Integer.class, account.getId(), "REGISTRATION_EMAIL_DELIVERY_UNAVAILABLE"));
+        assertEquals(1, jdbc.queryForObject("select count(*) from auth_audits where account_id = ? and outcome = ?", Integer.class, account.getId(), "REGISTRATION_EMAIL_DELIVERY_UNAVAILABLE"));
     }
 
     private EmailVerificationChallengeJpaEntity challenge(AccountJpaEntity account, String hash) {

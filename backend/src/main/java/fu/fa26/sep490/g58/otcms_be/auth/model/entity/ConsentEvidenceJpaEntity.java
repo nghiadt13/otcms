@@ -8,7 +8,7 @@ import lombok.Setter;
 import java.time.Instant;
 import java.util.UUID;
 
-@Entity @Table(name = "consent_evidence", uniqueConstraints = @UniqueConstraint(name = "uk_consent_evidence_version", columnNames = {"account_id", "actor_type", "terms_version", "privacy_version"}))
+@Entity @Table(name = "account_consents", uniqueConstraints = @UniqueConstraint(name = "uk_consent_evidence_version", columnNames = {"account_id", "actor_type", "terms_version", "privacy_version"}))
 @Getter
 @Setter
 @NoArgsConstructor

@@ -11,7 +11,7 @@ import java.time.Instant;
 public interface StaffResourceManagementAuditRepository
         extends JpaRepository<StaffResourceManagementAuditJpaEntity, UUID> {
     @Modifying
-    @Query(value = "insert into staff_resource_management_audits "
+    @Query(value = "insert into staff_resource_audits "
             + "(id,doctor_profile_id,actor_account_id,resource_type,resource_id,action,before_state,after_state,occurred_at,correlation_id) "
             + "values (:id,:doctorId,:actorId,:type,:resourceId,:action,cast(:beforeState as jsonb),cast(:afterState as jsonb),:occurredAt,:correlationId)", nativeQuery = true)
     int append(@Param("id") UUID id, @Param("doctorId") UUID doctorId, @Param("actorId") UUID actorId,
