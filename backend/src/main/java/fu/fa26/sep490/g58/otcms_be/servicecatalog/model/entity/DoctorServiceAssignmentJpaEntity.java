@@ -9,7 +9,7 @@ import java.time.Instant;
 import java.util.UUID;
 
 @Entity
-@Table(name = "doctor_service_assignments")
+@Table(name = "doctor_services")
 public class DoctorServiceAssignmentJpaEntity {
     @Id private UUID id;
     @Column(name = "doctor_profile_id", nullable = false) private UUID doctorProfileId;

@@ -70,7 +70,7 @@ class CancelAppointmentT025PostgresIntegrationTest {
         jdbc.update("insert into doctor_profiles (id, account_id, full_name, photo_url, work_contact, specialties, "
                         + "qualifications, biography, consultation_information, publicly_visible, accepting_new_bookings, in_active_directory) "
                         + "values (?, ?, 'T025 Doctor', '', 'private', '', '', '', '', true, true, true)", doctorProfile, doctorAccount);
-        jdbc.update("insert into doctor_service_assignments (doctor_profile_id, service_id, active) values (?, ?, true)",
+        jdbc.update("insert into doctor_services (doctor_profile_id, service_id, active) values (?, ?, true)",
                 doctorProfile, service);
         appointment = insertAppointment(patientProfile, patientAccount, START, "T025 private purpose");
     }
@@ -85,7 +85,7 @@ class CancelAppointmentT025PostgresIntegrationTest {
             if (service != null) {
                 jdbc.update("delete from appointment_audits where appointment_id in (select id from appointments where service_id = ?)", service);
                 jdbc.update("delete from appointments where service_id = ?", service);
-                jdbc.update("delete from doctor_service_assignments where service_id = ?", service);
+                jdbc.update("delete from doctor_services where service_id = ?", service);
                 jdbc.update("delete from clinic_services where id = ?", service);
             }
             if (doctorProfile != null) jdbc.update("delete from doctor_profiles where id = ?", doctorProfile);

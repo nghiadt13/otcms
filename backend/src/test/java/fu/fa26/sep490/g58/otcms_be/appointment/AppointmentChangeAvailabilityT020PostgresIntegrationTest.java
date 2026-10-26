@@ -93,9 +93,9 @@ class AppointmentChangeAvailabilityT020PostgresIntegrationTest {
         insertDoctor(currentDoctorId, currentDoctorAccountId, "T020 Current Doctor", false, false);
         insertDoctor(replacementDoctorId, replacementDoctorAccountId, "T020 Replacement Doctor", true, true);
         for (UUID doctorId : List.of(currentDoctorId, replacementDoctorId)) {
-            jdbc.update("insert into doctor_work_shifts (id, doctor_profile_id, starts_at, ends_at) values (?, ?, ?, ?)",
+            jdbc.update("insert into doctor_shifts (id, doctor_profile_id, starts_at, ends_at) values (?, ?, ?, ?)",
                     UUID.randomUUID(), doctorId, shiftStart(), shiftEnd());
-            jdbc.update("insert into doctor_service_assignments (doctor_profile_id, service_id, active) values (?, ?, true)",
+            jdbc.update("insert into doctor_services (doctor_profile_id, service_id, active) values (?, ?, true)",
                     doctorId, serviceId);
         }
 
@@ -112,8 +112,8 @@ class AppointmentChangeAvailabilityT020PostgresIntegrationTest {
         if (serviceId == null) return;
         jdbc.update("delete from appointments where id in (?, ?, ?)",
                 confirmedAppointmentId, pastAppointmentId, cancelledAppointmentId);
-        jdbc.update("delete from doctor_service_assignments where service_id = ?", serviceId);
-        jdbc.update("delete from doctor_work_shifts where doctor_profile_id in (?, ?)",
+        jdbc.update("delete from doctor_services where service_id = ?", serviceId);
+        jdbc.update("delete from doctor_shifts where doctor_profile_id in (?, ?)",
                 currentDoctorId, replacementDoctorId);
         jdbc.update("delete from doctor_profiles where id in (?, ?)", currentDoctorId, replacementDoctorId);
         jdbc.update("delete from patient_profiles where id in (?, ?)", patientProfileId, otherPatientProfileId);
