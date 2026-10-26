@@ -1,19 +1,33 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Bell, Bone, LogOut, RefreshCw } from "lucide-react";
+import {
+  Activity,
+  Bell,
+  Bone,
+  CalendarDays,
+  ChevronRight,
+  FileText,
+  Hospital,
+  Layers,
+  LayoutDashboard,
+  ListOrdered,
+} from "lucide-react";
 import { useState, type ReactNode } from "react";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { CurrentDateTime } from "@/components/shell/CurrentDateTime";
+import {
+  SidebarNavGroup,
+  type SidebarNavGroupData,
+} from "@/components/shell/SidebarNavGroup";
+import { UnreadCountBadge } from "@/components/shell/UnreadCountBadge";
+import { buttonVariants } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
-  SidebarGroup,
-  SidebarGroupContent,
-  SidebarGroupLabel,
   SidebarHeader,
   SidebarInset,
   SidebarMenu,
@@ -25,45 +39,67 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { ConfirmActionDialog } from "@/components/admin/ConfirmActionDialog";
+import { cn } from "@/lib/utils";
 import { ImagingProvider, useImaging } from "../ImagingProvider";
 import { ROOM_NAME } from "../demoData";
 import { Icon } from "./ImagingUi";
+import { ImagingAccountMenu } from "./ImagingAccountMenu";
 import "../imaging.css";
 
-const sections = [
+// Cùng dạng sidebar khu admin (SidebarNavGroup). "Tổng quan" là liên kết cấp 1.
+const navGroups: SidebarNavGroupData[] = [
   {
-    title: "Công việc",
-    links: [
-      ["/imaging", "Tổng quan", "grid"],
-      ["/imaging/worklist", "Danh sách chờ", "queue"],
-      ["/imaging/orders", "Chỉ định hình ảnh", "file"],
-      ["/imaging/status", "Trạng thái chỉ định", "activity"],
-      ["/imaging/visits", "Tiến trình lượt khám", "layers"],
+    label: "Tổng quan",
+    standalone: true,
+    items: [{ title: "Tổng quan", href: "/imaging", icon: LayoutDashboard }],
+  },
+  {
+    label: "Công việc",
+    items: [
+      { title: "Danh sách chờ", href: "/imaging/worklist", icon: ListOrdered },
+      { title: "Chỉ định hình ảnh", href: "/imaging/orders", icon: FileText },
+      { title: "Trạng thái chỉ định", href: "/imaging/status", icon: Activity },
+      { title: "Tiến trình lượt khám", href: "/imaging/visits", icon: Layers },
     ],
   },
   {
-    title: "Thông tin công việc",
-    links: [
-      ["/imaging/rooms", "Phòng dịch vụ", "room"],
-      ["/imaging/schedule", "Lịch làm việc", "calendar"],
-      ["/imaging/notifications", "Thông báo", "bell"],
-    ],
-  },
-  {
-    title: "Cá nhân",
-    links: [
-      ["/imaging/profile", "Tài khoản của tôi", "user"],
-      ["/imaging/change-password", "Đổi mật khẩu", "lock"],
+    label: "Thông tin công việc",
+    items: [
+      { title: "Phòng dịch vụ", href: "/imaging/rooms", icon: Hospital },
+      { title: "Lịch làm việc", href: "/imaging/schedule", icon: CalendarDays },
+      { title: "Thông báo", href: "/imaging/notifications", icon: Bell },
     ],
   },
 ];
 
-function Menu() {
-  const pathname = usePathname();
+// Mục khớp tiền tố dài nhất là mục đang mở; "/imaging" chỉ khớp chính xác.
+function findActive(pathname: string) {
+  let found:
+    { group: SidebarNavGroupData; title: string; href: string } | undefined;
+  for (const group of navGroups)
+    for (const item of group.items) {
+      const hit =
+        item.href === "/imaging"
+          ? pathname === item.href
+          : pathname.startsWith(item.href);
+      if (hit && (!found || item.href.length > found.href.length))
+        found = { group, title: item.title, href: item.href };
+    }
+  return found;
+}
+
+function Menu({
+  activeHref,
+  onReset,
+  onExit,
+}: {
+  activeHref: string | undefined;
+  onReset: () => void;
+  onExit: () => void;
+}) {
   const { setOpenMobile } = useSidebar();
-  const { state } = useImaging();
-  const active = (href: string) =>
-    href === "/imaging" ? pathname === href : pathname.startsWith(href);
+  // Trạng thái do người dùng tự bấm; chưa bấm thì mọi nhóm mặc định mở (như admin).
+  const [userOpen, setUserOpen] = useState<Record<string, boolean>>({});
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader>
@@ -72,14 +108,14 @@ function Menu() {
             <SidebarMenuButton
               size="lg"
               render={<Link href="/imaging" />}
-              tooltip="OTCMS · Chẩn đoán hình ảnh"
+              tooltip="OTCMS Kỹ thuật viên"
             >
               <span className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
                 <Bone className="size-4" aria-hidden />
               </span>
-              <span className="grid text-left">
-                <span className="font-semibold">OTCMS</span>
-                <span className="text-xs text-muted-foreground">
+              <span className="grid flex-1 text-left leading-tight">
+                <span className="truncate font-semibold">OTCMS</span>
+                <span className="truncate text-xs text-muted-foreground">
                   Khu vực kỹ thuật viên
                 </span>
               </span>
@@ -88,59 +124,21 @@ function Menu() {
         </SidebarMenu>
       </SidebarHeader>
       <SidebarContent>
-        {sections.map((section) => (
-          <SidebarGroup key={section.title}>
-            <SidebarGroupLabel>{section.title}</SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                {section.links.map(([href, label, icon]) => (
-                  <SidebarMenuItem key={href}>
-                    <SidebarMenuButton
-                      render={<Link href={href} />}
-                      tooltip={label}
-                      isActive={active(href)}
-                      onClick={() => setOpenMobile(false)}
-                    >
-                      <Icon name={icon} />
-                      <span>{label}</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                ))}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
+        {navGroups.map((group) => (
+          <SidebarNavGroup
+            key={group.label}
+            group={group}
+            activeHref={activeHref}
+            open={userOpen[group.label] ?? true}
+            onOpenChange={(open) =>
+              setUserOpen((current) => ({ ...current, [group.label]: open }))
+            }
+            onNavigate={() => setOpenMobile(false)}
+          />
         ))}
       </SidebarContent>
       <SidebarFooter>
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton
-              size="lg"
-              render={<Link href="/imaging/profile" />}
-              tooltip={state.profile.name}
-            >
-              <span className="flex size-7 shrink-0 items-center justify-center overflow-hidden rounded-full bg-secondary text-xs font-semibold text-secondary-foreground">
-                {state.profile.avatar ? (
-                  <Image
-                    src={state.profile.avatar}
-                    alt="Ảnh đại diện"
-                    width={28}
-                    height={28}
-                    unoptimized
-                  />
-                ) : (
-                  "MA"
-                )}
-              </span>
-              <span className="grid text-left">
-                <span className="font-medium">{state.profile.name}</span>
-                <span className="text-xs text-muted-foreground">
-                  Kỹ thuật viên CĐHA
-                </span>
-              </span>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        </SidebarMenu>
+        <ImagingAccountMenu onReset={onReset} onExit={onExit} />
       </SidebarFooter>
       <SidebarRail />
     </Sidebar>
@@ -154,12 +152,7 @@ function ShellContent({ children }: { children: ReactNode }) {
   const [resetOpen, setResetOpen] = useState(false);
   const [exitOpen, setExitOpen] = useState(false);
   const unread = state.notifications.filter((n) => !n.read).length;
-  const currentItem = sections
-    .flatMap((s) => s.links)
-    .filter(([href]) =>
-      href === "/imaging" ? pathname === href : pathname.startsWith(href),
-    )
-    .at(-1);
+  const active = findActive(pathname);
   if (!ready)
     return (
       <div
@@ -179,44 +172,57 @@ function ShellContent({ children }: { children: ReactNode }) {
         Chuyển đến nội dung
       </a>
       <SidebarProvider>
-        <Menu />
+        <Menu
+          activeHref={active?.href}
+          onReset={() => setResetOpen(true)}
+          onExit={() => setExitOpen(true)}
+        />
         <SidebarInset className="min-w-0">
-          <header className="flex h-14 shrink-0 items-center gap-3 border-b px-4">
-            <SidebarTrigger aria-label="Mở hoặc thu gọn menu" />
-            <Link
-              href={currentItem?.[0] ?? "/imaging"}
-              className="truncate text-sm font-medium"
-              aria-label={`Quay lại ${(currentItem?.[1] ?? "Tổng quan").toLowerCase()}`}
-            >
-              {currentItem?.[1] ?? "Chẩn đoán hình ảnh"}
-            </Link>
-            <div className="ml-auto flex items-center gap-2">
-              <span className="hidden text-xs text-muted-foreground md:block">
-                24/10/2026 · 09:10
-              </span>
-              <Button
-                variant="ghost"
-                size="icon"
-                aria-label="Khôi phục dữ liệu mẫu"
-                onClick={() => setResetOpen(true)}
-              >
-                <RefreshCw />
-              </Button>
+          <header className="flex h-14 shrink-0 items-center gap-2 border-b px-4">
+            <SidebarTrigger
+              className="-ml-1"
+              aria-label="Mở hoặc thu gọn menu"
+            />
+            <Separator orientation="vertical" className="mr-2 h-4" />
+            <nav aria-label="Breadcrumb" className="flex min-w-0 items-center">
+              <ol className="flex min-w-0 items-center gap-1.5 text-xs sm:text-sm">
+                {active && !active.group.standalone && (
+                  <>
+                    <li className="hidden items-center text-muted-foreground sm:inline-flex">
+                      {active.group.label}
+                    </li>
+                    <li
+                      className="hidden items-center text-muted-foreground sm:inline-flex"
+                      aria-hidden="true"
+                    >
+                      <ChevronRight className="size-3.5" />
+                    </li>
+                  </>
+                )}
+                <li
+                  className="truncate font-medium text-foreground"
+                  aria-current="page"
+                >
+                  {active?.title ?? "Kỹ thuật viên"}
+                </li>
+              </ol>
+            </nav>
+            <div className="ml-auto flex items-center gap-3">
+              <CurrentDateTime />
+              <Separator orientation="vertical" className="h-4" />
               <Link
                 href="/imaging/notifications"
-                className={buttonVariants({ variant: "ghost", size: "icon" })}
-                aria-label={`Thông báo, ${unread} chưa đọc`}
+                className={cn(
+                  buttonVariants({ variant: "ghost", size: "icon" }),
+                  "relative",
+                )}
+                aria-label={
+                  unread > 0 ? `Thông báo, ${unread} chưa đọc` : "Thông báo"
+                }
               >
-                <Bell />
+                <Bell aria-hidden />
+                <UnreadCountBadge count={unread} />
               </Link>
-              <Button
-                variant="ghost"
-                size="icon"
-                aria-label="Đăng xuất"
-                onClick={() => setExitOpen(true)}
-              >
-                <LogOut />
-              </Button>
             </div>
           </header>
           <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-secondary/50 px-4 py-2 text-xs text-muted-foreground md:px-6">
