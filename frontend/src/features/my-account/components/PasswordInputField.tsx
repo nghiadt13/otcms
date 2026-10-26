@@ -6,6 +6,7 @@ import { FieldError } from "@/components/admin/FieldError";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { cn } from "@/lib/utils";
 
 type PasswordInputFieldProps = {
   label: string;
@@ -17,6 +18,8 @@ type PasswordInputFieldProps = {
   disabled?: boolean;
   /** Gợi ý dưới ô, ví dụ checklist tiêu chí mật khẩu. */
   hint?: ReactNode;
+  /** Cỡ chữ và vùng chạm của khu bệnh nhân (ô cao 48px, chữ 16px). */
+  large?: boolean;
 };
 
 /** Ô mật khẩu có nút hiện/ẩn và lỗi đỏ ngay dưới ô. */
@@ -29,6 +32,7 @@ export function PasswordInputField({
   error,
   disabled,
   hint,
+  large = false,
 }: PasswordInputFieldProps) {
   const id = useId();
   const errorId = `${id}-error`;
@@ -37,9 +41,12 @@ export function PasswordInputField({
 
   return (
     <div className="grid gap-1.5">
-      <Label htmlFor={id}>{label}</Label>
+      <Label className={cn(large && "text-base")} htmlFor={id}>
+        {label}
+      </Label>
       <div className="flex items-center gap-1">
         <Input
+          className={cn(large && "h-12 text-base")}
           id={id}
           type={visible ? "text" : "password"}
           value={value}
@@ -54,6 +61,7 @@ export function PasswordInputField({
           type="button"
           variant="ghost"
           size="icon"
+          className={cn(large && "size-12")}
           aria-label={visible ? "Ẩn mật khẩu" : "Hiện mật khẩu"}
           aria-pressed={visible}
           onClick={() => setVisible((current) => !current)}

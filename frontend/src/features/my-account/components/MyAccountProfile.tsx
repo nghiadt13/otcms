@@ -49,21 +49,25 @@ export function MyAccountProfile() {
 
       {account ? (
         <div className="grid gap-6">
-          <DetailList
-            items={[
-              { label: "Tên đăng nhập", value: account.username },
-              { label: "Vai trò", value: ROLE_LABELS[account.role] },
-              {
-                label: "Trạng thái",
-                value: (
-                  <StatusBadge tone={STATUS_VIEW[account.status].tone}>
-                    {STATUS_VIEW[account.status].label}
-                  </StatusBadge>
-                ),
-              },
-            ]}
-          />
-          <Separator />
+          {account.kind === "STAFF" ? (
+            <>
+              <DetailList
+                items={[
+                  { label: "Tên đăng nhập", value: account.username },
+                  { label: "Vai trò", value: ROLE_LABELS[account.role] },
+                  {
+                    label: "Trạng thái",
+                    value: (
+                      <StatusBadge tone={STATUS_VIEW[account.status].tone}>
+                        {STATUS_VIEW[account.status].label}
+                      </StatusBadge>
+                    ),
+                  },
+                ]}
+              />
+              <Separator />
+            </>
+          ) : null}
           <AvatarEditor account={account} />
         </div>
       ) : loading ? (

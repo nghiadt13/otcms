@@ -2,7 +2,7 @@ import { publicContainerClass } from "@/components/brand/publicLayout";
 import { PublicSectionHeading } from "@/components/brand/PublicSectionHeading";
 
 // Bốn bước của một lượt khám, đúng thứ tự thật nên được đánh số. Bám theo luồng
-// nghiệp vụ: đặt lịch (UC06 + đặt lịch), lễ tân tiếp nhận (BR-31), khám và chụp,
+// nghiệp vụ: đặt lịch (UC06 + đặt lịch), lễ tân tiếp nhận (BR-26), khám và chụp,
 // bệnh nhân xem kết quả sau khi bác sĩ phát hành.
 const steps: { title: string; detail: string }[] = [
   {

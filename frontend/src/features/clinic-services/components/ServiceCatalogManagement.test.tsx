@@ -10,7 +10,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { notifySuccess } from "@/lib/messages/notify";
 import { resetServiceCatalogMock } from "../api/serviceCatalogApi";
 import { ServiceCatalogManagement } from "./ServiceCatalogManagement";
-
+import { formatAppMessage } from "@/lib/messages/appMessages";
 // Toast của sonner cần Toaster; test chỉ kiểm mã thông báo được gọi.
 vi.mock("@/lib/messages/notify", () => ({
   notifySuccess: vi.fn(),
@@ -18,8 +18,7 @@ vi.mock("@/lib/messages/notify", () => ({
   notifyError: vi.fn(),
 }));
 
-const MSG_66 =
-  "Thông tin dịch vụ chưa hợp lệ hoặc trùng dịch vụ đang cung cấp.";
+const MSG_66 = formatAppMessage("MSG-66");
 const user = userEvent.setup();
 // Điền nhanh một ô (gõ từng phím quá chậm với form lớn).
 const fill = (el: HTMLElement, value: string) =>

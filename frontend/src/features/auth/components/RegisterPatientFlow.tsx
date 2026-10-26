@@ -11,9 +11,6 @@ import { SignInForm } from "./SignInForm";
 
 const emptyInput: PatientRegistrationInput = {
   fullName: "",
-  dateOfBirth: "",
-  gender: "",
-  phone: "",
   email: "",
   password: "",
   confirmPassword: "",
@@ -24,7 +21,7 @@ const stepCopy = [
   {
     title: "Tạo tài khoản bệnh nhân",
     description:
-      "Điền thông tin để đặt lịch khám và xem hồ sơ của bạn tại phòng khám.",
+      "Tài khoản dùng để đăng nhập và đặt lịch khám. Hồ sơ khám bệnh bạn thêm sau khi đăng nhập.",
   },
   {
     title: "Xác minh email",
@@ -33,7 +30,7 @@ const stepCopy = [
   },
   {
     title: "Đăng ký hoàn tất",
-    description: "Tài khoản đã sẵn sàng. Đăng nhập để bắt đầu sử dụng.",
+    description: "Tài khoản đã sẵn sàng. Đăng nhập để vào cổng bệnh nhân.",
   },
 ];
 
@@ -97,7 +94,10 @@ export function RegisterPatientFlow() {
       {step === 2 && (
         <div className="mt-6">
           <AuthAlert code="MSG-10" tone="success" />
-          <SignInForm defaultEmail={input.email.trim()} />
+          <SignInForm
+            defaultEmail={input.email.trim()}
+            submitLabel="Vào cổng bệnh nhân"
+          />
         </div>
       )}
     </AuthCard>

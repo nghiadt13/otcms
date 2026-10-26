@@ -1,7 +1,7 @@
 import type { PageResponse } from "@/lib/api/pagination";
 
 // Kiểu dữ liệu màn kiểm duyệt đánh giá (admin). Khớp JSON của /api/v1/admin/reviews.
-// Khác `PatientReview` (public, chỉ đánh giá đã công khai).
+// Khác `PublicReview` (public, chỉ đánh giá đã công khai).
 
 export type ReviewStatus = "PENDING" | "PUBLISHED" | "HIDDEN";
 export type ReviewAction =

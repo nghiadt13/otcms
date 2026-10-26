@@ -1,9 +1,10 @@
 import type { PageResponse } from "@/lib/api/pagination";
+import type { AppointmentStatus } from "@/lib/domain/clinicVisit";
 
 // Hình khớp 1-1 với JSON hợp đồng API (plan phase-05 mục 7).
 
-export type AppointmentStatus =
-  "BOOKED" | "CHECKED_IN" | "CANCELLED" | "NO_SHOW";
+// Enum dùng chung ở lib/domain; giữ re-export để các file trong feature không đổi import.
+export type { AppointmentStatus };
 export type AppointmentAction = "reassign" | "notifyNoReplacement";
 export type SlotStatus = "FREE" | "BOOKED";
 export type AppointmentTab = "list" | "availability";
