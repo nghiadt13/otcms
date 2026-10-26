@@ -1,8 +1,6 @@
-import { getSupabaseBrowserClient } from "@/lib/supabase/browser";
+import { apiBaseUrl } from "./apiBaseUrl";
+import { getAccessToken } from "@/lib/auth/authSession";
 import { ApiError, type ApiFieldError, type MsgCode } from "./apiError";
-
-const apiBaseUrl =
-  process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8080";
 
 type ProblemDetail = {
   status?: number;
@@ -13,13 +11,11 @@ type ProblemDetail = {
 };
 
 async function authorizedHeaders(init: RequestInit) {
-  const {
-    data: { session },
-  } = await getSupabaseBrowserClient().auth.getSession();
-  if (!session) throw new Error("Bạn cần đăng nhập để tiếp tục.");
+  const accessToken = await getAccessToken();
+  if (!accessToken) throw new Error("Bạn cần đăng nhập để tiếp tục.");
 
   const headers = new Headers(init.headers);
-  headers.set("Authorization", `Bearer ${session.access_token}`);
+  headers.set("Authorization", `Bearer ${accessToken}`);
   // FormData: để trình duyệt tự đặt Content-Type kèm boundary.
   if (
     init.body &&

@@ -23,7 +23,7 @@ Nguồn nghiệp vụ: R3 SRS bản Drive (số BR/MSG theo bản Drive; `docs/a
 
   `fieldErrors` → hiện dưới ô; còn lại → toast. 400 dữ liệu sai · 403 không đủ quyền (MSG-40) · 404 không còn hoặc không thuộc tài khoản (MSG-41, không lộ là có tồn tại) · 409 xung đột trạng thái/trùng · 5xx MSG-04.
 - **Phạm vi dữ liệu**: tài nguyên của chính người đăng nhập dùng `/api/v1/me/...`; dữ liệu nghiệp vụ dùng `/api/v1/<nghiệp vụ>` và **BE lọc theo tài khoản** (hồ sơ đã gắn qua liên kết, gồm "Bản thân"). FE không gửi id người dùng. Lọc một người khám dùng query `profileId=`.
-- **Xác thực**: FE gắn `Authorization: Bearer <Supabase access token>` qua `apiRequest` (`lib/api/client.ts`). Trang công khai `/api/v1/public/**` phải gọi được **khi chưa đăng nhập** → BE mở không cần token, FE cần thêm biến thể `apiRequest` không gắn token khi nối.
+- **Xác thực**: FE gắn `Authorization: Bearer <access token do backend cấp>` qua `apiRequest`, token lấy từ `lib/auth/authSession.ts` (`lib/api/client.ts`). Trang công khai `/api/v1/public/**` phải gọi được **khi chưa đăng nhập** → BE mở không cần token, FE cần thêm biến thể `apiRequest` không gắn token khi nối.
 - Vai trò ứng dụng nằm trong dữ liệu tài khoản (`GET /api/v1/me` trả `kind`/`role`); không dùng claim `role` của Supabase.
 
 ## 2. Cách nối BE (FE làm khi BE xong từng nhóm)
@@ -325,7 +325,7 @@ FE hiện chạy lớp API giả cùng chữ ký hàm; bảng dưới là hợp 
 
 | # | Method · URL | Query / body (kiểu) | Response (kiểu) | Lỗi (HTTP · MSG · field) | FE định nghĩa | Ghi chú BE |
 |---|---|---|---|---|---|---|
-| 1 | Supabase `auth.signInWithPassword` (không REST của app) | `email: string`, `password: string` | session Supabase | 4xx → MSG-01; còn lại → MSG-04 | `features/auth/api/authApi.ts#signIn` | BR-01, BR-02: chỉ tài khoản bệnh nhân đủ điều kiện đăng nhập qua `/login`. Khóa theo chính sách (BR-02). FE không phân biệt lý do từ chối. |
+| 1 | `POST /api/auth/patient/login` (nhân viên: `/api/auth/staff/login`) | `email: string`, `password: string` | `{accessToken, tokenType, expiresIn, accountId, accountType}` + cookie `refresh_token` | 401 → MSG-01; còn lại (429, 5xx, mạng) → MSG-04 | `features/auth/api/authApi.ts#signIn` | BR-01, BR-02: chỉ tài khoản bệnh nhân đủ điều kiện đăng nhập qua `/login`. Khóa theo chính sách (BR-02). FE không phân biệt lý do từ chối. |
 | 2 | `POST /api/v1/patient-accounts` (đề xuất; FE: `registerPatient`) | body `{ fullName: string, email: string, password: string }` | 201 hoặc 204; gửi OTP tới email | 400 MSG-08 (trùng khóa, không lộ chi tiết, BR-03/BR-10) · 500 MSG-04 | `features/auth/api/authApi.ts#registerPatient` | Chỉ tạo tài khoản, không tạo hồ sơ bệnh nhân (UC06). Không nhận ngày sinh, giới tính, SĐT. Supabase: `auth.signUp(email, password, { data: { displayName: fullName } })`. |
 | 3 | `POST /api/v1/patient-accounts/email-verification` (đề xuất; FE: `verifyRegistrationEmail`) | body `{ email: string, code: string }` (code 6 chữ số) | 204 | 400 MSG-08 (sai hoặc hết hạn mã; field `code`) | `authApi.ts#verifyRegistrationEmail` | Mã sai dùng MSG-08 (MSG-82 chưa có trong appendix, xem báo cáo). |
 | 4 | `POST /api/v1/patient-accounts/email-verification/resend` (đề xuất; FE: `resendRegistrationCode`) | body `{ email: string }` | 204 | 500 MSG-04 | `authApi.ts#resendRegistrationCode` | Giới hạn tần suất gửi lại. |
@@ -336,8 +336,8 @@ FE hiện chạy lớp API giả cùng chữ ký hàm; bảng dưới là hợp 
 | 9 | `PUT /api/v1/me/avatar` (multipart, part `file`) | `file`: JPEG/PNG/WEBP, ≤ 2 MB | `MyAccount` | 400 MSG-08 (field `file`) · 500 MSG-04 | `myAccountApi.ts#updateMyAvatar` | FE kiểm loại và cỡ trước khi gửi. |
 | 10 | `DELETE /api/v1/me/avatar` | — | 204 | 500 MSG-04 | `myAccountApi.ts#removeMyAvatar` | — |
 | 11 | `POST /api/v1/me/password` | body `{ currentPassword: string, newPassword: string }` | 204 | 400 MSG-08 (field `currentPassword` hoặc `newPassword`) · 500 MSG-04 | `myAccountApi.ts#changeMyPassword` | BR-07: xác minh mật khẩu hiện tại. BR-04: chính sách mật khẩu. STAFF: sau khi đổi `mustChangePassword=false`. |
-| 12 | Supabase `auth.getSession()` (client) | — | session hoặc null | lỗi cấu hình → MSG-04 | `features/my-account/components/RoleHomeRedirect.tsx` (`/workspace`) | Chỉ dùng để biết có phiên; quyền do `/me` và backend. |
-| 13 | Supabase `auth.signOut()` (client) | — | — | bỏ qua lỗi, về `/login` | menu header bệnh nhân (P00) | — |
+| 12 | `getSession()` (`authSession.ts`: bộ nhớ, hết hạn thì `GET /api/auth/csrf` + `POST /api/auth/refresh`) | — | session hoặc null | lỗi mạng → MSG-04 | `features/my-account/components/RoleHomeRedirect.tsx` (`/workspace`) | Chỉ dùng để biết có phiên; quyền do `/me` và backend. |
+| 13 | `POST /api/auth/logout` (header `X-CSRF-TOKEN`) | — | 204 | bỏ qua lỗi, xoá phiên phía trình duyệt, về `/login` | menu header bệnh nhân (P00) | — |
 
 #### Hợp đồng URL giữa màn (query)
 - `/login?next=<đường dẫn>`: FE chỉ nhận `next` là đường dẫn bắt đầu bằng `/portal` (không `//`, không `\`, không ký tự điều khiển, không URL tuyệt đối); còn lại về `/portal`. CTA "Đặt lịch khám": `/login?next=/portal/appointments/new`.

@@ -1,11 +1,11 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { AuthApiError } from "@supabase/supabase-js";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   getMockSignedInKind,
   setMockSignedInKind,
 } from "@/lib/session/mockSignedInKind";
+import { AuthSessionError } from "@/lib/auth/authSession";
 import { authMessages } from "../authMessages";
 import { SignInForm } from "./SignInForm";
 
@@ -14,16 +14,17 @@ const { replace, signInWithPassword } = vi.hoisted(() => ({
   signInWithPassword: vi.fn(),
 }));
 
-// Ranh giới ngoài duy nhất được giả: client Supabase. Luồng `signIn` thật vẫn chạy.
+// Ranh giới ngoài duy nhất được giả: lời gọi đăng nhập tới backend. Luồng `signIn` thật vẫn chạy.
 vi.mock("next/navigation", () => ({ useRouter: () => ({ replace }) }));
-vi.mock("@/lib/supabase/browser", () => ({
-  getSupabaseBrowserClient: () => ({ auth: { signInWithPassword } }),
+vi.mock("@/lib/auth/authSession", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/auth/authSession")>()),
+  signInWithPassword,
 }));
 
 beforeEach(() => {
   replace.mockClear();
   signInWithPassword.mockReset();
-  signInWithPassword.mockResolvedValue({ error: null });
+  signInWithPassword.mockResolvedValue({ accountType: "PATIENT" });
   window.localStorage.clear();
 });
 
@@ -78,14 +79,8 @@ describe("SignInForm: đích sau đăng nhập", () => {
 });
 
 describe("SignInForm: lỗi", () => {
-  it("Supabase từ chối (4xx) thì hiện MSG-01 và không chuyển trang", async () => {
-    signInWithPassword.mockResolvedValue({
-      error: new AuthApiError(
-        "Invalid login credentials",
-        400,
-        "invalid_credentials",
-      ),
-    });
+  it("backend từ chối (401) thì hiện MSG-01 và không chuyển trang", async () => {
+    signInWithPassword.mockRejectedValue(new AuthSessionError(401));
     render(<SignInForm />);
     await submitCredentials();
     expect(await screen.findByRole("alert")).toHaveTextContent(
@@ -95,10 +90,8 @@ describe("SignInForm: lỗi", () => {
     expect(getMockSignedInKind()).toBe("STAFF");
   });
 
-  it("lỗi dịch vụ (không phải 4xx) thì hiện MSG-04", async () => {
-    signInWithPassword.mockResolvedValue({
-      error: new AuthApiError("Service unavailable", 503, "unexpected_failure"),
-    });
+  it("lỗi dịch vụ (không phải 401) thì hiện MSG-04", async () => {
+    signInWithPassword.mockRejectedValue(new AuthSessionError(503));
     render(<SignInForm />);
     await submitCredentials();
     expect(await screen.findByRole("alert")).toHaveTextContent(

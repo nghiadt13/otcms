@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { getSupabaseBrowserClient } from "@/lib/supabase/browser";
+import { getSession } from "@/lib/auth/authSession";
 import { messageFromError } from "@/lib/messages/appMessages";
 import { getMyAccount } from "../api/myAccountApi";
 import { homeRouteForAccount } from "../homeRouteForAccount";
@@ -21,9 +21,9 @@ export function RoleHomeRedirect() {
     const controller = new AbortController();
 
     async function routeToHome() {
-      const { data } = await getSupabaseBrowserClient().auth.getSession();
+      const session = await getSession();
       if (controller.signal.aborted) return;
-      if (!data.session) {
+      if (!session) {
         router.replace("/login");
         return;
       }

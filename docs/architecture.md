@@ -7,7 +7,7 @@ Một repository, hai ứng dụng độc lập: Next.js và Spring Boot. Backen
 ```mermaid
 flowchart LR
     Web[Next.js App Router] -->|Bearer access token| API[Spring Boot API]
-    Web -->|Sign in| Auth[Supabase Auth]
+    Web -->|Sign in, refresh cookie| API
     API -->|JDBC + Flyway| DB[(Supabase PostgreSQL)]
     API -->|ImagingArchivePort| Archive[Orthanc DICOM archive]
     Viewer[OHIF viewer] -->|DICOMweb qua cổng kiểm quyền khi triển khai| Archive
@@ -45,7 +45,7 @@ Các folder feature ngoài `imaging` trong cây trên là vị trí dành cho UC
 
 Luồng mẫu cho một UC: `POST /api/v1/appointments` → `AppointmentController` → `CreateAppointmentUseCase` → `CreateAppointmentHandler` → `AppointmentRepository` → `JpaAppointmentRepositoryAdapter`. Cả quyền actor lẫn quyền trên bản ghi được kiểm tra trong backend.
 
-Supabase Auth xác thực danh tính. `role` trong JWT là PostgreSQL role, **không phải** vai trò phòng khám. Bảng account của ứng dụng và chính sách use case sẽ giữ vai trò Patient/Receptionist/Orthopedic Doctor/Imaging Technician/Administrator/Clinic Owner. Không ánh xạ vai trò nhóm từ claim `role`.
+Backend tự xác thực danh tính (email + mật khẩu băm bcrypt trong bảng account) và phát JWT access token sống ngắn cùng refresh token trong cookie httpOnly; Supabase chỉ cung cấp PostgreSQL. Frontend giữ access token trong bộ nhớ (`lib/auth/authSession.ts`) và gửi CSRF cho `/refresh`, `/logout`. Vai trò phòng khám nằm trong JWT do backend ký và trong bảng account, **không phải** PostgreSQL role. Bảng account của ứng dụng và chính sách use case sẽ giữ vai trò Patient/Receptionist/Orthopedic Doctor/Imaging Technician/Administrator/Clinic Owner. Không ánh xạ vai trò nhóm từ claim `role`.
 
 ## Frontend
 
@@ -108,7 +108,7 @@ frontend/src/
 │   ├── session/                         mockCurrentActor.ts, mockSignedInKind.ts: phiên giả để hiển thị (xóa khi có /api/v1/me)
 │   ├── mock/                            kho giả dùng chung giữa feature (bệnh nhân tạo tại quầy, phí khám lịch hẹn) để mock hành xử như một DB; xóa khi nối BE
 │   ├── fonts.ts                         Nạp font chung Be Vietnam Pro cho mọi root layout
-│   └── supabase/browser.ts              Chỉ dùng Supabase Auth
+│   └── auth/authSession.ts              Phiên đăng nhập backend (token trong bộ nhớ, refresh, CSRF)
 └── test/setup.ts                        Thiết lập chung cho Vitest; `*.test.ts(x)` nằm cạnh mã nguồn
 ```
 

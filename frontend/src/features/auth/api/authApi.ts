@@ -1,8 +1,7 @@
-import { isAuthApiError } from "@supabase/supabase-js";
-import { getSupabaseBrowserClient } from "@/lib/supabase/browser";
+import { AuthSessionError, signInWithPassword } from "@/lib/auth/authSession";
 import { AuthRequestError, type PatientRegistrationInput } from "../types/auth";
 
-// UC01 Đăng nhập đi thật qua Supabase Auth. UC02 và UC06 hiện là LỚP API GIẢ vì
+// UC01 Đăng nhập đi thật qua backend (POST /api/auth/patient/login). UC02 và UC06 hiện là LỚP API GIẢ vì
 // backend chưa có endpoint: dữ liệu nằm trong bộ nhớ trình duyệt, mất khi tải
 // lại. Khi nối backend, giữ nguyên chữ ký hàm và chỉ thay phần thân; component
 // không cần đổi. Mọi lỗi ném ra là `AuthRequestError` mang mã MSG.
@@ -11,16 +10,11 @@ const wait = (ms = 400) => new Promise((resolve) => setTimeout(resolve, ms));
 
 export async function signIn(email: string, password: string): Promise<void> {
   try {
-    const { error } = await getSupabaseBrowserClient().auth.signInWithPassword({
-      email: email.trim(),
-      password,
-    });
-    if (error) throw error;
+    await signInWithPassword("patient", email, password);
   } catch (cause) {
-    // 4xx từ Supabase = sai thông tin hoặc tài khoản không đủ điều kiện (MSG-01);
-    // còn lại (mạng, thiếu cấu hình, 5xx) là lỗi dịch vụ (MSG-04).
-    const rejected =
-      isAuthApiError(cause) && cause.status >= 400 && cause.status < 500;
+    // 401 = sai thông tin hoặc tài khoản không đủ điều kiện (MSG-01); còn lại (mạng, 429, 5xx) là
+    // lỗi dịch vụ (MSG-04). Không phân biệt lý do để không lộ tài khoản nào tồn tại (BR-03).
+    const rejected = cause instanceof AuthSessionError && cause.status === 401;
     throw new AuthRequestError(rejected ? "MSG-01" : "MSG-04");
   }
 }

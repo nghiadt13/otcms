@@ -12,7 +12,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { getSupabaseBrowserClient } from "@/lib/supabase/browser";
+import { signOut as endSession } from "@/lib/auth/authSession";
 import type { PatientAccountLink } from "../patientNavigation";
 
 /** Chữ cái đầu của họ và tên, dùng làm ảnh đại diện tạm. */
@@ -37,11 +37,8 @@ export function PatientAccountMenu({
   const router = useRouter();
 
   async function signOut() {
-    try {
-      await getSupabaseBrowserClient().auth.signOut();
-    } catch {
-      // Chưa cấu hình Supabase hoặc phiên đã hết: vẫn về trang đăng nhập.
-    }
+    // endSession bỏ qua lỗi mạng và luôn xoá phiên phía trình duyệt.
+    await endSession();
     // replace: nút Back không đưa người dùng quay lại khu bệnh nhân.
     router.replace("/login");
   }
