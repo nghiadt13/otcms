@@ -14,6 +14,17 @@ import java.util.UUID;
 
 @RestControllerAdvice
 public class AuthExceptionHandler {
+    @ExceptionHandler(AdministratorAccountException.class)
+    public ResponseEntity<ErrorResponse> administrator(AdministratorAccountException ex) {
+        HttpStatus status = switch (ex.getMessage()) {
+            case "USERNAME_ALREADY_EXISTS" -> HttpStatus.CONFLICT;
+            case "ADMINISTRATOR_ACCOUNT_NOT_FOUND" -> HttpStatus.NOT_FOUND;
+            case "ACCOUNT_CREATION_FAILED" -> HttpStatus.INTERNAL_SERVER_ERROR;
+            default -> HttpStatus.BAD_REQUEST;
+        };
+        return ResponseEntity.status(status).body(ErrorResponse.of(ex.getMessage(),
+                "Administrator account request could not be completed", UUID.randomUUID().toString()));
+    }
     @ExceptionHandler(PasswordRecoveryException.class)
     public ResponseEntity<ErrorResponse> password(PasswordRecoveryException ex) {
         HttpStatus status = "AUTHENTICATION_FAILED".equals(ex.getMessage()) ? HttpStatus.UNAUTHORIZED : HttpStatus.BAD_REQUEST;
@@ -29,8 +40,10 @@ public class AuthExceptionHandler {
     }
     @ExceptionHandler(SessionException.class)
     public ResponseEntity<ErrorResponse> session(SessionException ex) {
-        HttpStatus status = "CSRF_VALIDATION_FAILED".equals(ex.getMessage()) ? HttpStatus.FORBIDDEN : HttpStatus.UNAUTHORIZED;
-        String message = status == HttpStatus.FORBIDDEN ? "CSRF validation failed" : "Authentication failed";
+        HttpStatus status = "CSRF_VALIDATION_FAILED".equals(ex.getMessage())
+                || "PASSWORD_CHANGE_REQUIRED".equals(ex.getMessage()) ? HttpStatus.FORBIDDEN : HttpStatus.UNAUTHORIZED;
+        String message = "PASSWORD_CHANGE_REQUIRED".equals(ex.getMessage()) ? "Password change required"
+                : status == HttpStatus.FORBIDDEN ? "CSRF validation failed" : "Authentication failed";
         return ResponseEntity.status(status).body(ErrorResponse.of(ex.getMessage(), message, UUID.randomUUID().toString()));
     }
     @ExceptionHandler(CredentialLoginException.class)

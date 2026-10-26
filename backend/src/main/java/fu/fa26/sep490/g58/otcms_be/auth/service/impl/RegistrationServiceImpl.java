@@ -74,8 +74,7 @@ public class RegistrationServiceImpl implements RegistrationService {
         String email = request.email().trim().toLowerCase(java.util.Locale.ROOT);
         if (accounts.existsByNormalizedEmail(email)) throw new RegistrationException("EMAIL_ALREADY_REGISTERED");
         String password = request.password();
-        if (!password.equals(request.confirmPassword()) || password.length() < 12 || password.length() > 64
-                || password.getBytes(StandardCharsets.UTF_8).length > 72)
+        if (!password.equals(request.confirmPassword()) || !PasswordPolicy.isValid(password))
             throw new RegistrationException("VALIDATION_FAILED");
         String name = request.fullName().trim();
         if (name.codePointCount(0, name.length()) < 2 || name.codePointCount(0, name.length()) > 100

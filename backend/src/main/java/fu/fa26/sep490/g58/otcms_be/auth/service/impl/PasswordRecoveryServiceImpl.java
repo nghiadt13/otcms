@@ -93,13 +93,20 @@ public class PasswordRecoveryServiceImpl implements PasswordRecoveryService {
     @Override
     @Transactional
     public void reset(ResetPasswordRequest request, AccountType portal) {
-        PasswordResetChallengeJpaEntity challenge = challenges.findByTokenHashForUpdate(hash(request.token()))
+        String tokenHash = hash(request.token());
+        // Match reissue's account -> challenge order and read supersession after acquiring the account lock.
+        UUID accountId = challenges.findAccountIdByTokenHash(tokenHash)
+                .orElseThrow(() -> new PasswordRecoveryException("PASSWORD_RESET_TOKEN_INVALID"));
+        AccountJpaEntity account = accounts.findByIdForUpdate(accountId)
+                .orElseThrow(() -> new PasswordRecoveryException("PASSWORD_RESET_TOKEN_INVALID"));
+        PasswordResetChallengeJpaEntity challenge = challenges.findByTokenHashForUpdate(tokenHash)
                 .orElseThrow(() -> new PasswordRecoveryException("PASSWORD_RESET_TOKEN_INVALID"));
         Instant now = Instant.now(clock);
-        AccountJpaEntity account = challenge.getAccount();
         if (challenge.getConsumedAt() != null || challenge.getSupersededAt() != null
                 || challenge.getExpiresAt().isBefore(now) || challenge.getFailedAttempts() >= 5
-                || !matchesPortal(account.getAccountType(), portal) || account.getPasswordHash() == null) {
+                || !matchesPortal(account.getAccountType(), portal) || account.getPasswordHash() == null
+                || (account.getStatus() != AccountStatus.ACTIVE
+                && account.getStatus() != AccountStatus.TEMPORARILY_LOCKED)) {
             challenge.setFailedAttempts(challenge.getFailedAttempts() + 1);
             challenges.save(challenge);
             throw new PasswordRecoveryException("PASSWORD_RESET_TOKEN_INVALID");
@@ -122,6 +129,9 @@ public class PasswordRecoveryServiceImpl implements PasswordRecoveryService {
     @Override
     @Transactional
     public void change(UUID accountId, ChangePasswordRequest request) {
+        if (!PasswordPolicy.isValid(request.newPassword())) {
+            throw new PasswordRecoveryException("VALIDATION_FAILED");
+        }
         AccountJpaEntity account = accounts.findByIdForUpdate(accountId)
                 .orElseThrow(() -> new PasswordRecoveryException("AUTHENTICATION_FAILED"));
         if (account.getStatus() != AccountStatus.ACTIVE || account.getPasswordHash() == null
@@ -134,6 +144,7 @@ public class PasswordRecoveryServiceImpl implements PasswordRecoveryService {
 
         account.setPasswordHash(encoder.encode(request.newPassword()));
         account.setUpdatedAt(Instant.now(clock));
+        account.setMustChangePassword(false);
         accounts.save(account);
         sessions.revokeAll(account.getId());
     }

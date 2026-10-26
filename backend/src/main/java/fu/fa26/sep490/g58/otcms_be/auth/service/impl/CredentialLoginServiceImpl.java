@@ -25,6 +25,7 @@ import java.util.HexFormat;
 import java.util.Locale;
 import java.util.UUID;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 
 @Service
 public class CredentialLoginServiceImpl implements CredentialLoginService {
@@ -65,14 +66,27 @@ public class CredentialLoginServiceImpl implements CredentialLoginService {
         return loginMatching(email, password, AccountType::isStaff, "STAFF", ip);
     }
 
+    @Override
+    @Transactional(noRollbackFor = CredentialLoginException.class)
+    public CredentialLoginResponse loginAdministrator(String username, String password, String ip) {
+        return authenticate(username, password, type -> type == AccountType.ADMIN, "STAFF", ip,
+                () -> accounts.findByUsername(username).orElse(null));
+    }
+
     private CredentialLoginResponse loginMatching(String email, String password,
                                                   Predicate<AccountType> portalMatches,
                                                   String portal, String ip) {
         String normalizedEmail = normalize(email);
+        return authenticate(normalizedEmail, password, portalMatches, portal, ip,
+                () -> accounts.findByNormalizedEmail(normalizedEmail).orElse(null));
+    }
+
+    private CredentialLoginResponse authenticate(String identifier, String password,
+            Predicate<AccountType> portalMatches, String portal, String ip, Supplier<AccountJpaEntity> lookup) {
         Instant now = Instant.now(clock);
         enforceIpRate(ip);
 
-        AccountJpaEntity account = accounts.findByNormalizedEmail(normalizedEmail).orElse(null);
+        AccountJpaEntity account = lookup.get();
         boolean authenticated = account != null
                 && portalMatches.test(account.getAccountType())
                 && usable(account, now)
@@ -82,7 +96,7 @@ public class CredentialLoginServiceImpl implements CredentialLoginService {
             if (account != null && portalMatches.test(account.getAccountType())) {
                 fail(account, now);
             }
-            audit(account, account == null ? normalizedEmail : null,
+            audit(account, account == null ? identifier : null,
                     "LOGIN_" + portal, "AUTHENTICATION_FAILED");
             throw new CredentialLoginException("AUTHENTICATION_FAILED");
         }
@@ -111,6 +125,9 @@ public class CredentialLoginServiceImpl implements CredentialLoginService {
     }
 
     private void fail(AccountJpaEntity account, Instant now) {
+        if (account.getStatus() != AccountStatus.ACTIVE) {
+            return;
+        }
         int failedAttempts = account.getFailedCredentialCount() + 1;
         account.setFailedCredentialCount(failedAttempts);
         if (failedAttempts >= properties.credentialFailure().requests()) {

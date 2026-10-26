@@ -28,7 +28,6 @@ import java.util.UUID;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @SpringBootTest
@@ -68,21 +67,27 @@ class T006A8EvidenceTest {
                 .thenReturn(Optional.of(fu.fa26.sep490.g58.otcms_be.auth.model.entity.enums.AccountType.RECEPTIONIST));
         mvc.perform(post("/api/auth/logout").cookie(new jakarta.servlet.http.Cookie("refresh_token", "staff-refresh"),
                         new jakarta.servlet.http.Cookie("XSRF-TOKEN", "csrf"))
-                        .header("X-CSRF-TOKEN", "csrf").header("X-Forwarded-For", "203.0.113.10"))
-                .andExpect(status().isForbidden());
+                        .header("X-CSRF-TOKEN", "csrf").header("X-Forwarded-For", "127.0.0.1")
+                        .with(request -> { request.setRemoteAddr("203.0.113.10"); return request; }))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.error.code").value("STAFF_NETWORK_ACCESS_DENIED"));
+        verify(sessions, never()).logout("staff-refresh");
     }
 
     @Test
     void refreshWithCsrfCookieAndFrontendHeaderReachesSessionService() throws Exception {
         UUID accountId = UUID.randomUUID();
+        String csrfToken = mvc.perform(get("/api/auth/csrf")).andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString()
+                .replaceAll(".*\\\"csrfToken\\\":\\\"([^\\\"]+)\\\".*", "$1");
         when(sessions.rotate("valid-refresh")).thenReturn(new AuthSessionService.IssuedSession(
                 new fu.fa26.sep490.g58.otcms_be.auth.model.dto.response.SessionTokenResponse(
                         "access", "Bearer", 900, accountId, "ADMIN"), "rotated-refresh"));
 
         mvc.perform(post("/api/auth/refresh")
                         .cookie(new jakarta.servlet.http.Cookie("refresh_token", "valid-refresh"),
-                                new jakarta.servlet.http.Cookie("XSRF-TOKEN", "csrf-token"))
-                        .header("X-CSRF-TOKEN", "csrf-token"))
+                                new jakarta.servlet.http.Cookie("XSRF-TOKEN", csrfToken))
+                        .header("X-CSRF-TOKEN", csrfToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.accountType").value("ADMIN"));
         verify(sessions).rotate("valid-refresh");
@@ -93,7 +98,7 @@ class T006A8EvidenceTest {
         when(sessions.accountTypeForRefresh("family-a")).thenReturn(Optional.of(fu.fa26.sep490.g58.otcms_be.auth.model.entity.enums.AccountType.PATIENT));
         when(sessions.accountTypeForRefresh("family-b")).thenReturn(Optional.of(fu.fa26.sep490.g58.otcms_be.auth.model.entity.enums.AccountType.PATIENT));
         mvc.perform(post("/api/auth/logout").cookie(new jakarta.servlet.http.Cookie("refresh_token", "family-a"),
-                        new jakarta.servlet.http.Cookie("XSRF-TOKEN", "csrf")).header("X-CSRF-TOKEN", "csrf").with(csrf()))
+                        new jakarta.servlet.http.Cookie("XSRF-TOKEN", "csrf")).header("X-CSRF-TOKEN", "mismatched"))
                 .andExpect(status().isForbidden());
         verify(sessions, never()).logout("family-b");
     }

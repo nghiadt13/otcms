@@ -67,6 +67,8 @@ class T008PasswordRecoveryServiceTest {
     @Test void invalidAndExpiredTokenIncrementsAttemptsAndReuseIsRejected() {
         AccountJpaEntity a=account(AccountStatus.ACTIVE); a.setPasswordHash("old-hash"); PasswordResetChallengeJpaEntity c=new PasswordResetChallengeJpaEntity(); c.setAccount(a); c.setTokenHash(PasswordRecoveryServiceImpl.hash("token")); c.setCreatedAt(Instant.EPOCH); c.setExpiresAt(Instant.parse("2025-01-01T00:00:00Z")); c.setFailedAttempts(0);
         when(challenges.findByTokenHashForUpdate(c.getTokenHash())).thenReturn(Optional.of(c));
+        when(challenges.findAccountIdByTokenHash(c.getTokenHash())).thenReturn(Optional.of(a.getId()));
+        when(accounts.findByIdForUpdate(a.getId())).thenReturn(Optional.of(a));
         var ex=assertThrows(PasswordRecoveryException.class,()->service.reset(new ResetPasswordRequest("token","new-password-123"),AccountType.PATIENT));
         assertEquals("PASSWORD_RESET_TOKEN_INVALID",ex.getMessage()); assertEquals(1,c.getFailedAttempts()); verify(challenges).save(c);
     }
@@ -74,6 +76,8 @@ class T008PasswordRecoveryServiceTest {
     @Test void passwordReuseIsRejectedAndSuccessfulResetRevokesAllSessions() {
         AccountJpaEntity a=account(AccountStatus.ACTIVE); a.setPasswordHash("old-hash"); PasswordResetChallengeJpaEntity c=new PasswordResetChallengeJpaEntity(); c.setAccount(a); c.setTokenHash(PasswordRecoveryServiceImpl.hash("token")); c.setCreatedAt(Instant.EPOCH); c.setExpiresAt(Instant.parse("2027-01-01T00:00:00Z"));
         when(challenges.findByTokenHashForUpdate(c.getTokenHash())).thenReturn(Optional.of(c)); when(encoder.matches("same-password", "old-hash")).thenReturn(true);
+        when(challenges.findAccountIdByTokenHash(c.getTokenHash())).thenReturn(Optional.of(a.getId()));
+        when(accounts.findByIdForUpdate(a.getId())).thenReturn(Optional.of(a));
         assertThrows(PasswordRecoveryException.class,()->service.reset(new ResetPasswordRequest("token","same-password"),AccountType.PATIENT)); verifyNoInteractions(sessions);
         when(encoder.matches("new-password-123", "old-hash")).thenReturn(false); when(encoder.encode("new-password-123")).thenReturn("new-hash");
         service.reset(new ResetPasswordRequest("token","new-password-123"),AccountType.PATIENT); verify(sessions).revokeAll(a.getId()); assertNotNull(c.getConsumedAt());
