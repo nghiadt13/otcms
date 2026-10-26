@@ -81,5 +81,5 @@ Tên class phải phản ánh hành động hoặc khái niệm nghiệp vụ. T
 - Với thay đổi nghiệp vụ, đối chiếu UC liên quan và kiểm tra quyền của các actor có liên quan, nhất là truy cập hồ sơ và phát hành ảnh.
 - Với thay đổi ranh giới module, quy tắc đặt tên hoặc cách quản lý dependency, cập nhật tài liệu này trong cùng thay đổi.
 - Trong `frontend`, dùng `npm ci`, `npm run dev`, `npm run lint`, `npm test` (chạy một lần; `npm run test:watch` để theo dõi), `npm run build`. Node.js 24 LTS là phiên bản chuẩn của nhóm.
-- Trong `backend`, dùng `./mvnw spring-boot:run` hoặc `./mvnw package -DskipTests` (PowerShell: `./mvnw.cmd`). Java 17 là phiên bản chuẩn của nhóm.
+- Trong `backend`, dùng `./mvnw spring-boot:run` hoặc `./mvnw package -DskipTests` (PowerShell: `./mvnw.cmd`). Java 21 là phiên bản chuẩn của nhóm; build dừng nếu chạy bằng JDK khác (Maven Enforcer).
 - Xem `README.md` để cấu hình môi trường local và `docs/architecture.md` để biết cây thư mục theo feature.
