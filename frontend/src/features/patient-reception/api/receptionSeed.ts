@@ -1,8 +1,10 @@
-import { addDays, clinicDate } from "../schema/receptionRules";
+import { addDays, clinicDate, clinicTimestamp } from "../schema/receptionRules";
 import type { ReceptionState, Patient } from "../types";
 
-/** Synthetic fixtures only. Clock deliberately fixed at 09:10 to make front-desk flows reviewable at night. */
-export function createReceptionSeed(day = clinicDate()): ReceptionState {
+/** Synthetic records. Runtime uses real clinic time; an explicit fixture date keeps tests deterministic. */
+export function createReceptionSeed(fixtureDay?: string): ReceptionState {
+  const now = new Date();
+  const day = fixtureDay ?? clinicDate(now);
   const names = [
     "Nguyễn Minh Anh",
     "Trần Văn Bình",
@@ -34,7 +36,7 @@ export function createReceptionSeed(day = clinicDate()): ReceptionState {
     nationalId: "",
     email: i === 8 ? "" : `benhnhan${i + 1}@example.com`,
   }));
-  const clock = `${day}T09:10:00+07:00`;
+  const clock = fixtureDay ? `${day}T09:10:00+07:00` : clinicTimestamp(now);
   const state: ReceptionState = {
     version: 1,
     clock,

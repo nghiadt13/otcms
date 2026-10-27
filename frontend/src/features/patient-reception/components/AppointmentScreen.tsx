@@ -5,10 +5,12 @@ import { useSearchParams } from "next/navigation";
 import { CalendarPlus } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
+import { formatAppMessage } from "@/lib/messages/appMessages";
 import {
   availableDoctors,
   addDays,
   normalizeText,
+  isFutureSlot,
 } from "../schema/receptionRules";
 import type { Appointment } from "../types";
 import { useReception } from "./ReceptionProvider";
@@ -45,6 +47,12 @@ function BookingForm({
   const [doctorId, setDoctor] = useState("");
   const doctors = availableDoctors(s!, date, time, serviceId);
   const service = s!.services.find((v) => v.id === serviceId)!;
+  const future = isFutureSlot(date, time, s!.clock);
+  const canBook =
+    !!patientId &&
+    future &&
+    doctors.length > 0 &&
+    (!doctorId || doctors.some((d) => d.id === doctorId));
   return (
     <FormModal
       title="Đặt lịch khám"
@@ -56,6 +64,7 @@ function BookingForm({
         className="space-y-5"
         onSubmit={async (e) => {
           e.preventDefault();
+          if (!canBook || pending) return;
           if (
             await run({
               type: "book",
@@ -115,7 +124,7 @@ function BookingForm({
           <div className="grid grid-cols-4 gap-2 sm:grid-cols-6">
             {slots.map((slot) => {
               const available =
-                `${date}T${slot}` >= s!.clock.slice(0, 16) &&
+                isFutureSlot(date, slot, s!.clock) &&
                 availableDoctors(s!, date, slot, serviceId).length > 0;
               return (
                 <Button
@@ -138,7 +147,7 @@ function BookingForm({
           {date &&
             !slots.some(
               (t) =>
-                `${date}T${t}` >= s!.clock.slice(0, 16) &&
+                isFutureSlot(date, t, s!.clock) &&
                 availableDoctors(s!, date, t, serviceId).length > 0,
             ) && (
               <p className="text-muted-foreground">
@@ -146,6 +155,11 @@ function BookingForm({
               </p>
             )}
         </fieldset>
+        {time && !future && (
+          <p role="alert" className="text-destructive">
+            {formatAppMessage("MSG-31")}
+          </p>
+        )}
         <SelectField
           label="Bác sĩ (không bắt buộc)"
           value={doctorId}
@@ -164,7 +178,7 @@ function BookingForm({
         <FormActions
           onClose={onClose}
           label="Xác nhận đặt lịch"
-          disabled={!patientId || !time || !doctors.length}
+          disabled={!canBook}
         />
       </form>
     </FormModal>
@@ -182,8 +196,7 @@ function Availability({ onClose }: { onClose: () => void }) {
       ),
     }))
     .filter(
-      (slot) =>
-        slot.doctors.length && `${date}T${slot.time}` >= s!.clock.slice(0, 16),
+      (slot) => slot.doctors.length && isFutureSlot(date, slot.time, s!.clock),
     );
   return (
     <FormModal

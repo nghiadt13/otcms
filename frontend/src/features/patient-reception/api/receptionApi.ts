@@ -3,6 +3,8 @@ import { mockDelay, mockFail } from "@/lib/api/mockServer";
 import { isPasswordValid } from "@/lib/domain/passwordPolicy";
 import {
   addDays,
+  clinicTimestamp,
+  isFutureSlot,
   availableDoctors,
   latestRoundReady,
   normalizePhone,
@@ -26,10 +28,13 @@ import { createReceptionSeed } from "./receptionSeed";
 // UI prototype transport, matching the existing admin mock boundary. No Supabase writes.
 // Replace this adapter with authorized Spring endpoints; never ship the mock as clinical storage.
 let store = createReceptionSeed();
+let currentTime = () => new Date();
 let passwordHash: string | null = null;
 const delay = () => mockDelay(process.env.NODE_ENV === "test" ? 0 : 180);
-export function resetReceptionMock(state = createReceptionSeed()) {
-  store = structuredClone(state);
+export function resetReceptionMock(state?: ReceptionState, now?: () => Date) {
+  store = structuredClone(state ?? createReceptionSeed());
+  const fixtureTime = store.clock;
+  currentTime = now ?? (state ? () => new Date(fixtureTime) : () => new Date());
   passwordHash = null;
 }
 // Lỗi mang mã MSG của R3 theo hình ProblemDetail mà BE sẽ trả (xem fe-be-api-contract);
@@ -131,11 +136,15 @@ export async function loadReception(
 ): Promise<ReceptionState> {
   await mockDelay(process.env.NODE_ENV === "test" ? 0 : 180, signal);
   const next = structuredClone(store);
+  next.clock = clinicTimestamp(currentTime());
   expireState(next);
-  if (JSON.stringify(next) !== JSON.stringify(store)) {
+  // A clock tick is not a business mutation and must not invalidate an open form.
+  if (
+    JSON.stringify({ ...next, clock: store.clock }) !== JSON.stringify(store)
+  ) {
     next.version++;
-    store = next;
   }
+  store = next;
   return structuredClone(store);
 }
 function addQueue(
@@ -307,6 +316,7 @@ export async function executeReception(
   await delay();
   requireThat(store.version === expectedVersion, "MSG-42");
   const s = structuredClone(store);
+  s.clock = clinicTimestamp(currentTime());
   expireState(s);
   switch (command.type) {
     case "save-patient": {
@@ -367,7 +377,7 @@ export async function executeReception(
       const service = find(s.services, command.serviceId);
       requireThat(service.active && service.category === "exam", "MSG-29");
       requireThat(
-        `${command.date}T${command.time}` >= s.clock.slice(0, 16),
+        isFutureSlot(command.date, command.time, s.clock),
         "MSG-31",
         400,
       );

@@ -26,6 +26,23 @@ export function isDate(value: string) {
     new Date(value).toISOString().slice(0, 10) === value
   );
 }
+const clinicTimeFormat = new Intl.DateTimeFormat("en-GB", {
+  timeZone: "Asia/Ho_Chi_Minh",
+  hourCycle: "h23",
+  hour: "2-digit",
+  minute: "2-digit",
+  second: "2-digit",
+});
+export function clinicTimestamp(now = new Date()) {
+  return `${clinicDate(now)}T${clinicTimeFormat.format(now)}+07:00`;
+}
+export function isFutureSlot(date: string, time: string, now: string) {
+  return (
+    isDate(date) &&
+    /^([01]\d|2[0-3]):[0-5]\d$/.test(time) &&
+    Date.parse(`${date}T${time}:00+07:00`) > Date.parse(now)
+  );
+}
 export function normalizePhone(value: string) {
   return value.replace(/[\s().-]/g, "").replace(/^\+84/, "0");
 }
