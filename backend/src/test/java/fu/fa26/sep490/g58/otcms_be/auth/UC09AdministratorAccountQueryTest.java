@@ -18,10 +18,13 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.security.access.AccessDeniedException;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -80,27 +83,89 @@ class UC09AdministratorAccountQueryTest {
     }
 
     @Test
+    void blankQueryListsAdministratorsWithoutSearchTerm() {
+        // Arrange
+        var pageable = PageRequest.of(0, 20, Sort.by(Sort.Direction.DESC, "createdAt", "id"));
+        when(accounts.searchAdministrators("%%", null, pageable))
+                .thenReturn(new PageImpl<>(List.of(account(AccountType.ADMIN)), pageable, 1));
+
+        // Act
+        var result = service.list(owner(), " \t ", null, 0, 20);
+
+        // Assert
+        assertEquals(1, result.getTotalElements());
+        assertEquals("ADMIN", result.getContent().getFirst().accountType());
+        verify(accounts).searchAdministrators("%%", null, pageable);
+    }
+
+    @Test
+    void ownerFiltersActiveAdministrators() {
+        // Arrange
+        var pageable = PageRequest.of(0, 20, Sort.by(Sort.Direction.DESC, "createdAt", "id"));
+        when(accounts.searchAdministrators("%%", AccountStatus.ACTIVE, pageable))
+                .thenReturn(new PageImpl<>(List.of(account(AccountType.ADMIN)), pageable, 1));
+
+        // Act
+        var result = service.list(owner(), null, AccountStatus.ACTIVE, 0, 20);
+
+        // Assert
+        assertEquals(1, result.getTotalElements());
+        assertEquals("ACTIVE", result.getContent().getFirst().status());
+        verify(accounts).searchAdministrators("%%", AccountStatus.ACTIVE, pageable);
+    }
+
+    @ParameterizedTest(name = "page zero accepts boundary size {0}")
+    @ValueSource(ints = {1, 50})
+    void firstPageAcceptsMinimumAndMaximumPageSize(int size) {
+        // Arrange
+        var pageable = PageRequest.of(0, size, Sort.by(Sort.Direction.DESC, "createdAt", "id"));
+        when(accounts.searchAdministrators("%%", null, pageable))
+                .thenReturn(new PageImpl<>(List.of(account(AccountType.ADMIN)), pageable, 1));
+
+        // Act
+        var result = service.list(owner(), null, null, 0, size);
+
+        // Assert
+        assertEquals(0, result.getNumber());
+        assertEquals(size, result.getSize());
+        assertEquals(1, result.getNumberOfElements());
+        assertEquals(1, result.getTotalElements());
+        verify(accounts).searchAdministrators("%%", null, pageable);
+    }
+
+    @Test
     void ownerCanReadAdministratorDetailOnlyThroughRoleScopedLookup() {
         var account = account(AccountType.ADMIN);
+        account.setNormalizedEmail("administrator@example.test");
+        account.setUpdatedAt(Instant.EPOCH.plusSeconds(60));
         when(accounts.findByIdAndAccountType(account.getId(), AccountType.ADMIN)).thenReturn(Optional.of(account));
         var detail = service.detail(owner(), account.getId());
         assertEquals(account.getId(), detail.accountId());
         assertEquals("ADMIN", detail.accountType());
+        assertEquals(account.getUsername(), detail.username());
+        assertEquals(account.getNormalizedEmail(), detail.email());
+        assertEquals(account.getStatus().name(), detail.status());
+        assertEquals(account.getCreatedAt(), detail.createdAt());
+        assertEquals(account.getUpdatedAt(), detail.updatedAt());
+        verify(accounts).findByIdAndAccountType(account.getId(), AccountType.ADMIN);
         verify(accounts, never()).findById(any());
     }
 
     @Test
     void missingAndEveryNonAdminTargetCannotBeExposed() {
         UUID missing = UUID.randomUUID();
-        assertThrows(AdministratorAccountException.class, () -> service.detail(owner(), missing));
+        assertEquals("ADMINISTRATOR_ACCOUNT_NOT_FOUND", assertThrows(AdministratorAccountException.class,
+                () -> service.detail(owner(), missing)).getMessage());
         for (AccountType type : AccountType.values()) {
             if (type == AccountType.ADMIN) continue;
             var account = account(type);
             when(accounts.findByIdAndAccountType(account.getId(), AccountType.ADMIN)).thenReturn(Optional.of(account));
-            assertThrows(AdministratorAccountException.class, () -> service.detail(owner(), account.getId()));
+            assertEquals("ADMINISTRATOR_ACCOUNT_NOT_FOUND", assertThrows(AdministratorAccountException.class,
+                    () -> service.detail(owner(), account.getId())).getMessage());
             when(accounts.searchAdministrators(anyString(), isNull(), any()))
                     .thenReturn(new PageImpl<>(List.of(account)));
-            assertThrows(AdministratorAccountException.class, () -> service.list(owner(), null, null, 0, 20));
+            assertEquals("ADMINISTRATOR_ACCOUNT_NOT_FOUND", assertThrows(AdministratorAccountException.class,
+                    () -> service.list(owner(), null, null, 0, 20)).getMessage());
         }
     }
 
@@ -119,9 +184,10 @@ class UC09AdministratorAccountQueryTest {
 
     @Test
     void invalidPaginationIsRejectedBeforeQuery() {
-        for (int[] paging : new int[][]{{-1, 20}, {0, 0}, {0, 51}}) {
-            assertThrows(AdministratorAccountException.class,
+        for (int[] paging : new int[][]{{-1, 20}, {0, -1}, {0, 0}, {0, 51}}) {
+            var error = assertThrows(AdministratorAccountException.class,
                     () -> service.list(owner(), null, null, paging[0], paging[1]));
+            assertEquals("VALIDATION_FAILED", error.getMessage());
         }
         verifyNoInteractions(accounts);
     }

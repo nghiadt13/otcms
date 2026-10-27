@@ -93,6 +93,9 @@ public class PasswordRecoveryServiceImpl implements PasswordRecoveryService {
     @Override
     @Transactional
     public void reset(ResetPasswordRequest request, AccountType portal) {
+        if (!PasswordPolicy.isValid(request.newPassword())) {
+            throw new PasswordRecoveryException("VALIDATION_FAILED");
+        }
         String tokenHash = hash(request.token());
         // Match reissue's account -> challenge order and read supersession after acquiring the account lock.
         UUID accountId = challenges.findAccountIdByTokenHash(tokenHash)
@@ -146,6 +149,7 @@ public class PasswordRecoveryServiceImpl implements PasswordRecoveryService {
         account.setUpdatedAt(Instant.now(clock));
         account.setMustChangePassword(false);
         accounts.save(account);
+        challenges.supersedeCurrent(accountId, Instant.now(clock));
         sessions.revokeAll(account.getId());
     }
 

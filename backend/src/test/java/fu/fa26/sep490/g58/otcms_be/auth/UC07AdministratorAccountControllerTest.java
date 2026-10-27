@@ -107,6 +107,18 @@ class UC07AdministratorAccountControllerTest {
     }
 
     @Test
+    void invalidUsernamesReturn400BeforeServiceCall() throws Exception {
+        var json = JsonMapper.builder().build();
+        for (String username : new String[]{"a".repeat(65), "admin\u0000", "admin\n", "admin\u007f"}) {
+            mvc.perform(post(ENDPOINT).with(actor(AccountRole.OWNER)).with(csrf())
+                            .contentType("application/json")
+                            .content(json.writeValueAsString(java.util.Map.of("username", username))))
+                    .andExpect(status().isBadRequest());
+        }
+        verifyNoInteractions(accounts);
+    }
+
+    @Test
     void duplicateUsernameUsesConflictWithoutExposingCredentials() throws Exception {
         when(accounts.create(any(), eq("duplicate")))
                 .thenThrow(new AdministratorAccountException("USERNAME_ALREADY_EXISTS"));

@@ -36,6 +36,22 @@ class UC08AdministratorAccountPostgresIntegrationTest {
     @Autowired private OwnerAdministratorService management;
     @Autowired private AuthSessionService sessions;
     @Autowired private PasswordEncoder encoder;
+    @Autowired private fu.fa26.sep490.g58.otcms_be.auth.service.AccountAccessService access;
+    @Autowired private fu.fa26.sep490.g58.otcms_be.auth.security.JwtTokenService tokens;
+
+    @Test
+    void administratorRefreshInvalidatesOldAccessSessionAndAllowsNewAccessSession() {
+        var account = legacyAdministrator();
+        var old = sessions.create(account.getId(), "127.0.0.1", "uc08-rotation-test");
+        var next = sessions.rotate(old.refreshToken());
+        var oldClaims = tokens.validate(old.body().accessToken());
+        var nextClaims = tokens.validate(next.body().accessToken());
+        assertNotEquals(oldClaims.sessionId(), nextClaims.sessionId());
+        assertEquals(fu.fa26.sep490.g58.otcms_be.auth.service.AccountAccessService.AccessState.INVALID_SESSION,
+                access.evaluate(new AuthenticatedAccount(account.getId(), AccountRole.ADMIN, oldClaims.sessionId())));
+        assertEquals(fu.fa26.sep490.g58.otcms_be.auth.service.AccountAccessService.AccessState.ALLOWED,
+                access.evaluate(new AuthenticatedAccount(account.getId(), AccountRole.ADMIN, nextClaims.sessionId())));
+    }
 
     @Test
     void legacyAdministratorCanReceiveIssuedPasswordWithoutUsernameAndOldSessionIsRevoked() {

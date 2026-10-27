@@ -9,8 +9,10 @@ Không triển khai UC08/UC09, frontend, tạo staff profile, commit hoặc push
 - `POST /api/v1/owner/administrator-accounts`: authenticated `OWNER`, có CSRF token.
 - Body: `{"username":"clinic.admin"}`. Field ngoài contract, kể cả `role`, `accountType`,
   `password`, `mustChangePassword`, bị từ chối.
-- Username phải là chuỗi không rỗng. Project chưa có format/normalization username;
-  implementation giữ nguyên giá trị, so sánh unique chính xác theo PostgreSQL, không thêm regex.
+- Username phải là chuỗi không rỗng, tối đa 64 UTF-16 code units; không chứa ký tự điều khiển
+  hoặc surrogate đơn lẻ. Giới hạn 64 theo convention mã định danh ngắn như roomCode;
+  project chưa có giới hạn username riêng. DTO và service dùng chung AdministratorUsernamePolicy,
+  giữ nguyên giá trị và so sánh unique chính xác theo PostgreSQL, không thêm regex/normalization.
 - Thành công: `201`, `Cache-Control: no-store`, body gồm `accountId`, `username`,
   `accountType=ADMIN`, `mustChangePassword=true`, `temporaryPassword`.
 - Temporary password chỉ tồn tại trong create result; không có endpoint đọc lại credential.
@@ -121,3 +123,49 @@ Trạng thái schema hiện tại còn bao gồm `V021__allow_legacy_administrat
 - Các ghi nhận connection refused phía trên là evidence lịch sử, đã được lượt chạy DB thành công thay thế.
 - Xem phần PostgreSQL Docker verification mới nhất trong `uc08-uc09-administrator-accounts.md`
   để biết exact commands, test-fixture fixes và regression tổng hợp. Không thay Human approval.
+
+## Minimal security fixes — 2026-10-26
+
+### Shadow Plan / Action Record
+
+- Authorization/checkpoint: người dùng yêu cầu sửa tối thiểu ba findings recovery/username,
+  thêm test, giữ kiến trúc Controller → Service → Repository và behavior refresh hiện tại.
+- File boundary: PasswordRecoveryServiceImpl, CreateAdministratorAccountRequest,
+  OwnerAdministratorService, AdministratorUsernamePolicy mới; sáu test files UC07/UC08/T008/T010
+  và tài liệu UC07 này. Không sửa frontend, migrations hoặc UC_description.html; không commit/push.
+- Plan: kiểm tra convention username → sửa validation/supersession → regression unit/MVC/DB
+  → git diff --check → ghi evidence. Không thêm dependency.
+- change(): supersede mọi reset challenge chưa consumed/superseded trong cùng transaction
+  đổi hash, xóa mandatory-change flag và revoke sessions. Reset link cũ không còn dùng được.
+- reset(): dùng PasswordPolicy trước khi xử lý credential; Unicode vượt 72 UTF-8 bytes
+  trả 400 VALIDATION_FAILED qua AuthExceptionHandler, không gọi encoder/persistence.
+- Username: tối đa 64 UTF-16 code units; chặn ISO control và surrogate đơn lẻ, không regex;
+  shared policy áp dụng tại DTO/service trước advisory lock hoặc persistence. Không trim/lowercase.
+- Refresh production không đổi. Test PostgreSQL xác nhận sau rotation, access JWT cũ còn
+  validate chữ ký/thời hạn nhưng session bị từ chối; access JWT mới có session được phép.
+
+### Verification
+
+JDK 21; Maven 3.9.16 đã có trong wrapper cache. Wrapper script lỗi khởi động
+`Cannot index into a null array`, nên dùng executable cache đã được tài liệu kiểm chứng.
+Lượt compile trong sandbox bị lỗi truy cập Maven cache; lượt ngoài sandbox compile thành công.
+Lượt test đầu: 99 PASS, 0 assertion failures, 21 context errors do PostgreSQL connection refused.
+Khởi động Docker Desktop; container có sẵn otcms-postgres-test tự chạy, healthy,
+chỉ bind 127.0.0.1:5432. Không tạo/reset database hoặc thay cấu hình credential.
+
+Exact command lượt cuối:
+
+```powershell
+$env:JAVA_HOME = 'C:/Program Files/Java/jdk-21'
+& 'C:/Users/ad/.m2/wrapper/dists/apache-maven-3.9.16/0daed3be3ebd1c706f0e69e8b07c6b73f5cc4ea3dfce72a8d0ec2e849ca2ddb0/bin/mvn.cmd' '-Dmaven.repo.local=C:/Users/ad/.m2/repository' '-Dtest=UC07*Test,UC08*Test,UC09*Test,AdministratorAccountDatabaseVerificationTest,PatientRegistrationT004Test,T005ContractTest,T005CredentialLoginServiceTest,T006SecurityContractTest,T006HttpSecurityEvidenceTest,T006A12EvidenceTest,T007GoogleAuthenticationServiceTest,T008PasswordRecoveryServiceTest,T008PasswordRecoveryPostgresIntegrationTest,T009SmtpEmailDeliveryTest,T010PasswordRecoveryControllerTest,T010CommonSecurityContractTest,SessionCsrfWebMvcTest,T006PostgresIntegrationTest,T006A8EvidenceTest' test
+git diff --check
+```
+
+- Final result: 120 PASS, 0 failures, 0 errors, 0 skipped; BUILD SUCCESS.
+- UC07: 22 PASS; UC08: 20 PASS; UC09: 16 PASS; database verification: 4 PASS;
+  auth/password/session regression còn lại: 58 PASS. Có 8 test mới.
+- Evidence: target/owner-administrator-minimal-fixes-test.log và target/surefire-reports.
+- git diff --check: PASS. Residual blocker trong phạm vi sửa tối thiểu: không có.
+- Sync-back: cập nhật contract username và ghi evidence tại đây; không thay approval cũ.
+- AI Agent Recommendation: PENDING HUMAN REVIEW. Human Final Review: PENDING HUMAN REVIEW;
+  không tự ghi quyết định thay Human reviewer.

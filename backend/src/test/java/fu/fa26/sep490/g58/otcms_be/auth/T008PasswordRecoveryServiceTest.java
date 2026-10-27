@@ -29,6 +29,31 @@ class T008PasswordRecoveryServiceTest {
     private final PasswordRecoveryService service = new PasswordRecoveryServiceImpl(accounts,challenges,email,encoder,sessions,props,
             Clock.fixed(Instant.parse("2026-01-01T00:00:00Z"), ZoneOffset.UTC));
 
+    @Test void resetRejectsUnicodeOverBcryptByteLimitBeforeEncoding() {
+        String password = "\u1ea3".repeat(25);
+        assertEquals(25, password.length());
+        assertEquals(75, password.getBytes(java.nio.charset.StandardCharsets.UTF_8).length);
+        var error = assertThrows(PasswordRecoveryException.class,
+                () -> service.reset(new ResetPasswordRequest("token", password), AccountType.PATIENT));
+        assertEquals("VALIDATION_FAILED", error.getMessage());
+        verifyNoInteractions(accounts, challenges, encoder, sessions);
+    }
+
+    @Test void successfulChangeSupersedesChallengesAndFailedChangeDoesNot() {
+        AccountJpaEntity account = account(AccountStatus.ACTIVE);
+        account.setPasswordHash("old-hash");
+        when(accounts.findByIdForUpdate(account.getId())).thenReturn(Optional.of(account));
+        assertThrows(PasswordRecoveryException.class,
+                () -> service.change(account.getId(), new ChangePasswordRequest("wrong", "new-password-123")));
+        verifyNoInteractions(challenges, sessions);
+        when(encoder.matches("old-password-123", "old-hash")).thenReturn(true);
+        when(encoder.encode("new-password-123")).thenReturn("new-hash");
+        service.change(account.getId(), new ChangePasswordRequest("old-password-123", "new-password-123"));
+        verify(challenges).supersedeCurrent(account.getId(), Instant.parse("2026-01-01T00:00:00Z"));
+        verify(sessions).revokeAll(account.getId());
+        assertEquals("new-hash", account.getPasswordHash());
+    }
+
     @Test void unknownAndIneligibleForgotRequestsHaveIdenticalGenericResponse() {
         when(accounts.findByNormalizedEmail("unknown@example.test")).thenReturn(Optional.empty());
         AccountJpaEntity googleOnly = account(AccountStatus.ACTIVE); googleOnly.setPasswordHash(null);

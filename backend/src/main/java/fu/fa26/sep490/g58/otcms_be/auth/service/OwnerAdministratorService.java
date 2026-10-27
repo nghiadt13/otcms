@@ -12,6 +12,7 @@ import fu.fa26.sep490.g58.otcms_be.auth.repository.AccountRepository;
 import fu.fa26.sep490.g58.otcms_be.auth.repository.AuthConcurrencyRepository;
 import fu.fa26.sep490.g58.otcms_be.auth.repository.PasswordResetChallengeRepository;
 import fu.fa26.sep490.g58.otcms_be.auth.service.impl.AdministratorPasswordIssuer;
+import fu.fa26.sep490.g58.otcms_be.auth.validation.AdministratorUsernamePolicy;
 import fu.fa26.sep490.g58.otcms_be.common.security.AccountRole;
 import fu.fa26.sep490.g58.otcms_be.common.security.AuthenticatedAccount;
 import java.time.Instant;
@@ -49,7 +50,7 @@ public class OwnerAdministratorService {
     @Transactional
     public CreateAdministratorAccountResponse create(AuthenticatedAccount actor, String username) {
         requireOwner(actor);
-        if (username == null || username.isBlank()) {
+        if (!AdministratorUsernamePolicy.isValid(username)) {
             throw new AdministratorAccountException("VALIDATION_FAILED");
         }
         concurrency.lock("administrator-username:" + username);

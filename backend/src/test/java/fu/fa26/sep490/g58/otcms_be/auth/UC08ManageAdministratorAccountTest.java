@@ -46,27 +46,81 @@ class UC08ManageAdministratorAccountTest {
     private final org.springframework.security.crypto.password.PasswordEncoder encoder =
             PasswordEncoderFactories.createDelegatingPasswordEncoder();
     private final TemporaryPasswordGenerator generator = new TemporaryPasswordGenerator();
+    private final AdministratorPasswordIssuer passwords = spy(new AdministratorPasswordIssuer(generator, encoder));
     private final OwnerAdministratorService service = new OwnerAdministratorService(
-            accounts, mock(AuthConcurrencyRepository.class), sessions, resets, new AdministratorPasswordIssuer(generator, encoder),
+            accounts, mock(AuthConcurrencyRepository.class), sessions, resets, passwords,
             new AdministratorAccountMapper());
 
     @Test
-    void deactivateAndActivatePreserveRoleCredentialsAndAccount() {
+    void ownerActivatesAdministratorWithoutChangingIdentityOrCredentials() {
+        // Arrange
         var account = target(AccountType.ADMIN);
+        account.setStatus(AccountStatus.DISABLED);
+        account.setUsername("Administrator.Name");
+        UUID id = account.getId();
         String hash = account.getPasswordHash();
-        var disabled = service.deactivate(actor(AccountRole.OWNER), account.getId());
-        assertEquals("DISABLED", disabled.status());
-        assertEquals(AccountType.ADMIN, account.getAccountType());
-        assertEquals(hash, account.getPasswordHash());
-        verify(sessions).revokeAll(account.getId(), "ACCOUNT_DEACTIVATED");
-        var active = service.activate(actor(AccountRole.OWNER), account.getId());
+        Instant before = Instant.now();
+
+        // Act
+        var active = service.activate(actor(AccountRole.OWNER), id);
+
+        // Assert
+        assertEquals(AccountStatus.ACTIVE, account.getStatus());
         assertEquals("ACTIVE", active.status());
+        assertEquals(id, account.getId());
+        assertEquals(id, active.accountId());
+        assertEquals("Administrator.Name", account.getUsername());
+        assertEquals("Administrator.Name", active.username());
         assertEquals(AccountType.ADMIN, account.getAccountType());
+        assertEquals("ADMIN", active.accountType());
+        assertEquals(hash, account.getPasswordHash());
         assertEquals("legacy@example.test", account.getNormalizedEmail());
-        verify(accounts, times(2)).saveAndFlush(account);
+        assertFalse(account.getUpdatedAt().isBefore(before));
+        assertFalse(account.getUpdatedAt().isAfter(Instant.now()));
+        assertEquals(account.getUpdatedAt(), active.updatedAt());
+        assertEquals(Instant.EPOCH, account.getCreatedAt());
+        verify(accounts).findByIdForUpdate(id);
+        verify(accounts).saveAndFlush(account);
         verify(accounts, never()).delete(any());
         verify(accounts, never()).deleteById(any());
-        verifyNoInteractions(resets);
+        verifyNoInteractions(sessions, resets, passwords);
+    }
+
+    @Test
+    void ownerDeactivatesAdministratorAndRevokesSessions() {
+        // Arrange
+        var account = target(AccountType.ADMIN);
+        account.setUsername("Administrator.Name");
+        UUID id = account.getId();
+        String hash = account.getPasswordHash();
+        Instant before = Instant.now();
+
+        // Act
+        var disabled = service.deactivate(actor(AccountRole.OWNER), id);
+
+        // Assert
+        assertEquals(AccountStatus.DISABLED, account.getStatus());
+        assertEquals("DISABLED", disabled.status());
+        assertEquals(id, account.getId());
+        assertEquals(id, disabled.accountId());
+        assertEquals("Administrator.Name", account.getUsername());
+        assertEquals("Administrator.Name", disabled.username());
+        assertEquals(AccountType.ADMIN, account.getAccountType());
+        assertEquals("ADMIN", disabled.accountType());
+        assertEquals(hash, account.getPasswordHash());
+        assertEquals("legacy@example.test", account.getNormalizedEmail());
+        assertFalse(account.getUpdatedAt().isBefore(before));
+        assertFalse(account.getUpdatedAt().isAfter(Instant.now()));
+        assertEquals(account.getUpdatedAt(), disabled.updatedAt());
+        assertEquals(Instant.EPOCH, account.getCreatedAt());
+        var order = inOrder(accounts, sessions);
+        order.verify(accounts).findByIdForUpdate(id);
+        order.verify(accounts).saveAndFlush(account);
+        order.verify(sessions).revokeAll(id, "ACCOUNT_DEACTIVATED");
+        verifyNoMoreInteractions(sessions);
+        verify(accounts, never()).delete(any());
+        verify(accounts, never()).deleteById(any());
+        verifyNoInteractions(resets, passwords);
     }
 
     @Test
@@ -76,7 +130,7 @@ class UC08ManageAdministratorAccountTest {
             assertDenied(actor(role));
         }
         assertDenied(null);
-        verifyNoInteractions(accounts, sessions, resets);
+        verifyNoInteractions(accounts, sessions, resets, passwords);
     }
 
     @Test
@@ -89,16 +143,23 @@ class UC08ManageAdministratorAccountTest {
             assertNotFound(account.getId());
             assertEquals(type, account.getAccountType());
             assertEquals(AccountStatus.ACTIVE, account.getStatus());
+            assertEquals(Instant.EPOCH, account.getUpdatedAt());
         }
         verify(accounts, never()).saveAndFlush(any());
-        verifyNoInteractions(sessions, resets);
+        verifyNoInteractions(sessions, resets, passwords);
     }
 
     @Test
     void reissueHashesNewPasswordAndReturnsItOnlyOnceWithoutLogging(CapturedOutput output) {
         var account = target(AccountType.ADMIN);
         String oldHash = account.getPasswordHash();
+        assertFalse(account.isMustChangePassword());
+        Instant before = Instant.now();
         var response = service.reissuePassword(actor(AccountRole.OWNER), account.getId());
+        assertEquals(account.getId(), response.getAccountId());
+        assertFalse(account.getUpdatedAt().isBefore(before));
+        assertFalse(account.getUpdatedAt().isAfter(Instant.now()));
+        assertEquals(Instant.EPOCH, account.getCreatedAt());
         assertNotEquals(oldHash, account.getPasswordHash());
         assertNotEquals(response.getTemporaryPassword(), account.getPasswordHash());
         assertTrue(encoder.matches(response.getTemporaryPassword(), account.getPasswordHash()));
@@ -108,8 +169,15 @@ class UC08ManageAdministratorAccountTest {
         assertNull(account.getUsername()); // Legacy email-based ADMIN remains supported.
         assertEquals(AccountStatus.ACTIVE, account.getStatus());
         assertEquals(AccountType.ADMIN, account.getAccountType());
-        verify(sessions).revokeAll(account.getId());
-        verify(resets).supersedeCurrent(eq(account.getId()), any());
+        var supersededAt = org.mockito.ArgumentCaptor.forClass(Instant.class);
+        var order = inOrder(passwords, accounts, resets, sessions);
+        order.verify(accounts).findByIdForUpdate(account.getId());
+        order.verify(passwords).issue(account);
+        order.verify(accounts).saveAndFlush(account);
+        order.verify(resets).supersedeCurrent(eq(account.getId()), supersededAt.capture());
+        order.verify(sessions).revokeAll(account.getId());
+        assertFalse(supersededAt.getValue().isBefore(account.getUpdatedAt()));
+        assertFalse(supersededAt.getValue().isAfter(Instant.now()));
         assertFalse(response.toString().contains(response.getTemporaryPassword()));
         assertFalse(output.getAll().contains(response.getTemporaryPassword()));
         var mapper = JsonMapper.builder().build();
@@ -211,8 +279,10 @@ class UC08ManageAdministratorAccountTest {
     private void assertNotFound(UUID id) {
         assertEquals("ADMINISTRATOR_ACCOUNT_NOT_FOUND", assertThrows(AdministratorAccountException.class,
                 () -> service.activate(actor(AccountRole.OWNER), id)).getMessage());
-        assertThrows(AdministratorAccountException.class, () -> service.deactivate(actor(AccountRole.OWNER), id));
-        assertThrows(AdministratorAccountException.class, () -> service.reissuePassword(actor(AccountRole.OWNER), id));
+        assertEquals("ADMINISTRATOR_ACCOUNT_NOT_FOUND", assertThrows(AdministratorAccountException.class,
+                () -> service.deactivate(actor(AccountRole.OWNER), id)).getMessage());
+        assertEquals("ADMINISTRATOR_ACCOUNT_NOT_FOUND", assertThrows(AdministratorAccountException.class,
+                () -> service.reissuePassword(actor(AccountRole.OWNER), id)).getMessage());
     }
 
     private AccountJpaEntity target(AccountType type) {
