@@ -6,6 +6,8 @@ FE đã dựng xong khu `/portal` (bệnh nhân), `/reception` (Lễ tân: hồ 
 
 Nguồn nghiệp vụ: R3 SRS bản Drive (số BR/MSG theo bản Drive; `docs/appendix-rules.md` trong repo là bản cũ 19/10, đánh số BR lệch) và đặc tả tách tài khoản/hồ sơ 23/10.
 
+Điều chỉnh được người phụ trách phần lễ tân chấp thuận ngày 27/10/2026: tra cứu hồ sơ bằng tên, SĐT **hoặc** mã bệnh nhân; ngày sinh chỉ là bộ lọc tùy chọn. Tìm kiếm trả về các ứng viên để đối chiếu, không tự xác nhận danh tính. Cho mở form tạo hồ sơ ngay, nhưng vẫn kiểm tra thông tin, xác nhận danh tính và chống trùng trước khi lưu. Quy tắc này thay phần tra cứu cũ của UC10/BR-14 tại quầy; xem `docs/requirements/UC10-create-walk-in-patient-profile.md`. Quyền truy cập và liên kết hồ sơ trong khu bệnh nhân giữ nguyên.
+
 ## 1. Quy ước chung (mọi endpoint)
 
 - Base `/api/v1/`, danh từ số nhiều, key `camelCase`, enum `UPPER_SNAKE`, id chuỗi.
@@ -72,7 +74,7 @@ FE hiện gọi **một adapter lệnh** (`features/patient-reception/api/recept
 
 | Method | URL | Lệnh FE / màn | UC |
 | --- | --- | --- | --- |
-| GET | `/api/v1/patients/lookup?phone=&dob=&name=` | Tìm hồ sơ `/reception/patients` | UC10, BR-14 |
+| GET | `/api/v1/patients/lookup?q=&dob=&page=&size=` | Lễ tân tìm bằng tên, SĐT hoặc mã BN; ngày sinh tùy chọn, không tự chọn hồ sơ | UC10, BR-14 (điều chỉnh 27/10) |
 | GET | `/api/v1/patients/{id}` | Chi tiết hồ sơ hành chính (không tiền sử, dị ứng) | UC11 |
 | POST | `/api/v1/patients` | `save-patient` (tạo, không tạo tài khoản) | UC10 |
 | PATCH | `/api/v1/patients/{id}` | `save-patient` (sửa) | UC11 |
@@ -157,7 +159,7 @@ FE hiện gọi **một adapter lệnh** (`features/patient-reception/api/recept
 - **Đặt lịch**: chỉ dịch vụ Khám; giờ phải còn trống lúc ghi (trùng → 409 MSG-30); không đổi giờ (BR-22); chỉ bệnh nhân hủy lịch Booked trước check-in; Lễ tân/Admin chỉ chuyển bác sĩ cùng giờ.
 - **Tiền**: số tiền, khoản được trả, trạng thái do BE tính; FE gửi tạm tính và dừng nếu BE trả tổng khác. Trả trùng/đã trả → 409 MSG-49. Không trả một phần online. Chặn SUCCESS muộn của QR VNPay khi Lễ tân đã chuyển sang tiền mặt.
 - **Tiếp nhận, hàng đợi, thu phí tại quầy**: xem R00 §4 (một lượt hoạt động mỗi bệnh nhân, quay lại ≤ 7 ngày không thu phí khám, một phòng một người đang gọi, đổi thứ tự phải có lý do, chống thu trùng và khóa thu khi VNPay chưa rõ kết quả).
-- **Hồ sơ**: tìm theo BR-14 mới (mã BN, hoặc SĐT + ngày sinh + họ tên khi nhiều kết quả, không trả danh sách người khác); gắn online chỉ khi email trùng email đã xác minh; tối đa một "Bản thân" mỗi tài khoản và mỗi hồ sơ (MSG-21).
+- **Hồ sơ**: lễ tân tra cứu theo điều chỉnh UC10/BR-14 ngày 27/10: tên, SĐT hoặc mã BN; ngày sinh tùy chọn để thu hẹp danh sách trong phạm vi công việc. Đối chiếu họ tên, ngày sinh và SĐT trước thao tác nghiệp vụ; không tự chọn ứng viên đầu tiên. Khu bệnh nhân chỉ truy cập hồ sơ đã được gắn; gắn online chỉ khi email trùng email đã xác minh; tối đa một "Bản thân" mỗi tài khoản và mỗi hồ sơ (MSG-21).
 - **Kết quả, ảnh**: chỉ khối được phép hiện mới có trong `visibleBlocks`; `viewerUrl` chỉ cấp khi study đã phát hành, kèm token kiểm theo study.
 
 ## 5. Câu hỏi mở cho BE / nhóm (gom từ các phase)
@@ -218,7 +220,7 @@ Danh sách bản ghi có thao tác nên trả `allowedActions` (§1) thay cho vi
 
 | Endpoint | Body / query | Trả | Lỗi (status · MSG) |
 | --- | --- | --- | --- |
-| `GET /patients/lookup` | `phone` + `dob` bắt buộc, `name` khi nhiều kết quả | `{ items: Patient[] }` (nhiều kết quả: FE hiện MSG-18 và hỏi họ tên) | 400 MSG-54 |
+| `GET /patients/lookup` | `q` bắt buộc (tên/SĐT/mã BN, có chữ hoặc số); `dob` tùy chọn; `page`, `size` theo §1 | trang `{ items: { id, name, dob, phone, sex }[], page, size, totalItems, totalPages }`; nhiều ứng viên là kết quả hợp lệ, không phải lỗi | 400 MSG-54 (q rỗng/không có chữ hoặc số, ngày sinh không hợp lệ) · 403 MSG-40 (không có quyền tra cứu tại quầy) |
 | `POST /patients` | `PatientInput` + `identityConfirmed: true` | 201 `Patient` | 400 MSG-17 (+`fieldErrors`) · trùng họ tên + SĐT + ngày sinh hoặc trùng số định danh → 409 MSG-18 |
 | `PATCH /patients/{id}` | như trên | 200 `Patient` | 400 MSG-17 · 404 MSG-19 · 409 MSG-18 |
 | `POST /care-links/{id}/confirm` | `{ evidence (≥5 ký tự), identityConfirmed: true }` | 200 `CareLink` | 400 MSG-17 · 404/409 MSG-21 (không còn chờ, hoặc hồ sơ đã đủ email và định danh) |
@@ -244,7 +246,9 @@ Thông báo thành công FE tự hiển thị: MSG-90 (hồ sơ, xác minh liên
 
 #### 4. Luật BE bắt buộc kiểm (mock đã làm, BE phải làm lại phía server)
 
-- **Hồ sơ**: tìm theo SĐT + ngày sinh, thêm họ tên khi nhiều kết quả (BR-14); không trả danh sách người khác. Hồ sơ tạo tại quầy không tạo tài khoản. Dữ liệu trả cho Lễ tân không có tiền sử, dị ứng. Xác minh liên kết chỉ khi yêu cầu đang chờ và hồ sơ thiếu email hoặc số định danh; lưu căn cứ giấy tờ vào lịch sử.
+- **Hồ sơ**: `q` tìm tên không phân biệt hoa/thường, dấu tiếng Việt (các từ có thể không liên tiếp); SĐT chuẩn hóa `+84` thành `0` và bỏ dấu cách/dấu phân tách, cho tìm một phần; mã BN không phân biệt hoa/thường, dấu cách và dấu gạch nối. `dob` nếu có là điều kiện bổ sung chính xác. Query rỗng không trả toàn bộ kho hồ sơ. Chỉ lễ tân được tìm trong phạm vi công việc; danh sách chỉ trả thông tin hành chính để chọn, GET chi tiết phải kiểm tra quyền lại. Nhiều ứng viên cần đối chiếu, không tự liên kết/chọn hộ. Cho mở form tạo hồ sơ mà chưa tìm kiếm; POST vẫn bắt buộc `identityConfirmed` và kiểm tra trùng trước khi ghi. Hồ sơ mới không tạo tài khoản. Dữ liệu trả cho Lễ tân không có tiền sử, dị ứng. Xác minh liên kết chỉ khi yêu cầu đang chờ và hồ sơ thiếu email hoặc số định danh; lưu căn cứ giấy tờ vào lịch sử.
+
+FE prototype hiện lọc/phân trang trên dữ liệu giả đã nạp. Khi nối API thật, dùng lookup có phân trang phía server theo hợp đồng trên, rồi gọi `GET /patients/{id}` khi mở hồ sơ; không tải toàn bộ kho bệnh nhân xuống trình duyệt. Endpoint này không cung cấp tìm kiếm hồ sơ tùy ý cho Patient/Guest.
 - **Lịch hẹn**: giờ trống theo ca, bước 20 phút; chỉ dịch vụ khám đang cung cấp; khóa khung giờ khi ghi. Lễ tân không đổi giờ, không hủy lịch (BR-22). Đổi bác sĩ chỉ khi bác sĩ hiện tại vắng, giữ nguyên giờ, gửi MSG-96/MSG-27; không có người thay thì giữ lịch Booked và gửi MSG-89. Lịch Booked quá giờ kết thúc ca → NO_SHOW (không hủy, không hoàn phí).
 - **Tiếp nhận (UC29)**: bệnh nhân có mặt và phí khám đã trả (lịch hẹn hoặc phí khách trực tiếp) trước khi tạo lượt; một bệnh nhân một lượt hoạt động. Khách trực tiếp không tự tạo lịch hẹn; phí khám gắn sang lượt mới. Quay lại trong ngày 1–7 của lượt đang chờ kết luận: tiếp tục cùng lượt, không thu lại phí khám; ngày 8 lượt chuyển INCOMPLETE, hủy chỉ định chưa có kết quả, không hoàn tiền. Bác sĩ phụ trách vắng thì chặn, phải chuyển bác sĩ trước.
 - **Hàng đợi (UC30–UC33, BR-29)**: sắp theo nhóm ưu tiên cấu hình (cấp cứu trước, các nhóm ưu tiên ngang nhau, rồi thông thường) và thời điểm vào; số thứ tự theo phòng theo ngày. Một phòng chỉ một người đang gọi/đang khám; một bệnh nhân không bị gọi ở hai phòng cùng lúc. Chỉ lễ tân đã gọi mới ghi vắng/quay lại trong cùng ngày; quay lại xếp theo thời điểm quay lại. Lễ tân chỉ gọi ở phòng khám; phòng dịch vụ do kỹ thuật viên gọi. Đổi vị trí và chuyển phòng phải có lý do, lưu trước/sau (`QueueChange`).

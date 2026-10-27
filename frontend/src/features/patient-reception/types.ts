@@ -8,6 +8,10 @@ export type Patient = {
   nationalId: string;
   email: string;
 };
+export type PatientSearchQuery = {
+  q: string;
+  dob?: string;
+};
 export type Priority =
   | "normal"
   | "emergency"

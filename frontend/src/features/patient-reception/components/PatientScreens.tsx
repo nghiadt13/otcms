@@ -8,10 +8,16 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { formatAppMessage } from "@/lib/messages/appMessages";
 import {
   normalizePhone,
-  normalizeText,
+  matchesPatientSearch,
+  isDate,
   validatePatient,
 } from "../schema/receptionRules";
-import type { CareLink, Patient, PatientInput } from "../types";
+import type {
+  CareLink,
+  Patient,
+  PatientInput,
+  PatientSearchQuery,
+} from "../types";
 import { useReception } from "./ReceptionProvider";
 import {
   DataTable,
@@ -30,13 +36,16 @@ export function PatientForm({
   phone,
   dob,
   onClose,
+  onSaved,
 }: {
   patient?: Patient;
   phone?: string;
   dob?: string;
   onClose: () => void;
+  onSaved?: (patient: Patient) => void;
 }) {
-  const { data, pending, run } = useReception();
+  const { data, pending, run, error } = useReception();
+  const [saveAttempted, setSaveAttempted] = useState(false);
   const [input, setInput] = useState<PatientInput>(
     patient ?? {
       name: "",
@@ -53,6 +62,7 @@ export function PatientForm({
   >({});
   const [identity, setIdentity] = useState(false);
   const change = (key: keyof PatientInput, value: string) => {
+    setSaveAttempted(false);
     setInput((prev) => ({ ...prev, [key]: value }));
     setErrors((prev) => ({ ...prev, [key]: undefined }));
   };
@@ -61,15 +71,20 @@ export function PatientForm({
     const found = validatePatient(input, data!.clock.slice(0, 10));
     setErrors(found);
     if (Object.keys(found).length) return;
-    if (
-      await run({
-        type: "save-patient",
-        input,
-        id: patient?.id,
-        identityConfirmed: identity,
-      })
-    )
+    setSaveAttempted(true);
+    const next = await run({
+      type: "save-patient",
+      input,
+      id: patient?.id,
+      identityConfirmed: identity,
+    });
+    if (next) {
+      const saved = patient
+        ? next.patients.find((p) => p.id === patient.id)
+        : next.patients[0];
+      if (saved) onSaved?.(saved);
       onClose();
+    }
   }
   return (
     <FormModal
@@ -145,6 +160,11 @@ export function PatientForm({
             Đã đối chiếu danh tính và kiểm tra hồ sơ khớp trước khi lưu.
           </span>
         </label>
+        {saveAttempted && error && (
+          <p role="alert" className="text-destructive">
+            {error}
+          </p>
+        )}
         <FormActions
           onClose={onClose}
           disabled={!identity}
@@ -292,84 +312,92 @@ export function PatientDetails({
 }
 export function PatientSearchScreen() {
   const { data, pending } = useReception();
-  const [phone, setPhone] = useState("");
+  const [keyword, setKeyword] = useState("");
   const [dob, setDob] = useState("");
-  const [name, setName] = useState("");
-  const [query, setQuery] = useState<{
-    phone: string;
-    dob: string;
-    name: string;
-  } | null>(null);
+  const [query, setQuery] = useState<PatientSearchQuery | null>(null);
   const [error, setError] = useState("");
   const [create, setCreate] = useState(false);
   const [selected, setSelected] = useState<Patient | null>(null);
   const matches = query
-    ? data!.patients.filter(
-        (p) =>
-          p.phone === query.phone &&
-          p.dob === query.dob &&
-          (!query.name ||
-            normalizeText(p.name).includes(normalizeText(query.name))),
-      )
+    ? data!.patients.filter((p) => matchesPatientSearch(p, query))
     : [];
   return (
     <>
       <PageHeader
         title="Hồ sơ bệnh nhân"
-        description="Tìm bằng số điện thoại và ngày sinh; đối chiếu thêm họ tên nếu có nhiều hồ sơ khớp."
+        description="Tìm bằng tên, số điện thoại hoặc mã bệnh nhân; đối chiếu thông tin trước khi chọn hồ sơ."
         actions={
-          <Button disabled={!query || pending} onClick={() => setCreate(true)}>
+          <Button disabled={pending} onClick={() => setCreate(true)}>
             <Plus />
             Tạo hồ sơ
           </Button>
         }
       />
       <form
-        className="mb-6 grid items-end gap-3 rounded-lg border bg-card p-4 sm:grid-cols-2 xl:grid-cols-4"
+        className="mb-4 grid items-end gap-3 rounded-lg border bg-card p-4 sm:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_14rem_auto]"
         onSubmit={(e) => {
           e.preventDefault();
-          if (!/^0\d{9}$/.test(normalizePhone(phone)) || !dob) {
+          if (
+            !/[\p{L}\p{N}]/u.test(keyword) ||
+            (dob && (!isDate(dob) || dob > data!.clock.slice(0, 10)))
+          ) {
             setError(formatAppMessage("MSG-54"));
+            setQuery(null);
             return;
           }
           setError("");
-          setQuery({ phone: normalizePhone(phone), dob, name });
+          setQuery({ q: keyword.trim(), dob: dob || undefined });
         }}
       >
         <TextField
-          label="Số điện thoại"
-          type="tel"
-          value={phone}
-          onChange={setPhone}
+          label="Tên, số điện thoại hoặc mã bệnh nhân"
+          type="search"
+          value={keyword}
+          onChange={setKeyword}
+          autoComplete="off"
         />
         <TextField
-          label="Ngày sinh"
+          label="Ngày sinh (không bắt buộc)"
           type="date"
           value={dob}
           onChange={setDob}
           max={data!.clock.slice(0, 10)}
-        />
-        <TextField
-          label="Họ tên (khi cần phân biệt)"
-          value={name}
-          onChange={setName}
         />
         <Button variant="outline" type="submit">
           <Search />
           Tìm bệnh nhân
         </Button>
       </form>
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3 text-xs text-muted-foreground">
+        <p>Có thể nhập tên không dấu, ví dụ: Binh, 0900000002 hoặc BN0002.</p>
+        {(keyword || dob || query) && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              setKeyword("");
+              setDob("");
+              setQuery(null);
+              setError("");
+            }}
+          >
+            Xóa bộ lọc
+          </Button>
+        )}
+      </div>
       {error && (
         <p role="alert" className="mb-4 text-destructive">
           {error}
         </p>
       )}
-      {matches.length > 1 && (
-        <p className="mb-4 text-muted-foreground">
-          {formatAppMessage("MSG-18")}
+      {query && (
+        <p role="status" className="mb-4 text-muted-foreground">
+          {matches.length} hồ sơ phù hợp. Đối chiếu họ tên, ngày sinh và số điện
+          thoại trước khi chọn.
         </p>
       )}
       <DataTable
+        key={`${query?.q ?? ""}-${query?.dob ?? ""}`}
         label="Kết quả tìm bệnh nhân"
         headers={["Bệnh nhân", "Ngày sinh", "Liên hệ", "Thao tác"]}
         rows={matches.map((p) => ({
@@ -386,14 +414,24 @@ export function PatientSearchScreen() {
         empty={
           query
             ? "Chưa có hồ sơ khớp. Kiểm tra lại thông tin trước khi tạo hồ sơ mới."
-            : "Nhập số điện thoại và ngày sinh để bắt đầu tra cứu."
+            : "Nhập tên, số điện thoại hoặc mã bệnh nhân để tìm hồ sơ. Bạn cũng có thể tạo hồ sơ mới."
         }
       />
       {create && (
         <PatientForm
-          phone={query?.phone}
-          dob={query?.dob}
+          phone={
+            /^0\d{9}$/.test(normalizePhone(keyword.trim()))
+              ? normalizePhone(keyword.trim())
+              : undefined
+          }
+          dob={isDate(dob) && dob <= data!.clock.slice(0, 10) ? dob : undefined}
           onClose={() => setCreate(false)}
+          onSaved={(patient) => {
+            setKeyword(patient.id);
+            setDob("");
+            setError("");
+            setQuery({ q: patient.id });
+          }}
         />
       )}
       {selected && (

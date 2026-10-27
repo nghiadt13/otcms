@@ -53,15 +53,15 @@ describe("receptionist screens with real mock adapter", () => {
       screen.queryByRole("button", { name: /đóng lượt/i }),
     ).not.toBeInTheDocument();
   });
-  it("searches by phone and date of birth and reveals administrative details only", async () => {
+  it("searches by phone alone and reveals administrative details only", async () => {
     mount("patients");
     await screen.findByRole("heading", { name: "Hồ sơ bệnh nhân" });
-    fireEvent.change(screen.getByLabelText("Số điện thoại"), {
-      target: { value: "0900000001" },
-    });
-    fireEvent.change(screen.getByLabelText("Ngày sinh"), {
-      target: { value: "1992-04-15" },
-    });
+    fireEvent.change(
+      screen.getByLabelText("Tên, số điện thoại hoặc mã bệnh nhân"),
+      {
+        target: { value: "0900000001" },
+      },
+    );
     fireEvent.click(screen.getByRole("button", { name: "Tìm bệnh nhân" }));
     expect(screen.getByText("Nguyễn Minh Anh")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Mở hồ sơ" }));

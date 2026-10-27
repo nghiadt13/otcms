@@ -1,5 +1,7 @@
 import type {
   PatientInput,
+  Patient,
+  PatientSearchQuery,
   Priority,
   ReceptionState,
   QueueEntry,
@@ -36,6 +38,24 @@ export const normalizeText = (value: string) =>
     .toLocaleLowerCase("vi")
     .replace(/\s+/g, " ")
     .trim();
+
+export function matchesPatientSearch(
+  patient: Patient,
+  query: PatientSearchQuery,
+) {
+  const text = normalizeText(query.q);
+  if (!/[\p{L}\p{N}]/u.test(text) || (query.dob && patient.dob !== query.dob))
+    return false;
+  const phone = normalizePhone(query.q.trim());
+  const code = text.replace(/[\s-]/g, "");
+  return (
+    text
+      .split(" ")
+      .every((word) => normalizeText(patient.name).includes(word)) ||
+    (/^\d+$/.test(phone) && normalizePhone(patient.phone).includes(phone)) ||
+    normalizeText(patient.id).replace(/[\s-]/g, "").includes(code)
+  );
+}
 export function validatePatient(input: PatientInput, today: string) {
   const errors: Partial<Record<keyof PatientInput, string>> = {};
   if (input.name.trim().length < 2 || input.name.trim().length > 120)
