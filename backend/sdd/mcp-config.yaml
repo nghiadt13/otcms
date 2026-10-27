@@ -1,0 +1,152 @@
+# .sdd/mcp-config.yaml — MCP access-control policy specification
+# Version: 1.1.0
+# Tham chiếu: Slide 11.6 — MCP Access Control và Tool Borrowing
+#
+# Đây là policy specification cho execution/audit. Runtime host phải thực thi hoặc
+# map policy này theo capability của host; file không tự chứng minh host enforcement.
+# Nguyên tắc: Principle of Least Privilege — chỉ cấp quyền đúng scope.
+
+version: "1.1"
+
+agents:
+  lead-architect:
+    description: "Điều phối, đọc toàn bộ context, ghi SDD artifact và sở hữu/arbitrate shared contract"
+    mcp_tools:
+      allowed:
+        - filesystem:read
+        - filesystem:write      # Chỉ ghi .sdd/ và CLAUDE.md
+        - bash:read_only
+        - task:create
+        - task:update
+        - task:list
+        - send_message
+      denied:
+        - bash:execute
+        - database:write
+        - git:commit
+        - git:push
+
+  backend-agent:
+    description: "Developer domain/usecase; business logic thuần, không infra"
+    mcp_tools:
+      allowed:
+        - filesystem:read
+        - filesystem:write      # Chỉ ghi src/domain/, src/usecase/
+        - bash:execute          # Exact approved test/lint command trong Architecture Profile
+        - send_message
+        - task:update
+      denied:
+        - database:read
+        - database:write
+        - filesystem:write_infra
+        - git:push
+
+  infra-agent:
+    description: "DB, cache và external integration"
+    mcp_tools:
+      allowed:
+        - filesystem:read
+        - filesystem:write      # Chỉ ghi src/infra/, tests/integration/
+        - database:read
+        - database:write        # Material state-change checkpoint khi applicable
+        - bash:execute
+        - send_message
+        - task:update
+      denied:
+        - database:drop
+        - database:delete_no_where
+        - git:push
+        - filesystem:write_domain
+
+  interface-agent:
+    description: "HTTP controller, middleware, DTO và API contract"
+    mcp_tools:
+      allowed:
+        - filesystem:read
+        - filesystem:write      # Chỉ ghi src/interface/
+        - bash:execute
+        - send_message
+        - task:update
+      denied:
+        - database:read
+        - database:write
+        - git:push
+
+  tester-agent:
+    description: "Chỉ verification; đọc implementation, ghi test"
+    mcp_tools:
+      allowed:
+        - filesystem:read
+        - filesystem:write      # Chỉ ghi tests/unit/, tests/e2e/
+        - bash:execute
+        - send_message
+        - task:update
+      denied:
+        - filesystem:write_src
+        - database:write
+        - git:commit
+        - git:push
+
+global_denied:
+  - filesystem:read_secrets
+  - bash:rm_force
+  - git:push
+  - git:push_force
+  - git:push_main
+  - network:external_post
+  - eval_execution
+
+# Execution worker packet phải include frozen contract version, ownership/file boundary,
+# selected Architecture Profile bindings, exact commands, allowed action/checkpoint
+# và audit evidence. Lead là owner/arbitrator của shared artifact.
+execution_packet:
+  required_fields:
+    - task_id
+    - frozen_contract_version
+    - ownership_and_file_boundary
+    - selected_profile_bindings
+    - exact_approved_commands
+    - allowed_action_and_checkpoint
+    - audit_evidence_reference
+
+# Claude Code mapping is policy metadata only. It does not prove host enforcement.
+claude_code_execution:
+  preferred_worker_invocation: Agent
+  optional_task_mirror_tools:
+    - TaskCreate
+    - TaskGet
+    - TaskList
+    - TaskUpdate
+  default_runtime_identity_evidence: UNVERIFIED
+  default_runtime_enforcement_evidence: UNVERIFIED
+  required_evidence_fields:
+    - runtime_identity_evidence
+    - runtime_enforcement_evidence
+    - worker_reference
+    - host_task_tracking_evidence
+  inherited_global_denied: true
+
+# Tool borrowing chỉ tăng quyền tạm thời theo một task. Lead ghi task, temporary
+# scope, justification, Lead action và outcome. Global denial không được override.
+tool_borrowing:
+  process: "request_via_lead"
+  max_borrow_duration: "single_task"
+  requires_justification: true
+  required_audit_fields:
+    - task_id
+    - temporary_scope
+    - justification
+    - lead_action
+    - outcome
+  global_denied_override: "never"
+
+audit:
+  log_path: ".sdd/reviews/mcp-audit-{date}.log"
+  log_events:
+    - execution_created
+    - tool_denied
+    - tool_borrowed
+    - global_denied_attempt
+    - checkpoint_missing
+    - contract_ownership_conflict
+  alert_on: "global_denied_attempt"

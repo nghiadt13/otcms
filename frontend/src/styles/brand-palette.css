@@ -1,0 +1,34 @@
+/*
+ * Bảng màu và font thương hiệu OTCMS: Teal + Coral, Be Vietnam Pro. Nguồn duy nhất cho mã màu.
+ * Khu công khai dùng trực tiếp (bg-brand, text-coral-strong...), khu quản trị
+ * ánh xạ sang token shadcn trong `app-theme.css`.
+ *
+ * Quy tắc tương phản (WCAG AA, chữ thường cần ≥ 4.5:1):
+ * - brand (#0F766E) với chữ trắng: 5.5:1, dùng cho nút và thao tác chính.
+ * - coral (#FB7185) với chữ trắng chỉ đạt 2.7:1: KHÔNG đặt chữ trắng lên coral.
+ *   Coral chỉ làm điểm nhấn (badge, chấm, thanh viền); chữ trên nền coral dùng
+ *   coral-ink (5.8:1); chữ màu coral trên nền sáng dùng coral-strong (6.3:1).
+ * - Không dùng coral cho lỗi/xóa: việc đó thuộc `destructive` (đỏ #DC2626).
+ */
+@theme static {
+  --color-brand: #0f766e;
+  --color-brand-hover: #115e59;
+  --color-brand-soft: #f0fdfa;
+  --color-brand-muted: #ccfbf1;
+  --color-brand-bright: #2dd4bf;
+
+  --color-coral: #fb7185;
+  --color-coral-strong: #be123c;
+  --color-coral-soft: #fff1f2;
+  --color-coral-ink: #4c0519;
+
+  /* Sao đánh giá (icon, cần ≥ 3:1): amber-600 đạt 3.2:1 trên nền trắng;
+   * amber-500 cũ chỉ 2.1:1. Không dùng cho chữ. */
+  --color-rating: #d97706;
+
+  /* Nền trang trung tính pha chút teal, để thẻ trắng nổi lên. */
+  --color-canvas: #f5faf9;
+
+  /* Font chung: biến do `src/lib/fonts.ts` gắn lên <html>. */
+  --font-sans: var(--font-be-vietnam-pro), ui-sans-serif, system-ui, sans-serif;
+}
