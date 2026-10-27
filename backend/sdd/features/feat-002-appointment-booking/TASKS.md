@@ -3,14 +3,14 @@
 ## 1. Metadata và execution boundary
 
 - Feature ID: FEAT-002
-- Version: 0.6.1
-- Status: APPROVED — Owner Long, 2026-10-18
-- Sources: CONTEXT.md v0.16.0 — approved; SPEC.md v0.9.0 and PLAN.md v0.7.0 — pending Human review.
+- Version: 0.6.3
+- Status: APPROVED — alignment with SPEC v0.9.2 and PLAN v0.5.3
+- Sources: CONTEXT.md v0.16.0 — approved; SPEC.md v0.9.2 — APPROVED & LOCKED and PLAN.md v0.5.3 — APPROVED by Owner Long on 2026-10-27.
 - Artifact root: backend/sdd/features/feat-002-appointment-booking; application root: otcms/backend.
 - Toolchain mục tiêu: Java 21, Maven Wrapper, Spring Boot modular monolith/layered architecture theo Constitution ARCH-01 và PostgreSQL/Flyway.
 - Bản này thay toàn bộ task contracts v0.1.0. Task IDs được định nghĩa lại; không chuyển checkbox/evidence cũ sang bản này.
 - Owner trong bảng là module chịu trách nhiệm giao contract/code/evidence, không phải quyền actor của API. CRUD giữ tại owning module; appointment dùng public ports/DTOs.
-- TASKS v0.2.0/v0.3.0 approvals are historical for their stated scopes; v0.6.0 proposed Visit WALK_IN API delivery. This v0.6.1 clarifies cross-phase execution order and gates downstream care/follow-up/capacity verification on T041–T043. The v0.6.0 review recommendation remains historical; Owner Long approved v0.6.1 on 2026-10-18.
+- TASKS v0.2.0/v0.3.0 approvals are historical for their stated scopes; v0.6.0 proposed Visit WALK_IN API delivery. This v0.6.3 aligns task sources to Spec v0.9.2 and Plan v0.5.3; v0.6.2 synchronized approved T044–T053 task sources to Spec v0.9.1 and Plan v0.5.2; v0.6.1 clarifies cross-phase execution order and gates downstream care/follow-up/capacity verification on T041–T043. The v0.6.0 review recommendation remains historical; Owner Long approved v0.6.1 on 2026-10-18.
 - Không bật booking production trước khi T031–T033, T043 và verification T034–T040 pass. Không dùng production stub để vượt prerequisite gate.
 
 ## 2. Quy tắc thực thi và evidence
@@ -452,9 +452,9 @@ Feature complete khi T001–T043 có exit evidence, mọi AC01–AC24 có verifi
 - Required trace, test, and sync actions: Verify T043 after T042 against the task-bound focused command and approved local PostgreSQL integration route; prove API security, replay, same-patient reference, exact returned response, audit migration/append-only enforcement, `checked_in_at = arrived_at`, rollback and no appointment mutation. T034/T035 include T043/AC24; update shared contract and trace after delivery.
 - Review follow-up: Human review SPEC v0.9.0, PLAN v0.7.0, TASKS v0.6.0 and Visit contract v1.2.0. Persist the T043 material-state checkpoint before source edits; execution grants remain separate.
 
-## AI Agent Recommendation
+## Historical AI Agent Recommendation — TASKS v0.6.0
 
-- Status: APPROVED — Owner Long, 2026-10-18
+- Status: PENDING HUMAN REVIEW — alignment with SPEC v0.9.2 and PLAN v0.5.3
 - Scope: FEAT-002 TASKS v0.6.0 — T043 Visit WALK_IN API and T028 dependency
 - Recommendation: Approve TASKS v0.6.0 with separate Visit API delivery T043 and Appointment NO_SHOW T028 dependent on T043. Visit owns the new HTTP write and its JPA persistence; Appointment owns only NO_SHOW and arrival evidence checks. No Appointment service writes Visit data.
 - Evidence: Human approved the proposed Visit API shape in the current conversation; SPEC v0.9.0 adds REQ-BOOK-061/AC24; PLAN v0.7.0 places the endpoint in Visit and requires JPA owner repositories; T042 is the persistence-standardization prerequisite; T027 is complete and T028 remains unchecked.
@@ -462,7 +462,7 @@ Feature complete khi T001–T043 có exit evidence, mọi AC01–AC24 có verifi
 - Alternatives considered: Fold the Visit API into Appointment T028 (rejected: mixed ownership and no-show/WALK_IN have separate authorization/state semantics); implement a Visit HTTP API as T043, then run T028 (recommended); leave late WALK_IN without API (rejected after Human approved the API scope).
 - Required human decision: Approve TASKS v0.6.0 and its T043→T028 prerequisite after reviewing SPEC v0.9.0/PLAN v0.7.0 and contract v1.2.0. Approval does not itself grant either task execution.
 
-## Human Final Review
+## Historical Human Final Review — TASKS v0.6.0
 
 - Status: PENDING
 - Decision:
@@ -1053,3 +1053,189 @@ Feature complete khi T001–T043 có exit evidence, mọi AC01–AC24 có verifi
 - Review artifact: `sdd/reviews/post-code-feat-002-appointment-booking-T038-A1.md`.
 - Evidence: full test output 2026-10-20 17:35:43 +07 and clean verify output 2026-10-20 20:55:51 +07; both Java 21.0.7, profile `test`, PostgreSQL 18.1 (`127.0.0.1:5432/otcms_test_db`); each BUILD SUCCESS and 306 tests, 0 failures/errors/skips. Flyway and upgrade migrations executed; Surefire reports reconcile to 306 tests, including 125 across 31 PostgreSQL-named integration classes.
 - Outcome: reviewer recommendation PASS; T038 marked `[x]`. Pasted console output omits literal shell command line, wrapper version, and separately printed process exit code; Maven BUILD SUCCESS indicates successful completion. Human closure remains T039.
+
+## 13. Approved tasks — complete reception check-in flow (2026-10-22)
+
+**Status: APPROVED — revised 2026-10-25.** The user approved scheduled arrival outside walk-in FIFO and separate clinic-QR arrival evidence. This supersedes the prior T044 same-queue contract. T044 is closed under the revision; T045–T053 retain their dependency and task-specific implementation checkpoints. Existing T001–T043 remain unchanged.
+
+| Task | Owner | Depends on | Deliverable and exit evidence |
+|---|---|---|---|
+| [x] T044 | Product + Appointment/Visit/Patient | User clarification | Revised scheduled-vs-walk-in, clinic-QR arrival, pending Receptionist worklist and delayed-processing/no-show contract approved by user on 2026-10-25. Product-specific UC22 variance accepted for this feature; synchronize SRS wording before delivery. Review: `sdd/reviews/feat-002-T044-reception-contract.md`. |
+| [ ] T045 | Visit/persistence | T044, T043 | Add Visit-owned Flyway queue entry/history schema for WALK_IN only; allow multiple historical entries but enforce at most one active `WAITING` entry per Visit, preserve FIFO ordering, and retain records for the Visit lifetime. Database guards reject non-WALK_IN queue entries and reject Visit `source` changes while any queue entry references it. Add Visit `service` interface/`service.impl`, JPA repository and DTOs. Scheduled check-in creates no queue row. Preflight runtime Flyway head and persist schema checkpoint before edits; prove clean/upgrade migration and duplicate prevention. Checkpoint and T045 post-code/audit/trace decisions: approved evidence remains local and is SHA-256 pinned in `C:/Users/Admin/AppData/Local/Temp/otcms-t045-review-evidence-20261027.json` per Human approval on 2026-10-27; implementation and verification evidence is recorded there; SPEC v0.9.2, PLAN v0.5.3 and TASKS v0.6.3 alignment was approved by Owner Long on 2026-10-27; T045 remains pending validator clearance. |
+| [ ] T046 | Appointment + Visit | T045, T027, T053 | Preserve atomic appointment/visit/reception/audit/replay check-in without queue insertion. Consume timely QR/manual arrival evidence even if staff confirms after grace; add patient attestation and Patient-owned identity projection. Prove retry/race/window behavior and no queue row. AC25/AC26/AC31/AC32. |
+| [ ] T047 | Visit | T045, T043 | Extend WALK_IN creation to enqueue atomically; keep optional same-patient prior appointment reference, no synthetic appointment and no appointment status change. Prove idempotency/rollback and accountless profile support. AC27/AC31. |
+| [ ] T048 | Appointment + Visit | T045, T028, T046, T053 | Reconcile no-show with timely QR/manual arrival and concurrent check-in; no visit/queue on no-show. Ensure WALK_IN care start/cancel/closure moves its active reception entry to history. AC28/AC29/AC34. |
+| [ ] T049 | Visit + Patient | T045, T048, T053 | Implement Receptionist pending scheduled-arrival worklist, WALK_IN queue query and Patient own progress query through owning APIs. Queue position only for active WALK_IN; current room only when Visit has assignment. AC29/AC30/AC32. |
+| [ ] T050 | Frontend/reception | T044, T046–T049, T053 | Build receptionist pending QR arrivals, appointment verification/check-in/no-show and walk-in reception; show FIFO position only for walk-ins. Use shared API client and feature components, keep route thin. |
+| [ ] T051 | Frontend/patient | T049, T053 | Build authenticated patient clinic-QR arrival flow and own visit progress. Show arrival recorded/pending staff confirmation, and queue position only for active WALK_IN. No cross-patient list or direct database access. AC30/AC32/AC33. |
+| [ ] T052 | API/docs + QA | T046–T051, T053 | Update DTO/OpenAPI and static/runtime parity, UC-to-AC trace, meaningful HTTP/security/PostgreSQL concurrency verification and frontend lint/build evidence; independent boundary review and final task sync. AC25–AC34. |
+| [x] T053 | Visit/reception + Appointment/security | T044, T027, T028 | Add clinic-QR arrival claim before check-in: short-lived clinic-bound proof, authenticated Patient/appointment ownership, server `arrivedAt`, idempotent claim, pending Receptionist worklist and audited manual fallback. QR creates no Visit/queue or `CHECKED_IN`; serialize arrival with no-show through shared guard. Allocate additive schema migration only after runtime head/preflight and persisted material-state checkpoint. AC32–AC34. Completion evidence: T053 completion verification record and approved post-code review below. |
+
+**Execution record rule:** each task records reviewed scope/file boundary, dependencies, schema/API decision if relevant, exact verification evidence, residual risks and human review. The extension contract and T053 task scope are approved. Material schema/security changes still need task-specific persisted checkpoints before implementation. Historical T039 closure and production gate are unaffected.
+
+### AI Agent Recommendation — task extension
+
+- Status: PENDING HUMAN REVIEW.
+- Recommendation: approve or revise T044–T052 together with the proposed CONTEXT/SPEC/PLAN extension.
+
+### Human Final Review — task extension
+
+- Prior status: APPROVED on 2026-10-23 for the previous same-queue contract.
+- Current status: APPROVED — revised 2026-10-25 scheduled-vs-walk-in and clinic-QR arrival contract, including T053 task scope. Requesting user explicitly approved CONTEXT, SPEC, PLAN, TASKS and T053. Approval is not implementation completion or a schema/security pre-edit checkpoint.
+
+### T044 Action Record — 2026-10-23
+
+- Authorization: user explicitly approved the four reception-extension artifacts and instructed immediate T044 execution.
+- Scope/file boundary: reconcile current UC, prior FEAT-002 queue exclusion and existing owner contracts; write `sdd/reviews/feat-002-T044-reception-contract.md` and update the four approved extension review records plus T044 checkbox. No product code, schema, migration, API or dependency change.
+- Decision: first queue is Visit-owned reception queue; Patient may see authorized own stage/status/current position; WALK_IN prior appointment remains optional; Receptionist verification is an explicit patient-profile attestation checked against the appointment by backend. Queue states, response fields and handoff are in the review artifact.
+- Evidence: static read of UC HTML, SDD, current backend controllers/services/DTOs, frontend API and Flyway source files. Source migration head is V019; runtime DB head was not queried. Archived Report 3 source cited by historical metadata is not present in this checkout; historical variance is traceable in CONTEXT.
+- Verification: documentation diff and path/reference review only; no tests were run for this documentation task.
+- Result: T044 was reopened by the user's 2026-10-25 clarification. The revised contract was subsequently approved on 2026-10-25; T044 is closed under the revision. T045 still needs its schema checkpoint.
+
+### T044 Revision Action Record — 2026-10-25
+
+- Authorization: user requested updating CONTEXT/SPEC/PLAN/TASKS and T044 review record to split scheduled appointment arrival from walk-in reception FIFO, then review the revised contract.
+- Scope/file boundary: revise reception extension, T044/T045 task definitions and T044 review record. No product code, migration or schema changes; T045 not started.
+- Decision captured: scheduled check-in records arrival and linked Visit but does not enqueue to reception FIFO; only WALK_IN uses reception FIFO. A specific room is shown only when Visit has a current assignment; Appointment currently does not persist one.
+- Follow-up clarification: patient scans a clinic QR to record arrival and notify Receptionist before staff confirmation. Timely server-recorded arrival remains valid when the front desk processes it after grace. T053 owns the distinct QR arrival capture; T046 consumes its evidence, T048 protects no-show, T049/T050/T051 expose pending status to authorized actors.
+- Evidence: current UC22 wording includes booked patients in a first waiting list, so revised rule is documented as a product-specific SRS variance requiring reconciliation. Appointment response has no room assignment; Visit owns room assignment. Source migrations end at V019; runtime head unverified.
+- Review: revised artifacts and T044 record cross-checked. Requesting user approved the revised contract and T053 scope on 2026-10-25. T044 is complete. T045/T053 have not started and need their own schema/security checkpoints.
+
+### T053 Scope Approval Record — 2026-10-25
+
+- Decision: Requesting user explicitly approved T053 together with the revised CONTEXT/SPEC/PLAN/TASKS.
+- Approved objective: authenticated clinic-QR arrival claim with server `arrivedAt`, pending Receptionist alert, idempotent replay, audited staff fallback and no-show coordination; QR alone does not create a Visit, queue entry or `CHECKED_IN` appointment.
+
+### T053 Test-Local Action Record — 2026-10-26
+
+- Authorization: user asked about running `backend/scripts/test-local.ps1` and provided its output. Ran the exact script against the pinned local `otcms_test_db`; credentials came from the existing local test profile and were not printed. No Supabase/production connection.
+- Initial failure: the supplied first attempt used username `postgres admin` and failed authentication. Retrying as `postgres` passed the local PostgreSQL 18.1 / `btree_gist` / CREATE capability checks. The first Maven attempt then found a stale `receptionistAccountId()` accessor; updated the test to `actorAccountId()`.
+- Root cause discovered: appointment check-in returned `503` because V020's `enforce_appointment_visit_link()` evaluated `NEW.booking_source` on a `visits` trigger row. Persisted the V022 repair checkpoint addendum before editing schema. Added `V022__guard_appointment_visit_link_trigger.sql`, nesting appointment-only field access in the `appointments` branch. Updated legacy test fixtures to use V021's `actor_account_id` and `LEGACY_RECEPTIONIST` source.
+- Verification: `backend/scripts/test-local.ps1` applied V022 to local `public` via Flyway (V021 -> V022), validated 24 migrations and compiled all 397 main / 84 test Java sources. Appointment check-in/no-show/lifecycle suites T027, T028 and T029 passed after the repair. Overall: 280 tests, 11 failures, 2 errors. Remaining failures are in older unrelated auth, relationship, persistence, catalog/staff tests plus historical migration-count assumptions in T013/T012; review their exact Surefire reports before claiming the branch suite is green.
+- T053 status remains `[ ]`: dedicated QR proof/authorization/idempotency/worklist/concurrency tests and OpenAPI parity verification are still needed, then Human post-code review. Local DB is at V022. The user-provided remote startup log reported V021; remote was not changed and must receive V022 through Flyway before running the updated check-in flow there.
+
+### T053 Test-Local Reverification — 2026-10-26
+
+- After repairing stale historical migration fixtures, removing accidental Spring CSRF test-context pollution, and correcting excluded care-relationship service registration, reran the full `backend/scripts/test-local.ps1` against the dedicated local `otcms_test_db`.
+- Result: **280 tests, 0 failures, 0 errors, 0 skipped; BUILD SUCCESS** (2m09s). Flyway validation and compilation completed as part of the script. The run used only local PostgreSQL; no remote/Supabase database was touched.
+- This supersedes the earlier 11-failure/2-error suite result recorded above. T053 remains `[ ]` pending dedicated QR flow tests, OpenAPI parity verification, and Human post-code review.
+- Implementation state: `[ ]` pending. Runtime migration head, additive migration allocation, concrete QR proof TTL/rotation, exact route/DTO and persisted schema/security checkpoint are pre-edit work; this task-scope approval does not assert those facts or permit an unreviewed material-state change.
+
+### T053 Implementation Action Record — 2026-10-26
+
+- Authorization: user instructed T053 implementation on `feat/long/appointment-booking`; the separate schema/security checkpoint is HUMAN APPROVED and V020 was approved.
+- Scope/files: V021 arrival-table extension; Appointment QR proof, claim/manual commands, worklist API/DTOs; Visit-owned arrival persistence and no-show evidence projection; application QR secret configuration, OpenAPI/API contract, checkpoint record. Existing unrelated working-tree changes were preserved.
+- Implemented: HMAC-SHA-256 clinic-bound proof (`k1`, 60-second expiry, refresh hint 30 seconds, no-store display response); Patient self-claim checks current profile ownership; Receptionist manual fallback requires reason and stores actor/source/server timestamp; first claim per appointment is immutable/idempotent; all writers use the shared coordination guard and Appointment row lock; pending/late/early Receptionist worklist; no-show query reads the renamed Visit arrival evidence.
+- Flyway: V021 `V021__extend_appointment_arrivals_for_patient_qr.sql` was applied by Flyway to local `127.0.0.1:5432/otcms_test_db`; validated 23 migrations and Hibernate initialized. The user-provided IntelliJ log reported Supabase at V021; do not re-run that migration on Supabase.
+- Verification: `./mvnw -DskipTests compile` succeeded after implementation and review fixes (397 Java sources). No tests run. A local non-web Spring Boot probe validated/migrated/JPA-initialized then failed because non-web mode does not supply `HttpSecurity`; no endpoint runtime test evidence.
+- Review: read-only reviewer flagged worklist pagination semantics and OpenAPI parameter mismatch; added `hasMore` for raw-page continuation and matched `{appointmentId}`. Follow-up review also flagged `recorded_at` being equal to `arrivedAt`, missing QR replay profile consistency check and incomplete database error mapping; fixed by stamping with `clock_timestamp()` at insert, verifying stored profile on replay and mapping persistence/guard/profile failures to `DEPENDENCY_UNAVAILABLE`. Final read-only review found these fixes addressed and no new blocking findings.
+- State: T053 remains `[ ]` pending final compile, required HTTP/security/concurrency verification and Human post-code review. No commit or push.
+
+### T053 Completion Verification Record — 2026-10-26
+
+- Added `AppointmentArrivalT053PostgresIntegrationTest` with seven PostgreSQL/MockMvc cases covering Receptionist-only no-store proof issue, altered/wrong-clinic/future/expired proof rejection, Patient-only claim and current profile ownership, immutable/idempotent QR and manual records, required receptionist reason/actor, pending/late worklist state/date/page filters and role privacy, no Visit/queue writes from QR, timely-arrival/no-show reconciliation, late-arrival/no-show behavior, and a staged lock race.
+- The staged race locks the appointment row externally, lets the QR transaction capture the on-time server instant and acquire the shared guard, queues the no-show transaction behind that guard, advances the test clock beyond grace, then releases the row. The QR persists its original timely instant and the later no-show returns `NO_SHOW_NOT_ALLOWED`. This exercises serialization across the grace boundary.
+- The new worklist test exposed that filtering after a raw page could omit matching results. `AppointmentArrivalApplicationServiceImpl` now scans bounded 500-row batches, applies appointment/state eligibility, then slices the filtered result and computes `hasMore` from matching rows. A fixed ordering fixture covers a non-matching late row before a pending row.
+- OpenAPI review against controller mappings, request/response records and exception mapping confirmed all four routes and DTO fields. Added missing 400/401/404/503 responses and corrected `hasMore` wording; synchronized `API-CONTRACT.md`. The independent review's missing worklist 503 finding was fixed.
+- Targeted verification: `./mvnw.cmd -Dtest=AppointmentArrivalT053PostgresIntegrationTest test` — **7 tests, 0 failures, 0 errors, BUILD SUCCESS** against local `otcms_test_db` at V022.
+- Full regression verification: `backend/scripts/test-local.ps1` — **287 tests, 0 failures, 0 errors, 0 skipped; BUILD SUCCESS**. Flyway validated 24 migrations at V022 and the dedicated local `otcms_test_db` remained the only database target.
+- Independent read-only review found and helped correct the race-test weakness and OpenAPI 503 omission. The independent re-review confirmed both fixes and found no new blocking correctness/security issue.
+- Supabase: the user approved the separate remote V022 checkpoint. A read-only probe confirmed V021 and V022 successful, latest version 022, and Flyway validation passed for all 24 checked-out migrations. V022 was already applied and checksum-valid, so no migration command or database write was needed. No application workflows or clinical-data changes were performed.
+- Status: COMPLETE — implementation, focused QR/security/concurrency tests, full local regression suite, OpenAPI parity review, independent code review, approved remote checkpoint and post-code Human review are recorded. T053 is `[x]`.
+
+### T053 Human Post-Code Review — 2026-10-26
+
+- Decision: `APPROVED`.
+- Reviewer: requesting user; explicit decision received in conversation (“Approve post-code review T053”).
+- Scope reviewed: T053 implementation and completion evidence in this record, including the QR claim/manual fallback/worklist, V021/V022 migration state, 7 dedicated PostgreSQL/MockMvc tests, 287-test full suite, OpenAPI updates and independent reviewer findings.
+- Decision time (Asia/Bangkok): 2026-10-26; exact message timestamp unavailable.
+- Result: T053 is complete and checked `[x]`. No commit or push was performed.
+
+### T045 Implementation and Verification Record — 2026-10-26
+
+- Authorization: requesting user approved the full T045 schema checkpoint, including Visit-lifetime queue/audit retention, on 2026-10-26.
+- Scope: V023 queue/history schema; Visit queue entity, history entity, repositories, persistence service and response DTO; focused PostgreSQL integration test; update checkpoint. No endpoint/OpenAPI, Appointment check-in/no-show, frontend, Supabase, commit or push.
+- Preflight: source migrations ended at V022; SHA-256 matched checkpoint. Read-only local history at `127.0.0.1:5432/otcms_test_db` showed V022 success, zero failures and no V023 row.
+- Migration: Flyway applied V023 locally and validated 25 migrations. Post-apply Flyway head V023, checksum `1536607790`, zero failed rows. Migration source SHA-256 `962125C597A5FF7F52808F099C6621F8A2AEEDA4760A9F06FC0261D4E7E93BA1`.
+- Focused verification after final service error mapping: `backend/.\mvnw.cmd -Dtest=WalkInReceptionQueueT045PostgresIntegrationTest test` — 5 passed, 0 failed/errors/skipped. Includes clean V001→V023 migration, isolated V022→V023 upgrade with existing Visit data, scheduled Visit rejection, one-active-entry rule, re-entry, timestamp/source protections, check constraints, append-only history and restrictive references.
+- Full verification: `backend/scripts/test-local.ps1` — 292 passed, 0 failed/errors/skipped; BUILD SUCCESS. Hibernate `ddl-auto=validate` succeeded at V023. No remote database was accessed.
+- Status: implementation and verification pass; T045 remains `[ ]` pending post-code Human review.
+
+### T045 Audit Correction — 2026-10-26
+
+- Requesting user approved `sdd/reviews/preflight-feat-002-T045-audit-correction.md` after the post-code findings. Auth/Visit now binds queue creation to the authenticated principal and an Auth-owned active Receptionist decision. V024 generates initial and exit history from queue-entry transitions and rejects ordinary direct history INSERT. The service sets actor/correlation as transaction-local values.
+- User-provided local preflight: V023 successful (checksum `1536607790`); current role and history owner were both `postgres` with INSERT privilege. This privileged role can alter/disable triggers, so a restricted application role is still needed for protection against database owners or superusers.
+- `backend/.\mvnw.cmd -DskipTests test-compile` passed. Requesting-user run of `backend/.\mvnw.cmd -Dtest=WalkInReceptionQueueT045PostgresIntegrationTest test` passed 5/5 with Flyway V024 applied locally, Hibernate validation, clean V001→V024 and isolated V022→V023→V024 migrations. Full post-V024 local suite remains unreported. T045 stays `[ ]` pending final Human review.
+
+### T045 Supabase Startup Recovery — 2026-10-26
+
+- Root cause: Supabase had an earlier successful V023 checksum `1615705605` and weaker Visit/queue guards; current source V023 checksum is `1536607790`. The remote queue tables contained zero entries/history rows. See approved `sdd/reviews/preflight-feat-002-T045-supabase-v023-recovery.md` for read-only schema evidence and exact constrained history correction.
+- Added V025 to reconcile missing guards without editing V023/V024. Local focused test passed 5/5 with a remote-like weak V023 upgrade path, clean V001→V025 migration, and Hibernate validation.
+- Requesting user executed the approved one-row V023 checksum correction in Supabase SQL Editor. Agent startup with `SPRING_FLYWAY_GROUP=true` validated 27 migrations, applied V024 and V025 to Supabase, started the backend on port 8080, and received HTTP 200 from local `/v3/api-docs`. No business workflow, commit, or push. T045 remains `[ ]` pending final Human code review.
+- Ordinary Supabase restart after stopping the prior Java process validated V025 with no pending migration and started successfully on port 8080; local `/v3/api-docs` returned HTTP 200. The backend startup incident is resolved. T045 post-code, audit and trace reviews were approved by Owner Long on 2026-10-26. T045 remains [ ] pending validator clearance; PLAN v0.5.1 metadata sync was approved by Owner Long on 2026-10-26.
+
+
+### T045 Review and verification sync — 2026-10-26
+
+- Human Final Review: APPROVED by Owner Long at 2026-10-26 22:44:09 Asia/Bangkok in the T045 post-code, audit and trace reports.
+- Post-lock focused PostgreSQL test: 6 passed, 0 failures/errors/skips. Full clean verify: 293 passed, 0 failures/errors/skips; Flyway validated 27 migrations at V025. Evidence ran on the full working tree, not an isolated commit snapshot.
+- T045 remains unchecked: Owner Long approved SPEC v0.9.1, PLAN v0.5.2 and TASKS v0.6.2 alignment on 2026-10-27. PR validation has not run: this repair worktree has four SDD files modified, the remote branch diff contains 1,212 paths, and `git diff --check` reports 32 previously approved CommonMark hard-break diagnostics. The repository skill command is unavailable in this runtime. The remote branch is unchanged at 900891f; do not claim READY. Resolve contract drift and publish the approved SDD updates before final clean remote validation.
+
+## Change Impact Record — SPEC v0.9.1 and PLAN v0.5.2 alignment
+- Changed intent, requirement, architecture, or task assumption: Synchronized source versions and retained the user-approved T044–T053 task extension, including T045’s pending validator state.
+- Feature Lock boundary affected: FEAT-002 task trace and dependency references.
+- Material state-change classification: task planning documentation only.
+- Downstream artifacts invalidated: current task artifact review; no task implementation evidence is invalidated.
+- Required trace, test, and sync actions: review TASKS v0.6.2; then run feature audit/trace and PR validation.
+- Review follow-up: retain T045 unchecked until all validator and sync-back gates pass.
+
+## Historical AI Agent Recommendation — TASKS v0.6.2
+- Status: PENDING HUMAN REVIEW
+- Scope: FEAT-002 TASKS v0.6.2 source alignment and T044–T053 task trace.
+- Recommendation: Approve if source references match the reviewed Spec and Plan and T045 remains pending its outstanding validator gates.
+- Evidence: the existing T044 task extension approval, T045 post-code/audit/trace evidence, and the proposed Spec/Plan versions in this branch.
+- Risks and assumptions: The feature registry and shared Visit contract may still require sync based on audit/trace results; this task update does not close T045.
+- Alternatives considered: Retain stale source versions and leave T044/T045 trace inconsistent with the feature documents.
+- Required human decision: Review TASKS v0.6.2 and record APPROVED, REVISE, or REJECTED.
+
+## Historical Human Final Review — v0.6.2
+- Status: APPROVED
+- Decision: Approve synchronization of task source versions and retain T045 unchecked until validator and sync-back gates pass.
+- Reviewer: Owner Long
+- Reviewed at: 2026-10-27T17:24:48+07:00
+- Follow-up: Continue `/sdd-audit --feature=feat-002-appointment-booking` and `/sdd-trace --feature=feat-002-appointment-booking --diff`; do not mark T045 complete until PR validation is READY.
+### T045 SDD validator remediation — 2026-10-27
+
+- Owner Long approved SPEC v0.9.1, PLAN v0.5.2 and TASKS v0.6.2 on 2026-10-27. Spec lint scan passes all 44 REQ-BOOK groups and 11 REQ-RECEPTION requirements for EARS shape and unwanted-behavior coverage.
+- T045-scope audit/trace reports are APPROVED and held locally with SHA-256 pins; shared contract `visit-reception-clinical` v1.2.0 is synced. Full FEAT-002 trace remains outstanding; T045 remains unchecked pending remote PR validation.
+- The remote PR validator has not run. Branch must include approved SDD updates and contract disposition, be pushed by the user, and then be checked from a clean worktree matching remote.
+
+### T045 shared contract sync — 2026-10-27
+
+- Owner Long confirmed Visit/Reception/Clinical contract owner/Lead authority and approved `visit-reception-clinical` v1.2.0 on 2026-10-27.
+- `backend/sdd/shared_context.md` now records the approved T044 queue contract, T045 persistence invariants, V023–V025 compatibility, T047–T049 ownership boundaries and the privileged database-role residual. Registry status was synchronized; no code or database changed.
+- T045 audit/trace reports are approved and hash-pinned in the local external evidence manifest. Full feature trace and clean remote PR validation remain outstanding; T045 remains unchecked.
+
+## Change Impact Record — SPEC v0.9.2 and PLAN v0.5.3 alignment
+- Changed intent, requirement, architecture, or task assumption: Updated task sources for the existing capacity-conflict error mapping; no task scope/dependencies changed.
+- Feature Lock boundary affected: None.
+- Material state-change classification: Documentation only.
+- Downstream artifacts invalidated: This Tasks review; T045 remains unchecked.
+- Required trace, test, and sync actions: review TASKS v0.6.3; run full feature trace after review.
+- Review follow-up: keep T045 unchecked until full feature trace and remote PR validation pass.
+
+## AI Agent Recommendation
+- Status: PENDING HUMAN REVIEW
+- Scope: FEAT-002 TASKS v0.6.3 source alignment.
+- Recommendation: Approve if source references match SPEC v0.9.2 and PLAN v0.5.3; task assignment and verification evidence remain unchanged.
+- Evidence: existing T031 behavior and tests already use `VISIT_CAPACITY_NOT_AVAILABLE` with HTTP 409.
+- Risks and assumptions: This metadata update does not complete T045.
+- Alternatives considered: Leave the task source references stale.
+- Required human decision: Review TASKS v0.6.3 and record APPROVED, REVISE, or REJECTED.
+
+## Human Final Review — v0.6.3
+- Status: APPROVED
+- Decision: Approve TASKS v0.6.3 source alignment with approved SPEC v0.9.2 and PLAN v0.5.3; task scope, ordering and recorded T045 evidence remain unchanged.
+- Reviewer: Owner Long
+- Reviewed at: 2026-10-27T17:44:11+07:00
+- Follow-up: Run full `/sdd-audit --feature=feat-002-appointment-booking` and `/sdd-trace --feature=feat-002-appointment-booking --diff`; keep T045 unchecked until clean remote PR validation passes and required sync-back is recorded.

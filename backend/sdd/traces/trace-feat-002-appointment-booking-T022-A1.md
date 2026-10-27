@@ -1,7 +1,7 @@
 # FEAT-002 T022 Trace — A1
 
-Date: 2026-10-14 (Asia/Bangkok)  
-Task: Patient online and Receptionist-assisted atomic appointment creation  
+Date: 2026-10-14 (Asia/Bangkok)\
+Task: Patient online and Receptionist-assisted atomic appointment creation\
 Status: COMPLETE — local PostgreSQL execution and Owner Long approval recorded.
 
 ## Requirements and implementation mapping

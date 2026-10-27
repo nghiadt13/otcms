@@ -1,7 +1,7 @@
 # T023 Preflight — A1
 
-Date: 2026-10-14 (Asia/Bangkok)  
-Invocation: `/add-execute --feature=feat-002-appointment-booking --task=T023`  
+Date: 2026-10-14 (Asia/Bangkok)\
+Invocation: `/add-execute --feature=feat-002-appointment-booking --task=T023`\
 Status: Preflight persisted; grant G-feat-002-T023-A1 consumed immediately before first source edit. Owner Long approved the Auth access-port checkpoint on 2026-10-14; additive contract `doctor-account-access-read` v1.0.0 is recorded in shared_context v3.3.8.
 
 ## Approved scope and inputs
