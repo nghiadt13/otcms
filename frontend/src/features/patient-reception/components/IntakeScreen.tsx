@@ -6,11 +6,13 @@ import { UserRoundPlus } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { formatAppMessage } from "@/lib/messages/appMessages";
 import { PRIORITIES, type Priority } from "../types";
 import { normalizeText, withinReturnWindow } from "../schema/receptionRules";
 import { useReception } from "./ReceptionProvider";
 import {
   DataTable,
+  dateText,
   FormActions,
   FormModal,
   InfoRow,
@@ -32,7 +34,13 @@ export function CheckInDialog({
   onClose: () => void;
 }) {
   const { data: s, pending, run } = useReception();
-  const [patientId, setPatientId] = useState(initialPatient ?? "");
+  const fixedAppointment = s!.appointments.find(
+    (a) => a.id === initialAppointment,
+  );
+  const [selectedPatient, setPatientId] = useState("");
+  const patientId =
+    initialPatient ?? fixedAppointment?.patientId ?? selectedPatient;
+  const fixedPatient = !!initialPatient || !!initialAppointment;
   const [priority, setPriority] = useState<Priority>("normal");
   const [present, setPresent] = useState(false);
   const day = s!.clock.slice(0, 10);
@@ -45,9 +53,10 @@ export function CheckInDialog({
       v.status === "awaiting" &&
       withinReturnWindow(v.firstCheckIn, day),
   );
-  const [mode, setMode] = useState(
+  const [selectedMode, setMode] = useState(
     initialAppointment ?? (returns[0]?.id || appointments[0]?.id || "walkin"),
   );
+  const mode = initialAppointment ?? selectedMode;
   const returnVisit = returns.find((v) => v.id === mode);
   const appointment = appointments.find((a) => a.id === mode);
   const contextId = appointment?.id ?? `walkin-${patientId}-${day}`;
@@ -58,7 +67,10 @@ export function CheckInDialog({
       c.status !== "cancelled",
   );
   const patient = s!.patients.find((p) => p.id === patientId);
+  const invalidContext =
+    (fixedPatient && !patient) || (!!initialAppointment && !appointment);
   const canCheckIn =
+    !invalidContext &&
     !!patient &&
     present &&
     (!!returnVisit || fee?.status === "paid") &&
@@ -74,6 +86,7 @@ export function CheckInDialog({
         className="space-y-5"
         onSubmit={async (e) => {
           e.preventDefault();
+          if (!canCheckIn || pending) return;
           const next = await run({
             type: "check-in",
             patientId,
@@ -85,64 +98,97 @@ export function CheckInDialog({
           if (next) onClose();
         }}
       >
-        <SelectField
-          label="Bệnh nhân *"
-          value={patientId}
-          onChange={(value) => {
-            setPatientId(value);
-            setPresent(false);
-            setMode(
-              s!.visits.find(
-                (v) =>
-                  v.patientId === value &&
-                  v.status === "awaiting" &&
-                  withinReturnWindow(v.firstCheckIn, day),
-              )?.id ??
-                s!.appointments.find(
-                  (a) =>
-                    a.patientId === value &&
-                    a.date === day &&
-                    a.status === "booked",
-                )?.id ??
-                "walkin",
-            );
-          }}
-          disabled={pending}
-          options={[
-            { value: "", label: "Chọn bệnh nhân đã đối chiếu danh tính" },
-            ...s!.patients.map((p) => ({
-              value: p.id,
-              label: `${p.id} · ${p.name} · ${p.phone}`,
-            })),
-          ]}
-        />
-        {patient && (
-          <>
-            <SelectField
-              label="Hình thức tiếp nhận"
-              value={mode}
-              onChange={setMode}
-              disabled={pending}
-              options={[
-                ...returns.map((v) => ({
-                  value: v.id,
-                  label: `Tiếp tục ${v.id} · không thu thêm phí khám`,
-                })),
-                ...appointments.map((a) => ({
-                  value: a.id,
-                  label: `${a.id} · lịch ${a.time} hôm nay`,
-                })),
-                {
-                  value: "walkin",
-                  label: "Khám trực tiếp · không tạo lịch hẹn",
-                },
-              ]}
-            />
-            <dl>
-              <InfoRow label="Định danh">
-                {patient.name} · {patient.dob.split("-").reverse().join("/")} ·{" "}
-                {patient.phone}
+        {fixedPatient ? (
+          <dl className="rounded-lg border bg-muted/30 px-4">
+            <InfoRow label="Bệnh nhân">
+              {patient ? (
+                <>
+                  <span className="block">{patient.name}</span>
+                  <span className="mt-1 block text-xs font-normal text-muted-foreground">
+                    {patient.id} · {dateText(patient.dob)} · {patient.phone}
+                  </span>
+                </>
+              ) : (
+                "Không tìm thấy hồ sơ bệnh nhân"
+              )}
+            </InfoRow>
+            {initialAppointment && (
+              <InfoRow label="Lịch hẹn">
+                {initialAppointment}
+                {fixedAppointment &&
+                  ` · ${fixedAppointment.time} · ${dateText(fixedAppointment.date)}`}
               </InfoRow>
+            )}
+          </dl>
+        ) : (
+          <SelectField
+            label="Bệnh nhân *"
+            value={patientId}
+            onChange={(value) => {
+              setPatientId(value);
+              setPresent(false);
+              setMode(
+                s!.visits.find(
+                  (v) =>
+                    v.patientId === value &&
+                    v.status === "awaiting" &&
+                    withinReturnWindow(v.firstCheckIn, day),
+                )?.id ??
+                  s!.appointments.find(
+                    (a) =>
+                      a.patientId === value &&
+                      a.date === day &&
+                      a.status === "booked",
+                  )?.id ??
+                  "walkin",
+              );
+            }}
+            disabled={pending}
+            options={[
+              { value: "", label: "Chọn bệnh nhân đã đối chiếu danh tính" },
+              ...s!.patients.map((p) => ({
+                value: p.id,
+                label: `${p.id} · ${p.name} · ${p.phone}`,
+              })),
+            ]}
+          />
+        )}
+        {invalidContext && (
+          <p role="alert" className="text-destructive">
+            {formatAppMessage("MSG-37")}
+          </p>
+        )}
+        {patient && !invalidContext && (
+          <>
+            {!initialAppointment && (
+              <SelectField
+                label="Hình thức tiếp nhận"
+                value={mode}
+                onChange={setMode}
+                disabled={pending}
+                options={[
+                  ...returns.map((v) => ({
+                    value: v.id,
+                    label: `Tiếp tục ${v.id} · không thu thêm phí khám`,
+                  })),
+                  ...appointments.map((a) => ({
+                    value: a.id,
+                    label: `${a.id} · lịch ${a.time} hôm nay`,
+                  })),
+                  {
+                    value: "walkin",
+                    label: "Khám trực tiếp · không tạo lịch hẹn",
+                  },
+                ]}
+              />
+            )}
+            <dl>
+              {!fixedPatient && (
+                <InfoRow label="Định danh">
+                  {patient.name} · {patient.dob.split("-").reverse().join("/")}{" "}
+                  · {patient.phone}
+                </InfoRow>
+              )}
               <InfoRow label="Phí khám">
                 {returnVisit ? (
                   "0 ₫ · tiếp tục lượt khám cũ trong 7 ngày"
@@ -237,7 +283,12 @@ export function IntakeScreen() {
     patientId?: string;
     appointmentId?: string;
   } | null>(
-    params.get("patientId") ? { patientId: params.get("patientId")! } : null,
+    params.get("patientId") || params.get("appointmentId")
+      ? {
+          patientId: params.get("patientId") ?? undefined,
+          appointmentId: params.get("appointmentId") ?? undefined,
+        }
+      : null,
   );
   const day = s!.clock.slice(0, 10);
   const appointments = s!.appointments.filter((a) => a.date === day);

@@ -315,7 +315,11 @@ function AppointmentDetails({
           Xem khoản thu
         </RouteLink>
         {a.status === "booked" && a.date === s!.clock.slice(0, 10) && (
-          <RouteLink href={`/reception?patientId=${p.id}`}>Tiếp nhận</RouteLink>
+          <RouteLink
+            href={`/reception?patientId=${p.id}&appointmentId=${a.id}`}
+          >
+            Tiếp nhận
+          </RouteLink>
         )}
       </div>
     </FormModal>
