@@ -29,4 +29,3 @@ appointment:
   booking:
     readiness:
       required: false
-

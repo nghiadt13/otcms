@@ -25,7 +25,3 @@ Status: COMPLETE — implementation, independent review, local PostgreSQL HTTP/f
 ## Human disposition
 
 Owner Long approved the Auth-owned read-only Doctor account-access port checkpoint on 2026-10-14. Owner Long approved `APPROVE implementation and trace T023` on 2026-10-14 (Asia/Bangkok). T023 is complete.
-
-
-
-

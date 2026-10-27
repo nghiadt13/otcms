@@ -230,4 +230,3 @@ Dùng một record cho từng contract đã fixed. Giữ placeholder khi chưa c
 - Review and execution evidence: Owner Long approved adding the Auth-owned read-only access port for Doctor status checks on 2026-10-14. Implementation, local suite (186/186), dedicated PostgreSQL HTTP tests (6/6), independent review and approved trace are recorded in T023 A1 execution/review/trace artifacts; Owner Long approved implementation and trace on 2026-10-14.
 - Last sync: 2026-10-14 — T023 implementation, PostgreSQL verification, and Human final approval.
 - Unresolved decision: None for v1.0.0.
-
