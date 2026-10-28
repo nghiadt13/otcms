@@ -10,8 +10,8 @@ import java.util.List;
 
 public interface VisitInitialReceptionJpaRepository extends JpaRepository<VisitInitialReceptionJpaEntity, UUID> {
     @Query(value = """
-            select appointment_id, patient_profile_id, arrived_at, receptionist_account_id
-            from recorded_appointment_arrivals
+            select appointment_id, patient_profile_id, arrived_at, actor_account_id
+            from appointment_arrivals
             where appointment_id = :appointmentId and patient_profile_id = :patientProfileId
               and arrived_at >= :windowStart and arrived_at <= :windowEnd
             """, nativeQuery = true)

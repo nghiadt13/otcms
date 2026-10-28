@@ -15,5 +15,5 @@ public interface RecordedArrivalQueryService {
             Instant windowStartInclusive, Instant windowEndInclusive);
 
     record RecordedArrival(UUID appointmentId, UUID patientProfileId, Instant arrivedAt,
-            UUID receptionistAccountId) { }
+            UUID actorAccountId) { }
 }

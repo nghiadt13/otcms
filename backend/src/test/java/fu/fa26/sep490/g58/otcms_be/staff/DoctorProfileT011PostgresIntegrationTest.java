@@ -37,8 +37,8 @@ class DoctorProfileT011PostgresIntegrationTest {
     @Autowired StaffDirectoryQueryService staffDirectory;
 
     @AfterEach void cleanup() {
-        jdbc.update("delete from doctor_operational_time_off where doctor_profile_id in (select id from doctor_profiles where work_contact like 't011-%')");
-        jdbc.update("delete from doctor_work_shifts where doctor_profile_id in (select id from doctor_profiles where work_contact like 't011-%')");
+        jdbc.update("delete from doctor_time_off where doctor_profile_id in (select id from doctor_profiles where work_contact like 't011-%')");
+        jdbc.update("delete from doctor_shifts where doctor_profile_id in (select id from doctor_profiles where work_contact like 't011-%')");
         jdbc.update("delete from doctor_profiles where work_contact like 't011-%'");
         jdbc.update("delete from accounts where normalized_email like 't011-%'");
     }
@@ -50,7 +50,7 @@ class DoctorProfileT011PostgresIntegrationTest {
         try {
             Flyway flyway = Flyway.configure().dataSource(dataSource).schemas(schema).defaultSchema(schema)
                     .locations("classpath:db/migration").target("6").load();
-            assertEquals(6, flyway.migrate().migrationsExecuted);
+            assertEquals(8, flyway.migrate().migrationsExecuted);
             assertEquals(1, jdbc.queryForObject("select count(*) from information_schema.tables where table_schema = ? and table_name = 'doctor_profiles'", Integer.class, schema));
             assertEquals(1, jdbc.queryForObject("select count(*) from information_schema.tables where table_schema = ? and table_name = 'doctor_work_shifts'", Integer.class, schema));
             assertEquals(1, jdbc.queryForObject("select count(*) from information_schema.tables where table_schema = ? and table_name = 'doctor_operational_time_off'", Integer.class, schema));

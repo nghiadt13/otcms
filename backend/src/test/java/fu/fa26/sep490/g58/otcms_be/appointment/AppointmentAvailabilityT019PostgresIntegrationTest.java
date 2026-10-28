@@ -78,23 +78,23 @@ class AppointmentAvailabilityT019PostgresIntegrationTest {
                             + "qualifications, biography, consultation_information, publicly_visible, accepting_new_bookings, in_active_directory) "
                             + "values (?, ?, ?, '', 'private-contact', '', '', '', '', ?, ?, true)",
                     doctorId, accountId, "T019 Doctor " + index, visible, accepting);
-            jdbc.update("insert into doctor_work_shifts (id, doctor_profile_id, starts_at, ends_at) values (?, ?, ?, ?)",
+            jdbc.update("insert into doctor_shifts (id, doctor_profile_id, starts_at, ends_at) values (?, ?, ?, ?)",
                     UUID.randomUUID(), doctorId, Timestamp.from(shiftStart()), Timestamp.from(shiftEnd()));
             if (index < 3) {
-                jdbc.update("insert into doctor_service_assignments (doctor_profile_id, service_id, active) values (?, ?, true)",
+                jdbc.update("insert into doctor_services (doctor_profile_id, service_id, active) values (?, ?, true)",
                         doctorId, serviceId);
             }
         }
-        jdbc.update("insert into doctor_service_assignments (doctor_profile_id, service_id, active) values (?, ?, true)",
+        jdbc.update("insert into doctor_services (doctor_profile_id, service_id, active) values (?, ?, true)",
                 doctorIds.get(0), staffOnlyServiceId);
     }
 
     @AfterEach
     void cleanUp() {
         if (serviceId == null) return;
-        jdbc.update("delete from doctor_service_assignments where service_id in (?, ?, ?, ?)",
+        jdbc.update("delete from doctor_services where service_id in (?, ?, ?, ?)",
                 serviceId, unassignedServiceId, inactiveServiceId, staffOnlyServiceId);
-        jdbc.update("delete from doctor_work_shifts where doctor_profile_id in (?, ?, ?, ?)",
+        jdbc.update("delete from doctor_shifts where doctor_profile_id in (?, ?, ?, ?)",
                 doctorIds.get(0), doctorIds.get(1), doctorIds.get(2), doctorIds.get(3));
         jdbc.update("delete from doctor_profiles where id in (?, ?, ?, ?)",
                 doctorIds.get(0), doctorIds.get(1), doctorIds.get(2), doctorIds.get(3));

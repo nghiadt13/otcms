@@ -35,4 +35,3 @@ Code review found no blocking issue in the corrected architecture boundaries. Hi
 - Status: APPROVED — implementation and architecture review; T041 closed.
 - Decision: Owner Long approved closure in conversation on 2026-10-18.
 - Basis: corrected architecture boundaries, independent review, and local PostgreSQL suite 212/212 with 0 failures/errors/skips as recorded above.
-

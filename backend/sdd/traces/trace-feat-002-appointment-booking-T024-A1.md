@@ -1,7 +1,7 @@
 # FEAT-002 T024 Trace — A1 (Approval Pending)
 
-Date: 2026-10-14 (Asia/Bangkok)  
-Task: Ordinary appointment reschedule  
+Date: 2026-10-14 (Asia/Bangkok)\
+Task: Ordinary appointment reschedule\
 Status: COMPLETE — implementation, verification, review, and Owner Long approval recorded.
 
 ## Requirement-to-code trace

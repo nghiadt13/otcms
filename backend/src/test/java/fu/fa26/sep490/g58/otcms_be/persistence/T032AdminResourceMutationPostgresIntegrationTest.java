@@ -73,24 +73,24 @@ class T032AdminResourceMutationPostgresIntegrationTest {
 
     @AfterEach
     void cleanup() {
-        jdbc.execute("alter table staff_resource_management_audits disable trigger tr_staff_resource_audits_immutable");
-        jdbc.execute("alter table service_catalog_management_audits disable trigger tr_service_catalog_audits_immutable");
+        jdbc.execute("alter table staff_resource_audits disable trigger tr_staff_resource_audits_immutable");
+        jdbc.execute("alter table service_audits disable trigger tr_service_catalog_audits_immutable");
         try {
             for (UUID appointment : appointmentIds) {
                 jdbc.update("update appointments set status='CANCELLED', visit_id=null where id=?", appointment);
             }
             for (UUID visit : visitIds) {
-                jdbc.update("delete from visit_initial_receptions where visit_id=?", visit);
-                jdbc.update("delete from visit_care_assignments where visit_id=?", visit);
+                jdbc.update("delete from visit_check_ins where visit_id=?", visit);
+                jdbc.update("delete from visit_assignments where visit_id=?", visit);
             }
-            for (UUID visit : visitIds) jdbc.update("delete from clinic_visits where id=?", visit);
+            for (UUID visit : visitIds) jdbc.update("delete from visits where id=?", visit);
             for (UUID appointment : appointmentIds) jdbc.update("delete from appointments where id=?", appointment);
             if (doctorId != null) {
-                jdbc.update("delete from staff_resource_management_audits where doctor_profile_id = ?", doctorId);
-                if (serviceId != null) jdbc.update("delete from service_catalog_management_audits where service_id = ?", serviceId);
-                jdbc.update("delete from doctor_operational_time_off where doctor_profile_id = ?", doctorId);
-                jdbc.update("delete from doctor_work_shifts where doctor_profile_id = ?", doctorId);
-                jdbc.update("delete from doctor_service_assignments where doctor_profile_id = ?", doctorId);
+                jdbc.update("delete from staff_resource_audits where doctor_profile_id = ?", doctorId);
+                if (serviceId != null) jdbc.update("delete from service_audits where service_id = ?", serviceId);
+                jdbc.update("delete from doctor_time_off where doctor_profile_id = ?", doctorId);
+                jdbc.update("delete from doctor_shifts where doctor_profile_id = ?", doctorId);
+                jdbc.update("delete from doctor_services where doctor_profile_id = ?", doctorId);
                 jdbc.update("delete from doctor_profiles where id = ?", doctorId);
             }
             if (serviceId != null) jdbc.update("delete from clinic_services where id = ?", serviceId);
@@ -101,8 +101,8 @@ class T032AdminResourceMutationPostgresIntegrationTest {
             for (UUID account : patientAccountIds) jdbc.update("delete from accounts where id=?", account);
             patientIds.clear(); patientAccountIds.clear(); appointmentIds.clear(); visitIds.clear();
         } finally {
-            jdbc.execute("alter table staff_resource_management_audits enable trigger tr_staff_resource_audits_immutable");
-            jdbc.execute("alter table service_catalog_management_audits enable trigger tr_service_catalog_audits_immutable");
+            jdbc.execute("alter table staff_resource_audits enable trigger tr_staff_resource_audits_immutable");
+            jdbc.execute("alter table service_audits enable trigger tr_service_catalog_audits_immutable");
         }
     }
 
@@ -111,7 +111,7 @@ class T032AdminResourceMutationPostgresIntegrationTest {
         String clean = createSchema("t032_clean_");
         try {
             Flyway flyway = flyway(clean, "19");
-            assertEquals(19, flyway.migrate().migrationsExecuted);
+            assertEquals(21, flyway.migrate().migrationsExecuted);
             assertEquals("019", flyway.info().current().getVersion().getVersion());
             assertEquals(1, tableCount(clean, "staff_resource_management_audits"));
             assertEquals(1, tableCount(clean, "service_catalog_management_audits"));
@@ -124,7 +124,7 @@ class T032AdminResourceMutationPostgresIntegrationTest {
         String upgrade = createSchema("t032_v018_");
         try {
             Flyway before = flyway(upgrade, "18");
-            assertEquals(18, before.migrate().migrationsExecuted);
+            assertEquals(20, before.migrate().migrationsExecuted);
             UUID accountId = UUID.randomUUID();
             UUID service = UUID.randomUUID();
             UUID doctor = UUID.randomUUID();
@@ -148,7 +148,7 @@ class T032AdminResourceMutationPostgresIntegrationTest {
     @Test
     void adminMutationsReturnImpactConflictsAndWriteOnlySuccessfulOwnerAudits() throws Exception {
         createFixtures();
-        jdbc.update("insert into doctor_work_shifts (id,doctor_profile_id,starts_at,ends_at) values (?,?,?,?)",
+        jdbc.update("insert into doctor_shifts (id,doctor_profile_id,starts_at,ends_at) values (?,?,?,?)",
                 shiftId, doctorId, timestamp(NOW), timestamp(NOW.plus(Duration.ofHours(2))));
         UUID bookingId = UUID.randomUUID(); appointmentIds.add(bookingId);
         jdbc.update("insert into appointments (id,patient_profile_id,service_id,doctor_profile_id,status,booking_source,purpose,start_time,end_time,duration_minutes,buffer_minutes,created_by_account_id) " +
@@ -165,8 +165,8 @@ class T032AdminResourceMutationPostgresIntegrationTest {
                 .andExpect(jsonPath("$.error.impact.affectedBookingCount").value(1))
                 .andExpect(jsonPath("$.error.impact.activeCareBlocks").value(false))
                 .andExpect(jsonPath("$.error.impact.patientId").doesNotExist());
-        assertEquals(1, jdbc.queryForObject("select count(*) from doctor_work_shifts where id=?", Integer.class, shiftId));
-        assertEquals(0, jdbc.queryForObject("select count(*) from staff_resource_management_audits where resource_id=?", Integer.class, shiftId));
+        assertEquals(1, jdbc.queryForObject("select count(*) from doctor_shifts where id=?", Integer.class, shiftId));
+        assertEquals(0, jdbc.queryForObject("select count(*) from staff_resource_audits where resource_id=?", Integer.class, shiftId));
 
         mvc.perform(post("/api/v1/admin/doctors/{doctorId}/time-offs", doctorId)
                         .with(actor(AccountRole.ADMIN, adminId)).with(csrf()).contentType("application/json")
@@ -175,11 +175,11 @@ class T032AdminResourceMutationPostgresIntegrationTest {
                 .andExpect(jsonPath("$.error.code").value("RESOURCE_MUTATION_BLOCKED"))
                 .andExpect(jsonPath("$.error.impact.resourceType").value("TIME_OFF"))
                 .andExpect(jsonPath("$.error.impact.affectedBookingCount").value(1));
-        assertEquals(0, jdbc.queryForObject("select count(*) from doctor_operational_time_off where doctor_profile_id=?", Integer.class, doctorId));
-        assertEquals(0, jdbc.queryForObject("select count(*) from staff_resource_management_audits where doctor_profile_id=? and resource_type='TIME_OFF'", Integer.class, doctorId));
+        assertEquals(0, jdbc.queryForObject("select count(*) from doctor_time_off where doctor_profile_id=?", Integer.class, doctorId));
+        assertEquals(0, jdbc.queryForObject("select count(*) from staff_resource_audits where doctor_profile_id=? and resource_type='TIME_OFF'", Integer.class, doctorId));
 
         timeOffId = UUID.randomUUID();
-        jdbc.update("insert into doctor_operational_time_off (id,doctor_profile_id,starts_at,ends_at) values (?,?,?,?)",
+        jdbc.update("insert into doctor_time_off (id,doctor_profile_id,starts_at,ends_at) values (?,?,?,?)",
                 timeOffId, doctorId, timestamp(NOW.plus(Duration.ofMinutes(20))), timestamp(NOW.plus(Duration.ofMinutes(70))));
         mvc.perform(get("/api/v1/admin/doctors/{doctorId}/time-offs/{timeOffId}/mutation-impact", doctorId, timeOffId)
                         .with(actor(AccountRole.ADMIN, adminId)))
@@ -190,27 +190,27 @@ class T032AdminResourceMutationPostgresIntegrationTest {
         mvc.perform(delete("/api/v1/admin/doctors/{doctorId}/time-offs/{timeOffId}", doctorId, timeOffId)
                         .with(actor(AccountRole.ADMIN, adminId)).with(csrf()))
                 .andExpect(status().isNoContent());
-        assertEquals(0, jdbc.queryForObject("select count(*) from doctor_operational_time_off where id=?", Integer.class, timeOffId));
-        assertEquals(1, jdbc.queryForObject("select count(*) from staff_resource_management_audits where resource_id=? and resource_type='TIME_OFF' and action='DELETED'", Integer.class, timeOffId));
+        assertEquals(0, jdbc.queryForObject("select count(*) from doctor_time_off where id=?", Integer.class, timeOffId));
+        assertEquals(1, jdbc.queryForObject("select count(*) from staff_resource_audits where resource_id=? and resource_type='TIME_OFF' and action='DELETED'", Integer.class, timeOffId));
 
         mvc.perform(post("/api/v1/admin/doctors/{doctorId}/shifts", doctorId).with(actor(AccountRole.ADMIN, adminId)).with(csrf())
                         .contentType("application/json").content("{\"startsAt\":\"2026-10-20T12:00:00Z\",\"endsAt\":\"2026-10-20T13:00:00Z\"}"))
                 .andExpect(status().isCreated()).andExpect(jsonPath("$.id").exists());
-        assertEquals(1, jdbc.queryForObject("select count(*) from staff_resource_management_audits where doctor_profile_id=? and resource_type='WORK_SHIFT' and action='CREATED'", Integer.class, doctorId));
+        assertEquals(1, jdbc.queryForObject("select count(*) from staff_resource_audits where doctor_profile_id=? and resource_type='WORK_SHIFT' and action='CREATED'", Integer.class, doctorId));
         mvc.perform(patch("/api/v1/admin/doctors/{doctorId}/directory-state", doctorId)
                         .with(actor(AccountRole.ADMIN, adminId)).with(csrf()).contentType("application/json")
                         .content("{\"publiclyVisible\":false,\"acceptingNewBookings\":false,\"inActiveDirectory\":false}"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.publiclyVisible").value(false));
-        assertEquals(1, jdbc.queryForObject("select count(*) from staff_resource_management_audits where doctor_profile_id=? and resource_type='DOCTOR_PROFILE' and action='UPDATED'", Integer.class, doctorId));
-        UUID auditId = jdbc.queryForObject("select id from staff_resource_management_audits where doctor_profile_id=? and resource_type='WORK_SHIFT' and action='CREATED'", UUID.class, doctorId);
-        assertThrows(DataAccessException.class, () -> jdbc.update("update staff_resource_management_audits set correlation_id='tampered' where id=?", auditId));
+        assertEquals(1, jdbc.queryForObject("select count(*) from staff_resource_audits where doctor_profile_id=? and resource_type='DOCTOR_PROFILE' and action='UPDATED'", Integer.class, doctorId));
+        UUID auditId = jdbc.queryForObject("select id from staff_resource_audits where doctor_profile_id=? and resource_type='WORK_SHIFT' and action='CREATED'", UUID.class, doctorId);
+        assertThrows(DataAccessException.class, () -> jdbc.update("update staff_resource_audits set correlation_id='tampered' where id=?", auditId));
 
         mvc.perform(delete("/api/v1/admin/clinic-services/{serviceId}", serviceId)
                         .with(actor(AccountRole.ADMIN, adminId)).with(csrf()))
                 .andExpect(status().isNoContent());
         assertEquals(1, jdbc.queryForObject("select count(*) from appointments where service_id=? and status='CONFIRMED' and duration_minutes=30 and buffer_minutes=10", Integer.class, serviceId));
         assertEquals(1, jdbc.queryForObject("select count(*) from clinic_services where id=? and active=false", Integer.class, serviceId));
-        assertEquals(1, jdbc.queryForObject("select count(*) from service_catalog_management_audits where service_id=? and action='DEACTIVATED'", Integer.class, serviceId));
+        assertEquals(1, jdbc.queryForObject("select count(*) from service_audits where service_id=? and action='DEACTIVATED'", Integer.class, serviceId));
 
         mvc.perform(post("/api/v1/admin/clinic-services/{serviceId}/doctor-assignments", serviceId)
                         .with(actor(AccountRole.RECEPTIONIST, receptionistId)).with(csrf()).contentType("application/json")
@@ -226,9 +226,9 @@ class T032AdminResourceMutationPostgresIntegrationTest {
         UUID patientId = patientId();
         Instant careStart = NOW.plus(Duration.ofDays(1));
         Instant careEnd = careStart.plus(Duration.ofMinutes(30));
-        jdbc.update("insert into clinic_visits (id,patient_profile_id,source,arrived_at,checked_in_at,created_by_account_id,status) values (?,?,'WALK_IN',?, ?, ?, 'OPEN')",
+        jdbc.update("insert into visits (id,patient_profile_id,source,arrived_at,checked_in_at,created_by_account_id,status) values (?,?,'WALK_IN',?, ?, ?, 'OPEN')",
                 visitId, patientId, timestamp(NOW), timestamp(NOW), adminId);
-        jdbc.update("insert into visit_care_assignments (id,visit_id,doctor_profile_id,starts_at,ends_at,status) values (?,?,?, ?, ?, 'RESERVED')",
+        jdbc.update("insert into visit_assignments (id,visit_id,doctor_profile_id,starts_at,ends_at,status) values (?,?,?, ?, ?, 'RESERVED')",
                 UUID.randomUUID(), visitId, doctorId, timestamp(careStart), timestamp(careEnd));
 
         mvc.perform(delete("/api/v1/admin/clinic-services/{serviceId}/doctor-assignments/{assignmentId}", serviceId, assignmentId)
@@ -237,8 +237,8 @@ class T032AdminResourceMutationPostgresIntegrationTest {
                 .andExpect(jsonPath("$.error.code").value("RESOURCE_MUTATION_BLOCKED"))
                 .andExpect(jsonPath("$.error.impact.resourceType").value("DOCTOR_ASSIGNMENT"))
                 .andExpect(jsonPath("$.error.impact.activeCareBlocks").value(true));
-        assertEquals(1, jdbc.queryForObject("select count(*) from doctor_service_assignments where id=? and active", Integer.class, assignmentId));
-        assertEquals(0, jdbc.queryForObject("select count(*) from service_catalog_management_audits where resource_id=? and action='DELETED'", Integer.class, assignmentId));
+        assertEquals(1, jdbc.queryForObject("select count(*) from doctor_services where id=? and active", Integer.class, assignmentId));
+        assertEquals(0, jdbc.queryForObject("select count(*) from service_audits where resource_id=? and action='DELETED'", Integer.class, assignmentId));
     }
 
     @Test
@@ -254,11 +254,11 @@ class T032AdminResourceMutationPostgresIntegrationTest {
             jdbc.update("insert into appointments (id,patient_profile_id,service_id,doctor_profile_id,status,booking_source,purpose,start_time,end_time,duration_minutes,buffer_minutes,created_by_account_id) " +
                             "values (?, ?, ?, ?, 'CONFIRMED', 'RECEPTIONIST_ASSISTED', 't032 checked in', ?, ?, 30, 10, ?)",
                     appointmentId, patient, serviceId, doctorId, timestamp(appointmentStart), timestamp(appointmentEnd), adminId);
-            jdbc.update("insert into clinic_visits (id,patient_profile_id,source,originating_appointment_id,arrived_at,checked_in_at,created_by_account_id,status) " +
+            jdbc.update("insert into visits (id,patient_profile_id,source,originating_appointment_id,arrived_at,checked_in_at,created_by_account_id,status) " +
                             "values (?,?,'SCHEDULED',?,?,?,?,'OPEN')",
                     visitId, patient, appointmentId, timestamp(NOW), timestamp(NOW), adminId);
             jdbc.update("update appointments set status='CHECKED_IN', visit_id=? where id=?", visitId, appointmentId);
-            jdbc.update("insert into visit_initial_receptions (visit_id,receptionist_account_id,reception_type,arrived_at,checked_in_at) " +
+            jdbc.update("insert into visit_check_ins (visit_id,receptionist_account_id,reception_type,arrived_at,checked_in_at) " +
                             "values (?,?,'APPOINTMENT_CHECK_IN',?,?)",
                     visitId, receptionistId, timestamp(NOW), timestamp(NOW));
         });
@@ -271,14 +271,14 @@ class T032AdminResourceMutationPostgresIntegrationTest {
                 .andExpect(jsonPath("$.error.impact.resourceType").value("TIME_OFF"))
                 .andExpect(jsonPath("$.error.impact.affectedBookingCount").value(1));
         assertEquals("CHECKED_IN", jdbc.queryForObject("select status from appointments where id=?", String.class, appointmentId));
-        assertEquals(0, jdbc.queryForObject("select count(*) from doctor_operational_time_off where doctor_profile_id=?", Integer.class, doctorId));
-        assertEquals(0, jdbc.queryForObject("select count(*) from staff_resource_management_audits where doctor_profile_id=? and resource_type='TIME_OFF'", Integer.class, doctorId));
+        assertEquals(0, jdbc.queryForObject("select count(*) from doctor_time_off where doctor_profile_id=?", Integer.class, doctorId));
+        assertEquals(0, jdbc.queryForObject("select count(*) from staff_resource_audits where doctor_profile_id=? and resource_type='TIME_OFF'", Integer.class, doctorId));
     }
 
     @Test
     void mutationWaitsForGuardThenRechecksNewBookingAndRejectsWithoutWrites() throws Exception {
         createFixtures();
-        jdbc.update("insert into doctor_work_shifts (id,doctor_profile_id,starts_at,ends_at) values (?,?,?,?)",
+        jdbc.update("insert into doctor_shifts (id,doctor_profile_id,starts_at,ends_at) values (?,?,?,?)",
                 shiftId, doctorId, timestamp(NOW), timestamp(NOW.plus(Duration.ofHours(2))));
         TransactionTemplate tx = new TransactionTemplate(transactionManager);
         CountDownLatch guardHeld = new CountDownLatch(1);
@@ -309,8 +309,8 @@ class T032AdminResourceMutationPostgresIntegrationTest {
                 assertTrue(failure.getCause() instanceof RuntimeException);
                 assertEquals("RESOURCE_MUTATION_BLOCKED", failure.getCause().getMessage());
             }
-            assertEquals(1, jdbc.queryForObject("select count(*) from doctor_work_shifts where id=?", Integer.class, shiftId));
-            assertEquals(0, jdbc.queryForObject("select count(*) from staff_resource_management_audits where resource_id=? and action='DELETED'", Integer.class, shiftId));
+            assertEquals(1, jdbc.queryForObject("select count(*) from doctor_shifts where id=?", Integer.class, shiftId));
+            assertEquals(0, jdbc.queryForObject("select count(*) from staff_resource_audits where resource_id=? and action='DELETED'", Integer.class, shiftId));
             assertEquals(1, jdbc.queryForObject("select count(*) from appointments where doctor_profile_id=? and status='CONFIRMED'", Integer.class, doctorId));
         } finally {
             releaseWriter.countDown();
@@ -333,9 +333,9 @@ class T032AdminResourceMutationPostgresIntegrationTest {
                 guardHeld.countDown();
                 await(releaseWriter);
                 UUID patient = patientId();
-                jdbc.update("insert into clinic_visits (id,patient_profile_id,source,arrived_at,checked_in_at,created_by_account_id,status) values (?,?,'WALK_IN',?, ?, ?, 'OPEN')",
+                jdbc.update("insert into visits (id,patient_profile_id,source,arrived_at,checked_in_at,created_by_account_id,status) values (?,?,'WALK_IN',?, ?, ?, 'OPEN')",
                         visitId, patient, timestamp(NOW), timestamp(NOW), adminId);
-                jdbc.update("insert into visit_care_assignments (id,visit_id,doctor_profile_id,starts_at,ends_at,status) values (?,?,?, ?, ?, 'IN_PROGRESS')",
+                jdbc.update("insert into visit_assignments (id,visit_id,doctor_profile_id,starts_at,ends_at,status) values (?,?,?, ?, ?, 'IN_PROGRESS')",
                         UUID.randomUUID(), visitId, doctorId, timestamp(NOW), timestamp(NOW.plus(Duration.ofMinutes(30))));
             }));
             assertTrue(guardHeld.await(5, TimeUnit.SECONDS), "care writer should acquire T014 first");
@@ -352,9 +352,9 @@ class T032AdminResourceMutationPostgresIntegrationTest {
                 assertTrue(failure.getCause() instanceof RuntimeException);
                 assertEquals("RESOURCE_MUTATION_BLOCKED", failure.getCause().getMessage());
             }
-            assertEquals(1, jdbc.queryForObject("select count(*) from doctor_service_assignments where id=? and active", Integer.class, assignmentId));
-            assertEquals(0, jdbc.queryForObject("select count(*) from service_catalog_management_audits where resource_id=? and action='DELETED'", Integer.class, assignmentId));
-            assertEquals(1, jdbc.queryForObject("select count(*) from visit_care_assignments where visit_id=? and status='IN_PROGRESS'", Integer.class, visitId));
+            assertEquals(1, jdbc.queryForObject("select count(*) from doctor_services where id=? and active", Integer.class, assignmentId));
+            assertEquals(0, jdbc.queryForObject("select count(*) from service_audits where resource_id=? and action='DELETED'", Integer.class, assignmentId));
+            assertEquals(1, jdbc.queryForObject("select count(*) from visit_assignments where visit_id=? and status='IN_PROGRESS'", Integer.class, visitId));
         } finally {
             releaseWriter.countDown();
             pool.shutdownNow();
@@ -391,7 +391,7 @@ class T032AdminResourceMutationPostgresIntegrationTest {
                 doctorId, doctorAccountId, "Dr T032 " + doctorId);
         jdbc.update("insert into clinic_services (id,name,duration_minutes,buffer_minutes,online_bookable,active) values (?,? ,30,10,true,true)",
                 serviceId, "T032 service " + serviceId);
-        jdbc.update("insert into doctor_service_assignments (id,doctor_profile_id,service_id,active) values (?,?,?,true)",
+        jdbc.update("insert into doctor_services (id,doctor_profile_id,service_id,active) values (?,?,?,true)",
                 assignmentId, doctorId, serviceId);
     }
 
@@ -443,7 +443,7 @@ class T032AdminResourceMutationPostgresIntegrationTest {
         long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(4);
         while (System.nanoTime() < deadline) {
             Integer waiting = jdbc.queryForObject("select count(*) from pg_stat_activity "
-                    + "where wait_event_type='Lock' and query ilike '%integration_coordination_guard%'", Integer.class);
+                    + "where wait_event_type='Lock' and query ilike '%transaction_guard%'", Integer.class);
             if (waiting != null && waiting > 0) return;
             try {
                 Thread.sleep(25);

@@ -33,9 +33,9 @@ class T017PersistenceCheckpointPostgresIntegrationTest {
         String schema = createSchema("t017_clean_");
         try {
             Flyway flyway = flyway(schema, "14");
-            assertEquals(14, flyway.migrate().migrationsExecuted);
+            assertEquals(16, flyway.migrate().migrationsExecuted);
             assertEquals("014", flyway.info().current().getVersion().getVersion());
-            assertEquals(14, jdbc.queryForObject("select count(*) from " + schema + ".flyway_schema_history where success", Integer.class));
+            assertEquals(16, jdbc.queryForObject("select count(*) from " + schema + ".flyway_schema_history where success", Integer.class));
 
             assertTable(schema, "appointments");
             assertTable(schema, "patient_profiles");
@@ -86,10 +86,10 @@ class T017PersistenceCheckpointPostgresIntegrationTest {
                     consentId, accountId, Timestamp.from(acceptedAt));
 
             Flyway upgraded = flyway(schema, "14");
-            assertEquals(13, upgraded.migrate().migrationsExecuted);
+            assertEquals(15, upgraded.migrate().migrationsExecuted);
             assertEquals("014", upgraded.info().current().getVersion().getVersion());
             assertEquals(checksumBefore, migrationChecksum(schema, "001"));
-            assertEquals(14, jdbc.queryForObject("select count(*) from " + schema + ".flyway_schema_history where success", Integer.class));
+            assertEquals(16, jdbc.queryForObject("select count(*) from " + schema + ".flyway_schema_history where success", Integer.class));
 
             assertEquals("PATIENT", jdbc.queryForObject("select account_type from " + schema + ".accounts where id = ?", String.class, accountId));
             assertEquals("ACTIVE", jdbc.queryForObject("select status from " + schema + ".accounts where id = ?", String.class, accountId));

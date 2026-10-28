@@ -7,7 +7,7 @@ import jakarta.persistence.Table;
 import java.time.Instant;
 import java.util.UUID;
 
-@Entity @Table(name = "service_catalog_management_audits")
+@Entity @Table(name = "service_audits")
 public class ServiceCatalogManagementAuditJpaEntity {
     @Id private UUID id;
     @Column(name="service_id", nullable=false) private UUID serviceId;

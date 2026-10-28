@@ -49,17 +49,17 @@ class VisitRoomAdminT031PostgresIntegrationTest {
 
     @AfterEach
     void cleanUp() {
-        String trigger = jdbc.queryForObject("select tgenabled::text from pg_trigger where tgrelid = 'visit_room_management_audits'::regclass and tgname = 'tr_visit_room_management_audits_immutable'", String.class);
-        jdbc.execute("alter table visit_room_management_audits disable trigger tr_visit_room_management_audits_immutable");
-        jdbc.execute("alter table visit_room_management_audits disable trigger tr_visit_room_management_audits_no_truncate");
+        String trigger = jdbc.queryForObject("select tgenabled::text from pg_trigger where tgrelid = 'room_management_audits'::regclass and tgname = 'tr_visit_room_management_audits_immutable'", String.class);
+        jdbc.execute("alter table room_management_audits disable trigger tr_visit_room_management_audits_immutable");
+        jdbc.execute("alter table room_management_audits disable trigger tr_visit_room_management_audits_no_truncate");
         try {
-            jdbc.update("delete from visit_room_management_audits where actor_account_id in (?, ?)", admin, receptionist);
-            jdbc.update("delete from visit_room_capabilities where room_id in (select id from visit_rooms where room_code like 'T031-ADMIN-%')");
-            jdbc.update("delete from visit_rooms where room_code like 'T031-ADMIN-%'");
+            jdbc.update("delete from room_management_audits where actor_account_id in (?, ?)", admin, receptionist);
+            jdbc.update("delete from room_capabilities where room_id in (select id from rooms where room_code like 'T031-ADMIN-%')");
+            jdbc.update("delete from rooms where room_code like 'T031-ADMIN-%'");
             jdbc.update("delete from accounts where id in (?, ?)", admin, receptionist);
         } finally {
-            jdbc.execute("alter table visit_room_management_audits enable trigger tr_visit_room_management_audits_immutable");
-            jdbc.execute("alter table visit_room_management_audits enable trigger tr_visit_room_management_audits_no_truncate");
+            jdbc.execute("alter table room_management_audits enable trigger tr_visit_room_management_audits_immutable");
+            jdbc.execute("alter table room_management_audits enable trigger tr_visit_room_management_audits_no_truncate");
         }
         assertEquals("O", trigger);
     }
@@ -71,8 +71,8 @@ class VisitRoomAdminT031PostgresIntegrationTest {
                         .content("{\"roomCode\":\"t031-admin-exam\",\"displayLabel\":\"Exam Room\",\"capabilities\":[\"EXAM_ROOM\"]}"))
                 .andExpect(status().isCreated()).andExpect(jsonPath("$.roomCode").value("T031-ADMIN-EXAM"))
                 .andExpect(jsonPath("$.active").value(true)).andExpect(jsonPath("$.capabilities[0]").value("EXAM_ROOM"));
-        UUID room = jdbc.queryForObject("select id from visit_rooms where room_code = 'T031-ADMIN-EXAM'", UUID.class);
-        assertEquals(1, jdbc.queryForObject("select count(*) from visit_room_management_audits where room_id = ? and actor_account_id = ? and action = 'CREATED' and before_state is null and after_state ->> 'active' = 'true' and correlation_id = ?", Integer.class, room, admin, CORRELATION));
+        UUID room = jdbc.queryForObject("select id from rooms where room_code = 'T031-ADMIN-EXAM'", UUID.class);
+        assertEquals(1, jdbc.queryForObject("select count(*) from room_management_audits where room_id = ? and actor_account_id = ? and action = 'CREATED' and before_state is null and after_state ->> 'active' = 'true' and correlation_id = ?", Integer.class, room, admin, CORRELATION));
 
         mvc.perform(get("/api/v1/admin/visit-rooms").with(actor(admin, AccountRole.ADMIN)))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.items[?(@.roomCode == 'T031-ADMIN-EXAM')].active").value(true));
@@ -87,9 +87,9 @@ class VisitRoomAdminT031PostgresIntegrationTest {
         mvc.perform(post("/api/v1/admin/visit-rooms/{roomId}/activation", room).with(actor(admin, AccountRole.ADMIN)).with(csrf())
                         .header("X-Correlation-ID", UUID.randomUUID().toString()))
                 .andExpect(status().isNoContent());
-        assertEquals(2, jdbc.queryForObject("select count(*) from visit_room_management_audits where room_id = ? and action in ('DEACTIVATED', 'ACTIVATED')", Integer.class, room));
+        assertEquals(2, jdbc.queryForObject("select count(*) from room_management_audits where room_id = ? and action in ('DEACTIVATED', 'ACTIVATED')", Integer.class, room));
         assertThrows(org.springframework.dao.DataAccessException.class,
-                () -> jdbc.update("delete from visit_room_management_audits where room_id = ?", room));
+                () -> jdbc.update("delete from room_management_audits where room_id = ?", room));
     }
 
     @Test
@@ -100,7 +100,7 @@ class VisitRoomAdminT031PostgresIntegrationTest {
                         .header("X-Correlation-ID", CORRELATION).contentType("application/json")
                         .content("{\"roomCode\":\"T031-ADMIN-DENIED\",\"displayLabel\":\"Denied\",\"capabilities\":[\"EXAM_ROOM\"]}"))
                 .andExpect(status().isForbidden());
-        assertEquals(0, jdbc.queryForObject("select count(*) from visit_rooms where room_code = 'T031-ADMIN-DENIED'", Integer.class));
+        assertEquals(0, jdbc.queryForObject("select count(*) from rooms where room_code = 'T031-ADMIN-DENIED'", Integer.class));
     }
 
     private UUID account(AccountType type, String label) {

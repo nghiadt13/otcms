@@ -1,7 +1,7 @@
 # FEAT-002 T040 Architecture Migration Trace — A1
 
-Date: 2026-10-14 (Asia/Bangkok)  
-Task: Align Appointment packages to Spring layered architecture  
+Date: 2026-10-14 (Asia/Bangkok)\
+Task: Align Appointment packages to Spring layered architecture\
 Status: APPROVED — focused and user-reported full-suite verification passed; independent review complete; Owner Long approved implementation and trace on 2026-10-14.
 
 ## Requirement-to-code trace

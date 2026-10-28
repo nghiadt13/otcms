@@ -1,14 +1,14 @@
 # SDD & ADD Methodology Gap Analysis Report
 
-**Date:** 2026-08-24  
-**Status:** COMPLETED  
+**Date:** 2026-08-24\
+**Status:** COMPLETED\
 **Scope:** Compare methodology in `./slides` with current codebase implementation (`.sdd/`, `.claude/skills/`, `CONSTITUTION.md`, `AGENTS.md`, `CLAUDE.md`, `docs/`)
 
 ---
 
 ## Executive Summary
 
-Hệ thống codebase hiện tại đã bao phủ rất tốt hầu hết các nguyên lý cốt lõi của **SDD (Spec-Driven Development)** và **ADD (Agent-Driven Development)** theo bộ bài giảng `./slides`. 
+Hệ thống codebase hiện tại đã bao phủ rất tốt hầu hết các nguyên lý cốt lõi của **SDD (Spec-Driven Development)** và **ADD (Agent-Driven Development)** theo bộ bài giảng `./slides`.
 
 Tuy nhiên, qua so sánh chi tiết, phát hiện **6 điểm/tính năng quan trọng trong Slide chưa được hỗ trợ hoàn chỉnh hoặc thiếu cấu trúc/tự động hóa** trong codebase hiện tại.
 

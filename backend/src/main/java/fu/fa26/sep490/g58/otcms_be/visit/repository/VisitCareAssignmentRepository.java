@@ -12,7 +12,7 @@ import org.springframework.data.repository.query.Param;
 
 public interface VisitCareAssignmentRepository extends JpaRepository<VisitCareAssignmentJpaEntity, UUID> {
     @Query(value = """
-            select count(*) from visit_care_assignments where doctor_profile_id = :doctorId
+            select count(*) from visit_assignments where doctor_profile_id = :doctorId
               and status in ('RESERVED', 'IN_PROGRESS')
               and starts_at < :toExclusive and ends_at > :fromInclusive
             """, nativeQuery = true)
@@ -20,13 +20,13 @@ public interface VisitCareAssignmentRepository extends JpaRepository<VisitCareAs
             @Param("fromInclusive") Instant fromInclusive, @Param("toExclusive") Instant toExclusive);
 
     @Query(value = """
-            select count(*) from visit_care_assignments where doctor_profile_id = :doctorId
+            select count(*) from visit_assignments where doctor_profile_id = :doctorId
               and status in ('RESERVED', 'IN_PROGRESS')
             """, nativeQuery = true)
     long countActiveCare(@Param("doctorId") UUID doctorId);
 
     @Query(value = """
-            select starts_at, ends_at from visit_care_assignments
+            select starts_at, ends_at from visit_assignments
             where doctor_profile_id = :doctorId and status in ('RESERVED', 'IN_PROGRESS')
             order by starts_at, id
             """, nativeQuery = true)
@@ -35,7 +35,7 @@ public interface VisitCareAssignmentRepository extends JpaRepository<VisitCareAs
     @Query(value = """
             select c.id, c.doctor_profile_id, v.patient_profile_id, v.originating_appointment_id,
                    c.starts_at, c.ends_at
-            from visit_care_assignments c join clinic_visits v on v.id = c.visit_id
+            from visit_assignments c join visits v on v.id = c.visit_id
             where c.doctor_profile_id in (:doctorIds)
               and c.status in ('RESERVED', 'IN_PROGRESS')
               and c.starts_at < :toExclusive and c.ends_at > :fromInclusive
@@ -46,14 +46,14 @@ public interface VisitCareAssignmentRepository extends JpaRepository<VisitCareAs
 
     @Query(value = """
             select id, patient_profile_id, source, originating_appointment_id, status
-            from clinic_visits where id = :visitId for update
+            from visits where id = :visitId for update
             """, nativeQuery = true)
     List<Object[]> findVisitForUpdate(@Param("visitId") UUID visitId);
 
     @Query(value = """
             select id, visit_id, doctor_profile_id, starts_at, ends_at, status, step_code,
                    expected_duration_minutes, actual_ended_at
-            from visit_care_assignments
+            from visit_assignments
             where id = :assignmentId and visit_id = :visitId
             for update
             """, nativeQuery = true)
@@ -61,7 +61,7 @@ public interface VisitCareAssignmentRepository extends JpaRepository<VisitCareAs
             @Param("visitId") UUID visitId);
 
     @Query(value = """
-            select count(*) from visit_care_assignments
+            select count(*) from visit_assignments
             where doctor_profile_id = :doctorId
               and status in ('RESERVED', 'IN_PROGRESS')
               and starts_at < :toExclusive and ends_at > :fromInclusive
@@ -73,7 +73,7 @@ public interface VisitCareAssignmentRepository extends JpaRepository<VisitCareAs
             @Param("excludedAssignmentId") UUID excludedAssignmentId);
 
     @Query(value = """
-            select count(*) from visit_care_assignments
+            select count(*) from visit_assignments
             where visit_id = :visitId and status in ('RESERVED', 'IN_PROGRESS')
               and (cast(:excludedAssignmentId as uuid) is null or id <> cast(:excludedAssignmentId as uuid))
             """, nativeQuery = true)
@@ -82,7 +82,7 @@ public interface VisitCareAssignmentRepository extends JpaRepository<VisitCareAs
 
     @Modifying
     @Query(value = """
-            update visit_care_assignments
+            update visit_assignments
             set ends_at = :newEnd, expected_duration_minutes = :newDuration
             where id = :assignmentId and visit_id = :visitId and status = 'IN_PROGRESS'
             """, nativeQuery = true)
@@ -91,7 +91,7 @@ public interface VisitCareAssignmentRepository extends JpaRepository<VisitCareAs
 
     @Modifying
     @Query(value = """
-            update visit_care_assignments
+            update visit_assignments
             set status = 'COMPLETED', actual_ended_at = :actualEnd
             where id = :assignmentId and visit_id = :visitId and doctor_profile_id = :doctorId
               and status = 'IN_PROGRESS'

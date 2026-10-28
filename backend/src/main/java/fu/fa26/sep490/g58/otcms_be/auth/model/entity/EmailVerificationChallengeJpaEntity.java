@@ -7,7 +7,7 @@ import lombok.Setter;
 import java.time.Instant;
 import java.util.UUID;
 
-@Entity @Table(name = "email_verification_challenges")
+@Entity @Table(name = "email_verifications")
 @Getter
 @Setter
 @NoArgsConstructor

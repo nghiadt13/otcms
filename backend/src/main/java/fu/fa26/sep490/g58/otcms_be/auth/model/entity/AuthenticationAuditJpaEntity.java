@@ -7,7 +7,7 @@ import lombok.Setter;
 import java.time.Instant;
 import java.util.UUID;
 
-@Entity @Table(name = "authentication_audits")
+@Entity @Table(name = "auth_audits")
 @Getter
 @Setter
 @NoArgsConstructor

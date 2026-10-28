@@ -29,7 +29,7 @@ class AppointmentT013PostgresIntegrationTest {
         jdbc.execute("create schema " + schema);
         try {
             Flyway v7 = flyway(schema, "7");
-            assertEquals(7, v7.migrate().migrationsExecuted);
+            assertEquals(9, v7.migrate().migrationsExecuted);
 
             UUID patientAccount = insertAccount(schema, "PATIENT");
             UUID receptionistAccount = insertAccount(schema, "RECEPTIONIST");
@@ -114,7 +114,7 @@ class AppointmentT013PostgresIntegrationTest {
         String schema = "t013_checkin_" + UUID.randomUUID().toString().replace("-", "");
         jdbc.execute("create schema " + schema);
         try {
-            assertEquals(11, flyway(schema, "11").migrate().migrationsExecuted);
+            assertEquals(13, flyway(schema, "11").migrate().migrationsExecuted);
             UUID patientAccount = insertAccount(schema, "CHECKIN_PATIENT");
             UUID doctorAccount = insertAccount(schema, "CHECKIN_DOCTOR");
             UUID patientId = UUID.randomUUID();

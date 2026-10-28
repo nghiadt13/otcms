@@ -60,4 +60,3 @@ CREATE TRIGGER tr_visit_care_assignment_audits_immutable
 CREATE TRIGGER tr_visit_care_assignment_audits_no_truncate
     BEFORE TRUNCATE ON visit_care_assignment_audits
     FOR EACH STATEMENT EXECUTE FUNCTION reject_visit_care_assignment_audit_mutation();
-

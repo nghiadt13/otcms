@@ -17,7 +17,7 @@
 | Feature slug | Tên feature | Owner | Status | Path |
 | :--- | :--- | :--- | :--- | :--- |
 | `feat-001-auth-login` | Authentication Login | Product Owner / Tech Lead / Security reviewer | T003 VERIFIED — TRACE/T010 FOLLOW-UP | `.sdd/features/feat-001-auth-login/` |
-| `feat-002-appointment-booking` | Appointment Booking | Human Product Owner / Tech Lead / Database reviewer | DRAFT — CONTEXT CREATED; PENDING HUMAN REVIEW | `.sdd/features/feat-002-appointment-booking/` |
+| `feat-002-appointment-booking` | Appointment Booking | Human Product Owner / Tech Lead / Database reviewer | SPEC v0.9.2 APPROVED & LOCKED, Plan v0.5.3 APPROVED and Tasks v0.6.3 APPROVED; T045 shared contract v1.2.0 synced; remote PR validator clearance outstanding | `.sdd/features/feat-002-appointment-booking/` |
 
 ## Cấu trúc feature
 

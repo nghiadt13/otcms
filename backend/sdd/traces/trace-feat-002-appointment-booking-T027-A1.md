@@ -1,7 +1,7 @@
 # FEAT-002 T027 Trace — A1
 
-Date: 2026-10-14 (Asia/Bangkok)  
-Task: Atomic Receptionist check-in for a confirmed appointment  
+Date: 2026-10-14 (Asia/Bangkok)\
+Task: Atomic Receptionist check-in for a confirmed appointment\
 Status: APPROVED — unit, PostgreSQL integration and full-suite checks pass; Owner Long approved on 2026-10-14 (Asia/Bangkok).
 
 ## Requirement-to-code trace

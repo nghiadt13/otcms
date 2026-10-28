@@ -70,29 +70,29 @@ class MarkAppointmentNoShowT028PostgresIntegrationTest {
         jdbc.update("insert into clinic_services (id, name, duration_minutes, buffer_minutes, online_bookable, active) "
                 + "values (?, 'T028 no-show', 30, 5, true, true)", service);
         doctorProfile = doctor(doctorAccount);
-        jdbc.update("insert into doctor_service_assignments (doctor_profile_id, service_id, active) values (?, ?, true)",
+        jdbc.update("insert into doctor_services (doctor_profile_id, service_id, active) values (?, ?, true)",
                 doctorProfile, service);
     }
 
     @AfterEach
     void cleanUp() {
         String auditTrigger = triggerMode("appointment_audits", "tr_appointment_audits_immutable");
-        String replayTrigger = triggerMode("appointment_command_replays", "tr_appointment_command_replays_immutable");
+        String replayTrigger = triggerMode("appointment_checkin_requests", "tr_appointment_command_replays_immutable");
         jdbc.execute("alter table appointment_audits disable trigger tr_appointment_audits_immutable");
-        jdbc.execute("alter table appointment_command_replays disable trigger tr_appointment_command_replays_immutable");
+        jdbc.execute("alter table appointment_checkin_requests disable trigger tr_appointment_command_replays_immutable");
         try {
             for (UUID id : appointments) {
-                jdbc.update("delete from appointment_command_replays where appointment_id = ?", id);
+                jdbc.update("delete from appointment_checkin_requests where appointment_id = ?", id);
                 jdbc.update("delete from appointment_audits where appointment_id = ?", id);
                 jdbc.update("update appointments set status = 'CANCELLED', visit_id = null where id = ?", id);
-                jdbc.update("delete from recorded_appointment_arrivals where appointment_id = ?", id);
-                List<UUID> visits = jdbc.query("select id from clinic_visits where originating_appointment_id = ?",
+                jdbc.update("delete from appointment_arrivals where appointment_id = ?", id);
+                List<UUID> visits = jdbc.query("select id from visits where originating_appointment_id = ?",
                         (rs, row) -> rs.getObject("id", UUID.class), id);
-                for (UUID visit : visits) jdbc.update("delete from visit_initial_receptions where visit_id = ?", visit);
-                jdbc.update("delete from clinic_visits where originating_appointment_id = ?", id);
+                for (UUID visit : visits) jdbc.update("delete from visit_check_ins where visit_id = ?", visit);
+                jdbc.update("delete from visits where originating_appointment_id = ?", id);
                 jdbc.update("delete from appointments where id = ?", id);
             }
-            jdbc.update("delete from doctor_service_assignments where doctor_profile_id = ?", doctorProfile);
+            jdbc.update("delete from doctor_services where doctor_profile_id = ?", doctorProfile);
             jdbc.update("delete from clinic_services where id = ?", service);
             jdbc.update("delete from doctor_profiles where id = ?", doctorProfile);
             jdbc.update("delete from patient_profiles where id = ?", patientProfile);
@@ -100,7 +100,7 @@ class MarkAppointmentNoShowT028PostgresIntegrationTest {
                 jdbc.update("delete from accounts where id = ?", id);
         } finally {
             restoreTrigger("appointment_audits", "tr_appointment_audits_immutable", auditTrigger);
-            restoreTrigger("appointment_command_replays", "tr_appointment_command_replays_immutable", replayTrigger);
+            restoreTrigger("appointment_checkin_requests", "tr_appointment_command_replays_immutable", replayTrigger);
         }
     }
 
@@ -114,7 +114,7 @@ class MarkAppointmentNoShowT028PostgresIntegrationTest {
                 + "and old_status = 'CONFIRMED' and new_status = 'NO_SHOW' and actor_account_id = ? "
                 + "and actor_type = 'RECEPTIONIST' and reason = 'absent' and correlation_id = ?",
                 Integer.class, appointment, receptionistAccount, CORRELATION));
-        assertEquals(0, jdbc.queryForObject("select count(*) from clinic_visits where originating_appointment_id = ?",
+        assertEquals(0, jdbc.queryForObject("select count(*) from visits where originating_appointment_id = ?",
                 Integer.class, appointment));
     }
 
@@ -126,8 +126,8 @@ class MarkAppointmentNoShowT028PostgresIntegrationTest {
         assertEquals("CONFIRMED", jdbc.queryForObject("select status from appointments where id = ?", String.class, boundary));
 
         UUID timely = appointment(NOW.minusSeconds(3600));
-        jdbc.update("insert into recorded_appointment_arrivals (appointment_id, patient_profile_id, receptionist_account_id, arrived_at) "
-                + "values (?, ?, ?, ?)", timely, patientProfile, receptionistAccount, Timestamp.from(NOW.minusSeconds(3000)));
+        jdbc.update("insert into appointment_arrivals (appointment_id, patient_profile_id, actor_account_id, source, arrived_at) "
+                + "values (?, ?, ?, 'LEGACY_RECEPTIONIST', ?)", timely, patientProfile, receptionistAccount, Timestamp.from(NOW.minusSeconds(3000)));
         mvc.perform(markNoShow(timely, receptionistAccount, AccountType.RECEPTIONIST, null))
                 .andExpect(status().isUnprocessableEntity()).andExpect(jsonPath("$.error.code").value("NO_SHOW_NOT_ALLOWED"));
         assertEquals("CONFIRMED", jdbc.queryForObject("select status from appointments where id = ?", String.class, timely));
@@ -159,7 +159,7 @@ class MarkAppointmentNoShowT028PostgresIntegrationTest {
             assertEquals("NO_SHOW", jdbc.queryForObject("select status from appointments where id = ?", String.class, appointment));
             assertEquals(1, jdbc.queryForObject("select count(*) from appointment_audits where appointment_id = ? "
                     + "and action = 'STATUS_CHANGED' and new_status = 'NO_SHOW'", Integer.class, appointment));
-            assertEquals(0, jdbc.queryForObject("select count(*) from clinic_visits where originating_appointment_id = ?",
+            assertEquals(0, jdbc.queryForObject("select count(*) from visits where originating_appointment_id = ?",
                     Integer.class, appointment));
         } finally {
             start.countDown();

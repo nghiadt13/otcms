@@ -62,9 +62,9 @@ class AppointmentT015PostgresIntegrationTest {
             UUID visitId = UUID.randomUUID();
             new TransactionTemplate(new DataSourceTransactionManager(dataSource)).executeWithoutResult(status -> {
                 jdbc.execute("set local search_path to " + schema);
-                jdbc.update("insert into " + schema + ".clinic_visits (id, patient_profile_id, source, originating_appointment_id, arrived_at, checked_in_at, created_by_account_id) values (?, ?, 'SCHEDULED', ?, ?, ?, ?)",
+                jdbc.update("insert into " + schema + ".visits (id, patient_profile_id, source, originating_appointment_id, arrived_at, checked_in_at, created_by_account_id) values (?, ?, 'SCHEDULED', ?, ?, ?, ?)",
                         visitId, fixture.patientId(), completed, Timestamp.from(start), Timestamp.from(start), fixture.receptionistId());
-                jdbc.update("insert into " + schema + ".visit_initial_receptions (visit_id, receptionist_account_id, reception_type, arrived_at, checked_in_at) values (?, ?, 'APPOINTMENT_CHECK_IN', ?, ?)",
+                jdbc.update("insert into " + schema + ".visit_check_ins (visit_id, receptionist_account_id, reception_type, arrived_at, checked_in_at) values (?, ?, 'APPOINTMENT_CHECK_IN', ?, ?)",
                         visitId, fixture.receptionistId(), Timestamp.from(start), Timestamp.from(start));
                 jdbc.update("update " + schema + ".appointments set status = 'COMPLETED', visit_id = ? where id = ?", visitId, completed);
             });
@@ -122,7 +122,7 @@ class AppointmentT015PostgresIntegrationTest {
         jdbc.update("insert into " + schema + ".doctor_profiles (id, account_id, full_name, work_contact) values (?, ?, 'T015 Doctor', ?)",
                 doctorId, doctorAccount, "t015-" + doctorId);
         jdbc.update("insert into " + schema + ".clinic_services (id, name, duration_minutes, buffer_minutes) values (?, 'T015 service', 30, 10)", serviceId);
-        jdbc.update("insert into " + schema + ".doctor_service_assignments (doctor_profile_id, service_id) values (?, ?)", doctorId, serviceId);
+        jdbc.update("insert into " + schema + ".doctor_services (doctor_profile_id, service_id) values (?, ?)", doctorId, serviceId);
         return new Fixture(patientId, doctorId, serviceId, patientAccount, receptionist);
     }
 
@@ -145,9 +145,9 @@ class AppointmentT015PostgresIntegrationTest {
         UUID visitId = UUID.randomUUID();
         new TransactionTemplate(new DataSourceTransactionManager(dataSource)).executeWithoutResult(status -> {
             jdbc.execute("set local search_path to " + schema);
-            jdbc.update("insert into " + schema + ".clinic_visits (id, patient_profile_id, source, originating_appointment_id, arrived_at, checked_in_at, created_by_account_id) values (?, ?, 'SCHEDULED', ?, ?, ?, ?)",
+            jdbc.update("insert into " + schema + ".visits (id, patient_profile_id, source, originating_appointment_id, arrived_at, checked_in_at, created_by_account_id) values (?, ?, 'SCHEDULED', ?, ?, ?, ?)",
                     visitId, fixture.patientId(), appointmentId, Timestamp.from(start), Timestamp.from(start), fixture.receptionistId());
-            jdbc.update("insert into " + schema + ".visit_initial_receptions (visit_id, receptionist_account_id, reception_type, arrived_at, checked_in_at) values (?, ?, 'APPOINTMENT_CHECK_IN', ?, ?)",
+            jdbc.update("insert into " + schema + ".visit_check_ins (visit_id, receptionist_account_id, reception_type, arrived_at, checked_in_at) values (?, ?, 'APPOINTMENT_CHECK_IN', ?, ?)",
                     visitId, fixture.receptionistId(), Timestamp.from(start), Timestamp.from(start));
             jdbc.update("update " + schema + ".appointments set status = ?, visit_id = ? where id = ?", state, visitId, appointmentId);
         });

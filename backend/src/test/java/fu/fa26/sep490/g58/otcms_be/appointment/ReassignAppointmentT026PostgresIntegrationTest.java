@@ -89,8 +89,8 @@ class ReassignAppointmentT026PostgresIntegrationTest {
             if (service != null) {
                 jdbc.update("delete from appointment_audits where appointment_id in (select id from appointments where service_id = ?)", service);
                 jdbc.update("delete from appointments where service_id = ?", service);
-                jdbc.update("delete from doctor_work_shifts where doctor_profile_id in (?, ?, ?)", currentDoctor, replacementDoctor, unassignedDoctor);
-                jdbc.update("delete from doctor_service_assignments where service_id = ?", service);
+                jdbc.update("delete from doctor_shifts where doctor_profile_id in (?, ?, ?)", currentDoctor, replacementDoctor, unassignedDoctor);
+                jdbc.update("delete from doctor_services where service_id = ?", service);
                 jdbc.update("delete from clinic_services where id = ?", service);
             }
             for (UUID id : new UUID[]{currentDoctor, replacementDoctor, unassignedDoctor}) {
@@ -189,12 +189,12 @@ class ReassignAppointmentT026PostgresIntegrationTest {
     }
 
     private void assignment(UUID doctor) {
-        jdbc.update("insert into doctor_service_assignments (doctor_profile_id, service_id, active) values (?, ?, true)",
+        jdbc.update("insert into doctor_services (doctor_profile_id, service_id, active) values (?, ?, true)",
                 doctor, service);
     }
 
     private void shift(UUID doctor) {
-        jdbc.update("insert into doctor_work_shifts (id, doctor_profile_id, starts_at, ends_at) values (?, ?, ?, ?)",
+        jdbc.update("insert into doctor_shifts (id, doctor_profile_id, starts_at, ends_at) values (?, ?, ?, ?)",
                 UUID.randomUUID(), doctor, Timestamp.from(Instant.parse("2026-10-16T02:00:00Z")),
                 Timestamp.from(Instant.parse("2026-10-16T05:00:00Z")));
     }

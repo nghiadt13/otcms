@@ -1,6 +1,6 @@
 # T022 Post-code Review — A1
 
-Date: 2026-10-14 (Asia/Bangkok)  
+Date: 2026-10-14 (Asia/Bangkok)\
 Review scope: create-only Appointment implementation and focused tests. Independent reviewer: `/root/review_t021`; evidence reviewer: `/root/verify_t020`; debugger: `/root/t021_debugger`.
 
 ## Implementation reviewed

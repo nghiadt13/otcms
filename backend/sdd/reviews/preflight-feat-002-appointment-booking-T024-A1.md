@@ -1,7 +1,7 @@
 # T024 Preflight — A1
 
-Date: 2026-10-14 (Asia/Bangkok)  
-Invocation: `/add-execute --feature=feat-002-appointment-booking --task=T024`  
+Date: 2026-10-14 (Asia/Bangkok)\
+Invocation: `/add-execute --feature=feat-002-appointment-booking --task=T024`\
 Status: preflight only; no T024 source edits or tests yet.
 
 ## Brainstorm contract reused from approved requirements

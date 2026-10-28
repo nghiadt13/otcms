@@ -1,7 +1,7 @@
 # FEAT-002 T025 Trace — A1 (Approval Pending)
 
-Date: 2026-10-14 (Asia/Bangkok)  
-Task: CONFIRMED appointment cancellation  
+Date: 2026-10-14 (Asia/Bangkok)\
+Task: CONFIRMED appointment cancellation\
 Status: COMPLETE — implementation, verification, review and Owner Long approval recorded.
 
 ## Requirement-to-code trace

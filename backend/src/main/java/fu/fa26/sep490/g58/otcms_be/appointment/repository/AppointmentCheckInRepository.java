@@ -19,7 +19,7 @@ import java.util.UUID;
 public interface AppointmentCheckInRepository extends JpaRepository<AppointmentJpaEntity, UUID> {
     @Query(value = """
             select request_fingerprint, result_visit_id, result_checked_in_at
-            from appointment_command_replays
+            from appointment_checkin_requests
             where actor_account_id = :actor and appointment_id = :appointment
               and command = 'CHECK_IN' and idempotency_key = :key
             """, nativeQuery = true)
@@ -58,7 +58,7 @@ public interface AppointmentCheckInRepository extends JpaRepository<AppointmentJ
 
     @Modifying
     @Query(value = """
-            insert into appointment_command_replays (actor_account_id, appointment_id, command,
+            insert into appointment_checkin_requests (actor_account_id, appointment_id, command,
                 idempotency_key, request_fingerprint, result_visit_id, result_checked_in_at)
             values (:actor, :appointment, 'CHECK_IN', :key, :fingerprint, :visit, :checkedInAt)
             """, nativeQuery = true)

@@ -7,7 +7,7 @@ import lombok.Setter;
 import java.time.Instant;
 import java.util.UUID;
 
-@Entity @Table(name = "password_reset_challenges")
+@Entity @Table(name = "password_resets")
 @Getter
 @Setter
 @NoArgsConstructor

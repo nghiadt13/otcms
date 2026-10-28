@@ -1,7 +1,7 @@
 # T023 Preflight — A1
 
-Date: 2026-10-14 (Asia/Bangkok)  
-Invocation: `/add-execute --feature=feat-002-appointment-booking --task=T023`  
+Date: 2026-10-14 (Asia/Bangkok)\
+Invocation: `/add-execute --feature=feat-002-appointment-booking --task=T023`\
 Status: Preflight persisted; grant G-feat-002-T023-A1 consumed immediately before first source edit. Owner Long approved the Auth access-port checkpoint on 2026-10-14; additive contract `doctor-account-access-read` v1.0.0 is recorded in shared_context v3.3.8.
 
 ## Approved scope and inputs
@@ -39,7 +39,3 @@ Status: Preflight persisted; grant G-feat-002-T023-A1 consumed immediately befor
 - Governance: `shared_context.md` v3.3.7 resolves `Project Ownership: team`, `Agent Execution: direct`; approved Auth contract addendum is v3.3.8. Host/runtime replay enforcement remains UNVERIFIED.
 - Grant: `G-feat-002-T023-A1`, attempt 1, consumer `codex-direct-session-T023-A1`, cooperative reference only. Persist DISPATCHED/UNCONSUMED before implementation; mark CONSUMED immediately before the first source edit. No source edit/test has occurred at this preflight point.
 - Checkpoint: T023 API/scope/date/pagination requirements are approved. Owner Long approved the additive Auth-owned read-only Doctor access port on 2026-10-14 after review identified that REQ-BOOK-004/D07 lock enforcement was unavailable through the existing Staff contract. Scope extension is limited to the port, Auth query adapter, shared contract record and tests; no schema, account mutation, or other API change.
-
-
-
-

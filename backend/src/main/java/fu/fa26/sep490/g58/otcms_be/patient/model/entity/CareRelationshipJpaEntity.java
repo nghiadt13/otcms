@@ -12,7 +12,7 @@ import java.time.Instant;
 import java.util.UUID;
 
 @Entity
-@Table(name = "patient_care_relationships")
+@Table(name = "patient_caregivers")
 public class CareRelationshipJpaEntity {
     @Id private UUID id;
     @Column(name = "requester_account_id", nullable = false) private UUID requesterAccountId;
