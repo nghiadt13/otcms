@@ -30,7 +30,7 @@ public class AppointmentBookingExceptionHandler {
             case "APPOINTMENT_CHANGE_TOO_LATE" -> HttpStatus.UNPROCESSABLE_ENTITY;
             case "SERVICE_NOT_BOOKABLE", "DOCTOR_NOT_ELIGIBLE", "BOOKING_TIME_IN_PAST",
                     "BOOKING_WINDOW_VIOLATION", "BOOKING_NOTICE_TOO_SHORT", "CHECK_IN_TIME_NOT_ALLOWED",
-                    "NO_SHOW_NOT_ALLOWED" -> HttpStatus.UNPROCESSABLE_ENTITY;
+                    "NO_SHOW_NOT_ALLOWED", "PATIENT_IDENTITY_MISMATCH" -> HttpStatus.UNPROCESSABLE_ENTITY;
             case "ARRIVAL_PROOF_INVALID" -> HttpStatus.UNPROCESSABLE_ENTITY;
             case "FOLLOW_UP_NOT_ALLOWED" -> HttpStatus.UNPROCESSABLE_ENTITY;
             case "SLOT_UNAVAILABLE" -> HttpStatus.CONFLICT;

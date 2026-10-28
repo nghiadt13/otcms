@@ -22,7 +22,7 @@ class CheckInAppointmentServiceImplTest {
         var transaction = mock(CheckInAppointmentTransaction.class);
         var handler = new CheckInAppointmentServiceImpl(transaction);
         var appointmentId = UUID.randomUUID();
-        var command = new CheckInAppointmentCommand(UUID.randomUUID(), "key", "correlation");
+        var command = new CheckInAppointmentCommand(UUID.randomUUID(), UUID.randomUUID(), "key", "correlation");
         when(transaction.checkIn(appointmentId, command))
                 .thenThrow(new DataAccessResourceFailureException("database unavailable"));
 

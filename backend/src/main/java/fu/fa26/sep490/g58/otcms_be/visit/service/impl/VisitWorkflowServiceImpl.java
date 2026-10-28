@@ -142,6 +142,7 @@ public class VisitWorkflowServiceImpl implements VisitWorkflowService, Reception
                 command.correlationId());
     }
 
+    /** @ears REQ-RECEPTION-003 REQ-RECEPTION-010 AC25 AC31 AC32 */
     @Override
     @Transactional(noRollbackFor = ReceptionWorkflowException.class)
     public CheckInResult checkInAtomically(CheckInCommand command) {
@@ -153,20 +154,25 @@ public class VisitWorkflowServiceImpl implements VisitWorkflowService, Reception
             throw new ReceptionWorkflowException("VALIDATION_FAILED");
         }
         Instant checkedInAt = Instant.now(clock);
-        if (checkedInAt.isBefore(command.allowedWindowStartInclusive())
-                || checkedInAt.isAfter(command.allowedWindowEndInclusive())) {
-            throw new ReceptionWorkflowException("CHECK_IN_TIME_NOT_ALLOWED");
-        }
         if (workflowRepository.hasVisitFromAppointment(command.appointmentId())) throw new ReceptionWorkflowException("VISIT_LINK_CONFLICT");
 
         java.util.List<Object[]> arrivals = workflowRepository.findRecordedArrival(command.appointmentId());
         Instant arrivedAt = checkedInAt;
+        boolean timelyRecordedArrival = false;
         if (!arrivals.isEmpty()) {
             Object[] evidence = arrivals.getFirst();
             if (!command.patientProfileId().equals(evidence[0])) {
                 throw new ReceptionWorkflowException("VISIT_LINK_CONFLICT");
             }
             arrivedAt = toInstant(evidence[1]);
+            timelyRecordedArrival = !arrivedAt.isBefore(command.allowedWindowStartInclusive())
+                    && !arrivedAt.isAfter(command.allowedWindowEndInclusive());
+            if (!timelyRecordedArrival) throw new ReceptionWorkflowException("CHECK_IN_TIME_NOT_ALLOWED");
+        }
+        boolean timelyProcessing = !checkedInAt.isBefore(command.allowedWindowStartInclusive())
+                && !checkedInAt.isAfter(command.allowedWindowEndInclusive());
+        if (!timelyProcessing && !timelyRecordedArrival) {
+            throw new ReceptionWorkflowException("CHECK_IN_TIME_NOT_ALLOWED");
         }
 
         UUID visitId = UUID.randomUUID();

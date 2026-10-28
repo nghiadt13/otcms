@@ -1,6 +1,6 @@
 # T027 Post-Code Review — A1
 
-Date: 2026-10-14 (Asia/Bangkok)  
+Date: 2026-10-14 (Asia/Bangkok)\
 Status: APPROVED — implementation and local PostgreSQL/full-suite verification passed; Owner Long approved on 2026-10-14 (Asia/Bangkok).
 
 ## Scope reviewed

@@ -282,7 +282,7 @@ class AppointmentLifecycleT029PostgresIntegrationTest {
                 appointment, patientAccount, doctorProfile, Timestamp.from(start), Timestamp.from(start.plusSeconds(1800)), Timestamp.from(NOW), UUID.randomUUID().toString());
         mvc.perform(post("/api/v1/appointments/{id}/check-in", appointment).with(actor(receptionistAccount, AccountType.RECEPTIONIST))
                 .with(csrf()).header("Idempotency-Key", "t029-checkin-" + appointment).header("X-Correlation-ID", CORRELATION)
-                .contentType("application/json").content("{}"))
+                .contentType("application/json").content("{\"verifiedPatientProfileId\":\"" + patientProfile + "\"}"))
                 .andExpect(status().isOk());
         return appointment;
     }

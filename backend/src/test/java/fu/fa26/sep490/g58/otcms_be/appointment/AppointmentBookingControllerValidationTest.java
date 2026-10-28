@@ -54,9 +54,12 @@ class AppointmentBookingControllerValidationTest {
     }
 
     @Test
-    void checkInStillAcceptsOnlyTheEmptyObjectBody() throws Exception {
+    void checkInRejectsUnknownFieldsAndRequiresPatientAttestation() throws Exception {
         mvc.perform(post("/api/v1/appointments/{id}/check-in", "11111111-1111-1111-1111-111111111111")
                         .contentType(MediaType.APPLICATION_JSON).content("{\"note\":\"extra\"}"))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
+        mvc.perform(post("/api/v1/appointments/{id}/check-in", "11111111-1111-1111-1111-111111111111")
+                        .contentType(MediaType.APPLICATION_JSON).content("{}"))
                 .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
         verifyNoInteractions(checkIn);
     }

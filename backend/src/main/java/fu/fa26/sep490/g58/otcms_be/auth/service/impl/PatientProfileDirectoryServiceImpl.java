@@ -52,6 +52,12 @@ public class PatientProfileDirectoryServiceImpl implements PatientProfileDirecto
         return profiles.findByAccountId(accountId).map(PatientProfileJpaEntity::getId);
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<ProfileRecord> findProfile(UUID profileId) {
+        return profiles.findById(profileId).map(this::toRecord);
+    }
+
     private ProfileRecord toRecord(PatientProfileJpaEntity entity) {
         return new ProfileRecord(entity.getId(), entity.getAccountId(), entity.getFullName(), entity.getPhoneCanonical(),
                 entity.getPhoneOwnerType().name(), entity.getDateOfBirth(), entity.getGender().name());

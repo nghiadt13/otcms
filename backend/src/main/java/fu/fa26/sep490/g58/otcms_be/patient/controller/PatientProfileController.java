@@ -5,12 +5,14 @@ import fu.fa26.sep490.g58.otcms_be.patient.exception.PatientProfileException;
 import fu.fa26.sep490.g58.otcms_be.patient.mapper.PatientProfileMapper;
 import fu.fa26.sep490.g58.otcms_be.patient.model.dto.request.CreatePatientProfileRequest;
 import fu.fa26.sep490.g58.otcms_be.patient.model.dto.response.PatientProfileResponse;
+import fu.fa26.sep490.g58.otcms_be.patient.model.dto.response.ReceptionVerificationProfileResponse;
 import fu.fa26.sep490.g58.otcms_be.patient.model.PatientProfile;
 import fu.fa26.sep490.g58.otcms_be.patient.service.PatientProfileService;
 import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.CacheControl;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -31,6 +33,18 @@ public class PatientProfileController {
                                                @RequestParam(defaultValue = "20") int size) {
         requireReceptionist();
         return profiles.search(query, page, size).map(mapper::toResponse);
+    }
+
+    @GetMapping("/{patientProfileId}/reception-verification")
+    @PreAuthorize("hasAuthority('ROLE_RECEPTIONIST')")
+    public ResponseEntity<ReceptionVerificationProfileResponse> getReceptionVerificationProfile(
+            @PathVariable java.util.UUID patientProfileId) {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !(authentication.getPrincipal() instanceof AuthenticatedAccount actor))
+            throw new PatientProfileException("FORBIDDEN");
+        var profile = profiles.getReceptionVerificationProfile(actor.accountId(), patientProfileId);
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore())
+                .body(new ReceptionVerificationProfileResponse(profile.patientProfileId(), profile.fullName(), profile.dateOfBirth()));
     }
 
     @PostMapping

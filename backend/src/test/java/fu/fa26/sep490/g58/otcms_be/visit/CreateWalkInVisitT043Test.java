@@ -14,10 +14,12 @@ import fu.fa26.sep490.g58.otcms_be.visit.exception.VisitOperationException;
 import fu.fa26.sep490.g58.otcms_be.visit.model.entity.ClinicVisitJpaEntity;
 import fu.fa26.sep490.g58.otcms_be.visit.model.entity.VisitAuditJpaEntity;
 import fu.fa26.sep490.g58.otcms_be.visit.model.entity.VisitInitialReceptionJpaEntity;
+import fu.fa26.sep490.g58.otcms_be.visit.model.entity.WalkInReceptionQueueEntryJpaEntity;
 import fu.fa26.sep490.g58.otcms_be.visit.model.entity.WalkInReceptionReplayJpaEntity;
 import fu.fa26.sep490.g58.otcms_be.visit.repository.ClinicVisitJpaRepository;
 import fu.fa26.sep490.g58.otcms_be.visit.repository.VisitAuditJpaRepository;
 import fu.fa26.sep490.g58.otcms_be.visit.repository.VisitInitialReceptionJpaRepository;
+import fu.fa26.sep490.g58.otcms_be.visit.repository.WalkInReceptionQueueEntryJpaRepository;
 import fu.fa26.sep490.g58.otcms_be.visit.repository.WalkInReceptionReplayJpaRepository;
 import fu.fa26.sep490.g58.otcms_be.visit.service.CreateWalkInVisitCommand;
 import fu.fa26.sep490.g58.otcms_be.visit.service.impl.CreateWalkInVisitServiceImpl;
@@ -41,11 +43,12 @@ class CreateWalkInVisitT043Test {
     private final VisitInitialReceptionJpaRepository receptions = org.mockito.Mockito.mock(VisitInitialReceptionJpaRepository.class);
     private final VisitAuditJpaRepository audits = org.mockito.Mockito.mock(VisitAuditJpaRepository.class);
     private final WalkInReceptionReplayJpaRepository replays = org.mockito.Mockito.mock(WalkInReceptionReplayJpaRepository.class);
+    private final WalkInReceptionQueueEntryJpaRepository queueEntries = org.mockito.Mockito.mock(WalkInReceptionQueueEntryJpaRepository.class);
     private CreateWalkInVisitServiceImpl service;
 
     @BeforeEach
     void setUp() {
-        service = new CreateWalkInVisitServiceImpl(guard, visits, receptions, audits, replays,
+        service = new CreateWalkInVisitServiceImpl(guard, visits, receptions, audits, replays, queueEntries,
                 Clock.fixed(ARRIVAL, ZoneOffset.UTC));
     }
 
@@ -68,6 +71,9 @@ class CreateWalkInVisitT043Test {
         assertEquals(ARRIVAL, visitCaptor.getValue().getArrivedAt());
         assertEquals(ARRIVAL, visitCaptor.getValue().getCheckedInAt());
         verify(receptions).save(any(VisitInitialReceptionJpaEntity.class));
+        verify(queueEntries).setAuditActor(ACTOR.toString());
+        verify(queueEntries).setAuditCorrelation("correlation-1");
+        verify(queueEntries).saveAndFlush(any(WalkInReceptionQueueEntryJpaEntity.class));
         verify(audits).save(any(VisitAuditJpaEntity.class));
         verify(replays).saveAndFlush(any(WalkInReceptionReplayJpaEntity.class));
         inOrder(guard, replays).verify(guard).acquire();

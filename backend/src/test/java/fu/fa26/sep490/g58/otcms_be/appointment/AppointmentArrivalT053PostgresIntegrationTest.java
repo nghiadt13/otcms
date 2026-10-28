@@ -232,10 +232,23 @@ class AppointmentArrivalT053PostgresIntegrationTest {
     void timelyArrivalClaimCommittedBeforeNoShowBlocksNoShowAndLateClaimCannotReopenNoShow() throws Exception {
         UUID timely = appointment(NOW.minusSeconds(600), patientProfile);
         mvc.perform(recordQr(timely, patientAccount, issueProof())).andExpect(status().isOk());
+        UUID timelyManual = appointment(NOW.plusSeconds(1800), patientProfile);
+        mvc.perform(manual(timelyManual, receptionistAccount, "Patient arrived during check-in window"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.source").value("RECEPTIONIST"))
+                .andExpect(jsonPath("$.arrivedAt").value(NOW.toString()));
         testClock.set(NOW.plusSeconds(7200));
         mvc.perform(markNoShow(timely)).andExpect(status().isUnprocessableEntity())
                 .andExpect(jsonPath("$.error.code").value("NO_SHOW_NOT_ALLOWED"));
+        mvc.perform(markNoShow(timelyManual)).andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.error.code").value("NO_SHOW_NOT_ALLOWED"));
         assertEquals("CONFIRMED", jdbc.queryForObject("select status from appointments where id = ?", String.class, timely));
+        assertEquals("CONFIRMED", jdbc.queryForObject("select status from appointments where id = ?",
+                String.class, timelyManual));
+        assertEquals(0, jdbc.queryForObject("select count(*) from visits where originating_appointment_id in (?, ?)",
+                Integer.class, timely, timelyManual));
+        assertEquals(0, jdbc.queryForObject("select count(*) from walk_in_reception_queue_entries q "
+                + "join visits v on v.id = q.visit_id where v.originating_appointment_id in (?, ?)",
+                Integer.class, timely, timelyManual));
 
         UUID noShow = appointment(NOW.minusSeconds(3600), patientProfile);
         mvc.perform(markNoShow(noShow)).andExpect(status().isOk()).andExpect(jsonPath("$.status").value("NO_SHOW"));

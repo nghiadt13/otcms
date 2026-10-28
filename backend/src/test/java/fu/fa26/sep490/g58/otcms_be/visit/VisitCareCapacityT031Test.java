@@ -24,6 +24,8 @@ import fu.fa26.sep490.g58.otcms_be.visit.model.RoomReservationPlan;
 import fu.fa26.sep490.g58.otcms_be.visit.repository.VisitCareAssignmentAuditRepository;
 import fu.fa26.sep490.g58.otcms_be.visit.repository.VisitCareAssignmentRepository;
 import fu.fa26.sep490.g58.otcms_be.visit.service.VisitRoomCapacityService;
+import fu.fa26.sep490.g58.otcms_be.visit.service.ExitWalkInReceptionQueueCommand;
+import fu.fa26.sep490.g58.otcms_be.visit.service.ExitWalkInReceptionQueueService;
 import fu.fa26.sep490.g58.otcms_be.visit.service.CompleteWalkInCareStepCommand;
 import fu.fa26.sep490.g58.otcms_be.visit.service.ExtendVisitCareAssignmentCommand;
 import fu.fa26.sep490.g58.otcms_be.visit.service.StartWalkInCareStepCommand;
@@ -53,8 +55,9 @@ class VisitCareCapacityT031Test {
     private final VisitCareAssignmentAuditRepository audits = mock(VisitCareAssignmentAuditRepository.class);
     private final VisitRoomCapacityService rooms = mock(VisitRoomCapacityService.class);
     private final VisitCareProperties properties = new VisitCareProperties();
+    private final ExitWalkInReceptionQueueService queueExit = mock(ExitWalkInReceptionQueueService.class);
     private final ManageVisitCareAssignmentServiceImpl service = new ManageVisitCareAssignmentServiceImpl(guard,
-            doctors, appointments, assignments, audits, rooms, properties, Clock.fixed(NOW, ZoneOffset.UTC));
+            doctors, appointments, assignments, audits, rooms, properties, queueExit, Clock.fixed(NOW, ZoneOffset.UTC));
 
     @BeforeEach
     void setUp() {
@@ -80,6 +83,8 @@ class VisitCareCapacityT031Test {
         assertEquals(doctorId, created.doctorProfileId());
         assertEquals(NOW.plusSeconds(1800), created.expectedEnd());
         assertEquals("IN_PROGRESS", created.status());
+        verify(queueExit).exit(new ExitWalkInReceptionQueueCommand(visitId, doctorAccountId,
+                AccountRole.DOCTOR, "CARE_STARTED", NOW, "corr-t031"));
         var order = inOrder(guard, assignments, appointments, audits);
         order.verify(guard).acquire();
         order.verify(assignments).findVisitForUpdate(visitId);

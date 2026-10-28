@@ -12,8 +12,8 @@ function Inline({ nodes }: { nodes: InlineNode[] }): ReactNode {
   return nodes.map((node, index) => {
     if (node.kind === "bold") return <strong key={index}>{node.text}</strong>;
     if (node.kind === "image")
-      // eslint-disable-next-line @next/next/no-img-element -- ảnh do Admin tải lên, kích thước chưa biết
       return (
+        // eslint-disable-next-line @next/next/no-img-element -- ảnh do Admin tải lên, kích thước chưa biết
         <img
           key={index}
           src={node.src}

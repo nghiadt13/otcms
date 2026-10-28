@@ -1,7 +1,7 @@
 # T025 Preflight — A1
 
-Date: 2026-10-14 (Asia/Bangkok)  
-Invocation: `/add-execute --feature=feat-002-appointment-booking --task=T025`  
+Date: 2026-10-14 (Asia/Bangkok)\
+Invocation: `/add-execute --feature=feat-002-appointment-booking --task=T025`\
 Status: implementation preflight; no T025 source edits at preflight.
 
 ## Contract and acceptance

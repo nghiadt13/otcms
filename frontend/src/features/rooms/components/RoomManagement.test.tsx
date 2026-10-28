@@ -166,7 +166,9 @@ describe("RoomManagement", () => {
     await waitFor(() =>
       expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument(),
     );
-    expect(screen.getByRole("switch", { name: /phòng CĐHA-02/ })).toBeChecked();
+    expect(
+      await screen.findByRole("switch", { name: /phòng CĐHA-02/ }),
+    ).toBeChecked();
   });
 
   it("Xem mở Sheet chi tiết", async () => {
