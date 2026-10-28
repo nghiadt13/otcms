@@ -73,7 +73,7 @@ describe("receptionist screens with real mock adapter", () => {
   });
   it("keeps check-in disabled until presence is verified and examination fee is paid", async () => {
     mount("");
-    await screen.findByRole("heading", { name: "Tiếp nhận hôm nay" });
+    await screen.findByRole("heading", { name: "Tiếp nhận bệnh nhân" });
     const patientRow = screen.getByText("Nguyễn Minh Anh").closest("tr")!;
     fireEvent.click(
       within(patientRow).getByRole("button", { name: "Tiếp nhận" }),
@@ -101,7 +101,7 @@ describe("receptionist screens with real mock adapter", () => {
   it("checks in only the paid appointment selected from its patient row", async () => {
     const user = userEvent.setup();
     mount("");
-    await screen.findByRole("heading", { name: "Tiếp nhận hôm nay" });
+    await screen.findByRole("heading", { name: "Tiếp nhận bệnh nhân" });
     const row = screen.getByText("Trần Văn Bình").closest("tr")!;
     fireEvent.click(within(row).getByRole("button", { name: "Tiếp nhận" }));
     const dialog = await screen.findByRole("dialog");
@@ -133,7 +133,7 @@ describe("receptionist screens with real mock adapter", () => {
   it("allows patient and intake selection only in general check-in and resets presence when changing patients", async () => {
     const user = userEvent.setup();
     mount("");
-    await screen.findByRole("heading", { name: "Tiếp nhận hôm nay" });
+    await screen.findByRole("heading", { name: "Tiếp nhận bệnh nhân" });
     fireEvent.click(
       screen.getByRole("button", { name: "Tiếp nhận bệnh nhân" }),
     );

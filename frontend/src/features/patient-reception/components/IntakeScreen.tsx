@@ -382,7 +382,7 @@ export function IntakeScreen() {
   return (
     <>
       <PageHeader
-        title="Tiếp nhận hôm nay"
+        title="Tiếp nhận bệnh nhân"
         description="Theo dõi lịch đến khám và đưa bệnh nhân vào đúng hàng đợi."
         actions={
           <Button onClick={() => setCheckIn({})}>
@@ -450,7 +450,7 @@ export function IntakeScreen() {
       </div>
       <DataTable
         key={`${filter}-${search}`}
-        label="Tiếp nhận hôm nay"
+        label="Tiếp nhận bệnh nhân"
         headers={
           filter === "appointments"
             ? [

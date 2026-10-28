@@ -19,7 +19,7 @@ import {
 export const receptionNavigation = [
   {
     section: "",
-    title: "Tiếp nhận hôm nay",
+    title: "Tiếp nhận bệnh nhân",
     description:
       "Đối chiếu bệnh nhân, kiểm tra phí khám và tiếp nhận vào phòng.",
     icon: LayoutDashboard,
