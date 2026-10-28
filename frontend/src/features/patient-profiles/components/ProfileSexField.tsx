@@ -12,17 +12,28 @@ export function ProfileSexField({
   onChange,
   error,
   disabled,
+  required,
 }: {
   id: string;
   value: PatientSex | "";
   onChange: (value: PatientSex) => void;
   error?: string;
   disabled: boolean;
+  /** Thêm dấu * sau nhãn; ô tùy chọn không truyền. */
+  required?: boolean;
 }) {
   const errorId = `${id}-error`;
   return (
     <fieldset className="grid gap-2">
-      <legend className="text-base font-medium">Giới tính</legend>
+      <legend className="text-base font-medium">
+        Giới tính
+        {required ? (
+          <span aria-hidden className="text-destructive">
+            {" "}
+            *
+          </span>
+        ) : null}
+      </legend>
       <RadioGroup
         aria-describedby={error ? errorId : undefined}
         className="grid-cols-2 gap-3"

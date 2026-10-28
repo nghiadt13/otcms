@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
-import { PatientAccountProfile } from "@/features/my-account/components/PatientAccountProfile";
+import { PersonalInfoScreen } from "./_personal/PersonalInfoScreen";
 
-export const metadata: Metadata = { title: "Tài khoản | Cổng bệnh nhân" };
+export const metadata: Metadata = { title: "Thông tin cá nhân | Cổng bệnh nhân" };
 
-// Tài khoản bệnh nhân (UC03, UC04): tên hiển thị, email, ảnh đại diện, mật khẩu.
+// Thông tin cá nhân của bệnh nhân (UC03, UC04): ảnh, họ tên, ngày sinh, giới tính, CCCD, SĐT,
+// địa chỉ, email đăng nhập. Phần ghép hai feature nằm ở `_personal`.
 export default function PatientAccountPage() {
-  return <PatientAccountProfile />;
+  return <PersonalInfoScreen />;
 }
