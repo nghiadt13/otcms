@@ -77,13 +77,13 @@ describe("AdminAccountMenu", () => {
     expect(screen.getByLabelText("Mật khẩu hiện tại")).toBeInTheDocument();
   });
 
-  it("Đăng xuất huỷ phiên rồi replace về /login", async () => {
+  it("Đăng xuất huỷ phiên rồi replace về /staff-login", async () => {
     setup();
     await openMenu();
     await userEvent.click(
       await screen.findByRole("menuitem", { name: /Đăng xuất/ }),
     );
-    await waitFor(() => expect(replace).toHaveBeenCalledWith("/login"));
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/staff-login"));
     expect(signOut).toHaveBeenCalledTimes(1);
   });
 });

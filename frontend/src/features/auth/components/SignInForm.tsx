@@ -8,11 +8,11 @@ import {
   clearMockSignedInKind,
   setMockSignedInKind,
 } from "@/lib/session/mockSignedInKind";
-import { signIn } from "../api/authApi";
+import { signIn, signInStaff } from "../api/authApi";
 import type { AuthMessageCode } from "../authMessages";
 import { focusFirstInvalidField } from "../focusFirstInvalidField";
 import { safePortalNext } from "../safePortalNext";
-import { validateEmail } from "../schema/authFieldRules";
+import { validateEmail, validateStaffEmail } from "../schema/authFieldRules";
 import { toAuthMessageCode } from "../types/auth";
 import { AuthAlert } from "./AuthAlert";
 import { authLinkClass } from "./AuthCard";
@@ -24,13 +24,17 @@ import { PasswordField } from "./PasswordField";
 // sai mật khẩu, tài khoản không đủ điều kiện) đều hiện cùng MSG-01 để không lộ tài khoản
 // nào tồn tại; lỗi dịch vụ hiện MSG-04. Thành công thì về `next` nếu là đường dẫn an toàn
 // trong khu bệnh nhân, không thì về /portal. `defaultEmail` dùng khi vừa đăng ký xong (UC06).
+// `staff` là màn đăng nhập nội bộ (/staff-login): gọi endpoint nhân viên rồi về /workspace, nơi
+// `RoleHomeRedirect` chuyển tới khu đúng vai trò (quản trị hoặc lễ tân).
 export function SignInForm({
   defaultEmail = "",
   next,
+  staff = false,
   submitLabel = "Đăng nhập",
 }: {
   defaultEmail?: string;
   next?: string;
+  staff?: boolean;
   submitLabel?: string;
 }) {
   const router = useRouter();
@@ -50,7 +54,7 @@ export function SignInForm({
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const errors = {
-      email: validateEmail(email),
+      email: staff ? validateStaffEmail(email) : validateEmail(email),
       password: password ? undefined : "Nhập mật khẩu.",
     };
     setFieldErrors(errors);
@@ -63,6 +67,11 @@ export function SignInForm({
     setMessage(null);
     setSubmitting(true);
     try {
+      if (staff) {
+        await signInStaff(email, password);
+        router.replace("/workspace");
+        return;
+      }
       await signIn(email, password);
       // Giả lập: phiên thật do backend cấp (lib/auth/authSession); ghi loại tài khoản giả để `/api/v1/me` giả trả đúng bệnh nhân.
       setMockSignedInKind("PATIENT");
@@ -110,14 +119,16 @@ export function SignInForm({
           required
           value={password}
         />
-        <div className="mt-2 flex justify-end">
-          <Link
-            className={`text-base ${authLinkClass}`}
-            href="/forgot-password"
-          >
-            Quên mật khẩu?
-          </Link>
-        </div>
+        {!staff && (
+          <div className="mt-2 flex justify-end">
+            <Link
+              className={`text-base ${authLinkClass}`}
+              href="/forgot-password"
+            >
+              Quên mật khẩu?
+            </Link>
+          </div>
+        )}
       </div>
 
       <AuthSubmitButton

@@ -78,6 +78,48 @@ describe("SignInForm: đích sau đăng nhập", () => {
   });
 });
 
+describe("SignInForm: đăng nhập nội bộ (staff)", () => {
+  it("gọi endpoint nhân viên rồi về /workspace, không ghi phiên giả bệnh nhân", async () => {
+    render(<SignInForm staff />);
+    await submitCredentials();
+    expect(signInWithPassword).toHaveBeenCalledWith(
+      "staff",
+      "an@example.com",
+      "matkhau123",
+    );
+    expect(replace).toHaveBeenCalledWith("/workspace");
+    expect(getMockSignedInKind()).toBe("STAFF");
+  });
+
+  it("nhận email tài khoản dùng thử dạng ten@localhost", async () => {
+    const user = userEvent.setup();
+    render(<SignInForm staff />);
+    await user.type(screen.getByLabelText(/^Email/), "admin@localhost");
+    await user.type(screen.getByLabelText(/^Mật khẩu/), "matkhau123");
+    await user.click(screen.getByRole("button", { name: "Đăng nhập" }));
+    expect(signInWithPassword).toHaveBeenCalledWith(
+      "staff",
+      "admin@localhost",
+      "matkhau123",
+    );
+  });
+
+  it("không hiện liên kết Quên mật khẩu", () => {
+    render(<SignInForm staff />);
+    expect(screen.queryByText("Quên mật khẩu?")).not.toBeInTheDocument();
+  });
+
+  it("backend từ chối (401) thì hiện MSG-01 và không chuyển trang", async () => {
+    signInWithPassword.mockRejectedValue(new AuthSessionError(401));
+    render(<SignInForm staff />);
+    await submitCredentials();
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      authMessages["MSG-01"],
+    );
+    expect(replace).not.toHaveBeenCalled();
+  });
+});
+
 describe("SignInForm: lỗi", () => {
   it("backend từ chối (401) thì hiện MSG-01 và không chuyển trang", async () => {
     signInWithPassword.mockRejectedValue(new AuthSessionError(401));

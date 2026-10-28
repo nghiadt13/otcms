@@ -19,6 +19,20 @@ export async function signIn(email: string, password: string): Promise<void> {
   }
 }
 
+// Đăng nhập nội bộ (admin, chủ phòng khám, nhân viên) qua POST /api/auth/staff/login. Cùng quy tắc
+// lỗi với `signIn`: 401 là MSG-01, còn lại là MSG-04.
+export async function signInStaff(
+  email: string,
+  password: string,
+): Promise<void> {
+  try {
+    await signInWithPassword("staff", email, password);
+  } catch (cause) {
+    const rejected = cause instanceof AuthSessionError && cause.status === 401;
+    throw new AuthRequestError(rejected ? "MSG-01" : "MSG-04");
+  }
+}
+
 // --- UC02: API giả -------------------------------------------------------
 
 // Luôn thành công để không lộ email có tồn tại hay không (BR-03).

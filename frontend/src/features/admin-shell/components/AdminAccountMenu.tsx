@@ -76,7 +76,7 @@ export function AdminAccountMenu() {
     // endSession bỏ qua lỗi mạng và luôn xoá phiên phía trình duyệt.
     await endSession();
     // replace: nút Back không đưa người dùng quay lại khu admin.
-    router.replace("/login");
+    router.replace("/staff-login");
   }
 
   return (
