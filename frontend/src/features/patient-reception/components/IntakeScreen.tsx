@@ -8,7 +8,12 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { formatAppMessage } from "@/lib/messages/appMessages";
 import { PRIORITIES, type Priority } from "../types";
-import { normalizeText, withinReturnWindow } from "../schema/receptionRules";
+import {
+  normalizeText,
+  withinReturnWindow,
+  agePriority,
+  receptionPriority,
+} from "../schema/receptionRules";
 import { useReception } from "./ReceptionProvider";
 import {
   DataTable,
@@ -41,7 +46,7 @@ export function CheckInDialog({
   const patientId =
     initialPatient ?? fixedAppointment?.patientId ?? selectedPatient;
   const fixedPatient = !!initialPatient || !!initialAppointment;
-  const [priority, setPriority] = useState<Priority>("normal");
+  const [selectedPriority, setPriority] = useState<Priority>("normal");
   const [present, setPresent] = useState(false);
   const day = s!.clock.slice(0, 10);
   const appointments = s!.appointments.filter(
@@ -67,6 +72,8 @@ export function CheckInDialog({
       c.status !== "cancelled",
   );
   const patient = s!.patients.find((p) => p.id === patientId);
+  const automaticPriority = agePriority(patient?.dob ?? "", day);
+  const priority = receptionPriority(patient?.dob ?? "", day, selectedPriority);
   const invalidContext =
     (fixedPatient && !patient) || (!!initialAppointment && !appointment);
   const canCheckIn =
@@ -127,6 +134,7 @@ export function CheckInDialog({
             onChange={(value) => {
               setPatientId(value);
               setPresent(false);
+              setPriority("normal");
               setMode(
                 s!.visits.find(
                   (v) =>
@@ -247,11 +255,23 @@ export function CheckInDialog({
               value={priority}
               onChange={(v) => setPriority(v as Priority)}
               disabled={pending}
-              options={Object.entries(PRIORITIES).map(([value, label]) => ({
-                value,
-                label,
-              }))}
+              options={Object.entries(PRIORITIES)
+                .filter(
+                  ([value]) => value !== "pregnant" || patient?.sex === "Nữ",
+                )
+                .filter(
+                  ([value]) =>
+                    !["normal", "child", "elderly"].includes(value) ||
+                    value === automaticPriority,
+                )
+                .map(([value, label]) => ({ value, label }))}
             />
+            <p className="text-xs text-muted-foreground">
+              Nhóm theo tuổi được xác định tự động từ ngày sinh tại ngày tiếp
+              nhận: {PRIORITIES[automaticPriority]}. Hãy đối chiếu ngày sinh;
+              nếu sai, sửa hồ sơ trước khi tiếp nhận. Các diện ưu tiên khác cần
+              xác minh thực tế; cấp cứu phải có đánh giá của nhân viên y tế.
+            </p>
             <label className="flex items-start gap-3">
               <Checkbox
                 checked={present}
@@ -326,7 +346,9 @@ export function IntakeScreen() {
                   {d.name}
                   {d.absent && (
                     <p className="mt-1 text-xs text-destructive">
-                      Vắng ca · cần đổi bác sĩ
+                      {a.unavailabilityDiscussedAt
+                        ? "Bác sĩ vắng ca · đã trao đổi với bệnh nhân"
+                        : "Bác sĩ vắng ca · cần bố trí thay thế"}
                     </p>
                   )}
                 </div>,

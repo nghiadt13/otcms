@@ -7,6 +7,8 @@ import {
   isFutureSlot,
   availableDoctors,
   patientBookingAt,
+  receptionPriority,
+  agePriority,
   latestRoundReady,
   normalizePhone,
   normalizeText,
@@ -498,8 +500,24 @@ export async function executeReception(
     }
     case "check-in": {
       requireThat(command.present, "MSG-39", 400);
-      find(s.patients, command.patientId, "MSG-18");
+      const patient = find(s.patients, command.patientId, "MSG-18");
       requireThat(command.priority in PRIORITIES, "MSG-39", 400);
+      requireThat(
+        command.priority !== "pregnant" || patient.sex === "Nữ",
+        "MSG-39",
+        400,
+      );
+      requireThat(
+        !["child", "elderly"].includes(command.priority) ||
+          command.priority === agePriority(patient.dob, today(s)),
+        "MSG-39",
+        400,
+      );
+      const priority = receptionPriority(
+        patient.dob,
+        today(s),
+        command.priority,
+      );
       if (command.returnVisitId) {
         const visit = find(s.visits, command.returnVisitId);
         requireThat(
@@ -515,7 +533,7 @@ export async function executeReception(
           ),
           "MSG-37",
         );
-        visit.priority = command.priority;
+        visit.priority = priority;
         const paid = s.orders.filter(
           (o) => o.visitId === visit.id && o.status === "paid",
         );
@@ -594,7 +612,7 @@ export async function executeReception(
         doctorId: doctor.id,
         firstCheckIn: today(s),
         status: "waiting",
-        priority: command.priority,
+        priority,
         followUp: false,
         appointmentId: a?.id,
       };
@@ -699,8 +717,21 @@ export async function executeReception(
       list.forEach((x, i) => {
         x.position = i + 1;
       });
-      q.priority = command.priority;
-      find(s.visits, q.visitId).priority = command.priority;
+      const visit = find(s.visits, q.visitId);
+      const patient = find(s.patients, visit.patientId);
+      requireThat(
+        command.priority !== "pregnant" || patient.sex === "Nữ",
+        "MSG-39",
+        400,
+      );
+      requireThat(
+        !["child", "elderly"].includes(command.priority) ||
+          command.priority === agePriority(patient.dob, today(s)),
+        "MSG-39",
+        400,
+      );
+      q.priority = receptionPriority(patient.dob, today(s), command.priority);
+      visit.priority = q.priority;
       history(
         s,
         "Điều chỉnh hàng đợi",

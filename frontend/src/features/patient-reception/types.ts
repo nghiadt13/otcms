@@ -25,9 +25,9 @@ export const PRIORITIES: Record<Priority, string> = {
   emergency: "Cấp cứu",
   child: "Trẻ dưới 6 tuổi",
   pregnant: "Phụ nữ mang thai",
-  disability: "Khuyết tật nặng",
-  elderly: "Từ 75 tuổi",
-  merit: "Người có công",
+  disability: "Khuyết tật nặng / đặc biệt nặng",
+  elderly: "Từ đủ 75 tuổi trở lên",
+  merit: "Người có công với cách mạng",
 };
 export type Room = {
   id: string;

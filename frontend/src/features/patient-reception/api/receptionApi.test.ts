@@ -136,6 +136,83 @@ describe("patient identification and care links", () => {
   });
 });
 
+describe("automatic reception age priority", () => {
+  it("rejects pregnancy priority for a male patient without checking them in", async () => {
+    await expect(
+      command({
+        type: "check-in",
+        patientId: "BN0002",
+        appointmentId: "LH002",
+        present: true,
+        priority: "pregnant",
+      }),
+    ).rejects.toThrow("MSG-39");
+    expect(
+      (await loadReception()).appointments.find((a) => a.id === "LH002")
+        ?.status,
+    ).toBe("booked");
+  });
+  it("allows the confirmed pregnancy category for a female patient", async () => {
+    await cash(["phi-LH001"]);
+    const next = await command({
+      type: "check-in",
+      patientId: "BN0001",
+      appointmentId: "LH001",
+      present: true,
+      priority: "pregnant",
+    });
+    expect(next.visits.find((v) => v.appointmentId === "LH001")?.priority).toBe(
+      "pregnant",
+    );
+  });
+  it("rejects assigning pregnancy priority to a male patient in the queue", async () => {
+    const state = await loadReception();
+    const entry = state.queues.find(
+      (q) => q.visitId === "LK002" && q.status === "waiting",
+    )!;
+    await expect(
+      command({
+        type: "reorder",
+        id: entry.id,
+        position: 1,
+        priority: "pregnant",
+        reason: "Kiểm tra nhóm ưu tiên",
+      }),
+    ).rejects.toThrow("MSG-39");
+    expect(
+      (await loadReception()).queues.find((q) => q.id === entry.id)?.priority,
+    ).toBe(entry.priority);
+  });
+  it("assigns elderly priority from DOB even if a stale client submits normal", async () => {
+    const state = await command({
+      type: "check-in",
+      patientId: "BN0002",
+      appointmentId: "LH002",
+      present: true,
+      priority: "normal",
+    });
+    const visit = state.visits.find((v) => v.appointmentId === "LH002")!;
+    expect(visit.priority).toBe("elderly");
+    expect(state.queues.find((q) => q.visitId === visit.id)?.priority).toBe(
+      "elderly",
+    );
+  });
+  it("rejects child priority for an adult without partially checking in", async () => {
+    await expect(
+      command({
+        type: "check-in",
+        patientId: "BN0002",
+        appointmentId: "LH002",
+        present: true,
+        priority: "child",
+      }),
+    ).rejects.toThrow("MSG-39");
+    expect(
+      (await loadReception()).appointments.find((a) => a.id === "LH002")
+        ?.status,
+    ).toBe("booked");
+  });
+});
 describe("appointment scheduling", () => {
   it("rejects two patients booking the same doctor and time without creating an extra charge", async () => {
     const input = {
