@@ -1,6 +1,6 @@
 import { getSupabaseBrowserClient } from "@/lib/supabase/browser";
+import { getOtcmsAccessToken } from "@/lib/session/otcmsSession";
 import { ApiError, type ApiFieldError, type MsgCode } from "./apiError";
-import { getStaffAccessToken } from "./staffSession";
 
 const apiBaseUrl =
   process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8080";
@@ -14,17 +14,26 @@ type ProblemDetail = {
 };
 
 async function authorizedHeaders(init: RequestInit) {
-  const staffToken = getStaffAccessToken();
+  const otcAccessToken = getOtcmsAccessToken();
+  if (otcAccessToken) {
+    const headers = new Headers(init.headers);
+    headers.set("Authorization", `Bearer ${otcAccessToken}`);
+    if (
+      init.body &&
+      !(init.body instanceof FormData) &&
+      !headers.has("Content-Type")
+    )
+      headers.set("Content-Type", "application/json");
+    return headers;
+  }
+
   const {
     data: { session },
-  } = staffToken
-    ? { data: { session: null } }
-    : await getSupabaseBrowserClient().auth.getSession();
-  const accessToken = staffToken ?? session?.access_token;
-  if (!accessToken) throw new Error("Bạn cần đăng nhập để tiếp tục.");
+  } = await getSupabaseBrowserClient().auth.getSession();
+  if (!session) throw new Error("Bạn cần đăng nhập để tiếp tục.");
 
   const headers = new Headers(init.headers);
-  headers.set("Authorization", `Bearer ${accessToken}`);
+  headers.set("Authorization", `Bearer ${session.access_token}`);
   // FormData: để trình duyệt tự đặt Content-Type kèm boundary.
   if (
     init.body &&
@@ -43,6 +52,23 @@ async function toApiError(response: Response): Promise<ApiError> {
     // Không có thân JSON: giữ mã HTTP.
   }
   return new ApiError(response.status, problem);
+}
+
+/** Gọi endpoint công khai không cần session; giữ cùng base URL và lỗi API chuẩn. */
+export async function publicApiRequest<T>(
+  path: `/api/v1/${string}`,
+  init: RequestInit = {},
+): Promise<T> {
+  const headers = new Headers(init.headers);
+  if (!headers.has("Accept")) headers.set("Accept", "application/json");
+  const response = await fetch(`${apiBaseUrl}${path}`, {
+    ...init,
+    headers,
+    cache: "no-store",
+  });
+  if (!response.ok) throw await toApiError(response);
+  if (response.status === 204) return undefined as T;
+  return response.json() as Promise<T>;
 }
 
 /** Gọi API JSON. `init.signal` huỷ request; 204 trả `undefined`; lỗi ném `ApiError`. */

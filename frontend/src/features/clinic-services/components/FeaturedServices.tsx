@@ -3,21 +3,13 @@ import Link from "next/link";
 import { publicButtonClass } from "@/components/brand/publicButtonStyles";
 import { publicContainerClass } from "@/components/brand/publicLayout";
 import { cn } from "@/lib/utils";
-import type { ClinicService } from "../types/clinicService";
-
-const vnd = new Intl.NumberFormat("vi-VN");
-
-function formatPrice(service: ClinicService) {
-  if (service.priceVnd === null) return "Báo giá sau khi khám";
-  const unit = service.priceUnit ? ` / ${service.priceUnit}` : "";
-  return `${vnd.format(service.priceVnd)} đ${unit}`;
-}
+import { formatClinicServicePrice } from "../formatClinicServicePrice";
+import type { PublicService } from "../types/clinicService";
 
 // Khối "Dịch vụ chính" trên trang chủ. Bố cục cột biên tập: cột trái là tiêu đề,
 // mô tả và nút sang /services (dính khi cuộn từ lg); cột phải là bảng giá rút gọn
-// hai cột ngăn bằng vạch mảnh. Giá công khai (BR-65) là điểm neo của mỗi mục nên
-// đứng cùng hàng với tên; không dùng ô icon trang trí hay thẻ.
-export function FeaturedServices({ services }: { services: ClinicService[] }) {
+// hai cột ngăn bằng vạch mảnh. Giá công khai đứng cùng hàng với tên.
+export function FeaturedServices({ services }: { services: PublicService[] }) {
   if (services.length === 0) return null;
   return (
     <section
@@ -57,11 +49,13 @@ export function FeaturedServices({ services }: { services: ClinicService[] }) {
                 {service.name}
               </h3>
               <p className="mt-1 text-base font-semibold text-primary tabular-nums">
-                {formatPrice(service)}
+                {formatClinicServicePrice(service.price)}
               </p>
-              <p className="mt-3 text-base leading-7 text-muted-foreground">
-                {service.summary}
-              </p>
+              {service.description ? (
+                <p className="mt-3 text-base leading-7 text-muted-foreground">
+                  {service.description}
+                </p>
+              ) : null}
             </li>
           ))}
         </ul>

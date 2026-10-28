@@ -5,6 +5,7 @@ import fu.fa26.sep490.g58.otcms_be.servicecatalog.mapper.ClinicServiceMapper;
 import fu.fa26.sep490.g58.otcms_be.servicecatalog.model.ClinicService;
 import fu.fa26.sep490.g58.otcms_be.servicecatalog.repository.ClinicServiceRepository;
 import fu.fa26.sep490.g58.otcms_be.servicecatalog.service.CreateClinicServiceService;
+import java.math.BigDecimal;
 import java.time.Duration;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
@@ -22,13 +23,13 @@ public class CreateClinicServiceServiceImpl implements CreateClinicServiceServic
 
     @Override
     @Transactional
-    public ClinicService create(String name, String description, int durationMinutes, int bufferMinutes,
-                                boolean onlineBookable) {
+    public ClinicService create(String name, String description, BigDecimal price,
+                                int durationMinutes, int bufferMinutes, boolean onlineBookable) {
         String normalizedName = ClinicServiceValidation.normalizeName(name);
-        ClinicServiceValidation.validate(normalizedName, durationMinutes, bufferMinutes);
+        ClinicServiceValidation.validate(normalizedName, price, durationMinutes, bufferMinutes);
         coordinationGuard.acquire();
         ClinicService service = new ClinicService(UUID.randomUUID(), normalizedName,
-                ClinicServiceValidation.normalizeDescription(description), Duration.ofMinutes(durationMinutes),
+                ClinicServiceValidation.normalizeDescription(description), price, Duration.ofMinutes(durationMinutes),
                 Duration.ofMinutes(bufferMinutes), onlineBookable, true);
         return ClinicServiceMapper.toModel(services.save(ClinicServiceMapper.toEntity(service)));
     }
