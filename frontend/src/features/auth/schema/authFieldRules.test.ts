@@ -47,7 +47,6 @@ describe("authFieldRules", () => {
   it("kiểm tra email, mật khẩu và mã xác minh", () => {
     expect(validateEmail("sai-email")).toBeDefined();
     expect(validateEmail("a@b.vn")).toBeUndefined();
-    expect(validateEmail("demo.patient@localhost")).toBeUndefined();
     expect(validatePassword("chuacoso")).toBeDefined();
     expect(validatePassword("12345678")).toBeDefined();
     expect(validatePassword("đúngrồi12")).toBeUndefined();

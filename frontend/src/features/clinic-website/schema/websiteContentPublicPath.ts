@@ -1,7 +1,7 @@
 import type { WebsiteContentListItem } from "../types/websiteContentAdmin";
 
 /**
- * Đường dẫn công khai của một nội dung (đề xuất, chờ chốt với phase public):
+ * Đường dẫn công khai của một nội dung (khớp các trang công khai đã dựng):
  * Thông tin phòng khám hiện ở trang chủ, Trang giới thiệu `/gioi-thieu`, Bài viết `/bai-viet/{id}`.
  */
 export function websiteContentPublicPath(

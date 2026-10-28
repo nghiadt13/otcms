@@ -18,6 +18,8 @@ type ReassignCandidateListProps = {
   fieldError?: string;
   disabled: boolean;
   onRetry: () => void;
+  /** Câu giải thích khi không có bác sĩ thay. Mặc định là câu của khu admin (AF1_LINES). */
+  noCandidateLines?: readonly string[];
 };
 
 /** Ba nhánh trong Dialog: đang tải, lỗi, không có ứng viên (AF1), có ứng viên. */
@@ -30,6 +32,7 @@ export function ReassignCandidateList({
   fieldError,
   disabled,
   onRetry,
+  noCandidateLines = AF1_LINES,
 }: ReassignCandidateListProps) {
   if (loading)
     return (
@@ -53,7 +56,7 @@ export function ReassignCandidateList({
   if (!doctors || doctors.length === 0)
     return (
       <div className="grid gap-1 text-sm">
-        {AF1_LINES.map((line) => (
+        {noCandidateLines.map((line) => (
           <p key={line}>{line}</p>
         ))}
       </div>

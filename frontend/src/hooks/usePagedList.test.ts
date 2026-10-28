@@ -4,7 +4,7 @@ import { ApiError } from "@/lib/api/apiError";
 import { paginate } from "@/lib/api/mockServer";
 import type { PageQuery } from "@/lib/api/pagination";
 import { usePagedList } from "./usePagedList";
-
+import { formatAppMessage } from "@/lib/messages/appMessages";
 type Filters = { q: string };
 const rows = Array.from({ length: 45 }, (_, i) => ({
   id: i,
@@ -48,7 +48,9 @@ describe("usePagedList", () => {
         { q: "" },
       ),
     );
-    await waitFor(() => expect(result.current.error).toContain("sự cố"));
+    await waitFor(() =>
+      expect(result.current.error).toBe(formatAppMessage("MSG-04")),
+    );
     fail = false;
     act(() => result.current.reload());
     await waitFor(() => expect(result.current.data?.totalItems).toBe(45));

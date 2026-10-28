@@ -10,17 +10,16 @@ import type { PatientRegistrationInput } from "../types/auth";
 export { passwordPolicy };
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
-const localDemoEmailPattern = /^[^\s@]+@localhost$/i;
 
 export function validateEmail(value: string): string | undefined {
-  const normalized = value.trim();
-  if (!normalized) return "Nhập email.";
-  if (
-    !emailPattern.test(normalized) &&
-    !(process.env.NODE_ENV !== "production" &&
-      localDemoEmailPattern.test(normalized))
-  )
-    return "Email chưa đúng định dạng.";
+  if (!value.trim()) return "Nhập email.";
+  if (!emailPattern.test(value.trim())) return "Email chưa đúng định dạng.";
+}
+
+// Tài khoản nội bộ dùng thử có thể dùng email dạng `ten@localhost` (không có phần đuôi miền).
+export function validateStaffEmail(value: string): string | undefined {
+  if (/^[^\s@]+@localhost$/i.test(value.trim())) return undefined;
+  return validateEmail(value);
 }
 
 export function validatePassword(value: string): string | undefined {

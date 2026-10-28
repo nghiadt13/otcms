@@ -7,7 +7,7 @@ Một repository, hai ứng dụng độc lập: Next.js và Spring Boot. Backen
 ```mermaid
 flowchart LR
     Web[Next.js App Router] -->|Bearer access token| API[Spring Boot API]
-    Web -->|Sign in| Auth[Supabase Auth]
+    Web -->|Sign in, refresh cookie| API
     API -->|JDBC + Flyway| DB[(Supabase PostgreSQL)]
     API -->|ImagingArchivePort| Archive[Orthanc DICOM archive]
     Viewer[OHIF viewer] -->|DICOMweb qua cổng kiểm quyền khi triển khai| Archive
@@ -24,6 +24,7 @@ backend/src/main/java/com/otcms/
 ├── account/
 ├── patient/
 ├── appointment/
+├── schedule/
 ├── reception/
 ├── visit/
 ├── clinical/
@@ -44,25 +45,80 @@ Các folder feature ngoài `imaging` trong cây trên là vị trí dành cho UC
 
 Luồng mẫu cho một UC: `POST /api/v1/appointments` → `AppointmentController` → `CreateAppointmentUseCase` → `CreateAppointmentHandler` → `AppointmentRepository` → `JpaAppointmentRepositoryAdapter`. Cả quyền actor lẫn quyền trên bản ghi được kiểm tra trong backend.
 
-Supabase Auth xác thực danh tính. `role` trong JWT là PostgreSQL role, **không phải** vai trò phòng khám. Bảng account của ứng dụng và chính sách use case sẽ giữ vai trò Patient/Receptionist/Orthopedic Doctor/Imaging Technician/Administrator/Clinic Owner. Không ánh xạ vai trò nhóm từ claim `role`.
+Backend tự xác thực danh tính (email + mật khẩu băm bcrypt trong bảng account) và phát JWT access token sống ngắn cùng refresh token trong cookie httpOnly; Supabase chỉ cung cấp PostgreSQL. Frontend giữ access token trong bộ nhớ (`lib/auth/authSession.ts`) và gửi CSRF cho `/refresh`, `/logout`. Vai trò phòng khám nằm trong JWT do backend ký và trong bảng account, **không phải** PostgreSQL role. Bảng account của ứng dụng và chính sách use case sẽ giữ vai trò Patient/Receptionist/Orthopedic Doctor/Imaging Technician/Administrator/Clinic Owner. Không ánh xạ vai trò nhóm từ claim `role`.
 
 ## Frontend
 
 ```text
 frontend/src/
 ├── app/
-│   ├── layout.tsx, page.tsx, globals.css
-│   ├── login/page.tsx
-│   └── workspace/page.tsx
+│   ├── global-not-found.tsx             404 cho URL không khớp route (nhiều root layout nên cần file riêng)
+│   ├── global-error.tsx                 lỗi ở chính root layout
+│   ├── (public)/                        root layout riêng, nạp cùng theme shadcn (styles/app-theme.css)
+│   │   ├── layout.tsx, error.tsx
+│   │   ├── (site)/                      trang công khai có header/footer chung: page.tsx (trang chủ), services/, doctors/, reviews/, announcements/, gioi-thieu/, bai-viet/[id]/ (+ loading/error/not-found)
+│   │   ├── login/, register/, forgot-password/, reset-password/   UC01, UC06, UC02 (page.tsx mỏng, gọi features/auth; /login nhận ?next= trong /portal)
+│   │   └── workspace/page.tsx           chuyển trang theo vai trò: bệnh nhân → /portal, Lễ tân → /reception, admin → /admin
+│   ├── (patient)/                       khu bệnh nhân (/portal): root layout riêng, theme shadcn + font Be Vietnam Pro
+│   │   ├── layout.tsx
+│   │   └── portal/                      layout (PatientPortalHeader + một cột max-w-3xl + Toaster), page.tsx (trang chủ: khung + _home/), error.tsx, loading.tsx, not-found.tsx; các route của phase 01–08
+│   │       ├── _home/                   private folder: ghép trang chủ từ nhiều feature (lượt khám, lịch hẹn, thanh toán, gợi ý hồ sơ); feature không import chéo nên việc ghép nằm ở app/
+│   │       ├── visits/                  danh sách và chi tiết lượt khám (phase 05)
+│   │       └── account/, profiles/, appointments/, payments/, results/, prescriptions/, images/, notifications/, reviews/
+│   ├── (staff)/                         khu Lễ tân: root layout riêng, staff.css (in A4 biên lai/phiếu kết quả)
+│   │   └── reception/                   layout (ReceptionShell), page.tsx (Tiếp nhận hôm nay), [section]/ (14 màn theo patient-reception/navigation.ts), error/loading/not-found
+│   └── (admin)/                         root layout riêng: theme shadcn + font Be Vietnam Pro
+│       ├── layout.tsx
+│       └── admin/                       layout shell + 13 màn quản trị (UC07–UC79)
+│           └── error.tsx, loading.tsx, not-found.tsx   hiển thị trong khung sidebar/header
 ├── features/
-│   └── auth/components/SignInForm.tsx
-├── components/                         UI dùng lại khi phát sinh
-└── lib/
-    ├── api/client.ts                    Gọi Spring API kèm access token
-    └── supabase/browser.ts              Chỉ dùng Supabase Auth
+│   ├── clinic-website/                  nội dung website công khai (BR-68): SiteTopBar, SiteHeader, SiteFooter, các khối trang chủ (Home*), siteNavigation.ts, api giả
+│   ├── clinic-services/                 danh mục dịch vụ công khai (BR-65): FeaturedServices, api giả
+│   ├── doctor-profiles/                 hồ sơ bác sĩ công khai (BR-13): DoctorCard, FeaturedDoctors, api giả
+│   ├── patient-reviews/                 đánh giá đã công khai (UC62–UC63, BR-60): FeaturedReviews, api giả
+│   ├── auth/                            UC01/02/06: components (AuthCard, form, luồng đăng ký 3 bước), api (đăng nhập thật, còn lại giả), schema, authMessages
+│   ├── admin-shell/                     sidebar (nhóm thu gọn), header, ô tài khoản, adminNavigation.ts (nguồn duy nhất cho menu)
+│   ├── patient-shell/                   khu bệnh nhân: PatientPortalHeader, PatientPortalNav (menu nhóm + Sheet màn hẹp), PatientAccountMenu, patientNavigation.ts (nguồn duy nhất cho menu portal, chỉ khai báo mục đã có trang)
+│   ├── clinic-visits/                   tiến độ lượt khám (UC34, BR-19/35/65): danh sách Đang diễn ra/Gần đây, chi tiết (số thứ tự từng phòng, chỉ định, nút thanh toán), hook tự tải lại 30 s khi tab hiện; api giả (kho tiến độ riêng)
+│   ├── patient-profiles/                hồ sơ bệnh nhân trong cổng (UC12–UC15, BR-16/17): danh sách, gợi ý theo email đã xác minh, tạo/sửa/bỏ gắn, tiền sử; api giả (ghi vào kho gắn dùng chung), schema, hooks, components
+│   ├── notifications/                   thông báo: chuông + Sheet admin, chuông + trang /portal/notifications (UC63), api giả
+│   ├── appointments/                    lịch hẹn: admin (danh sách, chuyển bác sĩ); booking* lõi đặt lịch dùng chung (BookingFlow, bookingMockStore là kho lịch chung); components/portal (lịch hẹn bệnh nhân)
+│   ├── patient-reception/               khu Lễ tân /reception (xem docs/receptionist-ui.md): ReceptionShell (cùng khung admin qua components/shell) + ReceptionAccountMenu + navigation.ts (menu), các màn hồ sơ/lịch hẹn/tiếp nhận/hàng đợi/thu phí/tra cứu; api/receptionApi.ts là adapter lệnh giả (lỗi mang mã MSG), schema/receptionMessages.ts ánh xạ lệnh → MSG thành công
+│   ├── billing/                         thanh toán: admin (lịch sử, khoản chưa trả); components/portal (khoản cần trả, VNPay, kết quả, lịch sử, phiếu thu)
+│   ├── medical-records/                 kết quả khám khu bệnh nhân (UC41): danh sách, chi tiết theo visibleBlocks
+│   ├── prescriptions/                   đơn thuốc khu bệnh nhân (UC44): danh sách, tài liệu đơn, in
+│   ├── imaging/                         ảnh chụp khu bệnh nhân (UC51): danh sách study, mở viewer theo viewerUrl BE cấp
+│   └── rooms/                           feature mẫu: types, api (giả), hooks, components
+├── components/
+│   ├── ui/                              shadcn/ui (sinh bằng CLI, ít sửa tay)
+│   ├── brand/                           PublicSectionHeading, OtcmsLogo, publicButtonStyles (nút cỡ public dựng trên buttonVariants), publicLayout
+│   ├── shell/                           khung chung khu nhân viên (admin, lễ tân): SidebarNavGroup (nhóm menu thu gọn, gạch xanh mục đang mở), CurrentDateTime, UnreadCountBadge
+│   ├── patient/                         khu bệnh nhân: ProfileScopeSelect (chọn người khám), PortalPageHeader, PortalEmptyState (+ trạng thái chưa có hồ sơ)
+│   └── PageHeader.tsx                   UI dùng chung
+├── hooks/
+│   └── useLinkedProfiles.ts             hồ sơ đã gắn của tài khoản (chỉ đọc, tự tải lại khi kho đổi), dùng chung các khu
+├── styles/
+│   ├── brand-palette.css                mã màu Teal + Coral và font, mọi khu đều nạp
+│   └── app-theme.css                    theme shadcn (token ánh xạ từ brand-palette, @layer base); chỉ root layout cần nó mới import
+├── lib/
+│   ├── api/client.ts                    Gọi Spring API kèm access token
+│   ├── domain/                          enum, nhãn và tone dùng chung giữa các khu: clinicVisit.ts, careRelationship.ts, clinicRoles.ts, clinicCategories.ts
+│   ├── patient-scope/                   hồ sơ đã gắn của tài khoản: API giả chỉ đọc và kho giả (ghi ở feature patient-profiles, không đặt luật ở đây)
+│   ├── routes/                          đường dẫn theo khu (adminRoutes.ts, patientRoutes.ts, staffRoutes.ts), để feature không import navigation của nhau
+│   ├── session/                         mockCurrentActor.ts, mockSignedInKind.ts: phiên giả để hiển thị (xóa khi có /api/v1/me)
+│   ├── mock/                            kho giả dùng chung giữa feature (bệnh nhân tạo tại quầy, phí khám lịch hẹn) để mock hành xử như một DB; xóa khi nối BE
+│   ├── fonts.ts                         Nạp font chung Be Vietnam Pro cho mọi root layout
+│   └── auth/authSession.ts              Phiên đăng nhập backend (token trong bộ nhớ, refresh, CSRF)
+└── test/setup.ts                        Thiết lập chung cho Vitest; `*.test.ts(x)` nằm cạnh mã nguồn
 ```
 
-Khi triển khai một feature, đặt `components/`, `hooks/`, `api/`, `schema/` và `types/` bên trong `src/features/<feature>/` theo nhu cầu thực tế. URL ở `app/` có thể chia theo khu vực patient/staff/admin; không tạo bản sao logic theo vai trò. `NEXT_PUBLIC_*` chỉ chứa thông tin công khai.
+Chiều phụ thuộc frontend được ESLint ép buộc: `app` → `features` → `components`/`lib`/`hooks`; feature không import feature khác (trừ lớp ghép `admin-shell`), mã dùng chung không import ngược lên feature hay `app`. Chi tiết và cách mở rộng ở `AGENTS.md`.
+
+Quy tắc màu sắc, chữ, bố cục và component khi dựng màn hình nằm ở [`ui-guidelines.md`](ui-guidelines.md). Hợp đồng API khu bệnh nhân, Lễ tân và trang công khai cho BE nằm ở [`fe-be-api-contract-patient-reception.md`](fe-be-api-contract-patient-reception.md).
+
+Khu bệnh nhân gọi API theo phạm vi tài khoản: dữ liệu của chính tài khoản dưới `/api/v1/me/...` (hồ sơ đã gắn, thông báo); dữ liệu nghiệp vụ dưới `/api/v1/<nghiệp vụ>` (`/appointments`, `/visits`, `/payments`), BE lọc theo phạm vi người dùng. Không dùng tiền tố `/patient`. Phạm vi "người khám" (bản thân và người thân đã gắn) đọc qua `lib/patient-scope` và `useLinkedProfiles`; nhóm mã dùng chung này chỉ đọc, không chứa luật nghiệp vụ.
+
+Khi triển khai một feature, đặt `components/`, `hooks/`, `api/`, `schema/` và `types/` bên trong `src/features/<feature>/` theo nhu cầu thực tế. Mỗi khu vực (public, patient, admin; staff sau này) là một route group `(tên)` có **root layout riêng** để CSS không lan sang khu khác; URL không đổi. Chuyển giữa hai khu là tải lại cả trang (hành vi của Next với nhiều root layout), còn trong một khu vẫn chuyển trang phía client. Hiện cả `(public)`, `(patient)` và `(admin)` đều import `styles/app-theme.css` trong root layout; khu mới cũng import file này để dùng chung component `components/ui`. Không tạo bản sao logic theo vai trò. `NEXT_PUBLIC_*` chỉ chứa thông tin công khai.
 
 ## DICOM/MRI
 

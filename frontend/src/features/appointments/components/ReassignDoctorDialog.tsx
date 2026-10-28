@@ -15,48 +15,55 @@ import { isApiError, toFieldErrorMap } from "@/lib/api/apiError";
 import { formatDateTime } from "@/lib/format/formatDate";
 import { formatAppMessage, messageFromError } from "@/lib/messages/appMessages";
 import { notifyError, notifySuccess } from "@/lib/messages/notify";
-import { reassignAppointmentDoctor } from "../api/appointmentApi";
 import { useEligibleDoctors } from "../hooks/useEligibleDoctors";
 import { reassignSuccessText } from "../schema/appointmentMessages";
-import type { Appointment } from "../types/appointment";
+import { isStaleAppointmentError } from "../schema/staleAppointmentError";
+import type {
+  ReassignDoctorApi,
+  ReassignTarget,
+} from "../types/reassignDoctorApi";
 import { ReassignCandidateList } from "./ReassignCandidateList";
 
-type ReassignDoctorDialogProps = {
-  appointment: Appointment | null;
+// Dialog chuyển bác sĩ dùng chung admin và Lễ tân. Mọi lời gọi đi qua `api` truyền vào; Dialog
+// không biết khu nào đang gọi.
+
+type ReassignDoctorDialogProps<T extends ReassignTarget> = {
+  appointment: T | null;
+  /** Bộ endpoint của khu đang đứng: admin truyền bộ /admin, Lễ tân truyền bộ /appointments. */
+  api: ReassignDoctorApi<T>;
+  /** Tên người khám hiện trong Dialog (mỗi khu có kiểu lịch khác nhau). */
+  patientNameOf: (appointment: T) => string;
+  /** Dòng giải thích khi không có bác sĩ thay (AF1). Không truyền thì dùng câu của khu admin. */
+  noCandidateLines?: readonly string[];
   onClose: () => void;
   /** Chuyển thành công: bản ghi mới từ BE. */
-  onChanged: (updated: Appointment) => void;
+  onChanged: (updated: T) => void;
   /** Lịch không còn / không còn Đã đặt: màn đóng Dialog và tải lại. */
   onStale: () => void;
   /** AF1: màn đóng Dialog và mở xác nhận gửi thông báo. */
-  onNotifyRequest: (appointment: Appointment) => void;
+  onNotifyRequest: (appointment: T) => void;
 };
 
-/** 404/403 hoặc 409 MSG-32: lịch không còn dùng được, phải đóng và tải lại. */
-export function isStaleAppointmentError(error: unknown): boolean {
-  return (
-    isApiError(error) &&
-    (error.status === 404 ||
-      error.status === 403 ||
-      (error.status === 409 && error.code === "MSG-32"))
-  );
-}
+type ReassignBodyProps<T extends ReassignTarget> = Omit<
+  ReassignDoctorDialogProps<T>,
+  "appointment"
+> & { appointment: T };
 
-export function ReassignDoctorDialog({
-  appointment,
-  ...handlers
-}: ReassignDoctorDialogProps) {
+export function ReassignDoctorDialog<T extends ReassignTarget>(
+  props: ReassignDoctorDialogProps<T>,
+) {
+  const { appointment, onClose } = props;
   return (
     <Dialog
       open={appointment !== null}
-      onOpenChange={(open) => !open && handlers.onClose()}
+      onOpenChange={(open) => !open && onClose()}
     >
       <DialogContent className="sm:max-w-md">
         {appointment ? (
           <ReassignBody
+            {...props}
             key={appointment.id}
             appointment={appointment}
-            {...handlers}
           />
         ) : null}
       </DialogContent>
@@ -64,16 +71,17 @@ export function ReassignDoctorDialog({
   );
 }
 
-function ReassignBody({
+function ReassignBody<T extends ReassignTarget>({
   appointment,
+  api,
+  patientNameOf,
+  noCandidateLines,
   onClose,
   onChanged,
   onStale,
   onNotifyRequest,
-}: Omit<ReassignDoctorDialogProps, "appointment"> & {
-  appointment: Appointment;
-}) {
-  const eligible = useEligibleDoctors(appointment.id);
+}: ReassignBodyProps<T>) {
+  const eligible = useEligibleDoctors(appointment.id, api);
   const [selectedId, setSelectedId] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [fieldError, setFieldError] = useState<string | undefined>();
@@ -106,10 +114,7 @@ function ReassignBody({
     setSubmitting(true);
     setFieldError(undefined);
     try {
-      const updated = await reassignAppointmentDoctor(
-        appointment.id,
-        selectedId,
-      );
+      const updated = await api.reassign(appointment.id, selectedId);
       notifySuccess(reassignSuccessText(updated.doctor?.fullName ?? ""));
       onChanged(updated);
     } catch (error) {
@@ -147,7 +152,7 @@ function ReassignBody({
       </DialogHeader>
       <DetailList
         items={[
-          { label: "Bệnh nhân", value: appointment.patientName },
+          { label: "Bệnh nhân", value: patientNameOf(appointment) },
           {
             label: "Giờ hẹn",
             value: (
@@ -171,6 +176,7 @@ function ReassignBody({
         fieldError={fieldError}
         disabled={submitting}
         onRetry={eligible.reload}
+        noCandidateLines={noCandidateLines}
       />
       <DialogFooter>
         <Button variant="outline" disabled={submitting} onClick={onClose}>

@@ -2,11 +2,9 @@ import { render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { PublicBookAppointmentLink } from "./PublicBookAppointmentLink";
 
-// Chỉ giả lớp xác thực trình duyệt (ranh giới với Supabase); link và effect chạy thật.
+// Chỉ giả lớp phiên đăng nhập (ranh giới với backend); link và effect chạy thật.
 const { getSession } = vi.hoisted(() => ({ getSession: vi.fn() }));
-vi.mock("@/lib/supabase/browser", () => ({
-  getSupabaseBrowserClient: () => ({ auth: { getSession } }),
-}));
+vi.mock("@/lib/auth/authSession", () => ({ getSession }));
 
 const LOGIN_HREF = "/login?next=/portal/appointments/new";
 
@@ -26,7 +24,7 @@ afterEach(() => {
 
 describe("PublicBookAppointmentLink", () => {
   it("khách chưa đăng nhập được đưa qua đăng nhập rồi quay lại đặt lịch", async () => {
-    getSession.mockResolvedValue({ data: { session: null } });
+    getSession.mockResolvedValue(null);
     const link = renderLink();
     await waitFor(() => expect(getSession).toHaveBeenCalled());
     expect(link).toHaveAttribute("href", LOGIN_HREF);
@@ -34,7 +32,7 @@ describe("PublicBookAppointmentLink", () => {
   });
 
   it("người đã có phiên đăng nhập đi thẳng tới màn đặt lịch", async () => {
-    getSession.mockResolvedValue({ data: { session: { access_token: "t" } } });
+    getSession.mockResolvedValue({ accessToken: "t" });
     const link = renderLink();
     await waitFor(() =>
       expect(link).toHaveAttribute("href", "/portal/appointments/new"),

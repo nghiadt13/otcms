@@ -9,7 +9,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@/lib/api/apiError";
 import { ReportsManagement } from "./ReportsManagement";
-
+import { formatAppMessage } from "@/lib/messages/appMessages";
 const { notifyError, notifySuccess } = vi.hoisted(() => ({
   notifyError: vi.fn(),
   notifySuccess: vi.fn(),
@@ -72,7 +72,7 @@ describe("ReportsManagement", () => {
     const user = await renderReady();
     await user.click(screen.getByRole("button", { name: "Tạo báo cáo" }));
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Khoảng thời gian chưa hợp lệ",
+      formatAppMessage("MSG-72"),
     );
     expect(spy.create).not.toHaveBeenCalled();
   });
