@@ -19,12 +19,10 @@ import java.util.Locale;
 @Profile("demo")
 public class DemoAccountSeeder {
     @Bean
-    public CommandLineRunner seedDemoAccount(AccountRepository accounts, PasswordEncoder encoder, Environment environment) {
+    public CommandLineRunner seedDemoPatientAccount(AccountRepository accounts, PasswordEncoder encoder, Environment environment) {
         return args -> {
             seed(accounts, encoder, environment.getProperty("app.demo.email", "demo.patient@localhost"),
                     required(environment, "app.demo.password"), AccountType.PATIENT);
-            seed(accounts, encoder, environment.getProperty("app.demo.staff-email", "demo.staff@localhost"),
-                    required(environment, "app.demo.staff-password"), AccountType.RECEPTIONIST);
         };
     }
 

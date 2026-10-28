@@ -3,11 +3,17 @@
 import { Mail } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useRef, useState, type FormEvent } from "react";
-import { signIn, signInStaff } from "../api/authApi";
+import { useEffect, useRef, useState, type FormEvent } from "react";
+import {
+  clearMockSignedInKind,
+  setMockSignedInKind,
+} from "@/lib/session/mockSignedInKind";
+import { clearOtcmsSession } from "@/lib/session/otcmsSession";
+import { signIn } from "../api/authApi";
 import type { AuthMessageCode } from "../authMessages";
 import { focusFirstInvalidField } from "../focusFirstInvalidField";
-import { validateEmail, validateStaffEmail } from "../schema/authFieldRules";
+import { safePortalNext } from "../safePortalNext";
+import { validateEmail } from "../schema/authFieldRules";
 import { toAuthMessageCode } from "../types/auth";
 import { AuthAlert } from "./AuthAlert";
 import { authLinkClass } from "./AuthCard";
@@ -15,15 +21,18 @@ import { AuthSubmitButton } from "./AuthSubmitButton";
 import { AuthTextField } from "./AuthTextField";
 import { PasswordField } from "./PasswordField";
 
-// UC01 Đăng nhập. Mọi trường hợp bị từ chối (thiếu thông tin, sai mật khẩu, tài
-// khoản không đủ điều kiện) đều hiện cùng MSG-01 để không lộ tài khoản nào tồn
-// tại; lỗi dịch vụ hiện MSG-04. `defaultEmail` dùng khi vừa đăng ký xong (UC06).
+// UC01 Đăng nhập bệnh nhân (email + mật khẩu). Mọi trường hợp bị từ chối (thiếu thông tin,
+// sai mật khẩu, tài khoản không đủ điều kiện) đều hiện cùng MSG-01 để không lộ tài khoản
+// nào tồn tại; lỗi dịch vụ hiện MSG-04. Thành công thì về `next` nếu là đường dẫn an toàn
+// trong khu bệnh nhân, không thì về /portal. `defaultEmail` dùng khi vừa đăng ký xong (UC06).
 export function SignInForm({
   defaultEmail = "",
-  staff = false,
+  next,
+  submitLabel = "Đăng nhập",
 }: {
   defaultEmail?: string;
-  staff?: boolean;
+  next?: string;
+  submitLabel?: string;
 }) {
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
@@ -36,10 +45,16 @@ export function SignInForm({
   const [message, setMessage] = useState<AuthMessageCode | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
+  // Mở màn đăng nhập nghĩa là chưa có phiên: bỏ trạng thái phiên cũ phía trình duyệt.
+  useEffect(() => {
+    clearMockSignedInKind();
+    clearOtcmsSession();
+  }, []);
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const errors = {
-      email: staff ? validateStaffEmail(email) : validateEmail(email),
+      email: validateEmail(email),
       password: password ? undefined : "Nhập mật khẩu.",
     };
     setFieldErrors(errors);
@@ -52,13 +67,10 @@ export function SignInForm({
     setMessage(null);
     setSubmitting(true);
     try {
-      if (staff) {
-        await signInStaff(email, password);
-        router.replace("/admin");
-      } else {
-        await signIn(email, password);
-        router.replace("/workspace");
-      }
+      await signIn(email, password);
+      // Các dữ liệu Patient Portal hiện vẫn dùng actor giả; xác thực credential đã qua backend.
+      setMockSignedInKind("PATIENT");
+      router.replace(safePortalNext(next));
     } catch (cause) {
       setMessage(toAuthMessageCode(cause));
       setSubmitting(false);
@@ -116,7 +128,7 @@ export function SignInForm({
         submitting={submitting}
         submittingLabel="Đang đăng nhập..."
       >
-        Đăng nhập
+        {submitLabel}
       </AuthSubmitButton>
     </form>
   );

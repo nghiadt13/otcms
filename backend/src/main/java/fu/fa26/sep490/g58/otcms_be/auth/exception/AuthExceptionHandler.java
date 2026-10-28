@@ -9,11 +9,18 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.bind.MethodArgumentNotValidException;
 
 import java.util.UUID;
 
 @RestControllerAdvice
 public class AuthExceptionHandler {
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    public ResponseEntity<ErrorResponse> invalidRequest(MethodArgumentNotValidException ex) {
+        return ResponseEntity.badRequest().body(ErrorResponse.of("VALIDATION_FAILED",
+                "Authentication request could not be completed", UUID.randomUUID().toString()));
+    }
+
     @ExceptionHandler(PasswordRecoveryException.class)
     public ResponseEntity<ErrorResponse> password(PasswordRecoveryException ex) {
         HttpStatus status = "AUTHENTICATION_FAILED".equals(ex.getMessage()) ? HttpStatus.UNAUTHORIZED : HttpStatus.BAD_REQUEST;

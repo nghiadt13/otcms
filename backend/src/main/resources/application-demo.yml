@@ -2,10 +2,9 @@ app:
   demo:
     email: ${APP_DEMO_EMAIL:demo.patient@localhost}
     password: ${APP_DEMO_PASSWORD:}
-    staff-email: ${APP_DEMO_STAFF_EMAIL:demo.staff@localhost}
-    staff-password: ${APP_DEMO_STAFF_PASSWORD:}
   auth:
     session-security:
+      cookie-secure: false
       patient-origins: http://localhost:3000
       staff-origins: http://localhost:3000
     staff-network:
