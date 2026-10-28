@@ -14,8 +14,19 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace, push: vi.fn() }),
 }));
 
-// Ranh giới ngoài: lớp phiên đăng nhập gọi backend.
+// Ranh giới ngoài: lớp phiên đăng nhập và `GET /api/v1/me` gọi backend. Tên lấy từ tài khoản
+// backend (đã nhớ trong tab nên header hiện ngay, không qua khung chờ).
+const account = {
+  id: "11111111-1111-1111-1111-111111111111",
+  accountType: "PATIENT",
+  email: "an@example.com",
+  displayName: "Nguyễn Văn An",
+};
 vi.mock("@/lib/auth/authSession", () => ({ signOut }));
+vi.mock("@/lib/auth/currentAccountApi", () => ({
+  fetchCurrentAccount: async () => account,
+  peekCurrentAccount: () => account,
+}));
 
 beforeEach(() => {
   pathname = "/portal";

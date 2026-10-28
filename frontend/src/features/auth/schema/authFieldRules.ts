@@ -16,6 +16,12 @@ export function validateEmail(value: string): string | undefined {
   if (!emailPattern.test(value.trim())) return "Email chưa đúng định dạng.";
 }
 
+// Tài khoản nội bộ dùng thử có thể dùng email dạng `ten@localhost` (không có phần đuôi miền).
+export function validateStaffEmail(value: string): string | undefined {
+  if (/^[^\s@]+@localhost$/i.test(value.trim())) return undefined;
+  return validateEmail(value);
+}
+
 export function validatePassword(value: string): string | undefined {
   if (!value) return "Nhập mật khẩu.";
   if (!passwordPolicy.every((rule) => rule.test(value)))

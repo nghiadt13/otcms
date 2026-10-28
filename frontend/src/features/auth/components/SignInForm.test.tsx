@@ -36,10 +36,10 @@ async function submitCredentials(button = "Đăng nhập") {
 }
 
 describe("SignInForm: đích sau đăng nhập", () => {
-  it("không có next thì về /portal", async () => {
+  it("không có next thì về trang chủ", async () => {
     render(<SignInForm />);
     await submitCredentials();
-    expect(replace).toHaveBeenCalledWith("/portal");
+    expect(replace).toHaveBeenCalledWith("/");
   });
 
   it.each([
@@ -48,9 +48,9 @@ describe("SignInForm: đích sau đăng nhập", () => {
       "/portal/appointments/new",
       "/portal/appointments/new",
     ],
-    ["URL ngoài", "https://evil.example", "/portal"],
-    ["URL giao thức tương đối", "//evil.example", "/portal"],
-    ["khu quản trị", "/admin", "/portal"],
+    ["URL ngoài", "https://evil.example", "/"],
+    ["URL giao thức tương đối", "//evil.example", "/"],
+    ["khu quản trị", "/admin", "/"],
   ])("next = %s (%s) → %s", async (_label, next, target) => {
     render(<SignInForm next={next} />);
     await submitCredentials();
@@ -75,6 +75,48 @@ describe("SignInForm: đích sau đăng nhập", () => {
     expect(
       screen.getByRole("button", { name: "Vào cổng bệnh nhân" }),
     ).toBeInTheDocument();
+  });
+});
+
+describe("SignInForm: đăng nhập nội bộ (staff)", () => {
+  it("gọi endpoint nhân viên rồi về /workspace, không ghi phiên giả bệnh nhân", async () => {
+    render(<SignInForm staff />);
+    await submitCredentials();
+    expect(signInWithPassword).toHaveBeenCalledWith(
+      "staff",
+      "an@example.com",
+      "matkhau123",
+    );
+    expect(replace).toHaveBeenCalledWith("/workspace");
+    expect(getMockSignedInKind()).toBe("STAFF");
+  });
+
+  it("nhận email tài khoản dùng thử dạng ten@localhost", async () => {
+    const user = userEvent.setup();
+    render(<SignInForm staff />);
+    await user.type(screen.getByLabelText(/^Email/), "admin@localhost");
+    await user.type(screen.getByLabelText(/^Mật khẩu/), "matkhau123");
+    await user.click(screen.getByRole("button", { name: "Đăng nhập" }));
+    expect(signInWithPassword).toHaveBeenCalledWith(
+      "staff",
+      "admin@localhost",
+      "matkhau123",
+    );
+  });
+
+  it("không hiện liên kết Quên mật khẩu", () => {
+    render(<SignInForm staff />);
+    expect(screen.queryByText("Quên mật khẩu?")).not.toBeInTheDocument();
+  });
+
+  it("backend từ chối (401) thì hiện MSG-01 và không chuyển trang", async () => {
+    signInWithPassword.mockRejectedValue(new AuthSessionError(401));
+    render(<SignInForm staff />);
+    await submitCredentials();
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      authMessages["MSG-01"],
+    );
+    expect(replace).not.toHaveBeenCalled();
   });
 });
 

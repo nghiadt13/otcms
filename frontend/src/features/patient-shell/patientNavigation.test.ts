@@ -32,7 +32,6 @@ describe("groupPatientNavItems", () => {
   it("ẩn mục chưa có: nhóm không có mục nào không xuất hiện", () => {
     const groups = groupPatientNavItems(fixtures);
     expect(groups.map((view) => view.group)).toEqual(["Khám bệnh", "Hồ sơ"]);
-    expect(groups.find((view) => view.group === "Thanh toán")).toBeUndefined();
   });
 
   it("giữ thứ tự khai báo trong nhóm", () => {

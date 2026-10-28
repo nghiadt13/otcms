@@ -4,7 +4,7 @@ import Link from "next/link";
 import { publicButtonClass } from "@/components/brand/publicButtonStyles";
 import { publicContainerClass } from "@/components/brand/publicLayout";
 import { cn } from "@/lib/utils";
-import { bookAppointmentHref } from "../siteNavigation";
+import { PublicBookAppointmentLink } from "@/components/brand/PublicBookAppointmentLink";
 import type { HomeHeroContent } from "../types/websiteContent";
 
 // Khối đầu trang chủ: ảnh thật (bác sĩ giải thích phim X-quang cho bệnh nhân lớn
@@ -49,16 +49,15 @@ export function HomeHero({ hero }: { hero: HomeHeroContent }) {
           </p>
 
           <div className="mt-10 flex flex-wrap gap-4">
-            <Link
+            <PublicBookAppointmentLink
               className={cn(
                 publicButtonClass("primary", "lg"),
                 "bg-white text-brand-hover hover:bg-brand-soft",
               )}
-              href={bookAppointmentHref}
             >
               <CalendarPlus aria-hidden />
               Đặt lịch khám
-            </Link>
+            </PublicBookAppointmentLink>
             <Link
               className={cn(
                 publicButtonClass("secondary", "lg"),

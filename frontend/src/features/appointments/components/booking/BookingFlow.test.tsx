@@ -1,4 +1,5 @@
 import { render, screen, waitFor } from "@testing-library/react";
+import { toBookingPatient } from "../../schema/bookingSelection";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
@@ -10,6 +11,16 @@ import {
   resetLinkedProfilesMock,
 } from "@/lib/patient-scope/linkedProfilesMockStore";
 import type { BookedAppointment, BookingPatient } from "../../types/booking";
+
+// Ranh giới ngoài: lớp API thật gọi backend. Trong test nó trả dữ liệu của kho giả dùng chung.
+vi.mock("../../api/bookingLiveApi", async () => {
+  const mock = await import("../../api/bookingApi");
+  return {
+    listBookableServices: mock.listBookableServices,
+    getOpenTimes: mock.getOpenTimes,
+    createAppointment: mock.createAppointment,
+  };
+});
 
 vi.mock("sonner", () => ({
   toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn() },
@@ -275,19 +286,36 @@ describe("BookingFlow - khu Lễ tân (variant staff)", () => {
   });
 });
 
-describe("BookingFlow - khu bệnh nhân (variant patient)", () => {
-  it("chọn 'Ai đi khám?' trước; giờ trống được tra theo đúng hồ sơ đã chọn", async () => {
+describe("BookingFlow - khu bệnh nhân (variant patient, wizard 4 bước)", () => {
+  const next = (user: ReturnType<typeof userEvent.setup>) =>
+    user.click(screen.getByRole("button", { name: "Tiếp tục" }));
+
+  it("luôn mở ở bước Người khám và khóa Tiếp tục tới khi chọn hồ sơ", () => {
+    render(
+      <BookingFlow
+        variant="patient"
+        patients={getLinkedProfileRecords().map(toBookingPatient)}
+        onBooked={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByRole("heading", { level: 2, name: "Ai đi khám?" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Tiếp tục" })).toBeDisabled();
+  });
+
+  it("chọn người khám rồi dịch vụ; giờ trống được tra theo đúng hồ sơ đã chọn", async () => {
     const user = userEvent.setup();
     const profiles = getLinkedProfileRecords();
     const lan = profiles.find((profile) => profile.patientCode === "BN-000456");
     if (!lan) throw new Error("thiếu hồ sơ mẫu BN-000456");
     render(
-      <BookingFlow variant="patient" profiles={profiles} onBooked={vi.fn()} />,
+      <BookingFlow variant="patient" patients={profiles.map(toBookingPatient)} onBooked={vi.fn()} />,
     );
 
-    await user.click(
-      await screen.findByRole("radio", { name: /Nguyễn Thị Lan · Cha\/Mẹ/ }),
-    );
+    await user.click(screen.getByRole("radio", { name: /Nguyễn Thị Lan · Cha\/Mẹ/ }));
+    await next(user);
     await user.click(
       await screen.findByRole("radio", { name: /Khám chỉnh hình tổng quát/ }),
     );
@@ -301,68 +329,62 @@ describe("BookingFlow - khu bệnh nhân (variant patient)", () => {
         expect.anything(),
       ),
     );
-    expect(
-      screen.getByRole("button", { name: "Đổi: Ai đi khám?" }),
-    ).toBeInTheDocument();
   });
 
-  it("một hồ sơ: đã chọn sẵn, không hỏi lại và không có nút Đổi", async () => {
+  it("một hồ sơ: bước Người khám đã chọn sẵn hồ sơ đó, đi tiếp được ngay", async () => {
+    const user = userEvent.setup();
     const self = getLinkedProfileRecords().filter(
       (profile) => profile.relationship === "SELF",
     );
     render(
-      <BookingFlow variant="patient" profiles={self} onBooked={vi.fn()} />,
+      <BookingFlow variant="patient" patients={self.map(toBookingPatient)} onBooked={vi.fn()} />,
     );
 
-    expect(
-      screen.queryByRole("radio", { name: /Bản thân/ }),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: "Đổi: Ai đi khám?" }),
-    ).not.toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: /Bản thân/ })).toBeChecked();
+    await next(user);
     expect(
       await screen.findByRole("radio", { name: /Khám chỉnh hình tổng quát/ }),
     ).toBeInTheDocument();
   });
 
-  it("initialPatientId có trong hồ sơ đã gắn: chọn sẵn người khám; mã không có trong hồ sơ thì bỏ qua", async () => {
-    const profiles = getLinkedProfileRecords();
-    const lan = profiles.find((profile) => profile.patientCode === "BN-000456");
-    if (!lan) throw new Error("thiếu hồ sơ mẫu BN-000456");
-    const { unmount } = render(
-      <BookingFlow
-        initialPatientId={lan.id}
-        onBooked={vi.fn()}
-        profiles={profiles}
-        variant="patient"
-      />,
-    );
-    expect(
-      screen.getByRole("button", { name: "Đổi: Ai đi khám?" }),
-    ).toBeInTheDocument();
-    expect(
-      await screen.findByRole("radio", { name: /Khám chỉnh hình tổng quát/ }),
-    ).toBeInTheDocument();
-    unmount();
-
+  it("bước Xác nhận gom đủ lựa chọn; Sửa đưa về đúng bước và giữ lựa chọn", async () => {
+    const user = userEvent.setup();
     render(
       <BookingFlow
-        initialPatientId="pat-khong-co"
-        onBooked={vi.fn()}
-        profiles={profiles}
         variant="patient"
+        patients={getLinkedProfileRecords().map(toBookingPatient)}
+        onBooked={vi.fn()}
       />,
     );
+    await user.click(screen.getByRole("radio", { name: /Nguyễn Thị Lan · Cha\/Mẹ/ }));
+    await next(user);
+    await user.click(
+      await screen.findByRole("radio", { name: /Khám chỉnh hình tổng quát/ }),
+    );
+    await user.click(
+      await screen.findByRole("button", { name: "Thứ ba 27/10, còn giờ" }),
+    );
+    await user.click(await screen.findByRole("button", { name: "10:00" }));
+    await next(user);
+
     expect(
-      screen.queryByRole("button", { name: "Đổi: Ai đi khám?" }),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.getByRole("radio", { name: /Nguyễn Thị Lan · Cha\/Mẹ/ }),
-    ).not.toBeChecked();
+      screen.getByRole("heading", { level: 2, name: "Kiểm tra lại lịch hẹn" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/Nguyễn Thị Lan · Cha\/Mẹ/)).toBeInTheDocument();
+    expect(screen.getByText("Phòng khám sắp xếp bác sĩ")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Đặt lịch khám" })).toBeDisabled();
+    await user.type(
+      screen.getByRole("textbox", { name: "Lý do khám" }),
+      "Đau gối phải",
+    );
+    expect(screen.getByRole("button", { name: "Đặt lịch khám" })).toBeEnabled();
+
+    await user.click(screen.getByRole("button", { name: "Sửa người khám" }));
+    expect(screen.getByRole("radio", { name: /Nguyễn Thị Lan · Cha\/Mẹ/ })).toBeChecked();
   });
 
   it("không có hồ sơ nào: không mở luồng, báo thêm hồ sơ trước", () => {
-    render(<BookingFlow variant="patient" profiles={[]} onBooked={vi.fn()} />);
+    render(<BookingFlow variant="patient" patients={[]} onBooked={vi.fn()} />);
     expect(screen.getByRole("status")).toHaveTextContent(
       "Chưa có hồ sơ bệnh nhân để đặt lịch.",
     );

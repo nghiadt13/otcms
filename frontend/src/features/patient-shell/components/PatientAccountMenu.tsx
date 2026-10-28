@@ -49,13 +49,13 @@ export function PatientAccountMenu({
         render={
           <Button
             aria-label={`Tài khoản: ${displayName}`}
-            className="h-12 gap-2 px-2 text-base"
+            className="h-11 gap-2.5 rounded-full border border-input bg-card py-1 pr-3.5 pl-1 text-base hover:border-primary hover:bg-card hover:text-primary aria-expanded:border-primary aria-expanded:bg-card"
             variant="ghost"
           />
         }
       >
         <Avatar className="size-9">
-          <AvatarFallback className="text-sm font-medium">
+          <AvatarFallback className="bg-primary text-sm font-semibold text-primary-foreground">
             {initialsOf(displayName)}
           </AvatarFallback>
         </Avatar>
@@ -64,7 +64,7 @@ export function PatientAccountMenu({
         </span>
         <ChevronDown aria-hidden />
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-64">
+      <DropdownMenuContent align="end" className="w-64" sideOffset={8}>
         <div className="px-2 py-2">
           <p className="text-base font-medium">{displayName}</p>
           <p className="text-sm text-muted-foreground">{roleLabel}</p>

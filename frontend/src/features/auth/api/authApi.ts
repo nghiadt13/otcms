@@ -1,4 +1,5 @@
 import { AuthSessionError, signInWithPassword } from "@/lib/auth/authSession";
+import { fetchCurrentAccount } from "@/lib/auth/currentAccountApi";
 import { AuthRequestError, type PatientRegistrationInput } from "../types/auth";
 
 // UC01 Đăng nhập đi thật qua backend (POST /api/auth/patient/login). UC02 và UC06 hiện là LỚP API GIẢ vì
@@ -14,6 +15,25 @@ export async function signIn(email: string, password: string): Promise<void> {
   } catch (cause) {
     // 401 = sai thông tin hoặc tài khoản không đủ điều kiện (MSG-01); còn lại (mạng, 429, 5xx) là
     // lỗi dịch vụ (MSG-04). Không phân biệt lý do để không lộ tài khoản nào tồn tại (BR-03).
+    const rejected = cause instanceof AuthSessionError && cause.status === 401;
+    throw new AuthRequestError(rejected ? "MSG-01" : "MSG-04");
+  }
+  // Nạp sẵn tên người dùng từ backend để trang chủ hiện ngay ở header. Không chặn đăng nhập
+  // nếu lần đọc này lỗi: header tự đọc lại và ghi log.
+  await fetchCurrentAccount().catch((error: unknown) => {
+    console.error("Không đọc được tài khoản sau đăng nhập", error);
+  });
+}
+
+// Đăng nhập nội bộ (admin, chủ phòng khám, nhân viên) qua POST /api/auth/staff/login. Cùng quy tắc
+// lỗi với `signIn`: 401 là MSG-01, còn lại là MSG-04.
+export async function signInStaff(
+  email: string,
+  password: string,
+): Promise<void> {
+  try {
+    await signInWithPassword("staff", email, password);
+  } catch (cause) {
     const rejected = cause instanceof AuthSessionError && cause.status === 401;
     throw new AuthRequestError(rejected ? "MSG-01" : "MSG-04");
   }

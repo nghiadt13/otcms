@@ -13,20 +13,28 @@ export default async function LoginPage({
   searchParams: Promise<{ next?: string | string[] }>;
 }) {
   const { next } = await searchParams;
+  const nextValue = Array.isArray(next) ? next[0] : next;
   return (
     <AuthCard
       description="Dành cho bệnh nhân. Dùng email và mật khẩu bạn đã đăng ký."
       footer={
         <>
           Chưa có tài khoản?{" "}
-          <Link className={authLinkClass} href="/register">
+          <Link
+            className={authLinkClass}
+            href={
+              nextValue
+                ? `/register?next=${encodeURIComponent(nextValue)}`
+                : "/register"
+            }
+          >
             Đăng ký
           </Link>
         </>
       }
       title="Đăng nhập"
     >
-      <SignInForm next={Array.isArray(next) ? next[0] : next} />
+      <SignInForm next={nextValue} />
     </AuthCard>
   );
 }

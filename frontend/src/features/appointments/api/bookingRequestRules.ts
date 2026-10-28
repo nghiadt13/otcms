@@ -1,5 +1,6 @@
 import type { ApiFieldError } from "@/lib/api/apiError";
 import { mockFail } from "@/lib/api/mockServer";
+import { peekCurrentAccount } from "@/lib/auth/currentAccountApi";
 import { getLinkedProfileRecords } from "@/lib/patient-scope/linkedProfilesMockStore";
 import type {
   BookableService,
@@ -68,11 +69,30 @@ export function requireBookableService(serviceId: string): BookableService {
   );
 }
 
+/** Người khám là chính tài khoản đang đăng nhập (họ tên từ backend); kho giả chưa có hồ sơ của họ. */
+function signedInAccountAsPatient(
+  patientId: string,
+): ResolvedBookingPatient | null {
+  const account = peekCurrentAccount();
+  if (!account || account.id !== patientId) return null;
+  return {
+    id: account.id,
+    fullName: account.displayName,
+    patientCode: "",
+    dateOfBirth: "",
+    phone: null,
+    bookedFor: { kind: "SELF" },
+    locked: false,
+  };
+}
+
 /** Người được đặt: hồ sơ đang gắn hoặc người lễ tân quản lý. Bị khóa → 403 MSG-29. */
 export function requireBookablePatient(
   patientId: string,
 ): ResolvedBookingPatient {
-  const patient = resolveBookingPatient(patientId, getLinkedProfileRecords());
+  const patient =
+    resolveBookingPatient(patientId, getLinkedProfileRecords()) ??
+    signedInAccountAsPatient(patientId);
   if (!patient) mockFail(404, "MSG-29");
   if (patient.locked) mockFail(403, "MSG-29");
   return patient;

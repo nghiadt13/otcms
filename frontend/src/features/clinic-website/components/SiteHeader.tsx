@@ -1,10 +1,11 @@
 "use client";
 
-import { CalendarPlus, LogIn, Menu, PhoneCall, UserPlus } from "lucide-react";
+import { CalendarPlus, Menu, PhoneCall } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { OtcmsLogo } from "@/components/brand/OtcmsLogo";
+import { PublicBookAppointmentLink } from "@/components/brand/PublicBookAppointmentLink";
 import { publicButtonClass } from "@/components/brand/publicButtonStyles";
 import { publicContainerClass } from "@/components/brand/publicLayout";
 import { Button } from "@/components/ui/button";
@@ -17,11 +18,11 @@ import {
 } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import {
-  bookAppointmentHref,
   hotlineTelHref,
   isActiveNavItem,
   siteNavItems,
 } from "../siteNavigation";
+import { SiteAccountLinks } from "./SiteAccountLinks";
 
 // Thanh menu chính, dính trên cùng khi cuộn. Thiết kế cho desktop: logo, menu
 // ngang (mục đang mở có gạch dưới màu primary) và nút "Đặt lịch khám"; từ lg
@@ -67,16 +68,19 @@ export function SiteHeader({ hotline }: { hotline: string }) {
         </nav>
 
         <div className="ml-auto flex items-center gap-6">
-          <Link
+          <div className="hidden items-center gap-5 lg:flex">
+            <SiteAccountLinks variant="nav" />
+          </div>
+          {/* Từ lg nút đặt lịch đã nằm ở SiteTopBar. */}
+          <PublicBookAppointmentLink
             className={cn(
               publicButtonClass("primary"),
-              "max-sm:h-11 max-sm:px-4",
+              "max-sm:h-11 max-sm:px-4 lg:hidden",
             )}
-            href={bookAppointmentHref}
           >
             <CalendarPlus aria-hidden className="max-sm:hidden" />
             Đặt lịch khám
-          </Link>
+          </PublicBookAppointmentLink>
 
           <Sheet onOpenChange={setOpen} open={open}>
             <SheetTrigger
@@ -130,22 +134,13 @@ export function SiteHeader({ hotline }: { hotline: string }) {
                     {hotline}
                   </span>
                 </a>
-                <Link
-                  className={publicButtonClass("secondary")}
-                  href="/login"
-                  onClick={() => setOpen(false)}
-                >
-                  <LogIn aria-hidden />
-                  Đăng nhập
-                </Link>
-                <Link
-                  className={publicButtonClass("secondary")}
-                  href="/register"
-                  onClick={() => setOpen(false)}
-                >
-                  <UserPlus aria-hidden />
-                  Đăng ký
-                </Link>
+                {/* Từ lg tài khoản đã nằm ở hàng menu. */}
+                <div className="grid gap-3 lg:hidden">
+                  <SiteAccountLinks
+                    onNavigate={() => setOpen(false)}
+                    variant="sheet"
+                  />
+                </div>
               </div>
             </SheetContent>
           </Sheet>

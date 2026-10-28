@@ -159,11 +159,9 @@ export function UpcomingAppointmentSection({
   );
 }
 
-/** Lối tắt tới các khu đã có, lấy từ menu chung. Khoản thanh toán đã có dòng riêng ở trên. */
+/** Lối tắt tới các khu đã có, lấy từ menu chung (menu không còn nhóm Thanh toán). */
 export function PortalShortcutList() {
-  const shortcuts = PATIENT_NAV_ITEMS.filter(
-    (item) => item.group !== "Thanh toán",
-  );
+  const shortcuts = PATIENT_NAV_ITEMS;
   return (
     <nav aria-label="Lối tắt" className="space-y-3">
       <p className="text-sm font-medium text-muted-foreground">Lối tắt</p>

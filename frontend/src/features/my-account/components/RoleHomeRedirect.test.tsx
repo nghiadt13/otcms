@@ -1,67 +1,64 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  clearMockSignedInKind,
-  setMockSignedInKind,
-} from "@/lib/session/mockSignedInKind";
+import { ApiError } from "@/lib/api/apiError";
 import { formatAppMessage } from "@/lib/messages/appMessages";
-import { resetMyAccountMockStore } from "../api/myAccountApi";
-import {
-  MOCK_MY_ACCOUNT,
-  MOCK_PATIENT_ACCOUNT,
-} from "../api/myAccountMockData";
 import { RoleHomeRedirect } from "./RoleHomeRedirect";
 
-const { replace, getSession } = vi.hoisted(() => ({
+const { replace, fetchCurrentAccount } = vi.hoisted(() => ({
   replace: vi.fn(),
-  getSession: vi.fn(),
+  fetchCurrentAccount: vi.fn(),
 }));
 
-// Ranh giới ngoài: lớp phiên đăng nhập và router. Tài khoản đi qua API giả thật.
+// Ranh giới ngoài: router và lời gọi `GET /api/v1/me`. Việc chọn khu theo vai trò chạy thật.
 vi.mock("next/navigation", () => ({ useRouter: () => ({ replace }) }));
-vi.mock("@/lib/auth/authSession", () => ({ getSession }));
+vi.mock("@/lib/auth/currentAccountApi", () => ({ fetchCurrentAccount }));
 
-const signedIn = { accessToken: "token-mock" };
+const accountOf = (accountType: string) => ({
+  id: "11111111-1111-1111-1111-111111111111",
+  accountType,
+  email: "nguoi.dung@example.com",
+  displayName: "Người dùng",
+});
 
 beforeEach(() => {
   replace.mockClear();
-  getSession.mockReset();
-  resetMyAccountMockStore(MOCK_MY_ACCOUNT);
-  resetMyAccountMockStore(MOCK_PATIENT_ACCOUNT);
-  clearMockSignedInKind();
+  fetchCurrentAccount.mockReset();
 });
 
 describe("RoleHomeRedirect", () => {
   it("chưa có phiên thì về đăng nhập", async () => {
-    getSession.mockResolvedValue(null);
+    fetchCurrentAccount.mockResolvedValue(null);
     render(<RoleHomeRedirect />);
     await waitFor(() => expect(replace).toHaveBeenCalledWith("/login"));
   });
 
-  it("bệnh nhân đăng nhập thì vào cổng bệnh nhân", async () => {
-    getSession.mockResolvedValue(signedIn);
-    setMockSignedInKind("PATIENT");
+  it("backend trả 401 thì về đăng nhập", async () => {
+    fetchCurrentAccount.mockRejectedValue(new ApiError(401));
     render(<RoleHomeRedirect />);
-    await waitFor(() => expect(replace).toHaveBeenCalledWith("/portal"));
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/login"));
   });
 
-  it("quản trị viên đăng nhập thì vào khu quản trị", async () => {
-    getSession.mockResolvedValue(signedIn);
+  it.each([
+    ["PATIENT", "/portal"],
+    ["ADMIN", "/admin"],
+    ["OWNER", "/admin"],
+    ["RECEPTIONIST", "/reception"],
+  ])("tài khoản %s vào %s", async (accountType, route) => {
+    fetchCurrentAccount.mockResolvedValue(accountOf(accountType));
     render(<RoleHomeRedirect />);
-    await waitFor(() => expect(replace).toHaveBeenCalledWith("/admin"));
+    await waitFor(() => expect(replace).toHaveBeenCalledWith(route));
   });
 
-  it("lỗi đọc phiên: hiện thông báo kèm nút thử lại, thử lại thì chuyển trang", async () => {
-    getSession
-      .mockRejectedValueOnce(new Error("mất mạng"))
-      .mockResolvedValueOnce(signedIn);
+  it("lỗi đọc tài khoản: hiện thông báo kèm nút thử lại, thử lại thì chuyển trang", async () => {
+    fetchCurrentAccount
+      .mockRejectedValueOnce(new ApiError(500, { code: "MSG-04" }))
+      .mockResolvedValueOnce(accountOf("PATIENT"));
     render(<RoleHomeRedirect />);
-
     expect(await screen.findByRole("alert")).toHaveTextContent(
       formatAppMessage("MSG-04"),
     );
     await userEvent.click(screen.getByRole("button", { name: "Thử lại" }));
-    await waitFor(() => expect(replace).toHaveBeenCalledWith("/admin"));
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/portal"));
   });
 });

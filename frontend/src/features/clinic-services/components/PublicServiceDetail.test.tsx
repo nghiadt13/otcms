@@ -7,7 +7,7 @@ import { PublicServiceDetail } from "./PublicServiceDetail";
 vi.mock("@/lib/auth/authSession", () => ({ getSession: async () => null }));
 
 describe("PublicServiceDetail", () => {
-  it("chỉ dịch vụ Khám có nút Đặt lịch khám, dẫn qua đăng nhập", async () => {
+  it("chỉ dịch vụ Khám có nút Đặt lịch khám, dẫn tới màn đặt lịch", async () => {
     render(
       <PublicServiceDetail
         service={await getPublicService("svc-consultation")}
@@ -24,7 +24,7 @@ describe("PublicServiceDetail", () => {
     ).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Đặt lịch khám" })).toHaveAttribute(
       "href",
-      "/login?next=/portal/appointments/new",
+      "/portal/appointments/new",
     );
   });
 
