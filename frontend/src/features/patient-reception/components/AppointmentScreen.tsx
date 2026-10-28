@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { formatAppMessage } from "@/lib/messages/appMessages";
 import {
   availableDoctors,
+  patientBookingAt,
   addDays,
   normalizeText,
   isFutureSlot,
@@ -48,8 +49,16 @@ function BookingForm({
   const doctors = availableDoctors(s!, date, time, serviceId);
   const service = s!.services.find((v) => v.id === serviceId)!;
   const future = isFutureSlot(date, time, s!.clock);
+  const patientConflict = patientBookingAt(s!, patientId, date, time);
+  const sameDayBookings = s!.appointments.filter(
+    (a) =>
+      a.patientId === patientId &&
+      a.date === date &&
+      ["booked", "checked-in"].includes(a.status),
+  );
   const canBook =
     !!patientId &&
+    !patientConflict &&
     future &&
     doctors.length > 0 &&
     (!doctorId || doctors.some((d) => d.id === doctorId));
@@ -119,11 +128,42 @@ function BookingForm({
             disabled={pending}
           />
         </div>
+        {sameDayBookings.length > 0 && (
+          <div
+            role="status"
+            className="rounded-lg border bg-muted/30 p-3 text-sm space-y-2"
+          >
+            <p className="font-medium">
+              Bệnh nhân đã có {sameDayBookings.length} lịch trong ngày{" "}
+              {dateText(date)}:
+            </p>
+            <ul className="space-y-1">
+              {sameDayBookings.map((a) => (
+                <li key={a.id}>
+                  {a.id} · {a.time} ·{" "}
+                  {s!.doctors.find((d) => d.id === a.doctorId)?.name} ·{" "}
+                  {a.status === "checked-in" ? "Đã tiếp nhận" : "Đã đặt lịch"}
+                </li>
+              ))}
+            </ul>
+            <p>
+              Kiểm tra các lịch trên trước khi đặt thêm. Không thể đặt hai lịch
+              cùng giờ cho cùng bệnh nhân, kể cả khác bác sĩ.
+            </p>
+          </div>
+        )}
+        {patientConflict && (
+          <p role="alert" className="text-destructive">
+            Bệnh nhân đã có lịch {patientConflict.id} lúc {time}. Vui lòng chọn
+            giờ khác.
+          </p>
+        )}
         <fieldset className="space-y-3">
           <legend className="mb-2 font-medium">Giờ khám *</legend>
           <div className="grid grid-cols-4 gap-2 sm:grid-cols-6">
             {slots.map((slot) => {
               const available =
+                !patientBookingAt(s!, patientId, date, slot) &&
                 isFutureSlot(date, slot, s!.clock) &&
                 availableDoctors(s!, date, slot, serviceId).length > 0;
               return (

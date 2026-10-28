@@ -137,6 +137,107 @@ describe("patient identification and care links", () => {
 });
 
 describe("appointment scheduling", () => {
+  it("rejects two patients booking the same doctor and time without creating an extra charge", async () => {
+    const input = {
+      type: "book" as const,
+      patientId: "BN0008",
+      date: DAY,
+      time: "10:20",
+      serviceId: "kham",
+      doctorId: "bs-an",
+    };
+    const first = await command(input);
+    await expect(command({ ...input, patientId: "BN0009" })).rejects.toThrow(
+      "MSG-30",
+    );
+    const next = await loadReception();
+    expect(next.appointments).toHaveLength(first.appointments.length);
+    expect(next.charges).toHaveLength(first.charges.length);
+  });
+  it("rejects one patient booking the same time with different doctors, including checked-in appointments", async () => {
+    const input = {
+      type: "book" as const,
+      patientId: "BN0001",
+      date: DAY,
+      time: "10:20",
+      serviceId: "kham",
+      doctorId: "bs-an",
+    };
+    const first = await command(input);
+    await expect(command({ ...input, doctorId: "bs-minh" })).rejects.toThrow(
+      "MSG-29",
+    );
+    const fixture = seed();
+    fixture.appointments.find((a) => a.id === "LH001")!.status = "checked-in";
+    fixture.appointments.find((a) => a.id === "LH002")!.status = "cancelled";
+    resetReceptionMock(fixture);
+    await expect(
+      command({ ...input, time: "09:20", doctorId: "bs-minh" }),
+    ).rejects.toThrow();
+    expect(
+      first.charges.filter((c) => c.contextId === first.appointments[0].id),
+    ).toHaveLength(1);
+  });
+  it("allows different patients at the same time with different doctors and multiple non-conflicting dates", async () => {
+    const input = {
+      type: "book" as const,
+      patientId: "BN0008",
+      date: DAY,
+      time: "10:20",
+      serviceId: "kham",
+      doctorId: "bs-an",
+    };
+    await command(input);
+    await command({ ...input, patientId: "BN0009", doctorId: "bs-minh" });
+    await command({ ...input, time: "10:40" });
+    const next = await command({ ...input, date: "2026-10-26" });
+    expect(
+      next.appointments.filter(
+        (a) => a.patientId === "BN0008" && a.status === "booked",
+      ),
+    ).toHaveLength(4);
+  });
+  it("releases cancelled reservations for both doctor and patient", async () => {
+    const fixture = seed();
+    fixture.appointments.find((a) => a.id === "LH001")!.status = "cancelled";
+    resetReceptionMock(fixture);
+    const result = await command({
+      type: "book",
+      patientId: "BN0001",
+      date: DAY,
+      time: "09:20",
+      serviceId: "kham",
+      doctorId: "bs-an",
+    });
+    expect(result.appointments[0]).toMatchObject({
+      patientId: "BN0001",
+      time: "09:20",
+      status: "booked",
+    });
+  });
+  it("accepts only one concurrent reservation for two different patients at the same doctor and time", async () => {
+    const initial = await loadReception();
+    const input = {
+      type: "book" as const,
+      patientId: "BN0008",
+      date: DAY,
+      time: "10:20",
+      serviceId: "kham",
+      doctorId: "bs-an",
+    };
+    const outcomes = await Promise.allSettled([
+      executeReception(input, initial.version),
+      executeReception({ ...input, patientId: "BN0009" }, initial.version),
+    ]);
+    expect(outcomes.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+    const next = await loadReception();
+    expect(next.appointments).toHaveLength(initial.appointments.length + 1);
+    expect(next.charges).toHaveLength(initial.charges.length + 1);
+    await expect(command({ ...input, patientId: "BN0009" })).rejects.toThrow(
+      "MSG-30",
+    );
+  });
+
   it("assigns an optional doctor and fixes the price at booking", async () => {
     const result = await command({
       type: "book",

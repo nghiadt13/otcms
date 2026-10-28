@@ -36,6 +36,37 @@ async function openBooking() {
 }
 
 describe("booking with a live clinic clock", () => {
+  it("shows existing patient bookings and blocks a selected time when changing to a conflicting patient", async () => {
+    now = "2026-10-27T09:10:00+07:00";
+    const state = createReceptionSeed("2026-10-27");
+    state.appointments.find((a) => a.id === "LH002")!.status = "cancelled";
+    resetReceptionMock(state, () => new Date(now));
+    const dialog = await openBooking();
+    fireEvent.change(within(dialog).getByLabelText("Bệnh nhân *"), {
+      target: { value: "BN0008" },
+    });
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "09:20 còn chỗ" }),
+    );
+    fireEvent.change(within(dialog).getByLabelText("Bệnh nhân *"), {
+      target: { value: "BN0001" },
+    });
+    expect(within(dialog).getByRole("alert")).toHaveTextContent(
+      "Bệnh nhân đã có lịch LH001 lúc 09:20",
+    );
+    expect(
+      within(dialog).getByRole("button", { name: "09:20 không còn chỗ" }),
+    ).toBeDisabled();
+    expect(
+      within(dialog).getByRole("button", { name: "Xác nhận đặt lịch" }),
+    ).toBeDisabled();
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "09:40 còn chỗ" }),
+    );
+    expect(
+      within(dialog).getByRole("button", { name: "Xác nhận đặt lịch" }),
+    ).toBeEnabled();
+  });
   it("disables earlier slots today and all slots on past dates, but allows a future date", async () => {
     const dialog = await openBooking();
     const date = within(dialog).getByLabelText("Ngày khám *");

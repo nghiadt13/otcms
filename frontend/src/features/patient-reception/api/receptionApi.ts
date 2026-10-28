@@ -6,6 +6,7 @@ import {
   clinicTimestamp,
   isFutureSlot,
   availableDoctors,
+  patientBookingAt,
   latestRoundReady,
   normalizePhone,
   normalizeText,
@@ -392,13 +393,7 @@ export async function executeReception(
         : doctors[0];
       requireThat(doctor, "MSG-30");
       requireThat(
-        !s.appointments.some(
-          (a) =>
-            a.patientId === command.patientId &&
-            a.date === command.date &&
-            a.time === command.time &&
-            ["booked", "checked-in"].includes(a.status),
-        ),
+        !patientBookingAt(s, command.patientId, command.date, command.time),
         "MSG-29",
       );
       const appointment = {

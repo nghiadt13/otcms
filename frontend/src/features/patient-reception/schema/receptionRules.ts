@@ -102,6 +102,20 @@ export const queueSort = (a: QueueEntry, b: QueueEntry) =>
 export function withinReturnWindow(first: string, today: string) {
   return today >= first && today <= addDays(first, 6);
 }
+export function patientBookingAt(
+  state: ReceptionState,
+  patientId: string,
+  date: string,
+  time: string,
+) {
+  return state.appointments.find(
+    (a) =>
+      a.patientId === patientId &&
+      a.date === date &&
+      a.time === time &&
+      ["booked", "checked-in"].includes(a.status),
+  );
+}
 export function availableDoctors(
   state: ReceptionState,
   date: string,
