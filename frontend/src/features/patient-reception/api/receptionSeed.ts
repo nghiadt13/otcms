@@ -401,6 +401,36 @@ export function createReceptionSeed(fixtureDay?: string): ReceptionState {
           roomId:
             state.doctors.find((d) => d.id === staffId)?.roomId ?? "reception",
         });
+  // Tomorrow at 11:00: Lan is absent; both eligible colleagues already have bookings.
+  state.appointments.push(
+    {
+      id: "LH006",
+      patientId: "BN0003",
+      doctorId: "bs-lan",
+      serviceId: "kham",
+      date: addDays(day, 1),
+      time: "11:00",
+      status: "booked",
+    },
+    {
+      id: "LH007",
+      patientId: "BN0001",
+      doctorId: "bs-an",
+      serviceId: "kham",
+      date: addDays(day, 1),
+      time: "11:00",
+      status: "booked",
+    },
+    {
+      id: "LH008",
+      patientId: "BN0002",
+      doctorId: "bs-minh",
+      serviceId: "kham",
+      date: addDays(day, 1),
+      time: "11:00",
+      status: "booked",
+    },
+  );
   for (const a of state.appointments)
     state.charges.push({
       id: `phi-${a.id}`,
