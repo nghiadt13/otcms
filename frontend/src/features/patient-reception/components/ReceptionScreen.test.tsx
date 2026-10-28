@@ -261,11 +261,11 @@ describe("receptionist screens with real mock adapter", () => {
       within(dialog).getByLabelText("Bác sĩ thay thế cùng giờ"),
     ).toBeInTheDocument();
     expect(
-      within(dialog).getByRole("link", { name: "Tiếp nhận" }),
-    ).toHaveAttribute(
-      "href",
-      "/reception?patientId=BN0003&appointmentId=LH003",
-    );
+      within(dialog).queryByRole("link", { name: "Tiếp nhận" }),
+    ).not.toBeInTheDocument();
+    expect(
+      within(dialog).getByRole("button", { name: "Xác nhận đổi bác sĩ" }),
+    ).toBeDisabled();
     expect(
       within(dialog).queryByRole("button", { name: /hủy lịch/i }),
     ).not.toBeInTheDocument();

@@ -287,6 +287,7 @@ function AppointmentDetails({
   const p = s!.patients.find((x) => x.id === a.patientId)!;
   const d = s!.doctors.find((x) => x.id === a.doctorId)!;
   const [doctorId, setDoctorId] = useState("");
+  const [patientAgreed, setPatientAgreed] = useState(false);
   const alternatives = availableDoctors(
     s!,
     a.date,
@@ -309,7 +310,13 @@ function AppointmentDetails({
         </InfoRow>
         <InfoRow label="Bác sĩ">
           {d.name}
-          {d.absent && <span className="block text-destructive">Vắng ca</span>}
+          {d.absent && (
+            <span className="block text-destructive">
+              {a.unavailabilityDiscussedAt
+                ? "Bác sĩ vắng ca · đã trao đổi với bệnh nhân"
+                : "Vắng ca"}
+            </span>
+          )}
         </InfoRow>
         <InfoRow label="Trạng thái">
           <Status value={a.status} />
@@ -327,37 +334,61 @@ function AppointmentDetails({
             className="space-y-4"
             onSubmit={async (e) => {
               e.preventDefault();
-              if (await run({ type: "reassign", id: a.id, doctorId }))
+              if (!patientAgreed) return;
+              if (
+                await run({
+                  type: "reassign",
+                  id: a.id,
+                  doctorId,
+                  patientAgreed,
+                })
+              )
                 onClose();
             }}
           >
             <SelectField
               label="Bác sĩ thay thế cùng giờ"
               value={doctorId}
-              onChange={setDoctorId}
+              onChange={(value) => {
+                setDoctorId(value);
+                setPatientAgreed(false);
+              }}
               disabled={pending}
               options={[
                 { value: "", label: "Chọn bác sĩ" },
                 ...alternatives.map((v) => ({ value: v.id, label: v.name })),
               ]}
             />
+            <label className="flex items-start gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={patientAgreed}
+                disabled={pending}
+                onChange={(e) => setPatientAgreed(e.target.checked)}
+              />
+              Đã trao đổi và bệnh nhân đồng ý khám với bác sĩ thay thế, giữ
+              nguyên ngày và giờ hẹn.
+            </label>
             <FormActions
               onClose={onClose}
               label="Xác nhận đổi bác sĩ"
-              disabled={!doctorId}
+              disabled={!doctorId || !patientAgreed}
             />
           </form>
         ) : (
           <div className="space-y-3">
             <p>
-              Không có bác sĩ thay thế cùng giờ. Lịch vẫn giữ trạng thái đã đặt;
-              bệnh nhân quyết định việc hủy.
+              Không có bác sĩ phù hợp còn chỗ cùng giờ. Cần liên hệ bệnh nhân để
+              thống nhất phương án xử lý; chưa thể tiếp nhận theo lịch này.
+              Không tự đổi giờ hoặc hủy lịch.
             </p>
             <Button
-              disabled={pending || !!a.notice}
+              disabled={pending || !!a.unavailabilityDiscussedAt}
               onClick={() => void run({ type: "notify-unavailable", id: a.id })}
             >
-              Thông báo bác sĩ vắng
+              {a.unavailabilityDiscussedAt
+                ? "Đã trao đổi · chờ xử lý lịch"
+                : "Ghi nhận đã thông báo bệnh nhân"}
             </Button>
           </div>
         ))}
@@ -367,13 +398,15 @@ function AppointmentDetails({
         >
           Xem khoản thu
         </RouteLink>
-        {a.status === "booked" && a.date === s!.clock.slice(0, 10) && (
-          <RouteLink
-            href={`/reception?patientId=${p.id}&appointmentId=${a.id}`}
-          >
-            Tiếp nhận
-          </RouteLink>
-        )}
+        {a.status === "booked" &&
+          !d.absent &&
+          a.date === s!.clock.slice(0, 10) && (
+            <RouteLink
+              href={`/reception?patientId=${p.id}&appointmentId=${a.id}`}
+            >
+              Tiếp nhận
+            </RouteLink>
+          )}
       </div>
     </FormModal>
   );
@@ -478,7 +511,9 @@ export function AppointmentScreen() {
                 {d.name}
                 {d.absent && a.status === "booked" && (
                   <p className="text-xs text-destructive">
-                    Cần sắp xếp lại bác sĩ
+                    {a.unavailabilityDiscussedAt
+                      ? "Bác sĩ vắng ca · đã trao đổi với bệnh nhân"
+                      : "Bác sĩ vắng ca · cần bố trí thay thế"}
                   </p>
                 )}
               </div>,

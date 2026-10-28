@@ -66,6 +66,7 @@ export type Appointment = {
   time: string;
   status: "booked" | "checked-in" | "cancelled" | "no-show";
   notice?: string;
+  unavailabilityDiscussedAt?: string;
 };
 export type VisitStatus =
   "waiting" | "examining" | "awaiting" | "completed" | "incomplete" | "left";
@@ -224,7 +225,7 @@ export type ReceptionCommand =
       time: string;
       doctorId: string;
     }
-  | { type: "reassign"; id: string; doctorId: string }
+  | { type: "reassign"; id: string; doctorId: string; patientAgreed?: boolean }
   | { type: "notify-unavailable"; id: string }
   | { type: "prepare-walk-in"; patientId: string; serviceId: string }
   | {

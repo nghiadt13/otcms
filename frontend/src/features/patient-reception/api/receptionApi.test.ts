@@ -237,7 +237,6 @@ describe("appointment scheduling", () => {
       "MSG-30",
     );
   });
-
   it("assigns an optional doctor and fixes the price at booking", async () => {
     const result = await command({
       type: "book",
@@ -276,10 +275,16 @@ describe("appointment scheduling", () => {
   });
   it("moves only absent doctor's appointment and never changes its time", async () => {
     await expect(
-      command({ type: "reassign", id: "LH001", doctorId: "bs-minh" }),
+      command({
+        type: "reassign",
+        patientAgreed: true,
+        id: "LH001",
+        doctorId: "bs-minh",
+      }),
     ).rejects.toThrow("MSG-32");
     const result = await command({
       type: "reassign",
+      patientAgreed: true,
       id: "LH003",
       doctorId: "bs-minh",
     });
@@ -289,6 +294,34 @@ describe("appointment scheduling", () => {
       time: "10:00",
       date: DAY,
     });
+  });
+  it("requires patient agreement before replacing a doctor", async () => {
+    await expect(
+      command({ type: "reassign", id: "LH003", doctorId: "bs-minh" }),
+    ).rejects.toThrow("MSG-32");
+    const state = await loadReception();
+    expect(state.appointments.find((a) => a.id === "LH003")?.doctorId).not.toBe(
+      "bs-minh",
+    );
+  });
+  it("records the LH006 no-replacement fixture without changing its reservation", async () => {
+    const state = await loadReception();
+    const appointment = state.appointments.find((a) => a.id === "LH006")!;
+    expect(
+      availableDoctors(
+        state,
+        appointment.date,
+        appointment.time,
+        appointment.serviceId,
+        appointment.id,
+      ),
+    ).toHaveLength(0);
+    const next = await command({ type: "notify-unavailable", id: "LH006" });
+    expect(next.appointments.find((a) => a.id === "LH006")).toMatchObject({
+      ...appointment,
+      notice: expect.stringContaining("Đã ghi nhận"),
+    });
+    expect(next.audit.length).toBeGreaterThan(state.audit.length);
   });
   it("keeps appointment booked when no replacement exists", async () => {
     const state = seed();

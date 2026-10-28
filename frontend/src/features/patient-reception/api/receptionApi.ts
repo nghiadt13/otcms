@@ -418,6 +418,7 @@ export async function executeReception(
       break;
     }
     case "reassign": {
+      requireThat(command.patientAgreed === true, "MSG-32");
       const a = find(s.appointments, command.id, "MSG-29");
       requireThat(a.status === "booked", "MSG-32");
       requireThat(find(s.doctors, a.doctorId).absent, "MSG-32");
@@ -432,11 +433,12 @@ export async function executeReception(
       history(
         s,
         "Đổi bác sĩ lịch hẹn",
-        "Bác sĩ vắng ca",
+        "Bác sĩ vắng ca; lễ tân xác nhận bệnh nhân đồng ý thay thế cùng giờ",
         a.doctorId,
         doctor.id,
       );
       a.doctorId = doctor.id;
+      a.notice = undefined;
       a.notice = "Đã tạo thông báo đổi bác sĩ cho bệnh nhân (mô phỏng).";
       break;
     }
@@ -450,8 +452,17 @@ export async function executeReception(
         !availableDoctors(s, a.date, a.time, a.serviceId, a.id).length,
         "MSG-42",
       );
+      requireThat(!a.unavailabilityDiscussedAt, "MSG-32");
+      history(
+        s,
+        "Thông báo bác sĩ vắng",
+        "Không có bác sĩ thay thế cùng giờ; đã thông báo bệnh nhân, chờ xử lý",
+        a.id,
+        a.id,
+      );
+      a.unavailabilityDiscussedAt = s.clock;
       a.notice =
-        "Đã ghi nhận thông báo bác sĩ vắng; bệnh nhân có thể tự hủy lịch. Giờ hẹn giữ nguyên (mô phỏng).";
+        "Đã ghi nhận lễ tân thông báo bệnh nhân: bác sĩ vắng, chưa có người thay thế cùng giờ. Chờ thống nhất phương án; chưa đổi giờ hoặc hủy lịch. Đây là ghi nhận mô phỏng, không gửi tin nhắn thực tế.";
       break;
     }
     case "prepare-walk-in": {
