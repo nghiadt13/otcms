@@ -49,6 +49,23 @@ async function toApiError(response: Response): Promise<ApiError> {
   });
 }
 
+/** Gọi endpoint công khai không cần session; giữ cùng base URL và lỗi API chuẩn. */
+export async function publicApiRequest<T>(
+  path: `/api/v1/${string}`,
+  init: RequestInit = {},
+): Promise<T> {
+  const headers = new Headers(init.headers);
+  if (!headers.has("Accept")) headers.set("Accept", "application/json");
+  const response = await fetch(`${apiBaseUrl}${path}`, {
+    ...init,
+    headers,
+    cache: "no-store",
+  });
+  if (!response.ok) throw await toApiError(response);
+  if (response.status === 204) return undefined as T;
+  return response.json() as Promise<T>;
+}
+
 /** Gọi API JSON. `init.signal` huỷ request; 204 trả `undefined`; lỗi ném `ApiError`. */
 export async function apiRequest<T>(
   path: `/api/v1/${string}`,

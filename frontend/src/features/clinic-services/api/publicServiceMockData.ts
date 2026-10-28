@@ -1,20 +1,26 @@
-import type {
-  PublicBookingDetails,
-  PublicService,
-} from "../types/clinicService";
+import type { ServiceCategory } from "@/lib/domain/clinicCategories";
 
 // Dữ liệu giả danh mục công khai, theo thứ tự hiển thị: 12 dịch vụ đang cung cấp (4 Khám,
 // 4 Chẩn đoán hình ảnh, 4 Xét nghiệm) và 1 dịch vụ đã ngừng (không hiện, trả 404).
 // Giá và mô tả là số mẫu, không phải bảng giá thật.
 
-export type PublicServiceRecord = PublicService & {
+export type PublicServiceRecord = {
+  id: string;
+  name: string;
+  type: ServiceCategory;
+  price: number;
+  description: string | null;
+  bookingDetails: {
+    slotMinutes: number | null;
+    patientNote: string | null;
+  } | null;
   status: "ACTIVE" | "DISCONTINUED";
 };
 
 const exam = (
   slotMinutes: number,
   patientNote: string | null = null,
-): PublicBookingDetails => ({
+): NonNullable<PublicServiceRecord["bookingDetails"]> => ({
   slotMinutes,
   patientNote,
 });

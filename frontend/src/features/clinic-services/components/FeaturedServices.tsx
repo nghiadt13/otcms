@@ -2,8 +2,8 @@ import { ArrowRight } from "lucide-react";
 import Link from "next/link";
 import { publicButtonClass } from "@/components/brand/publicButtonStyles";
 import { publicContainerClass } from "@/components/brand/publicLayout";
-import { formatCurrencyVnd } from "@/lib/format/formatCurrencyVnd";
 import { cn } from "@/lib/utils";
+import { formatClinicServicePrice } from "../formatClinicServicePrice";
 import type { PublicService } from "../types/clinicService";
 
 // Khối "Dịch vụ chính" trên trang chủ. Bố cục cột biên tập: cột trái là tiêu đề,
@@ -49,7 +49,7 @@ export function FeaturedServices({ services }: { services: PublicService[] }) {
                 {service.name}
               </h3>
               <p className="mt-1 text-base font-semibold text-primary tabular-nums">
-                {formatCurrencyVnd(service.price)}
+                {formatClinicServicePrice(service.price)}
               </p>
               {service.description ? (
                 <p className="mt-3 text-base leading-7 text-muted-foreground">

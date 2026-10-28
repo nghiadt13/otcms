@@ -1,64 +1,51 @@
-import { clone, mockDelay, mockFail } from "@/lib/api/mockServer";
-import type { PublicService, PublicServiceQuery } from "../types/clinicService";
+import { ApiError } from "@/lib/api/apiError";
+import { publicApiRequest } from "@/lib/api/client";
 import { SERVICE_SEARCH_MAX_LENGTH } from "../schema/serviceListQuery";
-import {
-  PUBLIC_SERVICE_SEED,
-  type PublicServiceRecord,
-} from "./publicServiceMockData";
+import type { PublicService, PublicServiceQuery } from "../types/clinicService";
 
-// LỚP API GIẢ cho /api/v1/public/services (không cần đăng nhập). Chữ ký khớp REST contract;
-// khi có BE thật, giữ các hàm này và thay thân bằng lời gọi HTTP công khai. Chỉ dịch vụ
-// ACTIVE được trả ra (BR-60); dịch vụ đã ngừng coi như không tồn tại (404 MSG-50).
+type PublicServiceCatalogResponse = { items: PublicService[] };
 
-const LATENCY_MS = process.env.NODE_ENV === "test" ? 0 : 200;
-
-/** So khớp không phân biệt hoa thường và dấu: "xet nghiem" khớp "Xét nghiệm". */
+/** So khớp tên không phân biệt hoa thường và dấu tiếng Việt. */
 const fold = (text: string) =>
-  text.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/đ/g, "d");
+  text.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/đ/g, "d");
 
-function toPublicService(record: PublicServiceRecord): PublicService {
-  return {
-    id: record.id,
-    name: record.name,
-    type: record.type,
-    price: record.price,
-    description: record.description,
-    bookingDetails: record.bookingDetails,
-  };
-}
-
-/** GET /api/v1/public/services?q=&type= — thứ tự hiển thị theo kho dữ liệu. */
+/** GET /api/v1/clinic-services — danh mục giá thật, không yêu cầu đăng nhập. */
 export async function listPublicServices(
   query: PublicServiceQuery = {},
   signal?: AbortSignal,
-): Promise<{ items: PublicService[] }> {
-  await mockDelay(LATENCY_MS, signal);
-  if ((query.q?.length ?? 0) > SERVICE_SEARCH_MAX_LENGTH)
-    mockFail(400, "MSG-54", undefined, [{ field: "q", code: "MSG-54" }]);
-  const needle = fold(query.q?.trim() ?? "");
-  const items = PUBLIC_SERVICE_SEED.filter(
-    (service) => service.status === "ACTIVE",
-  )
-    .filter((service) => !query.type || service.type === query.type)
-    .filter((service) => !needle || fold(service.name).includes(needle))
-    .map(toPublicService);
-  return clone({ items });
+): Promise<PublicServiceCatalogResponse> {
+  const q = query.q?.trim() ?? "";
+  if (q.length > SERVICE_SEARCH_MAX_LENGTH) {
+    throw new ApiError(400, {
+      code: "MSG-54",
+      fieldErrors: [{ field: "q", code: "MSG-54" }],
+    });
+  }
+
+  const catalog = await publicApiRequest<PublicServiceCatalogResponse>(
+    "/api/v1/clinic-services",
+    { signal },
+  );
+  if (!q) return catalog;
+
+  const needle = fold(q);
+  return {
+    items: catalog.items.filter((service) => fold(service.name).includes(needle)),
+  };
 }
 
-/** GET /api/v1/public/services/{id} — dịch vụ không còn đang cung cấp: 404 MSG-50. */
+/** Endpoint hiện trả danh sách; chi tiết được chọn từ cùng projection công khai. */
 export async function getPublicService(
   id: string,
   signal?: AbortSignal,
 ): Promise<PublicService> {
-  await mockDelay(LATENCY_MS, signal);
-  const found = PUBLIC_SERVICE_SEED.find(
-    (service) => service.status === "ACTIVE" && service.id === id,
-  );
-  if (!found) mockFail(404, "MSG-50");
-  return clone(toPublicService(found));
+  const { items } = await listPublicServices({}, signal);
+  const service = items.find((item) => item.id === id);
+  if (!service) throw new ApiError(404, { code: "MSG-50" });
+  return service;
 }
 
-/** Dịch vụ nổi bật trên trang chủ: `limit` mục đầu của danh mục công khai. */
+/** Dịch vụ nổi bật: lấy `limit` dịch vụ đầu từ danh mục backend. */
 export async function listFeaturedServices(
   limit = 6,
 ): Promise<PublicService[]> {
