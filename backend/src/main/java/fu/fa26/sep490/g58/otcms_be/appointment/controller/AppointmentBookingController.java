@@ -101,7 +101,7 @@ public class AppointmentBookingController {
         if (body == null || account == null || idempotencyKey == null || idempotencyKey.isBlank()
                 || idempotencyKey.trim().length() > 128) throw invalid();
         var result = checkInAppointment.checkIn(id, new CheckInAppointmentCommand(account.accountId(),
-                idempotencyKey.trim(), CorrelationIdFilter.current(request)));
+                body.getVerifiedPatientProfileId(), idempotencyKey.trim(), CorrelationIdFilter.current(request)));
         return ResponseEntity.ok().header(CorrelationIdFilter.HEADER, CorrelationIdFilter.current(request))
                 .body(AppointmentMapper.toResponse(result));
     }

@@ -43,14 +43,14 @@ class CheckInAppointmentServiceImplT027Test {
         var properties = new AppointmentBookingProperties(30, 120, 1440, 30, 15, 15,
                 ZoneId.of("Asia/Ho_Chi_Minh"), new AppointmentBookingProperties.PublicRateLimit(60, 60));
         handler = new CheckInAppointmentTransaction(guard, appointments, reception, properties);
-        command = new CheckInAppointmentCommand(actorId, "t027-key", "trace-id");
+        command = new CheckInAppointmentCommand(actorId, patientId, "t027-key", "trace-id");
         current = new CheckInAppointment(appointmentId, patientId, doctorId,
                 "CONFIRMED", null, null, now.plusSeconds(1800));
         when(appointments.findReplay(actorId, appointmentId, "t027-key")).thenReturn(Optional.empty());
         when(appointments.findForUpdate(appointmentId)).thenReturn(Optional.of(current));
         when(reception.checkInAtomically(any())).thenReturn(new ReceptionWorkflowService.CheckInResult(
                 appointmentId, visitId, patientId, now, now, false));
-        when(appointments.completeCheckIn(eq(current), eq(actorId), eq("t027-key"), anyString(), eq(visitId),
+        when(appointments.completeCheckIn(eq(current), eq(actorId), eq(patientId), eq("t027-key"), anyString(), eq(visitId),
                 eq(now), eq("trace-id"))).thenReturn(new CheckedInAppointment(appointmentId, visitId, now));
     }
 
@@ -67,7 +67,7 @@ class CheckInAppointmentServiceImplT027Test {
         verify(reception).checkInAtomically(request.capture());
         assertEquals(now, request.getValue().allowedWindowStartInclusive());
         assertEquals(now.plusSeconds(2700), request.getValue().allowedWindowEndInclusive());
-        verify(appointments).completeCheckIn(eq(current), eq(actorId), eq("t027-key"), anyString(),
+        verify(appointments).completeCheckIn(eq(current), eq(actorId), eq(patientId), eq("t027-key"), anyString(),
                 eq(visitId), eq(now), eq("trace-id"));
     }
 
@@ -82,7 +82,7 @@ class CheckInAppointmentServiceImplT027Test {
         verify(guard).acquire();
         verify(appointments, never()).findForUpdate(any());
         verifyNoInteractions(reception);
-        verify(appointments, never()).completeCheckIn(any(), any(), any(), any(), any(), any(), any());
+        verify(appointments, never()).completeCheckIn(any(), any(), any(), any(), any(), any(), any(), any());
     }
 
     @Test
@@ -101,7 +101,7 @@ class CheckInAppointmentServiceImplT027Test {
         assertEquals("CHECK_IN_TIME_NOT_ALLOWED", assertThrows(AppointmentBookingException.class,
                 () -> handler.checkIn(appointmentId, command)).code());
         verify(reception).checkInAtomically(any());
-        verify(appointments, never()).completeCheckIn(any(), any(), any(), any(), any(), any(), any());
+        verify(appointments, never()).completeCheckIn(any(), any(), any(), any(), any(), any(), any(), any());
     }
 
     @Test
@@ -114,13 +114,33 @@ class CheckInAppointmentServiceImplT027Test {
                 () -> handler.checkIn(appointmentId, command)).code());
         verify(reception).hasConsistentCheckInEvidence(appointmentId, patientId, visitId);
         verify(reception, never()).checkInAtomically(any());
-        verify(appointments, never()).completeCheckIn(any(), any(), any(), any(), any(), any(), any());
+        verify(appointments, never()).completeCheckIn(any(), any(), any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void timelyRecordedArrivalAllowsReceptionistProcessingAfterGrace() {
+        Instant processedAt = now.plusSeconds(2760);
+        when(reception.checkInAtomically(any())).thenReturn(new ReceptionWorkflowService.CheckInResult(
+                appointmentId, visitId, patientId, now.plusSeconds(2700), processedAt, false));
+        when(appointments.completeCheckIn(eq(current), eq(actorId), eq(patientId), eq("t027-key"), anyString(),
+                eq(visitId), eq(processedAt), eq("trace-id")))
+                .thenReturn(new CheckedInAppointment(appointmentId, visitId, processedAt));
+
+        assertEquals(new CheckedInAppointment(appointmentId, visitId, processedAt), handler.checkIn(appointmentId, command));
+    }
+
+    @Test
+    void rejectsAttestationForAnotherPatientBeforeCallingVisit() {
+        command = new CheckInAppointmentCommand(actorId, UUID.randomUUID(), "t027-key", "trace-id");
+        assertEquals("PATIENT_IDENTITY_MISMATCH", assertThrows(AppointmentBookingException.class,
+                () -> handler.checkIn(appointmentId, command)).code());
+        verifyNoInteractions(reception);
     }
 
     private String fingerprint() {
         try {
             return java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256")
-                    .digest("appointment-check-in-v1:{}".getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+                    .digest(("appointment-check-in-v2:" + patientId).getBytes(java.nio.charset.StandardCharsets.UTF_8)));
         } catch (java.security.NoSuchAlgorithmException exception) {
             throw new AssertionError(exception);
         }

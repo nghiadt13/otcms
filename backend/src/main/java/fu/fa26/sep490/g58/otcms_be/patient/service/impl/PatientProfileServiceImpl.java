@@ -3,8 +3,10 @@ package fu.fa26.sep490.g58.otcms_be.patient.service.impl;
 import fu.fa26.sep490.g58.otcms_be.common.service.CoordinationGuardService;
 import fu.fa26.sep490.g58.otcms_be.auth.service.PatientProfileDirectory;
 import fu.fa26.sep490.g58.otcms_be.auth.service.PatientProfileDirectory.ProfileRecord;
+import fu.fa26.sep490.g58.otcms_be.auth.service.ReceptionistAccountAccessService;
 import fu.fa26.sep490.g58.otcms_be.patient.exception.PatientProfileException;
 import fu.fa26.sep490.g58.otcms_be.patient.model.PatientProfile;
+import fu.fa26.sep490.g58.otcms_be.patient.model.ReceptionVerificationProfile;
 import fu.fa26.sep490.g58.otcms_be.patient.service.PatientProfileService;
 import java.text.Normalizer;
 import java.time.LocalDate;
@@ -25,10 +27,13 @@ public class PatientProfileServiceImpl implements PatientProfileService {
     private static final Set<String> PHONE_OWNERS = Set.of("PATIENT", "GUARDIAN");
     private final PatientProfileDirectory profiles;
     private final CoordinationGuardService coordinationGuard;
+    private final ReceptionistAccountAccessService receptionists;
 
-    public PatientProfileServiceImpl(PatientProfileDirectory profiles, CoordinationGuardService coordinationGuard) {
+    public PatientProfileServiceImpl(PatientProfileDirectory profiles, CoordinationGuardService coordinationGuard,
+            ReceptionistAccountAccessService receptionists) {
         this.profiles = profiles;
         this.coordinationGuard = coordinationGuard;
+        this.receptionists = receptionists;
     }
 
     @Transactional(readOnly = true)
@@ -59,6 +64,18 @@ public class PatientProfileServiceImpl implements PatientProfileService {
         ProfileRecord record = new ProfileRecord(profile.id(), null, profile.fullName(), profile.phoneCanonical(),
                 owner, profile.dateOfBirth(), profile.gender());
         return toModel(profiles.create(record, owner));
+    }
+
+    /** @ears REQ-RECEPTION-002 AC25 AC31 */
+    @Override
+    @Transactional(readOnly = true)
+    public ReceptionVerificationProfile getReceptionVerificationProfile(UUID actorAccountId, UUID patientProfileId) {
+        if (!receptionists.isActiveReceptionistAccount(actorAccountId)) {
+            throw new PatientProfileException("FORBIDDEN");
+        }
+        ProfileRecord profile = profiles.findProfile(patientProfileId)
+                .orElseThrow(() -> new PatientProfileException("PATIENT_PROFILE_NOT_FOUND"));
+        return new ReceptionVerificationProfile(profile.id(), profile.fullName(), profile.dateOfBirth());
     }
 
     private PatientProfile toModel(ProfileRecord profile) {

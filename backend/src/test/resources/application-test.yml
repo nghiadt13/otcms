@@ -6,8 +6,8 @@ spring:
     # Test profile is pinned to a dedicated loopback database. Never reuse
     # SUPABASE_DB_URL or credentials from the developer .env file.
     url: jdbc:postgresql://127.0.0.1:5432/otcms_test_db
-    username: postgres
-    password: admin
+    username: ${OTCMS_TEST_DB_USERNAME:postgres}
+    password: ${OTCMS_TEST_DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
     hikari:
       connection-timeout: 5000

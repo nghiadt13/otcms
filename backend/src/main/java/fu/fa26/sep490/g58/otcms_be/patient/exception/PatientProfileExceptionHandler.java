@@ -12,10 +12,11 @@ public class PatientProfileExceptionHandler {
     @ExceptionHandler(PatientProfileException.class)
     public ResponseEntity<ErrorResponse> handle(PatientProfileException exception) {
         boolean forbidden = "FORBIDDEN".equals(exception.getMessage());
-        HttpStatus status = forbidden ? HttpStatus.FORBIDDEN : HttpStatus.BAD_REQUEST;
-        String code = forbidden ? "FORBIDDEN" : "VALIDATION_FAILED";
+        boolean missing = "PATIENT_PROFILE_NOT_FOUND".equals(exception.getMessage());
+        HttpStatus status = forbidden ? HttpStatus.FORBIDDEN : missing ? HttpStatus.NOT_FOUND : HttpStatus.BAD_REQUEST;
+        String code = forbidden ? "FORBIDDEN" : missing ? "PATIENT_PROFILE_NOT_FOUND" : "VALIDATION_FAILED";
         return ResponseEntity.status(status).body(ErrorResponse.of(code,
-                forbidden ? "Patient profile access denied" : "Patient profile request is invalid",
+                forbidden ? "Patient profile access denied" : missing ? "Patient profile not found" : "Patient profile request is invalid",
                 UUID.randomUUID().toString()));
     }
 }
