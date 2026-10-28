@@ -1,7 +1,7 @@
 # FEAT-002 T026 Trace — A1
 
-Date: 2026-10-14 (Asia/Bangkok)  
-Task: Reassign a confirmed appointment to another Doctor, preserving its slot  
+Date: 2026-10-14 (Asia/Bangkok)\
+Task: Reassign a confirmed appointment to another Doctor, preserving its slot\
 Status: COMPLETE — implementation, tests, review and Owner Long approval recorded.
 
 ## Requirement-to-code trace

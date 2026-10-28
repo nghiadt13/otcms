@@ -55,11 +55,14 @@ class AppointmentRequestValidationTest {
     }
 
     @Test
-    void typedRequestSettersRejectNonTextualJsonAndEmptyCheckInBodyRemainsValid() throws Exception {
+    void typedRequestSettersRejectNonTextualJsonAndCheckInRequiresAttestedProfile() throws Exception {
         assertThrows(RuntimeException.class, () -> json.readValue("{\"targetStatus\":4}",
                 UpdateAppointmentStatusRequest.class));
         CheckInAppointmentRequest empty = json.readValue("{}", CheckInAppointmentRequest.class);
-        assertTrue(validator.validate(empty).isEmpty());
+        assertFalse(validator.validate(empty).isEmpty());
+        CheckInAppointmentRequest attested = json.readValue(
+                "{\"verifiedPatientProfileId\":\"11111111-1111-1111-1111-111111111111\"}", CheckInAppointmentRequest.class);
+        assertTrue(validator.validate(attested).isEmpty());
         CheckInAppointmentRequest extra = json.readValue("{\"note\":\"x\"}", CheckInAppointmentRequest.class);
         Set<?> violations = validator.validate(extra);
         assertFalse(violations.isEmpty());

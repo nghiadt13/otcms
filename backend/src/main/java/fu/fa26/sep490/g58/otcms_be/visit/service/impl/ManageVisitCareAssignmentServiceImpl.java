@@ -17,6 +17,8 @@ import fu.fa26.sep490.g58.otcms_be.visit.repository.VisitCareAssignmentAuditRepo
 import fu.fa26.sep490.g58.otcms_be.visit.repository.VisitCareAssignmentRepository;
 import fu.fa26.sep490.g58.otcms_be.visit.service.CompleteWalkInCareStepCommand;
 import fu.fa26.sep490.g58.otcms_be.visit.service.ExtendVisitCareAssignmentCommand;
+import fu.fa26.sep490.g58.otcms_be.visit.service.ExitWalkInReceptionQueueCommand;
+import fu.fa26.sep490.g58.otcms_be.visit.service.ExitWalkInReceptionQueueService;
 import fu.fa26.sep490.g58.otcms_be.visit.service.ManageVisitCareAssignmentService;
 import fu.fa26.sep490.g58.otcms_be.visit.service.RecordVisitCapacityConflictCommand;
 import fu.fa26.sep490.g58.otcms_be.visit.service.StartWalkInCareStepCommand;
@@ -39,12 +41,13 @@ public class ManageVisitCareAssignmentServiceImpl implements ManageVisitCareAssi
     private final VisitCareAssignmentAuditRepository audits;
     private final VisitRoomCapacityService rooms;
     private final VisitCareProperties properties;
+    private final ExitWalkInReceptionQueueService queueExit;
     private final Clock clock;
 
     public ManageVisitCareAssignmentServiceImpl(CoordinationGuardService guard, DoctorProfileIdentityQueryService doctors,
             CheckVisitReservationCapacityService appointments, VisitCareAssignmentRepository assignments,
             VisitCareAssignmentAuditRepository audits, VisitRoomCapacityService rooms,
-            VisitCareProperties properties, Clock clock) {
+            VisitCareProperties properties, ExitWalkInReceptionQueueService queueExit, Clock clock) {
         this.guard = guard;
         this.doctors = doctors;
         this.appointments = appointments;
@@ -52,6 +55,7 @@ public class ManageVisitCareAssignmentServiceImpl implements ManageVisitCareAssi
         this.audits = audits;
         this.rooms = rooms;
         this.properties = properties;
+        this.queueExit = queueExit;
         this.clock = clock;
     }
 
@@ -84,6 +88,9 @@ public class ManageVisitCareAssignmentServiceImpl implements ManageVisitCareAssi
 
         RoomReservationPlan roomPlan = prepareRoom(command.visitId(), null, command.actorAccountId(),
                 command.stepCode(), command.correlationId(), now, now, expectedEnd);
+
+        queueExit.exit(new ExitWalkInReceptionQueueCommand(command.visitId(), command.actorAccountId(),
+                command.actorRole(), "CARE_STARTED", now, command.correlationId()));
 
         UUID assignmentId = UUID.randomUUID();
         assignments.saveAndFlush(VisitCareAssignmentJpaEntity.inProgress(assignmentId, command.visitId(), doctorId,

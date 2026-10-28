@@ -3,14 +3,14 @@
 ## 1. Metadata và execution boundary
 
 - Feature ID: FEAT-002
-- Version: 0.5.0
-- Status: APPROVED — D03 REVISION
-- Sources: CONTEXT.md v0.16.0 and SPEC.md v0.8.0, approved by Owner Long on 2026-10-14; v0.15.0/v0.7.0 approvals are historical for D03.
+- Version: 0.5.3
+- Status: APPROVED — Spec v0.9.2 error-contract alignment
+- Sources: CONTEXT.md v0.16.0 — APPROVED by Owner Long on 2026-10-14; SPEC.md v0.9.2 — APPROVED & LOCKED by Owner Long on 2026-10-27; v0.9.1 approval is historical. CONTEXT v0.15.0 and SPEC v0.8.0 are historical inputs for D03.
 - Artifact root: backend/sdd/features/feat-002-appointment-booking; application root: otcms/backend.
 - Architecture: Spring Boot modular monolith, feature-first Spring layered architecture per `backend/CONSTITUTION.md` ARCH-01 and approved Architecture Profile; PostgreSQL/Flyway; package root fu.fa26.sep490.g58.otcms_be.
 - Delivery: backend/API only. PLAN approval chưa cấp quyền triển khai khi TASKS/prerequisite gates chưa pass.
 - Current repository evidence: migration head file V001__auth_schema.sql; runtime DB head chưa kiểm tra. Maven pom declares Java21; root AGENTS declares Java17. Phase0 phải reconcile toolchain trước build execution, không tự đổi dependency/toolchain.
-- Bản này thay PLAN v0.3.0 theo approved SPEC v0.8.0. T008 implementation must conform to the self-only appointment authorization boundary.
+- PLAN v0.5.0 was based on approved SPEC v0.8.0. v0.5.2 synchronized the source with SPEC v0.9.1; current v0.5.3 adds the documented HTTP 409 mapping already used by REQ-BOOK-063. T008 implementation must conform to the self-only appointment authorization boundary.
 - Java 21 là toolchain mục tiêu đã chốt theo `pom.xml`; phase 0 chỉ xác minh wrapper/JDK/profile thực tế, không đổi dependency hay hạ version.
 - PostgreSQL capability, migration/exclusion strategy, prerequisite contracts và owner exit evidence là các execution gates đã được lập kế hoạch; chưa yêu cầu phải triển khai trước khi phê duyệt PLAN.
 - Không bật booking production trước khi các prerequisite contracts, active-care/protected-mutation integration và verification gate của các phase liên quan đạt; không dùng production stub để vượt gate.
@@ -190,7 +190,7 @@ Exit: AC12–15, real booking/mutation/care/arrival races, no invalid committed 
 - Residual gates: PLAN review, phase0 DB/toolchain/timeouts/dependency checkpoints, owning prerequisite contracts/duration-overrun review, TASKS regeneration/review.
 - Verification: document checks assert approved source versions, six-state lifecycle/no removed status, all AC01–23 mapped, guard/transaction/replay/arrival/buffer requirements present, exact backend verification commands, Java21 target và execution gates được ghi rõ.
 
-## AI Agent Recommendation
+## Historical AI Agent Recommendation — earlier Plan revision
 
 - Status: PENDING HUMAN REVIEW
 - Recommendation: Review PLAN v0.4.0 after revised CONTEXT/SPEC D03. Reconcile T008 code, V012 and downstream appointment consumers; do not execute dependent authorization from the historical plan.
@@ -241,3 +241,106 @@ Exit: AC12–15, real booking/mutation/care/arrival races, no invalid committed 
 - Reviewer: Owner Long
 - Reviewed at: 2026-10-13 (Asia/Bangkok)
 - Follow-up: Approval áp dụng cho PLAN v0.3.0 only. Revised D03 in proposed v0.4.0 needs new review; historical approval does not authorize its implementation.
+
+## Revised delivery plan — scheduled arrival and walk-in reception queue (2026-10-25)
+
+**Status: APPROVED on 2026-10-25.** This revision follows the scheduled-vs-walk-in queue clarification and clinic-QR arrival decision. The 2026-10-23 approval applies to the superseded plan text. Sequence follows dependencies, not the earlier phase numbers.
+
+1. **Contract reconciliation.** Reconcile the scheduled no-queue interpretation with UC22/SRS and review it. Freeze the QR arrival claim, Receptionist pending worklist, no-show boundary, authenticated Patient scope and audited staff fallback. Inventory Appointment, Patient and Visit interfaces, frontend API client, runtime Flyway head and room assignment capability.
+2. **Visit queue foundation.** Add Visit-owned queue entry/history only for WALK_IN; enforce one active reception entry per visit, deterministic FIFO order and indexes. Scheduled appointment check-in must not create a queue row. Define Visit public `service` interfaces for enqueue, leave reception and scoped reads. Implement with `visit/service/impl` and Visit-owned JPA repositories. Ensure record-scoped access.
+3. **QR arrival capture.** Implement a Visit/reception-owned pending arrival record before scheduled check-in; validate authenticated Patient appointment ownership and short-lived clinic QR proof server-side. Persist server `arrivedAt` once, show pending arrivals to Receptionist, and offer audited staff fallback without backdating. QR does not start a Visit or update appointment status. Serialize QR/manual arrival with `NO_SHOW` under the existing guard.
+4. **Atomic writers.** Extend Visit walk-in creation so queue insertion is mandatory and replay-safe. Keep scheduled appointment check-in atomic for appointment/visit/reception evidence, consuming timely arrival evidence even if staff confirmation occurs after late grace. Extend walk-in care-start/cancel/closure to leave its active reception queue and retain history. Preserve guard order.
+5. **Reception and Patient reads.** Reuse appointment list/detail and Patient profile lookup/create where authorized. Expose Receptionist pending scheduled arrivals, FIFO walk-in queue and own progress; scheduled progress has no queue position. Use an assigned room only when Visit supplies one. Require backend role and record checks.
+6. **Frontend workflow.** Add the patient clinic-QR arrival screen and a receptionist pending-arrival screen, then appointment check-in/no-show and walk-in reception through the shared Spring API client. Keep route pages thin and show server errors/replay outcomes without duplicate submissions.
+7. **Verification and closure.** Verify AC25–AC34 with meaningful service, HTTP authorization and local PostgreSQL concurrency evidence; check static/runtime OpenAPI parity and frontend lint/build. Review workflow against UC22/UC23/UC27, update trace, then record human decisions and implementation results in TASKS. No production release is implied by document approval.
+
+**Dependencies:** existing T023 appointment queries, T027 check-in, T028 no-show, T043 walk-in, Patient profile owner contract, Visit care-start transition, and shared guard. T045 migration/schema scope is WALK_IN queue only. If a required Patient or Visit public contract is absent, deliver it in the owning feature before frontend integration. Check runtime migration head before choosing a Flyway version; no applied migration is edited.
+
+**Architecture invariant:** one Maven module; feature packages `appointment`, `patient`, `visit` retain `controller → service → service.impl → repository → model.entity`. Controllers call service interfaces; service implementations own authorization, transaction and orchestration. No controller-to-repository call, cross-feature repository/entity/table access, actor-based package or persistence port/adapter wrapper for ordinary JPA. The Next.js `src/app` route composes `src/features` UI through the shared backend API client.
+
+**Failure controls:** QR arrival and no-show share the existing guard; a timely server arrival timestamp survives delayed staff processing. QR proof is short-lived, clinic-bound and patient/appointment-authorized; it is not a check-in credential. Walk-in replay uses real PostgreSQL transactions and only walk-in queue insertion shares the Visit transaction. Patient progress is scoped by current Patient authorization; accountless walk-ins remain staff-visible only. Unresolved QR security, role/profile or queue-state policy returns to CONTEXT/SPEC review before implementation.
+
+### AI Agent Recommendation — plan extension
+
+- Status: PENDING HUMAN REVIEW.
+- Recommendation: approve or revise the dependency order and cross-feature transaction/queue ownership with the CONTEXT/SPEC extension.
+
+### Human Final Review — plan extension
+
+- Status: APPROVED — revised 2026-10-25 plan.
+- Decision: Requesting user explicitly approved CONTEXT, SPEC, PLAN, TASKS and T053. Task-specific material-state checkpoints still apply before schema/security changes.
+- Reviewed at: 2026-10-25 (Asia/Bangkok). Prior 2026-10-23 approval remains historical for the superseded same-queue plan.
+
+## Change Impact Record — metadata synchronization 2026-10-26
+
+- Changed intent, requirement, architecture, or task assumption: None. Updated the current source reference from approved SPEC v0.8.0 to approved SPEC v0.9.0; the 2026-10-25 revised delivery plan already describes the v0.9.0 reception scope.
+- Feature Lock boundary affected: None. No task scope, requirement, architecture, or delivery behavior changes.
+- Material state-change classification: None; documentation metadata only.
+- Downstream artifacts invalidated: This PLAN metadata revision requires its own Human Final Review. No implementation, test, or public contract is invalidated. T045 remains pending validator and task sync-back.
+- Required trace, test, and sync actions: No test required for metadata-only change. Existing T045 trace remains applicable; rerun repository validation after the Plan review. No shared contract or feature registry change.
+- Review follow-up: Human review of PLAN v0.5.1 metadata synchronization. Do not mark T045 complete before this review and validator clearance.
+
+## Historical AI Agent Recommendation — metadata synchronization v0.5.1
+
+- Status: PENDING HUMAN REVIEW
+- Scope: PLAN metadata source/version alignment with the approved SPEC v0.9.0; no plan behavior or task boundary changes.
+- Recommendation: APPROVE this metadata-only synchronization. The current revised delivery plan already captures the Spec v0.9.0 scheduled-arrival and walk-in reception decisions.
+- Evidence: `SPEC.md` v0.9.0 is approved by Owner Long on 2026-10-18; the revised delivery plan section is approved on 2026-10-25. Top-level metadata previously cited SPEC v0.8.0.
+- Risks and assumptions: No behavior is changed. This does not approve or complete T045 and does not clear Git validation blockers.
+- Alternatives considered: Leave the stale source pointer until another Plan revision; rejected because it misstates the current approved input. Rewrite the approved delivery plan; rejected because its behavior is unchanged.
+- Required human decision: Review PLAN v0.5.1 metadata alignment and record APPROVED, REVISE, or REJECTED.
+
+## Historical Human Final Review — metadata synchronization v0.5.1
+
+- Status: APPROVED
+- Decision: APPROVE for T045 metadata synchronization; no behavior or task scope change.
+- Reviewer: Owner Long
+- Reviewed at: 2026-10-26 23:32:36 Asia/Bangkok
+- Follow-up: Proceed with T045 validator remediation; keep T045 unchecked until validator clearance and required sync-back are complete.
+## Change Impact Record — SPEC v0.9.1 alignment
+- Changed intent, requirement, architecture, or task assumption: Updated the plan source and recorded the approved 2026-10-25 reception delivery scope from SPEC v0.9.1; phase ordering remains unchanged.
+- Feature Lock boundary affected: FEAT-002 plan source alignment and T044–T053 delivery sequence.
+- Material state-change classification: documentation and delivery planning.
+- Downstream artifacts invalidated: TASKS source reference and this Plan review.
+- Required trace, test, and sync actions: review Plan v0.5.2; then run feature audit/trace and PR validation. No code test is required for plan metadata alignment.
+- Review follow-up: Human review before treating the updated Plan as current approved execution plan.
+
+## Historical AI Agent Recommendation — PLAN v0.5.2
+- Status: PENDING HUMAN REVIEW
+- Scope: FEAT-002 PLAN v0.5.2 source alignment with SPEC v0.9.1.
+- Recommendation: Approve if the source reference and already-approved T044 delivery sequence are represented accurately.
+- Evidence: SPEC v0.9.1 and the 2026-10-25 approval recorded in the feature artifacts; T045 task and post-code evidence remain unchanged.
+- Risks and assumptions: This revision does not approve any additional task scope or close T045.
+- Alternatives considered: Keep a stale Spec source pointer, which prevents reliable trace and audit.
+- Required human decision: Review PLAN v0.5.2 and record APPROVED, REVISE, or REJECTED.
+
+## Historical Human Final Review — v0.5.2
+- Status: APPROVED
+- Decision: Approve the plan source alignment with SPEC v0.9.1; existing approved T044 sequencing remains unchanged.
+- Reviewer: Owner Long
+- Reviewed at: 2026-10-27T17:24:48+07:00
+- Follow-up: Continue `/sdd-audit --feature=feat-002-appointment-booking` and `/sdd-trace --feature=feat-002-appointment-booking --diff`; T045 remains pending validator clearance.
+
+## Change Impact Record — SPEC v0.9.2 source alignment
+- Changed intent, requirement, architecture, or task assumption: Updated the source pointer to the documentation-only SPEC v0.9.2 error catalog correction; delivery sequencing is unchanged.
+- Feature Lock boundary affected: None beyond the current Spec error response mapping.
+- Material state-change classification: Documentation and source metadata only.
+- Downstream artifacts invalidated: TASKS source reference and this Plan review.
+- Required trace, test, and sync actions: review Plan v0.5.3; rerun full feature trace after review. No tests are required for this documentation-only change.
+- Review follow-up: Human review before treating the Plan source alignment as current.
+
+## AI Agent Recommendation
+- Status: PENDING HUMAN REVIEW
+- Scope: FEAT-002 PLAN v0.5.3 source alignment with SPEC v0.9.2.
+- Recommendation: Approve if the source reference and existing plan content remain consistent.
+- Evidence: SPEC v0.9.2 adds only the 409 mapping already used by code/tests; no task sequencing changes.
+- Risks and assumptions: This update does not close T045 or change the shared contract.
+- Alternatives considered: Keep stale source version v0.9.1.
+- Required human decision: Review PLAN v0.5.3 and record APPROVED, REVISE, or REJECTED.
+
+## Human Final Review — v0.5.3
+- Status: APPROVED
+- Decision: Approve Plan v0.5.3 source alignment with approved Spec v0.9.2; delivery sequencing, task boundaries and implementation scope remain unchanged.
+- Reviewer: Owner Long
+- Reviewed at: 2026-10-27T17:44:11+07:00
+- Follow-up: Run full `/sdd-trace --feature=feat-002-appointment-booking --diff`, then PR validation from a clean worktree matching the published branch.

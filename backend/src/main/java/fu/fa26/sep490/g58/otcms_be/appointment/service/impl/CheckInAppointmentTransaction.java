@@ -20,9 +20,10 @@ import java.util.HexFormat;
 import java.util.Set;
 import java.util.UUID;
 
+/** @ears REQ-BOOK-055 REQ-RECEPTION-002 REQ-RECEPTION-003 REQ-RECEPTION-010 */
 @Service
 public class CheckInAppointmentTransaction {
-    private static final String REQUEST_FINGERPRINT = fingerprint("appointment-check-in-v1:{}");
+    private static final String FINGERPRINT_PREFIX = "appointment-check-in-v2:";
 
     private final CoordinationGuardService guard;
     private final AppointmentCheckInRepository appointments;
@@ -40,19 +41,21 @@ public class CheckInAppointmentTransaction {
     @Transactional
     public CheckedInAppointment checkIn(UUID appointmentId, CheckInAppointmentCommand command) {
         if (appointmentId == null || command == null || command.actorAccountId() == null
+                || command.verifiedPatientProfileId() == null
                 || command.idempotencyKey() == null || command.idempotencyKey().isBlank()
                 || command.idempotencyKey().trim().length() > 128 || command.correlationId() == null
                 || command.correlationId().isBlank() || command.correlationId().length() > 128) {
             throw new AppointmentBookingException("VALIDATION_FAILED");
         }
         String key = command.idempotencyKey().trim();
+        String requestFingerprint = fingerprint(FINGERPRINT_PREFIX + command.verifiedPatientProfileId());
         guard.acquire();
 
         // A successful authorized replay takes precedence over current lifecycle and time-window state.
         var replay = appointments.findReplay(command.actorAccountId(), appointmentId, key);
         if (replay.isPresent()) {
             var stored = replay.get();
-            if (!REQUEST_FINGERPRINT.equalsIgnoreCase(stored.requestFingerprint())) {
+            if (!requestFingerprint.equalsIgnoreCase(stored.requestFingerprint())) {
                 throw new AppointmentBookingException("IDEMPOTENCY_CONFLICT");
             }
             return new CheckedInAppointment(appointmentId, stored.visitId(), stored.checkedInAt());
@@ -75,6 +78,9 @@ public class CheckInAppointmentTransaction {
             }
             throw new AppointmentBookingException("APPOINTMENT_NOT_CHANGEABLE");
         }
+        if (!current.patientProfileId().equals(command.verifiedPatientProfileId())) {
+            throw new AppointmentBookingException("PATIENT_IDENTITY_MISMATCH");
+        }
 
         Instant allowedStart = current.startTime().minus(properties.checkInEarlyMinutes(), ChronoUnit.MINUTES);
         Instant allowedEnd = current.startTime().plus(properties.checkInLateGraceMinutes(), ChronoUnit.MINUTES);
@@ -92,11 +98,14 @@ public class CheckInAppointmentTransaction {
             throw new AppointmentBookingException("VISIT_LINK_CONFLICT");
         }
         Instant checkedInAt = receptionResult.checkedInAt();
-        if (checkedInAt.isBefore(allowedStart) || checkedInAt.isAfter(allowedEnd)) {
+        Instant arrivedAt = receptionResult.arrivedAt();
+        boolean timelyArrival = arrivedAt != null && !arrivedAt.isBefore(allowedStart) && !arrivedAt.isAfter(allowedEnd);
+        boolean timelyProcessing = !checkedInAt.isBefore(allowedStart) && !checkedInAt.isAfter(allowedEnd);
+        if (arrivedAt == null || checkedInAt.isBefore(arrivedAt) || (!timelyArrival && !timelyProcessing)) {
             throw new AppointmentBookingException("CHECK_IN_TIME_NOT_ALLOWED");
         }
-        return appointments.completeCheckIn(current, command.actorAccountId(), key, REQUEST_FINGERPRINT,
-                receptionResult.visitId(), checkedInAt, command.correlationId());
+        return appointments.completeCheckIn(current, command.actorAccountId(), command.verifiedPatientProfileId(),
+                key, requestFingerprint, receptionResult.visitId(), checkedInAt, command.correlationId());
     }
 
     private static String fingerprint(String value) {

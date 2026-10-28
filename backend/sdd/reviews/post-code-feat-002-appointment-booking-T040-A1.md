@@ -1,6 +1,6 @@
 # T040 Post-Code Review — A1
 
-Date: 2026-10-14 (Asia/Bangkok)  
+Date: 2026-10-14 (Asia/Bangkok)\
 Status: APPROVED — implementation, verification evidence and independent review complete; Owner Long approved implementation and trace on 2026-10-14.
 
 ## Scope

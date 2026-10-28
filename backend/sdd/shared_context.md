@@ -1,7 +1,7 @@
 # Ngữ cảnh ownership, execution và API contract
 
-# Version: 3.3.8
-# Last-Updated: 2026-10-14
+# Version: 3.3.9
+# Last-Updated: 2026-10-27
 # Lead Agent: Orchestrator (@main-agent)
 # Project Ownership: team
 # Agent Execution: direct
@@ -205,19 +205,18 @@ Dùng một record cho từng contract đã fixed. Giữ placeholder khi chưa c
 - Unresolved decision: None for contract v1.0.0. T014/T032 eligibility and schedule writer integration remain delivery tasks.
 
 ### Contract: visit-reception-clinical
-- Version: 1.1.0
-- Status: FROZEN — CONTRACT v1.1.0; port separation approved by Owner Long on 2026-10-14
-- Producer: FEAT-002 T012 Visit/Reception/Clinical
-- Consumers: Appointment check-in/no-show workflows through `ReceptionWorkflowPort` and `RecordedArrivalQueryPort`; follow-up through `VisitWorkflowPort`; care availability through the appointment capacity boundary.
-- Owner: Visit/Reception/Clinical module; Receptionist owns reception records and Doctors own care/examination evidence.
-- Shape and semantics: Visit source is `SCHEDULED` or `WALK_IN`; `WALK_IN` is a visit source and never creates an appointment. A visit retains patient, recorded arrival, check-in time, creator, optional originating appointment, optional prior appointment for a WALK_IN, and open/closed visit state. At most one scheduled visit is linked to an originating appointment and each visit has one initial reception record. Walk-in retries are keyed by Receptionist account and idempotency key plus request fingerprint; they must not create patient-wide uniqueness. Recorded arrival is distinct from check-in time. The read-only `RecordedArrivalQueryPort.requireRecordedArrival(...)` returns minimal evidence only when appointment ID and patient ID match and `arrivedAt` is inside the inclusive permitted window; missing/mismatched/out-of-window evidence fails closed. `ReceptionWorkflowPort.checkInAtomically(...)` remains the separate guarded T027 write contract. Follow-up evidence is derived from the visit's patient, authenticated Doctor's care assignment, completed examination and recorded follow-up indication; patient and ordering Doctor are never client-selected. Care assignment persistence takes an explicit interval; this contract does not invent expected-duration or overrun policy.
-- Compatibility: V007 adds owner tables and V008 (T013) adds restrictive appointment/patient composite FKs, including prior-appointment validation. V001–V006 remain unchanged. Patient profile and Doctor profile use restrictive owner FKs. v1.1.0 separates the previously combined recorded-arrival read declaration from the T027 atomic check-in writer; no caller/adapter had been bound to v1.0.0. V007/V008 schema is unchanged; the new reader is additive at runtime and does not write data.
-- Mutation boundary: recorded arrival, atomic check-in and walk-in writes must join the shared CoordinationGuard/transaction from T014; writer implementation remains T027. The T012 recorded-arrival query is read-only. Care reservation availability and expected-duration/overrun behavior require T031. No queue, room/device reservation or clinical payload API is added here.
-- Linked requirements/tasks: D09–D12; SPEC §5.2–5.5, REQ-BOOK-055–060; SRS UC30, BR-31; FEAT-002 T012/T013/T014/T027/T028/T030/T031.
-- Review and execution evidence: T012 A1 and contract v1.0.0 were approved on 2026-10-13. Owner Long selected read/write port separation on 2026-10-14; T012 A3 adds the `RecordedArrivalQueryPort` read adapter and regression coverage. User-provided local test output reports BUILD SUCCESS, 125/125 tests and `VisitT012PostgresIntegrationTest` 3/3 at 2026-10-14 11:44:54 +07. Final implementation/trace review is pending in the T012 A3 review artifacts. No production database was contacted.
-- Last sync: 2026-10-14 — Owner Long approved port separation; T012 A3 binds the read-only query while the T027 writer remains deferred.
-- Unresolved decision: None for contract v1.1.0. T027 guarded reception writers and T031 care-capacity/overrun implementation remain delivery tasks.
-
+- Version: 1.2.0
+- Status: FROZEN — CONTRACT v1.2.0; approved by Owner Long (Visit/Reception/Clinical contract owner/Lead) on 2026-10-27.
+- Producer: Visit/Reception/Clinical; T012 owns the base visit/reception contract and T045 adds queue persistence
+- Consumers: Appointment check-in/no-show workflows through `ReceptionWorkflowPort` and `RecordedArrivalQueryPort`; Visit queue creation/exit/query workflows; Receptionist queue read; Patient authorized own-visit progress read. T047–T049 implement the downstream atomic workflow/read integrations.
+- Owner: Visit/Reception/Clinical module; Human contract owner/Lead: Owner Long, confirmed 2026-10-27.
+- Shape and semantics: Visit source is `SCHEDULED` or `WALK_IN`; `WALK_IN` remains a Visit source and never creates an appointment. A visit retains patient, recorded arrival, check-in time, creator, optional originating appointment, optional prior appointment for WALK_IN, and open/closed state. At most one scheduled visit is linked to an originating appointment and each visit has one initial reception record. Only WALK_IN visits enter the Visit-owned reception FIFO; scheduled check-in creates no queue row. A queue entry starts `WAITING`; queue position is ordered FIFO by server `arrived_at`, then stable queue-entry ID. Multiple historical entries per visit are retained, with at most one active `WAITING` entry. Leaving reception is recorded as `LEFT_RECEPTION` with reason `CARE_STARTED`, `CANCELLED`, or `VISIT_CLOSED`; transition history is append-only and generated by database triggers using server time. T045 queue persistence derives visit source and arrival from the Visit row, binds actor identity to the authenticated principal and active Receptionist account, and locks the Visit row before validating its open state. T045 provides a queue-entry persistence foundation only: atomic walk-in enqueue belongs to T047, lifecycle exit orchestration to T048, and scoped queue/progress reads to T049. Walk-in retries remain actor/key/fingerprint scoped and must not use patient-wide uniqueness. Recorded arrival remains distinct from check-in time. The read-only `RecordedArrivalQueryPort.requireRecordedArrival(...)` returns minimal evidence only when appointment and patient IDs match and `arrivedAt` is inside the inclusive permitted window; missing/mismatched/out-of-window evidence fails closed. `ReceptionWorkflowPort.checkInAtomically(...)` remains the separate guarded T027 write contract. Follow-up evidence derives from the visit patient, authenticated Doctor care assignment, completed examination and recorded follow-up indication; patient and ordering Doctor are never client-selected. Care assignment persistence takes an explicit interval; this contract does not invent expected-duration or overrun policy.
+- Compatibility: V007/V008 owner tables and restrictive appointment/patient composite FKs remain unchanged. Additive V023–V025 migrations provide queue entry/history and guards; V020–V022 remain sequential prerequisites. No applied migration is rewritten and no new public endpoint or Patient/Appointment direct persistence access is introduced by T045. Database trigger protection assumes the application role cannot disable triggers or alter schema; a PostgreSQL owner/superuser can bypass those controls.
+- Mutation boundary: Visit owns queue entry/history persistence. Queue writes run in a transaction, acquire the Visit row lock before checking source/open state, and insert the entry; database triggers create the initial and allowed transition history. Auth public account-access service verifies active Receptionist authority. Appointment and Patient modules consume Visit-owned APIs/contracts and do not access Visit repositories/entities. T047 must atomically join WALK_IN visit creation to queue insertion; T048 must atomically couple queue exit with Visit lifecycle; T049 owns scoped reads.
+- Linked requirements/tasks: FEAT-002 SPEC REQ-BOOK-061 and REQ-RECEPTION-004/006/007/008; SRS UC22–UC23 and UC27; T044/T045/T047/T048/T049. The approved scheduled-arrival interpretation is a product-specific UC22 variance that remains subject to SRS reconciliation before delivery.
+- Review and execution evidence: T044 reception contract approval and T045 preflight, post-code, audit and trace decisions are held locally and SHA-256 pinned in `C:/Users/Admin/AppData/Local/Temp/otcms-t045-review-evidence-20261027.json`. Owner Long approved this v1.2.0 sync on 2026-10-27T17:37:34+07:00. T045 focused PostgreSQL test passed 6/6 and full local `clean verify` passed 293/293 at V025 in the previously approved evidence; these tests were not rerun for this documentation sync. Current T045-scope audit and trace reports dated 2026-10-27 are approved and hash-pinned in the same manifest.
+- Last sync: 2026-10-27T17:37:34+07:00 — Owner Long approved and synchronized v1.2.0 to reconcile the approved T044 queue behavior and T045 persistence implementation; registry updated, full remote PR validation remains outstanding.
+- Unresolved decision: Reconcile the product-specific UC22 variance with the SRS before delivery. T047/T048/T049 work remains pending. The stronger direct-SQL threat boundary requires a restricted application database role; a database owner/superuser can bypass triggers.
 ### Contract: doctor-account-access-read
 - Version: 1.0.0
 - Status: FROZEN — approved by Owner Long on 2026-10-14 for FEAT-002 T023
@@ -231,3 +230,16 @@ Dùng một record cho từng contract đã fixed. Giữ placeholder khi chưa c
 - Last sync: 2026-10-14 — T023 implementation, PostgreSQL verification, and Human final approval.
 - Unresolved decision: None for v1.0.0.
 
+## Action Record — FEAT-002 T045 Visit contract sync 2026-10-27
+- Actor: Owner Long (Visit/Reception/Clinical contract owner/Lead) and Agent.
+- Approved scope and file boundary: update only `backend/sdd/shared_context.md` Visit contract and FEAT-002 registry status; no product code, migrations, endpoints or runtime configuration changed.
+- Profile binding and exact commands: Spring layered modular monolith, Visit-owned JPA/Flyway contract; no verification command required for this documentation-only sync.
+- State-change category: shared/public contract documentation.
+- Human checkpoint: Owner Long approved contract v1.2.0 and confirmed contract owner/Lead authority on 2026-10-27; T044/T045 approved scope and current T045 audit/trace reports are pinned by the external local SHA-256 manifest.
+- Task execution grant: N/A — documentation contract synchronization.
+- Host execution-claim evidence: N/A.
+- Actions and result: bumped shared_context metadata 3.3.8→3.3.9 and `visit-reception-clinical` 1.1.0→1.2.0; recorded WALK_IN-only queue, FIFO/WAITING/history invariants, actor binding, Visit row lock, migration compatibility, T047–T049 boundaries and residual privileged-role risk; updated feature registry.
+- Validation route: SDD sync completed manually per `sdd-sync` workflow; `git diff --check` passed for the repair worktree. Full feature trace and remote PR validator remain outstanding.
+- Post-code review: N/A — no implementation behavior changed.
+- Residual blocker: remote branch still needs the approved SDD changes, then validation from a clean worktree matching remote; reconcile the approved UC22 variance with SRS before delivery.
+- Sync-back decision: shared Visit contract and FEAT-002 registry updated; rerun full `/sdd-trace --feature=feat-002-appointment-booking --diff` after branch publication.

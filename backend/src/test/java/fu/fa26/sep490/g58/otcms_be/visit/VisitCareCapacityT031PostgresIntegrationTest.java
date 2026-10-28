@@ -28,6 +28,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -54,6 +56,7 @@ class VisitCareCapacityT031PostgresIntegrationTest {
 
     @Autowired MockMvc mvc;
     @Autowired JdbcTemplate jdbc;
+    @Autowired PlatformTransactionManager transactionManager;
 
     private UUID doctorAccount;
     private UUID patientAccount;
@@ -90,6 +93,15 @@ class VisitCareCapacityT031PostgresIntegrationTest {
                 UUID.randomUUID(), doctor, Timestamp.from(NOW.minusSeconds(300)), Timestamp.from(NOW.plusSeconds(7200)));
         jdbc.update("insert into visits (id, patient_profile_id, source, arrived_at, checked_in_at, created_by_account_id) values (?, ?, 'WALK_IN', ?, ?, ?)",
                 visit, patient, Timestamp.from(NOW.minusSeconds(60)), Timestamp.from(NOW.minusSeconds(60)), receptionist);
+        new TransactionTemplate(transactionManager).execute(status -> {
+            jdbc.queryForObject("select set_config('otcms.reception_actor_id', ?, true)", String.class,
+                    receptionist.toString());
+            jdbc.queryForObject("select set_config('otcms.reception_correlation_id', ?, true)", String.class,
+                    CORRELATION);
+            jdbc.update("insert into walk_in_reception_queue_entries (visit_id, arrived_at, entered_at) "
+                            + "values (?, ?, ?)", visit, Timestamp.from(NOW.minusSeconds(60)), Timestamp.from(NOW));
+            return null;
+        });
         visits.add(visit);
         room = UUID.randomUUID();
         jdbc.update("insert into rooms (id, room_code, display_label, active) values (?, 'T031-EXAM-ROOM', 'T031 Exam Room', true)", room);
@@ -115,8 +127,12 @@ class VisitCareCapacityT031PostgresIntegrationTest {
         jdbc.execute("alter table room_management_audits disable trigger tr_visit_room_management_audits_no_truncate");
         jdbc.execute("alter table appointment_audits disable trigger tr_appointment_audits_immutable");
         jdbc.execute("alter table visit_audits disable trigger tr_visit_audits_immutable");
+        jdbc.execute("alter table walk_in_reception_queue_history disable trigger all");
         try {
             for (UUID visitId : visits) {
+                jdbc.update("delete from walk_in_reception_queue_history where queue_entry_id in "
+                        + "(select id from walk_in_reception_queue_entries where visit_id = ?)", visitId);
+                jdbc.update("delete from walk_in_reception_queue_entries where visit_id = ?", visitId);
                 jdbc.update("delete from visit_assignment_audits where visit_id = ?", visitId);
                 jdbc.update("delete from room_reservation_audits where visit_id = ?", visitId);
                 jdbc.update("delete from room_reservations where visit_id = ?", visitId);
@@ -145,6 +161,7 @@ class VisitCareCapacityT031PostgresIntegrationTest {
                 if (id != null) jdbc.update("delete from accounts where id = ?", id);
             }
         } finally {
+            jdbc.execute("alter table walk_in_reception_queue_history enable trigger all");
             restoreTrigger("visit_assignment_audits", "tr_visit_care_assignment_audits_immutable", careAuditImmutable);
             restoreTrigger("visit_assignment_audits", "tr_visit_care_assignment_audits_no_truncate", careAuditNoTruncate);
             restoreTrigger("room_reservation_audits", "tr_visit_room_reservation_audits_immutable", roomAuditImmutable);
@@ -222,6 +239,13 @@ class VisitCareCapacityT031PostgresIntegrationTest {
         assertEquals(1, jdbc.queryForObject("select count(*) from visit_assignment_audits where assignment_id = ? and action = 'STARTED' and actor_account_id = ? and correlation_id = ?", Integer.class, assignment, doctorAccount, CORRELATION));
         assertEquals(1, jdbc.queryForObject("select count(*) from room_reservations where assignment_id = ? and room_id = ? and status = 'IN_PROGRESS' and cleanup_buffer_minutes = 5", Integer.class, assignment, room));
         assertEquals(1, jdbc.queryForObject("select count(*) from room_reservation_audits where assignment_id = ? and room_id = ? and action = 'RESERVED'", Integer.class, assignment, room));
+        assertEquals(0, jdbc.queryForObject("select count(*) from walk_in_reception_queue_entries "
+                + "where visit_id = ? and status = 'WAITING'", Integer.class, visit));
+        assertEquals(1, jdbc.queryForObject("select count(*) from walk_in_reception_queue_history h "
+                + "join walk_in_reception_queue_entries q on q.id = h.queue_entry_id "
+                + "where q.visit_id = ? and h.to_status = 'LEFT_RECEPTION' and h.reason = 'CARE_STARTED' "
+                + "and h.actor_account_id = ? and h.correlation_id = ?", Integer.class,
+                visit, doctorAccount, CORRELATION));
 
         mvc.perform(post("/api/v1/visits/{visitId}/care-assignments/{assignmentId}/extensions", visit, assignment)
                         .with(actor(doctorAccount, AccountRole.DOCTOR)).with(csrf())
@@ -242,6 +266,117 @@ class VisitCareCapacityT031PostgresIntegrationTest {
         assertEquals(1, jdbc.queryForObject("select count(*) from room_reservation_audits where assignment_id = ? and room_id = ? and action = 'COMPLETED'", Integer.class, assignment, room));
         assertThrows(org.springframework.dao.DataAccessException.class,
                 () -> jdbc.update("delete from visit_assignment_audits where assignment_id = ?", assignment));
+    }
+
+    @Test
+    void receptionistCancellationClosesWalkInAndMovesQueueEntryToHistory() throws Exception {
+        mvc.perform(post("/api/v1/visits/{visitId}/cancellation", visit)
+                        .with(actor(receptionist, AccountRole.RECEPTIONIST)).with(csrf())
+                        .header("X-Correlation-ID", CORRELATION))
+                .andExpect(status().isNoContent());
+        assertEquals("CLOSED", jdbc.queryForObject("select status from visits where id = ?", String.class, visit));
+        assertEquals(0, jdbc.queryForObject("select count(*) from walk_in_reception_queue_entries "
+                + "where visit_id = ? and status = 'WAITING'", Integer.class, visit));
+        assertEquals(1, jdbc.queryForObject("select count(*) from walk_in_reception_queue_history h "
+                + "join walk_in_reception_queue_entries q on q.id = h.queue_entry_id "
+                + "where q.visit_id = ? and h.reason = 'CANCELLED' and h.actor_account_id = ?",
+                Integer.class, visit, receptionist));
+        assertEquals(1, jdbc.queryForObject("select count(*) from visit_audits where visit_id = ? "
+                + "and action = 'WALK_IN_CANCELLED' and actor_account_id = ?", Integer.class, visit, receptionist));
+    }
+
+    @Test
+    void doctorClosureMovesWaitingWalkInQueueEntryToHistory() throws Exception {
+        mvc.perform(post("/api/v1/visits/{visitId}/closure", visit)
+                        .with(actor(doctorAccount, AccountRole.DOCTOR)).with(csrf())
+                        .header("X-Correlation-ID", CORRELATION))
+                .andExpect(status().isNoContent());
+        assertEquals("CLOSED", jdbc.queryForObject("select status from visits where id = ?", String.class, visit));
+        assertEquals(0, jdbc.queryForObject("select count(*) from walk_in_reception_queue_entries "
+                + "where visit_id = ? and status = 'WAITING'", Integer.class, visit));
+        assertEquals(1, jdbc.queryForObject("select count(*) from walk_in_reception_queue_history h "
+                + "join walk_in_reception_queue_entries q on q.id = h.queue_entry_id "
+                + "where q.visit_id = ? and h.reason = 'VISIT_CLOSED' and h.actor_account_id = ?",
+                Integer.class, visit, doctorAccount));
+        assertEquals(1, jdbc.queryForObject("select count(*) from visit_audits where visit_id = ? "
+                + "and action = 'WALK_IN_CLOSED' and actor_account_id = ?", Integer.class, visit, doctorAccount));
+    }
+
+    @Test
+    void cancellationIsRejectedAfterCareStarts() throws Exception {
+        mvc.perform(post("/api/v1/visits/{visitId}/care-assignments", visit)
+                        .with(actor(doctorAccount, AccountRole.DOCTOR)).with(csrf())
+                        .header("X-Correlation-ID", CORRELATION).contentType("application/json")
+                        .content("{\"stepCode\":\"CONSULTATION\"}"))
+                .andExpect(status().isCreated());
+        mvc.perform(post("/api/v1/visits/{visitId}/cancellation", visit)
+                        .with(actor(receptionist, AccountRole.RECEPTIONIST)).with(csrf())
+                        .header("X-Correlation-ID", CORRELATION))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error.code").value("VISIT_CANCELLATION_NOT_ALLOWED"));
+        assertEquals("OPEN", jdbc.queryForObject("select status from visits where id = ?", String.class, visit));
+        assertEquals(1, jdbc.queryForObject("select count(*) from walk_in_reception_queue_history h "
+                + "join walk_in_reception_queue_entries q on q.id = h.queue_entry_id "
+                + "where q.visit_id = ? and h.reason = 'CARE_STARTED'", Integer.class, visit));
+        mvc.perform(post("/api/v1/visits/{visitId}/closure", visit)
+                        .with(actor(doctorAccount, AccountRole.DOCTOR)).with(csrf())
+                        .header("X-Correlation-ID", CORRELATION))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error.code").value("VISIT_CARE_NOT_CHANGEABLE"));
+    }
+
+    @Test
+    void careStartQueueFailureRollsBackCareAndRoomWrites() throws Exception {
+        installQueueExitFailureTrigger();
+        try {
+            mvc.perform(post("/api/v1/visits/{visitId}/care-assignments", visit)
+                            .with(actor(doctorAccount, AccountRole.DOCTOR)).with(csrf())
+                            .header("X-Correlation-ID", CORRELATION).contentType("application/json")
+                            .content("{\"stepCode\":\"CONSULTATION\"}"))
+                    .andExpect(status().isServiceUnavailable())
+                    .andExpect(jsonPath("$.error.code").value("DEPENDENCY_UNAVAILABLE"));
+        } finally {
+            dropQueueExitFailureTrigger();
+        }
+        assertEquals(0, jdbc.queryForObject("select count(*) from visit_assignments where visit_id = ?",
+                Integer.class, visit));
+        assertEquals(0, jdbc.queryForObject("select count(*) from room_reservations where visit_id = ?",
+                Integer.class, visit));
+        assertEquals(0, jdbc.queryForObject("select count(*) from visit_assignment_audits where visit_id = ?",
+                Integer.class, visit));
+        assertEquals(1, jdbc.queryForObject("select count(*) from walk_in_reception_queue_entries "
+                + "where visit_id = ? and status = 'WAITING'", Integer.class, visit));
+    }
+
+    @Test
+    void cancellationQueueFailureRollsBackVisitClosureAndAudit() throws Exception {
+        installQueueExitFailureTrigger();
+        try {
+            mvc.perform(post("/api/v1/visits/{visitId}/cancellation", visit)
+                            .with(actor(receptionist, AccountRole.RECEPTIONIST)).with(csrf())
+                            .header("X-Correlation-ID", CORRELATION))
+                    .andExpect(status().isServiceUnavailable())
+                    .andExpect(jsonPath("$.error.code").value("DEPENDENCY_UNAVAILABLE"));
+        } finally {
+            dropQueueExitFailureTrigger();
+        }
+        assertEquals("OPEN", jdbc.queryForObject("select status from visits where id = ?", String.class, visit));
+        assertEquals(0, jdbc.queryForObject("select count(*) from visit_audits where visit_id = ? "
+                + "and action = 'WALK_IN_CANCELLED'", Integer.class, visit));
+        assertEquals(1, jdbc.queryForObject("select count(*) from walk_in_reception_queue_entries "
+                + "where visit_id = ? and status = 'WAITING'", Integer.class, visit));
+    }
+
+    private void installQueueExitFailureTrigger() {
+        jdbc.execute("create function reject_t048_queue_exit() returns trigger language plpgsql as $$ begin "
+                + "raise exception 'T048 injected queue exit failure' using errcode = 'P0001'; end; $$");
+        jdbc.execute("create trigger tr_t048_queue_exit_failure before update on walk_in_reception_queue_entries "
+                + "for each row execute function reject_t048_queue_exit()");
+    }
+
+    private void dropQueueExitFailureTrigger() {
+        jdbc.execute("drop trigger if exists tr_t048_queue_exit_failure on walk_in_reception_queue_entries");
+        jdbc.execute("drop function if exists reject_t048_queue_exit()");
     }
 
     @Test

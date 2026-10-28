@@ -1,6 +1,6 @@
 # T026 Post-Code Review — A1
 
-Date: 2026-10-14 (Asia/Bangkok)  
+Date: 2026-10-14 (Asia/Bangkok)\
 Status: COMPLETE — Owner Long approved implementation and trace.
 
 ## Scope reviewed
