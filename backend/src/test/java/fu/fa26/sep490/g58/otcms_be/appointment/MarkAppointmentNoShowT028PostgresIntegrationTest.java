@@ -116,6 +116,9 @@ class MarkAppointmentNoShowT028PostgresIntegrationTest {
                 Integer.class, appointment, receptionistAccount, CORRELATION));
         assertEquals(0, jdbc.queryForObject("select count(*) from visits where originating_appointment_id = ?",
                 Integer.class, appointment));
+        assertEquals(0, jdbc.queryForObject("select count(*) from walk_in_reception_queue_entries q "
+                + "join visits v on v.id = q.visit_id where v.originating_appointment_id = ?",
+                Integer.class, appointment));
     }
 
     @Test
@@ -147,7 +150,7 @@ class MarkAppointmentNoShowT028PostgresIntegrationTest {
             var checkIn = pool.submit(() -> race(() -> mvc.perform(post("/api/v1/appointments/{id}/check-in", appointment)
                     .with(actor(receptionistAccount, AccountType.RECEPTIONIST)).with(csrf())
                     .header("Idempotency-Key", "t028-race").header("X-Correlation-ID", CORRELATION)
-                    .contentType("application/json").content("{}")).andReturn().getResponse().getStatus(), ready, start));
+                    .contentType("application/json").content("{\"verifiedPatientProfileId\":\"" + patientProfile + "\"}")).andReturn().getResponse().getStatus(), ready, start));
             if (!ready.await(5, TimeUnit.SECONDS)) throw new AssertionError("Concurrent commands did not reach the barrier");
             start.countDown();
             int noShowStatus = noShow.get(20, TimeUnit.SECONDS);
@@ -160,6 +163,9 @@ class MarkAppointmentNoShowT028PostgresIntegrationTest {
             assertEquals(1, jdbc.queryForObject("select count(*) from appointment_audits where appointment_id = ? "
                     + "and action = 'STATUS_CHANGED' and new_status = 'NO_SHOW'", Integer.class, appointment));
             assertEquals(0, jdbc.queryForObject("select count(*) from visits where originating_appointment_id = ?",
+                    Integer.class, appointment));
+            assertEquals(0, jdbc.queryForObject("select count(*) from walk_in_reception_queue_entries q "
+                    + "join visits v on v.id = q.visit_id where v.originating_appointment_id = ?",
                     Integer.class, appointment));
         } finally {
             start.countDown();

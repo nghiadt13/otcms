@@ -32,11 +32,26 @@ public class VisitAuditJpaEntity {
 
     public static VisitAuditJpaEntity walkInCreated(UUID actorAccountId, UUID visitId, Instant occurredAt,
             String correlationId) {
+        return event(actorAccountId, visitId, "WALK_IN_CREATED", occurredAt, correlationId);
+    }
+
+    public static VisitAuditJpaEntity walkInCancelled(UUID actorAccountId, UUID visitId, Instant occurredAt,
+            String correlationId) {
+        return event(actorAccountId, visitId, "WALK_IN_CANCELLED", occurredAt, correlationId);
+    }
+
+    public static VisitAuditJpaEntity walkInClosed(UUID actorAccountId, UUID visitId, Instant occurredAt,
+            String correlationId) {
+        return event(actorAccountId, visitId, "WALK_IN_CLOSED", occurredAt, correlationId);
+    }
+
+    private static VisitAuditJpaEntity event(UUID actorAccountId, UUID visitId, String action, Instant occurredAt,
+            String correlationId) {
         VisitAuditJpaEntity entity = new VisitAuditJpaEntity();
         entity.id = UUID.randomUUID();
         entity.actorAccountId = actorAccountId;
         entity.visitId = visitId;
-        entity.action = "WALK_IN_CREATED";
+        entity.action = action;
         entity.occurredAt = occurredAt;
         entity.correlationId = correlationId;
         return entity;
