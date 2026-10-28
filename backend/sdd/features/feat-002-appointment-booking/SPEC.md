@@ -151,7 +151,7 @@ Default example: appointment 09:00 cho first check-in từ 08:30 đến đúng 0
 - Protected client fields status/source/creator/endTime/duration/buffer/orderingDoctor và follow-up patient reject VALIDATION_FAILED.
 - ServiceSelection: id,name,description,durationMinutes,bufferMinutes,onlineBookable. Public/staff catalog response `{items: ServiceSelection[]}`, empty returns200 `{items: []}`.
 - Slot: serviceId,doctorId,doctorDisplayName,startTime,endTime,occupiedUntil; no patient/contact/reasons.
-- AppointmentResponse: id,patientProfileId,serviceId,doctorId,status,bookingSource,purpose,startTime,endTime,durationMinutes,bufferMinutes,occupiedUntil,nullable visitId/sourceVisitId,createdAt,updatedAt. Scoped only; no embedded account/contact/clinical records/reasons.
+- AppointmentResponse: id,patientProfileId,serviceId,nullable serviceName/servicePrice (giá hiện hành của dịch vụ, không phải giá chụp lúc đặt; chỉ GET danh sách/chi tiết điền, endpoint ghi trả null),doctorId,nullable doctorDisplayName (cùng quy tắc),status,bookingSource,purpose,startTime,endTime,durationMinutes,bufferMinutes,occupiedUntil,nullable visitId/sourceVisitId,createdAt,updatedAt. Scoped only; no embedded account/contact/clinical records/reasons.
 - Page<T>: items,page,size,totalElements,totalPages; page>=0,size default20 within1..100; invalid -> VALIDATION_FAILED. Fixed appointment sort startTime desc,id desc.
 - CheckInResponse: appointmentId,visitId,checkedInAt; replay trả stored response, không reset progressed lifecycle.
 

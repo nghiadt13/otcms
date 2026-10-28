@@ -14,6 +14,9 @@ import fu.fa26.sep490.g58.otcms_be.appointment.model.Scope;
 import fu.fa26.sep490.g58.otcms_be.appointment.model.ScopeType;
 import fu.fa26.sep490.g58.otcms_be.appointment.service.GetAppointmentsService;
 import fu.fa26.sep490.g58.otcms_be.patient.service.AuthorizePatientProfileService;
+import fu.fa26.sep490.g58.otcms_be.servicecatalog.service.ClinicServiceBookingQueryService;
+import fu.fa26.sep490.g58.otcms_be.servicecatalog.service.ClinicServiceBookingQueryService.ServiceLabel;
+import fu.fa26.sep490.g58.otcms_be.staff.service.StaffAvailabilityProviderQueryService;
 import fu.fa26.sep490.g58.otcms_be.staff.service.StaffDirectoryQueryService;
 import fu.fa26.sep490.g58.otcms_be.patient.exception.PatientAuthorizationDeniedException;
 import fu.fa26.sep490.g58.otcms_be.auth.service.DoctorAccountAccessService;
@@ -23,6 +26,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
 import java.time.Instant;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -32,13 +39,17 @@ public class GetAppointmentsServiceImpl implements GetAppointmentsService {
     private final AuthorizePatientProfileService patientAuthorization;
     private final StaffDirectoryQueryService staff;
     private final DoctorAccountAccessService doctorAccess;
+    private final StaffAvailabilityProviderQueryService doctors;
+    private final ClinicServiceBookingQueryService services;
     private final Clock clock;
 
     public GetAppointmentsServiceImpl(AppointmentQueryRepository queries, PatientProfileDirectory patients,
             AuthorizePatientProfileService patientAuthorization, StaffDirectoryQueryService staff,
-            DoctorAccountAccessService doctorAccess, Clock clock) {
+            DoctorAccountAccessService doctorAccess, StaffAvailabilityProviderQueryService doctors,
+            ClinicServiceBookingQueryService services, Clock clock) {
         this.queries = queries; this.patients = patients; this.patientAuthorization = patientAuthorization;
-        this.staff = staff; this.doctorAccess = doctorAccess; this.clock = clock;
+        this.staff = staff; this.doctorAccess = doctorAccess; this.doctors = doctors; this.services = services;
+        this.clock = clock;
     }
 
     @Override
@@ -48,7 +59,7 @@ public class GetAppointmentsServiceImpl implements GetAppointmentsService {
         if (scope == null) return new AppointmentSearchPage(java.util.List.of(), page, size, 0, 0);
         var result = queries.find(scope, new Filter(filter.fromInclusive(), filter.toExclusive(),
                 filter.status(), filter.doctorId(), filter.patientProfileId()), page, size);
-        return new AppointmentSearchPage(result.items().stream().map(GetAppointmentsServiceImpl::summary).toList(),
+        return new AppointmentSearchPage(summaries(result.items()),
                 result.page(), result.size(), result.totalElements(), result.totalPages());
     }
 
@@ -58,13 +69,23 @@ public class GetAppointmentsServiceImpl implements GetAppointmentsService {
         Scope scope = resolve(accountId, role);
         if (scope == null) throw new AppointmentQueryException("APPOINTMENT_NOT_FOUND");
         var row = queries.findScoped(scope, id).orElseThrow(() -> new AppointmentQueryException("APPOINTMENT_NOT_FOUND"));
-        return summary(row);
+        return summaries(List.of(row)).getFirst();
     }
 
-    private static AppointmentSummary summary(Row row) {
+    /** Adds the Doctor name and Service name/price; each distinct Doctor or Service is looked up once. */
+    private List<AppointmentSummary> summaries(List<Row> rows) {
+        Map<UUID, Optional<String>> doctorNames = new HashMap<>();
+        Map<UUID, Optional<ServiceLabel>> serviceLabels = new HashMap<>();
+        return rows.stream().map(row -> summary(row,
+                doctorNames.computeIfAbsent(row.doctorId(), doctors::findDoctorDisplayName).orElse(null),
+                serviceLabels.computeIfAbsent(row.serviceId(), services::findServiceLabel).orElse(null))).toList();
+    }
+
+    private static AppointmentSummary summary(Row row, String doctorDisplayName, ServiceLabel service) {
         return new AppointmentSummary(row.id(), row.patientProfileId(), row.serviceId(), row.doctorId(), row.status(),
                 row.bookingSource(), row.purpose(), row.startTime(), row.endTime(), row.durationMinutes(),
-                row.bufferMinutes(), row.occupiedUntil(), row.visitId(), row.sourceVisitId(), row.createdAt(), row.updatedAt());
+                row.bufferMinutes(), row.occupiedUntil(), row.visitId(), row.sourceVisitId(), row.createdAt(), row.updatedAt(),
+                doctorDisplayName, service == null ? null : service.name(), service == null ? null : service.price());
     }
 
     private Scope resolve(UUID accountId, AccountRole role) {

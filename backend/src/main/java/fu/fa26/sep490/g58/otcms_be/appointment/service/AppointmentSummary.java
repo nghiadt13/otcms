@@ -1,6 +1,7 @@
 package fu.fa26.sep490.g58.otcms_be.appointment.service;
 
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -21,7 +22,10 @@ public class AppointmentSummary {
     private final UUID sourceVisitId;
     private final Instant createdAt;
     private final Instant updatedAt;
-    public AppointmentSummary(UUID id, UUID patientProfileId, UUID serviceId, UUID doctorId, String status, String bookingSource, String purpose, Instant startTime, Instant endTime, int durationMinutes, int bufferMinutes, Instant occupiedUntil, UUID visitId, UUID sourceVisitId, Instant createdAt, Instant updatedAt) {
+    private final String doctorDisplayName;
+    private final String serviceName;
+    private final BigDecimal servicePrice;
+    public AppointmentSummary(UUID id, UUID patientProfileId, UUID serviceId, UUID doctorId, String status, String bookingSource, String purpose, Instant startTime, Instant endTime, int durationMinutes, int bufferMinutes, Instant occupiedUntil, UUID visitId, UUID sourceVisitId, Instant createdAt, Instant updatedAt, String doctorDisplayName, String serviceName, BigDecimal servicePrice) {
         this.id = id;
         this.patientProfileId = patientProfileId;
         this.serviceId = serviceId;
@@ -38,6 +42,9 @@ public class AppointmentSummary {
         this.sourceVisitId = sourceVisitId;
         this.createdAt = createdAt;
         this.updatedAt = updatedAt;
+        this.doctorDisplayName = doctorDisplayName;
+        this.serviceName = serviceName;
+        this.servicePrice = servicePrice;
     }
     public UUID getId() { return id; }
     public UUID id() { return id; }
@@ -71,4 +78,10 @@ public class AppointmentSummary {
     public Instant createdAt() { return createdAt; }
     public Instant getUpdatedAt() { return updatedAt; }
     public Instant updatedAt() { return updatedAt; }
+    public String getDoctorDisplayName() { return doctorDisplayName; }
+    public String doctorDisplayName() { return doctorDisplayName; }
+    public String getServiceName() { return serviceName; }
+    public String serviceName() { return serviceName; }
+    public BigDecimal getServicePrice() { return servicePrice; }
+    public BigDecimal servicePrice() { return servicePrice; }
 }

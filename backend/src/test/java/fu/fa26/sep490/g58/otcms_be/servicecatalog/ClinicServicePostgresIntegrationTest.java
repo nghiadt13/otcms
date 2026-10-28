@@ -14,8 +14,15 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.annotation.DirtiesContext;
 
 import javax.sql.DataSource;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.UUID;
@@ -26,16 +33,52 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @SpringBootTest
 @AutoConfigureMockMvc
 @LocalPostgresTest
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 class ClinicServicePostgresIntegrationTest {
+    private static final String TEST_SCHEMA = "t010_price_" + UUID.randomUUID().toString().replace("-", "");
+    private static final String TEST_DATABASE_URL = "jdbc:postgresql://127.0.0.1:5432/otcms_test_db";
     private final List<UUID> actorAccounts = new ArrayList<>();
     @Autowired MockMvc mvc;
     @Autowired JdbcTemplate jdbc;
     @Autowired DataSource dataSource;
+
+    @DynamicPropertySource
+    static void isolateFlywayAndJpaInTemporarySchema(DynamicPropertyRegistry registry) {
+        String username = System.getenv().getOrDefault("OTCMS_TEST_DB_USERNAME", "postgres");
+        String password = System.getenv("OTCMS_TEST_DB_PASSWORD");
+        if (password == null) {
+            throw new IllegalStateException("OTCMS_TEST_DB_PASSWORD is required for the local ClinicService integration test");
+        }
+        try (Connection connection = DriverManager.getConnection(TEST_DATABASE_URL, username, password);
+             Statement statement = connection.createStatement()) {
+            statement.execute("create schema " + TEST_SCHEMA);
+        } catch (SQLException exception) {
+            throw new IllegalStateException("Could not create the isolated ClinicService test schema", exception);
+        }
+
+        registry.add("spring.datasource.url", () -> TEST_DATABASE_URL + "?currentSchema=" + TEST_SCHEMA);
+        registry.add("spring.flyway.schemas", () -> TEST_SCHEMA);
+        registry.add("spring.flyway.default-schema", () -> TEST_SCHEMA);
+    }
+
+    @org.junit.jupiter.api.AfterAll
+    static void dropTemporarySchema() throws SQLException {
+        String username = System.getenv().getOrDefault("OTCMS_TEST_DB_USERNAME", "postgres");
+        String password = System.getenv("OTCMS_TEST_DB_PASSWORD");
+        if (password == null) {
+            return;
+        }
+        try (Connection connection = DriverManager.getConnection(TEST_DATABASE_URL, username, password);
+             Statement statement = connection.createStatement()) {
+            statement.execute("drop schema if exists " + TEST_SCHEMA + " cascade");
+        }
+    }
 
     @AfterEach void cleanup() {
         jdbc.execute("alter table service_audits disable trigger tr_service_catalog_audits_immutable");
@@ -74,6 +117,7 @@ class ClinicServicePostgresIntegrationTest {
                 UUID.randomUUID(), "T010 inactive online", 30, 5, true, false);
         mvc.perform(get("/api/v1/clinic-services").param("size", "100"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.items[?(@.name == 'T010 online')]").exists())
+                .andExpect(jsonPath("$.items[0].price").value(0.00))
                 .andExpect(jsonPath("$.items[?(@.name == 'T010 staff only')]").doesNotExist())
                 .andExpect(jsonPath("$.items[?(@.name == 'T010 inactive online')]").doesNotExist());
     }
@@ -95,9 +139,14 @@ class ClinicServicePostgresIntegrationTest {
     @Test
     void adminDeactivationPreservesServiceRowAndWritesAudit() throws Exception {
         String response = mvc.perform(post("/api/v1/admin/clinic-services").with(actor(AccountType.ADMIN)).with(csrf()).contentType("application/json")
-                        .content("{\"name\":\"T010 diagnostic\",\"description\":\"Test service\",\"durationMinutes\":40,\"bufferMinutes\":10,\"onlineBookable\":true}"))
-                .andExpect(status().isCreated()).andExpect(jsonPath("$.active").value(true)).andReturn().getResponse().getContentAsString();
+                        .content("{\"name\":\"T010 diagnostic\",\"description\":\"Test service\",\"price\":125000.00,\"durationMinutes\":40,\"bufferMinutes\":10,\"onlineBookable\":true}"))
+                .andExpect(status().isCreated()).andExpect(jsonPath("$.active").value(true))
+                .andExpect(jsonPath("$.price").value(125000.00)).andReturn().getResponse().getContentAsString();
         String id = response.replaceAll(".*\\\"id\\\":\\\"([^\\\"]+)\\\".*", "$1");
+        mvc.perform(put("/api/v1/admin/clinic-services/" + id).with(actor(AccountType.ADMIN)).with(csrf())
+                        .contentType("application/json")
+                        .content("{\"name\":\"T010 diagnostic\",\"description\":\"Test service\",\"price\":95000.50,\"durationMinutes\":40,\"bufferMinutes\":10,\"onlineBookable\":true}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.price").value(95000.50));
         mvc.perform(delete("/api/v1/admin/clinic-services/" + id).with(actor(AccountType.ADMIN)).with(csrf()))
                 .andExpect(status().isNoContent());
         assertEquals(1, jdbc.queryForObject("select count(*) from clinic_services where id = ? and active = false", Integer.class, UUID.fromString(id)));
@@ -112,8 +161,16 @@ class ClinicServicePostgresIntegrationTest {
     @Test
     void receptionistCannotManageServices() throws Exception {
         mvc.perform(post("/api/v1/admin/clinic-services").with(actor(AccountType.RECEPTIONIST)).with(csrf()).contentType("application/json")
-                .content("{\"name\":\"T010 denied\",\"durationMinutes\":30,\"bufferMinutes\":0,\"onlineBookable\":false}"))
+                .content("{\"name\":\"T010 denied\",\"price\":0.00,\"durationMinutes\":30,\"bufferMinutes\":0,\"onlineBookable\":false}"))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void adminCannotSetNegativeServicePrice() throws Exception {
+        mvc.perform(post("/api/v1/admin/clinic-services").with(actor(AccountType.ADMIN)).with(csrf())
+                        .contentType("application/json")
+                        .content("{\"name\":\"T010 negative price\",\"price\":-1.00,\"durationMinutes\":30,\"bufferMinutes\":0,\"onlineBookable\":false}"))
+                .andExpect(status().isBadRequest());
     }
 
     private RequestPostProcessor actor(AccountType type) {

@@ -9,6 +9,7 @@ import fu.fa26.sep490.g58.otcms_be.servicecatalog.mapper.ClinicServiceMapper;
 import fu.fa26.sep490.g58.otcms_be.servicecatalog.repository.ClinicServiceRepository;
 import fu.fa26.sep490.g58.otcms_be.servicecatalog.repository.DoctorServiceAssignmentRepository;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
 
@@ -31,6 +32,12 @@ public class ServiceCatalogQueryServiceImpl implements ClinicServiceBookingQuery
                 .orElseThrow(() -> new ClinicServiceException("SERVICE_NOT_BOOKABLE"));
         return new BookableService(service.id(), service.name(), service.consultationDuration(),
                 service.bufferDuration(), service.onlineBookable());
+    }
+
+    @Override
+    public Optional<ServiceLabel> findServiceLabel(UUID serviceId) {
+        return services.findById(serviceId).map(ClinicServiceMapper::toModel)
+                .map(service -> new ServiceLabel(service.name(), service.price()));
     }
 
     @Override
