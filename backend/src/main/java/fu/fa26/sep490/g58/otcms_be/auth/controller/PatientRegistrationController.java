@@ -33,7 +33,8 @@ public class PatientRegistrationController {
     }
     private ResponseEntity<ErrorResponse> error(RegistrationException ex) {
         HttpStatus status = "RATE_LIMIT_EXCEEDED".equals(ex.getMessage()) ? HttpStatus.TOO_MANY_REQUESTS
-                : "EMAIL_DELIVERY_UNAVAILABLE".equals(ex.getMessage()) ? HttpStatus.SERVICE_UNAVAILABLE
+                : "EMAIL_DELIVERY_UNAVAILABLE".equals(ex.getMessage())
+                || "RATE_LIMIT_UNAVAILABLE".equals(ex.getMessage()) ? HttpStatus.SERVICE_UNAVAILABLE
                 : HttpStatus.BAD_REQUEST;
         return ResponseEntity.status(status).body(ErrorResponse.of(ex.getMessage(), "Authentication request could not be completed", null));
     }

@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { authMessages } from "../authMessages";
 import { RegisterPatientFlow } from "./RegisterPatientFlow";
 
@@ -9,6 +9,25 @@ import { RegisterPatientFlow } from "./RegisterPatientFlow";
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace: vi.fn() }),
 }));
+
+const fetchMock = vi.fn<typeof fetch>();
+beforeEach(() => {
+  fetchMock.mockReset();
+  fetchMock.mockImplementation(async (input, init) => {
+    const url = String(input);
+    if (url.endsWith("/api/auth/patient/register"))
+      return new Response(JSON.stringify({ message: "Verification requested" }), { status: 202 });
+    if (url.endsWith("/api/auth/patient/verify-email")) {
+      const payload = JSON.parse(String(init?.body)) as { otp: string };
+      return payload.otp === "000000"
+        ? new Response(JSON.stringify({ error: { code: "OTP_INVALID_OR_EXPIRED" } }), { status: 400 })
+        : new Response(null, { status: 204 });
+    }
+    return new Response(null, { status: 202 });
+  });
+  vi.stubGlobal("fetch", fetchMock);
+});
+afterEach(() => vi.unstubAllGlobals());
 
 async function fillDetails(email: string) {
   const user = userEvent.setup();
@@ -86,5 +105,18 @@ describe("RegisterPatientFlow", () => {
     expect(
       screen.getByRole("button", { name: "Vào cổng bệnh nhân" }),
     ).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://localhost:8080/api/auth/patient/register",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          fullName: "Nguyễn Văn An",
+          email: "an@example.com",
+          password: "matkhau123",
+          confirmPassword: "matkhau123",
+          patientConsent: true,
+        }),
+      }),
+    );
   }, 15000);
 });

@@ -1,8 +1,9 @@
+import { apiBaseUrl } from "@/lib/api/apiBaseUrl";
 import { AuthSessionError, signInWithPassword } from "@/lib/auth/authSession";
 import { fetchCurrentAccount } from "@/lib/auth/currentAccountApi";
 import { AuthRequestError, type PatientRegistrationInput } from "../types/auth";
 
-// UC01 Đăng nhập đi thật qua backend (POST /api/auth/patient/login). UC02 và UC06 hiện là LỚP API GIẢ vì
+// UC01 (đăng nhập) và UC06 (đăng ký, xác minh email) đi thật qua backend. UC02 hiện là LỚP API GIẢ vì
 // backend chưa có endpoint: dữ liệu nằm trong bộ nhớ trình duyệt, mất khi tải
 // lại. Khi nối backend, giữ nguyên chữ ký hàm và chỉ thay phần thân; component
 // không cần đổi. Mọi lỗi ném ra là `AuthRequestError` mang mã MSG.
@@ -57,35 +58,55 @@ export async function resetPassword(
   void newPassword;
 }
 
-// --- UC06: API giả -------------------------------------------------------
+// --- UC06: đăng ký qua backend -------------------------------------------
 
-// Mã "000000" mô phỏng mã sai/hết hạn; mã 6 số khác được chấp nhận.
-const REJECTED_CODE = "000000";
-const pendingRegistrations = new Set<string>();
+// Ba endpoint này backend miễn CSRF và không cần phiên (SecurityConfig), nên gọi fetch thẳng,
+// không đi qua `apiRequest`. Đăng ký xong chưa đăng nhập: người dùng đăng nhập ở bước sau.
+async function registrationRequest(path: string, body: unknown): Promise<void> {
+  let response: Response;
+  try {
+    response = await fetch(`${apiBaseUrl}${path}`, {
+      method: "POST",
+      cache: "no-store",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+  } catch {
+    throw new AuthRequestError("MSG-04");
+  }
+  if (response.ok) return;
+  // 400 = dữ liệu không dùng được (email đã có, mã sai hoặc hết hạn): MSG-08 chung, không lộ lý do
+  // (BR-03). Còn lại (429, 503, 5xx) là lỗi dịch vụ.
+  throw new AuthRequestError(response.status === 400 ? "MSG-08" : "MSG-04");
+}
 
+/** POST /api/auth/patient/register (202). Ngày sinh, giới tính, SĐT thuộc hồ sơ nên không gửi ở đây. */
 export async function registerPatient(
   input: PatientRegistrationInput,
 ): Promise<void> {
-  await wait();
-  // Khi nối backend: gửi `fullName`, `email`, `password` (không gửi `confirmPassword`,
-  // `consent`); phía Supabase là `auth.signUp(email, password, { data: { displayName } })`
-  // rồi gửi OTP. Ngày sinh, giới tính, SĐT không gửi ở đây (thuộc hồ sơ, UC13).
-  // Backend thật kiểm tra trùng khóa định danh (BR-11) và trả MSG-08 chung (BR-03).
-  pendingRegistrations.add(input.email.trim().toLowerCase());
+  await registrationRequest("/api/auth/patient/register", {
+    fullName: input.fullName.trim(),
+    email: input.email.trim(),
+    password: input.password,
+    confirmPassword: input.confirmPassword,
+    patientConsent: input.consent,
+  });
 }
 
+/** POST /api/auth/patient/verify-email (204). */
 export async function verifyRegistrationEmail(
   email: string,
   code: string,
 ): Promise<void> {
-  await wait();
-  const key = email.trim().toLowerCase();
-  if (!pendingRegistrations.has(key) || code === REJECTED_CODE)
-    throw new AuthRequestError("MSG-08");
-  pendingRegistrations.delete(key);
+  await registrationRequest("/api/auth/patient/verify-email", {
+    email: email.trim(),
+    otp: code,
+  });
 }
 
+/** POST /api/auth/patient/resend-otp (202). */
 export async function resendRegistrationCode(email: string): Promise<void> {
-  await wait(250);
-  void email;
+  await registrationRequest("/api/auth/patient/resend-otp", {
+    email: email.trim(),
+  });
 }

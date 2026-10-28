@@ -6,6 +6,7 @@ import fu.fa26.sep490.g58.otcms_be.auth.repository.*;
 import fu.fa26.sep490.g58.otcms_be.auth.exception.RegistrationException;
 import fu.fa26.sep490.g58.otcms_be.auth.service.RegistrationService;
 import fu.fa26.sep490.g58.otcms_be.auth.model.dto.request.RegistrationRequest;
+import fu.fa26.sep490.g58.otcms_be.auth.model.dto.response.RegistrationResponse;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -58,19 +59,19 @@ class T004PostgresIntegrationTest {
 
     @Test
     @Order(1)
-    void registrationPersistsPendingAccountOtpAndBothConsentsForGuardian() {
-        String email = PREFIX + "guardian@example.com";
-        RegistrationRequest request = new RegistrationRequest("Guardian Patient", email, "0912345678",
-                LocalDate.now().minusYears(10), Gender.FEMALE, "correct horse battery", "correct horse battery", true, true);
+    void registrationPersistsPendingAccountOtpAndPatientConsentWithoutCreatingProfile() {
+        String email = PREFIX + "patient@example.com";
+        RegistrationRequest request = new RegistrationRequest("Sample Patient", email,
+                "patient123", "patient123", true);
 
-        registration.register(request, "198.51.100.9");
+        RegistrationResponse response = registration.register(request, "198.51.100.9");
 
         AccountJpaEntity account = accounts.findByNormalizedEmail(email).orElseThrow();
         assertEquals(AccountStatus.PENDING_VERIFICATION, account.getStatus());
-        assertEquals(1, jdbc.queryForObject("select count(*) from patient_profiles where account_id = ? and id is not null and id <> account_id", Integer.class, account.getId()));
-        assertEquals(2, consents.findAll().stream().filter(c -> c.getAccount().getId().equals(account.getId())).count());
+        assertEquals(0, jdbc.queryForObject("select count(*) from patient_profiles where account_id = ?", Integer.class, account.getId()));
+        assertEquals(1, consents.findAll().stream().filter(c -> c.getAccount().getId().equals(account.getId())).count());
         assertEquals(1, challenges.countByAccountIdAndCreatedAtAfter(account.getId(), Instant.EPOCH));
-        assertEquals(1, jdbc.queryForObject("select count(*) from account_consents where account_id = ? and actor_type = 'GUARDIAN'", Integer.class, account.getId()));
+        assertEquals("If registration can be completed, a verification code will be sent.", response.message());
     }
 
     @Test
@@ -96,27 +97,50 @@ class T004PostgresIntegrationTest {
 
     @Test
     @Order(3)
-    void missingGuardianConsentFailsClosedBeforeActivation() {
+    void missingPatientConsentIsRejectedBeforeAccountCreation() {
         String email = PREFIX + "consent@example.com";
-        RegistrationRequest request = new RegistrationRequest("Minor Patient", email, "0912345678",
-                LocalDate.now().minusYears(10), Gender.FEMALE, "correct horse battery", "correct horse battery", true, false);
+        RegistrationRequest request = new RegistrationRequest("Sample Patient", email,
+                "patient123", "patient123", false);
         assertThrows(RegistrationException.class, () -> registration.register(request, "198.51.100.10"));
         assertFalse(accounts.existsByNormalizedEmail(email));
     }
 
     @Test
     @Order(4)
-    void normalizedEmailUniqueConstraintBlocksDuplicateRegistrationRace() {
+    void duplicatePendingRegistrationReturnsSameGenericResponseAndDoesNotCreateAccountAgain() {
         String email = PREFIX + "race@example.com";
-        RegistrationRequest request = new RegistrationRequest("Race Patient", email.toUpperCase(), "0912345678",
-                LocalDate.now().minusYears(30), Gender.OTHER, "correct horse battery", "correct horse battery", true, false);
-        registration.register(request, "198.51.100.11");
-        assertThrows(RegistrationException.class, () -> registration.register(request, "198.51.100.12"));
+        RegistrationRequest request = new RegistrationRequest("Race Patient", email.toUpperCase(),
+                "patient123", "patient123", true);
+        RegistrationResponse first = registration.register(request, "198.51.100.11");
+        RegistrationResponse duplicate = registration.register(request, "198.51.100.12");
+        assertEquals(first, duplicate);
         assertEquals(1, jdbc.queryForObject("select count(*) from accounts where normalized_email = ?", Integer.class, email));
     }
 
     @Test
     @Order(5)
+    void duplicateActiveRegistrationReturnsSameGenericResponseWithoutChangingPassword() {
+        String email = PREFIX + "active@example.com";
+        AccountJpaEntity existing = new AccountJpaEntity();
+        existing.setNormalizedEmail(email);
+        existing.setAccountType(AccountType.PATIENT);
+        existing.setStatus(AccountStatus.ACTIVE);
+        existing.setPasswordHash("existing-password-hash");
+        existing.setEmailVerifiedAt(Instant.now());
+        existing.setCreatedAt(Instant.now());
+        existing.setUpdatedAt(Instant.now());
+        accounts.saveAndFlush(existing);
+        RegistrationResponse response = registration.register(new RegistrationRequest("Changed Name", email,
+                "newpass123", "newpass123", true), "198.51.100.13");
+
+        AccountJpaEntity unchanged = accounts.findByNormalizedEmail(email).orElseThrow();
+        assertEquals("existing-password-hash", unchanged.getPasswordHash());
+        assertEquals("If registration can be completed, a verification code will be sent.", response.message());
+        assertEquals(0, challenges.countByAccountIdAndCreatedAtAfter(existing.getId(), Instant.EPOCH));
+    }
+
+    @Test
+    @Order(6)
     void emailFailureLeavesPendingAccountAndPersistsDeliveryAudit() {
         // The production email adapter is deliberately a no-op in this profile; verify
         // the persisted pending/audit contract directly for an unavailable delivery outcome.

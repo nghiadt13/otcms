@@ -6,6 +6,7 @@ app:
     staff-password: ${APP_DEMO_STAFF_PASSWORD:}
   auth:
     session-security:
+      cookie-secure: false
       patient-origins: http://localhost:3000,http://127.0.0.1:3000
       staff-origins: http://localhost:3000,http://127.0.0.1:3000
     staff-network:
