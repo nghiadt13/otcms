@@ -9,7 +9,7 @@ import { apiBaseUrl } from "@/lib/api/apiBaseUrl";
 
 // Khớp enum AccountType của backend.
 export type AccountType =
-  "PATIENT" | "RECEPTIONIST" | "DOCTOR" | "OWNER" | "ADMIN";
+  "PATIENT" | "RECEPTIONIST" | "DOCTOR" | "LAB_TECHNICIAN" | "IMAGING_TECHNICIAN" | "OWNER" | "ADMIN";
 export type LoginKind = "patient" | "staff";
 
 type SessionTokenBody = {
@@ -17,6 +17,7 @@ type SessionTokenBody = {
   expiresIn: number;
   accountId: string;
   accountType: AccountType;
+  mustChangePassword?: boolean;
 };
 
 export type AuthSession = {
@@ -25,6 +26,7 @@ export type AuthSession = {
   expiresAt: number;
   accountId: string;
   accountType: AccountType;
+  mustChangePassword: boolean;
 };
 
 /** Lỗi đăng nhập/phiên: `status` là mã HTTP, 0 là lỗi mạng. */
@@ -68,6 +70,7 @@ function setSession(body: SessionTokenBody): AuthSession {
     expiresAt: Date.now() + body.expiresIn * 1000,
     accountId: body.accountId,
     accountType: body.accountType,
+    mustChangePassword: body.mustChangePassword ?? false,
   };
   writeHint(true);
   return current;
@@ -178,6 +181,19 @@ export function peekSession(): AuthSession | null {
 
 export async function getAccessToken(): Promise<string | null> {
   return (await getSession())?.accessToken ?? null;
+}
+
+/** Complete the first login for an issued staff account. */
+export async function completeFirstLogin(currentPassword: string, newPassword: string): Promise<void> {
+  const token = await getAccessToken();
+  if (!token) throw new AuthSessionError(401);
+  const response = await post("/api/auth/change-password", {
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}`,
+      "X-CSRF-TOKEN": await getCsrfToken(true) },
+    body: JSON.stringify({ currentPassword, newPassword }),
+  });
+  if (!response.ok) throw new AuthSessionError(response.status);
+  clearSession();
 }
 
 /** Đăng xuất: huỷ phiên ở backend (bỏ qua lỗi) rồi xoá trạng thái trong tab. */

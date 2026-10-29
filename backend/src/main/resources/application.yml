@@ -7,6 +7,10 @@ spring:
     import: optional:file:.env[.properties]
   application:
     name: OTCMS_BE
+  servlet:
+    multipart:
+      max-file-size: 2MB
+      max-request-size: 3MB
 
   datasource:
     # Include ?sslmode=require in SUPABASE_DB_URL.

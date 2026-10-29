@@ -24,6 +24,7 @@ export function DoctorPublicProfile({
             priority
             sizes="(min-width: 1024px) 30vw, 90vw"
             src={doctor.photoUrl}
+            unoptimized
           />
         ) : (
           <span
@@ -68,14 +69,14 @@ export function DoctorPublicProfile({
           </p>
         </section>
 
-        <section aria-labelledby="doctor-availability-title" className="mt-10">
+        {doctor.availability.length > 0 ? <section aria-labelledby="doctor-availability-title" className="mt-10">
           <h2 className="text-2xl font-semibold" id="doctor-availability-title">
             Lịch nhận khám 7 ngày tới
           </h2>
           <div className="mt-4">
             <DoctorAvailabilitySummary availability={doctor.availability} />
           </div>
-        </section>
+        </section> : null}
 
         <PublicBookAppointmentLink
           className={publicButtonClass("primary", "lg") + " mt-10"}

@@ -1,6 +1,5 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { DetailList } from "@/components/admin/DetailList";
 import { StatusBadge } from "@/components/admin/StatusBadge";
@@ -14,10 +13,9 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ACCOUNT_TYPE_LABELS, ROLE_LABELS } from "@/lib/domain/clinicRoles";
+import { ACCOUNT_TYPE_LABELS } from "@/lib/domain/clinicRoles";
 import { formatDate } from "@/lib/format/formatDate";
 import { notifyError } from "@/lib/messages/notify";
-import { ADMIN_ROUTES } from "@/lib/routes/adminRoutes";
 import {
   STATUS_LABELS,
   STATUS_TONES,
@@ -27,7 +25,6 @@ import {
 import { useAccountDetail } from "../hooks/useAccountDetail";
 import { useAccountStatusChange } from "../hooks/useAccountStatusChange";
 import type { AccountDetail } from "../types/account";
-import { AccountReissueDialog } from "./AccountReissueDialog";
 import { AccountStatusDialog } from "./AccountStatusDialog";
 
 type AccountDetailSheetProps = {
@@ -40,11 +37,8 @@ type AccountDetailSheetProps = {
 };
 
 function detailItems(account: AccountDetail) {
-  const isStaff = account.accountType !== "PATIENT";
-  const items = [
-    isStaff
-      ? { label: "Tên đăng nhập", value: account.username }
-      : { label: "Email", value: account.email },
+  return [
+    { label: "Email", value: account.email },
     {
       label: "Loại tài khoản",
       value: ACCOUNT_TYPE_LABELS[account.accountType],
@@ -63,19 +57,7 @@ function detailItems(account: AccountDetail) {
         <span className="tabular-nums">{formatDate(account.createdAt)}</span>
       ),
     },
-  ];
-  if (!isStaff) return [...items, { label: "Họ tên", value: account.fullName }];
-  if (!account.staffProfile)
-    return [
-      ...items,
-      { label: "Hồ sơ nhân viên", value: "Chưa có hồ sơ nhân viên." },
-    ];
-  const { fullName, role, workContact } = account.staffProfile;
-  return [
-    ...items,
-    { label: "Họ tên", value: fullName },
-    { label: "Vai trò", value: ROLE_LABELS[role] },
-    { label: "Liên hệ công việc", value: workContact },
+    { label: "Họ tên", value: account.fullName },
   ];
 }
 
@@ -85,10 +67,8 @@ export function AccountDetailSheet({
   onChanged,
   onStale,
 }: AccountDetailSheetProps) {
-  const router = useRouter();
   const { detail, loading, error, notFound, rawError, reload, setDetail } =
     useAccountDetail(accountId);
-  const [reissueOpen, setReissueOpen] = useState(false);
 
   const status = useAccountStatusChange({
     onChanged: (updated) => {
@@ -170,24 +150,6 @@ export function AccountDetailSheet({
                 Kích hoạt
               </Button>
             ) : null}
-            {can("reissuePassword") ? (
-              <Button variant="outline" onClick={() => setReissueOpen(true)}>
-                Cấp lại mật khẩu
-              </Button>
-            ) : null}
-            {can("createStaffProfile") && detail ? (
-              <Button
-                variant="outline"
-                onClick={() =>
-                  // Chỉ đưa UUID lên URL, không đưa tên đăng nhập hay họ tên.
-                  router.push(
-                    `${ADMIN_ROUTES.staffProfiles}?accountId=${encodeURIComponent(detail.id)}`,
-                  )
-                }
-              >
-                Tạo hồ sơ nhân viên
-              </Button>
-            ) : null}
             <Button variant="outline" onClick={onClose}>
               Đóng
             </Button>
@@ -200,19 +162,6 @@ export function AccountDetailSheet({
         onClose={status.close}
         onConfirm={status.confirm}
       />
-      {reissueOpen && detail ? (
-        <AccountReissueDialog
-          accountId={detail.id}
-          label={label}
-          onClose={(shouldReload) => {
-            setReissueOpen(false);
-            if (shouldReload) {
-              reload();
-              onStale();
-            }
-          }}
-        />
-      ) : null}
     </>
   );
 }

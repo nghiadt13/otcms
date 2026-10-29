@@ -1,5 +1,8 @@
+import { ApiError } from "@/lib/api/apiError";
+import { apiRequest } from "@/lib/api/client";
 import { clone, mockDelay, mockFail, paginate } from "@/lib/api/mockServer";
 import type { PageResponse } from "@/lib/api/pagination";
+import { toQueryString } from "@/lib/api/pagination";
 import { STAFF_ROLES } from "@/lib/domain/clinicRoles";
 import {
   generateInitialPassword,
@@ -20,6 +23,27 @@ import { accountStore, computeAllowedActions } from "./accountMockData";
 
 const MAX_QUERY_LENGTH = 100;
 const DELAY_MS = 120;
+const USE_MOCK = process.env.NODE_ENV === "test";
+
+function translateAccountError(error: unknown): never {
+  if (!(error instanceof ApiError)) throw error;
+  const code = error.errorCode === "PATIENT_ACCOUNT_NOT_FOUND"
+    ? "MSG-50"
+    : error.errorCode === "ACCOUNT_STATUS_UNCHANGED"
+      ? "MSG-42"
+      : error.errorCode === "VALIDATION_FAILED"
+        ? "MSG-54"
+        : error.status === 404
+          ? "MSG-50"
+          : error.status === 409
+            ? "MSG-42"
+            : error.status === 400
+              ? "MSG-54"
+        : error.status === 403
+          ? "MSG-50"
+          : "MSG-04";
+  throw new ApiError(error.status, { code });
+}
 
 // Danh sách không mang `staffProfile` (chỉ có ở chi tiết).
 const toListItem = (account: AccountDetail): AccountListItem => {
@@ -42,6 +66,22 @@ export async function listAccounts(
   query: AccountListQuery,
   signal?: AbortSignal,
 ): Promise<PageResponse<AccountListItem>> {
+  if (!USE_MOCK) {
+    const params = toQueryString({
+      q: query.q,
+      status: query.status,
+      page: query.page,
+      size: query.size,
+    });
+    try {
+      return await apiRequest<PageResponse<AccountListItem>>(
+        `/api/v1/admin/accounts${params}`,
+        { signal },
+      );
+    } catch (error) {
+      translateAccountError(error);
+    }
+  }
   await mockDelay(DELAY_MS, signal);
   const keyword = query.q?.trim().toLowerCase() ?? "";
   if (keyword.length > MAX_QUERY_LENGTH) mockFail(400, "MSG-54");
@@ -61,7 +101,17 @@ export async function listAccounts(
   return clone(paginate(matched, query));
 }
 
-export async function getAccount(id: string): Promise<AccountDetail> {
+export async function getAccount(
+  id: string,
+  signal?: AbortSignal,
+): Promise<AccountDetail> {
+  if (!USE_MOCK) {
+    try {
+      return await apiRequest<AccountDetail>(`/api/v1/admin/accounts/${encodeURIComponent(id)}`, { signal });
+    } catch (error) {
+      translateAccountError(error);
+    }
+  }
   await mockDelay(DELAY_MS);
   return clone(findOrFail(id));
 }
@@ -69,6 +119,7 @@ export async function getAccount(id: string): Promise<AccountDetail> {
 export async function createAccount(
   input: CreateAccountInput,
 ): Promise<IssuedCredential> {
+  if (!USE_MOCK) throw new ApiError(403, { code: "MSG-50" });
   await mockDelay(DELAY_MS);
   const username = input.username.trim();
 
@@ -113,6 +164,17 @@ async function changeStatus(
   id: string,
   target: "ACTIVE" | "INACTIVE",
 ): Promise<AccountDetail> {
+  if (!USE_MOCK) {
+    const action = target === "ACTIVE" ? "activation" : "deactivation";
+    try {
+      return await apiRequest<AccountDetail>(
+        `/api/v1/admin/accounts/${encodeURIComponent(id)}/${action}`,
+        { method: "POST" },
+      );
+    } catch (error) {
+      translateAccountError(error);
+    }
+  }
   await mockDelay(DELAY_MS);
   const account = findOrFail(id);
   // Đã ở trạng thái đích (ví dụ kích hoạt tài khoản đang Active): không cho phép.
@@ -128,6 +190,7 @@ export const deactivateAccount = (id: string) => changeStatus(id, "INACTIVE");
 export async function reissueAccountPassword(
   id: string,
 ): Promise<IssuedCredential> {
+  if (!USE_MOCK) throw new ApiError(403, { code: "MSG-50" });
   await mockDelay(DELAY_MS);
   const account = findOrFail(id);
   // Bệnh nhân tự khôi phục bằng OTP email, Admin không cấp lại.

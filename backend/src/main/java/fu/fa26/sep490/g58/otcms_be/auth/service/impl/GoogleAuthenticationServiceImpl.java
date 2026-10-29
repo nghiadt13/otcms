@@ -86,6 +86,7 @@ public class GoogleAuthenticationServiceImpl implements GoogleAuthenticationServ
         var account = new AccountJpaEntity(); account.setNormalizedEmail(identity.normalizedEmail()); account.setAccountType(AccountType.PATIENT);
         account.setStatus(AccountStatus.ACTIVE); account.setEmailVerifiedAt(Instant.now()); account.setCreatedAt(Instant.now()); account.setUpdatedAt(Instant.now());
         accounts.saveAndFlush(account);
+        account.setFullName(request.fullName().trim());
         account.setDisplayName(request.fullName().trim());
         accounts.save(account);
         var profile = new PatientProfileJpaEntity(); profile.setAccount(account); profile.setAccountId(account.getId()); profile.setFullName(request.fullName().trim());

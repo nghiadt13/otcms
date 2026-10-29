@@ -19,6 +19,7 @@ import { authLinkClass } from "./AuthCard";
 import { AuthSubmitButton } from "./AuthSubmitButton";
 import { AuthTextField } from "./AuthTextField";
 import { PasswordField } from "./PasswordField";
+import { completeFirstLogin } from "@/lib/auth/authSession";
 
 // UC01 Đăng nhập bệnh nhân (email + mật khẩu). Mọi trường hợp bị từ chối (thiếu thông tin,
 // sai mật khẩu, tài khoản không đủ điều kiện) đều hiện cùng MSG-01 để không lộ tài khoản
@@ -47,6 +48,8 @@ export function SignInForm({
   }>({});
   const [message, setMessage] = useState<AuthMessageCode | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [needsNewPassword, setNeedsNewPassword] = useState(false);
+  const [newPassword, setNewPassword] = useState("");
 
   // Mở màn đăng nhập nghĩa là chưa có phiên (đăng xuất cũng đi qua đây): bỏ phiên giả của khu bệnh nhân.
   useEffect(() => clearMockSignedInKind(), []);
@@ -68,7 +71,17 @@ export function SignInForm({
     setSubmitting(true);
     try {
       if (staff) {
-        await signInStaff(email, password);
+        if (needsNewPassword) {
+          await completeFirstLogin(password, newPassword);
+          await signInStaff(email, newPassword);
+        } else {
+          const session = await signInStaff(email, password);
+          if (session.mustChangePassword) {
+            setNeedsNewPassword(true);
+            setSubmitting(false);
+            return;
+          }
+        }
         router.replace("/workspace");
         return;
       }
@@ -130,6 +143,12 @@ export function SignInForm({
           </div>
         )}
       </div>
+
+      {staff && needsNewPassword ? <div>
+        <p className="mb-2 text-sm">Đây là lần đăng nhập đầu tiên. Đặt mật khẩu mới để tiếp tục.</p>
+        <PasswordField autoComplete="new-password" label="Mật khẩu mới (12–64 ký tự)"
+          value={newPassword} required onChange={(event) => setNewPassword(event.target.value)} />
+      </div> : null}
 
       <AuthSubmitButton
         submitting={submitting}

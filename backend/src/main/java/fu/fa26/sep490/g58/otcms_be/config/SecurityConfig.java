@@ -39,7 +39,8 @@ public class SecurityConfig {
                                 "/v3/api-docs", "/v3/api-docs/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/auth/staff/administrator/login").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/clinic-services", "/api/v1/doctors",
-                                "/api/v1/doctors/**", "/api/v1/appointments/availability").permitAll()
+                                "/api/v1/doctors/**", "/api/v1/appointments/availability",
+                                "/api/v1/staff-profiles/*/photo").permitAll()
                         .requestMatchers(HttpMethod.HEAD, "/api/v1/clinic-services", "/api/v1/appointments/availability")
                                 .permitAll()
                         .anyRequest().authenticated())

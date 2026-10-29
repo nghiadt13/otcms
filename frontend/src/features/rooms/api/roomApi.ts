@@ -1,5 +1,8 @@
 import { clone, mockDelay, mockFail, paginate } from "@/lib/api/mockServer";
 import type { PageQuery, PageResponse } from "@/lib/api/pagination";
+import { apiRequest } from "@/lib/api/client";
+import { toQueryString } from "@/lib/api/pagination";
+import { ApiError } from "@/lib/api/apiError";
 import {
   SERVICE_CATEGORIES,
   type ServiceCategory,
@@ -18,8 +21,8 @@ import {
   buildSeedRooms,
 } from "./roomMockData";
 
-// Giai đoạn mock: mỗi hàm tương ứng một endpoint `/api/v1/admin/rooms...`.
-// Khi nối BE thay thân hàm bằng `apiRequest`, giữ nguyên chữ ký. Không có deleteRoom (spec: không xóa phòng).
+// Dùng API thật khi chạy ứng dụng; kho mock chỉ giữ ranh giới API trong test.
+// Backend tạm ngưng phòng thay vì xóa để giữ lịch sử phân công.
 
 let store: Room[] = buildSeedRooms();
 
@@ -33,6 +36,83 @@ const isCategory = (v: string): v is ServiceCategory =>
 const isStatus = (v: string): v is RoomStatus =>
   v === "AVAILABLE" || v === "UNAVAILABLE";
 const norm = (v: string) => v.trim().toLocaleLowerCase("vi");
+const USE_MOCK = process.env.NODE_ENV === "test";
+
+async function liveRequest<T>(request: Promise<T>): Promise<T> {
+  try {
+    return await request;
+  } catch (error) {
+    if (!(error instanceof ApiError) || !error.errorCode) throw error;
+    switch (error.errorCode) {
+      case "ROOM_HAS_ACTIVE_RESERVATIONS":
+        throw new ApiError(error.status, { code: "MSG-64" });
+      case "DUPLICATE_ROOM_CODE":
+        throw new ApiError(error.status, {
+          fieldErrors: [{ field: "name", code: "MSG-98" }],
+        });
+      case "ROOM_NOT_FOUND":
+        throw new ApiError(error.status, { code: "MSG-50" });
+      case "VALIDATION_FAILED":
+        throw new ApiError(error.status, { code: "MSG-62" });
+      case "ACCESS_DENIED":
+        throw new ApiError(error.status, { code: "MSG-50" });
+      default:
+        throw error;
+    }
+  }
+}
+
+type BackendRoom = {
+  id: string;
+  roomCode: string;
+  displayLabel: string;
+  type: ServiceCategory;
+  description: string;
+  capabilities: string[];
+  supportedServiceIds: string[];
+  active: boolean;
+};
+type BackendServiceOption = {
+  id: string;
+  name: string;
+  type: ServiceCategory;
+  active: boolean;
+};
+type ItemsResponse<T> = { items: T[] };
+
+async function backendServiceOptions(
+  category?: ServiceCategory | string,
+  signal?: AbortSignal,
+  includeInactive = false,
+) {
+  const path = `/api/v1/admin/clinic-services/room-options${toQueryString({
+    type: category,
+    includeInactive: includeInactive || undefined,
+  })}` as const;
+  const result = await liveRequest(
+    apiRequest<ItemsResponse<BackendServiceOption>>(path, { signal }),
+  );
+  return result.items.map((item) => ({
+    id: item.id,
+    name: item.name,
+    category: item.type,
+  }));
+}
+
+function mapBackendRoom(room: BackendRoom, options: RoomServiceOption[]): Room {
+  const byId = new Map(options.map((option) => [option.id, option]));
+  return {
+    id: room.id,
+    name: room.roomCode,
+    type: room.type,
+    description: room.description ?? "",
+    status: room.active ? "AVAILABLE" : "UNAVAILABLE",
+    supportedServices: room.supportedServiceIds.map((id) =>
+      byId.has(id) ? { id, name: byId.get(id)!.name } : { id, name: id },
+    ),
+    allowedActions: ["edit", "changeStatus"],
+  };
+}
 
 function findRoom(id: string): Room {
   const room = store.find((r) => r.id === id);
@@ -54,6 +134,23 @@ export async function listRooms(
   query: PageQuery & Partial<RoomListFilters>,
   signal?: AbortSignal,
 ): Promise<PageResponse<Room>> {
+  if (!USE_MOCK) {
+    const [response, options] = await Promise.all([
+      liveRequest(apiRequest<ItemsResponse<BackendRoom>>("/api/v1/admin/visit-rooms", { signal })),
+      backendServiceOptions(undefined, signal, true),
+    ]);
+    const { q = "", type = "", status = "", serviceId = "" } = query;
+    const keyword = norm(q);
+    const filtered = response.items
+      .map((room) => mapBackendRoom(room, options))
+      .filter((room) => (!keyword || norm(room.name).includes(keyword))
+        && (!type || room.type === type)
+        && (!status || room.status === status)
+        && (!serviceId || room.supportedServices.some((service) => service.id === serviceId)))
+      .sort((a, b) => a.name.localeCompare(b.name, "vi")
+        * (query.sort === "name,desc" ? -1 : 1));
+    return paginate(filtered, query);
+  }
   await mockDelay(150, signal);
   const { q = "", type = "", status = "", serviceId = "" } = query;
   if (q === "khong-quyen") mockFail(403, "MSG-50");
@@ -80,6 +177,7 @@ export async function listRoomServiceOptions(
   category?: ServiceCategory | string,
   signal?: AbortSignal,
 ): Promise<RoomServiceOption[]> {
+  if (!USE_MOCK) return backendServiceOptions(category, signal);
   await mockDelay(120, signal);
   if (category && !isCategory(category)) mockFail(400, "MSG-54");
   return clone(
@@ -88,11 +186,30 @@ export async function listRoomServiceOptions(
 }
 
 export async function getRoom(id: string, signal?: AbortSignal): Promise<Room> {
+  if (!USE_MOCK) {
+    const room = await liveRequest(apiRequest<BackendRoom>(`/api/v1/admin/visit-rooms/${id}`, { signal }));
+    const options = await backendServiceOptions(room.type, signal, true);
+    return mapBackendRoom(room, options);
+  }
   await mockDelay(120, signal);
   return clone(findRoom(id));
 }
 
 export async function createRoom(input: RoomCreateInput): Promise<Room> {
+  if (!USE_MOCK) {
+    const room = await liveRequest(apiRequest<BackendRoom>("/api/v1/admin/visit-rooms", {
+      method: "POST",
+      body: JSON.stringify({
+        roomCode: input.name,
+        displayLabel: input.name,
+        type: input.type,
+        description: input.description,
+        serviceIds: input.serviceIds,
+      }),
+    }));
+    const options = await backendServiceOptions(input.type);
+    return mapBackendRoom(room, options);
+  }
   await mockDelay();
   const name = input.name.trim();
   if (!name)
@@ -119,6 +236,18 @@ export async function updateRoom(
   id: string,
   input: RoomUpdateInput,
 ): Promise<Room> {
+  if (!USE_MOCK) {
+    const room = await liveRequest(apiRequest<BackendRoom>(`/api/v1/admin/visit-rooms/${id}`, {
+      method: "PUT",
+      body: JSON.stringify({
+        displayLabel: input.name,
+        description: input.description,
+        serviceIds: input.serviceIds,
+      }),
+    }));
+    const options = await backendServiceOptions(room.type);
+    return mapBackendRoom(room, options);
+  }
   await mockDelay();
   const room = findRoom(id);
   room.supportedServices = resolveServices(input.serviceIds, room.type);
@@ -130,6 +259,13 @@ export async function changeRoomStatus(
   id: string,
   status: RoomStatus,
 ): Promise<Room> {
+  if (!USE_MOCK) {
+    await liveRequest(apiRequest<void>(
+      `/api/v1/admin/visit-rooms/${id}${status === "AVAILABLE" ? "/activation" : ""}`,
+      { method: status === "AVAILABLE" ? "POST" : "DELETE" },
+    ));
+    return getRoom(id);
+  }
   await mockDelay();
   const room = findRoom(id);
   if (status === "UNAVAILABLE" && room.name === MOCK_IN_USE_ROOM_NAME)

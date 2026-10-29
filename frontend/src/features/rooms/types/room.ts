@@ -24,7 +24,11 @@ export type RoomCreateInput = {
   description: string;
   serviceIds: string[];
 };
-export type RoomUpdateInput = { description: string; serviceIds: string[] };
+export type RoomUpdateInput = {
+  name?: string;
+  description: string;
+  serviceIds: string[];
+};
 export type RoomStatusInput = { status: RoomStatus };
 
 export type RoomServiceOption = {

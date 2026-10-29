@@ -34,10 +34,16 @@ public interface VisitRoomJpaRepository extends JpaRepository<VisitRoomJpaEntity
             select jsonb_build_object(
                 'roomCode', r.room_code,
                 'displayLabel', r.display_label,
+                'type', r.room_type,
+                'description', r.description,
                 'active', r.active,
                 'capabilities', coalesce((
                     select jsonb_agg(c.capability_code order by c.capability_code)
                     from room_capabilities c where c.room_id = r.id
+                ), '[]'::jsonb),
+                'supportedServiceIds', coalesce((
+                    select jsonb_agg(s.service_id order by s.service_id)
+                    from room_supported_services s where s.room_id = r.id
                 ), '[]'::jsonb)
             )::text
             from rooms r where r.id = :roomId

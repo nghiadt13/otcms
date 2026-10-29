@@ -1,4 +1,4 @@
-// Một enum cho loại dịch vụ và loại phòng (BR-57: dịch vụ hỗ trợ phải khớp loại phòng).
+// Loại dịch vụ và loại phòng dùng chung để lọc dịch vụ được hỗ trợ.
 export type ServiceCategory = "EXAMINATION" | "IMAGING" | "LABORATORY";
 
 export const SERVICE_CATEGORIES: ServiceCategory[] = [

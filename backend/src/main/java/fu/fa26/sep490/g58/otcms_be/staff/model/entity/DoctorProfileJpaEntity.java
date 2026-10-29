@@ -56,4 +56,15 @@ public class DoctorProfileJpaEntity {
         this.acceptingNewBookings = acceptingNewBookings;
         this.inActiveDirectory = inActiveDirectory;
     }
+    public void updateProfile(String name, String contact, String specialties, String qualifications,
+            String biography, String consultationInformation, boolean visible) {
+        this.fullName = name;
+        this.workContact = contact;
+        this.specialties = specialties;
+        this.qualifications = qualifications;
+        this.biography = biography;
+        this.consultationInformation = consultationInformation;
+        this.publiclyVisible = visible;
+    }
+    public void updatePhotoUrl(String value) { this.photoUrl = value; }
 }

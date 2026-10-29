@@ -2,6 +2,7 @@ package fu.fa26.sep490.g58.otcms_be.servicecatalog.controller;
 
 import fu.fa26.sep490.g58.otcms_be.servicecatalog.mapper.ClinicServiceMapper;
 import fu.fa26.sep490.g58.otcms_be.servicecatalog.model.ClinicService;
+import fu.fa26.sep490.g58.otcms_be.servicecatalog.model.ClinicServiceType;
 import fu.fa26.sep490.g58.otcms_be.servicecatalog.model.dto.request.ServiceRequest;
 import fu.fa26.sep490.g58.otcms_be.servicecatalog.model.dto.response.ItemsResponse;
 import fu.fa26.sep490.g58.otcms_be.servicecatalog.model.dto.response.ServiceResponse;
@@ -47,6 +48,25 @@ public class ClinicServiceController {
         return mapper.toItemsResponse(catalog.publicCatalog());
     }
 
+    @GetMapping("/api/v1/admin/clinic-services/room-options")
+    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
+    public ItemsResponse roomOptions(@RequestParam(required = false) ClinicServiceType type,
+            @RequestParam(defaultValue = "false") boolean includeInactive) {
+        return mapper.toItemsResponse(catalog.roomOptions(type, includeInactive));
+    }
+
+    @GetMapping("/api/v1/admin/clinic-services")
+    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
+    public ItemsResponse adminCatalog() {
+        return mapper.toItemsResponse(catalog.adminCatalog());
+    }
+
+    @GetMapping("/api/v1/admin/clinic-services/{serviceId}")
+    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
+    public ServiceResponse adminDetail(@PathVariable UUID serviceId) {
+        return mapper.toResponse(catalog.getService(serviceId));
+    }
+
     @GetMapping("/api/v1/staff/clinic-services")
     @PreAuthorize("hasAnyAuthority('ROLE_RECEPTIONIST', 'ROLE_DOCTOR')")
     public ItemsResponse staffCatalog() {
@@ -56,8 +76,9 @@ public class ClinicServiceController {
     @PostMapping("/api/v1/admin/clinic-services")
     @PreAuthorize("hasAuthority('ROLE_ADMIN')")
     public ResponseEntity<ServiceResponse> create(@Valid @RequestBody ServiceRequest request) {
-        ClinicService service = create.create(request.name(), request.description(), request.price(),
-                request.durationMinutes(), request.bufferMinutes(), request.onlineBookable());
+        ClinicService service = create.create(request.name(), request.description(), request.type(), request.price(),
+                request.durationMinutes(), request.bufferMinutes(), request.onlineBookable(), request.modality(),
+                request.patientNote(), request.indicators());
         return ResponseEntity.status(HttpStatus.CREATED).body(mapper.toResponse(service));
     }
 
@@ -65,7 +86,8 @@ public class ClinicServiceController {
     @PreAuthorize("hasAuthority('ROLE_ADMIN')")
     public ServiceResponse update(@PathVariable UUID serviceId, @Valid @RequestBody ServiceRequest request) {
         return mapper.toResponse(update.update(serviceId, request.name(), request.description(),
-                request.price(), request.durationMinutes(), request.bufferMinutes(), request.onlineBookable()));
+                request.price(), request.durationMinutes(), request.bufferMinutes(), request.modality(),
+                request.patientNote(), request.indicators()));
     }
 
     @DeleteMapping("/api/v1/admin/clinic-services/{serviceId}")

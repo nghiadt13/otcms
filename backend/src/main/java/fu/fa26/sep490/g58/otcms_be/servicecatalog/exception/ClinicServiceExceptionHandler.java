@@ -20,6 +20,7 @@ public class ClinicServiceExceptionHandler {
                 : "SERVICE_DEACTIVATION_REQUIRES_IMPACT_CHECK".equals(code)
                 || "DOCTOR_ASSIGNMENT_MUTATION_BLOCKED".equals(code)
                 || "DOCTOR_ASSIGNMENT_ALREADY_EXISTS".equals(code)
+                || "DUPLICATE_SERVICE_NAME".equals(code)
                 || "SERVICE_ACTIVATION_REQUIRES_ADMIN".equals(code) ? HttpStatus.CONFLICT : HttpStatus.BAD_REQUEST;
         return ResponseEntity.status(status).body(ErrorResponse.of(code,
                 status == HttpStatus.NOT_FOUND ? "Clinic service not found"

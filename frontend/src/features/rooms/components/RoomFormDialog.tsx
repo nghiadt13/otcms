@@ -127,6 +127,7 @@ function RoomForm({
     try {
       const saved = room
         ? await updateRoom(room.id, {
+            name: room.name,
             description: description.trim(),
             serviceIds,
           })

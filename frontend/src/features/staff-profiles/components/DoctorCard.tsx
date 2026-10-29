@@ -29,6 +29,7 @@ export function DoctorCard({
               fill
               sizes="(min-width: 1024px) 30vw, (min-width: 640px) 45vw, 90vw"
               src={doctor.photoUrl}
+              unoptimized
             />
           ) : (
             <span

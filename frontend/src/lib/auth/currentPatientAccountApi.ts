@@ -12,7 +12,7 @@ export interface CurrentPatientAccount {
 export function getCurrentPatientAccount(
   signal?: AbortSignal,
 ): Promise<CurrentPatientAccount> {
-  return apiRequest<CurrentPatientAccount>("/api/v1/me", { signal });
+  return apiRequest<CurrentPatientAccount>("/api/v1/me/patient-account", { signal });
 }
 
 /** Save the display name for accounts created before registration names were persisted. */

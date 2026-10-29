@@ -2,22 +2,19 @@
 
 import { useCallback, useState } from "react";
 import { PageHeader } from "@/components/PageHeader";
-import { Button } from "@/components/ui/button";
 import { useAccountList } from "../hooks/useAccountList";
 import { useAccountStatusChange } from "../hooks/useAccountStatusChange";
 import type { AccountDetail } from "../types/account";
 import { AccountDetailSheet } from "./AccountDetailSheet";
-import { AccountFormDialog } from "./AccountFormDialog";
 import { AccountStatusDialog } from "./AccountStatusDialog";
 import { AccountsFilterBar } from "./AccountsFilterBar";
 import { AccountsTable } from "./AccountsTable";
 
-/** Màn Tài khoản người dùng: PageHeader -> bộ lọc -> bảng; chi tiết ở Sheet, tạo ở Dialog. */
+/** Admin tra cứu tài khoản bệnh nhân và quản lý trạng thái đăng nhập của họ. */
 export function AccountManagement() {
   const list = useAccountList();
   const { reload, replaceItem, setFilters } = list;
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [createOpen, setCreateOpen] = useState(false);
 
   // Cập nhật dòng tại chỗ khi đổi trạng thái (từ menu dòng hoặc từ Sheet).
   const handleChanged = useCallback(
@@ -36,17 +33,12 @@ export function AccountManagement() {
     <>
       <PageHeader
         title="Tài khoản người dùng"
-        description="Cấp tài khoản cho nhân viên và tra cứu tài khoản bệnh nhân."
-        actions={
-          <Button onClick={() => setCreateOpen(true)}>Tạo tài khoản</Button>
-        }
+        description="Tra cứu tài khoản bệnh nhân và bật hoặc vô hiệu hóa quyền đăng nhập."
       />
 
       <AccountsFilterBar
         searchText={list.searchText}
         onSearchChange={list.setSearchText}
-        role={list.filters.role}
-        onRoleChange={(role) => setFilters({ role })}
         status={list.filters.status}
         onStatusChange={(next) => setFilters({ status: next })}
       />
@@ -80,12 +72,6 @@ export function AccountManagement() {
         />
       ) : null}
 
-      {createOpen ? (
-        <AccountFormDialog
-          onCreated={reload}
-          onClose={() => setCreateOpen(false)}
-        />
-      ) : null}
     </>
   );
 }

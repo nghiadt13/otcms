@@ -24,7 +24,7 @@ public class CurrentPatientAccountController {
         this.account = account;
     }
 
-    @GetMapping("/api/v1/me")
+    @GetMapping("/api/v1/me/patient-account")
     @PreAuthorize("hasAuthority('ROLE_PATIENT')")
     public CurrentPatientAccountService.CurrentPatientAccount get(
             @AuthenticationPrincipal AuthenticatedAccount actor) {
