@@ -6,7 +6,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useLinkedProfiles } from "@/hooks/useLinkedProfiles";
 import { messageFromError } from "@/lib/messages/appMessages";
 import { PATIENT_ROUTES } from "@/lib/routes/patientRoutes";
-import { getMockCurrentActor } from "@/lib/session/mockCurrentActor";
+import { useCurrentPatientAccount } from "@/hooks/useCurrentPatientAccount";
 import { useProfileSuggestions } from "../hooks/useProfileSuggestions";
 import { CreateProfileForm } from "./CreateProfileForm";
 import { PortalLoadError } from "./PortalLoadError";
@@ -19,10 +19,11 @@ export function NewPatientProfileScreen() {
   const router = useRouter();
   const linked = useLinkedProfiles();
   const suggestions = useProfileSuggestions();
+  const { account } = useCurrentPatientAccount();
   const hasSelf = linked.profiles.some(
     (profile) => profile.relationship === "SELF",
   );
-  const email = getMockCurrentActor("patient").email ?? "";
+  const email = account?.email ?? "";
   const showSuggestions =
     suggestions.loading ||
     suggestions.error !== null ||
@@ -97,3 +98,4 @@ export function NewPatientProfileScreen() {
     </>
   );
 }
+

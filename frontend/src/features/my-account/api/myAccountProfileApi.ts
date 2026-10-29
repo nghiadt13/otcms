@@ -1,4 +1,6 @@
 import { mockDelay, mockFail } from "@/lib/api/mockServer";
+import { updateCurrentPatientDisplayName } from "@/lib/auth/currentPatientAccountApi";
+import { getMyAccount } from "./myAccountApi";
 import type { MyAccount } from "../types/myAccount";
 import { MOCK_EMAIL_CHANGE_OTP, MOCK_TAKEN_EMAIL } from "./myAccountMockData";
 import { accountSnapshot, currentMockAccountState } from "./myAccountMockStore";
@@ -16,6 +18,10 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 export async function updateMyDisplayName(
   displayName: string,
 ): Promise<MyAccount> {
+  if (process.env.NODE_ENV !== "test") {
+    await updateCurrentPatientDisplayName(displayName);
+    return getMyAccount();
+  }
   await mockDelay(LATENCY_MS);
   const state = currentMockAccountState();
   if (state.account.kind !== "PATIENT") mockFail(403, "MSG-14");

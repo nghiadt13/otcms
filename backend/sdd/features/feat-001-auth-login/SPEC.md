@@ -60,6 +60,8 @@ Mục tiêu kiểm chứng được:
 | `POST` | `/api/auth/staff/forgot-password` | Internal/VPN staff | Yêu cầu reset staff password qua entry point giới hạn mạng |
 | `POST` | `/api/auth/staff/reset-password` | Internal/VPN staff | Reset staff password qua entry point giới hạn mạng |
 | `POST` | `/api/auth/change-password` | Authenticated patient/staff | Đổi local password bằng current password |
+| `GET` | `/api/v1/me` | Authenticated patient | Trả danh tính tài khoản hiện tại (`id`, `displayName`, `email`, `status`) từ access token |
+| `PATCH` | `/api/v1/me` | Authenticated patient | Cập nhật `displayName` của tài khoản hiện tại |
 
 Chỉ các endpoint trên được public hoặc network-exposed theo policy của feature này. Staff endpoint không trở thành public endpoint chỉ vì nằm cùng deployment unit.
 

@@ -16,6 +16,7 @@ import java.util.UUID;
 public class AccountJpaEntity {
     @Id @GeneratedValue(strategy = GenerationType.UUID) private UUID id;
     @Column(name = "normalized_email", nullable = false, length = 254, unique = true) private String normalizedEmail;
+    @Column(name = "display_name", length = 100) private String displayName;
     @Enumerated(EnumType.STRING) @Column(name = "account_type", nullable = false, length = 16) private AccountType accountType;
     @Enumerated(EnumType.STRING) @Column(nullable = false, length = 32) private AccountStatus status;
     @Column(name = "password_hash", length = 255) private String passwordHash;

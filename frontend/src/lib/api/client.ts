@@ -1,5 +1,9 @@
 import { apiBaseUrl } from "./apiBaseUrl";
-import { getAccessToken } from "@/lib/auth/authSession";
+import {
+  getAccessToken,
+  getCsrfToken,
+  refreshSession,
+} from "@/lib/auth/authSession";
 import { ApiError, type ApiFieldError, type MsgCode } from "./apiError";
 
 type ProblemDetail = {
@@ -23,7 +27,37 @@ async function authorizedHeaders(init: RequestInit) {
     !headers.has("Content-Type")
   )
     headers.set("Content-Type", "application/json");
+  const method = (init.method ?? "GET").toUpperCase();
+  if (!["GET", "HEAD", "OPTIONS"].includes(method)) {
+    headers.set("X-CSRF-TOKEN", await getCsrfToken());
+  }
   return headers;
+}
+
+async function sendAuthorized(
+  path: `/api/v1/${string}`,
+  init: RequestInit,
+): Promise<Response> {
+  const headers = await authorizedHeaders(init);
+  const response = await fetch(`${apiBaseUrl}${path}`, {
+    ...init,
+    headers,
+    credentials: "include",
+    cache: "no-store",
+  });
+  if (response.status !== 401) return response;
+
+  // An otherwise-valid session can hold a token rejected after expiry or a backend restart.
+  // Refresh once, then retry the request with the newly issued access token.
+  const session = await refreshSession();
+  if (!session) return response;
+  headers.set("Authorization", `Bearer ${session.accessToken}`);
+  return fetch(`${apiBaseUrl}${path}`, {
+    ...init,
+    headers,
+    credentials: "include",
+    cache: "no-store",
+  });
 }
 
 async function toApiError(response: Response): Promise<ApiError> {
@@ -58,12 +92,7 @@ export async function apiRequest<T>(
   path: `/api/v1/${string}`,
   init: RequestInit = {},
 ): Promise<T> {
-  const headers = await authorizedHeaders(init);
-  const response = await fetch(`${apiBaseUrl}${path}`, {
-    ...init,
-    headers,
-    cache: "no-store",
-  });
+  const response = await sendAuthorized(path, init);
   if (!response.ok) throw await toApiError(response);
   if (response.status === 204) return undefined as T;
   return response.json() as Promise<T>;
@@ -74,12 +103,7 @@ export async function fetchBlob(
   path: `/api/v1/${string}`,
   init: RequestInit = {},
 ): Promise<{ blob: Blob; fileName: string }> {
-  const headers = await authorizedHeaders(init);
-  const response = await fetch(`${apiBaseUrl}${path}`, {
-    ...init,
-    headers,
-    cache: "no-store",
-  });
+  const response = await sendAuthorized(path, init);
   if (!response.ok) throw await toApiError(response);
   const disposition = response.headers.get("Content-Disposition") ?? "";
   const match = /filename="?([^";]+)"?/i.exec(disposition);

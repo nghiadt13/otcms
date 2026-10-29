@@ -8,8 +8,8 @@ import { OtcmsLogo } from "@/components/brand/OtcmsLogo";
 import { publicButtonClass } from "@/components/brand/publicButtonStyles";
 import { ROLE_LABELS } from "@/lib/domain/clinicRoles";
 import { PATIENT_ROUTES } from "@/lib/routes/patientRoutes";
-import { getMockCurrentActor } from "@/lib/session/mockCurrentActor";
 import { cn } from "@/lib/utils";
+import { useCurrentPatientAccount } from "@/hooks/useCurrentPatientAccount";
 import {
   PATIENT_ACCOUNT_LINKS,
   PATIENT_NAV_ITEMS,
@@ -30,7 +30,7 @@ export function PatientPortalHeader({
   notificationSlot?: ReactNode;
 }) {
   const pathname = usePathname();
-  const actor = getMockCurrentActor("patient");
+  const { account } = useCurrentPatientAccount();
   const showBookButton = pathname !== PATIENT_ROUTES.newAppointment;
   // Trang có nút chính riêng (trang chủ, chi tiết lượt khám, form viết đánh giá, thông báo):
   // nút đặt lịch đổi sang outline để mỗi màn chỉ có một nút default.
@@ -49,9 +49,10 @@ export function PatientPortalHeader({
           <PatientPortalNav groups={groupPatientNavItems(PATIENT_NAV_ITEMS)} />
           {notificationSlot}
           <PatientAccountMenu
-            displayName={actor.displayName}
+            displayName={account?.displayName || "Tài khoản"}
+            email={account?.email}
             links={PATIENT_ACCOUNT_LINKS}
-            roleLabel={ROLE_LABELS[actor.role]}
+            roleLabel={ROLE_LABELS.PATIENT}
           />
         </div>
 
@@ -71,3 +72,4 @@ export function PatientPortalHeader({
     </header>
   );
 }
+

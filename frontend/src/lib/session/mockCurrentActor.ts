@@ -14,6 +14,8 @@ export interface MockCurrentActor {
   email?: string;
 }
 
+/** Hồ sơ giả cố định chỉ phục vụ các màn chưa chuyển sang API tài khoản thật. */
+
 const MOCK_ACTORS: Record<MockActorArea, MockCurrentActor> = {
   patient: {
     accountId: "acc-an",

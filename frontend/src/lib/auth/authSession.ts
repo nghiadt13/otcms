@@ -109,6 +109,11 @@ async function loadCsrfToken(): Promise<string> {
   return csrfToken;
 }
 
+/** CSRF token for authenticated state-changing API requests. */
+export function getCsrfToken(): Promise<string> {
+  return loadCsrfToken();
+}
+
 /** Đăng nhập email + mật khẩu qua backend; thành công thì giữ access token trong bộ nhớ. */
 export async function signInWithPassword(
   kind: LoginKind,
