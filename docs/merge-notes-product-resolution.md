@@ -57,3 +57,4 @@ Tất cả các xung đột đều nằm ở `frontend/` và đều được gi�
 1. `mvnw.cmd test-compile`: 445 source files + 104 test classes compile thành công (0 errors).
 2. `npx tsc --noEmit`: Kiểm tra toàn bộ kiểu dữ liệu TypeScript của Frontend đạt 0 lỗi.
 3. `npm test -- --run`: Toàn bộ 179 test files, 1,260 tests đều PASS 100%.
+
