@@ -38,7 +38,7 @@ class AppointmentQueryT023PostgresIntegrationTest {
         jdbc.update("insert into clinic_services(id,name,duration_minutes,buffer_minutes,online_bookable,active) values (?, 'T023',30,0,true,true)", service);
         doctor = UUID.randomUUID();
         jdbc.update("insert into doctor_profiles(id,account_id,full_name,photo_url,work_contact,specialties,qualifications,biography,consultation_information,publicly_visible,accepting_new_bookings,in_active_directory) values (?,?,'T023 Doctor','','private','','','','',false,false,false)", doctor, doctorAccount);
-        jdbc.update("insert into doctor_service_assignments(doctor_profile_id,service_id,active) values (?, ?, true)", doctor, service);
+        jdbc.update("insert into doctor_services(doctor_profile_id,service_id,active) values (?, ?, true)", doctor, service);
         appointment(patient, Instant.parse("2026-10-12T17:00:00Z"));
         appointment(patient, Instant.parse("2026-10-13T17:00:00Z"));
         appointment(otherPatient, Instant.parse("2026-10-13T19:00:00Z"));
@@ -47,7 +47,7 @@ class AppointmentQueryT023PostgresIntegrationTest {
     @AfterEach void cleanup() {
         if (service != null) {
             jdbc.update("delete from appointments where service_id=?", service);
-            jdbc.update("delete from doctor_service_assignments where service_id=?", service);
+            jdbc.update("delete from doctor_services where service_id=?", service);
             jdbc.update("delete from clinic_services where id=?", service);
         }
         if (doctor != null) jdbc.update("delete from doctor_profiles where id=?", doctor);

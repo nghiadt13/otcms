@@ -15,6 +15,7 @@ import java.util.Optional;
 
     Optional<UUID> findProfileAccount(UUID profileId);
     Optional<UUID> findPatientProfile(UUID accountId);
+    Optional<ProfileRecord> findProfile(UUID profileId);
 
         static class ProfileRecord {
     private final UUID id;

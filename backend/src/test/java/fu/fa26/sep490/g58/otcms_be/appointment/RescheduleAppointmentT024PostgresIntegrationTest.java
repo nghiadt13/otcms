@@ -72,9 +72,9 @@ class RescheduleAppointmentT024PostgresIntegrationTest {
         jdbc.update("insert into doctor_profiles (id, account_id, full_name, photo_url, work_contact, specialties, "
                         + "qualifications, biography, consultation_information, publicly_visible, accepting_new_bookings, in_active_directory) "
                         + "values (?, ?, 'T024 Doctor', '', 'private', '', '', '', '', true, true, true)", doctorProfile, doctorAccount);
-        jdbc.update("insert into doctor_service_assignments (doctor_profile_id, service_id, active) values (?, ?, true)",
+        jdbc.update("insert into doctor_services (doctor_profile_id, service_id, active) values (?, ?, true)",
                 doctorProfile, service);
-        jdbc.update("insert into doctor_work_shifts (id, doctor_profile_id, starts_at, ends_at) values (?, ?, ?, ?)",
+        jdbc.update("insert into doctor_shifts (id, doctor_profile_id, starts_at, ends_at) values (?, ?, ?, ?)",
                 UUID.randomUUID(), doctorProfile, Timestamp.from(Instant.parse("2026-10-16T02:00:00Z")),
                 Timestamp.from(Instant.parse("2026-10-16T05:00:00Z")));
         appointment = insertAppointment(patientProfile, patientAccount, OLD_START, "T024 private purpose");
@@ -92,11 +92,11 @@ class RescheduleAppointmentT024PostgresIntegrationTest {
                 jdbc.update("delete from appointment_audits where appointment_id in "
                         + "(select id from appointments where service_id = ?)", service);
                 jdbc.update("delete from appointments where service_id = ?", service);
-                jdbc.update("delete from doctor_service_assignments where service_id = ?", service);
+                jdbc.update("delete from doctor_services where service_id = ?", service);
                 jdbc.update("delete from clinic_services where id = ?", service);
             }
             if (doctorProfile != null) {
-                jdbc.update("delete from doctor_work_shifts where doctor_profile_id = ?", doctorProfile);
+                jdbc.update("delete from doctor_shifts where doctor_profile_id = ?", doctorProfile);
                 jdbc.update("delete from doctor_profiles where id = ?", doctorProfile);
             }
             if (patientProfile != null) jdbc.update("delete from patient_profiles where id = ?", patientProfile);

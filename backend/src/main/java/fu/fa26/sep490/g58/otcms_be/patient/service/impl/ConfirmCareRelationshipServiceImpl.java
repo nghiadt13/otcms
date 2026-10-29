@@ -13,11 +13,9 @@ import java.time.Clock;
 import java.time.Instant;
 import java.util.UUID;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /** @ears REQ-BOOK-005 REQ-BOOK-019 REQ-BOOK-020 REQ-BOOK-021 REQ-BOOK-022 */
-@Service
 public class ConfirmCareRelationshipServiceImpl implements ConfirmCareRelationshipService {
     private final CareRelationshipRepository relationships;
     private final PatientIdentityDirectory identities;

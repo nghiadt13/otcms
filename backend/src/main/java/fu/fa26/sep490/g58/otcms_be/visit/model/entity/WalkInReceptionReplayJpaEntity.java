@@ -7,7 +7,7 @@ import jakarta.persistence.Table;
 import java.util.UUID;
 
 @Entity
-@Table(name = "walk_in_reception_replays")
+@Table(name = "walk_in_requests")
 public class WalkInReceptionReplayJpaEntity {
     @Id
     private UUID id;

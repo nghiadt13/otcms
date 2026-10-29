@@ -7,10 +7,12 @@ import fu.fa26.sep490.g58.otcms_be.visit.model.CreatedWalkInVisit;
 import fu.fa26.sep490.g58.otcms_be.visit.model.entity.ClinicVisitJpaEntity;
 import fu.fa26.sep490.g58.otcms_be.visit.model.entity.VisitAuditJpaEntity;
 import fu.fa26.sep490.g58.otcms_be.visit.model.entity.VisitInitialReceptionJpaEntity;
+import fu.fa26.sep490.g58.otcms_be.visit.model.entity.WalkInReceptionQueueEntryJpaEntity;
 import fu.fa26.sep490.g58.otcms_be.visit.model.entity.WalkInReceptionReplayJpaEntity;
 import fu.fa26.sep490.g58.otcms_be.visit.repository.ClinicVisitJpaRepository;
 import fu.fa26.sep490.g58.otcms_be.visit.repository.VisitAuditJpaRepository;
 import fu.fa26.sep490.g58.otcms_be.visit.repository.VisitInitialReceptionJpaRepository;
+import fu.fa26.sep490.g58.otcms_be.visit.repository.WalkInReceptionQueueEntryJpaRepository;
 import fu.fa26.sep490.g58.otcms_be.visit.repository.WalkInReceptionReplayJpaRepository;
 import fu.fa26.sep490.g58.otcms_be.visit.service.CreateWalkInVisitCommand;
 import fu.fa26.sep490.g58.otcms_be.visit.service.CreateWalkInVisitService;
@@ -36,16 +38,19 @@ public class CreateWalkInVisitServiceImpl implements CreateWalkInVisitService {
     private final VisitInitialReceptionJpaRepository receptions;
     private final VisitAuditJpaRepository audits;
     private final WalkInReceptionReplayJpaRepository replays;
+    private final WalkInReceptionQueueEntryJpaRepository queueEntries;
     private final Clock clock;
 
     public CreateWalkInVisitServiceImpl(CoordinationGuardService coordinationGuard, ClinicVisitJpaRepository visits,
             VisitInitialReceptionJpaRepository receptions, VisitAuditJpaRepository audits,
-            WalkInReceptionReplayJpaRepository replays, Clock clock) {
+            WalkInReceptionReplayJpaRepository replays, WalkInReceptionQueueEntryJpaRepository queueEntries,
+            Clock clock) {
         this.coordinationGuard = coordinationGuard;
         this.visits = visits;
         this.receptions = receptions;
         this.audits = audits;
         this.replays = replays;
+        this.queueEntries = queueEntries;
         this.clock = clock;
     }
 
@@ -89,6 +94,9 @@ public class CreateWalkInVisitServiceImpl implements CreateWalkInVisitService {
                 command.priorAppointmentId(), arrivedAt));
         audits.save(VisitAuditJpaEntity.walkInCreated(command.actorAccountId(), visitId, arrivedAt,
                 command.correlationId()));
+        queueEntries.setAuditActor(command.actorAccountId().toString());
+        queueEntries.setAuditCorrelation(command.correlationId());
+        queueEntries.saveAndFlush(WalkInReceptionQueueEntryJpaEntity.waiting(visitId, arrivedAt, arrivedAt));
         replays.saveAndFlush(WalkInReceptionReplayJpaEntity.create(command.actorAccountId(), key, fingerprint,
                 visitId));
 

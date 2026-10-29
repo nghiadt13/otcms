@@ -13,7 +13,7 @@ import java.util.Set;
 import java.util.UUID;
 
 @Entity
-@Table(name = "visit_rooms")
+@Table(name = "rooms")
 public class VisitRoomJpaEntity {
     @Id
     private UUID id;
@@ -34,7 +34,7 @@ public class VisitRoomJpaEntity {
     private Instant updatedAt;
 
     @ElementCollection
-    @CollectionTable(name = "visit_room_capabilities", joinColumns = @JoinColumn(name = "room_id"))
+    @CollectionTable(name = "room_capabilities", joinColumns = @JoinColumn(name = "room_id"))
     @Column(name = "capability_code", nullable = false, length = 64)
     private Set<String> capabilities = new LinkedHashSet<>();
 

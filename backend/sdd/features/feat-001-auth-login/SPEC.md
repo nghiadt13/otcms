@@ -1,7 +1,7 @@
 # Feature Specification — FEAT-001 Authentication Login/Register
 
-# Version: 1.1.0
-# Status: APPROVED & LOCKED
+# Version: 1.2.0
+# Status: APPROVED & LOCKED — registration integration amendment 2026-10-28
 # Feature slug: `feat-001-auth-login`
 # Architecture Profile: v1.3.0 — APPROVED
 # Context: v0.6.0 — APPROVED
@@ -25,6 +25,7 @@
 - **Approved assumptions:** Google onboarding, Google activation của matching pending account, guardian-data boundary, age calculation, server-owned consent version, endpoint set, normalization/field limits, error mapping, rate limits, refresh-token reuse handling, idempotent logout, Gmail failure behavior, standalone backend staff-network enforcement và data-retention baselines.
 - **Deferred deployment values:** Exact Patient/Staff frontend origins, `SameSite`, internal CIDR/VPN và trusted proxies phải được chốt trước integration.
 - **Password recovery scope approval:** Long approved toàn bộ khuyến nghị Forgot/Reset/Change Password ngày 2026-09-29: eligible account, endpoint separation, 256-bit hashed token, 15-minute lifetime, rate limits, password rules, revoke-all-refresh-sessions, status handling và generic forgot response.
+- **Registration contract amendment (2026-10-28):** User yêu cầu form UC06 chỉ gửi `fullName`, `email`, `password`, `confirmPassword`, `patientConsent`; đăng ký không tạo `patient_profiles` và không áp dụng guardian rule; password theo BR-04 8–64 ký tự, có chữ và số, tối đa 72 UTF-8 bytes; mọi email hợp lệ trùng account nhận response 202/body chung; profile hoàn thiện sau ở UC13. Các điều khoản registration/AC cũ mâu thuẫn bên dưới đã được thay bằng contract này.
 
 ---
 
@@ -85,16 +86,16 @@ Chỉ các endpoint trên được public hoặc network-exposed theo policy c�
 ### 3.1 Registration and validation
 
 - **REQ-AUTH-001 — Ubiquitous:** The OTCMS SHALL normalize email bằng cách trim và lowercase toàn bộ; hệ thống SHALL không xóa dấu chấm hoặc phần `+tag`.
-- **REQ-AUTH-002 — Ubiquitous:** The OTCMS SHALL normalize phone về E.164 tối đa 15 chữ số và SHALL dùng `+84` làm country code mặc định cho số Việt Nam nhập ở local format.
-- **REQ-AUTH-003 — WHEN:** WHEN một patient gửi registration hợp lệ gồm full name, email, phone, date of birth, gender, password, confirm password và patient consent, the OTCMS SHALL tạo một `PENDING_VERIFICATION` patient account, patient profile cơ bản, consent evidence và email-verification challenge trong một business transaction.
-- **REQ-AUTH-004 — IF:** IF normalized email đã thuộc bất kỳ account nào, THEN the OTCMS SHALL từ chối registration với `EMAIL_ALREADY_REGISTERED` và SHALL không tạo account/profile/credential thứ hai.
-- **REQ-AUTH-005 — WHEN:** WHEN phone trùng phone đã lưu nhưng normalized email chưa tồn tại, the OTCMS SHALL cho phép registration và MAY ghi safe risk signal mà không đánh dấu phone là unique hoặc verified.
-- **REQ-AUTH-006 — IF:** IF password và confirm password không khớp, password dưới 12 hoặc trên 64 ký tự, hoặc password vượt 72 UTF-8 bytes, THEN the OTCMS SHALL từ chối request trước khi persistence và SHALL không truncate password.
-- **REQ-AUTH-007 — Ubiquitous:** The OTCMS SHALL cho phép letters, numbers, symbols và spaces trong password mà không áp composition rule bắt buộc.
+- **REQ-AUTH-002 — Ubiquitous:** Registration SHALL chỉ nhận full name, email, password, confirm password và patient consent; phone, date of birth, gender và guardian consent thuộc hồ sơ bệnh nhân UC13.
+- **REQ-AUTH-003 — WHEN:** WHEN một patient gửi registration hợp lệ, the OTCMS SHALL tạo `PENDING_VERIFICATION` patient account, patient consent evidence và email-verification challenge trong một business transaction, SHALL không tạo patient profile ở bước này.
+- **REQ-AUTH-004 — IF:** IF normalized email đã thuộc account `PENDING_VERIFICATION`, THEN the OTCMS SHALL giữ nguyên tên/password cũ, thay OTP và trả cùng HTTP 202/body generic như email mới; IF account đã `ACTIVE`, THEN the OTCMS SHALL không tạo account hoặc gửi OTP và SHALL trả cùng HTTP 202/body generic.
+- **REQ-AUTH-005 — WHEN:** WHEN registration request đụng unique-email race, the OTCMS SHALL không tạo account/profile/credential thứ hai và SHALL trả cùng HTTP 202/body generic.
+- **REQ-AUTH-006 — IF:** IF password và confirm password không khớp, password dưới 8 hoặc trên 64 ký tự, thiếu chữ cái hoặc chữ số, hoặc vượt 72 UTF-8 bytes, THEN the OTCMS SHALL từ chối request trước khi persistence và SHALL không truncate password.
+- **REQ-AUTH-007 — Ubiquitous:** The OTCMS SHALL yêu cầu password có ít nhất một chữ cái và một chữ số; symbols và spaces được phép.
 - **REQ-AUTH-008 — Ubiquitous:** The OTCMS SHALL hash local password bằng Spring Security `DelegatingPasswordEncoder` với BCrypt baseline, giữ encoder prefix và SHALL không persist/log plaintext password hoặc confirm password.
-- **REQ-AUTH-009 — IF:** IF full name sau trim không nằm trong 2–100 Unicode characters, email dài hơn 254 characters, phone không thể normalize hợp lệ, date of birth ở tương lai, hoặc gender không thuộc `MALE|FEMALE|OTHER`, THEN the OTCMS SHALL từ chối registration với `VALIDATION_FAILED`.
-- **REQ-AUTH-010 — WHEN:** WHEN tuổi hoàn chỉnh tại ngày đăng ký theo `Asia/Ho_Chi_Minh` dưới 18 hoặc trên 70, the OTCMS SHALL yêu cầu patient consent, guardian consent và SHALL xem phone là guardian contact phone.
-- **REQ-AUTH-011 — WHEN:** WHEN tuổi hoàn chỉnh từ 18 đến 70 inclusive, the OTCMS SHALL chỉ yêu cầu patient consent và SHALL xem phone là patient contact phone.
+- **REQ-AUTH-009 — IF:** IF full name sau trim không nằm trong 2–100 Unicode characters hoặc email dài hơn 254 characters, THEN the OTCMS SHALL từ chối registration với `VALIDATION_FAILED`.
+- **REQ-AUTH-010 — Ubiquitous:** Registration SHALL không thu thập tuổi, giới tính, số điện thoại hoặc guardian consent; profile completion và policy liên quan diễn ra tại UC13.
+- **REQ-AUTH-011 — Ubiquitous:** Registration SHALL chỉ ghi nhận patient consent với Terms/Privacy version hiện hành.
 - **REQ-AUTH-012 — IF:** IF consent bắt buộc không được đồng ý, THEN the OTCMS SHALL từ chối registration và SHALL không tạo account.
 - **REQ-AUTH-013 — Ubiquitous:** The OTCMS SHALL lấy Terms/Privacy version hiện hành từ typed server configuration và lưu actor type, version và accepted timestamp; client SHALL không quyết định version được lưu.
 
@@ -313,14 +314,13 @@ When patient gửi OTP hợp lệ trước 10 phút
 Then OTP được consume đúng một lần và account chuyển sang ACTIVE
 ```
 
-### AC-02 — Age and guardian rule
+### AC-02 — Registration/profile boundary
 
 ```gherkin
-Given ngày hiện tại được cố định theo Asia/Ho_Chi_Minh
-When patient có tuổi dưới 18 hoặc trên 70 đăng ký thiếu guardian consent
-Then registration bị từ chối và không có partial account
-When cùng patient cung cấp cả patient và guardian consent
-Then registration được chấp nhận và phoneOwnerType là GUARDIAN
+Given patient gửi đủ năm trường của contract đăng ký
+When đăng ký thành công
+Then account ở PENDING_VERIFICATION, patient consent và OTP được lưu
+And patient_profiles chưa được tạo cho account này
 ```
 
 ### AC-03 — Duplicate and validation
@@ -328,9 +328,11 @@ Then registration được chấp nhận và phoneOwnerType là GUARDIAN
 ```gherkin
 Given một account đã có normalized email patient@example.com
 When đăng ký bằng email có case/whitespace khác nhưng normalize cùng giá trị
-Then response là 409 EMAIL_ALREADY_REGISTERED và chỉ có một account
-When phone trùng nhưng email khác hợp lệ
-Then registration không bị chặn chỉ vì phone trùng
+Then response là 202 với body generic giống registration mới và chỉ có một account
+And pending account giữ nguyên password/name và được gửi OTP mới
+And active account không nhận OTP
+When password có 8–11 ký tự, chữ và số
+Then registration được chấp nhận; thiếu chữ hoặc số thì bị từ chối
 ```
 
 ### AC-04 — Anti-enumeration and lockout

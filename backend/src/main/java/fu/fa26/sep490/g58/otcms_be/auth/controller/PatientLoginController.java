@@ -52,7 +52,7 @@ public class PatientLoginController {
     private ResponseCookie cookie(String value) {
         return ResponseCookie.from("refresh_token", value)
                 .httpOnly(true)
-                .secure(true)
+                .secure(properties.cookieSecure())
                 .sameSite(properties.cookieSameSite())
                 .path("/api/auth")
                 .maxAge(properties.refreshTokenSeconds())

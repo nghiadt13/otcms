@@ -1,6 +1,8 @@
 package fu.fa26.sep490.g58.otcms_be.servicecatalog.service;
 
+import java.math.BigDecimal;
 import java.time.Duration;
+import java.util.Optional;
 import java.util.UUID;
 
 /** Service-owned current catalog and Doctor assignment projection. */
@@ -8,6 +10,11 @@ import java.util.UUID;
     BookableService findActiveService(UUID serviceId, BookingAudience audience);
 
     boolean hasActiveDoctorAssignment(UUID serviceId, UUID doctorProfileId);
+
+    /** Name and current price regardless of whether the Service is still active (for appointment history). */
+    Optional<ServiceLabel> findServiceLabel(UUID serviceId);
+
+    record ServiceLabel(String name, BigDecimal price) { }
 
         static class BookableService {
     private final UUID serviceId;

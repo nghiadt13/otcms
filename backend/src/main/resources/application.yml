@@ -31,6 +31,9 @@ spring:
   flyway:
     enabled: true
     baseline-on-migrate: false
+    # Shared Supabase DB: teammates merge branches in different order (e.g. V030
+    # applied before V026/V027). Let Flyway apply the late-arriving migrations.
+    out-of-order: true
 
 springdoc:
   api-docs:
@@ -46,6 +49,11 @@ springdoc:
 # datasource URLs and remote PostgreSQL URLs without sslmode=require.
 
 app:
+  arrival-qr:
+    clinic-id: ${APP_ARRIVAL_QR_CLINIC_ID:single-clinic}
+    hmac-secret: ${APP_ARRIVAL_QR_HMAC_SECRET:}
+    ttl-seconds: ${APP_ARRIVAL_QR_TTL_SECONDS:60}
+    refresh-seconds: ${APP_ARRIVAL_QR_REFRESH_SECONDS:30}
   email:
     enabled: ${APP_EMAIL_ENABLED:false}
     host: ${APP_EMAIL_HOST:smtp.gmail.com}

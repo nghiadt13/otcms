@@ -12,18 +12,19 @@ import org.springframework.stereotype.Component;
 public class ClinicServiceMapper {
     public static ClinicService toModel(ClinicServiceJpaEntity entity) {
         return new ClinicService(entity.id(), entity.name(), entity.description(),
+                entity.price(),
                 Duration.ofMinutes(entity.durationMinutes()), Duration.ofMinutes(entity.bufferMinutes()),
                 entity.onlineBookable(), entity.active());
     }
 
     public static ClinicServiceJpaEntity toEntity(ClinicService service) {
-        return new ClinicServiceJpaEntity(service.id(), service.name(), service.description(),
+        return new ClinicServiceJpaEntity(service.id(), service.name(), service.description(), service.price(),
                 Math.toIntExact(service.consultationDuration().toMinutes()),
                 Math.toIntExact(service.bufferDuration().toMinutes()), service.onlineBookable(), service.active());
     }
 
     public ServiceResponse toResponse(ClinicService service) {
-        return new ServiceResponse(service.id(), service.name(), service.description(),
+        return new ServiceResponse(service.id(), service.name(), service.description(), service.price(),
                 Math.toIntExact(service.consultationDuration().toMinutes()),
                 Math.toIntExact(service.bufferDuration().toMinutes()), service.onlineBookable(), service.active());
     }

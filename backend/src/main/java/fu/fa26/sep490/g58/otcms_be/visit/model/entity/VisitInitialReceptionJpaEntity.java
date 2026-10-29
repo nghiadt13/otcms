@@ -8,7 +8,7 @@ import java.time.Instant;
 import java.util.UUID;
 
 @Entity
-@Table(name = "visit_initial_receptions")
+@Table(name = "visit_check_ins")
 public class VisitInitialReceptionJpaEntity {
     @Id
     private UUID id;

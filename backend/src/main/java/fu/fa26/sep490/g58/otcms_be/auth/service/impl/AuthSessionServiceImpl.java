@@ -56,8 +56,11 @@ public class AuthSessionServiceImpl implements AuthSessionService {
     @Override
     @Transactional
     public IssuedSession create(UUID accountId, String clientIp, String userAgent) {
-        AccountJpaEntity account = accounts.findById(accountId)
+        AccountJpaEntity account = accounts.findByIdForUpdate(accountId)
                 .orElseThrow(() -> new SessionException("AUTHENTICATION_FAILED"));
+        if (account.getStatus() != AccountStatus.ACTIVE) {
+            throw new SessionException("AUTHENTICATION_FAILED");
+        }
         return createForAccount(account, clientIp, userAgent);
     }
 
@@ -87,6 +90,11 @@ public class AuthSessionServiceImpl implements AuthSessionService {
     public IssuedSession rotate(String refreshToken) {
         Instant now = Instant.now(clock);
         String hashedToken = hashRequired(refreshToken);
+        // Match management's account -> session lock order; never hydrate the session before this lock.
+        UUID accountId = sessions.findAccountIdByRefreshTokenHash(hashedToken)
+                .orElseThrow(() -> new SessionException("AUTHENTICATION_FAILED"));
+        accounts.findByIdForUpdate(accountId)
+                .orElseThrow(() -> new SessionException("AUTHENTICATION_FAILED"));
         AuthSessionJpaEntity previous = sessions.findByRefreshTokenHashForUpdate(hashedToken)
                 .orElseThrow(() -> new SessionException("AUTHENTICATION_FAILED"));
         if (previous.getRevokedAt() != null) {
@@ -99,6 +107,9 @@ public class AuthSessionServiceImpl implements AuthSessionService {
             throw new SessionException("AUTHENTICATION_FAILED");
         }
 
+        if (previous.getAccount().isMustChangePassword()) {
+            throw new SessionException("PASSWORD_CHANGE_REQUIRED");
+        }
         revoke(previous, now, "ROTATED");
         String nextRefreshToken = randomToken();
         AuthSessionJpaEntity next = new AuthSessionJpaEntity();
@@ -127,8 +138,17 @@ public class AuthSessionServiceImpl implements AuthSessionService {
     @Override
     @Transactional
     public void revokeAll(UUID accountId) {
+        revokeAll(accountId, "PASSWORD_CHANGED");
+    }
+
+    @Override
+    @Transactional
+    public void revokeAll(UUID accountId, String reason) {
+        accounts.findByIdForUpdate(accountId)
+                .orElseThrow(() -> new SessionException("AUTHENTICATION_FAILED"));
+        lockAccount(accountId);
         sessions.findAllByAccountIdAndRevokedAtIsNullOrderByCreatedAtAscIdAsc(accountId)
-                .forEach(session -> revoke(session, Instant.now(clock), "PASSWORD_CHANGED"));
+                .forEach(session -> revoke(session, Instant.now(clock), reason));
     }
 
     @Override
@@ -137,8 +157,7 @@ public class AuthSessionServiceImpl implements AuthSessionService {
         if (refreshToken == null || refreshToken.isBlank()) {
             return Optional.empty();
         }
-        return sessions.findByRefreshTokenHash(hash(refreshToken))
-                .map(session -> session.getAccount().getAccountType());
+        return sessions.findAccountTypeByRefreshTokenHash(hash(refreshToken));
     }
 
     private IssuedSession issued(AuthSessionJpaEntity session, String refreshToken) {
@@ -148,7 +167,7 @@ public class AuthSessionServiceImpl implements AuthSessionService {
                 "Bearer",
                 properties.accessTokenSeconds(),
                 account.getId(),
-                account.getAccountType().name());
+                account.getAccountType().name(), account.isMustChangePassword());
         return new IssuedSession(body, refreshToken);
     }
 

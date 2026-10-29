@@ -1,6 +1,7 @@
 package fu.fa26.sep490.g58.otcms_be.appointment.model.dto.response;
 
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -8,7 +9,10 @@ public class AppointmentResponse {
     private final UUID id;
     private final UUID patientProfileId;
     private final UUID serviceId;
+    private final String serviceName;
+    private final BigDecimal servicePrice;
     private final UUID doctorId;
+    private final String doctorDisplayName;
     private final String status;
     private final String bookingSource;
     private final String purpose;
@@ -21,11 +25,14 @@ public class AppointmentResponse {
     private final UUID sourceVisitId;
     private final Instant createdAt;
     private final Instant updatedAt;
-    public AppointmentResponse(UUID id, UUID patientProfileId, UUID serviceId, UUID doctorId, String status, String bookingSource, String purpose, Instant startTime, Instant endTime, int durationMinutes, int bufferMinutes, Instant occupiedUntil, UUID visitId, UUID sourceVisitId, Instant createdAt, Instant updatedAt) {
+    public AppointmentResponse(UUID id, UUID patientProfileId, UUID serviceId, String serviceName, BigDecimal servicePrice, UUID doctorId, String doctorDisplayName, String status, String bookingSource, String purpose, Instant startTime, Instant endTime, int durationMinutes, int bufferMinutes, Instant occupiedUntil, UUID visitId, UUID sourceVisitId, Instant createdAt, Instant updatedAt) {
         this.id = id;
         this.patientProfileId = patientProfileId;
         this.serviceId = serviceId;
+        this.serviceName = serviceName;
+        this.servicePrice = servicePrice;
         this.doctorId = doctorId;
+        this.doctorDisplayName = doctorDisplayName;
         this.status = status;
         this.bookingSource = bookingSource;
         this.purpose = purpose;
@@ -45,8 +52,14 @@ public class AppointmentResponse {
     public UUID patientProfileId() { return patientProfileId; }
     public UUID getServiceId() { return serviceId; }
     public UUID serviceId() { return serviceId; }
+    public String getServiceName() { return serviceName; }
+    public String serviceName() { return serviceName; }
+    public BigDecimal getServicePrice() { return servicePrice; }
+    public BigDecimal servicePrice() { return servicePrice; }
     public UUID getDoctorId() { return doctorId; }
     public UUID doctorId() { return doctorId; }
+    public String getDoctorDisplayName() { return doctorDisplayName; }
+    public String doctorDisplayName() { return doctorDisplayName; }
     public String getStatus() { return status; }
     public String status() { return status; }
     public String getBookingSource() { return bookingSource; }

@@ -1,6 +1,6 @@
 # T040 Preflight — A1
 
-Date: 2026-10-14 (Asia/Bangkok)  
+Date: 2026-10-14 (Asia/Bangkok)\
 Status: EXECUTION AUTHORIZED by Owner Long's direct request to create and implement the FEAT-002 layered migration.
 
 ## Authority and inputs

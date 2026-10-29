@@ -16,7 +16,7 @@ public class VisitCareAssignmentAuditRepository {
     public void append(UUID visitId, UUID assignmentId, UUID actorAccountId, String action, String stepCode,
             Timestamp oldExpectedEnd, Timestamp newExpectedEnd, Timestamp occurredAt, String correlationId) {
         entityManager.createNativeQuery("""
-                insert into visit_care_assignment_audits
+                insert into visit_assignment_audits
                     (id, visit_id, assignment_id, actor_account_id, action, step_code,
                      old_expected_end, new_expected_end, occurred_at, correlation_id)
                 values (:id, :visitId, :assignmentId, :actorId, :action, :stepCode,
@@ -38,7 +38,7 @@ public class VisitCareAssignmentAuditRepository {
     public void appendConflict(UUID visitId, UUID assignmentId, UUID actorAccountId, String correlationId,
             String attemptedStepCode, Timestamp occurredAt) {
         entityManager.createNativeQuery("""
-                insert into visit_care_assignment_audits
+                insert into visit_assignment_audits
                     (id, visit_id, assignment_id, actor_account_id, action, step_code,
                      old_expected_end, new_expected_end, occurred_at, correlation_id)
                 values (:id, :visitId, :assignmentId, :actorId, 'CAPACITY_CONFLICT', :stepCode,

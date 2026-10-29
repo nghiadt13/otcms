@@ -4,7 +4,7 @@
 # Status: DRAFT
 # Feature slug: `feat-001-auth-login`
 # Architecture Profile: v1.3.0 — APPROVED
-# Specification: v1.1.0 — APPROVED & LOCKED
+# Specification: v1.2.0 — APPROVED & LOCKED (registration contract amended 2026-10-28)
 # Plan: v1.0.0 — APPROVED
 # Project Ownership: team
 # Agent Execution: orchestrated
@@ -69,7 +69,7 @@
 ### T004 — Implement registration, normalization, consent and OTP services
 
 - Intent reference: REQ-AUTH-001..020, 064; NFR-AUTH-006, 009.
-- Input and expected outcome: Validated registration creates pending account/profile/consent/challenge atomically, sends through `EmailDeliveryPort`, and verifies/activates only after valid OTP.
+- Input and expected outcome: The amended registration contract accepts only `fullName`, `email`, `password`, `confirmPassword`, and `patientConsent`; it creates pending account/consent/challenge without a patient profile, sends OTP, and verifies/activates after valid OTP. Duplicate email returns the same generic 202 body; pending credentials are preserved.
 - Layer and file boundary: `auth/controller/RegistrationController.java`, `auth/dto/request|response/`, `auth/mapper/`, `auth/service/`, `auth/service/impl/`, OTP/consent repositories.
 - Owner and dependencies: `@backend-agent`; blockedBy: T002, T003.
 - Estimated effort: 4 hours.
@@ -1649,3 +1649,19 @@ T003 may run in parallel with T002 after T001. T005 depends on T002/T003. T006, 
 - **Verification:** `.\mvnw.cmd clean verify -q` completed successfully; 36 tests, 0 failures, 0 errors, 0 skipped. Testcontainers PostgreSQL 16.15 started successfully.
 - **Evidence added:** real Spring Security MockMvc request rejection (401/403), real CSRF/CORS/staff-network checks, concurrent sixth-login invariant (five active sessions), and existing refresh-family replay isolation coverage retained.
 - **Review status:** `IMPLEMENTED / VERIFICATION PASSED / PENDING INDEPENDENT POST-CODE REVIEW`; no self-approval, trace/sync, or completion recorded.
+
+## Action Record — E-feat-001-auth-login-T004-registration-integration-2026-10-28
+
+- **Scope:** Align patient registration and login UI with the existing Spring authentication endpoints, based on the user's UC06 contract; internal username login remains out of scope.
+- **Implementation:** Frontend login/register/verify/resend now call backend endpoints. Registration accepts the five fields from the form, stores no patient profile, enforces the 8–64 character letter+digit password policy and bcrypt byte limit, and returns a generic 202 for new, pending, active, and uniqueness-race dispositions. SMTP remains configurable through environment variables.
+- **Migration:** None added. Registration no longer writes `patient_profiles`; phone/DOB/gender remain for UC13. Existing migrations V026–V029 were not changed.
+- **Verification:** `.\mvnw.cmd clean -Dtest=PatientRegistrationT004Test test` — BUILD SUCCESS, 8 tests; `npm exec vitest run -- src/features/auth/components/RegisterPatientFlow.test.tsx` — 4 tests passed; targeted ESLint — passed.
+- **Not verified:** PostgreSQL integration against a fresh test database, real SMTP delivery, browser-to-backend CORS/cookie flow. Credentials were not available in this execution.
+- **Status:** `IMPLEMENTED / FOCUSED VERIFICATION PASSED / PENDING FRESH-DATABASE AND SMTP MANUAL VERIFICATION, INDEPENDENT REVIEW, AND TRACE SYNC`; do not close T004 yet.
+
+## Human Delivery Decision — T004 Patient Register/Login — 2026-10-28
+
+- **Decision:** Long approves committing the Patient registration and login integration now, based on local manual testing reported by Long, and defers the remaining verification to a follow-up with Google login.
+- **Reported verification:** Patient registration and login succeeded in the local browser, per Human report; this is not an independently reproduced test result.
+- **Deferred:** fresh-database PostgreSQL integration, real SMTP delivery, remaining registration edge cases, and trace/sync. An independent code review is recorded in `backend/sdd/reviews/post-code-feat-001-auth-login-T004-registration-integration-2026-10-28.md`; it does not claim the deferred checks passed.
+- **Task status:** T004 remains open until deferred verification and review evidence are recorded. This delivery decision does not mark the task complete or imply the deferred checks passed.

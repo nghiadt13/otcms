@@ -22,11 +22,11 @@ public class VisitRoomReservationRepository {
                 : "and not (x.assignment_id = :excludedAssignmentId and x.status = 'IN_PROGRESS')";
         var query = entityManager.createNativeQuery(("""
                 select r.id, r.room_code
-                from visit_rooms r
-                join visit_room_capabilities c on c.room_id = r.id
+                from rooms r
+                join room_capabilities c on c.room_id = r.id
                 where r.active = true and c.capability_code = :capability
                   and not exists (
-                    select 1 from visit_room_reservations x
+                    select 1 from room_reservations x
                     where x.room_id = r.id
                       /* assignment exclusion */
                       and (x.status = 'IN_PROGRESS'
@@ -54,7 +54,7 @@ public class VisitRoomReservationRepository {
             String correlationId, Instant occurredAt) {
         UUID reservationId = UUID.randomUUID();
         entityManager.createNativeQuery("""
-                insert into visit_room_reservations
+                insert into room_reservations
                     (id, visit_id, assignment_id, room_id, step_code, capability_code, starts_at,
                      expected_ends_at, reserved_until, cleanup_buffer_minutes, status, assigned_at)
                 values (:id, :visitId, :assignmentId, :roomId, :stepCode, :capability, :startsAt,
@@ -91,7 +91,7 @@ public class VisitRoomReservationRepository {
             } else {
                 UUID reservationId = (UUID) sameRoom[0];
                 entityManager.createNativeQuery("""
-                        update visit_room_reservations set step_code = :stepCode, capability_code = :capability,
+                        update room_reservations set step_code = :stepCode, capability_code = :capability,
                             expected_ends_at = :expectedEnd, reserved_until = :reservedUntil,
                             cleanup_buffer_minutes = :buffer
                         where id = :id and status = 'IN_PROGRESS'
@@ -121,7 +121,7 @@ public class VisitRoomReservationRepository {
                 throw new IllegalArgumentException("Room cleanup interval is out of range", exception);
             }
             entityManager.createNativeQuery("""
-                    update visit_room_reservations set status = :status, actual_ended_at = :actualEnd,
+                    update room_reservations set status = :status, actual_ended_at = :actualEnd,
                         reserved_until = :reservedUntil
                     where id = :id and status = 'IN_PROGRESS'
                     """)
@@ -144,7 +144,7 @@ public class VisitRoomReservationRepository {
         @SuppressWarnings("unchecked")
         List<Object[]> rows = entityManager.createNativeQuery("""
                 select id, room_id, step_code, cleanup_buffer_minutes
-                from visit_room_reservations where assignment_id = :assignmentId and status = 'IN_PROGRESS'
+                from room_reservations where assignment_id = :assignmentId and status = 'IN_PROGRESS'
                 order by id for update
                 """).setParameter("assignmentId", assignmentId).getResultList();
         return rows;
@@ -152,7 +152,7 @@ public class VisitRoomReservationRepository {
 
     private void closeAsCleaning(UUID reservationId, Instant actualEndedAt) {
         entityManager.createNativeQuery("""
-                update visit_room_reservations
+                update room_reservations
                 set status = case when cleanup_buffer_minutes = 0 then 'RELEASED' else 'CLEANING' end,
                     actual_ended_at = :actualEnd,
                     reserved_until = greatest(reserved_until,
@@ -166,7 +166,7 @@ public class VisitRoomReservationRepository {
     private void appendAudit(UUID visitId, UUID assignmentId, UUID reservationId, UUID roomId,
             UUID actorAccountId, String action, String stepCode, String correlationId, Instant occurredAt) {
         entityManager.createNativeQuery("""
-                insert into visit_room_reservation_audits
+                insert into room_reservation_audits
                     (id, visit_id, assignment_id, reservation_id, room_id, actor_account_id,
                      action, step_code, occurred_at, correlation_id)
                 values (:id, :visitId, :assignmentId, :reservationId, :roomId, :actorId,

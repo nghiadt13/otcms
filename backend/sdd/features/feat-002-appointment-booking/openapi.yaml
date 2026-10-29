@@ -16,6 +16,7 @@ tags:
   - name: Appointments
   - name: Availability
   - name: Visit workflow
+  - name: Reception arrivals
   - name: Readiness
 security:
   - bearerAuth: []
@@ -284,6 +285,48 @@ paths:
         '403': {$ref: '#/components/responses/ApiError'}
         '409': {$ref: '#/components/responses/ApiError'}
         '503': {$ref: '#/components/responses/ApiError'}
+  /api/v1/reception-queue:
+    get:
+      tags: [Reception arrivals]
+      summary: List active WALK_IN reception queue entries
+      description: Receptionist only. Clinic-day scoped FIFO; scheduled arrivals are excluded. Position is 1-based among active entries for the requested clinic date.
+      parameters:
+        - name: date
+          in: query
+          required: false
+          schema: {type: string, format: date}
+        - name: page
+          in: query
+          schema: {type: integer, minimum: 0, default: 0}
+        - name: size
+          in: query
+          schema: {type: integer, minimum: 1, maximum: 100, default: 50}
+      responses:
+        '200':
+          description: Active walk-in queue page
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ReceptionQueue'}
+        '400': {$ref: '#/components/responses/ApiError'}
+        '401': {$ref: '#/components/responses/ApiError'}
+        '403': {$ref: '#/components/responses/ApiError'}
+        '503': {$ref: '#/components/responses/ApiError'}
+  /api/v1/visits/{visitId}/progress:
+    get:
+      tags: [Visit workflow]
+      summary: Read the authenticated Patient's own Visit progress
+      description: Returns only a Visit whose patient profile is currently authorized for the authenticated Patient. Queue position is present only for an active WALK_IN entry; accountless visits are unavailable.
+      parameters: [{$ref: '#/components/parameters/visitId'}]
+      responses:
+        '200':
+          description: Authorized Visit progress
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/VisitProgress'}
+        '401': {$ref: '#/components/responses/ApiError'}
+        '403': {$ref: '#/components/responses/ApiError'}
+        '404': {$ref: '#/components/responses/ApiError'}
+        '503': {$ref: '#/components/responses/ApiError'}
   /api/v1/system/production-readiness:
     get:
       tags: [Readiness]
@@ -342,6 +385,37 @@ components:
         application/json:
           schema: {$ref: '#/components/schemas/ApiError'}
   schemas:
+    ReceptionQueue:
+      type: object
+      required: [date, page, size, hasMore, items]
+      properties:
+        date: {type: string, format: date}
+        page: {type: integer}
+        size: {type: integer}
+        hasMore: {type: boolean}
+        items: {type: array, items: {$ref: '#/components/schemas/ReceptionQueueItem'}}
+    ReceptionQueueItem:
+      type: object
+      required: [queueEntryId, visitId, arrivedAt, status, position, currentStage]
+      properties:
+        queueEntryId: {type: string, format: uuid}
+        visitId: {type: string, format: uuid}
+        arrivedAt: {type: string, format: date-time}
+        status: {type: string, enum: [WAITING]}
+        position: {type: integer, minimum: 1}
+        currentStage: {type: string}
+        currentRoom: {type: string, nullable: true}
+    VisitProgress:
+      type: object
+      required: [visitId, source, status, currentStage, arrivedAt]
+      properties:
+        visitId: {type: string, format: uuid}
+        source: {type: string, enum: [SCHEDULED, WALK_IN]}
+        status: {type: string}
+        currentStage: {type: string}
+        arrivedAt: {type: string, format: date-time}
+        queuePosition: {type: integer, minimum: 1, nullable: true}
+        currentRoom: {type: string, nullable: true}
     ProductionReadinessStatus:
       type: object
       properties:
@@ -410,7 +484,10 @@ components:
         id: {type: string, format: uuid}
         patientProfileId: {type: string, format: uuid}
         serviceId: {type: string, format: uuid}
+        serviceName: {type: string, nullable: true, description: Filled by GET /appointments and GET /appointments/{id} only; null from write endpoints}
+        servicePrice: {type: number, nullable: true, description: Current catalog price (not a snapshot taken at booking); filled by GET endpoints only}
         doctorId: {type: string, format: uuid}
+        doctorDisplayName: {type: string, nullable: true, description: Filled by GET endpoints only; null from write endpoints}
         status: {type: string, enum: [CONFIRMED, CHECKED_IN, IN_PROGRESS, COMPLETED, CANCELLED, NO_SHOW]}
         bookingSource: {type: string}
         purpose: {type: string}

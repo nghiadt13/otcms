@@ -6,6 +6,7 @@ import fu.fa26.sep490.g58.otcms_be.servicecatalog.mapper.ClinicServiceMapper;
 import fu.fa26.sep490.g58.otcms_be.servicecatalog.model.ClinicService;
 import fu.fa26.sep490.g58.otcms_be.servicecatalog.repository.ClinicServiceRepository;
 import fu.fa26.sep490.g58.otcms_be.servicecatalog.service.UpdateClinicServiceService;
+import java.math.BigDecimal;
 import java.time.Duration;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
@@ -23,17 +24,17 @@ public class UpdateClinicServiceServiceImpl implements UpdateClinicServiceServic
 
     @Override
     @Transactional
-    public ClinicService update(UUID serviceId, String name, String description, int durationMinutes,
-                               int bufferMinutes, boolean onlineBookable) {
+    public ClinicService update(UUID serviceId, String name, String description, BigDecimal price,
+                                int durationMinutes, int bufferMinutes, boolean onlineBookable) {
         ClinicServiceValidation.ensureId(serviceId);
         String normalizedName = ClinicServiceValidation.normalizeName(name);
-        ClinicServiceValidation.validate(normalizedName, durationMinutes, bufferMinutes);
+        ClinicServiceValidation.validate(normalizedName, price, durationMinutes, bufferMinutes);
         coordinationGuard.acquire();
         ClinicService existing = services.findById(serviceId).map(ClinicServiceMapper::toModel)
                 .filter(ClinicService::active)
                 .orElseThrow(() -> new ClinicServiceException("SERVICE_NOT_FOUND"));
         ClinicService updated = new ClinicService(existing.id(), normalizedName,
-                ClinicServiceValidation.normalizeDescription(description), Duration.ofMinutes(durationMinutes),
+                ClinicServiceValidation.normalizeDescription(description), price, Duration.ofMinutes(durationMinutes),
                 Duration.ofMinutes(bufferMinutes), onlineBookable, true);
         return ClinicServiceMapper.toModel(services.save(ClinicServiceMapper.toEntity(updated)));
     }

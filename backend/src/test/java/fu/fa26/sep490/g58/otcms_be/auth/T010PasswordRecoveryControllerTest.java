@@ -13,6 +13,23 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 class T010PasswordRecoveryControllerTest {
+    @Test void unicodeResetPasswordOver72BytesReturnsValidation400() throws Exception {
+        var accounts = mock(fu.fa26.sep490.g58.otcms_be.auth.repository.AccountRepository.class);
+        var challenges = mock(fu.fa26.sep490.g58.otcms_be.auth.repository.PasswordResetChallengeRepository.class);
+        var encoder = mock(org.springframework.security.crypto.password.PasswordEncoder.class);
+        var sessions = mock(fu.fa26.sep490.g58.otcms_be.auth.service.AuthSessionService.class);
+        var service = new fu.fa26.sep490.g58.otcms_be.auth.service.impl.PasswordRecoveryServiceImpl(
+                accounts, challenges, mock(fu.fa26.sep490.g58.otcms_be.auth.service.EmailDeliveryService.class),
+                encoder, sessions, mock(fu.fa26.sep490.g58.otcms_be.config.AuthProperties.class));
+        MockMvc mvc = MockMvcBuilders.standaloneSetup(new PasswordRecoveryController(service, new StaffNetworkPolicy()))
+                .setControllerAdvice(new fu.fa26.sep490.g58.otcms_be.auth.exception.AuthExceptionHandler()).build();
+        mvc.perform(post("/api/auth/patient/reset-password").contentType("application/json")
+                        .content("{\"token\":\"token\",\"newPassword\":\"" + "\u1ea3".repeat(25) + "\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
+        verifyNoInteractions(accounts, challenges, encoder, sessions);
+    }
+
     @Test void patientForgotReturnsGenericAcceptedResponse() throws Exception {
         PasswordRecoveryService service = mock(PasswordRecoveryService.class);
         when(service.forgot("patient@example.test", fu.fa26.sep490.g58.otcms_be.auth.model.entity.enums.AccountType.PATIENT))

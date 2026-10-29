@@ -37,6 +37,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -72,7 +73,7 @@ class CheckInAppointmentT027PostgresIntegrationTest {
         jdbc.update("insert into clinic_services (id, name, duration_minutes, buffer_minutes, online_bookable, active) "
                 + "values (?, 'T027 Check-in', 30, 5, true, true)", service);
         doctorProfile = doctor(doctorAccount);
-        jdbc.update("insert into doctor_service_assignments (doctor_profile_id, service_id, active) values (?, ?, true)",
+        jdbc.update("insert into doctor_services (doctor_profile_id, service_id, active) values (?, ?, true)",
                 doctorProfile, service);
         appointment = insertAppointment(NOW.plusSeconds(1800), "T027 inclusive early boundary");
     }
@@ -82,24 +83,24 @@ class CheckInAppointmentT027PostgresIntegrationTest {
         String auditTrigger = jdbc.queryForObject("select tgenabled::text from pg_trigger "
                 + "where tgrelid = 'appointment_audits'::regclass and tgname = 'tr_appointment_audits_immutable'", String.class);
         String replayTrigger = jdbc.queryForObject("select tgenabled::text from pg_trigger "
-                + "where tgrelid = 'appointment_command_replays'::regclass and tgname = 'tr_appointment_command_replays_immutable'", String.class);
+                + "where tgrelid = 'appointment_checkin_requests'::regclass and tgname = 'tr_appointment_command_replays_immutable'", String.class);
         jdbc.execute("alter table appointment_audits disable trigger tr_appointment_audits_immutable");
-        jdbc.execute("alter table appointment_command_replays disable trigger tr_appointment_command_replays_immutable");
+        jdbc.execute("alter table appointment_checkin_requests disable trigger tr_appointment_command_replays_immutable");
         try {
             jdbc.execute("drop trigger if exists tr_t027_reject_audit on appointment_audits");
             jdbc.execute("drop function if exists reject_t027_checkin_audit()");
             for (UUID appointmentId : appointments) {
-                jdbc.update("delete from appointment_command_replays where appointment_id = ?", appointmentId);
+                jdbc.update("delete from appointment_checkin_requests where appointment_id = ?", appointmentId);
                 jdbc.update("delete from appointment_audits where appointment_id = ?", appointmentId);
                 jdbc.update("update appointments set status = 'CANCELLED', visit_id = null where id = ?", appointmentId);
-                jdbc.update("delete from recorded_appointment_arrivals where appointment_id = ?", appointmentId);
-                List<UUID> visits = jdbc.query("select id from clinic_visits where originating_appointment_id = ?",
+                jdbc.update("delete from appointment_arrivals where appointment_id = ?", appointmentId);
+                List<UUID> visits = jdbc.query("select id from visits where originating_appointment_id = ?",
                         (rs, row) -> rs.getObject("id", UUID.class), appointmentId);
-                for (UUID visit : visits) jdbc.update("delete from visit_initial_receptions where visit_id = ?", visit);
-                jdbc.update("delete from clinic_visits where originating_appointment_id = ?", appointmentId);
+                for (UUID visit : visits) jdbc.update("delete from visit_check_ins where visit_id = ?", visit);
+                jdbc.update("delete from visits where originating_appointment_id = ?", appointmentId);
                 jdbc.update("delete from appointments where id = ?", appointmentId);
             }
-            if (doctorProfile != null) jdbc.update("delete from doctor_service_assignments where doctor_profile_id = ?", doctorProfile);
+            if (doctorProfile != null) jdbc.update("delete from doctor_services where doctor_profile_id = ?", doctorProfile);
             if (service != null) jdbc.update("delete from clinic_services where id = ?", service);
             if (doctorProfile != null) jdbc.update("delete from doctor_profiles where id = ?", doctorProfile);
             if (patientProfile != null) jdbc.update("delete from patient_profiles where id = ?", patientProfile);
@@ -108,15 +109,31 @@ class CheckInAppointmentT027PostgresIntegrationTest {
             }
         } finally {
             restoreTrigger("appointment_audits", "tr_appointment_audits_immutable", auditTrigger);
-            restoreTrigger("appointment_command_replays", "tr_appointment_command_replays_immutable", replayTrigger);
+            restoreTrigger("appointment_checkin_requests", "tr_appointment_command_replays_immutable", replayTrigger);
         }
     }
 
     @Test
+    void patientIdentityProjectionIsPurposeLimitedAndReceptionistOnly() throws Exception {
+        mvc.perform(get("/api/v1/patient-profiles/{id}/reception-verification", patientProfile)
+                        .with(actor(receptionistAccount, AccountType.RECEPTIONIST)))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Cache-Control", org.hamcrest.Matchers.containsString("no-store")))
+                .andExpect(jsonPath("$.patientProfileId").value(patientProfile.toString()))
+                .andExpect(jsonPath("$.fullName").value("T027 Patient"))
+                .andExpect(jsonPath("$.dateOfBirth").value("1990-01-01"))
+                .andExpect(jsonPath("$.phoneCanonical").doesNotExist())
+                .andExpect(jsonPath("$.gender").doesNotExist());
+        mvc.perform(get("/api/v1/patient-profiles/{id}/reception-verification", patientProfile)
+                        .with(actor(patientAccount, AccountType.PATIENT)))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
     void checksInAtInclusiveEarlyBoundaryAndReplayAfterProgressionDoesNotDuplicateEvidence() throws Exception {
-        Instant arrivedAt = NOW.minusSeconds(60);
-        jdbc.update("insert into recorded_appointment_arrivals (appointment_id, patient_profile_id, receptionist_account_id, arrived_at) "
-                + "values (?, ?, ?, ?)", appointment, patientProfile, receptionistAccount, Timestamp.from(arrivedAt));
+        Instant arrivedAt = NOW;
+        jdbc.update("insert into appointment_arrivals (appointment_id, patient_profile_id, actor_account_id, source, arrived_at) "
+                + "values (?, ?, ?, 'LEGACY_RECEPTIONIST', ?)", appointment, patientProfile, receptionistAccount, Timestamp.from(arrivedAt));
 
         mvc.perform(checkIn(appointment, receptionistAccount, "t027-success"))
                 .andExpect(status().isOk()).andExpect(header().string("X-Correlation-ID", CORRELATION))
@@ -124,16 +141,17 @@ class CheckInAppointmentT027PostgresIntegrationTest {
                 .andExpect(jsonPath("$.checkedInAt").value(NOW.toString()));
         UUID visitId = jdbc.queryForObject("select visit_id from appointments where id = ?", UUID.class, appointment);
         assertEquals("CHECKED_IN", jdbc.queryForObject("select status from appointments where id = ?", String.class, appointment));
-        assertEquals(patientProfile, jdbc.queryForObject("select patient_profile_id from clinic_visits where id = ?", UUID.class, visitId));
-        assertEquals("SCHEDULED", jdbc.queryForObject("select source from clinic_visits where id = ?", String.class, visitId));
-        assertEquals(arrivedAt, jdbc.queryForObject("select arrived_at from clinic_visits where id = ?", Timestamp.class, visitId).toInstant());
-        assertEquals(1, jdbc.queryForObject("select count(*) from visit_initial_receptions where visit_id = ? "
+        assertEquals(patientProfile, jdbc.queryForObject("select patient_profile_id from visits where id = ?", UUID.class, visitId));
+        assertEquals("SCHEDULED", jdbc.queryForObject("select source from visits where id = ?", String.class, visitId));
+        assertEquals(arrivedAt, jdbc.queryForObject("select arrived_at from visits where id = ?", Timestamp.class, visitId).toInstant());
+        assertEquals(1, jdbc.queryForObject("select count(*) from visit_check_ins where visit_id = ? "
                 + "and reception_type = 'APPOINTMENT_CHECK_IN' and receptionist_account_id = ?", Integer.class, visitId, receptionistAccount));
         assertEquals(1, jdbc.queryForObject("select count(*) from appointment_audits where appointment_id = ? "
                 + "and action = 'STATUS_CHANGED' and old_status = 'CONFIRMED' and new_status = 'CHECKED_IN' "
-                + "and linked_visit_id = ? and actor_account_id = ? and correlation_id = ?", Integer.class,
-                appointment, visitId, receptionistAccount, CORRELATION));
-        assertEquals(1, jdbc.queryForObject("select count(*) from appointment_command_replays where appointment_id = ? "
+                + "and linked_visit_id = ? and actor_account_id = ? and correlation_id = ? "
+                + "and verified_patient_profile_id = ?", Integer.class,
+                appointment, visitId, receptionistAccount, CORRELATION, patientProfile));
+        assertEquals(1, jdbc.queryForObject("select count(*) from appointment_checkin_requests where appointment_id = ? "
                 + "and idempotency_key = 't027-success' and result_visit_id = ?", Integer.class, appointment, visitId));
 
         jdbc.update("update appointments set status = 'IN_PROGRESS' where id = ?", appointment);
@@ -142,9 +160,51 @@ class CheckInAppointmentT027PostgresIntegrationTest {
                 .andExpect(status().isOk()).andExpect(jsonPath("$.visitId").value(visitId.toString()))
                 .andExpect(jsonPath("$.checkedInAt").value(NOW.toString()));
         assertEquals("IN_PROGRESS", jdbc.queryForObject("select status from appointments where id = ?", String.class, appointment));
-        assertEquals(1, jdbc.queryForObject("select count(*) from clinic_visits where originating_appointment_id = ?", Integer.class, appointment));
+        assertEquals(1, jdbc.queryForObject("select count(*) from visits where originating_appointment_id = ?", Integer.class, appointment));
         assertEquals(1, jdbc.queryForObject("select count(*) from appointment_audits where appointment_id = ? and action = 'STATUS_CHANGED'", Integer.class, appointment));
-        assertEquals(1, jdbc.queryForObject("select count(*) from appointment_command_replays where appointment_id = ?", Integer.class, appointment));
+        assertEquals(1, jdbc.queryForObject("select count(*) from appointment_checkin_requests where appointment_id = ?", Integer.class, appointment));
+    }
+
+    @Test
+    void timelyArrivalAtInclusiveGraceBoundaryAllowsDelayedStaffProcessingWithoutQueue() throws Exception {
+        Instant allowedEnd = NOW.plusSeconds(2700);
+        jdbc.update("insert into appointment_arrivals (appointment_id, patient_profile_id, actor_account_id, source, arrived_at) "
+                + "values (?, ?, ?, 'PATIENT_QR', ?)", appointment, patientProfile, patientAccount, Timestamp.from(allowedEnd));
+        testClock.set(allowedEnd.plusSeconds(1));
+
+        mvc.perform(checkIn(appointment, receptionistAccount, "t027-delayed-staff"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.checkedInAt").value(allowedEnd.plusSeconds(1).toString()));
+
+        UUID visitId = jdbc.queryForObject("select visit_id from appointments where id = ?", UUID.class, appointment);
+        assertEquals(allowedEnd, jdbc.queryForObject("select arrived_at from visits where id = ?", Timestamp.class, visitId).toInstant());
+        assertEquals(0, jdbc.queryForObject("select count(*) from walk_in_reception_queue_entries where visit_id = ?", Integer.class, visitId));
+    }
+
+    @Test
+    void sameIdempotencyKeyWithChangedAttestedPatientConflicts() throws Exception {
+        mvc.perform(checkIn(appointment, receptionistAccount, "t027-attestation-key"))
+                .andExpect(status().isOk());
+        mvc.perform(checkIn(appointment, receptionistAccount, "t027-attestation-key", UUID.randomUUID()))
+                .andExpect(status().isConflict()).andExpect(jsonPath("$.error.code").value("IDEMPOTENCY_CONFLICT"));
+        assertEquals(1, jdbc.queryForObject("select count(*) from visits where originating_appointment_id = ?", Integer.class, appointment));
+    }
+
+    @Test
+    void mismatchedPatientAttestationRejectsWithoutAnyCheckInWrites() throws Exception {
+        mvc.perform(checkIn(appointment, receptionistAccount, "t027-mismatched-attestation", UUID.randomUUID()))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.error.code").value("PATIENT_IDENTITY_MISMATCH"));
+
+        assertEquals("CONFIRMED", jdbc.queryForObject("select status from appointments where id = ?", String.class, appointment));
+        assertEquals(null, jdbc.queryForObject("select visit_id from appointments where id = ?", UUID.class, appointment));
+        assertEquals(0, jdbc.queryForObject("select count(*) from visits where originating_appointment_id = ?", Integer.class, appointment));
+        assertEquals(0, jdbc.queryForObject("select count(*) from visit_check_ins r join visits v on v.id = r.visit_id "
+                + "where v.originating_appointment_id = ?", Integer.class, appointment));
+        assertEquals(0, jdbc.queryForObject("select count(*) from appointment_audits where appointment_id = ? "
+                + "and new_status = 'CHECKED_IN'", Integer.class, appointment));
+        assertEquals(0, jdbc.queryForObject("select count(*) from appointment_checkin_requests where appointment_id = ?", Integer.class, appointment));
+        assertEquals(0, jdbc.queryForObject("select count(*) from walk_in_reception_queue_entries q "
+                + "join visits v on v.id = q.visit_id where v.originating_appointment_id = ?", Integer.class, appointment));
     }
 
     @Test
@@ -155,8 +215,8 @@ class CheckInAppointmentT027PostgresIntegrationTest {
                 .andExpect(status().isUnprocessableEntity())
                 .andExpect(jsonPath("$.error.code").value("CHECK_IN_TIME_NOT_ALLOWED"));
         assertEquals("CONFIRMED", jdbc.queryForObject("select status from appointments where id = ?", String.class, appointment));
-        assertEquals(0, jdbc.queryForObject("select count(*) from clinic_visits where originating_appointment_id = ?", Integer.class, appointment));
-        assertEquals(0, jdbc.queryForObject("select count(*) from appointment_command_replays where appointment_id = ?", Integer.class, appointment));
+        assertEquals(0, jdbc.queryForObject("select count(*) from visits where originating_appointment_id = ?", Integer.class, appointment));
+        assertEquals(0, jdbc.queryForObject("select count(*) from appointment_checkin_requests where appointment_id = ?", Integer.class, appointment));
 
         testClock.set(NOW);
         mvc.perform(checkIn(appointment, receptionistAccount, "t027-late"))
@@ -172,8 +232,8 @@ class CheckInAppointmentT027PostgresIntegrationTest {
                 .andExpect(status().isOk());
         mvc.perform(checkIn(appointment, receptionistAccount, "t027-other-key"))
                 .andExpect(status().isConflict()).andExpect(jsonPath("$.error.code").value("APPOINTMENT_NOT_CHANGEABLE"));
-        assertEquals(1, jdbc.queryForObject("select count(*) from clinic_visits where originating_appointment_id = ?", Integer.class, appointment));
-        assertEquals(1, jdbc.queryForObject("select count(*) from appointment_command_replays where appointment_id = ?", Integer.class, appointment));
+        assertEquals(1, jdbc.queryForObject("select count(*) from visits where originating_appointment_id = ?", Integer.class, appointment));
+        assertEquals(1, jdbc.queryForObject("select count(*) from appointment_checkin_requests where appointment_id = ?", Integer.class, appointment));
         assertEquals(1, jdbc.queryForObject("select count(*) from appointment_audits where appointment_id = ? and action = 'STATUS_CHANGED'", Integer.class, appointment));
     }
 
@@ -190,12 +250,12 @@ class CheckInAppointmentT027PostgresIntegrationTest {
             var statuses = List.of(first.get(20, TimeUnit.SECONDS), second.get(20, TimeUnit.SECONDS));
             assertEquals(1, statuses.stream().filter(status -> status == 200).count());
             assertEquals(1, statuses.stream().filter(status -> status == 409).count());
-            assertEquals(1, jdbc.queryForObject("select count(*) from clinic_visits where originating_appointment_id = ?", Integer.class, appointment));
-            assertEquals(1, jdbc.queryForObject("select count(*) from visit_initial_receptions r join clinic_visits v on v.id = r.visit_id "
+            assertEquals(1, jdbc.queryForObject("select count(*) from visits where originating_appointment_id = ?", Integer.class, appointment));
+            assertEquals(1, jdbc.queryForObject("select count(*) from visit_check_ins r join visits v on v.id = r.visit_id "
                     + "where v.originating_appointment_id = ?", Integer.class, appointment));
             assertEquals(1, jdbc.queryForObject("select count(*) from appointment_audits where appointment_id = ? "
                     + "and action = 'STATUS_CHANGED' and new_status = 'CHECKED_IN'", Integer.class, appointment));
-            assertEquals(1, jdbc.queryForObject("select count(*) from appointment_command_replays where appointment_id = ?", Integer.class, appointment));
+            assertEquals(1, jdbc.queryForObject("select count(*) from appointment_checkin_requests where appointment_id = ?", Integer.class, appointment));
         } finally {
             start.countDown();
             pool.shutdownNow();
@@ -221,20 +281,25 @@ class CheckInAppointmentT027PostgresIntegrationTest {
                 .andExpect(jsonPath("$.error.code").value("DEPENDENCY_UNAVAILABLE"));
         assertEquals("CONFIRMED", jdbc.queryForObject("select status from appointments where id = ?", String.class, appointment));
         assertEquals(null, jdbc.queryForObject("select visit_id from appointments where id = ?", UUID.class, appointment));
-        assertEquals(0, jdbc.queryForObject("select count(*) from clinic_visits where originating_appointment_id = ?", Integer.class, appointment));
-        assertEquals(0, jdbc.queryForObject("select count(*) from visit_initial_receptions r join clinic_visits v on v.id = r.visit_id "
+        assertEquals(0, jdbc.queryForObject("select count(*) from visits where originating_appointment_id = ?", Integer.class, appointment));
+        assertEquals(0, jdbc.queryForObject("select count(*) from visit_check_ins r join visits v on v.id = r.visit_id "
                 + "where v.originating_appointment_id = ?", Integer.class, appointment));
-        assertEquals(0, jdbc.queryForObject("select count(*) from appointment_command_replays where appointment_id = ?", Integer.class, appointment));
+        assertEquals(0, jdbc.queryForObject("select count(*) from appointment_checkin_requests where appointment_id = ?", Integer.class, appointment));
         assertEquals(0, jdbc.queryForObject("select count(*) from appointment_audits where appointment_id = ? "
                 + "and new_status = 'CHECKED_IN'", Integer.class, appointment));
     }
 
     private org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder checkIn(
             UUID appointmentId, UUID actor, String key) {
+        return checkIn(appointmentId, actor, key, patientProfile);
+    }
+
+    private org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder checkIn(
+            UUID appointmentId, UUID actor, String key, UUID attestedPatientProfile) {
         return post("/api/v1/appointments/{id}/check-in", appointmentId)
                 .with(actor(actor, actor.equals(receptionistAccount) ? AccountType.RECEPTIONIST : AccountType.PATIENT))
                 .with(csrf()).header("Idempotency-Key", key).header("X-Correlation-ID", CORRELATION)
-                .contentType("application/json").content("{}");
+                .contentType("application/json").content("{\"verifiedPatientProfileId\":\"" + attestedPatientProfile + "\"}");
     }
 
     private UUID insertAppointment(Instant start, String purpose) {

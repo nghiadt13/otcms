@@ -63,7 +63,7 @@ class AppointmentLifecycleT029PostgresIntegrationTest {
         service = UUID.randomUUID();
         jdbc.update("insert into clinic_services (id, name, duration_minutes, buffer_minutes, online_bookable, active) values (?, 'T029 lifecycle', 30, 5, true, true)", service);
         doctorProfile = doctor(doctorAccount);
-        jdbc.update("insert into doctor_service_assignments (doctor_profile_id, service_id, active) values (?, ?, true)", doctorProfile, service);
+        jdbc.update("insert into doctor_services (doctor_profile_id, service_id, active) values (?, ?, true)", doctorProfile, service);
     }
 
     @AfterEach
@@ -80,7 +80,7 @@ class AppointmentLifecycleT029PostgresIntegrationTest {
                 (rs, row) -> rs.getObject("id", UUID.class));
         List<UUID> staleAppointments = jdbc.query("select a.id from appointments a join clinic_services s on s.id = a.service_id where a.purpose = 'T029 purpose' and s.name = 'T029 lifecycle'",
                 (rs, row) -> rs.getObject("id", UUID.class));
-        List<UUID> staleVisits = jdbc.query("select v.id from clinic_visits v join accounts a on a.id = v.created_by_account_id where v.source = 'WALK_IN' and a.normalized_email like 't029-%@example.test'",
+        List<UUID> staleVisits = jdbc.query("select v.id from visits v join accounts a on a.id = v.created_by_account_id where v.source = 'WALK_IN' and a.normalized_email like 't029-%@example.test'",
                 (rs, row) -> rs.getObject("id", UUID.class));
         List<UUID> staleProfiles = new ArrayList<>();
         staleProfiles.addAll(jdbc.query("select p.id from patient_profiles p join accounts a on a.id = p.account_id where a.normalized_email like 't029-%@example.test'",
@@ -93,38 +93,38 @@ class AppointmentLifecycleT029PostgresIntegrationTest {
     private void cleanT029Fixtures(List<UUID> fixtureAppointments, List<UUID> fixtureVisits,
             List<UUID> fixtureAccounts, List<UUID> fixtureProfiles, List<UUID> fixtureServices) {
         String auditMode = jdbc.queryForObject("select tgenabled::text from pg_trigger where tgrelid = 'appointment_audits'::regclass and tgname = 'tr_appointment_audits_immutable'", String.class);
-        String replayMode = jdbc.queryForObject("select tgenabled::text from pg_trigger where tgrelid = 'appointment_command_replays'::regclass and tgname = 'tr_appointment_command_replays_immutable'", String.class);
-        String careAuditMode = jdbc.queryForObject("select tgenabled::text from pg_trigger where tgrelid = 'visit_care_assignment_audits'::regclass and tgname = 'tr_visit_care_assignment_audits_immutable'", String.class);
+        String replayMode = jdbc.queryForObject("select tgenabled::text from pg_trigger where tgrelid = 'appointment_checkin_requests'::regclass and tgname = 'tr_appointment_command_replays_immutable'", String.class);
+        String careAuditMode = jdbc.queryForObject("select tgenabled::text from pg_trigger where tgrelid = 'visit_assignment_audits'::regclass and tgname = 'tr_visit_care_assignment_audits_immutable'", String.class);
         jdbc.execute("alter table appointment_audits disable trigger tr_appointment_audits_immutable");
-        jdbc.execute("alter table appointment_command_replays disable trigger tr_appointment_command_replays_immutable");
-        jdbc.execute("alter table visit_care_assignment_audits disable trigger tr_visit_care_assignment_audits_immutable");
+        jdbc.execute("alter table appointment_checkin_requests disable trigger tr_appointment_command_replays_immutable");
+        jdbc.execute("alter table visit_assignment_audits disable trigger tr_visit_care_assignment_audits_immutable");
         try {
             jdbc.execute("drop trigger if exists tr_t029_reject_cancel_audit on appointment_audits");
             jdbc.execute("drop function if exists reject_t029_cancel_audit()");
             for (UUID id : fixtureAppointments) {
-                List<UUID> visits = jdbc.query("select id from clinic_visits where originating_appointment_id = ?", (rs, row) -> rs.getObject("id", UUID.class), id);
-                jdbc.update("delete from appointment_command_replays where appointment_id = ?", id);
+                List<UUID> visits = jdbc.query("select id from visits where originating_appointment_id = ?", (rs, row) -> rs.getObject("id", UUID.class), id);
+                jdbc.update("delete from appointment_checkin_requests where appointment_id = ?", id);
                 jdbc.update("delete from appointment_audits where appointment_id = ?", id);
                 jdbc.update("update appointments set status = 'CANCELLED', visit_id = null where id = ?", id);
                 for (UUID visit : visits) {
-                    jdbc.update("delete from visit_clinical_examinations where visit_id = ?", visit);
-                    jdbc.update("delete from visit_care_assignment_audits where visit_id = ?", visit);
-                    jdbc.update("delete from visit_care_assignments where visit_id = ?", visit);
-                    jdbc.update("delete from visit_initial_receptions where visit_id = ?", visit);
+                    jdbc.update("delete from visit_examinations where visit_id = ?", visit);
+                    jdbc.update("delete from visit_assignment_audits where visit_id = ?", visit);
+                    jdbc.update("delete from visit_assignments where visit_id = ?", visit);
+                    jdbc.update("delete from visit_check_ins where visit_id = ?", visit);
                 }
-                jdbc.update("delete from clinic_visits where originating_appointment_id = ?", id);
+                jdbc.update("delete from visits where originating_appointment_id = ?", id);
                 jdbc.update("delete from appointments where id = ?", id);
             }
             for (UUID visit : fixtureVisits) {
-                jdbc.update("delete from walk_in_reception_replays where visit_id = ?", visit);
-                jdbc.update("delete from visit_clinical_examinations where visit_id = ?", visit);
-                jdbc.update("delete from visit_care_assignment_audits where visit_id = ?", visit);
-                jdbc.update("delete from visit_care_assignments where visit_id = ?", visit);
-                jdbc.update("delete from visit_initial_receptions where visit_id = ?", visit);
-                jdbc.update("delete from clinic_visits where id = ?", visit);
+                jdbc.update("delete from walk_in_requests where visit_id = ?", visit);
+                jdbc.update("delete from visit_examinations where visit_id = ?", visit);
+                jdbc.update("delete from visit_assignment_audits where visit_id = ?", visit);
+                jdbc.update("delete from visit_assignments where visit_id = ?", visit);
+                jdbc.update("delete from visit_check_ins where visit_id = ?", visit);
+                jdbc.update("delete from visits where id = ?", visit);
             }
             for (UUID profile : fixtureProfiles) {
-                jdbc.update("delete from doctor_service_assignments where doctor_profile_id = ?", profile);
+                jdbc.update("delete from doctor_services where doctor_profile_id = ?", profile);
                 jdbc.update("delete from doctor_profiles where id = ?", profile);
                 jdbc.update("delete from patient_profiles where id = ?", profile);
             }
@@ -132,8 +132,8 @@ class AppointmentLifecycleT029PostgresIntegrationTest {
             for (UUID id : fixtureAccounts) jdbc.update("delete from accounts where id = ?", id);
         } finally {
             restoreTrigger("appointment_audits", "tr_appointment_audits_immutable", auditMode);
-            restoreTrigger("appointment_command_replays", "tr_appointment_command_replays_immutable", replayMode);
-            restoreTrigger("visit_care_assignment_audits", "tr_visit_care_assignment_audits_immutable", careAuditMode);
+            restoreTrigger("appointment_checkin_requests", "tr_appointment_command_replays_immutable", replayMode);
+            restoreTrigger("visit_assignment_audits", "tr_visit_care_assignment_audits_immutable", careAuditMode);
         }
     }
 
@@ -145,11 +145,11 @@ class AppointmentLifecycleT029PostgresIntegrationTest {
         mvc.perform(statusChange(appointment, doctorAccount, AccountType.DOCTOR, "IN_PROGRESS"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("IN_PROGRESS"));
         UUID visit = jdbc.queryForObject("select visit_id from appointments where id = ?", UUID.class, appointment);
-        assertEquals(1, jdbc.queryForObject("select count(*) from visit_care_assignments where visit_id = ? and doctor_profile_id = ? and status = 'IN_PROGRESS'", Integer.class, visit, doctorProfile));
+        assertEquals(1, jdbc.queryForObject("select count(*) from visit_assignments where visit_id = ? and doctor_profile_id = ? and status = 'IN_PROGRESS'", Integer.class, visit, doctorProfile));
         mvc.perform(statusChange(appointment, doctorAccount, AccountType.DOCTOR, "COMPLETED"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("COMPLETED"));
-        assertEquals("OPEN", jdbc.queryForObject("select status from clinic_visits where id = ?", String.class, visit));
-        assertEquals("COMPLETED", jdbc.queryForObject("select status from visit_care_assignments where visit_id = ?", String.class, visit));
+        assertEquals("OPEN", jdbc.queryForObject("select status from visits where id = ?", String.class, visit));
+        assertEquals("COMPLETED", jdbc.queryForObject("select status from visit_assignments where visit_id = ?", String.class, visit));
         assertEquals(end, jdbc.queryForObject("select end_time from appointments where id = ?", Timestamp.class, appointment).toInstant());
         assertEquals(occupiedUntil, jdbc.queryForObject("select occupied_until from appointments where id = ?", Timestamp.class, appointment).toInstant());
         assertEquals(1, jdbc.queryForObject("select count(*) from appointment_audits where appointment_id = ? and old_status = 'IN_PROGRESS' and new_status = 'COMPLETED'", Integer.class, appointment));
@@ -160,8 +160,8 @@ class AppointmentLifecycleT029PostgresIntegrationTest {
         UUID appointment = checkedInAppointment();
         UUID visit = jdbc.queryForObject("select visit_id from appointments where id = ?", UUID.class, appointment);
         mvc.perform(cancel(appointment)).andExpect(status().isOk()).andExpect(jsonPath("$.status").value("CANCELLED"));
-        assertEquals("CLOSED", jdbc.queryForObject("select status from clinic_visits where id = ?", String.class, visit));
-        assertEquals(1, jdbc.queryForObject("select count(*) from visit_initial_receptions where visit_id = ?", Integer.class, visit));
+        assertEquals("CLOSED", jdbc.queryForObject("select status from visits where id = ?", String.class, visit));
+        assertEquals(1, jdbc.queryForObject("select count(*) from visit_check_ins where visit_id = ?", Integer.class, visit));
         assertEquals(1, jdbc.queryForObject("select count(*) from appointment_audits where appointment_id = ? and action = 'CANCELLED' and old_status = 'CHECKED_IN' and new_status = 'CANCELLED' and reason = 'T029 cancellation'", Integer.class, appointment));
     }
 
@@ -195,7 +195,7 @@ class AppointmentLifecycleT029PostgresIntegrationTest {
             assertEquals(1, (careCode == 200 ? 1 : 0) + (cancelCode == 200 ? 1 : 0));
             String appointmentStatus = jdbc.queryForObject("select status from appointments where id = ?", String.class, appointment);
             UUID visit = jdbc.queryForObject("select visit_id from appointments where id = ?", UUID.class, appointment);
-            String visitStatus = jdbc.queryForObject("select status from clinic_visits where id = ?", String.class, visit);
+            String visitStatus = jdbc.queryForObject("select status from visits where id = ?", String.class, visit);
             if ("CANCELLED".equals(appointmentStatus)) {
                 assertEquals(409, careCode);
                 assertEquals(200, cancelCode);
@@ -216,11 +216,11 @@ class AppointmentLifecycleT029PostgresIntegrationTest {
     void existingClinicalActivityRejectsCancellationWithoutChangingEitherOwner() throws Exception {
         UUID appointment = checkedInAppointment();
         UUID visit = jdbc.queryForObject("select visit_id from appointments where id = ?", UUID.class, appointment);
-        jdbc.update("insert into visit_clinical_examinations (visit_id, doctor_profile_id, completed, follow_up_indicated) values (?, ?, false, false)", visit, doctorProfile);
+        jdbc.update("insert into visit_examinations (visit_id, doctor_profile_id, completed, follow_up_indicated) values (?, ?, false, false)", visit, doctorProfile);
         mvc.perform(cancel(appointment)).andExpect(status().isConflict())
                 .andExpect(jsonPath("$.error.code").value("VISIT_CANCELLATION_NOT_ALLOWED"));
         assertEquals("CHECKED_IN", jdbc.queryForObject("select status from appointments where id = ?", String.class, appointment));
-        assertEquals("OPEN", jdbc.queryForObject("select status from clinic_visits where id = ?", String.class, visit));
+        assertEquals("OPEN", jdbc.queryForObject("select status from visits where id = ?", String.class, visit));
         assertEquals(0, jdbc.queryForObject("select count(*) from appointment_audits where appointment_id = ? and new_status = 'CANCELLED'", Integer.class, appointment));
     }
 
@@ -246,7 +246,7 @@ class AppointmentLifecycleT029PostgresIntegrationTest {
         mvc.perform(cancel(appointment)).andExpect(status().isServiceUnavailable())
                 .andExpect(jsonPath("$.error.code").value("DEPENDENCY_UNAVAILABLE"));
         assertEquals("CHECKED_IN", jdbc.queryForObject("select status from appointments where id = ?", String.class, appointment));
-        assertEquals("OPEN", jdbc.queryForObject("select status from clinic_visits where id = ?", String.class, visit));
+        assertEquals("OPEN", jdbc.queryForObject("select status from visits where id = ?", String.class, visit));
         assertEquals(0, jdbc.queryForObject("select count(*) from appointment_audits where appointment_id = ? and new_status = 'CANCELLED'", Integer.class, appointment));
     }
 
@@ -256,21 +256,21 @@ class AppointmentLifecycleT029PostgresIntegrationTest {
         UUID visit = jdbc.queryForObject("select visit_id from appointments where id = ?", UUID.class, appointment);
         UUID otherVisit = UUID.randomUUID();
         extraVisits.add(otherVisit);
-        jdbc.update("insert into clinic_visits (id, patient_profile_id, source, arrived_at, checked_in_at, created_by_account_id, status) values (?, ?, 'WALK_IN', ?, ?, ?, 'OPEN')",
+        jdbc.update("insert into visits (id, patient_profile_id, source, arrived_at, checked_in_at, created_by_account_id, status) values (?, ?, 'WALK_IN', ?, ?, ?, 'OPEN')",
                 otherVisit, patientProfile, Timestamp.from(NOW), Timestamp.from(NOW), receptionistAccount);
-        jdbc.update("insert into visit_initial_receptions (visit_id, receptionist_account_id, reception_type, arrived_at, checked_in_at, prior_appointment_id) values (?, ?, 'WALK_IN', ?, ?, null)",
+        jdbc.update("insert into visit_check_ins (visit_id, receptionist_account_id, reception_type, arrived_at, checked_in_at, prior_appointment_id) values (?, ?, 'WALK_IN', ?, ?, null)",
                 otherVisit, receptionistAccount, Timestamp.from(NOW), Timestamp.from(NOW));
         UUID assignment = UUID.randomUUID();
-        jdbc.update("insert into visit_care_assignments (id, visit_id, doctor_profile_id, starts_at, ends_at, status) values (?, ?, ?, ?, ?, 'IN_PROGRESS')",
+        jdbc.update("insert into visit_assignments (id, visit_id, doctor_profile_id, starts_at, ends_at, status) values (?, ?, ?, ?, ?, 'IN_PROGRESS')",
                 assignment, otherVisit, doctorProfile, Timestamp.from(NOW.minusSeconds(60)), Timestamp.from(NOW.plusSeconds(600)));
         mvc.perform(statusChange(appointment, doctorAccount, AccountType.DOCTOR, "IN_PROGRESS"))
                 .andExpect(status().isConflict()).andExpect(jsonPath("$.error.code").value("VISIT_CAPACITY_NOT_AVAILABLE"));
         assertEquals("CHECKED_IN", jdbc.queryForObject("select status from appointments where id = ?", String.class, appointment));
-        assertEquals(0, jdbc.queryForObject("select count(*) from visit_care_assignments where visit_id = ?", Integer.class, visit));
-        assertEquals(1, jdbc.queryForObject("select count(*) from visit_care_assignment_audits where visit_id = ? and assignment_id is null and actor_account_id = ? and action = 'CAPACITY_CONFLICT' and step_code = 'SCHEDULED_APPOINTMENT' and correlation_id = ?", Integer.class, visit, doctorAccount, CORRELATION));
-        jdbc.update("delete from visit_care_assignments where id = ?", assignment);
-        jdbc.update("delete from visit_initial_receptions where visit_id = ?", otherVisit);
-        jdbc.update("delete from clinic_visits where id = ?", otherVisit);
+        assertEquals(0, jdbc.queryForObject("select count(*) from visit_assignments where visit_id = ?", Integer.class, visit));
+        assertEquals(1, jdbc.queryForObject("select count(*) from visit_assignment_audits where visit_id = ? and assignment_id is null and actor_account_id = ? and action = 'CAPACITY_CONFLICT' and step_code = 'SCHEDULED_APPOINTMENT' and correlation_id = ?", Integer.class, visit, doctorAccount, CORRELATION));
+        jdbc.update("delete from visit_assignments where id = ?", assignment);
+        jdbc.update("delete from visit_check_ins where visit_id = ?", otherVisit);
+        jdbc.update("delete from visits where id = ?", otherVisit);
     }
 
     private UUID checkedInAppointment() throws Exception {
@@ -282,7 +282,7 @@ class AppointmentLifecycleT029PostgresIntegrationTest {
                 appointment, patientAccount, doctorProfile, Timestamp.from(start), Timestamp.from(start.plusSeconds(1800)), Timestamp.from(NOW), UUID.randomUUID().toString());
         mvc.perform(post("/api/v1/appointments/{id}/check-in", appointment).with(actor(receptionistAccount, AccountType.RECEPTIONIST))
                 .with(csrf()).header("Idempotency-Key", "t029-checkin-" + appointment).header("X-Correlation-ID", CORRELATION)
-                .contentType("application/json").content("{}"))
+                .contentType("application/json").content("{\"verifiedPatientProfileId\":\"" + patientProfile + "\"}"))
                 .andExpect(status().isOk());
         return appointment;
     }

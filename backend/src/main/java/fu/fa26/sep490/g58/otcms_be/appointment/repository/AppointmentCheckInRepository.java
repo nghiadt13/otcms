@@ -19,7 +19,7 @@ import java.util.UUID;
 public interface AppointmentCheckInRepository extends JpaRepository<AppointmentJpaEntity, UUID> {
     @Query(value = """
             select request_fingerprint, result_visit_id, result_checked_in_at
-            from appointment_command_replays
+            from appointment_checkin_requests
             where actor_account_id = :actor and appointment_id = :appointment
               and command = 'CHECK_IN' and idempotency_key = :key
             """, nativeQuery = true)
@@ -46,19 +46,19 @@ public interface AppointmentCheckInRepository extends JpaRepository<AppointmentJ
             insert into appointment_audits (id, appointment_id, actor_account_id, actor_type, action,
                 old_status, new_status, old_doctor_profile_id, new_doctor_profile_id,
                 old_start_time, new_start_time, old_end_time, new_end_time, linked_visit_id,
-                source_visit_id, occurred_at, correlation_id)
+                source_visit_id, occurred_at, correlation_id, verified_patient_profile_id)
             select :auditId, id, :actor, 'RECEPTIONIST', 'STATUS_CHANGED', 'CONFIRMED', 'CHECKED_IN',
                 doctor_profile_id, doctor_profile_id, start_time, start_time, end_time, end_time,
-                visit_id, source_visit_id, :occurred, :correlation
+                visit_id, source_visit_id, :occurred, :correlation, :verifiedPatient
             from appointments where id = :appointment
             """, nativeQuery = true)
     int insertCheckInAudit(@Param("auditId") UUID auditId, @Param("actor") UUID actor,
             @Param("occurred") Timestamp occurred, @Param("correlation") String correlation,
-            @Param("appointment") UUID appointment);
+            @Param("appointment") UUID appointment, @Param("verifiedPatient") UUID verifiedPatient);
 
     @Modifying
     @Query(value = """
-            insert into appointment_command_replays (actor_account_id, appointment_id, command,
+            insert into appointment_checkin_requests (actor_account_id, appointment_id, command,
                 idempotency_key, request_fingerprint, result_visit_id, result_checked_in_at)
             values (:actor, :appointment, 'CHECK_IN', :key, :fingerprint, :visit, :checkedInAt)
             """, nativeQuery = true)
@@ -80,6 +80,7 @@ public interface AppointmentCheckInRepository extends JpaRepository<AppointmentJ
     }
 
     default CheckedInAppointment completeCheckIn(CheckInAppointment appointment, UUID actorAccountId,
+            UUID verifiedPatientProfileId,
             String idempotencyKey, String requestFingerprint, UUID visitId, Instant checkedInAt,
             String correlationId) {
         if (markCheckedIn(appointment.id(), appointment.patientProfileId(), visitId,
@@ -87,7 +88,7 @@ public interface AppointmentCheckInRepository extends JpaRepository<AppointmentJ
             throw new IllegalStateException("Appointment changed inside guarded check-in transaction");
         }
         insertCheckInAudit(UUID.randomUUID(), actorAccountId, Timestamp.from(checkedInAt),
-                correlationId, appointment.id());
+                correlationId, appointment.id(), verifiedPatientProfileId);
         insertCheckInReplay(actorAccountId, appointment.id(), idempotencyKey, requestFingerprint,
                 visitId, Timestamp.from(checkedInAt));
         return new CheckedInAppointment(appointment.id(), visitId, checkedInAt);

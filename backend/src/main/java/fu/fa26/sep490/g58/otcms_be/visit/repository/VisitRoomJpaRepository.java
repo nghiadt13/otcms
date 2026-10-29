@@ -23,7 +23,7 @@ public interface VisitRoomJpaRepository extends JpaRepository<VisitRoomJpaEntity
 
     @Query(value = """
             select exists(
-                select 1 from visit_room_reservations
+                select 1 from room_reservations
                 where room_id = :roomId
                   and (status = 'IN_PROGRESS' or (status = 'CLEANING' and reserved_until > :now))
             )
@@ -37,16 +37,16 @@ public interface VisitRoomJpaRepository extends JpaRepository<VisitRoomJpaEntity
                 'active', r.active,
                 'capabilities', coalesce((
                     select jsonb_agg(c.capability_code order by c.capability_code)
-                    from visit_room_capabilities c where c.room_id = r.id
+                    from room_capabilities c where c.room_id = r.id
                 ), '[]'::jsonb)
             )::text
-            from visit_rooms r where r.id = :roomId
+            from rooms r where r.id = :roomId
             """, nativeQuery = true)
     String snapshot(@Param("roomId") UUID roomId);
 
     @Modifying
     @Query(value = """
-            insert into visit_room_management_audits
+            insert into room_management_audits
                 (id, room_id, actor_account_id, action, before_state, after_state, occurred_at, correlation_id)
             values (:id, :roomId, :actorId, :action, cast(:beforeState as jsonb),
                 cast(:afterState as jsonb), :occurredAt, :correlationId)

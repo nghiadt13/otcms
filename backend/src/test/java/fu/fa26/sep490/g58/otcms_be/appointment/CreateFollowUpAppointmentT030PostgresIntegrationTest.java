@@ -65,14 +65,14 @@ class CreateFollowUpAppointmentT030PostgresIntegrationTest {
         jdbc.update("insert into doctor_profiles (id, account_id, full_name, photo_url, work_contact, specialties, qualifications, biography, consultation_information, publicly_visible, accepting_new_bookings, in_active_directory) values (?, ?, 'T030 Doctor', '', 'private', '', '', '', '', true, true, true)",
                 doctor, account);
         jdbc.update("insert into clinic_services (id, name, duration_minutes, buffer_minutes, online_bookable, active) values (?, 'T030 Follow-up', 30, 5, false, true)", service);
-        jdbc.update("insert into doctor_service_assignments (doctor_profile_id, service_id, active) values (?, ?, true)", doctor, service);
-        jdbc.update("insert into doctor_work_shifts (id, doctor_profile_id, starts_at, ends_at) values (?, ?, ?, ?)",
+        jdbc.update("insert into doctor_services (doctor_profile_id, service_id, active) values (?, ?, true)", doctor, service);
+        jdbc.update("insert into doctor_shifts (id, doctor_profile_id, starts_at, ends_at) values (?, ?, ?, ?)",
                 UUID.randomUUID(), doctor, Timestamp.from(SLOT.minusSeconds(3600)), Timestamp.from(SLOT.plusSeconds(7200)));
-        jdbc.update("insert into clinic_visits (id, patient_profile_id, source, arrived_at, checked_in_at, created_by_account_id) values (?, ?, 'WALK_IN', ?, ?, ?)",
+        jdbc.update("insert into visits (id, patient_profile_id, source, arrived_at, checked_in_at, created_by_account_id) values (?, ?, 'WALK_IN', ?, ?, ?)",
                 visit, patient, Timestamp.from(NOW.minusSeconds(3600)), Timestamp.from(NOW.minusSeconds(3600)), account);
-        jdbc.update("insert into visit_care_assignments (visit_id, doctor_profile_id, starts_at, ends_at, status) values (?, ?, ?, ?, 'COMPLETED')",
+        jdbc.update("insert into visit_assignments (visit_id, doctor_profile_id, starts_at, ends_at, status) values (?, ?, ?, ?, 'COMPLETED')",
                 visit, doctor, Timestamp.from(NOW.minusSeconds(3600)), Timestamp.from(NOW.minusSeconds(1800)));
-        jdbc.update("insert into visit_clinical_examinations (visit_id, doctor_profile_id, completed, follow_up_indicated, completed_at) values (?, ?, true, true, ?)",
+        jdbc.update("insert into visit_examinations (visit_id, doctor_profile_id, completed, follow_up_indicated, completed_at) values (?, ?, true, true, ?)",
                 visit, doctor, Timestamp.from(NOW.minusSeconds(1800)));
     }
 
@@ -85,11 +85,11 @@ class CreateFollowUpAppointmentT030PostgresIntegrationTest {
             if (service != null) {
                 jdbc.update("delete from appointment_audits where appointment_id in (select id from appointments where service_id = ?)", service);
                 jdbc.update("delete from appointments where service_id = ?", service);
-                jdbc.update("delete from visit_clinical_examinations where visit_id = ?", visit);
-                jdbc.update("delete from visit_care_assignments where visit_id = ?", visit);
-                jdbc.update("delete from clinic_visits where id = ?", visit);
-                jdbc.update("delete from doctor_work_shifts where doctor_profile_id = ?", doctor);
-                jdbc.update("delete from doctor_service_assignments where service_id = ?", service);
+                jdbc.update("delete from visit_examinations where visit_id = ?", visit);
+                jdbc.update("delete from visit_assignments where visit_id = ?", visit);
+                jdbc.update("delete from visits where id = ?", visit);
+                jdbc.update("delete from doctor_shifts where doctor_profile_id = ?", doctor);
+                jdbc.update("delete from doctor_services where service_id = ?", service);
                 jdbc.update("delete from clinic_services where id = ?", service);
             }
             if (doctor != null) jdbc.update("delete from doctor_profiles where id = ?", doctor);
@@ -124,7 +124,7 @@ class CreateFollowUpAppointmentT030PostgresIntegrationTest {
                 "select count(*) from appointment_audits where source_visit_id = ? and actor_account_id = ? and actor_type = 'DOCTOR' and action = 'CREATED' and reason = 'Review symptoms' and correlation_id = ?",
                 Integer.class, visit, account, correlation));
         org.junit.jupiter.api.Assertions.assertEquals(1, jdbc.queryForObject(
-                "select count(*) from clinic_visits where id = ? and status = 'OPEN'", Integer.class, visit));
+                "select count(*) from visits where id = ? and status = 'OPEN'", Integer.class, visit));
     }
 
     @Test

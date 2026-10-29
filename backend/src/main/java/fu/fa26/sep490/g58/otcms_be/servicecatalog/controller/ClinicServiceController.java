@@ -56,8 +56,8 @@ public class ClinicServiceController {
     @PostMapping("/api/v1/admin/clinic-services")
     @PreAuthorize("hasAuthority('ROLE_ADMIN')")
     public ResponseEntity<ServiceResponse> create(@Valid @RequestBody ServiceRequest request) {
-        ClinicService service = create.create(request.name(), request.description(), request.durationMinutes(),
-                request.bufferMinutes(), request.onlineBookable());
+        ClinicService service = create.create(request.name(), request.description(), request.price(),
+                request.durationMinutes(), request.bufferMinutes(), request.onlineBookable());
         return ResponseEntity.status(HttpStatus.CREATED).body(mapper.toResponse(service));
     }
 
@@ -65,7 +65,7 @@ public class ClinicServiceController {
     @PreAuthorize("hasAuthority('ROLE_ADMIN')")
     public ServiceResponse update(@PathVariable UUID serviceId, @Valid @RequestBody ServiceRequest request) {
         return mapper.toResponse(update.update(serviceId, request.name(), request.description(),
-                request.durationMinutes(), request.bufferMinutes(), request.onlineBookable()));
+                request.price(), request.durationMinutes(), request.bufferMinutes(), request.onlineBookable()));
     }
 
     @DeleteMapping("/api/v1/admin/clinic-services/{serviceId}")

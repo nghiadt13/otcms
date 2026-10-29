@@ -17,8 +17,10 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 
 @RestControllerAdvice(assignableTypes = {
         fu.fa26.sep490.g58.otcms_be.visit.controller.WalkInVisitController.class,
+        fu.fa26.sep490.g58.otcms_be.visit.controller.WalkInVisitLifecycleController.class,
         fu.fa26.sep490.g58.otcms_be.visit.controller.VisitCareAssignmentController.class,
-        fu.fa26.sep490.g58.otcms_be.visit.controller.VisitRoomAdminController.class
+        fu.fa26.sep490.g58.otcms_be.visit.controller.VisitRoomAdminController.class,
+        fu.fa26.sep490.g58.otcms_be.visit.controller.VisitReceptionReadController.class
 })
 @Order(Ordered.HIGHEST_PRECEDENCE)
 public class VisitApiExceptionHandler {
@@ -29,7 +31,8 @@ public class VisitApiExceptionHandler {
             case "RESOURCE_NOT_FOUND", "ROOM_NOT_FOUND" -> HttpStatus.NOT_FOUND;
             case "IDEMPOTENCY_CONFLICT", "VISIT_LINK_CONFLICT", "VISIT_CAPACITY_NOT_AVAILABLE",
                     "VISIT_CARE_NOT_CHANGEABLE", "SLOT_UNAVAILABLE", "DUPLICATE_ROOM_CODE",
-                    "ROOM_HAS_ACTIVE_RESERVATIONS" -> HttpStatus.CONFLICT;
+                    "ROOM_HAS_ACTIVE_RESERVATIONS", "VISIT_CANCELLATION_NOT_ALLOWED",
+                    "VISIT_RECEPTION_QUEUE_CONFLICT" -> HttpStatus.CONFLICT;
             case "VISIT_CARE_STEP_NOT_CONFIGURED" -> HttpStatus.SERVICE_UNAVAILABLE;
             case "DEPENDENCY_UNAVAILABLE" -> HttpStatus.SERVICE_UNAVAILABLE;
             default -> HttpStatus.BAD_REQUEST;
