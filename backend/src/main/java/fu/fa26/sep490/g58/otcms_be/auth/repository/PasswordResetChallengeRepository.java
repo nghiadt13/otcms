@@ -6,6 +6,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import java.time.Instant;
@@ -13,6 +14,14 @@ import java.util.Optional;
 import java.util.UUID;
 
 public interface PasswordResetChallengeRepository extends JpaRepository<PasswordResetChallengeJpaEntity, UUID> {
+    @Query("select c.account.id from PasswordResetChallengeJpaEntity c where c.tokenHash = :hash")
+    Optional<UUID> findAccountIdByTokenHash(@Param("hash") String hash);
+
+    @Modifying
+    @Query("update PasswordResetChallengeJpaEntity c set c.supersededAt = :now where c.account.id = :accountId "
+            + "and c.consumedAt is null and c.supersededAt is null")
+    int supersedeCurrent(@Param("accountId") UUID accountId, @Param("now") Instant now);
+
     Optional<PasswordResetChallengeJpaEntity> findByTokenHash(String tokenHash);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)

@@ -14,6 +14,7 @@ public interface AuthSessionService {
     void logout(String refreshToken);
 
     void revokeAll(UUID accountId);
+    void revokeAll(UUID accountId, String reason);
 
     Optional<AccountType> accountTypeForRefresh(String refreshToken);
 

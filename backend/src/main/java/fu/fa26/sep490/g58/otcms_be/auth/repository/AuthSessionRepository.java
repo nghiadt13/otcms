@@ -1,6 +1,7 @@
 package fu.fa26.sep490.g58.otcms_be.auth.repository;
 
 import fu.fa26.sep490.g58.otcms_be.auth.model.entity.AuthSessionJpaEntity;
+import fu.fa26.sep490.g58.otcms_be.auth.model.entity.enums.AccountType;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -14,6 +15,15 @@ import java.util.Optional;
 import java.util.UUID;
 
 public interface AuthSessionRepository extends JpaRepository<AuthSessionJpaEntity, UUID> {
+    boolean existsByIdAndAccountIdAndRevokedAtIsNullAndExpiresAtAfter(UUID id, UUID accountId, Instant now);
+
+    @Query("select s.account.accountType from AuthSessionJpaEntity s where s.refreshTokenHash = :hash")
+    Optional<AccountType> findAccountTypeByRefreshTokenHash(
+            @Param("hash") String hash);
+
+    @Query("select s.account.id from AuthSessionJpaEntity s where s.refreshTokenHash = :hash")
+    Optional<UUID> findAccountIdByRefreshTokenHash(@Param("hash") String hash);
+
     Optional<AuthSessionJpaEntity> findByRefreshTokenHash(String refreshTokenHash);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)

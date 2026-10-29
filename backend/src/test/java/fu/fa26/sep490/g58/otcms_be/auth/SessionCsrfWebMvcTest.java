@@ -47,6 +47,7 @@ class SessionCsrfWebMvcTest {
     @Autowired MockMvc mvc;
     @MockitoBean AuthSessionService sessions;
     @MockitoBean JwtTokenService tokens;
+    @MockitoBean fu.fa26.sep490.g58.otcms_be.auth.service.AccountAccessService accountAccess;
     @MockitoBean AppointmentWebConfiguration appointmentWebConfiguration;
     @MockitoBean PublicRequestRateLimitInterceptor publicRequestRateLimitInterceptor;
     @MockitoBean ProductionReadinessGateInterceptor productionReadinessGateInterceptor;
