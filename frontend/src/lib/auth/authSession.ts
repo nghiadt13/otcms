@@ -109,6 +109,16 @@ async function loadCsrfToken(): Promise<string> {
   return csrfToken;
 }
 
+/**
+ * Token CSRF cho request ghi dữ liệu (POST/PUT/DELETE) tới /api/v1: backend bật CSRF kiểu cookie
+ * nên mọi request đó phải kèm header `X-CSRF-TOKEN` khớp cookie `XSRF-TOKEN`. `refresh` bỏ bản
+ * đã nhớ để lấy token mới (khi backend báo 403 do cookie lệch).
+ */
+export async function getCsrfToken(refresh = false): Promise<string> {
+  if (refresh) csrfToken = null;
+  return loadCsrfToken();
+}
+
 /** Đăng nhập email + mật khẩu qua backend; thành công thì giữ access token trong bộ nhớ. */
 export async function signInWithPassword(
   kind: LoginKind,
@@ -159,6 +169,11 @@ export async function getSession(): Promise<AuthSession | null> {
     return current;
   if (!current && !readHint()) return null;
   return refreshSession();
+}
+
+/** Phiên đang giữ trong bộ nhớ của tab, không refresh; `null` khi chưa có hoặc đã đăng xuất. */
+export function peekSession(): AuthSession | null {
+  return current;
 }
 
 export async function getAccessToken(): Promise<string | null> {

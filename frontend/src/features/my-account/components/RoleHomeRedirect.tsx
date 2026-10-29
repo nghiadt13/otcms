@@ -5,37 +5,38 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { getSession } from "@/lib/auth/authSession";
+import { isApiError } from "@/lib/api/apiError";
+import { fetchCurrentAccount } from "@/lib/auth/currentAccountApi";
 import { messageFromError } from "@/lib/messages/appMessages";
-import { getMyAccount } from "../api/myAccountApi";
 import { homeRouteForAccount } from "../homeRouteForAccount";
 
-// Lối vào chung `/workspace`: chưa có phiên thì về đăng nhập; có phiên thì đọc tài khoản và
-// chuyển tới khu đúng vai trò. Lỗi đọc tài khoản hiện thông báo kèm nút thử lại.
+// Lối vào chung `/workspace`: chưa có phiên (hoặc backend trả 401) thì về đăng nhập; có phiên thì
+// đọc tài khoản từ backend (`GET /api/v1/me`) và chuyển tới khu đúng vai trò. Lỗi khác hiện thông
+// báo kèm nút thử lại.
 export function RoleHomeRedirect() {
   const router = useRouter();
   const [attempt, setAttempt] = useState(0);
   const [failure, setFailure] = useState<string | null>(null);
 
   useEffect(() => {
-    const controller = new AbortController();
+    let active = true;
 
     async function routeToHome() {
-      const session = await getSession();
-      if (controller.signal.aborted) return;
-      if (!session) {
-        router.replace("/login");
-        return;
-      }
-      const account = await getMyAccount(controller.signal);
-      if (controller.signal.aborted) return;
-      router.replace(homeRouteForAccount(account));
+      const account = await fetchCurrentAccount();
+      if (!active) return;
+      router.replace(
+        account ? homeRouteForAccount(account.accountType) : "/login",
+      );
     }
 
     routeToHome().catch((cause: unknown) => {
-      if (!controller.signal.aborted) setFailure(messageFromError(cause));
+      if (!active) return;
+      if (isApiError(cause) && cause.status === 401) router.replace("/login");
+      else setFailure(messageFromError(cause));
     });
-    return () => controller.abort();
+    return () => {
+      active = false;
+    };
   }, [router, attempt]);
 
   function retry() {
