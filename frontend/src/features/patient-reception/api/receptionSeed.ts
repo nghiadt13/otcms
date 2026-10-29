@@ -1,8 +1,10 @@
-import { addDays, clinicDate } from "../schema/receptionRules";
+import { addDays, clinicDate, clinicTimestamp } from "../schema/receptionRules";
 import type { ReceptionState, Patient } from "../types";
 
-/** Synthetic fixtures only. Clock deliberately fixed at 09:10 to make front-desk flows reviewable at night. */
-export function createReceptionSeed(day = clinicDate()): ReceptionState {
+/** Synthetic records. Runtime uses real clinic time; an explicit fixture date keeps tests deterministic. */
+export function createReceptionSeed(fixtureDay?: string): ReceptionState {
+  const now = new Date();
+  const day = fixtureDay ?? clinicDate(now);
   const names = [
     "Nguyễn Minh Anh",
     "Trần Văn Bình",
@@ -34,7 +36,7 @@ export function createReceptionSeed(day = clinicDate()): ReceptionState {
     nationalId: "",
     email: i === 8 ? "" : `benhnhan${i + 1}@example.com`,
   }));
-  const clock = `${day}T09:10:00+07:00`;
+  const clock = fixtureDay ? `${day}T09:10:00+07:00` : clinicTimestamp(now);
   const state: ReceptionState = {
     version: 1,
     clock,
@@ -399,6 +401,36 @@ export function createReceptionSeed(day = clinicDate()): ReceptionState {
           roomId:
             state.doctors.find((d) => d.id === staffId)?.roomId ?? "reception",
         });
+  // Tomorrow at 11:00: Lan is absent; both eligible colleagues already have bookings.
+  state.appointments.push(
+    {
+      id: "LH006",
+      patientId: "BN0003",
+      doctorId: "bs-lan",
+      serviceId: "kham",
+      date: addDays(day, 1),
+      time: "11:00",
+      status: "booked",
+    },
+    {
+      id: "LH007",
+      patientId: "BN0001",
+      doctorId: "bs-an",
+      serviceId: "kham",
+      date: addDays(day, 1),
+      time: "11:00",
+      status: "booked",
+    },
+    {
+      id: "LH008",
+      patientId: "BN0002",
+      doctorId: "bs-minh",
+      serviceId: "kham",
+      date: addDays(day, 1),
+      time: "11:00",
+      status: "booked",
+    },
+  );
   for (const a of state.appointments)
     state.charges.push({
       id: `phi-${a.id}`,
