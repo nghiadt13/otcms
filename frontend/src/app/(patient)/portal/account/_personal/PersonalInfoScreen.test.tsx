@@ -33,7 +33,7 @@ beforeEach(() => {
 });
 
 describe("PersonalInfoScreen", () => {
-  it("hai cột: người đăng nhập và menu bên trái, các trường theo đặc tả bên phải", async () => {
+  it("các trường theo đặc tả", async () => {
     render(<PersonalInfoScreen />);
 
     expect(
@@ -42,7 +42,6 @@ describe("PersonalInfoScreen", () => {
     expect(await screen.findByLabelText(/Họ và tên/)).toHaveValue(
       "Nguyễn Văn An",
     );
-    expect(screen.getByText("Nam, 21/07/1992")).toBeInTheDocument();
     expect(screen.getByLabelText(/Ngày sinh/)).toHaveValue("21/07/1992");
     expect(screen.getByRole("radio", { name: "Nam" })).toBeChecked();
     expect(screen.getByLabelText(/CCCD/)).toHaveValue("");
@@ -54,12 +53,6 @@ describe("PersonalInfoScreen", () => {
     // Trường ngoài đặc tả không xuất hiện.
     expect(screen.queryByLabelText(/Dân tộc|Nghề nghiệp|Quốc gia/)).toBeNull();
 
-    expect(
-      screen.getByRole("link", { name: "Thông tin cá nhân" }),
-    ).toHaveAttribute("aria-current", "page");
-    expect(
-      screen.getByRole("link", { name: "Hồ sơ và gia đình" }),
-    ).toHaveAttribute("href", "/portal/profiles");
     expect(screen.getByRole("link", { name: "Đổi mật khẩu" })).toHaveAttribute(
       "href",
       "/portal/account/password",

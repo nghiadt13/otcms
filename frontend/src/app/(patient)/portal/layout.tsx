@@ -8,10 +8,11 @@ import { PatientNotificationMockBootstrap } from "@/features/notifications/compo
 import { PatientAuthGate } from "@/features/patient-shell/components/PatientAuthGate";
 import { PatientPortalHeader } from "@/features/patient-shell/components/PatientPortalHeader";
 import { PATIENT_ROUTES } from "@/lib/routes/patientRoutes";
+import { PortalAreaFrame } from "./_area/PortalAreaFrame";
 
 // Khung khu bệnh nhân: cùng khung đầu trang với trang chủ (dải thông tin phòng khám + header
 // dính) và một cột nội dung (max-w-3xl, chữ cỡ màn xác thực; màn có phần tử `data-portal-wide`,
-// như Thông tin cá nhân, được nới tới max-w-6xl để có cột menu bên trái). `PatientAuthGate` chỉ vẽ khu này
+// như các màn gốc của khu cá nhân do `PortalAreaFrame` bọc, được nới tới max-w-6xl để có cột menu bên trái). `PatientAuthGate` chỉ vẽ khu này
 // khi backend xác nhận người đăng nhập là bệnh nhân (chưa đăng nhập → /login); quyền thật vẫn
 // do backend kiểm từng API. Dải thông tin ghép ở đây vì feature patient-shell không import
 // clinic-website. Chuông thông báo đi qua slot của header.
@@ -37,7 +38,7 @@ export default async function PatientPortalLayout({
       <BookingMockStoreBootstrap />
       <PatientNotificationMockBootstrap />
       <main className="mx-auto max-w-3xl px-4 py-6 has-[[data-portal-wide]]:max-w-6xl md:py-10">
-        {children}
+        <PortalAreaFrame>{children}</PortalAreaFrame>
       </main>
       <Toaster position="top-center" />
     </PatientAuthGate>

@@ -2,10 +2,6 @@
 
 import Link from "next/link";
 import { publicButtonClass } from "@/components/brand/publicButtonStyles";
-import {
-  PersonalAreaShell,
-  type PersonalAreaPerson,
-} from "@/components/patient/PersonalAreaShell";
 import { PortalEmptyState } from "@/components/patient/PortalEmptyState";
 import { PortalPageHeader } from "@/components/patient/PortalPageHeader";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -14,9 +10,7 @@ import { AvatarEditor } from "@/features/my-account/components/AvatarEditor";
 import { useMyAccount } from "@/features/my-account/hooks/useMyAccount";
 import { PersonalInfoForm } from "@/features/patient-profiles/components/PersonalInfoForm";
 import { PortalLoadError } from "@/features/patient-profiles/components/PortalLoadError";
-import { SEX_LABELS } from "@/features/patient-profiles/components/profileOptions";
 import { useOwnPatientProfile } from "@/features/patient-profiles/hooks/useOwnPatientProfile";
-import { isoToDateOfBirthText } from "@/features/patient-profiles/schema/dateOfBirthText";
 import { PATIENT_ROUTES } from "@/lib/routes/patientRoutes";
 
 const TITLE = "Thông tin cá nhân";
@@ -49,7 +43,8 @@ export function PersonalInfoScreen() {
 
   if (!account) {
     return (
-      <PersonalAreaShell person={null} title={TITLE}>
+      <>
+        <h1 className="sr-only">{TITLE}</h1>
         {error ? (
           <PortalLoadError
             message="Kiểm tra kết nối mạng rồi thử lại."
@@ -59,21 +54,13 @@ export function PersonalInfoScreen() {
         ) : loading ? (
           <FormSkeleton />
         ) : null}
-      </PersonalAreaShell>
+      </>
     );
   }
 
-  const detail = own.state.status === "ready" ? own.state.detail : null;
-  const person: PersonalAreaPerson = {
-    name: detail?.fullName ?? account.displayName,
-    avatarUrl: account.avatarUrl,
-    subtitle: detail
-      ? `${SEX_LABELS[detail.sex]}, ${isoToDateOfBirthText(detail.dateOfBirth)}`
-      : account.email,
-  };
-
   return (
-    <PersonalAreaShell person={person} title={TITLE}>
+    <>
+      <h1 className="sr-only">{TITLE}</h1>
       <section aria-labelledby="personal-edit-heading" className={CARD_CLASS}>
         <h2 className="text-xl font-semibold" id="personal-edit-heading">
           Chỉnh sửa thông tin
@@ -146,7 +133,7 @@ export function PersonalInfoScreen() {
           Đổi mật khẩu
         </Link>
       </section>
-    </PersonalAreaShell>
+    </>
   );
 }
 

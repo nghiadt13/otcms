@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect } from "react";
 import { publicButtonClass } from "@/components/brand/publicButtonStyles";
+import { PATIENT_ROUTES } from "@/lib/routes/patientRoutes";
 
 // Lỗi runtime trong một màn khu bệnh nhân. Nằm trong portal/layout nên header vẫn hiển
 // thị, người dùng có thể quay về trang chủ. Câu chữ nói rõ chuyện gì và cách khắc phục.
@@ -37,7 +38,7 @@ export default function PatientPortalError({
         >
           Thử lại
         </button>
-        <Link className={publicButtonClass("secondary")} href="/portal">
+        <Link className={publicButtonClass("secondary")} href={PATIENT_ROUTES.account}>
           Về trang chủ
         </Link>
       </div>
