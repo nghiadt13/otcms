@@ -7,14 +7,11 @@ describe("PublicServiceSearchForm", () => {
     render(
       <PublicServiceSearchForm
         error={null}
-        input={{ q: "gối", type: "EXAMINATION" }}
+        input={{ q: "gối" }}
       />,
     );
     expect(screen.getByRole("textbox", { name: "Tên dịch vụ" })).toHaveValue(
       "gối",
-    );
-    expect(screen.getByRole("combobox", { name: "Loại dịch vụ" })).toHaveValue(
-      "EXAMINATION",
     );
     const form = screen.getByRole("search");
     expect(form).toHaveAttribute("action", "/services");
@@ -26,7 +23,7 @@ describe("PublicServiceSearchForm", () => {
     render(
       <PublicServiceSearchForm
         error={{ field: "q", code: "MSG-54" }}
-        input={{ q: "a".repeat(101), type: "" }}
+        input={{ q: "a".repeat(101) }}
       />,
     );
     expect(screen.getByRole("alert")).toHaveTextContent(

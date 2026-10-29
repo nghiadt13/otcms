@@ -1,8 +1,7 @@
 import { ChevronRight } from "lucide-react";
 import Link from "next/link";
 import { publicButtonClass } from "@/components/brand/publicButtonStyles";
-import { CATEGORY_LABELS } from "@/lib/domain/clinicCategories";
-import { formatCurrencyVnd } from "@/lib/format/formatCurrencyVnd";
+import { formatClinicServicePrice } from "../formatClinicServicePrice";
 import type { PublicService } from "../types/clinicService";
 
 // Danh sách dịch vụ công khai: một khung có vạch chia, cả dòng là liên kết tới chi tiết.
@@ -19,7 +18,7 @@ export function PublicServiceList({
       <div className="mt-12 max-w-2xl rounded-2xl border bg-card p-8">
         <p className="text-lg font-semibold">Chưa có dịch vụ phù hợp.</p>
         <p className="mt-2 text-base leading-7 text-muted-foreground">
-          Thử tìm bằng tên khác hoặc chọn &quot;Tất cả loại&quot;.
+          Thử tìm bằng một phần khác trong tên dịch vụ.
         </p>
         {filtered ? (
           <Link
@@ -42,10 +41,7 @@ export function PublicServiceList({
             href={`/services/${encodeURIComponent(service.id)}`}
           >
             <div className="min-w-0 flex-1">
-              <p className="text-base font-medium text-muted-foreground">
-                {CATEGORY_LABELS[service.type]}
-              </p>
-              <h2 className="mt-1 text-xl font-semibold text-balance">
+              <h2 className="text-xl font-semibold text-balance">
                 {service.name}
               </h2>
               {service.description ? (
@@ -55,7 +51,7 @@ export function PublicServiceList({
               ) : null}
             </div>
             <span className="shrink-0 text-right text-lg font-semibold text-primary tabular-nums">
-              {formatCurrencyVnd(service.price)}
+              {formatClinicServicePrice(service.price)}
             </span>
             <ChevronRight
               aria-hidden

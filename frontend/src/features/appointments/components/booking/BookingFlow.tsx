@@ -7,8 +7,8 @@ import {
   notifySuccess,
   notifyWarning,
 } from "@/lib/messages/notify";
-import type { LinkedProfile } from "@/lib/patient-scope/types";
-import { createAppointment } from "../../api/bookingApi";
+import { createAppointment as createMockAppointment } from "../../api/bookingApi";
+import { createAppointment as createLiveAppointment } from "../../api/bookingLiveApi";
 import { useBookableServices } from "../../hooks/useBookableServices";
 import { useOpenTimes } from "../../hooks/useOpenTimes";
 import {
@@ -17,7 +17,6 @@ import {
   bookingStepStates,
   initialBookingSelection,
   preselectedPatientId,
-  toBookingPatient,
   upcomingDays,
   type BookingSelection,
 } from "../../schema/bookingSelection";
@@ -27,7 +26,9 @@ import type {
   BookingPatient,
   BookingVariant,
 } from "../../types/booking";
+import type { WizardStepKey } from "../../schema/bookingWizard";
 import { BookingFlowBlocks } from "./BookingFlowBlocks";
+import { BookingWizard } from "./wizard/BookingWizard";
 
 // Luồng đặt lịch dùng chung (UC20, UC21): một trang cuộn tiến dần, khối mở khi khối trước đã chọn.
 // Lõi không biết người dùng là ai: người khám đến từ ngoài (khu bệnh nhân: hồ sơ đã gắn; khu Lễ
@@ -40,13 +41,8 @@ export type BookingFlowProps = {
 } & (
   | {
       variant: "patient";
-      /** Hồ sơ đã gắn của tài khoản (trang lấy từ useLinkedProfiles). */
-      profiles: readonly LinkedProfile[];
-      /**
-       * Người khám chọn sẵn (ví dụ từ `?profileId=`). Có trong `profiles` thì chọn sẵn; không có thì
-       * bỏ qua và người dùng tự chọn như thường.
-       */
-      initialPatientId?: string;
+      /** Người khám chọn được (trang lấy từ tài khoản đang đăng nhập). */
+      patients: readonly BookingPatient[];
     }
   | {
       variant: "staff";
@@ -59,21 +55,20 @@ export function BookingFlow(props: BookingFlowProps) {
   const { onBooked } = props;
   const variant: BookingVariant = props.variant;
   const patients: BookingPatient[] =
-    props.variant === "patient"
-      ? props.profiles.map(toBookingPatient)
-      : [props.patient];
+    props.variant === "patient" ? [...props.patients] : [props.patient];
   const singlePatient = patients.length === 1 ? patients[0] : undefined;
 
   const [state, dispatch] = useReducer(
     bookingSelectionReducer,
-    preselectedPatientId(
-      props.variant === "patient" ? props.initialPatientId : undefined,
-      patients,
-    ),
+    preselectedPatientId(undefined, patients),
     initialBookingSelection,
   );
   const [submitting, setSubmitting] = useState(false);
-  const services = useBookableServices();
+  // Lý do khám: chỉ khu bệnh nhân nhập (ở bước xác nhận của wizard).
+  const [purpose, setPurpose] = useState("");
+  // Chỉ khu bệnh nhân dùng wizard; khu Lễ tân vẫn là trang cuộn (BookingFlowBlocks).
+  const [wizardStep, setWizardStep] = useState<WizardStepKey>("patient");
+  const services = useBookableServices(variant === "patient");
 
   // Khu bệnh nhân: lựa chọn của người dùng, hoặc hồ sơ duy nhất. Khu Lễ tân: người đã cố định.
   const patientId =
@@ -89,6 +84,7 @@ export function BookingFlow(props: BookingFlowProps) {
     patientId,
     undefined,
     handleTimesError,
+    variant === "patient",
   );
   const days = times.data ? upcomingDays(times.data) : null;
   const dayTimes =
@@ -132,6 +128,7 @@ export function BookingFlow(props: BookingFlowProps) {
     if (isApiError(error) && error.code === "MSG-29") {
       notifyError(error);
       dispatch({ type: "reopen", step: "service" });
+      setWizardStep("schedule");
     }
   }
 
@@ -146,11 +143,14 @@ export function BookingFlow(props: BookingFlowProps) {
       return;
     setSubmitting(true);
     try {
-      const appointment = await createAppointment({
+      const create =
+        variant === "patient" ? createLiveAppointment : createMockAppointment;
+      const appointment = await create({
         patientId,
         serviceId: selection.serviceId,
         startAt: selection.startAt,
         doctorId,
+        purpose,
       });
       notifySuccess("MSG-26");
       onBooked(appointment);
@@ -159,9 +159,11 @@ export function BookingFlow(props: BookingFlowProps) {
       const outcome = bookingSubmitOutcome(error);
       if (outcome === "slotTaken") {
         dispatch({ type: "reopen", step: "time" });
+        setWizardStep("schedule");
         times.reload();
       } else if (outcome === "doctorUnavailable") {
         dispatch({ type: "selectDoctor", doctorId: null });
+        setWizardStep("schedule");
         times.reload();
       }
     } finally {
@@ -174,6 +176,40 @@ export function BookingFlow(props: BookingFlowProps) {
       <p role="status" className="text-base text-muted-foreground">
         Chưa có hồ sơ bệnh nhân để đặt lịch. Hãy thêm hồ sơ trước.
       </p>
+    );
+
+  if (props.variant === "patient")
+    return (
+      <div inert={submitting || undefined}>
+        <BookingWizard
+          step={wizardStep}
+          onStepChange={setWizardStep}
+          steps={steps}
+          selection={selection}
+          dispatch={dispatch}
+          patients={patients}
+          selectedPatient={selectedPatient}
+          services={services.services}
+          servicesLoading={services.loading}
+          servicesFailed={services.failed}
+          onRetryServices={services.reload}
+          service={service}
+          days={days}
+          timesLoading={times.loading}
+          timesFailed={times.failed}
+          onRetryTimes={times.reload}
+          allDaysClosed={days !== null && allDaysClosed(days)}
+          dayTimes={dayTimes}
+          doctorsAtTime={doctorsAtTime}
+          doctorId={doctorId}
+          doctorName={doctorName}
+          ready={ready && purpose.trim().length > 0}
+          purpose={purpose}
+          onPurposeChange={setPurpose}
+          submitting={submitting}
+          onSubmit={() => void handleSubmit()}
+        />
+      </div>
     );
 
   return (

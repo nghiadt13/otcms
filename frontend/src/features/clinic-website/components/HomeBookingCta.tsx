@@ -1,9 +1,9 @@
 import { CalendarPlus } from "lucide-react";
-import Link from "next/link";
 import { publicButtonClass } from "@/components/brand/publicButtonStyles";
 import { publicContainerClass } from "@/components/brand/publicLayout";
 import { cn } from "@/lib/utils";
-import { bookAppointmentHref, hotlineTelHref } from "../siteNavigation";
+import { PublicBookAppointmentLink } from "@/components/brand/PublicBookAppointmentLink";
+import { hotlineTelHref } from "../siteNavigation";
 
 // Lời mời đặt lịch cuối trang: một dải sáng ngăn bằng vạch trên, không phải khối
 // màu lớn (footer ngay dưới đã là nền teal). Hai đường: nút đặt lịch trên web,
@@ -25,13 +25,12 @@ export function HomeBookingCta({ hotline }: { hotline: string }) {
               Chọn giờ còn trống trong hai phút. Cần tư vấn trước, gọi hotline
               trong giờ làm việc.
             </p>
-            <Link
+            <PublicBookAppointmentLink
               className={cn(publicButtonClass("primary", "lg"), "mt-8")}
-              href={bookAppointmentHref}
             >
               <CalendarPlus aria-hidden />
               Đặt lịch khám
-            </Link>
+            </PublicBookAppointmentLink>
           </div>
 
           <a

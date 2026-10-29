@@ -73,7 +73,7 @@ export function DateStrip({
     });
 
   return (
-    <div className="grid gap-3">
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-3">
       <div className="flex items-center gap-2">
         <div
           ref={scrollRef}
@@ -95,7 +95,7 @@ export function DateStrip({
                   key={day.date}
                   value={day.date}
                   aria-label={`${longWeekdayLabel(day.date)} ${shortDateLabel(day.date)}, ${open ? "còn giờ" : "hết giờ"}`}
-                  className={`${sizes.cell} h-auto snap-start flex-col gap-0.5 rounded-lg border px-1 py-2 ${sizes.body}`}
+                  className={`${sizes.cell} h-auto snap-start flex-col gap-0.5 rounded-lg border px-1 py-2 data-pressed:border-primary data-pressed:bg-secondary data-pressed:text-primary data-pressed:ring-1 data-pressed:ring-primary ${sizes.body}`}
                 >
                   <span className={sizes.detail}>
                     {shortWeekdayLabel(day.date)}

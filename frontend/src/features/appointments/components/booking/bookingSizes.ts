@@ -11,7 +11,7 @@ export const BOOKING_SIZES = {
     detail: "text-sm text-muted-foreground",
     control: "h-12 text-base",
     cell: "w-16 min-h-16",
-    row: "min-h-12 px-4 py-3",
+    row: "min-h-12 px-4 py-3 transition-colors duration-150 motion-reduce:transition-none has-data-checked:bg-secondary",
     grid: "grid-cols-3 sm:grid-cols-4 md:grid-cols-6",
   },
   staff: {

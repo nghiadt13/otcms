@@ -8,7 +8,7 @@ import { parseServiceListQuery } from "@/features/clinic-services/schema/service
 
 export const metadata: Metadata = { title: "Dịch vụ và bảng giá | OTCMS" };
 
-// UC71 Xem dịch vụ và giá. Tiêu chí đọc từ URL (?q=&type=) nên lọc vẫn chạy khi chưa có
+// UC71 Xem dịch vụ và giá. Tiêu chí đọc từ URL (?q=) nên lọc vẫn chạy khi chưa có
 // JavaScript. Tiêu chí sai (MSG-54) hiện ngay dưới form và không gọi danh mục.
 export default async function ServicesPage({
   searchParams,
@@ -27,7 +27,7 @@ export default async function ServicesPage({
       <PublicServiceSearchForm className="mt-10" error={error} input={input} />
       {services ? (
         <PublicServiceList
-          filtered={Boolean(query.q || query.type)}
+          filtered={Boolean(query.q)}
           services={services}
         />
       ) : null}

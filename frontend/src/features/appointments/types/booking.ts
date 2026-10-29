@@ -15,9 +15,9 @@ export type BookingVariant = "patient" | "staff";
 export interface BookingPatient {
   id: string;
   fullName: string;
-  /** YYYY-MM-DD */
-  dateOfBirth: string;
-  /** Quan hệ với tài khoản; khu Lễ tân luôn `null`. */
+  /** YYYY-MM-DD; `null` khi backend chưa trả (tài khoản tự đặt cho mình). */
+  dateOfBirth: string | null;
+  /** Quan hệ với tài khoản; khu Lễ tân và người khám lấy từ tài khoản luôn `null`. */
   relationship: CareRelationship | null;
 }
 
@@ -72,6 +72,8 @@ export interface CreateAppointmentRequest {
   startAt: string;
   /** null = phòng khám sắp xếp bác sĩ (BE gán một bác sĩ có ca giờ đó, UC21 N1.3). */
   doctorId: string | null;
+  /** Lý do khám, bệnh nhân nhập ở bước xác nhận (BE bắt buộc, tối đa 1000 ký tự). */
+  purpose?: string;
 }
 
 /** Lịch vừa đặt, hình trả về của POST. Không có SĐT, mã bệnh nhân hay thông tin nội bộ. */

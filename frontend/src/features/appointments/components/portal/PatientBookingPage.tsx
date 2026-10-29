@@ -1,65 +1,59 @@
 "use client";
 
-import Link from "next/link";
 import { useState } from "react";
-import { PortalNoProfileState } from "@/components/patient/PortalEmptyState";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useLinkedProfiles } from "@/hooks/useLinkedProfiles";
-import { PATIENT_ROUTES } from "@/lib/routes/patientRoutes";
+import { useCurrentAccount } from "@/hooks/useCurrentAccount";
+import type { CurrentAccount } from "@/lib/auth/currentAccountApi";
 import type { BookedAppointment } from "../../types/booking";
 import { BookingFlow } from "../booking/BookingFlow";
+import { BookingSignInPrompt } from "../booking/wizard/BookingSignInPrompt";
 import { PatientBookingResult } from "./PatientBookingResult";
 import { PatientLoadError } from "./PatientLoadError";
 
 // Đặt lịch khu bệnh nhân (UC20, UC21, AF1). Lõi luồng là BookingFlow dùng chung (variant patient);
-// trang chỉ lấy hồ sơ đã gắn, chặn khi chưa có hồ sơ và đổi sang kết quả sau khi đặt xong.
-// `initialPatientId` (từ `?profileId=` của route) chỉ chọn sẵn người khám, BookingFlow kiểm lại.
+// trang lấy tài khoản đang đăng nhập làm người khám và đổi sang kết quả sau khi đặt xong.
 
-export function PatientBookingPage({
-  initialPatientId,
-}: {
-  initialPatientId?: string;
-}) {
-  const { profiles, loading, error, reload } = useLinkedProfiles();
-  const [booked, setBooked] = useState<BookedAppointment | null>(null);
-
-  if (loading) return <BookingSkeleton />;
-  if (error)
+export function PatientBookingPage() {
+  const account = useCurrentAccount();
+  // Chưa đăng nhập: dừng ở bước 1 (đăng nhập / đăng ký), chưa gọi API nào cần phiên.
+  if (account.status === "anonymous") return <BookingSignInPrompt />;
+  if (account.status === "loading") return <BookingSkeleton />;
+  if (account.status === "error")
     return (
       <PatientLoadError
-        message={`Không tải được hồ sơ bệnh nhân. ${error}`}
-        onRetry={reload}
+        message="Không tải được thông tin tài khoản."
+        onRetry={account.reload}
       />
     );
-  if (profiles.length === 0) return <PortalNoProfileState />;
+  return <SignedInBooking account={account.account} />;
+}
+
+// Đã đăng nhập: luôn vào thẳng bước 2. Người khám là chính tài khoản (họ tên từ `GET /api/v1/me`);
+// backend tự dùng hồ sơ của tài khoản khi `patientProfileId` bỏ trống. Chưa có API hồ sơ người thân.
+function SignedInBooking({ account }: { account: CurrentAccount }) {
+  const [booked, setBooked] = useState<BookedAppointment | null>(null);
   if (booked) return <PatientBookingResult appointment={booked} />;
 
   return (
-    <div className="space-y-8">
-      <p className="text-base">
-        Chưa thấy người cần đặt?{" "}
-        <Link
-          className="inline-flex min-h-11 items-center font-medium text-primary underline-offset-4 hover:underline"
-          href={PATIENT_ROUTES.newProfile}
-        >
-          Thêm hồ sơ bệnh nhân
-        </Link>
-      </p>
-      <BookingFlow
-        initialPatientId={initialPatientId}
-        onBooked={setBooked}
-        profiles={profiles}
-        variant="patient"
-      />
-    </div>
+    <BookingFlow
+      onBooked={setBooked}
+      patients={[
+        {
+          id: account.id,
+          fullName: account.displayName,
+          dateOfBirth: null,
+          relationship: null,
+        },
+      ]}
+      variant="patient"
+    />
   );
 }
 
 function BookingSkeleton() {
   return (
     <div aria-busy="true" className="space-y-3" role="status">
-      <span className="sr-only">Đang tải hồ sơ bệnh nhân</span>
-      <Skeleton className="h-16 w-full" />
+      <span className="sr-only">Đang tải thông tin tài khoản</span>
       <Skeleton className="h-16 w-full" />
       <Skeleton className="h-16 w-full" />
     </div>

@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { getOpenTimes } from "../api/bookingApi";
+import { getOpenTimes as getMockOpenTimes } from "../api/bookingApi";
+import { getOpenTimes as getLiveOpenTimes } from "../api/bookingLiveApi";
 import type { OpenTimesResponse } from "../types/booking";
 
 export interface OpenTimesState {
@@ -27,6 +28,8 @@ export function useOpenTimes(
   /** YYYY-MM-DD; bỏ trống thì BE dùng hôm nay. */
   from?: string,
   onError?: (error: unknown) => void,
+  /** `true`: lấy từ backend thật (khu bệnh nhân). */
+  live = false,
 ): OpenTimesState {
   const key =
     serviceId && patientId ? `${serviceId}|${patientId}|${from ?? ""}` : null;
@@ -41,7 +44,10 @@ export function useOpenTimes(
   useEffect(() => {
     if (!key || !serviceId || !patientId) return;
     const controller = new AbortController();
-    getOpenTimes({ serviceId, patientId, from }, controller.signal)
+    (live ? getLiveOpenTimes : getMockOpenTimes)(
+      { serviceId, patientId, from },
+      controller.signal,
+    )
       .then((data) => {
         if (controller.signal.aborted) return;
         setResult({ key, status: "ok", data });
@@ -52,7 +58,7 @@ export function useOpenTimes(
         onErrorRef.current?.(error);
       });
     return () => controller.abort();
-  }, [key, serviceId, patientId, from, reloadToken]);
+  }, [key, serviceId, patientId, from, reloadToken, live]);
 
   const reload = useCallback(() => setReloadToken((n) => n + 1), []);
 

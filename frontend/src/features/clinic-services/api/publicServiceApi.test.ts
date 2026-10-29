@@ -1,80 +1,105 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@/lib/api/apiError";
+import type { PublicService } from "../types/clinicService";
 import {
   getPublicService,
   listFeaturedServices,
   listPublicServices,
 } from "./publicServiceApi";
 
-describe("listPublicServices", () => {
-  it("chỉ trả dịch vụ đang cung cấp, không lộ trạng thái nội bộ (BR-60)", async () => {
-    const { items } = await listPublicServices();
-    expect(items).toHaveLength(12);
-    expect(items.map((s) => s.id)).not.toContain("svc-film-xray-retired");
-    for (const item of items) {
-      expect(Object.keys(item).sort()).toEqual(
-        ["bookingDetails", "description", "id", "name", "price", "type"].sort(),
-      );
-    }
+const catalog: PublicService[] = [
+  {
+    id: "8b66b770-c448-4c2d-a474-4f5e35c12a01",
+    name: "Khám chấn thương chỉnh hình",
+    description: "Khám với bác sĩ chuyên khoa.",
+    price: 250000,
+    durationMinutes: 30,
+    bufferMinutes: 10,
+    onlineBookable: true,
+    active: true,
+  },
+  {
+    id: "8b66b770-c448-4c2d-a474-4f5e35c12a02",
+    name: "Chụp X-quang khớp gối",
+    description: null,
+    price: 180000,
+    durationMinutes: 15,
+    bufferMinutes: 5,
+    onlineBookable: true,
+    active: true,
+  },
+  {
+    id: "8b66b770-c448-4c2d-a474-4f5e35c12a03",
+    name: "Xét nghiệm máu",
+    description: "Lấy mẫu theo hướng dẫn.",
+    price: 120000,
+    durationMinutes: 10,
+    bufferMinutes: 5,
+    onlineBookable: true,
+    active: true,
+  },
+];
+
+function mockCatalog(items: PublicService[] = catalog) {
+  const fetchMock = vi.fn().mockResolvedValue({
+    ok: true,
+    status: 200,
+    json: async () => ({ items }),
+  });
+  vi.stubGlobal("fetch", fetchMock);
+  return fetchMock;
+}
+
+afterEach(() => vi.unstubAllGlobals());
+
+describe("publicServiceApi", () => {
+  it("đọc giá và thời lượng từ danh mục thật không cần đăng nhập", async () => {
+    const fetchMock = mockCatalog();
+    const result = await listPublicServices();
+
+    expect(result.items).toEqual(catalog);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://localhost:8080/api/v1/clinic-services",
+      expect.objectContaining({ cache: "no-store" }),
+    );
+    const requestOptions = fetchMock.mock.calls[0]?.[1] as RequestInit;
+    expect(new Headers(requestOptions.headers).has("Authorization")).toBe(false);
   });
 
-  it("lọc theo loại dịch vụ", async () => {
-    const { items } = await listPublicServices({ type: "IMAGING" });
-    expect(items).toHaveLength(4);
-    expect(items.every((s) => s.type === "IMAGING")).toBe(true);
+  it("lọc theo tên không phân biệt hoa thường và dấu", async () => {
+    mockCatalog();
+    const result = await listPublicServices({ q: "xet nghiem" });
+    expect(result.items.map((service) => service.name)).toEqual([
+      "Xét nghiệm máu",
+    ]);
+
+    const imaging = await listPublicServices({ q: "x-quang" });
+    expect(imaging.items.map((service) => service.name)).toEqual([
+      "Chụp X-quang khớp gối",
+    ]);
   });
 
-  it("tìm theo tên, không phân biệt hoa thường và dấu", async () => {
-    const mri = await listPublicServices({ q: "MRI" });
-    expect(mri.items.map((s) => s.name)).toEqual(["Chụp MRI khớp"]);
-
-    const labs = await listPublicServices({ q: "xet nghiem" });
-    expect(labs.items).toHaveLength(4);
-    expect(labs.items.every((s) => s.type === "LABORATORY")).toBe(true);
-  });
-
-  it("tiêu chí tìm kiếm quá 100 ký tự trả 400 MSG-54 gắn vào ô q", async () => {
-    await expect(
-      listPublicServices({ q: "a".repeat(101) }),
-    ).rejects.toMatchObject({
+  it("từ chối truy vấn tên dài hơn giới hạn mà không gọi backend", async () => {
+    const fetchMock = mockCatalog();
+    await expect(listPublicServices({ q: "a".repeat(101) })).rejects.toMatchObject({
       status: 400,
       code: "MSG-54",
-      fieldErrors: [{ field: "q", code: "MSG-54" }],
     });
-  });
-});
-
-describe("getPublicService", () => {
-  it("trả chi tiết kèm thông tin đặt lịch của dịch vụ Khám", async () => {
-    const service = await getPublicService("svc-consultation");
-    expect(service.type).toBe("EXAMINATION");
-    expect(service.bookingDetails?.slotMinutes).toBe(30);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("dịch vụ đã ngừng và mã không tồn tại đều trả 404 MSG-50", async () => {
-    const retired = getPublicService("svc-film-xray-retired");
-    await expect(retired).rejects.toBeInstanceOf(ApiError);
-    await expect(retired).rejects.toMatchObject({
-      status: 404,
-      code: "MSG-50",
-    });
-    await expect(getPublicService("khong-co")).rejects.toMatchObject({
+  it("lấy chi tiết từ danh mục và trả 404 khi không tìm thấy mã", async () => {
+    mockCatalog();
+    await expect(getPublicService(catalog[0].id)).resolves.toEqual(catalog[0]);
+    await expect(getPublicService("missing-id")).rejects.toBeInstanceOf(ApiError);
+    await expect(getPublicService("missing-id")).rejects.toMatchObject({
       status: 404,
       code: "MSG-50",
     });
   });
-});
 
-describe("listFeaturedServices", () => {
-  it("lấy đúng số mục đầu của danh mục theo thứ tự hiển thị", async () => {
-    const featured = await listFeaturedServices(6);
-    expect(featured.map((s) => s.id)).toEqual([
-      "svc-consultation",
-      "svc-arthroscopy",
-      "svc-physiotherapy",
-      "svc-injection",
-      "svc-xray",
-      "svc-mri",
-    ]);
+  it("lấy đúng số dịch vụ nổi bật đầu tiên từ backend", async () => {
+    mockCatalog();
+    await expect(listFeaturedServices(1)).resolves.toEqual([catalog[0]]);
   });
 });

@@ -4,11 +4,8 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { OtcmsLogo } from "@/components/brand/OtcmsLogo";
 import { publicContainerClass } from "@/components/brand/publicLayout";
-import {
-  bookAppointmentHref,
-  contactSectionId,
-  hotlineTelHref,
-} from "../siteNavigation";
+import { PublicBookAppointmentLink } from "@/components/brand/PublicBookAppointmentLink";
+import { contactSectionId, hotlineTelHref } from "../siteNavigation";
 import type { ClinicContact } from "../types/websiteContent";
 
 const footerLinkClass =
@@ -20,7 +17,7 @@ const linkGroups = [
     links: [
       { label: "Dịch vụ", href: "/services" },
       { label: "Đội ngũ bác sĩ", href: "/doctors" },
-      { label: "Đặt lịch khám", href: bookAppointmentHref },
+      { label: "Đặt lịch khám", href: null },
     ],
   },
   {
@@ -53,10 +50,16 @@ export function SiteFooter({ contact }: { contact: ClinicContact }) {
             <h2 className="text-base font-semibold">{group.title}</h2>
             <ul className="mt-4 space-y-3 text-base">
               {group.links.map((link) => (
-                <li key={link.href}>
-                  <Link className={footerLinkClass} href={link.href}>
-                    {link.label}
-                  </Link>
+                <li key={link.label}>
+                  {link.href ? (
+                    <Link className={footerLinkClass} href={link.href}>
+                      {link.label}
+                    </Link>
+                  ) : (
+                    <PublicBookAppointmentLink className={footerLinkClass}>
+                      {link.label}
+                    </PublicBookAppointmentLink>
+                  )}
                 </li>
               ))}
             </ul>

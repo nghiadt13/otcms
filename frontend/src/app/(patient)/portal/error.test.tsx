@@ -20,7 +20,7 @@ describe("PatientPortalError", () => {
     expect(screen.getByText("Mã lỗi: abc123")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Về trang chủ" })).toHaveAttribute(
       "href",
-      "/portal",
+      "/portal/account",
     );
 
     await userEvent.click(screen.getByRole("button", { name: "Thử lại" }));

@@ -2,27 +2,18 @@ import { Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  NativeSelect,
-  NativeSelectOption,
-} from "@/components/ui/native-select";
 import { publicButtonClass } from "@/components/brand/publicButtonStyles";
 import { formatAppMessage } from "@/lib/messages/appMessages";
-import {
-  CATEGORY_LABELS,
-  SERVICE_CATEGORIES,
-} from "@/lib/domain/clinicCategories";
 import { cn } from "@/lib/utils";
 import type { ServiceListError } from "../schema/serviceListQuery";
 
-// Form tìm và lọc dịch vụ: GET tới /services nên hoạt động cả khi chưa có JavaScript.
-// Ô và ô chọn cao h-12 chữ text-base cho người lớn tuổi; tiêu chí sai hiện MSG-54 bên dưới.
+// Form tìm dịch vụ: GET tới /services nên hoạt động cả khi chưa có JavaScript.
 export function PublicServiceSearchForm({
   input,
   error,
   className,
 }: {
-  input: { q: string; type: string };
+  input: { q: string };
   error: ServiceListError | null;
   className?: string;
 }) {
@@ -47,25 +38,6 @@ export function PublicServiceSearchForm({
           name="q"
           placeholder="Ví dụ: X-quang, khớp gối"
         />
-      </div>
-
-      <div className="grid gap-2 sm:w-64">
-        <Label className="text-base" htmlFor="service-search-type">
-          Loại dịch vụ
-        </Label>
-        <NativeSelect
-          className="w-full [&>select]:h-12 [&>select]:text-base"
-          defaultValue={input.type}
-          id="service-search-type"
-          name="type"
-        >
-          <NativeSelectOption value="">Tất cả loại</NativeSelectOption>
-          {SERVICE_CATEGORIES.map((category) => (
-            <NativeSelectOption key={category} value={category}>
-              {CATEGORY_LABELS[category]}
-            </NativeSelectOption>
-          ))}
-        </NativeSelect>
       </div>
 
       <Button className={publicButtonClass("primary")} type="submit">

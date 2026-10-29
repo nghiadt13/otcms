@@ -3,6 +3,7 @@
 import type { InputHTMLAttributes } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { cn } from "@/lib/utils";
 
 export type ProfileTextFieldProps = {
   id: string;
@@ -16,6 +17,10 @@ export type ProfileTextFieldProps = {
   inputMode?: InputHTMLAttributes<HTMLInputElement>["inputMode"];
   placeholder?: string;
   autoComplete?: string;
+  /** Thêm dấu * sau nhãn và `aria-required`; ô tùy chọn không truyền. */
+  required?: boolean;
+  /** Chỉ đọc nhưng vẫn rõ chữ (khác `disabled` bị mờ): dùng cho ô BE không cho sửa. */
+  readOnly?: boolean;
 };
 
 // Ô nhập một dòng của khu bệnh nhân: nhãn, ô cao 48px chữ 16px, gợi ý và lỗi gắn bằng
@@ -32,6 +37,8 @@ export function ProfileTextField({
   inputMode,
   placeholder,
   autoComplete,
+  required,
+  readOnly,
 }: ProfileTextFieldProps) {
   const hintId = `${id}-hint`;
   const errorId = `${id}-error`;
@@ -43,17 +50,25 @@ export function ProfileTextField({
     <div className="grid gap-2">
       <Label className="text-base" htmlFor={id}>
         {label}
+        {required ? (
+          <span aria-hidden className="text-destructive">
+            {" "}
+            *
+          </span>
+        ) : null}
       </Label>
       <Input
         aria-describedby={describedBy}
         aria-invalid={error ? true : undefined}
+        aria-required={required ? true : undefined}
         autoComplete={autoComplete}
-        className="h-12 text-base"
+        className={cn("h-12 text-base", readOnly && "bg-muted/60")}
         disabled={disabled}
         id={id}
         inputMode={inputMode}
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
+        readOnly={readOnly}
         type={type ?? "text"}
         value={value}
       />

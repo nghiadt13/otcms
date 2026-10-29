@@ -29,16 +29,16 @@ describe("safePortalNext: đích `next` an toàn", () => {
     ["xuống dòng cuối", "/portal\n"],
     ["khoảng trắng đầu", " /portal"],
     ["chuỗi rỗng", ""],
-  ])("bỏ về /portal khi %s: %j", (_label, input) => {
-    expect(safePortalNext(input)).toBe("/portal");
+  ])("bỏ về trang chủ khi %s: %j", (_label, input) => {
+    expect(safePortalNext(input)).toBe("/");
   });
 
-  it("thiếu giá trị thì về /portal", () => {
-    expect(safePortalNext(null)).toBe("/portal");
-    expect(safePortalNext(undefined)).toBe("/portal");
+  it("thiếu giá trị thì về trang chủ", () => {
+    expect(safePortalNext(null)).toBe("/");
+    expect(safePortalNext(undefined)).toBe("/");
   });
 
-  it("chuỗi quá dài thì về /portal", () => {
-    expect(safePortalNext(`/portal/${"a".repeat(2100)}`)).toBe("/portal");
+  it("chuỗi quá dài thì về trang chủ", () => {
+    expect(safePortalNext(`/portal/${"a".repeat(2100)}`)).toBe("/");
   });
 });
