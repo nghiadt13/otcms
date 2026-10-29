@@ -12,7 +12,7 @@ Viết ngày 28/10/2026. Nhánh `nghiadt13` ở `d4296ff`, working tree còn **1
 | `origin/feat/long/appointment-booking` | 8 commit | 30 (BE chỉ còn SPEC và openapi) |
 | `origin/product` | 2 commit | 16 |
 | `origin/thien-quang` (Quang) | 17 commit | 2 (SPEC và openapi, **là commit của Long mà Quang đã merge vào nhánh**; 11 commit riêng của Quang đều là `reception` phía FE) |
-| `fix/booking-connect-phase1` (Long) | 15 commit | 2 (`MyAccountController`, test giá), **kèm xung đột về ý nghĩa ở mục 1** |
+| `fix/booking-connect-phase1` (DTN, nhánh cục bộ chưa push; **không phải của Long**) | 15 commit | 2 (`MyAccountController`, test giá), **kèm xung đột về ý nghĩa ở mục 1** |
 | `try/nghiadt13-with-booking-be` | 1 commit, thay cả `backend/` | 24 |
 
 - Ba quy tắc chọn: (1) file **giống hệt** upstream (mục 2) thì lấy bản nào cũng được. (2) file **cả hai cùng sửa** (mục 3) thì lấy upstream rồi áp lại phần của mình theo bảng. (3) file **chỉ mình có** (mục 4) thì giữ hết.
@@ -21,13 +21,13 @@ Viết ngày 28/10/2026. Nhánh `nghiadt13` ở `d4296ff`, working tree còn **1
 
 `fix/booking-connect-phase1` (và `try/…`) có `auth/controller/MyAccountController.java` **cùng đường dẫn** với file mới của mình, nhưng khác hẳn:
 
-| | Của mình | Của Long |
+| | Của mình | Của nhánh `fix/booking-connect-phase1` (DTN) |
 | --- | --- | --- |
 | Service | `MyAccountQueryService` (+`Impl`, +`MyAccountQueryServiceImplTest`) | `CurrentAccountService` (+`Impl`) |
 | Phản hồi | `{id, accountType, email, displayName}` | `{id, kind, displayName, avatarUrl, status, allowedActions, role, username, mustChangePassword, email}` |
 | Test | không có test tích hợp | `MyAccountEndpointPostgresIntegrationTest` |
 
-Hướng xử lý: **giữ bản của Long** (đầy đủ hơn, khớp kiểu `MyAccount` mà FE giả đang dùng), bỏ `MyAccountQueryService`, `MyAccountQueryServiceImpl`, `MyAccountQueryServiceImplTest` của mình để không còn hai chỗ cùng map `/api/v1/me`. Rồi sửa FE: [currentAccountApi.ts](../frontend/src/lib/auth/currentAccountApi.ts) đang đọc `accountType`, phải map từ `kind` (và `role` nếu cần). Các file dùng `accountType`/`AccountType` (ngoài khu admin `features/accounts`): `authSession.ts` (định nghĩa kiểu), `currentAccountApi.ts` (+test), `homeRouteForAccount.ts` (+test), `RoleHomeRedirect.tsx` (+test), `PatientAuthGate.tsx` (+test), `SiteAccountLinks.test.tsx`, `SignInForm.test.tsx`, `PatientBookingPage.test.tsx`, `PatientPortalHeader.test.tsx`. Tìm lại bằng `grep -rln accountType frontend/src`.
+Hướng xử lý: **giữ bản của nhánh `fix/booking-connect-phase1`** (commit do DTN viết ngày 26/10, không phải Long; `origin/feat/long/appointment-booking` chưa có `/api/v1/me`) (đầy đủ hơn, khớp kiểu `MyAccount` mà FE giả đang dùng), bỏ `MyAccountQueryService`, `MyAccountQueryServiceImpl`, `MyAccountQueryServiceImplTest` của mình để không còn hai chỗ cùng map `/api/v1/me`. Rồi sửa FE: [currentAccountApi.ts](../frontend/src/lib/auth/currentAccountApi.ts) đang đọc `accountType`, phải map từ `kind` (và `role` nếu cần). Các file dùng `accountType`/`AccountType` (ngoài khu admin `features/accounts`): `authSession.ts` (định nghĩa kiểu), `currentAccountApi.ts` (+test), `homeRouteForAccount.ts` (+test), `RoleHomeRedirect.tsx` (+test), `PatientAuthGate.tsx` (+test), `SiteAccountLinks.test.tsx`, `SignInForm.test.tsx`, `PatientBookingPage.test.tsx`, `PatientPortalHeader.test.tsx`. Tìm lại bằng `grep -rln accountType frontend/src`.
 
 ## 2. Giống hệt upstream: không phải chọn
 
@@ -105,3 +105,43 @@ Các mục 0 đến 6 viết **trước** khi commit (lúc đó còn là thay đ
 | 3 | `feat(frontend)` | Màn "Thông tin cá nhân" (`/portal/account`): khung hai thẻ, form theo UC03/UC04, đổi email bằng OTP; xóa `PatientAccountProfile`; tài liệu `ui-guidelines`, danh sách API BE cần, và file ghi chú merge này. |
 
 Thứ tự phụ thuộc: phase 2 cần BE ở phase 1 để chạy với dữ liệu thật; phase 3 chạy trong khung cổng bệnh nhân của phase 2 (`portal/layout.tsx`), nên không đứng riêng được nếu thiếu phase 2.
+
+## 8. Kết quả merge thử `origin/feat/long/appointment-booking` vào `nghiadt13` (28/10)
+
+Merge thử trong worktree riêng (đã xóa), không đụng nhánh thật. Long hơn 8 commit, ngoài phần chia sẻ còn 137 file tự gộp được và **32 file conflict**.
+
+| Nhóm | File | Bản chất | Cách xử lý |
+| --- | --- | --- | --- |
+| Backend | `DemoAccountSeeder.java`, `application-demo.yml` | Long **bỏ tài khoản nhân viên demo** (`app.demo.staff-email/password`) và đổi tên bean. Nhưng `DemoDoctorSeeder` của mình **bắt buộc** `app.demo.staff-password`, thiếu là BE ném lỗi lúc khởi động. | Giữ phần nhân viên demo của mình, cộng thêm `cookie-secure: false` của Long. Đã thử: BE biên dịch được. |
+| Dịch vụ công khai | 14 file `features/clinic-services/**`, `(site)/services/page.tsx` | Hai bên cùng **thêm** các file này (add/add): bản của DTN 25/10 và bản có giá của Long. | Lấy bản Long. |
+| Đăng nhập, đăng ký | 9 file `features/auth/**`, `login/page.tsx`, `lib/api/client.ts`, `lib/session/mockSignedInKind.ts`, `PublicBookAppointmentLink*` | Hai bản cài song song "đăng nhập bằng BE". Long còn **xóa** `staff-login/page.tsx`. | Quyết định hướng đi trước, rồi áp lại: `next` ở đăng ký, CSRF trong `client.ts`, `signInStaff`, nút "Đặt lịch khám" dẫn thẳng. |
+
+Thử lấy bản Long cho toàn bộ file conflict phía FE, kết quả:
+- Backend: biên dịch được, 0 test thất bại (152 lỗi đều là test tích hợp không đăng nhập được Postgres, như trước).
+- `tsc`: 1 lỗi thật: `register/page.tsx` truyền `next` cho `RegisterPatientFlow` nhưng bản Long không nhận `next`.
+- `eslint`: không lỗi.
+- `vitest`: 8 test fail trên 1190. 7 ở `SignInForm.test.tsx` (file này y hệt bản Long: test mock Supabase nhưng code gọi thẳng `POST /api/auth/patient/login`, nên rất có thể cũng fail trên nhánh Long; chưa kiểm riêng) và 1 ở `SiteHeader.test.tsx` (mong nút đặt lịch dẫn `/portal/appointments/new`, bản Long còn `/login?next=…`).
+
+## 9. Merge thật vào nhánh `merge/long-into-nghiadt13` (29/10)
+
+Worktree `tmp/wt-merge-long`, chưa push, `nghiadt13` chưa đổi. Hai commit:
+- `f50d60c` merge phần dễ: BE (giữ nhân viên demo), dịch vụ công khai lấy bản Long, nút đặt lịch và `/staff-login` giữ bản mình, `client.ts` của mình thêm `publicApiRequest`.
+- `a214f49` auth: **giữ phiên đăng nhập của mình** (`lib/auth/authSession`), chỉ lấy ba hàm đăng ký thật của Long (`register`, `verify-email`, `resend-otp`; BE miễn CSRF cho cả ba) và test `RegisterPatientFlow`. Bỏ `signIn` và `lib/session/otcmsSession.ts` của Long (token trong `sessionStorage`, không refresh, không gửi CSRF nên các request ghi dưới `/api/v1` sẽ 403).
+
+Còn mở: đăng ký xong chưa thấy chỗ nào tạo hồ sơ bệnh nhân (`RegistrationServiceImpl` chỉ tạo tài khoản, đồng ý, OTP), chưa kiểm bằng chạy thật. Khác nhỏ để nguyên theo bản mình: `safePortalNext` về `/` (Long về `/portal`), `validateStaffEmail` tách riêng.
+
+Muốn đưa `nghiadt13` lên nhánh này (fast-forward) thì phải commit hoặc cất file ghi chú này trước, vì nhánh đó cũng sửa `docs/` và file này đang có thay đổi chưa commit ở thư mục chính.
+
+(Mục 9 là bản gộp một lần, nay chỉ còn làm bản dự phòng ở nhánh `merge/long-into-nghiadt13`. Bản đã vào `nghiadt13` được chia nhóm ở mục 10.)
+
+## 10. Đã merge vào `nghiadt13`, chia ba nhóm (29/10, chưa push)
+
+Cây cuối giống hệt cây gộp một lần đã kiểm tra đầy đủ (`git diff a214f49 nghiadt13` rỗng). Thứ tự từ ổn nhất đến nghi ngờ nhất:
+
+| Nhóm | Commit | Nội dung | Rủi ro | Hoàn tác |
+| --- | --- | --- | --- | --- |
+| 1 | `6fea0d4` (merge `9512d3e`) | BE của Long: check-in có xác minh, hàng đợi vãng lai, đọc hàng đợi, `V026`, `V027`, tài liệu SDD | Thấp. Gộp sạch, 0 test thất bại | `git revert -m 1 6fea0d4` |
+| 2 | `654ddb2` (merge `ff8bb64`) | Giá dịch vụ, trang dịch vụ công khai của Long, `publicApiRequest`; nút đặt lịch và `/staff-login` giữ bản mình | Thấp đến vừa. FE 1192 test qua | `git revert -m 1 654ddb2` |
+| 3 | `6bc0611` (commit thường) | Đăng ký bệnh nhân nối BE thật: BE `register` còn 5 trường, FE gọi `register`, `verify-email`, `resend-otp`; giữ phiên đăng nhập của mình | Cao nhất. Đổi hợp đồng đăng ký, chưa chạy thật, chưa rõ chuyện tạo hồ sơ | `git revert 6bc0611` |
+
+Lưu ý khi hoàn tác: nhóm 1 và 2 là merge commit, hoàn tác bằng `-m 1`. Sau đó muốn merge lại nhánh Long phải "revert của revert" trước, vì Git coi các commit của Long đã được merge. Nhóm 3 nên hoàn tác trước (nó nằm trên cùng), rồi mới tới nhóm 2 và nhóm 1.

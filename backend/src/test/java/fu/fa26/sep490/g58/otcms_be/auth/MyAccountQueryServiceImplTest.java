@@ -45,6 +45,17 @@ class MyAccountQueryServiceImplTest {
     }
 
     @Test
+    void usesRegistrationNameWhenNoProfileExists() {
+        UUID id = UUID.randomUUID();
+        AccountJpaEntity account = account(id, "an@example.com", AccountType.PATIENT);
+        account.setFullName("Đàm Trọng Nghĩa");
+        when(accounts.findById(id)).thenReturn(Optional.of(account));
+        when(profiles.findByAccountId(id)).thenReturn(Optional.empty());
+
+        assertEquals("Đàm Trọng Nghĩa", service.find(id).orElseThrow().displayName());
+    }
+
+    @Test
     void fallsBackToEmailLocalPartWithoutProfile() {
         UUID id = UUID.randomUUID();
         when(accounts.findById(id)).thenReturn(Optional.of(account(id, "demo.staff@localhost", AccountType.RECEPTIONIST)));

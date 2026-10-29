@@ -85,7 +85,7 @@ public class RegistrationServiceImpl implements RegistrationService {
         UUID accountId = UUID.randomUUID();
         String passwordHash = passwordEncoder.encode(request.password());
         int inserted = accounts.insertIfEmailAvailable(accountId, email, AccountType.PATIENT.name(),
-                AccountStatus.PENDING_VERIFICATION.name(), passwordHash, now, now);
+                AccountStatus.PENDING_VERIFICATION.name(), passwordHash, request.fullName().trim(), now, now);
         if (inserted == 0) {
             accounts.findByNormalizedEmail(email).ifPresent(account -> recordOutcome(account, "DUPLICATE_RACE_SUPPRESSED"));
             return genericResponse();

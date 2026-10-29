@@ -18,12 +18,12 @@ public interface AccountRepository extends JpaRepository<AccountJpaEntity, UUID>
     Optional<AccountJpaEntity> findByNormalizedEmail(String normalizedEmail);
     boolean existsByNormalizedEmail(String normalizedEmail);
     @Modifying
-    @Query(value = "insert into accounts (id, normalized_email, account_type, status, password_hash, failed_credential_count, created_at, updated_at) " +
-            "values (:id, :email, :accountType, :status, :passwordHash, 0, :createdAt, :updatedAt) " +
+    @Query(value = "insert into accounts (id, normalized_email, account_type, status, password_hash, full_name, failed_credential_count, created_at, updated_at) " +
+            "values (:id, :email, :accountType, :status, :passwordHash, :fullName, 0, :createdAt, :updatedAt) " +
             "on conflict (normalized_email) do nothing", nativeQuery = true)
     int insertIfEmailAvailable(@Param("id") UUID id, @Param("email") String email,
                                @Param("accountType") String accountType, @Param("status") String status,
-                               @Param("passwordHash") String passwordHash,
+                               @Param("passwordHash") String passwordHash, @Param("fullName") String fullName,
                                @Param("createdAt") Instant createdAt, @Param("updatedAt") Instant updatedAt);
     boolean existsByIdAndAccountType(UUID id, fu.fa26.sep490.g58.otcms_be.auth.model.entity.enums.AccountType accountType);
     boolean existsByIdAndAccountTypeAndStatus(UUID id, fu.fa26.sep490.g58.otcms_be.auth.model.entity.enums.AccountType accountType, AccountStatus status);

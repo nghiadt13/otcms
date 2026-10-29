@@ -7,6 +7,6 @@ import java.util.UUID;
 public interface MyAccountQueryService {
     Optional<MyAccountView> find(UUID accountId);
 
-    /** {@code displayName} is the patient profile name, falling back to the email local part. */
+    /** {@code displayName} is the patient profile name, then the name given at registration, then the email local part. */
     record MyAccountView(UUID id, String accountType, String email, String displayName) { }
 }

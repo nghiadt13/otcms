@@ -90,7 +90,7 @@ class PatientRegistrationT004Test {
                 .thenReturn(0L);
         when(accounts.findByNormalizedEmail("alice@example.com")).thenReturn(java.util.Optional.empty());
         when(accounts.insertIfEmailAvailable(any(), eq("alice@example.com"), eq("PATIENT"),
-                eq("PENDING_VERIFICATION"), anyString(), any(), any())).thenReturn(1);
+                eq("PENDING_VERIFICATION"), anyString(), eq("Alice Patient"), any(), any())).thenReturn(1);
         AccountJpaEntity saved = new AccountJpaEntity();
         saved.setId(UUID.randomUUID());
         when(accounts.findById(any())).thenReturn(java.util.Optional.of(saved));
@@ -101,7 +101,7 @@ class PatientRegistrationT004Test {
                 "Alice Patient", " Alice@Example.com ", "abc12345", "abc12345", true), "198.51.100.8");
 
         verify(accounts).insertIfEmailAvailable(any(), eq("alice@example.com"), eq("PATIENT"),
-                eq("PENDING_VERIFICATION"), argThat(hash -> !hash.contains("abc12345")), any(), any());
+                eq("PENDING_VERIFICATION"), argThat(hash -> !hash.contains("abc12345")), eq("Alice Patient"), any(), any());
         verify(mail).sendVerificationCode(eq("alice@example.com"), matches("\\d{6}"), eq(saved.getId()));
     }
 
@@ -122,7 +122,7 @@ class PatientRegistrationT004Test {
         assertThrows(RegistrationException.class, () -> service.register(
                 new fu.fa26.sep490.g58.otcms_be.auth.model.dto.request.RegistrationRequest(
                         "Alice Patient", "alice@example.com", "abcdefgh", "abcdefgh", true), "198.51.100.9"));
-        verify(accounts, never()).insertIfEmailAvailable(any(), anyString(), anyString(), anyString(), anyString(), any(), any());
+        verify(accounts, never()).insertIfEmailAvailable(any(), anyString(), anyString(), anyString(), anyString(), anyString(), any(), any());
     }
 
     @Test

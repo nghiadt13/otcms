@@ -32,6 +32,7 @@ public class MyAccountQueryServiceImpl implements MyAccountQueryService {
         String displayName = profiles.findByAccountId(account.getId())
                 .map(PatientProfileJpaEntity::getFullName)
                 .filter(name -> !name.isBlank())
+                .or(() -> Optional.ofNullable(account.getFullName()).filter(name -> !name.isBlank()))
                 .orElseGet(() -> email.contains("@") ? email.substring(0, email.indexOf('@')) : email);
         return new MyAccountView(account.getId(), account.getAccountType().name(), email, displayName);
     }
