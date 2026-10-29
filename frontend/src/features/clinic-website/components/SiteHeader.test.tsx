@@ -8,7 +8,7 @@ import { SiteHeader } from "./SiteHeader";
 vi.mock("next/navigation", () => ({ usePathname: () => "/doctors" }));
 
 describe("SiteHeader", () => {
-  it("đánh dấu mục đang mở và dẫn CTA Đặt lịch khám tới đăng nhập rồi đặt lịch", () => {
+  it("đánh dấu mục đang mở và dẫn CTA Đặt lịch khám tới màn đặt lịch", () => {
     render(<SiteHeader hotline="1900 0000" />);
     expect(screen.getByRole("link", { name: "Bác sĩ" })).toHaveAttribute(
       "aria-current",
@@ -16,7 +16,7 @@ describe("SiteHeader", () => {
     );
     expect(screen.getByRole("link", { name: "Đặt lịch khám" })).toHaveAttribute(
       "href",
-      "/login?next=/portal/appointments/new",
+      "/portal/appointments/new",
     );
   });
 

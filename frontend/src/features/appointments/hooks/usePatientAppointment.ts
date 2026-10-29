@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { getMyAppointment } from "../api/patientAppointmentApi";
+import { getMyAppointment } from "../api/patientAppointmentSource";
 import type { PatientAppointment } from "../types/patientAppointment";
 
 interface DetailState {

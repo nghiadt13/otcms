@@ -69,9 +69,11 @@ class T006A8EvidenceTest {
                 .thenReturn(Optional.of(fu.fa26.sep490.g58.otcms_be.auth.model.entity.enums.AccountType.RECEPTIONIST));
         mvc.perform(post("/api/auth/logout").cookie(new jakarta.servlet.http.Cookie("refresh_token", "staff-refresh"),
                         new jakarta.servlet.http.Cookie("XSRF-TOKEN", "csrf"))
-                        .header("X-CSRF-TOKEN", "csrf").header("X-Forwarded-For", "203.0.113.10")
+                        .header("X-CSRF-TOKEN", "csrf").header("X-Forwarded-For", "127.0.0.1")
                         .with(request -> { request.setRemoteAddr("203.0.113.10"); return request; }))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.error.code").value("STAFF_NETWORK_ACCESS_DENIED"));
+        verify(sessions, never()).logout("staff-refresh");
     }
 
     @Test

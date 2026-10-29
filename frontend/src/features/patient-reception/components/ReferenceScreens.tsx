@@ -125,14 +125,20 @@ export function ReferenceScreen({
       <PageHeader title={title} description={description} />
       <div className="mb-4 grid gap-3 sm:grid-cols-2">
         {type === "schedule" ? (
-          <TextField
-            label="Xem 7 ngày từ"
-            type="date"
-            value={week}
-            onChange={(v) => {
-              if (v) setWeek(v);
-            }}
-          />
+          <div className="space-y-2">
+            <TextField
+              label="Ngày bắt đầu xem lịch"
+              type="date"
+              value={week}
+              onChange={(v) => {
+                if (v) setWeek(v);
+              }}
+            />
+            <p className="text-sm text-muted-foreground">
+              Hiển thị từ {dateText(week)} đến {dateText(addDays(week, 6))} (7
+              ngày, tính cả ngày bắt đầu).
+            </p>
+          </div>
         ) : (
           <>
             <TextField

@@ -31,6 +31,9 @@ spring:
   flyway:
     enabled: true
     baseline-on-migrate: false
+    # Shared Supabase DB: teammates merge branches in different order (e.g. V030
+    # applied before V026/V027). Let Flyway apply the late-arriving migrations.
+    out-of-order: true
 
 springdoc:
   api-docs:

@@ -1,5 +1,5 @@
-// Chọn actor hiển thị cho các màn Patient Portal còn dùng dữ liệu giả.
-// Credential và access token do backend xác thực riêng trong otcmsSession.ts.
+// GIẢ LẬP PHIÊN cho lớp API giả `/api/v1/me`. Xóa file khi BE trả tài khoản theo phiên thật.
+// Đăng nhập thật đi qua backend (lib/auth/authSession); file này chỉ chọn loại tài khoản giả đi kèm.
 // Lưu trong localStorage như phiên Supabase: còn sau khi tải lại và giữa các tab; đăng xuất
 // đi qua /login thì xóa. Đăng nhập bệnh nhân ghi "PATIENT"; không có giá trị thì coi là tài
 // khoản nhân viên/quản trị (kho giả của khu quản trị).

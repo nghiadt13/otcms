@@ -60,7 +60,7 @@ export function TimeSlotGrid({
                 type="button"
                 variant={selected ? "secondary" : "outline"}
                 aria-pressed={selected}
-                className={`${sizes.control} tabular-nums`}
+                className={`${sizes.control} tabular-nums ${selected ? "border-primary font-semibold text-primary ring-1 ring-primary" : ""}`}
                 onClick={() => onChange(time.startAt)}
               >
                 {formatTime(time.startAt)}

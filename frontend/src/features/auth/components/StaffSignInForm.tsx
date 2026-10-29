@@ -3,7 +3,7 @@
 import { Mail } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
-import { clearOtcmsSession } from "@/lib/session/otcmsSession";
+import { signOut } from "@/lib/auth/authSession";
 import { AuthRequestError } from "../types/auth";
 import { signInStaff } from "../api/authApi";
 import { authMessages } from "../authMessages";
@@ -30,7 +30,7 @@ export function StaffSignInForm() {
     setError(null);
     setSubmitting(true);
     try {
-      clearOtcmsSession();
+      await signOut();
       await signInStaff(email, password);
       router.replace("/admin");
     } catch (cause) {

@@ -54,9 +54,11 @@ export function BookingPatientChoice({
                   ? `${patient.fullName} · ${relation}`
                   : patient.fullName}
               </span>
-              <span className={sizes.detail}>
-                Sinh ngày {formatDate(patient.dateOfBirth)}
-              </span>
+              {patient.dateOfBirth ? (
+                <span className={sizes.detail}>
+                  Sinh ngày {formatDate(patient.dateOfBirth)}
+                </span>
+              ) : null}
             </Label>
           </div>
         );

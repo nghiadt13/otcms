@@ -10,8 +10,10 @@ public final class AppointmentMapper {
     private AppointmentMapper() { }
 
     public static AppointmentResponse toResponse(CreatedAppointment appointment) {
+        // Write endpoints do not resolve names; clients read them from GET /api/v1/appointments[/{id}].
         return new AppointmentResponse(appointment.id(), appointment.patientProfileId(), appointment.serviceId(),
-                appointment.doctorId(), appointment.status(), appointment.bookingSource(), appointment.purpose(),
+                null, null, appointment.doctorId(), null, appointment.status(), appointment.bookingSource(),
+                appointment.purpose(),
                 appointment.startTime(), appointment.endTime(), appointment.durationMinutes(),
                 appointment.bufferMinutes(), appointment.occupiedUntil(), appointment.visitId(),
                 appointment.sourceVisitId(), appointment.createdAt(), appointment.updatedAt());
@@ -19,7 +21,8 @@ public final class AppointmentMapper {
 
     public static AppointmentResponse toResponse(AppointmentSummary appointment) {
         return new AppointmentResponse(appointment.id(), appointment.patientProfileId(), appointment.serviceId(),
-                appointment.doctorId(), appointment.status(), appointment.bookingSource(), appointment.purpose(),
+                appointment.serviceName(), appointment.servicePrice(), appointment.doctorId(),
+                appointment.doctorDisplayName(), appointment.status(), appointment.bookingSource(), appointment.purpose(),
                 appointment.startTime(), appointment.endTime(), appointment.durationMinutes(),
                 appointment.bufferMinutes(), appointment.occupiedUntil(), appointment.visitId(),
                 appointment.sourceVisitId(), appointment.createdAt(), appointment.updatedAt());

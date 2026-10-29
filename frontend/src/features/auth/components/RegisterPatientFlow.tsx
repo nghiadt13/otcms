@@ -37,7 +37,7 @@ const stepCopy = [
 // UC06 Đăng ký tài khoản bệnh nhân, 3 bước: (1) nhập thông tin → (2) xác minh
 // email → (3) hoàn tất và đăng nhập ngay. Mỗi lần đổi bước, focus chuyển về tiêu đề để trình đọc
 // màn hình đọc bước mới (thay vì đứng yên ở nút vừa bấm, giờ đã biến mất).
-export function RegisterPatientFlow() {
+export function RegisterPatientFlow({ next }: { next?: string }) {
   const [step, setStep] = useState(0);
   const [input, setInput] = useState(emptyInput);
   const firstRender = useRef(true);
@@ -51,6 +51,7 @@ export function RegisterPatientFlow() {
   }, [step]);
 
   const copy = stepCopy[step];
+  const loginHref = next ? `/login?next=${encodeURIComponent(next)}` : "/login";
 
   return (
     <AuthCard
@@ -60,7 +61,7 @@ export function RegisterPatientFlow() {
         step < 2 && (
           <>
             Đã có tài khoản?{" "}
-            <Link className={authLinkClass} href="/login">
+            <Link className={authLinkClass} href={loginHref}>
               Đăng nhập
             </Link>
           </>
@@ -96,6 +97,7 @@ export function RegisterPatientFlow() {
           <AuthAlert code="MSG-10" tone="success" />
           <SignInForm
             defaultEmail={input.email.trim()}
+            next={next}
             submitLabel="Vào cổng bệnh nhân"
           />
         </div>

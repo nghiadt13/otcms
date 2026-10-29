@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { listBookableServices } from "../api/bookingApi";
+import { listBookableServices as listMockServices } from "../api/bookingApi";
+import { listBookableServices as listLiveServices } from "../api/bookingLiveApi";
 import type { BookableService } from "../types/booking";
 
 export interface BookableServicesState {
@@ -13,8 +14,8 @@ export interface BookableServicesState {
   reload: () => void;
 }
 
-/** Dịch vụ Khám đặt được (tải một lần khi mở luồng). */
-export function useBookableServices(): BookableServicesState {
+/** Dịch vụ Khám đặt được (tải một lần khi mở luồng). `live`: lấy từ backend thật (khu bệnh nhân). */
+export function useBookableServices(live = false): BookableServicesState {
   const [services, setServices] = useState<BookableService[]>([]);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
@@ -22,7 +23,7 @@ export function useBookableServices(): BookableServicesState {
 
   useEffect(() => {
     const controller = new AbortController();
-    listBookableServices(controller.signal)
+    (live ? listLiveServices : listMockServices)(controller.signal)
       .then(({ items }) => {
         if (controller.signal.aborted) return;
         setServices(items);
@@ -35,7 +36,7 @@ export function useBookableServices(): BookableServicesState {
         setLoading(false);
       });
     return () => controller.abort();
-  }, [reloadToken]);
+  }, [reloadToken, live]);
 
   const reload = useCallback(() => {
     setLoading(true);

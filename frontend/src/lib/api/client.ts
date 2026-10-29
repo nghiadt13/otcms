@@ -12,9 +12,16 @@ type ProblemDetail = {
   code?: MsgCode;
   params?: Record<string, string | number>;
   fieldErrors?: ApiFieldError[];
+  /** Hình lỗi của backend: `{ error: { code, message } }`. */
+  error?: { code?: string };
 };
 
-async function authorizedHeaders(init: RequestInit) {
+const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
+
+const isMutation = (init: RequestInit) =>
+  !SAFE_METHODS.has((init.method ?? "GET").toUpperCase());
+
+async function authorizedHeaders(init: RequestInit, refreshCsrf = false) {
   const accessToken = await getAccessToken();
   if (!accessToken) throw new Error("Bạn cần đăng nhập để tiếp tục.");
 
@@ -27,37 +34,10 @@ async function authorizedHeaders(init: RequestInit) {
     !headers.has("Content-Type")
   )
     headers.set("Content-Type", "application/json");
-  const method = (init.method ?? "GET").toUpperCase();
-  if (!["GET", "HEAD", "OPTIONS"].includes(method)) {
-    headers.set("X-CSRF-TOKEN", await getCsrfToken());
-  }
+  // Request ghi dữ liệu cần CSRF (xem getCsrfToken); GET không cần.
+  if (isMutation(init))
+    headers.set("X-CSRF-TOKEN", await getCsrfToken(refreshCsrf));
   return headers;
-}
-
-async function sendAuthorized(
-  path: `/api/v1/${string}`,
-  init: RequestInit,
-): Promise<Response> {
-  const headers = await authorizedHeaders(init);
-  const response = await fetch(`${apiBaseUrl}${path}`, {
-    ...init,
-    headers,
-    credentials: "include",
-    cache: "no-store",
-  });
-  if (response.status !== 401) return response;
-
-  // An otherwise-valid session can hold a token rejected after expiry or a backend restart.
-  // Refresh once, then retry the request with the newly issued access token.
-  const session = await refreshSession();
-  if (!session) return response;
-  headers.set("Authorization", `Bearer ${session.accessToken}`);
-  return fetch(`${apiBaseUrl}${path}`, {
-    ...init,
-    headers,
-    credentials: "include",
-    cache: "no-store",
-  });
 }
 
 async function toApiError(response: Response): Promise<ApiError> {
@@ -67,10 +47,13 @@ async function toApiError(response: Response): Promise<ApiError> {
   } catch {
     // Không có thân JSON: giữ mã HTTP.
   }
-  return new ApiError(response.status, problem);
+  return new ApiError(response.status, {
+    ...problem,
+    errorCode: problem.error?.code,
+  });
 }
 
-/** Gọi endpoint công khai không cần phiên đăng nhập. */
+/** Gọi endpoint công khai không cần session; giữ cùng base URL và lỗi API chuẩn. */
 export async function publicApiRequest<T>(
   path: `/api/v1/${string}`,
   init: RequestInit = {},
@@ -92,10 +75,40 @@ export async function apiRequest<T>(
   path: `/api/v1/${string}`,
   init: RequestInit = {},
 ): Promise<T> {
-  const response = await sendAuthorized(path, init);
+  let response = await send(path, init, false);
+  // CSRF lệch cookie ở request ghi dữ liệu: backend trả 403, hoặc 401 vì bộ lọc CSRF chạy trước
+  // bộ lọc JWT nên request còn ẩn danh. Lấy token mới và thử lại đúng một lần.
+  if ((response.status === 403 || response.status === 401) && isMutation(init))
+    response = await send(path, init, true);
   if (!response.ok) throw await toApiError(response);
   if (response.status === 204) return undefined as T;
   return response.json() as Promise<T>;
+}
+
+async function send(
+  path: `/api/v1/${string}`,
+  init: RequestInit,
+  refreshCsrf: boolean,
+): Promise<Response> {
+  const headers = await authorizedHeaders(init, refreshCsrf);
+  const response = await fetch(`${apiBaseUrl}${path}`, {
+    ...init,
+    headers,
+    // Cookie XSRF-TOKEN phải đi kèm request ghi dữ liệu sang backend (khác origin).
+    credentials: isMutation(init) ? "include" : init.credentials,
+    cache: "no-store",
+  });
+  if (response.status !== 401) return response;
+
+  const session = await refreshSession();
+  if (!session) return response;
+  headers.set("Authorization", `Bearer ${session.accessToken}`);
+  return fetch(`${apiBaseUrl}${path}`, {
+    ...init,
+    headers,
+    credentials: isMutation(init) ? "include" : init.credentials,
+    cache: "no-store",
+  });
 }
 
 /** Tải tệp nhị phân (xuất báo cáo). Đọc tên tệp từ `Content-Disposition`. */
@@ -103,7 +116,12 @@ export async function fetchBlob(
   path: `/api/v1/${string}`,
   init: RequestInit = {},
 ): Promise<{ blob: Blob; fileName: string }> {
-  const response = await sendAuthorized(path, init);
+  const headers = await authorizedHeaders(init);
+  const response = await fetch(`${apiBaseUrl}${path}`, {
+    ...init,
+    headers,
+    cache: "no-store",
+  });
   if (!response.ok) throw await toApiError(response);
   const disposition = response.headers.get("Content-Disposition") ?? "";
   const match = /filename="?([^";]+)"?/i.exec(disposition);

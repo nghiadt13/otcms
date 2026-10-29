@@ -14,9 +14,9 @@ export const siteNavItems: SiteNavItem[] = [
   { label: "Liên hệ", href: "#lien-he" },
 ];
 
-// Đặt lịch cần tài khoản bệnh nhân (BR-21): khách chưa đăng nhập vào trang đăng nhập rồi về
-// thẳng màn đặt lịch. Trang đăng nhập có liên kết "Đăng ký" cho khách chưa có tài khoản.
-export const bookAppointmentHref = `/login?next=${PATIENT_ROUTES.newAppointment}`;
+// Đặt lịch cần tài khoản bệnh nhân (BR-21): khách chưa đăng nhập dừng ở bước 1 của màn đặt lịch,
+// nơi có Đăng nhập và Đăng ký rồi quay lại chính màn đó.
+export const bookAppointmentHref = PATIENT_ROUTES.newAppointment;
 
 export const contactSectionId = "lien-he";
 

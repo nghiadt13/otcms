@@ -23,7 +23,7 @@ import { PasswordField } from "./PasswordField";
 // UC01 Đăng nhập bệnh nhân (email + mật khẩu). Mọi trường hợp bị từ chối (thiếu thông tin,
 // sai mật khẩu, tài khoản không đủ điều kiện) đều hiện cùng MSG-01 để không lộ tài khoản
 // nào tồn tại; lỗi dịch vụ hiện MSG-04. Thành công thì về `next` nếu là đường dẫn an toàn
-// trong khu bệnh nhân, không thì về /portal. `defaultEmail` dùng khi vừa đăng ký xong (UC06).
+// trong khu bệnh nhân, không thì về `/portal`. `defaultEmail` dùng khi vừa đăng ký xong (UC06).
 // `staff` là màn đăng nhập nội bộ (/staff-login): gọi endpoint nhân viên rồi về /workspace, nơi
 // `RoleHomeRedirect` chuyển tới khu đúng vai trò (quản trị hoặc lễ tân).
 export function SignInForm({
@@ -75,7 +75,7 @@ export function SignInForm({
       await signIn(email, password);
       // Giả lập: phiên thật do backend cấp (lib/auth/authSession); ghi loại tài khoản giả để `/api/v1/me` giả trả đúng bệnh nhân.
       setMockSignedInKind("PATIENT");
-      router.replace(safePortalNext(next));
+      router.replace(safePortalNext(next, "/portal"));
     } catch (cause) {
       setMessage(toAuthMessageCode(cause));
       setSubmitting(false);

@@ -1,6 +1,8 @@
 package fu.fa26.sep490.g58.otcms_be.auth;
 
 import fu.fa26.sep490.g58.otcms_be.auth.model.dto.request.ResetPasswordRequest;
+import fu.fa26.sep490.g58.otcms_be.auth.model.dto.request.ChangePasswordRequest;
+import fu.fa26.sep490.g58.otcms_be.auth.exception.PasswordRecoveryException;
 import fu.fa26.sep490.g58.otcms_be.auth.model.entity.*;
 import fu.fa26.sep490.g58.otcms_be.auth.model.entity.enums.*;
 import fu.fa26.sep490.g58.otcms_be.auth.service.EmailDeliveryService;
@@ -32,6 +34,30 @@ class T008PasswordRecoveryPostgresIntegrationTest {
     @MockitoBean EmailDeliveryService email;
 
     @AfterEach void cleanup() { challenges.deleteAll(); sessions.deleteAll(); accounts.deleteAll(); }
+
+    @Test void changingPasswordInvalidatesPreviouslyIssuedResetLink() {
+        AccountJpaEntity account = new AccountJpaEntity();
+        account.setNormalizedEmail("t008-change-" + UUID.randomUUID() + "@example.test");
+        account.setAccountType(AccountType.ADMIN);
+        account.setStatus(AccountStatus.ACTIVE);
+        account.setPasswordHash(encoder.encode("old-password-123"));
+        account.setCreatedAt(Instant.now());
+        account.setUpdatedAt(Instant.now());
+        account = accounts.saveAndFlush(account);
+
+        recovery.forgot(account.getNormalizedEmail(), AccountType.RECEPTIONIST);
+        var token = org.mockito.ArgumentCaptor.forClass(String.class);
+        verify(email).sendPasswordReset(eq(account.getNormalizedEmail()), token.capture(), eq(account.getId()));
+        String tokenHash = fu.fa26.sep490.g58.otcms_be.auth.service.impl.PasswordRecoveryServiceImpl.hash(token.getValue());
+        assertNull(challenges.findByTokenHash(tokenHash).orElseThrow().getSupersededAt());
+
+        recovery.change(account.getId(), new ChangePasswordRequest("old-password-123", "changed-password-123"));
+        assertNotNull(challenges.findByTokenHash(tokenHash).orElseThrow().getSupersededAt());
+        var error = assertThrows(PasswordRecoveryException.class,
+                () -> recovery.reset(new ResetPasswordRequest(token.getValue(), "reset-password-123"), AccountType.RECEPTIONIST));
+        assertEquals("PASSWORD_RESET_TOKEN_INVALID", error.getMessage());
+        assertTrue(encoder.matches("changed-password-123", accounts.findById(account.getId()).orElseThrow().getPasswordHash()));
+    }
 
     @Test @Transactional void resetPersistsChallengeConsumesItAndRevokesAllSessions() {
         AccountJpaEntity account = new AccountJpaEntity();

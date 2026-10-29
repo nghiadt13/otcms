@@ -5,15 +5,10 @@ import { useEffect, useState, type ReactNode } from "react";
 import { PATIENT_ROUTES } from "@/lib/routes/patientRoutes";
 import { getSession } from "@/lib/auth/authSession";
 
-// Nút "Đặt lịch khám" ở khu công khai. Khách chưa đăng nhập đi qua đăng nhập rồi quay lại
-// màn đặt lịch; người đã có phiên đi thẳng tới màn đặt lịch. Chỉ đổi đích sau khi đọc phiên
-// trên trình duyệt, nên lần đầu luôn là liên kết đăng nhập (an toàn).
 const LOGIN_THEN_BOOK = `/login?next=${PATIENT_ROUTES.newAppointment}`;
 
-async function hasSignedInSession(): Promise<boolean> {
-  return (await getSession()) !== null;
-}
-
+// Nút "Đặt lịch khám" ở khu công khai: luôn dẫn tới màn đặt lịch. Khách chưa đăng nhập dừng ở
+// bước 1 của màn đó (đăng nhập hoặc đăng ký rồi quay lại), nên không cần rẽ nhánh theo phiên ở đây.
 export function PublicBookAppointmentLink({
   className,
   children,
@@ -25,11 +20,10 @@ export function PublicBookAppointmentLink({
 
   useEffect(() => {
     let active = true;
-    hasSignedInSession()
-      .then((signedIn) => {
-        if (active && signedIn) setHref(PATIENT_ROUTES.newAppointment);
+    getSession()
+      .then((session) => {
+        if (active && session) setHref(PATIENT_ROUTES.newAppointment);
       })
-      // Không đọc được phiên (thiếu cấu hình, lỗi trình duyệt): giữ liên kết đăng nhập và ghi log.
       .catch((error: unknown) => {
         console.error("Không đọc được phiên đăng nhập để đặt lịch", error);
       });

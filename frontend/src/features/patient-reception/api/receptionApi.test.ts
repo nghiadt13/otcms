@@ -136,7 +136,184 @@ describe("patient identification and care links", () => {
   });
 });
 
+describe("automatic reception age priority", () => {
+  it("rejects pregnancy priority for a male patient without checking them in", async () => {
+    await expect(
+      command({
+        type: "check-in",
+        patientId: "BN0002",
+        appointmentId: "LH002",
+        present: true,
+        priority: "pregnant",
+      }),
+    ).rejects.toThrow("MSG-39");
+    expect(
+      (await loadReception()).appointments.find((a) => a.id === "LH002")
+        ?.status,
+    ).toBe("booked");
+  });
+  it("allows the confirmed pregnancy category for a female patient", async () => {
+    await cash(["phi-LH001"]);
+    const next = await command({
+      type: "check-in",
+      patientId: "BN0001",
+      appointmentId: "LH001",
+      present: true,
+      priority: "pregnant",
+    });
+    expect(next.visits.find((v) => v.appointmentId === "LH001")?.priority).toBe(
+      "pregnant",
+    );
+  });
+  it("rejects assigning pregnancy priority to a male patient in the queue", async () => {
+    const state = await loadReception();
+    const entry = state.queues.find(
+      (q) => q.visitId === "LK002" && q.status === "waiting",
+    )!;
+    await expect(
+      command({
+        type: "reorder",
+        id: entry.id,
+        position: 1,
+        priority: "pregnant",
+        reason: "Kiểm tra nhóm ưu tiên",
+      }),
+    ).rejects.toThrow("MSG-39");
+    expect(
+      (await loadReception()).queues.find((q) => q.id === entry.id)?.priority,
+    ).toBe(entry.priority);
+  });
+  it("assigns elderly priority from DOB even if a stale client submits normal", async () => {
+    const state = await command({
+      type: "check-in",
+      patientId: "BN0002",
+      appointmentId: "LH002",
+      present: true,
+      priority: "normal",
+    });
+    const visit = state.visits.find((v) => v.appointmentId === "LH002")!;
+    expect(visit.priority).toBe("elderly");
+    expect(state.queues.find((q) => q.visitId === visit.id)?.priority).toBe(
+      "elderly",
+    );
+  });
+  it("rejects child priority for an adult without partially checking in", async () => {
+    await expect(
+      command({
+        type: "check-in",
+        patientId: "BN0002",
+        appointmentId: "LH002",
+        present: true,
+        priority: "child",
+      }),
+    ).rejects.toThrow("MSG-39");
+    expect(
+      (await loadReception()).appointments.find((a) => a.id === "LH002")
+        ?.status,
+    ).toBe("booked");
+  });
+});
 describe("appointment scheduling", () => {
+  it("rejects two patients booking the same doctor and time without creating an extra charge", async () => {
+    const input = {
+      type: "book" as const,
+      patientId: "BN0008",
+      date: DAY,
+      time: "10:20",
+      serviceId: "kham",
+      doctorId: "bs-an",
+    };
+    const first = await command(input);
+    await expect(command({ ...input, patientId: "BN0009" })).rejects.toThrow(
+      "MSG-30",
+    );
+    const next = await loadReception();
+    expect(next.appointments).toHaveLength(first.appointments.length);
+    expect(next.charges).toHaveLength(first.charges.length);
+  });
+  it("rejects one patient booking the same time with different doctors, including checked-in appointments", async () => {
+    const input = {
+      type: "book" as const,
+      patientId: "BN0001",
+      date: DAY,
+      time: "10:20",
+      serviceId: "kham",
+      doctorId: "bs-an",
+    };
+    const first = await command(input);
+    await expect(command({ ...input, doctorId: "bs-minh" })).rejects.toThrow(
+      "MSG-29",
+    );
+    const fixture = seed();
+    fixture.appointments.find((a) => a.id === "LH001")!.status = "checked-in";
+    fixture.appointments.find((a) => a.id === "LH002")!.status = "cancelled";
+    resetReceptionMock(fixture);
+    await expect(
+      command({ ...input, time: "09:20", doctorId: "bs-minh" }),
+    ).rejects.toThrow();
+    expect(
+      first.charges.filter((c) => c.contextId === first.appointments[0].id),
+    ).toHaveLength(1);
+  });
+  it("allows different patients at the same time with different doctors and multiple non-conflicting dates", async () => {
+    const input = {
+      type: "book" as const,
+      patientId: "BN0008",
+      date: DAY,
+      time: "10:20",
+      serviceId: "kham",
+      doctorId: "bs-an",
+    };
+    await command(input);
+    await command({ ...input, patientId: "BN0009", doctorId: "bs-minh" });
+    await command({ ...input, time: "10:40" });
+    const next = await command({ ...input, date: "2026-10-26" });
+    expect(
+      next.appointments.filter(
+        (a) => a.patientId === "BN0008" && a.status === "booked",
+      ),
+    ).toHaveLength(4);
+  });
+  it("releases cancelled reservations for both doctor and patient", async () => {
+    const fixture = seed();
+    fixture.appointments.find((a) => a.id === "LH001")!.status = "cancelled";
+    resetReceptionMock(fixture);
+    const result = await command({
+      type: "book",
+      patientId: "BN0001",
+      date: DAY,
+      time: "09:20",
+      serviceId: "kham",
+      doctorId: "bs-an",
+    });
+    expect(result.appointments[0]).toMatchObject({
+      patientId: "BN0001",
+      time: "09:20",
+      status: "booked",
+    });
+  });
+  it("accepts only one concurrent reservation for two different patients at the same doctor and time", async () => {
+    const initial = await loadReception();
+    const input = {
+      type: "book" as const,
+      patientId: "BN0008",
+      date: DAY,
+      time: "10:20",
+      serviceId: "kham",
+      doctorId: "bs-an",
+    };
+    const outcomes = await Promise.allSettled([
+      executeReception(input, initial.version),
+      executeReception({ ...input, patientId: "BN0009" }, initial.version),
+    ]);
+    expect(outcomes.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+    const next = await loadReception();
+    expect(next.appointments).toHaveLength(initial.appointments.length + 1);
+    expect(next.charges).toHaveLength(initial.charges.length + 1);
+    await expect(command({ ...input, patientId: "BN0009" })).rejects.toThrow(
+      "MSG-30",
+    );
+  });
   it("assigns an optional doctor and fixes the price at booking", async () => {
     const result = await command({
       type: "book",
@@ -175,10 +352,16 @@ describe("appointment scheduling", () => {
   });
   it("moves only absent doctor's appointment and never changes its time", async () => {
     await expect(
-      command({ type: "reassign", id: "LH001", doctorId: "bs-minh" }),
+      command({
+        type: "reassign",
+        patientAgreed: true,
+        id: "LH001",
+        doctorId: "bs-minh",
+      }),
     ).rejects.toThrow("MSG-32");
     const result = await command({
       type: "reassign",
+      patientAgreed: true,
       id: "LH003",
       doctorId: "bs-minh",
     });
@@ -188,6 +371,34 @@ describe("appointment scheduling", () => {
       time: "10:00",
       date: DAY,
     });
+  });
+  it("requires patient agreement before replacing a doctor", async () => {
+    await expect(
+      command({ type: "reassign", id: "LH003", doctorId: "bs-minh" }),
+    ).rejects.toThrow("MSG-32");
+    const state = await loadReception();
+    expect(state.appointments.find((a) => a.id === "LH003")?.doctorId).not.toBe(
+      "bs-minh",
+    );
+  });
+  it("records the LH006 no-replacement fixture without changing its reservation", async () => {
+    const state = await loadReception();
+    const appointment = state.appointments.find((a) => a.id === "LH006")!;
+    expect(
+      availableDoctors(
+        state,
+        appointment.date,
+        appointment.time,
+        appointment.serviceId,
+        appointment.id,
+      ),
+    ).toHaveLength(0);
+    const next = await command({ type: "notify-unavailable", id: "LH006" });
+    expect(next.appointments.find((a) => a.id === "LH006")).toMatchObject({
+      ...appointment,
+      notice: expect.stringContaining("Đã ghi nhận"),
+    });
+    expect(next.audit.length).toBeGreaterThan(state.audit.length);
   });
   it("keeps appointment booked when no replacement exists", async () => {
     const state = seed();

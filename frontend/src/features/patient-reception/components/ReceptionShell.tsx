@@ -154,7 +154,7 @@ function Frame({ children }: { children: ReactNode }) {
           </div>
         </header>
         <div className="reception-no-print flex flex-wrap items-center justify-between gap-2 border-b bg-secondary/50 px-4 py-2 text-xs text-muted-foreground md:px-6">
-          <span>Bản xem thử giao diện · dữ liệu mẫu · giờ mô phỏng 09:10</span>
+          <span>Bản xem thử giao diện · dữ liệu mẫu · giờ Việt Nam</span>
           <span>
             Tải lại trang sẽ đặt lại dữ liệu. Không nhập thông tin bệnh nhân
             thật.

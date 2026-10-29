@@ -36,10 +36,10 @@ async function submitCredentials(button = "Đăng nhập") {
 }
 
 describe("SignInForm: đích sau đăng nhập", () => {
-  it("không có next thì về /portal", async () => {
+  it("không có next thì về trang chủ", async () => {
     render(<SignInForm />);
     await submitCredentials();
-    expect(replace).toHaveBeenCalledWith("/portal");
+    expect(replace).toHaveBeenCalledWith("/");
   });
 
   it.each([
@@ -48,9 +48,9 @@ describe("SignInForm: đích sau đăng nhập", () => {
       "/portal/appointments/new",
       "/portal/appointments/new",
     ],
-    ["URL ngoài", "https://evil.example", "/portal"],
-    ["URL giao thức tương đối", "//evil.example", "/portal"],
-    ["khu quản trị", "/admin", "/portal"],
+    ["URL ngoài", "https://evil.example", "/"],
+    ["URL giao thức tương đối", "//evil.example", "/"],
+    ["khu quản trị", "/admin", "/"],
   ])("next = %s (%s) → %s", async (_label, next, target) => {
     render(<SignInForm next={next} />);
     await submitCredentials();

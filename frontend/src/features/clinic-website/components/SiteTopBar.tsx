@@ -1,6 +1,7 @@
-import { Clock, LogIn, MapPin, Phone, UserPlus } from "lucide-react";
+import { CalendarPlus, Clock, MapPin, Phone } from "lucide-react";
 import Link from "next/link";
 import { publicContainerClass } from "@/components/brand/publicLayout";
+import { PublicBookAppointmentLink } from "@/components/brand/PublicBookAppointmentLink";
 import { hotlineTelHref } from "../siteNavigation";
 import type { ClinicContact } from "../types/websiteContent";
 
@@ -8,9 +9,17 @@ const topLinkClass =
   "inline-flex items-center gap-1.5 rounded-sm text-white transition-colors duration-150 hover:text-brand-muted focus-visible:outline-2 focus-visible:outline-white motion-reduce:transition-none";
 
 // Dải thông tin mỏng trên cùng (chỉ desktop, từ lg): giờ làm việc và địa chỉ bên
-// trái; hotline, đăng nhập, đăng ký bên phải, như các website phòng khám quen thuộc.
-// Màn hẹp ẩn dải này, các link tài khoản nằm trong menu của SiteHeader.
-export function SiteTopBar({ contact }: { contact: ClinicContact }) {
+// trái; hotline và nút "Đặt lịch khám" bên phải. Tài khoản nằm ở hàng menu trắng của
+// SiteHeader. Màn hẹp ẩn dải này nên SiteHeader tự hiện nút đặt lịch.
+// Không truyền `bookHref`: nút tự chọn đích theo phiên (đã đăng nhập → thẳng trang đặt lịch,
+// chưa → qua đăng nhập); khu bệnh nhân truyền thẳng trang đặt lịch.
+export function SiteTopBar({
+  contact,
+  bookHref,
+}: {
+  contact: ClinicContact;
+  bookHref?: string;
+}) {
   return (
     <div className="hidden bg-brand-hover text-sm text-brand-muted lg:block">
       <div
@@ -33,14 +42,17 @@ export function SiteTopBar({ contact }: { contact: ClinicContact }) {
             {contact.hotline}
           </a>
           <span aria-hidden className="h-4 w-px bg-white/30" />
-          <Link className={topLinkClass} href="/login">
-            <LogIn aria-hidden className="size-4" />
-            Đăng nhập
-          </Link>
-          <Link className={topLinkClass} href="/register">
-            <UserPlus aria-hidden className="size-4" />
-            Đăng ký
-          </Link>
+          {bookHref ? (
+            <Link className={topLinkClass} href={bookHref}>
+              <CalendarPlus aria-hidden className="size-4" />
+              Đặt lịch khám
+            </Link>
+          ) : (
+            <PublicBookAppointmentLink className={topLinkClass}>
+              <CalendarPlus aria-hidden className="size-4" />
+              Đặt lịch khám
+            </PublicBookAppointmentLink>
+          )}
         </div>
       </div>
     </div>

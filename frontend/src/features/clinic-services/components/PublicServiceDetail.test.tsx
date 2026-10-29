@@ -33,7 +33,7 @@ describe("PublicServiceDetail", () => {
     expect(screen.getByText("Thời lượng dự kiến: 30 phút.")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Đặt lịch khám" })).toHaveAttribute(
       "href",
-      "/login?next=/portal/appointments/new",
+      "/portal/appointments/new",
     );
   });
 

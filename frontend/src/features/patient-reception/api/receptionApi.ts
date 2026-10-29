@@ -3,7 +3,12 @@ import { mockDelay, mockFail } from "@/lib/api/mockServer";
 import { isPasswordValid } from "@/lib/domain/passwordPolicy";
 import {
   addDays,
+  clinicTimestamp,
+  isFutureSlot,
   availableDoctors,
+  patientBookingAt,
+  receptionPriority,
+  agePriority,
   latestRoundReady,
   normalizePhone,
   normalizeText,
@@ -26,10 +31,13 @@ import { createReceptionSeed } from "./receptionSeed";
 // UI prototype transport, matching the existing admin mock boundary. No Supabase writes.
 // Replace this adapter with authorized Spring endpoints; never ship the mock as clinical storage.
 let store = createReceptionSeed();
+let currentTime = () => new Date();
 let passwordHash: string | null = null;
 const delay = () => mockDelay(process.env.NODE_ENV === "test" ? 0 : 180);
-export function resetReceptionMock(state = createReceptionSeed()) {
-  store = structuredClone(state);
+export function resetReceptionMock(state?: ReceptionState, now?: () => Date) {
+  store = structuredClone(state ?? createReceptionSeed());
+  const fixtureTime = store.clock;
+  currentTime = now ?? (state ? () => new Date(fixtureTime) : () => new Date());
   passwordHash = null;
 }
 // Lỗi mang mã MSG của R3 theo hình ProblemDetail mà BE sẽ trả (xem fe-be-api-contract);
@@ -131,11 +139,15 @@ export async function loadReception(
 ): Promise<ReceptionState> {
   await mockDelay(process.env.NODE_ENV === "test" ? 0 : 180, signal);
   const next = structuredClone(store);
+  next.clock = clinicTimestamp(currentTime());
   expireState(next);
-  if (JSON.stringify(next) !== JSON.stringify(store)) {
+  // A clock tick is not a business mutation and must not invalidate an open form.
+  if (
+    JSON.stringify({ ...next, clock: store.clock }) !== JSON.stringify(store)
+  ) {
     next.version++;
-    store = next;
   }
+  store = next;
   return structuredClone(store);
 }
 function addQueue(
@@ -307,6 +319,7 @@ export async function executeReception(
   await delay();
   requireThat(store.version === expectedVersion, "MSG-42");
   const s = structuredClone(store);
+  s.clock = clinicTimestamp(currentTime());
   expireState(s);
   switch (command.type) {
     case "save-patient": {
@@ -367,7 +380,7 @@ export async function executeReception(
       const service = find(s.services, command.serviceId);
       requireThat(service.active && service.category === "exam", "MSG-29");
       requireThat(
-        `${command.date}T${command.time}` >= s.clock.slice(0, 16),
+        isFutureSlot(command.date, command.time, s.clock),
         "MSG-31",
         400,
       );
@@ -382,13 +395,7 @@ export async function executeReception(
         : doctors[0];
       requireThat(doctor, "MSG-30");
       requireThat(
-        !s.appointments.some(
-          (a) =>
-            a.patientId === command.patientId &&
-            a.date === command.date &&
-            a.time === command.time &&
-            ["booked", "checked-in"].includes(a.status),
-        ),
+        !patientBookingAt(s, command.patientId, command.date, command.time),
         "MSG-29",
       );
       const appointment = {
@@ -413,6 +420,7 @@ export async function executeReception(
       break;
     }
     case "reassign": {
+      requireThat(command.patientAgreed === true, "MSG-32");
       const a = find(s.appointments, command.id, "MSG-29");
       requireThat(a.status === "booked", "MSG-32");
       requireThat(find(s.doctors, a.doctorId).absent, "MSG-32");
@@ -427,11 +435,12 @@ export async function executeReception(
       history(
         s,
         "Đổi bác sĩ lịch hẹn",
-        "Bác sĩ vắng ca",
+        "Bác sĩ vắng ca; lễ tân xác nhận bệnh nhân đồng ý thay thế cùng giờ",
         a.doctorId,
         doctor.id,
       );
       a.doctorId = doctor.id;
+      a.notice = undefined;
       a.notice = "Đã tạo thông báo đổi bác sĩ cho bệnh nhân (mô phỏng).";
       break;
     }
@@ -445,8 +454,17 @@ export async function executeReception(
         !availableDoctors(s, a.date, a.time, a.serviceId, a.id).length,
         "MSG-42",
       );
+      requireThat(!a.unavailabilityDiscussedAt, "MSG-32");
+      history(
+        s,
+        "Thông báo bác sĩ vắng",
+        "Không có bác sĩ thay thế cùng giờ; đã thông báo bệnh nhân, chờ xử lý",
+        a.id,
+        a.id,
+      );
+      a.unavailabilityDiscussedAt = s.clock;
       a.notice =
-        "Đã ghi nhận thông báo bác sĩ vắng; bệnh nhân có thể tự hủy lịch. Giờ hẹn giữ nguyên (mô phỏng).";
+        "Đã ghi nhận lễ tân thông báo bệnh nhân: bác sĩ vắng, chưa có người thay thế cùng giờ. Chờ thống nhất phương án; chưa đổi giờ hoặc hủy lịch. Đây là ghi nhận mô phỏng, không gửi tin nhắn thực tế.";
       break;
     }
     case "prepare-walk-in": {
@@ -482,8 +500,24 @@ export async function executeReception(
     }
     case "check-in": {
       requireThat(command.present, "MSG-39", 400);
-      find(s.patients, command.patientId, "MSG-18");
+      const patient = find(s.patients, command.patientId, "MSG-18");
       requireThat(command.priority in PRIORITIES, "MSG-39", 400);
+      requireThat(
+        command.priority !== "pregnant" || patient.sex === "Nữ",
+        "MSG-39",
+        400,
+      );
+      requireThat(
+        !["child", "elderly"].includes(command.priority) ||
+          command.priority === agePriority(patient.dob, today(s)),
+        "MSG-39",
+        400,
+      );
+      const priority = receptionPriority(
+        patient.dob,
+        today(s),
+        command.priority,
+      );
       if (command.returnVisitId) {
         const visit = find(s.visits, command.returnVisitId);
         requireThat(
@@ -499,7 +533,7 @@ export async function executeReception(
           ),
           "MSG-37",
         );
-        visit.priority = command.priority;
+        visit.priority = priority;
         const paid = s.orders.filter(
           (o) => o.visitId === visit.id && o.status === "paid",
         );
@@ -578,7 +612,7 @@ export async function executeReception(
         doctorId: doctor.id,
         firstCheckIn: today(s),
         status: "waiting",
-        priority: command.priority,
+        priority,
         followUp: false,
         appointmentId: a?.id,
       };
@@ -683,8 +717,21 @@ export async function executeReception(
       list.forEach((x, i) => {
         x.position = i + 1;
       });
-      q.priority = command.priority;
-      find(s.visits, q.visitId).priority = command.priority;
+      const visit = find(s.visits, q.visitId);
+      const patient = find(s.patients, visit.patientId);
+      requireThat(
+        command.priority !== "pregnant" || patient.sex === "Nữ",
+        "MSG-39",
+        400,
+      );
+      requireThat(
+        !["child", "elderly"].includes(command.priority) ||
+          command.priority === agePriority(patient.dob, today(s)),
+        "MSG-39",
+        400,
+      );
+      q.priority = receptionPriority(patient.dob, today(s), command.priority);
+      visit.priority = q.priority;
       history(
         s,
         "Điều chỉnh hàng đợi",

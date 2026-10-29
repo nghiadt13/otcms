@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { messageFromError } from "@/lib/messages/appMessages";
 import { notifyError } from "@/lib/messages/notify";
-import { listMyAppointments } from "../api/patientAppointmentApi";
+import { listMyAppointments } from "../api/patientAppointmentSource";
 import type {
   AppointmentWhen,
   PatientAppointment,

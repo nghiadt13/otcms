@@ -3,8 +3,6 @@
 const enc = encodeURIComponent;
 
 export const PATIENT_ROUTES = {
-  portal: "/portal",
-
   appointments: "/portal/appointments",
   newAppointment: "/portal/appointments/new",
   appointmentDetail: (id: string) => `/portal/appointments/${enc(id)}`,

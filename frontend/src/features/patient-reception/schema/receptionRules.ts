@@ -1,5 +1,7 @@
 import type {
   PatientInput,
+  Patient,
+  PatientSearchQuery,
   Priority,
   ReceptionState,
   QueueEntry,
@@ -24,6 +26,23 @@ export function isDate(value: string) {
     new Date(value).toISOString().slice(0, 10) === value
   );
 }
+const clinicTimeFormat = new Intl.DateTimeFormat("en-GB", {
+  timeZone: "Asia/Ho_Chi_Minh",
+  hourCycle: "h23",
+  hour: "2-digit",
+  minute: "2-digit",
+  second: "2-digit",
+});
+export function clinicTimestamp(now = new Date()) {
+  return `${clinicDate(now)}T${clinicTimeFormat.format(now)}+07:00`;
+}
+export function isFutureSlot(date: string, time: string, now: string) {
+  return (
+    isDate(date) &&
+    /^([01]\d|2[0-3]):[0-5]\d$/.test(time) &&
+    Date.parse(`${date}T${time}:00+07:00`) > Date.parse(now)
+  );
+}
 export function normalizePhone(value: string) {
   return value.replace(/[\s().-]/g, "").replace(/^\+84/, "0");
 }
@@ -36,6 +55,24 @@ export const normalizeText = (value: string) =>
     .toLocaleLowerCase("vi")
     .replace(/\s+/g, " ")
     .trim();
+
+export function matchesPatientSearch(
+  patient: Patient,
+  query: PatientSearchQuery,
+) {
+  const text = normalizeText(query.q);
+  if (!/[\p{L}\p{N}]/u.test(text) || (query.dob && patient.dob !== query.dob))
+    return false;
+  const phone = normalizePhone(query.q.trim());
+  const code = text.replace(/[\s-]/g, "");
+  return (
+    text
+      .split(" ")
+      .every((word) => normalizeText(patient.name).includes(word)) ||
+    (/^\d+$/.test(phone) && normalizePhone(patient.phone).includes(phone)) ||
+    normalizeText(patient.id).replace(/[\s-]/g, "").includes(code)
+  );
+}
 export function validatePatient(input: PatientInput, today: string) {
   const errors: Partial<Record<keyof PatientInput, string>> = {};
   if (input.name.trim().length < 2 || input.name.trim().length > 120)
@@ -56,6 +93,24 @@ export function validatePatient(input: PatientInput, today: string) {
     errors.email = "Email chưa hợp lệ.";
   return errors;
 }
+/** Age is evaluated on the reception date, never stored permanently on a patient profile. */
+export function agePriority(dob: string, date: string): Priority {
+  if (!isDate(dob) || !isDate(date) || dob > date) return "normal";
+  const years =
+    Number(date.slice(0, 4)) -
+    Number(dob.slice(0, 4)) -
+    (date.slice(5) < dob.slice(5) ? 1 : 0);
+  return years < 6 ? "child" : years >= 75 ? "elderly" : "normal";
+}
+export function receptionPriority(
+  dob: string,
+  date: string,
+  selected: Priority,
+): Priority {
+  return ["normal", "child", "elderly"].includes(selected)
+    ? agePriority(dob, date)
+    : selected;
+}
 // Clinic priority configuration: emergency first, other entitled groups together, then normal.
 export function priorityRank(priority: Priority) {
   return priority === "emergency" ? 0 : priority === "normal" ? 2 : 1;
@@ -64,6 +119,20 @@ export const queueSort = (a: QueueEntry, b: QueueEntry) =>
   a.position - b.position || a.joinedAt.localeCompare(b.joinedAt);
 export function withinReturnWindow(first: string, today: string) {
   return today >= first && today <= addDays(first, 6);
+}
+export function patientBookingAt(
+  state: ReceptionState,
+  patientId: string,
+  date: string,
+  time: string,
+) {
+  return state.appointments.find(
+    (a) =>
+      a.patientId === patientId &&
+      a.date === date &&
+      a.time === time &&
+      ["booked", "checked-in"].includes(a.status),
+  );
 }
 export function availableDoctors(
   state: ReceptionState,

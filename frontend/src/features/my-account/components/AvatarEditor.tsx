@@ -21,10 +21,16 @@ type AvatarEditorProps = {
   account: MyAccount;
   /** Cỡ lớn cho khu bệnh nhân: nút cao 48px, chữ 16px. */
   large?: boolean;
+  /** Cấp tiêu đề "Ảnh đại diện"; dùng `h3` khi khối nằm dưới một `h2` của màn. */
+  headingLevel?: "h2" | "h3";
 };
 
 /** Chọn, xem trước, lưu và gỡ ảnh đại diện (UC04). Gỡ ảnh đổi lại được nên không hỏi xác nhận. */
-export function AvatarEditor({ account, large = false }: AvatarEditorProps) {
+export function AvatarEditor({
+  account,
+  large = false,
+  headingLevel: Heading = "h2",
+}: AvatarEditorProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -106,12 +112,12 @@ export function AvatarEditor({ account, large = false }: AvatarEditorProps) {
 
   return (
     <section aria-labelledby="avatar-heading" className="grid gap-3">
-      <h2
+      <Heading
         id="avatar-heading"
         className={large ? "text-lg font-semibold" : "text-base font-medium"}
       >
         Ảnh đại diện
-      </h2>
+      </Heading>
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
         <Avatar className={large ? "size-20" : "size-16"}>
           {shownUrl ? (

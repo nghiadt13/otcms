@@ -61,8 +61,7 @@ frontend/src/
 │   │   └── workspace/page.tsx           chuyển trang theo vai trò: bệnh nhân → /portal, Lễ tân → /reception, admin → /admin
 │   ├── (patient)/                       khu bệnh nhân (/portal): root layout riêng, theme shadcn + font Be Vietnam Pro
 │   │   ├── layout.tsx
-│   │   └── portal/                      layout (PatientPortalHeader + một cột max-w-3xl + Toaster), page.tsx (trang chủ: khung + _home/), error.tsx, loading.tsx, not-found.tsx; các route của phase 01–08
-│   │       ├── _home/                   private folder: ghép trang chủ từ nhiều feature (lượt khám, lịch hẹn, thanh toán, gợi ý hồ sơ); feature không import chéo nên việc ghép nằm ở app/
+│   │   └── portal/                      layout (PatientPortalHeader + một cột max-w-3xl + Toaster), error.tsx, loading.tsx, not-found.tsx; các route của phase 01–08
 │   │       ├── visits/                  danh sách và chi tiết lượt khám (phase 05)
 │   │       └── account/, profiles/, appointments/, payments/, results/, prescriptions/, images/, notifications/, reviews/
 │   ├── (staff)/                         khu Lễ tân: root layout riêng, staff.css (in A4 biên lai/phiếu kết quả)

@@ -484,7 +484,10 @@ components:
         id: {type: string, format: uuid}
         patientProfileId: {type: string, format: uuid}
         serviceId: {type: string, format: uuid}
+        serviceName: {type: string, nullable: true, description: Filled by GET /appointments and GET /appointments/{id} only; null from write endpoints}
+        servicePrice: {type: number, nullable: true, description: Current catalog price (not a snapshot taken at booking); filled by GET endpoints only}
         doctorId: {type: string, format: uuid}
+        doctorDisplayName: {type: string, nullable: true, description: Filled by GET endpoints only; null from write endpoints}
         status: {type: string, enum: [CONFIRMED, CHECKED_IN, IN_PROGRESS, COMPLETED, CANCELLED, NO_SHOW]}
         bookingSource: {type: string}
         purpose: {type: string}

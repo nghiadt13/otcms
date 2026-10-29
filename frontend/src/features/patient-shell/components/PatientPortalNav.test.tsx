@@ -30,15 +30,19 @@ describe("PatientPortalNav", () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  it("menu ngang: bấm nhóm thì xổ ra các mục đúng đường dẫn", async () => {
-    render(<PatientPortalNav groups={groupPatientNavItems(items)} />);
-    await userEvent.click(screen.getByRole("button", { name: "Khám bệnh" }));
-
-    const lichHen = await screen.findByRole("menuitem", { name: "Lịch hẹn" });
-    expect(lichHen).toHaveAttribute("href", "/portal/appointments");
-    expect(
-      screen.queryByRole("menuitem", { name: "Hồ sơ bệnh nhân" }),
-    ).toBeNull();
+  it("menu ngang chỉ có link trang giới thiệu, không có nút nhóm", () => {
+    render(
+      <PatientPortalNav
+        groups={groupPatientNavItems(items)}
+        siteLinks={[{ label: "Dịch vụ", href: "/services" }]}
+      />,
+    );
+    const nav = screen.getByRole("navigation", { name: "Menu khu bệnh nhân" });
+    expect(within(nav).getByRole("link", { name: "Dịch vụ" })).toHaveAttribute(
+      "href",
+      "/services",
+    );
+    expect(within(nav).queryByRole("button")).toBeNull();
   });
 
   it("Sheet màn hẹp liệt kê theo nhóm và đóng sau khi chọn mục", async () => {
