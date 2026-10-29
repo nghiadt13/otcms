@@ -72,8 +72,9 @@ export async function apiRequest<T>(
   init: RequestInit = {},
 ): Promise<T> {
   let response = await send(path, init, false);
-  // 403 ở request ghi dữ liệu thường là CSRF lệch cookie: lấy token mới và thử lại đúng một lần.
-  if (response.status === 403 && isMutation(init))
+  // CSRF lệch cookie ở request ghi dữ liệu: backend trả 403, hoặc 401 vì bộ lọc CSRF chạy trước
+  // bộ lọc JWT nên request còn ẩn danh. Lấy token mới và thử lại đúng một lần.
+  if ((response.status === 403 || response.status === 401) && isMutation(init))
     response = await send(path, init, true);
   if (!response.ok) throw await toApiError(response);
   if (response.status === 204) return undefined as T;

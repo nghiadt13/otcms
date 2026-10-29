@@ -8,7 +8,7 @@ import { STAFF_ROUTES } from "@/lib/routes/staffRoutes";
 // nhân; quản trị và chủ phòng khám vào quản trị; còn lại là nhân viên, vào khu lễ tân. Quyền
 // thật vẫn do backend kiểm từng thao tác.
 export function homeRouteForAccount(accountType: AccountType): string {
-  if (accountType === "PATIENT") return PATIENT_ROUTES.portal;
+  if (accountType === "PATIENT") return PATIENT_ROUTES.account;
   if (accountType === "ADMIN" || accountType === "OWNER") {
     return ADMIN_ROUTES.dashboard;
   }

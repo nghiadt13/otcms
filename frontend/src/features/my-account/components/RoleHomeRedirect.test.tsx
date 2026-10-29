@@ -40,7 +40,7 @@ describe("RoleHomeRedirect", () => {
   });
 
   it.each([
-    ["PATIENT", "/portal"],
+    ["PATIENT", "/portal/account"],
     ["ADMIN", "/admin"],
     ["OWNER", "/admin"],
     ["RECEPTIONIST", "/reception"],
@@ -59,6 +59,6 @@ describe("RoleHomeRedirect", () => {
       formatAppMessage("MSG-04"),
     );
     await userEvent.click(screen.getByRole("button", { name: "Thử lại" }));
-    await waitFor(() => expect(replace).toHaveBeenCalledWith("/portal"));
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/portal/account"));
   });
 });

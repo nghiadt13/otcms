@@ -17,7 +17,7 @@ import { isApiError } from "@/lib/api/apiError";
 import { notifyError, notifySuccess } from "@/lib/messages/notify";
 import { PATIENT_ROUTES } from "@/lib/routes/patientRoutes";
 import { cn } from "@/lib/utils";
-import { cancelMyAppointment } from "../../api/patientAppointmentApi";
+import { cancelMyAppointment } from "../../api/patientAppointmentSource";
 import type { PatientAppointment } from "../../types/patientAppointment";
 import {
   appointmentSentenceTime,

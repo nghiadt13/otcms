@@ -18,7 +18,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { PATIENT_ROUTES } from "@/lib/routes/patientRoutes";
 import { cn } from "@/lib/utils";
 
-// Khung "khu cá nhân" của bệnh nhân: hai thẻ trắng cạnh nhau (tiêu đề trang chỉ cho trình đọc). Thẻ
+// Khung "khu cá nhân" của bệnh nhân: hai thẻ trắng cạnh nhau (tiêu đề, nếu có, chỉ cho trình đọc). Thẻ
 // trái chia ba phần (người đăng nhập, nhóm hồ sơ, nhóm khám bệnh), thẻ phải là nội dung màn. Từ
 // `lg` thẻ trái dính khi cuộn; dưới `lg` chỉ còn phần người đăng nhập vì menu chính của header
 // đã có đủ các mục này. Thuộc tính
@@ -61,7 +61,8 @@ export function PersonalAreaShell({
   person,
   children,
 }: {
-  title: string;
+  /** Tiêu đề chỉ cho trình đọc; bỏ trống khi màn con đã tự có h1. */
+  title?: string;
   person: PersonalAreaPerson;
   children: ReactNode;
 }) {
@@ -70,7 +71,7 @@ export function PersonalAreaShell({
   return (
     <div data-portal-wide>
       {/* Chỉ trình đọc màn hình thấy: hai thẻ bên dưới tự nói màn này là gì, tiêu đề hiện ra chỉ làm lệch. */}
-      <h1 className="sr-only">{title}</h1>
+      {title ? <h1 className="sr-only">{title}</h1> : null}
       <div className="grid gap-6 lg:grid-cols-[17rem_minmax(0,1fr)] lg:items-start">
         <aside className="overflow-hidden rounded-xl border bg-card lg:sticky lg:top-24">
           <PersonSummary person={person} />

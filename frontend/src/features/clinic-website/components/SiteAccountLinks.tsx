@@ -12,6 +12,7 @@ import {
 import { useCurrentAccount } from "@/hooks/useCurrentAccount";
 import { signOut } from "@/lib/auth/authSession";
 import type { CurrentAccount } from "@/lib/auth/currentAccountApi";
+import { PATIENT_ROUTES } from "@/lib/routes/patientRoutes";
 import { clearMockSignedInKind } from "@/lib/session/mockSignedInKind";
 
 const topLinkClass =
@@ -23,6 +24,13 @@ const navLinkClass =
 
 // Lối vào chung theo vai trò (RoleHomeRedirect), nên không cần biết khu nào ở đây.
 const WORKSPACE_HREF = "/workspace";
+
+// "Cá nhân": bệnh nhân vào thẳng trang chỉnh sửa thông tin; vai trò khác về khu làm việc của mình.
+function personalHref(account: CurrentAccount): string {
+  return account.accountType === "PATIENT"
+    ? PATIENT_ROUTES.account
+    : WORKSPACE_HREF;
+}
 
 /**
  * Cụm tài khoản ở header công khai. Chưa đăng nhập: "Đăng nhập" và "Đăng ký". Đã đăng nhập (tên
@@ -147,7 +155,7 @@ function AccountDropdown({
       >
         <DropdownMenuItem
           className="h-11 text-base"
-          render={<Link href={WORKSPACE_HREF} />}
+          render={<Link href={personalHref(account)} />}
         >
           <CircleUser aria-hidden />
           Cá nhân
@@ -178,7 +186,7 @@ function AccountStack({
       </p>
       <Link
         className={publicButtonClass("secondary")}
-        href={WORKSPACE_HREF}
+        href={personalHref(account)}
         onClick={onNavigate}
       >
         Cá nhân

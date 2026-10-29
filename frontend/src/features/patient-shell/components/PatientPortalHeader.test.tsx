@@ -60,15 +60,12 @@ describe("PatientPortalHeader", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("trang chủ và chi tiết lượt khám: nút Đặt lịch khám là outline, vì trang đã có nút chính riêng", () => {
-    for (const home of ["/portal", "/portal/visits/vis-an-today"]) {
-      pathname = home;
-      const { unmount } = render(<PatientPortalHeader />);
-      expect(
-        screen.getByRole("link", { name: "Đặt lịch khám" }),
-      ).not.toHaveClass("bg-primary");
-      unmount();
-    }
+  it("chi tiết lượt khám: nút Đặt lịch khám là outline, vì trang đã có nút chính riêng", () => {
+    pathname = "/portal/visits/vis-an-today";
+    render(<PatientPortalHeader />);
+    expect(screen.getByRole("link", { name: "Đặt lịch khám" })).not.toHaveClass(
+      "bg-primary",
+    );
   });
 
   it("form viết đánh giá và trang thông báo: nút Đặt lịch khám là outline, nút chính là của trang", () => {

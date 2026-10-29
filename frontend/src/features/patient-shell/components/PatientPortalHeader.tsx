@@ -42,10 +42,9 @@ export function PatientPortalHeader({
   // Khách chưa đăng nhập chỉ vào được màn đặt lịch: thay menu khu bệnh nhân bằng Đăng nhập / Đăng ký.
   const guest = current.status === "anonymous";
   const showBookButton = pathname !== PATIENT_ROUTES.newAppointment;
-  // Trang có nút chính riêng (trang chủ, chi tiết lượt khám, form viết đánh giá, thông báo):
+  // Trang có nút chính riêng (chi tiết lượt khám, form viết đánh giá, thông báo):
   // nút đặt lịch đổi sang outline để mỗi màn chỉ có một nút default.
   const pageHasOwnPrimary =
-    pathname === PATIENT_ROUTES.portal ||
     pathname.startsWith(`${PATIENT_ROUTES.visits}/`) ||
     pathname.startsWith(`${PATIENT_ROUTES.reviews}/new`) ||
     pathname === PATIENT_ROUTES.notifications;

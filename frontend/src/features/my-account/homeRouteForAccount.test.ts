@@ -3,7 +3,7 @@ import { homeRouteForAccount } from "./homeRouteForAccount";
 
 describe("homeRouteForAccount", () => {
   it("bệnh nhân vào cổng bệnh nhân", () => {
-    expect(homeRouteForAccount("PATIENT")).toBe("/portal");
+    expect(homeRouteForAccount("PATIENT")).toBe("/portal/account");
   });
 
   it.each(["ADMIN", "OWNER"] as const)("%s vào khu quản trị", (accountType) => {
