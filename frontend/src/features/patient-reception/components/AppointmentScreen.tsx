@@ -5,10 +5,13 @@ import { useSearchParams } from "next/navigation";
 import { CalendarPlus } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
+import { formatAppMessage } from "@/lib/messages/appMessages";
 import {
   availableDoctors,
+  patientBookingAt,
   addDays,
   normalizeText,
+  isFutureSlot,
 } from "../schema/receptionRules";
 import type { Appointment } from "../types";
 import { useReception } from "./ReceptionProvider";
@@ -45,6 +48,20 @@ function BookingForm({
   const [doctorId, setDoctor] = useState("");
   const doctors = availableDoctors(s!, date, time, serviceId);
   const service = s!.services.find((v) => v.id === serviceId)!;
+  const future = isFutureSlot(date, time, s!.clock);
+  const patientConflict = patientBookingAt(s!, patientId, date, time);
+  const sameDayBookings = s!.appointments.filter(
+    (a) =>
+      a.patientId === patientId &&
+      a.date === date &&
+      ["booked", "checked-in"].includes(a.status),
+  );
+  const canBook =
+    !!patientId &&
+    !patientConflict &&
+    future &&
+    doctors.length > 0 &&
+    (!doctorId || doctors.some((d) => d.id === doctorId));
   return (
     <FormModal
       title="Đặt lịch khám"
@@ -56,6 +73,7 @@ function BookingForm({
         className="space-y-5"
         onSubmit={async (e) => {
           e.preventDefault();
+          if (!canBook || pending) return;
           if (
             await run({
               type: "book",
@@ -110,12 +128,43 @@ function BookingForm({
             disabled={pending}
           />
         </div>
+        {sameDayBookings.length > 0 && (
+          <div
+            role="status"
+            className="rounded-lg border bg-muted/30 p-3 text-sm space-y-2"
+          >
+            <p className="font-medium">
+              Bệnh nhân đã có {sameDayBookings.length} lịch trong ngày{" "}
+              {dateText(date)}:
+            </p>
+            <ul className="space-y-1">
+              {sameDayBookings.map((a) => (
+                <li key={a.id}>
+                  {a.id} · {a.time} ·{" "}
+                  {s!.doctors.find((d) => d.id === a.doctorId)?.name} ·{" "}
+                  {a.status === "checked-in" ? "Đã tiếp nhận" : "Đã đặt lịch"}
+                </li>
+              ))}
+            </ul>
+            <p>
+              Kiểm tra các lịch trên trước khi đặt thêm. Không thể đặt hai lịch
+              cùng giờ cho cùng bệnh nhân, kể cả khác bác sĩ.
+            </p>
+          </div>
+        )}
+        {patientConflict && (
+          <p role="alert" className="text-destructive">
+            Bệnh nhân đã có lịch {patientConflict.id} lúc {time}. Vui lòng chọn
+            giờ khác.
+          </p>
+        )}
         <fieldset className="space-y-3">
           <legend className="mb-2 font-medium">Giờ khám *</legend>
           <div className="grid grid-cols-4 gap-2 sm:grid-cols-6">
             {slots.map((slot) => {
               const available =
-                `${date}T${slot}` >= s!.clock.slice(0, 16) &&
+                !patientBookingAt(s!, patientId, date, slot) &&
+                isFutureSlot(date, slot, s!.clock) &&
                 availableDoctors(s!, date, slot, serviceId).length > 0;
               return (
                 <Button
@@ -138,7 +187,7 @@ function BookingForm({
           {date &&
             !slots.some(
               (t) =>
-                `${date}T${t}` >= s!.clock.slice(0, 16) &&
+                isFutureSlot(date, t, s!.clock) &&
                 availableDoctors(s!, date, t, serviceId).length > 0,
             ) && (
               <p className="text-muted-foreground">
@@ -146,6 +195,11 @@ function BookingForm({
               </p>
             )}
         </fieldset>
+        {time && !future && (
+          <p role="alert" className="text-destructive">
+            {formatAppMessage("MSG-31")}
+          </p>
+        )}
         <SelectField
           label="Bác sĩ (không bắt buộc)"
           value={doctorId}
@@ -164,7 +218,7 @@ function BookingForm({
         <FormActions
           onClose={onClose}
           label="Xác nhận đặt lịch"
-          disabled={!patientId || !time || !doctors.length}
+          disabled={!canBook}
         />
       </form>
     </FormModal>
@@ -182,8 +236,7 @@ function Availability({ onClose }: { onClose: () => void }) {
       ),
     }))
     .filter(
-      (slot) =>
-        slot.doctors.length && `${date}T${slot.time}` >= s!.clock.slice(0, 16),
+      (slot) => slot.doctors.length && isFutureSlot(date, slot.time, s!.clock),
     );
   return (
     <FormModal
@@ -234,6 +287,7 @@ function AppointmentDetails({
   const p = s!.patients.find((x) => x.id === a.patientId)!;
   const d = s!.doctors.find((x) => x.id === a.doctorId)!;
   const [doctorId, setDoctorId] = useState("");
+  const [patientAgreed, setPatientAgreed] = useState(false);
   const alternatives = availableDoctors(
     s!,
     a.date,
@@ -256,7 +310,13 @@ function AppointmentDetails({
         </InfoRow>
         <InfoRow label="Bác sĩ">
           {d.name}
-          {d.absent && <span className="block text-destructive">Vắng ca</span>}
+          {d.absent && (
+            <span className="block text-destructive">
+              {a.unavailabilityDiscussedAt
+                ? "Bác sĩ vắng ca · đã trao đổi với bệnh nhân"
+                : "Vắng ca"}
+            </span>
+          )}
         </InfoRow>
         <InfoRow label="Trạng thái">
           <Status value={a.status} />
@@ -274,37 +334,61 @@ function AppointmentDetails({
             className="space-y-4"
             onSubmit={async (e) => {
               e.preventDefault();
-              if (await run({ type: "reassign", id: a.id, doctorId }))
+              if (!patientAgreed) return;
+              if (
+                await run({
+                  type: "reassign",
+                  id: a.id,
+                  doctorId,
+                  patientAgreed,
+                })
+              )
                 onClose();
             }}
           >
             <SelectField
               label="Bác sĩ thay thế cùng giờ"
               value={doctorId}
-              onChange={setDoctorId}
+              onChange={(value) => {
+                setDoctorId(value);
+                setPatientAgreed(false);
+              }}
               disabled={pending}
               options={[
                 { value: "", label: "Chọn bác sĩ" },
                 ...alternatives.map((v) => ({ value: v.id, label: v.name })),
               ]}
             />
+            <label className="flex items-start gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={patientAgreed}
+                disabled={pending}
+                onChange={(e) => setPatientAgreed(e.target.checked)}
+              />
+              Đã trao đổi và bệnh nhân đồng ý khám với bác sĩ thay thế, giữ
+              nguyên ngày và giờ hẹn.
+            </label>
             <FormActions
               onClose={onClose}
               label="Xác nhận đổi bác sĩ"
-              disabled={!doctorId}
+              disabled={!doctorId || !patientAgreed}
             />
           </form>
         ) : (
           <div className="space-y-3">
             <p>
-              Không có bác sĩ thay thế cùng giờ. Lịch vẫn giữ trạng thái đã đặt;
-              bệnh nhân quyết định việc hủy.
+              Không có bác sĩ phù hợp còn chỗ cùng giờ. Cần liên hệ bệnh nhân để
+              thống nhất phương án xử lý; chưa thể tiếp nhận theo lịch này.
+              Không tự đổi giờ hoặc hủy lịch.
             </p>
             <Button
-              disabled={pending || !!a.notice}
+              disabled={pending || !!a.unavailabilityDiscussedAt}
               onClick={() => void run({ type: "notify-unavailable", id: a.id })}
             >
-              Thông báo bác sĩ vắng
+              {a.unavailabilityDiscussedAt
+                ? "Đã trao đổi · chờ xử lý lịch"
+                : "Ghi nhận đã thông báo bệnh nhân"}
             </Button>
           </div>
         ))}
@@ -314,9 +398,15 @@ function AppointmentDetails({
         >
           Xem khoản thu
         </RouteLink>
-        {a.status === "booked" && a.date === s!.clock.slice(0, 10) && (
-          <RouteLink href={`/reception?patientId=${p.id}`}>Tiếp nhận</RouteLink>
-        )}
+        {a.status === "booked" &&
+          !d.absent &&
+          a.date === s!.clock.slice(0, 10) && (
+            <RouteLink
+              href={`/reception?patientId=${p.id}&appointmentId=${a.id}`}
+            >
+              Tiếp nhận
+            </RouteLink>
+          )}
       </div>
     </FormModal>
   );
@@ -421,7 +511,9 @@ export function AppointmentScreen() {
                 {d.name}
                 {d.absent && a.status === "booked" && (
                   <p className="text-xs text-destructive">
-                    Cần sắp xếp lại bác sĩ
+                    {a.unavailabilityDiscussedAt
+                      ? "Bác sĩ vắng ca · đã trao đổi với bệnh nhân"
+                      : "Bác sĩ vắng ca · cần bố trí thay thế"}
                   </p>
                 )}
               </div>,

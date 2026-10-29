@@ -46,19 +46,37 @@ export function ReceptionProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     mounted.current = true;
     const controller = new AbortController();
-    void loadReception(controller.signal)
-      .then((next) => {
-        if (!controller.signal.aborted) setData(next);
-      })
-      .catch(() => {
-        if (!controller.signal.aborted) setError(formatAppMessage("MSG-04"));
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setLoading(false);
-      });
+    let refreshing = false;
+    const sync = () => {
+      if (refreshing || busy.current || controller.signal.aborted) return;
+      refreshing = true;
+      void loadReception()
+        .then((next) => {
+          if (!controller.signal.aborted) setData(next);
+        })
+        .catch(() => {
+          if (!controller.signal.aborted) setError(formatAppMessage("MSG-04"));
+        })
+        .finally(() => {
+          refreshing = false;
+          if (!controller.signal.aborted) setLoading(false);
+        });
+    };
+    sync();
+    const timer = setInterval(() => {
+      if (!document.hidden) sync();
+    }, 1000);
+    const onVisible = () => {
+      if (!document.hidden) sync();
+    };
+    window.addEventListener("focus", onVisible);
+    document.addEventListener("visibilitychange", onVisible);
     return () => {
       mounted.current = false;
       controller.abort();
+      clearInterval(timer);
+      window.removeEventListener("focus", onVisible);
+      document.removeEventListener("visibilitychange", onVisible);
     };
   }, []);
   async function run(command: ReceptionCommand) {
