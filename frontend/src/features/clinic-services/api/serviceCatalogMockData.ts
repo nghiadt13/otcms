@@ -2,7 +2,7 @@ import type {
   LabIndicator,
   ServiceCatalogDetail,
   ServiceModality,
-} from "../types/serviceCatalog";
+} from "../types/serviceCatalogPrototype";
 
 // Dữ liệu giả cho màn Admin "Dịch vụ và giá": 26 bản ghi (2 trang), 3 bản ghi đã ngừng
 // (`svc-disc-01..03`), một dịch vụ giá 0 (`svc-04`). BE thật dùng UUID.

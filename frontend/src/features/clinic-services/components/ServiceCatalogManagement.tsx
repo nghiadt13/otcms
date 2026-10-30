@@ -11,7 +11,7 @@ import { useServiceCatalogList } from "../hooks/useServiceCatalogList";
 import type {
   ServiceCatalogDetail,
   ServiceCatalogItem,
-} from "../types/serviceCatalog";
+} from "../types/serviceCatalogPrototype";
 import { ServiceCatalogFilters } from "./ServiceCatalogFilters";
 import { ServiceCatalogTable } from "./ServiceCatalogTable";
 import { ServiceDetailSheet } from "./ServiceDetailSheet";

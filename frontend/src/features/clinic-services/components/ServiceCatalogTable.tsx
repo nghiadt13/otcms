@@ -18,7 +18,7 @@ import {
   MODALITY_LABELS,
   SERVICE_STATUS_LABELS,
   type ServiceCatalogItem,
-} from "../types/serviceCatalog";
+} from "../types/serviceCatalogPrototype";
 
 type ServiceCatalogTableProps = {
   items: ServiceCatalogItem[];

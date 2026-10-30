@@ -1,131 +1,91 @@
-import { clone, mockDelay, mockFail, paginate } from "@/lib/api/mockServer";
+import { apiRequest } from "@/lib/api/client";
+import { ApiError } from "@/lib/api/apiError";
 import type { PageResponse } from "@/lib/api/pagination";
 import type {
   ServiceCatalogDetail,
   ServiceCatalogItem,
   ServiceCatalogQuery,
-  ServiceUpdateRequest,
   ServiceWriteRequest,
+  ServiceUpdateRequest,
 } from "../types/serviceCatalog";
-import { buildServiceCatalogSeed } from "./serviceCatalogMockData";
-
-// Lớp API Admin "Dịch vụ và giá". Chữ ký khớp REST contract `/api/v1/admin/services`;
-// hiện chạy trên kho mock trong bộ nhớ, ném ApiError đúng hình BE thật.
-
-const LATENCY_MS = process.env.NODE_ENV === "test" ? 0 : 250;
-
-let store: ServiceCatalogDetail[] = buildServiceCatalogSeed();
-let nextId = 100;
-
-/** Đặt lại dữ liệu giả (dùng trong test). */
-export function resetServiceCatalogMock() {
-  store = buildServiceCatalogSeed();
-  nextId = 100;
-}
-
-const normalizeName = (name: string) => name.trim().toLowerCase();
-
-function toItem(detail: ServiceCatalogDetail): ServiceCatalogItem {
-  return {
-    id: detail.id,
-    name: detail.name,
-    type: detail.type,
-    modality: detail.modality,
-    price: detail.price,
-    status: detail.status,
-    allowedActions: detail.allowedActions,
-  };
-}
-
-function findOrFail(id: string): ServiceCatalogDetail {
-  const found = store.find((item) => item.id === id);
-  if (!found) mockFail(404, "MSG-50");
-  return found;
-}
-
-/** Tên trùng với dịch vụ đang cung cấp khác → 409 MSG-66 gắn vào ô `name`. */
-function assertNameAvailable(name: string, selfId?: string) {
-  const wanted = normalizeName(name);
-  const clash = store.some(
-    (item) =>
-      item.id !== selfId &&
-      item.status === "ACTIVE" &&
-      normalizeName(item.name) === wanted,
-  );
-  if (clash) {
-    mockFail(409, "MSG-66", undefined, [{ field: "name", code: "MSG-66" }]);
+const root = "/api/v1/admin/clinic-services" as const;
+async function catalog(signal?: AbortSignal): Promise<ServiceCatalogItem[]> {
+  try {
+    return (await apiRequest<{ items: ServiceCatalogItem[] }>(root, { signal }))
+      .items;
+  } catch (error) {
+    // Only a missing endpoint permits the documented KAN-9 fallback. Never hide auth/network failures.
+    if (!(error instanceof ApiError) || error.status !== 404) throw error;
+    return (
+      await apiRequest<{ items: ServiceCatalogItem[] }>(
+        "/api/v1/staff/clinic-services",
+        { signal },
+      )
+    ).items;
   }
 }
-
 export async function listServiceCatalog(
   query: ServiceCatalogQuery = {},
   signal?: AbortSignal,
 ): Promise<PageResponse<ServiceCatalogItem>> {
-  await mockDelay(LATENCY_MS, signal);
-  const q = query.q?.trim().toLowerCase() ?? "";
-  if (q.includes("loi")) mockFail(500, "MSG-04"); // ca lỗi hệ thống để thử trạng thái lỗi
-  const filtered = store
-    .filter((item) => !q || item.name.toLowerCase().includes(q))
-    .filter((item) => !query.type || item.type === query.type)
-    .filter((item) => !query.status || item.status === query.status)
-    .sort((a, b) => a.name.localeCompare(b.name, "vi"))
-    .map(toItem);
-  return clone(paginate(filtered, query));
+  const items = (await catalog(signal)).filter(
+    (s) =>
+      s.name
+        .toLocaleLowerCase("vi")
+        .includes((query.q ?? "").trim().toLocaleLowerCase("vi")) &&
+      (!query.status || s.active === (query.status === "ACTIVE")),
+  );
+  const page = Math.max(0, query.page ?? 0),
+    size = Math.max(1, Math.min(100, query.size ?? 20));
+  return {
+    items: items.slice(page * size, (page + 1) * size),
+    page,
+    size,
+    totalItems: items.length,
+    totalPages: Math.ceil(items.length / size),
+  };
 }
-
 export async function getServiceCatalog(
   id: string,
   signal?: AbortSignal,
 ): Promise<ServiceCatalogDetail> {
-  await mockDelay(LATENCY_MS, signal);
-  return clone(findOrFail(id));
+  // KAN-9 has no admin detail endpoint: derive a detail only from the actual backend catalog.
+  const service = (await catalog(signal)).find((s) => s.id === id);
+  if (!service) throw new ApiError(404, { code: "MSG-50" });
+  return service;
 }
-
-export async function createServiceCatalog(
+export function createServiceCatalog(
   body: ServiceWriteRequest,
 ): Promise<ServiceCatalogDetail> {
-  await mockDelay(LATENCY_MS);
-  assertNameAvailable(body.name);
-  nextId += 1;
-  const created: ServiceCatalogDetail = {
-    ...clone(body),
-    name: body.name.trim(),
-    id: `svc-${nextId}`,
-    status: "ACTIVE",
-    allowedActions: ["edit", "discontinue"],
-  };
-  store = [...store, created];
-  return clone(created);
+  return apiRequest(root, { method: "POST", body: JSON.stringify(body) });
 }
-
-export async function updateServiceCatalog(
+export function updateServiceCatalog(
   id: string,
   body: ServiceUpdateRequest,
 ): Promise<ServiceCatalogDetail> {
-  await mockDelay(LATENCY_MS);
-  const current = findOrFail(id);
-  if (current.status === "DISCONTINUED") mockFail(409, "MSG-50");
-  assertNameAvailable(body.name, id);
-  const updated: ServiceCatalogDetail = {
-    ...current,
-    ...clone(body),
-    name: body.name.trim(),
-  };
-  store = store.map((item) => (item.id === id ? updated : item));
-  return clone(updated);
+  return apiRequest(`${root}/${encodeURIComponent(id)}`, {
+    method: "PUT",
+    body: JSON.stringify(body),
+  });
 }
-
 export async function discontinueServiceCatalog(
   id: string,
 ): Promise<ServiceCatalogDetail> {
-  await mockDelay(LATENCY_MS);
-  const current = findOrFail(id);
-  if (current.status === "DISCONTINUED") mockFail(409, "MSG-50");
-  const updated: ServiceCatalogDetail = {
-    ...current,
-    status: "DISCONTINUED",
-    allowedActions: [],
-  };
-  store = store.map((item) => (item.id === id ? updated : item));
-  return clone(updated);
+  await apiRequest<void>(`${root}/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+  });
+  return getServiceCatalog(id);
 }
+export async function activateServiceCatalog(
+  id: string,
+): Promise<ServiceCatalogDetail> {
+  await apiRequest<void>(`${root}/${encodeURIComponent(id)}/activation`, {
+    method: "POST",
+  });
+  return getServiceCatalog(id);
+}
+export {
+  assignServiceDoctor,
+  removeServiceDoctor,
+  assessAssignmentRemoval,
+} from "./serviceDoctorAssignmentApi";

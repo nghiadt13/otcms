@@ -8,7 +8,7 @@ import {
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { notifySuccess } from "@/lib/messages/notify";
-import { resetServiceCatalogMock } from "../api/serviceCatalogApi";
+import { resetServiceCatalogMock } from "../api/serviceCatalogPrototypeApi";
 import { ServiceCatalogManagement } from "./ServiceCatalogManagement";
 import { formatAppMessage } from "@/lib/messages/appMessages";
 // Toast của sonner cần Toaster; test chỉ kiểm mã thông báo được gọi.

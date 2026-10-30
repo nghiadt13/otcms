@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
-import { ServiceCatalogManagement } from "@/features/clinic-services/components/ServiceCatalogManagement";
+import { AdminServicesLive } from "@/features/clinic-services/components/AdminServicesLive";
 
 export const metadata: Metadata = { title: "Dịch vụ và giá" };
 
 export default function AdminServicesPage() {
-  return <ServiceCatalogManagement />;
+  return <AdminServicesLive />;
 }

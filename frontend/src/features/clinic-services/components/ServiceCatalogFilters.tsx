@@ -14,7 +14,7 @@ import {
 import {
   SERVICE_STATUS_LABELS,
   type ServiceStatus,
-} from "../types/serviceCatalog";
+} from "../types/serviceCatalogPrototype";
 
 type ServiceCatalogFiltersProps = {
   searchText: string;
