@@ -73,6 +73,24 @@ class UC08StaffAuthenticationTest {
     }
 
     @Test
+    void staffLoginAcceptsUsernameAndKeepsLegacyEmailRequest() throws Exception {
+        UUID id = UUID.randomUUID();
+        when(credentials.loginStaff(anyString(), anyString(), anyString()))
+                .thenReturn(new CredentialLoginResponse(id, "RECEPTIONIST"));
+        when(sessions.create(eq(id), any(), any())).thenReturn(issued(id));
+        var mvc = MockMvcBuilders.standaloneSetup(controller(List.of("127.0.0.0/8")))
+                .setControllerAdvice(new AuthExceptionHandler()).build();
+        mvc.perform(post("/api/auth/staff/login").contentType("application/json")
+                        .content("{\"username\":\"reception.one\",\"password\":\"pass-123\"}"))
+                .andExpect(status().isOk());
+        mvc.perform(post("/api/auth/staff/login").contentType("application/json")
+                        .content("{\"email\":\"legacy@example.test\",\"password\":\"pass-123\"}"))
+                .andExpect(status().isOk());
+        verify(credentials).loginStaff("reception.one", "pass-123", "127.0.0.1");
+        verify(credentials).loginStaff("legacy@example.test", "pass-123", "127.0.0.1");
+    }
+
+    @Test
     void staffNetworkAdmissionStillRejectsUntrustedClientsBeforeCredentials() throws Exception {
         var mvc = MockMvcBuilders.standaloneSetup(controller(List.of("10.0.0.0/8")))
                 .setControllerAdvice(new AuthExceptionHandler()).build();

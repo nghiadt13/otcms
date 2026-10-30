@@ -1,6 +1,6 @@
 package fu.fa26.sep490.g58.otcms_be.auth.controller;
 
-import fu.fa26.sep490.g58.otcms_be.auth.model.dto.request.CredentialLoginRequest;
+import fu.fa26.sep490.g58.otcms_be.auth.model.dto.request.StaffLoginRequest;
 import fu.fa26.sep490.g58.otcms_be.auth.model.dto.request.AdministratorLoginRequest;
 import fu.fa26.sep490.g58.otcms_be.auth.model.dto.response.SessionTokenResponse;
 import fu.fa26.sep490.g58.otcms_be.auth.service.AuthSessionService;
@@ -34,7 +34,7 @@ public class StaffLoginController {
     }
 
     @PostMapping("/login")
-    public ResponseEntity<SessionTokenResponse> login(@Valid @RequestBody CredentialLoginRequest request,
+    public ResponseEntity<SessionTokenResponse> login(@Valid @RequestBody StaffLoginRequest request,
                                                        HttpServletRequest httpRequest,
                                                        HttpServletResponse response) {
         String ip = network.clientAddress(httpRequest.getRemoteAddr(), httpRequest.getHeader("Forwarded"),
@@ -43,7 +43,7 @@ public class StaffLoginController {
             throw new StaffNetworkAccessException();
         }
 
-        return issue(login.login(request.email(), request.password(), ip,
+        return issue(login.login(request.identifier(), request.getPassword(), ip,
                 httpRequest.getHeader("User-Agent"), false), response);
     }
 
