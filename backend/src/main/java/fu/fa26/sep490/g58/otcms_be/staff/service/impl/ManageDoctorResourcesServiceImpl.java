@@ -61,6 +61,7 @@ public class ManageDoctorResourcesServiceImpl implements ManageDoctorResourcesSe
         validateIds(doctorId, actor, correlationId); if (shiftId == null) throw invalid();
         guard.acquire(); requireDoctor(doctorId);
         var shift = shifts.findByIdAndDoctorProfileId(shiftId, doctorId).orElseThrow(() -> new DoctorProfileException("DOCTOR_SHIFT_NOT_FOUND"));
+        requireFuture(shift.startsAt());
         var other = shifts.findAllByDoctorProfileIdOrderByStartsAtAscIdAsc(doctorId).stream().filter(s -> !s.id().equals(shiftId)).toList();
         AdminMutationImpact impact = shiftImpact(doctorId, shiftId, null, null, other);
         if (impact.isBlocked()) throw new ResourceMutationBlockedException(impact);
@@ -74,6 +75,7 @@ public class ManageDoctorResourcesServiceImpl implements ManageDoctorResourcesSe
         validate(doctorId, startsAt, endsAt, actor, correlationId); if (shiftId == null) throw invalid();
         guard.acquire(); requireDoctor(doctorId);
         var shift=shifts.findByIdAndDoctorProfileId(shiftId, doctorId).orElseThrow(() -> new DoctorProfileException("DOCTOR_SHIFT_NOT_FOUND"));
+        requireFuture(shift.startsAt());
         var other=shifts.findAllByDoctorProfileIdOrderByStartsAtAscIdAsc(doctorId).stream().filter(s -> !s.id().equals(shiftId)).toList();
         if (other.stream().anyMatch(s -> overlaps(startsAt, endsAt, s.startsAt(), s.endsAt())))
             throw new DoctorProfileException("DOCTOR_SHIFT_OVERLAP");
@@ -89,6 +91,7 @@ public class ManageDoctorResourcesServiceImpl implements ManageDoctorResourcesSe
     public DoctorIntervalResponse createTimeOff(UUID doctorId, Instant startsAt, Instant endsAt, AuthenticatedAccount actor, String correlationId) {
         validate(doctorId, startsAt, endsAt, actor, correlationId);
         guard.acquire(); requireDoctor(doctorId);
+        requireNoTimeOffOverlap(doctorId, null, startsAt, endsAt);
         AdminMutationImpact impact = timeOffImpact(doctorId, null, startsAt, endsAt);
         if (impact.isBlocked()) throw new ResourceMutationBlockedException(impact);
         UUID id = UUID.randomUUID();
@@ -103,6 +106,7 @@ public class ManageDoctorResourcesServiceImpl implements ManageDoctorResourcesSe
         guard.acquire(); requireDoctor(doctorId);
         var item = timeOffs.findByIdAndDoctorProfileId(timeOffId, doctorId)
                 .orElseThrow(() -> new DoctorProfileException("DOCTOR_TIME_OFF_NOT_FOUND"));
+        requireFuture(item.startsAt());
         timeOffs.delete(item);
         audit(doctorId, actor.accountId(), "TIME_OFF", timeOffId, "DELETED", intervalJson(item.startsAt(), item.endsAt()), "{}", correlationId);
     }
@@ -114,6 +118,8 @@ public class ManageDoctorResourcesServiceImpl implements ManageDoctorResourcesSe
         guard.acquire(); requireDoctor(doctorId);
         var item=timeOffs.findByIdAndDoctorProfileId(timeOffId, doctorId)
                 .orElseThrow(() -> new DoctorProfileException("DOCTOR_TIME_OFF_NOT_FOUND"));
+        requireFuture(item.startsAt());
+        requireNoTimeOffOverlap(doctorId, timeOffId, startsAt, endsAt);
         AdminMutationImpact impact = timeOffImpact(doctorId, timeOffId, startsAt, endsAt);
         if (impact.isBlocked()) throw new ResourceMutationBlockedException(impact);
         String before=intervalJson(item.startsAt(), item.endsAt()); item.updateInterval(startsAt, endsAt);
@@ -207,11 +213,19 @@ public class ManageDoctorResourcesServiceImpl implements ManageDoctorResourcesSe
     private void validate(UUID doctorId, Instant startsAt, Instant endsAt, AuthenticatedAccount actor, String correlationId) {
         validateIds(doctorId, actor, correlationId);
         if (startsAt == null || endsAt == null || !startsAt.isBefore(endsAt)) throw invalid();
+        requireFuture(startsAt);
     }
     private void validateIds(UUID doctorId, AuthenticatedAccount actor, String correlationId) {
         if (doctorId == null || actor == null || actor.accountId() == null || actor.accountRole() != AccountRole.ADMIN
                 || correlationId == null || correlationId.isBlank() || correlationId.length() > 128)
             throw new DoctorProfileException("ACCESS_DENIED");
+    }
+    private void requireFuture(Instant startsAt) {
+        if (startsAt.isBefore(clock.instant())) throw new DoctorProfileException("DOCTOR_RESOURCE_IN_PAST");
+    }
+    private void requireNoTimeOffOverlap(UUID doctorId, UUID ignoreId, Instant startsAt, Instant endsAt) {
+        if (timeOffs.findOverlapping(java.util.List.of(doctorId), startsAt, endsAt).stream()
+                .anyMatch(t -> !t.id().equals(ignoreId))) throw new DoctorProfileException("DOCTOR_TIME_OFF_OVERLAP");
     }
     private DoctorProfileException invalid() { return new DoctorProfileException("DOCTOR_RESOURCE_REQUEST_INVALID"); }
 }

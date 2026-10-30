@@ -17,6 +17,14 @@ public class DoctorAccountTypeQueryServiceImpl implements DoctorAccountTypeQuery
     }
 
     @Override
+    @org.springframework.transaction.annotation.Transactional(readOnly = true)
+    public java.util.List<DoctorAccountOption> listActiveDoctorAccounts() {
+        return accounts.findByAccountTypeAndStatusOrderByFullNameAscIdAsc(AccountType.DOCTOR,
+                fu.fa26.sep490.g58.otcms_be.auth.model.entity.enums.AccountStatus.ACTIVE).stream()
+                .map(a -> new DoctorAccountOption(a.getId(), a.getUsername(), a.getFullName())).toList();
+    }
+
+    @Override
     public boolean isDoctorAccount(UUID accountId) {
         return accountId != null && accounts.existsByIdAndAccountType(accountId, AccountType.DOCTOR);
     }
