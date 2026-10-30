@@ -59,6 +59,10 @@ frontend/src/
 │   │   ├── (site)/                      trang giới thiệu có header/footer chung: layout.tsx, page.tsx (trang chủ); sau này doctors/, services/
 │   │   ├── login/, register/, forgot-password/, reset-password/   UC01, UC06, UC02 (page.tsx mỏng, gọi features/auth)
 │   │   └── workspace/page.tsx
+│   ├── (staff)/                         root layout dùng chung theme và font cho lễ tân/kỹ thuật viên
+│   │   ├── layout.tsx, staff.css
+│   │   ├── reception/
+│   │   └── imaging/                     page.tsx mỏng; layout ghép imaging-shell; có error/loading/not-found
 │   └── (admin)/                         root layout riêng: theme shadcn + font Be Vietnam Pro
 │       ├── layout.tsx
 │       └── admin/                       layout shell + 13 màn quản trị (UC07–UC79)
@@ -70,6 +74,8 @@ frontend/src/
 │   ├── patient-reviews/                 đánh giá đã công khai (UC62–UC63, BR-60): FeaturedReviews, api giả
 │   ├── auth/                            UC01/02/06: components (AuthCard, form, luồng đăng ký 3 bước), api (đăng nhập thật, còn lại giả), schema, authMessages
 │   ├── admin-shell/                     sidebar (nhóm thu gọn), header, ô tài khoản, adminNavigation.ts (nguồn duy nhất cho menu)
+│   ├── imaging-shell/                   cùng mẫu admin-shell: sidebar, nhóm menu, header, ô tài khoản, imagingNavigation.ts
+│   ├── imaging/                         components theo từng màn; hooks cho trạng thái; api cho dữ liệu mẫu/storage/file; schema, types, styles
 │   ├── notifications/                   chuông thông báo (UC64), api giả
 │   └── rooms/                           feature mẫu: types, api (giả), hooks, components
 ├── components/
@@ -86,7 +92,7 @@ frontend/src/
 └── test/setup.ts                        Thiết lập chung cho Vitest; `*.test.ts(x)` nằm cạnh mã nguồn
 ```
 
-Chiều phụ thuộc frontend được ESLint ép buộc: `app` → `features` → `components`/`lib`/`hooks`; feature không import feature khác (trừ lớp ghép `admin-shell`), mã dùng chung không import ngược lên feature hay `app`. Chi tiết và cách mở rộng ở `AGENTS.md`.
+Chiều phụ thuộc frontend được ESLint ép buộc: `app` → `features` → `components`/`lib`/`hooks`; feature không import feature khác (trừ lớp ghép `admin-shell`, `imaging-shell`), mã dùng chung không import ngược lên feature hay `app`. Feature nghiệp vụ không import shell. Chi tiết và cách mở rộng ở `AGENTS.md`.
 
 Quy tắc màu sắc, chữ, bố cục và component khi dựng màn hình nằm ở [`ui-guidelines.md`](ui-guidelines.md).
 

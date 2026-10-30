@@ -1,4 +1,4 @@
-import { ValidationScreen } from "@/features/imaging/components/UploadScreens";
+import { ValidationScreen } from "@/features/imaging/components/ValidationScreen";
 
 export default async function Page({
   params,

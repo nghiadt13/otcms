@@ -1,4 +1,4 @@
-import { UploadScreen } from "@/features/imaging/components/UploadScreens";
+import { UploadScreen } from "@/features/imaging/components/UploadScreen";
 
 export default async function Page({
   params,

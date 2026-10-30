@@ -1,4 +1,4 @@
-import { OrderDetailsScreen } from "@/features/imaging/components/OrderScreens";
+import { OrderDetailsScreen } from "@/features/imaging/components/OrderDetailsScreen";
 
 export default async function Page({
   params,

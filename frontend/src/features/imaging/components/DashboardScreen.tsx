@@ -1,19 +1,16 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-
 import Link from "next/link";
-import { useImaging } from "../ImagingProvider";
-import { CURRENT_ROOM, ROOM_NAME } from "../demoData";
-import {
-  ActionLink,
-  Badge,
-  Empty,
-  Icon,
-  PageHeading,
-  Panel,
-  PatientAvatar,
-} from "./ImagingUi";
+import { useImaging } from "../hooks/useImaging";
+import { CURRENT_ROOM, ROOM_NAME } from "../api/imagingMockData";
+import { ActionLink } from "./ActionLink";
+import { Badge } from "./Badge";
+import { Empty } from "./Empty";
+import { Icon } from "./Icon";
+import { PageHeading } from "./PageHeading";
+import { Panel } from "./Panel";
+import { PatientAvatar } from "./PatientAvatar";
 
 export function DashboardScreen() {
   const { state, callNext } = useImaging();
