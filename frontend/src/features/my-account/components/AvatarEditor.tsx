@@ -19,10 +19,18 @@ const AVATAR_ERROR =
 
 type AvatarEditorProps = {
   account: MyAccount;
+  /** Cỡ lớn cho khu bệnh nhân: nút cao 48px, chữ 16px. */
+  large?: boolean;
+  /** Cấp tiêu đề "Ảnh đại diện"; dùng `h3` khi khối nằm dưới một `h2` của màn. */
+  headingLevel?: "h2" | "h3";
 };
 
 /** Chọn, xem trước, lưu và gỡ ảnh đại diện (UC04). Gỡ ảnh đổi lại được nên không hỏi xác nhận. */
-export function AvatarEditor({ account }: AvatarEditorProps) {
+export function AvatarEditor({
+  account,
+  large = false,
+  headingLevel: Heading = "h2",
+}: AvatarEditorProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -48,7 +56,10 @@ export function AvatarEditor({ account }: AvatarEditorProps) {
     const picked = event.target.files?.[0];
     event.target.value = "";
     if (!picked) return;
-    if (!AVATAR_ACCEPTED_TYPES.includes(picked.type) || picked.size > AVATAR_MAX_BYTES) {
+    if (
+      !AVATAR_ACCEPTED_TYPES.includes(picked.type) ||
+      picked.size > AVATAR_MAX_BYTES
+    ) {
       setFile(null);
       setError(AVATAR_ERROR);
       return;
@@ -97,18 +108,27 @@ export function AvatarEditor({ account }: AvatarEditorProps) {
 
   const shownUrl = previewUrl ?? account.avatarUrl;
   const busy = pending !== null;
+  const buttonClass = large ? "h-12 px-5 text-base" : undefined;
 
   return (
     <section aria-labelledby="avatar-heading" className="grid gap-3">
-      <h2 id="avatar-heading" className="text-base font-medium">
+      <Heading
+        id="avatar-heading"
+        className={large ? "text-lg font-semibold" : "text-base font-medium"}
+      >
         Ảnh đại diện
-      </h2>
+      </Heading>
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
-        <Avatar className="size-16">
+        <Avatar className={large ? "size-20" : "size-16"}>
           {shownUrl ? (
-            <AvatarImage src={shownUrl} alt={`Ảnh đại diện của ${account.username}`} />
+            <AvatarImage
+              src={shownUrl}
+              alt={`Ảnh đại diện của ${account.displayName}`}
+            />
           ) : null}
-          <AvatarFallback>{account.username.slice(0, 2).toUpperCase()}</AvatarFallback>
+          <AvatarFallback className={large ? "text-lg" : undefined}>
+            {initialsOf(account.displayName)}
+          </AvatarFallback>
         </Avatar>
         <div className="flex flex-wrap items-center gap-2">
           <input
@@ -123,6 +143,7 @@ export function AvatarEditor({ account }: AvatarEditorProps) {
           {canUpdate ? (
             <Button
               variant="outline"
+              className={buttonClass}
               disabled={busy}
               onClick={() => inputRef.current?.click()}
             >
@@ -130,26 +151,54 @@ export function AvatarEditor({ account }: AvatarEditorProps) {
             </Button>
           ) : null}
           {canRemove && !file ? (
-            <Button variant="ghost" disabled={busy} onClick={() => void handleRemove()}>
+            <Button
+              variant="ghost"
+              className={buttonClass}
+              disabled={busy}
+              onClick={() => void handleRemove()}
+            >
               {pending === "remove" ? "Đang gỡ..." : "Gỡ ảnh"}
             </Button>
           ) : null}
           {file ? (
             <>
-              <Button variant="ghost" disabled={busy} onClick={cancelPending}>
+              <Button
+                variant="ghost"
+                className={buttonClass}
+                disabled={busy}
+                onClick={cancelPending}
+              >
                 Hủy
               </Button>
-              <Button disabled={busy} onClick={() => void handleSave()}>
+              <Button
+                className={buttonClass}
+                disabled={busy}
+                onClick={() => void handleSave()}
+              >
                 {pending === "save" ? "Đang lưu..." : "Lưu ảnh"}
               </Button>
             </>
           ) : null}
         </div>
       </div>
-      <p className="text-xs text-muted-foreground">
+      <p
+        className={
+          large
+            ? "text-sm text-muted-foreground"
+            : "text-xs text-muted-foreground"
+        }
+      >
         JPEG, PNG hoặc WEBP, tối đa 2 MB.
       </p>
       <FieldError message={error} />
     </section>
   );
+}
+
+/** Chữ cái đầu của tên và họ, dùng làm ảnh đại diện tạm khi chưa có ảnh. */
+function initialsOf(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  const first = parts[0]?.charAt(0) ?? "";
+  const last = parts.length > 1 ? parts[parts.length - 1].charAt(0) : "";
+  return (first + last).toUpperCase();
 }

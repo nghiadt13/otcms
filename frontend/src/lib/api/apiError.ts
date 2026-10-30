@@ -8,6 +8,8 @@ export type ApiErrorInit = {
   params?: Record<string, string | number>;
   fieldErrors?: ApiFieldError[];
   detail?: string;
+  /** Mã lỗi thô của backend (`error.code`, ví dụ SLOT_UNAVAILABLE) khi chưa có mã MSG. */
+  errorCode?: string;
 };
 
 export class ApiError extends Error {
@@ -15,6 +17,7 @@ export class ApiError extends Error {
   readonly code?: MsgCode;
   readonly params?: Record<string, string | number>;
   readonly fieldErrors?: ApiFieldError[];
+  readonly errorCode?: string;
 
   constructor(status: number, init: ApiErrorInit = {}) {
     super(init.detail ?? init.code ?? `API trả về mã ${status}.`);
@@ -23,6 +26,7 @@ export class ApiError extends Error {
     this.code = init.code;
     this.params = init.params;
     this.fieldErrors = init.fieldErrors;
+    this.errorCode = init.errorCode;
   }
 }
 

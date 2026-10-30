@@ -4,7 +4,6 @@ import {
   createStaffProfile,
   getStaffProfile,
   listEligibleStaffAccounts,
-  listFeaturedDoctors,
   listStaffProfiles,
   removeStaffProfile,
   updateStaffProfile,
@@ -21,7 +20,11 @@ async function findId(username: string) {
   return item.id;
 }
 
-async function expectApiError(promise: Promise<unknown>, status: number, code: string) {
+async function expectApiError(
+  promise: Promise<unknown>,
+  status: number,
+  code: string,
+) {
   const error = await promise.then(
     () => null,
     (e: unknown) => e,
@@ -53,16 +56,25 @@ describe("listStaffProfiles", () => {
   });
 
   it("lọc theo vai trò và trạng thái hồ sơ", async () => {
-    const doctors = await listStaffProfiles({ ...ALL, role: "ORTHOPEDIC_DOCTOR" });
+    const doctors = await listStaffProfiles({
+      ...ALL,
+      role: "ORTHOPEDIC_DOCTOR",
+    });
     expect(doctors.totalItems).toBe(6);
     const removed = await listStaffProfiles({ ...ALL, status: "REMOVED" });
     expect(removed.items.every((p) => p.status === "REMOVED")).toBe(true);
-    expect(removed.items.every((p) => p.allowedActions.length === 0)).toBe(true);
+    expect(removed.items.every((p) => p.allowedActions.length === 0)).toBe(
+      true,
+    );
   });
 
   it("bộ lọc công khai chỉ khớp bác sĩ; nhân viên khác có isPublic null", async () => {
     const yes = await listStaffProfiles({ ...ALL, isPublic: "true" });
-    expect(yes.items.map((p) => p.username).sort()).toEqual(["bs.ha", "bs.minh", "bs.trung"]);
+    expect(yes.items.map((p) => p.username).sort()).toEqual([
+      "bs.ha",
+      "bs.minh",
+      "bs.trung",
+    ]);
     const no = await listStaffProfiles({ ...ALL, isPublic: "false" });
     expect(no.items.every((p) => p.role === "ORTHOPEDIC_DOCTOR")).toBe(true);
     const receptionist = await listStaffProfiles({ ...ALL, q: "le.tan.hoa" });
@@ -101,9 +113,15 @@ describe("createStaffProfile", () => {
   });
 
   it("thiếu họ tên hoặc liên hệ trả 400 MSG-22 kèm fieldErrors MSG-12", async () => {
-    const account = (await listEligibleStaffAccounts()).find((a) => a.username === "le.tan.lan")!;
+    const account = (await listEligibleStaffAccounts()).find(
+      (a) => a.username === "le.tan.lan",
+    )!;
     const error = await expectApiError(
-      createStaffProfile({ accountId: account.accountId, displayName: " ", workContact: "" }),
+      createStaffProfile({
+        accountId: account.accountId,
+        displayName: " ",
+        workContact: "",
+      }),
       400,
       "MSG-22",
     );
@@ -114,25 +132,38 @@ describe("createStaffProfile", () => {
   });
 
   it("tài khoản kt.loi gặp lỗi dịch vụ MSG-04", async () => {
-    const account = (await listEligibleStaffAccounts()).find((a) => a.username === "kt.loi")!;
+    const account = (await listEligibleStaffAccounts()).find(
+      (a) => a.username === "kt.loi",
+    )!;
     await expectApiError(
-      createStaffProfile({ accountId: account.accountId, displayName: "Đặng Văn Lợi", workContact: "0977 111 222" }),
+      createStaffProfile({
+        accountId: account.accountId,
+        displayName: "Đặng Văn Lợi",
+        workContact: "0977 111 222",
+      }),
       500,
       "MSG-04",
     );
   });
 
   it("bác sĩ tạo với công khai tắt không lên danh sách trang chủ", async () => {
-    const account = (await listEligibleStaffAccounts()).find((a) => a.username === "bs.hung")!;
+    const account = (await listEligibleStaffAccounts()).find(
+      (a) => a.username === "bs.hung",
+    )!;
     const created = await createStaffProfile({
       accountId: account.accountId,
       displayName: "BS. Bùi Quốc Hùng",
       workContact: "hung@example.com",
-      doctor: { specialties: ["Cột sống"], qualifications: "", biography: "", consultationInfo: "", isPublic: false },
+      doctor: {
+        specialties: ["Cột sống"],
+        qualifications: "",
+        biography: "",
+        consultationInfo: "",
+        isPublic: false,
+      },
     });
     expect(created.doctor?.isPublic).toBe(false);
     expect(created.publicUrl).toBeNull();
-    expect((await listFeaturedDoctors()).map((d) => d.id)).not.toContain(created.id);
   });
 });
 
@@ -144,19 +175,24 @@ describe("updateStaffProfile", () => {
       400,
       "MSG-22",
     );
-    expect(error.fieldErrors).toEqual([{ field: "displayName", code: "MSG-12" }]);
+    expect(error.fieldErrors).toEqual([
+      { field: "displayName", code: "MSG-12" },
+    ]);
   });
 
   it("hồ sơ kt.loi.xn gặp lỗi dịch vụ MSG-04", async () => {
     const id = await findId("kt.loi.xn");
     await expectApiError(
-      updateStaffProfile(id, { displayName: "KTV XN Đặng Lợi", workContact: "0977 000 111" }),
+      updateStaffProfile(id, {
+        displayName: "KTV XN Đặng Lợi",
+        workContact: "0977 000 111",
+      }),
       500,
       "MSG-04",
     );
   });
 
-  it("bật công khai cập nhật publicUrl và danh sách trang chủ", async () => {
+  it("bật công khai cập nhật publicUrl trỏ tới trang bác sĩ công khai", async () => {
     const id = await findId("bs.yen");
     const detail = await getStaffProfile(id);
     const updated = await updateStaffProfile(id, {
@@ -164,8 +200,7 @@ describe("updateStaffProfile", () => {
       workContact: detail.workContact,
       doctor: { ...detail.doctor!, isPublic: true },
     });
-    expect(updated.publicUrl).toBe(`/bac-si/${id}`);
-    expect((await listFeaturedDoctors(10)).map((d) => d.id)).toContain(id);
+    expect(updated.publicUrl).toBe(`/doctors/${id}`);
   });
 });
 
@@ -176,27 +211,15 @@ describe("removeStaffProfile", () => {
     expect((await getStaffProfile(id)).status).toBe("ACTIVE");
   });
 
-  it("bs.minh gỡ được, chuyển REMOVED và biến khỏi trang chủ", async () => {
+  it("bs.minh gỡ được và chuyển REMOVED", async () => {
     const id = await findId("bs.minh");
     await expect(removeStaffProfile(id)).resolves.toBeUndefined();
     const detail = await getStaffProfile(id);
     expect(detail.status).toBe("REMOVED");
     expect(detail.allowedActions).toEqual([]);
-    expect((await listFeaturedDoctors(10)).map((d) => d.id)).not.toContain(id);
   });
 
   it("hồ sơ không tồn tại trả 404 MSG-23", async () => {
     await expectApiError(getStaffProfile("khong-co"), 404, "MSG-23");
-  });
-});
-
-describe("listFeaturedDoctors", () => {
-  it("chỉ gồm bác sĩ Active và công khai", async () => {
-    const featured = await listFeaturedDoctors(10);
-    expect(featured.map((d) => d.displayName).sort()).toEqual([
-      "BS. Lê Minh Quân",
-      "BS. Nguyễn Văn Trung",
-      "ThS.BS. Trần Thu Hà",
-    ]);
   });
 });

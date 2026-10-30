@@ -9,6 +9,16 @@ import {
 import * as api from "../api/announcementApi";
 import type { AnnouncementDetail } from "../types/announcement";
 import { AnnouncementManagement } from "./AnnouncementManagement";
+import { formatAppMessage } from "@/lib/messages/appMessages";
+
+/** Nút Đóng ở chân Dialog, tách khỏi nút X có nhãn sr-only cùng tên "Đóng". */
+function footerClose(dialog: HTMLElement) {
+  const footer = dialog.querySelector<HTMLElement>(
+    '[data-slot="dialog-footer"]',
+  );
+  if (!footer) throw new Error("Dialog không có chân");
+  return within(footer).getByRole("button", { name: "Đóng" });
+}
 
 vi.setConfig({ testTimeout: 30000 });
 
@@ -33,7 +43,9 @@ const row = (patch: Partial<AnnouncementDetail> = {}): AnnouncementDetail => ({
 });
 
 async function openForm(user: ReturnType<typeof userEvent.setup>) {
-  await user.click(await screen.findByRole("button", { name: "Đăng thông báo" }));
+  await user.click(
+    await screen.findByRole("button", { name: "Đăng thông báo" }),
+  );
   return screen.findByRole("dialog");
 }
 
@@ -46,14 +58,26 @@ beforeEach(() => {
 describe("AnnouncementManagement danh sách", () => {
   it("hiện đủ cột, kênh ghép bằng dấu phẩy, deliveryStatus null là —", async () => {
     resetAnnouncementMock({
-      announcements: [row(), row({ id: "2", title: "Không rõ", deliveryStatus: null })],
+      announcements: [
+        row(),
+        row({ id: "2", title: "Không rõ", deliveryStatus: null }),
+      ],
     });
     render(<AnnouncementManagement />);
     expect(await screen.findByText("Lịch nghỉ lễ")).toBeInTheDocument();
-    for (const name of ["Tiêu đề", "Nhóm người nhận", "Kênh", "Ngày đăng", "Trạng thái giao", "Thao tác"])
+    for (const name of [
+      "Tiêu đề",
+      "Nhóm người nhận",
+      "Kênh",
+      "Ngày đăng",
+      "Trạng thái giao",
+      "Thao tác",
+    ])
       expect(screen.getByRole("columnheader", { name })).toBeInTheDocument();
     const first = screen.getByText("Lịch nghỉ lễ").closest("tr")!;
-    expect(within(first).getByText("Email, Trong hệ thống")).toBeInTheDocument();
+    expect(
+      within(first).getByText("Email, Trong hệ thống"),
+    ).toBeInTheDocument();
     expect(within(first).getByText("Đã gửi")).toBeInTheDocument();
     expect(within(first).getByText("01/10/2026 09:00")).toBeInTheDocument();
     const second = screen.getByText("Không rõ").closest("tr")!;
@@ -63,10 +87,14 @@ describe("AnnouncementManagement danh sách", () => {
   it("ẩn cột trạng thái giao khi BE không trả field", async () => {
     const { deliveryStatus, ...withoutStatus } = row();
     void deliveryStatus;
-    resetAnnouncementMock({ announcements: [withoutStatus as AnnouncementDetail] });
+    resetAnnouncementMock({
+      announcements: [withoutStatus as AnnouncementDetail],
+    });
     render(<AnnouncementManagement />);
     await screen.findByText("Lịch nghỉ lễ");
-    expect(screen.queryByRole("columnheader", { name: "Trạng thái giao" })).toBeNull();
+    expect(
+      screen.queryByRole("columnheader", { name: "Trạng thái giao" }),
+    ).toBeNull();
   });
 
   it("trống chưa lọc dạy cách dùng", async () => {
@@ -83,12 +111,20 @@ describe("AnnouncementManagement danh sách", () => {
     const search = await screen.findByRole("searchbox");
     await user.type(search, "khong-co");
     expect(
-      await screen.findByText(/Không có thông báo khớp bộ lọc/, {}, { timeout: 2000 }),
+      await screen.findByText(
+        /Không có thông báo khớp bộ lọc/,
+        {},
+        { timeout: 2000 },
+      ),
     ).toBeInTheDocument();
 
     await user.clear(search);
     await user.type(search, "loi-tai");
-    const alert = await screen.findByText(/Hệ thống đang gặp sự cố/, {}, { timeout: 2000 });
+    const alert = await screen.findByText(
+      formatAppMessage("MSG-04"),
+      {},
+      { timeout: 2000 },
+    );
     expect(alert).toBeInTheDocument();
     const spy = vi.spyOn(api, "listAnnouncements");
     await user.click(screen.getByRole("button", { name: "Thử lại" }));
@@ -110,11 +146,15 @@ describe("AnnouncementManagement danh sách", () => {
     const user = userEvent.setup({ delay: null });
     render(<AnnouncementManagement />);
     await screen.findByRole("searchbox");
-    await waitFor(() => expect(screen.getAllByRole("row").length).toBeGreaterThan(2));
+    await waitFor(() =>
+      expect(screen.getAllByRole("row").length).toBeGreaterThan(2),
+    );
     const spy = vi.spyOn(api, "listAnnouncements");
     await user.type(screen.getByLabelText("Từ ngày"), "2026-10-20");
     await user.type(screen.getByLabelText("Đến ngày"), "2026-10-01");
-    expect(await screen.findByText(/Tiêu chí lọc chưa hợp lệ/)).toBeInTheDocument();
+    expect(
+      await screen.findByText(formatAppMessage("MSG-54")),
+    ).toBeInTheDocument();
     const callsWithBadRange = spy.mock.calls.filter(
       ([q]) => q.from && q.to && q.from > q.to,
     );
@@ -130,8 +170,12 @@ describe("AnnouncementManagement đăng thông báo", () => {
     await user.type(within(dialog).getByLabelText("Tiêu đề"), "Thông báo thử");
     await user.type(within(dialog).getByLabelText("Nội dung"), "Nội dung");
     await user.click(within(dialog).getByRole("checkbox", { name: "Email" }));
-    await user.click(within(dialog).getByRole("button", { name: "Đăng thông báo" }));
-    expect(await within(dialog).findByText("Chọn nhóm người nhận.")).toBeInTheDocument();
+    await user.click(
+      within(dialog).getByRole("button", { name: "Đăng thông báo" }),
+    );
+    expect(
+      await within(dialog).findByText("Chọn nhóm người nhận."),
+    ).toBeInTheDocument();
     expect(screen.queryByRole("alertdialog")).toBeNull();
   });
 
@@ -140,11 +184,19 @@ describe("AnnouncementManagement đăng thông báo", () => {
     const create = vi.spyOn(api, "createAnnouncement");
     render(<AnnouncementManagement />);
     const dialog = await openForm(user);
-    await user.type(within(dialog).getByLabelText("Tiêu đề"), "Đổi giờ tiếp nhận");
+    await user.type(
+      within(dialog).getByLabelText("Tiêu đề"),
+      "Đổi giờ tiếp nhận",
+    );
     await user.type(within(dialog).getByLabelText("Nội dung"), "Từ 7 giờ 30");
-    await user.selectOptions(within(dialog).getByLabelText("Nhóm người nhận"), "PATIENT");
+    await user.selectOptions(
+      within(dialog).getByLabelText("Nhóm người nhận"),
+      "PATIENT",
+    );
     await user.click(within(dialog).getByRole("checkbox", { name: "Email" }));
-    await user.click(within(dialog).getByRole("button", { name: "Đăng thông báo" }));
+    await user.click(
+      within(dialog).getByRole("button", { name: "Đăng thông báo" }),
+    );
 
     const confirm = await screen.findByRole("alertdialog");
     expect(
@@ -159,7 +211,7 @@ describe("AnnouncementManagement đăng thông báo", () => {
       "Đã đăng thông báo cho nhóm người nhận đã chọn.",
     );
     expect(mockStore.announcements[0].title).toBe("Đổi giờ tiếp nhận");
-    await user.click(screen.getByRole("button", { name: "Đóng" }));
+    await user.click(footerClose(screen.getByRole("dialog")));
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   });
 
@@ -168,15 +220,29 @@ describe("AnnouncementManagement đăng thông báo", () => {
     render(<AnnouncementManagement />);
     const dialog = await openForm(user);
     await user.type(within(dialog).getByLabelText("Tiêu đề"), "Thử lỗi quyền");
-    await user.type(within(dialog).getByLabelText("Nội dung"), "Nội dung giữ lại");
-    await user.selectOptions(within(dialog).getByLabelText("Nhóm người nhận"), "PUBLIC");
-    await user.click(within(dialog).getByRole("checkbox", { name: "Trong hệ thống" }));
-    await user.click(within(dialog).getByRole("button", { name: "Đăng thông báo" }));
-    await user.click(await screen.findByRole("button", { name: "Gửi thông báo" }));
+    await user.type(
+      within(dialog).getByLabelText("Nội dung"),
+      "Nội dung giữ lại",
+    );
+    await user.selectOptions(
+      within(dialog).getByLabelText("Nhóm người nhận"),
+      "PUBLIC",
+    );
+    await user.click(
+      within(dialog).getByRole("checkbox", { name: "Trong hệ thống" }),
+    );
+    await user.click(
+      within(dialog).getByRole("button", { name: "Đăng thông báo" }),
+    );
+    await user.click(
+      await screen.findByRole("button", { name: "Gửi thông báo" }),
+    );
 
     await waitFor(() => expect(notify.notifyError).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
-    expect(within(dialog).getByLabelText("Nội dung")).toHaveValue("Nội dung giữ lại");
+    expect(within(dialog).getByLabelText("Nội dung")).toHaveValue(
+      "Nội dung giữ lại",
+    );
   });
 });
 
@@ -185,11 +251,17 @@ describe("AnnouncementManagement chi tiết", () => {
     const user = userEvent.setup({ delay: null });
     resetAnnouncementMock({ announcements: [row()] });
     render(<AnnouncementManagement />);
-    await user.click(await screen.findByRole("button", { name: /^Xem thông báo/ }));
+    await user.click(
+      await screen.findByRole("button", { name: /^Xem thông báo/ }),
+    );
     const sheet = await screen.findByRole("dialog");
-    expect(await within(sheet).findByText("Nguyễn Quản Trị")).toBeInTheDocument();
+    expect(
+      await within(sheet).findByText("Nguyễn Quản Trị"),
+    ).toBeInTheDocument();
     expect(within(sheet).getByText(/Dòng một/)).toBeInTheDocument();
     expect(within(sheet).queryByRole("button", { name: /Sửa/ })).toBeNull();
-    expect(within(sheet).getAllByRole("button", { name: "Đóng" }).length).toBeGreaterThan(0);
+    expect(
+      within(sheet).getAllByRole("button", { name: "Đóng" }).length,
+    ).toBeGreaterThan(0);
   });
 });

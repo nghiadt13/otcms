@@ -10,7 +10,9 @@ import {
   type ReactNode,
 } from "react";
 import { toast } from "sonner";
+import { formatAppMessage, messageFromError } from "@/lib/messages/appMessages";
 import { executeReception, loadReception } from "../api/receptionApi";
+import { receptionFeedback } from "../schema/receptionMessages";
 import type { ReceptionCommand, ReceptionState } from "../types";
 
 type ReceptionContextValue = {
@@ -19,10 +21,7 @@ type ReceptionContextValue = {
   error: string;
   pending: boolean;
   reload: () => Promise<void>;
-  run: (
-    command: ReceptionCommand,
-    message?: string,
-  ) => Promise<ReceptionState | null>;
+  run: (command: ReceptionCommand) => Promise<ReceptionState | null>;
 };
 const ReceptionContext = createContext<ReceptionContextValue | null>(null);
 export function ReceptionProvider({ children }: { children: ReactNode }) {
@@ -39,10 +38,7 @@ export function ReceptionProvider({ children }: { children: ReactNode }) {
       const next = await loadReception();
       if (mounted.current) setData(next);
     } catch {
-      if (mounted.current)
-        setError(
-          "Không tải được dữ liệu lễ tân. Hãy kiểm tra kết nối rồi thử lại.",
-        );
+      if (mounted.current) setError(formatAppMessage("MSG-04"));
     } finally {
       if (mounted.current) setLoading(false);
     }
@@ -50,25 +46,40 @@ export function ReceptionProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     mounted.current = true;
     const controller = new AbortController();
-    void loadReception(controller.signal)
-      .then((next) => {
-        if (!controller.signal.aborted) setData(next);
-      })
-      .catch(() => {
-        if (!controller.signal.aborted)
-          setError(
-            "Không tải được dữ liệu lễ tân. Hãy kiểm tra kết nối rồi thử lại.",
-          );
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setLoading(false);
-      });
+    let refreshing = false;
+    const sync = () => {
+      if (refreshing || busy.current || controller.signal.aborted) return;
+      refreshing = true;
+      void loadReception()
+        .then((next) => {
+          if (!controller.signal.aborted) setData(next);
+        })
+        .catch(() => {
+          if (!controller.signal.aborted) setError(formatAppMessage("MSG-04"));
+        })
+        .finally(() => {
+          refreshing = false;
+          if (!controller.signal.aborted) setLoading(false);
+        });
+    };
+    sync();
+    const timer = setInterval(() => {
+      if (!document.hidden) sync();
+    }, 1000);
+    const onVisible = () => {
+      if (!document.hidden) sync();
+    };
+    window.addEventListener("focus", onVisible);
+    document.addEventListener("visibilitychange", onVisible);
     return () => {
       mounted.current = false;
       controller.abort();
+      clearInterval(timer);
+      window.removeEventListener("focus", onVisible);
+      document.removeEventListener("visibilitychange", onVisible);
     };
   }, []);
-  async function run(command: ReceptionCommand, message = "Đã cập nhật.") {
+  async function run(command: ReceptionCommand) {
     if (!data || busy.current) return null;
     busy.current = true;
     setPending(true);
@@ -77,14 +88,12 @@ export function ReceptionProvider({ children }: { children: ReactNode }) {
       const next = await executeReception(command, data.version);
       if (mounted.current) {
         setData(next);
-        if (message) toast.success(message);
+        const feedback = receptionFeedback(command, next);
+        if (feedback) toast[feedback.tone](feedback.text);
       }
       return next;
     } catch (cause) {
-      const text =
-        cause instanceof Error
-          ? cause.message
-          : "Không thể hoàn tất. Hãy thử lại.";
+      const text = messageFromError(cause);
       if (mounted.current) {
         setError(text);
         toast.error(text);

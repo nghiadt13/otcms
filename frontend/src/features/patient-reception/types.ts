@@ -8,6 +8,10 @@ export type Patient = {
   nationalId: string;
   email: string;
 };
+export type PatientSearchQuery = {
+  q: string;
+  dob?: string;
+};
 export type Priority =
   | "normal"
   | "emergency"
@@ -21,9 +25,9 @@ export const PRIORITIES: Record<Priority, string> = {
   emergency: "Cấp cứu",
   child: "Trẻ dưới 6 tuổi",
   pregnant: "Phụ nữ mang thai",
-  disability: "Khuyết tật nặng",
-  elderly: "Từ 75 tuổi",
-  merit: "Người có công",
+  disability: "Khuyết tật nặng / đặc biệt nặng",
+  elderly: "Từ đủ 75 tuổi trở lên",
+  merit: "Người có công với cách mạng",
 };
 export type Room = {
   id: string;
@@ -62,6 +66,7 @@ export type Appointment = {
   time: string;
   status: "booked" | "checked-in" | "cancelled" | "no-show";
   notice?: string;
+  unavailabilityDiscussedAt?: string;
 };
 export type VisitStatus =
   "waiting" | "examining" | "awaiting" | "completed" | "incomplete" | "left";
@@ -220,7 +225,7 @@ export type ReceptionCommand =
       time: string;
       doctorId: string;
     }
-  | { type: "reassign"; id: string; doctorId: string }
+  | { type: "reassign"; id: string; doctorId: string; patientAgreed?: boolean }
   | { type: "notify-unavailable"; id: string }
   | { type: "prepare-walk-in"; patientId: string; serviceId: string }
   | {

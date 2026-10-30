@@ -4,9 +4,12 @@ import { addDays, todayIsoDate } from "@/lib/format/formatDate";
 import { resetShiftMockStore } from "../api/shiftApi";
 import { shiftMockConfig } from "../api/shiftMockData";
 import { useShiftWeek } from "./useShiftWeek";
-
+import { formatAppMessage } from "@/lib/messages/appMessages";
 // Giả lập thanh địa chỉ: useSearchParams đọc `url.search`, router.replace ghi lại và báo component vẽ lại.
-const url = vi.hoisted(() => ({ search: "", listeners: new Set<() => void>() }));
+const url = vi.hoisted(() => ({
+  search: "",
+  listeners: new Set<() => void>(),
+}));
 
 vi.mock("next/navigation", async () => {
   const React = await import("react");
@@ -32,7 +35,9 @@ vi.mock("next/navigation", async () => {
   };
 });
 
-vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn(), warning: vi.fn() } }));
+vi.mock("sonner", () => ({
+  toast: { error: vi.fn(), success: vi.fn(), warning: vi.fn() },
+}));
 
 function mockViewport(wide: boolean) {
   window.matchMedia = vi.fn().mockImplementation((query: string) => ({
@@ -75,7 +80,9 @@ describe("useShiftWeek", () => {
     const { result } = renderHook(() => useShiftWeek());
     await waitFor(() => expect(result.current.loading).toBe(false));
     act(() => result.current.goNext());
-    await waitFor(() => expect(result.current.anchor).toBe(addDays(todayIsoDate(), 7)));
+    await waitFor(() =>
+      expect(result.current.anchor).toBe(addDays(todayIsoDate(), 7)),
+    );
     expect(url.search).toContain("date=");
     act(() => result.current.goToday());
     await waitFor(() => expect(result.current.anchor).toBe(todayIsoDate()));
@@ -96,7 +103,9 @@ describe("useShiftWeek", () => {
     mockViewport(true);
     url.search = "date=2030-01-07";
     const { result } = renderHook(() => useShiftWeek());
-    await waitFor(() => expect(result.current.error).toContain("sự cố"));
+    await waitFor(() =>
+      expect(result.current.error).toBe(formatAppMessage("MSG-04")),
+    );
     expect(result.current.forbidden).toBe(false);
   });
 });

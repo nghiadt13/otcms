@@ -73,7 +73,8 @@ export function validateWebsiteContentForm(
       errors["body.hotline"] =
         "Hotline chỉ gồm chữ số, dấu cách và các ký tự + ( ) . -. Kiểm tra lại số điện thoại.";
     if (clinic.email.trim() && !EMAIL_PATTERN.test(clinic.email.trim()))
-      errors["body.email"] = "Email chưa đúng định dạng, ví dụ lienhe@phongkham.vn.";
+      errors["body.email"] =
+        "Email chưa đúng định dạng, ví dụ lienhe@phongkham.vn.";
     if (splitLines(clinic.openingHours).length === 0)
       errors["body.openingHours"] =
         "Nhập ít nhất một khung giờ mở cửa, mỗi dòng một khung giờ.";
@@ -105,19 +106,28 @@ function clinicBody(form: WebsiteContentForm) {
 }
 
 /** Form đã qua `validateWebsiteContentForm` → payload POST. */
-export function toCreatePayload(form: WebsiteContentForm): WebsiteContentCreatePayload {
+export function toCreatePayload(
+  form: WebsiteContentForm,
+): WebsiteContentCreatePayload {
   const title = form.title.trim();
   if (form.type === "CLINIC_INFO")
     return { type: "CLINIC_INFO", title, body: clinicBody(form) };
   if (form.type === "HEALTH_ARTICLE")
-    return { type: "HEALTH_ARTICLE", title, body: form.body, imageUrl: form.imageUrl };
+    return {
+      type: "HEALTH_ARTICLE",
+      title,
+      body: form.body,
+      imageUrl: form.imageUrl,
+    };
   if (form.type === "ABOUT_PAGE")
     return { type: "ABOUT_PAGE", title, body: form.body };
   throw new Error("Chưa chọn loại nội dung.");
 }
 
 /** Payload PUT: không gửi `type`; `imageUrl` chỉ cho Bài viết. */
-export function toUpdatePayload(form: WebsiteContentForm): WebsiteContentUpdatePayload {
+export function toUpdatePayload(
+  form: WebsiteContentForm,
+): WebsiteContentUpdatePayload {
   const title = form.title.trim();
   if (form.type === "CLINIC_INFO") return { title, body: clinicBody(form) };
   if (form.type === "HEALTH_ARTICLE")
@@ -126,7 +136,11 @@ export function toUpdatePayload(form: WebsiteContentForm): WebsiteContentUpdateP
 }
 
 export function fromDetail(detail: WebsiteContentDetail): WebsiteContentForm {
-  const form = { ...emptyWebsiteContentForm(), type: detail.type, title: detail.title };
+  const form = {
+    ...emptyWebsiteContentForm(),
+    type: detail.type,
+    title: detail.title,
+  };
   if (detail.type === "CLINIC_INFO")
     return {
       ...form,

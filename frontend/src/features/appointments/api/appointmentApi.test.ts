@@ -24,18 +24,37 @@ beforeEach(() => resetAppointmentMock());
 
 describe("listAppointments", () => {
   it("lọc theo ngày, bác sĩ, trạng thái và tìm tên không dấu", async () => {
-    const byDay = await listAppointments({ from: "2026-10-20", to: "2026-10-20" });
-    expect(byDay.items.map((i) => i.id)).toEqual([apptId(4), apptId(5), apptId(6)]);
+    const byDay = await listAppointments({
+      from: "2026-10-20",
+      to: "2026-10-20",
+    });
+    expect(byDay.items.map((i) => i.id)).toEqual([
+      apptId(4),
+      apptId(5),
+      apptId(6),
+    ]);
 
-    const byDoctor = await listAppointments({ doctorId: DOCTOR_IDS.ha, status: "BOOKED" });
-    expect(byDoctor.items.every((i) => i.doctor?.id === DOCTOR_IDS.ha && i.status === "BOOKED")).toBe(true);
+    const byDoctor = await listAppointments({
+      doctorId: DOCTOR_IDS.ha,
+      status: "BOOKED",
+    });
+    expect(
+      byDoctor.items.every(
+        (i) => i.doctor?.id === DOCTOR_IDS.ha && i.status === "BOOKED",
+      ),
+    ).toBe(true);
 
     const byName = await listAppointments({ q: "nguyen thi hoa" });
     expect(byName.items.map((i) => i.id)).toEqual([apptId(1)]);
   });
 
   it("phân trang nhiều trang, sắp xếp theo giờ và không lộ SĐT", async () => {
-    const first = await listAppointments({ from: "2026-10-20", to: "2026-10-27", page: 0, size: 20 });
+    const first = await listAppointments({
+      from: "2026-10-20",
+      to: "2026-10-27",
+      page: 0,
+      size: 20,
+    });
     expect(first.totalItems).toBe(48);
     expect(first.totalPages).toBe(3);
     const times = first.items.map((i) => i.startAt);
@@ -44,7 +63,9 @@ describe("listAppointments", () => {
   });
 
   it("from > to trả 400 MSG-54", async () => {
-    const error = await failure(listAppointments({ from: "2026-10-27", to: "2026-10-20" }));
+    const error = await failure(
+      listAppointments({ from: "2026-10-27", to: "2026-10-20" }),
+    );
     expect([error.status, error.code]).toEqual([400, "MSG-54"]);
   });
 });
@@ -60,18 +81,26 @@ describe("reassign", () => {
 
   it("AF1: không có ứng viên; ứng viên sai thì 409 MSG-24", async () => {
     expect((await listEligibleDoctors(apptId(2))).items).toEqual([]);
-    const error = await failure(reassignAppointmentDoctor(apptId(2), DOCTOR_IDS.tuan));
+    const error = await failure(
+      reassignAppointmentDoctor(apptId(2), DOCTOR_IDS.tuan),
+    );
     expect([error.status, error.code]).toEqual([409, "MSG-24"]);
   });
 
   it("mất ca khi chọn: 409 MSG-24; đổi trạng thái giữa chừng: 409 MSG-32; không có: 404 MSG-29", async () => {
-    const lost = await failure(reassignAppointmentDoctor(apptId(9), DOCTOR_IDS.minh));
+    const lost = await failure(
+      reassignAppointmentDoctor(apptId(9), DOCTOR_IDS.minh),
+    );
     expect([lost.status, lost.code]).toEqual([409, "MSG-24"]);
-    const stale = await failure(reassignAppointmentDoctor(apptId(8), DOCTOR_IDS.tuan));
+    const stale = await failure(
+      reassignAppointmentDoctor(apptId(8), DOCTOR_IDS.tuan),
+    );
     expect([stale.status, stale.code]).toEqual([409, "MSG-32"]);
     const notBooked = await failure(listEligibleDoctors(apptId(4)));
     expect([notBooked.status, notBooked.code]).toEqual([409, "MSG-32"]);
-    const missing = await failure(reassignAppointmentDoctor("khong-co", DOCTOR_IDS.tuan));
+    const missing = await failure(
+      reassignAppointmentDoctor("khong-co", DOCTOR_IDS.tuan),
+    );
     expect([missing.status, missing.code]).toEqual([404, "MSG-29"]);
   });
 
@@ -94,26 +123,45 @@ describe("notifyNoReplacement", () => {
 
 describe("getDoctorAvailability", () => {
   it("sinh khung 15 phút từ ca; Chủ nhật không có ca; khung đã đặt là BOOKED", async () => {
-    const result = await getDoctorAvailability(DOCTOR_IDS.ha, { from: "2026-10-24", to: "2026-10-25" });
+    const result = await getDoctorAvailability(DOCTOR_IDS.ha, {
+      from: "2026-10-24",
+      to: "2026-10-25",
+    });
     expect(result.slotMinutes).toBe(15);
     expect(result.days[0].hasShift).toBe(true);
     expect(result.days[1]).toMatchObject({ hasShift: false, slots: [] });
-    const day = await getDoctorAvailability(DOCTOR_IDS.ha, { from: "2026-10-21", to: "2026-10-21" });
+    const day = await getDoctorAvailability(DOCTOR_IDS.ha, {
+      from: "2026-10-21",
+      to: "2026-10-21",
+    });
     const eight = day.days[0].slots.find((s) => s.startAt.includes("T08:00"));
     expect(eight?.status).toBe("BOOKED");
-    expect(day.days[0].slots.find((s) => s.startAt.includes("T08:15"))?.status).toBe("FREE");
+    expect(
+      day.days[0].slots.find((s) => s.startAt.includes("T08:15"))?.status,
+    ).toBe("FREE");
   });
 
   it("lỗi theo bác sĩ: 409 MSG-24, 404 MSG-50, 500 MSG-04", async () => {
     const range = { from: "2026-10-21", to: "2026-10-21" };
-    expect((await failure(getDoctorAvailability(DOCTOR_IDS.yen, range))).code).toBe("MSG-24");
-    expect((await failure(getDoctorAvailability("khong-co", range))).code).toBe("MSG-50");
-    expect((await failure(getDoctorAvailability(DOCTOR_IDS.bao, range))).status).toBe(500);
+    expect(
+      (await failure(getDoctorAvailability(DOCTOR_IDS.yen, range))).code,
+    ).toBe("MSG-24");
+    expect((await failure(getDoctorAvailability("khong-co", range))).code).toBe(
+      "MSG-50",
+    );
+    expect(
+      (await failure(getDoctorAvailability(DOCTOR_IDS.bao, range))).status,
+    ).toBe(500);
   });
 
   it("BS. Võ Thanh Trúc kín lịch: không còn khung FREE", async () => {
-    const result = await getDoctorAvailability(DOCTOR_IDS.truc, { from: "2026-10-21", to: "2026-10-22" });
-    expect(result.days.flatMap((d) => d.slots).some((s) => s.status === "FREE")).toBe(false);
+    const result = await getDoctorAvailability(DOCTOR_IDS.truc, {
+      from: "2026-10-21",
+      to: "2026-10-22",
+    });
+    expect(
+      result.days.flatMap((d) => d.slots).some((s) => s.status === "FREE"),
+    ).toBe(false);
   });
 });
 

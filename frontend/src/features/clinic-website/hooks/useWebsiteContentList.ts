@@ -9,7 +9,10 @@ import type {
   WebsiteContentType,
 } from "../types/websiteContentAdmin";
 
-export type WebsiteContentFilters = { q: string; type: WebsiteContentType | "" };
+export type WebsiteContentFilters = {
+  q: string;
+  type: WebsiteContentType | "";
+};
 
 const INITIAL_FILTERS: WebsiteContentFilters = { q: "", type: "" };
 

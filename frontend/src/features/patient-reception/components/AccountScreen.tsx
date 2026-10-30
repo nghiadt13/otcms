@@ -2,6 +2,7 @@
 
 import { useRef, useState, type ChangeEvent } from "react";
 import { toast } from "sonner";
+import { formatAppMessage, messageFromError } from "@/lib/messages/appMessages";
 import { PageHeader } from "@/components/PageHeader";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -33,7 +34,7 @@ function PasswordDialog({ onClose }: { onClose: () => void }) {
           if (lock.current) return;
           setError("");
           if (!current || next !== confirm || !confirm) {
-            setError("Nhập mật khẩu hiện tại và xác nhận khớp mật khẩu mới.");
+            setError(formatAppMessage("MSG-08"));
             return;
           }
           lock.current = true;
@@ -43,12 +44,10 @@ function PasswordDialog({ onClose }: { onClose: () => void }) {
             setCurrent("");
             setNext("");
             setConfirm("");
-            toast.success("Đã đổi mật khẩu của tài khoản mẫu.");
+            toast.success(formatAppMessage("MSG-07"));
             onClose();
           } catch (e) {
-            setError(
-              e instanceof Error ? e.message : "Không thể đổi mật khẩu.",
-            );
+            setError(messageFromError(e));
           } finally {
             setSaving(false);
             lock.current = false;
@@ -116,7 +115,7 @@ export function AccountScreen() {
       file.size > 2 * 1024 * 1024 ||
       file.size === 0
     ) {
-      setError("Chọn ảnh JPG, PNG hoặc WebP, dung lượng tối đa 2 MB.");
+      setError(formatAppMessage("MSG-08"));
       return;
     }
     setReading(true);
@@ -129,9 +128,9 @@ export function AccountScreen() {
         reader.onerror = reject;
         reader.readAsDataURL(file);
       });
-      await run({ type: "avatar", dataUrl }, "Đã cập nhật ảnh đại diện.");
+      await run({ type: "avatar", dataUrl });
     } catch {
-      setError("Không đọc được ảnh. Hãy chọn một tệp ảnh khác.");
+      setError(formatAppMessage("MSG-08"));
     } finally {
       setReading(false);
     }
@@ -172,12 +171,7 @@ export function AccountScreen() {
                 variant="outline"
                 size="sm"
                 disabled={pending || reading}
-                onClick={() =>
-                  void run(
-                    { type: "avatar", dataUrl: null },
-                    "Đã gỡ ảnh đại diện.",
-                  )
-                }
+                onClick={() => void run({ type: "avatar", dataUrl: null })}
               >
                 Gỡ ảnh
               </Button>

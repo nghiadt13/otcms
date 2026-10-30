@@ -6,6 +6,7 @@ import {
   Sidebar,
   SidebarContent,
   SidebarHeader,
+  SidebarFooter,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
@@ -15,7 +16,7 @@ import { imagingNavGroups } from "../imagingNavigation";
 import { ImagingNavGroup } from "./ImagingNavGroup";
 import { ImagingAccountMenu } from "./ImagingAccountMenu";
 
-export function ImagingSidebar() {
+export function ImagingSidebar({ onReset, onExit }: { onReset: () => void; onExit: () => void }) {
   const pathname = usePathname();
 
   return (
@@ -50,7 +51,7 @@ export function ImagingSidebar() {
           />
         ))}
       </SidebarContent>
-      <ImagingAccountMenu />
+      <SidebarFooter><ImagingAccountMenu onReset={onReset} onExit={onExit} /></SidebarFooter>
       <SidebarRail />
     </Sidebar>
   );

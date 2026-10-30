@@ -35,7 +35,8 @@ export type EditorResult =
   | { kind: "updated"; detail: WebsiteContentDetail }
   | { kind: "gone" };
 
-type DiscardRequest = { kind: "close" } | { kind: "type"; next: WebsiteContentType };
+type DiscardRequest =
+  { kind: "close" } | { kind: "type"; next: WebsiteContentType };
 
 /**
  * State của Sheet soạn nội dung: form, dirty, kiểm tra, đăng và ánh xạ lỗi.
@@ -93,7 +94,10 @@ export function useWebsiteContentEditor(
   }
 
   function patchClinic(patch: Partial<ClinicFormFields>) {
-    setForm((current) => ({ ...current, clinic: { ...current.clinic, ...patch } }));
+    setForm((current) => ({
+      ...current,
+      clinic: { ...current.clinic, ...patch },
+    }));
     clearErrors(Object.keys(patch).map((key) => `body.${key}`));
   }
 
@@ -118,7 +122,11 @@ export function useWebsiteContentEditor(
     if (discard.kind === "close") {
       onFinish({ kind: "cancel" });
     } else {
-      setForm({ ...emptyWebsiteContentForm(), type: discard.next, title: form.title });
+      setForm({
+        ...emptyWebsiteContentForm(),
+        type: discard.next,
+        title: form.title,
+      });
       setErrors({});
     }
     setDiscard(null);
@@ -149,7 +157,10 @@ export function useWebsiteContentEditor(
             ? fieldErrorsToFormErrors(err.fieldErrors)
             : { form: formatAppMessage("MSG-69") },
         );
-      } else if (isApiError(err) && (err.status === 403 || err.status === 404)) {
+      } else if (
+        isApiError(err) &&
+        (err.status === 403 || err.status === 404)
+      ) {
         notifyError(err);
         onFinish({ kind: "gone" });
       } else {

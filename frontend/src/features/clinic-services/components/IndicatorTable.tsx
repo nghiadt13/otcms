@@ -15,7 +15,10 @@ import {
 } from "@/components/ui/table";
 import { APP_MESSAGES } from "@/lib/messages/appMessages";
 import type { FieldErrorMap } from "../schema/serviceFieldRules";
-import { emptyIndicatorDraft, type IndicatorDraft } from "../schema/serviceFormDraft";
+import {
+  emptyIndicatorDraft,
+  type IndicatorDraft,
+} from "../schema/serviceFormDraft";
 
 type RangeKey = "refMale" | "refFemale";
 type RangeBound = "min" | "max";
@@ -32,20 +35,40 @@ const rowErrorKeys = (errors: FieldErrorMap, index: number) =>
   Object.keys(errors).filter((key) => key.startsWith(`indicators[${index}].`));
 
 /** Bảng chỉ số xét nghiệm: tên, đơn vị, khoảng tham chiếu nam và nữ (BR-58). */
-export function IndicatorTable({ rows, onChange, errors = {}, disabled }: IndicatorTableProps) {
+export function IndicatorTable({
+  rows,
+  onChange,
+  errors = {},
+  disabled,
+}: IndicatorTableProps) {
   const editable = Boolean(onChange) && !disabled;
 
-  const update = (index: number, patch: (row: IndicatorDraft) => IndicatorDraft) =>
-    onChange?.(rows.map((row, i) => (i === index ? patch(row) : row)));
+  const update = (
+    index: number,
+    patch: (row: IndicatorDraft) => IndicatorDraft,
+  ) => onChange?.(rows.map((row, i) => (i === index ? patch(row) : row)));
 
-  const setRange = (index: number, key: RangeKey, bound: RangeBound, value: string) =>
-    update(index, (row) => ({ ...row, [key]: { ...row[key], [bound]: value } }));
+  const setRange = (
+    index: number,
+    key: RangeKey,
+    bound: RangeBound,
+    value: string,
+  ) =>
+    update(index, (row) => ({
+      ...row,
+      [key]: { ...row[key], [bound]: value },
+    }));
 
-  const cellInput = (index: number, path: string, label: string, props: {
-    value: string;
-    onChange: (value: string) => void;
-    numeric?: boolean;
-  }) => (
+  const cellInput = (
+    index: number,
+    path: string,
+    label: string,
+    props: {
+      value: string;
+      onChange: (value: string) => void;
+      numeric?: boolean;
+    },
+  ) => (
     <Input
       value={props.value}
       onChange={(event) => props.onChange(event.target.value)}
@@ -54,7 +77,9 @@ export function IndicatorTable({ rows, onChange, errors = {}, disabled }: Indica
       aria-describedby={errors[path] ? `indicator-error-${index}` : undefined}
       inputMode={props.numeric ? "decimal" : undefined}
       disabled={disabled}
-      className={props.numeric ? "min-w-20 text-right tabular-nums" : "min-w-32"}
+      className={
+        props.numeric ? "min-w-20 text-right tabular-nums" : "min-w-32"
+      }
     />
   );
 
@@ -77,7 +102,11 @@ export function IndicatorTable({ rows, onChange, errors = {}, disabled }: Indica
             {rows.map((row, index) => {
               const rowErrors = rowErrorKeys(errors, index);
               const prefix = `indicators[${index}]`;
-              const numberCell = (key: RangeKey, bound: RangeBound, label: string) => (
+              const numberCell = (
+                key: RangeKey,
+                bound: RangeBound,
+                label: string,
+              ) => (
                 <TableCell className="text-right tabular-nums">
                   {editable
                     ? cellInput(index, `${prefix}.${key}.${bound}`, label, {
@@ -89,12 +118,19 @@ export function IndicatorTable({ rows, onChange, errors = {}, disabled }: Indica
                 </TableCell>
               );
               return (
-                <RowGroup key={index} errorId={`indicator-error-${index}`} hasError={rowErrors.length > 0} colSpan={editable ? 7 : 6} message={APP_MESSAGES["MSG-66"]}>
+                <RowGroup
+                  key={index}
+                  errorId={`indicator-error-${index}`}
+                  hasError={rowErrors.length > 0}
+                  colSpan={editable ? 7 : 6}
+                  message={APP_MESSAGES["MSG-66"]}
+                >
                   <TableCell className="whitespace-normal">
                     {editable
                       ? cellInput(index, `${prefix}.name`, "Tên chỉ số", {
                           value: row.name,
-                          onChange: (value) => update(index, (r) => ({ ...r, name: value })),
+                          onChange: (value) =>
+                            update(index, (r) => ({ ...r, name: value })),
                         })
                       : row.name}
                   </TableCell>
@@ -102,7 +138,8 @@ export function IndicatorTable({ rows, onChange, errors = {}, disabled }: Indica
                     {editable
                       ? cellInput(index, `${prefix}.unit`, "Đơn vị", {
                           value: row.unit,
-                          onChange: (value) => update(index, (r) => ({ ...r, unit: value })),
+                          onChange: (value) =>
+                            update(index, (r) => ({ ...r, unit: value })),
                         })
                       : row.unit}
                   </TableCell>
@@ -117,7 +154,9 @@ export function IndicatorTable({ rows, onChange, errors = {}, disabled }: Indica
                         variant="ghost"
                         size="icon-sm"
                         aria-label={`Xóa chỉ số ${row.name.trim() || index + 1}`}
-                        onClick={() => onChange?.(rows.filter((_, i) => i !== index))}
+                        onClick={() =>
+                          onChange?.(rows.filter((_, i) => i !== index))
+                        }
                       >
                         <Trash2 />
                       </Button>
@@ -129,7 +168,9 @@ export function IndicatorTable({ rows, onChange, errors = {}, disabled }: Indica
           </TableBody>
         </Table>
       </div>
-      <FieldError message={errors.indicators ? APP_MESSAGES[errors.indicators] : null} />
+      <FieldError
+        message={errors.indicators ? APP_MESSAGES[errors.indicators] : null}
+      />
       {editable ? (
         <Button
           type="button"
@@ -161,7 +202,9 @@ function RowGroup({
 }) {
   return (
     <>
-      <TableRow className={hasError ? "border-b-0" : undefined}>{children}</TableRow>
+      <TableRow className={hasError ? "border-b-0" : undefined}>
+        {children}
+      </TableRow>
       {hasError ? (
         <TableRow>
           <TableCell colSpan={colSpan} className="pt-0">

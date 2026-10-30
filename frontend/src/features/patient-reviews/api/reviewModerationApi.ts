@@ -26,7 +26,9 @@ const DELAY_MS = 400;
 export const DEFAULT_REVIEW_SORT = "submittedAt,desc";
 
 /** Query gửi lên BE: giá trị rỗng bị bỏ, `replied=false` vẫn giữ. */
-export function buildReviewListQuery(query: Partial<ReviewFilters> & PageQuery) {
+export function buildReviewListQuery(
+  query: Partial<ReviewFilters> & PageQuery,
+) {
   return toQueryString({
     status: query.status,
     rating: query.rating,
@@ -127,7 +129,10 @@ async function decide(id: string, decision: Decision): Promise<ReviewDetail> {
   )
     mockFail(409, "MSG-56");
   review.status = NEXT_STATUS[decision];
-  review.allowedActions = allowedActionsOf(review.status, review.reply !== null);
+  review.allowedActions = allowedActionsOf(
+    review.status,
+    review.reply !== null,
+  );
   return clone(review);
 }
 
@@ -141,9 +146,15 @@ export async function replyModerationReview(
 ): Promise<ReviewDetail> {
   await mockDelay(DELAY_MS);
   const review = findReview(id);
-  if (id === reviewIdOf(MOCK_REPLY_INVALID_NN) || validateReviewReply(body.text))
+  if (
+    id === reviewIdOf(MOCK_REPLY_INVALID_NN) ||
+    validateReviewReply(body.text)
+  )
     mockFail(400, "MSG-57", undefined, [{ field: "text", code: "MSG-57" }]);
-  review.reply = { text: body.text.trim(), repliedAt: new Date().toISOString() };
+  review.reply = {
+    text: body.text.trim(),
+    repliedAt: new Date().toISOString(),
+  };
   review.replied = true;
   review.allowedActions = allowedActionsOf(review.status, true);
   return clone(review);

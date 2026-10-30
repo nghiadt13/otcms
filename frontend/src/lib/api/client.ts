@@ -1,8 +1,6 @@
-import { getSupabaseBrowserClient } from "@/lib/supabase/browser";
+import { apiBaseUrl } from "./apiBaseUrl";
+import { getAccessToken, getCsrfToken } from "@/lib/auth/authSession";
 import { ApiError, type ApiFieldError, type MsgCode } from "./apiError";
-
-const apiBaseUrl =
-  process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8080";
 
 type ProblemDetail = {
   status?: number;
@@ -10,16 +8,21 @@ type ProblemDetail = {
   code?: MsgCode;
   params?: Record<string, string | number>;
   fieldErrors?: ApiFieldError[];
+  /** Hình lỗi của backend: `{ error: { code, message } }`. */
+  error?: { code?: string };
 };
 
-async function authorizedHeaders(init: RequestInit) {
-  const {
-    data: { session },
-  } = await getSupabaseBrowserClient().auth.getSession();
-  if (!session) throw new Error("Bạn cần đăng nhập để tiếp tục.");
+const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
+
+const isMutation = (init: RequestInit) =>
+  !SAFE_METHODS.has((init.method ?? "GET").toUpperCase());
+
+async function authorizedHeaders(init: RequestInit, refreshCsrf = false) {
+  const accessToken = await getAccessToken();
+  if (!accessToken) throw new Error("Bạn cần đăng nhập để tiếp tục.");
 
   const headers = new Headers(init.headers);
-  headers.set("Authorization", `Bearer ${session.access_token}`);
+  headers.set("Authorization", `Bearer ${accessToken}`);
   // FormData: để trình duyệt tự đặt Content-Type kèm boundary.
   if (
     init.body &&
@@ -27,6 +30,9 @@ async function authorizedHeaders(init: RequestInit) {
     !headers.has("Content-Type")
   )
     headers.set("Content-Type", "application/json");
+  // Request ghi dữ liệu cần CSRF (xem getCsrfToken); GET không cần.
+  if (isMutation(init))
+    headers.set("X-CSRF-TOKEN", await getCsrfToken(refreshCsrf));
   return headers;
 }
 
@@ -37,15 +43,19 @@ async function toApiError(response: Response): Promise<ApiError> {
   } catch {
     // Không có thân JSON: giữ mã HTTP.
   }
-  return new ApiError(response.status, problem);
+  return new ApiError(response.status, {
+    ...problem,
+    errorCode: problem.error?.code,
+  });
 }
 
-/** Gọi API JSON. `init.signal` huỷ request; 204 trả `undefined`; lỗi ném `ApiError`. */
-export async function apiRequest<T>(
+/** Gọi endpoint công khai không cần session; giữ cùng base URL và lỗi API chuẩn. */
+export async function publicApiRequest<T>(
   path: `/api/v1/${string}`,
   init: RequestInit = {},
 ): Promise<T> {
-  const headers = await authorizedHeaders(init);
+  const headers = new Headers(init.headers);
+  if (!headers.has("Accept")) headers.set("Accept", "application/json");
   const response = await fetch(`${apiBaseUrl}${path}`, {
     ...init,
     headers,
@@ -54,6 +64,36 @@ export async function apiRequest<T>(
   if (!response.ok) throw await toApiError(response);
   if (response.status === 204) return undefined as T;
   return response.json() as Promise<T>;
+}
+
+/** Gọi API JSON. `init.signal` huỷ request; 204 trả `undefined`; lỗi ném `ApiError`. */
+export async function apiRequest<T>(
+  path: `/api/v1/${string}`,
+  init: RequestInit = {},
+): Promise<T> {
+  let response = await send(path, init, false);
+  // CSRF lệch cookie ở request ghi dữ liệu: backend trả 403, hoặc 401 vì bộ lọc CSRF chạy trước
+  // bộ lọc JWT nên request còn ẩn danh. Lấy token mới và thử lại đúng một lần.
+  if ((response.status === 403 || response.status === 401) && isMutation(init))
+    response = await send(path, init, true);
+  if (!response.ok) throw await toApiError(response);
+  if (response.status === 204) return undefined as T;
+  return response.json() as Promise<T>;
+}
+
+async function send(
+  path: `/api/v1/${string}`,
+  init: RequestInit,
+  refreshCsrf: boolean,
+): Promise<Response> {
+  const headers = await authorizedHeaders(init, refreshCsrf);
+  return fetch(`${apiBaseUrl}${path}`, {
+    ...init,
+    headers,
+    // Cookie XSRF-TOKEN phải đi kèm request ghi dữ liệu sang backend (khác origin).
+    credentials: isMutation(init) ? "include" : init.credentials,
+    cache: "no-store",
+  });
 }
 
 /** Tải tệp nhị phân (xuất báo cáo). Đọc tên tệp từ `Content-Disposition`. */

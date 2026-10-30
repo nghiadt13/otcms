@@ -37,7 +37,7 @@ describe("patient identification and care links", () => {
         input: { ...s.patients[0], phone: "+84900000001" },
         identityConfirmed: true,
       }),
-    ).rejects.toThrow("Đã có hồ sơ");
+    ).rejects.toThrow("MSG-18");
     expect((await loadReception()).patients).toHaveLength(count);
   });
   it("requires identity confirmation and validates birthdate", async () => {
@@ -57,7 +57,7 @@ describe("patient identification and care links", () => {
         input: { ...input, dob: "1990-01-01" },
         identityConfirmed: false,
       }),
-    ).rejects.toThrow("đối chiếu");
+    ).rejects.toThrow("MSG-17");
   });
   it("matches duplicate names despite accents, case and repeated whitespace", async () => {
     await expect(
@@ -70,7 +70,7 @@ describe("patient identification and care links", () => {
         },
         identityConfirmed: true,
       }),
-    ).rejects.toThrow("Đã có hồ sơ");
+    ).rejects.toThrow("MSG-18");
     expect((await loadReception()).patients).toHaveLength(
       seed().patients.length,
     );
@@ -90,7 +90,7 @@ describe("patient identification and care links", () => {
         },
         identityConfirmed: true,
       }),
-    ).rejects.toThrow("Đã có hồ sơ");
+    ).rejects.toThrow("MSG-18");
   });
   it("creates only administrative information without a login or medical fields", async () => {
     const before = seed();
@@ -116,7 +116,7 @@ describe("patient identification and care links", () => {
         evidence: "Đã đối chiếu khai sinh",
         identityConfirmed: false,
       }),
-    ).rejects.toThrow("giấy tờ");
+    ).rejects.toThrow("MSG-17");
     const result = await command({
       type: "confirm-link",
       id: "link1",
@@ -132,11 +132,188 @@ describe("patient identification and care links", () => {
         evidence: "Đã đối chiếu khai sinh",
         identityConfirmed: true,
       }),
-    ).rejects.toThrow("không còn");
+    ).rejects.toThrow("MSG-21");
   });
 });
 
+describe("automatic reception age priority", () => {
+  it("rejects pregnancy priority for a male patient without checking them in", async () => {
+    await expect(
+      command({
+        type: "check-in",
+        patientId: "BN0002",
+        appointmentId: "LH002",
+        present: true,
+        priority: "pregnant",
+      }),
+    ).rejects.toThrow("MSG-39");
+    expect(
+      (await loadReception()).appointments.find((a) => a.id === "LH002")
+        ?.status,
+    ).toBe("booked");
+  });
+  it("allows the confirmed pregnancy category for a female patient", async () => {
+    await cash(["phi-LH001"]);
+    const next = await command({
+      type: "check-in",
+      patientId: "BN0001",
+      appointmentId: "LH001",
+      present: true,
+      priority: "pregnant",
+    });
+    expect(next.visits.find((v) => v.appointmentId === "LH001")?.priority).toBe(
+      "pregnant",
+    );
+  });
+  it("rejects assigning pregnancy priority to a male patient in the queue", async () => {
+    const state = await loadReception();
+    const entry = state.queues.find(
+      (q) => q.visitId === "LK002" && q.status === "waiting",
+    )!;
+    await expect(
+      command({
+        type: "reorder",
+        id: entry.id,
+        position: 1,
+        priority: "pregnant",
+        reason: "Kiểm tra nhóm ưu tiên",
+      }),
+    ).rejects.toThrow("MSG-39");
+    expect(
+      (await loadReception()).queues.find((q) => q.id === entry.id)?.priority,
+    ).toBe(entry.priority);
+  });
+  it("assigns elderly priority from DOB even if a stale client submits normal", async () => {
+    const state = await command({
+      type: "check-in",
+      patientId: "BN0002",
+      appointmentId: "LH002",
+      present: true,
+      priority: "normal",
+    });
+    const visit = state.visits.find((v) => v.appointmentId === "LH002")!;
+    expect(visit.priority).toBe("elderly");
+    expect(state.queues.find((q) => q.visitId === visit.id)?.priority).toBe(
+      "elderly",
+    );
+  });
+  it("rejects child priority for an adult without partially checking in", async () => {
+    await expect(
+      command({
+        type: "check-in",
+        patientId: "BN0002",
+        appointmentId: "LH002",
+        present: true,
+        priority: "child",
+      }),
+    ).rejects.toThrow("MSG-39");
+    expect(
+      (await loadReception()).appointments.find((a) => a.id === "LH002")
+        ?.status,
+    ).toBe("booked");
+  });
+});
 describe("appointment scheduling", () => {
+  it("rejects two patients booking the same doctor and time without creating an extra charge", async () => {
+    const input = {
+      type: "book" as const,
+      patientId: "BN0008",
+      date: DAY,
+      time: "10:20",
+      serviceId: "kham",
+      doctorId: "bs-an",
+    };
+    const first = await command(input);
+    await expect(command({ ...input, patientId: "BN0009" })).rejects.toThrow(
+      "MSG-30",
+    );
+    const next = await loadReception();
+    expect(next.appointments).toHaveLength(first.appointments.length);
+    expect(next.charges).toHaveLength(first.charges.length);
+  });
+  it("rejects one patient booking the same time with different doctors, including checked-in appointments", async () => {
+    const input = {
+      type: "book" as const,
+      patientId: "BN0001",
+      date: DAY,
+      time: "10:20",
+      serviceId: "kham",
+      doctorId: "bs-an",
+    };
+    const first = await command(input);
+    await expect(command({ ...input, doctorId: "bs-minh" })).rejects.toThrow(
+      "MSG-29",
+    );
+    const fixture = seed();
+    fixture.appointments.find((a) => a.id === "LH001")!.status = "checked-in";
+    fixture.appointments.find((a) => a.id === "LH002")!.status = "cancelled";
+    resetReceptionMock(fixture);
+    await expect(
+      command({ ...input, time: "09:20", doctorId: "bs-minh" }),
+    ).rejects.toThrow();
+    expect(
+      first.charges.filter((c) => c.contextId === first.appointments[0].id),
+    ).toHaveLength(1);
+  });
+  it("allows different patients at the same time with different doctors and multiple non-conflicting dates", async () => {
+    const input = {
+      type: "book" as const,
+      patientId: "BN0008",
+      date: DAY,
+      time: "10:20",
+      serviceId: "kham",
+      doctorId: "bs-an",
+    };
+    await command(input);
+    await command({ ...input, patientId: "BN0009", doctorId: "bs-minh" });
+    await command({ ...input, time: "10:40" });
+    const next = await command({ ...input, date: "2026-10-26" });
+    expect(
+      next.appointments.filter(
+        (a) => a.patientId === "BN0008" && a.status === "booked",
+      ),
+    ).toHaveLength(4);
+  });
+  it("releases cancelled reservations for both doctor and patient", async () => {
+    const fixture = seed();
+    fixture.appointments.find((a) => a.id === "LH001")!.status = "cancelled";
+    resetReceptionMock(fixture);
+    const result = await command({
+      type: "book",
+      patientId: "BN0001",
+      date: DAY,
+      time: "09:20",
+      serviceId: "kham",
+      doctorId: "bs-an",
+    });
+    expect(result.appointments[0]).toMatchObject({
+      patientId: "BN0001",
+      time: "09:20",
+      status: "booked",
+    });
+  });
+  it("accepts only one concurrent reservation for two different patients at the same doctor and time", async () => {
+    const initial = await loadReception();
+    const input = {
+      type: "book" as const,
+      patientId: "BN0008",
+      date: DAY,
+      time: "10:20",
+      serviceId: "kham",
+      doctorId: "bs-an",
+    };
+    const outcomes = await Promise.allSettled([
+      executeReception(input, initial.version),
+      executeReception({ ...input, patientId: "BN0009" }, initial.version),
+    ]);
+    expect(outcomes.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+    const next = await loadReception();
+    expect(next.appointments).toHaveLength(initial.appointments.length + 1);
+    expect(next.charges).toHaveLength(initial.charges.length + 1);
+    await expect(command({ ...input, patientId: "BN0009" })).rejects.toThrow(
+      "MSG-30",
+    );
+  });
   it("assigns an optional doctor and fixes the price at booking", async () => {
     const result = await command({
       type: "book",
@@ -162,23 +339,29 @@ describe("appointment scheduling", () => {
       serviceId: "kham",
       doctorId: "bs-an",
     };
-    await expect(command(input)).rejects.toThrow("đã qua");
+    await expect(command(input)).rejects.toThrow("MSG-31");
     await expect(command({ ...input, time: "12:20" })).rejects.toThrow(
-      "hết chỗ",
+      "MSG-30",
     );
     await expect(command({ ...input, time: "09:20" })).rejects.toThrow(
-      "hết chỗ",
+      "MSG-30",
     );
     await expect(
       command({ ...input, time: "10:20", serviceId: "xquang" }),
-    ).rejects.toThrow("dịch vụ khám");
+    ).rejects.toThrow("MSG-29");
   });
   it("moves only absent doctor's appointment and never changes its time", async () => {
     await expect(
-      command({ type: "reassign", id: "LH001", doctorId: "bs-minh" }),
-    ).rejects.toThrow("vắng ca");
+      command({
+        type: "reassign",
+        patientAgreed: true,
+        id: "LH001",
+        doctorId: "bs-minh",
+      }),
+    ).rejects.toThrow("MSG-32");
     const result = await command({
       type: "reassign",
+      patientAgreed: true,
       id: "LH003",
       doctorId: "bs-minh",
     });
@@ -188,6 +371,34 @@ describe("appointment scheduling", () => {
       time: "10:00",
       date: DAY,
     });
+  });
+  it("requires patient agreement before replacing a doctor", async () => {
+    await expect(
+      command({ type: "reassign", id: "LH003", doctorId: "bs-minh" }),
+    ).rejects.toThrow("MSG-32");
+    const state = await loadReception();
+    expect(state.appointments.find((a) => a.id === "LH003")?.doctorId).not.toBe(
+      "bs-minh",
+    );
+  });
+  it("records the LH006 no-replacement fixture without changing its reservation", async () => {
+    const state = await loadReception();
+    const appointment = state.appointments.find((a) => a.id === "LH006")!;
+    expect(
+      availableDoctors(
+        state,
+        appointment.date,
+        appointment.time,
+        appointment.serviceId,
+        appointment.id,
+      ),
+    ).toHaveLength(0);
+    const next = await command({ type: "notify-unavailable", id: "LH006" });
+    expect(next.appointments.find((a) => a.id === "LH006")).toMatchObject({
+      ...appointment,
+      notice: expect.stringContaining("Đã ghi nhận"),
+    });
+    expect(next.audit.length).toBeGreaterThan(state.audit.length);
   });
   it("keeps appointment booked when no replacement exists", async () => {
     const state = seed();
@@ -248,15 +459,15 @@ describe("check-in and return visit", () => {
     priority: "normal",
   };
   it("blocks unpaid or absent check-in; paid fee issues one visit and queue only", async () => {
-    await expect(command(checkin)).rejects.toThrow("Chưa thanh toán");
+    await expect(command(checkin)).rejects.toThrow("MSG-37");
     await cash(["phi-LH001"]);
     await expect(command({ ...checkin, present: false })).rejects.toThrow(
-      "có mặt",
+      "MSG-39",
     );
     const result = await command(checkin);
     const visit = result.visits.find((v) => v.appointmentId === "LH001")!;
     expect(result.queues.filter((q) => q.visitId === visit.id)).toHaveLength(1);
-    await expect(command(checkin)).rejects.toThrow("Không thể check-in trùng");
+    await expect(command(checkin)).rejects.toThrow("MSG-37");
   });
   it("walk-in charges then check-in does not create an appointment", async () => {
     const first = await command({
@@ -289,7 +500,7 @@ describe("check-in and return visit", () => {
         present: true,
         priority: "normal",
       }),
-    ).rejects.toThrow("không sẵn sàng");
+    ).rejects.toThrow("MSG-41");
   });
   it("day seven is included and day eight expires without resetting first date", async () => {
     expect(withinReturnWindow("2026-10-18", DAY)).toBe(true);
@@ -314,7 +525,7 @@ describe("check-in and return visit", () => {
         present: true,
         priority: "normal",
       }),
-    ).rejects.toThrow("thời hạn");
+    ).rejects.toThrow("MSG-37");
   });
   it("returns a paid service visit to the same visit with no new fee or booking", async () => {
     const state = seed();
@@ -349,7 +560,7 @@ describe("check-in and return visit", () => {
         present: true,
         priority: "normal",
       }),
-    ).rejects.toThrow("chưa thanh toán");
+    ).rejects.toThrow("MSG-37");
     expect(
       (await loadReception()).queues.some(
         (q) => q.visitId === "LK003" && q.kind === "review",
@@ -371,7 +582,7 @@ describe("queues", () => {
     });
     await expect(
       command({ type: "call-next", roomId: "p101", kind: "exam" }),
-    ).rejects.toThrow("Phòng đang");
+    ).rejects.toThrow("MSG-42");
     const arrived = await command({
       type: "queue-action",
       id: "q1",
@@ -405,14 +616,14 @@ describe("queues", () => {
   it("blocks service-room calls and another caller's absent action", async () => {
     await expect(
       command({ type: "call-next", roomId: "xq1", kind: "exam" }),
-    ).rejects.toThrow("Lễ tân chỉ gọi");
+    ).rejects.toThrow("MSG-42");
     const state = seed();
     state.queues[0].callerId = "another-receptionist";
     state.queues[0].calledAt = state.clock;
     resetReceptionMock(state);
     await expect(
       command({ type: "queue-action", id: "q1", action: "absent" }),
-    ).rejects.toThrow("đã gọi");
+    ).rejects.toThrow("MSG-40");
   });
   it("requires a reason and retains before/after queue history", async () => {
     await expect(
@@ -423,7 +634,7 @@ describe("queues", () => {
         priority: "emergency",
         reason: "",
       }),
-    ).rejects.toThrow("lý do");
+    ).rejects.toThrow("MSG-39");
     const result = await command({
       type: "reorder",
       id: "q2",
@@ -447,7 +658,7 @@ describe("queues", () => {
         roomId: "xn",
         reason: "Chuyển phòng đang chờ",
       }),
-    ).rejects.toThrow("tất cả dịch vụ");
+    ).rejects.toThrow("MSG-42");
     const result = await command({
       type: "move-room",
       id: entry.id,
@@ -467,7 +678,7 @@ describe("queues", () => {
         doctorId: "bs-an",
         reason: "Bàn giao cho bác sĩ trực",
       }),
-    ).rejects.toThrow("vắng");
+    ).rejects.toThrow("MSG-42");
     const state = seed();
     state.doctors.find((d) => d.id === "bs-minh")!.absent = true;
     resetReceptionMock(state);
@@ -484,7 +695,7 @@ describe("queues", () => {
 
 describe("cash, VNPay and immutable receipts", () => {
   it("rejects insufficient cash, unconfirmed cash, empty selection and mixed contexts", async () => {
-    await expect(cash(["phi-LH001"], 199999)).rejects.toThrow("nhận đủ tiền");
+    await expect(cash(["phi-LH001"], 199999)).rejects.toThrow("MSG-39");
     await expect(
       command({
         type: "pay-cash",
@@ -492,11 +703,9 @@ describe("cash, VNPay and immutable receipts", () => {
         cashReceived: 200000,
         confirmed: false,
       }),
-    ).rejects.toThrow("nhận đủ tiền");
-    await expect(cash([])).rejects.toThrow("ít nhất");
-    await expect(cash(["phi-LH001", "phi-LH003"])).rejects.toThrow(
-      "cùng bệnh nhân",
-    );
+    ).rejects.toThrow("MSG-39");
+    await expect(cash([])).rejects.toThrow("MSG-49");
+    await expect(cash(["phi-LH001", "phi-LH003"])).rejects.toThrow("MSG-49");
     expect((await loadReception()).payments).toHaveLength(1);
   });
   it("records one receipt for whole selected items and enqueues service rooms", async () => {
@@ -515,7 +724,7 @@ describe("cash, VNPay and immutable receipts", () => {
     expect(
       result.queues.some((q) => q.visitId === "LK003" && q.kind === "review"),
     ).toBe(false);
-    await expect(cash(["phi-CD001"])).rejects.toThrow("đã thanh toán");
+    await expect(cash(["phi-CD001"])).rejects.toThrow("MSG-49");
   });
   it("rolls back payment when no service room is available", async () => {
     const state = seed();
@@ -525,7 +734,7 @@ describe("cash, VNPay and immutable receipts", () => {
         r.available = false;
       });
     resetReceptionMock(state);
-    await expect(cash(["phi-CD001"])).rejects.toThrow("phòng sẵn sàng");
+    await expect(cash(["phi-CD001"])).rejects.toThrow("MSG-41");
     const result = await loadReception();
     expect(result.payments).toHaveLength(state.payments.length);
     expect(result.charges.find((c) => c.id === "phi-CD001")?.status).toBe(
@@ -541,7 +750,7 @@ describe("cash, VNPay and immutable receipts", () => {
       "pending",
     );
     expect(result.payments).toHaveLength(1);
-    await expect(cash(["phi-LH001"])).rejects.toThrow("đối soát");
+    await expect(cash(["phi-LH001"])).rejects.toThrow("MSG-52");
   });
   it("handles success once even when callback repeats", async () => {
     const start = await command({ type: "start-qr", chargeIds: ["phi-LH001"] });
@@ -573,7 +782,7 @@ describe("cash, VNPay and immutable receipts", () => {
       status: "failed",
       needsReconciliation: true,
     });
-    await expect(cash(["phi-LH001"])).rejects.toThrow("đối soát");
+    await expect(cash(["phi-LH001"])).rejects.toThrow("MSG-52");
     await command({
       type: "demo-gateway",
       id: "QR-expired",

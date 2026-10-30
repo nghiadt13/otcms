@@ -52,7 +52,9 @@ export function AccountsFilterBar({
           )
         }
       >
-        <NativeSelectOption value={ALL}>Tất cả loại tài khoản</NativeSelectOption>
+        <NativeSelectOption value={ALL}>
+          Tất cả loại tài khoản
+        </NativeSelectOption>
         {(Object.keys(ACCOUNT_TYPE_LABELS) as AccountType[]).map((type) => (
           <NativeSelectOption key={type} value={type}>
             {ACCOUNT_TYPE_LABELS[type]}
@@ -74,7 +76,9 @@ export function AccountsFilterBar({
       >
         <ToggleGroupItem value={ALL}>Tất cả</ToggleGroupItem>
         <ToggleGroupItem value="ACTIVE">{STATUS_LABELS.ACTIVE}</ToggleGroupItem>
-        <ToggleGroupItem value="INACTIVE">{STATUS_LABELS.INACTIVE}</ToggleGroupItem>
+        <ToggleGroupItem value="INACTIVE">
+          {STATUS_LABELS.INACTIVE}
+        </ToggleGroupItem>
       </ToggleGroup>
     </FilterBar>
   );

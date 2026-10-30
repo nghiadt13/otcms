@@ -70,5 +70,12 @@ export function useReviewModerationList() {
     setFilters({ rating: "", replied: "", from: "", to: "" });
   }, [setFilters]);
 
-  return { ...list, counts, dateDraft, dateError, changeDateRange, clearFilters };
+  return {
+    ...list,
+    counts,
+    dateDraft,
+    dateError,
+    changeDateRange,
+    clearFilters,
+  };
 }

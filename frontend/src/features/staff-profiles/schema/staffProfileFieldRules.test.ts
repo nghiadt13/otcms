@@ -11,13 +11,19 @@ const doctorGroup = { qualifications: "", biography: "", consultationInfo: "" };
 describe("validateStaffProfileInput", () => {
   it("bắt buộc họ tên hiển thị và liên hệ công việc", () => {
     expect(
-      validateStaffProfileInput({ displayName: "  ", workContact: "" }, "RECEPTIONIST"),
+      validateStaffProfileInput(
+        { displayName: "  ", workContact: "" },
+        "RECEPTIONIST",
+      ),
     ).toEqual({ displayName: "MSG-12", workContact: "MSG-12" });
   });
 
   it("hợp lệ khi có họ tên và số điện thoại hoặc email", () => {
     expect(
-      validateStaffProfileInput({ displayName: "Lê Tân", workContact: "0901 234 567" }, "RECEPTIONIST"),
+      validateStaffProfileInput(
+        { displayName: "Lê Tân", workContact: "0901 234 567" },
+        "RECEPTIONIST",
+      ),
     ).toEqual({});
     expect(isValidWorkContact("tan@example.com")).toBe(true);
     expect(isValidWorkContact("không phải liên hệ")).toBe(false);
@@ -26,7 +32,10 @@ describe("validateStaffProfileInput", () => {
   it("nhóm bác sĩ không bắt buộc nhưng giới hạn độ dài", () => {
     const base = { displayName: "BS. A", workContact: "0901 234 567" };
     expect(
-      validateStaffProfileInput({ ...base, doctor: doctorGroup }, "ORTHOPEDIC_DOCTOR"),
+      validateStaffProfileInput(
+        { ...base, doctor: doctorGroup },
+        "ORTHOPEDIC_DOCTOR",
+      ),
     ).toEqual({});
     expect(
       validateStaffProfileInput(
@@ -39,7 +48,11 @@ describe("validateStaffProfileInput", () => {
   it("bỏ qua nhóm bác sĩ khi vai trò khác", () => {
     expect(
       validateStaffProfileInput(
-        { displayName: "KTV", workContact: "0901 234 567", doctor: { ...doctorGroup, biography: "a".repeat(5000) } },
+        {
+          displayName: "KTV",
+          workContact: "0901 234 567",
+          doctor: { ...doctorGroup, biography: "a".repeat(5000) },
+        },
         "LAB_TECHNICIAN",
       ),
     ).toEqual({});
@@ -60,6 +73,8 @@ describe("validatePhotoFile", () => {
 
   it("từ chối định dạng lạ hoặc quá dung lượng", () => {
     expect(validatePhotoFile(file("image/gif", 1000))).toBe("MSG-12");
-    expect(validatePhotoFile(file("image/jpeg", PHOTO_MAX_BYTES + 1))).toBe("MSG-12");
+    expect(validatePhotoFile(file("image/jpeg", PHOTO_MAX_BYTES + 1))).toBe(
+      "MSG-12",
+    );
   });
 });

@@ -14,20 +14,13 @@ export type RatingMetric = {
 
 /** READY có đủ trường (trường rỗng là 0 hoặc []); NO_SOURCE không kèm trường nào. */
 export type DashboardBlock<T> =
-  | ({ status: "READY" } & T)
-  | { status: "NO_SOURCE" };
+  ({ status: "READY" } & T) | { status: "NO_SOURCE" };
 
 export type StatusRow<C extends string> = Metric & { code: C };
 export type AppointmentStatusCode =
-  | "BOOKED"
-  | "CHECKED_IN"
-  | "CANCELLED"
-  | "NO_SHOW";
+  "BOOKED" | "CHECKED_IN" | "CANCELLED" | "NO_SHOW";
 export type VisitStatusCode =
-  | "WAITING"
-  | "IN_PROGRESS"
-  | "COMPLETED"
-  | "CANCELLED"; // tạm, chờ BE
+  "WAITING" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED"; // tạm, chờ BE
 export type PaymentMethod = "CASH" | "VNPAY";
 export type RoomWaitingRow = {
   roomId: string;

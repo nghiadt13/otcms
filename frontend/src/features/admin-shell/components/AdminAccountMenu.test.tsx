@@ -6,22 +6,21 @@ import { resetMyAccountMockStore } from "@/features/my-account/api/myAccountApi"
 import { AdminAccountMenu } from "./AdminAccountMenu";
 
 const replace = vi.fn();
-const signOut = vi.fn().mockResolvedValue({ error: null });
+const signOut = vi.hoisted(() => vi.fn());
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace, push: vi.fn() }),
   usePathname: () => "/admin",
 }));
 
-// Ranh giới ngoài: client Supabase.
-vi.mock("@/lib/supabase/browser", () => ({
-  getSupabaseBrowserClient: () => ({ auth: { signOut } }),
-}));
+// Ranh giới ngoài: lớp phiên đăng nhập gọi backend.
+vi.mock("@/lib/auth/authSession", () => ({ signOut }));
 
 beforeEach(() => {
   resetMyAccountMockStore();
   replace.mockClear();
   signOut.mockClear();
+  signOut.mockResolvedValue(undefined);
   window.matchMedia ??= ((query: string) => ({
     matches: false,
     media: query,
@@ -39,7 +38,9 @@ function setup() {
 }
 
 async function openMenu() {
-  await userEvent.click(await screen.findByRole("button", { name: /admin\.hoa/ }));
+  await userEvent.click(
+    await screen.findByRole("button", { name: /admin\.hoa/ }),
+  );
 }
 
 describe("AdminAccountMenu", () => {
@@ -56,23 +57,33 @@ describe("AdminAccountMenu", () => {
     expect(
       await screen.findByRole("menuitem", { name: /Hồ sơ tài khoản/ }),
     ).toHaveAttribute("href", "/admin/account");
-    expect(screen.getByRole("menuitem", { name: /Đổi mật khẩu/ })).toBeInTheDocument();
-    expect(screen.getByRole("menuitem", { name: /Đăng xuất/ })).toBeInTheDocument();
+    expect(
+      screen.getByRole("menuitem", { name: /Đổi mật khẩu/ }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("menuitem", { name: /Đăng xuất/ }),
+    ).toBeInTheDocument();
   });
 
   it("Đổi mật khẩu mở dialog và dialog còn đó sau khi menu đóng", async () => {
     setup();
     await openMenu();
-    await userEvent.click(await screen.findByRole("menuitem", { name: /Đổi mật khẩu/ }));
-    expect(await screen.findByRole("dialog", { name: "Đổi mật khẩu" })).toBeInTheDocument();
+    await userEvent.click(
+      await screen.findByRole("menuitem", { name: /Đổi mật khẩu/ }),
+    );
+    expect(
+      await screen.findByRole("dialog", { name: "Đổi mật khẩu" }),
+    ).toBeInTheDocument();
     expect(screen.getByLabelText("Mật khẩu hiện tại")).toBeInTheDocument();
   });
 
-  it("Đăng xuất xóa phiên Supabase rồi replace về /login", async () => {
+  it("Đăng xuất huỷ phiên rồi replace về /staff-login", async () => {
     setup();
     await openMenu();
-    await userEvent.click(await screen.findByRole("menuitem", { name: /Đăng xuất/ }));
-    await waitFor(() => expect(replace).toHaveBeenCalledWith("/login"));
+    await userEvent.click(
+      await screen.findByRole("menuitem", { name: /Đăng xuất/ }),
+    );
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/staff-login"));
     expect(signOut).toHaveBeenCalledTimes(1);
   });
 });

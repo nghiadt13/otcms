@@ -8,10 +8,7 @@ export type AccountStatus = "ACTIVE" | "INACTIVE";
 
 /** FE chỉ vẽ nút có trong mảng này, không suy từ `status`. */
 export type AccountAction =
-  | "deactivate"
-  | "activate"
-  | "reissuePassword"
-  | "createStaffProfile";
+  "deactivate" | "activate" | "reissuePassword" | "createStaffProfile";
 
 export interface AccountListItem {
   id: string;

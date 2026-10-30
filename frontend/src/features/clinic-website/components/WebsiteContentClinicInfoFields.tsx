@@ -13,13 +13,19 @@ type Props = {
 };
 
 /** Năm trường có cấu trúc của loại Thông tin phòng khám. Khóa lỗi dạng `body.<trường>`. */
-export function WebsiteContentClinicInfoFields({ value, errors, onChange }: Props) {
+export function WebsiteContentClinicInfoFields({
+  value,
+  errors,
+  onChange,
+}: Props) {
   const text = (key: keyof ClinicFormFields) => ({
     value: value[key],
     onChange: (event: { target: { value: string } }) =>
       onChange({ [key]: event.target.value }),
     "aria-invalid": Boolean(errors[`body.${key}`]),
-    "aria-describedby": errors[`body.${key}`] ? `clinic-${key}-error` : undefined,
+    "aria-describedby": errors[`body.${key}`]
+      ? `clinic-${key}-error`
+      : undefined,
   });
   return (
     <div className="grid gap-4 sm:grid-cols-2">
@@ -29,7 +35,11 @@ export function WebsiteContentClinicInfoFields({ value, errors, onChange }: Prop
         required
         error={errors["body.clinicName"]}
       >
-        <Input id="clinic-clinicName" autoComplete="off" {...text("clinicName")} />
+        <Input
+          id="clinic-clinicName"
+          autoComplete="off"
+          {...text("clinicName")}
+        />
       </WebsiteContentField>
       <WebsiteContentField
         id="clinic-hotline"
@@ -37,7 +47,12 @@ export function WebsiteContentClinicInfoFields({ value, errors, onChange }: Prop
         required
         error={errors["body.hotline"]}
       >
-        <Input id="clinic-hotline" type="tel" autoComplete="off" {...text("hotline")} />
+        <Input
+          id="clinic-hotline"
+          type="tel"
+          autoComplete="off"
+          {...text("hotline")}
+        />
       </WebsiteContentField>
       <div className="sm:col-span-2">
         <WebsiteContentField
@@ -55,7 +70,12 @@ export function WebsiteContentClinicInfoFields({ value, errors, onChange }: Prop
           label="Email liên hệ"
           error={errors["body.email"]}
         >
-          <Input id="clinic-email" type="email" autoComplete="off" {...text("email")} />
+          <Input
+            id="clinic-email"
+            type="email"
+            autoComplete="off"
+            {...text("email")}
+          />
         </WebsiteContentField>
       </div>
       <div className="sm:col-span-2">

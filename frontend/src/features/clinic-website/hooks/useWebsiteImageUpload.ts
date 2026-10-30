@@ -23,7 +23,10 @@ export function useWebsiteImageUpload() {
   /** Trả về URL ảnh, hoặc `null` khi lỗi (đã báo). */
   async function upload(file: File): Promise<string | null> {
     setError(null);
-    if (!ALLOWED_IMAGE_TYPES.includes(file.type) || file.size > MAX_IMAGE_BYTES) {
+    if (
+      !ALLOWED_IMAGE_TYPES.includes(file.type) ||
+      file.size > MAX_IMAGE_BYTES
+    ) {
       setError(`${formatAppMessage("MSG-69")} ${IMAGE_HINT}`);
       return null;
     }

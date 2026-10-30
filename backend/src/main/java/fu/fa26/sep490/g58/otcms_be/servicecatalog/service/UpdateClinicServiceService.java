@@ -1,0 +1,15 @@
+package fu.fa26.sep490.g58.otcms_be.servicecatalog.service;
+
+import fu.fa26.sep490.g58.otcms_be.servicecatalog.model.ClinicService;
+import java.math.BigDecimal;
+import java.util.UUID;
+
+public interface UpdateClinicServiceService {
+    ClinicService update(UUID serviceId, String name, String description,
+                         BigDecimal price, int durationMinutes, int bufferMinutes, boolean onlineBookable);
+
+    default ClinicService update(UUID serviceId, String name, String description,
+                                 int durationMinutes, int bufferMinutes, boolean onlineBookable) {
+        return update(serviceId, name, description, BigDecimal.ZERO, durationMinutes, bufferMinutes, onlineBookable);
+    }
+}

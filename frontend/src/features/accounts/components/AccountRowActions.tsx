@@ -1,7 +1,10 @@
 "use client";
 
 import { Power, PowerOff } from "lucide-react";
-import { RowActionsMenu, type RowAction } from "@/components/admin/RowActionsMenu";
+import {
+  RowActionsMenu,
+  type RowAction,
+} from "@/components/admin/RowActionsMenu";
 import { Button } from "@/components/ui/button";
 import { accountIdentifier } from "../accountDisplay";
 import type { StatusTarget } from "../hooks/useAccountStatusChange";

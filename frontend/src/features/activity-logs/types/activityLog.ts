@@ -16,8 +16,7 @@ export type ActivityCategory =
 
 /** Đối tượng bị tác động (cột "Bản ghi"): như nhóm, trừ RESULT_CORRECTION -> CLINICAL_RESULT. */
 export type ActivityRecordType =
-  | Exclude<ActivityCategory, "RESULT_CORRECTION">
-  | "CLINICAL_RESULT";
+  Exclude<ActivityCategory, "RESULT_CORRECTION"> | "CLINICAL_RESULT";
 
 /** Mã hành động cụ thể (cột "Hành động"). Bảng nhãn: labels/activityLabels.ts. */
 export type ActivityAction =

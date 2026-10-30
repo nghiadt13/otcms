@@ -36,7 +36,9 @@ export function RoomServicePicker({
   invalid,
 }: RoomServicePickerProps) {
   const toggle = (id: string, checked: boolean) =>
-    onChange(checked ? [...selectedIds, id] : selectedIds.filter((x) => x !== id));
+    onChange(
+      checked ? [...selectedIds, id] : selectedIds.filter((x) => x !== id),
+    );
 
   if (!hasCategory) {
     return <Note>Chọn loại phòng để xem dịch vụ.</Note>;
@@ -53,7 +55,9 @@ export function RoomServicePicker({
   if (error) {
     return (
       <div role="alert" className="space-y-2 text-sm">
-        <p className="text-destructive">Không tải được danh sách dịch vụ. {error}</p>
+        <p className="text-destructive">
+          Không tải được danh sách dịch vụ. {error}
+        </p>
         <Button type="button" variant="outline" size="sm" onClick={onRetry}>
           Thử lại
         </Button>
@@ -66,8 +70,8 @@ export function RoomServicePicker({
   if (options.length === 0 && retired.length === 0) {
     return (
       <Note>
-        Chưa có dịch vụ đang cung cấp thuộc loại này. Thêm dịch vụ ở mục Dịch vụ trước khi
-        tạo phòng.
+        Chưa có dịch vụ đang cung cấp thuộc loại này. Thêm dịch vụ ở mục Dịch vụ
+        trước khi tạo phòng.
       </Note>
     );
   }
@@ -91,7 +95,9 @@ export function RoomServicePicker({
               onCheckedChange={(checked) => toggle(row.id, checked)}
             />
             <span className="min-w-0 flex-1 break-words">{row.name}</span>
-            {row.retired ? <StatusBadge tone="neutral">Đã ngừng</StatusBadge> : null}
+            {row.retired ? (
+              <StatusBadge tone="neutral">Đã ngừng</StatusBadge>
+            ) : null}
           </label>
         </li>
       ))}

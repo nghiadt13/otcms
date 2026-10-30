@@ -1,10 +1,11 @@
 import type { PageResponse } from "@/lib/api/pagination";
 
 // Kiểu dữ liệu màn kiểm duyệt đánh giá (admin). Khớp JSON của /api/v1/admin/reviews.
-// Khác `PatientReview` (public, chỉ đánh giá đã công khai).
+// Khác `PublicReview` (public, chỉ đánh giá đã công khai).
 
 export type ReviewStatus = "PENDING" | "PUBLISHED" | "HIDDEN";
-export type ReviewAction = "approve" | "hide" | "unhide" | "reply" | "editReply";
+export type ReviewAction =
+  "approve" | "hide" | "unhide" | "reply" | "editReply";
 export type ReviewRating = 1 | 2 | 3 | 4 | 5;
 
 export interface ReviewVisit {
@@ -43,7 +44,10 @@ export interface ReviewCounts {
   all: number;
 }
 
-export type ReviewListPage = PageResponse<ReviewListItem, { counts: ReviewCounts }>;
+export type ReviewListPage = PageResponse<
+  ReviewListItem,
+  { counts: ReviewCounts }
+>;
 
 export interface ReviewReplyRequest {
   text: string;

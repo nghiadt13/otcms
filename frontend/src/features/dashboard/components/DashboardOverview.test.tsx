@@ -15,7 +15,7 @@ import type {
   DashboardPeriod,
 } from "../types/dashboardOverview";
 import { DashboardOverview } from "./DashboardOverview";
-
+import { formatAppMessage } from "@/lib/messages/appMessages";
 // Đi qua lớp API giả (không mock hook): chỉ thay thân getDashboardOverview để bỏ độ trễ.
 vi.mock("../api/dashboardApi", () => ({ getDashboardOverview: vi.fn() }));
 const api = vi.mocked(getDashboardOverview);
@@ -39,17 +39,25 @@ afterEach(() => vi.useRealTimers());
 
 // Số tiền chứa khoảng trắng không ngắt nên so thẳng textContent thay vì chuỗi đã chuẩn hóa.
 const collectedCell = () =>
-  screen.getByText((_, el) => el?.tagName === "DD" && el.textContent === COLLECTED);
+  screen.getByText(
+    (_, el) => el?.tagName === "DD" && el.textContent === COLLECTED,
+  );
 
-const setDates =(from: string, to: string) => {
-  fireEvent.change(screen.getByLabelText("Từ ngày"), { target: { value: from } });
-  fireEvent.change(screen.getByLabelText("Đến ngày"), { target: { value: to } });
+const setDates = (from: string, to: string) => {
+  fireEvent.change(screen.getByLabelText("Từ ngày"), {
+    target: { value: from },
+  });
+  fireEvent.change(screen.getByLabelText("Đến ngày"), {
+    target: { value: to },
+  });
 };
 
 describe("DashboardOverview", () => {
   it("mặc định 7 ngày: gọi đúng kỳ, 5 ô dải, 7 link kèm from/to", async () => {
     render(<DashboardOverview />);
-    expect(await screen.findByText("Chờ thanh toán", { selector: "dt" })).toBeInTheDocument();
+    expect(
+      await screen.findByText("Chờ thanh toán", { selector: "dt" }),
+    ).toBeInTheDocument();
 
     expect(api).toHaveBeenCalledTimes(1);
     expect(api.mock.calls[0][0]).toEqual(DEFAULT_PERIOD);
@@ -60,13 +68,17 @@ describe("DashboardOverview", () => {
     expect(document.querySelectorAll("dl dt")).toHaveLength(5);
     expect(collectedCell()).toBeInTheDocument();
     expect(
-      screen.getByText("Kỳ 14/10/2026 – 20/10/2026, so với 07/10/2026 – 13/10/2026"),
+      screen.getByText(
+        "Kỳ 14/10/2026 – 20/10/2026, so với 07/10/2026 – 13/10/2026",
+      ),
     ).toBeInTheDocument();
 
     const links = screen.getAllByRole("link", { name: /Xem chi tiết/ });
     expect(links).toHaveLength(7);
     for (const link of links)
-      expect(link.getAttribute("href")).toMatch(/\?from=2026-10-14&to=2026-10-20$/);
+      expect(link.getAttribute("href")).toMatch(
+        /\?from=2026-10-14&to=2026-10-20$/,
+      );
   });
 
   it("bấm 30 ngày tải lại; sửa ô ngày bỏ chọn nhóm và chỉ tải khi bấm Xem", async () => {
@@ -76,7 +88,10 @@ describe("DashboardOverview", () => {
 
     await user.click(screen.getByRole("button", { name: "30 ngày" }));
     await waitFor(() => expect(api).toHaveBeenCalledTimes(2));
-    expect(api.mock.calls[1][0]).toEqual({ from: "2026-09-21", to: "2026-10-20" });
+    expect(api.mock.calls[1][0]).toEqual({
+      from: "2026-09-21",
+      to: "2026-10-20",
+    });
     await screen.findByText("Lịch hẹn", { selector: "dt" });
 
     setDates("2026-10-01", "2026-10-10");
@@ -88,8 +103,13 @@ describe("DashboardOverview", () => {
 
     await user.click(screen.getByRole("button", { name: "Xem" }));
     await waitFor(() => expect(api).toHaveBeenCalledTimes(3));
-    expect(api.mock.calls[2][0]).toEqual({ from: "2026-10-01", to: "2026-10-10" });
-    expect(await screen.findByText(/Kỳ 01\/10\/2026 – 10\/10\/2026/)).toBeInTheDocument();
+    expect(api.mock.calls[2][0]).toEqual({
+      from: "2026-10-01",
+      to: "2026-10-10",
+    });
+    expect(
+      await screen.findByText(/Kỳ 01\/10\/2026 – 10\/10\/2026/),
+    ).toBeInTheDocument();
   });
 
   it("từ > đến: lỗi dưới ô ngày, không gọi API, giữ số cũ", async () => {
@@ -100,7 +120,9 @@ describe("DashboardOverview", () => {
     setDates("2026-10-20", "2026-10-14");
     await user.click(screen.getByRole("button", { name: "Xem" }));
 
-    expect(screen.getByRole("alert")).toHaveTextContent(/Khoảng thời gian chưa hợp lệ/);
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      formatAppMessage("MSG-72"),
+    );
     expect(api).toHaveBeenCalledTimes(1);
     expect(collectedCell()).toBeInTheDocument();
   });
@@ -110,10 +132,14 @@ describe("DashboardOverview", () => {
     api.mockRejectedValueOnce(new ApiError(500, { code: "MSG-04" }));
     render(<DashboardOverview />);
 
-    expect(await screen.findByRole("alert")).toHaveTextContent(/Hệ thống đang gặp sự cố/);
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      formatAppMessage("MSG-04"),
+    );
     await user.click(screen.getByRole("button", { name: "Thử lại" }));
 
-    expect(await screen.findByText("Lịch hẹn", { selector: "dt" })).toBeInTheDocument();
+    expect(
+      await screen.findByText("Lịch hẹn", { selector: "dt" }),
+    ).toBeInTheDocument();
     expect(api).toHaveBeenCalledTimes(2);
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
@@ -122,8 +148,12 @@ describe("DashboardOverview", () => {
     api.mockRejectedValueOnce(new ApiError(403, { code: "MSG-50" }));
     render(<DashboardOverview />);
 
-    expect(await screen.findByRole("alert")).toHaveTextContent(/không đủ quyền/);
-    expect(screen.queryByRole("button", { name: "Thử lại" })).not.toBeInTheDocument();
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      formatAppMessage("MSG-50"),
+    );
+    expect(
+      screen.queryByRole("button", { name: "Thử lại" }),
+    ).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Xem" })).toBeDisabled();
   });
 
@@ -135,7 +165,9 @@ describe("DashboardOverview", () => {
     api.mockRejectedValueOnce(new ApiError(400, { code: "MSG-72" }));
     await user.click(screen.getByRole("button", { name: "Hôm nay" }));
 
-    expect(await screen.findByRole("alert")).toHaveTextContent(/Khoảng thời gian chưa hợp lệ/);
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      formatAppMessage("MSG-72"),
+    );
     expect(collectedCell()).toBeInTheDocument();
   });
 
@@ -145,13 +177,19 @@ describe("DashboardOverview", () => {
     }));
     render(<DashboardOverview />);
 
-    expect((await screen.findAllByText("Chưa có dữ liệu")).length).toBeGreaterThan(0);
+    expect(
+      (await screen.findAllByText("Chưa có dữ liệu")).length,
+    ).toBeGreaterThan(0);
     expect(
       screen.getByText("Chưa có dữ liệu để tổng hợp cho khối này."),
     ).toBeInTheDocument();
     expect(screen.getByText("—", { selector: "dd" })).toBeInTheDocument();
-    expect(screen.getAllByRole("link", { name: /Xem chi tiết/ })).toHaveLength(7);
-    expect(screen.getByRole("link", { name: /Phản hồi bệnh nhân/ })).toBeInTheDocument();
+    expect(screen.getAllByRole("link", { name: /Xem chi tiết/ })).toHaveLength(
+      7,
+    );
+    expect(
+      screen.getByRole("link", { name: /Phản hồi bệnh nhân/ }),
+    ).toBeInTheDocument();
   });
 
   it("kỳ không hoạt động: số 0, câu dạy cách dùng, không báo lỗi", async () => {
@@ -160,10 +198,18 @@ describe("DashboardOverview", () => {
     );
     render(<DashboardOverview />);
 
-    expect(await screen.findByText(/Chưa có dịch vụ nào được dùng trong kỳ này/)).toBeInTheDocument();
-    expect(screen.getByText(/Chưa có lượt khám hay người chờ nào/)).toBeInTheDocument();
-    expect(screen.getByText("Chưa có đánh giá trong kỳ này", { selector: "dd" })).toBeInTheDocument();
-    expect(screen.getAllByText("0", { selector: "dd" }).length).toBeGreaterThanOrEqual(3);
+    expect(
+      await screen.findByText(/Chưa có dịch vụ nào được dùng trong kỳ này/),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/Chưa có lượt khám hay người chờ nào/),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Chưa có đánh giá trong kỳ này", { selector: "dd" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getAllByText("0", { selector: "dd" }).length,
+    ).toBeGreaterThanOrEqual(3);
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
@@ -171,7 +217,9 @@ describe("DashboardOverview", () => {
     render(<DashboardOverview />);
     await screen.findByText("Lịch hẹn", { selector: "dt" });
 
-    expect(screen.queryByRole("button", { name: /Xuất|In|Tải/ })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /Xuất|In|Tải/ }),
+    ).not.toBeInTheDocument();
     expect(document.body.textContent).not.toMatch(/MSG-|UC77|BR-62/);
   });
 
@@ -185,12 +233,16 @@ describe("DashboardOverview", () => {
 
     await user.click(screen.getByRole("button", { name: "Hôm nay" }));
     expect(
-      await screen.findByText("Kỳ 20/10/2026 – 20/10/2026, so với 19/10/2026 – 19/10/2026"),
+      await screen.findByText(
+        "Kỳ 20/10/2026 – 20/10/2026, so với 19/10/2026 – 19/10/2026",
+      ),
     ).toBeInTheDocument();
 
     resolveFirst(ready(DEFAULT_PERIOD));
     await Promise.resolve();
-    expect(screen.getByText(/Kỳ 20\/10\/2026 – 20\/10\/2026/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Kỳ 20\/10\/2026 – 20\/10\/2026/),
+    ).toBeInTheDocument();
     expect(screen.queryByText(/Kỳ 14\/10\/2026/)).not.toBeInTheDocument();
   });
 });

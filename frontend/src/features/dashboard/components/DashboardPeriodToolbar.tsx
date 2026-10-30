@@ -4,10 +4,7 @@ import { Button } from "@/components/ui/button";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { DateRangeFilter } from "@/components/admin/DateRangeFilter";
 import { FilterBar } from "@/components/admin/FilterBar";
-import {
-  QUICK_PRESETS,
-  type QuickPreset,
-} from "../lib/dashboardPeriodRules";
+import { QUICK_PRESETS, type QuickPreset } from "../lib/dashboardPeriodRules";
 import type { DashboardPeriod } from "../types/dashboardOverview";
 
 type DashboardPeriodToolbarProps = {

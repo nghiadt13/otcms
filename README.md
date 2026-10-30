@@ -7,7 +7,7 @@ Orthopedic Clinic Management System — nền tảng quản lý phòng khám ch�
 | Phần | Lựa chọn |
 | --- | --- |
 | Web | Next.js 16.3.6, React 19.2.8, TypeScript 5.9.3, Node.js 24.21.0 LTS |
-| API | Spring Boot 4.1.1, Java 17, Maven Wrapper |
+| API | Spring Boot 4.1.1, Java 21, Maven Wrapper |
 | Dữ liệu và đăng nhập | Supabase PostgreSQL, Supabase Auth; Spring xác thực access token bằng JWKS |
 | Ảnh y khoa | Orthanc 26.7.0, OHIF 3.12.18, DICOMweb; Docker Compose cho local |
 

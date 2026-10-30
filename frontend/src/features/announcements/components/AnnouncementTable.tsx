@@ -34,7 +34,8 @@ type AnnouncementTableProps = {
 };
 
 function DeliveryCell({ item }: { item: AnnouncementListItem }) {
-  if (!item.deliveryStatus) return <span className="text-muted-foreground">—</span>;
+  if (!item.deliveryStatus)
+    return <span className="text-muted-foreground">—</span>;
   const view = DELIVERY_STATUS_VIEW[item.deliveryStatus];
   return <StatusBadge tone={view.tone}>{view.label}</StatusBadge>;
 }
@@ -85,7 +86,10 @@ export function AnnouncementTable({
               ? items.map((item) => (
                   <TableRow key={item.id}>
                     <TableCell className="max-w-md min-w-48 whitespace-normal">
-                      <span className="line-clamp-2 break-words" title={item.title}>
+                      <span
+                        className="line-clamp-2 break-words"
+                        title={item.title}
+                      >
                         {item.title}
                       </span>
                     </TableCell>

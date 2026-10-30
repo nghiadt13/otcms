@@ -25,7 +25,10 @@ export function StaffShiftsManagement() {
   const router = useRouter();
   const week = useShiftWeek();
   const options = useShiftFormOptions();
-  const [form, setForm] = useState<{ open: boolean; target: ShiftFormTarget | null }>({
+  const [form, setForm] = useState<{
+    open: boolean;
+    target: ShiftFormTarget | null;
+  }>({
     open: false,
     target: null,
   });
@@ -40,7 +43,11 @@ export function StaffShiftsManagement() {
     const byId = new Map(options.staff.map((s) => [s.staffId, s]));
     for (const shift of shifts)
       if (!byId.has(shift.staffId))
-        byId.set(shift.staffId, { staffId: shift.staffId, fullName: shift.staffName, role: shift.role });
+        byId.set(shift.staffId, {
+          staffId: shift.staffId,
+          fullName: shift.staffName,
+          role: shift.role,
+        });
     const withShifts = new Set(shifts.map((s) => s.staffId));
     return [...byId.values()]
       .filter(
@@ -59,13 +66,16 @@ export function StaffShiftsManagement() {
   const openAdd = (staffId?: string, date?: string) =>
     setForm({ open: true, target: { staffId, date } });
   const openShift = (shift: Shift) => {
-    if (shift.allowedActions.includes("edit")) setForm({ open: true, target: { shift } });
+    if (shift.allowedActions.includes("edit"))
+      setForm({ open: true, target: { shift } });
     else setViewing(shift);
   };
   const goToAppointments = (staffId: string, date: string) => {
     setForm({ open: false, target: null });
     setDeleting(null);
-    router.push(`${ADMIN_ROUTES.appointments}${toQueryString({ doctorId: staffId, date })}`);
+    router.push(
+      `${ADMIN_ROUTES.appointments}${toQueryString({ doctorId: staffId, date })}`,
+    );
   };
 
   const canUseGrid = week.wide && week.period === "week";
@@ -79,7 +89,14 @@ export function StaffShiftsManagement() {
         title="Ca làm việc"
         description="Xếp ca cho lễ tân, bác sĩ và kỹ thuật viên. Giờ nhận lịch khám của bác sĩ lấy từ ca của bác sĩ."
         actions={
-          <Button onClick={() => openAdd(undefined, isPastDate(week.anchor, today) ? today : week.anchor)}>
+          <Button
+            onClick={() =>
+              openAdd(
+                undefined,
+                isPastDate(week.anchor, today) ? today : week.anchor,
+              )
+            }
+          >
             <Plus data-icon="inline-start" />
             Thêm ca
           </Button>
@@ -108,7 +125,9 @@ export function StaffShiftsManagement() {
         onViewChange={week.setView}
       />
       {pastRange ? (
-        <p className="mb-3 text-sm text-muted-foreground">Kỳ đã qua, chỉ xem.</p>
+        <p className="mb-3 text-sm text-muted-foreground">
+          Kỳ đã qua, chỉ xem.
+        </p>
       ) : null}
 
       {week.view === "grid" ? (

@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/sidebar";
 import { adminNavGroups, findActiveNavItem } from "../adminNavigation";
 import { AdminAccountMenu } from "./AdminAccountMenu";
-import { AdminNavGroup } from "./AdminNavGroup";
+import { SidebarNavGroup } from "@/components/shell/SidebarNavGroup";
 
 export function AdminSidebar() {
   const pathname = usePathname();
@@ -55,7 +55,7 @@ export function AdminSidebar() {
 
       <SidebarContent>
         {adminNavGroups.map((group) => (
-          <AdminNavGroup
+          <SidebarNavGroup
             key={group.label}
             group={group}
             activeHref={activeHref}

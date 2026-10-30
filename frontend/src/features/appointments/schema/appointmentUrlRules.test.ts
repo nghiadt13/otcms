@@ -7,7 +7,8 @@ import {
   resolveListRange,
 } from "./appointmentUrlRules";
 
-const parse = (query: string) => parseAppointmentUrl(new URLSearchParams(query));
+const parse = (query: string) =>
+  parseAppointmentUrl(new URLSearchParams(query));
 
 describe("parseAppointmentUrl", () => {
   it("mặc định tab danh sách; tab lạ về danh sách", () => {
@@ -17,12 +18,21 @@ describe("parseAppointmentUrl", () => {
   });
 
   it("date thành from = to", () => {
-    expect(parse("date=2026-10-21")).toMatchObject({ from: "2026-10-21", to: "2026-10-21" });
+    expect(parse("date=2026-10-21")).toMatchObject({
+      from: "2026-10-21",
+      to: "2026-10-21",
+    });
   });
 
   it("thiếu to thì to = from; thiếu from thì from = to", () => {
-    expect(parse("from=2026-10-21")).toMatchObject({ from: "2026-10-21", to: "2026-10-21" });
-    expect(parse("to=2026-10-25")).toMatchObject({ from: "2026-10-25", to: "2026-10-25" });
+    expect(parse("from=2026-10-21")).toMatchObject({
+      from: "2026-10-21",
+      to: "2026-10-21",
+    });
+    expect(parse("to=2026-10-25")).toMatchObject({
+      from: "2026-10-25",
+      to: "2026-10-25",
+    });
   });
 
   it("bỏ qua ngày sai và trạng thái sai", () => {
@@ -33,7 +43,9 @@ describe("parseAppointmentUrl", () => {
   });
 
   it("tab giờ trống cắt khoảng dài hơn 7 ngày còn from + 6", () => {
-    expect(parse("tab=availability&from=2026-10-20&to=2026-10-30").to).toBe("2026-10-26");
+    expect(parse("tab=availability&from=2026-10-20&to=2026-10-30").to).toBe(
+      "2026-10-26",
+    );
     expect(parse("from=2026-10-20&to=2026-10-30").to).toBe("2026-10-30");
   });
 
@@ -54,14 +66,19 @@ describe("buildAppointmentQuery", () => {
       to: "2026-10-21",
       status: "BOOKED",
     });
-    expect(query).toBe("?tab=availability&doctorId=d1&from=2026-10-21&to=2026-10-21&status=BOOKED");
+    expect(query).toBe(
+      "?tab=availability&doctorId=d1&from=2026-10-21&to=2026-10-21&status=BOOKED",
+    );
     expect(query).not.toMatch(/q=|page=/);
   });
 });
 
 describe("resolve ranges", () => {
   it("danh sách: mặc định hôm nay → +7; có from thì to mặc định = from", () => {
-    expect(resolveListRange({}, "2026-10-20")).toEqual({ from: "2026-10-20", to: "2026-10-27" });
+    expect(resolveListRange({}, "2026-10-20")).toEqual({
+      from: "2026-10-20",
+      to: "2026-10-27",
+    });
     expect(resolveListRange({ from: "2026-10-22" }, "2026-10-20")).toEqual({
       from: "2026-10-22",
       to: "2026-10-22",
@@ -69,7 +86,13 @@ describe("resolve ranges", () => {
   });
 
   it("giờ trống: mặc định một ngày, tối đa 7 ngày", () => {
-    expect(resolveAvailabilityRange({}, "2026-10-20")).toEqual({ from: "2026-10-20", to: "2026-10-20" });
-    expect(resolveAvailabilityRange({ from: "2026-10-20", to: "2026-11-30" }, "x").to).toBe("2026-10-26");
+    expect(resolveAvailabilityRange({}, "2026-10-20")).toEqual({
+      from: "2026-10-20",
+      to: "2026-10-20",
+    });
+    expect(
+      resolveAvailabilityRange({ from: "2026-10-20", to: "2026-11-30" }, "x")
+        .to,
+    ).toBe("2026-10-26");
   });
 });

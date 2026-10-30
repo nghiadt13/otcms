@@ -9,9 +9,6 @@ import {
 
 const validInput: PatientRegistrationInput = {
   fullName: "Nguyễn Văn An",
-  dateOfBirth: "20/05/1990",
-  gender: "male",
-  phone: "0901 234 567",
   email: "an@example.com",
   password: "matkhau123",
   confirmPassword: "matkhau123",
@@ -19,33 +16,32 @@ const validInput: PatientRegistrationInput = {
 };
 
 describe("authFieldRules", () => {
-  it("chấp nhận thông tin đăng ký hợp lệ", () => {
+  it("chấp nhận thông tin đăng ký hợp lệ (họ tên, email, mật khẩu, đồng ý)", () => {
     expect(validateRegistration(validInput)).toEqual({});
   });
 
   it("báo lỗi từng trường thiếu hoặc sai", () => {
-    const errors = validateRegistration(
-      {
-        ...validInput,
-        fullName: " ",
-        dateOfBirth: "01/01/2999",
-        gender: "",
-        phone: "12345",
-        confirmPassword: "khac123",
-        consent: false,
-      },
-      new Date("2026-10-17"),
-    );
+    const errors = validateRegistration({
+      ...validInput,
+      fullName: " ",
+      email: "sai-email",
+      confirmPassword: "khac123",
+      consent: false,
+    });
     expect(Object.keys(errors).sort()).toEqual(
-      [
-        "confirmPassword",
-        "consent",
-        "dateOfBirth",
-        "fullName",
-        "gender",
-        "phone",
-      ].sort(),
+      ["confirmPassword", "consent", "email", "fullName"].sort(),
     );
+  });
+
+  it("không hỏi ngày sinh, giới tính hay SĐT: các khóa đó không bao giờ có lỗi", () => {
+    // Dữ liệu cũ có thêm khóa thì bị bỏ qua, không làm đăng ký thất bại.
+    const withLegacyFields = {
+      ...validInput,
+      dateOfBirth: "",
+      gender: "",
+      phone: "",
+    } as PatientRegistrationInput;
+    expect(validateRegistration(withLegacyFields)).toEqual({});
   });
 
   it("kiểm tra email, mật khẩu và mã xác minh", () => {

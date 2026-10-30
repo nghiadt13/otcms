@@ -25,7 +25,10 @@ describe("validateReportForm", () => {
 
   it("from > to: MSG-72 ở to", () => {
     expect(
-      validateReportForm({ ...valid, from: "2026-10-20", to: "2026-10-01" }, MOCK_SUBJECTS),
+      validateReportForm(
+        { ...valid, from: "2026-10-20", to: "2026-10-01" },
+        MOCK_SUBJECTS,
+      ),
     ).toEqual({ to: "MSG-72" });
   });
 
@@ -45,8 +48,12 @@ describe("normalizeBreakdown", () => {
   });
 
   it("bỏ breakdown khi chủ đề không phải Thanh toán", () => {
-    expect(normalizeBreakdown({ ...valid, subject: "VISITS" }, MOCK_SUBJECTS)).toBeUndefined();
-    expect(toReportQuery({ ...valid, subject: "VISITS" }, MOCK_SUBJECTS)).toEqual({
+    expect(
+      normalizeBreakdown({ ...valid, subject: "VISITS" }, MOCK_SUBJECTS),
+    ).toBeUndefined();
+    expect(
+      toReportQuery({ ...valid, subject: "VISITS" }, MOCK_SUBJECTS),
+    ).toEqual({
       subject: "VISITS",
       from: "2026-10-01",
       to: "2026-10-20",

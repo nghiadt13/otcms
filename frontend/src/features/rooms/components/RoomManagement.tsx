@@ -16,7 +16,17 @@ import { RoomsTable } from "./RoomsTable";
 
 export function RoomManagement() {
   const list = useRoomList();
-  const { data, loading, error, filters, page, setPage, setFilters, reload, replaceItem } = list;
+  const {
+    data,
+    loading,
+    error,
+    filters,
+    page,
+    setPage,
+    setFilters,
+    reload,
+    replaceItem,
+  } = list;
 
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Room | null>(null);
@@ -119,7 +129,9 @@ export function RoomManagement() {
         open={status.target !== null}
         onOpenChange={(open) => !open && status.cancel()}
         title={
-          suspending ? `Tạm ngưng phòng ${roomName}?` : `Đánh dấu sẵn sàng cho phòng ${roomName}?`
+          suspending
+            ? `Tạm ngưng phòng ${roomName}?`
+            : `Đánh dấu sẵn sàng cho phòng ${roomName}?`
         }
         description={
           suspending

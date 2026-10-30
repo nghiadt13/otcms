@@ -1,33 +1,35 @@
 # Giao diện lễ tân
 
-Nguồn: Report 3 bản (7), mục 1.4.2.3 và các UC chi tiết, do người dùng cung cấp ngày 24/10/2026. Các UC lễ tân chưa có trong docs/requirements; bản report mới được chỉ định làm nguồn cho công việc này. Không tự khôi phục quyền từ report cũ.
+Nguồn: Report 3 bản (7), mục 1.4.2.3 và các UC chi tiết, do người dùng cung cấp ngày 24/10/2026. Ngày 27/10 người dùng chấp thuận thay đổi tra cứu tại quầy; bản điều chỉnh UC10 ở `docs/requirements/UC10-create-walk-in-patient-profile.md` và hợp đồng API thay phần tra cứu cũ. Các UC lễ tân khác chưa có file riêng; không tự khôi phục quyền từ report cũ.
 
-Nhánh làm việc: `thien-quang`. Mở `/reception` sau `cd frontend` và `npm.cmd run dev`.
+Làm trên nhánh `thien-quang`, gộp vào `nghiadt13` ngày 25/10/2026 (thay bản `/staff/*` cũ; tài khoản nhân viên vào `/reception` qua `/workspace`). Mở `/reception` sau `cd frontend` và `npm.cmd run dev`. Hợp đồng API cho BE: `docs/fe-be-api-contract-patient-reception.md` mục 3.4 và phụ lục R00.
 
 ## Phạm vi và ánh xạ
 
-| Màn trong SRS                                                                    | Đường dẫn / thành phần                                                             |
-| -------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
-| Account Profile, Update Account Profile, Change Password                         | /reception/account; đổi ảnh và hộp thoại mật khẩu                                  |
-| Notifications, Notification Details                                              | /reception/notifications; hộp thoại nội dung                                       |
-| Patient Search, Walk-in Patient Profile, Patient Details, Care Link Confirmation | /reception/patients; tìm định danh, tạo/sửa, xác minh tại quầy                     |
-| Appointments, Book Appointment, Appointment Details, Doctor Availability         | /reception/appointments; đặt lịch, chi tiết đổi bác sĩ, giờ trống                  |
-| Check-In, Reception Queue                                                        | /reception; tiếp nhận và danh sách đã vào hàng đợi                                 |
-| Manage Room Queue                                                                | /reception/queues; khám và đọc kết quả, xem phòng dịch vụ, điều chỉnh vị trí/phòng |
-| Visit Progress                                                                   | /reception/visits; chi tiết, chuyển bác sĩ phụ trách                               |
-| Payment Items, Record Payment                                                    | /reception/payments; tiền mặt, vòng đời VNPay mô phỏng                             |
-| Payment History, Receipt                                                         | /reception/payment-history; biên lai và in/lưu PDF                                 |
-| Service Order Status                                                             | /reception/orders                                                                  |
-| Examination Result Sheet                                                         | /reception/results; chỉ đọc và in phiếu phát hành                                  |
-| Rooms & Availability, Service Catalog Lookup, My Work Schedule                   | /reception/rooms, /services, /schedule; chỉ xem                                    |
+| Màn trong SRS                                                                    | Đường dẫn / thành phần                                                                     |
+| -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| Account Profile, Update Account Profile, Change Password                         | /reception/account; đổi ảnh và hộp thoại mật khẩu                                          |
+| Notifications, Notification Details                                              | /reception/notifications; hộp thoại nội dung                                               |
+| Patient Search, Walk-in Patient Profile, Patient Details, Care Link Confirmation | /reception/patients; tìm tên/SĐT/mã BN, lọc ngày sinh tùy chọn, tạo/sửa, xác minh tại quầy |
+| Appointments, Book Appointment, Appointment Details, Doctor Availability         | /reception/appointments; đặt lịch, chi tiết đổi bác sĩ, giờ trống                          |
+| Check-In, Reception Queue                                                        | /reception; tiếp nhận và danh sách đã vào hàng đợi                                         |
+| Manage Room Queue                                                                | /reception/queues; khám và đọc kết quả, xem phòng dịch vụ, điều chỉnh vị trí/phòng         |
+| Visit Progress                                                                   | /reception/visits; chi tiết, chuyển bác sĩ phụ trách                                       |
+| Payment Items, Record Payment                                                    | /reception/payments; tiền mặt, vòng đời VNPay mô phỏng                                     |
+| Payment History, Receipt                                                         | /reception/payment-history; biên lai và in/lưu PDF                                         |
+| Service Order Status                                                             | /reception/orders                                                                          |
+| Examination Result Sheet                                                         | /reception/results; chỉ đọc và in phiếu phát hành                                          |
+| Rooms & Availability, Service Catalog Lookup, My Work Schedule                   | /reception/rooms, /services, /schedule; chỉ xem                                            |
 
 Giữ đúng 26 màn theo mục 1.4.2.3; màn con phù hợp được đặt trong dialog, không tạo 26 mục menu.
 
+Hộp thoại tiếp nhận hiển thị theo nơi mở: nút trên một dòng lịch hẹn cố định cả bệnh nhân và lịch; nút từ hồ sơ bệnh nhân cố định người khám nhưng cho chọn hình thức tiếp nhận phù hợp; nút tiếp nhận chung cho chọn cả hai. Thông tin cố định hiển thị dạng chỉ đọc để đối chiếu, không phải danh sách chọn lại. Liên kết từ chi tiết lịch hẹn mang cả `patientId` và `appointmentId`; lịch không hợp lệ hoặc không khớp bệnh nhân bị chặn, không tự chuyển thành khám trực tiếp.
+
 ## Quy tắc được kiểm tra
 
-- UC10/11: đối chiếu điện thoại + ngày sinh, thêm tên khi nhiều kết quả; kiểm tra trùng định danh. Hồ sơ mới không tạo tài khoản. Dữ liệu lễ tân không chứa tiền sử/dị ứng.
+- UC10/11 (điều chỉnh 27/10): tra cứu theo tên, SĐT hoặc mã BN; tên hỗ trợ không dấu, ngày sinh là bộ lọc tùy chọn. Trả danh sách để lễ tân đối chiếu tên/ngày sinh/SĐT rồi chọn, không tự chọn bản ghi đầu. Nút tạo hồ sơ mở ngay cả khi chưa tra cứu; vẫn xác nhận danh tính và kiểm tra trùng trước khi lưu. Lưu xong hiển thị hồ sơ mới. Hồ sơ mới không tạo tài khoản. Dữ liệu lễ tân không chứa tiền sử/dị ứng.
 - UC13 AF2: chỉ xác minh yêu cầu liên kết có sẵn khi hồ sơ thiếu email hoặc định danh; yêu cầu xác nhận và căn cứ giấy tờ.
-- UC20/21/22/24: giờ trống từ ca 20 phút mẫu; bác sĩ tùy chọn, kiểm tra tranh chấp khung giờ. Không đổi giờ hoặc hủy lịch bằng vai trò lễ tân. Bác sĩ vắng được đổi đúng giờ; nếu không có người thay thì giữ lịch và tạo thông báo mô phỏng.
+- UC20/21/22/24: giờ trống từ ca 20 phút mẫu; ngày/giờ theo thời gian thực Việt Nam. Chỉ chọn giờ có thời điểm bắt đầu lớn hơn hiện tại, kiểm tra lại lúc lưu; để hộp thoại mở qua giờ hoặc qua nửa đêm sẽ cập nhật điều kiện, không giữ khung giờ đã hết hạn. Bác sĩ tùy chọn, kiểm tra tranh chấp khung giờ. Không đổi giờ hoặc hủy lịch bằng vai trò lễ tân. Bác sĩ vắng được đổi đúng giờ; nếu không có người thay thì giữ lịch và tạo thông báo mô phỏng.
 - UC29: có mặt và trả đủ phí trước tiếp nhận; chặn trùng lượt. Khách trực tiếp có khoản phí trước khi tạo lượt, không tự tạo lịch hẹn. Lượt chờ kết luận trong ngày 1–7 tiếp tục cùng lượt, không thu lại phí khám; ngày 8 hết hạn.
 - UC30–34: hàng chờ theo ưu tiên cấu hình và thời điểm vào; đổi thủ công phải ghi lý do và lịch sử. Trạng thái đang gọi là calledAt trên entry Waiting, không thêm trạng thái ngoài SRS. Chỉ lễ tân đã gọi được ghi vắng/quay lại cùng ngày. Chặn gọi thêm khi phòng bận hoặc bệnh nhân đang ở phòng khác. Chỉ kỹ thuật viên gọi phòng dịch vụ.
 - UC31: chuyển phòng dịch vụ chỉ sang phòng hỗ trợ đủ dịch vụ đang chờ. Chuyển phòng khám cùng với chuyển trách nhiệm cho bác sĩ trực khi bác sĩ cũ vắng.
@@ -35,6 +37,10 @@ Giữ đúng 26 màn theo mục 1.4.2.3; màn con phù hợp được đặt tro
 - VNPay mô phỏng: đang chờ không đánh dấu Paid; callback thành công idempotent; hết hạn/chưa rõ kết quả khóa thu lại đến khi đối soát. Callback và kết quả chỉ là adapter kiểm thử, không giao dịch tiền thật.
 - Sau thu phí dịch vụ: một entry cho một bệnh nhân tại một phòng, dùng phòng phù hợp ít chờ; không tự cho bệnh nhân quay về bác sĩ ngay khi chỉ một dịch vụ xong.
 - Lễ tân không đóng lượt, không sửa kết quả, không ra chỉ định, không kê đơn, không sửa ca/phòng/danh mục, không xem tiền sử hoặc dị ứng.
+
+## Thông báo theo bảng MSG
+
+Mọi toast và thông báo lỗi lấy nguyên câu từ bảng MSG của R3 (`lib/messages/appMessages.ts`), không tự đặt câu. Adapter ném `ApiError` mang mã MSG theo phần Exceptions của từng UC (ví dụ MSG-37 tiếp nhận không hợp lệ, MSG-49 khoản không thu được, MSG-52 VNPay chưa rõ kết quả); `ReceptionProvider` hiển thị bằng `messageFromError`. Thông báo thành công theo lệnh nằm ở `schema/receptionMessages.ts` (MSG-90, 26, 27, 94, 43, 48, 52, 53, 60, 05, 07). Thao tác R3 không định nghĩa thông báo (lập phí khám khách trực tiếp, báo không có bác sĩ thay) không hiện toast.
 
 ## Chênh lệch nội dung cần lưu ý
 
@@ -46,7 +52,7 @@ Root layout `(staff)` dùng cùng token Teal/Coral, Be Vietnam Pro, shadcn base-
 
 `api/receptionApi.ts` là adapter mock nhất quán dùng chung giữa các màn. Commands kiểm tra version, clone dữ liệu rồi commit một lần; lỗi không để lại khoản thu hoặc hàng đợi dở dang. Provider giữ phiên dữ liệu qua navigation; hard reload đặt lại dữ liệu. Không lưu dữ liệu bệnh nhân hoặc mật khẩu vào localStorage. Không có gọi ghi Supabase, email, VNPay hay backend thật.
 
-Đồng hồ mẫu lấy ngày hiện tại tại Việt Nam, cố định 09:10 để review ngoài giờ làm việc. Priority cấu hình mẫu: cấp cứu trước, các nhóm ưu tiên còn lại ngang nhau, sau cùng thông thường. Cần thay bằng cấu hình phòng khám thực tế khi nối API.
+Đồng hồ runtime theo giờ thực `Asia/Ho_Chi_Minh` (UTC+7), đồng bộ mỗi giây và khi quay lại tab. Adapter mẫu đọc lại giờ tại lúc nhận lệnh, không tin giờ cũ khi mở form; một lần đồng hồ chạy không làm tăng version nghiệp vụ. Dữ liệu vẫn là giả; giờ cố định 09:10 chỉ dùng khi truyền ngày fixture rõ ràng trong test, không dùng cho người thao tác trên giao diện. Bản UI lấy giờ máy; khi nối API thật phải dùng `serverNow` và để backend kiểm tra lại theo giờ server. Ngoài giờ làm việc hôm nay, chọn ngày còn ca tiếp theo để thử đặt lịch. Priority cấu hình mẫu: cấp cứu trước, các nhóm ưu tiên còn lại ngang nhau, sau cùng thông thường.
 
 Theo mẫu admin hiện có, bản UI chưa có xác thực vai trò thật. Layout chặn bản production mặc định; chỉ `NEXT_PUBLIC_RECEPTION_DEMO=true` mới cho mở demo khi build. Không bật chế độ này cho vận hành. Trước khi production, thay adapter bằng API Spring có kiểm tra role, record scope, transaction, idempotency, thời gian máy chủ, xác minh chữ ký callback và lưu lịch sử bền vững. Không dùng query role hoặc Supabase user metadata tự khai để cấp quyền.
 
@@ -54,7 +60,7 @@ Form sử dụng controlled React state và validator TypeScript thuần trong `
 
 ## Kịch bản xem thử
 
-1. Hồ sơ: tìm `0900000001`, ngày sinh `1992-04-15`; sửa thông tin hành chính. Tạo trùng họ tên + điện thoại + ngày sinh phải bị chặn.
+1. Hồ sơ: chỉ nhập `Bình`, `binh`, `0900000002` hoặc `bn-0002` đều tìm ra Trần Văn Bình; không bắt nhập ngày sinh. Có thể nhập thêm ngày sinh để thu hẹp danh sách. Bấm Tạo hồ sơ ngay trên trang mới mở, điền và xác nhận danh tính để lưu; tạo trùng họ tên + điện thoại + ngày sinh phải bị chặn. Tra cứu/sửa thông tin hành chính không hiển thị tiền sử/dị ứng.
 2. Tiếp nhận Nguyễn Minh Anh: chưa thu phí -> mở Thu phí -> chọn phí LH001 -> tiền mặt đủ -> xác nhận -> biên lai -> quay lại Tiếp nhận -> xác nhận có mặt -> vào hàng đợi.
 3. Trần Văn Bình đã thanh toán online: tiếp nhận ngay khi có mặt. Lê Thị Hạnh: BS. Lan vắng, đổi người khác cùng 10:00 trước tiếp nhận.
 4. Phòng 101: gọi Gia Bảo -> ghi vắng -> gọi Long; không gọi người thứ hai khi còn người đang được gọi/đang khám; bệnh nhân vắng có thể quay lại cùng ngày.
@@ -76,10 +82,17 @@ Form sử dụng controlled React state và validator TypeScript thuần trong `
 
 Để chạy riêng kiểm thử mới: `npm.cmd test -- src/features/patient-reception`.
 
+## Kiểm tra các thay đổi ngày 27/10/2026
+
+- 83/83 kiểm thử lễ tân đạt, bao gồm cố định ngữ cảnh tiếp nhận, tìm hồ sơ linh hoạt, chống tạo trùng, giờ hết hạn và chuyển ngày Việt Nam.
+- Build/TypeScript đạt; lint không có lỗi, còn hai warning có sẵn của `WebsiteContentBody.tsx`.
+- Toàn frontend đạt 1.199/1.200; ca còn lỗi là test phòng “409 phòng đang dùng: Switch giữ giá trị cũ” gián đoạn đã ghi ở trên. Không sửa test hoặc logic phòng trong các thay đổi này.
+- Chrome desktop/mobile: tiếp nhận đúng người/lịch, tìm và tạo hồ sơ, chặn giờ quá khứ, đổi ngày lúc nửa đêm và hiển thị giờ Việt Nam khi trình duyệt ở múi giờ Mỹ đều đạt.
+
 ## Mở giao diện trên máy
 
 ```powershell
-cd E:\SEP490\otcms\frontend
+cd otcms\frontend
 npm.cmd run dev
 ```
 

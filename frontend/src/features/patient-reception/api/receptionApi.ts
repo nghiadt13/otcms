@@ -1,8 +1,14 @@
-import { mockDelay } from "@/lib/api/mockServer";
+import type { MsgCode } from "@/lib/api/apiError";
+import { mockDelay, mockFail } from "@/lib/api/mockServer";
 import { isPasswordValid } from "@/lib/domain/passwordPolicy";
 import {
   addDays,
+  clinicTimestamp,
+  isFutureSlot,
   availableDoctors,
+  patientBookingAt,
+  receptionPriority,
+  agePriority,
   latestRoundReady,
   normalizePhone,
   normalizeText,
@@ -25,18 +31,31 @@ import { createReceptionSeed } from "./receptionSeed";
 // UI prototype transport, matching the existing admin mock boundary. No Supabase writes.
 // Replace this adapter with authorized Spring endpoints; never ship the mock as clinical storage.
 let store = createReceptionSeed();
+let currentTime = () => new Date();
 let passwordHash: string | null = null;
 const delay = () => mockDelay(process.env.NODE_ENV === "test" ? 0 : 180);
-export function resetReceptionMock(state = createReceptionSeed()) {
-  store = structuredClone(state);
+export function resetReceptionMock(state?: ReceptionState, now?: () => Date) {
+  store = structuredClone(state ?? createReceptionSeed());
+  const fixtureTime = store.clock;
+  currentTime = now ?? (state ? () => new Date(fixtureTime) : () => new Date());
   passwordHash = null;
 }
-function requireThat(condition: unknown, message: string): asserts condition {
-  if (!condition) throw new Error(message);
+// Lỗi mang mã MSG của R3 theo hình ProblemDetail mà BE sẽ trả (xem fe-be-api-contract);
+// màn hình hiển thị bằng `messageFromError`, không tự đặt câu chữ.
+function requireThat(
+  condition: unknown,
+  code: MsgCode,
+  status = 409,
+): asserts condition {
+  if (!condition) mockFail(status, code);
 }
-function find<T extends { id: string }>(items: T[], id: string): T {
+function find<T extends { id: string }>(
+  items: T[],
+  id: string,
+  code: MsgCode = "MSG-41",
+): T {
   const result = items.find((x) => x.id === id);
-  requireThat(result, "Bản ghi không còn khả dụng. Hãy tải lại danh sách.");
+  requireThat(result, code, 404);
   return result;
 }
 const id = (s: ReceptionState, prefix: string) => `${prefix}${++s.sequence}`;
@@ -70,7 +89,7 @@ function history(
 function requireActive(visit: Visit) {
   requireThat(
     ["waiting", "examining", "awaiting"].includes(visit.status),
-    "Lượt khám đã kết thúc, không thể thay đổi điều phối.",
+    "MSG-42",
   );
 }
 function expireState(s: ReceptionState) {
@@ -120,11 +139,15 @@ export async function loadReception(
 ): Promise<ReceptionState> {
   await mockDelay(process.env.NODE_ENV === "test" ? 0 : 180, signal);
   const next = structuredClone(store);
+  next.clock = clinicTimestamp(currentTime());
   expireState(next);
-  if (JSON.stringify(next) !== JSON.stringify(store)) {
+  // A clock tick is not a business mutation and must not invalidate an open form.
+  if (
+    JSON.stringify({ ...next, clock: store.clock }) !== JSON.stringify(store)
+  ) {
     next.version++;
-    store = next;
   }
+  store = next;
   return structuredClone(store);
 }
 function addQueue(
@@ -143,10 +166,7 @@ function addQueue(
   );
   if (existing) return existing;
   const room = find(s.rooms, roomId);
-  requireThat(
-    room.available,
-    "Phòng không sẵn sàng. Vui lòng chọn phòng phù hợp khác.",
-  );
+  requireThat(room.available, "MSG-42");
   const number =
     s.queues.filter((q) => q.roomId === roomId && q.date === today(s)).length +
     1;
@@ -207,14 +227,11 @@ function selectedCharges(
   ids: string[],
   ignoreTxId?: string,
 ) {
-  requireThat(
-    ids.length && new Set(ids).size === ids.length,
-    "Chọn ít nhất một khoản thu, không chọn trùng.",
-  );
-  const charges = ids.map((key) => find(s.charges, key));
+  requireThat(ids.length && new Set(ids).size === ids.length, "MSG-49", 400);
+  const charges = ids.map((key) => find(s.charges, key, "MSG-50"));
   requireThat(
     charges.every((c) => c.status === "pending"),
-    "Có khoản đã thanh toán hoặc đã hủy. Hãy tải lại và chọn các khoản còn chờ thu.",
+    "MSG-49",
   );
   requireThat(
     charges.every(
@@ -222,7 +239,8 @@ function selectedCharges(
         c.patientId === charges[0].patientId &&
         c.contextId === charges[0].contextId,
     ),
-    "Chỉ thanh toán các khoản của cùng bệnh nhân và cùng lịch hẹn hoặc lượt khám.",
+    "MSG-49",
+    400,
   );
   requireThat(
     !s.transactions.some(
@@ -231,21 +249,14 @@ function selectedCharges(
         (t.status === "pending" || t.needsReconciliation) &&
         t.chargeIds.some((key) => ids.includes(key)),
     ),
-    "Khoản thu đang chờ VNPay hoặc cần đối soát. Không thu lại trước khi xác minh kết quả.",
+    "MSG-52",
   );
   for (const c of charges) {
     const a = s.appointments.find((a) => a.id === c.contextId);
-    if (a)
-      requireThat(
-        a.status === "booked",
-        "Lịch hẹn không còn đủ điều kiện thu phí.",
-      );
+    if (a) requireThat(a.status === "booked", "MSG-49");
     if (c.orderId) {
       const order = find(s.orders, c.orderId);
-      requireThat(
-        order.status === "pending",
-        "Chỉ định không còn chờ thanh toán.",
-      );
+      requireThat(order.status === "pending", "MSG-49");
       requireActive(find(s.visits, order.visitId));
     }
   }
@@ -284,10 +295,7 @@ function recordPayment(
       order.status = "paid";
       const visit = find(s.visits, order.visitId);
       const room = leastBusyRoom(s, order.serviceId);
-      requireThat(
-        room,
-        "Chưa có phòng sẵn sàng cho dịch vụ này. Hãy liên hệ quản trị viên trước khi thu tiền.",
-      );
+      requireThat(room, "MSG-41");
       // Reuse a compatible active queue for the same patient instead of creating duplicates.
       const existing = s.queues.find(
         (q) =>
@@ -309,11 +317,9 @@ export async function executeReception(
   expectedVersion: number,
 ): Promise<ReceptionState> {
   await delay();
-  requireThat(
-    store.version === expectedVersion,
-    "Dữ liệu vừa thay đổi. Danh sách đã được làm mới; hãy kiểm tra rồi thực hiện lại.",
-  );
+  requireThat(store.version === expectedVersion, "MSG-42");
   const s = structuredClone(store);
+  s.clock = clinicTimestamp(currentTime());
   expireState(s);
   switch (command.type) {
     case "save-patient": {
@@ -327,12 +333,10 @@ export async function executeReception(
       };
       requireThat(
         Object.keys(validatePatient(input, today(s))).length === 0,
-        "Thông tin hồ sơ chưa hợp lệ. Hãy kiểm tra các trường đã nhập.",
+        "MSG-17",
+        400,
       );
-      requireThat(
-        command.identityConfirmed,
-        "Cần đối chiếu danh tính trước khi lưu hồ sơ.",
-      );
+      requireThat(command.identityConfirmed, "MSG-17", 400);
       const matches = s.patients.filter(
         (p) =>
           p.id !== command.id &&
@@ -342,24 +346,23 @@ export async function executeReception(
             (input.nationalId &&
               p.nationalId.toUpperCase() === input.nationalId)),
       );
-      requireThat(
-        !matches.length,
-        "Đã có hồ sơ khớp thông tin định danh. Vui lòng tìm và sử dụng hồ sơ hiện có.",
-      );
-      if (command.id) Object.assign(find(s.patients, command.id), input);
+      requireThat(!matches.length, "MSG-18");
+      if (command.id)
+        Object.assign(find(s.patients, command.id, "MSG-19"), input);
       else s.patients.unshift({ ...input, id: id(s, "BN") });
       break;
     }
     case "confirm-link": {
-      const link = find(s.careLinks, command.id),
+      const link = find(s.careLinks, command.id, "MSG-21"),
         patient = find(s.patients, link.patientId);
       requireThat(
         link.status === "pending" && (!patient.email || !patient.nationalId),
-        "Yêu cầu không còn thuộc diện xác minh tại quầy.",
+        "MSG-21",
       );
       requireThat(
         command.identityConfirmed && command.evidence.trim().length >= 5,
-        "Xác nhận đã đối chiếu giấy tờ và ghi nhận căn cứ xác minh.",
+        "MSG-17",
+        400,
       );
       link.status = "confirmed";
       link.evidence = command.evidence.trim();
@@ -373,15 +376,13 @@ export async function executeReception(
       break;
     }
     case "book": {
-      find(s.patients, command.patientId);
+      find(s.patients, command.patientId, "MSG-29");
       const service = find(s.services, command.serviceId);
+      requireThat(service.active && service.category === "exam", "MSG-29");
       requireThat(
-        service.active && service.category === "exam",
-        "Chỉ đặt lịch cho dịch vụ khám đang cung cấp.",
-      );
-      requireThat(
-        `${command.date}T${command.time}` >= s.clock.slice(0, 16),
-        "Không thể đặt lịch vào thời gian đã qua.",
+        isFutureSlot(command.date, command.time, s.clock),
+        "MSG-31",
+        400,
       );
       const doctors = availableDoctors(
         s,
@@ -392,19 +393,10 @@ export async function executeReception(
       const doctor = command.doctorId
         ? doctors.find((d) => d.id === command.doctorId)
         : doctors[0];
+      requireThat(doctor, "MSG-30");
       requireThat(
-        doctor,
-        "Khung giờ đã hết chỗ hoặc bác sĩ không còn khả dụng. Hãy chọn lại.",
-      );
-      requireThat(
-        !s.appointments.some(
-          (a) =>
-            a.patientId === command.patientId &&
-            a.date === command.date &&
-            a.time === command.time &&
-            ["booked", "checked-in"].includes(a.status),
-        ),
-        "Bệnh nhân đã có lịch khám vào giờ này.",
+        !patientBookingAt(s, command.patientId, command.date, command.time),
+        "MSG-29",
       );
       const appointment = {
         id: id(s, "LH"),
@@ -428,15 +420,10 @@ export async function executeReception(
       break;
     }
     case "reassign": {
-      const a = find(s.appointments, command.id);
-      requireThat(
-        a.status === "booked",
-        "Chỉ đổi bác sĩ cho lịch chưa check-in.",
-      );
-      requireThat(
-        find(s.doctors, a.doctorId).absent,
-        "Chỉ đổi bác sĩ khi bác sĩ hiện tại vắng ca.",
-      );
+      requireThat(command.patientAgreed === true, "MSG-32");
+      const a = find(s.appointments, command.id, "MSG-29");
+      requireThat(a.status === "booked", "MSG-32");
+      requireThat(find(s.doctors, a.doctorId).absent, "MSG-32");
       const doctor = availableDoctors(
         s,
         a.date,
@@ -444,58 +431,62 @@ export async function executeReception(
         a.serviceId,
         a.id,
       ).find((d) => d.id === command.doctorId && d.id !== a.doctorId);
-      requireThat(doctor, "Bác sĩ thay thế không còn trống cùng giờ.");
+      requireThat(doctor, "MSG-24");
       history(
         s,
         "Đổi bác sĩ lịch hẹn",
-        "Bác sĩ vắng ca",
+        "Bác sĩ vắng ca; lễ tân xác nhận bệnh nhân đồng ý thay thế cùng giờ",
         a.doctorId,
         doctor.id,
       );
       a.doctorId = doctor.id;
+      a.notice = undefined;
       a.notice = "Đã tạo thông báo đổi bác sĩ cho bệnh nhân (mô phỏng).";
       break;
     }
     case "notify-unavailable": {
-      const a = find(s.appointments, command.id);
+      const a = find(s.appointments, command.id, "MSG-29");
       requireThat(
         a.status === "booked" && find(s.doctors, a.doctorId).absent,
-        "Lịch hẹn không còn cần xử lý bác sĩ vắng.",
+        "MSG-32",
       );
       requireThat(
         !availableDoctors(s, a.date, a.time, a.serviceId, a.id).length,
-        "Vẫn còn bác sĩ cùng giờ. Hãy chọn bác sĩ thay thế.",
+        "MSG-42",
       );
+      requireThat(!a.unavailabilityDiscussedAt, "MSG-32");
+      history(
+        s,
+        "Thông báo bác sĩ vắng",
+        "Không có bác sĩ thay thế cùng giờ; đã thông báo bệnh nhân, chờ xử lý",
+        a.id,
+        a.id,
+      );
+      a.unavailabilityDiscussedAt = s.clock;
       a.notice =
-        "Đã ghi nhận thông báo bác sĩ vắng; bệnh nhân có thể tự hủy lịch. Giờ hẹn giữ nguyên (mô phỏng).";
+        "Đã ghi nhận lễ tân thông báo bệnh nhân: bác sĩ vắng, chưa có người thay thế cùng giờ. Chờ thống nhất phương án; chưa đổi giờ hoặc hủy lịch. Đây là ghi nhận mô phỏng, không gửi tin nhắn thực tế.";
       break;
     }
     case "prepare-walk-in": {
-      find(s.patients, command.patientId);
+      find(s.patients, command.patientId, "MSG-18");
       const service = find(s.services, command.serviceId);
-      requireThat(
-        service.active && service.category === "exam",
-        "Chọn dịch vụ khám đang cung cấp.",
-      );
+      requireThat(service.active && service.category === "exam", "MSG-39", 400);
       requireThat(
         !s.visits.some(
           (v) =>
             v.patientId === command.patientId &&
             ["waiting", "examining", "awaiting"].includes(v.status),
         ),
-        "Bệnh nhân đang có lượt khám hoạt động. Hãy mở lượt đó.",
+        "MSG-37",
       );
       const contextId = `walkin-${command.patientId}-${today(s)}`;
       requireThat(
         !s.charges.some(
           (c) => c.contextId === contextId && c.status !== "cancelled",
         ),
-        "Phí khám trực tiếp đã được lập. Hãy mở các khoản thu của bệnh nhân.",
+        "MSG-42",
       );
-      requireThat(
-        onDuty(s).length,
-        "Hiện không có bác sĩ trực. Chưa thể tiếp nhận khám trực tiếp.",
-      );
+      requireThat(onDuty(s).length, "MSG-41");
       s.charges.push({
         id: id(s, "phi"),
         patientId: command.patientId,
@@ -508,32 +499,48 @@ export async function executeReception(
       break;
     }
     case "check-in": {
-      requireThat(command.present, "Cần xác nhận bệnh nhân đã có mặt.");
-      find(s.patients, command.patientId);
-      requireThat(command.priority in PRIORITIES, "Nhóm ưu tiên không hợp lệ.");
+      requireThat(command.present, "MSG-39", 400);
+      const patient = find(s.patients, command.patientId, "MSG-18");
+      requireThat(command.priority in PRIORITIES, "MSG-39", 400);
+      requireThat(
+        command.priority !== "pregnant" || patient.sex === "Nữ",
+        "MSG-39",
+        400,
+      );
+      requireThat(
+        !["child", "elderly"].includes(command.priority) ||
+          command.priority === agePriority(patient.dob, today(s)),
+        "MSG-39",
+        400,
+      );
+      const priority = receptionPriority(
+        patient.dob,
+        today(s),
+        command.priority,
+      );
       if (command.returnVisitId) {
         const visit = find(s.visits, command.returnVisitId);
         requireThat(
           visit.patientId === command.patientId &&
             visit.status === "awaiting" &&
             withinReturnWindow(visit.firstCheckIn, today(s)),
-          "Lượt khám không còn trong thời hạn tiếp tục 7 ngày.",
+          "MSG-37",
         );
         requireThat(
           !s.queues.some(
             (q) =>
               q.visitId === visit.id && q.date === today(s) && activeQueue(q),
           ),
-          "Bệnh nhân đã có mặt trong hàng đợi hôm nay.",
+          "MSG-37",
         );
-        visit.priority = command.priority;
+        visit.priority = priority;
         const paid = s.orders.filter(
           (o) => o.visitId === visit.id && o.status === "paid",
         );
         if (paid.length)
           for (const o of paid) {
             const room = leastBusyRoom(s, o.serviceId);
-            requireThat(room, "Chưa có phòng phù hợp để tiếp tục dịch vụ.");
+            requireThat(room, "MSG-41");
             o.roomId = room.id;
             addQueue(s, visit, room.id, "service");
           }
@@ -541,7 +548,7 @@ export async function executeReception(
           const doctor = find(s.doctors, visit.doctorId);
           requireThat(
             onDuty(s).some((d) => d.id === doctor.id),
-            "Bác sĩ phụ trách vắng. Hãy chuyển cho bác sĩ trực trước.",
+            "MSG-41",
           );
           const last = s.orders
             .filter((o) => o.visitId === visit.id && o.resultAt)
@@ -549,10 +556,7 @@ export async function executeReception(
             .sort()
             .at(-1);
           addQueue(s, visit, doctor.roomId, "review", last ?? s.clock);
-        } else
-          throw new Error(
-            "Còn chỉ định chưa thanh toán. Hãy thu phí dịch vụ; không thu thêm phí khám.",
-          );
+        } else mockFail(409, "MSG-37"); // còn chỉ định chưa thu phí: thu phí dịch vụ trước
         break;
       }
       requireThat(
@@ -561,17 +565,17 @@ export async function executeReception(
             v.patientId === command.patientId &&
             ["waiting", "examining", "awaiting"].includes(v.status),
         ),
-        "Bệnh nhân đang có lượt khám. Không thể check-in trùng.",
+        "MSG-37",
       );
       const a = command.appointmentId
-        ? find(s.appointments, command.appointmentId)
+        ? find(s.appointments, command.appointmentId, "MSG-37")
         : null;
       if (a)
         requireThat(
           a.patientId === command.patientId &&
             a.status === "booked" &&
             a.date === today(s),
-          "Chỉ check-in lịch hợp lệ của hôm nay và đúng bệnh nhân.",
+          "MSG-37",
         );
       const fee = s.charges.find(
         (c) =>
@@ -580,10 +584,7 @@ export async function executeReception(
             (a?.id ?? `walkin-${command.patientId}-${today(s)}`) &&
           c.status === "paid",
       );
-      requireThat(
-        fee,
-        "Chưa thanh toán phí khám. Hãy thu phí trước khi check-in.",
-      );
+      requireThat(fee, "MSG-37");
       const doctors = onDuty(s).filter((d) =>
         find(s.rooms, d.roomId).serviceIds.includes(fee.serviceId),
       );
@@ -604,17 +605,14 @@ export async function executeReception(
                   activeQueue(q),
               ).length,
           )[0];
-      requireThat(
-        doctor,
-        "Bác sĩ hoặc phòng không sẵn sàng. Hãy đổi sang bác sĩ trực phù hợp.",
-      );
+      requireThat(doctor, "MSG-41");
       const visit: Visit = {
         id: id(s, "LK"),
         patientId: command.patientId,
         doctorId: doctor.id,
         firstCheckIn: today(s),
         status: "waiting",
-        priority: command.priority,
+        priority,
         followUp: false,
         appointmentId: a?.id,
       };
@@ -630,12 +628,9 @@ export async function executeReception(
         room.category === "exam" &&
           room.available &&
           onDuty(s).some((d) => d.roomId === room.id),
-        "Lễ tân chỉ gọi tại phòng khám có bác sĩ đang trực.",
+        "MSG-42",
       );
-      requireThat(
-        !roomBusy(s, room.id),
-        "Phòng đang gọi hoặc đang khám cho bệnh nhân khác.",
-      );
+      requireThat(!roomBusy(s, room.id), "MSG-42");
       const entry = s.queues
         .filter(
           (q) =>
@@ -645,7 +640,7 @@ export async function executeReception(
             q.status === "waiting",
         )
         .sort(queueSort)[0];
-      requireThat(entry, "Hàng đợi không còn bệnh nhân đang chờ.");
+      requireThat(entry, "MSG-41");
       requireThat(
         !s.queues.some(
           (q) =>
@@ -653,7 +648,7 @@ export async function executeReception(
             q.date === today(s) &&
             (q.status === "serving" || (q.status === "waiting" && q.calledAt)),
         ),
-        "Bệnh nhân đang được gọi hoặc phục vụ tại phòng khác.",
+        "MSG-42",
       );
       entry.calledAt = s.clock;
       entry.callerId = s.account.id;
@@ -667,22 +662,17 @@ export async function executeReception(
         q.date === today(s) &&
           q.kind !== "service" &&
           q.callerId === s.account.id,
-        "Chỉ lễ tân đã gọi bệnh nhân được xử lý hàng đợi này trong cùng ngày.",
+        "MSG-40",
+        403,
       );
       if (command.action === "return") {
-        requireThat(
-          q.status === "absent",
-          "Bệnh nhân không còn ở trạng thái vắng mặt.",
-        );
+        requireThat(q.status === "absent", "MSG-42");
         q.status = "waiting";
         q.calledAt = undefined;
         q.joinedAt = s.clock;
         insertByPriority(s, q);
       } else {
-        requireThat(
-          q.status === "waiting" && q.calledAt,
-          "Chỉ xử lý bệnh nhân đang được gọi.",
-        );
+        requireThat(q.status === "waiting" && q.calledAt, "MSG-42");
         if (command.action === "absent") {
           q.status = "absent";
           q.calledAt = undefined;
@@ -697,7 +687,7 @@ export async function executeReception(
       const q = find(s.queues, command.id);
       requireThat(
         q.date === today(s) && q.status === "waiting" && !q.calledAt,
-        "Chỉ điều chỉnh bệnh nhân đang chờ, chưa được gọi.",
+        "MSG-42",
       );
       const list = s.queues
         .filter(
@@ -714,11 +704,12 @@ export async function executeReception(
           command.position <= list.length &&
           command.reason.trim().length >= 5 &&
           command.priority in PRIORITIES,
-        "Nhập vị trí hợp lệ và lý do ít nhất 5 ký tự.",
+        "MSG-39",
+        400,
       );
       requireThat(
         !list.slice(command.position - 1).some((x) => x.calledAt),
-        "Không được đổi vị trí trước bệnh nhân đang được gọi.",
+        "MSG-42",
       );
       const before = `${q.number}, vị trí ${q.position}, ${PRIORITIES[q.priority]}`;
       list.splice(list.indexOf(q), 1);
@@ -726,8 +717,21 @@ export async function executeReception(
       list.forEach((x, i) => {
         x.position = i + 1;
       });
-      q.priority = command.priority;
-      find(s.visits, q.visitId).priority = command.priority;
+      const visit = find(s.visits, q.visitId);
+      const patient = find(s.patients, visit.patientId);
+      requireThat(
+        command.priority !== "pregnant" || patient.sex === "Nữ",
+        "MSG-39",
+        400,
+      );
+      requireThat(
+        !["child", "elderly"].includes(command.priority) ||
+          command.priority === agePriority(patient.dob, today(s)),
+        "MSG-39",
+        400,
+      );
+      q.priority = receptionPriority(patient.dob, today(s), command.priority);
+      visit.priority = q.priority;
       history(
         s,
         "Điều chỉnh hàng đợi",
@@ -748,17 +752,11 @@ export async function executeReception(
           !q.calledAt &&
           room.id !== q.roomId &&
           room.available,
-        "Chỉ chuyển bệnh nhân chưa được gọi sang phòng sẵn sàng khác.",
+        "MSG-42",
       );
-      requireThat(
-        command.reason.trim().length >= 5,
-        "Nhập lý do chuyển phòng ít nhất 5 ký tự.",
-      );
+      requireThat(command.reason.trim().length >= 5, "MSG-39", 400);
       // Examination-room changes also transfer clinical responsibility; use explicit absent-doctor workflow.
-      requireThat(
-        q.kind === "service",
-        "Chuyển phòng khám cần dùng chức năng chuyển bác sĩ phụ trách khi bác sĩ vắng.",
-      );
+      requireThat(q.kind === "service", "MSG-42");
       const orders = s.orders.filter(
         (o) =>
           o.visitId === visit.id &&
@@ -768,7 +766,7 @@ export async function executeReception(
       requireThat(
         orders.length &&
           orders.every((o) => room.serviceIds.includes(o.serviceId)),
-        "Phòng mới phải thực hiện được tất cả dịch vụ đang chờ của bệnh nhân.",
+        "MSG-42",
       );
       const before = q.roomId;
       q.status = "closed";
@@ -786,19 +784,13 @@ export async function executeReception(
     case "transfer-doctor": {
       const visit = find(s.visits, command.visitId);
       requireActive(visit);
-      requireThat(
-        find(s.doctors, visit.doctorId).absent &&
-          command.reason.trim().length >= 5,
-        "Chỉ chuyển trách nhiệm khi bác sĩ phụ trách vắng; cần ghi lý do.",
-      );
+      requireThat(command.reason.trim().length >= 5, "MSG-39", 400);
+      requireThat(find(s.doctors, visit.doctorId).absent, "MSG-42");
       const doctor = onDuty(s).find((d) => d.id === command.doctorId);
-      requireThat(
-        doctor,
-        "Bác sĩ thay thế không đang trực hoặc phòng không sẵn sàng.",
-      );
+      requireThat(doctor, "MSG-41");
       requireThat(
         !s.queues.some((q) => q.visitId === visit.id && q.status === "serving"),
-        "Bệnh nhân đang được phục vụ; cần đồng bộ trạng thái trước khi chuyển.",
+        "MSG-42",
       );
       const before = visit.doctorId;
       visit.doctorId = doctor.id;
@@ -828,7 +820,8 @@ export async function executeReception(
         command.confirmed &&
           Number.isSafeInteger(command.cashReceived) &&
           command.cashReceived >= total,
-        "Xác nhận đã nhận đủ tiền; số tiền nhận phải là số nguyên và không nhỏ hơn tổng thu.",
+        "MSG-39",
+        400,
       );
       recordPayment(s, charges, "cash", command.cashReceived);
       break;
@@ -846,12 +839,9 @@ export async function executeReception(
       break;
     }
     case "demo-gateway": {
-      const tx = find(s.transactions, command.id);
+      const tx = find(s.transactions, command.id, "MSG-50");
       if (tx.status === "succeeded") break; // idempotent gateway callback
-      requireThat(
-        tx.status === "pending" || tx.needsReconciliation,
-        "Giao dịch đã bị từ chối; hãy tạo yêu cầu mới.",
-      );
+      requireThat(tx.status === "pending" || tx.needsReconciliation, "MSG-53");
       if (command.outcome === "unconfirmed") {
         tx.status = "failed";
         tx.needsReconciliation = true;
@@ -875,14 +865,15 @@ export async function executeReception(
       break;
     }
     case "read-notice":
-      find(s.notices, command.id).read = true;
+      find(s.notices, command.id, "MSG-50").read = true;
       break;
     case "avatar":
       requireThat(
         command.dataUrl === null ||
           (/^data:image\/(png|jpeg|webp);base64,/.test(command.dataUrl) &&
             command.dataUrl.length <= 2800000),
-        "Chọn ảnh JPG, PNG hoặc WebP tối đa 2 MB.",
+        "MSG-08",
+        400,
       );
       s.account.avatar = command.dataUrl;
       break;
@@ -903,12 +894,10 @@ export async function changeReceptionPassword(current: string, next: string) {
       .join("");
   requireThat(
     (await hash(current)) === (passwordHash ?? (await hash("Demo12345"))),
-    "Mật khẩu hiện tại chưa đúng.",
+    "MSG-08",
+    400,
   );
-  requireThat(
-    isPasswordValid(next) && current !== next,
-    "Mật khẩu mới cần ít nhất 8 ký tự, có chữ và số, khác mật khẩu hiện tại.",
-  );
+  requireThat(isPasswordValid(next) && current !== next, "MSG-08", 400);
   passwordHash = await hash(next);
 }
 export const receptionDemoExpiry = (visit: Visit) =>

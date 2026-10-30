@@ -2,7 +2,10 @@
 
 import { FilterBar } from "@/components/admin/FilterBar";
 import { SearchField } from "@/components/admin/SearchField";
-import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
+import {
+  NativeSelect,
+  NativeSelectOption,
+} from "@/components/ui/native-select";
 import {
   ROOM_CATEGORY_LABELS,
   SERVICE_CATEGORIES,
@@ -43,7 +46,9 @@ export function RoomFilters({
         className={selectClass}
         aria-label="Lọc theo loại phòng"
         value={filters.type}
-        onChange={(e) => onFilterChange({ type: e.target.value as ServiceCategory | "" })}
+        onChange={(e) =>
+          onFilterChange({ type: e.target.value as ServiceCategory | "" })
+        }
       >
         <NativeSelectOption value="">Mọi loại phòng</NativeSelectOption>
         {SERVICE_CATEGORIES.map((c) => (
@@ -56,7 +61,9 @@ export function RoomFilters({
         className={selectClass}
         aria-label="Lọc theo trạng thái"
         value={filters.status}
-        onChange={(e) => onFilterChange({ status: e.target.value as RoomStatus | "" })}
+        onChange={(e) =>
+          onFilterChange({ status: e.target.value as RoomStatus | "" })
+        }
       >
         <NativeSelectOption value="">Mọi trạng thái</NativeSelectOption>
         {(Object.keys(ROOM_STATUS_LABELS) as RoomStatus[]).map((s) => (

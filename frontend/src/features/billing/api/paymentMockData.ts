@@ -28,10 +28,20 @@ const SERVICES: PaymentLine[] = [
   { name: "Chụp CT khớp vai", price: 650000 },
 ];
 const PATIENTS = [
-  "Nguyễn Văn An", "Trần Quốc Bảo", "Phạm Thị Cúc", "Hoàng Minh Đức",
-  "Vũ Thị Hạnh", "Đặng Văn Khoa", "Bùi Thanh Lan", "Ngô Quang Minh",
-  "Đỗ Thị Ngọc", "Lý Văn Phát", "Dương Thị Quyên", "Phan Văn Sơn",
-  "Trịnh Thu Trang", "Huỳnh Văn Út",
+  "Nguyễn Văn An",
+  "Trần Quốc Bảo",
+  "Phạm Thị Cúc",
+  "Hoàng Minh Đức",
+  "Vũ Thị Hạnh",
+  "Đặng Văn Khoa",
+  "Bùi Thanh Lan",
+  "Ngô Quang Minh",
+  "Đỗ Thị Ngọc",
+  "Lý Văn Phát",
+  "Dương Thị Quyên",
+  "Phan Văn Sơn",
+  "Trịnh Thu Trang",
+  "Huỳnh Văn Út",
 ];
 const LONG_NAME = "Nguyễn Hoàng Thiên Phúc Anh Khoa Minh Quân";
 const CASHIERS = ["Trần Thị Hòa", "Phạm Thu Hà", "Võ Minh Châu"];

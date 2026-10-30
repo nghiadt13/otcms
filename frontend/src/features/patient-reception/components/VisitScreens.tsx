@@ -44,10 +44,12 @@ function TransferDoctor({
         onSubmit={async (e) => {
           e.preventDefault();
           if (
-            await run(
-              { type: "transfer-doctor", visitId: visit.id, doctorId, reason },
-              "Đã chuyển bác sĩ phụ trách và ghi nhận thông báo bàn giao (mô phỏng).",
-            )
+            await run({
+              type: "transfer-doctor",
+              visitId: visit.id,
+              doctorId,
+              reason,
+            })
           )
             onClose();
         }}

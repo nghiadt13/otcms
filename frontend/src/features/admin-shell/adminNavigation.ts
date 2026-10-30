@@ -65,7 +65,8 @@ export const adminNavGroups: AdminNavGroup[] = [
         href: "/admin/staff-profiles",
         icon: Stethoscope,
         ucs: "UC17–UC19",
-        description: "Hồ sơ chuyên môn của nhân viên; bác sĩ có thêm phần hiển thị công khai.",
+        description:
+          "Hồ sơ chuyên môn của nhân viên; bác sĩ có thêm phần hiển thị công khai.",
       },
       {
         title: "Ca làm việc",
@@ -84,7 +85,8 @@ export const adminNavGroups: AdminNavGroup[] = [
         href: "/admin/appointments",
         icon: CalendarDays,
         ucs: "UC20, UC22, UC24",
-        description: "Xem lịch hẹn, giờ trống của bác sĩ và chuyển lịch sang bác sĩ khác.",
+        description:
+          "Xem lịch hẹn, giờ trống của bác sĩ và chuyển lịch sang bác sĩ khác.",
       },
       {
         title: "Phòng khám",

@@ -1,26 +1,19 @@
-import { StatusBadge, type StatusTone } from "@/components/admin/StatusBadge";
+import { StatusBadge } from "@/components/admin/StatusBadge";
+import {
+  APPOINTMENT_STATUS_LABELS,
+  APPOINTMENT_STATUS_TONE,
+} from "@/lib/domain/clinicVisit";
 import type { AppointmentStatus } from "../types/appointment";
 
-export const STATUS_LABELS: Record<AppointmentStatus, string> = {
-  BOOKED: "Đã đặt",
-  CHECKED_IN: "Đã check-in",
-  CANCELLED: "Đã hủy",
-  NO_SHOW: "Không đến khám",
-};
-
-const STATUS_TONES: Record<AppointmentStatus, StatusTone> = {
-  BOOKED: "info",
-  CHECKED_IN: "success",
-  CANCELLED: "neutral",
-  NO_SHOW: "warning",
-};
-
+// Nhãn và tone lấy từ lib/domain/clinicVisit để lịch hẹn ở admin và lễ tân hiển thị giống nhau.
 export function AppointmentStatusBadge({
   status,
 }: {
   status: AppointmentStatus;
 }) {
   return (
-    <StatusBadge tone={STATUS_TONES[status]}>{STATUS_LABELS[status]}</StatusBadge>
+    <StatusBadge tone={APPOINTMENT_STATUS_TONE[status]}>
+      {APPOINTMENT_STATUS_LABELS[status]}
+    </StatusBadge>
   );
 }

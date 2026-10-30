@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { ROLE_LABELS } from "@/lib/domain/clinicRoles";
+import { formatAppMessage } from "@/lib/messages/appMessages";
 import type { IssuedCredential, StaffRole } from "../types/account";
 import { AccountCreateForm } from "./AccountCreateForm";
 import { IssuedPasswordStep } from "./IssuedPasswordStep";
@@ -19,14 +20,20 @@ type Issued = { credential: IssuedCredential; role: StaffRole };
  * Tạo tài khoản nhân viên, hai bước. Phải mount có điều kiện (chỉ khi mở): đóng là gỡ
  * component nên mật khẩu một lần trong state biến mất cùng Dialog.
  */
-export function AccountFormDialog({ onCreated, onClose }: AccountFormDialogProps) {
+export function AccountFormDialog({
+  onCreated,
+  onClose,
+}: AccountFormDialogProps) {
   const [issued, setIssued] = useState<Issued | null>(null);
 
   if (issued)
     return (
       <IssuedPasswordStep
         title="Tài khoản đã tạo"
-        message={`Đã tạo tài khoản ${ROLE_LABELS[issued.role]} với tên đăng nhập ${issued.credential.username}. Mật khẩu khởi tạo chỉ hiển thị một lần.`}
+        message={formatAppMessage("MSG-11", {
+          accountRole: ROLE_LABELS[issued.role],
+          username: issued.credential.username,
+        })}
         credential={issued.credential}
         onDone={onClose}
       />

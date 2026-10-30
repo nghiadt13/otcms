@@ -11,13 +11,15 @@ const RECEPTIONISTS = ["Nguyễn Thu Hà", "Trần Minh Châu", "Lê Bảo Ngọ
 /** Số giả ổn định theo khóa: cùng kỳ luôn ra cùng số liệu. */
 export function pick(key: string, min: number, max: number): number {
   let h = 2166136261;
-  for (let i = 0; i < key.length; i++) h = Math.imul(h ^ key.charCodeAt(i), 16777619);
+  for (let i = 0; i < key.length; i++)
+    h = Math.imul(h ^ key.charCodeAt(i), 16777619);
   return min + (Math.abs(h) % (max - min + 1));
 }
 
 export function listDays(from: string, to: string): string[] {
   const days: string[] = [];
-  for (let d = from; d <= to && days.length < 366; d = addDays(d, 1)) days.push(d);
+  for (let d = from; d <= to && days.length < 366; d = addDays(d, 1))
+    days.push(d);
   return days;
 }
 
@@ -90,29 +92,61 @@ export function buildPaymentSections(q: ReportQuery): ReportSection[] {
 
   if (q.breakdown === "DATE")
     return [
-      makeSection("Theo ngày", columns("Ngày", "day", "date"),
-        days.map((d) => sumRow({ day: d }, cells.filter((c) => c.day === d)))),
+      makeSection(
+        "Theo ngày",
+        columns("Ngày", "day", "date"),
+        days.map((d) =>
+          sumRow(
+            { day: d },
+            cells.filter((c) => c.day === d),
+          ),
+        ),
+      ),
     ];
   if (q.breakdown === "RECEPTIONIST")
     return [
-      makeSection("Theo lễ tân", columns("Lễ tân", "name", "text"),
-        RECEPTIONISTS.map((n) => sumRow({ name: n }, cells.filter((c) => c.name === n)))),
+      makeSection(
+        "Theo lễ tân",
+        columns("Lễ tân", "name", "text"),
+        RECEPTIONISTS.map((n) =>
+          sumRow(
+            { name: n },
+            cells.filter((c) => c.name === n),
+          ),
+        ),
+      ),
     ];
   if (q.breakdown === "PAYMENT_METHOD") {
     const all = sumRow({}, cells);
     return [
       makeSection(
         "Theo phương thức",
-        [col("method", "Phương thức", "text"), col("count", "Số giao dịch", "count"), col("total", "Tổng thu", "money")],
         [
-          { method: "Tiền mặt", count: cells.reduce((s, c) => s + c.cashN, 0), total: all.cash },
-          { method: "VNPay", count: cells.reduce((s, c) => s + c.vnN, 0), total: all.vnpay },
+          col("method", "Phương thức", "text"),
+          col("count", "Số giao dịch", "count"),
+          col("total", "Tổng thu", "money"),
+        ],
+        [
+          {
+            method: "Tiền mặt",
+            count: cells.reduce((s, c) => s + c.cashN, 0),
+            total: all.cash,
+          },
+          {
+            method: "VNPay",
+            count: cells.reduce((s, c) => s + c.vnN, 0),
+            total: all.vnpay,
+          },
         ],
       ),
     ];
   }
   return [
-    makeSection("Toàn kỳ", columns("Phạm vi", "scope", "text"),
-      [sumRow({ scope: "Toàn kỳ" }, cells)], false),
+    makeSection(
+      "Toàn kỳ",
+      columns("Phạm vi", "scope", "text"),
+      [sumRow({ scope: "Toàn kỳ" }, cells)],
+      false,
+    ),
   ];
 }

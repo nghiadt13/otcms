@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { Banknote, Printer, QrCode } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
+import { formatAppMessage } from "@/lib/messages/appMessages";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ConfirmActionDialog } from "@/components/admin/ConfirmActionDialog";
 import type { Charge, Payment, QrTransaction } from "../types";
@@ -121,14 +122,11 @@ function GatewayPanel({
 }) {
   const { run, reload, pending, loading } = useReception();
   async function callback(outcome: "succeeded" | "failed" | "unconfirmed") {
-    const next = await run(
-      { type: "demo-gateway", id: transaction.id, outcome },
-      outcome === "succeeded"
-        ? "Đã nhận xác nhận thanh toán từ cổng mô phỏng."
-        : outcome === "failed"
-          ? "Đã xác minh giao dịch không thành công; có thể thử phương thức khác."
-          : "Giao dịch chưa xác minh. Tạm khóa thu lại các khoản này.",
-    );
+    const next = await run({
+      type: "demo-gateway",
+      id: transaction.id,
+      outcome,
+    });
     const tx = next?.transactions.find((t) => t.id === transaction.id);
     if (tx?.paymentId) onReceipt(tx.paymentId);
   }
@@ -252,9 +250,6 @@ function PaymentForm({
             confirmed: received,
           }
         : { type: "start-qr", chargeIds: charges.map((c) => c.id) },
-      method === "cash"
-        ? "Đã thu tiền và phát hành biên lai."
-        : "Đã tạo yêu cầu VNPay mô phỏng; chưa ghi nhận thanh toán.",
     );
     if (!next) throw new Error("Payment was not recorded");
     onClose();
@@ -613,7 +608,7 @@ export function PaymentHistoryScreen() {
       </div>
       {invalid && (
         <p role="alert" className="mb-4 text-destructive">
-          Ngày kết thúc không được trước ngày bắt đầu.
+          {formatAppMessage("MSG-54")}
         </p>
       )}
       <DataTable

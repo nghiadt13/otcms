@@ -1,16 +1,22 @@
+import { PATIENT_ROUTES } from "@/lib/routes/patientRoutes";
+
 // Mục menu của các trang giới thiệu (header và footer dùng chung một danh sách).
 // "Liên hệ" là neo tới footer nên dùng được ở mọi trang có footer.
 export type SiteNavItem = { label: string; href: string };
 
 export const siteNavItems: SiteNavItem[] = [
   { label: "Trang chủ", href: "/" },
+  { label: "Giới thiệu", href: "/gioi-thieu" },
   { label: "Dịch vụ", href: "/services" },
   { label: "Bác sĩ", href: "/doctors" },
+  { label: "Đánh giá", href: "/reviews" },
+  { label: "Thông báo", href: "/announcements" },
   { label: "Liên hệ", href: "#lien-he" },
 ];
 
-// Khách đặt lịch phải có tài khoản bệnh nhân (BR-09, BR-26) nên CTA dẫn tới đăng ký.
-export const bookAppointmentHref = "/register";
+// Đặt lịch cần tài khoản bệnh nhân (BR-21): khách chưa đăng nhập dừng ở bước 1 của màn đặt lịch,
+// nơi có Đăng nhập và Đăng ký rồi quay lại chính màn đó.
+export const bookAppointmentHref = PATIENT_ROUTES.newAppointment;
 
 export const contactSectionId = "lien-he";
 

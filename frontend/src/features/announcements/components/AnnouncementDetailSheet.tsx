@@ -101,7 +101,12 @@ export function AnnouncementDetailSheet({
               <p role="alert" className="text-sm text-destructive">
                 {error}
               </p>
-              <Button variant="outline" size="sm" className="mt-3" onClick={retry}>
+              <Button
+                variant="outline"
+                size="sm"
+                className="mt-3"
+                onClick={retry}
+              >
                 Thử lại
               </Button>
             </div>

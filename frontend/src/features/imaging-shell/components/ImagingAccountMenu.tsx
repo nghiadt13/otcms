@@ -1,47 +1,103 @@
 "use client";
-import Image from "next/image";
+
 import Link from "next/link";
 import {
-  SidebarFooter,
+  ChevronsUpDown,
+  KeyRound,
+  LogOut,
+  RefreshCw,
+  UserRound,
+} from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  useSidebar,
 } from "@/components/ui/sidebar";
 import { useImaging } from "@/features/imaging/hooks/useImaging";
 
-export function ImagingAccountMenu() {
-  const { state } = useImaging();
+// Ô tài khoản cuối sidebar, cùng dạng với khu admin: avatar + tên + vai trò, bấm mở menu.
+function AccountSummary() {
+  const { profile } = useImaging().state;
   return (
-    <SidebarFooter>
-      <SidebarMenu>
-        <SidebarMenuItem>
-          <SidebarMenuButton
-            size="lg"
-            render={<Link href="/imaging/profile" />}
-            tooltip={state.profile.name}
+    <>
+      <Avatar className="size-8 rounded-lg">
+        {profile.avatar ? (
+          <AvatarImage src={profile.avatar} alt={profile.name} />
+        ) : null}
+        <AvatarFallback className="rounded-lg">
+          {profile.username.slice(0, 2).toUpperCase()}
+        </AvatarFallback>
+      </Avatar>
+      <span className="grid flex-1 text-left leading-tight">
+        <span className="truncate text-sm font-medium">{profile.username}</span>
+        <span className="truncate text-xs text-muted-foreground">
+          Kỹ thuật viên CĐHA
+        </span>
+      </span>
+    </>
+  );
+}
+
+export function ImagingAccountMenu({
+  onReset,
+  onExit,
+}: {
+  onReset: () => void;
+  onExit: () => void;
+}) {
+  const { isMobile, setOpenMobile } = useSidebar();
+  const { profile } = useImaging().state;
+  return (
+    <SidebarMenu>
+      <SidebarMenuItem>
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            render={<SidebarMenuButton size="lg" tooltip={profile.username} />}
           >
-            <span className="flex size-7 shrink-0 items-center justify-center overflow-hidden rounded-full bg-secondary text-xs font-semibold text-secondary-foreground">
-              {state.profile.avatar ? (
-                <Image
-                  src={state.profile.avatar}
-                  alt="Ảnh đại diện"
-                  width={28}
-                  height={28}
-                  unoptimized
-                />
-              ) : (
-                "MA"
-              )}
-            </span>
-            <span className="grid text-left">
-              <span className="font-medium">{state.profile.name}</span>
-              <span className="text-xs text-muted-foreground">
-                Kỹ thuật viên CĐHA
-              </span>
-            </span>
-          </SidebarMenuButton>
-        </SidebarMenuItem>
-      </SidebarMenu>
-    </SidebarFooter>
+            <AccountSummary />
+            <ChevronsUpDown className="ml-auto size-4" />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent
+            className="w-64"
+            side={isMobile ? "bottom" : "right"}
+            align="end"
+            sideOffset={8}
+          >
+            <div className="flex items-center gap-2 px-1.5 py-1.5">
+              <AccountSummary />
+            </div>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              render={<Link href="/imaging/profile" />}
+              onClick={() => setOpenMobile(false)}
+            >
+              <UserRound /> Hồ sơ tài khoản
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              render={<Link href="/imaging/change-password" />}
+              onClick={() => setOpenMobile(false)}
+            >
+              <KeyRound /> Đổi mật khẩu
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={onReset}>
+              <RefreshCw /> Khôi phục dữ liệu mẫu
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem variant="destructive" onClick={onExit}>
+              <LogOut /> Đăng xuất
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </SidebarMenuItem>
+    </SidebarMenu>
   );
 }

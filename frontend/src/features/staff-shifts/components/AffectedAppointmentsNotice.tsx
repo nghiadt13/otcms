@@ -44,13 +44,24 @@ export function AffectedAppointmentsNotice({
   }, [shiftId, reloadToken]);
 
   if (state.status === "loading")
-    return <Skeleton className="h-16 w-full" aria-label="Đang tải lịch hẹn trong ca" />;
+    return (
+      <Skeleton
+        className="h-16 w-full"
+        aria-label="Đang tải lịch hẹn trong ca"
+      />
+    );
 
   if (state.status === "error")
     return (
       <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3 text-sm">
-        <p role="alert" className="text-destructive">Không tải được lịch hẹn trong ca này.</p>
-        <Button variant="outline" size="sm" onClick={() => setReloadToken((n) => n + 1)}>
+        <p role="alert" className="text-destructive">
+          Không tải được lịch hẹn trong ca này.
+        </p>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setReloadToken((n) => n + 1)}
+        >
           Thử lại
         </Button>
       </div>
@@ -60,10 +71,14 @@ export function AffectedAppointmentsNotice({
   if (totalItems === 0) return null;
 
   return (
-    <section aria-label="Lịch hẹn trong ca này" className="rounded-lg border bg-muted/50 p-3 text-sm">
+    <section
+      aria-label="Lịch hẹn trong ca này"
+      className="rounded-lg border bg-muted/50 p-3 text-sm"
+    >
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="font-medium">
-          Lịch hẹn trong ca này: <span className="tabular-nums">{totalItems}</span>
+          Lịch hẹn trong ca này:{" "}
+          <span className="tabular-nums">{totalItems}</span>
         </p>
         <Button variant="outline" size="sm" onClick={onTransfer}>
           Chuyển lịch hẹn
@@ -75,7 +90,9 @@ export function AffectedAppointmentsNotice({
       <ul className="mt-2 space-y-1">
         {items.map((item) => (
           <li key={item.appointmentId} className="flex gap-2">
-            <span className="tabular-nums text-muted-foreground">{formatTime(item.startAt)}</span>
+            <span className="tabular-nums text-muted-foreground">
+              {formatTime(item.startAt)}
+            </span>
             <span className="min-w-0 truncate">
               {item.patientName} · {item.serviceName}
             </span>

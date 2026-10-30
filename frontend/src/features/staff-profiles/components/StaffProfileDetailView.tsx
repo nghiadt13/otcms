@@ -38,7 +38,10 @@ export function StaffProfileDetailView({
           },
           { label: "Trình độ", value: doctor.qualifications || null },
           { label: "Tiểu sử", value: multiline(doctor.biography) },
-          { label: "Thông tin khám", value: multiline(doctor.consultationInfo) },
+          {
+            label: "Thông tin khám",
+            value: multiline(doctor.consultationInfo),
+          },
         ]
       : []),
   ];

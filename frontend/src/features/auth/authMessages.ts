@@ -1,6 +1,6 @@
 // Nội dung thông báo của UC01, UC02, UC06. Chép đúng từ `docs/appendix-rules.md`
 // (mục 4.2); sửa ở đó trước rồi mới sửa ở đây. Thông báo lỗi cố ý chung chung để
-// không lộ tài khoản có tồn tại hay không (BR-03, BR-10).
+// không lộ tài khoản có tồn tại hay không (BR-03).
 export const authMessages = {
   "MSG-01":
     "Không thể đăng nhập bằng thông tin này. Vui lòng kiểm tra và thử lại.",

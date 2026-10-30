@@ -66,22 +66,40 @@ export function ShiftWeekGrid({
   const activeCol = Math.min(active.col, lastCol);
 
   function handleKeyDown(event: KeyboardEvent<HTMLTableSectionElement>) {
-    const origin = (event.target as HTMLElement).closest<HTMLElement>("[data-grid-primary]");
+    const origin = (event.target as HTMLElement).closest<HTMLElement>(
+      "[data-grid-primary]",
+    );
     if (!origin) return;
     const [row, col] = origin.dataset.gridPrimary!.split(",").map(Number);
     let next: { row: number; col: number } | null = null;
     switch (event.key) {
-      case "ArrowLeft": next = { row, col: Math.max(col - 1, 0) }; break;
-      case "ArrowRight": next = { row, col: Math.min(col + 1, lastCol) }; break;
-      case "ArrowUp": next = { row: Math.max(row - 1, 0), col }; break;
-      case "ArrowDown": next = { row: Math.min(row + 1, lastRow), col }; break;
-      case "Home": next = event.ctrlKey ? { row: 0, col: 0 } : { row, col: 0 }; break;
-      case "End": next = event.ctrlKey ? { row: lastRow, col: lastCol } : { row, col: lastCol }; break;
+      case "ArrowLeft":
+        next = { row, col: Math.max(col - 1, 0) };
+        break;
+      case "ArrowRight":
+        next = { row, col: Math.min(col + 1, lastCol) };
+        break;
+      case "ArrowUp":
+        next = { row: Math.max(row - 1, 0), col };
+        break;
+      case "ArrowDown":
+        next = { row: Math.min(row + 1, lastRow), col };
+        break;
+      case "Home":
+        next = event.ctrlKey ? { row: 0, col: 0 } : { row, col: 0 };
+        break;
+      case "End":
+        next = event.ctrlKey
+          ? { row: lastRow, col: lastCol }
+          : { row, col: lastCol };
+        break;
     }
     if (!next) return;
     event.preventDefault();
     event.currentTarget
-      .querySelector<HTMLElement>(`[data-grid-primary="${next.row},${next.col}"]`)
+      .querySelector<HTMLElement>(
+        `[data-grid-primary="${next.row},${next.col}"]`,
+      )
       ?.focus();
   }
 
@@ -99,7 +117,10 @@ export function ShiftWeekGrid({
             : "Chưa có ca nào trong tuần này. Bấm ô trống hoặc Thêm ca để xếp ca đầu tiên."}
         </p>
       ) : null}
-      <Table className="min-w-[56rem] table-fixed" aria-label="Lịch ca theo tuần">
+      <Table
+        className="min-w-[56rem] table-fixed"
+        aria-label="Lịch ca theo tuần"
+      >
         <TableHeader>
           <TableRow>
             <TableHead scope="col" className="sticky left-0 z-10 w-44 bg-card">
@@ -110,7 +131,10 @@ export function ShiftWeekGrid({
                 key={day}
                 scope="col"
                 aria-current={day === today ? "date" : undefined}
-                className={cn("text-center tabular-nums", day === today && "text-primary")}
+                className={cn(
+                  "text-center tabular-nums",
+                  day === today && "text-primary",
+                )}
               >
                 {weekdayShort(day)} {dayMonth(day)}
               </TableHead>
@@ -133,7 +157,9 @@ export function ShiftWeekGrid({
                     scope="row"
                     className="sticky left-0 z-10 h-auto bg-card py-2 font-normal whitespace-normal"
                   >
-                    <span className="block font-medium text-foreground">{staff.fullName}</span>
+                    <span className="block font-medium text-foreground">
+                      {staff.fullName}
+                    </span>
                     <span className="block text-xs text-muted-foreground">
                       {ROLE_LABELS[staff.role]}
                     </span>

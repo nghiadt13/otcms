@@ -4,7 +4,11 @@ import { getDashboardOverview } from "./dashboardApi";
 
 const PERIOD = { from: "2026-10-14", to: "2026-10-20" };
 
-async function expectApiError(promise: Promise<unknown>, status: number, code: string) {
+async function expectApiError(
+  promise: Promise<unknown>,
+  status: number,
+  code: string,
+) {
   const err = await promise.then(
     () => null,
     (e: unknown) => e,
@@ -18,7 +22,10 @@ describe("dashboardApi (mock)", () => {
   it("kỳ thường: đủ 7 khối READY, kỳ trước cùng số ngày", async () => {
     const data = await getDashboardOverview(PERIOD);
     expect(data.period).toEqual(PERIOD);
-    expect(data.previousPeriod).toEqual({ from: "2026-10-07", to: "2026-10-13" });
+    expect(data.previousPeriod).toEqual({
+      from: "2026-10-07",
+      to: "2026-10-13",
+    });
     for (const key of [
       "appointments",
       "visits",
@@ -33,7 +40,10 @@ describe("dashboardApi (mock)", () => {
 
   it("số trong fixture khớp nhau", async () => {
     const data = await getDashboardOverview(PERIOD);
-    if (data.appointments.status !== "READY" || data.payments.status !== "READY")
+    if (
+      data.appointments.status !== "READY" ||
+      data.payments.status !== "READY"
+    )
       throw new Error("fixture phải READY");
     expect(data.appointments.byStatus.reduce((s, r) => s + r.value, 0)).toBe(
       data.appointments.total.value,
@@ -51,7 +61,10 @@ describe("dashboardApi (mock)", () => {
   });
 
   it("kỳ không hoạt động: toàn 0, danh sách rỗng, chưa có điểm", async () => {
-    const data = await getDashboardOverview({ from: "2000-01-01", to: "2000-01-07" });
+    const data = await getDashboardOverview({
+      from: "2000-01-01",
+      to: "2000-01-07",
+    });
     if (
       data.appointments.status !== "READY" ||
       data.services.status !== "READY" ||
@@ -64,7 +77,10 @@ describe("dashboardApi (mock)", () => {
   });
 
   it("kỳ số lớn có khối giảm so với kỳ trước", async () => {
-    const data = await getDashboardOverview({ from: "1996-01-01", to: "1996-01-31" });
+    const data = await getDashboardOverview({
+      from: "1996-01-01",
+      to: "1996-01-31",
+    });
     if (data.payments.status !== "READY") throw new Error("READY");
     expect(data.payments.collected.value).toBeGreaterThan(1_000_000_000);
     expect(data.payments.collected.value).toBeLessThan(
@@ -73,7 +89,10 @@ describe("dashboardApi (mock)", () => {
   });
 
   it("khối chưa có nguồn: reviews NO_SOURCE, các khối khác vẫn READY", async () => {
-    const data = await getDashboardOverview({ from: "1997-01-01", to: "1997-01-07" });
+    const data = await getDashboardOverview({
+      from: "1997-01-01",
+      to: "1997-01-07",
+    });
     expect(data.reviews).toEqual({ status: "NO_SOURCE" });
     expect(data.appointments.status).toBe("READY");
   });
@@ -97,7 +116,11 @@ describe("dashboardApi (mock)", () => {
       400,
       "MSG-72",
     );
-    await expectApiError(getDashboardOverview({ from: "", to: "" }), 400, "MSG-72");
+    await expectApiError(
+      getDashboardOverview({ from: "", to: "" }),
+      400,
+      "MSG-72",
+    );
     await expectApiError(
       getDashboardOverview({ from: "2024-01-01", to: "2026-10-20" }),
       400,
@@ -108,7 +131,9 @@ describe("dashboardApi (mock)", () => {
   it("signal đã hủy thì reject AbortError", async () => {
     const controller = new AbortController();
     controller.abort();
-    await expect(getDashboardOverview(PERIOD, controller.signal)).rejects.toMatchObject({
+    await expect(
+      getDashboardOverview(PERIOD, controller.signal),
+    ).rejects.toMatchObject({
       name: "AbortError",
     });
   });

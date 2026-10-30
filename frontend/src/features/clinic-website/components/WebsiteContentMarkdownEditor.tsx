@@ -27,7 +27,11 @@ const TOOLS = [
 ] as const;
 
 /** Textarea Markdown + thanh công cụ 4 nút chèn cú pháp tại con trỏ (không thêm dependency). */
-export function WebsiteContentMarkdownEditor({ value, onChange, error }: Props) {
+export function WebsiteContentMarkdownEditor({
+  value,
+  onChange,
+  error,
+}: Props) {
   const areaRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const { upload, uploading, error: imageError } = useWebsiteImageUpload();
@@ -46,7 +50,10 @@ export function WebsiteContentMarkdownEditor({ value, onChange, error }: Props) 
     // Đặt lại vùng chọn sau khi React cập nhật giá trị textarea.
     requestAnimationFrame(() => {
       areaRef.current?.focus();
-      areaRef.current?.setSelectionRange(edit.selectionStart, edit.selectionEnd);
+      areaRef.current?.setSelectionRange(
+        edit.selectionStart,
+        edit.selectionEnd,
+      );
     });
   }
 
@@ -58,12 +65,22 @@ export function WebsiteContentMarkdownEditor({ value, onChange, error }: Props) 
 
   function runTool(kind: "bold" | "list" | "link") {
     const current = selection();
-    apply(kind === "bold" ? insertBold(current) : kind === "list" ? insertList(current) : insertLink(current));
+    apply(
+      kind === "bold"
+        ? insertBold(current)
+        : kind === "list"
+          ? insertList(current)
+          : insertLink(current),
+    );
   }
 
   return (
     <div className="grid gap-1.5">
-      <div className="flex flex-wrap gap-1" role="toolbar" aria-label="Định dạng nội dung">
+      <div
+        className="flex flex-wrap gap-1"
+        role="toolbar"
+        aria-label="Định dạng nội dung"
+      >
         {TOOLS.map(({ label, icon: Icon, kind }) => (
           <Button
             key={label}
@@ -89,7 +106,10 @@ export function WebsiteContentMarkdownEditor({ value, onChange, error }: Props) 
           <ImagePlus />
         </Button>
         {uploading ? (
-          <span role="status" className="self-center text-xs text-muted-foreground">
+          <span
+            role="status"
+            className="self-center text-xs text-muted-foreground"
+          >
             Đang tải ảnh...
           </span>
         ) : null}
@@ -117,7 +137,8 @@ export function WebsiteContentMarkdownEditor({ value, onChange, error }: Props) 
         className="min-h-[200px] resize-y font-mono text-sm sm:min-h-60"
       />
       <p id="content-body-hint" className="text-xs text-muted-foreground">
-        Cách một dòng trống để tạo đoạn mới. Dùng ## cho tiêu đề phụ và 1. cho danh sách đánh số.
+        Cách một dòng trống để tạo đoạn mới. Dùng ## cho tiêu đề phụ và 1. cho
+        danh sách đánh số.
       </p>
       <FieldError id="content-body-error" message={error} />
       <FieldError message={imageError} />

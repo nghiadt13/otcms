@@ -22,7 +22,7 @@ ESLint 10 hiện không tương thích với các plugin React/import do `eslint
 
 ## Backend
 
-Spring Boot parent 4.1.1 quản lý phiên bản tương thích cho các Spring starter và driver. Java 17; Maven Wrapper 3.9.16. Không ghi phiên bản riêng cho dependency đã có trong BOM.
+Spring Boot parent 4.1.1 quản lý phiên bản tương thích cho các Spring starter và driver. Java 21; Maven Wrapper 3.9.16. Không ghi phiên bản riêng cho dependency đã có trong BOM.
 
 | Dependency | Vai trò |
 | --- | --- |

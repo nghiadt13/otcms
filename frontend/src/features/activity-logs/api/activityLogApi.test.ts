@@ -2,7 +2,11 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { ApiError } from "@/lib/api/apiError";
 import { addDays, todayIsoDate } from "@/lib/format/formatDate";
 import type { ActivityLogFilters } from "../types/activityLog";
-import { getActivityLog, listActivityLogs, resetActivityLogStore } from "./activityLogApi";
+import {
+  getActivityLog,
+  listActivityLogs,
+  resetActivityLogStore,
+} from "./activityLogApi";
 import {
   MOCK_LOG_COUNT,
   MOCK_NOT_FOUND_ID,
@@ -18,7 +22,11 @@ const wide: ActivityLogFilters = {
   actor: "",
 };
 
-async function expectApiError(promise: Promise<unknown>, status: number, code: string) {
+async function expectApiError(
+  promise: Promise<unknown>,
+  status: number,
+  code: string,
+) {
   const error = await promise.then(
     () => null,
     (e: unknown) => e,
@@ -47,23 +55,39 @@ describe("activityLogApi", () => {
   it("lọc actor và record khớp chứa, không phân biệt hoa thường", async () => {
     const byActor = await listActivityLogs({ ...wide, actor: "LETAN" });
     expect(byActor.totalItems).toBeGreaterThan(0);
-    expect(byActor.items.every((i) => i.actorUsername.includes("letan"))).toBe(true);
+    expect(byActor.items.every((i) => i.actorUsername.includes("letan"))).toBe(
+      true,
+    );
 
     const byRecord = await listActivityLogs({ ...wide, record: "xn-2026" });
     expect(byRecord.totalItems).toBeGreaterThan(0);
-    expect(byRecord.items.every((i) => i.recordLabel.toLowerCase().includes("xn-2026"))).toBe(true);
+    expect(
+      byRecord.items.every((i) =>
+        i.recordLabel.toLowerCase().includes("xn-2026"),
+      ),
+    ).toBe(true);
   });
 
   it("lọc theo nhóm hành động", async () => {
-    const page = await listActivityLogs({ ...wide, action: "RESULT_CORRECTION" });
+    const page = await listActivityLogs({
+      ...wide,
+      action: "RESULT_CORRECTION",
+    });
     expect(page.totalItems).toBeGreaterThanOrEqual(3);
-    expect(page.items.every((i) => i.action === "CORRECT_APPROVED_RESULT")).toBe(true);
+    expect(
+      page.items.every((i) => i.action === "CORRECT_APPROVED_RESULT"),
+    ).toBe(true);
     expect(page.items.every((i) => i.correctionReason)).toBe(true);
   });
 
   it("lọc theo khoảng ngày", async () => {
     const today = todayIsoDate();
-    const page = await listActivityLogs({ ...wide, from: today, to: today, size: 100 });
+    const page = await listActivityLogs({
+      ...wide,
+      from: today,
+      to: today,
+      size: 100,
+    });
     expect(page.items.every((i) => i.occurredAt.startsWith(today))).toBe(true);
     expect(page.totalItems).toBeLessThan(MOCK_LOG_COUNT);
   });
@@ -83,7 +107,11 @@ describe("activityLogApi", () => {
   });
 
   it("record=loi-may-chu: 500 MSG-04", async () => {
-    await expectApiError(listActivityLogs({ ...wide, record: "loi-may-chu" }), 500, "MSG-04");
+    await expectApiError(
+      listActivityLogs({ ...wide, record: "loi-may-chu" }),
+      500,
+      "MSG-04",
+    );
   });
 
   it("chi tiết: có recordCode, systemNote; id 404/500 ném lỗi đúng mã", async () => {

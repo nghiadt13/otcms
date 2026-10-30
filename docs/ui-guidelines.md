@@ -138,7 +138,7 @@ Thiết kế theo nguyên tắc **đặt được bằng một tay, đọc đư�
 | --- | --- |
 | Cỡ chữ | Như màn xác thực (mục 2): tiêu đề trang `text-2xl`, nội dung, nhãn và nút `text-base`, ghi chú `text-sm`. |
 | Ô nhập và nút | Cao `h-12`, vùng chạm ≥ 44px. Nút dùng `publicButtonClass` (`components/brand/publicButtonStyles.ts`). |
-| Bố cục | Một cột `max-w-3xl`. Header dùng chung: logo, menu nhóm (từ `md`), ô tài khoản; trên màn hẹp, nút "Đặt lịch khám" nằm hàng riêng, rộng hết chiều ngang. |
+| Bố cục | Một cột `max-w-3xl`; riêng màn Thông tin cá nhân dùng hai cột `max-w-6xl` (xem dưới). Header dùng chung: logo, menu nhóm (từ `md`), ô tài khoản; trên màn hẹp, nút "Đặt lịch khám" nằm hàng riêng, rộng hết chiều ngang. |
 | Tiêu đề trang | `PortalPageHeader`: đúng một `h1`, mô tả một câu, nút (nếu có) đúng một `default`. |
 | "Của ai" | Mọi dòng lịch hẹn, lượt khám, khoản tiền, kết quả ghi tên người khám và quan hệ (`CARE_RELATIONSHIP_LABELS`). Khi tài khoản có từ hai hồ sơ trở lên, đầu trang có `ProfileScopeSelect` ("Người khám": "Tất cả" và từng hồ sơ); giá trị đồng bộ `?profileId=`. |
 | Tiền | Luôn ghi số tiền và trạng thái bằng chữ. Trước khi trả tiền hiện câu không hoàn tiền (BR-53). |
@@ -150,7 +150,9 @@ Thiết kế theo nguyên tắc **đặt được bằng một tay, đọc đư�
 
 **Không** dùng trong khu này: ảnh bác sĩ làm hero, gradient, emoji hay ký tự thay icon, đếm ngược, biểu đồ sức khỏe, chấm màu không có chữ, animation trang trí.
 
-**Luồng đặt lịch** (dùng cho màn đặt lịch): một trang cuộn tiến dần, không wizard nhiều trang. Thứ tự: Người khám → Dịch vụ → Ngày → Giờ → Bác sĩ (tùy chọn) → Xác nhận. Khối mở khi khối trước đã chọn; khối đã chọn thu gọn thành một dòng tóm tắt có nút "Đổi". Tiêu đề khối là câu hỏi ("Ai đi khám?", "Khám ngày nào?"), không đánh số.
+**Thông tin cá nhân** (`/portal/account`, UC03/UC04): hai thẻ trắng cạnh nhau bằng `PersonalAreaShell` (`components/patient/`); không có tiêu đề hiện ra phía trên, `h1` chỉ để trình đọc màn hình (`sr-only`). Thẻ trái (rộng 17rem, dính khi cuộn từ `lg`) chia ba phần, ngăn bằng đường kẻ: (1) ảnh và tên người đăng nhập kèm "Nam, dd/mm/yyyy"; (2) "Thông tin cá nhân" và "Hồ sơ và gia đình" (mục đang mở nền `primary`); (3) Lịch hẹn, Kết quả khám, Đơn thuốc, Thanh toán, Thông báo. Dưới `lg` chỉ còn phần (1) vì menu header đã có các mục này. Thẻ phải: thẻ "Chỉnh sửa thông tin" gồm ảnh đại diện, nhóm "Thông tin cá nhân" (họ tên, ngày sinh, giới tính, CCCD/mã định danh), nhóm "Liên hệ" (SĐT, email đăng nhập, địa chỉ), rồi thẻ "Mật khẩu". Trường theo đặc tả, không thêm dân tộc, nghề nghiệp, quốc gia. Form luôn mở: nút Lưu chỉ bật khi có thay đổi và chỉ gửi trường đã đổi; ô BE khóa (`editableFields`) hiện chỉ đọc kèm một chú thích chung; email chỉ đổi qua hộp thoại OTP. Màn bật khung rộng bằng thuộc tính `data-portal-wide`, layout `/portal` nới `max-w-3xl` thành `max-w-6xl` khi gặp thuộc tính này. API cần từ BE: [`fe-be-api-patient-personal-info.md`](fe-be-api-patient-personal-info.md).
+
+**Luồng đặt lịch** (khu bệnh nhân): wizard 4 bước trên một route, thanh tiến trình đánh số 1-4 (thứ tự là thông tin người dùng cần). Đã đăng nhập thì luôn mở thẳng bước 2 Người khám; chưa đăng nhập thì dừng ở bước 1 Tài khoản với hai lối Đăng nhập / Đăng ký (cùng `?next=` quay lại màn đặt lịch), chưa vào được bước sau. Bước 1 (xem lại qua thanh tiến trình) hiện tài khoản đang đặt, bước 2 Người khám, bước 3 Dịch vụ và lịch (loại khám → ngày → giờ → bác sĩ, hiện dần), bước 4 Xác nhận (gom mọi lựa chọn, mỗi dòng có "Sửa" về đúng bước). Nút "Tiếp tục" khóa kèm một câu nói còn thiếu gì; ở bước cuối nút chính là "Đặt lịch khám". Bước đã qua bấm lại được, lựa chọn được giữ. Khu Lễ tân vẫn dùng trang cuộn tiến dần (khối mở khi khối trước đã chọn, khối đã chọn thu gọn thành dòng tóm tắt có "Đổi").
 
 - **Ngày:** dải 14 ngày cuộn ngang (`ToggleGroup`); mỗi ô ghi thứ, ngày và "Còn giờ" hoặc "Hết giờ" bằng chữ.
 - **Giờ:** lưới nút chia "Buổi sáng" và "Buổi chiều", số dùng `tabular-nums`.

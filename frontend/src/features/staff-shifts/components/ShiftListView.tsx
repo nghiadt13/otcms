@@ -2,7 +2,10 @@
 
 import { Eye, Pencil, Trash2 } from "lucide-react";
 import { Fragment } from "react";
-import { RowActionsMenu, type RowAction } from "@/components/admin/RowActionsMenu";
+import {
+  RowActionsMenu,
+  type RowAction,
+} from "@/components/admin/RowActionsMenu";
 import { TableFrame } from "@/components/admin/TableFrame";
 import { TableStateRows } from "@/components/admin/TableStateRows";
 import { Button } from "@/components/ui/button";
@@ -53,9 +56,19 @@ export function ShiftListView({
     const allowed = shift.allowedActions;
     const actions: RowAction[] = [];
     if (allowed.includes("edit"))
-      actions.push({ key: "edit", label: "Sửa", icon: Pencil, onSelect: () => onOpenShift(shift) });
+      actions.push({
+        key: "edit",
+        label: "Sửa",
+        icon: Pencil,
+        onSelect: () => onOpenShift(shift),
+      });
     if (allowed.includes("view"))
-      actions.push({ key: "view", label: "Xem", icon: Eye, onSelect: () => onOpenShift(shift) });
+      actions.push({
+        key: "view",
+        label: "Xem",
+        icon: Eye,
+        onSelect: () => onOpenShift(shift),
+      });
     if (allowed.includes("delete"))
       actions.push({
         key: "delete",
@@ -82,7 +95,9 @@ export function ShiftListView({
       </TableCell>
       <TableCell>
         <span className="block font-medium">{shift.staffName}</span>
-        <span className="block text-xs text-muted-foreground">{ROLE_LABELS[shift.role]}</span>
+        <span className="block text-xs text-muted-foreground">
+          {ROLE_LABELS[shift.role]}
+        </span>
       </TableCell>
       <TableCell>
         <span className="block">{shift.roomName}</span>
@@ -91,7 +106,10 @@ export function ShiftListView({
         </span>
       </TableCell>
       <TableCell className="w-10 text-right">
-        <RowActionsMenu actions={actionsOf(shift)} label={`ca của ${shift.staffName}`} />
+        <RowActionsMenu
+          actions={actionsOf(shift)}
+          label={`ca của ${shift.staffName}`}
+        />
       </TableCell>
     </TableRow>
   );
@@ -112,7 +130,9 @@ export function ShiftListView({
             <TableHead>Giờ</TableHead>
             <TableHead>Nhân viên</TableHead>
             <TableHead>Phòng</TableHead>
-            <TableHead className="w-10"><span className="sr-only">Thao tác</span></TableHead>
+            <TableHead className="w-10">
+              <span className="sr-only">Thao tác</span>
+            </TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -129,7 +149,10 @@ export function ShiftListView({
               ? groups.map((group) => (
                   <Fragment key={group.date}>
                     <TableRow className="bg-muted/50 hover:bg-muted/50">
-                      <TableCell colSpan={4} className="py-1.5 text-xs font-medium tabular-nums text-muted-foreground">
+                      <TableCell
+                        colSpan={4}
+                        className="py-1.5 text-xs font-medium tabular-nums text-muted-foreground"
+                      >
                         {weekdayShort(group.date)}, {dayMonthYear(group.date)}
                       </TableCell>
                     </TableRow>

@@ -3,12 +3,19 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
 import { addDays, todayIsoDate } from "@/lib/format/formatDate";
-import { listRoomOptions, listShifts, listStaffOptions, resetShiftMockStore } from "../api/shiftApi";
+import {
+  listRoomOptions,
+  listShifts,
+  listStaffOptions,
+  resetShiftMockStore,
+} from "../api/shiftApi";
 import { shiftMockConfig } from "../api/shiftMockData";
 import type { RoomOption, Shift, StaffOption } from "../types/shift";
 import { ShiftFormDialog, type ShiftFormTarget } from "./ShiftFormDialog";
-
-vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn(), warning: vi.fn() } }));
+import { formatAppMessage } from "@/lib/messages/appMessages";
+vi.mock("sonner", () => ({
+  toast: { error: vi.fn(), success: vi.fn(), warning: vi.fn() },
+}));
 
 const today = todayIsoDate();
 const tomorrow = addDays(today, 1);
@@ -23,7 +30,9 @@ beforeEach(async () => {
   vi.clearAllMocks();
   staff = (await listStaffOptions()).items;
   rooms = (await listRoomOptions()).items;
-  shifts = (await listShifts({ from: addDays(today, -8), to: addDays(today, 7) })).items;
+  shifts = (
+    await listShifts({ from: addDays(today, -8), to: addDays(today, 7) })
+  ).items;
 });
 
 function setup(target: ShiftFormTarget) {
@@ -54,16 +63,26 @@ const shiftById = (id: string) => shifts.find((s) => s.id === id)!;
 describe("ShiftFormDialog", () => {
   it("sửa ca bác sĩ: hiện khối Lịch hẹn trong ca này, nhân viên chỉ đọc, có Xóa ca", async () => {
     const handlers = setup({ shift: shiftById("sh-bs1-am") });
-    expect(await screen.findByText(/Lịch hẹn trong ca này:/)).toBeInTheDocument();
+    expect(
+      await screen.findByText(/Lịch hẹn trong ca này:/),
+    ).toBeInTheDocument();
     expect(screen.getByText("3")).toBeInTheDocument();
-    expect(screen.getByText(/Trần Thị Hoa · Khám chấn thương vai/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Trần Thị Hoa · Khám chấn thương vai/),
+    ).toBeInTheDocument();
     expect(screen.getByText(/BS\. Nguyễn Minh Anh/)).toBeInTheDocument();
-    expect(screen.queryByRole("combobox", { name: /Nhân viên/ })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("combobox", { name: /Nhân viên/ }),
+    ).not.toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole("button", { name: "Chuyển lịch hẹn" }));
+    await userEvent.click(
+      screen.getByRole("button", { name: "Chuyển lịch hẹn" }),
+    );
     expect(handlers.onTransfer).toHaveBeenCalledWith("st-bs1", tomorrow);
     await userEvent.click(screen.getByRole("button", { name: "Xóa ca" }));
-    expect(handlers.onRequestDelete).toHaveBeenCalledWith(expect.objectContaining({ id: "sh-bs1-am" }));
+    expect(handlers.onRequestDelete).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "sh-bs1-am" }),
+    );
   });
 
   it("sửa ca không phải bác sĩ: không có khối lịch hẹn", async () => {
@@ -82,7 +101,10 @@ describe("ShiftFormDialog", () => {
     await userEvent.click(screen.getByRole("button", { name: "Lưu ca" }));
 
     await waitFor(() => expect(toast.error).toHaveBeenCalled());
-    const [message, options] = vi.mocked(toast.error).mock.calls[0] as [string, { action?: { label: string; onClick: () => void } }];
+    const [message, options] = vi.mocked(toast.error).mock.calls[0] as [
+      string,
+      { action?: { label: string; onClick: () => void } },
+    ];
     expect(message).toMatch(/còn lịch hẹn/);
     expect(options.action?.label).toBe("Chuyển lịch hẹn");
     options.action?.onClick();
@@ -99,7 +121,9 @@ describe("ShiftFormDialog", () => {
 
     await userEvent.click(screen.getByRole("combobox", { name: "Nhân viên" }));
     await userEvent.click(await screen.findByText("Lê Quang Bình"));
-    expect(screen.getByText(/Gợi ý theo vai trò: phòng chẩn đoán hình ảnh/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Gợi ý theo vai trò: phòng chẩn đoán hình ảnh/),
+    ).toBeInTheDocument();
     expect(screen.getByLabelText("Phòng")).toHaveValue("rm-cdha1");
 
     await userEvent.type(screen.getByLabelText("Bắt đầu"), "13:00");
@@ -109,14 +133,18 @@ describe("ShiftFormDialog", () => {
     expect(screen.getByRole("button", { name: "Đang lưu..." })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Hủy" })).toBeDisabled();
 
-    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Đã lưu ca làm việc."));
+    await waitFor(() =>
+      expect(toast.success).toHaveBeenCalledWith(formatAppMessage("MSG-93")),
+    );
     expect(handlers.onOpenChange).toHaveBeenCalledWith(false);
     expect(handlers.onSaved).toHaveBeenCalled();
   });
 
   it("thêm ca điền sẵn nhân viên và ngày từ ô trống; thiếu giờ thì báo dưới ô, không gọi API", async () => {
     const handlers = setup({ staffId: "st-bs2", date: addDays(today, 5) });
-    expect(screen.getByRole("combobox", { name: "Nhân viên" })).toHaveTextContent("BS. Lê Quốc Hưng");
+    expect(
+      screen.getByRole("combobox", { name: "Nhân viên" }),
+    ).toHaveTextContent("BS. Lê Quốc Hưng");
     expect(screen.getByLabelText("Ngày")).toHaveValue(addDays(today, 5));
     await userEvent.click(screen.getByRole("button", { name: "Lưu ca" }));
     expect(await screen.findByText("Nhập giờ bắt đầu.")).toBeInTheDocument();

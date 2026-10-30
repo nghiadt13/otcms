@@ -22,13 +22,16 @@ type ChangePasswordFormProps = {
   mode: "voluntary" | "forced";
   onDone: () => void;
   onCancel?: () => void;
+  /** Cỡ lớn cho khu bệnh nhân: ô và nút cao 48px, chữ 16px. */
+  large?: boolean;
 };
 
-/** Form đổi mật khẩu dùng chung cho Dialog và trang đổi lần đầu. */
+/** Form đổi mật khẩu dùng chung cho Dialog, trang đổi lần đầu và trang đổi của bệnh nhân. */
 export function ChangePasswordForm({
   mode,
   onDone,
   onCancel,
+  large = false,
 }: ChangePasswordFormProps) {
   const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
@@ -44,7 +47,10 @@ export function ChangePasswordForm({
 
   // Báo lỗi khi rời ô; xóa lỗi cũ của ô khi người dùng sửa lại.
   const touch = (field: Field) =>
-    setErrors((prev) => ({ ...prev, [field]: validators[field]() ?? undefined }));
+    setErrors((prev) => ({
+      ...prev,
+      [field]: validators[field]() ?? undefined,
+    }));
   const clear = (field: Field) =>
     setErrors((prev) => ({ ...prev, [field]: undefined }));
 
@@ -84,6 +90,8 @@ export function ChangePasswordForm({
     }
   }
 
+  const buttonClass = large ? "h-12 px-5 text-base" : undefined;
+
   return (
     <form onSubmit={handleSubmit} noValidate className="grid gap-4">
       <PasswordInputField
@@ -92,6 +100,7 @@ export function ChangePasswordForm({
         value={current}
         disabled={pending}
         error={errors.current}
+        large={large}
         onChange={(value) => {
           setCurrent(value);
           clear("current");
@@ -104,6 +113,7 @@ export function ChangePasswordForm({
         value={next}
         disabled={pending}
         error={errors.next}
+        large={large}
         hint={<PasswordRequirementList value={next} />}
         onChange={(value) => {
           setNext(value);
@@ -117,6 +127,7 @@ export function ChangePasswordForm({
         value={confirm}
         disabled={pending}
         error={errors.confirm}
+        large={large}
         onChange={(value) => {
           setConfirm(value);
           clear("confirm");
@@ -128,13 +139,14 @@ export function ChangePasswordForm({
           <Button
             type="button"
             variant="outline"
+            className={buttonClass}
             disabled={pending}
             onClick={onCancel}
           >
             Hủy
           </Button>
         ) : null}
-        <Button type="submit" disabled={pending}>
+        <Button type="submit" className={buttonClass} disabled={pending}>
           {pending ? "Đang lưu..." : "Đổi mật khẩu"}
         </Button>
       </div>

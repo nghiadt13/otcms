@@ -34,8 +34,17 @@ type ViewFilter = "all" | "unread";
 /** Trang /admin/notifications: hộp thư thông báo cá nhân của Admin (UC63). */
 export function NotificationListManagement() {
   const list = useNotificationList();
-  const { data, loading, error, filters, setFilters, page, setPage, reload, replaceItem } =
-    list;
+  const {
+    data,
+    loading,
+    error,
+    filters,
+    setFilters,
+    page,
+    setPage,
+    reload,
+    replaceItem,
+  } = list;
   const unreadCount = useUnreadNotificationCount();
   const [selected, setSelected] = useState<NotificationItem | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -104,7 +113,8 @@ export function NotificationListManagement() {
           value={[view]}
           onValueChange={(next) => {
             const value = next[0] as ViewFilter | undefined;
-            if (value) setFilters({ unread: value === "unread" ? true : undefined });
+            if (value)
+              setFilters({ unread: value === "unread" ? true : undefined });
           }}
         >
           <ToggleGroupItem value="all">Tất cả</ToggleGroupItem>

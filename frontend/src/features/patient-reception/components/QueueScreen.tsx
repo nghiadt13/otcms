@@ -6,7 +6,11 @@ import { Megaphone } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
 import { PRIORITIES, type Priority, type QueueEntry } from "../types";
-import { queueSort } from "../schema/receptionRules";
+import {
+  queueSort,
+  agePriority,
+  receptionPriority,
+} from "../schema/receptionRules";
 import { useReception } from "./ReceptionProvider";
 import {
   DataTable,
@@ -31,8 +35,37 @@ function QueueAdjustment({
   const [mode, setMode] = useState("order");
   const [reason, setReason] = useState("");
   const [position, setPosition] = useState(String(entry.position));
-  const [priority, setPriority] = useState<Priority>(entry.priority);
+  const [selectedPriority, setPriority] = useState<Priority>(entry.priority);
+  const patient = s!.patients.find(
+    (p) => p.id === s!.visits.find((v) => v.id === entry.visitId)?.patientId,
+  );
+  const automaticPriority = agePriority(patient?.dob ?? "", entry.date);
+  const priority = receptionPriority(
+    patient?.dob ?? "",
+    entry.date,
+    selectedPriority,
+  );
   const [roomId, setRoom] = useState("");
+  const maxPosition = s!.queues.filter(
+    (q) =>
+      q.roomId === entry.roomId &&
+      q.kind === entry.kind &&
+      q.date === entry.date &&
+      q.status === "waiting",
+  ).length;
+  const validPosition =
+    Number.isInteger(Number(position)) &&
+    Number(position) >= 1 &&
+    Number(position) <= maxPosition;
+  const positionError = !validPosition
+    ? `Nhập vị trí nguyên từ 1 đến ${maxPosition}.`
+    : undefined;
+  const reasonError =
+    reason.length > 0 && reason.trim().length < 5
+      ? "Lý do cần ít nhất 5 ký tự. Hãy mô tả căn cứ điều chỉnh."
+      : undefined;
+  const canSave =
+    reason.trim().length >= 5 && (mode === "order" ? validPosition : !!roomId);
   const orders = s!.orders.filter(
     (o) =>
       o.visitId === entry.visitId &&
@@ -56,6 +89,7 @@ function QueueAdjustment({
         className="space-y-4"
         onSubmit={async (e) => {
           e.preventDefault();
+          if (!canSave || pending) return;
           const command =
             mode === "order"
               ? {
@@ -66,10 +100,7 @@ function QueueAdjustment({
                   reason,
                 }
               : { type: "move-room" as const, id: entry.id, roomId, reason };
-          if (
-            await run(command, "Đã cập nhật hàng đợi và lưu lịch sử thay đổi.")
-          )
-            onClose();
+          if (await run(command)) onClose();
         }}
       >
         <SelectField
@@ -92,6 +123,8 @@ function QueueAdjustment({
               value={position}
               onChange={setPosition}
               min="1"
+              error={positionError}
+              hint={`Có ${maxPosition} người đang chờ; vị trí hợp lệ từ 1 đến ${maxPosition}.`}
               max={String(
                 s!.queues.filter(
                   (q) =>
@@ -108,10 +141,19 @@ function QueueAdjustment({
               value={priority}
               onChange={(v) => setPriority(v as Priority)}
               disabled={pending}
-              options={Object.entries(PRIORITIES).map(([value, label]) => ({
-                value,
-                label,
-              }))}
+              options={Object.entries(PRIORITIES)
+                .filter(
+                  ([value]) => value !== "pregnant" || patient?.sex === "Nữ",
+                )
+                .filter(
+                  ([value]) =>
+                    !["normal", "child", "elderly"].includes(value) ||
+                    value === automaticPriority,
+                )
+                .map(([value, label]) => ({
+                  value,
+                  label,
+                }))}
             />
           </>
         ) : (
@@ -136,12 +178,13 @@ function QueueAdjustment({
           value={reason}
           onChange={setReason}
           disabled={pending}
-          hint="Ghi lý do cụ thể để nhân viên khác có thể đối chiếu."
+          error={reasonError}
+          hint="Tối thiểu 5 ký tự. Ghi căn cứ ưu tiên hoặc lý do đổi vị trí để đối chiếu."
         />
         <FormActions
           onClose={onClose}
           label="Lưu điều chỉnh"
-          disabled={reason.trim().length < 5 || (mode === "room" && !roomId)}
+          disabled={!canSave}
         />
       </form>
     </FormModal>
@@ -190,12 +233,7 @@ export function QueueScreen() {
                 !room.available ||
                 !entries.some((q) => q.status === "waiting")
               }
-              onClick={() =>
-                void run(
-                  { type: "call-next", roomId, kind },
-                  "Đã gọi bệnh nhân tiếp theo.",
-                )
-              }
+              onClick={() => void run({ type: "call-next", roomId, kind })}
             >
               <Megaphone />
               Gọi bệnh nhân tiếp theo
@@ -261,6 +299,14 @@ export function QueueScreen() {
             </p>
           )}
         </div>
+        {occupied?.status === "serving" && (
+          <p className="text-sm text-muted-foreground">
+            Chờ bác sĩ hoặc bộ phận thực hiện xác nhận kết thúc bước phục vụ. Lễ
+            tân không tự xác nhận khám xong; nút gọi tiếp sẽ mở khi phòng được
+            giải phóng. Bản mô phỏng hiện chưa có thao tác hoàn tất từ màn bác
+            sĩ.
+          </p>
+        )}
         {occupied?.status === "waiting" &&
           occupied.callerId === s!.account.id &&
           room.category === "exam" && (
@@ -269,14 +315,11 @@ export function QueueScreen() {
                 variant="outline"
                 disabled={pending}
                 onClick={() =>
-                  void run(
-                    {
-                      type: "queue-action",
-                      id: occupied.id,
-                      action: "arrived",
-                    },
-                    "Đã xác nhận bệnh nhân vào phòng khám.",
-                  )
+                  void run({
+                    type: "queue-action",
+                    id: occupied.id,
+                    action: "arrived",
+                  })
                 }
               >
                 Đã vào phòng
@@ -285,10 +328,11 @@ export function QueueScreen() {
                 variant="outline"
                 disabled={pending}
                 onClick={() =>
-                  void run(
-                    { type: "queue-action", id: occupied.id, action: "absent" },
-                    "Đã ghi nhận vắng mặt. Có thể gọi bệnh nhân tiếp theo.",
-                  )
+                  void run({
+                    type: "queue-action",
+                    id: occupied.id,
+                    action: "absent",
+                  })
                 }
               >
                 Ghi vắng mặt
@@ -354,10 +398,11 @@ export function QueueScreen() {
                       size="sm"
                       disabled={pending}
                       onClick={() =>
-                        void run(
-                          { type: "queue-action", id: q.id, action: "return" },
-                          "Đã đưa bệnh nhân về hàng đợi theo thời điểm quay lại.",
-                        )
+                        void run({
+                          type: "queue-action",
+                          id: q.id,
+                          action: "return",
+                        })
                       }
                     >
                       Đã quay lại

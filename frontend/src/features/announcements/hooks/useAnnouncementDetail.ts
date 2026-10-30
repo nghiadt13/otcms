@@ -26,8 +26,7 @@ export function useAnnouncementDetail(id: string | null) {
     const controller = new AbortController();
     getAnnouncement(id, controller.signal)
       .then((detail) => {
-        if (!controller.signal.aborted)
-          setResult({ key, detail, error: null });
+        if (!controller.signal.aborted) setResult({ key, detail, error: null });
       })
       .catch((error: unknown) => {
         if (!controller.signal.aborted) setResult({ key, detail: null, error });

@@ -65,7 +65,9 @@ export function ConfirmActionDialog({
           <AlertDialogDescription>{description}</AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel disabled={pending}>{cancelLabel}</AlertDialogCancel>
+          <AlertDialogCancel disabled={pending}>
+            {cancelLabel}
+          </AlertDialogCancel>
           <Button
             variant={destructive ? "destructive" : "default"}
             disabled={pending}

@@ -1,7 +1,10 @@
 "use client";
 
 import { Eye, UserRoundCog } from "lucide-react";
-import { RowActionsMenu, type RowAction } from "@/components/admin/RowActionsMenu";
+import {
+  RowActionsMenu,
+  type RowAction,
+} from "@/components/admin/RowActionsMenu";
 import { TableFrame } from "@/components/admin/TableFrame";
 import { TableStateRows } from "@/components/admin/TableStateRows";
 import {
@@ -38,7 +41,12 @@ export function AppointmentTable({
   // Nút theo allowedActions của BE; "Xem" luôn có.
   function actionsFor(appointment: Appointment): RowAction[] {
     const actions: RowAction[] = [
-      { key: "view", label: "Xem", icon: Eye, onSelect: () => onView(appointment) },
+      {
+        key: "view",
+        label: "Xem",
+        icon: Eye,
+        onSelect: () => onView(appointment),
+      },
     ];
     if (appointment.allowedActions.includes("reassign"))
       actions.push({
@@ -91,7 +99,9 @@ export function AppointmentTable({
                   <TableCell>{appointment.serviceName}</TableCell>
                   <TableCell>
                     {appointment.doctor?.fullName ?? (
-                      <span className="text-muted-foreground">Chưa chỉ định</span>
+                      <span className="text-muted-foreground">
+                        Chưa chỉ định
+                      </span>
                     )}
                   </TableCell>
                   <TableCell>

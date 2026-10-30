@@ -1,9 +1,8 @@
 import { passwordPolicy } from "@/lib/domain/passwordPolicy";
 import type { PatientRegistrationInput } from "../types/auth";
-import { validateDateOfBirth } from "./dateOfBirth";
 
 // Kiểm tra phía trình duyệt chỉ để báo lỗi sớm; backend/credential authority vẫn
-// kiểm tra lại (BR-04, BR-10, BR-16). Chưa chọn thư viện form (xem AGENTS.md) nên
+// kiểm tra lại (BR-04, BR-05). Chưa chọn thư viện form (xem AGENTS.md) nên
 // giữ hàm thuần, trả về thông báo ngắn cho từng trường.
 
 // Chính sách mật khẩu (BR-04) nằm ở lib/domain/passwordPolicy.ts; re-export để
@@ -11,11 +10,16 @@ import { validateDateOfBirth } from "./dateOfBirth";
 export { passwordPolicy };
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
-const phonePattern = /^(0|\+84)\d{9}$/;
 
 export function validateEmail(value: string): string | undefined {
   if (!value.trim()) return "Nhập email.";
   if (!emailPattern.test(value.trim())) return "Email chưa đúng định dạng.";
+}
+
+// Tài khoản nội bộ dùng thử có thể dùng email dạng `ten@localhost` (không có phần đuôi miền).
+export function validateStaffEmail(value: string): string | undefined {
+  if (/^[^\s@]+@localhost$/i.test(value.trim())) return undefined;
+  return validateEmail(value);
 }
 
 export function validatePassword(value: string): string | undefined {
@@ -42,21 +46,11 @@ export type RegistrationErrors = Partial<
 
 export function validateRegistration(
   input: PatientRegistrationInput,
-  today = new Date(),
 ): RegistrationErrors {
   const errors: RegistrationErrors = {};
   const name = input.fullName.trim();
   if (!name) errors.fullName = "Nhập họ và tên.";
   else if (name.length < 2) errors.fullName = "Họ và tên quá ngắn.";
-
-  errors.dateOfBirth = validateDateOfBirth(input.dateOfBirth, today);
-
-  if (!input.gender) errors.gender = "Chọn giới tính.";
-
-  const phone = input.phone.replace(/[\s.-]/g, "");
-  if (!phone) errors.phone = "Nhập số điện thoại.";
-  else if (!phonePattern.test(phone))
-    errors.phone = "Số điện thoại gồm 10 số, bắt đầu bằng 0.";
 
   errors.email = validateEmail(input.email);
   errors.password = validatePassword(input.password);

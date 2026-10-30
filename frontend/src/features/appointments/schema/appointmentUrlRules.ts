@@ -21,7 +21,8 @@ type ParamReader = { get(name: string): string | null };
 function validDate(value: string | null): string | undefined {
   if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return undefined;
   const parsed = new Date(`${value}T00:00:00Z`);
-  return Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== value
+  return Number.isNaN(parsed.getTime()) ||
+    parsed.toISOString().slice(0, 10) !== value
     ? undefined
     : value;
 }
@@ -70,7 +71,10 @@ export function resolveListRange(
   today: string,
 ): { from: string; to: string } {
   const from = state.from ?? today;
-  return { from, to: state.to ?? (state.from ? from : addDays(from, DEFAULT_LIST_SPAN_DAYS)) };
+  return {
+    from,
+    to: state.to ?? (state.from ? from : addDays(from, DEFAULT_LIST_SPAN_DAYS)),
+  };
 }
 
 /** Khoảng ngày thực dùng cho tab giờ trống: mặc định một ngày (hôm nay), tối đa 7 ngày. */

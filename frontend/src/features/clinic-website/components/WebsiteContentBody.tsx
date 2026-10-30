@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { cn } from "@/lib/utils";
 import {
   parseMarkdown,
   type BlockNode,
@@ -11,8 +12,15 @@ function Inline({ nodes }: { nodes: InlineNode[] }): ReactNode {
   return nodes.map((node, index) => {
     if (node.kind === "bold") return <strong key={index}>{node.text}</strong>;
     if (node.kind === "image")
-      // eslint-disable-next-line @next/next/no-img-element -- ảnh do Admin tải lên, kích thước chưa biết
-      return <img key={index} src={node.src} alt={node.alt} className="my-3 h-auto max-w-full rounded-lg" />;
+      return (
+        // eslint-disable-next-line @next/next/no-img-element -- ảnh do Admin tải lên, kích thước chưa biết
+        <img
+          key={index}
+          src={node.src}
+          alt={node.alt}
+          className="my-3 h-auto max-w-full rounded-lg"
+        />
+      );
     if (node.kind === "link") {
       const external = /^https?:\/\//i.test(node.href);
       return (
@@ -20,7 +28,9 @@ function Inline({ nodes }: { nodes: InlineNode[] }): ReactNode {
           key={index}
           href={node.href}
           className="text-primary underline underline-offset-2"
-          {...(external ? { target: "_blank", rel: "noopener noreferrer" } : {})}
+          {...(external
+            ? { target: "_blank", rel: "noopener noreferrer" }
+            : {})}
         >
           {node.text}
         </a>
@@ -66,10 +76,17 @@ function Block({ block }: { block: BlockNode }) {
   );
 }
 
-export function WebsiteContentBody({ markdown }: { markdown: string }) {
+// `className` cho phép trang công khai đặt cỡ chữ lớn hơn admin (text-sm mặc định).
+export function WebsiteContentBody({
+  markdown,
+  className,
+}: {
+  markdown: string;
+  className?: string;
+}) {
   const blocks = parseMarkdown(markdown);
   return (
-    <div className="space-y-3 text-sm text-foreground">
+    <div className={cn("space-y-3 text-sm text-foreground", className)}>
       {blocks.map((block, index) => (
         <Block key={index} block={block} />
       ))}

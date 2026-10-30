@@ -34,17 +34,26 @@ export function parseInline(text: string): InlineNode[] {
   let last = 0;
   for (const match of text.matchAll(INLINE_PATTERN)) {
     const index = match.index ?? 0;
-    if (index > last) nodes.push({ kind: "text", text: text.slice(last, index) });
+    if (index > last)
+      nodes.push({ kind: "text", text: text.slice(last, index) });
     const [whole, bang, label, url, bold] = match;
     if (bold !== undefined) {
       nodes.push({ kind: "bold", text: bold });
     } else if (bang) {
       const src = safeImageSrc(url);
       // Địa chỉ ảnh không hợp lệ: giữ lại mô tả dạng chữ, không dựng ảnh.
-      nodes.push(src ? { kind: "image", alt: label, src } : { kind: "text", text: label });
+      nodes.push(
+        src
+          ? { kind: "image", alt: label, src }
+          : { kind: "text", text: label },
+      );
     } else {
       const href = safeHref(url);
-      nodes.push(href ? { kind: "link", text: label, href } : { kind: "text", text: label });
+      nodes.push(
+        href
+          ? { kind: "link", text: label, href }
+          : { kind: "text", text: label },
+      );
     }
     last = index + whole.length;
   }
@@ -63,7 +72,10 @@ export function parseMarkdown(source: string): BlockNode[] {
 
   const flushParagraph = () => {
     if (paragraph.length > 0)
-      blocks.push({ kind: "paragraph", inline: parseInline(paragraph.join(" ")) });
+      blocks.push({
+        kind: "paragraph",
+        inline: parseInline(paragraph.join(" ")),
+      });
     paragraph = [];
   };
   const flushList = () => {

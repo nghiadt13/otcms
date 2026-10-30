@@ -62,11 +62,14 @@ export function WebsiteContentArticleFields({
                 alt="Ảnh minh họa của bài viết"
                 className="aspect-video w-40 rounded-lg border object-cover"
               />
-              <span className="break-all text-xs text-muted-foreground">{imageUrl}</span>
+              <span className="break-all text-xs text-muted-foreground">
+                {imageUrl}
+              </span>
             </div>
           ) : (
             <p className="text-xs text-muted-foreground">
-              Chưa có ảnh. Ảnh JPG, PNG hoặc WebP, tối đa 5 MB, hiện ở đầu bài viết.
+              Chưa có ảnh. Ảnh JPG, PNG hoặc WebP, tối đa 5 MB, hiện ở đầu bài
+              viết.
             </p>
           )}
           <div className="flex flex-wrap gap-2">
@@ -78,7 +81,11 @@ export function WebsiteContentArticleFields({
               onClick={() => fileRef.current?.click()}
             >
               <ImagePlus data-icon="inline-start" />
-              {uploading ? "Đang tải ảnh..." : imageUrl ? "Thay ảnh" : "Chọn ảnh"}
+              {uploading
+                ? "Đang tải ảnh..."
+                : imageUrl
+                  ? "Thay ảnh"
+                  : "Chọn ảnh"}
             </Button>
             {imageUrl ? (
               <Button

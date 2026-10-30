@@ -5,23 +5,36 @@ import { SignInForm } from "@/features/auth/components/SignInForm";
 
 export const metadata: Metadata = { title: "Đăng nhập | OTCMS" };
 
-// UC01 Đăng nhập: một màn chung cho bệnh nhân, nhân viên, quản trị viên và chủ
-// phòng khám; vai trò quyết định chức năng mở ra sau khi đăng nhập (BR-01).
-export default function LoginPage() {
+// UC01 Đăng nhập bệnh nhân. Nhân viên đăng nhập ở khu nội bộ (trang riêng, chưa có route).
+// `next` là đích sau đăng nhập; SignInForm chỉ nhận đường dẫn trong khu bệnh nhân.
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ next?: string | string[] }>;
+}) {
+  const { next } = await searchParams;
+  const nextValue = Array.isArray(next) ? next[0] : next;
   return (
     <AuthCard
-      description="Dùng email và mật khẩu tài khoản phòng khám của bạn."
+      description="Dành cho bệnh nhân. Dùng email và mật khẩu bạn đã đăng ký."
       footer={
         <>
-          Bệnh nhân chưa có tài khoản?{" "}
-          <Link className={authLinkClass} href="/register">
+          Chưa có tài khoản?{" "}
+          <Link
+            className={authLinkClass}
+            href={
+              nextValue
+                ? `/register?next=${encodeURIComponent(nextValue)}`
+                : "/register"
+            }
+          >
             Đăng ký
           </Link>
         </>
       }
       title="Đăng nhập"
     >
-      <SignInForm />
+      <SignInForm next={nextValue} />
     </AuthCard>
   );
 }

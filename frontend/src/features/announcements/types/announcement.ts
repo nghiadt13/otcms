@@ -5,9 +5,7 @@ import type { StaffRole } from "@/lib/domain/clinicRoles";
 export type AnnouncementAudience = "PUBLIC" | "PATIENT" | StaffRole;
 export type AnnouncementChannel = "EMAIL" | "IN_APP";
 export type AnnouncementDeliveryStatus =
-  | "SENT"
-  | "PARTIAL_FAILURE"
-  | "NOT_SUPPORTED";
+  "SENT" | "PARTIAL_FAILURE" | "NOT_SUPPORTED";
 export type AnnouncementRowAction = "view";
 export type AnnouncementPageAction = "create";
 

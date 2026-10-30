@@ -13,7 +13,10 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { toQueryString } from "@/lib/api/pagination";
-import { NO_SOURCE_TEXT, type DashboardBlockView } from "../lib/dashboardBlockConfig";
+import {
+  NO_SOURCE_TEXT,
+  type DashboardBlockView,
+} from "../lib/dashboardBlockConfig";
 import {
   describeComparison,
   formatMetricValue,
@@ -49,7 +52,9 @@ export function DashboardBlockSection({
             <StatusBadge tone="neutral">Chưa có dữ liệu</StatusBadge>
           ) : null}
         </div>
-        <p className="mt-1 text-sm text-muted-foreground">{block.description}</p>
+        <p className="mt-1 text-sm text-muted-foreground">
+          {block.description}
+        </p>
         <Link
           href={href}
           className={buttonVariants({
@@ -63,9 +68,7 @@ export function DashboardBlockSection({
         </Link>
       </div>
       <div className="min-w-0">
-        {block.rows.length > 0 ? (
-          <BlockTable block={block} />
-        ) : null}
+        {block.rows.length > 0 ? <BlockTable block={block} /> : null}
         {emptyMessage ? (
           <p
             className={
@@ -126,7 +129,9 @@ function BlockTable({ block }: { block: DashboardBlockView }) {
                     ) : null}
                   </TableCell>
                   <TableCell className="text-xs text-muted-foreground">
-                    {block.noSource ? "—" : (row.note ?? describeComparison(row))}
+                    {block.noSource
+                      ? "—"
+                      : (row.note ?? describeComparison(row))}
                   </TableCell>
                 </TableRow>
               </Fragment>
