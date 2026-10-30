@@ -23,6 +23,7 @@ import {
   useServiceDetail,
 } from "../hooks/useServiceDetail";
 import { serviceDetailToDraft } from "../schema/serviceFormDraft";
+import { DoctorServiceAssignmentsPanel } from "./DoctorServiceAssignmentsPanel";
 import {
   MODALITY_LABELS,
   type ServiceCatalogDetail,
@@ -82,7 +83,16 @@ export function ServiceDetailSheet({
           ) : null}
         </SheetHeader>
         <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-4 pb-4">
-          {detail ? <DetailBody detail={detail} /> : <DetailSkeleton />}
+          {detail ? (
+            <>
+              <DetailBody detail={detail} />
+              {detail.type === "EXAMINATION" && detail.status === "ACTIVE" ? (
+                <DoctorServiceAssignmentsPanel serviceId={detail.id} />
+              ) : null}
+            </>
+          ) : (
+            <DetailSkeleton />
+          )}
         </div>
         {detail && detail.allowedActions.length > 0 ? (
           <SheetFooter className="flex-col-reverse border-t sm:flex-row sm:justify-between">

@@ -199,6 +199,8 @@ public class StaffProfileAdminService {
                 doctor == null ? null : doctor.publiclyVisible(), active
                     ? doctor == null ? List.of("edit", "remove") : List.of("edit", "remove", "togglePublic")
                     : List.of(), info, active && doctor != null && doctor.publiclyVisible()
-                    ? "/doctors/" + profile.id() : null);
+                    ? "/doctors/" + profile.id() : null,
+                doctor == null ? null : doctor.acceptingNewBookings(),
+                doctor == null ? null : doctor.inActiveDirectory());
     }
 }

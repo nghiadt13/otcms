@@ -30,7 +30,6 @@ public class StaffAccountAdminService {
         if (accounts.existsByNormalizedEmail(email))
             throw new StaffAccountAdminException("EMAIL_ALREADY_EXISTS");
         AccountJpaEntity account = new AccountJpaEntity();
-        account.setId(UUID.randomUUID());
         account.setNormalizedEmail(email);
         account.setFullName(fullName.trim());
         account.setDisplayName(account.getFullName());

@@ -6,7 +6,12 @@ import type { StatusTone } from "@/components/admin/StatusBadge";
 // trị đã có: plan lễ tân cũng dùng file này.
 
 export type AppointmentStatus =
-  "BOOKED" | "CHECKED_IN" | "CANCELLED" | "NO_SHOW";
+  | "BOOKED"
+  | "CHECKED_IN"
+  | "IN_PROGRESS"
+  | "COMPLETED"
+  | "CANCELLED"
+  | "NO_SHOW";
 export type VisitStatus =
   | "WAITING_FOR_EXAMINATION"
   | "IN_EXAMINATION"
@@ -28,12 +33,16 @@ export type PaymentStatus = "SUCCESS" | "PENDING" | "FAILED";
 export const APPOINTMENT_STATUS_LABELS: Record<AppointmentStatus, string> = {
   BOOKED: "Đã đặt",
   CHECKED_IN: "Đã tiếp nhận",
+  IN_PROGRESS: "Đang khám",
+  COMPLETED: "Đã hoàn tất",
   CANCELLED: "Đã hủy",
   NO_SHOW: "Không đến",
 };
 export const APPOINTMENT_STATUS_TONE: Record<AppointmentStatus, StatusTone> = {
   BOOKED: "info",
   CHECKED_IN: "success",
+  IN_PROGRESS: "success",
+  COMPLETED: "neutral",
   CANCELLED: "neutral",
   NO_SHOW: "warning",
 };

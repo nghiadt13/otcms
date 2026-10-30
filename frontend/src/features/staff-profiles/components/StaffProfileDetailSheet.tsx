@@ -15,7 +15,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ApiError } from "@/lib/api/apiError";
 import { messageFromError } from "@/lib/messages/appMessages";
 import { notifyError } from "@/lib/messages/notify";
-import { getStaffProfile } from "../api/staffProfileApi";
+import {
+  getStaffProfile,
+  setDoctorBookingAvailability,
+} from "../api/staffProfileApi";
 import { useStaffProfileActions } from "../hooks/useStaffProfileActions";
 import type { StaffProfileDetail } from "../types/staffProfile";
 import { StaffAvatar } from "./StaffAvatar";
@@ -68,6 +71,7 @@ function SheetBody({
   const [loadError, setLoadError] = useState<string | null>(null);
   const [editing, setEditing] = useState(startInEditMode);
   const [togglePending, setTogglePending] = useState(false);
+  const [bookingTogglePending, setBookingTogglePending] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [reloadToken, setReloadToken] = useState(0);
   const actions = useStaffProfileActions();
@@ -112,6 +116,24 @@ function SheetBody({
     } else if (result.code === "MSG-23") {
       onChanged();
       onClose();
+    }
+  }
+
+  async function toggleAcceptingBookings(next: boolean) {
+    if (!detail?.doctor) return;
+    setBookingTogglePending(true);
+    try {
+      const updated = await setDoctorBookingAvailability(detail, next);
+      setDetail(updated);
+      onChanged();
+    } catch (error) {
+      notifyError(error);
+      if (error instanceof ApiError && error.code === "MSG-23") {
+        onChanged();
+        onClose();
+      }
+    } finally {
+      setBookingTogglePending(false);
     }
   }
 
@@ -187,7 +209,11 @@ function SheetBody({
           onEdit={() => setEditing(true)}
           onRemove={() => setConfirmOpen(true)}
           onTogglePublic={(next) => void togglePublic(next)}
+          onToggleAcceptingBookings={(next) =>
+            void toggleAcceptingBookings(next)
+          }
           togglePending={togglePending}
+          bookingTogglePending={bookingTogglePending}
         />
       )}
       <ConfirmActionDialog

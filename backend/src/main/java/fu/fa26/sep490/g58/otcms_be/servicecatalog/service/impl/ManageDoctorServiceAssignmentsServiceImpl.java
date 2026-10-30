@@ -16,6 +16,7 @@ import fu.fa26.sep490.g58.otcms_be.servicecatalog.repository.DoctorServiceAssign
 import fu.fa26.sep490.g58.otcms_be.servicecatalog.repository.ServiceCatalogManagementAuditRepository;
 import fu.fa26.sep490.g58.otcms_be.servicecatalog.service.ManageDoctorServiceAssignmentsService;
 import java.time.Clock;
+import java.util.List;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -36,6 +37,16 @@ public class ManageDoctorServiceAssignmentsServiceImpl implements ManageDoctorSe
             VisitMutationImpactService visitImpact, CoordinationGuardService guard, Clock clock) {
         this.services=services; this.assignments=assignments; this.audits=audits; this.doctors=doctors;
         this.appointmentImpact=appointmentImpact; this.visitImpact=visitImpact; this.guard=guard; this.clock=clock;
+    }
+    @Override @Transactional(readOnly = true)
+    public List<DoctorAssignmentResponse> list(UUID serviceId, AuthenticatedAccount actor) {
+        if (serviceId == null || actor == null || actor.accountId() == null || actor.accountRole() != AccountRole.ADMIN)
+            throw new ClinicServiceException("ACCESS_DENIED");
+        services.findById(serviceId).orElseThrow(() -> new ClinicServiceException("SERVICE_NOT_FOUND"));
+        return assignments.findByServiceIdAndActiveTrueOrderByDoctorProfileIdAsc(serviceId).stream()
+                .map(assignment -> new DoctorAssignmentResponse(assignment.id(), serviceId,
+                        assignment.doctorProfileId()))
+                .toList();
     }
     @Override @Transactional
     public DoctorAssignmentResponse assign(UUID serviceId, UUID doctorId, AuthenticatedAccount actor, String correlationId) {

@@ -25,6 +25,9 @@ export type StaffProfileListItem = {
   status: StaffProfileStatus;
   /** null = không phải bác sĩ, hiện "—". */
   isPublic: boolean | null;
+  /** null = không phải bác sĩ. */
+  acceptingNewBookings: boolean | null;
+  inActiveDirectory: boolean | null;
   allowedActions: StaffProfileAction[];
 };
 

@@ -13,7 +13,8 @@ public class StaffProfileExceptionHandler {
     public ResponseEntity<ErrorResponse> handle(StaffProfileException ex) {
         HttpStatus status = switch (ex.getMessage()) {
             case "STAFF_PROFILE_NOT_FOUND" -> HttpStatus.NOT_FOUND;
-            case "STAFF_ACCOUNT_UNAVAILABLE", "STAFF_PROFILE_CONFLICT", "DOCTOR_HAS_FUTURE_APPOINTMENTS" -> HttpStatus.CONFLICT;
+            case "STAFF_ACCOUNT_UNAVAILABLE", "STAFF_PROFILE_CONFLICT", "DOCTOR_HAS_FUTURE_APPOINTMENTS",
+                    "STAFF_SHIFT_CONFLICT", "STAFF_SHIFT_NOT_EDITABLE" -> HttpStatus.CONFLICT;
             default -> HttpStatus.BAD_REQUEST;
         };
         return ResponseEntity.status(status).body(ErrorResponse.of(ex.getMessage(),

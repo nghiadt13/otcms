@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import { usePagedList } from "@/hooks/usePagedList";
 import type { PageQuery, PageResponse } from "@/lib/api/pagination";
-import { listAppointments } from "../api/appointmentApi";
+import { listAdminAppointments } from "../api/appointmentAdminLiveApi";
 import { rangeErrorCode } from "../schema/appointmentUrlRules";
 import type { Appointment, AppointmentListQuery } from "../types/appointment";
 
@@ -20,7 +20,7 @@ function fetchAppointments(
       totalItems: 0,
       totalPages: 1,
     });
-  return listAppointments(query, signal);
+  return listAdminAppointments(query, signal);
 }
 
 /**

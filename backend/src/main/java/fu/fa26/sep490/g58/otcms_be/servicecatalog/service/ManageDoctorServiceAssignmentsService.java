@@ -4,8 +4,10 @@ import fu.fa26.sep490.g58.otcms_be.servicecatalog.model.dto.response.DoctorAssig
 import java.util.UUID;
 import fu.fa26.sep490.g58.otcms_be.common.security.AuthenticatedAccount;
 import fu.fa26.sep490.g58.otcms_be.common.model.AdminMutationImpact;
+import java.util.List;
 
 public interface ManageDoctorServiceAssignmentsService {
+    List<DoctorAssignmentResponse> list(UUID serviceId, AuthenticatedAccount actor);
     DoctorAssignmentResponse assign(UUID serviceId, UUID doctorId, AuthenticatedAccount actor, String correlationId);
     void remove(UUID serviceId, UUID assignmentId, AuthenticatedAccount actor, String correlationId);
     AdminMutationImpact assessRemovalImpact(UUID serviceId, UUID assignmentId, AuthenticatedAccount actor);

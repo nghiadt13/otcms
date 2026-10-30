@@ -5,6 +5,7 @@ import fu.fa26.sep490.g58.otcms_be.common.model.AdminMutationImpact;
 import fu.fa26.sep490.g58.otcms_be.common.exception.ResourceMutationBlockedException;
 import fu.fa26.sep490.g58.otcms_be.common.service.CoordinationGuardService;
 import fu.fa26.sep490.g58.otcms_be.visit.service.VisitMutationImpactService;
+import fu.fa26.sep490.g58.otcms_be.visit.service.ManageVisitRoomService;
 import fu.fa26.sep490.g58.otcms_be.common.security.AccountRole;
 import fu.fa26.sep490.g58.otcms_be.common.security.AuthenticatedAccount;
 import fu.fa26.sep490.g58.otcms_be.staff.exception.DoctorProfileException;
@@ -20,7 +21,10 @@ import fu.fa26.sep490.g58.otcms_be.staff.repository.StaffResourceManagementAudit
 import fu.fa26.sep490.g58.otcms_be.staff.service.ManageDoctorResourcesService;
 import java.time.Clock;
 import java.time.Instant;
+import java.sql.Timestamp;
 import java.util.UUID;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -34,26 +38,48 @@ public class ManageDoctorResourcesServiceImpl implements ManageDoctorResourcesSe
     private final VisitMutationImpactService visits;
     private final CoordinationGuardService guard;
     private final Clock clock;
+    private final ManageVisitRoomService rooms;
+    private final JdbcTemplate jdbc;
+
+    @Autowired
+    public ManageDoctorResourcesServiceImpl(DoctorProfileRepository profiles, DoctorWorkShiftRepository shifts,
+            DoctorOperationalTimeOffRepository timeOffs, StaffResourceManagementAuditRepository audits,
+            AppointmentMutationImpactService appointments, VisitMutationImpactService visits,
+            CoordinationGuardService guard, Clock clock, ManageVisitRoomService rooms, JdbcTemplate jdbc) {
+        this.profiles=profiles; this.shifts=shifts; this.timeOffs=timeOffs; this.audits=audits;
+        this.appointments=appointments; this.visits=visits; this.guard=guard; this.clock=clock; this.rooms=rooms; this.jdbc=jdbc;
+    }
 
     public ManageDoctorResourcesServiceImpl(DoctorProfileRepository profiles, DoctorWorkShiftRepository shifts,
             DoctorOperationalTimeOffRepository timeOffs, StaffResourceManagementAuditRepository audits,
             AppointmentMutationImpactService appointments, VisitMutationImpactService visits,
             CoordinationGuardService guard, Clock clock) {
-        this.profiles=profiles; this.shifts=shifts; this.timeOffs=timeOffs; this.audits=audits;
-        this.appointments=appointments; this.visits=visits; this.guard=guard; this.clock=clock;
+        this(profiles, shifts, timeOffs, audits, appointments, visits, guard, clock, null, null);
+    }
+
+    public DoctorIntervalResponse createShift(UUID doctorId, Instant startsAt, Instant endsAt,
+            AuthenticatedAccount actor, String correlationId) {
+        return createShift(doctorId, startsAt, endsAt, null, actor, correlationId);
+    }
+
+    public DoctorIntervalResponse updateShift(UUID doctorId, UUID shiftId, Instant startsAt, Instant endsAt,
+            AuthenticatedAccount actor, String correlationId) {
+        return updateShift(doctorId, shiftId, startsAt, endsAt, null, actor, correlationId);
     }
 
     @Override @Transactional
-    public DoctorIntervalResponse createShift(UUID doctorId, Instant startsAt, Instant endsAt, AuthenticatedAccount actor, String correlationId) {
+    public DoctorIntervalResponse createShift(UUID doctorId, Instant startsAt, Instant endsAt, UUID roomId, AuthenticatedAccount actor, String correlationId) {
         validate(doctorId, startsAt, endsAt, actor, correlationId);
+        validateDoctorRoom(roomId);
         guard.acquire(); requireDoctor(doctorId);
+        ensureRoomAvailable(roomId, startsAt, endsAt, null);
         var existing = shifts.findAllByDoctorProfileIdOrderByStartsAtAscIdAsc(doctorId);
         if (existing.stream().anyMatch(s -> overlaps(startsAt, endsAt, s.startsAt(), s.endsAt())))
             throw new DoctorProfileException("DOCTOR_SHIFT_OVERLAP");
         UUID id = UUID.randomUUID();
-        var saved = shifts.save(new DoctorWorkShiftJpaEntity(id, doctorId, startsAt, endsAt));
+        var saved = shifts.save(new DoctorWorkShiftJpaEntity(id, doctorId, startsAt, endsAt, roomId));
         audit(doctorId, actor.accountId(), "WORK_SHIFT", id, "CREATED", null, intervalJson(startsAt, endsAt), correlationId);
-        return new DoctorIntervalResponse(saved.id(), saved.doctorProfileId(), saved.startsAt(), saved.endsAt());
+        return new DoctorIntervalResponse(saved.id(), saved.doctorProfileId(), saved.startsAt(), saved.endsAt(), saved.roomId());
     }
 
     @Override @Transactional
@@ -69,20 +95,22 @@ public class ManageDoctorResourcesServiceImpl implements ManageDoctorResourcesSe
     }
 
     @Override @Transactional
-    public DoctorIntervalResponse updateShift(UUID doctorId, UUID shiftId, Instant startsAt, Instant endsAt,
+    public DoctorIntervalResponse updateShift(UUID doctorId, UUID shiftId, Instant startsAt, Instant endsAt, UUID roomId,
             AuthenticatedAccount actor, String correlationId) {
         validate(doctorId, startsAt, endsAt, actor, correlationId); if (shiftId == null) throw invalid();
+        validateDoctorRoom(roomId);
         guard.acquire(); requireDoctor(doctorId);
         var shift=shifts.findByIdAndDoctorProfileId(shiftId, doctorId).orElseThrow(() -> new DoctorProfileException("DOCTOR_SHIFT_NOT_FOUND"));
+        ensureRoomAvailable(roomId, startsAt, endsAt, shiftId);
         var other=shifts.findAllByDoctorProfileIdOrderByStartsAtAscIdAsc(doctorId).stream().filter(s -> !s.id().equals(shiftId)).toList();
         if (other.stream().anyMatch(s -> overlaps(startsAt, endsAt, s.startsAt(), s.endsAt())))
             throw new DoctorProfileException("DOCTOR_SHIFT_OVERLAP");
         AdminMutationImpact impact = shiftImpact(doctorId, shiftId, startsAt, endsAt, other);
         if (impact.isBlocked()) throw new ResourceMutationBlockedException(impact);
-        String before=intervalJson(shift.startsAt(), shift.endsAt()); shift.updateInterval(startsAt, endsAt);
+        String before=intervalJson(shift.startsAt(), shift.endsAt()); shift.updateInterval(startsAt, endsAt, roomId);
         var saved=shifts.save(shift);
         audit(doctorId, actor.accountId(), "WORK_SHIFT", shiftId, "UPDATED", before, intervalJson(startsAt, endsAt), correlationId);
-        return new DoctorIntervalResponse(saved.id(), saved.doctorProfileId(), saved.startsAt(), saved.endsAt());
+        return new DoctorIntervalResponse(saved.id(), saved.doctorProfileId(), saved.startsAt(), saved.endsAt(), saved.roomId());
     }
 
     @Override @Transactional
@@ -189,6 +217,21 @@ public class ManageDoctorResourcesServiceImpl implements ManageDoctorResourcesSe
 
     private void requireDoctor(UUID doctorId) {
         if (!profiles.existsById(doctorId)) throw new DoctorProfileException("DOCTOR_PROFILE_NOT_FOUND");
+    }
+    private void validateDoctorRoom(UUID roomId) {
+        if (roomId == null) return; // Keep older doctor-schedule callers compatible.
+        if (rooms == null) return;
+        var room = rooms.get(roomId);
+        if (!room.active() || !"EXAMINATION".equals(room.type())) throw invalid();
+    }
+    private void ensureRoomAvailable(UUID roomId, Instant startsAt, Instant endsAt, UUID ignoreId) {
+        if (roomId == null || jdbc == null) return;
+        Integer count = jdbc.queryForObject("""
+                SELECT (SELECT count(*) FROM doctor_shifts WHERE room_id=? AND starts_at < ? AND ends_at > ? AND (?::uuid IS NULL OR id<>?))
+                     + (SELECT count(*) FROM staff_work_shifts WHERE room_id=? AND starts_at < ? AND ends_at > ?)
+                """, Integer.class, roomId, Timestamp.from(endsAt), Timestamp.from(startsAt), ignoreId, ignoreId,
+                roomId, Timestamp.from(endsAt), Timestamp.from(startsAt));
+        if (count != null && count > 0) throw new DoctorProfileException("DOCTOR_SHIFT_OVERLAP");
     }
     private boolean covers(Instant from, Instant to, Instant bookingFrom, Instant bookingTo) {
         return !from.isAfter(bookingFrom) && !to.isBefore(bookingTo);

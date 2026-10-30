@@ -5,7 +5,8 @@ import java.util.UUID;
 
 public record StaffProfileResponse(UUID id, UUID accountId, String username, String role,
         String displayName, String photoUrl, String workContact, String status, Boolean isPublic,
-        List<String> allowedActions, DoctorInfo doctor, String publicUrl) {
+        List<String> allowedActions, DoctorInfo doctor, String publicUrl,
+        Boolean acceptingNewBookings, Boolean inActiveDirectory) {
     public record DoctorInfo(List<String> specialties, String qualifications, String biography,
             String consultationInfo, boolean isPublic) { }
 }

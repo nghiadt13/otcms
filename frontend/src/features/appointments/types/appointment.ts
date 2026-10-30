@@ -20,12 +20,15 @@ export interface Appointment {
   startAt: string;
   /** Người khám */
   patientName: string;
+  /** Số điện thoại chỉ dùng để lọc trong màn quản trị. */
+  patientPhone?: string;
   bookedForDependent: boolean;
   serviceName: string;
   /** null = "Chưa chỉ định" */
   doctor: DoctorRef | null;
   status: AppointmentStatus;
-  examFeePaid: boolean;
+  /** null khi danh sách lịch hẹn chưa nhận được dữ liệu thu phí. */
+  examFeePaid: boolean | null;
   /** BE quyết định; FE chỉ vẽ nút có trong mảng. */
   allowedActions: AppointmentAction[];
 }

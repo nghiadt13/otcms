@@ -116,6 +116,13 @@ public class ClinicServiceController {
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
+    @GetMapping("/api/v1/admin/clinic-services/{serviceId}/doctor-assignments")
+    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
+    public java.util.List<DoctorAssignmentResponse> doctorAssignments(@PathVariable UUID serviceId,
+            @AuthenticationPrincipal AuthenticatedAccount actor) {
+        return assignments.list(serviceId, actor);
+    }
+
     @DeleteMapping("/api/v1/admin/clinic-services/{serviceId}/doctor-assignments/{assignmentId}")
     @PreAuthorize("hasAuthority('ROLE_ADMIN')")
     @ResponseStatus(HttpStatus.NO_CONTENT)

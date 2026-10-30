@@ -59,6 +59,12 @@ function toListItem(record: MockStaffRecord): StaffProfileListItem {
     workContact: record.workContact,
     status: record.status,
     isPublic: record.doctor ? record.doctor.isPublic : null,
+    acceptingNewBookings: record.doctor
+      ? (record.acceptingNewBookings ?? false)
+      : null,
+    inActiveDirectory: record.doctor
+      ? (record.inActiveDirectory ?? true)
+      : null,
     allowedActions: allowedActions(record),
   };
 }
@@ -74,6 +80,12 @@ function toDetail(record: MockStaffRecord): StaffProfileDetail {
     photoUrl: record.photoUrl,
     workContact: record.workContact,
     status: record.status,
+    acceptingNewBookings: record.doctor
+      ? (record.acceptingNewBookings ?? false)
+      : null,
+    inActiveDirectory: record.doctor
+      ? (record.inActiveDirectory ?? true)
+      : null,
     allowedActions: allowedActions(record),
     doctor: record.doctor ? clone(record.doctor) : null,
     publicUrl: isLive ? `/doctors/${record.id}` : null,
@@ -158,6 +170,32 @@ export async function getStaffProfile(
   return toDetail(findRecord(id));
 }
 
+export async function setDoctorBookingAvailability(
+  detail: StaffProfileDetail,
+  acceptingNewBookings: boolean,
+): Promise<StaffProfileDetail> {
+  if (!detail.doctor) throw new Error("Chỉ bác sĩ mới có thể nhận đặt lịch.");
+  if (!USE_MOCK) {
+    try {
+      await apiRequest(`/api/v1/admin/doctors/${encodeURIComponent(detail.id)}/directory-state`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          publiclyVisible: detail.doctor.isPublic,
+          acceptingNewBookings,
+          inActiveDirectory: detail.inActiveDirectory ?? true,
+        }),
+      });
+      return getStaffProfile(detail.id);
+    } catch (error) {
+      profileError(error);
+    }
+  }
+  await mockDelay(DELAY_MS);
+  const record = findRecord(detail.id);
+  record.acceptingNewBookings = acceptingNewBookings;
+  return toDetail(record);
+}
+
 export async function listEligibleStaffAccounts(
   q?: string,
   signal?: AbortSignal,
@@ -217,6 +255,8 @@ export async function createStaffProfile(
     workContact: body.workContact.trim(),
     status: "ACTIVE",
     doctor: account.role === "ORTHOPEDIC_DOCTOR" ? (body.doctor ?? null) : null,
+    acceptingNewBookings: false,
+    inActiveDirectory: true,
   };
   mockStore.profiles.push(record);
   mockStore.accounts = mockStore.accounts.filter(

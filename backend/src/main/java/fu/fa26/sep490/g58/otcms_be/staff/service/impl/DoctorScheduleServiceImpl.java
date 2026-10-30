@@ -39,7 +39,7 @@ public class DoctorScheduleServiceImpl implements DoctorScheduleService {
             throw new DoctorProfileException("DOCTOR_PROFILE_NOT_FOUND");
         }
         return shifts.findInRange(doctorProfileId, from, to).stream()
-                .map(shift -> new DoctorWorkShift(shift.id(), shift.doctorProfileId(), shift.startsAt(), shift.endsAt()))
+                .map(shift -> new DoctorWorkShift(shift.id(), shift.doctorProfileId(), shift.startsAt(), shift.endsAt(), shift.roomId()))
                 .toList();
     }
 
