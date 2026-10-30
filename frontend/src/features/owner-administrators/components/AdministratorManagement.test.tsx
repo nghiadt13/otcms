@@ -35,9 +35,9 @@ it("UC08 AF1 exposes status and reissue actions from account details", async () 
   const user = userEvent.setup();
   render(<AdministratorManagement />);
   await screen.findByText("admin.demo");
-  await user.click(screen.getByRole("button", { name: "Xem" }));
+  await user.click(screen.getByRole("button", { name: "Xem tài khoản admin.demo" }));
   const detail = await screen.findByRole("dialog");
-  await within(detail).findByText("Administrator");
+  await within(detail).findByText("Quản trị viên");
   expect(within(detail).queryByText("Email")).not.toBeInTheDocument();
   await user.click(
     within(detail).getByRole("button", { name: "Cấp lại mật khẩu" }),
@@ -68,7 +68,7 @@ it("UC09 E1 displays MSG-54 next to search and retains editable criteria", async
   render(<AdministratorManagement />);
   await screen.findByText("admin.demo");
   request.mockRejectedValueOnce(new ApiError(400));
-  const search = screen.getByRole("textbox", { name: "Tìm tài khoản Admin" });
+  const search = screen.getByRole("searchbox", { name: "Tìm tài khoản Admin" });
   await user.type(search, "bad");
   expect(await screen.findByRole("alert")).toHaveTextContent(
     "Tiêu chí tìm kiếm không hợp lệ. Vui lòng kiểm tra lại.",
@@ -99,12 +99,13 @@ it("requires confirmation before deactivation and opens details", async () => {
   const user = userEvent.setup();
   render(<AdministratorManagement />);
   await screen.findByText("admin.demo");
-  await user.click(screen.getByRole("button", { name: "Xem" }));
+  await user.click(screen.getByRole("button", { name: "Xem tài khoản admin.demo" }));
   expect(
     await screen.findByText("Chi tiết tài khoản Admin"),
   ).toBeInTheDocument();
   await user.click(screen.getByRole("button", { name: "Đóng" }));
-  await user.click(screen.getByRole("button", { name: "Vô hiệu hóa" }));
+  await user.click(screen.getByRole("button", { name: "Thao tác cho admin.demo" }));
+  await user.click(screen.getByRole("menuitem", { name: "Vô hiệu hóa" }));
   expect(
     request.mock.calls.filter(([, init]) => init?.method === "POST"),
   ).toHaveLength(0);
@@ -124,7 +125,8 @@ it("reissues only after explicit submission", async () => {
   const user = userEvent.setup();
   render(<AdministratorManagement />);
   await screen.findByText("admin.demo");
-  await user.click(screen.getByRole("button", { name: "Cấp lại mật khẩu" }));
+  await user.click(screen.getByRole("button", { name: "Thao tác cho admin.demo" }));
+  await user.click(screen.getByRole("menuitem", { name: "Cấp lại mật khẩu" }));
   expect(
     request.mock.calls.filter(([, init]) => init?.method === "POST"),
   ).toHaveLength(0);
@@ -161,7 +163,7 @@ it("sends search and status filters to the server and displays empty results", a
   await screen.findByText("admin.demo");
   request.mockResolvedValue({ content: [], totalElements: 0, totalPages: 0 });
   await user.type(
-    screen.getByRole("textbox", { name: "Tìm tài khoản Admin" }),
+    screen.getByRole("searchbox", { name: "Tìm tài khoản Admin" }),
     "missing",
   );
   await user.selectOptions(

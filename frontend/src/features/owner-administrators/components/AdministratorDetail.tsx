@@ -6,8 +6,12 @@ import {
   SheetHeader,
   SheetTitle,
   SheetDescription,
+  SheetFooter,
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
+import { DetailList } from "@/components/admin/DetailList";
+import { StatusBadge } from "@/components/admin/StatusBadge";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   administratorError,
   getAdministrator,
@@ -45,21 +49,22 @@ export function AdministratorDetail({
         if (!open) onClose();
       }}
     >
-      <SheetContent>
+      <SheetContent className="w-full data-[side=right]:w-full data-[side=right]:sm:max-w-md">
         <SheetHeader>
           <SheetTitle>Chi tiết tài khoản Admin</SheetTitle>
           <SheetDescription>
-            Thông tin tài khoản quản trị của phòng khám.
+            Thông tin tài khoản quản trị, chỉ đọc.
           </SheetDescription>
         </SheetHeader>
-        <div className="space-y-4 overflow-auto px-4 pb-4">
+        <div className="flex-1 overflow-y-auto px-4">
           {error ? (
-            <>
-              <p role="alert" className="text-destructive">
+            <div className="grid justify-items-start gap-3">
+              <p role="alert" className="text-sm text-destructive">
                 {error}
               </p>
               <Button
                 variant="outline"
+                size="sm"
                 onClick={() => {
                   setError("");
                   setAttempt((value) => value + 1);
@@ -67,42 +72,42 @@ export function AdministratorDetail({
               >
                 Thử lại
               </Button>
-            </>
+            </div>
           ) : account ? (
-            <>
-              <dl className="space-y-4">
-                {[
-                  ["Tên đăng nhập", account.username],
-                  ["Vai trò", "Administrator"],
-                  ["Trạng thái", statusLabel(account.status)],
-                  [
-                    "Ngày tạo",
-                    new Date(account.createdAt).toLocaleString("vi-VN"),
-                  ],
-                  [
-                    "Cập nhật lần cuối",
-                    new Date(account.updatedAt).toLocaleString("vi-VN"),
-                  ],
-                ].map(([label, value]) => (
-                  <div key={label}>
-                    <dt className="text-muted-foreground">{label}</dt>
-                    <dd className="mt-1 break-all font-medium">{value}</dd>
-                  </div>
-                ))}
-              </dl>
-              <div className="flex flex-wrap gap-2 border-t pt-4">
-                <Button variant="outline" onClick={() => onStatus(account)}>
-                  {account.status === "ACTIVE" ? "Vô hiệu hóa" : "Kích hoạt"}
-                </Button>
-                <Button variant="outline" onClick={() => onReissue(account)}>
-                  Cấp lại mật khẩu
-                </Button>
-              </div>
-            </>
+            <DetailList
+              items={[
+                { label: "Tên đăng nhập", value: account.username },
+                { label: "Vai trò", value: "Quản trị viên" },
+                {
+                  label: "Trạng thái",
+                  value: (
+                    <StatusBadge tone={account.status === "ACTIVE" ? "success" : "neutral"}>
+                      {statusLabel(account.status)}
+                    </StatusBadge>
+                  ),
+                },
+                { label: "Ngày tạo", value: new Date(account.createdAt).toLocaleString("vi-VN") },
+                { label: "Cập nhật lần cuối", value: new Date(account.updatedAt).toLocaleString("vi-VN") },
+              ]}
+            />
           ) : (
-            <p role="status">Đang tải tài khoản…</p>
+            <div className="grid gap-4" role="status" aria-label="Đang tải tài khoản">
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-10 w-full" />
+            </div>
           )}
         </div>
+        {account && (
+          <SheetFooter className="sm:flex-row sm:flex-wrap sm:justify-end">
+            <Button variant="outline" onClick={() => onStatus(account)}>
+              {account.status === "ACTIVE" ? "Vô hiệu hóa" : "Kích hoạt"}
+            </Button>
+            <Button variant="outline" onClick={() => onReissue(account)}>
+              Cấp lại mật khẩu
+            </Button>
+          </SheetFooter>
+        )}
       </SheetContent>
     </Sheet>
   );

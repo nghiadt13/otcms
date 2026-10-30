@@ -1,8 +1,12 @@
 "use client";
 import { useEffect, useState } from "react";
+import { KeyRound, Plus, Power, PowerOff, Search } from "lucide-react";
 import { toast } from "sonner";
 import { ApiError } from "@/lib/api/apiError";
 import { PageHeader } from "@/components/PageHeader";
+import { FilterBar } from "@/components/admin/FilterBar";
+import { RowActionsMenu } from "@/components/admin/RowActionsMenu";
+import { TableFrame } from "@/components/admin/TableFrame";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -81,25 +85,30 @@ export function AdministratorManagement() {
         description="Tra cứu và quản lý quyền truy cập của quản trị viên phòng khám."
         actions={
           <Button onClick={() => setCredential("create")}>
+            <Plus data-icon="inline-start" />
             Tạo tài khoản Admin
           </Button>
         }
       />
-      <div className="mb-4 flex flex-wrap gap-3">
-        <Input
-          className="w-full sm:max-w-sm"
-          aria-label="Tìm tài khoản Admin"
-          placeholder="Tìm theo tên đăng nhập…"
-          aria-invalid={ready && !!result.invalidCriteria}
-          aria-describedby={
-            ready && result.invalidCriteria ? "owner-search-error" : undefined
-          }
-          value={query}
-          onChange={(event) => {
-            setQuery(event.target.value);
-            setPage(0);
-          }}
-        />
+      <FilterBar>
+        <div className="relative w-full sm:w-72">
+          <Search aria-hidden className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            className="pl-8"
+            type="search"
+            aria-label="Tìm tài khoản Admin"
+            placeholder="Tìm tên đăng nhập"
+            aria-invalid={ready && !!result.invalidCriteria}
+            aria-describedby={
+              ready && result.invalidCriteria ? "owner-search-error" : undefined
+            }
+            value={query}
+            onChange={(event) => {
+              setQuery(event.target.value);
+              setPage(0);
+            }}
+          />
+        </div>
         <NativeSelect
           aria-label="Trạng thái"
           value={status}
@@ -124,7 +133,7 @@ export function AdministratorManagement() {
         <Button variant="outline" onClick={reload}>
           Tải lại
         </Button>
-      </div>
+      </FilterBar>
       {ready && result.invalidCriteria && (
         <p
           id="owner-search-error"
@@ -134,7 +143,7 @@ export function AdministratorManagement() {
           {error}
         </p>
       )}
-      <div className="rounded-lg border bg-card">
+      <TableFrame>
         <Table>
           <TableHeader>
             <TableRow>
@@ -192,7 +201,7 @@ export function AdministratorManagement() {
                   <TableCell className="font-medium">
                     {account.username}
                   </TableCell>
-                  <TableCell>Administrator</TableCell>
+                  <TableCell>Quản trị viên</TableCell>
                   <TableCell>
                     <StatusBadge
                       tone={account.status === "ACTIVE" ? "success" : "neutral"}
@@ -200,34 +209,37 @@ export function AdministratorManagement() {
                       {statusLabel(account.status)}
                     </StatusBadge>
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="tabular-nums">
                     {new Date(account.createdAt).toLocaleDateString("vi-VN")}
                   </TableCell>
                   <TableCell>
-                    <div className="flex justify-end gap-1">
+                    <div className="flex items-center justify-end gap-1">
                       <Button
                         size="sm"
                         variant="ghost"
+                        aria-label={`Xem tài khoản ${account.username}`}
                         onClick={() => setSelected(account.accountId)}
                       >
                         Xem
                       </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => setTarget(account)}
-                      >
-                        {account.status === "ACTIVE"
-                          ? "Vô hiệu hóa"
-                          : "Kích hoạt"}
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => setCredential(account)}
-                      >
-                        Cấp lại mật khẩu
-                      </Button>
+                      <RowActionsMenu
+                        label={account.username}
+                        actions={[
+                          {
+                            key: "reissue",
+                            label: "Cấp lại mật khẩu",
+                            icon: KeyRound,
+                            onSelect: () => setCredential(account),
+                          },
+                          {
+                            key: "status",
+                            label: account.status === "ACTIVE" ? "Vô hiệu hóa" : "Kích hoạt",
+                            icon: account.status === "ACTIVE" ? PowerOff : Power,
+                            destructive: account.status === "ACTIVE",
+                            onSelect: () => setTarget(account),
+                          },
+                        ]}
+                      />
                     </div>
                   </TableCell>
                 </TableRow>
@@ -235,7 +247,7 @@ export function AdministratorManagement() {
             )}
           </TableBody>
         </Table>
-      </div>
+      </TableFrame>
       {data && (
         <TablePagination
           page={page}

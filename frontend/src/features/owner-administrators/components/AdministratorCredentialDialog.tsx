@@ -1,5 +1,6 @@
 "use client";
 import { useState, type FormEvent } from "react";
+import { Check, Copy } from "lucide-react";
 import { toast } from "sonner";
 import { ApiError } from "@/lib/api/apiError";
 import {
@@ -111,26 +112,26 @@ export function AdministratorCredentialDialog({
         </DialogHeader>
         {issued ? (
           <>
-            <dl className="space-y-3 rounded-lg border bg-muted/30 p-4">
+            <dl className="grid gap-3 text-sm">
               <div>
-                <dt className="text-muted-foreground">Tên đăng nhập</dt>
-                <dd className="break-all font-medium">{username}</dd>
+                <dt className="text-xs text-muted-foreground">Tên đăng nhập</dt>
+                <dd className="mt-0.5 break-all font-medium">{username}</dd>
               </div>
               <div>
-                <dt className="text-muted-foreground">Mật khẩu khởi tạo</dt>
+                <dt className="text-xs text-muted-foreground">Mật khẩu khởi tạo</dt>
                 <dd
-                  className="mt-1 select-all break-all font-mono text-base"
+                  className="mt-0.5 select-all break-all rounded-lg border bg-muted px-3 py-2 font-mono text-base"
                   aria-label="Mật khẩu khởi tạo"
                 >
                   {issued.temporaryPassword}
                 </dd>
               </div>
             </dl>
-            <p className="text-muted-foreground">
+            <p className="text-sm text-muted-foreground">
               Bàn giao trực tiếp cho Admin. Admin phải đổi mật khẩu ở lần đăng
               nhập tiếp theo.
             </p>
-            {copyMessage && <p role="status">{copyMessage}</p>}
+            {copyMessage && <p role="status" className="text-sm text-muted-foreground">{copyMessage}</p>}
             <DialogFooter>
               <Button
                 variant="outline"
@@ -147,7 +148,8 @@ export function AdministratorCredentialDialog({
                   }
                 }}
               >
-                Sao chép mật khẩu
+                {copyMessage === "Đã sao chép mật khẩu." ? <Check data-icon="inline-start" /> : <Copy data-icon="inline-start" />}
+                {copyMessage === "Đã sao chép mật khẩu." ? "Đã sao chép" : "Sao chép mật khẩu"}
               </Button>
               <Button onClick={onClose}>Đã lưu, đóng</Button>
             </DialogFooter>
