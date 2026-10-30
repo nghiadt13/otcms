@@ -47,6 +47,8 @@ Luồng mẫu cho một UC: `POST /api/v1/appointments` → `AppointmentControll
 
 Backend tự xác thực danh tính (email + mật khẩu băm bcrypt trong bảng account) và phát JWT access token sống ngắn cùng refresh token trong cookie httpOnly; Supabase chỉ cung cấp PostgreSQL. Frontend giữ access token trong bộ nhớ (`lib/auth/authSession.ts`) và gửi CSRF cho `/refresh`, `/logout`. Vai trò phòng khám nằm trong JWT do backend ký và trong bảng account, **không phải** PostgreSQL role. Bảng account của ứng dụng và chính sách use case sẽ giữ vai trò Patient/Receptionist/Orthopedic Doctor/Imaging Technician/Administrator/Clinic Owner. Không ánh xạ vai trò nhóm từ claim `role`.
 
+Khu Chủ phòng khám dùng root layout `(owner)` và `/owner/accounts`, giao diện khung ở `features/owner-shell`, nghiệp vụ ở `features/owner-administrators`. Hai feature được ghép tại route layout, không import lẫn nhau. OWNER được điều hướng vào khu này sau đăng nhập. Chi tiết UC07–UC09 đối chiếu SRS (4) và giới hạn tích hợp: [owner-administrator-frontend.md](owner-administrator-frontend.md).
+
 ## Frontend
 
 ```text
