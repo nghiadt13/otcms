@@ -1,6 +1,9 @@
 package fu.fa26.sep490.g58.otcms_be.auth;
 
 import fu.fa26.sep490.g58.otcms_be.auth.controller.SessionSecurityController;
+import fu.fa26.sep490.g58.otcms_be.auth.controller.PasswordRecoveryController;
+import fu.fa26.sep490.g58.otcms_be.auth.service.PasswordRecoveryService;
+import fu.fa26.sep490.g58.otcms_be.auth.model.entity.enums.AccountType;
 import fu.fa26.sep490.g58.otcms_be.auth.model.dto.response.SessionTokenResponse;
 import fu.fa26.sep490.g58.otcms_be.auth.security.CsrfTokenService;
 import fu.fa26.sep490.g58.otcms_be.auth.security.JwtAuthenticationFilter;
@@ -34,7 +37,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@WebMvcTest(SessionSecurityController.class)
+@WebMvcTest({SessionSecurityController.class, PasswordRecoveryController.class})
 @Import({SecurityConfig.class, SessionCsrfWebMvcTest.Fixture.class})
 @TestPropertySource(properties = {
         "app.auth.session-security.jwt-secret=session-csrf-web-mvc-test-secret-32-bytes",
@@ -46,11 +49,32 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class SessionCsrfWebMvcTest {
     @Autowired MockMvc mvc;
     @MockitoBean AuthSessionService sessions;
+    @MockitoBean PasswordRecoveryService recovery;
     @MockitoBean JwtTokenService tokens;
     @MockitoBean fu.fa26.sep490.g58.otcms_be.auth.service.AccountAccessService accountAccess;
     @MockitoBean AppointmentWebConfiguration appointmentWebConfiguration;
     @MockitoBean PublicRequestRateLimitInterceptor publicRequestRateLimitInterceptor;
     @MockitoBean ProductionReadinessGateInterceptor productionReadinessGateInterceptor;
+
+    @Test
+    void anonymousRecoveryRequiresAndAcceptsCsrfCookieHeaderPair() throws Exception {
+        mvc.perform(post("/api/auth/patient/forgot-password").contentType("application/json")
+                .content("{\"email\":\"patient@example.test\"}"))
+                .andExpect(status().isForbidden());
+        verifyNoInteractions(recovery);
+        String token = mvc.perform(get("/api/auth/csrf")).andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString()
+                .replaceAll(".*\"csrfToken\":\"([^\"]+)\".*", "$1");
+        when(recovery.forgot("patient@example.test", AccountType.PATIENT)).thenReturn(PasswordRecoveryService.GENERIC_MESSAGE);
+        mvc.perform(post("/api/auth/patient/forgot-password").contentType("application/json")
+                .cookie(new Cookie("XSRF-TOKEN", token)).header("X-CSRF-TOKEN", token)
+                .content("{\"email\":\"patient@example.test\"}"))
+                .andExpect(status().isAccepted());
+        mvc.perform(post("/api/auth/patient/reset-password").contentType("application/json")
+                .cookie(new Cookie("XSRF-TOKEN", token)).header("X-CSRF-TOKEN", token)
+                .content("{\"token\":\"reset-token\",\"newPassword\":\"new-password-123\"}"))
+                .andExpect(status().isNoContent());
+    }
 
     @Test
     void csrfEndpointTokenAllowsRefreshThroughSecurityFilter() throws Exception {
