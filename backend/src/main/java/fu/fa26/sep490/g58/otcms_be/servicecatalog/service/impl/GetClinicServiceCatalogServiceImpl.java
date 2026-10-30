@@ -18,6 +18,13 @@ public class GetClinicServiceCatalogServiceImpl implements GetClinicServiceCatal
 
     @Override
     @Transactional(readOnly = true)
+    public List<ClinicService> adminCatalog() {
+        return services.findAll(org.springframework.data.domain.Sort.by("name", "id")).stream()
+                .map(ClinicServiceMapper::toModel).toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public List<ClinicService> publicCatalog() {
         return services.findByActiveTrueAndOnlineBookableTrueOrderByNameAscIdAsc().stream()
                 .map(ClinicServiceMapper::toModel).toList();
