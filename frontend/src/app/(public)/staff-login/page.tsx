@@ -10,7 +10,7 @@ export const metadata: Metadata = { title: "Đăng nhập nhân viên | OTCMS" }
 export default function StaffLoginPage() {
   return (
     <AuthCard
-      description="Dùng email và mật khẩu tài khoản nhân viên hoặc quản trị viên."
+      description="Dùng tên đăng nhập để vào khu làm việc. Tài khoản nhân viên cũ vẫn có thể dùng email."
       footer={
         <Link className={authLinkClass} href="/login">
           Đăng nhập tài khoản bệnh nhân

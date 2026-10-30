@@ -27,9 +27,21 @@ export async function signIn(email: string, password: string): Promise<void> {
 export async function signInStaff(
   email: string,
   password: string,
-): Promise<void> {
+): Promise<import("@/lib/auth/authSession").AuthSession> {
   try {
-    await signInWithPassword("staff", email, password);
+    return await signInWithPassword("staff", email, password);
+  } catch (cause) {
+    const rejected = cause instanceof AuthSessionError && cause.status === 401;
+    throw new AuthRequestError(rejected ? "MSG-01" : "MSG-04");
+  }
+}
+
+export async function signInAdministrator(
+  username: string,
+  password: string,
+): Promise<import("@/lib/auth/authSession").AuthSession> {
+  try {
+    return await signInWithPassword("administrator", username, password);
   } catch (cause) {
     const rejected = cause instanceof AuthSessionError && cause.status === 401;
     throw new AuthRequestError(rejected ? "MSG-01" : "MSG-04");

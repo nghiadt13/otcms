@@ -41,6 +41,39 @@ afterEach(() => {
 });
 
 describe("signInWithPassword", () => {
+  it("gửi username đến endpoint quản trị và giữ cờ đổi mật khẩu lần đầu", async () => {
+    fetchMock.mockResolvedValueOnce(
+      json({
+        ...tokenBody("admin-jwt"),
+        accountType: "ADMIN",
+        mustChangePassword: true,
+      }),
+    );
+    const session = await signInWithPassword(
+      "administrator",
+      " admin.new ",
+      "initial-password",
+    );
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(String(url)).toMatch(/\/api\/auth\/staff\/administrator\/login$/);
+    expect(JSON.parse(init.body)).toEqual({
+      username: "admin.new",
+      password: "initial-password",
+    });
+    expect(session.mustChangePassword).toBe(true);
+  });
+  it("gửi username của nhân viên qua endpoint nhân viên", async () => {
+    fetchMock.mockResolvedValueOnce(
+      json({ ...tokenBody("staff-jwt"), accountType: "RECEPTIONIST" }),
+    );
+    await signInWithPassword("staff", "reception.one", "password-123");
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(String(url)).toMatch(/\/api\/auth\/staff\/login$/);
+    expect(JSON.parse(init.body)).toEqual({
+      username: "reception.one",
+      password: "password-123",
+    });
+  });
   it("gọi cổng bệnh nhân kèm cookie và giữ access token trong bộ nhớ", async () => {
     fetchMock.mockResolvedValueOnce(json(tokenBody("jwt-1")));
     const session = await signInWithPassword("patient", " an@x.com ", "pw");

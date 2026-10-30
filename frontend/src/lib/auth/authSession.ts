@@ -10,13 +10,14 @@ import { apiBaseUrl } from "@/lib/api/apiBaseUrl";
 // Khớp enum AccountType của backend.
 export type AccountType =
   "PATIENT" | "RECEPTIONIST" | "DOCTOR" | "OWNER" | "ADMIN";
-export type LoginKind = "patient" | "staff";
+export type LoginKind = "patient" | "staff" | "administrator";
 
 type SessionTokenBody = {
   accessToken: string;
   expiresIn: number;
   accountId: string;
   accountType: AccountType;
+  mustChangePassword?: boolean;
 };
 
 export type AuthSession = {
@@ -25,6 +26,7 @@ export type AuthSession = {
   expiresAt: number;
   accountId: string;
   accountType: AccountType;
+  mustChangePassword: boolean;
 };
 
 /** Lỗi đăng nhập/phiên: `status` là mã HTTP, 0 là lỗi mạng. */
@@ -68,6 +70,7 @@ function setSession(body: SessionTokenBody): AuthSession {
     expiresAt: Date.now() + body.expiresIn * 1000,
     accountId: body.accountId,
     accountType: body.accountType,
+    mustChangePassword: body.mustChangePassword ?? false,
   };
   writeHint(true);
   return current;
@@ -127,13 +130,23 @@ export async function getCsrfToken(refresh = false): Promise<string> {
 /** Đăng nhập email + mật khẩu qua backend; thành công thì giữ access token trong bộ nhớ. */
 export async function signInWithPassword(
   kind: LoginKind,
-  email: string,
+  identifier: string,
   password: string,
 ): Promise<AuthSession> {
-  const response = await post(`/api/auth/${kind}/login`, {
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email: email.trim(), password }),
-  });
+  const administrator = kind === "administrator";
+  const response = await post(
+    administrator
+      ? "/api/auth/staff/administrator/login"
+      : `/api/auth/${kind}/login`,
+    {
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(
+        administrator || kind === "staff"
+          ? { username: identifier.trim(), password }
+          : { email: identifier.trim(), password },
+      ),
+    },
+  );
   if (!response.ok) throw new AuthSessionError(response.status);
   csrfToken = null; // phiên mới: lấy lại CSRF khi cần
   return setSession((await response.json()) as SessionTokenBody);
