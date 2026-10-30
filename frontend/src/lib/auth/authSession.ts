@@ -79,6 +79,11 @@ function clearSession() {
   writeHint(false);
 }
 
+/** Discard local identity after the backend invalidates sessions during recovery. */
+export function clearLocalAuthSession(): void {
+  clearSession();
+}
+
 async function post(path: string, init: RequestInit): Promise<Response> {
   try {
     return await fetch(`${apiBaseUrl}${path}`, {

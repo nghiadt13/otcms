@@ -3,12 +3,8 @@ import { AuthSessionError, signInWithPassword } from "@/lib/auth/authSession";
 import { fetchCurrentAccount } from "@/lib/auth/currentAccountApi";
 import { AuthRequestError, type PatientRegistrationInput } from "../types/auth";
 
-// UC01 (đăng nhập) và UC06 (đăng ký, xác minh email) đi thật qua backend. UC02 hiện là LỚP API GIẢ vì
-// backend chưa có endpoint: dữ liệu nằm trong bộ nhớ trình duyệt, mất khi tải
-// lại. Khi nối backend, giữ nguyên chữ ký hàm và chỉ thay phần thân; component
-// không cần đổi. Mọi lỗi ném ra là `AuthRequestError` mang mã MSG.
-
-const wait = (ms = 400) => new Promise((resolve) => setTimeout(resolve, ms));
+// Authentication, registration and password recovery call the Spring backend.
+export { requestPasswordReset, resetPassword } from "./passwordRecoveryApi";
 
 export async function signIn(email: string, password: string): Promise<void> {
   try {
@@ -38,24 +34,6 @@ export async function signInStaff(
     const rejected = cause instanceof AuthSessionError && cause.status === 401;
     throw new AuthRequestError(rejected ? "MSG-01" : "MSG-04");
   }
-}
-
-// --- UC02: API giả -------------------------------------------------------
-
-// Luôn thành công để không lộ email có tồn tại hay không (BR-03).
-export async function requestPasswordReset(email: string): Promise<void> {
-  await wait();
-  void email;
-}
-
-// `token` lấy từ link trong email. API giả coi token rỗng là xác nhận sai.
-export async function resetPassword(
-  token: string,
-  newPassword: string,
-): Promise<void> {
-  await wait();
-  if (!token) throw new AuthRequestError("MSG-04");
-  void newPassword;
 }
 
 // --- UC06: đăng ký qua backend -------------------------------------------
