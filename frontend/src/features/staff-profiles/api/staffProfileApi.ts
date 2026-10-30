@@ -1,3 +1,5 @@
+// Prototype-only API, used only in the explicitly labelled prototype mode.
+// Live doctor workflows use adminDoctorApi.ts and never fall back to this store.
 import type { PageQuery, PageResponse } from "@/lib/api/pagination";
 import { clone, mockDelay, mockFail, paginate } from "@/lib/api/mockServer";
 import { validateStaffProfileInput } from "../schema/staffProfileFieldRules";
