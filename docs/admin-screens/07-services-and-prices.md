@@ -97,3 +97,8 @@ Thành công `MSG-67` ("Dịch vụ đã được ngừng cung cấp cho lượt
 - **"Chi tiết đặt lịch" gồm gì?** R3 nhắc "booking details" nhưng không liệt kê. Đề xuất cho dịch vụ khám: độ dài khung giờ (phút, ≥ 10 theo BR-20) và ghi chú dặn bệnh nhân. Cần chốt trước khi dựng form.
 - Khoảng tham chiếu là số (min–max) hay có thể là văn bản ("âm tính")? MSG-80 nói "ngoài khoảng giá trị hợp lệ" nên đề xuất số.
 - Có cho khôi phục dịch vụ đã ngừng không?
+
+
+## Live backend integration (KAN-12 / KAN-13)
+
+The route now uses the live API contract documented in [admin-backend-integration.md](../admin-backend-integration.md). The design above describes the earlier mock/SRS target; fields missing from the backend contract are not silently stored in a mock or sent as unsupported fields. See that document for the exact supported scope and acceptance checks.
