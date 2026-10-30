@@ -4,7 +4,25 @@ Phạm vi theo SRS bản (3), mục 1.4.2.6 và các Specification UC01, UC03–
 
 Giao diện đồng nhất với khu admin và lễ tân theo `docs/ui-guidelines.md`: màu teal từ token `primary`, font Be Vietnam Pro, sidebar thu gọn của shadcn, `PageHeader`, Button, Input, NativeSelect, Checkbox, Table, Tabs, Dialog và `StatusBadge` dùng chung. Không duy trì bảng màu, font hoặc bộ icon riêng cho kỹ thuật viên.
 
-Route nằm trong `frontend/src/app/(staff)/imaging`, dùng chung root layout và theme với lễ tân; URL vẫn là `/imaging`. Layout nghiệp vụ và trạng thái mẫu nằm trong `src/features/imaging`, không phụ thuộc vào feature admin hoặc lễ tân.
+Route nằm trong `frontend/src/app/(staff)/imaging`, dùng chung root layout và theme với lễ tân; URL vẫn là `/imaging`. Cấu trúc theo cùng mẫu admin: khung điều hướng ở `imaging-shell`, màn hình và trạng thái ở feature nghiệp vụ `imaging`. Không phụ thuộc vào feature admin hoặc lễ tân.
+
+## Cấu trúc mã nguồn
+
+```text
+src/app/(staff)/imaging/         URL, layout, error/loading/not-found; page.tsx chỉ ghép màn
+src/features/imaging-shell/
+├── imagingNavigation.ts        Nguồn chung cho menu và tiêu đề header
+└── components/                 ImagingShell, ImagingSidebar, ImagingNavGroup, ImagingHeader, ImagingAccountMenu
+src/features/imaging/
+├── api/                        imagingMockData, imagingPreviewStorage, dicomFileReader
+├── components/                 Mỗi màn/component một file, ImagingProvider chỉ bọc context
+├── hooks/                      useImaging, useImagingState, imagingContext
+├── schema/                     imagingUploadRules: validation đối chiếu và giới hạn batch
+├── types/                      imaging.ts: mô hình trạng thái, chỉ định, lượt khám, study
+└── styles/                     imaging.css: bố cục gọn trên theme chung
+```
+
+`api/` hiện là adapter cho bản xem thử: dữ liệu mẫu, localStorage/sessionStorage và đọc file DICOM cục bộ. Chưa có lời gọi API backend. `imaging-shell` là lớp ghép được khai báo trong `COMPOSITION_FEATURES`, chỉ sử dụng feature nghiệp vụ qua alias; `imaging` không import ngược shell. Các file gộp `AccountScreens`, `OrderScreens`, `SupportScreens`, `UploadScreens`, `ImagingUi` đã được thay bằng import trực tiếp từng component.
 
 ## Mở giao diện
 

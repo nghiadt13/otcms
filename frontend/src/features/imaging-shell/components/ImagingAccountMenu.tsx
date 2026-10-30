@@ -22,7 +22,7 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar";
-import { useImaging } from "../ImagingProvider";
+import { useImaging } from "@/features/imaging/hooks/useImaging";
 
 // Ô tài khoản cuối sidebar, cùng dạng với khu admin: avatar + tên + vai trò, bấm mở menu.
 function AccountSummary() {

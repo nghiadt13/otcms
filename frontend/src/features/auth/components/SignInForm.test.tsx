@@ -28,9 +28,14 @@ beforeEach(() => {
   window.localStorage.clear();
 });
 
-async function submitCredentials(button = "Đăng nhập") {
+async function submitCredentials(button = "Đăng nhập", staffEmail = false) {
   const user = userEvent.setup();
-  await user.type(screen.getByLabelText(/^Email/), "an@example.com");
+  if (staffEmail)
+    await user.click(screen.getByRole("button", { name: "Nhân viên khác" }));
+  await user.type(
+    screen.getByLabelText(staffEmail ? /^Tên đăng nhập hoặc email/ : /^Email/),
+    "an@example.com",
+  );
   await user.type(screen.getByLabelText(/^Mật khẩu/), "matkhau123");
   await user.click(screen.getByRole("button", { name: button }));
 }
@@ -81,7 +86,7 @@ describe("SignInForm: đích sau đăng nhập", () => {
 describe("SignInForm: đăng nhập nội bộ (staff)", () => {
   it("gọi endpoint nhân viên rồi về /workspace, không ghi phiên giả bệnh nhân", async () => {
     render(<SignInForm staff />);
-    await submitCredentials();
+    await submitCredentials("Đăng nhập", true);
     expect(signInWithPassword).toHaveBeenCalledWith(
       "staff",
       "an@example.com",
@@ -91,15 +96,36 @@ describe("SignInForm: đăng nhập nội bộ (staff)", () => {
     expect(getMockSignedInKind()).toBe("STAFF");
   });
 
-  it("nhận email tài khoản dùng thử dạng ten@localhost", async () => {
+  it("nhận email tài khoản cũ dạng ten@localhost", async () => {
     const user = userEvent.setup();
     render(<SignInForm staff />);
-    await user.type(screen.getByLabelText(/^Email/), "admin@localhost");
+    await user.click(screen.getByRole("button", { name: "Nhân viên khác" }));
+    await user.type(
+      screen.getByLabelText(/^Tên đăng nhập hoặc email/),
+      "admin@localhost",
+    );
     await user.type(screen.getByLabelText(/^Mật khẩu/), "matkhau123");
     await user.click(screen.getByRole("button", { name: "Đăng nhập" }));
     expect(signInWithPassword).toHaveBeenCalledWith(
       "staff",
       "admin@localhost",
+      "matkhau123",
+    );
+  });
+
+  it("nhận tên đăng nhập nhân viên theo SRS", async () => {
+    const user = userEvent.setup();
+    render(<SignInForm staff />);
+    await user.click(screen.getByRole("button", { name: "Nhân viên khác" }));
+    await user.type(
+      screen.getByLabelText(/^Tên đăng nhập hoặc email/),
+      "reception.one",
+    );
+    await user.type(screen.getByLabelText(/^Mật khẩu/), "matkhau123");
+    await user.click(screen.getByRole("button", { name: "Đăng nhập" }));
+    expect(signInWithPassword).toHaveBeenCalledWith(
+      "staff",
+      "reception.one",
       "matkhau123",
     );
   });
@@ -112,7 +138,7 @@ describe("SignInForm: đăng nhập nội bộ (staff)", () => {
   it("backend từ chối (401) thì hiện MSG-01 và không chuyển trang", async () => {
     signInWithPassword.mockRejectedValue(new AuthSessionError(401));
     render(<SignInForm staff />);
-    await submitCredentials();
+    await submitCredentials("Đăng nhập", true);
     expect(await screen.findByRole("alert")).toHaveTextContent(
       authMessages["MSG-01"],
     );
@@ -140,5 +166,41 @@ describe("SignInForm: lỗi", () => {
       authMessages["MSG-04"],
     );
     expect(replace).not.toHaveBeenCalled();
+  });
+});
+
+describe("SignInForm: tài khoản quản trị", () => {
+  it("dùng username và endpoint riêng cho Admin/Chủ phòng khám", async () => {
+    const user = userEvent.setup();
+    render(<SignInForm staff />);
+    await user.type(screen.getByLabelText(/^Tên đăng nhập/), "owner.clinic");
+    await user.type(screen.getByLabelText(/^Mật khẩu/), "matkhau123");
+    await user.click(screen.getByRole("button", { name: "Đăng nhập" }));
+    expect(signInWithPassword).toHaveBeenCalledWith(
+      "administrator",
+      "owner.clinic",
+      "matkhau123",
+    );
+    expect(replace).toHaveBeenCalledWith("/workspace");
+  });
+  it("tài khoản mới phải đổi mật khẩu trước khi vào khu làm việc", async () => {
+    signInWithPassword.mockResolvedValue({
+      accountType: "ADMIN",
+      mustChangePassword: true,
+    });
+    const user = userEvent.setup();
+    render(<SignInForm staff />);
+    await user.type(screen.getByLabelText(/^Tên đăng nhập/), "admin.new");
+    await user.type(screen.getByLabelText(/^Mật khẩu/), "temporary123");
+    await user.click(screen.getByRole("button", { name: "Đăng nhập" }));
+    expect(replace).toHaveBeenCalledWith("/first-login-password");
+  });
+  it("không gửi username như email khi dùng luồng quản trị", () => {
+    render(<SignInForm staff />);
+    expect(screen.getByLabelText(/^Tên đăng nhập/)).toHaveAttribute(
+      "type",
+      "text",
+    );
+    expect(screen.queryByLabelText(/^Email/)).not.toBeInTheDocument();
   });
 });

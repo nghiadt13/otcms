@@ -10,26 +10,23 @@ import {
   TableBody,
   TableCell,
 } from "@/components/ui/table";
-
 import Link from "next/link";
 import { useState } from "react";
-import { useImaging } from "../ImagingProvider";
+import { useImaging } from "../hooks/useImaging";
 import {
   CURRENT_ROOM,
   CURRENT_USER,
   DEMO_DATE,
   queueLabels,
   ROOM_NAME,
-} from "../demoData";
-import {
-  Badge,
-  Empty,
-  Icon,
-  PageHeading,
-  Pagination,
-  Panel,
-  PatientAvatar,
-} from "./ImagingUi";
+} from "../api/imagingMockData";
+import { Badge } from "./Badge";
+import { Empty } from "./Empty";
+import { Icon } from "./Icon";
+import { PageHeading } from "./PageHeading";
+import { Pagination } from "./Pagination";
+import { Panel } from "./Panel";
+import { PatientAvatar } from "./PatientAvatar";
 
 export function WorklistScreen() {
   const { state, callNext, markAbsent, returnPatient } = useImaging();

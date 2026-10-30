@@ -42,7 +42,7 @@ describe("RoleHomeRedirect", () => {
   it.each([
     ["PATIENT", "/portal/account"],
     ["ADMIN", "/admin"],
-    ["OWNER", "/admin"],
+    ["OWNER", "/owner/accounts"],
     ["RECEPTIONIST", "/reception"],
   ])("tài khoản %s vào %s", async (accountType, route) => {
     fetchCurrentAccount.mockResolvedValue(accountOf(accountType));
@@ -59,6 +59,8 @@ describe("RoleHomeRedirect", () => {
       formatAppMessage("MSG-04"),
     );
     await userEvent.click(screen.getByRole("button", { name: "Thử lại" }));
-    await waitFor(() => expect(replace).toHaveBeenCalledWith("/portal/account"));
+    await waitFor(() =>
+      expect(replace).toHaveBeenCalledWith("/portal/account"),
+    );
   });
 });

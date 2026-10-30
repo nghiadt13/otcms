@@ -6,7 +6,7 @@ describe("homeRouteForAccount", () => {
     expect(homeRouteForAccount("PATIENT")).toBe("/portal/account");
   });
 
-  it.each(["ADMIN", "OWNER"] as const)("%s vào khu quản trị", (accountType) => {
+  it.each(["ADMIN"] as const)("%s vào khu quản trị", (accountType) => {
     expect(homeRouteForAccount(accountType)).toBe("/admin");
   });
 
@@ -16,4 +16,8 @@ describe("homeRouteForAccount", () => {
       expect(homeRouteForAccount(accountType)).toBe("/reception");
     },
   );
+});
+
+it("chủ phòng khám vào quản trị tài khoản Admin", () => {
+  expect(homeRouteForAccount("OWNER")).toBe("/owner/accounts");
 });

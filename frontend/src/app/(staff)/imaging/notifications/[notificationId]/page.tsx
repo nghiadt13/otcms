@@ -1,4 +1,4 @@
-import { NotificationsScreen } from "@/features/imaging/components/SupportScreens";
+import { NotificationsScreen } from "@/features/imaging/components/NotificationsScreen";
 
 export default async function Page({
   params,

@@ -5,11 +5,11 @@ import nextTs from "eslint-config-next/typescript";
 
 // Rào chắn phụ thuộc phía frontend (tương đương quy tắc phụ thuộc của backend):
 // - Một feature chỉ import chính nó và mã dùng chung (`components`, `lib`, `hooks`).
-//   Muốn dùng feature khác thì ghép ở `app/` hoặc ở `admin-shell`.
-// - `admin-shell` là lớp ghép khung admin nên được import mọi feature.
+//   Muốn dùng feature khác thì ghép ở `app/` hoặc lớp shell được khai báo dưới đây.
+// - Các lớp ghép `admin-shell`, `imaging-shell` được import feature nghiệp vụ.
 // - Feature không import `app/`; mã dùng chung không import feature hay `app/`.
 // Danh sách feature lấy từ thư mục nên feature mới được bảo vệ ngay.
-const COMPOSITION_FEATURES = ["admin-shell"];
+const COMPOSITION_FEATURES = ["admin-shell", "imaging-shell"];
 
 const featureNames = readdirSync("./src/features", { withFileTypes: true })
   .filter((entry) => entry.isDirectory())
@@ -26,7 +26,7 @@ const noApp = {
 
 const noOtherFeatures = (name) => ({
   group: ["@/features/**", `!@/features/${name}`, `!@/features/${name}/**`],
-  message: `Feature "${name}" không được import feature khác. Ghép ở app/ hoặc admin-shell, hoặc đưa phần dùng chung vào src/components hay src/lib.`,
+  message: `Feature "${name}" không được import feature khác. Ghép ở app/ hoặc shell thuộc COMPOSITION_FEATURES, hoặc đưa phần dùng chung vào src/components hay src/lib.`,
 });
 
 // Import tương đối thoát khỏi thư mục feature cũng là đi vòng qua rào chắn.

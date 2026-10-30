@@ -22,6 +22,12 @@ export function validateStaffEmail(value: string): string | undefined {
   return validateEmail(value);
 }
 
+export function validateStaffUsername(value: string): string | undefined {
+  if (!value.trim()) return "Nhập tên đăng nhập.";
+  if (value.length > 64 || /[\p{Cc}\p{Cs}]/u.test(value))
+    return "Tên đăng nhập không hợp lệ.";
+}
+
 export function validatePassword(value: string): string | undefined {
   if (!value) return "Nhập mật khẩu.";
   if (!passwordPolicy.every((rule) => rule.test(value)))

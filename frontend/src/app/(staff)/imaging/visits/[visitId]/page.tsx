@@ -1,4 +1,4 @@
-import { VisitProgressScreen } from "@/features/imaging/components/SupportScreens";
+import { VisitProgressScreen } from "@/features/imaging/components/VisitProgressScreen";
 
 export default async function Page({
   params,

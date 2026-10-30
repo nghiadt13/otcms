@@ -13,6 +13,29 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 class T009SmtpEmailDeliveryTest {
+    @Test void resetEmailsContainConfiguredFrontendLinksForTheCorrectPortal() throws Exception {
+        JavaMailSender sender = mock(JavaMailSender.class);
+        MimeMessage patient = new MimeMessage(Session.getInstance(new java.util.Properties()));
+        MimeMessage staff = new MimeMessage(Session.getInstance(new java.util.Properties()));
+        when(sender.createMimeMessage()).thenReturn(patient, staff);
+        EmailProperties properties = new EmailProperties(true, "smtp.gmail.com", 587, "sender@example.test", "secret", "sender@example.test", 5000, 10000, 10000, 2);
+        var delivery = new SmtpEmailDelivery(sender, properties, "https://clinic.example.test/reset-password");
+        delivery.sendPasswordReset("patient@example.test", "token+&value", null);
+        delivery.sendStaffPasswordReset("staff@example.test", "staff-token", null);
+        assertTrue(patient.getContent().toString().contains("https://clinic.example.test/reset-password?portal=patient&token=token%2B%26value"));
+        assertTrue(staff.getContent().toString().contains("https://clinic.example.test/reset-password?portal=staff&token=staff-token"));
+        assertTrue(patient.getContent().toString().contains("15 phút"));
+        verify(sender).send(patient);
+        verify(sender).send(staff);
+    }
+
+    @Test void refusesUnsafeResetDestinations() {
+        JavaMailSender sender = mock(JavaMailSender.class);
+        EmailProperties properties = new EmailProperties(false, null, 587, null, null, null, 5000, 10000, 10000, 2);
+        for (String url : java.util.List.of("http://external.example/reset-password", "https://user:password@example.test/reset-password", "https://clinic.example/reset-password?token=old", "https://clinic.example/reset-password#fragment")) {
+            assertThrows(IllegalArgumentException.class, () -> new SmtpEmailDelivery(sender, properties, url));
+        }
+    }
     @Test void passwordResetBodyContainsTokenWithoutLoggingIt() throws Exception {
         JavaMailSender sender = mock(JavaMailSender.class);
         MimeMessage message = new MimeMessage(Session.getInstance(new java.util.Properties()));

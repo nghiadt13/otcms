@@ -1,8 +1,11 @@
 export type OrderStatus =
   "Pending Payment" | "Paid" | "Results Available" | "Cancelled";
+
 export type QueueStatus =
   "Waiting" | "Being Served" | "Done" | "Absent" | "Closed";
+
 export type VisitStatus = "Awaiting Conclusion" | "Completed" | "Incomplete";
+
 export type ImagingOrder = {
   id: string;
   patientId: string;
@@ -26,6 +29,7 @@ export type ImagingOrder = {
   cancellationReason?: string;
   issue?: { kind: string; reason: string; at: string };
 };
+
 export type QueueEntry = {
   id: string;
   visitId: string;
@@ -38,6 +42,7 @@ export type QueueEntry = {
   calledBy?: string;
   calledOn?: string;
 };
+
 export type Visit = {
   id: string;
   patientId: string;
@@ -50,6 +55,7 @@ export type Visit = {
   reviewQueued: boolean;
   sheetVersion: number;
 };
+
 export type StudyVersion = {
   uid: string;
   version: number;
@@ -60,6 +66,7 @@ export type StudyVersion = {
   reason?: string;
   replaced?: boolean;
 };
+
 export type UploadDraft = {
   patientId: string;
   orderId: string;
@@ -72,6 +79,7 @@ export type UploadDraft = {
   checkedAt: string;
   sent: boolean;
 };
+
 export type PersonalNotification = {
   id: string;
   title: string;
@@ -81,6 +89,7 @@ export type PersonalNotification = {
   href?: string;
   category: string;
 };
+
 export type ImagingState = {
   orders: ImagingOrder[];
   queue: QueueEntry[];

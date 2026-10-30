@@ -3,7 +3,13 @@
 import { Mail, MailCheck } from "lucide-react";
 import Link from "next/link";
 import { useRef, useState, type FormEvent } from "react";
-import { requestPasswordReset } from "../api/authApi";
+import {
+  requestPasswordReset,
+  PasswordRecoveryError,
+  type RecoveryPortal,
+  type RecoveryFailure,
+} from "../api/passwordRecoveryApi";
+import { RecoveryErrorNotice } from "./RecoveryErrorNotice";
 import type { AuthMessageCode } from "../authMessages";
 import { focusFirstInvalidField } from "../focusFirstInvalidField";
 import { validateEmail } from "../schema/authFieldRules";
@@ -16,7 +22,13 @@ import { AuthTextField } from "./AuthTextField";
 // UC02 bước 1–4: nhập email để nhận hướng dẫn đặt lại mật khẩu. Sau khi gửi luôn
 // hiện cùng một màn xác nhận (MSG-02), dù email có thuộc tài khoản nào hay không
 // (BR-03).
-export function ForgotPasswordForm() {
+export function ForgotPasswordForm({
+  portal = "patient",
+}: {
+  portal?: RecoveryPortal;
+}) {
+  const loginHref = portal === "staff" ? "/staff-login" : "/login";
+  const [failure, setFailure] = useState<RecoveryFailure | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
   const [email, setEmail] = useState("");
   const [emailError, setEmailError] = useState<string>();
@@ -35,12 +47,14 @@ export function ForgotPasswordForm() {
     }
 
     setMessage(null);
+    setFailure(null);
     setSubmitting(true);
     try {
-      await requestPasswordReset(email);
+      await requestPasswordReset(email, portal);
       setSentTo(email.trim());
     } catch (cause) {
-      setMessage(toAuthMessageCode(cause));
+      if (cause instanceof PasswordRecoveryError) setFailure(cause.reason);
+      else setMessage(toAuthMessageCode(cause));
     } finally {
       setSubmitting(false);
     }
@@ -70,7 +84,7 @@ export function ForgotPasswordForm() {
           >
             Dùng email khác
           </Button>
-          <Link className={authSecondaryButtonClass} href="/login">
+          <Link className={authSecondaryButtonClass} href={loginHref}>
             Về đăng nhập
           </Link>
         </div>
@@ -86,6 +100,7 @@ export function ForgotPasswordForm() {
       ref={formRef}
     >
       {message && <AuthAlert code={message} tone="error" />}
+      {failure && <RecoveryErrorNotice reason={failure} />}
       <AuthTextField
         autoComplete="email"
         error={emailError}

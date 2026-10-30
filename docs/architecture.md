@@ -47,6 +47,8 @@ Luồng mẫu cho một UC: `POST /api/v1/appointments` → `AppointmentControll
 
 Backend tự xác thực danh tính (email + mật khẩu băm bcrypt trong bảng account) và phát JWT access token sống ngắn cùng refresh token trong cookie httpOnly; Supabase chỉ cung cấp PostgreSQL. Frontend giữ access token trong bộ nhớ (`lib/auth/authSession.ts`) và gửi CSRF cho `/refresh`, `/logout`. Vai trò phòng khám nằm trong JWT do backend ký và trong bảng account, **không phải** PostgreSQL role. Bảng account của ứng dụng và chính sách use case sẽ giữ vai trò Patient/Receptionist/Orthopedic Doctor/Imaging Technician/Administrator/Clinic Owner. Không ánh xạ vai trò nhóm từ claim `role`.
 
+Khu Chủ phòng khám dùng root layout `(owner)` và `/owner/accounts`, giao diện khung ở `features/owner-shell`, nghiệp vụ ở `features/owner-administrators`. Hai feature được ghép tại route layout, không import lẫn nhau. OWNER được điều hướng vào khu này sau đăng nhập. Chi tiết UC07–UC09 đối chiếu SRS (4) và giới hạn tích hợp: [owner-administrator-frontend.md](owner-administrator-frontend.md).
+
 ## Frontend
 
 ```text
@@ -65,6 +67,7 @@ frontend/src/
 │   │       ├── visits/                  danh sách và chi tiết lượt khám (phase 05)
 │   │       └── account/, profiles/, appointments/, payments/, results/, prescriptions/, images/, notifications/, reviews/
 │   ├── (staff)/                         khu Lễ tân: root layout riêng, staff.css (in A4 biên lai/phiếu kết quả)
+│   │   ├── imaging/                     route mỏng, layout ghép imaging-shell; error/loading/not-found
 │   │   └── reception/                   layout (ReceptionShell), page.tsx (Tiếp nhận hôm nay), [section]/ (14 màn theo patient-reception/navigation.ts), error/loading/not-found
 │   └── (admin)/                         root layout riêng: theme shadcn + font Be Vietnam Pro
 │       ├── layout.tsx
@@ -77,6 +80,7 @@ frontend/src/
 │   ├── patient-reviews/                 đánh giá đã công khai (UC62–UC63, BR-60): FeaturedReviews, api giả
 │   ├── auth/                            UC01/02/06: components (AuthCard, form, luồng đăng ký 3 bước), api (đăng nhập thật, còn lại giả), schema, authMessages
 │   ├── admin-shell/                     sidebar (nhóm thu gọn), header, ô tài khoản, adminNavigation.ts (nguồn duy nhất cho menu)
+│   ├── imaging-shell/                   sidebar, header, navigation và menu kỹ thuật viên theo mẫu admin-shell
 │   ├── patient-shell/                   khu bệnh nhân: PatientPortalHeader, PatientPortalNav (menu nhóm + Sheet màn hẹp), PatientAccountMenu, patientNavigation.ts (nguồn duy nhất cho menu portal, chỉ khai báo mục đã có trang)
 │   ├── clinic-visits/                   tiến độ lượt khám (UC34, BR-19/35/65): danh sách Đang diễn ra/Gần đây, chi tiết (số thứ tự từng phòng, chỉ định, nút thanh toán), hook tự tải lại 30 s khi tab hiện; api giả (kho tiến độ riêng)
 │   ├── patient-profiles/                hồ sơ bệnh nhân trong cổng (UC12–UC15, BR-16/17): danh sách, gợi ý theo email đã xác minh, tạo/sửa/bỏ gắn, tiền sử; api giả (ghi vào kho gắn dùng chung), schema, hooks, components
@@ -86,7 +90,7 @@ frontend/src/
 │   ├── billing/                         thanh toán: admin (lịch sử, khoản chưa trả); components/portal (khoản cần trả, VNPay, kết quả, lịch sử, phiếu thu)
 │   ├── medical-records/                 kết quả khám khu bệnh nhân (UC41): danh sách, chi tiết theo visibleBlocks
 │   ├── prescriptions/                   đơn thuốc khu bệnh nhân (UC44): danh sách, tài liệu đơn, in
-│   ├── imaging/                         ảnh chụp khu bệnh nhân (UC51): danh sách study, mở viewer theo viewerUrl BE cấp
+│   ├── imaging/                         màn kỹ thuật viên (components/hooks/api/schema/types/styles) và ảnh chụp khu bệnh nhân (UC51)
 │   └── rooms/                           feature mẫu: types, api (giả), hooks, components
 ├── components/
 │   ├── ui/                              shadcn/ui (sinh bằng CLI, ít sửa tay)
@@ -111,7 +115,7 @@ frontend/src/
 └── test/setup.ts                        Thiết lập chung cho Vitest; `*.test.ts(x)` nằm cạnh mã nguồn
 ```
 
-Chiều phụ thuộc frontend được ESLint ép buộc: `app` → `features` → `components`/`lib`/`hooks`; feature không import feature khác (trừ lớp ghép `admin-shell`), mã dùng chung không import ngược lên feature hay `app`. Chi tiết và cách mở rộng ở `AGENTS.md`.
+Chiều phụ thuộc frontend được ESLint ép buộc: `app` → `features` → `components`/`lib`/`hooks`; feature không import feature khác (trừ lớp ghép `admin-shell`, `imaging-shell`), mã dùng chung không import ngược lên feature hay `app`. Chi tiết và cách mở rộng ở `AGENTS.md`.
 
 Quy tắc màu sắc, chữ, bố cục và component khi dựng màn hình nằm ở [`ui-guidelines.md`](ui-guidelines.md). Hợp đồng API khu bệnh nhân, Lễ tân và trang công khai cho BE nằm ở [`fe-be-api-contract-patient-reception.md`](fe-be-api-contract-patient-reception.md).
 

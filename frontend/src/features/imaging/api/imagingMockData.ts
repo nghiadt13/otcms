@@ -1,15 +1,20 @@
-import type { ImagingOrder, ImagingState } from "./types";
+import type { ImagingOrder, ImagingState } from "../types/imaging";
 
 export const DEMO_DATE = "2026-10-24";
+
 export const CURRENT_ROOM = "XR-01";
+
 export const CURRENT_USER = "KTV-001";
+
 export const ROOM_NAME = "Phòng X-quang 01";
+
 export const statusLabels = {
   "Pending Payment": "Chờ thanh toán",
   Paid: "Đã thanh toán",
   "Results Available": "Đã có kết quả",
   Cancelled: "Đã hủy",
 };
+
 export const queueLabels = {
   Waiting: "Đang chờ",
   "Being Served": "Đang phục vụ",
@@ -17,11 +22,13 @@ export const queueLabels = {
   Absent: "Vắng mặt",
   Closed: "Đã đóng",
 };
+
 export const visitLabels = {
   "Awaiting Conclusion": "Chờ kết luận",
   Completed: "Đã hoàn tất",
   Incomplete: "Chưa hoàn tất",
 };
+
 export const rooms = [
   {
     id: "XR-01",

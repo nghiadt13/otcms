@@ -1,89 +1,37 @@
 "use client";
 
-import {
-  createContext,
-  useContext,
-  useEffect,
-  useState,
-  type ReactNode,
-} from "react";
+import { useEffect, useState } from "react";
 import {
   createDemoState,
   CURRENT_ROOM,
   CURRENT_USER,
   DEMO_DATE,
-} from "./demoData";
-import type { ImagingState, UploadDraft } from "./types";
+} from "../api/imagingMockData";
+import type { ImagingState } from "../types/imaging";
+import type { ImagingContextValue } from "./imagingContext";
+import {
+  readImagingPreview,
+  writeImagingPreview,
+  readImagingFirstLogin,
+  writeImagingFirstLogin,
+} from "../api/imagingPreviewStorage";
 
-const STORAGE_KEY = "otcms-imaging-preview-v1";
-type ContextValue = {
-  state: ImagingState;
-  ready: boolean;
-  mustChangePassword: boolean;
-  setFirstLogin: (value: boolean) => void;
-  toast: string;
-  notify: (message: string) => void;
-  update: (updater: (state: ImagingState) => ImagingState) => void;
-  callNext: () => void;
-  markAbsent: (id: string) => void;
-  returnPatient: (id: string) => void;
-  saveDraft: (orderId: string, draft: UploadDraft) => void;
-  sendStudy: (id: string) => boolean;
-  markRead: (id: string) => void;
-  reset: () => void;
-};
-const ImagingContext = createContext<ContextValue | null>(null);
-export function useImaging() {
-  const context = useContext(ImagingContext);
-  if (!context) throw new Error("ImagingProvider is required");
-  return context;
-}
-export function ImagingProvider({ children }: { children: ReactNode }) {
+export function useImagingState(): ImagingContextValue {
   const [state, setState] = useState(createDemoState);
   const [ready, setReady] = useState(false);
   const [mustChangePassword, setMustChangePassword] = useState(false);
   const [toast, setToast] = useState("");
   useEffect(() => {
-    let saved: ImagingState | null = null;
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) {
-        const candidate = JSON.parse(raw);
-        if (
-          Array.isArray(candidate.orders) &&
-          Array.isArray(candidate.queue) &&
-          Array.isArray(candidate.visits) &&
-          candidate.profile &&
-          candidate.studies &&
-          candidate.drafts &&
-          Array.isArray(candidate.notifications) &&
-          Array.isArray(candidate.activity)
-        )
-          saved = candidate;
-      }
-    } catch {
-      /* A fresh preview also works when storage is unavailable. */
-    }
+    const saved = readImagingPreview();
     const timer = setTimeout(() => {
       if (saved) setState(saved);
-      try {
-        setMustChangePassword(
-          sessionStorage.getItem("otcms-imaging-first-login") === "true",
-        );
-      } catch {
-        /* Storage is optional for the preview. */
-      }
+      setMustChangePassword(readImagingFirstLogin());
       setReady(true);
     }, 0);
     return () => clearTimeout(timer);
   }, []);
   useEffect(() => {
-    if (ready)
-      try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-      } catch {
-        /* Keep the current in-memory preview. */
-      }
+    if (ready) writeImagingPreview(state);
   }, [state, ready]);
   useEffect(() => {
     if (toast) {
@@ -94,12 +42,7 @@ export function ImagingProvider({ children }: { children: ReactNode }) {
   const notify = (message: string) => setToast(message);
   const setFirstLogin = (value: boolean) => {
     setMustChangePassword(value);
-    try {
-      if (value) sessionStorage.setItem("otcms-imaging-first-login", "true");
-      else sessionStorage.removeItem("otcms-imaging-first-login");
-    } catch {
-      /* Keep the current in-memory preview. */
-    }
+    writeImagingFirstLogin(value);
   };
   const update = (updater: (state: ImagingState) => ImagingState) =>
     setState(updater);
@@ -281,36 +224,30 @@ export function ImagingProvider({ children }: { children: ReactNode }) {
     );
     return true;
   }
-  return (
-    <ImagingContext.Provider
-      value={{
-        state,
-        ready,
-        mustChangePassword,
-        setFirstLogin,
-        toast,
-        notify,
-        update,
-        callNext,
-        markAbsent,
-        returnPatient,
-        saveDraft: (id, draft) =>
-          update((s) => ({ ...s, drafts: { ...s.drafts, [id]: draft } })),
-        sendStudy,
-        markRead: (id) =>
-          update((s) => ({
-            ...s,
-            notifications: s.notifications.map((n) =>
-              n.id === id ? { ...n, read: true } : n,
-            ),
-          })),
-        reset: () => {
-          setState(createDemoState());
-          notify("Đã khôi phục dữ liệu minh họa ban đầu.");
-        },
-      }}
-    >
-      {children}
-    </ImagingContext.Provider>
-  );
+  return {
+    state,
+    ready,
+    mustChangePassword,
+    setFirstLogin,
+    toast,
+    notify,
+    update,
+    callNext,
+    markAbsent,
+    returnPatient,
+    saveDraft: (id, draft) =>
+      update((s) => ({ ...s, drafts: { ...s.drafts, [id]: draft } })),
+    sendStudy,
+    markRead: (id) =>
+      update((s) => ({
+        ...s,
+        notifications: s.notifications.map((n) =>
+          n.id === id ? { ...n, read: true } : n,
+        ),
+      })),
+    reset: () => {
+      setState(createDemoState());
+      notify("Đã khôi phục dữ liệu minh họa ban đầu.");
+    },
+  };
 }

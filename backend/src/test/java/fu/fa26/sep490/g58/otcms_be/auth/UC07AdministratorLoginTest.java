@@ -30,6 +30,45 @@ import static org.mockito.Mockito.*;
 
 class UC07AdministratorLoginTest {
     @Test
+    void ownerCanAuthenticateWithUsernameThroughAdministrativeLogin() {
+        AccountRepository accounts = mock(AccountRepository.class);
+        var encoder = PasswordEncoderFactories.createDelegatingPasswordEncoder();
+        var generator = new TemporaryPasswordGenerator();
+        String password = generator.generate();
+        AccountJpaEntity owner = new AccountJpaEntity();
+        owner.setId(UUID.randomUUID());
+        owner.setAccountType(AccountType.OWNER);
+        owner.setStatus(AccountStatus.ACTIVE);
+        owner.setUsername("owner.clinic");
+        owner.setPasswordHash(encoder.encode(password));
+        when(accounts.findByUsername("owner.clinic")).thenReturn(Optional.of(owner));
+        var properties = new AuthProperties(null, null, null, null, null, null, "v1", "v1", generator.generate());
+        var login = new CredentialLoginServiceImpl(accounts, mock(AuthenticationAuditRepository.class),
+                encoder, properties, mock(AuthConcurrencyRepository.class));
+        assertEquals("OWNER", login.loginAdministrator("owner.clinic", password, "127.0.0.1").accountType());
+        verify(accounts, never()).findByNormalizedEmail(anyString());
+    }
+
+    @Test
+    void clinicStaffCanAuthenticateWithUsernameWithoutEmailLookup() {
+        AccountRepository accounts = mock(AccountRepository.class);
+        var encoder = PasswordEncoderFactories.createDelegatingPasswordEncoder();
+        var generator = new TemporaryPasswordGenerator();
+        String password = generator.generate();
+        AccountJpaEntity receptionist = new AccountJpaEntity();
+        receptionist.setId(UUID.randomUUID());
+        receptionist.setAccountType(AccountType.RECEPTIONIST);
+        receptionist.setStatus(AccountStatus.ACTIVE);
+        receptionist.setUsername("reception.one");
+        receptionist.setPasswordHash(encoder.encode(password));
+        when(accounts.findByUsername("reception.one")).thenReturn(Optional.of(receptionist));
+        var properties = new AuthProperties(null, null, null, null, null, null, "v1", "v1", generator.generate());
+        var login = new CredentialLoginServiceImpl(accounts, mock(AuthenticationAuditRepository.class),
+                encoder, properties, mock(AuthConcurrencyRepository.class));
+        assertEquals("RECEPTIONIST", login.loginStaff("reception.one", password, "127.0.0.1").accountType());
+        verify(accounts, never()).findByNormalizedEmail(anyString());
+    }
+    @Test
     void usernameLoginReusesCredentialRulesAndSessionExposesOnlyChangeFlag() {
         AccountRepository accounts = mock(AccountRepository.class);
         var encoder = PasswordEncoderFactories.createDelegatingPasswordEncoder();

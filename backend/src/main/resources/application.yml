@@ -66,6 +66,7 @@ app:
     write-timeout-ms: ${APP_EMAIL_WRITE_TIMEOUT_MS:10000}
     max-attempts: ${APP_EMAIL_MAX_ATTEMPTS:2}
   auth:
+    password-reset-url: ${APP_AUTH_PASSWORD_RESET_URL:http://localhost:3000/reset-password}
     rate-limit-hmac-secret: ${APP_AUTH_RATE_LIMIT_HMAC_SECRET:}
     staff-network:
       allowed-cidrs: ${APP_AUTH_STAFF_ALLOWED_CIDRS:127.0.0.1/32,::1/128}

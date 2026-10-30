@@ -83,7 +83,11 @@ public class PasswordRecoveryServiceImpl implements PasswordRecoveryService {
         challenge.setExpiresAt(Instant.now(clock).plusSeconds(900));
         challenges.saveAndFlush(challenge);
         try {
-            email.sendPasswordReset(normalized, resetToken, account.getId());
+            if (account.getAccountType().isStaff()) {
+                email.sendStaffPasswordReset(normalized, resetToken, account.getId());
+            } else {
+                email.sendPasswordReset(normalized, resetToken, account.getId());
+            }
         } catch (RuntimeException ignored) {
             // Keep the outward response generic if delivery fails.
         }

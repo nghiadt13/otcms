@@ -1,6 +1,6 @@
 "use client";
 
-import { Mail } from "lucide-react";
+import { Mail, UserRound } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type FormEvent } from "react";
@@ -8,16 +8,17 @@ import {
   clearMockSignedInKind,
   setMockSignedInKind,
 } from "@/lib/session/mockSignedInKind";
-import { signIn, signInStaff } from "../api/authApi";
+import { signIn, signInStaff, signInAdministrator } from "../api/authApi";
 import type { AuthMessageCode } from "../authMessages";
 import { focusFirstInvalidField } from "../focusFirstInvalidField";
 import { safePortalNext } from "../safePortalNext";
-import { validateEmail, validateStaffEmail } from "../schema/authFieldRules";
+import { validateEmail, validateStaffUsername } from "../schema/authFieldRules";
 import { toAuthMessageCode } from "../types/auth";
 import { AuthAlert } from "./AuthAlert";
 import { authLinkClass } from "./AuthCard";
 import { AuthSubmitButton } from "./AuthSubmitButton";
 import { AuthTextField } from "./AuthTextField";
+import { Button } from "@/components/ui/button";
 import { PasswordField } from "./PasswordField";
 
 // UC01 Đăng nhập bệnh nhân (email + mật khẩu). Mọi trường hợp bị từ chối (thiếu thông tin,
@@ -40,6 +41,9 @@ export function SignInForm({
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
   const [email, setEmail] = useState(defaultEmail);
+  const [staffMode, setStaffMode] = useState<"administrator" | "staff">(
+    "administrator",
+  );
   const [password, setPassword] = useState("");
   const [fieldErrors, setFieldErrors] = useState<{
     email?: string;
@@ -54,7 +58,7 @@ export function SignInForm({
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const errors = {
-      email: staff ? validateStaffEmail(email) : validateEmail(email),
+      email: staff ? validateStaffUsername(email) : validateEmail(email),
       password: password ? undefined : "Nhập mật khẩu.",
     };
     setFieldErrors(errors);
@@ -68,8 +72,13 @@ export function SignInForm({
     setSubmitting(true);
     try {
       if (staff) {
-        await signInStaff(email, password);
-        router.replace("/workspace");
+        const session =
+          staffMode === "administrator"
+            ? await signInAdministrator(email, password)
+            : await signInStaff(email, password);
+        router.replace(
+          session.mustChangePassword ? "/first-login-password" : "/workspace",
+        );
         return;
       }
       await signIn(email, password);
@@ -91,19 +100,61 @@ export function SignInForm({
     >
       {message && <AuthAlert code={message} tone="error" />}
 
+      {staff && (
+        <fieldset className="space-y-2">
+          <legend className="text-base font-medium">Loại tài khoản</legend>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <Button
+              type="button"
+              variant={staffMode === "administrator" ? "secondary" : "outline"}
+              aria-pressed={staffMode === "administrator"}
+              onClick={() => {
+                setStaffMode("administrator");
+                setEmail("");
+                setPassword("");
+                setFieldErrors({});
+                setMessage(null);
+              }}
+            >
+              Admin / Chủ phòng khám
+            </Button>
+            <Button
+              type="button"
+              variant={staffMode === "staff" ? "secondary" : "outline"}
+              aria-pressed={staffMode === "staff"}
+              onClick={() => {
+                setStaffMode("staff");
+                setEmail("");
+                setPassword("");
+                setFieldErrors({});
+                setMessage(null);
+              }}
+            >
+              Nhân viên khác
+            </Button>
+          </div>
+        </fieldset>
+      )}
+
       <AuthTextField
-        autoComplete="email"
+        autoComplete={staff ? "username" : "email"}
         error={fieldErrors.email}
-        icon={Mail}
-        inputMode="email"
-        label="Email"
+        icon={staff ? UserRound : Mail}
+        inputMode={staff ? "text" : "email"}
+        label={
+          staff
+            ? staffMode === "administrator"
+              ? "Tên đăng nhập"
+              : "Tên đăng nhập hoặc email"
+            : "Email"
+        }
         onChange={(event) => {
           setEmail(event.target.value);
           setFieldErrors((current) => ({ ...current, email: undefined }));
         }}
-        placeholder="ten@email.com"
+        placeholder={staff ? "ten.dang.nhap" : "ten@email.com"}
         required
-        type="email"
+        type={staff ? "text" : "email"}
         value={email}
       />
 

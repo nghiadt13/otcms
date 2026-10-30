@@ -1,14 +1,21 @@
 "use client";
 
 import Link from "next/link";
-import { useRef, useState, type FormEvent } from "react";
-import { resetPassword } from "../api/authApi";
+import { useEffect, useRef, useState, type FormEvent } from "react";
+import {
+  resetPassword,
+  PasswordRecoveryError,
+  type RecoveryPortal,
+  type RecoveryFailure,
+} from "../api/passwordRecoveryApi";
+import {
+  recoveryPasswordPolicy,
+  validateRecoveryPassword,
+} from "../schema/recoveryPasswordRules";
+import { RecoveryErrorNotice } from "./RecoveryErrorNotice";
 import type { AuthMessageCode } from "../authMessages";
 import { focusFirstInvalidField } from "../focusFirstInvalidField";
-import {
-  validatePassword,
-  validatePasswordConfirmation,
-} from "../schema/authFieldRules";
+import { validatePasswordConfirmation } from "../schema/authFieldRules";
 import { toAuthMessageCode } from "../types/auth";
 import { AuthAlert } from "./AuthAlert";
 import { authLinkClass } from "./AuthCard";
@@ -19,7 +26,28 @@ import { PasswordPolicyHint } from "./PasswordPolicyHint";
 
 // UC02 bước 5–6: mở từ link trong email, đặt mật khẩu mới. Thiếu/sai token là
 // xác nhận bị từ chối (MSG-04, E2): cho bắt đầu lại từ "Quên mật khẩu".
-export function ResetPasswordForm({ token }: { token: string }) {
+export function ResetPasswordForm({
+  token,
+  portal = "patient",
+}: {
+  token: string;
+  portal?: RecoveryPortal;
+}) {
+  const loginHref = portal === "staff" ? "/staff-login" : "/login";
+  const recoveryHref =
+    portal === "staff" ? "/forgot-password?portal=staff" : "/forgot-password";
+  const [failure, setFailure] = useState<RecoveryFailure | null>(null);
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    if (url.searchParams.has("token")) {
+      url.searchParams.delete("token");
+      window.history.replaceState(
+        window.history.state,
+        "",
+        url.pathname + url.search + url.hash,
+      );
+    }
+  }, []);
   const formRef = useRef<HTMLFormElement>(null);
   const [password, setPassword] = useState("");
   const [confirmation, setConfirmation] = useState("");
@@ -36,7 +64,7 @@ export function ResetPasswordForm({ token }: { token: string }) {
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const next = {
-      password: validatePassword(password),
+      password: validateRecoveryPassword(password),
       confirm: validatePasswordConfirmation(password, confirmation),
     };
     setErrors(next);
@@ -47,12 +75,17 @@ export function ResetPasswordForm({ token }: { token: string }) {
     }
 
     setMessage(null);
+    setFailure(null);
     setSubmitting(true);
     try {
-      await resetPassword(token, password);
+      await resetPassword(token, password, portal);
       setDone(true);
     } catch (cause) {
-      setMessage(toAuthMessageCode(cause));
+      if (cause instanceof PasswordRecoveryError) {
+        setFailure(cause.reason);
+        if (cause.reason === "password-reuse")
+          setErrors({ password: "Mật khẩu mới phải khác mật khẩu hiện tại." });
+      } else setMessage(toAuthMessageCode(cause));
     } finally {
       setSubmitting(false);
     }
@@ -62,18 +95,18 @@ export function ResetPasswordForm({ token }: { token: string }) {
     return (
       <div className="mt-8 space-y-6">
         <AuthAlert code="MSG-03" tone="success" />
-        <Link className={authPrimaryLinkClass} href="/login">
+        <Link className={authPrimaryLinkClass} href={loginHref}>
           Đăng nhập
         </Link>
       </div>
     );
   }
 
-  if (!token) {
+  if (!token || failure === "invalid-token") {
     return (
       <div className="mt-8 space-y-6">
-        <AuthAlert code="MSG-04" tone="error" />
-        <Link className={authPrimaryLinkClass} href="/forgot-password">
+        <RecoveryErrorNotice reason="invalid-token" />
+        <Link className={authPrimaryLinkClass} href={recoveryHref}>
           Gửi lại hướng dẫn
         </Link>
       </div>
@@ -88,6 +121,9 @@ export function ResetPasswordForm({ token }: { token: string }) {
       ref={formRef}
     >
       {message && <AuthAlert code={message} tone="error" />}
+      {failure && failure !== "password-reuse" && (
+        <RecoveryErrorNotice reason={failure} />
+      )}
       <div>
         <PasswordField
           autoComplete="new-password"
@@ -100,7 +136,10 @@ export function ResetPasswordForm({ token }: { token: string }) {
           required
           value={password}
         />
-        <PasswordPolicyHint password={password} />
+        <PasswordPolicyHint
+          password={password}
+          rules={recoveryPasswordPolicy}
+        />
       </div>
       <div>
         <PasswordField
@@ -132,7 +171,7 @@ export function ResetPasswordForm({ token }: { token: string }) {
       {message === "MSG-04" && (
         <p className="text-center text-base text-muted-foreground">
           Link đã hết hạn?{" "}
-          <Link className={authLinkClass} href="/forgot-password">
+          <Link className={authLinkClass} href={recoveryHref}>
             Gửi lại hướng dẫn
           </Link>
         </p>
