@@ -21,7 +21,7 @@ import {
   MODALITY_LABELS,
   SERVICE_MODALITIES,
   type ServiceModality,
-} from "../types/serviceCatalog";
+} from "../types/serviceCatalogPrototype";
 import { IndicatorTable } from "./IndicatorTable";
 
 type ServiceFormFieldsProps = {

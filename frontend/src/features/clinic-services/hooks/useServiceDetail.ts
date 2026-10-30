@@ -3,8 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import { isApiError } from "@/lib/api/apiError";
 import { notifyError } from "@/lib/messages/notify";
-import { getServiceCatalog } from "../api/serviceCatalogApi";
-import type { ServiceCatalogDetail } from "../types/serviceCatalog";
+import { getServiceCatalog } from "../api/serviceCatalogPrototypeApi";
+import type { ServiceCatalogDetail } from "../types/serviceCatalogPrototype";
 
 /** Lỗi nào coi là "bản ghi không còn / ngoài quyền" → màn phải tải lại danh sách. */
 export const isStaleServiceError = (error: unknown) =>

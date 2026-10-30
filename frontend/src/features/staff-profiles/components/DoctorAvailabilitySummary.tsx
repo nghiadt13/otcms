@@ -9,6 +9,12 @@ export function DoctorAvailabilitySummary({
 }: {
   availability: DoctorAvailabilityDay[];
 }) {
+  if (!availability.length)
+    return (
+      <p className="text-base text-muted-foreground">
+        Chọn dịch vụ trên màn đặt lịch để xem giờ khám còn trống của bác sĩ.
+      </p>
+    );
   return (
     <div>
       <ul className="divide-y divide-border overflow-hidden rounded-2xl border bg-card">

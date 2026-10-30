@@ -5,7 +5,7 @@ import type {
   ServiceModality,
   ServiceUpdateRequest,
   ServiceWriteRequest,
-} from "../types/serviceCatalog";
+} from "../types/serviceCatalogPrototype";
 
 // Trạng thái ô nhập của form dịch vụ. Mọi ô số là chuỗi; đây không phải contract API.
 

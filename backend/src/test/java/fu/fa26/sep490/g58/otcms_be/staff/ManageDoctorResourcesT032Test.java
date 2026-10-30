@@ -113,4 +113,38 @@ class ManageDoctorResourcesT032Test {
         verify(timeOffs, never()).save(any());
         verify(audits, never()).append(any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
     }
+
+    @Test
+    void creatingPastScheduleDoesNotAcquireLockOrWrite() {
+        var failure = assertThrows(fu.fa26.sep490.g58.otcms_be.staff.exception.DoctorProfileException.class,
+                () -> service.createShift(doctorId, START.minusSeconds(60), END, admin, "correlation"));
+        assertEquals("DOCTOR_RESOURCE_IN_PAST", failure.getMessage());
+        org.mockito.Mockito.verifyNoInteractions(guard, shifts, audits);
+    }
+
+    @Test
+    void historicalShiftCannotBeMovedToFutureOrDeleted() {
+        var shift = new DoctorWorkShiftJpaEntity(shiftId, doctorId, START.minusSeconds(3600), START.minusSeconds(60));
+        when(profiles.existsById(doctorId)).thenReturn(true);
+        when(shifts.findByIdAndDoctorProfileId(shiftId, doctorId)).thenReturn(Optional.of(shift));
+        assertThrows(fu.fa26.sep490.g58.otcms_be.staff.exception.DoctorProfileException.class,
+                () -> service.deleteShift(doctorId, shiftId, admin, "correlation"));
+        assertThrows(fu.fa26.sep490.g58.otcms_be.staff.exception.DoctorProfileException.class,
+                () -> service.updateShift(doctorId, shiftId, END, END.plusSeconds(3600), admin, "correlation"));
+        verify(shifts, never()).delete(any());
+        verify(shifts, never()).save(any());
+    }
+
+    @Test
+    void overlappingTimeOffCannotBeSavedEvenWithoutAppointments() {
+        when(profiles.existsById(doctorId)).thenReturn(true);
+        when(timeOffs.findOverlapping(List.of(doctorId), START, END)).thenReturn(List.of(
+                new fu.fa26.sep490.g58.otcms_be.staff.model.entity.DoctorOperationalTimeOffJpaEntity(
+                        UUID.randomUUID(), doctorId, START, END)));
+        var failure = assertThrows(fu.fa26.sep490.g58.otcms_be.staff.exception.DoctorProfileException.class,
+                () -> service.createTimeOff(doctorId, START, END, admin, "correlation"));
+        assertEquals("DOCTOR_TIME_OFF_OVERLAP", failure.getMessage());
+        verify(timeOffs, never()).save(any());
+        org.mockito.Mockito.verifyNoInteractions(appointments);
+    }
 }

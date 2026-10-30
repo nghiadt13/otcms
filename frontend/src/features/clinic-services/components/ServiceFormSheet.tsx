@@ -16,7 +16,7 @@ import { notifyError, notifySuccess } from "@/lib/messages/notify";
 import {
   createServiceCatalog,
   updateServiceCatalog,
-} from "../api/serviceCatalogApi";
+} from "../api/serviceCatalogPrototypeApi";
 import {
   isStaleServiceError,
   useServiceDetail,
@@ -32,7 +32,7 @@ import {
   serviceDraftToUpdateRequest,
   type ServiceFormDraft,
 } from "../schema/serviceFormDraft";
-import type { ServiceCatalogDetail } from "../types/serviceCatalog";
+import type { ServiceCatalogDetail } from "../types/serviceCatalogPrototype";
 import { ServiceFormFields } from "./ServiceFormFields";
 
 type ServiceFormSheetProps = {

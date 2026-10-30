@@ -1,3 +1,5 @@
+// Prototype-only API, used only in the explicitly labelled prototype mode.
+// Live doctor workflows use doctorScheduleApi.ts and never fall back to this store.
 import type { ServiceCategory } from "@/lib/domain/clinicCategories";
 import type { StaffRole } from "@/lib/domain/clinicRoles";
 import { addDays, todayIsoDate } from "@/lib/format/formatDate";

@@ -37,6 +37,12 @@ public class ManageDoctorServiceAssignmentsServiceImpl implements ManageDoctorSe
         this.services=services; this.assignments=assignments; this.audits=audits; this.doctors=doctors;
         this.appointmentImpact=appointmentImpact; this.visitImpact=visitImpact; this.guard=guard; this.clock=clock;
     }
+    @Override @Transactional(readOnly = true)
+    public java.util.List<DoctorAssignmentResponse> list(UUID serviceId) {
+        if (!services.existsById(serviceId)) throw new ClinicServiceException("SERVICE_NOT_FOUND");
+        return assignments.findByServiceIdAndActiveTrueOrderByDoctorProfileIdAsc(serviceId).stream()
+                .map(a -> new DoctorAssignmentResponse(a.id(), a.serviceId(), a.doctorProfileId())).toList();
+    }
     @Override @Transactional
     public DoctorAssignmentResponse assign(UUID serviceId, UUID doctorId, AuthenticatedAccount actor, String correlationId) {
         validate(serviceId, actor, correlationId); if (doctorId == null) throw invalid();

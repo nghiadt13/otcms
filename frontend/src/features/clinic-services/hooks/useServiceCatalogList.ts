@@ -4,11 +4,11 @@ import { useEffect, useState } from "react";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { usePagedList } from "@/hooks/usePagedList";
 import type { ServiceCategory } from "@/lib/domain/clinicCategories";
-import { listServiceCatalog } from "../api/serviceCatalogApi";
+import { listServiceCatalog } from "../api/serviceCatalogPrototypeApi";
 import type {
   ServiceCatalogItem,
   ServiceStatus,
-} from "../types/serviceCatalog";
+} from "../types/serviceCatalogPrototype";
 
 type Filters = {
   q: string;

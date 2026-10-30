@@ -1,62 +1,51 @@
-import { clone, mockDelay, mockFail } from "@/lib/api/mockServer";
-import { todayIsoDate } from "@/lib/format/formatDate";
-import type { DoctorInfo } from "../types/staffProfile";
+import { publicApiRequest } from "@/lib/api/client";
+import { ApiError } from "@/lib/api/apiError";
 import type { PublicDoctor, PublicDoctorDetail } from "../types/publicDoctor";
-import { buildDoctorAvailabilityMock } from "./publicDoctorAvailabilityMock";
-import { mockStore, type MockStaffRecord } from "./staffProfileMockData";
-
-// LỚP API GIẢ cho /api/v1/public/doctors (không cần đăng nhập). Đọc cùng kho hồ sơ với màn
-// Admin nên bật/tắt "hiển thị" ở Admin đổi ngay danh bạ công khai (UC18 AF1).
-
-const LATENCY_MS = process.env.NODE_ENV === "test" ? 0 : 200;
-
-type PublicDoctorRecord = MockStaffRecord & { doctor: DoctorInfo };
-
-/** Bác sĩ công khai: đang hoạt động, đúng vai trò bác sĩ và đã bật hiển thị. */
-const isPublicDoctor = (
-  record: MockStaffRecord,
-): record is PublicDoctorRecord =>
-  record.status === "ACTIVE" &&
-  record.role === "ORTHOPEDIC_DOCTOR" &&
-  record.doctor?.isPublic === true;
-
-function toPublicDoctor(record: PublicDoctorRecord): PublicDoctor {
+type DoctorResponse = {
+  doctorProfileId: string;
+  fullName: string;
+  photoUrl: string | null;
+  specialties: string | null;
+  qualifications: string | null;
+  biography: string | null;
+  consultationInformation: string | null;
+};
+function mapDoctor(d: DoctorResponse): PublicDoctor {
   return {
-    id: record.id,
-    fullName: record.displayName,
-    photoUrl: record.photoUrl,
-    specialties: [...record.doctor.specialties],
-    qualifications: record.doctor.qualifications,
-    biography: record.doctor.biography,
-    consultationInfo: record.doctor.consultationInfo,
+    id: d.doctorProfileId,
+    fullName: d.fullName,
+    photoUrl: d.photoUrl,
+    specialties: d.specialties ? [d.specialties] : [],
+    qualifications: d.qualifications ?? "",
+    biography: d.biography ?? "",
+    consultationInfo: d.consultationInformation ?? "",
   };
 }
-
-/** GET /api/v1/public/doctors — không có `availability`. */
 export async function listPublicDoctors(
   signal?: AbortSignal,
 ): Promise<{ items: PublicDoctor[] }> {
-  await mockDelay(LATENCY_MS, signal);
-  const items = mockStore.profiles.filter(isPublicDoctor).map(toPublicDoctor);
-  return clone({ items });
+  const data = await publicApiRequest<{ items: DoctorResponse[] }>(
+    "/api/v1/doctors",
+    { signal },
+  );
+  return { items: data.items.map(mapDoctor) };
 }
-
-/** GET /api/v1/public/doctors/{id} — không còn công khai: 404 MSG-24. */
 export async function getPublicDoctor(
   id: string,
   signal?: AbortSignal,
 ): Promise<PublicDoctorDetail> {
-  await mockDelay(LATENCY_MS, signal);
-  const record = mockStore.profiles.find((item) => item.id === id);
-  if (!record || !isPublicDoctor(record)) mockFail(404, "MSG-24");
-  return clone({
-    ...toPublicDoctor(record),
-    availability: buildDoctorAvailabilityMock(record.username, todayIsoDate()),
-  });
+  try {
+    const data = await publicApiRequest<DoctorResponse>(
+      `/api/v1/doctors/${encodeURIComponent(id)}`,
+      { signal },
+    );
+    return { ...mapDoctor(data), availability: [] };
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 404)
+      throw new ApiError(404, { code: "MSG-24" });
+    throw error;
+  }
 }
-
-/** Bác sĩ nổi bật trên trang chủ: `limit` mục đầu của danh bạ công khai. */
 export async function listFeaturedDoctors(limit = 4): Promise<PublicDoctor[]> {
-  const { items } = await listPublicDoctors();
-  return items.slice(0, limit);
+  return (await listPublicDoctors()).items.slice(0, Math.max(0, limit));
 }

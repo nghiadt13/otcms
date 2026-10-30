@@ -98,3 +98,8 @@ Admin tạo, sửa, gỡ hồ sơ của **Lễ tân, Bác sĩ chỉnh hình, KTV
 ## Câu hỏi mở
 - "Liên hệ công việc" gồm những trường nào (điện thoại, email)? Ảnh lưu ở đâu (Supabase Storage)?
 - Có cho **khôi phục** hồ sơ đã gỡ không? R3 chưa có UC; hiện chỉ tạo lại (tài khoản đã gỡ hồ sơ có được xem là "chưa có hồ sơ" không?).
+
+
+## Live backend integration (KAN-12 / KAN-13)
+
+The route now uses the live API contract documented in [admin-backend-integration.md](../admin-backend-integration.md). The design above describes the earlier mock/SRS target; fields missing from the backend contract are not silently stored in a mock or sent as unsupported fields. See that document for the exact supported scope and acceptance checks.

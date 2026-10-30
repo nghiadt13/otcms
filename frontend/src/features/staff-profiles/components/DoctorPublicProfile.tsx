@@ -18,6 +18,7 @@ export function DoctorPublicProfile({
       <div className="relative aspect-[4/5] w-full max-w-sm overflow-hidden rounded-2xl bg-secondary">
         {doctor.photoUrl ? (
           <Image
+            unoptimized
             alt={`Chân dung ${doctor.fullName}`}
             className="object-cover"
             fill

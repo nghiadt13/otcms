@@ -85,3 +85,8 @@ Mỗi ô ca hiện: giờ, phòng. Màu chữ + chữ vai trò (không chỉ dù
 - **Lễ tân và kỹ thuật viên có "phòng" thế nào?** BR-24 nói mọi ca có phòng, nhưng Lễ tân làm ở quầy tiếp nhận (không có loại phòng này). Cần chốt: thêm loại "quầy" hay cho phép ca Lễ tân không phòng.
 - Giới hạn độ dài một ca, bội số 15 phút?
 - Sửa ca đã bắt đầu trong ngày hôm nay có được không? R3 chỉ cấm *xóa* ca không phải tương lai.
+
+
+## Live backend integration (KAN-12 / KAN-13)
+
+The route now uses the live API contract documented in [admin-backend-integration.md](../admin-backend-integration.md). The design above describes the earlier mock/SRS target; fields missing from the backend contract are not silently stored in a mock or sent as unsupported fields. See that document for the exact supported scope and acceptance checks.

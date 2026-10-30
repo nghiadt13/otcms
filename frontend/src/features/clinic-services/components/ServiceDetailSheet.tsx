@@ -17,7 +17,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { CATEGORY_LABELS } from "@/lib/domain/clinicCategories";
 import { formatCurrencyVnd } from "@/lib/format/formatCurrencyVnd";
 import { notifyError, notifySuccess } from "@/lib/messages/notify";
-import { discontinueServiceCatalog } from "../api/serviceCatalogApi";
+import { discontinueServiceCatalog } from "../api/serviceCatalogPrototypeApi";
 import {
   isStaleServiceError,
   useServiceDetail,
@@ -26,7 +26,7 @@ import { serviceDetailToDraft } from "../schema/serviceFormDraft";
 import {
   MODALITY_LABELS,
   type ServiceCatalogDetail,
-} from "../types/serviceCatalog";
+} from "../types/serviceCatalogPrototype";
 import { IndicatorTable } from "./IndicatorTable";
 
 type ServiceDetailSheetProps = {

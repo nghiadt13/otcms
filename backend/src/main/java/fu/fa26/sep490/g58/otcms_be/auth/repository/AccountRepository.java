@@ -29,6 +29,9 @@ public interface AccountRepository extends JpaRepository<AccountJpaEntity, UUID>
     Page<AccountJpaEntity> searchAdministrators(@Param("pattern") String pattern,
             @Param("status") AccountStatus status, Pageable pageable);
 
+    java.util.List<AccountJpaEntity> findByAccountTypeAndStatusOrderByFullNameAscIdAsc(
+            fu.fa26.sep490.g58.otcms_be.auth.model.entity.enums.AccountType type, AccountStatus status);
+
     Optional<AccountJpaEntity> findByIdAndAccountType(UUID id,
             fu.fa26.sep490.g58.otcms_be.auth.model.entity.enums.AccountType accountType);
 

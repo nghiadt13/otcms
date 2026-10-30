@@ -6,6 +6,7 @@ import fu.fa26.sep490.g58.otcms_be.common.security.AuthenticatedAccount;
 import fu.fa26.sep490.g58.otcms_be.common.model.AdminMutationImpact;
 
 public interface ManageDoctorServiceAssignmentsService {
+    java.util.List<DoctorAssignmentResponse> list(UUID serviceId);
     DoctorAssignmentResponse assign(UUID serviceId, UUID doctorId, AuthenticatedAccount actor, String correlationId);
     void remove(UUID serviceId, UUID assignmentId, AuthenticatedAccount actor, String correlationId);
     AdminMutationImpact assessRemovalImpact(UUID serviceId, UUID assignmentId, AuthenticatedAccount actor);

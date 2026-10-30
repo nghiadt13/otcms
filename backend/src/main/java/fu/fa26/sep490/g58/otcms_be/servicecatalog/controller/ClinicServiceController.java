@@ -42,6 +42,12 @@ public class ClinicServiceController {
         this.catalog = catalog; this.mapper = mapper; this.assignments = assignments;
     }
 
+    @GetMapping("/api/v1/admin/clinic-services")
+    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
+    public ItemsResponse adminCatalog() {
+        return mapper.toItemsResponse(catalog.adminCatalog());
+    }
+
     @GetMapping("/api/v1/clinic-services")
     public ItemsResponse publicCatalog() {
         return mapper.toItemsResponse(catalog.publicCatalog());
@@ -82,6 +88,12 @@ public class ClinicServiceController {
     public void activate(@PathVariable UUID serviceId, @AuthenticationPrincipal AuthenticatedAccount actor,
             HttpServletRequest request) {
         activate.activate(serviceId, actor, CorrelationIdFilter.current(request));
+    }
+
+    @GetMapping("/api/v1/admin/clinic-services/{serviceId}/doctor-assignments")
+    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
+    public java.util.Map<String, java.util.List<DoctorAssignmentResponse>> listAssignments(@PathVariable UUID serviceId) {
+        return java.util.Map.of("items", assignments.list(serviceId));
     }
 
     @PostMapping("/api/v1/admin/clinic-services/{serviceId}/doctor-assignments")

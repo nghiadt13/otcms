@@ -5,4 +5,6 @@ import java.util.UUID;
 /** Auth-owned projection used when Staff links an existing account to a Doctor profile. */
 public interface DoctorAccountTypeQueryService {
     boolean isDoctorAccount(UUID accountId);
+    record DoctorAccountOption(UUID accountId, String username, String fullName) { }
+    java.util.List<DoctorAccountOption> listActiveDoctorAccounts();
 }

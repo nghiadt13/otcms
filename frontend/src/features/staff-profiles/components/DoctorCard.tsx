@@ -24,6 +24,7 @@ export function DoctorCard({
         <div className="relative aspect-[4/5] overflow-hidden rounded-2xl bg-secondary">
           {doctor.photoUrl ? (
             <Image
+              unoptimized
               alt={`Chân dung ${doctor.fullName}`}
               className="object-cover transition-transform duration-300 ease-out group-hover:scale-[1.03] motion-reduce:transition-none"
               fill
