@@ -61,19 +61,20 @@ export const adminNavGroups: AdminNavGroup[] = [
           "Tạo tài khoản nhân viên, bật/tắt trạng thái, tra cứu người dùng.",
       },
       {
-        title: "Hồ sơ nhân viên",
+        title: "Hồ sơ bác sĩ",
         href: "/admin/staff-profiles",
         icon: Stethoscope,
         ucs: "UC17–UC19",
         description:
-          "Hồ sơ chuyên môn của nhân viên; bác sĩ có thêm phần hiển thị công khai.",
+          "Thông tin chuyên môn, hiển thị công khai và nhận lịch của bác sĩ.",
       },
       {
-        title: "Ca làm việc",
+        title: "Ca trực và ngày nghỉ",
         href: "/admin/staff-shifts",
         icon: CalendarClock,
         ucs: "UC25–UC28",
-        description: "Xếp, sửa, xóa ca của lễ tân, bác sĩ, kỹ thuật viên.",
+        description:
+          "Quản lý ca trực và khoảng nghỉ của bác sĩ theo backend hiện tại.",
       },
     ],
   },
