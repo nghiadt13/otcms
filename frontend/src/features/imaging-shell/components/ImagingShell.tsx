@@ -40,7 +40,10 @@ function ShellContent({ children }: { children: ReactNode }) {
         Chuyển đến nội dung
       </a>
       <SidebarProvider>
-        <ImagingSidebar onReset={() => setResetOpen(true)} onExit={() => setExitOpen(true)} />
+        <ImagingSidebar
+          onReset={() => setResetOpen(true)}
+          onExit={() => setExitOpen(true)}
+        />
         <SidebarInset className="min-w-0">
           <ImagingHeader
             onReset={() => setResetOpen(true)}
