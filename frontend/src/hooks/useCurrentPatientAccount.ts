@@ -13,10 +13,16 @@ const CHANGED_EVENT = "my-account:changed";
 /** Reads the authenticated Patient identity used by the portal shell and profile hints. */
 export function useCurrentPatientAccount() {
   const pathname = usePathname();
-  const [account, setAccount] = useState<CurrentPatientAccount | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [refreshToken, setRefreshToken] = useState(0);
+  const requestKey = `${pathname}:${refreshToken}`;
+  const [loaded, setLoaded] = useState<{
+    key: string;
+    account: CurrentPatientAccount;
+  } | null>(null);
+  const [failure, setFailure] = useState<{
+    key: string;
+    message: string;
+  } | null>(null);
 
   useEffect(() => {
     const reload = () => setRefreshToken((current) => current + 1);
@@ -26,22 +32,21 @@ export function useCurrentPatientAccount() {
 
   useEffect(() => {
     const controller = new AbortController();
-    setLoading(true);
     getCurrentPatientAccount(controller.signal)
       .then((result) => {
         if (controller.signal.aborted) return;
-        setAccount(result);
-        setError(null);
-        setLoading(false);
+        setLoaded({ key: requestKey, account: result });
+        setFailure(null);
       })
       .catch((cause: unknown) => {
         if (controller.signal.aborted) return;
-        setError(messageFromError(cause));
-        setLoading(false);
+        setFailure({ key: requestKey, message: messageFromError(cause) });
       });
     return () => controller.abort();
-  }, [pathname, refreshToken]);
+  }, [requestKey]);
 
-  return { account, loading, error };
+  const account = loaded?.key === requestKey ? loaded.account : null;
+  const error = failure?.key === requestKey ? failure.message : null;
+  return { account, loading: !account && !error, error };
 }
 
