@@ -51,8 +51,9 @@ export function resetPatientAppointmentMock(): void {
 function allowedActionsOf(
   status: AppointmentStatus,
   feeStatus: ExamFeeStatus,
+  startAt: string,
 ): PatientAppointmentAction[] {
-  if (status !== "BOOKED") return [];
+  if (status !== "BOOKED" || Date.parse(startAt) <= bookingMockNow().getTime()) return [];
   return feeStatus === "PENDING_PAYMENT"
     ? ["cancel", "payExamFee"]
     : ["cancel"];
@@ -75,6 +76,7 @@ function withPatient(
     allowedActions: allowedActionsOf(
       projection.status,
       projection.examFee.status,
+      projection.startAt,
     ),
   };
 }
@@ -93,12 +95,23 @@ function sharedView(
       doctor: record.doctor,
       roomName: record.roomName,
       isFollowUp: record.isFollowUp,
-      status: record.status,
+      status: effectiveStatus(record.status, record.examFee.status, record.startAt),
       examFee: record.examFee,
       doctorUnavailable: false,
     },
     profile,
   );
+}
+
+/** Quá hạn chưa thanh toán thì tự hủy; quá hạn đã trả cần nhân viên xử lý. */
+function effectiveStatus(
+  status: AppointmentStatus,
+  feeStatus: ExamFeeStatus,
+  startAt: string,
+): AppointmentStatus {
+  if (status === "BOOKED" && Date.parse(startAt) <= bookingMockNow().getTime() && feeStatus !== "PAID")
+    return "CANCELLED";
+  return status;
 }
 
 /**
@@ -122,7 +135,9 @@ function ownView(
         doctor: { id: doctor.id, fullName: doctor.fullName },
         roomName: doctor.room,
         isFollowUp: false,
-        status: cancelledOwnIds.has(seed.id) ? "CANCELLED" : seed.status,
+        status: cancelledOwnIds.has(seed.id)
+          ? "CANCELLED"
+          : effectiveStatus(seed.status, findMockAppointmentFee(seed.id)?.examFeeStatus ?? seed.feeStatus, seed.startAt),
         examFee: {
           amount: service.price,
           status:
@@ -165,7 +180,9 @@ const byStartThenId = (a: PatientAppointment, b: PatientAppointment) =>
   a.startAt.localeCompare(b.startAt) || a.id.localeCompare(b.id);
 
 const matchesWhen = (item: PatientAppointment, when: AppointmentWhen) =>
-  when === "upcoming" ? item.status === "BOOKED" : item.status !== "BOOKED";
+  when === "upcoming"
+    ? item.status === "BOOKED" && Date.parse(item.startAt) > bookingMockNow().getTime()
+    : item.status !== "BOOKED" || Date.parse(item.startAt) <= bookingMockNow().getTime();
 
 /** GET /api/v1/appointments: `when`, `patientId?`, `page`, `size`. */
 export async function listMyAppointments(

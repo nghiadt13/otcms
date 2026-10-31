@@ -27,6 +27,8 @@ export interface Appointment {
   /** null = "Chưa chỉ định" */
   doctor: DoctorRef | null;
   status: AppointmentStatus;
+  /** Lịch đã qua, đã trả phí và cần lễ tân xử lý. */
+  requiresReception?: boolean;
   /** null khi danh sách lịch hẹn chưa nhận được dữ liệu thu phí. */
   examFeePaid: boolean | null;
   /** BE quyết định; FE chỉ vẽ nút có trong mảng. */

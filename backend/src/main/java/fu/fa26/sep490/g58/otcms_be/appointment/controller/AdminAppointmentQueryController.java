@@ -5,6 +5,7 @@ import fu.fa26.sep490.g58.otcms_be.appointment.model.dto.response.AdminAppointme
 import fu.fa26.sep490.g58.otcms_be.appointment.model.dto.response.AdminAppointmentResponse;
 import fu.fa26.sep490.g58.otcms_be.appointment.service.AppointmentSearchFilter;
 import fu.fa26.sep490.g58.otcms_be.appointment.service.GetAdminAppointmentsService;
+import fu.fa26.sep490.g58.otcms_be.billing.service.AppointmentInvoicePaidStatusQueryService;
 import fu.fa26.sep490.g58.otcms_be.common.web.CorrelationIdFilter;
 import fu.fa26.sep490.g58.otcms_be.config.AppointmentBookingProperties;
 import jakarta.servlet.http.HttpServletRequest;
@@ -26,11 +27,13 @@ public class AdminAppointmentQueryController {
             "CONFIRMED", "CHECKED_IN", "IN_PROGRESS", "COMPLETED", "CANCELLED", "NO_SHOW");
     private final GetAdminAppointmentsService appointments;
     private final AppointmentBookingProperties properties;
+    private final AppointmentInvoicePaidStatusQueryService billingStatus;
 
     public AdminAppointmentQueryController(GetAdminAppointmentsService appointments,
-            AppointmentBookingProperties properties) {
+            AppointmentBookingProperties properties, AppointmentInvoicePaidStatusQueryService billingStatus) {
         this.appointments = appointments;
         this.properties = properties;
+        this.billingStatus = billingStatus;
     }
 
     @GetMapping("/api/v1/admin/appointments")
@@ -57,8 +60,12 @@ public class AdminAppointmentQueryController {
         if (normalizedStatus != null && !STATUSES.contains(normalizedStatus)) throw invalid();
         var result = appointments.list(new AppointmentSearchFilter(lower, upper, normalizedStatus,
                 uuid(doctorId), null), p, s);
-        var response = new AdminAppointmentPageResponse(result.items().stream()
-                .map(AdminAppointmentResponse::from).toList(), result.page(), result.size(),
+        var projected = result.items().stream().map(AdminAppointmentResponse::from).toList();
+        var paidByAppointment = billingStatus.paidStatus(projected.stream()
+                .map(AdminAppointmentResponse::id).toList());
+        var response = new AdminAppointmentPageResponse(projected.stream()
+                .map(item -> item.withExamFeePaid(item.servicePrice() == null ? null
+                        : paidByAppointment.getOrDefault(item.id(), false))).toList(), result.page(), result.size(),
                 result.totalElements(), result.totalPages());
         return ResponseEntity.ok().header(CorrelationIdFilter.HEADER, CorrelationIdFilter.current(request))
                 .body(response);

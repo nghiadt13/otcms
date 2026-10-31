@@ -18,6 +18,7 @@ type AdminAppointmentDto = {
   doctorDisplayName: string | null;
   status: string;
   startTime: string;
+  examFeePaid: boolean | null;
 };
 
 type AdminAppointmentPageDto = {
@@ -32,6 +33,9 @@ const appointmentStatus = (status: string): AppointmentStatus =>
   status === "CONFIRMED" ? "BOOKED" : (status as AppointmentStatus);
 
 function toAppointment(dto: AdminAppointmentDto): Appointment {
+  const expired = Date.parse(dto.startTime) <= Date.now();
+  const status = appointmentStatus(dto.status);
+  const paid = dto.examFeePaid === true;
   return {
     id: dto.id,
     startAt: dto.startTime,
@@ -42,8 +46,9 @@ function toAppointment(dto: AdminAppointmentDto): Appointment {
     doctor: dto.doctorId
       ? { id: dto.doctorId, fullName: dto.doctorDisplayName ?? "Bác sĩ" }
       : null,
-    status: appointmentStatus(dto.status),
-    examFeePaid: null,
+    status: status === "BOOKED" && expired && !paid ? "CANCELLED" : status,
+    requiresReception: status === "BOOKED" && expired && paid,
+    examFeePaid: dto.examFeePaid,
     allowedActions: [],
   };
 }

@@ -12,7 +12,7 @@ import type {
 
 // Lớp API THẬT của lịch hẹn khu bệnh nhân (UC23, UC24). Backend: GET /api/v1/appointments (chỉ lịch
 // của hồ sơ gắn với tài khoản đăng nhập), GET /api/v1/appointments/{id}, POST .../{id}/cancel.
-// Backend chưa có phòng khám, quan hệ người khám và thanh toán phí: dùng giá trị mặc định ở dưới.
+// Trạng thái phí lấy từ billing qua DTO lịch; giá vẫn là snapshot dịch vụ của lịch.
 
 interface AppointmentDto {
   id: string;
@@ -24,6 +24,8 @@ interface AppointmentDto {
   doctorDisplayName: string | null;
   status: string;
   startTime: string;
+  endTime: string;
+  examFeePaid: boolean | null;
   visitId: string | null;
   sourceVisitId: string | null;
 }
@@ -47,13 +49,26 @@ function toStatus(status: string): AppointmentStatus {
       return "CANCELLED";
     case "NO_SHOW":
       return "NO_SHOW";
+    case "CHECKED_IN":
+      return "CHECKED_IN";
+    case "IN_PROGRESS":
+      return "IN_PROGRESS";
+    case "COMPLETED":
+      return "COMPLETED";
     default:
       return "CHECKED_IN";
   }
 }
 
 function toPatientAppointment(dto: AppointmentDto): PatientAppointment {
-  const status = toStatus(dto.status);
+  const backendStatus = toStatus(dto.status);
+  const expired = Date.parse(dto.startTime) <= Date.now();
+  const feePaid = dto.examFeePaid === true;
+  // Lịch đã bắt đầu mà chưa thanh toán được đóng như lịch đã hủy. Nếu đã trả,
+  // giữ trạng thái để nhân viên xử lý nhưng không cho người bệnh thao tác tiếp.
+  const status = backendStatus === "BOOKED" && expired && !feePaid
+    ? "CANCELLED"
+    : backendStatus;
   return {
     id: dto.id,
     startAt: vnIsoOf(new Date(dto.startTime)),
@@ -68,9 +83,20 @@ function toPatientAppointment(dto: AppointmentDto): PatientAppointment {
     roomName: DEFAULT_ROOM,
     isFollowUp: dto.sourceVisitId !== null,
     status,
-    examFee: { amount: dto.servicePrice ?? 0, status: "PENDING_PAYMENT" },
+    examFee: {
+      amount: dto.servicePrice ?? 0,
+      status: dto.servicePrice == null
+        ? "NOT_REQUIRED"
+        : dto.examFeePaid
+          ? "PAID"
+          : "PENDING_PAYMENT",
+    },
     doctorUnavailable: false,
-    allowedActions: status === "BOOKED" ? ["cancel"] : [],
+    allowedActions: status === "BOOKED" && !expired
+      ? dto.servicePrice != null && !dto.examFeePaid
+        ? ["cancel", "payExamFee"]
+        : ["cancel"]
+      : [],
   };
 }
 
@@ -87,26 +113,20 @@ function toAppointmentApiError(error: unknown): unknown {
   return code ? new ApiError(error.status, { code }) : error;
 }
 
-/** `when` → lọc backend: sắp tới là lịch CONFIRMED, đã qua là các lịch còn lại (lọc nốt ở FE). */
+/** Backend lọc theo giờ kết thúc và trạng thái hủy/vắng trước khi phân trang. */
 export async function listMyAppointments(
   query: PatientAppointmentQuery & PageQuery,
   signal?: AbortSignal,
 ): Promise<PageResponse<PatientAppointment>> {
-  const upcoming = query.when === "upcoming";
   const page = await apiRequest<AppointmentPageDto>(
     `/api/v1/appointments${toQueryString({
       page: query.page,
       size: query.size,
-      status: upcoming ? "CONFIRMED" : undefined,
+      window: query.when.toUpperCase(),
     })}`,
     { signal },
   );
-  const items = page.items
-    .map(toPatientAppointment)
-    .filter((item) => (item.status === "BOOKED") === upcoming)
-    .sort((a, b) =>
-      upcoming ? a.startAt.localeCompare(b.startAt) : b.startAt.localeCompare(a.startAt),
-    );
+  const items = page.items.map(toPatientAppointment);
   return {
     items,
     page: page.page,

@@ -55,21 +55,29 @@ describe("listMyAppointments", () => {
 
   it("đã qua: mọi trạng thái khác, mới trước, chia trang 10 dòng", async () => {
     const first = await listMyAppointments({ when: "past", page: 0, size: 10 });
-    expect(first.totalItems).toBe(14);
+    expect(first.totalItems).toBe(16);
     expect(first.totalPages).toBe(2);
     expect(first.items).toHaveLength(10);
-    expect(first.items[0].id).toBe("apt-2001");
-    expect(first.items[0].status).toBe("CHECKED_IN");
+    expect(first.items[0].id).toBe("apt-expired-2");
+    expect(first.items[0].status).toBe("BOOKED");
 
     const second = await listMyAppointments({
       when: "past",
       page: 1,
       size: 10,
     });
-    expect(second.items).toHaveLength(4);
+    expect(second.items).toHaveLength(6);
     expect(
       new Set([...first.items, ...second.items].map((item) => item.id)).size,
-    ).toBe(14);
+    ).toBe(16);
+  });
+
+  it("lịch quá hạn chưa thanh toán tự thành Đã hủy; lịch quá hạn đã trả giữ Đã đặt nhưng không có thao tác", async () => {
+    const page = await listMyAppointments({ when: "past", page: 0, size: 20 });
+    const unpaidPast = page.items.find((item) => item.id === "apt-expired-1");
+    const paidPast = page.items.find((item) => item.id === "apt-expired-2");
+    expect(unpaidPast).toMatchObject({ status: "CANCELLED", allowedActions: [] });
+    expect(paidPast).toMatchObject({ status: "BOOKED", examFee: { status: "PAID" }, allowedActions: [] });
   });
 
   it("lọc theo hồ sơ đã gắn; người khám nào cũng ghi tên và quan hệ", async () => {

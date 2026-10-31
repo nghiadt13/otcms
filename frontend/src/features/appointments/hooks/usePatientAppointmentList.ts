@@ -93,6 +93,18 @@ export function usePatientAppointmentList(
     setRequest({ page: 0 });
   }, []);
 
+  useEffect(() => {
+    const refreshOnFocus = () => {
+      if (document.visibilityState === "visible") reload();
+    };
+    window.addEventListener("focus", refreshOnFocus);
+    document.addEventListener("visibilitychange", refreshOnFocus);
+    return () => {
+      window.removeEventListener("focus", refreshOnFocus);
+      document.removeEventListener("visibilitychange", refreshOnFocus);
+    };
+  }, [reload]);
+
   return {
     items: state.items,
     loading: state.status === "loading",

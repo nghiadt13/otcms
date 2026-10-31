@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { TablePagination } from "@/components/admin/TablePagination";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { todayIsoDate } from "@/lib/format/formatDate";
@@ -58,7 +58,21 @@ export function AppointmentListTab({ url, lookup }: AppointmentListTabProps) {
     reload: list.reload,
     doctorFilter: state.doctorId,
   });
-  const [viewing, setViewing] = useState<Appointment | null>(null);
+  const [viewingId, setViewingId] = useState<string | null>(null);
+  const viewing = list.data?.items.find((item) => item.id === viewingId) ?? null;
+  const reloadAppointments = list.reload;
+
+  useEffect(() => {
+    const refreshOnFocus = () => {
+      if (document.visibilityState === "visible") void reloadAppointments();
+    };
+    window.addEventListener("focus", refreshOnFocus);
+    document.addEventListener("visibilitychange", refreshOnFocus);
+    return () => {
+      window.removeEventListener("focus", refreshOnFocus);
+      document.removeEventListener("visibilitychange", refreshOnFocus);
+    };
+  }, [reloadAppointments]);
 
   return (
     <div>
@@ -86,7 +100,7 @@ export function AppointmentListTab({ url, lookup }: AppointmentListTabProps) {
         error={list.error}
         emptyText={rangeError ? INVALID_RANGE_TEXT : EMPTY_TEXT}
         onRetry={list.reload}
-        onView={setViewing}
+        onView={(appointment) => setViewingId(appointment.id)}
         onReassign={flow.setReassigning}
       />
       {list.data && !list.error ? (
@@ -99,7 +113,7 @@ export function AppointmentListTab({ url, lookup }: AppointmentListTabProps) {
       ) : null}
       <AppointmentDetailSheet
         appointment={viewing}
-        onClose={() => setViewing(null)}
+        onClose={() => setViewingId(null)}
       />
       <ReassignDoctorDialog<Appointment>
         appointment={flow.reassigning}

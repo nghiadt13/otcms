@@ -4,20 +4,20 @@ import Link from "next/link";
 import { publicButtonClass } from "@/components/brand/publicButtonStyles";
 import { PATIENT_ROUTES } from "@/lib/routes/patientRoutes";
 import { cn } from "@/lib/utils";
-import { usePatientAppointment } from "../../hooks/usePatientAppointment";
 import type { BookedAppointment } from "../../types/booking";
 import { BookingResult } from "../BookingResult";
 
-// Kết quả sau khi đặt (khu bệnh nhân). "Thanh toán trực tuyến" chỉ hiện khi chi tiết lịch do BE trả
-// có `payExamFee` trong `allowedActions`; hình trả của lúc đặt không có mảng đó nên FE tải chi tiết.
+// Kết quả sau bước xác nhận đặt lịch. Lịch đã đặt và còn phí khám sẽ có đường dẫn tới hóa đơn PayOS.
 
 export function PatientBookingResult({
   appointment,
 }: {
   appointment: BookedAppointment;
 }) {
-  const { appointment: detail } = usePatientAppointment(appointment.id);
-  const canPay = detail?.allowedActions.includes("payExamFee") === true;
+  const canPay =
+    appointment.status === "BOOKED" &&
+    appointment.examFee.status === "PENDING_PAYMENT" &&
+    appointment.examFee.amount > 0;
 
   return (
     <BookingResult
@@ -35,7 +35,7 @@ export function PatientBookingResult({
               className={cn(publicButtonClass("secondary"), "w-full sm:w-auto")}
               href={PATIENT_ROUTES.payAppointment(appointment.id)}
             >
-              Thanh toán trực tuyến
+              Thanh toán phí khám
             </Link>
           ) : null}
         </>

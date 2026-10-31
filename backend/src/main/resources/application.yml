@@ -69,6 +69,15 @@ app:
     read-timeout-ms: ${APP_EMAIL_READ_TIMEOUT_MS:10000}
     write-timeout-ms: ${APP_EMAIL_WRITE_TIMEOUT_MS:10000}
     max-attempts: ${APP_EMAIL_MAX_ATTEMPTS:2}
+  payment:
+    payos:
+      enabled: ${APP_PAYMENT_PAYOS_ENABLED:false}
+      client-id: ${APP_PAYMENT_PAYOS_CLIENT_ID:}
+      api-key: ${APP_PAYMENT_PAYOS_API_KEY:}
+      checksum-key: ${APP_PAYMENT_PAYOS_CHECKSUM_KEY:}
+      return-url: ${APP_PAYMENT_PAYOS_RETURN_URL:http://localhost:3000/portal/payments/result}
+      cancel-url: ${APP_PAYMENT_PAYOS_CANCEL_URL:http://localhost:3000/portal/payments/result}
+      link-ttl-seconds: ${APP_PAYMENT_PAYOS_LINK_TTL_SECONDS:900}
   auth:
     rate-limit-hmac-secret: ${APP_AUTH_RATE_LIMIT_HMAC_SECRET:}
     staff-network:

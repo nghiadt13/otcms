@@ -73,7 +73,15 @@ export function PatientAppointmentDetail({ id }: { id: string }) {
         </Alert>
       ) : null}
       <PatientAppointmentFacts appointment={appointment} />
-      {appointment.status === "BOOKED" ? (
+      {appointment.status === "BOOKED" &&
+      appointment.examFee.status === "PAID" &&
+      !appointment.allowedActions.includes("cancel") ? (
+        <p className="text-base text-muted-foreground">
+          Lịch hẹn đã qua và phí khám đã thanh toán. Vui lòng liên hệ lễ tân để được hỗ trợ.
+        </p>
+      ) : null}
+      {appointment.status === "BOOKED" &&
+      appointment.allowedActions.includes("cancel") ? (
         <p className="text-base text-muted-foreground">
           {arrivalNote(patientCode)}
         </p>
