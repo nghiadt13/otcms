@@ -1,27 +1,132 @@
-import { getSupabaseBrowserClient } from "@/lib/supabase/browser";
+import { apiBaseUrl } from "./apiBaseUrl";
+import {
+  getAccessToken,
+  getCsrfToken,
+  refreshSession,
+} from "@/lib/auth/authSession";
+import { ApiError, type ApiFieldError, type MsgCode } from "./apiError";
 
-const apiBaseUrl =
-  process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8080";
+type ProblemDetail = {
+  status?: number;
+  detail?: string;
+  code?: MsgCode;
+  params?: Record<string, string | number>;
+  fieldErrors?: ApiFieldError[];
+  /** Hình lỗi của backend: `{ error: { code, message } }`. */
+  error?: { code?: string };
+};
 
-export async function apiRequest<T>(
+const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
+
+const isMutation = (init: RequestInit) =>
+  !SAFE_METHODS.has((init.method ?? "GET").toUpperCase());
+
+async function authorizedHeaders(init: RequestInit) {
+  const accessToken = await getAccessToken();
+  if (!accessToken) throw new Error("Bạn cần đăng nhập để tiếp tục.");
+
+  const headers = new Headers(init.headers);
+  headers.set("Authorization", `Bearer ${accessToken}`);
+  // FormData: để trình duyệt tự đặt Content-Type kèm boundary.
+  if (
+    init.body &&
+    !(init.body instanceof FormData) &&
+    !headers.has("Content-Type")
+  )
+    headers.set("Content-Type", "application/json");
+  // Request ghi dữ liệu cần CSRF (xem getCsrfToken); GET không cần.
+  // Spring may clear the XSRF cookie after an authenticated mutation. Fetch a fresh
+  // cookie and matching header for each write instead of reusing an in-memory token.
+  if (isMutation(init)) headers.set("X-CSRF-TOKEN", await getCsrfToken(true));
+  return headers;
+}
+
+async function toApiError(response: Response): Promise<ApiError> {
+  let problem: ProblemDetail = {};
+  try {
+    problem = (await response.json()) as ProblemDetail;
+  } catch {
+    // Không có thân JSON: giữ mã HTTP.
+  }
+  return new ApiError(response.status, {
+    ...problem,
+    errorCode: problem.error?.code,
+  });
+}
+
+/** Gọi endpoint công khai không cần session; giữ cùng base URL và lỗi API chuẩn. */
+export async function publicApiRequest<T>(
   path: `/api/v1/${string}`,
   init: RequestInit = {},
 ): Promise<T> {
-  const {
-    data: { session },
-  } = await getSupabaseBrowserClient().auth.getSession();
-  if (!session) throw new Error("Bạn cần đăng nhập để tiếp tục.");
-
   const headers = new Headers(init.headers);
-  headers.set("Authorization", `Bearer ${session.access_token}`);
-  if (init.body && !headers.has("Content-Type"))
-    headers.set("Content-Type", "application/json");
-
+  if (!headers.has("Accept")) headers.set("Accept", "application/json");
   const response = await fetch(`${apiBaseUrl}${path}`, {
     ...init,
     headers,
     cache: "no-store",
   });
-  if (!response.ok) throw new Error(`API trả về mã ${response.status}.`);
+  if (!response.ok) throw await toApiError(response);
+  if (response.status === 204) return undefined as T;
   return response.json() as Promise<T>;
+}
+
+/** Gọi API JSON. `init.signal` huỷ request; 204 trả `undefined`; lỗi ném `ApiError`. */
+export async function apiRequest<T>(
+  path: `/api/v1/${string}`,
+  init: RequestInit = {},
+): Promise<T> {
+  let response = await send(path, init);
+  // CSRF lệch cookie ở request ghi dữ liệu: backend trả 403, hoặc 401 vì bộ lọc CSRF chạy trước
+  // bộ lọc JWT nên request còn ẩn danh. Lấy token mới và thử lại đúng một lần.
+  if ((response.status === 403 || response.status === 401) && isMutation(init))
+    response = await send(path, init);
+  if (!response.ok) throw await toApiError(response);
+  if (response.status === 204) return undefined as T;
+  return response.json() as Promise<T>;
+}
+
+async function send(
+  path: `/api/v1/${string}`,
+  init: RequestInit,
+): Promise<Response> {
+  const headers = await authorizedHeaders(init);
+  const response = await fetch(`${apiBaseUrl}${path}`, {
+    ...init,
+    headers,
+    // Cookie XSRF-TOKEN phải đi kèm request ghi dữ liệu sang backend (khác origin).
+    credentials: isMutation(init) ? "include" : init.credentials,
+    cache: "no-store",
+  });
+  if (response.status !== 401) return response;
+
+  const session = await refreshSession();
+  if (!session) return response;
+  headers.set("Authorization", `Bearer ${session.accessToken}`);
+  return fetch(`${apiBaseUrl}${path}`, {
+    ...init,
+    headers,
+    credentials: isMutation(init) ? "include" : init.credentials,
+    cache: "no-store",
+  });
+}
+
+/** Tải tệp nhị phân (xuất báo cáo). Đọc tên tệp từ `Content-Disposition`. */
+export async function fetchBlob(
+  path: `/api/v1/${string}`,
+  init: RequestInit = {},
+): Promise<{ blob: Blob; fileName: string }> {
+  const headers = await authorizedHeaders(init);
+  const response = await fetch(`${apiBaseUrl}${path}`, {
+    ...init,
+    headers,
+    cache: "no-store",
+  });
+  if (!response.ok) throw await toApiError(response);
+  const disposition = response.headers.get("Content-Disposition") ?? "";
+  const match = /filename="?([^";]+)"?/i.exec(disposition);
+  return {
+    blob: await response.blob(),
+    fileName: match ? decodeURIComponent(match[1]) : "tai-ve",
+  };
 }
