@@ -9,22 +9,25 @@ const PORTAL_HOME = "/portal";
 const PARSE_BASE = "http://otcms.local";
 const MAX_LENGTH = 2048;
 
-export function safePortalNext(next: string | null | undefined): string {
-  if (typeof next !== "string" || next.length === 0) return SITE_HOME;
-  if (next.length > MAX_LENGTH) return SITE_HOME;
+export function safePortalNext(
+  next: string | null | undefined,
+  fallback = SITE_HOME,
+): string {
+  if (typeof next !== "string" || next.length === 0) return fallback;
+  if (next.length > MAX_LENGTH) return fallback;
   // Phải bắt đầu bằng đúng một "/": "//host" và "/\host" là URL ngoài trên trình duyệt.
-  if (!next.startsWith("/") || next.startsWith("//")) return SITE_HOME;
-  if (hasBackslashOrControlChar(next)) return SITE_HOME;
+  if (!next.startsWith("/") || next.startsWith("//")) return fallback;
+  if (hasBackslashOrControlChar(next)) return fallback;
 
   let url: URL;
   try {
     url = new URL(next, PARSE_BASE);
   } catch {
-    return SITE_HOME;
+    return fallback;
   }
   const inPortal =
     url.pathname === PORTAL_HOME || url.pathname.startsWith(`${PORTAL_HOME}/`);
-  if (url.origin !== PARSE_BASE || !inPortal) return SITE_HOME;
+  if (url.origin !== PARSE_BASE || !inPortal) return fallback;
   return `${url.pathname}${url.search}${url.hash}`;
 }
 

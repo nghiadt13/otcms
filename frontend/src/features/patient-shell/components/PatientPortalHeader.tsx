@@ -39,6 +39,8 @@ export function PatientPortalHeader({
   // Tên từ backend; trong lúc chờ (hiếm: cổng đã xác nhận trước khi vẽ header) dùng nhãn chung.
   const displayName =
     current.status === "signedIn" ? current.account.displayName : "Tài khoản";
+  const accountEmail =
+    current.status === "signedIn" ? current.account.email : undefined;
   // Khách chưa đăng nhập chỉ vào được màn đặt lịch: thay menu khu bệnh nhân bằng Đăng nhập / Đăng ký.
   const guest = current.status === "anonymous";
   const showBookButton = pathname !== PATIENT_ROUTES.newAppointment;
@@ -78,6 +80,7 @@ export function PatientPortalHeader({
               {notificationSlot}
               <PatientAccountMenu
                 displayName={displayName}
+                email={accountEmail}
                 links={PATIENT_ACCOUNT_LINKS}
                 roleLabel={ROLE_LABELS.PATIENT}
               />

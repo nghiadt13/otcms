@@ -27,10 +27,12 @@ function initialsOf(name: string): string {
 // `aria-label` nêu tên. Menu có tên và vai trò, các mục tài khoản, rồi Đăng xuất.
 export function PatientAccountMenu({
   displayName,
+  email,
   roleLabel,
   links,
 }: {
   displayName: string;
+  email?: string;
   roleLabel: string;
   links: readonly PatientAccountLink[];
 }) {
@@ -68,6 +70,7 @@ export function PatientAccountMenu({
         <div className="px-2 py-2">
           <p className="text-base font-medium">{displayName}</p>
           <p className="text-sm text-muted-foreground">{roleLabel}</p>
+          {email ? <p className="truncate text-xs text-muted-foreground">{email}</p> : null}
         </div>
         <DropdownMenuSeparator />
         {links.map((link) => (

@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OTCMS — User Requirements & Use Case Descriptions</title>
+<style>
+*{box-sizing:border-box}html{scroll-behavior:auto}body{max-width:1280px;margin:0 auto;padding:36px 42px;color:#222;background:#fff;font-family:Arial,sans-serif;font-size:15px;line-height:1.5}h1{font-size:27px;line-height:1.25;margin:0 0 14px}h2{font-size:21px;margin:30px 0 12px}p{margin:10px 0 16px}.eyebrow{font-size:12px;font-weight:bold;letter-spacing:.06em;color:#68524c;text-transform:uppercase}.note{margin:14px 0 20px;padding:12px 16px;border-left:4px solid #95756a;background:#f7f4f2}.note p:last-child{margin-bottom:0}.muted{color:#595959;font-size:14px}nav{display:flex;flex-wrap:wrap;gap:9px 22px;margin:18px 0 24px}a{color:#68433a;text-underline-offset:3px}a:focus-visible,summary:focus-visible{outline:3px solid #9e6351;outline-offset:4px}table{border-collapse:collapse;width:100%;margin:12px 0 24px;table-layout:fixed}th,td{border:1px solid #999;padding:10px 12px;text-align:left;vertical-align:top;overflow-wrap:anywhere}thead th{background:#f1d6cf;font-family:Arial,sans-serif;font-size:14px;font-weight:700}caption{text-align:left;color:#595959;font-size:13px;margin:0 0 8px}.uc-table{font-family:"Times New Roman",serif;font-size:16px;line-height:1.4}.uc-id{text-align:center;white-space:nowrap;font-size:14px;font-family:Arial,sans-serif;font-weight:normal}.area{background:#faf5f3;font-family:Arial,sans-serif;font-size:14px;font-weight:600}.uc-name{font-weight:bold}.group-start>*{border-top:2px solid #95756a}details{margin:18px 0;border:1px solid #bbb;padding:12px 16px}summary{cursor:pointer;font-weight:700}details[open] summary{margin-bottom:14px}.trace{font-size:13px}.review{font-size:14px}.review td:first-child{font-weight:bold}footer{border-top:1px solid #aaa;margin-top:28px;padding-top:12px;font-size:13px;color:#595959}
+@media(max-width:720px){body{padding:22px 12px;font-size:14px}h1{font-size:23px}th,td{padding:7px 6px}.uc-table{font-size:14px}.uc-table .area{font-size:12px}.uc-id{font-size:11px}thead th{font-size:12px}.review,.trace{font-size:12px}details{padding:10px 8px}}
+@media print{@page{size:A4 landscape;margin:12mm}body{max-width:none;padding:0;font-size:10pt}nav{display:none}h1{font-size:19pt}h2{font-size:14pt;break-after:avoid}table{font-size:9pt}.uc-table{font-size:10pt}th,td{padding:6px 7px}thead{display:table-header-group}tr{break-inside:avoid}.note{break-inside:avoid}details:not([open]){display:none}a{color:inherit;text-decoration:none}}
+</style>
+</head>
+<body>
+<main>
+<p class="eyebrow">Orthopedic Clinic Management System · Review draft</p>
+<h1>1.3 User Requirements — Use Case Overview</h1>
+<p>This revision describes the system at the level of user goals, covering appointment booking, reception and queues, orthopedic care, diagnostic imaging, follow-up, billing, and supporting clinic administration.</p>
+<div class="note" lang="vi"><strong>Bản chỉnh để nhóm review: 69 use case, đánh số liên tục từ UC01 đến UC69.</strong> Phần theo dõi điều trị chi tiết được thay bằng lời dặn sau khám và đơn thuốc điện tử. Mã UC của bản cũ chỉ xuất hiện trong bảng đối chiếu ở cuối tài liệu.</div>
+<nav aria-label="Document sections"><a href="#scope">Scope</a><a href="#actors">Actors</a><a href="#use-cases">Use Cases</a><a href="#support">Supporting Behavior</a><a href="#decisions">Điểm cần chốt</a><a href="#traceability">Đối chiếu thay đổi</a></nav>
+<section id="scope"><h2>1.3.0 Scope & Description Conventions</h2>
+<table class="">
+<colgroup><col style="width:21%"><col style="width:79%"></colgroup>
+<thead><tr><th scope="col">Area</th><th scope="col">Scope</th></tr></thead><tbody>
+<tr><td>Included</td><td>Patient and dependent profiles; appointment booking; reception, room and queue coordination; orthopedic consultations and visit results; care advice and e-prescriptions; diagnostic imaging and DICOM access; patient billing; reviews; notifications; basic clinic administration and reporting.</td></tr>
+<tr><td>Excluded</td><td>Staff HR records, employment administration, shift/workforce scheduling, leave, payroll and payslips; equipment and supply inventory; medicine stock, dispensing and sales; detailed treatment-plan and recovery-progress tracking; custom role/permission management; discounts and promotion management.</td></tr>
+<tr><td>Access model</td><td>Employee account types map to predefined roles. Creating login accounts remains in scope. Patient access is limited to personal records and explicitly permitted dependent records; staff access follows their assigned responsibilities.</td></tr>
+<tr><td>Clinical boundary</td><td>Visit-level examination results, diagnoses, patient-facing advice, e-prescriptions, issued clinical documents, and diagnostic images remain in scope. The system does not manage detailed long-term treatment plans, treatment sessions, or recovery measurements.</td></tr>
+<tr><td>Description level</td><td>Each use case states an actor goal, principal capability and outcome. Detailed steps, alternative flows, validations, status transitions and technical implementation belong in later specifications.</td></tr>
+</tbody></table></section>
+<section id="actors"><h2>1.3.1 Actors</h2>
+<table class="">
+<colgroup><col style="width:5%"><col style="width:23%"><col style="width:72%"></colgroup>
+<thead><tr><th scope="col">#</th><th scope="col">Actor</th><th scope="col">Description</th></tr></thead><tbody>
+<tr><td>1</td><td>Guest</td><td>An unauthenticated visitor who browses public clinic information, services, doctor profiles, announcements, and reviews, and may register a Patient account.</td></tr>
+<tr><td>2</td><td>Patient</td><td>A registered clinic customer who maintains personal and permitted dependent profiles, books appointments, tracks visits, accesses permitted consultation results, documents, imaging and e-prescriptions, makes payments, and submits feedback.</td></tr>
+<tr><td>3</td><td>Receptionist</td><td>A front-desk employee who maintains permitted patient information, supports appointments and check-in, coordinates rooms and queues, tracks and closes visits, records payments, and provides invoices and receipts.</td></tr>
+<tr><td>4</td><td>Orthopedic Doctor</td><td>A clinician who reviews patient records, documents consultations and diagnoses, gives care advice, issues e-prescriptions, requests and reviews diagnostic imaging, completes imaging findings, and recommends follow-up care.</td></tr>
+<tr><td>5</td><td>Diagnostic Imaging Technician</td><td>An imaging employee who reviews requests, submits verified DICOM studies for doctor review, monitors imaging progress and room availability, and supports patient return to the requesting doctor.</td></tr>
+<tr><td>6</td><td>Administrator</td><td>An administrator who manages permitted accounts, clinic services and pricing, rooms, public content, announcements, and patient reviews, and reviews payments, audit information, dashboards, and reports.</td></tr>
+<tr><td>7</td><td>Clinic Owner</td><td>A clinic executive who manages Administrator accounts and reviews clinic performance, payment information, outstanding balances, audit logs, and operational reports.</td></tr>
+<tr><td>8</td><td>Payment Gateway</td><td>An external service that processes online invoice payments and returns transaction results to the clinic system.</td></tr>
+<tr><td>9</td><td>Authentication Service</td><td>An external provider, when used, that supports account verification, sign-in, and password recovery. It is an external actor only if authentication is provided outside OTCMS.</td></tr>
+<tr><td>10</td><td>Notification Service</td><td>An external communication service that delivers verification messages, event notifications, reminders, and clinic announcements through supported channels.</td></tr>
+</tbody></table></section>
+<section id="use-cases"><h2>1.3.2 Use Case Descriptions</h2>
+<p class="muted">Functional areas group related goals; they are not additional use cases. Actor permissions continue to apply after use cases are merged.</p>
+<table class="uc-table">
+<caption>Use case overview — actor goals and functional coverage</caption>
+<colgroup><col style="width:7%"><col style="width:19%"><col style="width:23%"><col style="width:51%"></colgroup>
+<thead><tr><th scope="col">ID</th><th scope="col">Functional Area</th><th scope="col">Use Case</th><th scope="col">Use Case Description</th></tr></thead><tbody>
+<tr id="UC01" class="group-start"><th scope="row" class="uc-id">UC01</th>
+<td rowspan="5" class="area">User Access &amp; Personal Account Management</td>
+<td class="uc-name">Sign In</td><td>Allows registered users to sign in and use the features available to their account type.</td></tr>
+<tr id="UC02" class=""><th scope="row" class="uc-id">UC02</th>
+<td class="uc-name">Reset Password</td><td>Allows a registered user to confirm their identity through their email address and set a new password.</td></tr>
+<tr id="UC03" class=""><th scope="row" class="uc-id">UC03</th>
+<td class="uc-name">View and Update Account Details</td><td>Allows a signed-in user to view and change their name, contact details, and avatar where allowed.</td></tr>
+<tr id="UC04" class=""><th scope="row" class="uc-id">UC04</th>
+<td class="uc-name">Change Password</td><td>Allows a signed-in user to confirm their identity and change their password.</td></tr>
+<tr id="UC05" class=""><th scope="row" class="uc-id">UC05</th>
+<td class="uc-name">Register Patient Account</td><td>Allows a Guest to create and verify a Patient account for booking appointments and using personal clinic services.</td></tr>
+<tr id="UC06" class="group-start"><th scope="row" class="uc-id">UC06</th>
+<td rowspan="3" class="area">Account Administration</td>
+<td class="uc-name">Create Employee Account</td><td>Allows an Administrator to create accounts for Receptionists, Orthopedic Doctors, and Diagnostic Imaging Technicians using the existing staff roles. The Clinic Owner creates Administrator accounts.</td></tr>
+<tr id="UC07" class=""><th scope="row" class="uc-id">UC07</th>
+<td class="uc-name">Activate or Deactivate Account</td><td>Allows an Administrator to activate, deactivate, or restore Patient and employee accounts they are responsible for. The Clinic Owner controls Administrator accounts.</td></tr>
+<tr id="UC08" class=""><th scope="row" class="uc-id">UC08</th>
+<td class="uc-name">View User Accounts</td><td>Allows Administrators to search and view the Patient and employee accounts they are responsible for, including account type and status. The Clinic Owner can view Administrator accounts.</td></tr>
+<tr id="UC09" class="group-start"><th scope="row" class="uc-id">UC09</th>
+<td rowspan="7" class="area">Patient &amp; Family Profile Management</td>
+<td class="uc-name">Create Walk-in Patient Profile</td><td>Allows a Receptionist to create a basic profile for a walk-in patient so the clinic can save visits and records under the right patient.</td></tr>
+<tr id="UC10" class=""><th scope="row" class="uc-id">UC10</th>
+<td class="uc-name">Update Patient Details</td><td>Allows Patients to change their own personal and contact details where allowed. Receptionists can update the details needed to identify and contact patients.</td></tr>
+<tr id="UC11" class=""><th scope="row" class="uc-id">UC11</th>
+<td class="uc-name">View Patient Details</td><td>Allows Patients to view their own or approved dependents&#x27; profiles. Receptionists and Orthopedic Doctors can view patient details needed for their work.</td></tr>
+<tr id="UC12" class=""><th scope="row" class="uc-id">UC12</th>
+<td class="uc-name">Record Patient Medical History</td><td>Allows Patients and Orthopedic Doctors to add or update information about conditions, allergies, past procedures, injuries, and orthopedic history. Receptionists can record basic background information where allowed.</td></tr>
+<tr id="UC13" class=""><th scope="row" class="uc-id">UC13</th>
+<td class="uc-name">Add Dependent Profile</td><td>Allows a Patient to add a profile for a person under their care, so they can book appointments and view the visit information they are allowed to access.</td></tr>
+<tr id="UC14" class=""><th scope="row" class="uc-id">UC14</th>
+<td class="uc-name">Update Dependent Profile</td><td>Allows a Patient to change the personal and contact details of a dependent under their care.</td></tr>
+<tr id="UC15" class=""><th scope="row" class="uc-id">UC15</th>
+<td class="uc-name">Remove Dependent Profile</td><td>Allows a Patient to stop managing a dependent profile while keeping that person&#x27;s past medical records.</td></tr>
+<tr id="UC16" class="group-start"><th scope="row" class="uc-id">UC16</th>
+<td rowspan="6" class="area">Appointment Booking &amp; Management</td>
+<td class="uc-name">View Orthopedic Doctors</td><td>Allows Guests and Patients to view doctors&#x27; profiles, specialties, clinic information, and a summary of available times when choosing a doctor.</td></tr>
+<tr id="UC17" class=""><th scope="row" class="uc-id">UC17</th>
+<td class="uc-name">View Open Appointment Times</td><td>Allows Patients and Receptionists to see the open appointment times of a chosen Orthopedic Doctor for a date or period.</td></tr>
+<tr id="UC18" class=""><th scope="row" class="uc-id">UC18</th>
+<td class="uc-name">Book Appointment</td><td>Allows Patients and Receptionists to book a first or follow-up visit for a patient or approved dependent, choosing a doctor, service, and open time. Orthopedic Doctors can also book follow-up visits they recommend.</td></tr>
+<tr id="UC19" class=""><th scope="row" class="uc-id">UC19</th>
+<td class="uc-name">Change Appointment Time</td><td>Allows a Patient or Receptionist to move an appointment that can still be changed to another open time, while keeping its patient and visit information.</td></tr>
+<tr id="UC20" class=""><th scope="row" class="uc-id">UC20</th>
+<td class="uc-name">Cancel Appointment</td><td>Allows a Patient or Receptionist to cancel an appointment that can still be cancelled and make its time available again.</td></tr>
+<tr id="UC21" class=""><th scope="row" class="uc-id">UC21</th>
+<td class="uc-name">View Appointments</td><td>Allows Patients, Receptionists, and Orthopedic Doctors to view the appointments, current status, and past bookings related to them.</td></tr>
+<tr id="UC22" class="group-start"><th scope="row" class="uc-id">UC22</th>
+<td rowspan="7" class="area">Patient Reception &amp; Visit Coordination</td>
+<td class="uc-name">Check In Patient</td><td>Allows a Receptionist to confirm that a booked or walk-in patient has arrived, start the visit, and place the patient in the first waiting list.</td></tr>
+<tr id="UC23" class=""><th scope="row" class="uc-id">UC23</th>
+<td class="uc-name">View Reception Queue</td><td>Allows a Receptionist to see who is waiting at reception, their check-in order, appointment, and queue status.</td></tr>
+<tr id="UC24" class=""><th scope="row" class="uc-id">UC24</th>
+<td class="uc-name">Assign or Change Patient Room</td><td>Allows a Receptionist to assign or change the room for a patient&#x27;s next service based on care needs and room availability. An Orthopedic Doctor can assign the room needed for the next clinical service. The related waiting lists are updated.</td></tr>
+<tr id="UC25" class=""><th scope="row" class="uc-id">UC25</th>
+<td class="uc-name">View Room Queue</td><td>Allows Receptionists, Orthopedic Doctors, and Diagnostic Imaging Technicians to see the waiting lists for rooms they work with and who is being served.</td></tr>
+<tr id="UC26" class=""><th scope="row" class="uc-id">UC26</th>
+<td class="uc-name">Change Queue Order</td><td>Allows a Receptionist to change a patient&#x27;s place in a waiting list, record the reason, and keep a history of the change.</td></tr>
+<tr id="UC27" class=""><th scope="row" class="uc-id">UC27</th>
+<td class="uc-name">View Visit Progress</td><td>Allows Patients to see the current stage, room, queue, and completed services for their own or approved dependents&#x27; visits. Clinic staff can follow visits across rooms as needed for their work.</td></tr>
+<tr id="UC28" class=""><th scope="row" class="uc-id">UC28</th>
+<td class="uc-name">Close Patient Visit</td><td>Allows a Receptionist to close a visit after all required clinical services are done, so its final status can be used for medical history, billing, and follow-up.</td></tr>
+<tr id="UC29" class="group-start"><th scope="row" class="uc-id">UC29</th>
+<td rowspan="6" class="area">Orthopedic Consultation &amp; Medical Records</td>
+<td class="uc-name">Record Orthopedic Examination</td><td>Allows an Orthopedic Doctor to record the patient&#x27;s reason for visiting, symptoms, examination findings, diagnosis, and injury type. The doctor can complete the examination result and note any further care or follow-up needed.</td></tr>
+<tr id="UC30" class=""><th scope="row" class="uc-id">UC30</th>
+<td class="uc-name">Upload Medical Document</td><td>Allows an Orthopedic Doctor or Receptionist to add allowed documents, such as referrals or reports from outside the clinic, to the correct patient and visit.</td></tr>
+<tr id="UC31" class=""><th scope="row" class="uc-id">UC31</th>
+<td class="uc-name">Update Medical Document</td><td>Allows an Orthopedic Doctor to correct document details or update a medical document while changes are still allowed.</td></tr>
+<tr id="UC32" class=""><th scope="row" class="uc-id">UC32</th>
+<td class="uc-name">View Medical Document</td><td>Allows Orthopedic Doctors and Receptionists to view patient documents needed for their work. Patients can view clinic documents and other allowed files for their own or approved dependents&#x27; visits.</td></tr>
+<tr id="UC33" class=""><th scope="row" class="uc-id">UC33</th>
+<td class="uc-name">View Past Medical Records</td><td>Allows an Orthopedic Doctor to check earlier visits, diagnoses, care advice, prescriptions, and imaging results before or during the current examination.</td></tr>
+<tr id="UC34" class=""><th scope="row" class="uc-id">UC34</th>
+<td class="uc-name">View Examination Results</td><td>Allows a Patient to see completed examination findings, diagnoses, and care advice for their own or approved dependents&#x27; visits when the clinic has made the results available.</td></tr>
+<tr id="UC35" class="group-start"><th scope="row" class="uc-id">UC35</th>
+<td rowspan="3" class="area">Care Advice &amp; e-Prescriptions</td>
+<td class="uc-name">Record After-Visit Advice</td><td>Allows an Orthopedic Doctor to record advice about home care, activity, rehabilitation, warning signs, and follow-up for the current visit.</td></tr>
+<tr id="UC36" class=""><th scope="row" class="uc-id">UC36</th>
+<td class="uc-name">Write e-Prescription</td><td>Allows an Orthopedic Doctor to write an electronic prescription for a visit, including medicines and how to use them. The clinic does not manage medicine stock or dispensing in this use case.</td></tr>
+<tr id="UC37" class=""><th scope="row" class="uc-id">UC37</th>
+<td class="uc-name">View e-Prescriptions</td><td>Allows a Patient to see prescriptions issued for their own or approved dependents&#x27; visits and open the related prescription document.</td></tr>
+<tr id="UC38" class="group-start"><th scope="row" class="uc-id">UC38</th>
+<td rowspan="3" class="area">Diagnostic Imaging Requests &amp; Study Submission</td>
+<td class="uc-name">Request X-ray, CT, or MRI</td><td>Allows an Orthopedic Doctor to request an initial or additional scan, state the body area and reason, and link the request to the patient and visit.</td></tr>
+<tr id="UC39" class=""><th scope="row" class="uc-id">UC39</th>
+<td class="uc-name">View Imaging Requests</td><td>Allows a Diagnostic Imaging Technician to see pending imaging requests and check the patient, scan type, body area, reason, requesting doctor, and instructions.</td></tr>
+<tr id="UC40" class=""><th scope="row" class="uc-id">UC40</th>
+<td class="uc-name">Upload and Send Imaging Study</td><td>Allows a Diagnostic Imaging Technician to upload a DICOM study, check that it matches the patient and request, and send the stored images and study details to the requesting Orthopedic Doctor.</td></tr>
+<tr id="UC41" class="group-start"><th scope="row" class="uc-id">UC41</th>
+<td rowspan="4" class="area">Imaging Review &amp; Patient Access</td>
+<td class="uc-name">View DICOM Images</td><td>Allows an Orthopedic Doctor to open a patient&#x27;s DICOM study and view its images, series, and study details in the built-in viewer.</td></tr>
+<tr id="UC42" class=""><th scope="row" class="uc-id">UC42</th>
+<td class="uc-name">Record Imaging Findings</td><td>Allows an Orthopedic Doctor to record findings after reviewing an imaging study. The completed study and findings then appear in the patient&#x27;s visit record.</td></tr>
+<tr id="UC43" class=""><th scope="row" class="uc-id">UC43</th>
+<td class="uc-name">View Diagnostic Images</td><td>Allows a Patient to view completed images and read the related findings for their own or approved dependents&#x27; visits.</td></tr>
+<tr id="UC44" class=""><th scope="row" class="uc-id">UC44</th>
+<td class="uc-name">View Imaging Request Status</td><td>Allows Receptionists, Orthopedic Doctors, and Diagnostic Imaging Technicians to see each imaging request&#x27;s status from the time it is made until findings are completed.</td></tr>
+<tr id="UC45" class="group-start"><th scope="row" class="uc-id">UC45</th>
+<td rowspan="7" class="area">Invoices &amp; Patient Payments</td>
+<td class="uc-name">Create Invoice</td><td>Allows a Receptionist to create an invoice listing the services provided during a visit, their prices, and the total amount to pay.</td></tr>
+<tr id="UC46" class=""><th scope="row" class="uc-id">UC46</th>
+<td class="uc-name">View Invoice</td><td>Allows Patients to see their own invoices and Receptionists to review patient invoices, including charges, total cost, paid amount, amount still due, and payment status.</td></tr>
+<tr id="UC47" class=""><th scope="row" class="uc-id">UC47</th>
+<td class="uc-name">Record Payment at Clinic</td><td>Allows a Receptionist to record a full or partial payment made at the clinic for an invoice and update the paid amount, amount still due, and payment history.</td></tr>
+<tr id="UC48" class=""><th scope="row" class="uc-id">UC48</th>
+<td class="uc-name">Pay Invoice Online</td><td>Allows a Patient to pay an invoice that accepts online payment through the Payment Gateway and see the payment and invoice status.</td></tr>
+<tr id="UC49" class=""><th scope="row" class="uc-id">UC49</th>
+<td class="uc-name">View Payment History</td><td>Allows Patients to see their own completed payments. Receptionists, Administrators, and Clinic Owners can view the payment records needed for their work.</td></tr>
+<tr id="UC50" class=""><th scope="row" class="uc-id">UC50</th>
+<td class="uc-name">View Unpaid Invoices</td><td>Allows Receptionists, Administrators, and Clinic Owners to find unpaid or partly paid invoices and see how much is still due.</td></tr>
+<tr id="UC51" class=""><th scope="row" class="uc-id">UC51</th>
+<td class="uc-name">Print Invoice and Export Receipt</td><td>Allows a Receptionist to print an invoice and export or print a receipt for a recorded payment.</td></tr>
+<tr id="UC52" class="group-start"><th scope="row" class="uc-id">UC52</th>
+<td rowspan="4" class="area">Patient Reviews &amp; Clinic Responses</td>
+<td class="uc-name">Rate and Review Clinic</td><td>Allows a Patient to give a rating and written review for a completed clinic visit when reviews are allowed for that visit.</td></tr>
+<tr id="UC53" class=""><th scope="row" class="uc-id">UC53</th>
+<td class="uc-name">View Public Reviews</td><td>Allows Guests and Patients to read patient reviews shown on the clinic website and the clinic&#x27;s replies to them.</td></tr>
+<tr id="UC54" class=""><th scope="row" class="uc-id">UC54</th>
+<td class="uc-name">Approve or Hide Patient Reviews</td><td>Allows an Administrator to read submitted reviews, decide which ones appear publicly, and hide a published review when needed.</td></tr>
+<tr id="UC55" class=""><th scope="row" class="uc-id">UC55</th>
+<td class="uc-name">Reply to Patient Review</td><td>Allows an Administrator to post a clinic reply to a patient review.</td></tr>
+<tr id="UC56" class="group-start"><th scope="row" class="uc-id">UC56</th>
+<td rowspan="1" class="area">Personal Notifications</td>
+<td class="uc-name">View Notifications</td><td>Allows signed-in users to read messages about appointments, visits, imaging results, follow-up, payments, and clinic announcements, and mark messages as read.</td></tr>
+<tr id="UC57" class="group-start"><th scope="row" class="uc-id">UC57</th>
+<td rowspan="4" class="area">Clinic Room Management</td>
+<td class="uc-name">View Rooms and Availability</td><td>Allows Receptionists, Orthopedic Doctors, Diagnostic Imaging Technicians, and Administrators to see room types, supported services, and whether rooms are available for their work.</td></tr>
+<tr id="UC58" class=""><th scope="row" class="uc-id">UC58</th>
+<td class="uc-name">Add Clinic Room</td><td>Allows an Administrator to add a clinic room with its type and supported services so it can be used when assigning patients and managing waiting lists.</td></tr>
+<tr id="UC59" class=""><th scope="row" class="uc-id">UC59</th>
+<td class="uc-name">Update Room Details</td><td>Allows an Administrator to change a room&#x27;s description and supported services.</td></tr>
+<tr id="UC60" class=""><th scope="row" class="uc-id">UC60</th>
+<td class="uc-name">Mark Room Available or Unavailable</td><td>Allows Receptionists, Orthopedic Doctors, Diagnostic Imaging Technicians, and Administrators to mark a room as available or temporarily unavailable for patients, within their assigned responsibilities.</td></tr>
+<tr id="UC61" class="group-start"><th scope="row" class="uc-id">UC61</th>
+<td rowspan="3" class="area">Clinic Service Catalog &amp; Pricing</td>
+<td class="uc-name">Add Clinic Service</td><td>Allows an Administrator to add a clinic service with its name, description, price, and details needed for bookings and invoices.</td></tr>
+<tr id="UC62" class=""><th scope="row" class="uc-id">UC62</th>
+<td class="uc-name">Update Service Details and Price</td><td>Allows an Administrator to change service details, price, and whether the service is offered, while keeping the prices recorded for past visits.</td></tr>
+<tr id="UC63" class=""><th scope="row" class="uc-id">UC63</th>
+<td class="uc-name">View Services and Prices</td><td>Allows Guests, Patients, Receptionists, and Administrators to see clinic services and public prices when choosing a service or helping a patient.</td></tr>
+<tr id="UC64" class="group-start"><th scope="row" class="uc-id">UC64</th>
+<td rowspan="3" class="area">Website Content &amp; Clinic Announcements</td>
+<td class="uc-name">Add or Edit Clinic Website Content</td><td>Allows an Administrator to add or update public clinic information, health articles, and information pages.</td></tr>
+<tr id="UC65" class=""><th scope="row" class="uc-id">UC65</th>
+<td class="uc-name">Post Clinic Announcement</td><td>Allows an Administrator to post a clinic announcement for a chosen group and send it through available notification channels.</td></tr>
+<tr id="UC66" class=""><th scope="row" class="uc-id">UC66</th>
+<td class="uc-name">View Clinic Information and Announcements</td><td>Allows Guests and Patients to read published clinic information, opening details, and announcements available to them.</td></tr>
+<tr id="UC67" class="group-start"><th scope="row" class="uc-id">UC67</th>
+<td rowspan="3" class="area">Audit &amp; Operational Reporting</td>
+<td class="uc-name">View System Activity Logs</td><td>Allows Administrators and Clinic Owners to see recorded actions involving accounts, medical records, and clinic operations, including who took each action, when, and which record it affected.</td></tr>
+<tr id="UC68" class=""><th scope="row" class="uc-id">UC68</th>
+<td class="uc-name">View Clinic Dashboard</td><td>Allows Administrators and Clinic Owners to see a summary for a chosen period: appointments, visits and queues, imaging, services, payments received, unpaid amounts, and patient feedback.</td></tr>
+<tr id="UC69" class=""><th scope="row" class="uc-id">UC69</th>
+<td class="uc-name">Create Clinic Reports</td><td>Allows Administrators and Clinic Owners to create reports for a chosen period on appointments, visits, imaging, services, payments, unpaid amounts, and patient feedback.</td></tr>
+</tbody></table></section>
+<section id="support"><h2>1.3.3 Supporting System Behavior</h2>
+<p class="muted">These requirements preserve shared functionality without treating storage, status changes, or automatic dispatch as separate user goals.</p>
+<table class="">
+<colgroup><col style="width:8%"><col style="width:24%"><col style="width:68%"></colgroup>
+<thead><tr><th scope="col">Reference</th><th scope="col">Behavior</th><th scope="col">Description</th></tr></thead><tbody>
+<tr><td>BR-01</td><td>Automatic Notifications &amp; Reminders</td><td>The system sends relevant appointment confirmations and changes, visit/room updates, imaging updates, follow-up reminders, payment notices, and clinic announcements through the Notification Service. Delivery outcomes are recorded when supported. This behavior supports the related use cases rather than introducing a separate user goal.</td></tr>
+<tr><td>BR-02</td><td>Visit &amp; Queue Coordination</td><td>Clinical completion, room assignment and imaging completion update the visit and relevant queues. Completing or submitting imaging supports return to the requesting doctor&#x27;s queue. Queue history is preserved; room occupancy follows service activity. Detailed triggers are specified later.</td></tr>
+<tr><td>BR-03</td><td>Appointment Availability</td><td>Booking and rescheduling use available doctor appointment slots and prevent conflicting allocation. Cancellation releases the reservation. The source and maintenance of availability must be resolved separately from HR shift scheduling.</td></tr>
+<tr><td>BR-04</td><td>Patient Result Availability</td><td>Completed consultation results and imaging findings, issued e-prescriptions, and permitted clinical documents are made available in the related patient visit record. Patients can access only their own or authorized dependents&#x27; records.</td></tr>
+</tbody></table></section>
+<section id="decisions" lang="vi"><h2>1.3.4 Điểm cần chốt trước khi đặc tả chi tiết</h2>
+<p>Đây là các quyết định về phạm vi hoặc trách nhiệm còn mở. Cách thể hiện trong bản nháp không thay thế quyết định nghiệp vụ của nhóm.</p>
+<table class="review">
+<colgroup><col style="width:21%"><col style="width:39%"><col style="width:40%"></colgroup>
+<thead><tr><th scope="col">Điểm cần chốt</th><th scope="col">Cách thể hiện trong bản nháp</th><th scope="col">Quyết định còn thiếu</th></tr></thead><tbody>
+<tr><td>Nguồn lịch hẹn của bác sĩ</td><td>UC17–UC20 sử dụng khung giờ khả dụng; quản lý ca làm nhân sự vẫn ngoài phạm vi.</td><td>Chọn lịch cố định, cấu hình lịch khám đơn giản hoặc nguồn lịch bên ngoài; xác định người duy trì lịch.</td></tr>
+<tr><td>Thông tin giới thiệu bác sĩ</td><td>UC16 giữ hồ sơ chuyên môn phục vụ chọn bác sĩ, không đưa quản lý hồ sơ HR trở lại.</td><td>Xác định thông tin được thiết lập sẵn hay cho bác sĩ/quản trị viên cập nhật; xác định nơi duy trì thông tin đó.</td></tr>
+<tr><td>Chẩn đoán hình ảnh nội bộ hay bên ngoài</td><td>Tạm giữ kỹ thuật viên và phòng chụp theo bản UC được review. Vẫn hỗ trợ đính kèm báo cáo bên ngoài như tài liệu lâm sàng.</td><td>Chốt phạm vi chụp nội bộ, nhận bộ ảnh từ bên ngoài hoặc cả hai; việc tải báo cáo ngoài không mặc nhiên bao gồm nhập DICOM ngoài. Đồng bộ với major-features.md.</td></tr>
+<tr><td>Tạm ứng trước khi có hóa đơn</td><td>Record Patient Payment bao quát thu đủ và thu một phần trên hóa đơn; phần “deposit” của bản cũ đang mơ hồ.</td><td>Xác nhận có tạm ứng trước hóa đơn hay không. Nếu có, bổ sung phạm vi ghi nhận và đối trừ khoản tạm ứng; không coi là đã được mô tả đầy đủ trong UC thu tiền.</td></tr>
+</tbody></table></section>
+<section id="traceability" lang="vi"><h2>1.3.5 Đối chiếu với bản ngay trước lần chỉnh này</h2>
+<p class="muted">Mốc đối chiếu là bản 89 UC trước khi đánh lại số. Các mã cũ trong bảng này không phải mã của danh sách hiện tại. Mỗi UC cũ được đối chiếu sang UC mới, hành vi hỗ trợ hoặc mục ngoài phạm vi.</p>
+<details><summary>Xem bảng đối chiếu đầy đủ — giữ nguyên, đổi tên và gộp UC</summary>
+<table class="trace">
+<colgroup><col style="width:13%"><col style="width:27%"><col style="width:27%"><col style="width:33%"></colgroup>
+<thead><tr><th scope="col">UC trước chỉnh</th><th scope="col">Tên trước chỉnh</th><th scope="col">Vị trí hiện tại</th><th scope="col">Điều chỉnh</th></tr></thead><tbody>
+<tr><td>UC01</td><td>User Login</td><td>UC01 — Sign In</td><td>Giữ mục tiêu chức năng; rút gọn mô tả và làm rõ phạm vi khi cần.</td></tr>
+<tr><td>UC02, UC03</td><td>Recover Account / Reset Password</td><td>UC02 — Reset Password</td><td>Gộp khôi phục tài khoản và đặt lại mật khẩu thành một mục tiêu; OTP và token chuyển sang đặc tả chi tiết.</td></tr>
+<tr><td>UC04</td><td>Manage Account Profile</td><td>UC03 — View and Update Account Details</td><td>Giữ mục tiêu chức năng; rút gọn mô tả và làm rõ phạm vi khi cần.</td></tr>
+<tr><td>UC06</td><td>Change Password</td><td>UC04 — Change Password</td><td>Giữ mục tiêu chức năng; rút gọn mô tả và làm rõ phạm vi khi cần.</td></tr>
+<tr><td>UC07</td><td>Register Patient Account</td><td>UC05 — Register Patient Account</td><td>Giữ mục tiêu chức năng; rút gọn mô tả và làm rõ phạm vi khi cần.</td></tr>
+<tr><td>UC08</td><td>Create Employee Account</td><td>UC06 — Create Employee Account</td><td>Giữ mục tiêu chức năng; rút gọn mô tả và làm rõ phạm vi khi cần.</td></tr>
+<tr><td>UC09</td><td>Update Account Status</td><td>UC07 — Activate or Deactivate Account</td><td>Giữ mục tiêu chức năng; rút gọn mô tả và làm rõ phạm vi khi cần.</td></tr>
+<tr><td>UC10</td><td>View Account Directory</td><td>UC08 — View User Accounts</td><td>Giữ mục tiêu chức năng; rút gọn mô tả và làm rõ phạm vi khi cần.</td></tr>
+<tr><td>UC11</td><td>Create Walk-in Patient Profile</td><td>UC09 — Create Walk-in Patient Profile</td><td>Giữ mục tiêu chức năng; rút gọn mô tả và làm rõ phạm vi khi cần.</td></tr>
+<tr><td>UC12</td><td>Update Patient Profile</td><td>UC10 — Update Patient Details</td><td>Giữ mục tiêu chức năng; rút gọn mô tả và làm rõ phạm vi khi cần.</td></tr>
+<tr><td>UC13</td><td>View Patient Profile</td><td>UC11 — View Patient Details</td><td>Giữ mục tiêu chức năng; rút gọn mô tả và làm rõ phạm vi khi cần.</td></tr>
+<tr><td>UC14, UC15</td><td>Record Medical History / Update Allergies &amp; Orthopedic History</td><td>UC12 — Record Patient Medical History</td><td>Gộp tiền sử chung, dị ứng và tiền sử chấn thương chỉnh hình; giữ giới hạn nhập liệu của lễ tân.</td></tr>
+<tr><td>UC16</td><td>Add Dependent Profile</td><td>UC13 — Add Dependent Profile</td><td>Giữ mục tiêu chức năng; rút gọn mô tả và làm rõ phạm vi khi cần.</td></tr>
+<tr><td>UC17</td><td>Update Dependent Profile</td><td>UC14 — Update Dependent Profile</td><td>Giữ mục tiêu chức năng; rút gọn mô tả và làm rõ phạm vi khi cần.</td></tr>
+<tr><td>UC18</td><td>Remove Dependent Profile</td><td>UC15 — Remove Dependent Profile</td><td>Giữ mục tiêu chức năng; rút gọn mô tả và làm rõ phạm vi khi cần.</td></tr>
+<tr><td>UC19</td><td>Browse Orthopedic Doctors</td><td>UC16 — View Orthopedic Doctors</td><td>Giữ mục tiêu chức năng; rút gọn mô tả và làm rõ phạm vi khi cần.</td></tr>
+<tr><td>UC20</td><td>View Doctor Schedule</td><td>UC17 — View Open Appointment Times</td><td>Giữ mục tiêu chức năng; rút gọn mô tả và làm rõ phạm vi khi cần.</td></tr>
+<tr><td>UC21, UC25</td><td>Create Appointment / Schedule Follow-up Appointment</td><td>UC18 — Book Appointment</td><td>Đặt tái khám là một trường hợp của đặt lịch; bác sĩ vẫn có thể tạo lịch tái khám.</td></tr>
+<tr><td>UC22</td><td>Reschedule Appointment</td><td>UC19 — Change Appointment Time</td><td>Giữ mục tiêu chức năng; rút gọn mô tả và làm rõ phạm vi khi cần.</td></tr>
+<tr><td>UC23</td><td>Cancel Appointment</td><td>UC20 — Cancel Appointment</td><td>Giữ mục tiêu chức năng; rút gọn mô tả và làm rõ phạm vi khi cần.</td></tr>
+<tr><td>UC24</td><td>View Appointment History &amp; Status</td><td>UC21 — View Appointments</td><td>Giữ mục tiêu chức năng; rút gọn mô tả và làm rõ phạm vi khi cần.</td></tr>
+<tr><td>UC26</td><td>Check In Patient</td><td>UC22 — Check In Patient</td><td>Giữ mục tiêu chức năng; rút gọn mô tả và làm rõ phạm vi khi cần.</td></tr>
+<tr><td>UC27</td><td>View Reception Queue</td><td>UC23 — View Reception Queue</td><td>Giữ mục tiêu chức năng; rút gọn mô tả và làm rõ phạm vi khi cần.</td></tr>
+<tr><td>UC28, UC29</td><td>Route Patient to Next Service Room / Transfer Patient Between Rooms</td><td>UC24 — Assign or Change Patient Room</td><td>Gộp phân phòng tiếp theo và đổi phòng cùng dịch vụ; giữ phạm vi thao tác theo vai trò.</td></tr>
+<tr><td>UC30</td><td>View Room Queue</td><td>UC25 — View Room Queue</td><td>Giữ mục tiêu chức năng; rút gọn mô tả và làm rõ phạm vi khi cần.</td></tr>
+<tr><td>UC31</td><td>Adjust Queue Position</td><td>UC26 — Change Queue Order</td><td>Giữ mục tiêu chức năng; rút gọn mô tả và làm rõ phạm vi khi cần.</td></tr>
+<tr><td>UC34</td><td>Track Multi-Room Visit Progress</td><td>UC27 — View Visit Progress</td><td>Giữ mục tiêu chức năng; rút gọn mô tả và làm rõ phạm vi khi cần.</td></tr>
+<tr><td>UC35</td><td>Complete Clinic Visit</td><td>UC28 — Close Patient Visit</td><td>Giữ mục tiêu chức năng; rút gọn mô tả và làm rõ phạm vi khi cần.</td></tr>
+<tr><td>UC32, UC36, UC42, UC43</td><td>Complete Consultation Room Step / Record Consultation Information / Record Clinical Examination Findings / Record Diagnosis &amp; Injury Classification</td><td>UC29 — Record Orthopedic Examination</td><td>Gộp thông tin khám, kết quả khám, chẩn đoán và hoàn tất khám vào công việc ghi nhận lượt khám.</td></tr>
+<tr><td>UC37</td><td>Upload Clinical Document</td><td>UC30 — Upload Medical Document</td><td>Giữ mục tiêu chức năng; rút gọn mô tả và làm rõ phạm vi khi cần.</td></tr>
+<tr><td>UC38</td><td>Update Clinical Document</td><td>UC31 — Update Medical Document</td><td>Giữ mục tiêu chức năng; rút gọn mô tả và làm rõ phạm vi khi cần.</td></tr>
+<tr><td>UC39</td><td>View Clinical Document</td><td>UC32 — View Medical Document</td><td>Giữ mục tiêu chức năng; rút gọn mô tả và làm rõ phạm vi khi cần.</td></tr>
+<tr><td>UC40</td><td>Review Previous Medical Records</td><td>UC33 — View Past Medical Records</td><td>Giữ mục tiêu chức năng; rút gọn mô tả và làm rõ phạm vi khi cần.</td></tr>
+<tr><td>UC41</td><td>View Personal Medical Information</td><td>UC34 — View Examination Results</td><td>Giữ mục tiêu chức năng; rút gọn mô tả và làm rõ phạm vi khi cần.</td></tr>
+<tr><td>UC48</td><td>Record Doctor Recommendations</td><td>UC35 — Record After-Visit Advice</td><td>Giữ lời dặn sau khám; bỏ theo dõi kế hoạch và tiến triển điều trị dài hạn.</td></tr>
+<tr><td>Bổ sung</td><td>Theo yêu cầu mới và ảnh minh họa</td><td>UC36 — Write e-Prescription</td><td>Bổ sung đơn thuốc điện tử theo phạm vi người dùng xác nhận; không quản lý kho hay cấp phát thuốc.</td></tr>
+<tr><td>Bổ sung</td><td>Theo yêu cầu mới và ảnh minh họa</td><td>UC37 — View e-Prescriptions</td><td>Bổ sung quyền bệnh nhân xem đơn thuốc điện tử theo ví dụ giao diện được cung cấp.</td></tr>
+<tr><td>UC50, UC59</td><td>Create Diagnostic Imaging Request / Request Additional Imaging</td><td>UC38 — Request X-ray, CT, or MRI</td><td>Yêu cầu chụp bổ sung được bao quát trong việc tạo yêu cầu chẩn đoán hình ảnh.</td></tr>
+<tr><td>UC51, UC52</td><td>View Pending Imaging Requests / View Imaging Request Details</td><td>UC39 — View Imaging Requests</td><td>Gộp xem danh sách chờ và mở chi tiết yêu cầu.</td></tr>
+<tr><td>UC33, UC53, UC54, UC55, UC56</td><td>Return Patient to Doctor Queue / Upload DICOM Study / Validate DICOM Study / Store DICOM Study / Submit DICOM Study for Review</td><td>UC40 — Upload and Send Imaging Study</td><td>Gộp tải lên, kiểm tra, lưu và gửi bộ ảnh. Trả bệnh nhân về hàng đợi bác sĩ được giữ tại BR-02.</td></tr>
+<tr><td>UC57</td><td>View DICOM Study</td><td>UC41 — View DICOM Images</td><td>Giữ mục tiêu chức năng; rút gọn mô tả và làm rõ phạm vi khi cần.</td></tr>
+<tr><td>UC58, UC60</td><td>Record Imaging Findings / Release Diagnostic Study to Patient</td><td>UC42 — Record Imaging Findings</td><td>Gộp ghi nhận kết quả và công bố; kết quả được bệnh nhân xem khi bác sĩ hoàn tất.</td></tr>
+<tr><td>UC61</td><td>View Personal Diagnostic Images</td><td>UC43 — View Diagnostic Images</td><td>Giữ mục tiêu chức năng; rút gọn mô tả và làm rõ phạm vi khi cần.</td></tr>
+<tr><td>UC62</td><td>Track Imaging Request Status</td><td>UC44 — View Imaging Request Status</td><td>Giữ mục tiêu chức năng; rút gọn mô tả và làm rõ phạm vi khi cần.</td></tr>
+<tr><td>UC63</td><td>Create Itemized Invoice</td><td>UC45 — Create Invoice</td><td>Giữ mục tiêu chức năng; rút gọn mô tả và làm rõ phạm vi khi cần.</td></tr>
+<tr><td>UC64</td><td>View Invoice</td><td>UC46 — View Invoice</td><td>Giữ mục tiêu chức năng; rút gọn mô tả và làm rõ phạm vi khi cần.</td></tr>
+<tr><td>UC65, UC66</td><td>Record Counter Payment / Record Deposit or Partial Payment</td><td>UC47 — Record Payment at Clinic</td><td>Gộp thu đủ và thu một phần hóa đơn; tạm ứng trước hóa đơn được ghi riêng trong điểm cần chốt.</td></tr>
+<tr><td>UC67</td><td>Pay Invoice Online</td><td>UC48 — Pay Invoice Online</td><td>Giữ mục tiêu chức năng; rút gọn mô tả và làm rõ phạm vi khi cần.</td></tr>
+<tr><td>UC68</td><td>View Payment History</td><td>UC49 — View Payment History</td><td>Giữ mục tiêu chức năng; rút gọn mô tả và làm rõ phạm vi khi cần.</td></tr>
+<tr><td>UC69</td><td>Monitor Outstanding Balances</td><td>UC50 — View Unpaid Invoices</td><td>Giữ mục tiêu chức năng; rút gọn mô tả và làm rõ phạm vi khi cần.</td></tr>
+<tr><td>UC70</td><td>Print Invoice &amp; Export Receipt</td><td>UC51 — Print Invoice and Export Receipt</td><td>Giữ mục tiêu chức năng; rút gọn mô tả và làm rõ phạm vi khi cần.</td></tr>
+<tr><td>UC71</td><td>Submit Rating &amp; Review</td><td>UC52 — Rate and Review Clinic</td><td>Giữ mục tiêu chức năng; rút gọn mô tả và làm rõ phạm vi khi cần.</td></tr>
+<tr><td>UC72</td><td>View Reviews</td><td>UC53 — View Public Reviews</td><td>Giữ mục tiêu chức năng; rút gọn mô tả và làm rõ phạm vi khi cần.</td></tr>
+<tr><td>UC73</td><td>Moderate Patient Review</td><td>UC54 — Approve or Hide Patient Reviews</td><td>Giữ mục tiêu chức năng; rút gọn mô tả và làm rõ phạm vi khi cần.</td></tr>
+<tr><td>UC74</td><td>Reply to Patient Review</td><td>UC55 — Reply to Patient Review</td><td>Giữ mục tiêu chức năng; rút gọn mô tả và làm rõ phạm vi khi cần.</td></tr>
+<tr><td>UC75, UC76</td><td>View Notifications / Mark Notification as Read</td><td>UC56 — View Notifications</td><td>Đánh dấu đã đọc là thao tác trong việc xem và quản lý thông báo cá nhân.</td></tr>
+<tr><td>UC78</td><td>View Clinic Rooms &amp; Status</td><td>UC57 — View Rooms and Availability</td><td>Giữ mục tiêu chức năng; rút gọn mô tả và làm rõ phạm vi khi cần.</td></tr>
+<tr><td>UC79</td><td>Create Room</td><td>UC58 — Add Clinic Room</td><td>Giữ mục tiêu chức năng; rút gọn mô tả và làm rõ phạm vi khi cần.</td></tr>
+<tr><td>UC80</td><td>Update Room</td><td>UC59 — Update Room Details</td><td>Giữ mục tiêu chức năng; rút gọn mô tả và làm rõ phạm vi khi cần.</td></tr>
+<tr><td>UC81</td><td>Update Room Operational Status</td><td>UC60 — Mark Room Available or Unavailable</td><td>Giữ mục tiêu chức năng; rút gọn mô tả và làm rõ phạm vi khi cần.</td></tr>
+<tr><td>UC82</td><td>Create Clinic Service</td><td>UC61 — Add Clinic Service</td><td>Giữ mục tiêu chức năng; rút gọn mô tả và làm rõ phạm vi khi cần.</td></tr>
+<tr><td>UC83</td><td>Update Service &amp; Pricing</td><td>UC62 — Update Service Details and Price</td><td>Giữ mục tiêu chức năng; rút gọn mô tả và làm rõ phạm vi khi cần.</td></tr>
+<tr><td>UC84</td><td>View Service Catalog</td><td>UC63 — View Services and Prices</td><td>Giữ mục tiêu chức năng; rút gọn mô tả và làm rõ phạm vi khi cần.</td></tr>
+<tr><td>UC85</td><td>Manage Clinic Content</td><td>UC64 — Add or Edit Clinic Website Content</td><td>Giữ mục tiêu chức năng; rút gọn mô tả và làm rõ phạm vi khi cần.</td></tr>
+<tr><td>UC86</td><td>Send Clinic Announcement</td><td>UC65 — Post Clinic Announcement</td><td>Giữ mục tiêu chức năng; rút gọn mô tả và làm rõ phạm vi khi cần.</td></tr>
+<tr><td>UC87</td><td>View Clinic Information &amp; Announcements</td><td>UC66 — View Clinic Information and Announcements</td><td>Giữ mục tiêu chức năng; rút gọn mô tả và làm rõ phạm vi khi cần.</td></tr>
+<tr><td>UC88</td><td>View Audit Logs</td><td>UC67 — View System Activity Logs</td><td>Giữ mục tiêu chức năng; rút gọn mô tả và làm rõ phạm vi khi cần.</td></tr>
+<tr><td>UC89</td><td>View Clinic Dashboard</td><td>UC68 — View Clinic Dashboard</td><td>Giữ mục tiêu chức năng; rút gọn mô tả và làm rõ phạm vi khi cần.</td></tr>
+<tr><td>UC90</td><td>Generate Operational Reports</td><td>UC69 — Create Clinic Reports</td><td>Giữ mục tiêu chức năng; rút gọn mô tả và làm rõ phạm vi khi cần.</td></tr>
+<tr><td>UC77</td><td>Send Clinic Notification</td><td>BR-01 — Automatic Notifications &amp; Reminders</td><td>Chuyển sang hành vi hỗ trợ dùng chung; vẫn giữ chức năng gửi tự động và nhắc lịch.</td></tr>
+<tr><td>UC44</td><td>Create Conservative Treatment Plan</td><td>Ngoài phạm vi</td><td>Bỏ theo dõi kế hoạch, can thiệp và tiến triển điều trị chi tiết theo yêu cầu mới; vẫn giữ lời dặn và đơn thuốc điện tử.</td></tr>
+<tr><td>UC45</td><td>Update Treatment Plan</td><td>Ngoài phạm vi</td><td>Bỏ theo dõi kế hoạch, can thiệp và tiến triển điều trị chi tiết theo yêu cầu mới; vẫn giữ lời dặn và đơn thuốc điện tử.</td></tr>
+<tr><td>UC46</td><td>Record Non-Surgical Treatment</td><td>Ngoài phạm vi</td><td>Bỏ theo dõi kế hoạch, can thiệp và tiến triển điều trị chi tiết theo yêu cầu mới; vẫn giữ lời dặn và đơn thuốc điện tử.</td></tr>
+<tr><td>UC47</td><td>Track Treatment Progress</td><td>Ngoài phạm vi</td><td>Bỏ theo dõi kế hoạch, can thiệp và tiến triển điều trị chi tiết theo yêu cầu mới; vẫn giữ lời dặn và đơn thuốc điện tử.</td></tr>
+<tr><td>UC49</td><td>Review Treatment History</td><td>Ngoài phạm vi</td><td>Bỏ theo dõi kế hoạch, can thiệp và tiến triển điều trị chi tiết theo yêu cầu mới; vẫn giữ lời dặn và đơn thuốc điện tử.</td></tr>
+</tbody></table></details></section>
+</main>
+<footer lang="vi">Bản mô tả tổng quan phục vụ review phạm vi. Luồng chính, luồng thay thế, điều kiện, phân quyền chi tiết và quy tắc dữ liệu sẽ được trình bày trong phần đặc tả use case.</footer>
+</body>
+</html>

@@ -81,7 +81,7 @@ public class DoctorProfileController {
     public ResponseEntity<fu.fa26.sep490.g58.otcms_be.staff.model.dto.response.DoctorIntervalResponse> createShift(
             @PathVariable UUID doctorProfileId, @Valid @RequestBody DoctorIntervalRequest request,
             @AuthenticationPrincipal AuthenticatedAccount actor, HttpServletRequest http) {
-        var result = manageResources.createShift(doctorProfileId, request.getStartsAt(), request.getEndsAt(),
+        var result = manageResources.createShift(doctorProfileId, request.getStartsAt(), request.getEndsAt(), request.getRoomId(),
                 actor, CorrelationIdFilter.current(http));
         return ResponseEntity.status(HttpStatus.CREATED).body(result);
     }
@@ -100,7 +100,7 @@ public class DoctorProfileController {
             @PathVariable UUID doctorProfileId, @PathVariable UUID shiftId,
             @Valid @RequestBody DoctorIntervalRequest request,
             @AuthenticationPrincipal AuthenticatedAccount actor, HttpServletRequest http) {
-        return manageResources.updateShift(doctorProfileId, shiftId, request.getStartsAt(), request.getEndsAt(),
+        return manageResources.updateShift(doctorProfileId, shiftId, request.getStartsAt(), request.getEndsAt(), request.getRoomId(),
                 actor, CorrelationIdFilter.current(http));
     }
 

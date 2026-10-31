@@ -36,10 +36,16 @@ public class VisitRoomAdminController {
         return VisitRoomMapper.toItemsResponse(rooms.listAll());
     }
 
+    @GetMapping("/api/v1/admin/visit-rooms/{roomId}")
+    public VisitRoomResponse detail(@PathVariable UUID roomId) {
+        return VisitRoomMapper.toResponse(rooms.get(roomId));
+    }
+
     @PostMapping("/api/v1/admin/visit-rooms")
     public ResponseEntity<VisitRoomResponse> create(@Valid @RequestBody CreateVisitRoomRequest body,
             @AuthenticationPrincipal AuthenticatedAccount account, HttpServletRequest request) {
-        var room = rooms.create(body.getRoomCode(), body.getDisplayLabel(), body.getCapabilities(),
+        var room = rooms.create(body.getRoomCode(), body.getDisplayLabel(), body.getType(), body.getDescription(),
+                body.getServiceIds(), body.getCapabilities(),
                 account.accountId(), CorrelationIdFilter.current(request));
         return ResponseEntity.created(URI.create("/api/v1/admin/visit-rooms/" + room.id()))
                 .header(CorrelationIdFilter.HEADER, CorrelationIdFilter.current(request))
@@ -50,7 +56,8 @@ public class VisitRoomAdminController {
     public ResponseEntity<VisitRoomResponse> update(@PathVariable UUID roomId,
             @Valid @RequestBody UpdateVisitRoomRequest body,
             @AuthenticationPrincipal AuthenticatedAccount account, HttpServletRequest request) {
-        var room = rooms.update(roomId, body.getDisplayLabel(), body.getCapabilities(),
+        var room = rooms.update(roomId, body.getDisplayLabel(), body.getDescription(), body.getServiceIds(),
+                body.getCapabilities(),
                 account.accountId(), CorrelationIdFilter.current(request));
         return ResponseEntity.ok().header(CorrelationIdFilter.HEADER, CorrelationIdFilter.current(request))
                 .body(VisitRoomMapper.toResponse(room));

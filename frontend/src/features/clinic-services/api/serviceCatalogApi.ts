@@ -8,7 +8,9 @@ import type {
   ServiceWriteRequest,
   ServiceUpdateRequest,
 } from "../types/serviceCatalog";
+
 const root = "/api/v1/admin/clinic-services" as const;
+
 async function catalog(signal?: AbortSignal): Promise<ServiceCatalogItem[]> {
   try {
     return (await apiRequest<{ items: ServiceCatalogItem[] }>(root, { signal }))
@@ -24,6 +26,7 @@ async function catalog(signal?: AbortSignal): Promise<ServiceCatalogItem[]> {
     ).items;
   }
 }
+
 export async function listServiceCatalog(
   query: ServiceCatalogQuery = {},
   signal?: AbortSignal,
@@ -45,6 +48,7 @@ export async function listServiceCatalog(
     totalPages: Math.ceil(items.length / size),
   };
 }
+
 export async function getServiceCatalog(
   id: string,
   signal?: AbortSignal,
@@ -54,11 +58,13 @@ export async function getServiceCatalog(
   if (!service) throw new ApiError(404, { code: "MSG-50" });
   return service;
 }
+
 export function createServiceCatalog(
   body: ServiceWriteRequest,
 ): Promise<ServiceCatalogDetail> {
   return apiRequest(root, { method: "POST", body: JSON.stringify(body) });
 }
+
 export function updateServiceCatalog(
   id: string,
   body: ServiceUpdateRequest,
@@ -68,6 +74,7 @@ export function updateServiceCatalog(
     body: JSON.stringify(body),
   });
 }
+
 export async function discontinueServiceCatalog(
   id: string,
 ): Promise<ServiceCatalogDetail> {
@@ -76,6 +83,7 @@ export async function discontinueServiceCatalog(
   });
   return getServiceCatalog(id);
 }
+
 export async function activateServiceCatalog(
   id: string,
 ): Promise<ServiceCatalogDetail> {
@@ -84,6 +92,7 @@ export async function activateServiceCatalog(
   });
   return getServiceCatalog(id);
 }
+
 export {
   assignServiceDoctor,
   removeServiceDoctor,

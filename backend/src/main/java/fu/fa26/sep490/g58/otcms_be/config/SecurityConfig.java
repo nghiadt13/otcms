@@ -37,8 +37,10 @@ public class SecurityConfig {
                 .authorizeHttpRequests(authorize -> authorize
                         .requestMatchers("/api/auth/**", "/swagger-ui/**", "/swagger-ui.html",
                                 "/v3/api-docs", "/v3/api-docs/**").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/auth/staff/administrator/login").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/clinic-services", "/api/v1/doctors",
-                                "/api/v1/doctors/**", "/api/v1/appointments/availability").permitAll()
+                                "/api/v1/doctors/**", "/api/v1/appointments/availability",
+                                "/api/v1/staff-profiles/*/photo").permitAll()
                         .requestMatchers(HttpMethod.HEAD, "/api/v1/clinic-services", "/api/v1/appointments/availability")
                                 .permitAll()
                         .anyRequest().authenticated())
@@ -53,7 +55,7 @@ public class SecurityConfig {
         origins.addAll(properties.patientOrigins());
         origins.addAll(properties.staffOrigins());
         cors.setAllowedOrigins(origins);
-        cors.setAllowedMethods(List.of("GET", "HEAD", "POST", "PUT", "DELETE", "OPTIONS"));
+        cors.setAllowedMethods(List.of("GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         cors.setAllowedHeaders(List.of("Content-Type", "X-CSRF-TOKEN", "Authorization", "Idempotency-Key", "X-Correlation-ID"));
         cors.setExposedHeaders(List.of("X-Correlation-ID"));
         cors.setAllowCredentials(true);

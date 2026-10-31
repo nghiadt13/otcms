@@ -4,8 +4,11 @@ import { useEffect } from "react";
 import { usePagedList } from "@/hooks/usePagedList";
 import type { PageQuery, PageResponse } from "@/lib/api/pagination";
 import { listAppointments } from "../api/appointmentApi";
+import { listAdminAppointments } from "../api/appointmentAdminLiveApi";
 import { rangeErrorCode } from "../schema/appointmentUrlRules";
 import type { Appointment, AppointmentListQuery } from "../types/appointment";
+
+const USE_MOCK = process.env.NODE_ENV === "test";
 
 /** Khoảng ngày sai thì không gọi API (MSG-54 hiện dưới "Đến ngày"). */
 function fetchAppointments(
@@ -20,7 +23,8 @@ function fetchAppointments(
       totalItems: 0,
       totalPages: 1,
     });
-  return listAppointments(query, signal);
+  if (USE_MOCK) return listAppointments(query, signal);
+  return listAdminAppointments(query, signal);
 }
 
 /**

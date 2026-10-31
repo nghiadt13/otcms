@@ -1,5 +1,9 @@
 import { apiBaseUrl } from "./apiBaseUrl";
-import { getAccessToken, getCsrfToken } from "@/lib/auth/authSession";
+import {
+  getAccessToken,
+  getCsrfToken,
+  refreshSession,
+} from "@/lib/auth/authSession";
 import { ApiError, type ApiFieldError, type MsgCode } from "./apiError";
 
 type ProblemDetail = {
@@ -17,7 +21,7 @@ const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 const isMutation = (init: RequestInit) =>
   !SAFE_METHODS.has((init.method ?? "GET").toUpperCase());
 
-async function authorizedHeaders(init: RequestInit, refreshCsrf = false) {
+async function authorizedHeaders(init: RequestInit) {
   const accessToken = await getAccessToken();
   if (!accessToken) throw new Error("Bạn cần đăng nhập để tiếp tục.");
 
@@ -31,8 +35,10 @@ async function authorizedHeaders(init: RequestInit, refreshCsrf = false) {
   )
     headers.set("Content-Type", "application/json");
   // Request ghi dữ liệu cần CSRF (xem getCsrfToken); GET không cần.
+  // Spring may clear the XSRF cookie after an authenticated mutation. Fetch a fresh
+  // cookie and matching header for each write instead of reusing an in-memory token.
   if (isMutation(init))
-    headers.set("X-CSRF-TOKEN", await getCsrfToken(refreshCsrf));
+    headers.set("X-CSRF-TOKEN", await getCsrfToken(true));
   return headers;
 }
 
@@ -71,11 +77,11 @@ export async function apiRequest<T>(
   path: `/api/v1/${string}`,
   init: RequestInit = {},
 ): Promise<T> {
-  let response = await send(path, init, false);
+  let response = await send(path, init);
   // CSRF lệch cookie ở request ghi dữ liệu: backend trả 403, hoặc 401 vì bộ lọc CSRF chạy trước
   // bộ lọc JWT nên request còn ẩn danh. Lấy token mới và thử lại đúng một lần.
   if ((response.status === 403 || response.status === 401) && isMutation(init))
-    response = await send(path, init, true);
+    response = await send(path, init);
   if (!response.ok) throw await toApiError(response);
   if (response.status === 204) return undefined as T;
   return response.json() as Promise<T>;
@@ -84,13 +90,23 @@ export async function apiRequest<T>(
 async function send(
   path: `/api/v1/${string}`,
   init: RequestInit,
-  refreshCsrf: boolean,
 ): Promise<Response> {
-  const headers = await authorizedHeaders(init, refreshCsrf);
-  return fetch(`${apiBaseUrl}${path}`, {
+  const headers = await authorizedHeaders(init);
+  const response = await fetch(`${apiBaseUrl}${path}`, {
     ...init,
     headers,
     // Cookie XSRF-TOKEN phải đi kèm request ghi dữ liệu sang backend (khác origin).
+    credentials: isMutation(init) ? "include" : init.credentials,
+    cache: "no-store",
+  });
+  if (response.status !== 401) return response;
+
+  const session = await refreshSession();
+  if (!session) return response;
+  headers.set("Authorization", `Bearer ${session.accessToken}`);
+  return fetch(`${apiBaseUrl}${path}`, {
+    ...init,
+    headers,
     credentials: isMutation(init) ? "include" : init.credentials,
     cache: "no-store",
   });

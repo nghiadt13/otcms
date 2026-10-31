@@ -78,8 +78,7 @@ export function StaffAccountPicker({
       <div>
         <Label>Tài khoản nhân viên *</Label>
         <p className="mt-1.5 text-sm text-muted-foreground">
-          Chưa có nhân viên nào đủ điều kiện. Tạo tài khoản nhân viên ở mục Tài
-          khoản trước.
+          Chưa có nhân viên nào đủ điều kiện. Hãy cấp tài khoản nhân viên trên màn này trước.
         </p>
       </div>
     );

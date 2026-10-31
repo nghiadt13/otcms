@@ -5,6 +5,8 @@ public enum AccountRole {
     PATIENT,
     RECEPTIONIST,
     DOCTOR,
+    LAB_TECHNICIAN,
+    IMAGING_TECHNICIAN,
     OWNER,
     ADMIN
 }

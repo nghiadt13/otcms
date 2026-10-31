@@ -71,11 +71,19 @@ export function AppointmentDetailSheet({
                   label: "Phí khám",
                   value: (
                     <StatusBadge
-                      tone={appointment.examFeePaid ? "success" : "warning"}
+                      tone={
+                        appointment.examFeePaid === null
+                          ? "neutral"
+                          : appointment.examFeePaid
+                            ? "success"
+                            : "warning"
+                      }
                     >
-                      {appointment.examFeePaid
-                        ? "Đã thanh toán"
-                        : "Chưa thanh toán"}
+                      {appointment.examFeePaid === null
+                        ? "Chưa có dữ liệu"
+                        : appointment.examFeePaid
+                          ? "Đã thanh toán"
+                          : "Chưa thanh toán"}
                     </StatusBadge>
                   ),
                 },

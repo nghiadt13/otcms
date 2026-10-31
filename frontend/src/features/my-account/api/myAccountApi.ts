@@ -1,4 +1,6 @@
 import { mockDelay, mockFail } from "@/lib/api/mockServer";
+import { getSession } from "@/lib/auth/authSession";
+import { getCurrentPatientAccount } from "@/lib/auth/currentPatientAccountApi";
 import { isPasswordValid } from "@/lib/domain/passwordPolicy";
 import type { ChangePasswordInput, MyAccount } from "../types/myAccount";
 import {
@@ -26,6 +28,21 @@ export function resetMyAccountMockStore(account: MyAccount = MOCK_MY_ACCOUNT) {
 
 /** GET /api/v1/me */
 export async function getMyAccount(signal?: AbortSignal): Promise<MyAccount> {
+  if (process.env.NODE_ENV !== "test") {
+    const session = await getSession();
+    if (session?.accountType === "PATIENT") {
+      const current = await getCurrentPatientAccount(signal);
+      return {
+        id: current.id,
+        kind: "PATIENT",
+        displayName: current.displayName ?? "Chưa cập nhật tên",
+        email: current.email,
+        status: current.status === "ACTIVE" ? "ACTIVE" : "INACTIVE",
+        avatarUrl: null,
+        allowedActions: ["updateDisplayName", "changePassword"],
+      };
+    }
+  }
   await mockDelay(LATENCY_MS, signal);
   return accountSnapshot(currentMockAccountState().account);
 }

@@ -12,6 +12,8 @@ export type MockStaffRecord = {
   workContact: string;
   status: "ACTIVE" | "REMOVED";
   doctor: DoctorInfo | null;
+  acceptingNewBookings?: boolean;
+  inActiveDirectory?: boolean;
 };
 
 /** Tài khoản có hồ sơ bị chặn gỡ vì còn lịch hẹn tương lai (ca kiểm thử MSG-36). */

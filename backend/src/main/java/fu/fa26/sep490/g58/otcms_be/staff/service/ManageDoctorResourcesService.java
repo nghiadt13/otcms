@@ -8,9 +8,9 @@ import java.util.UUID;
 import fu.fa26.sep490.g58.otcms_be.common.security.AuthenticatedAccount;
 
 public interface ManageDoctorResourcesService {
-    DoctorIntervalResponse createShift(UUID doctorId, Instant startsAt, Instant endsAt, AuthenticatedAccount actor, String correlationId);
+    DoctorIntervalResponse createShift(UUID doctorId, Instant startsAt, Instant endsAt, UUID roomId, AuthenticatedAccount actor, String correlationId);
     void deleteShift(UUID doctorId, UUID shiftId, AuthenticatedAccount actor, String correlationId);
-    DoctorIntervalResponse updateShift(UUID doctorId, UUID shiftId, Instant startsAt, Instant endsAt, AuthenticatedAccount actor, String correlationId);
+    DoctorIntervalResponse updateShift(UUID doctorId, UUID shiftId, Instant startsAt, Instant endsAt, UUID roomId, AuthenticatedAccount actor, String correlationId);
     DoctorIntervalResponse createTimeOff(UUID doctorId, Instant startsAt, Instant endsAt, AuthenticatedAccount actor, String correlationId);
     void deleteTimeOff(UUID doctorId, UUID timeOffId, AuthenticatedAccount actor, String correlationId);
     DoctorIntervalResponse updateTimeOff(UUID doctorId, UUID timeOffId, Instant startsAt, Instant endsAt, AuthenticatedAccount actor, String correlationId);

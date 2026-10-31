@@ -2,6 +2,7 @@ package fu.fa26.sep490.g58.otcms_be.auth.repository;
 
 import fu.fa26.sep490.g58.otcms_be.auth.model.entity.AccountJpaEntity;
 import fu.fa26.sep490.g58.otcms_be.auth.model.dto.AccountAccessSnapshot;
+import fu.fa26.sep490.g58.otcms_be.auth.model.dto.PatientAccountAdminRow;
 import fu.fa26.sep490.g58.otcms_be.auth.model.entity.enums.AccountStatus;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Page;
@@ -17,6 +18,24 @@ import java.util.Optional;
 import java.util.UUID;
 
 public interface AccountRepository extends JpaRepository<AccountJpaEntity, UUID> {
+    @Query(value = "select new fu.fa26.sep490.g58.otcms_be.auth.model.dto.PatientAccountAdminRow(" +
+            "a.id, a.normalizedEmail, coalesce(p.fullName, a.displayName, a.fullName), a.status, a.createdAt) " +
+            "from AccountJpaEntity a left join PatientProfileJpaEntity p on p.accountId = a.id " +
+            "where a.accountType = fu.fa26.sep490.g58.otcms_be.auth.model.entity.enums.AccountType.PATIENT " +
+            "and (:activeOnly is null or (:activeOnly = true and a.status = fu.fa26.sep490.g58.otcms_be.auth.model.entity.enums.AccountStatus.ACTIVE) " +
+            "or (:activeOnly = false and a.status <> fu.fa26.sep490.g58.otcms_be.auth.model.entity.enums.AccountStatus.ACTIVE)) " +
+            "and (:pattern = '%%' or lower(coalesce(a.normalizedEmail, '')) like :pattern escape '!' " +
+            "or lower(coalesce(p.fullName, a.fullName, '')) like :pattern escape '!') " +
+            "order by a.createdAt desc, a.id desc",
+            countQuery = "select count(a) from AccountJpaEntity a left join PatientProfileJpaEntity p on p.accountId = a.id " +
+                    "where a.accountType = fu.fa26.sep490.g58.otcms_be.auth.model.entity.enums.AccountType.PATIENT " +
+                    "and (:activeOnly is null or (:activeOnly = true and a.status = fu.fa26.sep490.g58.otcms_be.auth.model.entity.enums.AccountStatus.ACTIVE) " +
+                    "or (:activeOnly = false and a.status <> fu.fa26.sep490.g58.otcms_be.auth.model.entity.enums.AccountStatus.ACTIVE)) " +
+                    "and (:pattern = '%%' or lower(coalesce(a.normalizedEmail, '')) like :pattern escape '!' " +
+                    "or lower(coalesce(p.fullName, a.displayName, a.fullName, '')) like :pattern escape '!')")
+    Page<PatientAccountAdminRow> searchPatientAccounts(@Param("pattern") String pattern,
+            @Param("activeOnly") Boolean activeOnly, Pageable pageable);
+
     @Query("select new fu.fa26.sep490.g58.otcms_be.auth.model.dto.AccountAccessSnapshot("
             + "a.accountType, a.status, a.mustChangePassword) from AccountJpaEntity a where a.id = :id")
     Optional<AccountAccessSnapshot> findAccessSnapshotById(@Param("id") UUID id);

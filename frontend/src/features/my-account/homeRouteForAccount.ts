@@ -13,5 +13,8 @@ export function homeRouteForAccount(accountType: AccountType): string {
   if (accountType === "ADMIN") {
     return ADMIN_ROUTES.dashboard;
   }
-  return STAFF_ROUTES.home;
+  if (accountType === "RECEPTIONIST" || accountType === "DOCTOR") {
+    return STAFF_ROUTES.home;
+  }
+  return "/staff-home";
 }

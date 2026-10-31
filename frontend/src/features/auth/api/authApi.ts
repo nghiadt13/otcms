@@ -1,5 +1,5 @@
 import { apiBaseUrl } from "@/lib/api/apiBaseUrl";
-import { AuthSessionError, signInWithPassword } from "@/lib/auth/authSession";
+import { AuthSessionError, signInWithPassword, type AuthSession } from "@/lib/auth/authSession";
 import { fetchCurrentAccount } from "@/lib/auth/currentAccountApi";
 import { AuthRequestError, type PatientRegistrationInput } from "../types/auth";
 
@@ -27,13 +27,20 @@ export async function signIn(email: string, password: string): Promise<void> {
 export async function signInStaff(
   email: string,
   password: string,
-): Promise<import("@/lib/auth/authSession").AuthSession> {
+): Promise<AuthSession> {
+  let session: AuthSession;
   try {
-    return await signInWithPassword("staff", email, password);
+    session = await signInWithPassword("staff", email, password);
   } catch (cause) {
     const rejected = cause instanceof AuthSessionError && cause.status === 401;
     throw new AuthRequestError(rejected ? "MSG-01" : "MSG-04");
   }
+  // Nạp sẵn tên backend để header có dữ liệu ngay; nếu đọc thất bại, đăng nhập vẫn thành công.
+  if (!session.mustChangePassword)
+    await fetchCurrentAccount().catch((error: unknown) => {
+      console.error("Không đọc được tài khoản sau đăng nhập", error);
+    });
+  return session;
 }
 
 export async function signInAdministrator(

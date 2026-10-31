@@ -30,5 +30,5 @@ public class DoctorProfileMapper {
     public DoctorPublicResponse toPublicResponse(DoctorProfile p) { return new DoctorPublicResponse(p.id(), p.fullName(), p.photoUrl(), p.specialties(), p.qualifications(), p.biography(), p.consultationInformation()); }
     public DoctorAdminResponse toAdminResponse(DoctorProfile p) { return new DoctorAdminResponse(p.id(), p.accountId(), p.fullName(), p.photoUrl(), p.workContact(), p.specialties(), p.qualifications(), p.biography(), p.consultationInformation(), p.publiclyVisible(), p.acceptingNewBookings(), p.inActiveDirectory()); }
     public DoctorItems toItems(List<DoctorProfile> profiles) { return new DoctorItems(profiles.stream().map(this::toPublicResponse).toList()); }
-    public ShiftItems toShiftItems(List<DoctorWorkShift> shifts) { return new ShiftItems(shifts.stream().map(s -> new ShiftResponse(s.id(), s.doctorProfileId(), s.startsAt(), s.endsAt())).toList()); }
+    public ShiftItems toShiftItems(List<DoctorWorkShift> shifts) { return new ShiftItems(shifts.stream().map(s -> new ShiftResponse(s.id(), s.doctorProfileId(), s.startsAt(), s.endsAt(), s.roomId())).toList()); }
 }

@@ -11,7 +11,9 @@ type StaffProfileDetailViewProps = {
   onEdit: () => void;
   onRemove: () => void;
   onTogglePublic: (next: boolean) => void;
+  onToggleAcceptingBookings: (next: boolean) => void;
   togglePending: boolean;
+  bookingTogglePending: boolean;
 };
 
 const multiline = (text: string) =>
@@ -23,7 +25,9 @@ export function StaffProfileDetailView({
   onEdit,
   onRemove,
   onTogglePublic,
+  onToggleAcceptingBookings,
   togglePending,
+  bookingTogglePending,
 }: StaffProfileDetailViewProps) {
   const { doctor, allowedActions } = detail;
   const items = [
@@ -51,7 +55,7 @@ export function StaffProfileDetailView({
       <div className="flex-1 space-y-6 overflow-y-auto px-4">
         <DetailList items={items} />
         {doctor && allowedActions.includes("togglePublic") ? (
-          <div className="space-y-3 border-t pt-4">
+          <div className="space-y-4 border-t pt-4">
             <div className="flex items-center justify-between gap-4">
               <div>
                 <Label htmlFor="staff-detail-public">Hiển thị công khai</Label>
@@ -66,6 +70,24 @@ export function StaffProfileDetailView({
                 checked={doctor.isPublic}
                 disabled={togglePending}
                 onCheckedChange={onTogglePublic}
+              />
+            </div>
+            <div className="flex items-center justify-between gap-4 border-t pt-4">
+              <div>
+                <Label htmlFor="staff-detail-accepting-bookings">
+                  Nhận đặt lịch trực tuyến
+                </Label>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  {detail.acceptingNewBookings
+                    ? "Bệnh nhân có thể thấy giờ trống của bác sĩ."
+                    : "Bác sĩ chưa được đưa vào giờ đặt lịch trực tuyến."}
+                </p>
+              </div>
+              <Switch
+                id="staff-detail-accepting-bookings"
+                checked={detail.acceptingNewBookings ?? false}
+                disabled={bookingTogglePending || !detail.inActiveDirectory}
+                onCheckedChange={onToggleAcceptingBookings}
               />
             </div>
             {detail.publicUrl ? (

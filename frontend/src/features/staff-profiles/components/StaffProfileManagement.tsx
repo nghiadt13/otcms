@@ -10,6 +10,7 @@ import { StaffProfileCreateDialog } from "./StaffProfileCreateDialog";
 import { StaffProfileDetailSheet } from "./StaffProfileDetailSheet";
 import { StaffProfileFilters } from "./StaffProfileFilters";
 import { StaffProfileTable } from "./StaffProfileTable";
+import { CreateStaffAccountDialog } from "./CreateStaffAccountDialog";
 
 export function StaffProfileManagement() {
   const router = useRouter();
@@ -20,6 +21,7 @@ export function StaffProfileManagement() {
     () => searchParams.get("accountId") ?? "",
   );
   const [createOpen, setCreateOpen] = useState(initialAccountId !== "");
+  const [accountOpen, setAccountOpen] = useState(false);
   const [sheet, setSheet] = useState<{ id: string; edit: boolean } | null>(
     null,
   );
@@ -42,7 +44,10 @@ export function StaffProfileManagement() {
       <PageHeader
         title="Hồ sơ nhân viên"
         description="Hồ sơ hiển thị nội bộ; bác sĩ bật công khai sẽ hiện trên website."
-        actions={<Button onClick={() => setCreateOpen(true)}>Tạo hồ sơ</Button>}
+        actions={<div className="flex flex-wrap gap-2">
+          <Button variant="outline" onClick={() => setAccountOpen(true)}>Cấp tài khoản nhân viên</Button>
+          <Button onClick={() => setCreateOpen(true)}>Tạo hồ sơ</Button>
+        </div>}
       />
       <StaffProfileFilters
         search={list.search}
@@ -71,6 +76,7 @@ export function StaffProfileManagement() {
         initialAccountId={initialAccountId || undefined}
         onCreated={list.reload}
       />
+      <CreateStaffAccountDialog open={accountOpen} onOpenChange={setAccountOpen} />
       <StaffProfileDetailSheet
         profileId={sheet?.id ?? null}
         startInEditMode={sheet?.edit ?? false}

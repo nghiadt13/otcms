@@ -1,6 +1,8 @@
 import { publicApiRequest } from "@/lib/api/client";
+import { apiBaseUrl } from "@/lib/api/apiBaseUrl";
 import { ApiError } from "@/lib/api/apiError";
 import type { PublicDoctor, PublicDoctorDetail } from "../types/publicDoctor";
+
 type DoctorResponse = {
   doctorProfileId: string;
   fullName: string;
@@ -10,17 +12,26 @@ type DoctorResponse = {
   biography: string | null;
   consultationInformation: string | null;
 };
+
 function mapDoctor(d: DoctorResponse): PublicDoctor {
+  const photo = d.photoUrl?.startsWith("/") ? `${apiBaseUrl}${d.photoUrl}` : d.photoUrl;
+  const specList = d.specialties
+    ? d.specialties
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean)
+    : [];
   return {
     id: d.doctorProfileId,
     fullName: d.fullName,
-    photoUrl: d.photoUrl,
-    specialties: d.specialties ? [d.specialties] : [],
+    photoUrl: photo,
+    specialties: specList,
     qualifications: d.qualifications ?? "",
     biography: d.biography ?? "",
     consultationInfo: d.consultationInformation ?? "",
   };
 }
+
 export async function listPublicDoctors(
   signal?: AbortSignal,
 ): Promise<{ items: PublicDoctor[] }> {
@@ -30,6 +41,7 @@ export async function listPublicDoctors(
   );
   return { items: data.items.map(mapDoctor) };
 }
+
 export async function getPublicDoctor(
   id: string,
   signal?: AbortSignal,
@@ -46,6 +58,7 @@ export async function getPublicDoctor(
     throw error;
   }
 }
+
 export async function listFeaturedDoctors(limit = 4): Promise<PublicDoctor[]> {
   return (await listPublicDoctors()).items.slice(0, Math.max(0, limit));
 }
