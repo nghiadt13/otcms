@@ -38,8 +38,7 @@ type AccountsTableProps = {
   onStatusRequest: (target: StatusTarget) => void;
 };
 
-const EMPTY_NO_DATA =
-  "Chưa có tài khoản bệnh nhân nào.";
+const EMPTY_NO_DATA = "Chưa có tài khoản bệnh nhân nào.";
 const EMPTY_FILTERED =
   "Không có tài khoản nào khớp bộ lọc. Bỏ bớt bộ lọc hoặc thử từ khóa khác.";
 

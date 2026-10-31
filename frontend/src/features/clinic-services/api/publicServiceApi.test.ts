@@ -63,7 +63,9 @@ describe("publicServiceApi", () => {
       expect.objectContaining({ cache: "no-store" }),
     );
     const requestOptions = fetchMock.mock.calls[0]?.[1] as RequestInit;
-    expect(new Headers(requestOptions.headers).has("Authorization")).toBe(false);
+    expect(new Headers(requestOptions.headers).has("Authorization")).toBe(
+      false,
+    );
   });
 
   it("lọc theo tên không phân biệt hoa thường và dấu", async () => {
@@ -81,7 +83,9 @@ describe("publicServiceApi", () => {
 
   it("từ chối truy vấn tên dài hơn giới hạn mà không gọi backend", async () => {
     const fetchMock = mockCatalog();
-    await expect(listPublicServices({ q: "a".repeat(101) })).rejects.toMatchObject({
+    await expect(
+      listPublicServices({ q: "a".repeat(101) }),
+    ).rejects.toMatchObject({
       status: 400,
       code: "MSG-54",
     });
@@ -91,7 +95,9 @@ describe("publicServiceApi", () => {
   it("lấy chi tiết từ danh mục và trả 404 khi không tìm thấy mã", async () => {
     mockCatalog();
     await expect(getPublicService(catalog[0].id)).resolves.toEqual(catalog[0]);
-    await expect(getPublicService("missing-id")).rejects.toBeInstanceOf(ApiError);
+    await expect(getPublicService("missing-id")).rejects.toBeInstanceOf(
+      ApiError,
+    );
     await expect(getPublicService("missing-id")).rejects.toMatchObject({
       status: 404,
       code: "MSG-50",

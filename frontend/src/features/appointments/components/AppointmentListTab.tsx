@@ -59,7 +59,8 @@ export function AppointmentListTab({ url, lookup }: AppointmentListTabProps) {
     doctorFilter: state.doctorId,
   });
   const [viewingId, setViewingId] = useState<string | null>(null);
-  const viewing = list.data?.items.find((item) => item.id === viewingId) ?? null;
+  const viewing =
+    list.data?.items.find((item) => item.id === viewingId) ?? null;
   const reloadAppointments = list.reload;
 
   useEffect(() => {

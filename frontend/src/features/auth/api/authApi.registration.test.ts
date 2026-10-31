@@ -78,7 +78,8 @@ describe("authApi: đăng ký qua backend", () => {
 
   it("mất mạng thì báo MSG-04", async () => {
     fetchMock.mockRejectedValue(new TypeError("Failed to fetch"));
-    await expect(verifyRegistrationEmail("an@example.com", "123456"))
-      .rejects.toMatchObject({ code: "MSG-04" });
+    await expect(
+      verifyRegistrationEmail("an@example.com", "123456"),
+    ).rejects.toMatchObject({ code: "MSG-04" });
   });
 });

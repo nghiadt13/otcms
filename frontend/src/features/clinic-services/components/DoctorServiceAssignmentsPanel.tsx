@@ -66,7 +66,9 @@ export function DoctorServiceAssignmentsPanel({
   const assignedIds = new Set(
     assignments.map((assignment) => assignment.doctorProfileId),
   );
-  const availableDoctors = doctors.filter((doctor) => !assignedIds.has(doctor.id));
+  const availableDoctors = doctors.filter(
+    (doctor) => !assignedIds.has(doctor.id),
+  );
 
   async function assign() {
     if (!selectedDoctorId || pending) return;
@@ -121,7 +123,8 @@ export function DoctorServiceAssignmentsPanel({
                 <li key={assignment.id}>
                   {doctors.find(
                     (doctor) => doctor.id === assignment.doctorProfileId,
-                  )?.displayName ?? "Bác sĩ không còn trong danh sách hoạt động"}
+                  )?.displayName ??
+                    "Bác sĩ không còn trong danh sách hoạt động"}
                 </li>
               ))}
             </ul>

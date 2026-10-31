@@ -77,7 +77,8 @@ export function PatientAppointmentDetail({ id }: { id: string }) {
       appointment.examFee.status === "PAID" &&
       !appointment.allowedActions.includes("cancel") ? (
         <p className="text-base text-muted-foreground">
-          Lịch hẹn đã qua và phí khám đã thanh toán. Vui lòng liên hệ lễ tân để được hỗ trợ.
+          Lịch hẹn đã qua và phí khám đã thanh toán. Vui lòng liên hệ lễ tân để
+          được hỗ trợ.
         </p>
       ) : null}
       {appointment.status === "BOOKED" &&

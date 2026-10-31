@@ -137,7 +137,10 @@ export async function listServiceCatalog(
 ): Promise<PageResponse<ServiceCatalogItem>> {
   if (!USE_MOCK) {
     const response = await liveRequest(
-      apiRequest<ItemsResponse<BackendService>>("/api/v1/admin/clinic-services", { signal }),
+      apiRequest<ItemsResponse<BackendService>>(
+        "/api/v1/admin/clinic-services",
+        { signal },
+      ),
     );
     const q = query.q?.trim().toLocaleLowerCase("vi") ?? "";
     const filtered = response.items
@@ -166,7 +169,9 @@ export async function getServiceCatalog(
 ): Promise<ServiceCatalogDetail> {
   if (!USE_MOCK) {
     const response = await liveRequest(
-      apiRequest<BackendService>(`/api/v1/admin/clinic-services/${id}`, { signal }),
+      apiRequest<BackendService>(`/api/v1/admin/clinic-services/${id}`, {
+        signal,
+      }),
     );
     return mapBackendService(response);
   }
@@ -178,10 +183,12 @@ export async function createServiceCatalog(
   body: ServiceWriteRequest,
 ): Promise<ServiceCatalogDetail> {
   if (!USE_MOCK) {
-    const response = await liveRequest(apiRequest<BackendService>("/api/v1/admin/clinic-services", {
-      method: "POST",
-      body: JSON.stringify(toBackendBody(body)),
-    }));
+    const response = await liveRequest(
+      apiRequest<BackendService>("/api/v1/admin/clinic-services", {
+        method: "POST",
+        body: JSON.stringify(toBackendBody(body)),
+      }),
+    );
     return mapBackendService(response);
   }
   await mockDelay(LATENCY_MS);
@@ -203,10 +210,12 @@ export async function updateServiceCatalog(
   body: ServiceUpdateRequest,
 ): Promise<ServiceCatalogDetail> {
   if (!USE_MOCK) {
-    const response = await liveRequest(apiRequest<BackendService>(`/api/v1/admin/clinic-services/${id}`, {
-      method: "PUT",
-      body: JSON.stringify(toBackendBody(body)),
-    }));
+    const response = await liveRequest(
+      apiRequest<BackendService>(`/api/v1/admin/clinic-services/${id}`, {
+        method: "PUT",
+        body: JSON.stringify(toBackendBody(body)),
+      }),
+    );
     return mapBackendService(response);
   }
   await mockDelay(LATENCY_MS);
@@ -226,7 +235,11 @@ export async function discontinueServiceCatalog(
   id: string,
 ): Promise<ServiceCatalogDetail> {
   if (!USE_MOCK) {
-    await liveRequest(apiRequest<void>(`/api/v1/admin/clinic-services/${id}`, { method: "DELETE" }));
+    await liveRequest(
+      apiRequest<void>(`/api/v1/admin/clinic-services/${id}`, {
+        method: "DELETE",
+      }),
+    );
     return getServiceCatalog(id);
   }
   await mockDelay(LATENCY_MS);

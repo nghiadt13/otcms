@@ -69,7 +69,9 @@ export function PatientAccountMenu({
       <DropdownMenuContent align="end" className="w-64" sideOffset={8}>
         <div className="px-2 py-2">
           <p className="text-base font-medium">{displayName}</p>
-          <p className="truncate text-sm text-muted-foreground">{email ?? roleLabel}</p>
+          <p className="truncate text-sm text-muted-foreground">
+            {email ?? roleLabel}
+          </p>
         </div>
         <DropdownMenuSeparator />
         {links.map((link) => (

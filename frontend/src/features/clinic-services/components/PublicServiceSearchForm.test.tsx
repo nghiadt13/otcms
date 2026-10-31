@@ -4,12 +4,7 @@ import { PublicServiceSearchForm } from "./PublicServiceSearchForm";
 import { formatAppMessage } from "@/lib/messages/appMessages";
 describe("PublicServiceSearchForm", () => {
   it("điền lại tiêu chí đang lọc và gửi GET tới /services", () => {
-    render(
-      <PublicServiceSearchForm
-        error={null}
-        input={{ q: "gối" }}
-      />,
-    );
+    render(<PublicServiceSearchForm error={null} input={{ q: "gối" }} />);
     expect(screen.getByRole("textbox", { name: "Tên dịch vụ" })).toHaveValue(
       "gối",
     );

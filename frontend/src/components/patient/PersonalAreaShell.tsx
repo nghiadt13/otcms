@@ -37,7 +37,11 @@ const AREA_GROUPS: readonly (readonly AreaLink[])[] = [
     { label: "Hồ sơ và gia đình", href: PATIENT_ROUTES.profiles, icon: Users },
   ],
   [
-    { label: "Lịch hẹn", href: PATIENT_ROUTES.appointments, icon: CalendarDays },
+    {
+      label: "Lịch hẹn",
+      href: PATIENT_ROUTES.appointments,
+      icon: CalendarDays,
+    },
     { label: "Kết quả khám", href: PATIENT_ROUTES.results, icon: FileText },
     { label: "Đơn thuốc", href: PATIENT_ROUTES.prescriptions, icon: Pill },
     { label: "Thanh toán", href: PATIENT_ROUTES.payments, icon: Receipt },
@@ -77,10 +81,7 @@ export function PersonalAreaShell({
           <PersonSummary person={person} />
           <nav aria-label="Các mục cá nhân" className="hidden lg:block">
             {AREA_GROUPS.map((links) => (
-              <ul
-                className="grid gap-1 border-t p-3"
-                key={links[0].href}
-              >
+              <ul className="grid gap-1 border-t p-3" key={links[0].href}>
                 {links.map((link) => {
                   const active =
                     pathname === link.href ||

@@ -12,12 +12,21 @@ import { mockStore, type MockStaffRecord } from "./staffProfileMockData";
 
 const LATENCY_MS = process.env.NODE_ENV === "test" ? 0 : 200;
 const USE_MOCK = process.env.NODE_ENV === "test";
-type DoctorBackend = { doctorProfileId: string; fullName: string; photoUrl: string | null;
-  specialties: string; qualifications: string; biography: string; consultationInformation: string };
+type DoctorBackend = {
+  doctorProfileId: string;
+  fullName: string;
+  photoUrl: string | null;
+  specialties: string;
+  qualifications: string;
+  biography: string;
+  consultationInformation: string;
+};
 const fromBackend = (doctor: DoctorBackend): PublicDoctor => ({
   id: doctor.doctorProfileId,
   fullName: doctor.fullName,
-  photoUrl: doctor.photoUrl?.startsWith("/") ? `${apiBaseUrl}${doctor.photoUrl}` : doctor.photoUrl,
+  photoUrl: doctor.photoUrl?.startsWith("/")
+    ? `${apiBaseUrl}${doctor.photoUrl}`
+    : doctor.photoUrl,
   specialties: doctor.specialties ? doctor.specialties.split(",") : [],
   qualifications: doctor.qualifications,
   biography: doctor.biography,
@@ -51,7 +60,10 @@ export async function listPublicDoctors(
   signal?: AbortSignal,
 ): Promise<{ items: PublicDoctor[] }> {
   if (!USE_MOCK) {
-    const response = await publicApiRequest<{ items: DoctorBackend[] }>("/api/v1/doctors", { signal });
+    const response = await publicApiRequest<{ items: DoctorBackend[] }>(
+      "/api/v1/doctors",
+      { signal },
+    );
     return { items: response.items.map(fromBackend) };
   }
   await mockDelay(LATENCY_MS, signal);
@@ -66,7 +78,9 @@ export async function getPublicDoctor(
 ): Promise<PublicDoctorDetail> {
   if (!USE_MOCK) {
     const doctor = await publicApiRequest<DoctorBackend>(
-      `/api/v1/doctors/${encodeURIComponent(id)}`, { signal });
+      `/api/v1/doctors/${encodeURIComponent(id)}`,
+      { signal },
+    );
     return { ...fromBackend(doctor), availability: [] };
   }
   await mockDelay(LATENCY_MS, signal);

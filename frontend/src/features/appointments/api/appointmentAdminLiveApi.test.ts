@@ -28,17 +28,31 @@ afterEach(() => vi.useRealTimers());
 describe("admin appointment expiry projection", () => {
   it("shows expired unpaid appointments as cancelled", async () => {
     apiRequest.mockResolvedValueOnce({
-      items: [dto("unpaid", false)], page: 0, size: 20, totalElements: 1, totalPages: 1,
+      items: [dto("unpaid", false)],
+      page: 0,
+      size: 20,
+      totalElements: 1,
+      totalPages: 1,
     });
     const result = await listAdminAppointments({});
-    expect(result.items[0]).toMatchObject({ status: "CANCELLED", requiresReception: false });
+    expect(result.items[0]).toMatchObject({
+      status: "CANCELLED",
+      requiresReception: false,
+    });
   });
 
   it("marks expired paid appointments for reception follow-up", async () => {
     apiRequest.mockResolvedValueOnce({
-      items: [dto("paid", true)], page: 0, size: 20, totalElements: 1, totalPages: 1,
+      items: [dto("paid", true)],
+      page: 0,
+      size: 20,
+      totalElements: 1,
+      totalPages: 1,
     });
     const result = await listAdminAppointments({});
-    expect(result.items[0]).toMatchObject({ status: "BOOKED", requiresReception: true });
+    expect(result.items[0]).toMatchObject({
+      status: "BOOKED",
+      requiresReception: true,
+    });
   });
 });

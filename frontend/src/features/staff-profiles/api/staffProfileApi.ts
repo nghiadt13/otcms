@@ -29,16 +29,24 @@ const USE_MOCK = process.env.NODE_ENV === "test";
 
 function profileError(error: unknown): never {
   if (!(error instanceof ApiError)) throw error;
-  const code = error.errorCode === "DOCTOR_HAS_FUTURE_APPOINTMENTS"
-    ? "MSG-36"
-    : error.status === 404 || error.status === 409 ? "MSG-23"
-      : error.status === 400 ? "MSG-22" : "MSG-04";
+  const code =
+    error.errorCode === "DOCTOR_HAS_FUTURE_APPOINTMENTS"
+      ? "MSG-36"
+      : error.status === 404 || error.status === 409
+        ? "MSG-23"
+        : error.status === 400
+          ? "MSG-22"
+          : "MSG-04";
   throw new ApiError(error.status, { code, fieldErrors: error.fieldErrors });
 }
 
 function withPhotoUrl<T extends { photoUrl: string | null }>(record: T): T {
-  return { ...record, photoUrl: record.photoUrl?.startsWith("/")
-    ? `${apiBaseUrl}${record.photoUrl}` : record.photoUrl };
+  return {
+    ...record,
+    photoUrl: record.photoUrl?.startsWith("/")
+      ? `${apiBaseUrl}${record.photoUrl}`
+      : record.photoUrl,
+  };
 }
 
 function allowedActions(record: MockStaffRecord): StaffProfileAction[] {
@@ -126,12 +134,22 @@ export async function listStaffProfiles(
 ): Promise<PageResponse<StaffProfileListItem>> {
   if (!USE_MOCK) {
     try {
-      const params = toQueryString({ q: query.q, role: query.role, status: query.status,
-        public: query.isPublic, page: query.page, size: query.size });
+      const params = toQueryString({
+        q: query.q,
+        role: query.role,
+        status: query.status,
+        public: query.isPublic,
+        page: query.page,
+        size: query.size,
+      });
       const result = await apiRequest<PageResponse<StaffProfileListItem>>(
-        `/api/v1/admin/staff-profiles${params}`, { signal });
+        `/api/v1/admin/staff-profiles${params}`,
+        { signal },
+      );
       return { ...result, items: result.items.map(withPhotoUrl) };
-    } catch (error) { profileError(error); }
+    } catch (error) {
+      profileError(error);
+    }
   }
   await mockDelay(DELAY_MS, signal);
   const q = query.q.trim().toLowerCase();
@@ -162,9 +180,15 @@ export async function getStaffProfile(
 ): Promise<StaffProfileDetail> {
   if (!USE_MOCK) {
     try {
-      return withPhotoUrl(await apiRequest<StaffProfileDetail>(
-        `/api/v1/admin/staff-profiles/${encodeURIComponent(id)}`, { signal }));
-    } catch (error) { profileError(error); }
+      return withPhotoUrl(
+        await apiRequest<StaffProfileDetail>(
+          `/api/v1/admin/staff-profiles/${encodeURIComponent(id)}`,
+          { signal },
+        ),
+      );
+    } catch (error) {
+      profileError(error);
+    }
   }
   await mockDelay(DELAY_MS / 2, signal);
   return toDetail(findRecord(id));
@@ -177,14 +201,17 @@ export async function setDoctorBookingAvailability(
   if (!detail.doctor) throw new Error("Chỉ bác sĩ mới có thể nhận đặt lịch.");
   if (!USE_MOCK) {
     try {
-      await apiRequest(`/api/v1/admin/doctors/${encodeURIComponent(detail.id)}/directory-state`, {
-        method: "PATCH",
-        body: JSON.stringify({
-          publiclyVisible: detail.doctor.isPublic,
-          acceptingNewBookings,
-          inActiveDirectory: detail.inActiveDirectory ?? true,
-        }),
-      });
+      await apiRequest(
+        `/api/v1/admin/doctors/${encodeURIComponent(detail.id)}/directory-state`,
+        {
+          method: "PATCH",
+          body: JSON.stringify({
+            publiclyVisible: detail.doctor.isPublic,
+            acceptingNewBookings,
+            inActiveDirectory: detail.inActiveDirectory ?? true,
+          }),
+        },
+      );
       return getStaffProfile(detail.id);
     } catch (error) {
       profileError(error);
@@ -202,16 +229,34 @@ export async function listEligibleStaffAccounts(
 ): Promise<EligibleStaffAccount[]> {
   if (!USE_MOCK) {
     try {
-      const list = await apiRequest<Array<{ id: string; username: string; fullName: string | null;
-        role: "DOCTOR" | "RECEPTIONIST" | "LAB_TECHNICIAN" | "IMAGING_TECHNICIAN" }>>(
-        "/api/v1/admin/staff-profiles/eligible-accounts", { signal });
+      const list = await apiRequest<
+        Array<{
+          id: string;
+          username: string;
+          fullName: string | null;
+          role:
+            "DOCTOR" | "RECEPTIONIST" | "LAB_TECHNICIAN" | "IMAGING_TECHNICIAN";
+        }>
+      >("/api/v1/admin/staff-profiles/eligible-accounts", { signal });
       const term = q?.trim().toLowerCase() ?? "";
-      return list.map((a) => ({ accountId: a.id, username: a.username,
-        fullName: a.fullName ?? a.username,
-        role: (a.role === "DOCTOR" ? "ORTHOPEDIC_DOCTOR" : a.role) as StaffRole }))
-        .filter((a) => !term || a.username.toLowerCase().includes(term)
-          || a.fullName.toLowerCase().includes(term));
-    } catch (error) { profileError(error); }
+      return list
+        .map((a) => ({
+          accountId: a.id,
+          username: a.username,
+          fullName: a.fullName ?? a.username,
+          role: (a.role === "DOCTOR"
+            ? "ORTHOPEDIC_DOCTOR"
+            : a.role) as StaffRole,
+        }))
+        .filter(
+          (a) =>
+            !term ||
+            a.username.toLowerCase().includes(term) ||
+            a.fullName.toLowerCase().includes(term),
+        );
+    } catch (error) {
+      profileError(error);
+    }
   }
   await mockDelay(DELAY_MS / 2, signal);
   const text = (q ?? "").trim().toLowerCase();
@@ -231,9 +276,15 @@ export async function createStaffProfile(
 ): Promise<StaffProfileDetail> {
   if (!USE_MOCK) {
     try {
-      return withPhotoUrl(await apiRequest<StaffProfileDetail>("/api/v1/admin/staff-profiles",
-        { method: "POST", body: buildStaffProfileFormData(input, photo) }));
-    } catch (error) { profileError(error); }
+      return withPhotoUrl(
+        await apiRequest<StaffProfileDetail>("/api/v1/admin/staff-profiles", {
+          method: "POST",
+          body: buildStaffProfileFormData(input, photo),
+        }),
+      );
+    } catch (error) {
+      profileError(error);
+    }
   }
   // Dựng multipart như khi gọi BE thật, rồi đọc lại part `data`.
   const body = await readInput(buildStaffProfileFormData(input, photo));
@@ -272,10 +323,15 @@ export async function updateStaffProfile(
 ): Promise<StaffProfileDetail> {
   if (!USE_MOCK) {
     try {
-      return withPhotoUrl(await apiRequest<StaffProfileDetail>(
-        `/api/v1/admin/staff-profiles/${encodeURIComponent(id)}`,
-        { method: "PUT", body: buildStaffProfileFormData(input, photo) }));
-    } catch (error) { profileError(error); }
+      return withPhotoUrl(
+        await apiRequest<StaffProfileDetail>(
+          `/api/v1/admin/staff-profiles/${encodeURIComponent(id)}`,
+          { method: "PUT", body: buildStaffProfileFormData(input, photo) },
+        ),
+      );
+    } catch (error) {
+      profileError(error);
+    }
   }
   const body = await readInput(buildStaffProfileFormData(input, photo));
   await mockDelay(DELAY_MS);
@@ -294,10 +350,14 @@ export async function updateStaffProfile(
 export async function removeStaffProfile(id: string): Promise<void> {
   if (!USE_MOCK) {
     try {
-      await apiRequest<void>(`/api/v1/admin/staff-profiles/${encodeURIComponent(id)}`,
-        { method: "DELETE" });
+      await apiRequest<void>(
+        `/api/v1/admin/staff-profiles/${encodeURIComponent(id)}`,
+        { method: "DELETE" },
+      );
       return;
-    } catch (error) { profileError(error); }
+    } catch (error) {
+      profileError(error);
+    }
   }
   await mockDelay(DELAY_MS);
   const record = findRecord(id);

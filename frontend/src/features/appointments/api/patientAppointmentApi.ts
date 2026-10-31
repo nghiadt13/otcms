@@ -53,7 +53,8 @@ function allowedActionsOf(
   feeStatus: ExamFeeStatus,
   startAt: string,
 ): PatientAppointmentAction[] {
-  if (status !== "BOOKED" || Date.parse(startAt) <= bookingMockNow().getTime()) return [];
+  if (status !== "BOOKED" || Date.parse(startAt) <= bookingMockNow().getTime())
+    return [];
   return feeStatus === "PENDING_PAYMENT"
     ? ["cancel", "payExamFee"]
     : ["cancel"];
@@ -95,7 +96,11 @@ function sharedView(
       doctor: record.doctor,
       roomName: record.roomName,
       isFollowUp: record.isFollowUp,
-      status: effectiveStatus(record.status, record.examFee.status, record.startAt),
+      status: effectiveStatus(
+        record.status,
+        record.examFee.status,
+        record.startAt,
+      ),
       examFee: record.examFee,
       doctorUnavailable: false,
     },
@@ -109,7 +114,11 @@ function effectiveStatus(
   feeStatus: ExamFeeStatus,
   startAt: string,
 ): AppointmentStatus {
-  if (status === "BOOKED" && Date.parse(startAt) <= bookingMockNow().getTime() && feeStatus !== "PAID")
+  if (
+    status === "BOOKED" &&
+    Date.parse(startAt) <= bookingMockNow().getTime() &&
+    feeStatus !== "PAID"
+  )
     return "CANCELLED";
   return status;
 }
@@ -137,7 +146,11 @@ function ownView(
         isFollowUp: false,
         status: cancelledOwnIds.has(seed.id)
           ? "CANCELLED"
-          : effectiveStatus(seed.status, findMockAppointmentFee(seed.id)?.examFeeStatus ?? seed.feeStatus, seed.startAt),
+          : effectiveStatus(
+              seed.status,
+              findMockAppointmentFee(seed.id)?.examFeeStatus ?? seed.feeStatus,
+              seed.startAt,
+            ),
         examFee: {
           amount: service.price,
           status:
@@ -181,8 +194,10 @@ const byStartThenId = (a: PatientAppointment, b: PatientAppointment) =>
 
 const matchesWhen = (item: PatientAppointment, when: AppointmentWhen) =>
   when === "upcoming"
-    ? item.status === "BOOKED" && Date.parse(item.startAt) > bookingMockNow().getTime()
-    : item.status !== "BOOKED" || Date.parse(item.startAt) <= bookingMockNow().getTime();
+    ? item.status === "BOOKED" &&
+      Date.parse(item.startAt) > bookingMockNow().getTime()
+    : item.status !== "BOOKED" ||
+      Date.parse(item.startAt) <= bookingMockNow().getTime();
 
 /** GET /api/v1/appointments: `when`, `patientId?`, `page`, `size`. */
 export async function listMyAppointments(

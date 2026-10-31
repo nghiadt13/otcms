@@ -114,11 +114,13 @@ export function AppointmentTable({
                   </TableCell>
                   <TableCell>
                     <StatusBadge
-                      tone={appointment.examFeePaid === null
-                        ? "neutral"
-                        : appointment.examFeePaid
-                          ? "success"
-                          : "warning"}
+                      tone={
+                        appointment.examFeePaid === null
+                          ? "neutral"
+                          : appointment.examFeePaid
+                            ? "success"
+                            : "warning"
+                      }
                     >
                       {appointment.examFeePaid === null
                         ? "Không có phí"

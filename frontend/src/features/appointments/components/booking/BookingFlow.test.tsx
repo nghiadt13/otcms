@@ -311,10 +311,16 @@ describe("BookingFlow - khu bệnh nhân (variant patient, wizard 4 bước)", (
     const lan = profiles.find((profile) => profile.patientCode === "BN-000456");
     if (!lan) throw new Error("thiếu hồ sơ mẫu BN-000456");
     render(
-      <BookingFlow variant="patient" patients={profiles.map(toBookingPatient)} onBooked={vi.fn()} />,
+      <BookingFlow
+        variant="patient"
+        patients={profiles.map(toBookingPatient)}
+        onBooked={vi.fn()}
+      />,
     );
 
-    await user.click(screen.getByRole("radio", { name: /Nguyễn Thị Lan · Cha\/Mẹ/ }));
+    await user.click(
+      screen.getByRole("radio", { name: /Nguyễn Thị Lan · Cha\/Mẹ/ }),
+    );
     await next(user);
     await user.click(
       await screen.findByRole("radio", { name: /Khám chỉnh hình tổng quát/ }),
@@ -337,7 +343,11 @@ describe("BookingFlow - khu bệnh nhân (variant patient, wizard 4 bước)", (
       (profile) => profile.relationship === "SELF",
     );
     render(
-      <BookingFlow variant="patient" patients={self.map(toBookingPatient)} onBooked={vi.fn()} />,
+      <BookingFlow
+        variant="patient"
+        patients={self.map(toBookingPatient)}
+        onBooked={vi.fn()}
+      />,
     );
 
     expect(screen.getByRole("radio", { name: /Bản thân/ })).toBeChecked();
@@ -356,7 +366,9 @@ describe("BookingFlow - khu bệnh nhân (variant patient, wizard 4 bước)", (
         onBooked={vi.fn()}
       />,
     );
-    await user.click(screen.getByRole("radio", { name: /Nguyễn Thị Lan · Cha\/Mẹ/ }));
+    await user.click(
+      screen.getByRole("radio", { name: /Nguyễn Thị Lan · Cha\/Mẹ/ }),
+    );
     await next(user);
     await user.click(
       await screen.findByRole("radio", { name: /Khám chỉnh hình tổng quát/ }),
@@ -372,7 +384,9 @@ describe("BookingFlow - khu bệnh nhân (variant patient, wizard 4 bước)", (
     ).toBeInTheDocument();
     expect(screen.getByText(/Nguyễn Thị Lan · Cha\/Mẹ/)).toBeInTheDocument();
     expect(screen.getByText("Phòng khám sắp xếp bác sĩ")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Đặt lịch khám" })).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Đặt lịch khám" }),
+    ).toBeDisabled();
     await user.type(
       screen.getByRole("textbox", { name: "Lý do khám" }),
       "Đau gối phải",
@@ -380,7 +394,9 @@ describe("BookingFlow - khu bệnh nhân (variant patient, wizard 4 bước)", (
     expect(screen.getByRole("button", { name: "Đặt lịch khám" })).toBeEnabled();
 
     await user.click(screen.getByRole("button", { name: "Sửa người khám" }));
-    expect(screen.getByRole("radio", { name: /Nguyễn Thị Lan · Cha\/Mẹ/ })).toBeChecked();
+    expect(
+      screen.getByRole("radio", { name: /Nguyễn Thị Lan · Cha\/Mẹ/ }),
+    ).toBeChecked();
   });
 
   it("không có hồ sơ nào: không mở luồng, báo thêm hồ sơ trước", () => {

@@ -144,11 +144,20 @@ export function SignInForm({
         )}
       </div>
 
-      {staff && needsNewPassword ? <div>
-        <p className="mb-2 text-sm">Đây là lần đăng nhập đầu tiên. Đặt mật khẩu mới để tiếp tục.</p>
-        <PasswordField autoComplete="new-password" label="Mật khẩu mới (12–64 ký tự)"
-          value={newPassword} required onChange={(event) => setNewPassword(event.target.value)} />
-      </div> : null}
+      {staff && needsNewPassword ? (
+        <div>
+          <p className="mb-2 text-sm">
+            Đây là lần đăng nhập đầu tiên. Đặt mật khẩu mới để tiếp tục.
+          </p>
+          <PasswordField
+            autoComplete="new-password"
+            label="Mật khẩu mới (12–64 ký tự)"
+            value={newPassword}
+            required
+            onChange={(event) => setNewPassword(event.target.value)}
+          />
+        </div>
+      ) : null}
 
       <AuthSubmitButton
         submitting={submitting}

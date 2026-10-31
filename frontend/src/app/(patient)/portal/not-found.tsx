@@ -11,7 +11,10 @@ export default function PatientPortalNotFound() {
       <p className="text-base text-muted-foreground">
         Không tìm thấy trang hoặc thông tin bạn cần.
       </p>
-      <Link className={publicButtonClass("primary")} href={PATIENT_ROUTES.account}>
+      <Link
+        className={publicButtonClass("primary")}
+        href={PATIENT_ROUTES.account}
+      >
         Về trang chủ
       </Link>
     </div>

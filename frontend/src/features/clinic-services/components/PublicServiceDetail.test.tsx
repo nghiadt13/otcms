@@ -30,7 +30,9 @@ describe("PublicServiceDetail", () => {
       }),
     ).toBeVisible();
     expect(screen.getByText("250.000 ₫")).toBeInTheDocument();
-    expect(screen.getByText("Thời lượng dự kiến: 30 phút.")).toBeInTheDocument();
+    expect(
+      screen.getByText("Thời lượng dự kiến: 30 phút."),
+    ).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Đặt lịch khám" })).toHaveAttribute(
       "href",
       "/portal/appointments/new",
@@ -38,7 +40,9 @@ describe("PublicServiceDetail", () => {
   });
 
   it("ẩn nút đặt lịch nếu dịch vụ không bật onlineBookable", () => {
-    render(<PublicServiceDetail service={{ ...service, onlineBookable: false }} />);
+    render(
+      <PublicServiceDetail service={{ ...service, onlineBookable: false }} />,
+    );
     expect(screen.queryByRole("link", { name: "Đặt lịch khám" })).toBeNull();
   });
 });

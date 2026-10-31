@@ -27,21 +27,22 @@ const USE_MOCK = process.env.NODE_ENV === "test";
 
 function translateAccountError(error: unknown): never {
   if (!(error instanceof ApiError)) throw error;
-  const code = error.errorCode === "PATIENT_ACCOUNT_NOT_FOUND"
-    ? "MSG-50"
-    : error.errorCode === "ACCOUNT_STATUS_UNCHANGED"
-      ? "MSG-42"
-      : error.errorCode === "VALIDATION_FAILED"
-        ? "MSG-54"
-        : error.status === 404
-          ? "MSG-50"
-          : error.status === 409
-            ? "MSG-42"
-            : error.status === 400
-              ? "MSG-54"
-        : error.status === 403
-          ? "MSG-50"
-          : "MSG-04";
+  const code =
+    error.errorCode === "PATIENT_ACCOUNT_NOT_FOUND"
+      ? "MSG-50"
+      : error.errorCode === "ACCOUNT_STATUS_UNCHANGED"
+        ? "MSG-42"
+        : error.errorCode === "VALIDATION_FAILED"
+          ? "MSG-54"
+          : error.status === 404
+            ? "MSG-50"
+            : error.status === 409
+              ? "MSG-42"
+              : error.status === 400
+                ? "MSG-54"
+                : error.status === 403
+                  ? "MSG-50"
+                  : "MSG-04";
   throw new ApiError(error.status, { code });
 }
 
@@ -107,7 +108,10 @@ export async function getAccount(
 ): Promise<AccountDetail> {
   if (!USE_MOCK) {
     try {
-      return await apiRequest<AccountDetail>(`/api/v1/admin/accounts/${encodeURIComponent(id)}`, { signal });
+      return await apiRequest<AccountDetail>(
+        `/api/v1/admin/accounts/${encodeURIComponent(id)}`,
+        { signal },
+      );
     } catch (error) {
       translateAccountError(error);
     }

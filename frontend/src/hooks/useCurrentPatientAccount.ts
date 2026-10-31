@@ -49,4 +49,3 @@ export function useCurrentPatientAccount() {
   const error = failure?.key === requestKey ? failure.message : null;
   return { account, loading: !account && !error, error };
 }
-

@@ -16,11 +16,17 @@ beforeEach(() => {
   fetchMock.mockImplementation(async (input, init) => {
     const url = String(input);
     if (url.endsWith("/api/auth/patient/register"))
-      return new Response(JSON.stringify({ message: "Verification requested" }), { status: 202 });
+      return new Response(
+        JSON.stringify({ message: "Verification requested" }),
+        { status: 202 },
+      );
     if (url.endsWith("/api/auth/patient/verify-email")) {
       const payload = JSON.parse(String(init?.body)) as { otp: string };
       return payload.otp === "000000"
-        ? new Response(JSON.stringify({ error: { code: "OTP_INVALID_OR_EXPIRED" } }), { status: 400 })
+        ? new Response(
+            JSON.stringify({ error: { code: "OTP_INVALID_OR_EXPIRED" } }),
+            { status: 400 },
+          )
         : new Response(null, { status: 204 });
     }
     return new Response(null, { status: 202 });

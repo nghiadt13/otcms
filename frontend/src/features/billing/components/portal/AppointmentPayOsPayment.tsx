@@ -145,8 +145,9 @@ export function AppointmentPayOsPayment({
 
     const poll = async () => {
       try {
-        const shouldReconcile = isExpired(pendingAttemptExpiresAt)
-          && reconciledAttemptRef.current !== pendingAttemptId;
+        const shouldReconcile =
+          isExpired(pendingAttemptExpiresAt) &&
+          reconciledAttemptRef.current !== pendingAttemptId;
         if (shouldReconcile) reconciledAttemptRef.current = pendingAttemptId;
         const latest = shouldReconcile
           ? await reconcilePayOsAttempt(pendingAttemptId, controller.signal)
@@ -155,7 +156,10 @@ export function AppointmentPayOsPayment({
         setRemainingMs(msUntilExpiry(latest.expiresAt));
         setAttempt(latest);
         if (latest.status === "CONFIRMED") {
-          const refreshedInvoice = await getBillingInvoice(latest.invoiceId, controller.signal);
+          const refreshedInvoice = await getBillingInvoice(
+            latest.invoiceId,
+            controller.signal,
+          );
           if (stopped || controller.signal.aborted) return;
           setInvoice(refreshedInvoice);
         }
@@ -180,7 +184,8 @@ export function AppointmentPayOsPayment({
   const checkNow = async () => {
     if (!attempt) return;
     try {
-      if (isExpired(attempt.expiresAt)) reconciledAttemptRef.current = attempt.id;
+      if (isExpired(attempt.expiresAt))
+        reconciledAttemptRef.current = attempt.id;
       const latest = await reconcilePayOsAttempt(attempt.id);
       setRemainingMs(msUntilExpiry(latest.expiresAt));
       setAttempt(latest);
@@ -238,11 +243,14 @@ export function AppointmentPayOsPayment({
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <p className="text-sm text-muted-foreground">
-                {invoice.appointmentId ? "Hóa đơn phí khám" : "Hóa đơn dịch vụ y tế"}
+                {invoice.appointmentId
+                  ? "Hóa đơn phí khám"
+                  : "Hóa đơn dịch vụ y tế"}
               </p>
               <h2 className="text-lg font-semibold">{invoice.invoiceNumber}</h2>
               <p className="text-sm text-muted-foreground">
-                Ngày lập {new Intl.DateTimeFormat("vi-VN", {
+                Ngày lập{" "}
+                {new Intl.DateTimeFormat("vi-VN", {
                   dateStyle: "medium",
                   timeZone: "Asia/Ho_Chi_Minh",
                 }).format(new Date(invoice.issuedAt))}
@@ -263,7 +271,9 @@ export function AppointmentPayOsPayment({
                   <th className="px-4 py-3 font-medium">Nội dung</th>
                   <th className="px-4 py-3 text-right font-medium">Số lượng</th>
                   <th className="px-4 py-3 text-right font-medium">Đơn giá</th>
-                  <th className="px-4 py-3 text-right font-medium">Thành tiền</th>
+                  <th className="px-4 py-3 text-right font-medium">
+                    Thành tiền
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y">
@@ -273,9 +283,13 @@ export function AppointmentPayOsPayment({
                       <p className="font-medium">
                         {invoice.appointmentId ? "Phí khám" : "Dịch vụ y tế"}
                       </p>
-                      <p className="text-muted-foreground">{item.description}</p>
+                      <p className="text-muted-foreground">
+                        {item.description}
+                      </p>
                     </td>
-                    <td className="px-4 py-3 text-right tabular-nums">{item.quantity}</td>
+                    <td className="px-4 py-3 text-right tabular-nums">
+                      {item.quantity}
+                    </td>
                     <td className="px-4 py-3 text-right tabular-nums">
                       {formatCurrencyVnd(item.unitPrice)}
                     </td>
@@ -290,11 +304,15 @@ export function AppointmentPayOsPayment({
           <dl className="ml-auto grid max-w-sm gap-2 border-t pt-4 text-sm">
             <div className="flex justify-between gap-4">
               <dt>Tổng tiền</dt>
-              <dd className="font-medium tabular-nums">{formatCurrencyVnd(invoice.totalAmount)}</dd>
+              <dd className="font-medium tabular-nums">
+                {formatCurrencyVnd(invoice.totalAmount)}
+              </dd>
             </div>
             <div className="flex justify-between gap-4">
               <dt>Đã thanh toán</dt>
-              <dd className="font-medium tabular-nums">{formatCurrencyVnd(invoice.paidAmount)}</dd>
+              <dd className="font-medium tabular-nums">
+                {formatCurrencyVnd(invoice.paidAmount)}
+              </dd>
             </div>
             <div className="flex justify-between gap-4 border-t pt-2 text-base">
               <dt className="font-semibold">Còn phải thanh toán</dt>

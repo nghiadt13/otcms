@@ -76,8 +76,15 @@ describe("listMyAppointments", () => {
     const page = await listMyAppointments({ when: "past", page: 0, size: 20 });
     const unpaidPast = page.items.find((item) => item.id === "apt-expired-1");
     const paidPast = page.items.find((item) => item.id === "apt-expired-2");
-    expect(unpaidPast).toMatchObject({ status: "CANCELLED", allowedActions: [] });
-    expect(paidPast).toMatchObject({ status: "BOOKED", examFee: { status: "PAID" }, allowedActions: [] });
+    expect(unpaidPast).toMatchObject({
+      status: "CANCELLED",
+      allowedActions: [],
+    });
+    expect(paidPast).toMatchObject({
+      status: "BOOKED",
+      examFee: { status: "PAID" },
+      allowedActions: [],
+    });
   });
 
   it("lọc theo hồ sơ đã gắn; người khám nào cũng ghi tên và quan hệ", async () => {

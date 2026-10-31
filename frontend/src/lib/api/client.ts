@@ -37,8 +37,7 @@ async function authorizedHeaders(init: RequestInit) {
   // Request ghi dữ liệu cần CSRF (xem getCsrfToken); GET không cần.
   // Spring may clear the XSRF cookie after an authenticated mutation. Fetch a fresh
   // cookie and matching header for each write instead of reusing an in-memory token.
-  if (isMutation(init))
-    headers.set("X-CSRF-TOKEN", await getCsrfToken(true));
+  if (isMutation(init)) headers.set("X-CSRF-TOKEN", await getCsrfToken(true));
   return headers;
 }
 

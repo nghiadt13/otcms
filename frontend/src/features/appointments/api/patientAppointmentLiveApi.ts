@@ -66,9 +66,10 @@ function toPatientAppointment(dto: AppointmentDto): PatientAppointment {
   const feePaid = dto.examFeePaid === true;
   // Lịch đã bắt đầu mà chưa thanh toán được đóng như lịch đã hủy. Nếu đã trả,
   // giữ trạng thái để nhân viên xử lý nhưng không cho người bệnh thao tác tiếp.
-  const status = backendStatus === "BOOKED" && expired && !feePaid
-    ? "CANCELLED"
-    : backendStatus;
+  const status =
+    backendStatus === "BOOKED" && expired && !feePaid
+      ? "CANCELLED"
+      : backendStatus;
   return {
     id: dto.id,
     startAt: vnIsoOf(new Date(dto.startTime)),
@@ -85,18 +86,20 @@ function toPatientAppointment(dto: AppointmentDto): PatientAppointment {
     status,
     examFee: {
       amount: dto.servicePrice ?? 0,
-      status: dto.servicePrice == null
-        ? "NOT_REQUIRED"
-        : dto.examFeePaid
-          ? "PAID"
-          : "PENDING_PAYMENT",
+      status:
+        dto.servicePrice == null
+          ? "NOT_REQUIRED"
+          : dto.examFeePaid
+            ? "PAID"
+            : "PENDING_PAYMENT",
     },
     doctorUnavailable: false,
-    allowedActions: status === "BOOKED" && !expired
-      ? dto.servicePrice != null && !dto.examFeePaid
-        ? ["cancel", "payExamFee"]
-        : ["cancel"]
-      : [],
+    allowedActions:
+      status === "BOOKED" && !expired
+        ? dto.servicePrice != null && !dto.examFeePaid
+          ? ["cancel", "payExamFee"]
+          : ["cancel"]
+        : [],
   };
 }
 

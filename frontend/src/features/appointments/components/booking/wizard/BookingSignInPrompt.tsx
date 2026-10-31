@@ -35,10 +35,7 @@ export function BookingSignInPrompt() {
         </div>
         <div className="flex flex-col gap-3 sm:flex-row">
           <Link
-            className={cn(
-              buttonVariants(),
-              "h-12 px-8 text-base sm:w-auto",
-            )}
+            className={cn(buttonVariants(), "h-12 px-8 text-base sm:w-auto")}
             href={`/login?next=${NEXT}`}
           >
             <LogIn aria-hidden />

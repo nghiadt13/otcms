@@ -59,6 +59,8 @@ describe("RoleHomeRedirect", () => {
       formatAppMessage("MSG-04"),
     );
     await userEvent.click(screen.getByRole("button", { name: "Thử lại" }));
-    await waitFor(() => expect(replace).toHaveBeenCalledWith("/portal/account"));
+    await waitFor(() =>
+      expect(replace).toHaveBeenCalledWith("/portal/account"),
+    );
   });
 });

@@ -9,7 +9,13 @@ import { apiBaseUrl } from "@/lib/api/apiBaseUrl";
 
 // Khớp enum AccountType của backend.
 export type AccountType =
-  "PATIENT" | "RECEPTIONIST" | "DOCTOR" | "LAB_TECHNICIAN" | "IMAGING_TECHNICIAN" | "OWNER" | "ADMIN";
+  | "PATIENT"
+  | "RECEPTIONIST"
+  | "DOCTOR"
+  | "LAB_TECHNICIAN"
+  | "IMAGING_TECHNICIAN"
+  | "OWNER"
+  | "ADMIN";
 export type LoginKind = "patient" | "staff";
 
 type SessionTokenBody = {
@@ -184,12 +190,18 @@ export async function getAccessToken(): Promise<string | null> {
 }
 
 /** Complete the first login for an issued staff account. */
-export async function completeFirstLogin(currentPassword: string, newPassword: string): Promise<void> {
+export async function completeFirstLogin(
+  currentPassword: string,
+  newPassword: string,
+): Promise<void> {
   const token = await getAccessToken();
   if (!token) throw new AuthSessionError(401);
   const response = await post("/api/auth/change-password", {
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}`,
-      "X-CSRF-TOKEN": await getCsrfToken(true) },
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+      "X-CSRF-TOKEN": await getCsrfToken(true),
+    },
     body: JSON.stringify({ currentPassword, newPassword }),
   });
   if (!response.ok) throw new AuthSessionError(response.status);

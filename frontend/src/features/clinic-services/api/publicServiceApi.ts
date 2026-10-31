@@ -7,7 +7,11 @@ type PublicServiceCatalogResponse = { items: PublicService[] };
 
 /** So khớp tên không phân biệt hoa thường và dấu tiếng Việt. */
 const fold = (text: string) =>
-  text.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/đ/g, "d");
+  text
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/đ/g, "d");
 
 /** GET /api/v1/clinic-services — danh mục giá thật, không yêu cầu đăng nhập. */
 export async function listPublicServices(
@@ -30,7 +34,9 @@ export async function listPublicServices(
 
   const needle = fold(q);
   return {
-    items: catalog.items.filter((service) => fold(service.name).includes(needle)),
+    items: catalog.items.filter((service) =>
+      fold(service.name).includes(needle),
+    ),
   };
 }
 

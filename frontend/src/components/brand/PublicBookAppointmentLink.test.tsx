@@ -29,12 +29,13 @@ describe("PublicBookAppointmentLink", () => {
 
   it("người đã đăng nhập đi thẳng tới màn đặt lịch", async () => {
     getSession.mockResolvedValue({ accessToken: "test-token" });
-    render(<PublicBookAppointmentLink>Đặt lịch khám</PublicBookAppointmentLink>);
+    render(
+      <PublicBookAppointmentLink>Đặt lịch khám</PublicBookAppointmentLink>,
+    );
     await waitFor(() =>
-      expect(screen.getByRole("link", { name: "Đặt lịch khám" })).toHaveAttribute(
-        "href",
-        "/portal/appointments/new",
-      ),
+      expect(
+        screen.getByRole("link", { name: "Đặt lịch khám" }),
+      ).toHaveAttribute("href", "/portal/appointments/new"),
     );
   });
 });

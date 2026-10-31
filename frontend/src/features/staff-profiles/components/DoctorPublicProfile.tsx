@@ -69,14 +69,22 @@ export function DoctorPublicProfile({
           </p>
         </section>
 
-        {doctor.availability.length > 0 ? <section aria-labelledby="doctor-availability-title" className="mt-10">
-          <h2 className="text-2xl font-semibold" id="doctor-availability-title">
-            Lịch nhận khám 7 ngày tới
-          </h2>
-          <div className="mt-4">
-            <DoctorAvailabilitySummary availability={doctor.availability} />
-          </div>
-        </section> : null}
+        {doctor.availability.length > 0 ? (
+          <section
+            aria-labelledby="doctor-availability-title"
+            className="mt-10"
+          >
+            <h2
+              className="text-2xl font-semibold"
+              id="doctor-availability-title"
+            >
+              Lịch nhận khám 7 ngày tới
+            </h2>
+            <div className="mt-4">
+              <DoctorAvailabilitySummary availability={doctor.availability} />
+            </div>
+          </section>
+        ) : null}
 
         <PublicBookAppointmentLink
           className={publicButtonClass("primary", "lg") + " mt-10"}

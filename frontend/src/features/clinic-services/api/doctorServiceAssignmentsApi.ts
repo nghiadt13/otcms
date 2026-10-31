@@ -61,7 +61,10 @@ export function listDoctorServiceAssignments(
   );
 }
 
-export function assignDoctorToService(serviceId: string, doctorProfileId: string) {
+export function assignDoctorToService(
+  serviceId: string,
+  doctorProfileId: string,
+) {
   return apiRequest<DoctorServiceAssignment>(
     `/api/v1/admin/clinic-services/${encodeURIComponent(serviceId)}/doctor-assignments`,
     {

@@ -18,25 +18,36 @@ export function StaffAvatar({
   size?: keyof typeof SIZE_CLASS;
 }) {
   const initial = name.trim().slice(-1).toUpperCase();
-  const [loadedPhoto, setLoadedPhoto] = useState<{ url: string; src: string } | null>(null);
-  const protectedPhoto = Boolean(photoUrl?.includes("/api/v1/staff-profiles/") && photoUrl.endsWith("/photo"));
-  const src = photoUrl && protectedPhoto
-    ? loadedPhoto?.url === photoUrl ? loadedPhoto.src : null
-    : photoUrl;
+  const [loadedPhoto, setLoadedPhoto] = useState<{
+    url: string;
+    src: string;
+  } | null>(null);
+  const protectedPhoto = Boolean(
+    photoUrl?.includes("/api/v1/staff-profiles/") &&
+    photoUrl.endsWith("/photo"),
+  );
+  const src =
+    photoUrl && protectedPhoto
+      ? loadedPhoto?.url === photoUrl
+        ? loadedPhoto.src
+        : null
+      : photoUrl;
   useEffect(() => {
     if (!photoUrl || !protectedPhoto) return;
     let objectUrl: string | null = null;
     let cancelled = false;
-    void getAccessToken().then(async (token) => {
-      if (!token) return;
-      const response = await fetch(photoUrl, {
-        headers: { Authorization: `Bearer ${token}` },
-        cache: "no-store",
-      });
-      if (!response.ok) return;
-      objectUrl = URL.createObjectURL(await response.blob());
-      if (!cancelled) setLoadedPhoto({ url: photoUrl, src: objectUrl });
-    }).catch(() => undefined);
+    void getAccessToken()
+      .then(async (token) => {
+        if (!token) return;
+        const response = await fetch(photoUrl, {
+          headers: { Authorization: `Bearer ${token}` },
+          cache: "no-store",
+        });
+        if (!response.ok) return;
+        objectUrl = URL.createObjectURL(await response.blob());
+        if (!cancelled) setLoadedPhoto({ url: photoUrl, src: objectUrl });
+      })
+      .catch(() => undefined);
     return () => {
       cancelled = true;
       if (objectUrl) URL.revokeObjectURL(objectUrl);

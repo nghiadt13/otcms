@@ -71,7 +71,6 @@ export function AccountManagement() {
           onStale={reload}
         />
       ) : null}
-
     </>
   );
 }
