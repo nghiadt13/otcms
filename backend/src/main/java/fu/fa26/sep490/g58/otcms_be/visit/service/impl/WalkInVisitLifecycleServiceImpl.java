@@ -1,7 +1,9 @@
 package fu.fa26.sep490.g58.otcms_be.visit.service.impl;
-import fu.fa26.sep490.g58.otcms_be.notification.model.NotificationRelatedKind;
-import fu.fa26.sep490.g58.otcms_be.notification.model.NotificationMessage;
+import fu.fa26.sep490.g58.otcms_be.notification.model.NotificationMessages;
 import fu.fa26.sep490.g58.otcms_be.notification.service.NotificationPublisher;
+import fu.fa26.sep490.g58.otcms_be.staff.service.DoctorProfileIdentityQueryService;
+import fu.fa26.sep490.g58.otcms_be.staff.service.StaffAvailabilityProviderQueryService;
+import fu.fa26.sep490.g58.otcms_be.visit.service.VisitReviewSourceService;
 
 import fu.fa26.sep490.g58.otcms_be.auth.service.DoctorAccountAccessService;
 import fu.fa26.sep490.g58.otcms_be.auth.service.ReceptionistAccountAccessService;
@@ -31,12 +33,16 @@ public class WalkInVisitLifecycleServiceImpl implements WalkInVisitLifecycleServ
     private final DoctorAccountAccessService doctors;
     private final Clock clock;
     private final NotificationPublisher notifications;
+    private final VisitReviewSourceService reviewSources;
+    private final DoctorProfileIdentityQueryService doctorProfiles;
+    private final StaffAvailabilityProviderQueryService doctorNames;
 
     public WalkInVisitLifecycleServiceImpl(CoordinationGuardService guard, ClinicVisitJpaRepository visits,
             WalkInVisitLifecycleRepository lifecycle, VisitAuditJpaRepository audits,
             ExitWalkInReceptionQueueService queueExit, ReceptionistAccountAccessService receptionists,
             DoctorAccountAccessService doctors, Clock clock,
-            NotificationPublisher notifications) {
+            NotificationPublisher notifications, VisitReviewSourceService reviewSources,
+            DoctorProfileIdentityQueryService doctorProfiles, StaffAvailabilityProviderQueryService doctorNames) {
         this.guard = guard;
         this.visits = visits;
         this.lifecycle = lifecycle;
@@ -46,6 +52,9 @@ public class WalkInVisitLifecycleServiceImpl implements WalkInVisitLifecycleServ
         this.doctors = doctors;
         this.clock = clock;
         this.notifications = notifications;
+        this.reviewSources = reviewSources;
+        this.doctorProfiles = doctorProfiles;
+        this.doctorNames = doctorNames;
     }
 
     @Override
@@ -81,10 +90,13 @@ public class WalkInVisitLifecycleServiceImpl implements WalkInVisitLifecycleServ
                 || lifecycle.hasInProgressCare(visitId)) {
             throw new VisitOperationException("VISIT_CARE_NOT_CHANGEABLE");
         }
-        closeAndRecord(visitId, actorAccountId, actorRole, correlationId, "VISIT_CLOSED", clock.instant());
-        notifications.publishToPatient(visit.getPatientProfileId(), new NotificationMessage(
-                "VISIT_CLOSED", "Mời bạn đánh giá phòng khám", "Lượt khám đã hoàn tất. Bạn có thể gửi đánh giá về phòng khám.",
-                NotificationRelatedKind.VISIT, visitId));
+        var closedAt = clock.instant();
+        closeAndRecord(visitId, actorAccountId, actorRole, correlationId, "VISIT_CLOSED", closedAt);
+        UUID treatingDoctor = reviewSources.find(visitId).map(VisitReviewSourceService.Source::doctorProfileId)
+                .orElseGet(() -> doctorProfiles.findDoctorProfileId(actorAccountId).orElse(null));
+        String doctorName = treatingDoctor == null ? "" : doctorNames.findDoctorDisplayName(treatingDoctor).orElse("");
+        notifications.publishToPatient(visit.getPatientProfileId(),
+                NotificationMessages.visitClosedReviewInvite(visitId, closedAt, doctorName));
     }
 
     private void closeAndRecord(UUID visitId, UUID actorAccountId, AccountRole actorRole, String correlationId,

@@ -44,7 +44,9 @@ class CancelAppointmentServiceImplT025Test {
         var properties = new AppointmentBookingProperties(30, 120, 1440, 30, 15, 15,
                 ZoneId.of("Asia/Ho_Chi_Minh"), new AppointmentBookingProperties.PublicRateLimit(60, 60));
         handler = new CancelAppointmentServiceImpl(guard, appointments, auth, properties,
-                Clock.fixed(now, ZoneId.of("UTC")));
+                Clock.fixed(now, ZoneId.of("UTC")),
+                mock(fu.fa26.sep490.g58.otcms_be.notification.service.NotificationPublisher.class),
+                mock(fu.fa26.sep490.g58.otcms_be.staff.service.StaffAvailabilityProviderQueryService.class));
         current = new CancellableAppointment(appointmentId, patientId, serviceId,
                 doctorId, "CONFIRMED", "PATIENT_ONLINE", "knee pain", now.plusSeconds(86400),
                 now.plusSeconds(86400 + 1800), 30, 5, null, null, now.minusSeconds(86400));

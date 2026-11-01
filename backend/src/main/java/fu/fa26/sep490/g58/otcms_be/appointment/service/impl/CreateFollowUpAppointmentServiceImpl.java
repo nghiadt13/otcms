@@ -1,6 +1,5 @@
 package fu.fa26.sep490.g58.otcms_be.appointment.service.impl;
-import fu.fa26.sep490.g58.otcms_be.notification.model.NotificationRelatedKind;
-import fu.fa26.sep490.g58.otcms_be.notification.model.NotificationMessage;
+import fu.fa26.sep490.g58.otcms_be.notification.model.NotificationMessages;
 import fu.fa26.sep490.g58.otcms_be.notification.service.NotificationPublisher;
 
 import fu.fa26.sep490.g58.otcms_be.appointment.exception.AppointmentBookingException;
@@ -147,9 +146,8 @@ public class CreateFollowUpAppointmentServiceImpl implements CreateFollowUpAppoi
                 AppointmentBooking.ActorType.DOCTOR, now, command.correlationId(), command.sourceVisitId(),
                 evidence.originatingAppointmentId(), authenticatedDoctor, command.reason());
         var created = appointments.saveFollowUp(booking);
-        notifications.publishToPatient(evidence.patientProfileId(), new NotificationMessage(
-                "APPOINTMENT_BOOKED", "Đã đặt lịch tái khám", "Lịch tái khám của bạn đã được xác nhận.",
-                NotificationRelatedKind.APPOINTMENT, booking.id()));
+        notifications.publishToPatient(evidence.patientProfileId(), NotificationMessages.appointmentBooked(booking.id(),
+                booking.startTime(), providers.findDoctorDisplayName(command.doctorId()).orElse("")));
         return created;
     }
 

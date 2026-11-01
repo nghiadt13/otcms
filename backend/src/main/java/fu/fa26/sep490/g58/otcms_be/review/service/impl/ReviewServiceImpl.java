@@ -1,6 +1,5 @@
 package fu.fa26.sep490.g58.otcms_be.review.service.impl;
-import fu.fa26.sep490.g58.otcms_be.notification.model.NotificationRelatedKind;
-import fu.fa26.sep490.g58.otcms_be.notification.model.NotificationMessage;
+import fu.fa26.sep490.g58.otcms_be.notification.model.NotificationMessages;
 import fu.fa26.sep490.g58.otcms_be.notification.service.NotificationPublisher;
 
 import fu.fa26.sep490.g58.otcms_be.auth.service.PatientProfileDirectory;
@@ -69,10 +68,9 @@ public class ReviewServiceImpl implements ReviewService {
                 request.rating(), request.text().trim(), now);
         reviews.saveAndFlush(review);
         history.save(new PatientReviewHistoryJpaEntity(review, "SUBMIT", null, accountId, now));
+        var context = visitContext.enrich(visit);
         notifications.publishToRole(fu.fa26.sep490.g58.otcms_be.common.security.AccountRole.ADMIN,
-                new NotificationMessage("REVIEW_SUBMITTED", "Đánh giá mới cần duyệt",
-                        "Một đánh giá mới đang chờ kiểm duyệt.",
-                        NotificationRelatedKind.REVIEW, review.getId()));
+                NotificationMessages.reviewSubmitted(review.getId(), visit.arrivedAt(), context.doctorName(), request.rating()));
         return mine(review, profile);
     }
     public PublicReviewPage published(int page, int size, String sort) {

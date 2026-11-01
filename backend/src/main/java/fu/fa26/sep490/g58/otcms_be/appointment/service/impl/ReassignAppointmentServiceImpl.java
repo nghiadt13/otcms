@@ -1,6 +1,5 @@
 package fu.fa26.sep490.g58.otcms_be.appointment.service.impl;
-import fu.fa26.sep490.g58.otcms_be.notification.model.NotificationRelatedKind;
-import fu.fa26.sep490.g58.otcms_be.notification.model.NotificationMessage;
+import fu.fa26.sep490.g58.otcms_be.notification.model.NotificationMessages;
 import fu.fa26.sep490.g58.otcms_be.notification.service.NotificationPublisher;
 import fu.fa26.sep490.g58.otcms_be.appointment.model.CreatedAppointment;
 
@@ -83,9 +82,8 @@ public class ReassignAppointmentServiceImpl implements ReassignAppointmentServic
         if (!slotAvailable) throw new AppointmentBookingException("SLOT_UNAVAILABLE");
         var changed = appointments.reassign(current, replacement, command.actorAccountId(), command.reason().trim(), now,
                 command.correlationId());
-        notifications.publishToPatient(current.patientProfileId(), new NotificationMessage(
-                "APPOINTMENT_DOCTOR_REASSIGNED", "Thay đổi bác sĩ khám", "Bác sĩ phụ trách lịch khám của bạn đã được thay đổi.",
-                NotificationRelatedKind.APPOINTMENT, current.id()));
+        notifications.publishToPatient(current.patientProfileId(), NotificationMessages.appointmentDoctorChanged(
+                current.id(), current.startTime(), providers.findDoctorDisplayName(replacement).orElse("")));
         return changed;
     }
 }

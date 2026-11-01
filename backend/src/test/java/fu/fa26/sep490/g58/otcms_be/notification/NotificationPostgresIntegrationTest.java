@@ -14,6 +14,8 @@ import java.time.*;
 import java.sql.Timestamp;
 import java.util.*;
 import org.junit.jupiter.api.*;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.*;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -42,6 +44,8 @@ class NotificationPostgresIntegrationTest {
     @Autowired NotificationPublisher publisher;
     @Autowired CreateAppointmentService booking;
     @Autowired ReassignAppointmentService reassign;
+    @Autowired CancelAppointmentService cancellations;
+    @Autowired RescheduleAppointmentService reschedules;
     @Autowired WalkInVisitLifecycleService lifecycle;
     @Autowired ReviewService reviews;
     @Autowired PlatformTransactionManager transactions;
@@ -226,19 +230,27 @@ class NotificationPostgresIntegrationTest {
         assertTrue(inbox.list(patient, false, 0, 20).items().stream().noneMatch(i -> i.relatedRecord().available()));
     }
     @Test void bookingAndReassignmentPublishAppointmentNotifications() {
+        jdbc.update("update doctor_profiles set full_name='Bác sĩ ban đầu' where id=?", doctor);
+        jdbc.update("update doctor_profiles set full_name='Bác sĩ thay thế' where id=?", replacement);
         var created = book(profile, CreateAppointmentCommand.Actor.PATIENT);
-        assertEquals(1, count("APPOINTMENT_BOOKED", a, created.id()));
+        assertMessage(NotificationMessages.APPOINTMENT_BOOKED, a, created.id(), "APPOINTMENT", "03/11/2026 lúc 10:00", "Bác sĩ ban đầu");
         assertTrue(inbox.list(patient, false, 0, 20).items().getFirst().relatedRecord().available());
         notification(b, NotificationRelatedKind.APPOINTMENT, created.id(), NOW);
         assertFalse(inbox.list(other, false, 0, 20).items().getFirst().relatedRecord().available());
         reassign.reassign(created.id(), new ReassignAppointmentCommand(receptionist, replacement, "Doctor unavailable", "notification-test"));
-        assertEquals(1, count("APPOINTMENT_DOCTOR_REASSIGNED", a, created.id()));
+        assertMessage(NotificationMessages.APPOINTMENT_DOCTOR_CHANGED, a, created.id(), "APPOINTMENT", "03/11/2026 lúc 10:00", "Bác sĩ thay thế");
+        assertEquals(0, count("APPOINTMENT_DOCTOR_REASSIGNED", a, created.id()));
+        assertEquals(2, jdbc.queryForObject("select count(*) from notifications where recipient_account_id=? and related_id=?", Integer.class, a, created.id()));
         assertEquals(replacement, jdbc.queryForObject("select doctor_profile_id from appointments where id=?", UUID.class, created.id()));
     }
     @Test void closeVisitPublishesInvitationOnlyForLinkedPatient() {
         lifecycle.close(openVisit, doctorAccount, AccountRole.DOCTOR, "notification-test");
         assertEquals("CLOSED", jdbc.queryForObject("select status from visits where id=?", String.class, openVisit));
-        assertEquals(1, count("VISIT_CLOSED", a, openVisit));
+        assertMessage(NotificationMessages.VISIT_CLOSED_REVIEW_INVITE, a, openVisit, "VISIT", "01/11/2026 lúc 11:00", "Notification test doctor");
+        assertEquals(0, count("VISIT_CLOSED", a, openVisit));
+        assertThrows(fu.fa26.sep490.g58.otcms_be.visit.exception.VisitOperationException.class,
+                () -> lifecycle.close(openVisit, doctorAccount, AccountRole.DOCTOR, "notification-test"));
+        assertEquals(1, count(NotificationMessages.VISIT_CLOSED_REVIEW_INVITE, a, openVisit));
         lifecycle.close(unlinkedVisit, doctorAccount, AccountRole.DOCTOR, "notification-test");
         assertEquals(0, jdbc.queryForObject("select count(*) from notifications where related_id=?", Integer.class, unlinkedVisit));
     }
@@ -247,8 +259,13 @@ class NotificationPostgresIntegrationTest {
         assertEquals(0, jdbc.queryForObject("select count(*) from notifications where related_id=?", Integer.class, created.id()));
     }
     @Test void reviewPublishesOnlyToActiveAdminsAndResolverChecksRoleAndExistence() {
+        UUID secondAdmin = UUID.randomUUID(); account(secondAdmin, "ADMIN", "ACTIVE");
+        jdbc.update("insert into visit_assignments(id,visit_id,doctor_profile_id,starts_at,ends_at,status) values (?,?,?,?,?,'COMPLETED')",
+                UUID.randomUUID(), visit, doctor, Timestamp.from(NOW.minusSeconds(60)), Timestamp.from(NOW));
         var created = reviews.submit(a, new SubmitReviewRequest(visit, 5, "A valid clinic review"));
-        assertEquals(1, count("REVIEW_SUBMITTED", admin, created.id()));
+        assertMessage(NotificationMessages.REVIEW_SUBMITTED, admin, created.id(), "REVIEW", "01/11/2026 lúc 10:59", "Notification test doctor");
+        assertMessage(NotificationMessages.REVIEW_SUBMITTED, secondAdmin, created.id(), "REVIEW", "01/11/2026 lúc 10:59", "Notification test doctor");
+        assertTrue(jdbc.queryForObject("select content from notifications where recipient_account_id=? and related_id=?", String.class, admin, created.id()).contains("5/5"));
         assertEquals(0, count("REVIEW_SUBMITTED", owner, created.id()));
         assertEquals(0, count("REVIEW_SUBMITTED", disabledAdmin, created.id()));
         var item = inbox.list(administrator, false, 0, 100).items().stream()
@@ -258,6 +275,79 @@ class NotificationPostgresIntegrationTest {
         assertFalse(inbox.list(changedRole, false, 0, 100).items().getFirst().relatedRecord().available());
         UUID missing = notification(admin, NotificationRelatedKind.REVIEW, UUID.randomUUID(), NOW);
         assertFalse(inbox.list(administrator, false, 0, 100).items().stream().filter(i -> i.id().equals(missing)).findFirst().orElseThrow().relatedRecord().available());
+    }
+    @Test void receptionistCancellationPublishesOnceAndPatientSelfCancellationDoesNot() {
+        var created = book(profile, CreateAppointmentCommand.Actor.PATIENT);
+        cancellations.cancel(created.id(), new CancelAppointmentCommand(receptionist, CancelAppointmentCommand.Actor.RECEPTIONIST,
+                "Clinic cancellation", "notification-test"));
+        assertEquals("CANCELLED", jdbc.queryForObject("select status from appointments where id=?", String.class, created.id()));
+        assertMessage(NotificationMessages.APPOINTMENT_CANCELLED, a, created.id(), "APPOINTMENT", "03/11/2026 lúc 10:00", "Notification test doctor");
+        var self = book(profile, CreateAppointmentCommand.Actor.PATIENT);
+        cancellations.cancel(self.id(), new CancelAppointmentCommand(a, CancelAppointmentCommand.Actor.PATIENT, "Self cancellation", "notification-test"));
+        assertEquals("CANCELLED", jdbc.queryForObject("select status from appointments where id=?", String.class, self.id()));
+        assertEquals(0, count(NotificationMessages.APPOINTMENT_CANCELLED, a, self.id()));
+        var noAccount = book(unlinked, CreateAppointmentCommand.Actor.RECEPTIONIST);
+        cancellations.cancel(noAccount.id(), new CancelAppointmentCommand(receptionist, CancelAppointmentCommand.Actor.RECEPTIONIST,
+                "Clinic cancellation", "notification-test"));
+        assertEquals("CANCELLED", jdbc.queryForObject("select status from appointments where id=?", String.class, noAccount.id()));
+        assertEquals(0, jdbc.queryForObject("select count(*) from notifications where related_id=?", Integer.class, noAccount.id()));
+    }
+    @Test void reschedulingPublishesNewTimeAndCurrentDoctorOnceAndSkipsUnlinkedProfiles() {
+        var created = book(profile, CreateAppointmentCommand.Actor.PATIENT);
+        var newTime = SLOT.plusSeconds(1800);
+        reschedules.reschedule(created.id(), new RescheduleAppointmentCommand(receptionist, RescheduleAppointmentCommand.Actor.RECEPTIONIST,
+                newTime.atOffset(ZoneOffset.UTC), "Clinic reschedule", "notification-test"));
+        assertEquals(newTime, jdbc.queryForObject("select start_time from appointments where id=?", Timestamp.class, created.id()).toInstant());
+        assertMessage(NotificationMessages.APPOINTMENT_RESCHEDULED, a, created.id(), "APPOINTMENT", "03/11/2026 lúc 10:30", "Notification test doctor");
+        var noAccount = book(unlinked, CreateAppointmentCommand.Actor.RECEPTIONIST);
+        reschedules.reschedule(noAccount.id(), new RescheduleAppointmentCommand(receptionist, RescheduleAppointmentCommand.Actor.RECEPTIONIST,
+                SLOT.plusSeconds(3600).atOffset(ZoneOffset.UTC), "Clinic reschedule", "notification-test"));
+        assertEquals(SLOT.plusSeconds(3600), jdbc.queryForObject("select start_time from appointments where id=?", Timestamp.class, noAccount.id()).toInstant());
+        assertEquals(0, jdbc.queryForObject("select count(*) from notifications where related_id=?", Integer.class, noAccount.id()));
+    }
+    @ParameterizedTest @ValueSource(strings = {"CANCEL", "RESCHEDULE"})
+    void newProducerSourceRollbackAlsoRollsBackNotifications(String operation) {
+        endFixtures();
+        assertThrows(RollbackProbe.class, () -> new TransactionTemplate(transactions).execute(status -> {
+            fixtures(); var created = book(profile, CreateAppointmentCommand.Actor.PATIENT);
+            changeAppointment(operation, created.id());
+            assertEquals(1, count(operation.equals("CANCEL") ? NotificationMessages.APPOINTMENT_CANCELLED
+                    : NotificationMessages.APPOINTMENT_RESCHEDULED, a, created.id()));
+            throw new RollbackProbe();
+        }));
+        assertEquals(0, jdbc.queryForObject("select count(*) from appointments where created_by_account_id=?", Integer.class, a));
+        assertEquals(0, jdbc.queryForObject("select count(*) from notifications where recipient_account_id=?", Integer.class, a));
+    }
+    @ParameterizedTest @ValueSource(strings = {"CANCEL", "RESCHEDULE"})
+    void newProducerNotificationFailureRollsBackSourceAndAudit(String operation) {
+        endFixtures();
+        var failure = assertThrows(RuntimeException.class, () -> new TransactionTemplate(transactions).execute(status -> {
+            fixtures(); var created = book(profile, CreateAppointmentCommand.Actor.PATIENT);
+            jdbc.execute("create function notification_test_reject_change() returns trigger language plpgsql as $$ begin "
+                    + "raise exception 'change notification failure'; end; $$");
+            String type = operation.equals("CANCEL") ? NotificationMessages.APPOINTMENT_CANCELLED : NotificationMessages.APPOINTMENT_RESCHEDULED;
+            jdbc.execute("create trigger notification_test_reject_change before insert on notifications for each row when (new.type='"
+                    + type + "') execute function notification_test_reject_change()");
+            changeAppointment(operation, created.id()); return null;
+        }));
+        assertTrue(causeContains(failure, "change notification failure"));
+        assertEquals(0, jdbc.queryForObject("select count(*) from appointments where created_by_account_id=?", Integer.class, a));
+        assertEquals(0, jdbc.queryForObject("select count(*) from appointment_audits where actor_account_id=?", Integer.class, receptionist));
+        assertEquals(0, jdbc.queryForObject("select count(*) from notifications where recipient_account_id=?", Integer.class, a));
+    }
+    private void changeAppointment(String operation, UUID id) {
+        if (operation.equals("CANCEL")) cancellations.cancel(id, new CancelAppointmentCommand(receptionist,
+                CancelAppointmentCommand.Actor.RECEPTIONIST, "Clinic cancellation", "notification-test"));
+        else reschedules.reschedule(id, new RescheduleAppointmentCommand(receptionist, RescheduleAppointmentCommand.Actor.RECEPTIONIST,
+                SLOT.plusSeconds(1800).atOffset(ZoneOffset.UTC), "Clinic reschedule", "notification-test"));
+    }
+    private void assertMessage(String type, UUID recipient, UUID related, String kind, String time, String doctorName) {
+        var rows = jdbc.queryForList("select related_kind, title, content from notifications where type=? and recipient_account_id=? and related_id=?",
+                type, recipient, related);
+        assertEquals(1, rows.size()); assertEquals(kind, rows.getFirst().get("related_kind"));
+        assertFalse(((String) rows.getFirst().get("title")).isBlank());
+        String content = (String) rows.getFirst().get("content");
+        assertTrue(content.contains(time), content); assertTrue(content.contains(doctorName), content);
     }
     @Test void businessRollbackAlsoRollsBackNotifications() {
         endFixtures();
@@ -317,7 +407,7 @@ class NotificationPostgresIntegrationTest {
     }
     @Test void cancelDoesNotPublishReviewInvitation() {
         lifecycle.cancel(openVisit, receptionist, AccountRole.RECEPTIONIST, "notification-test");
-        assertEquals(0, count("VISIT_CLOSED", a, openVisit));
+        assertEquals(0, count(NotificationMessages.VISIT_CLOSED_REVIEW_INVITE, a, openVisit));
     }
     @Test void swaggerDocumentsAll14OperationsAndPrivatePublicSchemas() throws Exception {
         var result = mvc.perform(get("/v3/api-docs")).andExpect(status().isOk()).andReturn();

@@ -1,6 +1,5 @@
 package fu.fa26.sep490.g58.otcms_be.appointment.service.impl;
-import fu.fa26.sep490.g58.otcms_be.notification.model.NotificationRelatedKind;
-import fu.fa26.sep490.g58.otcms_be.notification.model.NotificationMessage;
+import fu.fa26.sep490.g58.otcms_be.notification.model.NotificationMessages;
 import fu.fa26.sep490.g58.otcms_be.notification.service.NotificationPublisher;
 import fu.fa26.sep490.g58.otcms_be.auth.service.PatientProfileDirectory;
 import fu.fa26.sep490.g58.otcms_be.appointment.model.CreatedAppointment;
@@ -130,9 +129,8 @@ public class CreateAppointmentServiceImpl implements CreateAppointmentService {
                         ? AppointmentBooking.ActorType.PATIENT : AppointmentBooking.ActorType.RECEPTIONIST,
                 now, command.correlationId());
         var created = appointments.save(booking);
-        notifications.publishToPatient(patientProfileId, new NotificationMessage(
-                "APPOINTMENT_BOOKED", "Đặt lịch khám thành công", "Lịch khám của bạn đã được xác nhận.",
-                NotificationRelatedKind.APPOINTMENT, booking.id()));
+        notifications.publishToPatient(patientProfileId, NotificationMessages.appointmentBooked(booking.id(),
+                booking.startTime(), providers.findDoctorDisplayName(command.doctorProfileId()).orElse("")));
         return created;
     }
 
