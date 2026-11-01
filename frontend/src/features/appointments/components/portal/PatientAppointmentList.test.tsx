@@ -93,7 +93,7 @@ describe("PatientAppointmentList", () => {
     await waitFor(() => expect(rows()).toHaveLength(10));
     await user.click(screen.getByRole("button", { name: "Xem thêm" }));
 
-    await waitFor(() => expect(rows()).toHaveLength(14));
+    await waitFor(() => expect(rows()).toHaveLength(16));
     expect(
       screen.queryByRole("button", { name: "Xem thêm" }),
     ).not.toBeInTheDocument();

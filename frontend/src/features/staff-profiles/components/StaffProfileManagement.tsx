@@ -44,10 +44,14 @@ export function StaffProfileManagement() {
       <PageHeader
         title="Hồ sơ nhân viên"
         description="Hồ sơ hiển thị nội bộ; bác sĩ bật công khai sẽ hiện trên website."
-        actions={<div className="flex flex-wrap gap-2">
-          <Button variant="outline" onClick={() => setAccountOpen(true)}>Cấp tài khoản nhân viên</Button>
-          <Button onClick={() => setCreateOpen(true)}>Tạo hồ sơ</Button>
-        </div>}
+        actions={
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" onClick={() => setAccountOpen(true)}>
+              Cấp tài khoản nhân viên
+            </Button>
+            <Button onClick={() => setCreateOpen(true)}>Tạo hồ sơ</Button>
+          </div>
+        }
       />
       <StaffProfileFilters
         search={list.search}
@@ -76,7 +80,10 @@ export function StaffProfileManagement() {
         initialAccountId={initialAccountId || undefined}
         onCreated={list.reload}
       />
-      <CreateStaffAccountDialog open={accountOpen} onOpenChange={setAccountOpen} />
+      <CreateStaffAccountDialog
+        open={accountOpen}
+        onOpenChange={setAccountOpen}
+      />
       <StaffProfileDetailSheet
         profileId={sheet?.id ?? null}
         startInEditMode={sheet?.edit ?? false}

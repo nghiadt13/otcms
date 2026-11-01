@@ -58,7 +58,8 @@ public class GetAppointmentsServiceImpl implements GetAppointmentsService {
         Scope scope = resolve(accountId, role);
         if (scope == null) return new AppointmentSearchPage(java.util.List.of(), page, size, 0, 0);
         var result = queries.find(scope, new Filter(filter.fromInclusive(), filter.toExclusive(),
-                filter.status(), filter.doctorId(), filter.patientProfileId()), page, size);
+                filter.status(), filter.doctorId(), filter.patientProfileId(), filter.patientWindow(),
+                filter.evaluatedAt()), page, size);
         return new AppointmentSearchPage(summaries(result.items()),
                 result.page(), result.size(), result.totalElements(), result.totalPages());
     }

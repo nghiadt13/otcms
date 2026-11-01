@@ -19,42 +19,56 @@ export function DoctorServiceAssignmentsPanel({
 }: {
   serviceId: string;
 }) {
-  const [doctors, setDoctors] = useState<ActiveDoctorOption[]>([]);
-  const [assignments, setAssignments] = useState<DoctorServiceAssignment[]>([]);
-  const [selectedDoctorId, setSelectedDoctorId] = useState("");
-  const [loading, setLoading] = useState(true);
-  const [pending, setPending] = useState(false);
-  const [error, setError] = useState(false);
   const [reloadToken, setReloadToken] = useState(0);
+  const requestKey = `${serviceId}:${reloadToken}`;
+  const [loaded, setLoaded] = useState<{
+    key: string;
+    doctors: ActiveDoctorOption[];
+    assignments: DoctorServiceAssignment[];
+    error: boolean;
+  } | null>(null);
+  const [selectedDoctorId, setSelectedDoctorId] = useState("");
+  const [pending, setPending] = useState(false);
+  const loading = !loaded || loaded.key !== requestKey;
+  const error = !loading && loaded?.error === true;
+  const doctors = loaded?.key === requestKey && !error ? loaded.doctors : [];
+  const assignments =
+    loaded?.key === requestKey && !error ? loaded.assignments : [];
 
   useEffect(() => {
     const controller = new AbortController();
-    setLoading(true);
-    setError(false);
     Promise.all([
       listActiveDoctorOptions(controller.signal),
       listDoctorServiceAssignments(serviceId, controller.signal),
     ])
       .then(([doctorOptions, currentAssignments]) => {
         if (controller.signal.aborted) return;
-        setDoctors(doctorOptions);
-        setAssignments(currentAssignments);
+        setLoaded({
+          key: requestKey,
+          doctors: doctorOptions,
+          assignments: currentAssignments,
+          error: false,
+        });
       })
       .catch((cause: unknown) => {
         if (controller.signal.aborted) return;
-        setError(true);
+        setLoaded({
+          key: requestKey,
+          doctors: [],
+          assignments: [],
+          error: true,
+        });
         notifyError(cause);
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
-  }, [serviceId, reloadToken]);
+  }, [requestKey, serviceId]);
 
   const assignedIds = new Set(
     assignments.map((assignment) => assignment.doctorProfileId),
   );
-  const availableDoctors = doctors.filter((doctor) => !assignedIds.has(doctor.id));
+  const availableDoctors = doctors.filter(
+    (doctor) => !assignedIds.has(doctor.id),
+  );
 
   async function assign() {
     if (!selectedDoctorId || pending) return;
@@ -64,7 +78,11 @@ export function DoctorServiceAssignmentsPanel({
         serviceId,
         selectedDoctorId,
       );
-      setAssignments((current) => [...current, assignment]);
+      setLoaded((current) =>
+        current?.key === requestKey
+          ? { ...current, assignments: [...current.assignments, assignment] }
+          : current,
+      );
       setSelectedDoctorId("");
     } catch (cause) {
       notifyError(cause);
@@ -105,7 +123,8 @@ export function DoctorServiceAssignmentsPanel({
                 <li key={assignment.id}>
                   {doctors.find(
                     (doctor) => doctor.id === assignment.doctorProfileId,
-                  )?.displayName ?? "Bác sĩ không còn trong danh sách hoạt động"}
+                  )?.displayName ??
+                    "Bác sĩ không còn trong danh sách hoạt động"}
                 </li>
               ))}
             </ul>

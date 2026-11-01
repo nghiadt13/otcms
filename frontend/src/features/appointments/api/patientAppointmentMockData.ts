@@ -83,5 +83,16 @@ export function patientOwnSeeds(now: Date): PatientOwnSeed[] {
     visitId: null,
     doctorUnavailable: false,
   }));
-  return [...fixed, ...past];
+  const expiredBooked = ["PENDING_PAYMENT", "PAID"].map((feeStatus, index) => ({
+    id: `apt-expired-${index + 1}`,
+    patientCode: "BN-000123",
+    serviceId: "svc-kham-tq",
+    doctorId: DOCTOR_IDS.ha,
+    startAt: vnIsoAt(addDays(today, -1), index === 0 ? "08:00" : "09:00"),
+    status: "BOOKED" as const,
+    feeStatus: feeStatus as ExamFeeStatus,
+    visitId: null,
+    doctorUnavailable: false,
+  }));
+  return [...fixed, ...past, ...expiredBooked];
 }

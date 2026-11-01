@@ -25,7 +25,17 @@ public class AppointmentResponse {
     private final UUID sourceVisitId;
     private final Instant createdAt;
     private final Instant updatedAt;
+    private final Boolean examFeePaid;
     public AppointmentResponse(UUID id, UUID patientProfileId, UUID serviceId, String serviceName, BigDecimal servicePrice, UUID doctorId, String doctorDisplayName, String status, String bookingSource, String purpose, Instant startTime, Instant endTime, int durationMinutes, int bufferMinutes, Instant occupiedUntil, UUID visitId, UUID sourceVisitId, Instant createdAt, Instant updatedAt) {
+        this(id, patientProfileId, serviceId, serviceName, servicePrice, doctorId, doctorDisplayName, status,
+                bookingSource, purpose, startTime, endTime, durationMinutes, bufferMinutes, occupiedUntil,
+                visitId, sourceVisitId, createdAt, updatedAt, null);
+    }
+    public AppointmentResponse(UUID id, UUID patientProfileId, UUID serviceId, String serviceName,
+            BigDecimal servicePrice, UUID doctorId, String doctorDisplayName, String status, String bookingSource,
+            String purpose, Instant startTime, Instant endTime, int durationMinutes, int bufferMinutes,
+            Instant occupiedUntil, UUID visitId, UUID sourceVisitId, Instant createdAt, Instant updatedAt,
+            Boolean examFeePaid) {
         this.id = id;
         this.patientProfileId = patientProfileId;
         this.serviceId = serviceId;
@@ -45,6 +55,7 @@ public class AppointmentResponse {
         this.sourceVisitId = sourceVisitId;
         this.createdAt = createdAt;
         this.updatedAt = updatedAt;
+        this.examFeePaid = examFeePaid;
     }
     public UUID getId() { return id; }
     public UUID id() { return id; }
@@ -84,4 +95,11 @@ public class AppointmentResponse {
     public Instant createdAt() { return createdAt; }
     public Instant getUpdatedAt() { return updatedAt; }
     public Instant updatedAt() { return updatedAt; }
+    public Boolean getExamFeePaid() { return examFeePaid; }
+    public Boolean examFeePaid() { return examFeePaid; }
+    public AppointmentResponse withExamFeePaid(Boolean paid) {
+        return new AppointmentResponse(id, patientProfileId, serviceId, serviceName, servicePrice, doctorId,
+                doctorDisplayName, status, bookingSource, purpose, startTime, endTime, durationMinutes,
+                bufferMinutes, occupiedUntil, visitId, sourceVisitId, createdAt, updatedAt, paid);
+    }
 }

@@ -22,14 +22,16 @@ export function useCurrentPatientAccount() {
   const [refreshToken, setRefreshToken] = useState(0);
 
   useEffect(() => {
-    const reload = () => setRefreshToken((current) => current + 1);
+    const reload = () => {
+      setLoading(true);
+      setRefreshToken((current) => current + 1);
+    };
     window.addEventListener(CHANGED_EVENT, reload);
     return () => window.removeEventListener(CHANGED_EVENT, reload);
   }, []);
 
   useEffect(() => {
     const controller = new AbortController();
-    setLoading(true);
     getCurrentPatientAccount(controller.signal)
       .then((result) => {
         if (controller.signal.aborted) return;

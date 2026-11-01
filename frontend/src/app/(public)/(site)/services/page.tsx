@@ -26,10 +26,7 @@ export default async function ServicesPage({
       />
       <PublicServiceSearchForm className="mt-10" error={error} input={input} />
       {services ? (
-        <PublicServiceList
-          filtered={Boolean(query.q)}
-          services={services}
-        />
+        <PublicServiceList filtered={Boolean(query.q)} services={services} />
       ) : null}
     </div>
   );

@@ -1,6 +1,7 @@
 package fu.fa26.sep490.g58.otcms_be.appointment.controller;
 
 import fu.fa26.sep490.g58.otcms_be.appointment.service.AppointmentSearchFilter;
+import fu.fa26.sep490.g58.otcms_be.billing.service.AppointmentInvoicePaidStatusQueryService;
 import fu.fa26.sep490.g58.otcms_be.appointment.service.AppointmentSearchPage;
 import fu.fa26.sep490.g58.otcms_be.appointment.service.AppointmentSummary;
 import fu.fa26.sep490.g58.otcms_be.appointment.exception.AppointmentQueryException;
@@ -29,8 +30,11 @@ public class AppointmentQueryController {
     private static final Set<String> STATUSES = Set.of("CONFIRMED", "CHECKED_IN", "IN_PROGRESS", "COMPLETED", "CANCELLED", "NO_SHOW");
     private final GetAppointmentsService handler;
     private final AppointmentBookingProperties properties;
-    public AppointmentQueryController(GetAppointmentsService handler, AppointmentBookingProperties properties) {
-        this.handler = handler; this.properties = properties;
+    private final AppointmentInvoicePaidStatusQueryService billingStatus;
+    private final java.time.Clock clock;
+    public AppointmentQueryController(GetAppointmentsService handler, AppointmentBookingProperties properties,
+            AppointmentInvoicePaidStatusQueryService billingStatus, java.time.Clock clock) {
+        this.handler = handler; this.properties = properties; this.billingStatus = billingStatus; this.clock = clock;
     }
 
     @GetMapping("/api/v1/appointments")
@@ -38,7 +42,8 @@ public class AppointmentQueryController {
             @RequestParam(required=false) String page, @RequestParam(required=false) String size,
             @RequestParam(required=false) String from, @RequestParam(required=false) String to,
             @RequestParam(required=false) String status, @RequestParam(required=false) String doctorId,
-            @RequestParam(required=false) String patientProfileId, HttpServletRequest request) {
+            @RequestParam(required=false) String patientProfileId,
+            @RequestParam(required=false) String window, HttpServletRequest request) {
         int p = integer(page, 0), s = integer(size, 20);
         if (p < 0 || s < 1 || s > 100) throw invalid();
         LocalDate f = date(from), t = date(to);
@@ -49,10 +54,18 @@ public class AppointmentQueryController {
         catch (DateTimeException ex) { throw invalid(); }
         String normalizedStatus = status == null ? null : status.toUpperCase(java.util.Locale.ROOT);
         if (normalizedStatus != null && !STATUSES.contains(normalizedStatus)) throw invalid();
+        String patientWindow = window == null ? null : window.toUpperCase(java.util.Locale.ROOT);
+        if (patientWindow != null && (!Set.of("UPCOMING", "PAST").contains(patientWindow)
+                || account.accountRole() != AccountRole.PATIENT || normalizedStatus != null
+                || doctorId != null)) throw invalid();
         AppointmentSearchPage result = handler.list(account.accountId(), account.accountRole(), new AppointmentSearchFilter(lower, upper, normalizedStatus,
-                uuid(doctorId), uuid(patientProfileId)), p, s);
+                uuid(doctorId), uuid(patientProfileId), patientWindow, patientWindow == null ? null : clock.instant()), p, s);
+        var responses = result.items().stream().map(AppointmentMapper::toResponse).toList();
+        var paidByAppointment = billingStatus.paidStatus(responses.stream().map(AppointmentResponse::getId).toList());
+        var items = responses.stream().map(item -> item.withExamFeePaid(item.getServicePrice() == null
+                ? null : paidByAppointment.getOrDefault(item.getId(), false))).toList();
         return ResponseEntity.ok().header(CorrelationIdFilter.HEADER, CorrelationIdFilter.current(request))
-                .body(new AppointmentPageResponse(result.items().stream().map(AppointmentMapper::toResponse).toList(), result.page(), result.size(), result.totalElements(), result.totalPages()));
+                .body(new AppointmentPageResponse(items, result.page(), result.size(), result.totalElements(), result.totalPages()));
     }
 
     @GetMapping("/api/v1/appointments/{id}")
@@ -60,7 +73,11 @@ public class AppointmentQueryController {
             @AuthenticationPrincipal AuthenticatedAccount account, HttpServletRequest request) {
         UUID appointmentId = uuid(id);
         AppointmentSummary result = handler.detail(account.accountId(), account.accountRole(), appointmentId);
-        return ResponseEntity.ok().header(CorrelationIdFilter.HEADER, CorrelationIdFilter.current(request)).body(AppointmentMapper.toResponse(result));
+        AppointmentResponse response = AppointmentMapper.toResponse(result);
+        Boolean paid = response.getServicePrice() == null ? null
+                : billingStatus.paidStatus(java.util.List.of(response.getId())).getOrDefault(response.getId(), false);
+        return ResponseEntity.ok().header(CorrelationIdFilter.HEADER, CorrelationIdFilter.current(request))
+                .body(response.withExamFeePaid(paid));
     }
 
     private static int integer(String raw, int fallback) {
