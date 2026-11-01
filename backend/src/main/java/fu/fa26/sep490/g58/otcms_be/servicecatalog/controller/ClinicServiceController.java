@@ -6,6 +6,7 @@ import fu.fa26.sep490.g58.otcms_be.servicecatalog.model.ClinicServiceType;
 import fu.fa26.sep490.g58.otcms_be.servicecatalog.model.dto.request.ServiceRequest;
 import fu.fa26.sep490.g58.otcms_be.servicecatalog.model.dto.response.ItemsResponse;
 import fu.fa26.sep490.g58.otcms_be.servicecatalog.model.dto.response.ServiceResponse;
+import fu.fa26.sep490.g58.otcms_be.servicecatalog.model.dto.response.PublicServiceResponse;
 import fu.fa26.sep490.g58.otcms_be.servicecatalog.service.ActivateClinicServiceService;
 import fu.fa26.sep490.g58.otcms_be.servicecatalog.service.CreateClinicServiceService;
 import fu.fa26.sep490.g58.otcms_be.servicecatalog.service.DeactivateClinicServiceService;
@@ -50,8 +51,9 @@ public class ClinicServiceController {
     }
 
     @GetMapping("/api/v1/clinic-services")
-    public ItemsResponse publicCatalog() {
-        return mapper.toItemsResponse(catalog.publicCatalog());
+    public PublicServiceResponse.Catalog publicCatalog() {
+        return new PublicServiceResponse.Catalog(catalog.publicCatalog().stream()
+                .map(PublicServiceResponse::from).toList());
     }
 
     @GetMapping("/api/v1/admin/clinic-services/room-options")
@@ -86,7 +88,7 @@ public class ClinicServiceController {
     @PreAuthorize("hasAuthority('ROLE_ADMIN')")
     public ServiceResponse update(@PathVariable UUID serviceId, @Valid @RequestBody ServiceRequest request) {
         return mapper.toResponse(update.update(serviceId, request.name(), request.description(),
-                request.price(), request.durationMinutes(), request.bufferMinutes(), request.modality(),
+                request.price(), request.durationMinutes(), request.bufferMinutes(), request.onlineBookable(), request.modality(),
                 request.patientNote(), request.indicators()));
     }
 

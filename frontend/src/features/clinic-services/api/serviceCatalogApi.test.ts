@@ -14,6 +14,10 @@ beforeEach(() => {
   request.mockReset();
 });
 const service = {
+  type: "EXAMINATION" as const,
+  modality: null,
+  patientNote: null,
+  indicators: [],
   id: "s",
   name: "Dịch vụ loi",
   description: null,

@@ -38,11 +38,20 @@ public class UpdateClinicServiceServiceImpl implements UpdateClinicServiceServic
                                 int durationMinutes, int bufferMinutes, String modality, String patientNote,
                                 List<LabIndicator> indicators) {
         return updateInternal(serviceId, name, description, price, durationMinutes, bufferMinutes,
-                false, modality, patientNote, indicators, true);
+                null, modality, patientNote, indicators, true);
+    }
+
+    @Override
+    @Transactional
+    public ClinicService update(UUID serviceId, String name, String description, BigDecimal price,
+                                int durationMinutes, int bufferMinutes, boolean onlineBookable, String modality,
+                                String patientNote, List<LabIndicator> indicators) {
+        return updateInternal(serviceId, name, description, price, durationMinutes, bufferMinutes,
+                onlineBookable, modality, patientNote, indicators, true);
     }
 
     private ClinicService updateInternal(UUID serviceId, String name, String description, BigDecimal price,
-                                int durationMinutes, int bufferMinutes, boolean onlineBookable, String modality,
+                                int durationMinutes, int bufferMinutes, Boolean onlineBookable, String modality,
                                 String patientNote, List<LabIndicator> indicators, boolean updateCatalogDetails) {
         ClinicServiceValidation.ensureId(serviceId);
         String normalizedName = ClinicServiceValidation.normalizeName(name);
@@ -63,7 +72,7 @@ public class UpdateClinicServiceServiceImpl implements UpdateClinicServiceServic
         ClinicService updated = new ClinicService(existing.id(), normalizedName,
                 ClinicServiceValidation.normalizeDescription(description), existing.type(), price,
                 Duration.ofMinutes(resolvedDuration),
-                Duration.ofMinutes(resolvedBuffer), updateCatalogDetails ? existing.onlineBookable() : onlineBookable,
+                Duration.ofMinutes(resolvedBuffer), onlineBookable == null ? existing.onlineBookable() : onlineBookable,
                 true, updateCatalogDetails ? modality : existing.modality(),
                 updateCatalogDetails ? ClinicServiceValidation.normalizeDescription(patientNote) : existing.patientNote(),
                 updateCatalogDetails ? indicators : existing.indicators());

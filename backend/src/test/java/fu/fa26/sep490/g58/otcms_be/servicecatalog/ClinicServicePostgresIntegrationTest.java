@@ -173,6 +173,29 @@ class ClinicServicePostgresIntegrationTest {
                 .andExpect(status().isBadRequest());
     }
 
+    @Test void labIndicatorsPersistThroughAdminReloadButAreAbsentFromPublicJson() throws Exception {
+        var auth=actor(AccountType.ADMIN);
+        String body="""
+                {"name":"T010 lab panel","type":"LABORATORY","price":100000,"durationMinutes":20,"bufferMinutes":0,"onlineBookable":true,"patientNote":"Fast beforehand","indicators":[
+                  {"name":"Hb","unit":"g/dL","refMale":{"min":13.5,"max":17},"refFemale":{"min":12,"max":15}},
+                  {"name":"WBC","unit":"G/L","refMale":{"min":4,"max":10},"refFemale":{"min":4,"max":10}},
+                  {"name":"Platelets","unit":"G/L","refMale":{"min":150,"max":450},"refFemale":{"min":150,"max":450}}]}
+                """;
+        String result=mvc.perform(post("/api/v1/admin/clinic-services").with(auth).with(csrf()).contentType("application/json").content(body))
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+        String id=new tools.jackson.databind.ObjectMapper().readTree(result).get("id").asText();
+        mvc.perform(get("/api/v1/admin/clinic-services/"+id).with(auth)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.indicators.length()").value(3)).andExpect(jsonPath("$.indicators[0].refMale.min").value(13.5))
+                .andExpect(jsonPath("$.indicators[2].name").value("Platelets"));
+        mvc.perform(get("/api/v1/clinic-services")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[?(@.id == '"+id+"')]").exists()).andExpect(jsonPath("$.items[*].indicators").doesNotExist());
+        mvc.perform(put("/api/v1/admin/clinic-services/"+id).with(auth).with(csrf()).contentType("application/json")
+                .content(body.replace("\"onlineBookable\":true","\"onlineBookable\":false")))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.onlineBookable").value(false));
+        mvc.perform(get("/api/v1/clinic-services")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[?(@.id == '"+id+"')]").doesNotExist());
+    }
+
     private RequestPostProcessor actor(AccountType type) {
         UUID accountId = UUID.randomUUID();
         actorAccounts.add(accountId);

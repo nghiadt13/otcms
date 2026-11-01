@@ -93,4 +93,26 @@ class ClinicServiceHandlerTest {
         activationOrder.verify(guard).acquire();
         activationOrder.verify(repository).findById(id);
     }
+    @Test void labCreationAndUpdateKeepThreeNestedRangesAndRejectEqualBounds() {
+        var row = new fu.fa26.sep490.g58.otcms_be.servicecatalog.model.LabIndicator("Hb", "g/dL",
+                new fu.fa26.sep490.g58.otcms_be.servicecatalog.model.LabIndicator.ReferenceRange(13.5, 17),
+                new fu.fa26.sep490.g58.otcms_be.servicecatalog.model.LabIndicator.ReferenceRange(12, 15));
+        when(repository.save(any(ClinicServiceJpaEntity.class))).thenAnswer(call -> call.getArgument(0));
+        var handler = new CreateClinicServiceServiceImpl(repository, guard);
+        var created = handler.create("Blood panel", null,
+                fu.fa26.sep490.g58.otcms_be.servicecatalog.model.ClinicServiceType.LABORATORY,
+                java.math.BigDecimal.TEN, 20, 0, false, null, "Fast beforehand", java.util.List.of(row, row, row));
+        assertEquals(3, created.indicators().size());
+        assertEquals(13.5, created.indicators().getFirst().refMale().min());
+        when(repository.findById(created.id())).thenReturn(Optional.of(entity(created)));
+        var updated = new UpdateClinicServiceServiceImpl(repository, guard).update(created.id(), "Blood panel", null,
+                java.math.BigDecimal.TEN, 20, 0, true, null, "Updated instructions", created.indicators());
+        assertTrue(updated.onlineBookable());
+        assertEquals("Updated instructions", updated.patientNote());
+        var invalid = new fu.fa26.sep490.g58.otcms_be.servicecatalog.model.LabIndicator("Hb", "g/dL",
+                new fu.fa26.sep490.g58.otcms_be.servicecatalog.model.LabIndicator.ReferenceRange(17, 17), row.refFemale());
+        assertThrows(ClinicServiceException.class, () -> handler.create("Invalid panel", null,
+                fu.fa26.sep490.g58.otcms_be.servicecatalog.model.ClinicServiceType.LABORATORY,
+                java.math.BigDecimal.TEN, 20, 0, false, null, null, java.util.List.of(invalid)));
+    }
 }

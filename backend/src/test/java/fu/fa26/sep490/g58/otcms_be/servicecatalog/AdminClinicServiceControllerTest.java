@@ -67,6 +67,25 @@ class AdminClinicServiceControllerTest {
                 .andExpect(status().isOk()).andExpect(jsonPath("$.items[0].doctorProfileId").value(doctor.toString()));
     }
 
+    @Test void publicCatalogNeverSerializesLaboratoryIndicatorsWhileAdminKeepsThem() throws Exception {
+        var row = new fu.fa26.sep490.g58.otcms_be.servicecatalog.model.LabIndicator("Hb", "g/dL",
+                new fu.fa26.sep490.g58.otcms_be.servicecatalog.model.LabIndicator.ReferenceRange(13, 17),
+                new fu.fa26.sep490.g58.otcms_be.servicecatalog.model.LabIndicator.ReferenceRange(12, 15));
+        var lab = new fu.fa26.sep490.g58.otcms_be.servicecatalog.model.ClinicService(id, "Blood test", "Description",
+                fu.fa26.sep490.g58.otcms_be.servicecatalog.model.ClinicServiceType.LABORATORY,
+                java.math.BigDecimal.TEN, java.time.Duration.ofMinutes(20), java.time.Duration.ZERO,
+                false, true, null, "Instructions", List.of(row));
+        when(catalog.publicCatalog()).thenReturn(List.of(lab));
+        mvc.perform(get("/api/v1/clinic-services")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[0].name").value("Blood test"))
+                .andExpect(jsonPath("$.items[0].patientNote").value("Instructions"))
+                .andExpect(jsonPath("$.items[0].indicators").doesNotExist());
+        when(catalog.adminCatalog()).thenReturn(List.of(lab));
+        when(mapper.toItemsResponse(anyList())).thenReturn(new ClinicServiceMapper().toItemsResponse(List.of(lab)));
+        mvc.perform(get(base).with(user("admin").roles("ADMIN"))).andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[0].indicators[0].refMale.min").value(13));
+    }
+
     @TestConfiguration @EnableWebSecurity @EnableConfigurationProperties(SessionSecurityProperties.class)
     static class Fixture { }
 }
