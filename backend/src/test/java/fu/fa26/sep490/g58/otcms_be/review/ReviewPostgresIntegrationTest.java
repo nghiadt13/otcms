@@ -7,6 +7,7 @@ import fu.fa26.sep490.g58.otcms_be.support.LocalPostgresTest;
 import jakarta.persistence.EntityManager;
 import java.time.*;
 import java.util.*;
+import java.util.concurrent.*;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
@@ -16,12 +17,35 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.transaction.support.TransactionTemplate;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.*;
 
 @SpringBootTest @LocalPostgresTest @Transactional @AutoConfigureMockMvc
 class ReviewPostgresIntegrationTest {
+    // The concurrency test commits real transactions. Isolate and remove this class's entire test schema,
+    // rather than bypassing the append-only history trigger to delete committed fixtures.
+    private static final String TEST_SCHEMA = "review_it_" + UUID.randomUUID().toString().replace("-", "");
+    @DynamicPropertySource static void isolatedSchema(DynamicPropertyRegistry registry) {
+        String baseUrl = System.getProperty("spring.datasource.url", System.getenv().getOrDefault(
+                "SPRING_DATASOURCE_URL", "jdbc:postgresql://127.0.0.1:5432/otcms_test_db"));
+        String url = baseUrl.contains("currentSchema=")
+                ? baseUrl.replaceAll("currentSchema=[^&]*", "currentSchema=" + TEST_SCHEMA + ",public")
+                : baseUrl + (baseUrl.contains("?") ? "&" : "?") + "currentSchema=" + TEST_SCHEMA + ",public";
+        registry.add("spring.datasource.url", () -> url);
+        registry.add("spring.flyway.schemas", () -> TEST_SCHEMA);
+        registry.add("spring.flyway.default-schema", () -> TEST_SCHEMA);
+        registry.add("spring.jpa.properties.hibernate.default_schema", () -> TEST_SCHEMA);
+    }
+    @AfterAll static void removeIsolatedSchema(@Autowired JdbcTemplate jdbc) {
+        jdbc.execute("drop schema " + TEST_SCHEMA + " cascade");
+    }
     @Autowired MockMvc mvc;
     @Autowired JdbcTemplate jdbc;
     @Autowired ReviewService reviews;
@@ -34,6 +58,106 @@ class ReviewPostgresIntegrationTest {
         account(account, "PATIENT"); account(otherAccount, "PATIENT"); account(admin, "ADMIN");
         profile(profile, account); profile(otherProfile, otherAccount);
         visit(visit, profile, "CLOSED"); visit(otherVisit, otherProfile, "CLOSED"); visit(openVisit, profile, "OPEN");
+    }
+    @Test void concurrentAdminsCommitOnlyWinningMutationAndHistory() throws Exception {
+        endFixtureTransaction();
+        UUID losingAdmin = UUID.randomUUID();
+        var transaction = new TransactionTemplate(transactionManager);
+        UUID id = transaction.execute(state -> {
+            fixtures(); account(losingAdmin, "ADMIN");
+            return reviews.submit(account, new SubmitReviewRequest(visit, 5, "Concurrent admin review")).id();
+        });
+        long initialVersion = version(id);
+        var bothLoaded = new CountDownLatch(2);
+        var winnerCommitted = new CountDownLatch(1);
+        var executor = Executors.newFixedThreadPool(2);
+        try {
+            var winner = executor.submit(() -> {
+                try {
+                    return transaction.execute(state -> {
+                        var loaded = entityManager.find(PatientReviewJpaEntity.class, id);
+                        assertEquals(initialVersion, loaded.getVersion());
+                        bothLoaded.countDown(); await(bothLoaded);
+                        return reviews.decide(id, admin, "HIDE");
+                    });
+                } finally { winnerCommitted.countDown(); }
+            });
+            var loser = executor.submit(() -> assertThrows(org.springframework.dao.OptimisticLockingFailureException.class,
+                    () -> transaction.execute(state -> {
+                        var loaded = entityManager.find(PatientReviewJpaEntity.class, id);
+                        assertEquals(initialVersion, loaded.getVersion());
+                        bothLoaded.countDown(); await(bothLoaded); await(winnerCommitted);
+                        return reviews.decide(id, losingAdmin, "APPROVE");
+                    })));
+            assertEquals("HIDDEN", winner.get(30, TimeUnit.SECONDS).status().name());
+            var failure = loser.get(30, TimeUnit.SECONDS);
+            // Map the real persistence failure through production advice, without mocking the exception or service.
+            var mapped = new fu.fa26.sep490.g58.otcms_be.review.exception.ReviewApiExceptionHandler().optimistic(failure);
+            assertEquals(409, mapped.getStatusCode().value());
+            assertEquals("MSG-56", mapped.getBody().error().code());
+            assertEquals("HIDDEN", jdbc.queryForObject("select status from patient_reviews where id = ?", String.class, id));
+            assertEquals(initialVersion + 1, version(id));
+            assertEquals(List.of("SUBMIT", "HIDE"), jdbc.queryForList(
+                    "select action from patient_review_moderation_history where review_id = ? order by occurred_at, id", String.class, id));
+            assertEquals(admin, jdbc.queryForObject("select actor_account_id from patient_review_moderation_history where review_id = ? and action = 'HIDE'", UUID.class, id));
+            assertEquals(0, jdbc.queryForObject("select count(*) from patient_review_moderation_history where review_id = ? and actor_account_id = ?", Integer.class, id, losingAdmin));
+        } finally {
+            executor.shutdownNow();
+            assertTrue(executor.awaitTermination(30, TimeUnit.SECONDS));
+        }
+    }
+    private static void await(CountDownLatch latch) {
+        try { assertTrue(latch.await(15, TimeUnit.SECONDS), "Concurrent Admin transaction timed out"); }
+        catch (InterruptedException interrupted) { Thread.currentThread().interrupt(); throw new AssertionError(interrupted); }
+    }
+    @Test void hiddenReplyDisappearsEntirelyFromPublicHttp() throws Exception {
+        var id = publicReviewFixture(5, "PUBLISHED", Instant.parse("2026-11-01T12:00:00Z"));
+        mvc.perform(put("/api/v1/admin/reviews/" + id + "/reply").with(adminActor(admin)).with(csrf())
+                        .contentType("application/json").content("{\"text\":\" Public clinic reply \"}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.reply.text").value("Public clinic reply"));
+        var before = publicPage(0, 20);
+        assertEquals(List.of(id), before.items().stream().map(PublicReview::id).toList());
+        assertEquals("Public clinic reply", before.items().getFirst().clinicReply());
+        reviews.decide(id, admin, "HIDE");
+        var after = publicPage(0, 20);
+        assertTrue(after.items().stream().noneMatch(item -> item.id().equals(id)));
+        assertEquals(before.summary().count() - 1, after.summary().count());
+        assertEquals("Public clinic reply", jdbc.queryForObject("select reply_text from patient_reviews where id = ?", String.class, id));
+    }
+    @ParameterizedTest @CsvSource({"PENDING", "PUBLISHED", "HIDDEN"})
+    void replyAndEditPreserveStatusAndAppendImmutableSnapshots(String state) throws Exception {
+        var id = publicReviewFixture(5, state, Instant.parse("2026-11-01T12:00:00Z"));
+        UUID editingAdmin = UUID.randomUUID(); account(editingAdmin, "ADMIN");
+        mvc.perform(put("/api/v1/admin/reviews/" + id + "/reply").with(adminActor(admin)).with(csrf())
+                        .contentType("application/json").content("{\"text\":\" First reply \"}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.status").value(state))
+                .andExpect(jsonPath("$.reply.text").value("First reply"));
+        entityManager.flush();
+        var original = jdbc.queryForMap("select * from patient_review_moderation_history where review_id = ? and action = 'REPLY'", id);
+        var firstReplyTime = jdbc.queryForObject("select replied_at from patient_reviews where id = ?", java.sql.Timestamp.class, id);
+        mvc.perform(put("/api/v1/admin/reviews/" + id + "/reply").with(adminActor(editingAdmin)).with(csrf())
+                        .contentType("application/json").content("{\"text\":\" Updated reply \"}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.status").value(state))
+                .andExpect(jsonPath("$.reply.text").value("Updated reply"));
+        entityManager.flush();
+        assertEquals(original, jdbc.queryForMap("select * from patient_review_moderation_history where review_id = ? and action = 'REPLY'", id));
+        assertEquals("First reply", original.get("reply_text")); assertEquals(admin, original.get("actor_account_id"));
+        assertEquals(state, original.get("from_status")); assertEquals(state, original.get("to_status"));
+        var edited = jdbc.queryForMap("select * from patient_review_moderation_history where review_id = ? and action = 'EDIT_REPLY'", id);
+        assertEquals("Updated reply", edited.get("reply_text")); assertEquals(editingAdmin, edited.get("actor_account_id"));
+        assertEquals(state, edited.get("from_status")); assertEquals(state, edited.get("to_status"));
+        assertEquals(2, jdbc.queryForObject("select count(*) from patient_review_moderation_history where review_id = ? and action in ('REPLY', 'EDIT_REPLY')", Integer.class, id));
+        assertEquals("Updated reply", jdbc.queryForObject("select reply_text from patient_reviews where id = ?", String.class, id));
+        assertEquals(editingAdmin, jdbc.queryForObject("select replied_by_account_id from patient_reviews where id = ?", UUID.class, id));
+        var currentTime = jdbc.queryForObject("select replied_at from patient_reviews where id = ?", java.sql.Timestamp.class, id);
+        assertEquals(firstReplyTime, original.get("occurred_at")); assertEquals(currentTime, edited.get("occurred_at"));
+        assertFalse(currentTime.before(firstReplyTime));
+    }
+    private org.springframework.test.web.servlet.request.RequestPostProcessor adminActor(UUID accountId) {
+        return authentication(new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(
+                new fu.fa26.sep490.g58.otcms_be.common.security.AuthenticatedAccount(accountId,
+                        fu.fa26.sep490.g58.otcms_be.common.security.AccountRole.ADMIN, UUID.randomUUID()), null,
+                List.of(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ADMIN"))));
     }
     @Test void publicHttpReturnsOnlyPublishedReviewIds() throws Exception {
         var pending = publicReviewFixture(1, "PENDING", Instant.parse("2026-11-01T10:00:00Z"));

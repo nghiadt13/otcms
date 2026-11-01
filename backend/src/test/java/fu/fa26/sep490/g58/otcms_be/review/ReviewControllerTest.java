@@ -13,6 +13,8 @@ import fu.fa26.sep490.g58.otcms_be.common.web.ProductionReadinessGateInterceptor
 import fu.fa26.sep490.g58.otcms_be.config.*;
 import java.util.*;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.test.context.TestConfiguration;
@@ -113,6 +115,39 @@ class ReviewControllerTest {
         if (!path.equals("/api/v1/reviews")) return get(path);
         return post(path).contentType("application/json").content("{\"visitId\":\"" + UUID.randomUUID()
                 + "\",\"rating\":5,\"text\":\"A valid review\"}");
+    }
+    @ParameterizedTest
+    @ValueSource(strings = {"status=INVALID", "rating=0", "rating=6", "replied=invalid", "from=bad-date",
+            "to=bad-date", "from=2026-11-02&to=2026-11-01", "sort=unsupported,desc"})
+    void invalidAdminFiltersReturnMsg54(String query) throws Exception {
+        var real = new fu.fa26.sep490.g58.otcms_be.review.service.impl.ReviewServiceImpl(
+                mock(fu.fa26.sep490.g58.otcms_be.review.repository.PatientReviewRepository.class),
+                mock(fu.fa26.sep490.g58.otcms_be.review.repository.PatientReviewHistoryRepository.class),
+                mock(fu.fa26.sep490.g58.otcms_be.review.service.OwnPatientProfileService.class),
+                mock(fu.fa26.sep490.g58.otcms_be.auth.service.PatientProfileDirectory.class),
+                mock(fu.fa26.sep490.g58.otcms_be.visit.service.VisitReviewSourceService.class),
+                java.time.Clock.systemUTC(), source -> source,
+                mock(fu.fa26.sep490.g58.otcms_be.notification.service.NotificationPublisher.class));
+        when(reviews.list(any(), any(), any(), any(), any(), anyInt(), anyInt(), any())).thenAnswer(i ->
+                real.list(i.getArgument(0), i.getArgument(1), i.getArgument(2), i.getArgument(3),
+                        i.getArgument(4), i.getArgument(5), i.getArgument(6), i.getArgument(7)));
+        mvc.perform(get("/api/v1/admin/reviews?" + query).with(actor(AccountRole.ADMIN)))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("MSG-54"));
+    }
+    @ParameterizedTest @ValueSource(strings = {"list", "reply"})
+    void representativeAdminEndpointsEnforceRole(String operation) throws Exception {
+        String path = "/api/v1/admin/reviews" + (operation.equals("reply") ? "/" + UUID.randomUUID() + "/reply" : "");
+        java.util.function.Supplier<org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder> request = () ->
+                operation.equals("reply") ? put(path).contentType("application/json").content("{\"text\":\"Clinic reply\"}") : get(path);
+        mvc.perform(request.get().with(csrf())).andExpect(status().isUnauthorized());
+        for (AccountRole role : AccountRole.values()) {
+            var result = mvc.perform(request.get().with(csrf()).with(actor(role)));
+            if (role == AccountRole.ADMIN) result.andExpect(status().isOk());
+            else result.andExpect(status().isForbidden());
+        }
+        if (operation.equals("reply")) verify(reviews).reply(any(), any(), eq(new ReplyRequest("Clinic reply")));
+        else verify(reviews).list(null, null, null, null, null, 0, 20, null);
+        verifyNoMoreInteractions(reviews);
     }
     @Test void rootFieldErrorsAndStrictIntegerRating() throws Exception {
         for (String rating : List.of("1.5", "\"5\"", "2147483648"))

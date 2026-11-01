@@ -125,6 +125,15 @@ class ReviewServiceTest {
             assertEquals(target, event.getValue().getToStatus().name()); assertEquals(action, event.getValue().getAction());
         }
     }
+    @ParameterizedTest
+    @CsvSource({"PENDING,false,approve|hide|reply", "PENDING,true,approve|hide|editReply",
+            "PUBLISHED,false,hide|reply", "PUBLISHED,true,hide|editReply",
+            "HIDDEN,false,unhide|reply", "HIDDEN,true,unhide|editReply"})
+    void allowedActionsExactlyMatchStatusAndReply(String status, boolean replied, String expected) {
+        var r = review(); r.changeStatus(ReviewStatus.valueOf(status), now);
+        if (replied) r.reply("Existing reply", account, now);
+        assertEquals(List.of(expected.split("\\|")), service.detail(r.getId()).allowedActions());
+    }
     @Test void missingAndOversizedFieldsRejectedBeforeVisitLookup() {
         for (SubmitReviewRequest body : List.of(new SubmitReviewRequest(visitId, null, "A valid review"),
                 new SubmitReviewRequest(visitId, 5, null), new SubmitReviewRequest(visitId, 5, "x".repeat(1001))))
