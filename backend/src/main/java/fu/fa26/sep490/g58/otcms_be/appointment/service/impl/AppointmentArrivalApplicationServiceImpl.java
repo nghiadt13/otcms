@@ -4,16 +4,20 @@ import fu.fa26.sep490.g58.otcms_be.appointment.exception.AppointmentBookingExcep
 import fu.fa26.sep490.g58.otcms_be.appointment.model.CheckInAppointment;
 import fu.fa26.sep490.g58.otcms_be.appointment.model.dto.response.ArrivalResponse;
 import fu.fa26.sep490.g58.otcms_be.appointment.model.dto.response.ArrivalWorklistResponse;
+import fu.fa26.sep490.g58.otcms_be.appointment.model.dto.response.PatientQrCheckInResponse;
 import fu.fa26.sep490.g58.otcms_be.appointment.model.entity.AppointmentJpaEntity;
 import fu.fa26.sep490.g58.otcms_be.appointment.repository.AppointmentCheckInRepository;
 import fu.fa26.sep490.g58.otcms_be.appointment.repository.AppointmentJpaRepository;
 import fu.fa26.sep490.g58.otcms_be.appointment.service.AppointmentArrivalApplicationService;
+import fu.fa26.sep490.g58.otcms_be.appointment.service.CheckInAppointmentCommand;
+import fu.fa26.sep490.g58.otcms_be.appointment.service.CheckInAppointmentService;
 import fu.fa26.sep490.g58.otcms_be.appointment.service.ClinicArrivalProofService;
 import fu.fa26.sep490.g58.otcms_be.auth.service.PatientProfileDirectory;
 import fu.fa26.sep490.g58.otcms_be.common.service.CoordinationGuardService;
 import fu.fa26.sep490.g58.otcms_be.config.AppointmentBookingProperties;
 import fu.fa26.sep490.g58.otcms_be.visit.service.AppointmentArrivalClaimStore;
 import fu.fa26.sep490.g58.otcms_be.visit.service.AppointmentArrivalClaimStore.ArrivalClaim;
+import fu.fa26.sep490.g58.otcms_be.visit.service.ReceptionWorkflowService;
 import fu.fa26.sep490.g58.otcms_be.visit.exception.VisitOperationException;
 import java.time.Clock;
 import java.time.Instant;
@@ -33,6 +37,8 @@ public class AppointmentArrivalApplicationServiceImpl implements AppointmentArri
     private final CoordinationGuardService guard;
     private final AppointmentCheckInRepository checkIns;
     private final AppointmentJpaRepository appointments;
+    private final CheckInAppointmentService checkIn;
+    private final ReceptionWorkflowService reception;
     private final PatientProfileDirectory profiles;
     private final AppointmentArrivalClaimStore arrivals;
     private final ClinicArrivalProofService proofs;
@@ -41,11 +47,14 @@ public class AppointmentArrivalApplicationServiceImpl implements AppointmentArri
 
     public AppointmentArrivalApplicationServiceImpl(CoordinationGuardService guard,
             AppointmentCheckInRepository checkIns, AppointmentJpaRepository appointments,
+            CheckInAppointmentService checkIn, ReceptionWorkflowService reception,
             PatientProfileDirectory profiles, AppointmentArrivalClaimStore arrivals,
             ClinicArrivalProofService proofs, AppointmentBookingProperties booking, Clock clock) {
         this.guard = guard;
         this.checkIns = checkIns;
         this.appointments = appointments;
+        this.checkIn = checkIn;
+        this.reception = reception;
         this.profiles = profiles;
         this.arrivals = arrivals;
         this.proofs = proofs;
@@ -55,7 +64,8 @@ public class AppointmentArrivalApplicationServiceImpl implements AppointmentArri
 
     @Override
     @Transactional
-    public ArrivalResponse recordQr(UUID appointmentId, UUID accountId, String proof) {
+    public PatientQrCheckInResponse recordQr(UUID appointmentId, UUID accountId, String proof,
+            String correlationId) {
         validateIds(appointmentId, accountId);
         try {
             Instant now = Instant.now(clock);
@@ -68,15 +78,39 @@ public class AppointmentArrivalApplicationServiceImpl implements AppointmentArri
                 throw new AppointmentBookingException("ACCESS_DENIED");
             }
             var existing = find(appointmentId);
+            ArrivalClaim claim;
             if (existing.isPresent()) {
                 if (!patientProfileId.equals(existing.get().patientProfileId())) {
                     throw new AppointmentBookingException("VISIT_LINK_CONFLICT");
                 }
-                return response(existing.get(), appointment.startTime());
+                claim = existing.get();
+                if (hasStartedVisit(appointment)) {
+                    if (!reception.hasConsistentCheckInEvidence(appointmentId, patientProfileId,
+                            appointment.visitId())) {
+                        throw new AppointmentBookingException("VISIT_LINK_CONFLICT");
+                    }
+                    return qrResponse(claim, appointment.startTime(), appointment.status(),
+                            appointment.visitId(), null, true);
+                }
+                if (!"CONFIRMED".equals(appointment.status())) {
+                    throw new AppointmentBookingException("APPOINTMENT_NOT_CHANGEABLE");
+                }
+            } else {
+                requireRecordable(appointment);
+                claim = record(appointmentId, patientProfileId, accountId, "PATIENT_QR", null, now);
             }
-            requireRecordable(appointment);
-            return response(record(appointmentId, patientProfileId, accountId, "PATIENT_QR", null, now),
-                    appointment.startTime());
+
+            Instant allowedStart = appointment.startTime().minus(booking.checkInEarlyMinutes(), ChronoUnit.MINUTES);
+            Instant allowedEnd = appointment.startTime().plus(booking.checkInLateGraceMinutes(), ChronoUnit.MINUTES);
+            if (now.isBefore(allowedStart) || now.isAfter(allowedEnd)
+                    || claim.arrivedAt().isBefore(allowedStart) || claim.arrivedAt().isAfter(allowedEnd)) {
+                throw new AppointmentBookingException("CHECK_IN_TIME_NOT_ALLOWED");
+            }
+
+            var checkedIn = checkIn.checkIn(appointmentId, new CheckInAppointmentCommand(accountId,
+                    patientProfileId, "patient-qr:" + appointmentId, correlationId));
+            return qrResponse(claim, appointment.startTime(), "CHECKED_IN", checkedIn.visitId(),
+                    checkedIn.checkedInAt(), true);
         } catch (DataAccessException exception) {
             throw new AppointmentBookingException("DEPENDENCY_UNAVAILABLE", exception);
         }
@@ -186,6 +220,18 @@ public class AppointmentArrivalApplicationServiceImpl implements AppointmentArri
     private ArrivalResponse response(ArrivalClaim claim, Instant appointmentStart) {
         return new ArrivalResponse(claim.appointmentId(), claim.patientProfileId(), claim.source(),
                 state(claim.arrivedAt(), appointmentStart), claim.arrivedAt(), claim.recordedAt());
+    }
+
+    private PatientQrCheckInResponse qrResponse(ArrivalClaim claim, Instant appointmentStart,
+            String appointmentStatus, UUID visitId, Instant checkedInAt, boolean checkedIn) {
+        return new PatientQrCheckInResponse(claim.appointmentId(), claim.patientProfileId(),
+                claim.source(), state(claim.arrivedAt(), appointmentStart),
+                claim.arrivedAt(), claim.recordedAt(), appointmentStatus, visitId, checkedInAt, checkedIn);
+    }
+
+    private boolean hasStartedVisit(CheckInAppointment appointment) {
+        return appointment.visitId() != null
+                && Set.of("CHECKED_IN", "IN_PROGRESS", "COMPLETED").contains(appointment.status());
     }
 
     private String state(Instant arrivedAt, Instant appointmentStart) {

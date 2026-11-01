@@ -10,6 +10,7 @@ import fu.fa26.sep490.g58.otcms_be.appointment.model.dto.request.RecordManualArr
 import fu.fa26.sep490.g58.otcms_be.appointment.model.dto.request.RecordQrArrivalRequest;
 import fu.fa26.sep490.g58.otcms_be.appointment.model.dto.response.ArrivalResponse;
 import fu.fa26.sep490.g58.otcms_be.appointment.model.dto.response.ArrivalWorklistResponse;
+import fu.fa26.sep490.g58.otcms_be.appointment.model.dto.response.PatientQrCheckInResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import java.time.Clock;
@@ -50,12 +51,13 @@ public class AppointmentArrivalController {
 
     @PostMapping("/api/v1/appointments/{appointmentId}/arrivals")
     @PreAuthorize("hasAuthority('ROLE_PATIENT')")
-    public ResponseEntity<ArrivalResponse> recordQr(@PathVariable UUID appointmentId,
+    public ResponseEntity<PatientQrCheckInResponse> recordQr(@PathVariable UUID appointmentId,
             @Valid @RequestBody RecordQrArrivalRequest body,
             @AuthenticationPrincipal AuthenticatedAccount account, HttpServletRequest request) {
         if (account == null) throw new AppointmentBookingException("ACCESS_DENIED");
         return ResponseEntity.ok().header(CorrelationIdFilter.HEADER, CorrelationIdFilter.current(request))
-                .body(arrivals.recordQr(appointmentId, account.accountId(), body.proof()));
+                .body(arrivals.recordQr(appointmentId, account.accountId(), body.proof(),
+                        CorrelationIdFilter.current(request)));
     }
 
     @PostMapping("/api/v1/appointments/{appointmentId}/arrivals/manual")
