@@ -23,3 +23,18 @@ SELECT 'service:' || a.id::text, a.occurred_at, a.actor_account_id, 'SERVICE'::t
          ELSE 'CHANGE_SERVICE_STATUS' END::text,
     'SERVICE'::text, a.service_id, coalesce(s.name, a.service_id::text)::text, NULL::text
 FROM service_audits a LEFT JOIN clinic_services s ON s.id = a.service_id;
+
+-- Handle the supported out-of-order case where KAN-41 was installed before this view.
+DO $$
+DECLARE previous_definition TEXT;
+BEGIN
+    IF to_regclass(format('%I.content_audits', current_schema())) IS NOT NULL THEN
+        SELECT regexp_replace(pg_get_viewdef(to_regclass(format('%I.activity_log_entries', current_schema())), true), ';\s*$', '') INTO previous_definition;
+        IF position('content_audits' in previous_definition) = 0 THEN
+            EXECUTE 'CREATE OR REPLACE VIEW activity_log_entries AS ' || previous_definition ||
+                ' UNION ALL SELECT ''content:'' || c.id::text, c.occurred_at, c.actor_account_id, c.category::text,
+                  c.action::text, c.category::text, c.record_id, c.record_label::text, NULL::text FROM content_audits c';
+        END IF;
+    END IF;
+END;
+$$;
