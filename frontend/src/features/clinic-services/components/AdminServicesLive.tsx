@@ -464,10 +464,17 @@ export function ServiceEditor({
                 onChange={(e) => setPrice(e.target.value)}
               />
             </Field>
+            {!!service && type !== "EXAMINATION" && (
+              <p className="text-sm text-muted-foreground">
+                Thời lượng và thời gian đệm của dịch vụ cận lâm sàng được giữ
+                theo cấu hình hiện tại.
+              </p>
+            )}
             <div className="grid gap-4 sm:grid-cols-2">
               <Field id="live-service-duration" label="Thời lượng (phút) *">
                 <Input
                   id="live-service-duration"
+                  disabled={!!service && type !== "EXAMINATION"}
                   type="number"
                   min="1"
                   max="2147483647"
@@ -484,6 +491,7 @@ export function ServiceEditor({
               >
                 <Input
                   id="live-service-buffer"
+                  disabled={!!service && type !== "EXAMINATION"}
                   type="number"
                   min="0"
                   max="2147483647"

@@ -42,6 +42,7 @@ public class UpdateClinicServiceServiceImpl implements UpdateClinicServiceServic
     }
 
     @Override
+    @Transactional
     public ClinicService update(UUID serviceId, String name, String description, BigDecimal price,
                                 int durationMinutes, int bufferMinutes, boolean onlineBookable, String modality,
                                 String patientNote, List<LabIndicator> indicators) {
