@@ -84,6 +84,105 @@ class NotificationPostgresIntegrationTest {
         assertEquals(1, inbox.list(other, false, 0, 20).totalItems());
         assertEquals(2, inbox.list(patient, false, 0, 2).items().size());
     }
+    @Test void twoHttpPagesAreScopedCompleteAndUseDeterministicNewestOrder() throws Exception {
+        UUID oldest = notification(a, null, null, NOW.minusSeconds(20));
+        UUID tiedOne = notification(a, null, null, NOW.minusSeconds(10));
+        UUID tiedTwo = notification(a, null, null, NOW.minusSeconds(10));
+        UUID newest = notification(a, null, null, NOW);
+        UUID foreign = notification(b, null, null, NOW.plusSeconds(10));
+        var tied = new ArrayList<>(List.of(tiedOne, tiedTwo));
+        tied.sort(Comparator.comparing(UUID::toString).reversed());
+        var first = httpPage(patient, 0, 2, null);
+        var second = httpPage(patient, 1, 2, null);
+        assertEquals(List.of(newest, tied.get(0)), ids(first));
+        assertEquals(List.of(tied.get(1), oldest), ids(second));
+        for (var page : List.of(first, second)) {
+            assertEquals(2, page.get("size").asInt()); assertEquals(4, page.get("totalItems").asInt());
+            assertEquals(2, page.get("totalPages").asInt()); assertEquals(2, page.get("items").size());
+            assertFalse(ids(page).contains(foreign));
+        }
+        assertEquals(0, first.get("page").asInt()); assertEquals(1, second.get("page").asInt());
+        assertTrue(Collections.disjoint(ids(first), ids(second)));
+        var combined = new HashSet<>(ids(first)); combined.addAll(ids(second));
+        assertEquals(Set.of(oldest, tiedOne, tiedTwo, newest), combined);
+        assertEquals(ids(first), ids(httpPage(patient, 0, 2, null)));
+    }
+    @Test void readAllMixedDatasetPreservesPreReadRowsAndOtherRecipient() throws Exception {
+        var unread = List.of(notification(a, null, null, NOW), notification(a, null, null, NOW), notification(a, null, null, NOW));
+        UUID readOne = notification(a, null, null, NOW.minusSeconds(60));
+        UUID readTwo = notification(a, null, null, NOW.minusSeconds(120));
+        jdbc.update("update notifications set read_at=? where id=?", Timestamp.from(NOW.minusSeconds(30)), readOne);
+        jdbc.update("update notifications set read_at=? where id=?", Timestamp.from(NOW.minusSeconds(90)), readTwo);
+        var firstTimestamp = jdbc.queryForObject("select read_at from notifications where id=?", Timestamp.class, readOne);
+        var secondTimestamp = jdbc.queryForObject("select read_at from notifications where id=?", Timestamp.class, readTwo);
+        notification(b, null, null, NOW); notification(b, null, null, NOW);
+        mvc.perform(post(base() + "/read-all").with(actor(patient)).with(csrf()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.updatedCount").value(3));
+        for (UUID id : unread) assertEquals(Timestamp.from(NOW), jdbc.queryForObject("select read_at from notifications where id=?", Timestamp.class, id));
+        assertEquals(5, jdbc.queryForObject("select count(*) from notifications where recipient_account_id=? and read_at is not null", Integer.class, a));
+        assertEquals(firstTimestamp, jdbc.queryForObject("select read_at from notifications where id=?", Timestamp.class, readOne));
+        assertEquals(secondTimestamp, jdbc.queryForObject("select read_at from notifications where id=?", Timestamp.class, readTwo));
+        assertEquals(2, jdbc.queryForObject("select count(*) from notifications where recipient_account_id=? and read_at is null", Integer.class, b));
+        mvc.perform(post(base() + "/read-all").with(actor(patient)).with(csrf()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.updatedCount").value(0));
+        assertEquals(firstTimestamp, jdbc.queryForObject("select read_at from notifications where id=?", Timestamp.class, readOne));
+        assertEquals(secondTimestamp, jdbc.queryForObject("select read_at from notifications where id=?", Timestamp.class, readTwo));
+        assertEquals(2, jdbc.queryForObject("select count(*) from notifications where recipient_account_id=? and read_at is null", Integer.class, b));
+    }
+    @Test void unreadFalseAndOmittedReturnSameMixedDataset() throws Exception {
+        UUID unreadOne = notification(a, null, null, NOW);
+        UUID unreadTwo = notification(a, null, null, NOW.minusSeconds(10));
+        UUID read = notification(a, null, null, NOW.minusSeconds(20)); inbox.markRead(patient, read);
+        notification(b, null, null, NOW);
+        var omitted = httpPage(patient, 0, 20, null);
+        assertEquals(omitted, httpPage(patient, 0, 20, false));
+        assertEquals(List.of(unreadOne, unreadTwo, read), ids(omitted));
+        assertEquals(3, omitted.get("totalItems").asInt());
+        assertTrue(omitted.get("items").get(2).get("read").asBoolean());
+        var unread = httpPage(patient, 0, 20, true);
+        assertEquals(List.of(unreadOne, unreadTwo), ids(unread));
+        assertEquals(2, unread.get("totalItems").asInt());
+        for (var item : unread.get("items")) assertFalse(item.get("read").asBoolean());
+        mvc.perform(get(base() + "/unread-count").with(actor(patient)))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.unreadCount").value(2));
+    }
+    @Test void httpProjectionHasExactFieldsAndSerializesUnavailableReviewWithoutRecordData() throws Exception {
+        UUID own = notification(a, NotificationRelatedKind.VISIT, visit, NOW);
+        UUID unauthorized = notification(a, NotificationRelatedKind.VISIT, foreignVisit, NOW.minusSeconds(1));
+        UUID missingRecord = UUID.randomUUID();
+        UUID missing = notification(a, NotificationRelatedKind.VISIT, missingRecord, NOW.minusSeconds(2));
+        UUID reviewRecord = UUID.randomUUID();
+        UUID review = notification(a, NotificationRelatedKind.REVIEW, reviewRecord, NOW.minusSeconds(3));
+        UUID plainRead = notification(a, null, null, NOW.minusSeconds(4)); inbox.markRead(patient, plainRead);
+        var page = httpPage(patient, 0, 20, null);
+        assertEquals(Set.of(own, unauthorized, missing, review, plainRead), new HashSet<>(ids(page)));
+        var mapper = tools.jackson.databind.json.JsonMapper.builder().build();
+        for (var item : page.get("items")) {
+            UUID id = UUID.fromString(item.get("id").asText());
+            assertEquals(Set.of("id", "title", "content", "createdAt", "read", "relatedRecord", "allowedActions"), item.propertyNames());
+            assertTrue(item.get("createdAt").asText().endsWith("+07:00"));
+            assertEquals(id.equals(plainRead), item.get("read").asBoolean());
+            assertEquals(mapper.valueToTree(id.equals(plainRead) ? List.of() : List.of("markRead")), item.get("allowedActions"));
+            var related = item.get("relatedRecord");
+            if (id.equals(plainRead)) { assertTrue(related.isNull()); continue; }
+            assertEquals(Set.of("kind", "id", "available"), related.propertyNames());
+            assertEquals(id.equals(own), related.get("available").asBoolean());
+            assertEquals(id.equals(review) ? "REVIEW" : "VISIT", related.get("kind").asText());
+            UUID expectedRecord = id.equals(own) ? visit : id.equals(unauthorized) ? foreignVisit : id.equals(missing) ? missingRecord : reviewRecord;
+            assertEquals(expectedRecord.toString(), related.get("id").asText());
+        }
+    }
+    private tools.jackson.databind.JsonNode httpPage(AuthenticatedAccount current, int page, int size, Boolean unread) throws Exception {
+        var request = get(base()).with(actor(current)).param("page", Integer.toString(page)).param("size", Integer.toString(size));
+        if (unread != null) request.param("unread", unread.toString());
+        var response = mvc.perform(request).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        return tools.jackson.databind.json.JsonMapper.builder().build().readTree(response);
+    }
+    private List<UUID> ids(tools.jackson.databind.JsonNode page) {
+        var ids = new ArrayList<UUID>();
+        for (var item : page.get("items")) ids.add(UUID.fromString(item.get("id").asText()));
+        return ids;
+    }
     @Test void markReadPreservesTimestampAndDoesNotUpdateRowTwice() throws Exception {
         UUID id = notification(a, null, null, NOW.minusSeconds(30));
         mvc.perform(post(base() + "/" + id + "/read").with(actor(patient)).with(csrf()))

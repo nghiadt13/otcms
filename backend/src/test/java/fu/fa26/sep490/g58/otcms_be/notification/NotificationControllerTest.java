@@ -13,6 +13,9 @@ import fu.fa26.sep490.g58.otcms_be.common.web.ProductionReadinessGateInterceptor
 import fu.fa26.sep490.g58.otcms_be.config.*;
 import java.util.*;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.test.context.TestConfiguration;
@@ -73,6 +76,39 @@ class NotificationControllerTest {
         when(notifications.unreadCount(current)).thenThrow(new IllegalStateException("private"));
         mvc.perform(get(base + "/unread-count").with(actor())).andExpect(status().isInternalServerError())
                 .andExpect(jsonPath("$.error.code").value("MSG-04"));
+    }
+    @ParameterizedTest @EnumSource(AccountRole.class)
+    void everyAuthenticatedRoleCanUseAllFourEndpoints(AccountRole role) throws Exception {
+        var principal = new AuthenticatedAccount(UUID.randomUUID(), role, UUID.randomUUID());
+        var identity = authentication(new UsernamePasswordAuthenticationToken(principal, null,
+                List.of(new SimpleGrantedAuthority("ROLE_" + role.name()))));
+        UUID id = UUID.randomUUID();
+        when(notifications.list(principal, false, 0, 20)).thenReturn(new NotificationPage(List.of(), 0, 20, 0, 1));
+        when(notifications.unreadCount(principal)).thenReturn(new UnreadCount(0));
+        when(notifications.markRead(principal, id)).thenReturn(new Item(id, "Title", "Content",
+                java.time.OffsetDateTime.parse("2026-11-02T08:00:00+07:00"), true, null, List.of()));
+        when(notifications.readAll(principal)).thenReturn(new ReadAllResult(0));
+        for (String endpoint : List.of("list", "count", "read", "readAll"))
+            mvc.perform(notificationRequest(endpoint, id).with(identity).with(csrf())).andExpect(status().isOk());
+        verify(notifications).list(principal, false, 0, 20);
+        verify(notifications).unreadCount(principal);
+        verify(notifications).markRead(principal, id);
+        verify(notifications).readAll(principal);
+        verifyNoMoreInteractions(notifications);
+    }
+    @ParameterizedTest @ValueSource(strings = {"list", "count", "read", "readAll"})
+    void allFourEndpointsRejectAnonymous(String endpoint) throws Exception {
+        mvc.perform(notificationRequest(endpoint, UUID.randomUUID()).with(csrf())).andExpect(status().isUnauthorized());
+        verifyNoInteractions(notifications);
+    }
+    private org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder notificationRequest(String endpoint, UUID id) {
+        return switch (endpoint) {
+            case "list" -> get(base);
+            case "count" -> get(base + "/unread-count");
+            case "read" -> post(base + "/" + id + "/read");
+            case "readAll" -> post(base + "/read-all");
+            default -> throw new IllegalArgumentException(endpoint);
+        };
     }
     private RequestPostProcessor actor() {
         return authentication(new UsernamePasswordAuthenticationToken(current, null, List.of(new SimpleGrantedAuthority("ROLE_ADMIN"))));
