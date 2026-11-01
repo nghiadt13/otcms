@@ -73,13 +73,13 @@ describe("dashboardPeriodRules", () => {
     expect(
       validateDashboardPeriod({ from: "2026-10-14", to: "2026-10-21" }),
     ).toBe("MSG-72");
-    expect(DASHBOARD_MAX_RANGE_DAYS).toBe(366);
-    // 366 ngày (gồm cả hai đầu) là vừa đủ.
-    expect(validateDashboardPeriod({ from: "2025-10-19", to: TODAY })).toBe(
+    expect(DASHBOARD_MAX_RANGE_DAYS).toBe(90);
+    // 90 ngày (gồm cả hai đầu) là vừa đủ.
+    expect(validateDashboardPeriod({ from: "2026-07-22", to: TODAY })).toBe(
       "MSG-72",
     );
     expect(
-      validateDashboardPeriod({ from: "2025-10-20", to: TODAY }),
+      validateDashboardPeriod({ from: "2026-07-23", to: TODAY }),
     ).toBeNull();
   });
 });
