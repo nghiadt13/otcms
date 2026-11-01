@@ -17,7 +17,9 @@ export function PatientArrivalQrCheckIn({
   const [proof, setProof] = useState("");
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
-  const [cameraState, setCameraState] = useState<"closed" | "opening" | "scanning">("closed");
+  const [cameraState, setCameraState] = useState<
+    "closed" | "opening" | "scanning"
+  >("closed");
   const [cameraMessage, setCameraMessage] = useState("");
   const videoRef = useRef<HTMLVideoElement>(null);
   const scannerRef = useRef<{ stop: () => void } | null>(null);
@@ -103,7 +105,8 @@ export function PatientArrivalQrCheckIn({
           ? "Chỉ có thể quét check-in từ 30 phút trước đến 15 phút sau giờ hẹn. Nếu không đúng khung giờ, hãy nhờ lễ tân hỗ trợ tiếp nhận."
           : isApiError(cause) && cause.errorCode === "ARRIVAL_PROOF_INVALID"
             ? "Mã QR không hợp lệ hoặc đã hết hạn. Hãy quét mã mới đang hiển thị tại quầy."
-            : isApiError(cause) && cause.errorCode === "APPOINTMENT_NOT_CHANGEABLE"
+            : isApiError(cause) &&
+                cause.errorCode === "APPOINTMENT_NOT_CHANGEABLE"
               ? "Lịch hẹn không còn đủ điều kiện check-in. Hãy nhờ lễ tân kiểm tra giúp."
               : isApiError(cause)
                 ? cause.message
@@ -157,7 +160,9 @@ export function PatientArrivalQrCheckIn({
             onClick={() => void startCamera()}
             variant="secondary"
           >
-            {cameraState === "opening" ? "Đang mở camera…" : "Mở camera để quét QR"}
+            {cameraState === "opening"
+              ? "Đang mở camera…"
+              : "Mở camera để quét QR"}
           </Button>
         )}
         {cameraState === "scanning" && (

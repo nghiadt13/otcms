@@ -495,7 +495,7 @@ export function IntakeScreen() {
     <>
       <PageHeader
         title="Tiếp nhận bệnh nhân"
-          description="Theo dõi lịch hẹn và trạng thái QR check-in hôm nay; hỗ trợ tiếp nhận tại quầy khi cần."
+        description="Theo dõi lịch hẹn và trạng thái QR check-in hôm nay; hỗ trợ tiếp nhận tại quầy khi cần."
         actions={
           <>
             <Button variant="outline" onClick={() => setQrOpen(true)}>
@@ -512,9 +512,11 @@ export function IntakeScreen() {
         <div>
           <p className="text-xs text-muted-foreground">Lịch hẹn hôm nay</p>
           <p className="mt-2 text-2xl font-semibold">
-            {appointments.filter((item) =>
-              DAILY_RECEPTION_STATUSES.has(item.status),
-            ).length}
+            {
+              appointments.filter((item) =>
+                DAILY_RECEPTION_STATUSES.has(item.status),
+              ).length
+            }
           </p>
         </div>
         <div>
@@ -582,7 +584,8 @@ export function IntakeScreen() {
                         )?.source === "PATIENT_QR"
                       ? "Đã quét QR"
                       : arrivals.some(
-                            (arrival) => arrival.appointmentId === appointment.id,
+                            (arrival) =>
+                              arrival.appointmentId === appointment.id,
                           )
                         ? "Đã xác nhận tại quầy"
                         : "Chưa quét"}
@@ -652,7 +655,9 @@ export function IntakeScreen() {
               {detail.patientName ?? "Chưa có tên bệnh nhân"}
             </DetailRow>
             <DetailRow label="Mã hồ sơ">{detail.patientProfileId}</DetailRow>
-            <DetailRow label="Ngày / giờ">{timeText(detail.startTime)}</DetailRow>
+            <DetailRow label="Ngày / giờ">
+              {timeText(detail.startTime)}
+            </DetailRow>
             <DetailRow label="Dịch vụ">
               {detail.serviceName ?? "Chưa có thông tin dịch vụ"}
             </DetailRow>
@@ -680,11 +685,11 @@ export function IntakeScreen() {
             {["CONFIRMED", "NO_SHOW"].includes(detail.status) && (
               <Button
                 onClick={() => {
-                setCheckIn({
-                  patientId: detail.patientProfileId,
-                  appointmentId: detail.id,
-                });
-                setDetail(null);
+                  setCheckIn({
+                    patientId: detail.patientProfileId,
+                    appointmentId: detail.id,
+                  });
+                  setDetail(null);
                 }}
               >
                 Hỗ trợ tiếp nhận
