@@ -136,19 +136,30 @@ export async function listRooms(
 ): Promise<PageResponse<Room>> {
   if (!USE_MOCK) {
     const [response, options] = await Promise.all([
-      liveRequest(apiRequest<ItemsResponse<BackendRoom>>("/api/v1/admin/visit-rooms", { signal })),
+      liveRequest(
+        apiRequest<ItemsResponse<BackendRoom>>("/api/v1/admin/visit-rooms", {
+          signal,
+        }),
+      ),
       backendServiceOptions(undefined, signal, true),
     ]);
     const { q = "", type = "", status = "", serviceId = "" } = query;
     const keyword = norm(q);
     const filtered = response.items
       .map((room) => mapBackendRoom(room, options))
-      .filter((room) => (!keyword || norm(room.name).includes(keyword))
-        && (!type || room.type === type)
-        && (!status || room.status === status)
-        && (!serviceId || room.supportedServices.some((service) => service.id === serviceId)))
-      .sort((a, b) => a.name.localeCompare(b.name, "vi")
-        * (query.sort === "name,desc" ? -1 : 1));
+      .filter(
+        (room) =>
+          (!keyword || norm(room.name).includes(keyword)) &&
+          (!type || room.type === type) &&
+          (!status || room.status === status) &&
+          (!serviceId ||
+            room.supportedServices.some((service) => service.id === serviceId)),
+      )
+      .sort(
+        (a, b) =>
+          a.name.localeCompare(b.name, "vi") *
+          (query.sort === "name,desc" ? -1 : 1),
+      );
     return paginate(filtered, query);
   }
   await mockDelay(150, signal);
@@ -187,7 +198,9 @@ export async function listRoomServiceOptions(
 
 export async function getRoom(id: string, signal?: AbortSignal): Promise<Room> {
   if (!USE_MOCK) {
-    const room = await liveRequest(apiRequest<BackendRoom>(`/api/v1/admin/visit-rooms/${id}`, { signal }));
+    const room = await liveRequest(
+      apiRequest<BackendRoom>(`/api/v1/admin/visit-rooms/${id}`, { signal }),
+    );
     const options = await backendServiceOptions(room.type, signal, true);
     return mapBackendRoom(room, options);
   }
@@ -197,16 +210,18 @@ export async function getRoom(id: string, signal?: AbortSignal): Promise<Room> {
 
 export async function createRoom(input: RoomCreateInput): Promise<Room> {
   if (!USE_MOCK) {
-    const room = await liveRequest(apiRequest<BackendRoom>("/api/v1/admin/visit-rooms", {
-      method: "POST",
-      body: JSON.stringify({
-        roomCode: input.name,
-        displayLabel: input.name,
-        type: input.type,
-        description: input.description,
-        serviceIds: input.serviceIds,
+    const room = await liveRequest(
+      apiRequest<BackendRoom>("/api/v1/admin/visit-rooms", {
+        method: "POST",
+        body: JSON.stringify({
+          roomCode: input.name,
+          displayLabel: input.name,
+          type: input.type,
+          description: input.description,
+          serviceIds: input.serviceIds,
+        }),
       }),
-    }));
+    );
     const options = await backendServiceOptions(input.type);
     return mapBackendRoom(room, options);
   }
@@ -237,14 +252,16 @@ export async function updateRoom(
   input: RoomUpdateInput,
 ): Promise<Room> {
   if (!USE_MOCK) {
-    const room = await liveRequest(apiRequest<BackendRoom>(`/api/v1/admin/visit-rooms/${id}`, {
-      method: "PUT",
-      body: JSON.stringify({
-        displayLabel: input.name,
-        description: input.description,
-        serviceIds: input.serviceIds,
+    const room = await liveRequest(
+      apiRequest<BackendRoom>(`/api/v1/admin/visit-rooms/${id}`, {
+        method: "PUT",
+        body: JSON.stringify({
+          displayLabel: input.name,
+          description: input.description,
+          serviceIds: input.serviceIds,
+        }),
       }),
-    }));
+    );
     const options = await backendServiceOptions(room.type);
     return mapBackendRoom(room, options);
   }
@@ -260,10 +277,12 @@ export async function changeRoomStatus(
   status: RoomStatus,
 ): Promise<Room> {
   if (!USE_MOCK) {
-    await liveRequest(apiRequest<void>(
-      `/api/v1/admin/visit-rooms/${id}${status === "AVAILABLE" ? "/activation" : ""}`,
-      { method: status === "AVAILABLE" ? "POST" : "DELETE" },
-    ));
+    await liveRequest(
+      apiRequest<void>(
+        `/api/v1/admin/visit-rooms/${id}${status === "AVAILABLE" ? "/activation" : ""}`,
+        { method: status === "AVAILABLE" ? "POST" : "DELETE" },
+      ),
+    );
     return getRoom(id);
   }
   await mockDelay();

@@ -396,7 +396,8 @@ async function liveCreateShift(input: ShiftInput): Promise<Shift> {
       roomId: input.roomId,
     }),
   });
-  const rooms = (await apiRequest<VisitRooms>("/api/v1/admin/visit-rooms")).items;
+  const rooms = (await apiRequest<VisitRooms>("/api/v1/admin/visit-rooms"))
+    .items;
   return toShift(result, staff, rooms);
 }
 
@@ -414,13 +415,16 @@ async function liveUpdateShift(
     throw new ApiError(404, {
       detail: "Không tìm thấy ca cần sửa. Tải lại danh sách ca.",
     });
-  const result = await apiRequest<DoctorShift>(`${doctorPath(doctorId)}/${id}`, {
-    method: "PUT",
-    body: JSON.stringify({
-      ...interval(input.date, input.startTime, input.endTime),
-      roomId: input.roomId,
-    }),
-  });
+  const result = await apiRequest<DoctorShift>(
+    `${doctorPath(doctorId)}/${id}`,
+    {
+      method: "PUT",
+      body: JSON.stringify({
+        ...interval(input.date, input.startTime, input.endTime),
+        roomId: input.roomId,
+      }),
+    },
+  );
   return liveListShifts({
     from: input.date,
     to: input.date,
@@ -483,7 +487,9 @@ async function liveListStaffOptions(
         role: profileRole(profile.role),
       }))
       .filter(
-        (staff): staff is { staffId: string; fullName: string; role: StaffRole } =>
+        (
+          staff,
+        ): staff is { staffId: string; fullName: string; role: StaffRole } =>
           staff.role !== undefined,
       )
       .filter((staff) => !_role || staff.role === _role),

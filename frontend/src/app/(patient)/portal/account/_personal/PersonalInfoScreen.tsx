@@ -100,8 +100,8 @@ export function PersonalInfoScreen() {
                   </Link>
                 }
               >
-                Tài khoản của bạn chưa có thông tin cá nhân. Thêm hồ sơ của chính
-                bạn để đặt lịch và xem kết quả.
+                Tài khoản của bạn chưa có thông tin cá nhân. Thêm hồ sơ của
+                chính bạn để đặt lịch và xem kết quả.
               </PortalEmptyState>
             ) : (
               <PersonalInfoForm

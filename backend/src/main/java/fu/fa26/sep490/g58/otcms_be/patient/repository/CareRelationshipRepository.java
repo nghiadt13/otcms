@@ -11,4 +11,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface CareRelationshipRepository extends JpaRepository<CareRelationshipJpaEntity, UUID> {
     Optional<CareRelationshipJpaEntity> findFirstByRequesterAccountIdAndDependentPatientProfileIdAndStateIn(
             UUID requesterAccountId, UUID dependentPatientProfileId, Collection<CareRelationship.State> states);
+    Collection<CareRelationshipJpaEntity> findAllByRequesterAccountIdAndState(
+            UUID requesterAccountId, CareRelationship.State state);
 }

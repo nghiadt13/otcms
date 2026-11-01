@@ -31,12 +31,13 @@ public class SecurityConfig {
                         .csrfTokenRequestHandler(new CsrfTokenRequestAttributeHandler())
                         .ignoringRequestMatchers("/api/auth/csrf", "/api/auth/patient/login", "/api/auth/staff/login",
                                 "/api/auth/staff/administrator/login", "/api/auth/patient/register",
-                                "/api/auth/patient/verify-email", "/api/auth/patient/resend-otp"))
+                                "/api/auth/patient/verify-email", "/api/auth/patient/resend-otp",
+                                "/api/v1/payment-webhooks/payos"))
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .exceptionHandling(errors -> errors.authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
                 .authorizeHttpRequests(authorize -> authorize
                         .requestMatchers("/api/auth/**", "/swagger-ui/**", "/swagger-ui.html",
-                                "/v3/api-docs", "/v3/api-docs/**").permitAll()
+                                "/v3/api-docs", "/v3/api-docs/**", "/api/v1/payment-webhooks/payos").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/auth/staff/administrator/login").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/clinic-services", "/api/v1/doctors",
                                 "/api/v1/doctors/**", "/api/v1/appointments/availability",

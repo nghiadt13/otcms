@@ -16,10 +16,15 @@ public record AdminAppointmentResponse(
         UUID doctorId,
         String doctorDisplayName,
         String status,
-        Instant startTime) {
+        Instant startTime,
+        Boolean examFeePaid) {
     public static AdminAppointmentResponse from(AdminAppointmentSummary summary) {
         return new AdminAppointmentResponse(summary.id(), summary.patientProfileId(), summary.patientName(),
                 summary.patientPhone(), summary.serviceId(), summary.serviceName(), summary.servicePrice(),
-                summary.doctorId(), summary.doctorDisplayName(), summary.status(), summary.startTime());
+                summary.doctorId(), summary.doctorDisplayName(), summary.status(), summary.startTime(), null);
+    }
+    public AdminAppointmentResponse withExamFeePaid(Boolean paid) {
+        return new AdminAppointmentResponse(id, patientProfileId, patientName, patientPhone, serviceId, serviceName,
+                servicePrice, doctorId, doctorDisplayName, status, startTime, paid);
     }
 }

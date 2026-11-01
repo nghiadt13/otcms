@@ -38,7 +38,10 @@ export default function PatientPortalError({
         >
           Thử lại
         </button>
-        <Link className={publicButtonClass("secondary")} href={PATIENT_ROUTES.account}>
+        <Link
+          className={publicButtonClass("secondary")}
+          href={PATIENT_ROUTES.account}
+        >
           Về trang chủ
         </Link>
       </div>

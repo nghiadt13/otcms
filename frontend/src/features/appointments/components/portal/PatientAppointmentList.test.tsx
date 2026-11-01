@@ -93,7 +93,8 @@ describe("PatientAppointmentList", () => {
     await waitFor(() => expect(rows()).toHaveLength(10));
     await user.click(screen.getByRole("button", { name: "Xem thêm" }));
 
-    await waitFor(() => expect(rows()).toHaveLength(14));
+    // 12 lịch đã qua + 2 lịch BOOKED quá hạn (a409900 thêm seed apt-expired-1/2).
+    await waitFor(() => expect(rows()).toHaveLength(16));
     expect(
       screen.queryByRole("button", { name: "Xem thêm" }),
     ).not.toBeInTheDocument();

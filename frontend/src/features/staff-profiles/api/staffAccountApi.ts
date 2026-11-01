@@ -9,10 +9,16 @@ export type IssuedStaffAccount = {
   temporaryPassword: string;
 };
 
-export function createStaffAccount(input: { email: string; fullName: string; role: StaffRole }) {
+export function createStaffAccount(input: {
+  email: string;
+  fullName: string;
+  role: StaffRole;
+}) {
   return apiRequest<IssuedStaffAccount>("/api/v1/admin/staff-accounts", {
     method: "POST",
-    body: JSON.stringify({ ...input,
-      role: input.role === "ORTHOPEDIC_DOCTOR" ? "DOCTOR" : input.role }),
+    body: JSON.stringify({
+      ...input,
+      role: input.role === "ORTHOPEDIC_DOCTOR" ? "DOCTOR" : input.role,
+    }),
   });
 }

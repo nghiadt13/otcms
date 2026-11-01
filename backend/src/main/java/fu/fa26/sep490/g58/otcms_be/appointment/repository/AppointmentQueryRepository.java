@@ -20,8 +20,10 @@ import java.util.UUID;
 public interface AppointmentQueryRepository extends JpaRepository<AppointmentJpaEntity, UUID>,
         JpaSpecificationExecutor<AppointmentJpaEntity> {
     default Page find(Scope scope, Filter filter, int page, int size) {
+        Sort.Direction direction = "UPCOMING".equals(filter.patientWindow())
+                ? Sort.Direction.ASC : Sort.Direction.DESC;
         var result = findAll(criteria(scope, filter, null), PageRequest.of(page, size,
-                Sort.by(Sort.Order.desc("startTime"), Sort.Order.desc("id"))));
+                Sort.by(new Sort.Order(direction, "startTime"), new Sort.Order(direction, "id"))));
         return new Page(result.stream().map(AppointmentQueryRepository::row).toList(), page, size,
                 result.getTotalElements(), result.getTotalPages());
     }
@@ -40,6 +42,16 @@ public interface AppointmentQueryRepository extends JpaRepository<AppointmentJpa
             if (filter.fromInclusive() != null) predicates.add(builder.greaterThanOrEqualTo(root.get("startTime"), filter.fromInclusive()));
             if (filter.toExclusive() != null) predicates.add(builder.lessThan(root.get("startTime"), filter.toExclusive()));
             if (filter.status() != null) predicates.add(builder.equal(root.get("status"), filter.status()));
+            if (filter.patientWindow() != null && filter.evaluatedAt() != null) {
+                if ("UPCOMING".equals(filter.patientWindow())) {
+                    predicates.add(builder.equal(root.get("status"), "CONFIRMED"));
+                    predicates.add(builder.greaterThan(root.get("endTime"), filter.evaluatedAt()));
+                } else if ("PAST".equals(filter.patientWindow())) {
+                    predicates.add(builder.or(
+                            builder.lessThanOrEqualTo(root.get("endTime"), filter.evaluatedAt()),
+                            builder.notEqual(root.get("status"), "CONFIRMED")));
+                }
+            }
             if (filter.doctorId() != null) predicates.add(builder.equal(root.get("doctorProfileId"), filter.doctorId()));
             if (filter.patientProfileId() != null) predicates.add(builder.equal(root.get("patientProfileId"), filter.patientProfileId()));
             return builder.and(predicates.toArray(Predicate[]::new));

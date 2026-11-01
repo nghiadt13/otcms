@@ -1,5 +1,9 @@
 import { apiBaseUrl } from "@/lib/api/apiBaseUrl";
-import { AuthSessionError, signInWithPassword, type AuthSession } from "@/lib/auth/authSession";
+import {
+  AuthSessionError,
+  signInWithPassword,
+  type AuthSession,
+} from "@/lib/auth/authSession";
 import { fetchCurrentAccount } from "@/lib/auth/currentAccountApi";
 import { AuthRequestError, type PatientRegistrationInput } from "../types/auth";
 

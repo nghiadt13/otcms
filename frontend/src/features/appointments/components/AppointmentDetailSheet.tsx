@@ -65,7 +65,12 @@ export function AppointmentDetailSheet({
                 },
                 {
                   label: "Trạng thái",
-                  value: <AppointmentStatusBadge status={appointment.status} />,
+                  value: (
+                    <AppointmentStatusBadge
+                      status={appointment.status}
+                      requiresReception={appointment.requiresReception}
+                    />
+                  ),
                 },
                 {
                   label: "Phí khám",
@@ -80,10 +85,10 @@ export function AppointmentDetailSheet({
                       }
                     >
                       {appointment.examFeePaid === null
-                        ? "Chưa có dữ liệu"
+                        ? "Không có phí"
                         : appointment.examFeePaid
                           ? "Đã thanh toán"
-                          : "Chưa thanh toán"}
+                          : "Còn dư nợ"}
                     </StatusBadge>
                   ),
                 },

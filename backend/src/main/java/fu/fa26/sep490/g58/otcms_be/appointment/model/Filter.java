@@ -9,12 +9,20 @@ public class Filter {
     private final String status;
     private final UUID doctorId;
     private final UUID patientProfileId;
+    private final String patientWindow;
+    private final Instant evaluatedAt;
     public Filter(Instant fromInclusive, Instant toExclusive, String status, UUID doctorId, UUID patientProfileId) {
+        this(fromInclusive, toExclusive, status, doctorId, patientProfileId, null, null);
+    }
+    public Filter(Instant fromInclusive, Instant toExclusive, String status, UUID doctorId, UUID patientProfileId,
+            String patientWindow, Instant evaluatedAt) {
         this.fromInclusive = fromInclusive;
         this.toExclusive = toExclusive;
         this.status = status;
         this.doctorId = doctorId;
         this.patientProfileId = patientProfileId;
+        this.patientWindow = patientWindow;
+        this.evaluatedAt = evaluatedAt;
     }
     public Instant getFromInclusive() { return fromInclusive; }
     public Instant fromInclusive() { return fromInclusive; }
@@ -26,4 +34,6 @@ public class Filter {
     public UUID doctorId() { return doctorId; }
     public UUID getPatientProfileId() { return patientProfileId; }
     public UUID patientProfileId() { return patientProfileId; }
+    public String patientWindow() { return patientWindow; }
+    public Instant evaluatedAt() { return evaluatedAt; }
 }

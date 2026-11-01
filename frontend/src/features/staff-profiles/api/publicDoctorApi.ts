@@ -14,7 +14,9 @@ type DoctorResponse = {
 };
 
 function mapDoctor(d: DoctorResponse): PublicDoctor {
-  const photo = d.photoUrl?.startsWith("/") ? `${apiBaseUrl}${d.photoUrl}` : d.photoUrl;
+  const photo = d.photoUrl?.startsWith("/")
+    ? `${apiBaseUrl}${d.photoUrl}`
+    : d.photoUrl;
   const specList = d.specialties
     ? d.specialties
         .split(",")
