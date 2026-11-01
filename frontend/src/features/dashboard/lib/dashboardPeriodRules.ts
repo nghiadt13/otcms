@@ -2,8 +2,8 @@ import { addDays, todayIsoDate } from "@/lib/format/formatDate";
 import type { MsgCode } from "@/lib/api/apiError";
 import type { DashboardPeriod } from "../types/dashboardOverview";
 
-/** Số ngày tối đa của một kỳ (tạm, chờ R3 chốt). */
-export const DASHBOARD_MAX_RANGE_DAYS = 366;
+/** Số ngày tối đa của một kỳ (theo KAN-43). */
+export const DASHBOARD_MAX_RANGE_DAYS = 90;
 
 export type QuickPreset = "today" | "7d" | "30d" | "month";
 
@@ -61,7 +61,15 @@ export function validateDashboardPeriod(
 ): MsgCode | null {
   const { from, to } = draft;
   if (!ISO_DATE.test(from) || !ISO_DATE.test(to)) return "MSG-72";
-  if (from > to || to > today) return "MSG-72";
+  const validDay = (value: string) => {
+    const time = Date.parse(`${value}T00:00:00Z`);
+    return (
+      Number.isFinite(time) &&
+      new Date(time).toISOString().slice(0, 10) === value
+    );
+  };
+  if (!validDay(from) || !validDay(to) || from > to || to > today)
+    return "MSG-72";
   if (periodLengthDays({ from, to }) > DASHBOARD_MAX_RANGE_DAYS)
     return "MSG-72";
   return null;

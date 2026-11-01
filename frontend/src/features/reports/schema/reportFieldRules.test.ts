@@ -60,3 +60,26 @@ describe("normalizeBreakdown", () => {
     });
   });
 });
+
+it("rejects impossible calendar dates and periods longer than 90 inclusive days", () => {
+  const subjects = [
+    {
+      code: "APPOINTMENTS" as const,
+      label: "Appointments",
+      breakdownOptions: [],
+    },
+  ];
+  const base = {
+    subject: "APPOINTMENTS" as const,
+    from: "2026-01-01",
+    to: "2026-03-31",
+    breakdown: "" as const,
+  };
+  expect(validateReportForm(base, subjects)).toEqual({});
+  expect(validateReportForm({ ...base, to: "2026-04-01" }, subjects).to).toBe(
+    "MSG-72",
+  );
+  expect(
+    validateReportForm({ ...base, from: "2026-02-30" }, subjects).from,
+  ).toBe("MSG-72");
+});
