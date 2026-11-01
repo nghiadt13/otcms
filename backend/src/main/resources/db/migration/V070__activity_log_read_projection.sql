@@ -9,17 +9,17 @@ SELECT 'staff:' || s.id::text AS id, s.occurred_at, s.actor_account_id,
     ELSE CASE s.action WHEN 'CREATED' THEN 'CREATE_STAFF_SHIFT' WHEN 'DELETED' THEN 'CANCEL_STAFF_SHIFT' ELSE 'UPDATE_STAFF_SHIFT' END END::text AS action,
     s.resource_type::text AS record_type, s.resource_id AS record_id,
     coalesce(d.full_name, s.resource_id::text)::text AS record_label, NULL::text AS correction_reason
-FROM staff_resource_management_audits s LEFT JOIN doctor_profiles d ON d.id = s.doctor_profile_id
+FROM staff_resource_audits s LEFT JOIN doctor_profiles d ON d.id = s.doctor_profile_id
 WHERE s.resource_type IN ('DOCTOR_PROFILE', 'WORK_SHIFT')
 UNION ALL
 SELECT 'room:' || a.id::text, a.occurred_at, a.actor_account_id, 'ROOM'::text,
     CASE a.action WHEN 'CREATED' THEN 'CREATE_ROOM' WHEN 'UPDATED' THEN 'UPDATE_ROOM' ELSE 'CHANGE_ROOM_STATUS' END::text,
     'ROOM'::text, a.room_id, coalesce(r.room_code, a.room_id::text)::text, NULL::text
-FROM visit_room_management_audits a LEFT JOIN visit_rooms r ON r.id = a.room_id
+FROM room_management_audits a LEFT JOIN rooms r ON r.id = a.room_id
 UNION ALL
 SELECT 'service:' || a.id::text, a.occurred_at, a.actor_account_id, 'SERVICE'::text,
     CASE WHEN a.resource_type = 'DOCTOR_ASSIGNMENT' THEN 'UPDATE_SERVICE'
          WHEN a.action = 'CREATED' THEN 'CREATE_SERVICE' WHEN a.action = 'UPDATED' THEN 'UPDATE_SERVICE'
          ELSE 'CHANGE_SERVICE_STATUS' END::text,
     'SERVICE'::text, a.service_id, coalesce(s.name, a.service_id::text)::text, NULL::text
-FROM service_catalog_management_audits a LEFT JOIN clinic_services s ON s.id = a.service_id;
+FROM service_audits a LEFT JOIN clinic_services s ON s.id = a.service_id;

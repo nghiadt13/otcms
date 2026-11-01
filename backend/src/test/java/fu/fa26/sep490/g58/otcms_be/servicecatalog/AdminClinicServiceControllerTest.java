@@ -31,6 +31,7 @@ import org.springframework.test.web.servlet.MockMvc;
 @Import({SecurityConfig.class, AdminClinicServiceControllerTest.Fixture.class})
 class AdminClinicServiceControllerTest {
     @Autowired private MockMvc mvc;
+    @MockitoBean private AuditClinicServiceMutation auditMutation;
     @MockitoBean private GetClinicServiceCatalogService catalog;
     @MockitoBean private CreateClinicServiceService create;
     @MockitoBean private UpdateClinicServiceService update;

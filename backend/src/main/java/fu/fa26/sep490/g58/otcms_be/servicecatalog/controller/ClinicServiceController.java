@@ -28,6 +28,7 @@ import fu.fa26.sep490.g58.otcms_be.common.model.AdminMutationImpact;
 
 @RestController
 public class ClinicServiceController {
+    private final fu.fa26.sep490.g58.otcms_be.servicecatalog.service.AuditClinicServiceMutation auditMutation;
     private final CreateClinicServiceService create;
     private final ActivateClinicServiceService activate;
     private final UpdateClinicServiceService update;
@@ -38,7 +39,9 @@ public class ClinicServiceController {
 
     public ClinicServiceController(CreateClinicServiceService create, ActivateClinicServiceService activate, UpdateClinicServiceService update,
                                    DeactivateClinicServiceService deactivate, GetClinicServiceCatalogService catalog,
-                                   ClinicServiceMapper mapper, ManageDoctorServiceAssignmentsService assignments) {
+                                   ClinicServiceMapper mapper, ManageDoctorServiceAssignmentsService assignments,
+                                   fu.fa26.sep490.g58.otcms_be.servicecatalog.service.AuditClinicServiceMutation auditMutation) {
+        this.auditMutation=auditMutation;
         this.create = create; this.activate = activate; this.update = update; this.deactivate = deactivate;
         this.catalog = catalog; this.mapper = mapper; this.assignments = assignments;
     }
@@ -75,19 +78,21 @@ public class ClinicServiceController {
 
     @PostMapping("/api/v1/admin/clinic-services")
     @PreAuthorize("hasAuthority('ROLE_ADMIN')")
-    public ResponseEntity<ServiceResponse> create(@Valid @RequestBody ServiceRequest request) {
-        ClinicService service = create.create(request.name(), request.description(), request.type(), request.price(),
+    public ResponseEntity<ServiceResponse> create(@Valid @RequestBody ServiceRequest request,
+            @AuthenticationPrincipal AuthenticatedAccount actor, HttpServletRequest http) {
+        ClinicService service = auditMutation.execute("CREATED", actor, CorrelationIdFilter.current(http), () -> create.create(request.name(), request.description(), request.type(), request.price(),
                 request.durationMinutes(), request.bufferMinutes(), request.onlineBookable(), request.modality(),
-                request.patientNote(), request.indicators());
+                request.patientNote(), request.indicators()));
         return ResponseEntity.status(HttpStatus.CREATED).body(mapper.toResponse(service));
     }
 
     @PutMapping("/api/v1/admin/clinic-services/{serviceId}")
     @PreAuthorize("hasAuthority('ROLE_ADMIN')")
-    public ServiceResponse update(@PathVariable UUID serviceId, @Valid @RequestBody ServiceRequest request) {
-        return mapper.toResponse(update.update(serviceId, request.name(), request.description(),
+    public ServiceResponse update(@PathVariable UUID serviceId, @Valid @RequestBody ServiceRequest request,
+            @AuthenticationPrincipal AuthenticatedAccount actor, HttpServletRequest http) {
+        return mapper.toResponse(auditMutation.execute("UPDATED", actor, CorrelationIdFilter.current(http), () -> update.update(serviceId, request.name(), request.description(),
                 request.price(), request.durationMinutes(), request.bufferMinutes(), request.modality(),
-                request.patientNote(), request.indicators()));
+                request.patientNote(), request.indicators())));
     }
 
     @DeleteMapping("/api/v1/admin/clinic-services/{serviceId}")
