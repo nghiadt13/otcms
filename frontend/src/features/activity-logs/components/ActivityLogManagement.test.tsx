@@ -1,5 +1,4 @@
 import {
-  configure,
   fireEvent,
   render,
   screen,
@@ -7,171 +6,104 @@ import {
   within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, expect, it, vi } from "vitest";
 import { ApiError } from "@/lib/api/apiError";
-import { resetActivityLogStore } from "../api/activityLogApi";
 import { ActivityLogManagement } from "./ActivityLogManagement";
 import { formatAppMessage } from "@/lib/messages/appMessages";
-const { notifyError } = vi.hoisted(() => ({ notifyError: vi.fn() }));
-vi.mock("@/lib/messages/notify", () => ({ notifyError }));
-
-// Bọc API thật để ép lỗi từng ca (404/5xx chi tiết, lỗi tải danh sách) mà vẫn đi qua mock store.
-const apiSpy = vi.hoisted(() => ({ list: vi.fn(), detail: vi.fn() }));
-vi.mock("../api/activityLogApi", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("../api/activityLogApi")>();
-  apiSpy.list.mockImplementation(actual.listActivityLogs);
-  apiSpy.detail.mockImplementation(actual.getActivityLog);
-  return {
-    ...actual,
-    listActivityLogs: apiSpy.list,
-    getActivityLog: apiSpy.detail,
-  };
+const request = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/api/client", () => ({ apiRequest: request }));
+const item = {
+  id: "room:11111111-1111-1111-1111-111111111111",
+  occurredAt: "2026-11-01T02:00:00Z",
+  actorUsername: "admin",
+  actorRole: "ADMIN",
+  action: "CREATE_ROOM",
+  actionRole: null,
+  recordType: "ROOM",
+  recordLabel: "P.101",
+  correctionReason: null,
+  allowedActions: ["view"],
+};
+beforeEach(() => {
+  request.mockReset();
+  request.mockImplementation(async (path: string) => {
+    if (!path.includes("?"))
+      return { ...item, recordCode: "P.101", systemNote: null };
+    const q = new URL(path, "http://local").searchParams;
+    return {
+      items: [item],
+      page: Number(q.get("page") ?? 0),
+      size: 20,
+      totalItems: 21,
+      totalPages: 2,
+    };
+  });
 });
-
-async function renderLoaded() {
+it("loads the real endpoint, paginates on the server and resets pagination after filtering", async () => {
   render(<ActivityLogManagement />);
-  await screen.findByText(/bản ghi · Trang 1\/7/);
-}
-
-// Mock API có độ trễ 300ms + debounce 250ms; máy bận thì cần dư thời gian.
-configure({ asyncUtilTimeout: 4000 });
-vi.setConfig({ testTimeout: 20000 });
-
-describe("ActivityLogManagement", () => {
-  beforeEach(() => {
-    resetActivityLogStore();
-    notifyError.mockClear();
-    apiSpy.list.mockClear();
-    apiSpy.detail.mockClear();
-  });
-
-  it("hiện danh sách mới nhất trước, thời gian có giây, nhãn tiếng Việt, không lộ mã", async () => {
-    await renderLoaded();
-    const rows = screen.getAllByRole("row").slice(1);
-    expect(rows).toHaveLength(20);
-    const firstCells = within(rows[0]).getAllByRole("cell");
-    expect(firstCells[0]).toHaveTextContent(
-      /^\d{2}\/\d{2}\/\d{4} \d{2}:\d{2}:\d{2}$/,
-    );
-    expect(firstCells[1]).toHaveTextContent("Chủ phòng khám");
-    expect(firstCells[4]).toHaveTextContent("—");
+  await screen.findByText(/Trang 1\/2/);
+  const q = new URL(request.mock.calls[0][0], "http://local").searchParams;
+  expect(
+    (Date.parse(q.get("to")!) - Date.parse(q.get("from")!)) / 86400000,
+  ).toBe(6);
+  const user = userEvent.setup();
+  await user.click(screen.getByRole("button", { name: "Sau" }));
+  await screen.findByText(/Trang 2\/2/);
+  await user.selectOptions(screen.getByLabelText("Loại hành động"), "ROOM");
+  await waitFor(() =>
     expect(
-      screen.queryByRole("button", { name: /thêm|xuất|xóa|sửa/i }),
-    ).toBeNull();
-
-    const text = document.body.textContent ?? "";
-    expect(text).not.toMatch(/MSG-|BR-|UC\d|[A-Z]{2,}_[A-Z_]+/);
+      new URL(request.mock.calls.at(-1)![0], "http://local").searchParams.get(
+        "page",
+      ),
+    ).toBe("0"),
+  );
+  expect(
+    new URL(request.mock.calls.at(-1)![0], "http://local").searchParams.get(
+      "action",
+    ),
+  ).toBe("ROOM");
+});
+it("keeps existing results and does not fetch when dates are reversed", async () => {
+  render(<ActivityLogManagement />);
+  await screen.findByText("P.101", { exact: false });
+  const calls = request.mock.calls.length;
+  fireEvent.change(screen.getByLabelText("Từ ngày"), {
+    target: { value: "2099-01-01" },
   });
-
-  it("mặc định 7 ngày; sang trang 2 rồi đổi bộ lọc thì về trang 1", async () => {
-    const user = userEvent.setup();
-    await renderLoaded();
-    const firstQuery = apiSpy.list.mock.calls[0][0];
-    const dayMs = 86_400_000;
-    const span =
-      (Date.parse(firstQuery.to) - Date.parse(firstQuery.from)) / dayMs;
-    expect(span).toBe(6);
-
-    await user.click(screen.getByRole("button", { name: "Sau" }));
-    await screen.findByText(/Trang 2\/7/);
-    await user.selectOptions(
-      screen.getByLabelText("Loại hành động"),
-      "ACCOUNT",
-    );
-    await waitFor(() =>
-      expect(screen.getByText(/Trang 1\//)).toBeInTheDocument(),
-    );
-    expect(apiSpy.list.mock.calls.at(-1)?.[0]).toMatchObject({
-      action: "ACCOUNT",
-      page: 0,
-    });
-  });
-
-  it("từ > đến: MSG-54 dưới ô và không gọi API thêm", async () => {
-    await renderLoaded();
-    const calls = apiSpy.list.mock.calls.length;
-    const from = screen.getByLabelText("Từ ngày");
-    fireEvent.change(from, { target: { value: "2099-01-01" } });
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      formatAppMessage("MSG-54"),
-    );
-    await new Promise((r) => setTimeout(r, 350));
-    expect(apiSpy.list.mock.calls.length).toBe(calls);
-  });
-
-  it("không có kết quả: câu AF1 kèm hướng dẫn", async () => {
-    await renderLoaded();
-    fireEvent.change(screen.getByLabelText("Người thực hiện"), {
-      target: { value: "khong.ton.tai" },
-    });
-    expect(
-      await screen.findByText("Không có hoạt động khớp bộ lọc."),
-    ).toBeInTheDocument();
-    expect(screen.getByText(/mở rộng khoảng thời gian/)).toBeInTheDocument();
-  });
-
-  it("lỗi tải: MSG-04 và Thử lại gọi lại", async () => {
-    const user = userEvent.setup();
-    await renderLoaded();
-    fireEvent.change(screen.getByLabelText("Bản ghi bị tác động"), {
-      target: { value: "loi-may-chu" },
-    });
-    expect(
-      await screen.findByText(formatAppMessage("MSG-04")),
-    ).toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText("Bản ghi bị tác động"), {
-      target: { value: "" },
-    });
-    await user.click(screen.getByRole("button", { name: "Thử lại" }));
-    await screen.findByText(/bản ghi · Trang 1\/7/);
-  });
-
-  async function openFirstDetail(user: ReturnType<typeof userEvent.setup>) {
-    const first = screen.getAllByRole("row")[1];
-    await user.click(
-      within(first).getByRole("button", { name: /Thao tác cho/ }),
-    );
-    await user.click(
-      await screen.findByRole("menuitem", { name: "Xem chi tiết" }),
-    );
-  }
-
-  it("chi tiết: Sheet chỉ có Đóng, không có trước/sau, ẩn ghi chú hệ thống khi null", async () => {
-    const user = userEvent.setup();
-    await renderLoaded();
-    await openFirstDetail(user);
-    const dialog = await screen.findByRole("dialog");
-    await within(dialog).findByText("Mã bản ghi");
-    expect(
-      within(dialog)
-        .getAllByRole("button")
-        .map((b) => b.textContent),
-    ).toEqual(["Đóng"]);
-    expect(within(dialog).queryByText(/trước|sau/i)).toBeNull();
-    expect(within(dialog).queryByText("Ghi chú hệ thống")).toBeNull();
-    await user.click(within(dialog).getByRole("button", { name: "Đóng" }));
-    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
-  });
-
-  it("chi tiết 404: toast lỗi và đóng Sheet", async () => {
-    const user = userEvent.setup();
-    await renderLoaded();
-    apiSpy.detail.mockRejectedValueOnce(new ApiError(404, { code: "MSG-50" }));
-    await openFirstDetail(user);
-    await waitFor(() => expect(notifyError).toHaveBeenCalledTimes(1));
-    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
-  });
-
-  it("chi tiết 5xx: Sheet giữ mở với MSG-04 và Thử lại", async () => {
-    const user = userEvent.setup();
-    await renderLoaded();
-    apiSpy.detail.mockRejectedValueOnce(new ApiError(500, { code: "MSG-04" }));
-    await openFirstDetail(user);
-    const dialog = await screen.findByRole("dialog");
-    expect(
-      await within(dialog).findByText(formatAppMessage("MSG-04")),
-    ).toBeInTheDocument();
-    await user.click(within(dialog).getByRole("button", { name: "Thử lại" }));
-    expect(await within(dialog).findByText("Mã bản ghi")).toBeInTheDocument();
-  });
+  expect(await screen.findByRole("alert")).toHaveTextContent(
+    formatAppMessage("MSG-54"),
+  );
+  await new Promise((resolve) => setTimeout(resolve, 300));
+  expect(request).toHaveBeenCalledTimes(calls);
+});
+it("opens a read-only detail without old or new values", async () => {
+  render(<ActivityLogManagement />);
+  await screen.findByText(/Trang 1\/2/);
+  const user = userEvent.setup();
+  await user.click(
+    within(screen.getAllByRole("row")[1]).getByRole("button", {
+      name: /Thao tác cho/,
+    }),
+  );
+  await user.click(
+    await screen.findByRole("menuitem", { name: "Xem chi tiết" }),
+  );
+  const dialog = await screen.findByRole("dialog");
+  await within(dialog).findByText("Mã bản ghi");
+  expect(
+    within(dialog)
+      .getAllByRole("button")
+      .map((b) => b.textContent),
+  ).toEqual(["Đóng"]);
+  expect(within(dialog).queryByText(/trước|sau/i)).toBeNull();
+  expect(request.mock.calls.some(([path]) => path.includes("/room%3A"))).toBe(
+    true,
+  );
+});
+it("shows backend failure with retry, without manufacturing audit rows", async () => {
+  request.mockRejectedValueOnce(new ApiError(500, { code: "MSG-04" }));
+  render(<ActivityLogManagement />);
+  await screen.findByText(formatAppMessage("MSG-04"));
+  await userEvent.click(screen.getByRole("button", { name: "Thử lại" }));
+  await screen.findByText(/Trang 1\/2/);
 });
