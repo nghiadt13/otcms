@@ -14,6 +14,10 @@ public interface UpdateClinicServiceService {
                          int durationMinutes, int bufferMinutes, String modality, String patientNote,
                          List<LabIndicator> indicators);
 
+    ClinicService update(UUID serviceId, String name, String description, BigDecimal price,
+                         int durationMinutes, int bufferMinutes, boolean onlineBookable, String modality,
+                         String patientNote, List<LabIndicator> indicators);
+
     default ClinicService update(UUID serviceId, String name, String description,
                                  int durationMinutes, int bufferMinutes, boolean onlineBookable) {
         return update(serviceId, name, description, BigDecimal.ZERO, durationMinutes, bufferMinutes, onlineBookable);

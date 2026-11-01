@@ -38,6 +38,19 @@ import {
 } from "../api/adminServiceApi";
 import { ServiceDoctorAssignments } from "./ServiceDoctorAssignments";
 
+import { IndicatorTable } from "./IndicatorTable";
+import {
+  emptyIndicatorDraft,
+  indicatorToDraft,
+  indicatorsToRequest,
+} from "../schema/serviceFormDraft";
+import {
+  validateIndicators,
+  type FieldErrorMap,
+} from "../schema/serviceFieldRules";
+import type { ServiceType, ServiceModality } from "../types/serviceCatalog";
+import { APP_MESSAGES } from "@/lib/messages/appMessages";
+
 const loadServices = (signal: AbortSignal) => listAdminServices(signal);
 const currency = new Intl.NumberFormat("vi-VN", {
   style: "currency",
@@ -258,7 +271,7 @@ export function AdminServicesLive() {
   );
 }
 
-function ServiceEditor({
+export function ServiceEditor({
   service,
   close,
   saved,
@@ -267,6 +280,15 @@ function ServiceEditor({
   close: () => void;
   saved: () => void;
 }) {
+  const [type, setType] = useState<ServiceType>(service?.type ?? "EXAMINATION");
+  const [modality, setModality] = useState<ServiceModality | "">(
+    service?.modality ?? "",
+  );
+  const [patientNote, setPatientNote] = useState(service?.patientNote ?? "");
+  const [indicators, setIndicators] = useState(
+    (service?.indicators ?? []).map(indicatorToDraft),
+  );
+  const [indicatorErrors, setIndicatorErrors] = useState<FieldErrorMap>({});
   const [name, setName] = useState(service?.name ?? "");
   const [description, setDescription] = useState(service?.description ?? "");
   const [price, setPrice] = useState(String(service?.price ?? ""));
@@ -285,7 +307,7 @@ function ServiceEditor({
       }}
     >
       <DialogContent
-        className="max-h-[90dvh] overflow-y-auto sm:max-w-xl"
+        className="max-h-[90dvh] overflow-y-auto sm:max-w-3xl"
         showCloseButton={!pending}
       >
         <DialogHeader>
@@ -320,10 +342,26 @@ function ServiceEditor({
               );
               return;
             }
+            const errors =
+              type === "LABORATORY" ? validateIndicators(indicators) : {};
+            setIndicatorErrors(errors);
+            if (
+              Object.keys(errors).length ||
+              (type === "IMAGING" && !modality)
+            ) {
+              setError(APP_MESSAGES["MSG-66"]);
+              return;
+            }
             setPending(true);
             setError("");
             try {
               await saveAdminService(service?.id, {
+                type,
+                modality:
+                  type === "IMAGING" ? (modality as ServiceModality) : null,
+                patientNote: patientNote.trim() || null,
+                indicators:
+                  type === "LABORATORY" ? indicatorsToRequest(indicators) : [],
                 name: normalized,
                 description: description.trim() || null,
                 price: Number(price),
@@ -341,6 +379,65 @@ function ServiceEditor({
           }}
         >
           <fieldset disabled={pending} className="space-y-4">
+            <Field id="live-service-type" label="Loại dịch vụ *">
+              <NativeSelect
+                id="live-service-type"
+                disabled={!!service}
+                value={type}
+                onChange={(e) => {
+                  const next = e.target.value as ServiceType;
+                  setType(next);
+                  setIndicatorErrors({});
+                  setError("");
+                  if (next === "LABORATORY" && !indicators.length)
+                    setIndicators([emptyIndicatorDraft()]);
+                }}
+              >
+                <option value="EXAMINATION">Khám bệnh</option>
+                <option value="IMAGING">Chẩn đoán hình ảnh</option>
+                <option value="LABORATORY">Xét nghiệm</option>
+              </NativeSelect>
+            </Field>
+            {type === "IMAGING" && (
+              <Field id="live-service-modality" label="Phương thức chụp *">
+                <NativeSelect
+                  id="live-service-modality"
+                  required
+                  value={modality}
+                  onChange={(e) =>
+                    setModality(e.target.value as ServiceModality)
+                  }
+                >
+                  <option value="">Chọn phương thức</option>
+                  <option value="XRAY">X-quang</option>
+                  <option value="ULTRASOUND">Siêu âm</option>
+                  <option value="CT">CT</option>
+                  <option value="MRI">MRI</option>
+                </NativeSelect>
+              </Field>
+            )}
+            {type === "LABORATORY" && (
+              <section className="space-y-2" aria-label="Chỉ số xét nghiệm">
+                <h3 className="text-sm font-medium">Chỉ số xét nghiệm *</h3>
+                <p className="text-sm text-muted-foreground">
+                  Ít nhất một chỉ số. Giá trị từ phải nhỏ hơn giá trị đến; thay
+                  đổi chỉ áp dụng cho chỉ định tạo sau.
+                </p>
+                <IndicatorTable
+                  rows={indicators}
+                  onChange={setIndicators}
+                  errors={indicatorErrors}
+                  disabled={pending}
+                />
+              </section>
+            )}
+            <Field id="live-service-patient-note" label="Lưu ý cho bệnh nhân">
+              <Textarea
+                id="live-service-patient-note"
+                value={patientNote}
+                onChange={(e) => setPatientNote(e.target.value)}
+              />
+            </Field>
             <Field id="live-service-name" label="Tên dịch vụ *">
               <Input
                 id="live-service-name"
