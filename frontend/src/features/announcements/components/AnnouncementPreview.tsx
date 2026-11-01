@@ -34,7 +34,9 @@ export function AnnouncementPreview({ draft }: { draft: AnnouncementDraft }) {
           <dt className="inline">Qua: </dt>
           <dd className="inline">
             {draft.channels.length
-              ? channelsText(draft.channels, " và ")
+              ? draft.audience === "PUBLIC"
+                ? "website phòng khám"
+                : channelsText(draft.channels, " và ")
               : "Chưa chọn kênh"}
           </dd>
         </div>

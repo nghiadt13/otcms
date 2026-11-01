@@ -20,6 +20,14 @@ export function HealthArticleView({
           Đăng ngày {formatDate(article.publishedAt)}
         </time>
       </PublicPageHeader>
+      {article.imageUrl && (
+        // eslint-disable-next-line @next/next/no-img-element -- Backend-hosted uploaded image.
+        <img
+          src={article.imageUrl}
+          alt="Ảnh minh họa bài viết"
+          className="my-8 max-h-96 w-full rounded-xl object-cover"
+        />
+      )}
       <WebsiteContentBody
         className="mt-10 text-lg leading-8"
         markdown={article.body}

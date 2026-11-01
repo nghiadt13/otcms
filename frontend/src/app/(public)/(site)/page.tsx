@@ -1,6 +1,7 @@
 import { listFeaturedServices } from "@/features/clinic-services/api/publicServiceApi";
 import { FeaturedServices } from "@/features/clinic-services/components/FeaturedServices";
 import { getPublishedWebsiteContent } from "@/features/clinic-website/api/websiteContentApi";
+import { HomeHealthArticles } from "@/features/clinic-website/components/HomeHealthArticles";
 import { HomeBookingCta } from "@/features/clinic-website/components/HomeBookingCta";
 import { HomeHero } from "@/features/clinic-website/components/HomeHero";
 import { HomeQuickAccess } from "@/features/clinic-website/components/HomeQuickAccess";
@@ -30,6 +31,7 @@ export default async function HomePage() {
       <FeaturedDoctors doctors={doctors} />
       <HomeVisitSteps />
       <HomeWhyUs highlights={content.hero.highlights} />
+      <HomeHealthArticles articles={content.articles ?? []} />
       <FeaturedReviews reviews={reviews} />
       <HomeBookingCta hotline={content.contact.hotline} />
     </>

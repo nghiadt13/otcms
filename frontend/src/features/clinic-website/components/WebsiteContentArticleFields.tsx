@@ -68,7 +68,7 @@ export function WebsiteContentArticleFields({
             </div>
           ) : (
             <p className="text-xs text-muted-foreground">
-              Chưa có ảnh. Ảnh JPG, PNG hoặc WebP, tối đa 5 MB, hiện ở đầu bài
+              Chưa có ảnh. Ảnh JPG, PNG hoặc WebP, tối đa 2 MB, hiện ở đầu bài
               viết.
             </p>
           )}

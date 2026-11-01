@@ -41,7 +41,13 @@ function detailItems(detail: AnnouncementDetail) {
       value: <p className="whitespace-pre-wrap">{detail.body}</p>,
     },
     { label: "Nhóm người nhận", value: audienceLabel(detail.audience) },
-    { label: "Kênh gửi", value: channelsText(detail.channels) },
+    {
+      label: "Kênh gửi",
+      value:
+        detail.audience === "PUBLIC"
+          ? "Website phòng khám"
+          : channelsText(detail.channels),
+    },
     { label: "Ngày đăng", value: formatDateTime(detail.publishedAt) },
     { label: "Người đăng", value: detail.publishedByName },
   ];
@@ -53,7 +59,11 @@ function detailItems(detail: AnnouncementDetail) {
     items.push({
       label: "Trạng thái giao",
       value: view ? (
-        <StatusBadge tone={view.tone}>{view.label}</StatusBadge>
+        <StatusBadge tone={view.tone}>
+          {detail.audience === "PUBLIC" && detail.deliveryStatus === "SENT"
+            ? "Đã đăng"
+            : view.label}
+        </StatusBadge>
       ) : (
         "—"
       ),
