@@ -1,7 +1,9 @@
+import { resetShiftMockStore } from "../api/shiftApi.testSupport";
+vi.mock("../api/shiftApi", () => import("../api/shiftApi.testSupport"));
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { addDays, todayIsoDate } from "@/lib/format/formatDate";
-import { resetShiftMockStore } from "../api/shiftApi";
+
 import { shiftMockConfig } from "../api/shiftMockData";
 import { useShiftWeek } from "./useShiftWeek";
 import { formatAppMessage } from "@/lib/messages/appMessages";

@@ -1,9 +1,11 @@
+import { resetShiftMockStore } from "../api/shiftApi.testSupport";
+vi.mock("../api/shiftApi", () => import("../api/shiftApi.testSupport"));
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { addDays, todayIsoDate } from "@/lib/format/formatDate";
-import { listShifts, resetShiftMockStore } from "../api/shiftApi";
+import { listShifts } from "../api/shiftApi";
 import { shiftMockConfig } from "../api/shiftMockData";
 import type { Shift } from "../types/shift";
 import { ShiftDeleteConfirm } from "./ShiftDeleteConfirm";

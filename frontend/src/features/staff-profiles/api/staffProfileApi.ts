@@ -1,5 +1,5 @@
-// Prototype-only API, used only in the explicitly labelled prototype mode.
-// Live doctor workflows use adminDoctorApi.ts and never fall back to this store.
+// Live staff profile integration backed by the endpoints merged into product.
+// Legacy fixture behavior is retained for existing tests; contract tests exercise apiRequest.
 import type { PageQuery, PageResponse } from "@/lib/api/pagination";
 import { toQueryString } from "@/lib/api/pagination";
 import { apiRequest } from "@/lib/api/client";
@@ -325,10 +325,17 @@ export async function updateStaffProfile(
 ): Promise<StaffProfileDetail> {
   if (!USE_MOCK) {
     try {
+      const updated = await apiRequest<StaffProfileDetail>(
+        `/api/v1/admin/staff-profiles/${encodeURIComponent(id)}`,
+        { method: "PUT", body: buildStaffProfileFormData(input) },
+      );
+      if (!photo) return withPhotoUrl(updated);
+      const body = new FormData();
+      body.append("photo", photo);
       return withPhotoUrl(
         await apiRequest<StaffProfileDetail>(
-          `/api/v1/admin/staff-profiles/${encodeURIComponent(id)}`,
-          { method: "PUT", body: buildStaffProfileFormData(input, photo) },
+          `/api/v1/admin/staff-profiles/${encodeURIComponent(id)}/photo`,
+          { method: "PUT", body },
         ),
       );
     } catch (error) {

@@ -8,7 +8,9 @@ import type {
 import { addDays } from "@/lib/format/formatDate";
 
 export type ScheduleKind = "shifts" | "time-offs";
-export type IntervalInput = Pick<DoctorInterval, "startsAt" | "endsAt">;
+export type IntervalInput = Pick<DoctorInterval, "startsAt" | "endsAt"> & {
+  roomId?: string;
+};
 const root = (doctorId: string) =>
   `/api/v1/admin/doctors/${encodeURIComponent(doctorId)}` as const;
 export async function listScheduleDoctors(signal?: AbortSignal) {
@@ -96,4 +98,21 @@ export function vietnamDateTime(value: string) {
   if (!Number.isFinite(time.getTime()))
     throw new Error("Thời gian không hợp lệ.");
   return time.toISOString();
+}
+
+export type DoctorRoomOption = {
+  id: string;
+  roomCode: string;
+  displayLabel: string;
+  type: string;
+  active: boolean;
+};
+export async function listDoctorRooms(signal?: AbortSignal) {
+  const result = await apiRequest<{ items: DoctorRoomOption[] }>(
+    "/api/v1/admin/visit-rooms",
+    { signal },
+  );
+  return result.items.filter(
+    (room) => room.active && room.type === "EXAMINATION",
+  );
 }

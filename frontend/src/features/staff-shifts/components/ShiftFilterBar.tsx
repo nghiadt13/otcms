@@ -1,5 +1,6 @@
 "use client";
 
+import { Button } from "@/components/ui/button";
 import { FilterBar } from "@/components/admin/FilterBar";
 import { Label } from "@/components/ui/label";
 import { NativeSelect } from "@/components/ui/native-select";
@@ -62,26 +63,24 @@ export function ShiftFilterBar({
           onRetry={onRetryOptions}
         />
       </div>
-      <div className="grid w-full gap-1 sm:w-auto">
-        <Label
-          htmlFor="shift-filter-role"
-          className="text-xs text-muted-foreground"
-        >
-          Vai trò
-        </Label>
-        <NativeSelect
-          id="shift-filter-role"
-          className="w-full sm:w-52"
-          value={filters.role ?? ""}
-          onChange={(event) => changeRole(event.target.value)}
-        >
-          <option value="">Tất cả vai trò</option>
-          {STAFF_ROLES.map((role) => (
-            <option key={role} value={role}>
-              {ROLE_LABELS[role]}
-            </option>
-          ))}
-        </NativeSelect>
+      <div
+        role="tablist"
+        aria-label="Vai trò ca trực"
+        className="flex flex-wrap gap-2"
+      >
+        {STAFF_ROLES.map((role) => (
+          <Button
+            variant="outline"
+            type="button"
+            role="tab"
+            key={role}
+            aria-selected={filters.role === role}
+            className="rounded-lg border px-3 py-2 text-sm aria-selected:bg-secondary"
+            onClick={() => changeRole(role)}
+          >
+            {ROLE_LABELS[role]}
+          </Button>
+        ))}
       </div>
       <div className="grid w-full gap-1 sm:w-auto">
         <Label

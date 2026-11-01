@@ -17,10 +17,12 @@ const INITIAL_FILTERS: StaffProfileFilters = {
 };
 
 /** Danh sách hồ sơ: ô tìm kiếm đợi 250 ms rồi mới gọi API; đổi lọc thì về trang đầu. */
-export function useStaffProfileList() {
+export function useStaffProfileList(
+  role?: import("@/lib/domain/clinicRoles").StaffRole,
+) {
   const list = usePagedList<StaffProfileListItem, StaffProfileFilters>(
     listStaffProfiles,
-    INITIAL_FILTERS,
+    { ...INITIAL_FILTERS, role: role ?? "" },
   );
   const [search, setSearch] = useState("");
   const debounced = useDebouncedValue(search);

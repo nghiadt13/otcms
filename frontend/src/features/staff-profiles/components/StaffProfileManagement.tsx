@@ -12,7 +12,9 @@ import { StaffProfileFilters } from "./StaffProfileFilters";
 import { StaffProfileTable } from "./StaffProfileTable";
 import { CreateStaffAccountDialog } from "./CreateStaffAccountDialog";
 
-export function StaffProfileManagement() {
+export function StaffProfileManagement({
+  role,
+}: { role?: import("@/lib/domain/clinicRoles").StaffRole } = {}) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -25,7 +27,7 @@ export function StaffProfileManagement() {
   const [sheet, setSheet] = useState<{ id: string; edit: boolean } | null>(
     null,
   );
-  const list = useStaffProfileList();
+  const list = useStaffProfileList(role);
 
   useEffect(() => {
     // Bỏ tham số khỏi URL để F5 không mở lại form.
@@ -54,6 +56,7 @@ export function StaffProfileManagement() {
         }
       />
       <StaffProfileFilters
+        fixedRole={role}
         search={list.search}
         onSearchChange={list.setSearch}
         filters={filters}

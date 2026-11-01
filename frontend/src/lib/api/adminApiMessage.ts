@@ -28,8 +28,16 @@ const messages: Record<string, string> = {
     "Chưa kiểm tra được các lịch liên quan. Vui lòng thử lại sau.",
 };
 
+export const STAFF_RESOURCE_ERROR_MESSAGES: Record<string, string> = {
+  DOCTOR_SHIFT_OVERLAP: APP_MESSAGES["MSG-35"],
+  DOCTOR_RESOURCE_REQUEST_INVALID: APP_MESSAGES["MSG-34"],
+  DOCTOR_RESOURCE_IN_PAST: APP_MESSAGES["MSG-33"],
+  DOCTOR_SHIFT_NOT_FOUND: APP_MESSAGES["MSG-33"],
+};
 export function adminApiMessage(error: unknown): string {
   if (isApiError(error)) {
+    if (error.errorCode && STAFF_RESOURCE_ERROR_MESSAGES[error.errorCode])
+      return STAFF_RESOURCE_ERROR_MESSAGES[error.errorCode];
     if (error.code && APP_MESSAGES[error.code]) return APP_MESSAGES[error.code];
     const map: Record<string, string> = {
       VALIDATION_FAILED: "MSG-66",
