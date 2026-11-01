@@ -42,14 +42,26 @@ class ReviewControllerTest {
     @MockitoBean ProductionReadinessGateInterceptor productionReadinessGateInterceptor;
     @Test void publicAccessibleWithoutLoginAndSafeShape() throws Exception {
         when(reviews.published(0, 20, null)).thenReturn(new PublicReviewPage(List.of(
-                new PublicReview(UUID.randomUUID(), 5, "A review text", java.time.OffsetDateTime.now(), null)),
+                new PublicReview(UUID.randomUUID(), 5, "A review text",
+                        java.time.OffsetDateTime.parse("2026-11-01T19:00:00+07:00"), "Clinic reply")),
                 0, 20, 1, 1, new Summary(5, 1)));
-        mvc.perform(get("/api/v1/public/reviews")).andExpect(status().isOk())
+        var response = mvc.perform(get("/api/v1/public/reviews")).andExpect(status().isOk())
                 .andExpect(jsonPath("$.items[0].text").value("A review text"))
+                .andExpect(jsonPath("$.items[0].createdAt").value("2026-11-01T19:00:00+07:00"))
+                .andExpect(jsonPath("$.items[0].clinicReply").value("Clinic reply"))
+                .andExpect(jsonPath("$.items[0].patient").doesNotExist())
                 .andExpect(jsonPath("$.items[0].patientName").doesNotExist())
+                .andExpect(jsonPath("$.items[0].fullName").doesNotExist())
                 .andExpect(jsonPath("$.items[0].patientProfileId").doesNotExist())
                 .andExpect(jsonPath("$.items[0].authorAccountId").doesNotExist())
-                .andExpect(jsonPath("$.items[0].visitId").doesNotExist());
+                .andExpect(jsonPath("$.items[0].visitId").doesNotExist())
+                .andExpect(jsonPath("$.items[0].email").doesNotExist())
+                .andExpect(jsonPath("$.items[0].phone").doesNotExist())
+                .andReturn().getResponse().getContentAsString();
+        var items = tools.jackson.databind.json.JsonMapper.builder().build().readTree(response).get("items");
+        for (var item : items) org.junit.jupiter.api.Assertions.assertEquals(
+                Set.of("id", "rating", "text", "createdAt", "clinicReply"), item.propertyNames());
+        mvc.perform(get("/api/v1/admin/reviews")).andExpect(status().isUnauthorized());
     }
     @Test void roleBoundariesAndAnonymousRejected() throws Exception {
         mvc.perform(get("/api/v1/me/reviews")).andExpect(status().isUnauthorized());

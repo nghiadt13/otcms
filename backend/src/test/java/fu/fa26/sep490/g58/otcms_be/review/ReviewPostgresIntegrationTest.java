@@ -12,12 +12,17 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 import static org.junit.jupiter.api.Assertions.*;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@SpringBootTest @LocalPostgresTest @Transactional
+@SpringBootTest @LocalPostgresTest @Transactional @AutoConfigureMockMvc
 class ReviewPostgresIntegrationTest {
+    @Autowired MockMvc mvc;
     @Autowired JdbcTemplate jdbc;
     @Autowired ReviewService reviews;
     @Autowired EntityManager entityManager;
@@ -29,6 +34,79 @@ class ReviewPostgresIntegrationTest {
         account(account, "PATIENT"); account(otherAccount, "PATIENT"); account(admin, "ADMIN");
         profile(profile, account); profile(otherProfile, otherAccount);
         visit(visit, profile, "CLOSED"); visit(otherVisit, otherProfile, "CLOSED"); visit(openVisit, profile, "OPEN");
+    }
+    @Test void publicHttpReturnsOnlyPublishedReviewIds() throws Exception {
+        var pending = publicReviewFixture(1, "PENDING", Instant.parse("2026-11-01T10:00:00Z"));
+        var published = publicReviewFixture(5, "PUBLISHED", Instant.parse("2026-11-01T11:00:00Z"));
+        var hidden = publicReviewFixture(1, "HIDDEN", Instant.parse("2026-11-01T12:00:00Z"));
+        var page = publicPage(0, 20);
+        assertEquals(List.of(published), page.items().stream().map(PublicReview::id).toList());
+        assertTrue(page.items().stream().noneMatch(item -> item.id().equals(pending) || item.id().equals(hidden)));
+        assertEquals(1, page.totalItems());
+        assertEquals(new Summary(5.0, 1), page.summary());
+    }
+    @Test void hiddenPublishedReviewDisappearsFromPublicHttpList() throws Exception {
+        var id = publicReviewFixture(5, "PUBLISHED", Instant.parse("2026-11-01T12:00:00Z"));
+        var before = publicPage(0, 20);
+        assertEquals(List.of(id), before.items().stream().map(PublicReview::id).toList());
+        reviews.decide(id, admin, "HIDE");
+        var after = publicPage(0, 20);
+        assertTrue(after.items().stream().noneMatch(item -> item.id().equals(id)));
+        assertEquals(before.summary().count() - 1, after.summary().count());
+        assertEquals(0, after.totalItems());
+    }
+    @ParameterizedTest @CsvSource({"2,4.5", "3,4.3"})
+    void publicHttpSummaryUsesOnlyPublishedRatings(int publishedCount, double expectedAverage) throws Exception {
+        var timestamp = Instant.parse("2026-11-01T12:00:00Z");
+        for (int i = 0; i < publishedCount; i++) publicReviewFixture(i == 0 ? 5 : 4, "PUBLISHED", timestamp.plusSeconds(i));
+        publicReviewFixture(1, "PENDING", timestamp);
+        publicReviewFixture(1, "HIDDEN", timestamp);
+        assertEquals(new Summary(expectedAverage, publishedCount), publicPage(0, 20).summary());
+    }
+    @Test void publicHomepageSizeThreeKeepsGlobalSummaryAndNewestOrderAcrossPages() throws Exception {
+        var ids = new ArrayList<UUID>();
+        var timestamp = Instant.parse("2026-11-01T12:00:00Z");
+        for (int i = 0; i < 5; i++) ids.add(publicReviewFixture(5, "PUBLISHED", timestamp.plusSeconds(i)));
+        var first = publicPage(0, 3);
+        assertEquals(List.of(ids.get(4), ids.get(3), ids.get(2)), first.items().stream().map(PublicReview::id).toList());
+        assertEquals(0, first.page()); assertEquals(3, first.size());
+        assertEquals(5, first.totalItems()); assertEquals(2, first.totalPages());
+        assertEquals(new Summary(5.0, 5), first.summary());
+        assertEquals(timestamp.plusSeconds(4), first.items().getFirst().createdAt().toInstant());
+        var second = publicPage(1, 3);
+        assertEquals(List.of(ids.get(1), ids.get(0)), second.items().stream().map(PublicReview::id).toList());
+        assertEquals(1, second.page()); assertEquals(3, second.size());
+        assertEquals(5, second.totalItems()); assertEquals(2, second.totalPages());
+        assertEquals(first.summary(), second.summary());
+        assertEquals(first.summary(), publicPage(0, 1).summary());
+    }
+    @Test void emptyPublicHttpSummaryPreservesMinimumOnePageConvention() throws Exception {
+        var page = publicPage(0, 20);
+        assertTrue(page.items().isEmpty()); assertEquals(0, page.totalItems());
+        assertEquals(0, page.page()); assertEquals(20, page.size()); assertEquals(1, page.totalPages());
+        assertEquals(new Summary(0.0, 0), page.summary());
+    }
+    private PublicReviewPage publicPage(int page, int size) throws Exception {
+        entityManager.flush();
+        var response = mvc.perform(get("/api/v1/public/reviews").param("page", Integer.toString(page)).param("size", Integer.toString(size)))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        var mapper = tools.jackson.databind.json.JsonMapper.builder().build();
+        // Check the wire representation before deserialization normalizes OffsetDateTime to the reader's timezone.
+        for (var item : mapper.readTree(response).get("items")) {
+            assertEquals(Set.of("id", "rating", "text", "createdAt", "clinicReply"), item.propertyNames());
+            assertTrue(item.get("createdAt").asText().endsWith("+07:00"));
+        }
+        return mapper.readValue(response, PublicReviewPage.class);
+    }
+    private UUID publicReviewFixture(int rating, String state, Instant submittedAt) {
+        UUID visitId = UUID.randomUUID(); visit(visitId, profile, "CLOSED");
+        var created = reviews.submit(account, new SubmitReviewRequest(visitId, rating, "Public dataset review"));
+        if (state.equals("PUBLISHED")) reviews.decide(created.id(), admin, "APPROVE");
+        else if (state.equals("HIDDEN")) reviews.decide(created.id(), admin, "HIDE");
+        entityManager.flush();
+        jdbc.update("update patient_reviews set submitted_at = ? where id = ?", java.sql.Timestamp.from(submittedAt), created.id());
+        entityManager.clear();
+        return created.id();
     }
     @Test void ownEligibilitySubmissionModerationReplyPublicAndFilters() {
         assertEquals(List.of(visit), reviews.eligible(account).items().stream().map(EligibleVisit::visitId).toList());
