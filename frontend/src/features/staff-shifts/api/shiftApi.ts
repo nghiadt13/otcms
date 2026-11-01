@@ -88,11 +88,30 @@ const roomCategory = (type: string): ServiceCategory =>
 const doctorPath = (doctorId: string) =>
   `/api/v1/admin/doctors/${doctorId}/shifts` as const;
 const staffShiftsPath = "/api/v1/admin/staff-shifts" as const;
-const listStaffProfiles = (signal?: AbortSignal) =>
-  apiRequest<{ items: { staffId: string; fullName: string; role: string }[] }>(
-    "/api/v1/admin/staff-shifts/staff-options",
-    { signal },
-  );
+async function listStaffProfiles(signal?: AbortSignal) {
+  const [staff, doctors] = await Promise.all([
+    apiRequest<{
+      items: { staffId: string; fullName: string; role: string }[];
+    }>("/api/v1/admin/staff-shifts/staff-options", { signal }),
+    apiRequest<{
+      items: {
+        doctorProfileId: string;
+        fullName: string;
+        inActiveDirectory: boolean;
+      }[];
+    }>("/api/v1/admin/doctor-profiles", { signal }),
+  ]);
+  const options = new Map(staff.items.map((item) => [item.staffId, item]));
+  for (const doctor of doctors.items) {
+    if (doctor.inActiveDirectory)
+      options.set(doctor.doctorProfileId, {
+        staffId: doctor.doctorProfileId,
+        fullName: doctor.fullName,
+        role: "DOCTOR",
+      });
+  }
+  return { items: [...options.values()] };
+}
 
 function toShift(
   item: DoctorShift,

@@ -35,7 +35,7 @@ it("creates and deletes staff shifts through the merged staff controller, not th
         }
       : init?.method === "POST"
         ? shift
-        : undefined,
+        : { items: [] },
   );
   const api = await import("./shiftApi");
   expect(await api.createShift(input)).toEqual(shift);
@@ -103,4 +103,26 @@ it("rejects a reversed date range before any backend request", async () => {
       .catch((e) => e.status),
   ).toBe(400);
   expect(request).not.toHaveBeenCalled();
+});
+
+it("includes active doctors even when the generic staff profile list is empty", async () => {
+  request.mockImplementation(async (path) =>
+    path.endsWith("doctor-profiles")
+      ? {
+          items: [
+            {
+              doctorProfileId: "doctor-only",
+              fullName: "Doctor directory",
+              inActiveDirectory: true,
+            },
+          ],
+        }
+      : { items: [] },
+  );
+  const api = await import("./shiftApi");
+  expect((await api.listStaffOptions()).items).toContainEqual({
+    staffId: "doctor-only",
+    fullName: "Doctor directory",
+    role: "ORTHOPEDIC_DOCTOR",
+  });
 });
