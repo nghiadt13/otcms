@@ -10,7 +10,7 @@ import {
   uploadWebsiteImage,
 } from "../api/websiteContentAdminApi";
 
-const IMAGE_HINT = "Chọn ảnh JPG, PNG hoặc WebP, dung lượng tối đa 5 MB.";
+const IMAGE_HINT = "Chọn ảnh JPG, PNG hoặc WebP, dung lượng tối đa 2 MB.";
 
 /**
  * Tải một ảnh lên. Kiểm sơ bộ loại và dung lượng ở FE để báo lỗi sớm (BE vẫn kiểm lại).
@@ -25,6 +25,7 @@ export function useWebsiteImageUpload() {
     setError(null);
     if (
       !ALLOWED_IMAGE_TYPES.includes(file.type) ||
+      file.size === 0 ||
       file.size > MAX_IMAGE_BYTES
     ) {
       setError(`${formatAppMessage("MSG-69")} ${IMAGE_HINT}`);
@@ -34,7 +35,11 @@ export function useWebsiteImageUpload() {
     try {
       return (await uploadWebsiteImage(file)).url;
     } catch (err) {
-      if (isApiError(err) && err.fieldErrors?.some((f) => f.field === "file"))
+      if (
+        isApiError(err) &&
+        (err.code === "MSG-69" ||
+          err.fieldErrors?.some((f) => f.field === "file"))
+      )
         setError(`${formatAppMessage("MSG-69")} ${IMAGE_HINT}`);
       else notifyError(err);
       return null;

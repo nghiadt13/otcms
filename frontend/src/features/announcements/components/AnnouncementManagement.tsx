@@ -34,7 +34,7 @@ export function AnnouncementManagement() {
     <>
       <PageHeader
         title="Thông báo phòng khám"
-        description="Gửi thông báo tới nhóm người nhận đã chọn qua email hoặc trong hệ thống."
+        description="Đăng thông báo công khai hoặc gửi tới nhóm người nhận được hệ thống hỗ trợ."
         actions={
           canCreate ? (
             <Button onClick={() => setCreateOpen(true)}>Đăng thông báo</Button>

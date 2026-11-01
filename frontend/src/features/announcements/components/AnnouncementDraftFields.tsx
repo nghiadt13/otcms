@@ -92,6 +92,13 @@ export function AnnouncementDraftFields({
             </NativeSelectOption>
           ))}
         </NativeSelect>
+        {options.audiences.length === 1 &&
+          options.audiences[0] === "PUBLIC" && (
+            <p className="text-xs text-muted-foreground">
+              Hiện chỉ đăng thông báo công khai trên website. Gửi riêng cho bệnh
+              nhân và nhân viên chưa được bật.
+            </p>
+          )}
         {noAudience ? (
           <p className="text-xs text-muted-foreground">
             Chưa có nhóm người nhận nào được phép gửi. Liên hệ quản trị hệ thống
@@ -109,11 +116,17 @@ export function AnnouncementDraftFields({
           {options.channels.map((channel) => (
             <label key={channel} className="flex items-center gap-2 text-sm">
               <Checkbox
-                aria-label={CHANNEL_LABELS[channel]}
+                aria-label={
+                  draft.audience === "PUBLIC"
+                    ? "Website phòng khám"
+                    : CHANNEL_LABELS[channel]
+                }
                 checked={draft.channels.includes(channel)}
                 onCheckedChange={(checked) => toggleChannel(channel, checked)}
               />
-              {CHANNEL_LABELS[channel]}
+              {draft.audience === "PUBLIC"
+                ? "Website phòng khám"
+                : CHANNEL_LABELS[channel]}
             </label>
           ))}
         </div>
