@@ -6,6 +6,7 @@ import io.swagger.v3.oas.models.Operation;
 import io.swagger.v3.oas.models.Components;
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.PathItem;
+import io.swagger.v3.oas.models.examples.Example;
 import io.swagger.v3.oas.models.media.Content;
 import io.swagger.v3.oas.models.media.MediaType;
 import io.swagger.v3.oas.models.media.Schema;
@@ -19,6 +20,7 @@ import org.springframework.context.annotation.Configuration;
 
 import java.util.List;
 import java.util.Map;
+import java.util.LinkedHashMap;
 
 @Configuration
 public class OpenApiConfiguration {
@@ -49,6 +51,7 @@ public class OpenApiConfiguration {
                 }
             }));
             applyAppointmentContractResponses(openApi);
+            applyReviewAndNotificationContractResponses(openApi);
         };
     }
 
@@ -119,6 +122,123 @@ public class OpenApiConfiguration {
                 operation.getResponses().values().forEach(this::normalizeJsonContentType);
             });
         });
+    }
+
+    private record FeatureContract(String path, PathItem.HttpMethod method, String success,
+            Map<String, String> errors) { }
+
+    private void applyReviewAndNotificationContractResponses(OpenAPI openApi) {
+        Map<String, String> patient = Map.of("401", "", "403", "MSG-56", "500", "MSG-04");
+        Map<String, String> admin = Map.of("401", "", "403", "", "500", "MSG-04");
+        Map<String, String> inbox = Map.of("401", "", "500", "MSG-04");
+        var contracts = List.of(
+                new FeatureContract("/api/v1/me/reviews/eligible-visits", PathItem.HttpMethod.GET, "200", patient),
+                new FeatureContract("/api/v1/me/reviews", PathItem.HttpMethod.GET, "200", patient),
+                new FeatureContract("/api/v1/reviews", PathItem.HttpMethod.POST, "201", featureErrors(patient, "400", "MSG-57", "409", "MSG-56")),
+                new FeatureContract("/api/v1/public/reviews", PathItem.HttpMethod.GET, "200", Map.of("400", "MSG-54", "500", "MSG-04")),
+                new FeatureContract("/api/v1/admin/reviews", PathItem.HttpMethod.GET, "200", featureErrors(admin, "400", "MSG-54")),
+                new FeatureContract("/api/v1/admin/reviews/{id}", PathItem.HttpMethod.GET, "200", featureErrors(admin, "404", "MSG-50")),
+                new FeatureContract("/api/v1/admin/reviews/{id}/approve", PathItem.HttpMethod.POST, "200", featureErrors(admin, "404", "MSG-50", "409", "MSG-56")),
+                new FeatureContract("/api/v1/admin/reviews/{id}/hide", PathItem.HttpMethod.POST, "200", featureErrors(admin, "404", "MSG-50", "409", "MSG-56")),
+                new FeatureContract("/api/v1/admin/reviews/{id}/unhide", PathItem.HttpMethod.POST, "200", featureErrors(admin, "404", "MSG-50", "409", "MSG-56")),
+                new FeatureContract("/api/v1/admin/reviews/{id}/reply", PathItem.HttpMethod.PUT, "200", featureErrors(admin, "400", "MSG-57", "404", "MSG-50", "409", "MSG-56")),
+                new FeatureContract("/api/v1/me/notifications", PathItem.HttpMethod.GET, "200", featureErrors(inbox, "400", "MSG-54")),
+                new FeatureContract("/api/v1/me/notifications/unread-count", PathItem.HttpMethod.GET, "200", inbox),
+                new FeatureContract("/api/v1/me/notifications/{id}/read", PathItem.HttpMethod.POST, "200", featureErrors(inbox, "404", "MSG-50")),
+                new FeatureContract("/api/v1/me/notifications/read-all", PathItem.HttpMethod.POST, "200", inbox));
+        addReviewAndNotificationErrorExamples(openApi.getComponents());
+        for (var contract : contracts) {
+            var path = openApi.getPaths().get(contract.path());
+            if (path == null) continue;
+            var operation = path.readOperationsMap().get(contract.method());
+            if (operation == null) continue;
+            // Keep inferred DTO schemas and controller descriptions; customize only these fourteen operations.
+            var success = operation.getResponses().get(contract.success());
+            if (success != null) normalizeJsonContentType(success);
+            contract.errors().forEach((status, message) -> operation.getResponses().addApiResponse(status,
+                    featureErrorResponse(status, message)));
+            operation.getResponses().values().forEach(this::normalizeJsonContentType);
+            operation.setSecurity(contract.path().equals("/api/v1/public/reviews") ? List.of()
+                    : List.of(new SecurityRequirement().addList("bearerAuth")));
+        }
+        addReviewWriteExamples(openApi);
+    }
+
+    private Map<String, String> featureErrors(Map<String, String> base, String... statusAndMessage) {
+        var errors = new LinkedHashMap<>(base);
+        for (int i = 0; i < statusAndMessage.length; i += 2) errors.put(statusAndMessage[i], statusAndMessage[i + 1]);
+        return errors;
+    }
+
+    private ApiResponse featureErrorResponse(String status, String message) {
+        String description = message.isEmpty() ? (status.equals("401") ? "Authentication required" : "Role access denied")
+                : message + ": " + switch (message) {
+                    case "MSG-57" -> "Invalid fields; fieldErrors is at the response root";
+                    case "MSG-54" -> "Invalid query, filter, date range or sort";
+                    case "MSG-50" -> "Record missing or unavailable to the current account";
+                    case "MSG-56" -> status.equals("403") ? "Visit/profile outside own scope"
+                            : "Invalid transition, duplicate review or optimistic conflict";
+                    default -> "Request processing failed";
+                };
+        var media = new MediaType().schema(new Schema<>().$ref("#/components/schemas/ErrorResponse"));
+        if (!message.isEmpty()) media.addExamples(message, new Example().$ref("#/components/examples/" + message));
+        return new ApiResponse().description(description).content(new Content().addMediaType("application/json", media));
+    }
+
+    private void addReviewAndNotificationErrorExamples(Components components) {
+        for (String code : List.of("MSG-57", "MSG-54", "MSG-50", "MSG-56", "MSG-04")) {
+            Map<String, Object> value = new LinkedHashMap<>();
+            value.put("error", Map.of("code", code, "message", code.equals("MSG-57")
+                    ? "Review request could not be completed" : "Request could not be completed"));
+            if (code.equals("MSG-57")) value.put("fieldErrors", List.of(Map.of("field", "text", "code", code)));
+            components.addExamples(code, new Example().summary(code + " shared error envelope").value(value));
+        }
+    }
+
+    private void addReviewWriteExamples(OpenAPI openApi) {
+        var submitPath = openApi.getPaths().get("/api/v1/reviews");
+        if (submitPath != null && submitPath.getPost() != null) {
+            addWriteExamples(submitPath.getPost(), "201", """
+                    {"visitId":"7b6d9d88-bf52-4d9d-8cb2-86cf44e16a18","rating":5,"text":"Dịch vụ tốt, bác sĩ tư vấn rõ ràng."}
+                    """, """
+                    {
+                      "id":"9c495ace-cc80-4c9c-b6f6-19bf0ac85346",
+                      "visitId":"7b6d9d88-bf52-4d9d-8cb2-86cf44e16a18",
+                      "visitDate":"2026-11-01","rating":5,"text":"Dịch vụ tốt, bác sĩ tư vấn rõ ràng.",
+                      "status":"PENDING","clinicReply":null,"createdAt":"2026-11-01T19:00:00+07:00",
+                      "patient":{"fullName":"Nguyễn Văn A","relationship":"SELF"}
+                    }
+                    """);
+        }
+        var replyPath = openApi.getPaths().get("/api/v1/admin/reviews/{id}/reply");
+        if (replyPath != null && replyPath.getPut() != null) {
+            addWriteExamples(replyPath.getPut(), "200", """
+                    {"text":"Cảm ơn bạn đã gửi đánh giá cho phòng khám."}
+                    """, """
+                    {
+                      "id":"9c495ace-cc80-4c9c-b6f6-19bf0ac85346",
+                      "submittedAt":"2026-11-01T19:00:00+07:00","patientName":"Nguyễn Văn A","rating":5,
+                      "content":"Dịch vụ tốt, bác sĩ tư vấn rõ ràng.","status":"PUBLISHED","replied":true,
+                      "visit":{"visitDate":"2026-11-01","doctorName":"Trần Văn B","serviceName":"Khám chuyên khoa"},
+                      "allowedActions":["hide","editReply"],
+                      "reply":{"text":"Cảm ơn bạn đã gửi đánh giá cho phòng khám.","repliedAt":"2026-11-02T09:30:00+07:00"}
+                    }
+                    """);
+        }
+    }
+
+    private void addWriteExamples(Operation operation, String success, String request, String response) {
+        operation.getRequestBody().getContent().get("application/json").setExample(openApiExample(request));
+        operation.getResponses().get(success).getContent().get("application/json").setExample(openApiExample(response));
+    }
+
+    private Object openApiExample(String json) {
+        try {
+            // Swagger's own JSON tree preserves explicit nulls in examples such as MyReview.clinicReply.
+            return io.swagger.v3.core.util.Json.mapper().readTree(json);
+        } catch (java.io.IOException invalidExample) {
+            throw new IllegalArgumentException("Invalid static OpenAPI example", invalidExample);
+        }
     }
 
     private void normalizeJsonContentType(ApiResponse response) {

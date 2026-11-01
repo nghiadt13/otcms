@@ -420,9 +420,12 @@ class NotificationPostgresIntegrationTest {
                 Map.entry("/api/v1/admin/reviews/{id}/unhide", "post"), Map.entry("/api/v1/admin/reviews/{id}/reply", "put"),
                 Map.entry("/api/v1/me/notifications", "get"), Map.entry("/api/v1/me/notifications/unread-count", "get"),
                 Map.entry("/api/v1/me/notifications/{id}/read", "post"), Map.entry("/api/v1/me/notifications/read-all", "post"));
+        var operationIds = new HashSet<String>();
+        var resolvedReferences = new HashSet<String>();
         for (var entry : operations.entrySet()) {
             var operation = document.get("paths").get(entry.getKey()).get(entry.getValue());
             assertNotNull(operation, entry.getKey());
+            assertTrue(operationIds.add(operation.path("operationId").asText()), "Duplicate operationId: " + entry.getKey());
             assertFalse(operation.path("summary").asText().isBlank(), entry.getKey());
             assertFalse(operation.path("description").asText().isBlank(), entry.getKey());
             String success = entry.getKey().equals("/api/v1/reviews") ? "201" : "200";
@@ -432,6 +435,29 @@ class NotificationPostgresIntegrationTest {
             if (entry.getKey().equals("/api/v1/public/reviews"))
                 assertTrue(operation.path("security").isMissingNode() || operation.path("security").isEmpty());
             else assertFalse(operation.path("security").isEmpty(), entry.getKey());
+            var responses = operation.get("responses");
+            for (String status : responses.propertyNames()) {
+                var response = responses.get(status);
+                assertEquals(Set.of("application/json"), response.get("content").propertyNames(), entry.getKey() + " " + status);
+                assertTrue(response.get("content").get("application/json").has("schema"), entry.getKey() + " " + status);
+                if (status.startsWith("4") || status.startsWith("5"))
+                    assertEquals("#/components/schemas/ErrorResponse",
+                            response.get("content").get("application/json").get("schema").get("$ref").asText());
+            }
+            assertDocumentedMessage(responses, "500", "MSG-04");
+            String path = entry.getKey();
+            if (!path.equals("/api/v1/public/reviews")) assertTrue(responses.has("401"), path);
+            if (path.startsWith("/api/v1/admin/reviews")) assertTrue(responses.has("403"), path);
+            if (path.startsWith("/api/v1/me/reviews") || path.equals("/api/v1/reviews"))
+                assertDocumentedMessage(responses, "403", "MSG-56");
+            if (path.equals("/api/v1/admin/reviews") || path.equals("/api/v1/public/reviews") || path.equals("/api/v1/me/notifications"))
+                assertDocumentedMessage(responses, "400", "MSG-54");
+            if (path.equals("/api/v1/reviews") || path.endsWith("/reply")) assertDocumentedMessage(responses, "400", "MSG-57");
+            if (path.startsWith("/api/v1/admin/reviews/{id}") || path.equals("/api/v1/me/notifications/{id}/read"))
+                assertDocumentedMessage(responses, "404", "MSG-50");
+            if (path.equals("/api/v1/reviews") || path.matches("/api/v1/admin/reviews/\\{id}/(approve|hide|unhide|reply)"))
+                assertDocumentedMessage(responses, "409", "MSG-56");
+            assertOpenApiReferencesResolve(document, operation, resolvedReferences);
             for (var parameter : operation.path("parameters"))
                 assertFalse(Set.of("actor", "accountId", "recipientAccountId").contains(parameter.path("name").asText()));
         }
@@ -446,7 +472,66 @@ class NotificationPostgresIntegrationTest {
         assertTrue(errorFields.has("error")); assertTrue(errorFields.has("fieldErrors")); assertFalse(errorFields.has("code"));
         assertTrue(schemas.get("ReviewListItem").get("properties").has("content"));
         assertFalse(schemas.get("ReviewListItem").get("properties").has("text"));
+        assertEquals(14, operationIds.size());
+        assertReviewWriteExamples(document);
+        for (String code : List.of("MSG-57", "MSG-54", "MSG-50", "MSG-56", "MSG-04")) {
+            var example = document.get("components").get("examples").get(code).get("value");
+            assertEquals(code, example.get("error").get("code").asText()); assertFalse(example.has("code"));
+            assertFalse(example.has("stacktrace")); assertFalse(example.get("error").has("stacktrace"));
+            if (code.equals("MSG-57")) {
+                assertEquals("text", example.get("fieldErrors").get(0).get("field").asText());
+                assertEquals(code, example.get("fieldErrors").get(0).get("code").asText());
+            } else assertFalse(example.has("fieldErrors"));
+        }
+        var appointmentCreated = document.get("paths").get("/api/v1/appointments").get("post").get("responses").get("201");
+        assertTrue(appointmentCreated.get("headers").has("Location"));
+        assertTrue(appointmentCreated.get("content").has("application/json"));
+        mvc.perform(get("/swagger-ui.html")).andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/swagger-ui/index.html"));
+        mvc.perform(get("/swagger-ui/index.html")).andExpect(status().isOk());
         java.nio.file.Files.writeString(java.nio.file.Path.of("target/uc59-uc63-openapi-audit.json"), document.toPrettyString());
+    }
+    private void assertDocumentedMessage(tools.jackson.databind.JsonNode responses, String status, String code) {
+        var response = responses.get(status); assertNotNull(response, status + " " + code);
+        assertTrue(response.get("description").asText().contains(code));
+        assertEquals("#/components/examples/" + code,
+                response.get("content").get("application/json").get("examples").get(code).get("$ref").asText());
+    }
+    private void assertOpenApiReferencesResolve(tools.jackson.databind.JsonNode document, tools.jackson.databind.JsonNode node, Set<String> visited) {
+        if (node.has("$ref")) {
+            String reference = node.get("$ref").asText(); assertTrue(reference.startsWith("#/"), reference);
+            var target = document.at(reference.substring(1)); assertFalse(target.isMissingNode(), reference);
+            if (visited.add(reference)) assertOpenApiReferencesResolve(document, target, visited);
+        }
+        for (var child : node) assertOpenApiReferencesResolve(document, child, visited);
+    }
+    private void assertReviewWriteExamples(tools.jackson.databind.JsonNode document) {
+        var submit = document.get("paths").get("/api/v1/reviews").get("post");
+        var request = submit.get("requestBody").get("content").get("application/json").get("example");
+        assertEquals(Set.of("visitId", "rating", "text"), request.propertyNames());
+        assertEquals("7b6d9d88-bf52-4d9d-8cb2-86cf44e16a18", request.get("visitId").asText());
+        assertEquals(5, request.get("rating").asInt());
+        assertEquals("Dịch vụ tốt, bác sĩ tư vấn rõ ràng.", request.get("text").asText());
+        var created = submit.get("responses").get("201").get("content").get("application/json").get("example");
+        assertEquals(Set.of("id", "visitId", "visitDate", "rating", "text", "status", "clinicReply", "createdAt", "patient"), created.propertyNames());
+        assertEquals(request.get("visitId"), created.get("visitId")); assertEquals(request.get("text"), created.get("text"));
+        assertEquals("PENDING", created.get("status").asText()); assertTrue(created.get("clinicReply").isNull());
+        assertEquals("SELF", created.get("patient").get("relationship").asText());
+        assertEquals("2026-11-01", created.get("visitDate").asText());
+        assertTrue(created.get("createdAt").asText().endsWith("+07:00"));
+        var replyOperation = document.get("paths").get("/api/v1/admin/reviews/{id}/reply").get("put");
+        var replyRequest = replyOperation.get("requestBody").get("content").get("application/json").get("example");
+        assertEquals(Set.of("text"), replyRequest.propertyNames());
+        assertEquals("Cảm ơn bạn đã gửi đánh giá cho phòng khám.", replyRequest.get("text").asText());
+        var replied = replyOperation.get("responses").get("200").get("content").get("application/json").get("example");
+        assertEquals(Set.of("id", "submittedAt", "patientName", "rating", "content", "status", "replied", "visit", "allowedActions", "reply"), replied.propertyNames());
+        assertEquals(request.get("text"), replied.get("content")); assertFalse(replied.has("text"));
+        assertTrue(replied.get("replied").asBoolean()); assertEquals("PUBLISHED", replied.get("status").asText());
+        assertEquals(replyRequest.get("text"), replied.get("reply").get("text"));
+        assertTrue(replied.get("reply").get("repliedAt").asText().endsWith("+07:00"));
+        assertEquals("hide", replied.get("allowedActions").get(0).asText());
+        assertEquals("editReply", replied.get("allowedActions").get(1).asText());
+        assertEquals(2, replied.get("allowedActions").size());
     }
     private boolean causeContains(Throwable error, String text) {
         for (Throwable cause = error; cause != null; cause = cause.getCause()) if (cause.getMessage() != null && cause.getMessage().contains(text)) return true;

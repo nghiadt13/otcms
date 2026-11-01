@@ -90,6 +90,8 @@ Follow-up `.\mvnw.cmd verify`: FAIL at Surefire, 518 tests, 509 passed, 6 failur
 
 **pre-existing based on comparison with previous Phase A/Phase B runs, not independently reproduced on clean product HEAD**
 
+Historical qualification above applies to the original Phase A/B runs. H7 subsequently verified clean origin/product independently; the dated H7 update below supersedes that qualification for the new evidence.
+
 | Test class.method | Reason in prior runs | Before Phase B | Relation to this diff |
 | --- | --- | --- | --- |
 | AdministratorAccountDatabaseVerificationTest.upgradeFromV019PreservesExistingAccountsAndSessionLinks | V019 fixture violates ck_accounts_type for LAB_TECHNICIAN | Yes | Account migration/type fixture unchanged; no observed ErrorResponse regression |
@@ -105,6 +107,24 @@ Follow-up `.\mvnw.cmd verify`: FAIL at Surefire, 518 tests, 509 passed, 6 failur
 No clean-HEAD runtime proof is claimed. No baseline test/module was fixed or disabled. The two validation findings above are separate audit findings, not part of these nine baseline failures.
 
 ## Commit manifest
+
+### H7 OpenAPI fix - 2026-11-02
+
+Scope authorized by the user: OpenAPI documentation/configuration, its runtime regression test and existing audit/action records only. No controller, business logic, ErrorResponse, SecurityConfig, migration, FE or baseline test changes; no commit/push.
+
+OpenApiConfiguration now customizes exactly 14 Review/Notification operations using the existing OpenApiCustomizer after the unchanged Appointment customization. It retains inferred DTO schemas, normalizes success/error media to application/json, uses shared ErrorResponse, documents endpoint-specific MSG-57/54/50/56/04 statuses and supplies reusable component error examples. Public reviews has no bearer requirement; the other 13 operations require bearerAuth. No endpoint or operationId is created/replaced.
+
+Explicit JSON request/success examples are present for POST /api/v1/reviews and PUT /api/v1/admin/reviews/{id}/reply. MyReview preserves text, PENDING, clinicReply:null, SELF and +07:00; Admin ReviewDetail uses content, a reply object and lowercase hide/editReply. UUIDs/names are documentation samples, not real account credentials. Existing Appointment 201/Location/JSON documentation remains verified.
+
+NotificationPostgresIntegrationTest.swaggerDocumentsAll14OperationsAndPrivatePublicSchemas verifies actual /v3/api-docs: 14 unique operationIds, recursive local schema/example reference resolution, JSON content/schema on every documented response, scoped business errors, exact request/response example fields, five shared MSG examples and protected/public security. It also verifies /swagger-ui.html redirects to /swagger-ui/index.html and the index returns 200.
+
+Focused command: `.\mvnw.cmd '-Dtest=NotificationPostgresIntegrationTest#swaggerDocumentsAll14OperationsAndPrivatePublicSchemas,ReviewControllerTest,NotificationControllerTest' test`: 34/34 PASS. Final regression command: `.\mvnw.cmd '-Dtest=NotificationMessagesTest,NotificationServiceTest,NotificationControllerTest,NotificationPostgresIntegrationTest,ReviewServiceTest,OwnPatientProfileServiceTest,ReviewControllerTest,ReviewTextValidationHttpTest,ReviewPostgresIntegrationTest' test`: 165/165 PASS, no failures/errors/skipped. Reviews 108, Notifications 57; PostgreSQL Reviews 31 and Notifications 28. JDK 21.0.9/PostgreSQL 18.6 with environment-only credentials and isolated test schemas. Evidence logs: ignored target/h7-openapi-fix-focused.log and target/h7-openapi-fix-regression.log. Runtime JSON uses the existing ignored target/uc59-uc63-openapi-audit.json; no target artifact is a commit candidate.
+
+Independent full-verify evidence from the preceding H7 audit: clean feature e148ddf has 581 tests (572 PASS, 6 failures, 3 errors); clean origin/product 0ce92ff has 416 (406 PASS, 7 failures, 3 errors). All nine feature failing/error class.method pairs reproduce on product; feature-only failures=0. Product additionally fails BillingInvoicePostgresIntegrationTest.migratesBillingSchemaAndCreatesOneCorrectInvoicePerSourceWithPartialCounterPayment: it expects three successful rows for 042/043/044, but product ends at V043. Reviews V044 makes that count assertion pass on feature. Both valid runs were sequential with the same JDK/DB/environment strategy; initial parallel connection-exhaustion runs were discarded. Temporary product worktree was clean and removed. No source/test baseline modification or repair was used.
+
+Full verify is not rerun for this documentation-only fix. The verify-green DoD remains blocked by the independently reproduced product baseline; reviewer request, PR update and Swagger screenshot attachment remain separate H7 work. OpenAPI portion: DONE. `git diff --check`: PASS.
+
+### Original Phase A/B commit manifest
 
 Exact paths relative to backend/. Candidates only; no git add/commit/push.
 
