@@ -88,6 +88,25 @@ class ReviewTextValidationHttpTest {
         invalid(reply(value.equals("MISSING") ? "" : "\"text\":null"));
         verify(service).reply(any(), any(), any()); verifyNoInteractions(history);
     }
+    @ParameterizedTest @CsvSource({"9,false", "10,true", "1000,true", "1001,false"})
+    void reviewAsciiBoundariesAfterTrim(int count, boolean valid) throws Exception {
+        String text = "x".repeat(count);
+        var request = submit("\"text\":" + json("  " + text + "  "));
+        if (valid) mvc.perform(request).andExpect(status().isCreated())
+                .andExpect(jsonPath("$.text").value(text)).andExpect(jsonPath("$.status").value("PENDING"));
+        else invalid(request);
+    }
+    @Test void clientAccountIdCannotChangeSubmitOwnership() throws Exception {
+        UUID otherAccount = UUID.randomUUID(), otherProfile = UUID.randomUUID();
+        when(visits.find(visitId)).thenReturn(Optional.of(new VisitReviewSourceService.Source(
+                visitId, otherProfile, "CLOSED", now, "Doctor", "Service")));
+        mvc.perform(submit("\"text\":\"Valid review text\",\"accountId\":\"" + otherAccount + "\""))
+                .andExpect(status().isForbidden()).andExpect(jsonPath("$.error.code").value("MSG-56"));
+        verify(service).submit(eq(account), any());
+        verify(own).requireOwnProfile(account);
+        verify(own, never()).requireOwnProfile(otherAccount);
+        verifyNoInteractions(reviews, history);
+    }
     @ParameterizedTest @CsvSource({"5,false", "9,false", "10,true", "1000,true", "1001,false"})
     void reviewUnicodeCodePointBoundaries(int count, boolean valid) throws Exception {
         String text = emoji.repeat(count);

@@ -61,6 +61,47 @@ class ReviewControllerTest {
         }
         verifyNoInteractions(reviews);
     }
+    @Test void allPatientReviewEndpointsEnforcePatientRole() throws Exception {
+        var created = new MyReview(UUID.randomUUID(), UUID.randomUUID(), java.time.LocalDate.of(2026, 11, 1),
+                5, "A valid review", fu.fa26.sep490.g58.otcms_be.review.model.ReviewStatus.PENDING,
+                null, java.time.OffsetDateTime.now(), new Patient("Patient", "SELF"));
+        when(reviews.eligible(any())).thenReturn(new Items<>(List.of()));
+        when(reviews.mine(any())).thenReturn(new Items<>(List.of()));
+        when(reviews.submit(any(), any())).thenReturn(created);
+        for (String path : List.of("/api/v1/me/reviews/eligible-visits", "/api/v1/me/reviews", "/api/v1/reviews")) {
+            boolean submitting = path.equals("/api/v1/reviews");
+            mvc.perform(patientRequest(path).with(csrf())).andExpect(status().isUnauthorized());
+            for (AccountRole role : AccountRole.values()) {
+                var result = mvc.perform(patientRequest(path).with(csrf()).with(actor(role)));
+                if (role == AccountRole.PATIENT)
+                    result.andExpect(submitting ? status().isCreated() : status().isOk());
+                else result.andExpect(status().isForbidden());
+            }
+        }
+        verify(reviews, times(1)).eligible(any());
+        verify(reviews, times(1)).mine(any());
+        verify(reviews, times(1)).submit(any(), any());
+        verifyNoMoreInteractions(reviews);
+    }
+    @Test void clientAccountIdQueryCannotChangeEitherGetScope() throws Exception {
+        UUID currentAccount = UUID.randomUUID(), otherAccount = UUID.randomUUID();
+        var identity = authentication(new UsernamePasswordAuthenticationToken(
+                new AuthenticatedAccount(currentAccount, AccountRole.PATIENT, UUID.randomUUID()), null,
+                List.of(new SimpleGrantedAuthority("ROLE_PATIENT"))));
+        when(reviews.eligible(currentAccount)).thenReturn(new Items<>(List.of()));
+        when(reviews.mine(currentAccount)).thenReturn(new Items<>(List.of()));
+        for (String path : List.of("/api/v1/me/reviews/eligible-visits", "/api/v1/me/reviews"))
+            mvc.perform(get(path).with(identity).param("accountId", otherAccount.toString()))
+                    .andExpect(status().isOk()).andExpect(jsonPath("$.items.length()").value(0));
+        verify(reviews).eligible(currentAccount);
+        verify(reviews).mine(currentAccount);
+        verifyNoMoreInteractions(reviews);
+    }
+    private org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder patientRequest(String path) {
+        if (!path.equals("/api/v1/reviews")) return get(path);
+        return post(path).contentType("application/json").content("{\"visitId\":\"" + UUID.randomUUID()
+                + "\",\"rating\":5,\"text\":\"A valid review\"}");
+    }
     @Test void rootFieldErrorsAndStrictIntegerRating() throws Exception {
         for (String rating : List.of("1.5", "\"5\"", "2147483648"))
             mvc.perform(post("/api/v1/reviews").with(actor(AccountRole.PATIENT)).with(csrf())

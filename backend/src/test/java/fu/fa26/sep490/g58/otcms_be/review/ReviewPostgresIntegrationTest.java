@@ -64,6 +64,25 @@ class ReviewPostgresIntegrationTest {
                 jdbc.queryForList("select action from patient_review_moderation_history where review_id = ? order by occurred_at", String.class, id));
         assertEquals("Second", reviews.detail(id).reply().text());
     }
+    @Test void submittingSameVisitTwiceLeavesOneReviewAndOneSubmitHistory() {
+        var created = reviews.submit(account, new SubmitReviewRequest(visit, 5, "First valid review"));
+        entityManager.flush();
+        assertEquals("PENDING", created.status().name());
+        assertEquals(1, jdbc.queryForObject("select count(*) from patient_reviews where visit_id = ?", Integer.class, visit));
+        assertEquals(1, jdbc.queryForObject("select count(*) from patient_review_moderation_history where review_id = ?", Integer.class, created.id()));
+
+        var failure = assertThrows(fu.fa26.sep490.g58.otcms_be.review.exception.ReviewOperationException.class,
+                () -> reviews.submit(account, new SubmitReviewRequest(visit, 1, "Second valid review")));
+        assertEquals(409, failure.status());
+        assertEquals("MSG-56", failure.code());
+        entityManager.flush();
+        assertEquals(1, jdbc.queryForObject("select count(*) from patient_reviews where visit_id = ?", Integer.class, visit));
+        assertEquals("First valid review", jdbc.queryForObject("select content from patient_reviews where visit_id = ?", String.class, visit));
+        assertEquals("PENDING", jdbc.queryForObject("select status from patient_reviews where visit_id = ?", String.class, visit));
+        assertEquals(List.of("SUBMIT"), jdbc.queryForList(
+                "select h.action from patient_review_moderation_history h join patient_reviews r on r.id = h.review_id where r.visit_id = ?",
+                String.class, visit));
+    }
     @Test void uniqueVisitConstraintRejectsCompetingInsert() throws Exception {
         var created = reviews.submit(account, new SubmitReviewRequest(visit, 4, "A valid review"));
         entityManager.flush();
