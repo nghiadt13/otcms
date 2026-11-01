@@ -1,4 +1,7 @@
 package fu.fa26.sep490.g58.otcms_be.appointment.service.impl;
+import fu.fa26.sep490.g58.otcms_be.notification.model.NotificationRelatedKind;
+import fu.fa26.sep490.g58.otcms_be.notification.model.NotificationMessage;
+import fu.fa26.sep490.g58.otcms_be.notification.service.NotificationPublisher;
 
 import fu.fa26.sep490.g58.otcms_be.appointment.exception.AppointmentBookingException;
 import fu.fa26.sep490.g58.otcms_be.appointment.model.AppointmentBooking;
@@ -44,14 +47,17 @@ public class CreateFollowUpAppointmentServiceImpl implements CreateFollowUpAppoi
     private final AppointmentJpaRepository appointments;
     private final AppointmentBookingProperties properties;
     private final Clock clock;
+    private final NotificationPublisher notifications;
 
     public CreateFollowUpAppointmentServiceImpl(CoordinationGuardService guard, DoctorProfileIdentityQueryService doctors,
             VisitWorkflowService visits, ClinicServiceBookingQueryService services, StaffAvailabilityProviderQueryService providers,
             ServiceDoctorAssignmentQueryService assignments, GenerateAvailableSlotsService slots,
-            AppointmentJpaRepository appointments, AppointmentBookingProperties properties, Clock clock) {
+            AppointmentJpaRepository appointments, AppointmentBookingProperties properties, Clock clock,
+            NotificationPublisher notifications) {
         this.guard = guard; this.doctors = doctors; this.visits = visits; this.services = services;
         this.providers = providers; this.assignments = assignments; this.slots = slots;
         this.appointments = appointments; this.properties = properties; this.clock = clock;
+        this.notifications = notifications;
     }
 
     @Override
@@ -140,7 +146,11 @@ public class CreateFollowUpAppointmentServiceImpl implements CreateFollowUpAppoi
                 command.purpose(), slot.startTime(), slot.endTime(), duration, buffer, command.actorAccountId(),
                 AppointmentBooking.ActorType.DOCTOR, now, command.correlationId(), command.sourceVisitId(),
                 evidence.originatingAppointmentId(), authenticatedDoctor, command.reason());
-        return appointments.saveFollowUp(booking);
+        var created = appointments.saveFollowUp(booking);
+        notifications.publishToPatient(evidence.patientProfileId(), new NotificationMessage(
+                "APPOINTMENT_BOOKED", "Đã đặt lịch tái khám", "Lịch tái khám của bạn đã được xác nhận.",
+                NotificationRelatedKind.APPOINTMENT, booking.id()));
+        return created;
     }
 
     private void acquireGuard() {

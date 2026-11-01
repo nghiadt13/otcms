@@ -1,0 +1,139 @@
+package fu.fa26.sep490.g58.otcms_be.review;
+
+import fu.fa26.sep490.g58.otcms_be.review.controller.*;
+import fu.fa26.sep490.g58.otcms_be.review.exception.*;
+import fu.fa26.sep490.g58.otcms_be.review.model.dto.ReviewDtos.*;
+import fu.fa26.sep490.g58.otcms_be.review.service.ReviewService;
+import fu.fa26.sep490.g58.otcms_be.common.security.*;
+import fu.fa26.sep490.g58.otcms_be.auth.security.JwtTokenService;
+import fu.fa26.sep490.g58.otcms_be.auth.service.AccountAccessService;
+import fu.fa26.sep490.g58.otcms_be.appointment.config.AppointmentWebConfiguration;
+import fu.fa26.sep490.g58.otcms_be.appointment.web.PublicRequestRateLimitInterceptor;
+import fu.fa26.sep490.g58.otcms_be.common.web.ProductionReadinessGateInterceptor;
+import fu.fa26.sep490.g58.otcms_be.config.*;
+import java.util.*;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.context.annotation.Import;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.request.RequestPostProcessor;
+import static org.mockito.Mockito.*;
+import static org.mockito.ArgumentMatchers.*;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.*;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+
+@WebMvcTest({PatientReviewController.class, AdminReviewController.class, PublicReviewController.class})
+@Import({SecurityConfig.class, ReviewApiExceptionHandler.class, ReviewControllerTest.Fixture.class})
+class ReviewControllerTest {
+    @Autowired MockMvc mvc;
+    @MockitoBean ReviewService reviews;
+    @MockitoBean JwtTokenService tokens;
+    @MockitoBean AccountAccessService access;
+    @MockitoBean AppointmentWebConfiguration appointmentWebConfiguration;
+    @MockitoBean PublicRequestRateLimitInterceptor publicRequestRateLimitInterceptor;
+    @MockitoBean ProductionReadinessGateInterceptor productionReadinessGateInterceptor;
+    @Test void publicAccessibleWithoutLoginAndSafeShape() throws Exception {
+        when(reviews.published(0, 20, null)).thenReturn(new PublicReviewPage(List.of(
+                new PublicReview(UUID.randomUUID(), 5, "A review text", java.time.OffsetDateTime.now(), null)),
+                0, 20, 1, 1, new Summary(5, 1)));
+        mvc.perform(get("/api/v1/public/reviews")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[0].text").value("A review text"))
+                .andExpect(jsonPath("$.items[0].patientName").doesNotExist())
+                .andExpect(jsonPath("$.items[0].patientProfileId").doesNotExist())
+                .andExpect(jsonPath("$.items[0].authorAccountId").doesNotExist())
+                .andExpect(jsonPath("$.items[0].visitId").doesNotExist());
+    }
+    @Test void roleBoundariesAndAnonymousRejected() throws Exception {
+        mvc.perform(get("/api/v1/me/reviews")).andExpect(status().isUnauthorized());
+        for (AccountRole role : AccountRole.values()) {
+            if (role != AccountRole.ADMIN)
+                mvc.perform(get("/api/v1/admin/reviews").with(actor(role))).andExpect(status().isForbidden());
+            if (role != AccountRole.PATIENT)
+                mvc.perform(get("/api/v1/me/reviews").with(actor(role))).andExpect(status().isForbidden());
+        }
+        verifyNoInteractions(reviews);
+    }
+    @Test void rootFieldErrorsAndStrictIntegerRating() throws Exception {
+        for (String rating : List.of("1.5", "\"5\"", "2147483648"))
+            mvc.perform(post("/api/v1/reviews").with(actor(AccountRole.PATIENT)).with(csrf())
+                    .contentType("application/json").content("{\"visitId\":\"" + UUID.randomUUID()
+                            + "\",\"rating\":" + rating + ",\"text\":\"A valid review\"}"))
+                    .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("MSG-57"))
+                    .andExpect(jsonPath("$.fieldErrors[0].field").value("rating"));
+        when(reviews.submit(any(), any())).thenThrow(new ReviewOperationException(400, "MSG-57",
+                List.of(new FieldError("text", "MSG-57"))));
+        var response = mvc.perform(post("/api/v1/reviews").with(actor(AccountRole.PATIENT)).with(csrf())
+                .contentType("application/json").content("{\"visitId\":\"" + UUID.randomUUID()
+                        + "\",\"rating\":5,\"text\":\"  short  \"}"))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.fieldErrors[0].field").value("text"))
+                .andExpect(jsonPath("$.error.code").value("MSG-57"))
+                .andExpect(jsonPath("$.code").doesNotExist())
+                .andReturn().getResponse().getContentAsString();
+        java.nio.file.Files.writeString(java.nio.file.Path.of("target/reviews-error-response.json"), response);
+    }
+    @Test void optimisticLockConflictAndUnexpectedFailure() throws Exception {
+        UUID id = UUID.randomUUID();
+        when(reviews.decide(eq(id), any(), eq("APPROVE")))
+                .thenThrow(new org.springframework.orm.ObjectOptimisticLockingFailureException("review", id));
+        mvc.perform(post("/api/v1/admin/reviews/" + id + "/approve").with(actor(AccountRole.ADMIN)).with(csrf()))
+                .andExpect(status().isConflict()).andExpect(jsonPath("$.error.code").value("MSG-56"));
+        when(reviews.detail(id)).thenThrow(new IllegalStateException("private infrastructure detail"));
+        mvc.perform(get("/api/v1/admin/reviews/" + id).with(actor(AccountRole.ADMIN)))
+                .andExpect(status().isInternalServerError()).andExpect(jsonPath("$.error.code").value("MSG-04"))
+                .andExpect(content().string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("private infrastructure"))));
+    }
+    @Test void routesAllReviewOperationsAndReturns201() throws Exception {
+        UUID id = UUID.randomUUID();
+        var created = new MyReview(id, UUID.randomUUID(), java.time.LocalDate.of(2026, 11, 1), 5, "A valid review",
+                fu.fa26.sep490.g58.otcms_be.review.model.ReviewStatus.PENDING, null,
+                java.time.OffsetDateTime.now(), new Patient("Private patient", "SELF"));
+        when(reviews.submit(any(), any())).thenReturn(created);
+        mvc.perform(post("/api/v1/reviews").with(actor(AccountRole.PATIENT)).with(csrf())
+                .contentType("application/json").content("{\"visitId\":\"" + created.visitId()
+                        + "\",\"rating\":5,\"text\":\"A valid review\"}"))
+                .andExpect(status().isCreated()).andExpect(jsonPath("$.text").value("A valid review"))
+                .andExpect(jsonPath("$.content").doesNotExist()).andExpect(jsonPath("$.status").value("PENDING"));
+        when(reviews.eligible(any())).thenReturn(new Items<>(List.of()));
+        when(reviews.mine(any())).thenReturn(new Items<>(List.of(created)));
+        mvc.perform(get("/api/v1/me/reviews/eligible-visits").with(actor(AccountRole.PATIENT))).andExpect(status().isOk());
+        mvc.perform(get("/api/v1/me/reviews").with(actor(AccountRole.PATIENT))).andExpect(status().isOk());
+        mvc.perform(get("/api/v1/admin/reviews/" + id).with(actor(AccountRole.ADMIN))).andExpect(status().isOk());
+        mvc.perform(get("/api/v1/admin/reviews").with(actor(AccountRole.ADMIN))
+                .param("status", "HIDDEN").param("rating", "5").param("replied", "false")
+                .param("from", "2026-11-01").param("to", "2026-11-02").param("page", "1").param("size", "10")
+                .param("sort", "submittedAt,desc")).andExpect(status().isOk());
+        verify(reviews).list("HIDDEN", 5, false, java.time.LocalDate.of(2026, 11, 1),
+                java.time.LocalDate.of(2026, 11, 2), 1, 10, "submittedAt,desc");
+        for (String action : List.of("approve", "hide", "unhide")) {
+            mvc.perform(post("/api/v1/admin/reviews/" + id + "/" + action).with(actor(AccountRole.ADMIN)).with(csrf()))
+                    .andExpect(status().isOk());
+            verify(reviews).decide(eq(id), any(), eq(action.toUpperCase(java.util.Locale.ROOT)));
+        }
+        mvc.perform(put("/api/v1/admin/reviews/" + id + "/reply").with(actor(AccountRole.ADMIN)).with(csrf())
+                .contentType("application/json").content("{\"text\":\"Reply\"}")).andExpect(status().isOk());
+        verify(reviews).reply(eq(id), any(), eq(new ReplyRequest("Reply")));
+    }
+    @Test void uniqueConstraintRaceMapsTo409() throws Exception {
+        var sql = new java.sql.SQLException("duplicate review", "23505");
+        var constraint = new org.hibernate.exception.ConstraintViolationException("duplicate", sql, "uk_patient_reviews_visit");
+        when(reviews.submit(any(), any())).thenThrow(new org.springframework.dao.DataIntegrityViolationException("duplicate", constraint));
+        mvc.perform(post("/api/v1/reviews").with(actor(AccountRole.PATIENT)).with(csrf())
+                .contentType("application/json").content("{\"visitId\":\"" + UUID.randomUUID()
+                        + "\",\"rating\":5,\"text\":\"A valid review\"}"))
+                .andExpect(status().isConflict()).andExpect(jsonPath("$.error.code").value("MSG-56"));
+    }
+    private RequestPostProcessor actor(AccountRole role) {
+        return authentication(new UsernamePasswordAuthenticationToken(new AuthenticatedAccount(UUID.randomUUID(), role,
+                UUID.randomUUID()), null, List.of(new SimpleGrantedAuthority("ROLE_" + role.name()))));
+    }
+    @TestConfiguration @EnableWebSecurity @EnableConfigurationProperties(SessionSecurityProperties.class)
+    static class Fixture { }
+}

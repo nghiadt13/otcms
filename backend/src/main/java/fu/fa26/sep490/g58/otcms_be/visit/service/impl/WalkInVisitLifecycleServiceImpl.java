@@ -1,4 +1,7 @@
 package fu.fa26.sep490.g58.otcms_be.visit.service.impl;
+import fu.fa26.sep490.g58.otcms_be.notification.model.NotificationRelatedKind;
+import fu.fa26.sep490.g58.otcms_be.notification.model.NotificationMessage;
+import fu.fa26.sep490.g58.otcms_be.notification.service.NotificationPublisher;
 
 import fu.fa26.sep490.g58.otcms_be.auth.service.DoctorAccountAccessService;
 import fu.fa26.sep490.g58.otcms_be.auth.service.ReceptionistAccountAccessService;
@@ -27,11 +30,13 @@ public class WalkInVisitLifecycleServiceImpl implements WalkInVisitLifecycleServ
     private final ReceptionistAccountAccessService receptionists;
     private final DoctorAccountAccessService doctors;
     private final Clock clock;
+    private final NotificationPublisher notifications;
 
     public WalkInVisitLifecycleServiceImpl(CoordinationGuardService guard, ClinicVisitJpaRepository visits,
             WalkInVisitLifecycleRepository lifecycle, VisitAuditJpaRepository audits,
             ExitWalkInReceptionQueueService queueExit, ReceptionistAccountAccessService receptionists,
-            DoctorAccountAccessService doctors, Clock clock) {
+            DoctorAccountAccessService doctors, Clock clock,
+            NotificationPublisher notifications) {
         this.guard = guard;
         this.visits = visits;
         this.lifecycle = lifecycle;
@@ -40,6 +45,7 @@ public class WalkInVisitLifecycleServiceImpl implements WalkInVisitLifecycleServ
         this.receptionists = receptionists;
         this.doctors = doctors;
         this.clock = clock;
+        this.notifications = notifications;
     }
 
     @Override
@@ -76,6 +82,9 @@ public class WalkInVisitLifecycleServiceImpl implements WalkInVisitLifecycleServ
             throw new VisitOperationException("VISIT_CARE_NOT_CHANGEABLE");
         }
         closeAndRecord(visitId, actorAccountId, actorRole, correlationId, "VISIT_CLOSED", clock.instant());
+        notifications.publishToPatient(visit.getPatientProfileId(), new NotificationMessage(
+                "VISIT_CLOSED", "Mời bạn đánh giá phòng khám", "Lượt khám đã hoàn tất. Bạn có thể gửi đánh giá về phòng khám.",
+                NotificationRelatedKind.VISIT, visitId));
     }
 
     private void closeAndRecord(UUID visitId, UUID actorAccountId, AccountRole actorRole, String correlationId,

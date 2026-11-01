@@ -1,4 +1,7 @@
 package fu.fa26.sep490.g58.otcms_be.appointment.service.impl;
+import fu.fa26.sep490.g58.otcms_be.notification.model.NotificationRelatedKind;
+import fu.fa26.sep490.g58.otcms_be.notification.model.NotificationMessage;
+import fu.fa26.sep490.g58.otcms_be.notification.service.NotificationPublisher;
 import fu.fa26.sep490.g58.otcms_be.appointment.model.CreatedAppointment;
 
 import fu.fa26.sep490.g58.otcms_be.appointment.exception.AppointmentBookingException;
@@ -31,10 +34,12 @@ public class ReassignAppointmentServiceImpl implements ReassignAppointmentServic
     private final GenerateAvailableSlotsService slotEngine;
     private final AppointmentBookingProperties properties;
     private final Clock clock;
+    private final NotificationPublisher notifications;
 
     public ReassignAppointmentServiceImpl(CoordinationGuardService guard, AppointmentReassignmentRepository appointments,
             ServiceDoctorAssignmentQueryService assignments, StaffAvailabilityProviderQueryService providers,
-            GenerateAvailableSlotsService slotEngine, AppointmentBookingProperties properties, Clock clock) {
+            GenerateAvailableSlotsService slotEngine, AppointmentBookingProperties properties, Clock clock,
+            NotificationPublisher notifications) {
         this.guard = guard;
         this.appointments = appointments;
         this.assignments = assignments;
@@ -42,6 +47,7 @@ public class ReassignAppointmentServiceImpl implements ReassignAppointmentServic
         this.slotEngine = slotEngine;
         this.properties = properties;
         this.clock = clock;
+        this.notifications = notifications;
     }
 
     @Override
@@ -75,7 +81,11 @@ public class ReassignAppointmentServiceImpl implements ReassignAppointmentServic
                 .anyMatch(slot -> slot.doctorProfileId().equals(replacement) && slot.startTime().equals(current.startTime())
                         && slot.endTime().equals(current.endTime()));
         if (!slotAvailable) throw new AppointmentBookingException("SLOT_UNAVAILABLE");
-        return appointments.reassign(current, replacement, command.actorAccountId(), command.reason().trim(), now,
+        var changed = appointments.reassign(current, replacement, command.actorAccountId(), command.reason().trim(), now,
                 command.correlationId());
+        notifications.publishToPatient(current.patientProfileId(), new NotificationMessage(
+                "APPOINTMENT_DOCTOR_REASSIGNED", "Thay đổi bác sĩ khám", "Bác sĩ phụ trách lịch khám của bạn đã được thay đổi.",
+                NotificationRelatedKind.APPOINTMENT, current.id()));
+        return changed;
     }
 }

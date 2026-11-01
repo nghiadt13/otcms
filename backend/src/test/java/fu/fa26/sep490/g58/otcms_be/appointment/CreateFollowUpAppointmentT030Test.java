@@ -1,5 +1,7 @@
 package fu.fa26.sep490.g58.otcms_be.appointment;
 
+import fu.fa26.sep490.g58.otcms_be.notification.service.NotificationPublisher;
+
 import fu.fa26.sep490.g58.otcms_be.appointment.exception.AppointmentBookingException;
 import fu.fa26.sep490.g58.otcms_be.appointment.model.AppointmentBooking;
 import fu.fa26.sep490.g58.otcms_be.appointment.model.AvailableSlot;
@@ -63,7 +65,8 @@ class CreateFollowUpAppointmentT030Test {
         var properties = new AppointmentBookingProperties(60, 30, 60, 15, 15, 15,
                 ZoneId.of("Asia/Ho_Chi_Minh"), new AppointmentBookingProperties.PublicRateLimit(30, 60));
         service = new CreateFollowUpAppointmentServiceImpl(guard, doctors, visits, services, providers,
-                assignments, slots, appointments, properties, Clock.fixed(NOW, ZoneId.of("UTC")));
+                assignments, slots, appointments, properties, Clock.fixed(NOW, ZoneId.of("UTC")),
+                mock(NotificationPublisher.class));
     }
 
     @Test

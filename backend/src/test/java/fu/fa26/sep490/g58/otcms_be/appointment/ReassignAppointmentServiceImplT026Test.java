@@ -1,4 +1,6 @@
 package fu.fa26.sep490.g58.otcms_be.appointment;
+
+import fu.fa26.sep490.g58.otcms_be.notification.service.NotificationPublisher;
 import fu.fa26.sep490.g58.otcms_be.appointment.model.entity.*;
 import fu.fa26.sep490.g58.otcms_be.appointment.model.*;
 
@@ -52,7 +54,7 @@ class ReassignAppointmentServiceImplT026Test {
         var properties = new AppointmentBookingProperties(30, 120, 1440, 30, 15, 15,
                 ZoneId.of("Asia/Ho_Chi_Minh"), new AppointmentBookingProperties.PublicRateLimit(60, 60));
         handler = new ReassignAppointmentServiceImpl(guard, appointments, assignments, providers, slots, properties,
-                Clock.fixed(now, ZoneId.of("UTC")));
+                Clock.fixed(now, ZoneId.of("UTC")), mock(NotificationPublisher.class));
         current = new ReassignableAppointment(appointmentId, patientId, serviceId,
                 currentDoctor, "CONFIRMED", "RECEPTIONIST_ASSISTED", "knee pain", now,
                 now.plusSeconds(1800), 30, 5, null, null, now.minusSeconds(86400));

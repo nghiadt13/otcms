@@ -145,6 +145,7 @@ public class OpenApiConfiguration {
     private boolean isPublicGet(String path, String method) {
         if (!"GET".equals(method)) return false;
         return "/api/v1/clinic-services".equals(path)
+                || "/api/v1/public/reviews".equals(path)
                 || "/api/v1/appointments/availability".equals(path)
                 || "/api/v1/doctors".equals(path)
                 || path.matches("/api/v1/doctors/\\{[^/]+\\}");
