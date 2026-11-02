@@ -9,7 +9,7 @@ export function messageFromRangeError(
 
 /** Toast thành công sau khi chuyển lịch (MSG-27, có tên bác sĩ). */
 export const reassignSuccessText = (doctorName: string) =>
-  formatAppMessage("MSG-27", { doctor: doctorName });
+  `Đã chuyển lịch hẹn sang bác sĩ ${doctorName}.`;
 
 /** Toast sau "Báo cho bệnh nhân" (copy đề xuất, chưa có MSG riêng). */
 export const NOTIFY_SUCCESS_TEXT = "Đã gửi thông báo cho bệnh nhân.";

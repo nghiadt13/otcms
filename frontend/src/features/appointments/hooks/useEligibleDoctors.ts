@@ -12,6 +12,7 @@ type Result = { key: string; doctors?: EligibleDoctor[]; error?: unknown };
  */
 export function useEligibleDoctors(
   appointmentId: string,
+  startAt: string,
   api: EligibleDoctorsApi,
 ) {
   const [result, setResult] = useState<Result | null>(null);
@@ -21,7 +22,7 @@ export function useEligibleDoctors(
 
   useEffect(() => {
     const controller = new AbortController();
-    listEligibleDoctors(appointmentId, controller.signal)
+    listEligibleDoctors(appointmentId, controller.signal, startAt)
       .then((response) => {
         if (!controller.signal.aborted)
           setResult({ key, doctors: response.items });
@@ -30,7 +31,7 @@ export function useEligibleDoctors(
         if (!controller.signal.aborted) setResult({ key, error });
       });
     return () => controller.abort();
-  }, [appointmentId, key, listEligibleDoctors]);
+  }, [appointmentId, startAt, key, listEligibleDoctors]);
 
   const reload = useCallback(() => setToken((n) => n + 1), []);
   const current = result?.key === key ? result : null;
