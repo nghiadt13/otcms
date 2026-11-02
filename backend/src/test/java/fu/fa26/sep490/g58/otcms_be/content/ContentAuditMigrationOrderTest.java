@@ -1,4 +1,7 @@
 package fu.fa26.sep490.g58.otcms_be.content;
+import fu.fa26.sep490.g58.otcms_be.content.repository.*;
+import fu.fa26.sep490.g58.otcms_be.content.exception.*;
+import fu.fa26.sep490.g58.otcms_be.content.service.impl.*;
 import java.nio.file.*;
 import java.sql.*;
 import java.util.UUID;
@@ -11,8 +14,12 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
 class ContentAuditMigrationOrderTest {
     @TempDir Path directory;
     private static final String URL="jdbc:postgresql://127.0.0.1:5432/otcms_test_db";
-    @Test void contentFirstThenActivityLogIncludesEveryContentEventExactlyOnce() throws Exception { check(true); }
-    @Test void normalOrderIncludesEveryContentEventExactlyOnce() throws Exception { check(false); }
+    @Test void contentFirstThenActivityLogIncludesEveryContentEventExactlyOnce() throws Exception {
+        check(true);
+    }
+    @Test void normalOrderIncludesEveryContentEventExactlyOnce() throws Exception {
+        check(false);
+    }
     private void check(boolean lateView) throws Exception {
         Path source=Path.of("src/main/resources/db/migration");
         Path view=source.resolve("V070__activity_log_read_projection.sql");
@@ -31,23 +38,35 @@ class ContentAuditMigrationOrderTest {
                     }
                 }
                 migrate(schema,username,password);
-                if(lateView) { Files.copy(view,directory.resolve(view.getFileName())); migrate(schema,username,password); }
+                if(lateView) {
+                    Files.copy(view,directory.resolve(view.getFileName()));
+                    migrate(schema,username,password);
+                }
                 UUID actor=UUID.randomUUID();
                 statement.execute("SET search_path TO "+schema);
                 try(var insert=connection.prepareStatement("INSERT INTO accounts(id,normalized_email,account_type,status,created_at,updated_at) VALUES(?,?,'ADMIN','ACTIVE',now(),now())")) {
-                    insert.setObject(1,actor);insert.setString(2,actor+"@order.test");insert.executeUpdate();
+                    insert.setObject(1,actor);
+                    insert.setString(2,actor+"@order.test");
+                    insert.executeUpdate();
                 }
                 try(var insert=connection.prepareStatement("INSERT INTO content_audits(id,actor_account_id,category,action,record_id,record_label,occurred_at) VALUES(?,?,'CONTENT','UPDATE_CONTENT',?,'Safe label',now())")) {
-                    insert.setObject(1,UUID.randomUUID());insert.setObject(2,actor);insert.setObject(3,UUID.randomUUID());insert.executeUpdate();
+                    insert.setObject(1,UUID.randomUUID());
+                    insert.setObject(2,actor);
+                    insert.setObject(3,UUID.randomUUID());
+                    insert.executeUpdate();
                 }
                 try(var result=statement.executeQuery("SELECT count(*) FROM activity_log_entries WHERE category='CONTENT'")) {
-                    assertTrue(result.next());assertEquals(1,result.getInt(1));
+                    assertTrue(result.next());
+                    assertEquals(1,result.getInt(1));
                 }
-            } finally { statement.execute("DROP SCHEMA IF EXISTS "+schema+" CASCADE"); }
+            }
+            finally {
+                statement.execute("DROP SCHEMA IF EXISTS "+schema+" CASCADE");
+            }
         }
     }
     private void migrate(String schema,String username,String password) {
         Flyway.configure().dataSource(URL,username,password).schemas(schema).defaultSchema(schema).outOfOrder(true)
-                .locations("filesystem:"+directory.toAbsolutePath()).load().migrate();
+        .locations("filesystem:"+directory.toAbsolutePath()).load().migrate();
     }
 }
