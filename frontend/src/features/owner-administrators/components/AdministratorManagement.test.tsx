@@ -35,7 +35,9 @@ it("UC08 AF1 exposes status and reissue actions from account details", async () 
   const user = userEvent.setup();
   render(<AdministratorManagement />);
   await screen.findByText("admin.demo");
-  await user.click(screen.getByRole("button", { name: "Xem tài khoản admin.demo" }));
+  await user.click(
+    screen.getByRole("button", { name: "Xem tài khoản admin.demo" }),
+  );
   const detail = await screen.findByRole("dialog");
   await within(detail).findByText("Quản trị viên");
   expect(within(detail).queryByText("Email")).not.toBeInTheDocument();
@@ -99,12 +101,16 @@ it("requires confirmation before deactivation and opens details", async () => {
   const user = userEvent.setup();
   render(<AdministratorManagement />);
   await screen.findByText("admin.demo");
-  await user.click(screen.getByRole("button", { name: "Xem tài khoản admin.demo" }));
+  await user.click(
+    screen.getByRole("button", { name: "Xem tài khoản admin.demo" }),
+  );
   expect(
     await screen.findByText("Chi tiết tài khoản Admin"),
   ).toBeInTheDocument();
   await user.click(screen.getByRole("button", { name: "Đóng" }));
-  await user.click(screen.getByRole("button", { name: "Thao tác cho admin.demo" }));
+  await user.click(
+    screen.getByRole("button", { name: "Thao tác cho admin.demo" }),
+  );
   await user.click(screen.getByRole("menuitem", { name: "Vô hiệu hóa" }));
   expect(
     request.mock.calls.filter(([, init]) => init?.method === "POST"),
@@ -125,7 +131,9 @@ it("reissues only after explicit submission", async () => {
   const user = userEvent.setup();
   render(<AdministratorManagement />);
   await screen.findByText("admin.demo");
-  await user.click(screen.getByRole("button", { name: "Thao tác cho admin.demo" }));
+  await user.click(
+    screen.getByRole("button", { name: "Thao tác cho admin.demo" }),
+  );
   await user.click(screen.getByRole("menuitem", { name: "Cấp lại mật khẩu" }));
   expect(
     request.mock.calls.filter(([, init]) => init?.method === "POST"),

@@ -92,7 +92,10 @@ export function AdministratorManagement() {
       />
       <FilterBar>
         <div className="relative w-full sm:w-72">
-          <Search aria-hidden className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Search
+            aria-hidden
+            className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground"
+          />
           <Input
             className="pl-8"
             type="search"
@@ -233,8 +236,12 @@ export function AdministratorManagement() {
                           },
                           {
                             key: "status",
-                            label: account.status === "ACTIVE" ? "Vô hiệu hóa" : "Kích hoạt",
-                            icon: account.status === "ACTIVE" ? PowerOff : Power,
+                            label:
+                              account.status === "ACTIVE"
+                                ? "Vô hiệu hóa"
+                                : "Kích hoạt",
+                            icon:
+                              account.status === "ACTIVE" ? PowerOff : Power,
                             destructive: account.status === "ACTIVE",
                             onSelect: () => setTarget(account),
                           },

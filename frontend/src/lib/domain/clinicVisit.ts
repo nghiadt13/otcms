@@ -6,10 +6,7 @@ import type { StatusTone } from "@/components/admin/StatusBadge";
 // trị đã có: plan lễ tân cũng dùng file này.
 
 export type AppointmentStatus =
-  | "BOOKED"
-  | "CHECKED_IN"
-  | "CANCELLED"
-  | "NO_SHOW";
+  "BOOKED" | "CHECKED_IN" | "CANCELLED" | "NO_SHOW";
 export type VisitStatus =
   | "WAITING_FOR_EXAMINATION"
   | "IN_EXAMINATION"

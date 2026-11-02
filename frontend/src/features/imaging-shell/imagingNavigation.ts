@@ -1,6 +1,15 @@
 import {
-  LayoutDashboard, ListOrdered, FileText, Activity, Layers, Hospital,
-  CalendarDays, Bell, UserRound, LockKeyhole, type LucideIcon,
+  LayoutDashboard,
+  ListOrdered,
+  FileText,
+  Activity,
+  Layers,
+  Hospital,
+  CalendarDays,
+  Bell,
+  UserRound,
+  LockKeyhole,
+  type LucideIcon,
 } from "lucide-react";
 
 export type ImagingNavItem = { href: string; title: string; icon: LucideIcon };
