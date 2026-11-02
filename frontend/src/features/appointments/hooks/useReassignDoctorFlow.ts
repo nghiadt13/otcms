@@ -57,6 +57,7 @@ export function useReassignDoctorFlow<T extends ReassignTarget>({
 
   const confirmNotify = useCallback(async () => {
     if (!notifying) return;
+    if (!api.notifyNoReplacement) return;
     try {
       const updated = await api.notifyNoReplacement(notifying.id);
       notifySuccess(NOTIFY_SUCCESS_TEXT);
