@@ -14,6 +14,12 @@ import type {
   IssuedCredential,
 } from "../types/account";
 import { accountStore, computeAllowedActions } from "./accountMockData";
+import {
+  changeLiveAccountStatus,
+  getLiveAccount,
+  listLiveAccounts,
+  reissueLiveAccountPassword,
+} from "./accountLiveApi";
 
 // Lớp API giả cho /api/v1/admin/accounts. Chữ ký khớp phase-02 mục 7: khi nối BE thật
 // chỉ đổi thân hàm sang `apiRequest`. Mật khẩu khởi tạo chỉ có trong phản hồi tạo/cấp lại.
@@ -42,6 +48,7 @@ export async function listAccounts(
   query: AccountListQuery,
   signal?: AbortSignal,
 ): Promise<PageResponse<AccountListItem>> {
+  if (process.env.NODE_ENV !== "test") return listLiveAccounts(query, signal);
   await mockDelay(DELAY_MS, signal);
   const keyword = query.q?.trim().toLowerCase() ?? "";
   if (keyword.length > MAX_QUERY_LENGTH) mockFail(400, "MSG-54");
@@ -62,6 +69,7 @@ export async function listAccounts(
 }
 
 export async function getAccount(id: string): Promise<AccountDetail> {
+  if (process.env.NODE_ENV !== "test") return getLiveAccount(id);
   await mockDelay(DELAY_MS);
   return clone(findOrFail(id));
 }
@@ -69,6 +77,8 @@ export async function getAccount(id: string): Promise<AccountDetail> {
 export async function createAccount(
   input: CreateAccountInput,
 ): Promise<IssuedCredential> {
+  if (process.env.NODE_ENV !== "test")
+    throw new Error("Biểu mẫu tạo tài khoản cũ không hỗ trợ backend hiện tại.");
   await mockDelay(DELAY_MS);
   const username = input.username.trim();
 
@@ -113,6 +123,11 @@ async function changeStatus(
   id: string,
   target: "ACTIVE" | "INACTIVE",
 ): Promise<AccountDetail> {
+  if (process.env.NODE_ENV !== "test")
+    return changeLiveAccountStatus(
+      id,
+      target === "ACTIVE" ? "activation" : "deactivation",
+    );
   await mockDelay(DELAY_MS);
   const account = findOrFail(id);
   // Đã ở trạng thái đích (ví dụ kích hoạt tài khoản đang Active): không cho phép.
@@ -128,6 +143,7 @@ export const deactivateAccount = (id: string) => changeStatus(id, "INACTIVE");
 export async function reissueAccountPassword(
   id: string,
 ): Promise<IssuedCredential> {
+  if (process.env.NODE_ENV !== "test") return reissueLiveAccountPassword(id);
   await mockDelay(DELAY_MS);
   const account = findOrFail(id);
   // Bệnh nhân tự khôi phục bằng OTP email, Admin không cấp lại.
