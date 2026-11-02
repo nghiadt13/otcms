@@ -15,7 +15,3 @@
 *.mha
 *.nrrd
 orthanc-data/
-/backend/docs/OTCMS_Unit_Test_*.xlsx
-/backend/otcms-before-migrations.dump
-/backend/slides/
-/backend/scripts/__pycache__/
