@@ -1,304 +1,436 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { UserRoundPlus } from "lucide-react";
+import { QRCodeSVG } from "qrcode.react";
 import { PageHeader } from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import { formatAppMessage } from "@/lib/messages/appMessages";
-import { PRIORITIES, type Priority } from "../types";
+import { Textarea } from "@/components/ui/textarea";
+import { isApiError } from "@/lib/api/apiError";
 import {
-  normalizeText,
-  withinReturnWindow,
-  agePriority,
-  receptionPriority,
-} from "../schema/receptionRules";
-import { useReception } from "./ReceptionProvider";
+  checkInAppointment,
+  createReceptionWalkIn,
+  getCurrentClinicArrivalProof,
+  getReceptionVerificationProfile,
+  listReceptionAppointments,
+  listReceptionArrivals,
+  recordManualReceptionArrival,
+  searchReceptionPatients,
+  type ReceptionAppointment,
+  type ReceptionArrival,
+  type ReceptionPatient,
+} from "../api/receptionLiveApi";
 import {
-  DataTable,
   dateText,
-  FormActions,
   FormModal,
-  InfoRow,
-  money,
   PatientName,
   RouteLink,
-  SelectField,
   Status,
+  timeText,
   TextField,
 } from "./ReceptionUi";
+
+const DAILY_RECEPTION_STATUSES = new Set([
+  "CONFIRMED",
+  "NO_SHOW",
+  "CHECKED_IN",
+  "IN_PROGRESS",
+  "COMPLETED",
+]);
+
+function receptionStatusValue(status: string) {
+  switch (status) {
+    case "NO_SHOW":
+      return "no-show";
+    case "CHECKED_IN":
+      return "checked-in";
+    case "IN_PROGRESS":
+      return "examining";
+    case "COMPLETED":
+      return "completed";
+    default:
+      return "booked";
+  }
+}
 
 export function CheckInDialog({
   patientId: initialPatient,
   appointmentId: initialAppointment,
   onClose,
+  onUpdated,
 }: {
   patientId?: string;
   appointmentId?: string;
   onClose: () => void;
+  onUpdated: () => void;
 }) {
-  const { data: s, pending, run } = useReception();
-  const fixedAppointment = s!.appointments.find(
-    (a) => a.id === initialAppointment,
+  const [pending, setPending] = useState(false);
+  const [query, setQuery] = useState("");
+  const [patients, setPatients] = useState<ReceptionPatient[]>([]);
+  const [patientsQuery, setPatientsQuery] = useState("");
+  const [patientId, setPatientId] = useState(initialPatient ?? "");
+  const [appointments, setAppointments] = useState<ReceptionAppointment[]>([]);
+  const [appointmentsPatientId, setAppointmentsPatientId] = useState("");
+  const [arrivals, setArrivals] = useState<ReceptionArrival[]>([]);
+  const [arrivalReason, setArrivalReason] = useState("");
+  const [verified, setVerified] = useState<{
+    patientProfileId: string;
+    fullName: string;
+    dateOfBirth: string;
+  } | null>(null);
+  const [error, setError] = useState("");
+  const [result, setResult] = useState("");
+  const idempotencyKeys = useRef(new Map<string, string>());
+  const selected = patients.find(
+    (patient) => patient.patientProfileId === patientId,
   );
-  const [selectedPatient, setPatientId] = useState("");
-  const patientId =
-    initialPatient ?? fixedAppointment?.patientId ?? selectedPatient;
-  const fixedPatient = !!initialPatient || !!initialAppointment;
-  const [selectedPriority, setPriority] = useState<Priority>("normal");
-  const [present, setPresent] = useState(false);
-  const day = s!.clock.slice(0, 10);
-  const appointments = s!.appointments.filter(
-    (a) => a.patientId === patientId && a.date === day && a.status === "booked",
-  );
-  const returns = s!.visits.filter(
-    (v) =>
-      v.patientId === patientId &&
-      v.status === "awaiting" &&
-      withinReturnWindow(v.firstCheckIn, day),
-  );
-  const [selectedMode, setMode] = useState(
-    initialAppointment ?? (returns[0]?.id || appointments[0]?.id || "walkin"),
-  );
-  const mode = initialAppointment ?? selectedMode;
-  const returnVisit = returns.find((v) => v.id === mode);
-  const appointment = appointments.find((a) => a.id === mode);
-  const contextId = appointment?.id ?? `walkin-${patientId}-${day}`;
-  const fee = s!.charges.find(
-    (c) =>
-      c.patientId === patientId &&
-      c.contextId === contextId &&
-      c.status !== "cancelled",
-  );
-  const patient = s!.patients.find((p) => p.id === patientId);
-  const automaticPriority = agePriority(patient?.dob ?? "", day);
-  const priority = receptionPriority(patient?.dob ?? "", day, selectedPriority);
-  const invalidContext =
-    (fixedPatient && !patient) || (!!initialAppointment && !appointment);
-  const canCheckIn =
-    !invalidContext &&
-    !!patient &&
-    present &&
-    (!!returnVisit || fee?.status === "paid") &&
-    (mode === "walkin" || !!appointment || !!returnVisit);
+  const today = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Ho_Chi_Minh",
+  }).format(new Date());
+
+  useEffect(() => {
+    if (initialPatient || query.trim().length < 2) {
+      return;
+    }
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => {
+      void searchReceptionPatients(query, controller.signal)
+        .then((items) => {
+          setPatients(items);
+          setPatientsQuery(query);
+        })
+        .catch((cause) => {
+          if (!controller.signal.aborted)
+            setError(
+              isApiError(cause) ? cause.message : "Không thể tìm hồ sơ.",
+            );
+        });
+    }, 250);
+    return () => {
+      window.clearTimeout(timeout);
+      controller.abort();
+    };
+  }, [initialPatient, query]);
+
+  useEffect(() => {
+    if (!patientId) {
+      return;
+    }
+    const controller = new AbortController();
+    void listReceptionAppointments(
+      { from: today, to: today, patientProfileId: patientId },
+      controller.signal,
+    )
+      .then((page) => {
+        setAppointments(
+          page.items.filter((item) =>
+            ["CONFIRMED", "NO_SHOW"].includes(item.status),
+          ),
+        );
+        setAppointmentsPatientId(patientId);
+      })
+      .catch((cause) => {
+        if (!controller.signal.aborted)
+          setError(
+            isApiError(cause) ? cause.message : "Không thể tải lịch hẹn.",
+          );
+      });
+    return () => controller.abort();
+  }, [patientId, today]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void listReceptionArrivals({ date: today }, controller.signal)
+      .then((worklist) => setArrivals(worklist.items))
+      .catch((cause) => {
+        if (!controller.signal.aborted)
+          setError(
+            isApiError(cause)
+              ? cause.message
+              : "Không thể tải danh sách bệnh nhân đã đến.",
+          );
+      });
+    return () => controller.abort();
+  }, [today]);
+
+  async function verifyIdentity() {
+    if (!patientId || pending) return;
+    setPending(true);
+    setError("");
+    try {
+      setVerified(await getReceptionVerificationProfile(patientId));
+    } catch (cause) {
+      setError(isApiError(cause) ? cause.message : "Không thể xác minh hồ sơ.");
+    } finally {
+      setPending(false);
+    }
+  }
+
+  async function submit(appointmentId?: string, priorAppointmentId?: string) {
+    if (!verified || pending) return;
+    setPending(true);
+    setError("");
+    setResult("");
+    try {
+      const operation = appointmentId ?? `walk-in:${verified.patientProfileId}`;
+      const idempotencyKey =
+        idempotencyKeys.current.get(operation) ?? crypto.randomUUID();
+      idempotencyKeys.current.set(operation, idempotencyKey);
+      if (appointmentId) {
+        if (
+          !arrivals.some((arrival) => arrival.appointmentId === appointmentId)
+        ) {
+          setError("Cần ghi nhận bệnh nhân đã đến trước khi check-in.");
+          return;
+        }
+        const response = await checkInAppointment({
+          appointmentId,
+          verifiedPatientProfileId: verified.patientProfileId,
+          idempotencyKey,
+        });
+        setResult(`Đã tiếp nhận lịch hẹn. Mã lượt khám: ${response.visitId}`);
+        onUpdated();
+        setAppointments((items) =>
+          items.filter((item) => item.id !== appointmentId),
+        );
+        idempotencyKeys.current.delete(operation);
+      } else {
+        const response = await createReceptionWalkIn({
+          patientProfileId: verified.patientProfileId,
+          priorAppointmentId,
+          idempotencyKey,
+        });
+        setResult(
+          `Đã tạo lượt khám trực tiếp. Mã lượt khám: ${response.visitId}`,
+        );
+        onUpdated();
+        idempotencyKeys.current.delete(operation);
+      }
+    } catch (cause) {
+      setError(
+        isApiError(cause) ? cause.message : "Không thể hoàn tất tiếp nhận.",
+      );
+    } finally {
+      setPending(false);
+    }
+  }
+
   return (
     <FormModal
       title="Tiếp nhận bệnh nhân"
-      description="Xác nhận đúng người, đã có mặt và đủ điều kiện vào hàng đợi khám."
+      description="Tìm hồ sơ, đối chiếu thông tin bệnh nhân, rồi chọn lịch hẹn hoặc tiếp nhận trực tiếp."
       onClose={onClose}
       wide
     >
-      <form
-        className="space-y-5"
-        onSubmit={async (e) => {
-          e.preventDefault();
-          if (!canCheckIn || pending) return;
-          const next = await run({
-            type: "check-in",
-            patientId,
-            appointmentId: appointment?.id,
-            returnVisitId: returnVisit?.id,
-            present,
-            priority,
-          });
-          if (next) onClose();
-        }}
-      >
-        {fixedPatient ? (
-          <dl className="rounded-lg border bg-muted/30 px-4">
-            <InfoRow label="Bệnh nhân">
-              {patient ? (
-                <>
-                  <span className="block">{patient.name}</span>
-                  <span className="mt-1 block text-xs font-normal text-muted-foreground">
-                    {patient.id} · {dateText(patient.dob)} · {patient.phone}
-                  </span>
-                </>
-              ) : (
-                "Không tìm thấy hồ sơ bệnh nhân"
-              )}
-            </InfoRow>
-            {initialAppointment && (
-              <InfoRow label="Lịch hẹn">
-                {initialAppointment}
-                {fixedAppointment &&
-                  ` · ${fixedAppointment.time} · ${dateText(fixedAppointment.date)}`}
-              </InfoRow>
-            )}
-          </dl>
-        ) : (
-          <SelectField
-            label="Bệnh nhân *"
-            value={patientId}
+      <form className="space-y-5" onSubmit={(event) => event.preventDefault()}>
+        {initialAppointment && (
+          <p className="text-sm">Lịch hẹn: {initialAppointment}</p>
+        )}
+        {!initialPatient && (
+          <TextField
+            label="Tên hoặc số điện thoại"
+            value={query}
             onChange={(value) => {
-              setPatientId(value);
-              setPresent(false);
-              setPriority("normal");
-              setMode(
-                s!.visits.find(
-                  (v) =>
-                    v.patientId === value &&
-                    v.status === "awaiting" &&
-                    withinReturnWindow(v.firstCheckIn, day),
-                )?.id ??
-                  s!.appointments.find(
-                    (a) =>
-                      a.patientId === value &&
-                      a.date === day &&
-                      a.status === "booked",
-                  )?.id ??
-                  "walkin",
-              );
+              setQuery(value);
+              setPatientId("");
+              setVerified(null);
             }}
-            disabled={pending}
-            options={[
-              { value: "", label: "Chọn bệnh nhân đã đối chiếu danh tính" },
-              ...s!.patients.map((p) => ({
-                value: p.id,
-                label: `${p.id} · ${p.name} · ${p.phone}`,
-              })),
-            ]}
           />
         )}
-        {invalidContext && (
-          <p role="alert" className="text-destructive">
-            {formatAppMessage("MSG-37")}
+        {!initialPatient && patientsQuery === query && patients.length > 0 && (
+          <div className="max-h-40 space-y-1 overflow-auto rounded-md border p-2">
+            {patients.map((patient) => (
+              <button
+                key={patient.patientProfileId}
+                type="button"
+                className="block w-full rounded p-2 text-left hover:bg-muted"
+                onClick={() => {
+                  setPatientId(patient.patientProfileId);
+                  setVerified(null);
+                  setError("");
+                }}
+              >
+                {patient.fullName} · {patient.phoneCanonical} ·{" "}
+                {dateText(patient.dateOfBirth)}
+              </button>
+            ))}
+          </div>
+        )}
+        {selected && (
+          <p className="text-sm">
+            Đã chọn: {selected.fullName} · {dateText(selected.dateOfBirth)}
           </p>
         )}
-        {patient && !invalidContext && (
+        {initialPatient && (
+          <p className="text-xs text-muted-foreground">Mã hồ sơ: {patientId}</p>
+        )}
+        {!verified ? (
+          <Button
+            type="button"
+            disabled={!patientId || pending}
+            onClick={() => void verifyIdentity()}
+          >
+            {pending ? "Đang xác minh…" : "Xác minh hồ sơ bệnh nhân"}
+          </Button>
+        ) : (
           <>
-            {!initialAppointment && (
-              <SelectField
-                label="Hình thức tiếp nhận"
-                value={mode}
-                onChange={setMode}
-                disabled={pending}
-                options={[
-                  ...returns.map((v) => ({
-                    value: v.id,
-                    label: `Tiếp tục ${v.id} · không thu thêm phí khám`,
-                  })),
-                  ...appointments.map((a) => ({
-                    value: a.id,
-                    label: `${a.id} · lịch ${a.time} hôm nay`,
-                  })),
-                  {
-                    value: "walkin",
-                    label: "Khám trực tiếp · không tạo lịch hẹn",
-                  },
-                ]}
-              />
-            )}
-            <dl>
-              {!fixedPatient && (
-                <InfoRow label="Định danh">
-                  {patient.name} · {patient.dob.split("-").reverse().join("/")}{" "}
-                  · {patient.phone}
-                </InfoRow>
-              )}
-              <InfoRow label="Phí khám">
-                {returnVisit ? (
-                  "0 ₫ · tiếp tục lượt khám cũ trong 7 ngày"
-                ) : fee ? (
-                  <span className="flex items-center gap-3">
-                    {money(fee.amount)}
-                    <Status value={fee.status} />
-                  </span>
-                ) : (
-                  "Chưa lập khoản phí khám"
-                )}
-              </InfoRow>
-              {appointment && (
-                <InfoRow label="Bác sĩ">
-                  {s!.doctors.find((d) => d.id === appointment.doctorId)?.name}
-                </InfoRow>
-              )}
-            </dl>
-            {!returnVisit && !fee && mode === "walkin" && (
+            <p className="rounded-md bg-muted p-3 text-sm">
+              Đã xác minh hồ sơ: {verified.fullName} ·{" "}
+              {dateText(verified.dateOfBirth)}.
+            </p>
+            {appointmentsPatientId === verified.patientProfileId &&
+              appointments
+                .filter(
+                  (appointment) =>
+                    !initialAppointment ||
+                    initialAppointment === appointment.id,
+                )
+                .map((appointment) => (
+                  <div
+                    key={appointment.id}
+                    className="flex flex-wrap items-center justify-between gap-3 rounded-md border p-3"
+                  >
+                    <div>
+                      <p className="font-medium">
+                        {appointment.serviceName} ·{" "}
+                        {timeText(appointment.startTime)}
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        {appointment.doctorDisplayName ?? "Chưa phân bác sĩ"} ·
+                        Phí khám:{" "}
+                        {appointment.examFeePaid === true
+                          ? "đã thanh toán"
+                          : appointment.examFeePaid === false
+                            ? "chưa thanh toán"
+                            : "chưa rõ"}
+                      </p>
+                    </div>
+                    {appointment.status === "NO_SHOW" ? (
+                      <p className="text-sm text-muted-foreground">
+                        Lịch hẹn đã chuyển sang không đến; hãy tạo lượt walk-in.
+                      </p>
+                    ) : arrivals.some(
+                        (arrival) =>
+                          arrival.appointmentId === appointment.id &&
+                          arrival.state !== "LATE",
+                      ) ? (
+                      <Button
+                        type="button"
+                        disabled={pending}
+                        onClick={() => void submit(appointment.id)}
+                      >
+                        Check-in lịch hẹn
+                      </Button>
+                    ) : arrivals.some(
+                        (arrival) =>
+                          arrival.appointmentId === appointment.id &&
+                          arrival.state === "LATE",
+                      ) ? (
+                      <p className="text-sm text-muted-foreground">
+                        Bệnh nhân đến sau thời hạn check-in lịch hẹn; hãy tiếp
+                        nhận thành walk-in.
+                      </p>
+                    ) : (
+                      <div className="w-full space-y-2">
+                        <p className="text-sm text-muted-foreground">
+                          Chưa có ghi nhận bệnh nhân đến bằng QR.
+                        </p>
+                        <Textarea
+                          aria-label="Lý do xác nhận bệnh nhân đã đến"
+                          value={arrivalReason}
+                          onChange={(event) =>
+                            setArrivalReason(event.target.value)
+                          }
+                          placeholder="Lý do ghi nhận thủ công"
+                          maxLength={500}
+                        />
+                        <Button
+                          type="button"
+                          disabled={
+                            pending || arrivalReason.trim().length === 0
+                          }
+                          onClick={() => {
+                            setPending(true);
+                            setError("");
+                            void recordManualReceptionArrival({
+                              appointmentId: appointment.id,
+                              reason: arrivalReason,
+                            })
+                              .then((arrival) => {
+                                setArrivals((items) => [
+                                  ...items.filter(
+                                    (item) =>
+                                      item.appointmentId !==
+                                      arrival.appointmentId,
+                                  ),
+                                  arrival,
+                                ]);
+                                setArrivalReason("");
+                              })
+                              .catch((cause) =>
+                                setError(
+                                  isApiError(cause)
+                                    ? cause.message
+                                    : "Không thể ghi nhận bệnh nhân đã đến.",
+                                ),
+                              )
+                              .finally(() => setPending(false));
+                          }}
+                        >
+                          Xác nhận bệnh nhân đã đến
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                ))}
+            {(!initialAppointment ||
+              appointments.some(
+                (appointment) =>
+                  appointment.id === initialAppointment &&
+                  appointment.status === "NO_SHOW",
+              ) ||
+              arrivals.some(
+                (arrival) =>
+                  arrival.appointmentId === initialAppointment &&
+                  arrival.state === "LATE",
+              )) && (
               <Button
                 type="button"
                 variant="outline"
                 disabled={pending}
-                onClick={() =>
-                  void run({
-                    type: "prepare-walk-in",
-                    patientId,
-                    serviceId: "kham",
-                  })
-                }
+                onClick={() => void submit(undefined, initialAppointment)}
               >
-                Lập phí khám trực tiếp ·{" "}
-                {money(s!.services.find((v) => v.id === "kham")!.price)}
+                Tiếp nhận walk-in
               </Button>
             )}
-            {!returnVisit && fee?.status === "pending" && (
-              <div className="flex flex-wrap items-center gap-3">
-                <p className="text-muted-foreground">
-                  Bệnh nhân cần thanh toán trước khi check-in.
-                </p>
-                <RouteLink
-                  href={`/reception/payments?patientId=${patientId}&contextId=${contextId}`}
-                >
-                  Mở thu phí
-                </RouteLink>
-              </div>
-            )}
-            {returnVisit && (
-              <p className="text-muted-foreground">
-                Giữ nguyên lượt {returnVisit.id} và ngày tiếp nhận đầu tiên. Chỉ
-                thu các dịch vụ chưa thanh toán, nếu có.
-              </p>
-            )}
-            <SelectField
-              label="Nhóm ưu tiên"
-              value={priority}
-              onChange={(v) => setPriority(v as Priority)}
-              disabled={pending}
-              options={Object.entries(PRIORITIES)
-                .filter(
-                  ([value]) => value !== "pregnant" || patient?.sex === "Nữ",
-                )
-                .filter(
-                  ([value]) =>
-                    !["normal", "child", "elderly"].includes(value) ||
-                    value === automaticPriority,
-                )
-                .map(([value, label]) => ({ value, label }))}
-            />
-            <p className="text-xs text-muted-foreground">
-              Nhóm theo tuổi được xác định tự động từ ngày sinh tại ngày tiếp
-              nhận: {PRIORITIES[automaticPriority]}. Hãy đối chiếu ngày sinh;
-              nếu sai, sửa hồ sơ trước khi tiếp nhận. Các diện ưu tiên khác cần
-              xác minh thực tế; cấp cứu phải có đánh giá của nhân viên y tế.
-            </p>
-            <label className="flex items-start gap-3">
-              <Checkbox
-                checked={present}
-                onCheckedChange={setPresent}
-                disabled={pending}
-              />
-              <span>
-                Đã đối chiếu đúng bệnh nhân và xác nhận bệnh nhân có mặt tại
-                phòng khám.
-              </span>
-            </label>
           </>
         )}
-        <FormActions
-          onClose={onClose}
-          label="Xác nhận tiếp nhận"
-          disabled={!canCheckIn}
-        />
+        {error && (
+          <p role="alert" className="text-sm text-destructive">
+            {error}
+          </p>
+        )}
+        {result && (
+          <p role="status" className="text-sm text-emerald-700">
+            {result}
+          </p>
+        )}
+        <div className="flex justify-end">
+          <Button type="button" variant="outline" onClick={onClose}>
+            Đóng
+          </Button>
+        </div>
       </form>
     </FormModal>
   );
 }
+
 export function IntakeScreen() {
-  const { data: s } = useReception();
   const params = useSearchParams();
   const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState("appointments");
+  const [appointments, setAppointments] = useState<ReceptionAppointment[]>([]);
+  const [arrivals, setArrivals] = useState<ReceptionArrival[]>([]);
   const [checkIn, setCheckIn] = useState<{
     patientId?: string;
     appointmentId?: string;
@@ -310,197 +442,353 @@ export function IntakeScreen() {
         }
       : null,
   );
-  const day = s!.clock.slice(0, 10);
-  const appointments = s!.appointments.filter((a) => a.date === day);
-  const queues = s!.queues.filter(
-    (q) =>
-      q.date === day && ["waiting", "serving", "absent"].includes(q.status),
-  );
-  const matches = (patientId: string) => {
-    const p = s!.patients.find((p) => p.id === patientId)!;
-    return normalizeText(`${p.name} ${p.id} ${p.phone}`).includes(
-      normalizeText(search),
-    );
-  };
-  const rows =
-    filter === "appointments"
-      ? appointments
-          .filter((a) => matches(a.patientId))
-          .map((a) => {
-            const p = s!.patients.find((p) => p.id === a.patientId)!;
-            const d = s!.doctors.find((d) => d.id === a.doctorId)!;
-            const charge = s!.charges.find((c) => c.contextId === a.id);
-            return {
-              id: a.id,
-              cells: [
-                <span key="time" className="font-medium tabular-nums">
-                  {a.time}
-                </span>,
-                <PatientName
-                  key="patient"
-                  name={p.name}
-                  code={p.id}
-                  secondary={p.phone}
-                />,
-                <div key="doctor">
-                  {d.name}
-                  {d.absent && (
-                    <p className="mt-1 text-xs text-destructive">
-                      {a.unavailabilityDiscussedAt
-                        ? "Bác sĩ vắng ca · đã trao đổi với bệnh nhân"
-                        : "Bác sĩ vắng ca · cần bố trí thay thế"}
-                    </p>
-                  )}
-                </div>,
-                <Status key="fee" value={charge?.status ?? "pending"} />,
-                <Status key="status" value={a.status} />,
-                a.status === "booked" ? (
-                  <Button
-                    key="checkin"
-                    variant="outline"
-                    onClick={() =>
-                      setCheckIn({ patientId: p.id, appointmentId: a.id })
-                    }
-                  >
-                    Tiếp nhận
-                  </Button>
-                ) : (
-                  "—"
-                ),
-              ],
-            };
-          })
-      : queues
-          .filter((q) =>
-            matches(s!.visits.find((v) => v.id === q.visitId)!.patientId),
-          )
-          .map((q) => {
-            const v = s!.visits.find((v) => v.id === q.visitId)!,
-              p = s!.patients.find((p) => p.id === v.patientId)!;
-            return {
-              id: q.id,
-              cells: [
-                <span key="number" className="font-semibold tabular-nums">
-                  {q.number}
-                </span>,
-                <PatientName key="patient" name={p.name} code={p.id} />,
-                s!.rooms.find((r) => r.id === q.roomId)!.name,
-                PRIORITIES[q.priority],
-                <Status
-                  key="status"
-                  value={
-                    q.calledAt && q.status === "waiting" ? "called" : q.status
-                  }
-                />,
-                <RouteLink
-                  key="open"
-                  href={`/reception/queues?roomId=${q.roomId}`}
-                >
-                  Mở hàng đợi
-                </RouteLink>,
-              ],
-            };
-          });
+  const today = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Ho_Chi_Minh",
+  }).format(new Date());
+  const [error, setError] = useState("");
+  const [qrOpen, setQrOpen] = useState(false);
+  const [detail, setDetail] = useState<ReceptionAppointment | null>(null);
+  const reload = useCallback(async () => {
+    const [appointmentsResult, arrivalsResult] = await Promise.allSettled([
+      listReceptionAppointments({ from: today, to: today }),
+      listReceptionArrivals({ date: today }),
+    ]);
+    if (appointmentsResult.status === "fulfilled") {
+      setAppointments(appointmentsResult.value.items);
+    } else {
+      const cause = appointmentsResult.reason;
+      setError(isApiError(cause) ? cause.message : "Không thể tải lịch hẹn.");
+    }
+    if (arrivalsResult.status === "fulfilled") {
+      setArrivals(arrivalsResult.value.items);
+    } else {
+      const cause = arrivalsResult.reason;
+      setError(
+        isApiError(cause)
+          ? cause.message
+          : "Không thể tải trạng thái bệnh nhân đã đến.",
+      );
+    }
+  }, [today]);
+  useEffect(() => {
+    const initialLoad = window.setTimeout(() => void reload(), 0);
+    const interval = window.setInterval(() => void reload(), 10_000);
+    return () => {
+      window.clearTimeout(initialLoad);
+      window.clearInterval(interval);
+    };
+  }, [reload]);
+  const visible = appointments.filter((item) => {
+    if (!DAILY_RECEPTION_STATUSES.has(item.status)) return false;
+    if (!search) return true;
+    return [item.patientName, item.patientProfileId]
+      .filter((value): value is string => Boolean(value))
+      .some((value) =>
+        value.toLocaleLowerCase().includes(search.toLocaleLowerCase()),
+      );
+  });
+  const notCheckedInCount = appointments.filter(
+    (appointment) => appointment.status === "CONFIRMED",
+  ).length;
+
   return (
     <>
       <PageHeader
         title="Tiếp nhận bệnh nhân"
-        description="Theo dõi lịch đến khám và đưa bệnh nhân vào đúng hàng đợi."
+        description="Theo dõi lịch hẹn và trạng thái QR check-in hôm nay; hỗ trợ tiếp nhận tại quầy khi cần."
         actions={
-          <Button onClick={() => setCheckIn({})}>
-            <UserRoundPlus />
-            Tiếp nhận bệnh nhân
-          </Button>
+          <>
+            <Button variant="outline" onClick={() => setQrOpen(true)}>
+              Mã QR check-in
+            </Button>
+            <Button onClick={() => setCheckIn({})}>
+              <UserRoundPlus />
+              Tiếp nhận bệnh nhân
+            </Button>
+          </>
         }
       />
-      <div className="mb-6 grid grid-cols-2 divide-x divide-y rounded-lg border bg-card md:grid-cols-4 md:divide-y-0">
-        {[
-          { title: "Lịch hẹn hôm nay", count: appointments.length },
-          {
-            title: "Chưa tiếp nhận",
-            count: appointments.filter((a) => a.status === "booked").length,
-          },
-          {
-            title: "Đang chờ trong phòng",
-            count: queues.filter((q) => q.status === "waiting").length,
-          },
-          {
-            title: "Cần đổi bác sĩ",
-            count: appointments.filter(
-              (a) =>
-                a.status === "booked" &&
-                s!.doctors.find((d) => d.id === a.doctorId)?.absent,
-            ).length,
-          },
-        ].map((item) => (
-          <div key={item.title} className="p-4">
-            <p className="text-xs text-muted-foreground">{item.title}</p>
-            <p className="mt-2 text-2xl font-semibold tabular-nums">
-              {item.count}
-            </p>
-          </div>
-        ))}
-      </div>
-      <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
-        <div
-          className="flex gap-2"
-          role="group"
-          aria-label="Danh sách tiếp nhận"
-        >
-          <Button
-            variant={filter === "appointments" ? "secondary" : "ghost"}
-            aria-pressed={filter === "appointments"}
-            onClick={() => setFilter("appointments")}
-          >
-            Lịch hẹn hôm nay
-          </Button>
-          <Button
-            variant={filter === "queue" ? "secondary" : "ghost"}
-            aria-pressed={filter === "queue"}
-            onClick={() => setFilter("queue")}
-          >
-            Đã tiếp nhận
-          </Button>
+      <div className="mb-4 grid grid-cols-2 gap-3 rounded-lg border bg-card p-4 md:grid-cols-3">
+        <div>
+          <p className="text-xs text-muted-foreground">Lịch hẹn hôm nay</p>
+          <p className="mt-2 text-2xl font-semibold">
+            {
+              appointments.filter((item) =>
+                DAILY_RECEPTION_STATUSES.has(item.status),
+              ).length
+            }
+          </p>
         </div>
-        <div className="w-full sm:w-72">
-          <TextField
-            label="Tìm trong danh sách"
-            value={search}
-            onChange={setSearch}
-          />
+        <div>
+          <p className="text-xs text-muted-foreground">Chưa check-in</p>
+          <p className="mt-2 text-2xl font-semibold">{notCheckedInCount}</p>
+        </div>
+        <div>
+          <p className="text-xs text-muted-foreground">Ngày phòng khám</p>
+          <p className="mt-2 font-medium">{dateText(today)}</p>
         </div>
       </div>
-      <DataTable
-        key={`${filter}-${search}`}
-        label="Tiếp nhận bệnh nhân"
-        headers={
-          filter === "appointments"
-            ? [
-                "Giờ hẹn",
-                "Bệnh nhân",
-                "Bác sĩ",
-                "Phí khám",
-                "Lịch hẹn",
-                "Thao tác",
-              ]
-            : [
-                "Số thứ tự",
-                "Bệnh nhân",
-                "Phòng",
-                "Ưu tiên",
-                "Trạng thái",
-                "Thao tác",
-              ]
-        }
-        rows={rows}
-      />
+      <div className="mb-4 w-full sm:w-72">
+        <TextField
+          label="Tìm theo tên hoặc mã hồ sơ"
+          value={search}
+          onChange={setSearch}
+        />
+      </div>
+      {error && (
+        <p role="alert" className="mb-3 text-sm text-destructive">
+          {error}
+        </p>
+      )}
+      <div className="overflow-x-auto rounded-lg border">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b text-left">
+              <th className="p-3">Giờ hẹn</th>
+              <th className="p-3">Bệnh nhân</th>
+              <th className="p-3">Bác sĩ</th>
+              <th className="p-3">Phí khám</th>
+              <th className="p-3">Trạng thái</th>
+              <th className="p-3">QR check-in</th>
+              <th className="p-3">Thao tác</th>
+            </tr>
+          </thead>
+          <tbody>
+            {visible.map((appointment) => (
+              <tr key={appointment.id} className="border-b last:border-0">
+                <td className="p-3">{timeText(appointment.startTime)}</td>
+                <td className="p-3">
+                  <PatientName
+                    name={appointment.patientName ?? "Chưa có tên bệnh nhân"}
+                    code={appointment.patientProfileId}
+                  />
+                </td>
+                <td className="p-3">
+                  {appointment.doctorDisplayName ?? "Chưa phân bác sĩ"}
+                </td>
+                <td className="p-3">
+                  {appointment.examFeePaid === true
+                    ? "Đã thanh toán"
+                    : appointment.examFeePaid === false
+                      ? "Chưa thanh toán"
+                      : "Chưa rõ"}
+                </td>
+                <td className="p-3">
+                  <Status value={receptionStatusValue(appointment.status)} />
+                </td>
+                <td className="p-3">
+                  {appointment.visitId
+                    ? "Đã check-in"
+                    : arrivals.find(
+                          (arrival) => arrival.appointmentId === appointment.id,
+                        )?.source === "PATIENT_QR"
+                      ? "Đã quét QR"
+                      : arrivals.some(
+                            (arrival) =>
+                              arrival.appointmentId === appointment.id,
+                          )
+                        ? "Đã xác nhận tại quầy"
+                        : "Chưa quét"}
+                </td>
+                <td className="p-3">
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      variant="outline"
+                      onClick={() => setDetail(appointment)}
+                    >
+                      Xem chi tiết
+                    </Button>
+                    {["CONFIRMED", "NO_SHOW"].includes(appointment.status) && (
+                      <Button
+                        onClick={() =>
+                          setCheckIn({
+                            patientId: appointment.patientProfileId,
+                            appointmentId: appointment.id,
+                          })
+                        }
+                      >
+                        Hỗ trợ tiếp nhận
+                      </Button>
+                    )}
+                  </div>
+                </td>
+              </tr>
+            ))}
+            {visible.length === 0 && (
+              <tr>
+                <td
+                  colSpan={7}
+                  className="p-6 text-center text-muted-foreground"
+                >
+                  Không có lịch hẹn cần tiếp nhận.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
       <p className="mt-5 text-xs text-muted-foreground">
+        Phí khám được hiển thị theo trạng thái hóa đơn backend. Thu phí, ưu tiên
+        và xếp phòng chưa thuộc thao tác check-in hiện được tích hợp.
+      </p>
+      <p className="mt-3 text-xs text-muted-foreground">
         Bệnh nhân mới chưa có hồ sơ?{" "}
         <RouteLink href="/reception/patients">Tra cứu hoặc tạo hồ sơ</RouteLink>
       </p>
       {checkIn && (
-        <CheckInDialog {...checkIn} onClose={() => setCheckIn(null)} />
+        <CheckInDialog
+          {...checkIn}
+          onClose={() => setCheckIn(null)}
+          onUpdated={() => void reload()}
+        />
       )}
+      {detail && (
+        <FormModal
+          title="Chi tiết lịch hẹn"
+          description="Thông tin lịch hẹn và hồ sơ bệnh nhân từ hệ thống."
+          onClose={() => setDetail(null)}
+          wide
+        >
+          <dl className="divide-y rounded-md border px-4">
+            <DetailRow label="Mã lịch hẹn">{detail.id}</DetailRow>
+            <DetailRow label="Bệnh nhân">
+              {detail.patientName ?? "Chưa có tên bệnh nhân"}
+            </DetailRow>
+            <DetailRow label="Mã hồ sơ">{detail.patientProfileId}</DetailRow>
+            <DetailRow label="Ngày / giờ">
+              {timeText(detail.startTime)}
+            </DetailRow>
+            <DetailRow label="Dịch vụ">
+              {detail.serviceName ?? "Chưa có thông tin dịch vụ"}
+            </DetailRow>
+            <DetailRow label="Bác sĩ">
+              {detail.doctorDisplayName ?? "Chưa phân bác sĩ"}
+            </DetailRow>
+            <DetailRow label="Phí khám">
+              {detail.examFeePaid === true
+                ? "Đã thanh toán"
+                : detail.examFeePaid === false
+                  ? "Chưa thanh toán"
+                  : "Chưa rõ"}
+            </DetailRow>
+            <DetailRow label="Trạng thái">
+              <Status value={receptionStatusValue(detail.status)} />
+            </DetailRow>
+            {detail.purpose && (
+              <DetailRow label="Lý do khám">{detail.purpose}</DetailRow>
+            )}
+          </dl>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setDetail(null)}>
+              Đóng
+            </Button>
+            {["CONFIRMED", "NO_SHOW"].includes(detail.status) && (
+              <Button
+                onClick={() => {
+                  setCheckIn({
+                    patientId: detail.patientProfileId,
+                    appointmentId: detail.id,
+                  });
+                  setDetail(null);
+                }}
+              >
+                Hỗ trợ tiếp nhận
+              </Button>
+            )}
+          </div>
+        </FormModal>
+      )}
+      {qrOpen && <ReceptionArrivalQr onClose={() => setQrOpen(false)} />}
     </>
+  );
+}
+
+function DetailRow({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="grid gap-1 py-3 sm:grid-cols-[10rem_1fr] sm:gap-4">
+      <dt className="text-sm text-muted-foreground">{label}</dt>
+      <dd className="min-w-0 break-words text-sm font-medium">{children}</dd>
+    </div>
+  );
+}
+
+function ReceptionArrivalQr({ onClose }: { onClose: () => void }) {
+  const [proof, setProof] = useState("");
+  const [expiresAt, setExpiresAt] = useState("");
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    let timer: number | undefined;
+    const refresh = async () => {
+      try {
+        const result = await getCurrentClinicArrivalProof();
+        if (!active) return;
+        setProof(result.proof);
+        setExpiresAt(result.expiresAt);
+        setError("");
+        timer = window.setTimeout(
+          () => void refresh(),
+          Math.max(5, result.refreshAfterSeconds) * 1000,
+        );
+      } catch (cause) {
+        if (!active) return;
+        setError(
+          isApiError(cause) && cause.status === 503
+            ? "Backend chưa nạp APP_ARRIVAL_QR_HMAC_SECRET. Hãy khởi động lại backend sau khi cấu hình backend/.env."
+            : isApiError(cause)
+              ? cause.message
+              : "Không thể tạo mã QR check-in.",
+        );
+        timer = window.setTimeout(() => void refresh(), 5000);
+      }
+    };
+    void refresh();
+    return () => {
+      active = false;
+      if (timer !== undefined) window.clearTimeout(timer);
+    };
+  }, []);
+
+  return (
+    <FormModal
+      title="Mã QR check-in tại quầy"
+      description="Mời bệnh nhân đăng nhập, mở lịch hẹn và quét mã này để xác nhận đã đến. Mã tự làm mới định kỳ."
+      onClose={onClose}
+    >
+      <div className="flex flex-col items-center gap-4">
+        {proof ? (
+          <div className="rounded-xl bg-white p-4">
+            <QRCodeSVG value={proof} size={240} level="M" />
+          </div>
+        ) : (
+          <p role={error ? "alert" : "status"} className="text-sm">
+            {error || "Đang tạo mã QR…"}
+          </p>
+        )}
+        {expiresAt && (
+          <p className="text-xs text-muted-foreground">
+            Mã hiện tại hết hạn lúc{" "}
+            {new Date(expiresAt).toLocaleTimeString("vi-VN", {
+              timeZone: "Asia/Ho_Chi_Minh",
+            })}
+          </p>
+        )}
+        {error && proof && (
+          <p role="alert" className="text-sm text-destructive">
+            {error}. Hệ thống sẽ thử tạo mã mới.
+          </p>
+        )}
+        <Button variant="outline" onClick={onClose}>
+          Đóng
+        </Button>
+      </div>
+    </FormModal>
   );
 }
