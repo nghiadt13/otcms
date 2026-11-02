@@ -42,7 +42,7 @@ public class PatientProfileDirectoryServiceImpl implements PatientProfileDirecto
         entity.setAccountId(record.accountId());
         entity.setFullName(record.fullName());
         entity.setPhoneCanonical(record.phoneCanonical());
-        entity.setPhoneOwnerType(PhoneOwnerType.valueOf(phoneOwnerType));
+        entity.setPhoneOwnerType(phoneOwnerType == null ? null : PhoneOwnerType.valueOf(phoneOwnerType));
         entity.setDateOfBirth(record.dateOfBirth());
         entity.setGender(Gender.valueOf(record.gender()));
         entity.setAddress(record.address());
@@ -69,7 +69,7 @@ public class PatientProfileDirectoryServiceImpl implements PatientProfileDirecto
 
     private ProfileRecord toRecord(PatientProfileJpaEntity entity) {
         return new ProfileRecord(entity.getId(), entity.getAccountId(), entity.getFullName(), entity.getPhoneCanonical(),
-                entity.getPhoneOwnerType().name(), entity.getDateOfBirth(), entity.getGender().name(),
+                entity.getPhoneOwnerType() == null ? null : entity.getPhoneOwnerType().name(), entity.getDateOfBirth(), entity.getGender().name(),
                 entity.getAddress(), entity.getNationalId(),
                 entity.getIdentityDocumentType() == null ? null : entity.getIdentityDocumentType().name(), entity.getVersion());
     }
@@ -82,6 +82,13 @@ public class PatientProfileDirectoryServiceImpl implements PatientProfileDirecto
                 ? profiles.findByPhoneCanonicalAndDateOfBirth(phone, dob, limit)
                 : profiles.findExactMatches(phone, dob, normalizedFullName, limit);
         return result.stream().map(this::toRecord).toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<ProfileRecord> matchDependent(String normalizedName, LocalDate dob, String nationalId) {
+        return profiles.findDependentMatches(normalizedName, dob, nationalId, PageRequest.of(0, 2))
+                .stream().map(this::toRecord).toList();
     }
 
     @Override
@@ -99,7 +106,7 @@ public class PatientProfileDirectoryServiceImpl implements PatientProfileDirecto
             throw new ObjectOptimisticLockingFailureException(PatientProfileJpaEntity.class, record.id());
         entity.setFullName(record.fullName());
         entity.setPhoneCanonical(record.phoneCanonical());
-        entity.setPhoneOwnerType(PhoneOwnerType.valueOf(record.phoneOwnerType()));
+        entity.setPhoneOwnerType(record.phoneOwnerType() == null ? null : PhoneOwnerType.valueOf(record.phoneOwnerType()));
         entity.setDateOfBirth(record.dateOfBirth());
         entity.setGender(Gender.valueOf(record.gender()));
         entity.setAddress(record.address());
