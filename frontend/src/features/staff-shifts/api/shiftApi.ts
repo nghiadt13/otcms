@@ -3,215 +3,35 @@ import { ApiError } from "@/lib/api/apiError";
 import type { ServiceCategory } from "@/lib/domain/clinicCategories";
 import type { StaffRole } from "@/lib/domain/clinicRoles";
 import { addDays, todayIsoDate } from "@/lib/format/formatDate";
-import { clone, mockDelay, mockFail } from "@/lib/api/mockServer";
-import { timeToMinutes } from "../schema/shiftFieldRules";
 import type {
-  AffectedAppointment,
-  AffectedAppointmentsResponse,
-  RoomOptionsResponse,
   Shift,
   ShiftInput,
+  ShiftUpdateInput,
   ShiftListQuery,
   ShiftListResponse,
-  ShiftUpdateInput,
   StaffOptionsResponse,
+  RoomOptionsResponse,
+  AffectedAppointmentsResponse,
 } from "../types/shift";
-import {
-  actionsFor,
-  buildShift,
-  MOCK_ROOMS,
-  MOCK_STAFF,
-  SERVICE_ERROR_FROM,
-  seedAppointments,
-  seedShifts,
-  shiftMockConfig,
-} from "./shiftMockData";
-
-const USE_MOCK = process.env.NODE_ENV === "test";
-
-// ==========================================
-// MOCK IMPLEMENTATION (dùng cho Vitest tests)
-// ==========================================
-
-let shifts: Shift[] = seedShifts();
-let appointments: Record<string, AffectedAppointment[]> = seedAppointments();
-let nextId = 1;
-
-/** Đặt lại kho giả về dữ liệu khởi tạo (dùng trong test). */
-export function resetShiftMockStore() {
-  shifts = seedShifts();
-  appointments = seedAppointments();
-  nextId = 1;
-  doctorByShiftId.clear();
-  staffShiftIds.clear();
-  doctorShiftById.clear();
-}
-
-const pause = (signal?: AbortSignal) =>
-  mockDelay(shiftMockConfig.delayMs, signal);
-
-/** Gắn `allowedActions` theo thời điểm hiện tại khi trả ra. */
-const present = (shift: Shift): Shift =>
-  clone({ ...shift, allowedActions: actionsFor(shift) });
-
-const overlaps = (a: Shift | ShiftInput, b: Shift | ShiftInput) =>
-  a.date === b.date &&
-  timeToMinutes(a.startTime) < timeToMinutes(b.endTime) &&
-  timeToMinutes(b.startTime) < timeToMinutes(a.endTime);
-
-const findShift = (id: string) => shifts.find((s) => s.id === id);
-
-/** Kiểm tra dùng chung cho POST và PUT, ném đúng mã như BE. */
-function validateAssignment(
-  candidate: ShiftInput,
-  staff: { role: StaffRole; eligible: boolean },
-  ignoreId?: string,
-) {
-  const room = MOCK_ROOMS.find((r) => r.roomId === candidate.roomId);
-  const start = timeToMinutes(candidate.startTime);
-  const end = timeToMinutes(candidate.endTime);
-  if (Number.isNaN(start) || Number.isNaN(end) || end <= start)
-    mockFail(400, "MSG-34", undefined, [{ field: "endTime", code: "MSG-34" }]);
-  if (candidate.date < todayIsoDate())
-    mockFail(400, "MSG-34", undefined, [{ field: "date", code: "MSG-34" }]);
-  if (!room || !room.ready)
-    mockFail(400, "MSG-34", undefined, [{ field: "roomId", code: "MSG-34" }]);
-  // Lễ tân chưa có loại phòng phù hợp (câu hỏi mở 1): chưa tạo được ca.
-  if (staff.role === "RECEPTIONIST")
-    mockFail(400, "MSG-34", undefined, [{ field: "roomId", code: "MSG-34" }]);
-  if (!staff.eligible) mockFail(409, "MSG-35");
-
-  for (const other of shifts) {
-    if (other.id === ignoreId || !overlaps(other, candidate)) continue;
-    if (other.staffId === candidate.staffId) mockFail(409, "MSG-35");
-    if (
-      staff.role === "ORTHOPEDIC_DOCTOR" &&
-      other.role === "ORTHOPEDIC_DOCTOR" &&
-      other.roomId === candidate.roomId
-    )
-      mockFail(409, "MSG-35");
+function actionsFor(
+  shift: Pick<Shift, "date" | "startTime">,
+  now = new Date(),
+): Shift["allowedActions"] {
+  const today = todayIsoDate(now);
+  if (shift.date < today) return ["view"];
+  if (shift.date === today) {
+    const nowTime = new Intl.DateTimeFormat("en-GB", {
+      timeZone: "Asia/Ho_Chi_Minh",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    })
+      .format(now)
+      .replace("24:", "00:");
+    if (shift.startTime <= nowTime) return ["view"];
   }
+  return ["edit", "delete"];
 }
-
-async function mockListShifts(
-  query: ShiftListQuery,
-  signal?: AbortSignal,
-): Promise<ShiftListResponse> {
-  await pause(signal);
-  if (query.from === SERVICE_ERROR_FROM) mockFail(503, "MSG-04");
-  if (query.from > query.to) mockFail(400, "MSG-54");
-  if (query.staffId) {
-    const staff = MOCK_STAFF.find((s) => s.staffId === query.staffId);
-    if (!staff || !staff.eligible) mockFail(404, "MSG-33");
-  }
-  if (query.roomId && !MOCK_ROOMS.some((r) => r.roomId === query.roomId))
-    mockFail(404, "MSG-33");
-
-  const items = shifts
-    .filter(
-      (s) =>
-        s.date >= query.from &&
-        s.date <= query.to &&
-        (!query.staffId || s.staffId === query.staffId) &&
-        (!query.role || s.role === query.role) &&
-        (!query.roomId || s.roomId === query.roomId),
-    )
-    .sort((a, b) =>
-      `${a.date}${a.startTime}`.localeCompare(`${b.date}${b.startTime}`),
-    )
-    .map(present);
-  return { items };
-}
-
-async function mockCreateShift(input: ShiftInput): Promise<Shift> {
-  await pause();
-  const staff = MOCK_STAFF.find((s) => s.staffId === input.staffId);
-  if (!staff) mockFail(409, "MSG-35");
-  validateAssignment(input, staff);
-  const created = buildShift({ ...input, id: `sh-new-${nextId++}` });
-  shifts.push(created);
-  return present(created);
-}
-
-async function mockUpdateShift(
-  id: string,
-  input: ShiftUpdateInput,
-): Promise<Shift> {
-  await pause();
-  const current = findShift(id);
-  if (!current) mockFail(404, "MSG-33");
-  // Ca đã qua hoặc đã bắt đầu: không còn sửa được.
-  if (!actionsFor(current).includes("edit")) mockFail(409, "MSG-33");
-  if (
-    current.role === "ORTHOPEDIC_DOCTOR" &&
-    (appointments[id]?.length ?? 0) > 0
-  )
-    mockFail(409, "MSG-36");
-  const staff = MOCK_STAFF.find((s) => s.staffId === current.staffId)!;
-  validateAssignment({ ...input, staffId: current.staffId }, staff, id);
-  const updated = buildShift({ ...input, id, staffId: current.staffId });
-  shifts = shifts.map((s) => (s.id === id ? updated : s));
-  return present(updated);
-}
-
-async function mockDeleteShift(id: string): Promise<void> {
-  await pause();
-  const current = findShift(id);
-  if (!current) mockFail(404, "MSG-33");
-  if (!actionsFor(current).includes("delete")) mockFail(409, "MSG-33");
-  if (
-    current.role === "ORTHOPEDIC_DOCTOR" &&
-    (appointments[id]?.length ?? 0) > 0
-  )
-    mockFail(409, "MSG-36");
-  shifts = shifts.filter((s) => s.id !== id);
-}
-
-async function mockListAffectedAppointments(
-  shiftId: string,
-  signal?: AbortSignal,
-): Promise<AffectedAppointmentsResponse> {
-  await pause(signal);
-  const shift = findShift(shiftId);
-  if (!shift) mockFail(404, "MSG-33");
-  const all =
-    shift.role === "ORTHOPEDIC_DOCTOR" ? (appointments[shiftId] ?? []) : [];
-  return {
-    shiftId,
-    totalItems: all.length,
-    items: clone(
-      [...all].sort((a, b) => a.startAt.localeCompare(b.startAt)).slice(0, 5),
-    ),
-  };
-}
-
-async function mockListStaffOptions(
-  role?: StaffRole,
-  signal?: AbortSignal,
-): Promise<StaffOptionsResponse> {
-  await pause(signal);
-  return {
-    items: MOCK_STAFF.filter(
-      (s) => s.eligible && (!role || s.role === role),
-    ).map(({ staffId, fullName, role: r }) => ({ staffId, fullName, role: r })),
-  };
-}
-
-async function mockListRoomOptions(
-  category?: ServiceCategory,
-  signal?: AbortSignal,
-): Promise<RoomOptionsResponse> {
-  await pause(signal);
-  return {
-    items: MOCK_ROOMS.filter(
-      (r) => r.ready && (!category || r.category === category),
-    ).map(({ roomId, name, category: c }) => ({ roomId, name, category: c })),
-  };
-}
-
-// ==========================================
-// LIVE BE IMPLEMENTATION (dùng khi chạy ứng dụng thật)
-// ==========================================
 
 type StaffProfile = {
   id: string;
@@ -268,11 +88,30 @@ const roomCategory = (type: string): ServiceCategory =>
 const doctorPath = (doctorId: string) =>
   `/api/v1/admin/doctors/${doctorId}/shifts` as const;
 const staffShiftsPath = "/api/v1/admin/staff-shifts" as const;
-const listStaffProfiles = (signal?: AbortSignal) =>
-  apiRequest<{ items: { staffId: string; fullName: string; role: string }[] }>(
-    "/api/v1/admin/staff-shifts/staff-options",
-    { signal },
-  );
+async function listStaffProfiles(signal?: AbortSignal) {
+  const [staff, doctors] = await Promise.all([
+    apiRequest<{
+      items: { staffId: string; fullName: string; role: string }[];
+    }>("/api/v1/admin/staff-shifts/staff-options", { signal }),
+    apiRequest<{
+      items: {
+        doctorProfileId: string;
+        fullName: string;
+        inActiveDirectory: boolean;
+      }[];
+    }>("/api/v1/admin/doctor-profiles", { signal }),
+  ]);
+  const options = new Map(staff.items.map((item) => [item.staffId, item]));
+  for (const doctor of doctors.items) {
+    if (doctor.inActiveDirectory)
+      options.set(doctor.doctorProfileId, {
+        staffId: doctor.doctorProfileId,
+        fullName: doctor.fullName,
+        role: "DOCTOR",
+      });
+  }
+  return { items: [...options.values()] };
+}
 
 function toShift(
   item: DoctorShift,
@@ -514,58 +353,41 @@ async function liveListRoomOptions(
   };
 }
 
-// ==========================================
-// EXPORTS
-// ==========================================
-
-export async function listShifts(
-  query: ShiftListQuery,
-  signal?: AbortSignal,
-): Promise<ShiftListResponse> {
-  if (USE_MOCK) return mockListShifts(query, signal);
-  return liveListShifts(query, signal);
+async function callShift<T>(action: () => Promise<T>): Promise<T> {
+  try {
+    return await action();
+  } catch (error) {
+    if (!(error instanceof ApiError) || error.code) throw error;
+    const code =
+      error.errorCode === "RESOURCE_MUTATION_BLOCKED"
+        ? "MSG-36"
+        : error.status === 409
+          ? "MSG-35"
+          : error.status === 400
+            ? "MSG-34"
+            : error.status === 404 || error.status === 403
+              ? "MSG-33"
+              : "MSG-04";
+    throw new ApiError(error.status, {
+      code,
+      errorCode: error.errorCode,
+      fieldErrors: error.fieldErrors,
+    });
+  }
 }
-
-export async function createShift(input: ShiftInput): Promise<Shift> {
-  if (USE_MOCK) return mockCreateShift(input);
-  return liveCreateShift(input);
-}
-
-export async function updateShift(
-  id: string,
-  input: ShiftUpdateInput,
-): Promise<Shift> {
-  if (USE_MOCK) return mockUpdateShift(id, input);
-  return liveUpdateShift(id, input);
-}
-
-export async function deleteShift(id: string): Promise<void> {
-  if (USE_MOCK) return mockDeleteShift(id);
-  return liveDeleteShift(id);
-}
-
-export async function listAffectedAppointments(
-  shiftId: string,
-  signal?: AbortSignal,
-): Promise<AffectedAppointmentsResponse> {
-  if (USE_MOCK) return mockListAffectedAppointments(shiftId, signal);
-  return liveListAffectedAppointments(shiftId, signal);
-}
-
-export async function listStaffOptions(
-  role?: StaffRole,
-  signal?: AbortSignal,
-): Promise<StaffOptionsResponse> {
-  if (USE_MOCK) return mockListStaffOptions(role, signal);
-  return liveListStaffOptions(role, signal);
-}
-
-export async function listRoomOptions(
-  category?: ServiceCategory,
-  signal?: AbortSignal,
-): Promise<RoomOptionsResponse> {
-  if (USE_MOCK) return mockListRoomOptions(category, signal);
-  return liveListRoomOptions(category, signal);
-}
-
+export const listShifts: typeof liveListShifts = (...args) =>
+  callShift(() => liveListShifts(...args));
+export const createShift: typeof liveCreateShift = (...args) =>
+  callShift(() => liveCreateShift(...args));
+export const updateShift: typeof liveUpdateShift = (...args) =>
+  callShift(() => liveUpdateShift(...args));
+export const deleteShift: typeof liveDeleteShift = (...args) =>
+  callShift(() => liveDeleteShift(...args));
+export const listAffectedAppointments: typeof liveListAffectedAppointments = (
+  ...args
+) => callShift(() => liveListAffectedAppointments(...args));
+export const listStaffOptions: typeof liveListStaffOptions = (...args) =>
+  callShift(() => liveListStaffOptions(...args));
+export const listRoomOptions: typeof liveListRoomOptions = (...args) =>
+  callShift(() => liveListRoomOptions(...args));
 export const mockTomorrow = () => addDays(todayIsoDate(), 1);

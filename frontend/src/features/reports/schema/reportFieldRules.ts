@@ -23,7 +23,16 @@ export const EMPTY_REPORT_FORM: ReportFormValues = {
   breakdown: "",
 };
 
-/** Thiếu chủ đề hoặc ngày, hoặc từ > đến → MSG-72 (spec 13). */
+/** Validate calendar dates and the inclusive 90-day reporting period. */
+function calendarDay(value: string): number | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  const time = Date.parse(`${value}T00:00:00Z`);
+  return Number.isFinite(time) &&
+    new Date(time).toISOString().slice(0, 10) === value
+    ? time
+    : null;
+}
+
 export function validateReportForm(
   values: ReportFormValues,
   subjects: ReportSubjectOption[],
@@ -33,7 +42,16 @@ export function validateReportForm(
     errors.subject = "MSG-72";
   if (!values.from) errors.from = "MSG-72";
   if (!values.to) errors.to = "MSG-72";
-  if (values.from && values.to && values.from > values.to) errors.to = "MSG-72";
+  const from = calendarDay(values.from);
+  const to = calendarDay(values.to);
+  if (from === null) errors.from = "MSG-72";
+  if (to === null) errors.to = "MSG-72";
+  if (
+    from !== null &&
+    to !== null &&
+    (to < from || (to - from) / 86_400_000 + 1 > 90)
+  )
+    errors.to = "MSG-72";
   return errors;
 }
 

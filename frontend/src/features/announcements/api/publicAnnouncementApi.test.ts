@@ -1,70 +1,35 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, expect, it, vi } from "vitest";
+import { ApiError } from "@/lib/api/apiError";
 import {
-  getPublicAnnouncement,
   listPublicAnnouncements,
+  getPublicAnnouncement,
 } from "./publicAnnouncementApi";
-import { mockStore, resetAnnouncementMock } from "./announcementMockData";
-
+const request = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/api/client", () => ({ publicApiRequest: request }));
 beforeEach(() => {
-  resetAnnouncementMock();
+  request.mockReset();
 });
-
-describe("listPublicAnnouncements", () => {
-  it("chỉ gồm thông báo có nhóm nhận Khách và bệnh nhân (BR-61)", async () => {
-    const expected = mockStore.announcements.filter(
-      (a) => a.audience === "PUBLIC",
-    );
-    const page = await listPublicAnnouncements({ page: 0, size: 100 });
-    expect(page.totalItems).toBe(expected.length);
-    expect(expected.length).toBeGreaterThan(0);
-    const ids = new Set(expected.map((a) => a.id));
-    expect(page.items.every((item) => ids.has(item.id))).toBe(true);
+it("uses public endpoints only with server pagination", async () => {
+  request.mockResolvedValue({
+    items: [],
+    page: 2,
+    size: 10,
+    totalItems: 0,
+    totalPages: 0,
   });
-
-  it("sắp xếp mới nhất trước và chỉ trả trường công khai", async () => {
-    const page = await listPublicAnnouncements({ page: 0, size: 100 });
-    const dates = page.items.map((item) => item.publishedAt);
-    expect([...dates].sort((a, b) => b.localeCompare(a))).toEqual(dates);
-    for (const item of page.items) {
-      expect(Object.keys(item).sort()).toEqual([
-        "body",
-        "id",
-        "publishedAt",
-        "title",
-      ]);
-    }
-  });
-
-  it("phân trang theo size", async () => {
-    const total = (await listPublicAnnouncements({ page: 0, size: 100 }))
-      .totalItems;
-    const page = await listPublicAnnouncements({ page: 0, size: 1 });
-    expect(page.items).toHaveLength(1);
-    expect(page.totalPages).toBe(total);
-  });
+  await listPublicAnnouncements({ page: 2, size: 10 });
+  expect(request.mock.calls[0][0]).toBe(
+    "/api/v1/public/announcements?page=2&size=10",
+  );
+  await getPublicAnnouncement("notice");
+  expect(request.mock.calls.at(-1)![0]).toBe(
+    "/api/v1/public/announcements/notice",
+  );
 });
-
-describe("getPublicAnnouncement", () => {
-  it("thông báo công khai trả chi tiết", async () => {
-    const source = mockStore.announcements.find(
-      (a) => a.audience === "PUBLIC",
-    )!;
-    const detail = await getPublicAnnouncement(source.id);
-    expect(detail).toEqual({
-      id: source.id,
-      title: source.title,
-      body: source.body,
-      publishedAt: source.publishedAt,
-    });
-  });
-
-  it("thông báo chỉ dành cho nhân viên hoặc bệnh nhân trả 404 MSG-50", async () => {
-    const hidden = mockStore.announcements.find(
-      (a) => a.audience !== "PUBLIC",
-    )!;
-    await expect(getPublicAnnouncement(hidden.id)).rejects.toMatchObject({
-      status: 404,
-      code: "MSG-50",
-    });
+it("does not substitute private or fake announcements for a 404", async () => {
+  request.mockRejectedValue(new ApiError(404, { errorCode: "MSG-50" }));
+  await expect(getPublicAnnouncement("staff-only")).rejects.toMatchObject({
+    code: "MSG-50",
+    status: 404,
   });
 });

@@ -1,0 +1,38 @@
+package fu.fa26.sep490.g58.otcms_be.activitylog.application;
+import fu.fa26.sep490.g58.otcms_be.activitylog.domain.ActivityLogEntry;
+import java.time.LocalDate;
+import java.time.ZoneId;
+import java.util.Set;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+@Service
+@Transactional(readOnly = true)
+public class ActivityLogQueryHandler implements QueryActivityLogs {
+    private static final ZoneId ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
+    private static final Set<String> CATEGORIES = Set.of("ACCOUNT", "STAFF_PROFILE", "STAFF_SHIFT", "ROOM",
+            "SERVICE", "CONTENT", "ANNOUNCEMENT", "REVIEW", "PAYMENT", "RESULT_CORRECTION");
+    private final ActivityLogReader reader;
+    public ActivityLogQueryHandler(ActivityLogReader reader) { this.reader = reader; }
+    @Override public ActivityLogReader.Page list(String from, String to, String action, String record, String actor,
+            int page, int size) {
+        try {
+            LocalDate start = clean(from).isEmpty() ? null : LocalDate.parse(from);
+            LocalDate end = clean(to).isEmpty() ? null : LocalDate.parse(to);
+            String category = clean(action);
+            if ((start != null && end != null && start.isAfter(end)) || page < 0 || size < 1 || size > 100
+                    || (!category.isEmpty() && !CATEGORIES.contains(category))
+                    || clean(record).length() > 200 || clean(actor).length() > 200) throw new IllegalArgumentException();
+            Math.multiplyExact(page, size);
+            return reader.list(new ActivityLogReader.Criteria(start == null ? null : start.atStartOfDay(ZONE).toInstant(),
+                    end == null ? null : end.plusDays(1).atStartOfDay(ZONE).toInstant(),
+                    category, clean(record), clean(actor), page, size));
+        } catch (java.time.DateTimeException | IllegalArgumentException | ArithmeticException ex) {
+            throw new ActivityLogFailure("MSG-54");
+        }
+    }
+    @Override public ActivityLogEntry detail(String id) {
+        if (id == null || id.length() > 128 || !id.matches("[a-z_]+:[0-9a-fA-F-]{36}")) throw new ActivityLogFailure("MSG-50");
+        return reader.find(id).orElseThrow(() -> new ActivityLogFailure("MSG-50"));
+    }
+    private static String clean(String value) { return value == null ? "" : value.trim(); }
+}

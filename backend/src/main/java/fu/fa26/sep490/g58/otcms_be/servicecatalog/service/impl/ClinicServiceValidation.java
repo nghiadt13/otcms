@@ -38,8 +38,10 @@ final class ClinicServiceValidation {
                 if (indicator == null || indicator.name() == null || indicator.name().isBlank()
                         || indicator.unit() == null || indicator.unit().isBlank()
                         || indicator.refMale() == null || indicator.refFemale() == null
-                        || indicator.refMale().min() > indicator.refMale().max()
-                        || indicator.refFemale().min() > indicator.refFemale().max()) {
+                        || indicator.refMale().min() >= indicator.refMale().max()
+                        || indicator.refFemale().min() >= indicator.refFemale().max()
+                        || !Double.isFinite(indicator.refMale().min()) || !Double.isFinite(indicator.refMale().max())
+                        || !Double.isFinite(indicator.refFemale().min()) || !Double.isFinite(indicator.refFemale().max())) {
                     throw new ClinicServiceException("VALIDATION_FAILED");
                 }
             }

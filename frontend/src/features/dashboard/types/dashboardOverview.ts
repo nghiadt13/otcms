@@ -45,6 +45,7 @@ export type DashboardOverview = {
     total: Metric;
     byStatus: StatusRow<VisitStatusCode>[];
     waitingByRoom: RoomWaitingRow[];
+    waitingByRoomStatus?: "READY" | "NO_SOURCE";
   }>;
   imagingAndLab: DashboardBlock<{
     imagingPerformed: Metric;

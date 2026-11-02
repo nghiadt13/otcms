@@ -8,6 +8,7 @@ import { ROLE_LABELS, STAFF_ROLES } from "@/lib/domain/clinicRoles";
 import type { StaffProfileFilters as Filters } from "../types/staffProfile";
 
 type StaffProfileFiltersProps = {
+  fixedRole?: import("@/lib/domain/clinicRoles").StaffRole;
   search: string;
   onSearchChange: (value: string) => void;
   filters: Filters;
@@ -16,6 +17,7 @@ type StaffProfileFiltersProps = {
 
 /** Thanh lọc màn 91. Lọc Công khai chỉ áp cho bác sĩ nên khóa vai trò ở bác sĩ. */
 export function StaffProfileFilters({
+  fixedRole,
   search,
   onSearchChange,
   filters,
@@ -33,7 +35,7 @@ export function StaffProfileFilters({
         aria-label="Vai trò"
         className="w-full sm:w-auto"
         value={filters.role}
-        disabled={filters.isPublic !== ""}
+        disabled={!!fixedRole || filters.isPublic !== ""}
         onChange={(event) =>
           onFilterChange("role", event.target.value as Filters["role"])
         }
@@ -59,6 +61,7 @@ export function StaffProfileFilters({
       </NativeSelect>
       <NativeSelect
         aria-label="Công khai"
+        disabled={!!fixedRole && fixedRole !== "ORTHOPEDIC_DOCTOR"}
         className="w-full sm:w-auto"
         value={filters.isPublic}
         onChange={(event) =>

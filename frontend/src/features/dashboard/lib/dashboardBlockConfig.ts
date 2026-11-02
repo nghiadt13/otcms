@@ -30,7 +30,7 @@ export type DashboardBlockView = {
   href: string;
 };
 
-export const NO_SOURCE_TEXT = "Chưa có dữ liệu để tổng hợp cho khối này.";
+export const NO_SOURCE_TEXT = "Chưa có dữ liệu nguồn để tổng hợp cho khối này.";
 const RETRY_PERIOD_HINT = "Chọn kỳ khác để xem lại.";
 
 const APPOINTMENT_STATUS: Record<AppointmentStatusCode, string> = {
@@ -137,11 +137,13 @@ export function buildDashboardBlocks(
             ]
           : placeholder(["Tổng lượt khám"]),
       emptyNotice:
-        visits.status === "READY" &&
-        visits.byStatus.length === 0 &&
-        visits.waitingByRoom.length === 0
-          ? `Chưa có lượt khám hay người chờ nào trong kỳ này. ${RETRY_PERIOD_HINT}`
-          : undefined,
+        visits.status === "READY" && visits.waitingByRoomStatus === "NO_SOURCE"
+          ? "Hàng đợi theo phòng chưa có nguồn dữ liệu thống kê. Số lượt khám ở trên lấy từ lượt khám đã tiếp nhận."
+          : visits.status === "READY" &&
+              visits.byStatus.length === 0 &&
+              visits.waitingByRoom.length === 0
+            ? `Chưa có lượt khám hay người chờ nào trong kỳ này. ${RETRY_PERIOD_HINT}`
+            : undefined,
     },
     {
       key: "imagingAndLab",
@@ -160,7 +162,7 @@ export function buildDashboardBlocks(
     {
       key: "services",
       title: "Dịch vụ dùng nhiều nhất",
-      description: "Năm dịch vụ có nhiều lượt dùng nhất trong kỳ.",
+      description: "Tối đa 10 dịch vụ khám từ lịch hẹn đã hoàn tất trong kỳ.",
       href: ADMIN_ROUTES.reports,
       noSource: services.status === "NO_SOURCE",
       rows:

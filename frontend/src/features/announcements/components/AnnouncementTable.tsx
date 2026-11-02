@@ -37,7 +37,13 @@ function DeliveryCell({ item }: { item: AnnouncementListItem }) {
   if (!item.deliveryStatus)
     return <span className="text-muted-foreground">—</span>;
   const view = DELIVERY_STATUS_VIEW[item.deliveryStatus];
-  return <StatusBadge tone={view.tone}>{view.label}</StatusBadge>;
+  return (
+    <StatusBadge tone={view.tone}>
+      {item.audience === "PUBLIC" && item.deliveryStatus === "SENT"
+        ? "Đã đăng"
+        : view.label}
+    </StatusBadge>
+  );
 }
 
 export function AnnouncementTable({
@@ -94,7 +100,11 @@ export function AnnouncementTable({
                       </span>
                     </TableCell>
                     <TableCell>{audienceLabel(item.audience)}</TableCell>
-                    <TableCell>{channelsText(item.channels)}</TableCell>
+                    <TableCell>
+                      {item.audience === "PUBLIC"
+                        ? "Website phòng khám"
+                        : channelsText(item.channels)}
+                    </TableCell>
                     <TableCell className="tabular-nums">
                       {formatDateTime(item.publishedAt)}
                     </TableCell>
