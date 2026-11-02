@@ -1,7 +1,7 @@
 import { publicApiRequest } from "@/lib/api/client";
 import { apiBaseUrl } from "@/lib/api/apiBaseUrl";
 import { ApiError } from "@/lib/api/apiError";
-import type { PublicDoctor, PublicDoctorDetail } from "../types/publicDoctor";
+import type { PublicDoctor, PublicDoctorDetail, DoctorAvailabilityDay } from "../types/publicDoctor";
 
 type DoctorResponse = {
   doctorProfileId: string;
@@ -12,6 +12,8 @@ type DoctorResponse = {
   biography: string | null;
   consultationInformation: string | null;
 };
+
+type DoctorDetailResponse = DoctorResponse & { availability: DoctorAvailabilityDay[] };
 
 function mapDoctor(d: DoctorResponse): PublicDoctor {
   const photo = d.photoUrl?.startsWith("/")
@@ -49,11 +51,11 @@ export async function getPublicDoctor(
   signal?: AbortSignal,
 ): Promise<PublicDoctorDetail> {
   try {
-    const data = await publicApiRequest<DoctorResponse>(
+    const data = await publicApiRequest<DoctorDetailResponse>(
       `/api/v1/doctors/${encodeURIComponent(id)}`,
       { signal },
     );
-    return { ...mapDoctor(data), availability: [] };
+    return { ...mapDoctor(data), availability: data.availability };
   } catch (error) {
     if (error instanceof ApiError && error.status === 404)
       throw new ApiError(404, { code: "MSG-24" });
