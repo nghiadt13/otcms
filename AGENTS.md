@@ -31,13 +31,14 @@ File UC ngắn (~50 dòng) nên đọc trọn khi cần luồng; chỉ grep appe
 
 ## Kiến trúc backend
 
-- Xây một ứng dụng Spring Boot REST theo Clean Architecture trong modular monolith. Dùng một Maven module ban đầu; chia Java package theo **feature nghiệp vụ** như `appointment`, `schedule`, `visit`, `clinical`, `imaging`, `billing`. Không chia package nghiệp vụ theo actor như `doctor` hay `receptionist` vì nhiều actor cùng dùng một feature.
-- Bên trong feature, dùng `domain`, `application`, `adapter/in/web`, `adapter/out/persistence` và adapter tích hợp khác khi cần. Một UC là một thao tác/use case, không mặc định là một package riêng.
-- `domain` chứa mô hình và luật nghiệp vụ thuần Java; không import Spring, JPA, HTTP hay SDK bên ngoài. `application` điều phối use case và khai báo port. Adapter nhận/trả HTTP, lưu dữ liệu hoặc gọi dịch vụ ngoài và phụ thuộc vào port. Chiều phụ thuộc đi vào `application`/`domain`.
-- Một Maven module chưa tự ngăn import sai giữa các package. Khi tạo mã nguồn, bảo vệ chiều phụ thuộc bằng code review và kiểm tra kiến trúc tự động nếu nhóm thống nhất dùng công cụ đó.
-- Controller gọi use case qua port đầu vào; không gọi trực tiếp JPA repository hoặc Orthanc. Feature khác dùng API/use case được công khai của feature sở hữu dữ liệu, không truy cập adapter hay bảng của feature đó như một lối tắt.
+- Xây một ứng dụng Spring Boot REST theo **modular monolith + Spring layered architecture**, nguồn duyệt là `backend/CONSTITUTION.md` mục ARCH-01 và ARCH-02 (RFC-001). Dùng một Maven module; chia Java package theo **feature nghiệp vụ** như `appointment`, `visit`, `billing`, `review`, `notification`. Không chia package nghiệp vụ theo actor như `doctor` hay `receptionist` vì nhiều actor cùng dùng một feature.
+- Bên trong feature, chia theo lớp: `controller`, `service` (interface) cùng `service/impl`, `repository`, `model/entity` (JPA entity), `model/dto` (request/response), `exception`; thêm `mapper`, `config`, `integration` (client dịch vụ ngoài), `security`, `validation` khi cần. Package mẫu để làm theo: `review`, `notification`. Một UC là một thao tác trong service, không mặc định là một package riêng.
+- Chiều phụ thuộc là `controller → service → repository → entity`. Controller chỉ xử lý HTTP (nhận request, lấy người dùng đăng nhập, validate/map, gọi service, trả DTO); không gọi repository hoặc `EntityManager`, không chứa luật nghiệp vụ, không trả entity. Service giữ điều phối, luật nghiệp vụ, kiểm tra quyền trên bản ghi, idempotency và ranh giới transaction; không biết mã HTTP (lỗi nghiệp vụ là exception trong `exception/`, `@RestControllerAdvice` ánh xạ sang HTTP). Repository chỉ làm persistence bằng Spring Data JPA hoặc truy vấn có tham số; entity không phụ thuộc web, DTO hay security. Bean dùng constructor injection.
+- Một Maven module chưa tự ngăn import sai giữa các package; bảo vệ chiều phụ thuộc bằng code review và test cấu trúc đơn giản (JUnit + reflection). Không thêm công cụ kiểm tra kiến trúc (ví dụ ArchUnit) khi nhóm chưa duyệt.
+- Feature khác dùng service được công khai của feature sở hữu dữ liệu, không truy cập repository hay bảng của feature đó như một lối tắt. Nếu có lý do đọc chéo (ví dụ báo cáo), ghi rõ trong PR để NghiaDT duyệt.
+- Dùng cấu trúc layered này cho mọi package backend. Muốn dùng cấu trúc khác phải có RFC được duyệt (theo `backend/CONSTITUTION.md`).
 - Đặt kiểm tra quyền truy cập theo vai trò và quyền sở hữu hồ sơ ở backend. Vai trò ứng dụng nằm trong dữ liệu tài khoản/quy tắc nghiệp vụ; không đồng nhất nó với claim `role` PostgreSQL của Supabase Auth.
-- PostgreSQL/Supabase lưu dữ liệu nghiệp vụ và tham chiếu study. File DICOM nằm trong kho ảnh sau `ImagingArchivePort`; backend kiểm tra bệnh nhân, lượt khám, study và trạng thái phát hành trước khi cấp quyền xem.
+- PostgreSQL/Supabase lưu dữ liệu nghiệp vụ và tham chiếu study. File DICOM nằm trong kho ảnh sau một interface riêng (ví dụ `ImagingArchivePort`) đặt ở `integration/`; backend kiểm tra bệnh nhân, lượt khám, study và trạng thái phát hành trước khi cấp quyền xem.
 
 ## Kiến trúc frontend
 
@@ -56,10 +57,12 @@ File UC ngắn (~50 dòng) nên đọc trọn khi cần luồng; chỉ grep appe
 | Thành phần | Quy ước | Ví dụ |
 | --- | --- | --- |
 | Java package | chữ thường, theo feature, tên đơn | `appointment`, `imaging` |
-| Java class/interface | `PascalCase`, tên nêu trách nhiệm | `Appointment`, `ReleaseStudyUseCase` |
-| Use case đầu vào và thực thi | `<Action><Entity>UseCase` và `<Action><Entity>Handler` | `CreateAppointmentUseCase`, `CreateAppointmentHandler` |
-| Port đầu ra và adapter | `<Entity>Repository` hoặc `<Purpose>Port`; adapter nêu công nghệ | `ImagingArchivePort`, `OrthancImagingArchiveAdapter` |
-| HTTP và JPA | `<Entity>Controller`, `<Action><Entity>Request`, `<Entity>Response`, `<Entity>JpaEntity` | `AppointmentController`, `CreateAppointmentRequest` |
+| Java class/interface | `PascalCase`, tên nêu trách nhiệm | `ReviewService`, `NotificationPublisher` |
+| Service | interface `<Entity>Service` (hoặc tên theo trách nhiệm) ở `service/`, cài đặt `<Entity>ServiceImpl` ở `service/impl/` | `ReviewService`, `ReviewServiceImpl` |
+| Repository và entity | `<Entity>Repository` (Spring Data JPA) ở `repository/`, `<Entity>JpaEntity` ở `model/entity/` | `PatientReviewRepository`, `PatientReviewJpaEntity` |
+| HTTP và DTO | `<Entity>Controller` ở `controller/`; DTO là record gom trong `<Feature>Dtos` hoặc `<Action><Entity>Request`, `<Entity>Response` ở `model/dto/` | `AdminReviewController`, `ReviewDtos` |
+| Exception | `<Feature>OperationException` mang mã MSG; `<Feature>ApiExceptionHandler` ánh xạ sang HTTP, đặt ở `exception/` | `ReviewOperationException`, `ReviewApiExceptionHandler` |
+| Client dịch vụ ngoài | tên nêu nhà cung cấp, đặt ở `integration/<nhà-cung-cấp>/` | `PayOsPaymentGateway` |
 | React component | file và export dùng `PascalCase` | `AppointmentForm.tsx` |
 | React hook | `use` + `PascalCase` | `useRoomQueue.ts` |
 | Frontend feature/folder | `kebab-case`; route file theo quy ước NextJS | `clinical-records/`, `page.tsx` |

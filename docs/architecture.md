@@ -2,7 +2,7 @@
 
 ## Quyết định chính
 
-Một repository, hai ứng dụng độc lập: Next.js và Spring Boot. Backend là **modular monolith** với Clean Architecture trong từng feature. Mỗi feature sở hữu luật nghiệp vụ, use case, port và adapter của mình. Package theo **feature**, không theo actor; Patient và Receptionist đều có thể gọi feature `appointment` với quyền khác nhau. Một Maven module giúp nhóm bắt đầu nhanh; chiều phụ thuộc hiện được giữ bằng quy ước/code review, chưa được compiler ép buộc.
+Một repository, hai ứng dụng độc lập: Next.js và Spring Boot. Backend là **modular monolith** theo **Spring layered architecture** (`backend/CONSTITUTION.md`, ARCH-01). Mỗi feature sở hữu controller, service, repository, entity và DTO của mình. Package theo **feature**, không theo actor; Patient và Receptionist đều có thể gọi feature `appointment` với quyền khác nhau. Một Maven module giúp nhóm bắt đầu nhanh; chiều phụ thuộc hiện được giữ bằng quy ước/code review, chưa được compiler ép buộc.
 
 ```mermaid
 flowchart LR
@@ -16,34 +16,29 @@ flowchart LR
 ## Backend
 
 ```text
-backend/src/main/java/com/otcms/
-├── OtcmsBackendApplication.java
-├── shared/
-│   ├── config/SecurityConfiguration.java
-│   └── web/SystemController.java
-├── account/
-├── patient/
-├── appointment/
-├── schedule/
-├── reception/
-├── visit/
-├── clinical/
-├── imaging/
-│   ├── domain/                        Entity, value object, quy tắc thuần Java
-│   ├── application/
-│   │   ├── port/in/                   Interface của use case
-│   │   ├── port/out/ImagingArchivePort.java
-│   │   └── service/                   Handler thực thi use case
-│   └── adapter/
-│       ├── in/web/                    Controller, request, response
-│       └── out/{persistence,orthanc}/ Adapter JPA và DICOMweb
-├── billing/
-└── reporting/
+backend/src/main/java/fu/fa26/sep490/g58/otcms_be/
+├── OtcmsBeApplication.java
+├── config/                            Cấu hình tập trung (SecurityConfig, OpenAPI, properties)
+├── common/                            Mã dùng chung: security, exception, repository, web
+├── auth/ patient/ appointment/        Mỗi feature chia theo lớp như `review` dưới đây
+├── visit/ staff/ servicecatalog/
+├── billing/ notification/ review/
+│   ├── controller/                    Controller: HTTP, validate/map, gọi service
+│   ├── service/                       Interface service (nghiệp vụ, quyền, transaction)
+│   │   └── impl/                      Cài đặt service
+│   ├── repository/                    Spring Data JPA / truy vấn có tham số
+│   ├── model/
+│   │   ├── entity/                    JPA entity
+│   │   └── dto/                       Request/response (record)
+│   ├── exception/                     Exception nghiệp vụ mang mã MSG và handler ánh xạ HTTP
+│   ├── mapper/                        Map entity ↔ DTO khi cần
+│   └── integration/                   Client dịch vụ ngoài khi cần (ví dụ billing/integration/payos)
+└── imaging/ clinical/ reporting/      Thêm khi triển khai UC tương ứng
 ```
 
-Các folder feature ngoài `imaging` trong cây trên là vị trí dành cho UC tương ứng; tạo code khi triển khai UC, không thêm class rỗng. Quy tắc phụ thuộc: `domain` không biết framework; `application` dùng domain và khai báo port; `adapter` triển khai port và dùng framework. Controller không gọi JPA repository. Feature khác không truy cập trực tiếp bảng/adapter của feature chủ sở hữu.
+Tạo code khi triển khai UC, không thêm class rỗng. Quy tắc phụ thuộc (ARCH-01): `controller → service → repository → entity`. Controller không gọi repository và không trả entity; service không biết mã HTTP; entity không phụ thuộc web hay DTO. Feature khác gọi service công khai của feature chủ sở hữu, không truy cập trực tiếp repository hay bảng của feature đó.
 
-Luồng mẫu cho một UC: `POST /api/v1/appointments` → `AppointmentController` → `CreateAppointmentUseCase` → `CreateAppointmentHandler` → `AppointmentRepository` → `JpaAppointmentRepositoryAdapter`. Cả quyền actor lẫn quyền trên bản ghi được kiểm tra trong backend.
+Luồng mẫu cho một UC: `POST /api/v1/reviews` → `PatientReviewController` → `ReviewService` → `ReviewServiceImpl` → `PatientReviewRepository` → `PatientReviewJpaEntity`. Cả quyền actor lẫn quyền trên bản ghi được kiểm tra trong backend.
 
 Backend tự xác thực danh tính (email + mật khẩu băm bcrypt trong bảng account) và phát JWT access token sống ngắn cùng refresh token trong cookie httpOnly; Supabase chỉ cung cấp PostgreSQL. Frontend giữ access token trong bộ nhớ (`lib/auth/authSession.ts`) và gửi CSRF cho `/refresh`, `/logout`. Vai trò phòng khám nằm trong JWT do backend ký và trong bảng account, **không phải** PostgreSQL role. Bảng account của ứng dụng và chính sách use case sẽ giữ vai trò Patient/Receptionist/Orthopedic Doctor/Imaging Technician/Administrator/Clinic Owner. Không ánh xạ vai trò nhóm từ claim `role`.
 
