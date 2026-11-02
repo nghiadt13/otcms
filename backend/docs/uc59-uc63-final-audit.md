@@ -22,8 +22,8 @@ Key/private-key pattern scan returned no hits in changed/new files. Credentials 
 
 ## Migrations
 
-- V044: unique visit_id; four review FKs and two history FKs; patient/status/author/replier/history indexes; BIGINT NOT NULL DEFAULT 0 version aligned with JPA @Version; immutable history entity, append-only repository API and database trigger rejecting UPDATE/DELETE. Real PostgreSQL checks verify uniqueness/FKs/index metadata, version increments, stale writes and mutation/history rollback in both directions. Its existing content/reply length CHECKs now align with Java code-point validation.
-- V045: recipient account FK with dependent inbox ON DELETE CASCADE; APPOINTMENT/VISIT/VISIT_RESULT/PAYMENT/REVIEW; related kind/id null-pair check; recipient-created and partial unread index; read_at null means unread. Both migrations are success=true in the isolated PostgreSQL verification schema. No source migration or existing schema history was changed in this audit.
+- V046 (was V044): unique visit_id; four review FKs and two history FKs; patient/status/author/replier/history indexes; BIGINT NOT NULL DEFAULT 0 version aligned with JPA @Version; immutable history entity, append-only repository API and database trigger rejecting UPDATE/DELETE. Real PostgreSQL checks verify uniqueness/FKs/index metadata, version increments, stale writes and mutation/history rollback in both directions. Its existing content/reply length CHECKs now align with Java code-point validation.
+- V047 (was V045): recipient account FK with dependent inbox ON DELETE CASCADE; APPOINTMENT/VISIT/VISIT_RESULT/PAYMENT/REVIEW; related kind/id null-pair check; recipient-created and partial unread index; read_at null means unread. Both migrations are success=true in the isolated PostgreSQL verification schema. No source migration or existing schema history was changed in this audit.
 
 ## Fourteen endpoint inventory
 
@@ -181,8 +181,8 @@ Production: 51 files (including two unchanged SQL migrations). Tests: 11 files. 
 - `src/main/java/fu/fa26/sep490/g58/otcms_be/visit/service/impl/VisitReviewSourceServiceImpl.java`
 - `src/main/java/fu/fa26/sep490/g58/otcms_be/visit/service/impl/WalkInVisitLifecycleServiceImpl.java`
 - `src/main/java/fu/fa26/sep490/g58/otcms_be/visit/service/VisitReviewSourceService.java`
-- `src/main/resources/db/migration/V044__create_patient_reviews.sql`
-- `src/main/resources/db/migration/V045__create_notifications.sql`
+- `src/main/resources/db/migration/V046__create_patient_reviews.sql`
+- `src/main/resources/db/migration/V047__create_notifications.sql`
 
 ### Tests
 
