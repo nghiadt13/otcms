@@ -58,7 +58,15 @@ function DeliveryResult({ result }: { result: AnnouncementDetail }) {
   return (
     <p className="flex items-center gap-2 text-sm">
       Kết quả giao:
-      {view ? <StatusBadge tone={view.tone}>{view.label}</StatusBadge> : "—"}
+      {view ? (
+        <StatusBadge tone={view.tone}>
+          {result.audience === "PUBLIC" && result.deliveryStatus === "SENT"
+            ? "Đã đăng"
+            : view.label}
+        </StatusBadge>
+      ) : (
+        "—"
+      )}
     </p>
   );
 }
@@ -126,8 +134,11 @@ function CreateDialogBody({
         <DialogHeader>
           <DialogTitle>Đã đăng thông báo</DialogTitle>
           <DialogDescription>
-            Gửi tới {audienceLabel(result.audience)} qua{" "}
-            {channelsText(result.channels, " và ")}.
+            Đã đăng cho {audienceLabel(result.audience)} qua{" "}
+            {result.audience === "PUBLIC"
+              ? "website phòng khám"
+              : channelsText(result.channels, " và ")}
+            .
           </DialogDescription>
         </DialogHeader>
         <DeliveryResult result={result} />
@@ -182,7 +193,7 @@ function CreateDialogBody({
         open={confirmOpen}
         onOpenChange={setConfirmOpen}
         title="Xác nhận đăng thông báo"
-        description={`Thông báo sẽ gửi tới ${confirmTarget} qua ${channelsText(draft.channels, " và ")}.`}
+        description={`Thông báo sẽ được đăng cho ${confirmTarget} qua ${draft.audience === "PUBLIC" ? "website phòng khám" : channelsText(draft.channels, " và ")}.`}
         confirmLabel="Gửi thông báo"
         pendingLabel="Đang gửi..."
         onConfirm={handleConfirm}

@@ -1,3 +1,6 @@
+import { vi } from "vitest";
+import { resetShiftMockStore } from "./shiftApi.testSupport";
+vi.mock("./shiftApi", () => import("./shiftApi.testSupport"));
 import { beforeEach, describe, expect, it } from "vitest";
 import { ApiError } from "@/lib/api/apiError";
 import { addDays, todayIsoDate } from "@/lib/format/formatDate";
@@ -10,7 +13,6 @@ import {
   listShifts,
   listStaffOptions,
   mockTomorrow,
-  resetShiftMockStore,
   updateShift,
 } from "./shiftApi";
 import { shiftMockConfig } from "./shiftMockData";

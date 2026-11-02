@@ -16,7 +16,15 @@ export type HomeHeroContent = {
   highlights: string[];
 };
 
+export type PublicArticleSummary = {
+  id: string;
+  title: string;
+  summary: string;
+  publishedAt: string;
+  imageUrl?: string | null;
+};
 export type WebsiteContent = {
+  articles?: PublicArticleSummary[];
   contact: ClinicContact;
   hero: HomeHeroContent;
 };
@@ -29,6 +37,7 @@ export type PublicAboutPage = {
 
 /** Bài viết sức khỏe đang công khai (`/bai-viet/{id}`); body là Markdown. */
 export type PublicHealthArticle = {
+  imageUrl?: string | null;
   id: string;
   title: string;
   body: string;

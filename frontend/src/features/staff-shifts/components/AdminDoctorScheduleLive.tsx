@@ -42,6 +42,7 @@ import {
   deleteDoctorInterval,
   listDoctorSchedule,
   listScheduleDoctors,
+  listDoctorRooms,
   saveDoctorInterval,
   vietnamDateTime,
   type ScheduleKind,
@@ -350,10 +351,17 @@ function IntervalEditor({
   doctorId: string;
   doctorName: string;
   kind: ScheduleKind;
-  interval?: DoctorInterval;
+  interval?: DoctorInterval & { roomId?: string };
   close: () => void;
   saved: () => void;
 }) {
+  const [roomId, setRoomId] = useState(interval?.roomId ?? "");
+  const loadRooms = useCallback(
+    (signal: AbortSignal) =>
+      kind === "shifts" ? listDoctorRooms(signal) : Promise.resolve([]),
+    [kind],
+  );
+  const rooms = useAdminRemoteData(loadRooms);
   const [start, setStart] = useState(
     interval
       ? toLocal(interval.startsAt)
@@ -389,11 +397,16 @@ function IntervalEditor({
           onSubmit={async (event) => {
             event.preventDefault();
             if (pending) return;
+            if (kind === "shifts" && !roomId) {
+              setError("Chọn phòng khám cho ca bác sĩ.");
+              return;
+            }
             if (!start || !end) {
               setError("Chọn đủ thời gian bắt đầu và kết thúc.");
               return;
             }
             const input = {
+              ...(kind === "shifts" ? { roomId } : {}),
               startsAt: vietnamDateTime(start),
               endsAt: vietnamDateTime(end),
             };
@@ -430,6 +443,31 @@ function IntervalEditor({
           }}
         >
           <fieldset disabled={pending} className="space-y-4">
+            {kind === "shifts" && (
+              <>
+                <RemoteDataState
+                  loading={rooms.loading}
+                  error={rooms.error}
+                  retry={rooms.refresh}
+                />
+                <Field id="interval-room" label="Phòng khám *">
+                  <NativeSelect
+                    id="interval-room"
+                    className="w-full"
+                    required
+                    value={roomId}
+                    onChange={(e) => setRoomId(e.target.value)}
+                  >
+                    <option value="">Chọn phòng khám</option>
+                    {rooms.data?.map((room) => (
+                      <option key={room.id} value={room.id}>
+                        {room.displayLabel || room.roomCode}
+                      </option>
+                    ))}
+                  </NativeSelect>
+                </Field>
+              </>
+            )}
             <Field id="interval-start" label="Bắt đầu *">
               <Input
                 id="interval-start"

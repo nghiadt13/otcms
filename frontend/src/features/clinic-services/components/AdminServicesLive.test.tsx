@@ -8,6 +8,10 @@ const request = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/api/client", () => ({ apiRequest: request }));
 afterEach(() => request.mockReset());
 const service = {
+  type: "EXAMINATION" as const,
+  modality: null,
+  patientNote: null,
+  indicators: [],
   id: "service-id",
   name: "Khám chỉnh hình",
   price: 200000,
@@ -63,4 +67,78 @@ it("refreshes after an acknowledged mutation rather than only changing memory", 
       ([path]) => path === "/api/v1/admin/clinic-services",
     ),
   ).toHaveLength(2);
+});
+
+it("creates a laboratory service with three indicators and reloads its persisted values", async () => {
+  let saved: Record<string, unknown> | undefined;
+  request.mockImplementation(async (_path, init) => {
+    if (init?.method === "POST") {
+      saved = JSON.parse(init.body);
+      return { ...saved, id: "lab", active: true };
+    }
+    return { items: saved ? [{ ...saved, id: "lab", active: true }] : [] };
+  });
+  render(<AdminServicesLive />);
+  const user = userEvent.setup();
+  await screen.findByText(/Không có dịch vụ phù hợp/);
+  await user.click(screen.getByRole("button", { name: "Thêm dịch vụ" }));
+  fireEvent.change(screen.getByLabelText("Loại dịch vụ *"), {
+    target: { value: "LABORATORY" },
+  });
+  fireEvent.change(screen.getByLabelText("Tên dịch vụ *"), {
+    target: { value: "Xét nghiệm máu" },
+  });
+  fireEvent.change(screen.getByLabelText("Giá (VND) *"), {
+    target: { value: "120000" },
+  });
+  for (let i = 1; i <= 3; i++) {
+    if (i > 1)
+      await user.click(screen.getByRole("button", { name: "Thêm chỉ số" }));
+    for (const [label, value] of [
+      ["Tên chỉ số", `Hb${i}`],
+      ["Đơn vị", "g/dL"],
+      ["Nam từ", "13.5"],
+      ["Nam đến", "17"],
+      ["Nữ từ", "12"],
+      ["Nữ đến", "15"],
+    ]) {
+      fireEvent.change(screen.getByLabelText(`${label} ${i}`), {
+        target: { value },
+      });
+    }
+  }
+  await user.click(screen.getByRole("button", { name: "Lưu dịch vụ" }));
+  await waitFor(() =>
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+  );
+  expect(saved).toMatchObject({
+    type: "LABORATORY",
+    modality: null,
+    indicators: expect.arrayContaining([
+      expect.objectContaining({ name: "Hb3", refMale: { min: 13.5, max: 17 } }),
+    ]),
+  });
+  await user.click(screen.getByRole("button", { name: "Sửa" }));
+  expect(screen.getByLabelText("Tên chỉ số 3")).toHaveValue("Hb3");
+  expect(screen.getByLabelText("Nam từ 1")).toHaveValue("13.5");
+});
+it("offers only four backend imaging modalities", async () => {
+  request.mockResolvedValue({ items: [] });
+  render(<AdminServicesLive />);
+  await screen.findByText(/Không có dịch vụ phù hợp/);
+  const user = userEvent.setup();
+  await user.click(screen.getByRole("button", { name: "Thêm dịch vụ" }));
+  fireEvent.change(screen.getByLabelText("Loại dịch vụ *"), {
+    target: { value: "IMAGING" },
+  });
+  const select = screen.getByLabelText(
+    "Phương thức chụp *",
+  ) as HTMLSelectElement;
+  expect(Array.from(select.options).map((option) => option.value)).toEqual([
+    "",
+    "XRAY",
+    "ULTRASOUND",
+    "CT",
+    "MRI",
+  ]);
 });

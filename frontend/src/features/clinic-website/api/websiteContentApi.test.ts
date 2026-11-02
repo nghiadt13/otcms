@@ -1,63 +1,36 @@
-import { afterEach, describe, expect, it } from "vitest";
-import {
-  buildWebsiteContentSeed,
-  resetWebsiteContentStore,
-} from "./websiteContentAdminMockData";
+import { beforeEach, expect, it, vi } from "vitest";
+import { ApiError } from "@/lib/api/apiError";
 import {
   getPublishedAboutPage,
   getPublishedHealthArticle,
+  getPublishedWebsiteContent,
 } from "./websiteContentApi";
-
-afterEach(() => {
-  resetWebsiteContentStore();
+const request = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/api/client", () => ({ publicApiRequest: request }));
+beforeEach(() => {
+  request.mockReset();
 });
-
-describe("getPublishedAboutPage", () => {
-  it("lấy trang giới thiệu đã đăng gần nhất", async () => {
-    const page = await getPublishedAboutPage();
-    expect(page?.title).toBe("Giới thiệu phòng khám");
-    expect(page?.body).toContain("Về chúng tôi");
-  });
-
-  it("chưa đăng trang nào thì trả null, không lỗi", async () => {
-    resetWebsiteContentStore(
-      buildWebsiteContentSeed().filter((item) => item.type !== "ABOUT_PAGE"),
-    );
-    await expect(getPublishedAboutPage()).resolves.toBeNull();
-  });
+it("reads homepage and published articles from public endpoints", async () => {
+  const content = {
+    contact: {},
+    hero: {},
+    articles: [{ id: "a", imageUrl: "/api/v1/public/website-images/i" }],
+  };
+  request.mockResolvedValue(content);
+  expect((await getPublishedWebsiteContent()).articles?.[0].imageUrl).toContain(
+    "/api/v1/public/website-images/i",
+  );
+  expect(request.mock.calls[0][0]).toBe("/api/v1/public/website-content");
+  request.mockResolvedValue({ id: "a", title: "Bài viết", body: "Nội dung" });
+  await getPublishedHealthArticle("a");
+  expect(request.mock.calls.at(-1)![0]).toBe("/api/v1/public/articles/a");
 });
-
-describe("getPublishedHealthArticle", () => {
-  it("bài đã đăng trả nội dung công khai", async () => {
-    const article = buildWebsiteContentSeed().find(
-      (item) =>
-        item.type === "HEALTH_ARTICLE" &&
-        item.allowedActions.includes("viewOnWebsite"),
-    )!;
-    const detail = await getPublishedHealthArticle(article.id);
-    expect(detail).toEqual({
-      id: article.id,
-      title: article.title,
-      body: article.body,
-      publishedAt: article.publishedAt,
-    });
-  });
-
-  it("bài chưa có trang công khai hoặc không tồn tại trả 404 MSG-50", async () => {
-    const unpublished = buildWebsiteContentSeed().find(
-      (item) =>
-        item.type === "HEALTH_ARTICLE" &&
-        !item.allowedActions.includes("viewOnWebsite"),
-    )!;
-    await expect(
-      getPublishedHealthArticle(unpublished.id),
-    ).rejects.toMatchObject({
-      status: 404,
-      code: "MSG-50",
-    });
-    await expect(getPublishedHealthArticle("khong-co")).rejects.toMatchObject({
-      status: 404,
-      code: "MSG-50",
-    });
+it("handles an absent about page without hiding network or authorization failures", async () => {
+  request.mockRejectedValueOnce(new ApiError(404, { errorCode: "MSG-50" }));
+  await expect(getPublishedAboutPage()).resolves.toBeNull();
+  request.mockRejectedValueOnce(new ApiError(503, { errorCode: "MSG-04" }));
+  await expect(getPublishedAboutPage()).rejects.toMatchObject({
+    status: 503,
+    code: "MSG-04",
   });
 });
