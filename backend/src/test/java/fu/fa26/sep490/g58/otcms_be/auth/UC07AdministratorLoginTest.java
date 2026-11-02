@@ -50,6 +50,25 @@ class UC07AdministratorLoginTest {
     }
 
     @Test
+    void legacyAdministratorWithoutUsernameCanAuthenticateWithEmailThroughAdministrativeLogin() {
+        AccountRepository accounts = mock(AccountRepository.class);
+        var encoder = PasswordEncoderFactories.createDelegatingPasswordEncoder();
+        var generator = new TemporaryPasswordGenerator();
+        String password = generator.generate();
+        AccountJpaEntity admin = new AccountJpaEntity();
+        admin.setId(UUID.randomUUID());
+        admin.setAccountType(AccountType.ADMIN);
+        admin.setStatus(AccountStatus.ACTIVE);
+        admin.setPasswordHash(encoder.encode(password));
+        when(accounts.findByNormalizedEmail("admin@otcms.local")).thenReturn(Optional.of(admin));
+        var properties = new AuthProperties(null, null, null, null, null, null, "v1", "v1", generator.generate());
+        var login = new CredentialLoginServiceImpl(accounts, mock(AuthenticationAuditRepository.class),
+                encoder, properties, mock(AuthConcurrencyRepository.class));
+        assertEquals("ADMIN", login.loginAdministrator(" Admin@otcms.local ", password, "127.0.0.1").accountType());
+        verify(accounts, never()).findByUsername(anyString());
+    }
+
+    @Test
     void clinicStaffCanAuthenticateWithUsernameWithoutEmailLookup() {
         AccountRepository accounts = mock(AccountRepository.class);
         var encoder = PasswordEncoderFactories.createDelegatingPasswordEncoder();

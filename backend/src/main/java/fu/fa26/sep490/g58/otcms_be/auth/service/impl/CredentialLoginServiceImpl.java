@@ -74,7 +74,12 @@ public class CredentialLoginServiceImpl implements CredentialLoginService {
     @Override
     @Transactional(noRollbackFor = CredentialLoginException.class)
     public CredentialLoginResponse loginAdministrator(String username, String password, String ip) {
-        return authenticate(username, password, type -> type == AccountType.ADMIN || type == AccountType.OWNER, "STAFF", ip,
+        Predicate<AccountType> administrative = type -> type == AccountType.ADMIN || type == AccountType.OWNER;
+        // Legacy Administrator/Owner accounts have no username (V032) and still sign in by email.
+        if (username != null && username.contains("@")) {
+            return loginMatching(username, password, administrative, "STAFF", ip);
+        }
+        return authenticate(username, password, administrative, "STAFF", ip,
                 () -> accounts.findByUsername(username).orElse(null));
     }
 
