@@ -21,6 +21,7 @@ export const APP_MESSAGES: Record<string, string> = {
   "MSG-15": "Trạng thái tài khoản đã được cập nhật thành {status}.",
   "MSG-16":
     "Không thể hoàn tất yêu cầu. Hãy tải lại trạng thái trước khi thử lại.",
+  "MSG-20": "Thông tin tiền sử bệnh chưa hợp lệ. Vui lòng kiểm tra và chỉnh sửa.",
   "MSG-22":
     "Thông tin hồ sơ nhân viên chưa hợp lệ. Vui lòng kiểm tra và chỉnh sửa.",
   "MSG-23":

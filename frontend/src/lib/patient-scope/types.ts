@@ -9,6 +9,8 @@ export interface LinkedProfile {
   dateOfBirth: string;
   sex: "MALE" | "FEMALE";
   relationship: CareRelationship;
+  /** R3: hồ sơ đang chờ xác minh chưa được đọc tiền sử. */
+  linkStatus?: "CONFIRMED" | "PENDING_OTP" | "PENDING_COUNTER";
 }
 
 /** Hình trả về của GET /api/v1/me/patient-profiles. */

@@ -30,7 +30,7 @@ export function PatientProfileList({
                 </Badge>
               </span>
               <span className="mt-0.5 block text-sm text-muted-foreground tabular-nums">
-                {profile.patientCode} · {formatDate(profile.dateOfBirth)} ·{" "}
+                {profile.patientCode ? `${profile.patientCode} · ` : ""}{formatDate(profile.dateOfBirth)} ·{" "}
                 {SEX_LABELS[profile.sex]}
               </span>
             </span>
@@ -39,6 +39,11 @@ export function PatientProfileList({
               className="size-5 shrink-0 text-muted-foreground"
             />
           </Link>
+          {(!profile.linkStatus || profile.linkStatus === "CONFIRMED") && (
+            <Link className="mb-3 ml-4 inline-block text-sm font-medium text-primary underline-offset-4 hover:underline" href={PATIENT_ROUTES.profileHistory(profile.id)}>
+              Tiền sử bệnh
+            </Link>
+          )}
         </li>
       ))}
     </ul>

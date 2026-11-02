@@ -8,6 +8,11 @@ import type {
 
 export const MAX_HISTORY_TEXT_LENGTH = 2000;
 
+/** Align with Java String.trim(): remove only leading/trailing code units <= U+0020. */
+export function trimHistoryText(text: string): string {
+  return text.replace(/^[\u0000-\u0020]+|[\u0000-\u0020]+$/g, "");
+}
+
 /** Thứ tự hiển thị của năm mục tiền sử, kèm nhãn tiếng Việt. */
 export const MEDICAL_HISTORY_SECTIONS: readonly {
   field: MedicalHistoryField;
@@ -21,7 +26,7 @@ export const MEDICAL_HISTORY_SECTIONS: readonly {
 ];
 
 export function isHistoryTextTooLong(text: string): boolean {
-  return text.length > MAX_HISTORY_TEXT_LENGTH;
+  return trimHistoryText(text).length > MAX_HISTORY_TEXT_LENGTH;
 }
 
 /** Tên các trường sai trong thân PUT: văn bản quá dài hoặc `version` không phải số nguyên. */
@@ -29,6 +34,6 @@ export function invalidHistoryFields(body: MedicalHistoryUpdate): string[] {
   const invalid: string[] = MEDICAL_HISTORY_SECTIONS.filter(({ field }) =>
     isHistoryTextTooLong(body[field]),
   ).map(({ field }) => field);
-  if (!Number.isInteger(body.version)) invalid.push("version");
+  if (!Number.isSafeInteger(body.version) || body.version < 0) invalid.push("version");
   return invalid;
 }

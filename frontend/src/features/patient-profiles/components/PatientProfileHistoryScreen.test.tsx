@@ -95,7 +95,7 @@ describe("PatientProfileHistoryScreen", () => {
     expect(screen.getByLabelText("Dị ứng")).toHaveValue("Penicillin và sulfa.");
   });
 
-  it("mục vượt 2000 ký tự: báo MSG-17 ngay dưới ô và không gửi lên máy chủ", async () => {
+  it("mục vượt 2000 ký tự: báo MSG-20 ngay dưới ô và không gửi lên máy chủ", async () => {
     const user = userEvent.setup();
     render(<PatientProfileHistoryScreen profileId={an} />);
 
@@ -107,7 +107,7 @@ describe("PatientProfileHistoryScreen", () => {
 
     expect(
       await screen.findByText(
-        "Thông tin hồ sơ chưa hợp lệ. Vui lòng kiểm tra và nhập lại.",
+        "Thông tin tiền sử bệnh chưa hợp lệ. Vui lòng kiểm tra và chỉnh sửa.",
       ),
     ).toBeInTheDocument();
     expect(toast.success).not.toHaveBeenCalled();

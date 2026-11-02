@@ -43,7 +43,7 @@ export function isStaleHistoryError(error: unknown): boolean {
   return (
     isApiError(error) &&
     error.status === 409 &&
-    error.message === STALE_HISTORY_DETAIL
+    (error.errorCode === "STALE_VERSION" || error.message === STALE_HISTORY_DETAIL)
   );
 }
 

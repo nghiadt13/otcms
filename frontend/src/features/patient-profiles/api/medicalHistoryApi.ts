@@ -11,6 +11,10 @@ import {
   rejectFields,
 } from "./patientProfileMockHelpers";
 import { STALE_HISTORY_DETAIL } from "./patientProfileErrors";
+import {
+  getLiveMedicalHistory,
+  updateLiveMedicalHistory,
+} from "./medicalHistoryLiveApi";
 import { emptyMedicalHistory, vietnamIsoNow } from "./medicalHistoryMockData";
 import { MOCK_ACCOUNT_NAME } from "./patientProfileMockData";
 import {
@@ -19,7 +23,7 @@ import {
   saveMedicalHistory,
 } from "./patientProfileMockStore";
 
-// LỚP API GIẢ tiền sử bệnh (chữ ký = REST thật). Chỉ đọc/ghi được tiền sử của hồ sơ đã gắn.
+// Production gọi API thật; kho giả dưới đây chỉ phục vụ các kiểm thử hiện có.
 
 /** Hồ sơ không có → 404 MSG-41; có nhưng không gắn với tài khoản → 403 MSG-40. */
 function assertAccessible(patientId: string): void {
@@ -27,24 +31,28 @@ function assertAccessible(patientId: string): void {
   if (!isLinkedToAccount(patientId)) mockFail(403, "MSG-40");
 }
 
-/** GET /api/v1/patients/{id}/medical-history */
+/** GET /api/v1/patient-profiles/{id}/medical-history */
 export async function getMedicalHistory(
   patientId: string,
   signal?: AbortSignal,
 ): Promise<MedicalHistory> {
+  if (process.env.NODE_ENV !== "test")
+    return getLiveMedicalHistory(patientId, signal);
   await mockLatency(signal);
   assertAccessible(patientId);
   return findMedicalHistory(patientId) ?? emptyMedicalHistory();
 }
 
 /**
- * PUT /api/v1/patients/{id}/medical-history. `version` phải bằng bản đang lưu, nếu không
- * trả 409 STALE (người khác đã sửa). Thành công: version tăng 1, ghi người và giờ sửa.
+ * PUT /api/v1/patient-profiles/{id}/medical-history. `version` phải bằng bản đang lưu, nếu không
+ * trả 409 STALE_VERSION. Thành công: version tăng 1, ghi người và giờ sửa.
  */
 export async function updateMedicalHistory(
   patientId: string,
   body: MedicalHistoryUpdate,
 ): Promise<MedicalHistory> {
+  if (process.env.NODE_ENV !== "test")
+    return updateLiveMedicalHistory(patientId, body);
   await mockLatency();
   assertAccessible(patientId);
   rejectFields(invalidHistoryFields(body));

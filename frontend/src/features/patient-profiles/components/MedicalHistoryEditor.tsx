@@ -11,6 +11,7 @@ import { isStaleHistoryError } from "../api/patientProfileErrors";
 import {
   MEDICAL_HISTORY_SECTIONS,
   isHistoryTextTooLong,
+  trimHistoryText,
 } from "../schema/medicalHistoryRules";
 import type {
   MedicalHistory,
@@ -42,7 +43,7 @@ export function MedicalHistoryEditor({
 }: {
   history: MedicalHistory;
   canEdit: boolean;
-  onSave: (next: MedicalHistoryUpdate) => Promise<unknown>;
+  onSave: (next: MedicalHistoryUpdate) => Promise<MedicalHistory>;
   /** Tải lại tiền sử từ máy chủ; màn dựng lại ô nhập sau khi tải xong. */
   onReload: () => Promise<void>;
 }) {
@@ -63,18 +64,19 @@ export function MedicalHistoryEditor({
     if (isHistoryTextTooLong(text)) {
       setFieldErrors((current) => ({
         ...current,
-        [field]: formatAppMessage("MSG-17"),
+        [field]: formatAppMessage("MSG-20"),
       }));
       return;
     }
     setFieldErrors((current) => ({ ...current, [field]: undefined }));
     setPendingField(field);
     try {
-      await onSave({
+      const saved = await onSave({
         ...textsOf(history),
-        [field]: text,
+        [field]: trimHistoryText(text),
         version: history.version,
       });
+      setDrafts((current) => ({ ...current, [field]: saved[field] }));
       notifySuccess("MSG-90");
     } catch (error) {
       if (isStaleHistoryError(error)) {
@@ -82,7 +84,7 @@ export function MedicalHistoryEditor({
       } else if (isApiError(error) && error.status === 400) {
         setFieldErrors((current) => ({
           ...current,
-          [field]: formatAppMessage("MSG-17"),
+          [field]: formatAppMessage("MSG-20"),
         }));
       } else {
         notifyError(error);

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { ApiError } from "@/lib/api/apiError";
-import { listLinkedProfiles } from "./linkedProfilesApi";
+import { listLinkedProfiles, mapBackendProfileItems } from "./linkedProfilesApi";
 import {
   LINKED_PROFILE_VARIANTS,
   replaceLinkedProfilesMock,
@@ -14,6 +14,15 @@ beforeEach(() => {
 });
 
 describe("listLinkedProfiles", () => {
+  it("maps the KAN-26 profile selector contract for UC12", () => {
+    expect(mapBackendProfileItems([
+      { patientProfileId: "dependent", fullName: "An", dateOfBirth: "2010-01-01", gender: "FEMALE", relationship: "CHILD", linkStatus: "CONFIRMED" },
+      { patientProfileId: "self", fullName: "Bình", dateOfBirth: "1990-01-01", gender: "MALE", relationship: "SELF", linkStatus: "CONFIRMED" },
+    ])).toMatchObject([
+      { id: "self", fullName: "Bình", relationship: "SELF" },
+      { id: "dependent", fullName: "An", sex: "FEMALE", linkStatus: "CONFIRMED" },
+    ]);
+  });
   it("trả hồ sơ, bản thân đứng đầu rồi theo tên", async () => {
     const { items } = await listLinkedProfiles();
     expect(items.map((item) => item.fullName)).toEqual([
