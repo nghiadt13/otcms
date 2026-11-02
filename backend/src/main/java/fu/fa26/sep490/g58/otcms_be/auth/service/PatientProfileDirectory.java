@@ -16,6 +16,9 @@ import java.util.Optional;
     Optional<UUID> findProfileAccount(UUID profileId);
     Optional<UUID> findPatientProfile(UUID accountId);
     Optional<ProfileRecord> findProfile(UUID profileId);
+    java.util.List<ProfileRecord> match(String phone, LocalDate dateOfBirth, String normalizedFullName);
+    boolean duplicateExists(String phone, LocalDate dateOfBirth, String normalizedFullName);
+    ProfileRecord update(ProfileRecord profile, long expectedVersion);
 
         static class ProfileRecord {
     private final UUID id;
@@ -25,7 +28,15 @@ import java.util.Optional;
     private final String phoneOwnerType;
     private final LocalDate dateOfBirth;
     private final String gender;
+    private final String address;
+    private final String nationalId;
+    private final String identityDocumentType;
+    private final long version;
     public ProfileRecord(UUID id, UUID accountId, String fullName, String phoneCanonical, String phoneOwnerType, LocalDate dateOfBirth, String gender) {
+        this(id, accountId, fullName, phoneCanonical, phoneOwnerType, dateOfBirth, gender, null, null, null, 0);
+    }
+    public ProfileRecord(UUID id, UUID accountId, String fullName, String phoneCanonical, String phoneOwnerType,
+            LocalDate dateOfBirth, String gender, String address, String nationalId, String identityDocumentType, long version) {
         this.id = id;
         this.accountId = accountId;
         this.fullName = fullName;
@@ -33,6 +44,10 @@ import java.util.Optional;
         this.phoneOwnerType = phoneOwnerType;
         this.dateOfBirth = dateOfBirth;
         this.gender = gender;
+        this.address = address;
+        this.nationalId = nationalId;
+        this.identityDocumentType = identityDocumentType;
+        this.version = version;
     }
     public UUID getId() { return id; }
     public UUID id() { return id; }
@@ -48,5 +63,9 @@ import java.util.Optional;
     public LocalDate dateOfBirth() { return dateOfBirth; }
     public String getGender() { return gender; }
     public String gender() { return gender; }
+    public String address() { return address; }
+    public String nationalId() { return nationalId; }
+    public String identityDocumentType() { return identityDocumentType; }
+    public long version() { return version; }
 }
 }
