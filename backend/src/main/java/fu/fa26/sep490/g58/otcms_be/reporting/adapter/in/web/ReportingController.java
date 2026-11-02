@@ -34,10 +34,18 @@ public class ReportingController {
         return query.report(input.subject(), ReportingPeriod.parse(input.from(), input.to()), input.breakdown());
     }
 
-    /** No file is manufactured until the export implementation and libraries are approved. */
     @GetMapping("/reports/export")
-    public Object export() {
-        throw new ExportUnavailable();
+    public org.springframework.http.ResponseEntity<byte[]> export(@RequestParam String subject,
+            @RequestParam String from, @RequestParam String to,
+            @RequestParam(required = false) String breakdown, @RequestParam String format) {
+        if (!format.equals("pdf")) throw new IllegalArgumentException("MSG-72");
+        return org.springframework.http.ResponseEntity.ok()
+                .contentType(org.springframework.http.MediaType.APPLICATION_PDF)
+                .header("Content-Disposition", "attachment; filename=\"otcms-" + subject.toLowerCase(java.util.Locale.ROOT)
+                        + "-" + from + "-" + to + ".pdf\"")
+                .header("Cache-Control", "no-store")
+                .header("Access-Control-Expose-Headers", "Content-Disposition, X-Correlation-ID")
+                .body(query.exportPdf(subject, ReportingPeriod.parse(from, to), breakdown));
     }
 
     public static final class ExportUnavailable extends RuntimeException { }

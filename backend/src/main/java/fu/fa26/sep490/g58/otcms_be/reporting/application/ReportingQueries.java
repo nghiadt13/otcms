@@ -15,9 +15,16 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 public class ReportingQueries implements ReportingUseCase {
     private final ReportingReader reader;
+    private final ReportPdfWriter pdf;
 
-    public ReportingQueries(ReportingReader reader) {
+    public ReportingQueries(ReportingReader reader, ReportPdfWriter pdf) {
         this.reader = reader;
+        this.pdf = pdf;
+    }
+
+    @Override
+    public byte[] exportPdf(String subject, ReportingPeriod period, String breakdown) {
+        return pdf.write(report(subject, period, breakdown));
     }
 
     private Map<String, String> period(ReportingPeriod period) {
@@ -119,7 +126,7 @@ public class ReportingQueries implements ReportingUseCase {
         if (breakdown != null && !breakdown.isEmpty()) query.put("breakdown", breakdown);
         String title = subject.equals("SERVICES") ? "Dịch vụ khám từ lịch đã hoàn tất" : "Thống kê theo ngày";
         return Map.of("query", query, "hasData", sum > 0, "generatedAt", Instant.now(),
-                "allowedActions", List.of(), "sections", List.of(Map.of("title", title,
+                "allowedActions", List.of("export"), "exportFormats", List.of("pdf"), "sections", List.of(Map.of("title", title,
                         "columns", columns, "rows", rows, "totalRow", Map.of("count", sum))));
     }
 }

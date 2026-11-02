@@ -6,6 +6,7 @@ import java.util.Map;
 
 /** Read-only input port shared by dashboard and report HTTP adapters. */
 public interface ReportingUseCase {
+    byte[] exportPdf(String subject, ReportingPeriod period, String breakdown);
     Map<String, Object> dashboard(ReportingPeriod period);
     List<Map<String, Object>> subjects();
     Map<String, Object> report(String subject, ReportingPeriod period, String breakdown);

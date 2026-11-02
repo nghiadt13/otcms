@@ -119,7 +119,21 @@ class ReportingPostgresIntegrationTest {
     @Test void emptyReportIsReadyWithZeroTotalAndNoUnapprovedExports() throws Exception {
         var admin=org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user("admin").roles("ADMIN");
         mvc.perform(post("/api/v1/admin/reports").with(admin).with(csrf()).contentType("application/json").content("{\"subject\":\"APPOINTMENTS\",\"from\":\"1900-01-01\",\"to\":\"1900-01-07\",\"breakdown\":\"DATE\"}"))
-            .andExpect(status().isOk()).andExpect(jsonPath("$.hasData").value(false)).andExpect(jsonPath("$.sections[0].totalRow.count").value(0)).andExpect(jsonPath("$.allowedActions").isEmpty());
-        mvc.perform(get("/api/v1/admin/reports/export?format=xlsx").with(admin)).andExpect(status().isServiceUnavailable()).andExpect(jsonPath("$.error.code").value("MSG-04"));
+            .andExpect(status().isOk()).andExpect(jsonPath("$.hasData").value(false)).andExpect(jsonPath("$.sections[0].totalRow.count").value(0)).andExpect(jsonPath("$.exportFormats[0]").value("pdf"));
+        mvc.perform(get("/api/v1/admin/reports/export?format=xlsx&subject=APPOINTMENTS&from=1900-01-01&to=1900-01-07").with(admin)).andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("MSG-72"));
     }
+    @Test void pdfIsARealUnicodeDocumentAndExportIsRoleProtected() throws Exception {
+        String path="/api/v1/admin/reports/export?format=pdf&subject=APPOINTMENTS&from=1900-01-01&to=1900-01-07";
+        mvc.perform(get(path)).andExpect(status().isUnauthorized());
+        mvc.perform(get(path).with(org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user("patient").roles("PATIENT"))).andExpect(status().isForbidden());
+        var bytes=mvc.perform(get(path).with(org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user("owner").roles("OWNER")))
+            .andExpect(status().isOk()).andExpect(content().contentType("application/pdf"))
+            .andExpect(header().string("Cache-Control","no-store")).andReturn().getResponse().getContentAsByteArray();
+        try(var reader=new org.openpdf.text.pdf.PdfReader(bytes)) {
+            String text=new org.openpdf.text.pdf.parser.PdfTextExtractor(reader).getTextFromPage(1);
+            org.junit.jupiter.api.Assertions.assertTrue(text.contains("Lịch hẹn"));
+            org.junit.jupiter.api.Assertions.assertTrue(text.contains("Tổng số: 0"));
+        }
+    }
+
 }
