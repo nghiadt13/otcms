@@ -29,6 +29,7 @@ type AccountsTableProps = {
   loading: boolean;
   error: string | null;
   hasFilter: boolean;
+  scope?: "PATIENT" | "STAFF";
   page: number;
   totalPages: number;
   totalItems: number;
@@ -48,6 +49,7 @@ export function AccountsTable({
   loading,
   error,
   hasFilter,
+  scope,
   page,
   totalPages,
   totalItems,
@@ -77,7 +79,13 @@ export function AccountsTable({
               error={error}
               empty={items.length === 0}
               onRetry={onRetry}
-              emptyText={hasFilter ? EMPTY_FILTERED : EMPTY_NO_DATA}
+              emptyText={
+                hasFilter
+                  ? EMPTY_FILTERED
+                  : scope === "PATIENT"
+                    ? "Chưa có tài khoản bệnh nhân nào."
+                    : EMPTY_NO_DATA
+              }
             />
             {!loading && !error
               ? items.map((account) => (

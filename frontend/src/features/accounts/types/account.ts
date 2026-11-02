@@ -37,6 +37,7 @@ export interface AccountDetail extends AccountListItem {
 }
 
 export interface AccountListQuery extends PageQuery {
+  scope?: "PATIENT" | "STAFF";
   q?: string;
   role?: AccountType;
   status?: AccountStatus;

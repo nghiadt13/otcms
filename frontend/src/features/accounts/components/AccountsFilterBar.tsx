@@ -9,12 +9,14 @@ import {
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import {
   ACCOUNT_TYPE_LABELS,
+  STAFF_ROLES,
   type AccountType,
 } from "@/lib/domain/clinicRoles";
 import { STATUS_LABELS } from "../accountDisplay";
 import type { AccountStatus } from "../types/account";
 
 type AccountsFilterBarProps = {
+  scope?: "PATIENT" | "STAFF";
   searchText: string;
   onSearchChange: (value: string) => void;
   role: AccountType | undefined;
@@ -26,6 +28,7 @@ type AccountsFilterBarProps = {
 const ALL = "ALL";
 
 export function AccountsFilterBar({
+  scope,
   searchText,
   onSearchChange,
   role,
@@ -41,26 +44,31 @@ export function AccountsFilterBar({
         placeholder="Tìm tên đăng nhập, email, họ tên"
         label="Tìm tài khoản"
       />
-      <NativeSelect
-        aria-label="Loại tài khoản"
-        value={role ?? ALL}
-        onChange={(event) =>
-          onRoleChange(
-            event.target.value === ALL
-              ? undefined
-              : (event.target.value as AccountType),
-          )
-        }
-      >
-        <NativeSelectOption value={ALL}>
-          Tất cả loại tài khoản
-        </NativeSelectOption>
-        {(Object.keys(ACCOUNT_TYPE_LABELS) as AccountType[]).map((type) => (
-          <NativeSelectOption key={type} value={type}>
-            {ACCOUNT_TYPE_LABELS[type]}
+      {scope !== "PATIENT" ? (
+        <NativeSelect
+          aria-label="Loại tài khoản"
+          value={role ?? ALL}
+          onChange={(event) =>
+            onRoleChange(
+              event.target.value === ALL
+                ? undefined
+                : (event.target.value as AccountType),
+            )
+          }
+        >
+          <NativeSelectOption value={ALL}>
+            Tất cả loại tài khoản
           </NativeSelectOption>
-        ))}
-      </NativeSelect>
+          {(scope === "STAFF"
+            ? STAFF_ROLES
+            : (Object.keys(ACCOUNT_TYPE_LABELS) as AccountType[])
+          ).map((type) => (
+            <NativeSelectOption key={type} value={type}>
+              {ACCOUNT_TYPE_LABELS[type]}
+            </NativeSelectOption>
+          ))}
+        </NativeSelect>
+      ) : null}
       <ToggleGroup
         variant="outline"
         size="sm"

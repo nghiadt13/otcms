@@ -43,7 +43,12 @@ function detailItems(account: AccountDetail) {
   const isStaff = account.accountType !== "PATIENT";
   const items = [
     isStaff
-      ? { label: "Tên đăng nhập", value: account.username }
+      ? {
+          label: account.username?.includes("@")
+            ? "Email đăng nhập"
+            : "Tên đăng nhập",
+          value: account.username ?? account.email,
+        }
       : { label: "Email", value: account.email },
     {
       label: "Loại tài khoản",
