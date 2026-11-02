@@ -9,7 +9,13 @@ import { apiBaseUrl } from "@/lib/api/apiBaseUrl";
 
 // Khớp enum AccountType của backend.
 export type AccountType =
-  "PATIENT" | "RECEPTIONIST" | "DOCTOR" | "LAB_TECHNICIAN" | "IMAGING_TECHNICIAN" | "OWNER" | "ADMIN";
+  | "PATIENT"
+  | "RECEPTIONIST"
+  | "DOCTOR"
+  | "LAB_TECHNICIAN"
+  | "IMAGING_TECHNICIAN"
+  | "OWNER"
+  | "ADMIN";
 export type LoginKind = "patient" | "staff" | "administrator";
 
 type SessionTokenBody = {

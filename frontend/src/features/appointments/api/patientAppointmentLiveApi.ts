@@ -51,10 +51,6 @@ function toStatus(status: string): AppointmentStatus {
       return "NO_SHOW";
     case "CHECKED_IN":
       return "CHECKED_IN";
-    case "IN_PROGRESS":
-      return "IN_PROGRESS";
-    case "COMPLETED":
-      return "COMPLETED";
     default:
       return "CHECKED_IN";
   }

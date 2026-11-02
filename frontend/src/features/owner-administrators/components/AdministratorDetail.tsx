@@ -81,17 +81,29 @@ export function AdministratorDetail({
                 {
                   label: "Trạng thái",
                   value: (
-                    <StatusBadge tone={account.status === "ACTIVE" ? "success" : "neutral"}>
+                    <StatusBadge
+                      tone={account.status === "ACTIVE" ? "success" : "neutral"}
+                    >
                       {statusLabel(account.status)}
                     </StatusBadge>
                   ),
                 },
-                { label: "Ngày tạo", value: new Date(account.createdAt).toLocaleString("vi-VN") },
-                { label: "Cập nhật lần cuối", value: new Date(account.updatedAt).toLocaleString("vi-VN") },
+                {
+                  label: "Ngày tạo",
+                  value: new Date(account.createdAt).toLocaleString("vi-VN"),
+                },
+                {
+                  label: "Cập nhật lần cuối",
+                  value: new Date(account.updatedAt).toLocaleString("vi-VN"),
+                },
               ]}
             />
           ) : (
-            <div className="grid gap-4" role="status" aria-label="Đang tải tài khoản">
+            <div
+              className="grid gap-4"
+              role="status"
+              aria-label="Đang tải tài khoản"
+            >
               <Skeleton className="h-10 w-full" />
               <Skeleton className="h-10 w-full" />
               <Skeleton className="h-10 w-full" />

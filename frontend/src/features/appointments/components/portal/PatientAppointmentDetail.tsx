@@ -19,6 +19,7 @@ import { PATIENT_ROUTES } from "@/lib/routes/patientRoutes";
 import { usePatientAppointment } from "../../hooks/usePatientAppointment";
 import type { PatientAppointment } from "../../types/patientAppointment";
 import { PatientAppointmentActions } from "./PatientAppointmentActions";
+import { PatientArrivalQrCheckIn } from "./PatientArrivalQrCheckIn";
 import { PatientAppointmentFacts } from "./PatientAppointmentFacts";
 import { PatientCancelDialog } from "./PatientCancelDialog";
 import { PatientLoadError } from "./PatientLoadError";
@@ -73,6 +74,13 @@ export function PatientAppointmentDetail({ id }: { id: string }) {
         </Alert>
       ) : null}
       <PatientAppointmentFacts appointment={appointment} />
+      {appointment.status === "BOOKED" &&
+      appointment.examFee.status === "PAID" ? (
+        <PatientArrivalQrCheckIn
+          appointment={appointment}
+          onRecorded={() => void reload()}
+        />
+      ) : null}
       {appointment.status === "BOOKED" &&
       appointment.examFee.status === "PAID" &&
       !appointment.allowedActions.includes("cancel") ? (

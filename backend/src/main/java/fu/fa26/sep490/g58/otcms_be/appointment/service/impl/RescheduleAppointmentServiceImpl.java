@@ -1,5 +1,8 @@
 package fu.fa26.sep490.g58.otcms_be.appointment.service.impl;
 import fu.fa26.sep490.g58.otcms_be.appointment.model.CreatedAppointment;
+import fu.fa26.sep490.g58.otcms_be.notification.model.NotificationMessages;
+import fu.fa26.sep490.g58.otcms_be.notification.service.NotificationPublisher;
+import fu.fa26.sep490.g58.otcms_be.staff.service.StaffAvailabilityProviderQueryService;
 
 import fu.fa26.sep490.g58.otcms_be.appointment.exception.AppointmentBookingException;
 import fu.fa26.sep490.g58.otcms_be.appointment.repository.AppointmentRescheduleRepository;
@@ -32,16 +35,21 @@ public class RescheduleAppointmentServiceImpl implements RescheduleAppointmentSe
     private final GenerateAvailableSlotsService slotEngine;
     private final AppointmentBookingProperties properties;
     private final Clock clock;
+    private final NotificationPublisher notifications;
+    private final StaffAvailabilityProviderQueryService doctors;
 
     public RescheduleAppointmentServiceImpl(CoordinationGuardService guard, AppointmentRescheduleRepository appointments,
             AuthorizePatientProfileService patientAuthorization, GenerateAvailableSlotsService slotEngine,
-            AppointmentBookingProperties properties, Clock clock) {
+            AppointmentBookingProperties properties, Clock clock,
+            NotificationPublisher notifications, StaffAvailabilityProviderQueryService doctors) {
         this.guard = guard;
         this.appointments = appointments;
         this.patientAuthorization = patientAuthorization;
         this.slotEngine = slotEngine;
         this.properties = properties;
         this.clock = clock;
+        this.notifications = notifications;
+        this.doctors = doctors;
     }
 
     @Override
@@ -94,8 +102,11 @@ public class RescheduleAppointmentServiceImpl implements RescheduleAppointmentSe
                         current.id(), current.patientProfileId()));
         var slot = slotEngine.generate(requested).stream().filter(candidate -> candidate.startTime().equals(start))
                 .findFirst().orElseThrow(() -> new AppointmentBookingException("SLOT_UNAVAILABLE"));
-        return appointments.reschedule(current, slot.startTime(), slot.endTime(), command.actorAccountId(),
+        var changed = appointments.reschedule(current, slot.startTime(), slot.endTime(), command.actorAccountId(),
                 command.actor().name(), command.reason() == null ? null : command.reason().trim(), now,
                 command.correlationId());
+        notifications.publishToPatient(current.patientProfileId(), NotificationMessages.appointmentRescheduled(
+                current.id(), slot.startTime(), doctors.findDoctorDisplayName(current.doctorProfileId()).orElse("")));
+        return changed;
     }
 }

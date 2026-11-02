@@ -1,4 +1,6 @@
 package fu.fa26.sep490.g58.otcms_be.appointment.service.impl;
+import fu.fa26.sep490.g58.otcms_be.notification.model.NotificationMessages;
+import fu.fa26.sep490.g58.otcms_be.notification.service.NotificationPublisher;
 import fu.fa26.sep490.g58.otcms_be.auth.service.PatientProfileDirectory;
 import fu.fa26.sep490.g58.otcms_be.appointment.model.CreatedAppointment;
 
@@ -43,12 +45,14 @@ public class CreateAppointmentServiceImpl implements CreateAppointmentService {
     private final AppointmentJpaRepository appointments;
     private final AppointmentBookingProperties properties;
     private final Clock clock;
+    private final NotificationPublisher notifications;
 
     public CreateAppointmentServiceImpl(CoordinationGuardService coordinationGuard,
             PatientProfileDirectory currentPatientProfile, AuthorizePatientProfileService patientAuthorization,
             ClinicServiceBookingQueryService services, StaffAvailabilityProviderQueryService providers,
             ServiceDoctorAssignmentQueryService assignments, GenerateAvailableSlotsService slotEngine,
-            AppointmentJpaRepository appointments, AppointmentBookingProperties properties, Clock clock) {
+            AppointmentJpaRepository appointments, AppointmentBookingProperties properties, Clock clock,
+            NotificationPublisher notifications) {
         this.coordinationGuard = coordinationGuard;
         this.currentPatientProfile = currentPatientProfile;
         this.patientAuthorization = patientAuthorization;
@@ -59,6 +63,7 @@ public class CreateAppointmentServiceImpl implements CreateAppointmentService {
         this.appointments = appointments;
         this.properties = properties;
         this.clock = clock;
+        this.notifications = notifications;
     }
 
     @Override
@@ -123,7 +128,10 @@ public class CreateAppointmentServiceImpl implements CreateAppointmentService {
                 command.actorAccountId(), command.actor() == CreateAppointmentCommand.Actor.PATIENT
                         ? AppointmentBooking.ActorType.PATIENT : AppointmentBooking.ActorType.RECEPTIONIST,
                 now, command.correlationId());
-        return appointments.save(booking);
+        var created = appointments.save(booking);
+        notifications.publishToPatient(patientProfileId, NotificationMessages.appointmentBooked(booking.id(),
+                booking.startTime(), providers.findDoctorDisplayName(command.doctorProfileId()).orElse("")));
+        return created;
     }
 
     private UUID resolvePatient(CreateAppointmentCommand command) {

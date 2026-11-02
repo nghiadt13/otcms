@@ -1,5 +1,7 @@
 package fu.fa26.sep490.g58.otcms_be.appointment;
 
+import fu.fa26.sep490.g58.otcms_be.notification.service.NotificationPublisher;
+
 import fu.fa26.sep490.g58.otcms_be.appointment.exception.AppointmentBookingException;
 import fu.fa26.sep490.g58.otcms_be.appointment.model.AppointmentBooking;
 import fu.fa26.sep490.g58.otcms_be.appointment.model.AvailableSlot;
@@ -30,6 +32,7 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 class CreateFollowUpAppointmentT030Test {
@@ -49,6 +52,7 @@ class CreateFollowUpAppointmentT030Test {
     private GenerateAvailableSlotsService slots;
     private AppointmentJpaRepository appointments;
     private CreateFollowUpAppointmentServiceImpl service;
+    private NotificationPublisher notifications;
 
     @BeforeEach
     void setUp() {
@@ -60,10 +64,12 @@ class CreateFollowUpAppointmentT030Test {
         assignments = mock(ServiceDoctorAssignmentQueryService.class);
         slots = mock(GenerateAvailableSlotsService.class);
         appointments = mock(AppointmentJpaRepository.class);
+        notifications = mock(NotificationPublisher.class);
         var properties = new AppointmentBookingProperties(60, 30, 60, 15, 15, 15,
                 ZoneId.of("Asia/Ho_Chi_Minh"), new AppointmentBookingProperties.PublicRateLimit(30, 60));
         service = new CreateFollowUpAppointmentServiceImpl(guard, doctors, visits, services, providers,
-                assignments, slots, appointments, properties, Clock.fixed(NOW, ZoneId.of("UTC")));
+                assignments, slots, appointments, properties, Clock.fixed(NOW, ZoneId.of("UTC")),
+                notifications);
     }
 
     @Test
@@ -78,6 +84,7 @@ class CreateFollowUpAppointmentT030Test {
         when(providers.findAcceptingDoctorsInActiveDirectory()).thenReturn(List.of(
                 new StaffAvailabilityProviderQueryService.AvailabilityProvider(TARGET_DOCTOR, "Doctor", false)));
         when(assignments.findActiveDoctorProfileIds(SERVICE)).thenReturn(List.of(TARGET_DOCTOR));
+        when(providers.findDoctorDisplayName(TARGET_DOCTOR)).thenReturn(Optional.of("Bác sĩ tái khám"));
         when(slots.generate(any())).thenReturn(List.of(new AvailableSlot(SERVICE, TARGET_DOCTOR,
                 start, start.plusSeconds(1800), start.plusSeconds(2100))));
         when(appointments.saveFollowUp(any())).thenAnswer(invocation -> {
@@ -102,6 +109,14 @@ class CreateFollowUpAppointmentT030Test {
         assertEquals(SOURCE_VISIT, created.sourceVisitId());
         verify(guard).acquire();
         verify(appointments).saveFollowUp(any());
+        var message = org.mockito.ArgumentCaptor.forClass(fu.fa26.sep490.g58.otcms_be.notification.model.NotificationMessage.class);
+        verify(notifications).publishToPatient(eq(PATIENT), message.capture());
+        assertEquals("APPOINTMENT_BOOKED", message.getValue().type());
+        assertEquals(created.id(), message.getValue().relatedId());
+        assertEquals(fu.fa26.sep490.g58.otcms_be.notification.model.NotificationRelatedKind.APPOINTMENT, message.getValue().relatedKind());
+        assertTrue(message.getValue().content().contains("19/10/2026 lúc 10:30"));
+        assertTrue(message.getValue().content().contains("Bác sĩ tái khám"));
+        verifyNoMoreInteractions(notifications);
     }
 
     @Test

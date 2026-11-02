@@ -118,7 +118,9 @@ export function AdministratorCredentialDialog({
                 <dd className="mt-0.5 break-all font-medium">{username}</dd>
               </div>
               <div>
-                <dt className="text-xs text-muted-foreground">Mật khẩu khởi tạo</dt>
+                <dt className="text-xs text-muted-foreground">
+                  Mật khẩu khởi tạo
+                </dt>
                 <dd
                   className="mt-0.5 select-all break-all rounded-lg border bg-muted px-3 py-2 font-mono text-base"
                   aria-label="Mật khẩu khởi tạo"
@@ -131,7 +133,11 @@ export function AdministratorCredentialDialog({
               Bàn giao trực tiếp cho Admin. Admin phải đổi mật khẩu ở lần đăng
               nhập tiếp theo.
             </p>
-            {copyMessage && <p role="status" className="text-sm text-muted-foreground">{copyMessage}</p>}
+            {copyMessage && (
+              <p role="status" className="text-sm text-muted-foreground">
+                {copyMessage}
+              </p>
+            )}
             <DialogFooter>
               <Button
                 variant="outline"
@@ -148,8 +154,14 @@ export function AdministratorCredentialDialog({
                   }
                 }}
               >
-                {copyMessage === "Đã sao chép mật khẩu." ? <Check data-icon="inline-start" /> : <Copy data-icon="inline-start" />}
-                {copyMessage === "Đã sao chép mật khẩu." ? "Đã sao chép" : "Sao chép mật khẩu"}
+                {copyMessage === "Đã sao chép mật khẩu." ? (
+                  <Check data-icon="inline-start" />
+                ) : (
+                  <Copy data-icon="inline-start" />
+                )}
+                {copyMessage === "Đã sao chép mật khẩu."
+                  ? "Đã sao chép"
+                  : "Sao chép mật khẩu"}
               </Button>
               <Button onClick={onClose}>Đã lưu, đóng</Button>
             </DialogFooter>

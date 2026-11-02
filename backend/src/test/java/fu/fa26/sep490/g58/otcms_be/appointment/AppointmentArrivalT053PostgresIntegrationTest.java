@@ -154,7 +154,7 @@ class AppointmentArrivalT053PostgresIntegrationTest {
     }
 
     @Test
-    void patientOwnershipIsEnforcedAndValidRepeatReturnsOriginalWithoutQueueWrites() throws Exception {
+    void patientQrCheckInIsIdempotentAndStartsTheVisit() throws Exception {
         UUID target = appointment(NOW.plusSeconds(600), patientProfile);
         UUID otherOwned = appointment(NOW.plusSeconds(7200), patientProfile);
         String token = issueProof();
@@ -164,19 +164,27 @@ class AppointmentArrivalT053PostgresIntegrationTest {
         var first = mvc.perform(recordQr(target, patientAccount, token)).andExpect(status().isOk())
                 .andExpect(jsonPath("$.source").value("PATIENT_QR"))
                 .andExpect(jsonPath("$.state").value("PENDING"))
+                .andExpect(jsonPath("$.checkedIn").value(true))
+                .andExpect(jsonPath("$.appointmentStatus").value("CHECKED_IN"))
+                .andExpect(jsonPath("$.visitId").isNotEmpty())
                 .andExpect(jsonPath("$.arrivedAt").value(NOW.toString())).andReturn();
+        String firstVisit = json(first.getResponse().getContentAsString(), "visitId");
         testClock.set(NOW.plusSeconds(10));
         mvc.perform(recordQr(target, patientAccount, issueProof())).andExpect(status().isOk())
+                .andExpect(jsonPath("$.checkedIn").value(true))
+                .andExpect(jsonPath("$.visitId").value(firstVisit))
                 .andExpect(jsonPath("$.arrivedAt").value(NOW.toString()));
         assertEquals(1, arrivalCount(target));
         assertEquals(patientAccount, jdbc.queryForObject("select actor_account_id from appointment_arrivals where appointment_id = ?",
                 UUID.class, target));
         assertEquals("PATIENT_QR", jdbc.queryForObject("select source from appointment_arrivals where appointment_id = ?",
                 String.class, target));
-        assertEquals(0, jdbc.queryForObject("select count(*) from visits where originating_appointment_id in (?, ?)",
-                Integer.class, target, otherOwned));
-        assertEquals(0, jdbc.queryForObject("select count(*) from visit_check_ins where visit_id in "
-                + "(select id from visits where originating_appointment_id in (?, ?))", Integer.class, target, otherOwned));
+        assertEquals("CHECKED_IN", jdbc.queryForObject("select status from appointments where id = ?",
+                String.class, target));
+        assertEquals(1, jdbc.queryForObject("select count(*) from visits where originating_appointment_id = ?",
+                Integer.class, target));
+        assertEquals(0, jdbc.queryForObject("select count(*) from visits where originating_appointment_id = ?",
+                Integer.class, otherOwned));
         assertNotEquals("", first.getResponse().getContentAsString());
     }
 
@@ -209,13 +217,14 @@ class AppointmentArrivalT053PostgresIntegrationTest {
         UUID late = appointment(NOW.minusSeconds(3600), otherPatientProfile);
         mvc.perform(manual(late, receptionistAccount, "Patient arrived after grace")).andExpect(status().isOk());
         testClock.set(NOW.plusSeconds(10));
-        mvc.perform(recordQr(timely, patientAccount, issueProof())).andExpect(status().isOk());
+        mvc.perform(recordQr(timely, patientAccount, issueProof())).andExpect(status().isOk())
+                .andExpect(jsonPath("$.checkedIn").value(true));
 
         mvc.perform(get("/api/v1/appointment-arrivals").param("date", "2026-10-26").param("state", "PENDING")
                         .param("page", "0").param("size", "1").with(actor(receptionistAccount, AccountType.RECEPTIONIST)))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.items.length()").value(1))
-                .andExpect(jsonPath("$.items[0].appointmentId").value(timely.toString()))
-                .andExpect(jsonPath("$.items[0].state").value("PENDING"));
+                .andExpect(status().isOk()).andExpect(jsonPath("$.items.length()").value(0));
+        assertEquals("CHECKED_IN", jdbc.queryForObject("select status from appointments where id = ?",
+                String.class, timely));
         mvc.perform(get("/api/v1/appointment-arrivals").param("date", "2026-10-26").param("state", "LATE")
                         .with(actor(receptionistAccount, AccountType.RECEPTIONIST)))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.items.length()").value(1))
@@ -241,11 +250,13 @@ class AppointmentArrivalT053PostgresIntegrationTest {
                 .andExpect(jsonPath("$.error.code").value("NO_SHOW_NOT_ALLOWED"));
         mvc.perform(markNoShow(timelyManual)).andExpect(status().isUnprocessableEntity())
                 .andExpect(jsonPath("$.error.code").value("NO_SHOW_NOT_ALLOWED"));
-        assertEquals("CONFIRMED", jdbc.queryForObject("select status from appointments where id = ?", String.class, timely));
+        assertEquals("CHECKED_IN", jdbc.queryForObject("select status from appointments where id = ?", String.class, timely));
         assertEquals("CONFIRMED", jdbc.queryForObject("select status from appointments where id = ?",
                 String.class, timelyManual));
-        assertEquals(0, jdbc.queryForObject("select count(*) from visits where originating_appointment_id in (?, ?)",
-                Integer.class, timely, timelyManual));
+        assertEquals(1, jdbc.queryForObject("select count(*) from visits where originating_appointment_id = ?",
+                Integer.class, timely));
+        assertEquals(0, jdbc.queryForObject("select count(*) from visits where originating_appointment_id = ?",
+                Integer.class, timelyManual));
         assertEquals(0, jdbc.queryForObject("select count(*) from walk_in_reception_queue_entries q "
                 + "join visits v on v.id = q.visit_id where v.originating_appointment_id in (?, ?)",
                 Integer.class, timely, timelyManual));
@@ -280,8 +291,10 @@ class AppointmentArrivalT053PostgresIntegrationTest {
 
                 assertEquals(200, arrival.get(20, TimeUnit.SECONDS));
                 assertEquals(422, noShow.get(20, TimeUnit.SECONDS));
-                assertEquals("CONFIRMED", jdbc.queryForObject("select status from appointments where id = ?", String.class, target));
+                assertEquals("CHECKED_IN", jdbc.queryForObject("select status from appointments where id = ?", String.class, target));
                 assertEquals(1, arrivalCount(target));
+                assertEquals(1, jdbc.queryForObject("select count(*) from visits where originating_appointment_id = ?",
+                        Integer.class, target));
                 assertEquals(NOW, jdbc.queryForObject("select arrived_at from appointment_arrivals where appointment_id = ?",
                         Timestamp.class, target).toInstant());
             } finally {

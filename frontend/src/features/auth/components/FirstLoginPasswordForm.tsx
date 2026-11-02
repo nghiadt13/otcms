@@ -16,7 +16,9 @@ import { PasswordField } from "./PasswordField";
 import { PasswordPolicyHint } from "./PasswordPolicyHint";
 
 export function FirstLoginPasswordForm() {
-  const [sessionState, setSessionState] = useState<"loading" | "ready" | "unavailable">("loading");
+  const [sessionState, setSessionState] = useState<
+    "loading" | "ready" | "unavailable"
+  >("loading");
   const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -31,9 +33,20 @@ export function FirstLoginPasswordForm() {
   useEffect(() => {
     let active = true;
     getSession()
-      .then((session) => { if (active) setSessionState(session && session.accountType !== "PATIENT" ? "ready" : "unavailable"); })
-      .catch(() => { if (active) setSessionState("unavailable"); });
-    return () => { active = false; };
+      .then((session) => {
+        if (active)
+          setSessionState(
+            session && session.accountType !== "PATIENT"
+              ? "ready"
+              : "unavailable",
+          );
+      })
+      .catch(() => {
+        if (active) setSessionState("unavailable");
+      });
+    return () => {
+      active = false;
+    };
   }, []);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -70,7 +83,12 @@ export function FirstLoginPasswordForm() {
     }
   }
 
-  if (sessionState === "loading") return <p role="status" className="mt-8 text-muted-foreground">Đang kiểm tra phiên đăng nhập…</p>;
+  if (sessionState === "loading")
+    return (
+      <p role="status" className="mt-8 text-muted-foreground">
+        Đang kiểm tra phiên đăng nhập…
+      </p>
+    );
   if (sessionState === "unavailable")
     return (
       <div className="mt-8 space-y-4">
