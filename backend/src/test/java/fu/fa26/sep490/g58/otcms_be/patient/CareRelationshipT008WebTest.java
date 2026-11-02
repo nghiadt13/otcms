@@ -16,18 +16,17 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 class CareRelationshipT008WebTest {
     private final UUID relationshipId = UUID.randomUUID();
-    private final MockMvc mvc = MockMvcBuilders.standaloneSetup(new CareRelationshipController(
-            mock(RequestCareRelationshipService.class), mock(ConfirmCareRelationshipService.class))).build();
+    private final MockMvc mvc = MockMvcBuilders.standaloneSetup(new CareRelationshipController(mock(fu.fa26.sep490.g58.otcms_be.patient.service.DependentProfileService.class))).build();
 
     @Test
-    void dependentRequestAndConfirmationRoutesAreNotExposedForAppointmentAuthorization() throws Exception {
+    void legacyRequestAndConfirmationRoutesRemainAbsent() throws Exception {
         mvc.perform(post("/api/v1/care-relationships")).andExpect(status().isNotFound());
         mvc.perform(post("/api/v1/care-relationships/{id}/confirm", relationshipId)).andExpect(status().isNotFound());
     }
 
     @Test
-    void relationshipControllerIsNotRegisteredAsMvcEndpoint() {
-        assertFalse(CareRelationshipController.class.isAnnotationPresent(org.springframework.web.bind.annotation.RestController.class));
+    void r3ControllerIsRegisteredAsMvcEndpoint() {
+        org.junit.jupiter.api.Assertions.assertTrue(CareRelationshipController.class.isAnnotationPresent(org.springframework.web.bind.annotation.RestController.class));
         assertFalse(CareRelationshipController.class.isAnnotationPresent(org.springframework.stereotype.Controller.class));
     }
 }

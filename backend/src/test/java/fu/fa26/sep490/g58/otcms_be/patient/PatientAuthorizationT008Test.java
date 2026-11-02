@@ -19,7 +19,7 @@ class PatientAuthorizationT008Test {
     private final UUID otherProfile = UUID.randomUUID();
     private final PatientIdentityDirectory identities = mock(PatientIdentityDirectory.class);
     private final PatientProfileDirectory profiles = mock(PatientProfileDirectory.class);
-    private final AuthorizePatientProfileServiceImpl handler = new AuthorizePatientProfileServiceImpl(identities, profiles);
+    private final AuthorizePatientProfileServiceImpl handler = new AuthorizePatientProfileServiceImpl(new fu.fa26.sep490.g58.otcms_be.patient.service.impl.PatientProfileAccessServiceImpl(identities, profiles, mock(fu.fa26.sep490.g58.otcms_be.patient.repository.CareRelationshipRepository.class)), profiles);
 
     private void linkedActor() {
         when(identities.isActivePatient(actor)).thenReturn(true);
@@ -27,7 +27,7 @@ class PatientAuthorizationT008Test {
     }
 
     @Test
-    void authorizesOnlyCurrentLinkedSelfProfile() {
+    void authorizesCurrentLinkedSelfProfileWithSelfScope() {
         linkedActor();
 
         var authorized = handler.authorize(actor, own);
@@ -35,13 +35,13 @@ class PatientAuthorizationT008Test {
         assertEquals(own, authorized.patientProfileId());
         assertEquals(AuthorizationScope.SELF, authorized.scope());
         verify(identities).isActivePatient(actor);
-        verify(profiles).findPatientProfile(actor);
+        verify(profiles, times(2)).findPatientProfile(actor);
         verifyNoMoreInteractions(identities);
         verifyNoMoreInteractions(profiles);
     }
 
     @Test
-    void deniesOtherPatientEvenWhenConfirmedCareRelationshipExists() {
+    void deniesUnrelatedProfileWithoutConfirmedLink() {
         linkedActor();
         assertThrows(PatientAuthorizationDeniedException.class, () -> handler.authorize(actor, otherProfile));
     }

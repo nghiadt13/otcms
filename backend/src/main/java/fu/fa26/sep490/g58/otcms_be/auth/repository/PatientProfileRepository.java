@@ -25,6 +25,16 @@ public interface PatientProfileRepository extends JpaRepository<PatientProfileJp
     List<PatientProfileJpaEntity> findExactMatches(@Param("phone") String phone, @Param("dob") LocalDate dob,
             @Param("fullName") String fullName, Pageable pageable);
 
+    @Query(value = """
+            SELECT * FROM patient_profiles
+            WHERE date_of_birth = :dob
+              AND national_id IS NOT DISTINCT FROM :nationalId
+              AND lower(normalize(btrim(regexp_replace(full_name, '\\s+', ' ', 'g')), NFC))
+                  = lower(normalize(:fullName, NFC))
+            """, nativeQuery = true)
+    List<PatientProfileJpaEntity> findDependentMatches(@Param("fullName") String fullName,
+            @Param("dob") LocalDate dob, @Param("nationalId") String nationalId, Pageable pageable);
+
     Page<PatientProfileJpaEntity> findByFullNameContainingIgnoreCase(String fullName, Pageable pageable);
     Page<PatientProfileJpaEntity> findByFullNameContainingIgnoreCaseOrPhoneCanonicalContaining(
             String fullName, String phoneCanonical, Pageable pageable);
