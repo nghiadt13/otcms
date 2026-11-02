@@ -20,6 +20,31 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 class T008PasswordRecoveryServiceTest {
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"abcd1234", "ábcdefg١", "a𐐀bcdef1"})
+    void resetAndChangeAcceptTheSameEightCodePointPolicy(String password) {
+        var missingProof = assertThrows(PasswordRecoveryException.class,
+                () -> service.reset(new ResetPasswordRequest("missing", password), AccountType.PATIENT));
+        assertEquals("PASSWORD_RESET_TOKEN_INVALID", missingProof.getMessage());
+        AccountJpaEntity account = account(AccountStatus.ACTIVE);
+        account.setPasswordHash("legacy-hash");
+        when(accounts.findByIdForUpdate(account.getId())).thenReturn(Optional.of(account));
+        when(encoder.matches("legacy", "legacy-hash")).thenReturn(true);
+        when(encoder.encode(password)).thenReturn("updated-hash");
+        service.change(account.getId(), new ChangePasswordRequest("legacy", password));
+        assertEquals("updated-hash", account.getPasswordHash());
+        verify(sessions).revokeAll(account.getId());
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"abcdef1", "abcdefgh", "12345678"})
+    void resetAndChangeRejectCompositionBeforePersistence(String password) {
+        assertEquals("VALIDATION_FAILED", assertThrows(PasswordRecoveryException.class,
+                () -> service.reset(new ResetPasswordRequest("token", password), AccountType.PATIENT)).getMessage());
+        assertEquals("VALIDATION_FAILED", assertThrows(PasswordRecoveryException.class,
+                () -> service.change(UUID.randomUUID(), new ChangePasswordRequest("legacy", password))).getMessage());
+        verifyNoInteractions(accounts, challenges, encoder, sessions);
+    }
     private final AccountRepository accounts = mock(AccountRepository.class);
     private final PasswordResetChallengeRepository challenges = mock(PasswordResetChallengeRepository.class);
     private final EmailDeliveryService email = mock(EmailDeliveryService.class);
@@ -30,9 +55,9 @@ class T008PasswordRecoveryServiceTest {
             Clock.fixed(Instant.parse("2026-01-01T00:00:00Z"), ZoneOffset.UTC));
 
     @Test void resetRejectsUnicodeOverBcryptByteLimitBeforeEncoding() {
-        String password = "\u1ea3".repeat(25);
+        String password = "\u1ea3".repeat(24) + "1";
         assertEquals(25, password.length());
-        assertEquals(75, password.getBytes(java.nio.charset.StandardCharsets.UTF_8).length);
+        assertEquals(73, password.getBytes(java.nio.charset.StandardCharsets.UTF_8).length);
         var error = assertThrows(PasswordRecoveryException.class,
                 () -> service.reset(new ResetPasswordRequest("token", password), AccountType.PATIENT));
         assertEquals("VALIDATION_FAILED", error.getMessage());
@@ -100,10 +125,10 @@ class T008PasswordRecoveryServiceTest {
 
     @Test void passwordReuseIsRejectedAndSuccessfulResetRevokesAllSessions() {
         AccountJpaEntity a=account(AccountStatus.ACTIVE); a.setPasswordHash("old-hash"); PasswordResetChallengeJpaEntity c=new PasswordResetChallengeJpaEntity(); c.setAccount(a); c.setTokenHash(PasswordRecoveryServiceImpl.hash("token")); c.setCreatedAt(Instant.EPOCH); c.setExpiresAt(Instant.parse("2027-01-01T00:00:00Z"));
-        when(challenges.findByTokenHashForUpdate(c.getTokenHash())).thenReturn(Optional.of(c)); when(encoder.matches("same-password", "old-hash")).thenReturn(true);
+        when(challenges.findByTokenHashForUpdate(c.getTokenHash())).thenReturn(Optional.of(c)); when(encoder.matches("same-password1", "old-hash")).thenReturn(true);
         when(challenges.findAccountIdByTokenHash(c.getTokenHash())).thenReturn(Optional.of(a.getId()));
         when(accounts.findByIdForUpdate(a.getId())).thenReturn(Optional.of(a));
-        assertThrows(PasswordRecoveryException.class,()->service.reset(new ResetPasswordRequest("token","same-password"),AccountType.PATIENT)); verifyNoInteractions(sessions);
+        assertEquals("PASSWORD_REUSE_NOT_ALLOWED", assertThrows(PasswordRecoveryException.class,()->service.reset(new ResetPasswordRequest("token","same-password1"),AccountType.PATIENT)).getMessage()); verifyNoInteractions(sessions);
         when(encoder.matches("new-password-123", "old-hash")).thenReturn(false); when(encoder.encode("new-password-123")).thenReturn("new-hash");
         service.reset(new ResetPasswordRequest("token","new-password-123"),AccountType.PATIENT); verify(sessions).revokeAll(a.getId()); assertNotNull(c.getConsumedAt());
     }

@@ -3,9 +3,9 @@ package fu.fa26.sep490.g58.otcms_be.auth.model.dto.request;
 import jakarta.validation.constraints.*;
 public class ResetPasswordRequest {
     private @NotBlank String token;
-    private @NotBlank @Size(min=12,max=64) String newPassword;
+    private @NotBlank String newPassword;
     public ResetPasswordRequest() { }
-    public ResetPasswordRequest(@NotBlank String token, @NotBlank @Size(min=12,max=64) String newPassword) {
+    public ResetPasswordRequest(@NotBlank String token, @NotBlank String newPassword) {
         this.token = token;
         this.newPassword = newPassword;
     }

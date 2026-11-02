@@ -47,6 +47,7 @@ class ReassignAppointmentT026PostgresIntegrationTest {
     @Autowired JdbcTemplate jdbc;
     private UUID patientAccount;
     private UUID receptionistAccount;
+    private UUID adminAccount;
     private UUID currentDoctorAccount;
     private UUID replacementDoctorAccount;
     private UUID unassignedDoctorAccount;
@@ -62,6 +63,7 @@ class ReassignAppointmentT026PostgresIntegrationTest {
     void setUp() {
         patientAccount = account("PATIENT", "patient");
         receptionistAccount = account("RECEPTIONIST", "receptionist");
+        adminAccount = account("ADMIN", "admin");
         currentDoctorAccount = account("DOCTOR", "current-doctor");
         replacementDoctorAccount = account("DOCTOR", "replacement-doctor");
         unassignedDoctorAccount = account("DOCTOR", "unassigned-doctor");
@@ -97,7 +99,7 @@ class ReassignAppointmentT026PostgresIntegrationTest {
                 if (id != null) jdbc.update("delete from doctor_profiles where id = ?", id);
             }
             if (patientProfile != null) jdbc.update("delete from patient_profiles where id = ?", patientProfile);
-            for (UUID id : new UUID[]{patientAccount, receptionistAccount, currentDoctorAccount, replacementDoctorAccount, unassignedDoctorAccount}) {
+            for (UUID id : new UUID[]{patientAccount, receptionistAccount, adminAccount, currentDoctorAccount, replacementDoctorAccount, unassignedDoctorAccount}) {
                 if (id != null) jdbc.update("delete from accounts where id = ?", id);
             }
         } finally {
@@ -134,7 +136,46 @@ class ReassignAppointmentT026PostgresIntegrationTest {
     }
 
     @Test
-    void onlyReceptionistMayReassignAndInvalidReplacementDoesNotChangeBooking() throws Exception {
+    void adminReassignsAndAuditUsesActualAccountRole() throws Exception {
+        mvc.perform(post("/api/v1/appointments/{id}/reassign", appointment)
+                        .with(actor(adminAccount, AccountType.ADMIN)).with(csrf()).contentType("application/json")
+                        .content("{\"doctorId\":\"" + replacementDoctor + "\",\"reason\":\"Doctor unavailable\"}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.doctorId").value(replacementDoctor.toString()));
+        assertEquals(1, jdbc.queryForObject("select count(*) from appointment_audits where appointment_id=? "
+                + "and actor_account_id=? and actor_type='ADMIN' and action='DOCTOR_REASSIGNED'", Integer.class, appointment, adminAccount));
+    }
+
+    @Test
+    void allOtherRolesAndAnonymousRemainDeniedForReassignment() throws Exception {
+        String body = "{\"doctorId\":\"" + replacementDoctor + "\",\"reason\":\"Doctor unavailable\"}";
+        mvc.perform(post("/api/v1/appointments/{id}/reassign", appointment).with(csrf())
+                .contentType("application/json").content(body)).andExpect(status().isUnauthorized());
+        for (AccountType role : AccountType.values()) {
+            if (role == AccountType.ADMIN || role == AccountType.RECEPTIONIST) continue;
+            mvc.perform(post("/api/v1/appointments/{id}/reassign", appointment).with(actor(patientAccount, role))
+                    .with(csrf()).contentType("application/json").content(body)).andExpect(status().isForbidden());
+        }
+        assertEquals(currentDoctor, jdbc.queryForObject("select doctor_profile_id from appointments where id=?", UUID.class, appointment));
+    }
+
+    @Test
+    void adminDoesNotGainOtherAppointmentMutationPermissions() throws Exception {
+        String root = "/api/v1/appointments/" + appointment;
+        var requests = List.of(
+                post(root + "/cancel").content("{\"reason\":\"Cancelled\"}"),
+                org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch(root + "/reschedule")
+                        .content("{\"startTime\":\"" + SLOT + "\",\"reason\":\"Reschedule\"}"),
+                org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch(root + "/status")
+                        .content("{\"targetStatus\":\"NO_SHOW\",\"reason\":\"Absent\"}"),
+                post(root + "/check-in").header("Idempotency-Key", UUID.randomUUID().toString())
+                        .content("{\"verifiedPatientProfileId\":\"" + patientProfile + "\"}"));
+        for (var request : requests) mvc.perform(request.with(actor(adminAccount, AccountType.ADMIN)).with(csrf())
+                .contentType("application/json")).andExpect(status().isForbidden());
+        assertEquals(currentDoctor, jdbc.queryForObject("select doctor_profile_id from appointments where id=?", UUID.class, appointment));
+    }
+
+    @Test
+    void patientCannotReassignAndInvalidReplacementDoesNotChangeBooking() throws Exception {
         mvc.perform(post("/api/v1/appointments/{id}/reassign", appointment)
                         .with(actor(patientAccount, AccountType.PATIENT)).with(csrf()).contentType("application/json")
                         .content("{\"doctorId\":\"" + replacementDoctor + "\",\"reason\":\"Doctor unavailable\"}"))

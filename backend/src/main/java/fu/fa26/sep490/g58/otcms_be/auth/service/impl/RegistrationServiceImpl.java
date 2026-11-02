@@ -152,12 +152,8 @@ public class RegistrationServiceImpl implements RegistrationService {
 
     private void validate(RegistrationRequest request) {
         String password = request.password();
-        int passwordLength = password.codePointCount(0, password.length());
-        boolean hasLetter = password.codePoints().anyMatch(Character::isLetter);
-        boolean hasDigit = password.codePoints().anyMatch(Character::isDigit);
-        if (!request.patientConsent() || !password.equals(request.confirmPassword())
-                || passwordLength < 8 || passwordLength > 64
-                || password.getBytes(StandardCharsets.UTF_8).length > 72 || !hasLetter || !hasDigit)
+        if (!PasswordPolicy.isValid(password) || !request.patientConsent()
+                || !password.equals(request.confirmPassword()))
             throw new RegistrationException("VALIDATION_FAILED");
 
         String name = request.fullName().trim();

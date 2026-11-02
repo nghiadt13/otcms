@@ -172,7 +172,7 @@ class AppointmentChangeAvailabilityT020PostgresIntegrationTest {
     }
 
     @Test
-    void reassignmentAvailabilityIsReceptionistOnlyAndRejectsPastOrUnchangeableBookings() throws Exception {
+    void reassignmentAvailabilityRejectsPatientsAndPastOrUnchangeableBookings() throws Exception {
         mvc.perform(get(reassignmentPath()).with(actor(patientAccountId, AccountType.PATIENT))
                         .param("from", CHANGE_DATE.toString()).param("to", CHANGE_DATE.toString()))
                 .andExpect(status().isForbidden());
@@ -186,6 +186,24 @@ class AppointmentChangeAvailabilityT020PostgresIntegrationTest {
                         .param("from", CHANGE_DATE.toString()).param("to", CHANGE_DATE.toString()))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.error.code").value("APPOINTMENT_NOT_CHANGEABLE"));
+    }
+
+    @Test
+    void adminCanReadReassignmentAvailabilityButOtherRolesAndAnonymousCannot() throws Exception {
+        mvc.perform(get(reassignmentPath()).with(actor(UUID.randomUUID(), AccountType.ADMIN))
+                .param("from", CHANGE_DATE.toString()).param("to", CHANGE_DATE.toString()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.slots.length()").value(1));
+        mvc.perform(get(reassignmentPath()).param("from", CHANGE_DATE.toString()).param("to", CHANGE_DATE.toString()))
+                .andExpect(status().isUnauthorized());
+        for (AccountType role : AccountType.values()) {
+            if (role == AccountType.ADMIN || role == AccountType.RECEPTIONIST) continue;
+            mvc.perform(get(reassignmentPath()).with(actor(UUID.randomUUID(), role))
+                    .param("from", CHANGE_DATE.toString()).param("to", CHANGE_DATE.toString()))
+                    .andExpect(status().isForbidden());
+        }
+        mvc.perform(get(reschedulePath()).with(actor(UUID.randomUUID(), AccountType.ADMIN))
+                .param("from", CHANGE_DATE.toString()).param("to", CHANGE_DATE.toString()))
+                .andExpect(status().isForbidden());
     }
 
     private void insertAccount(UUID id, String type, String emailPrefix) {

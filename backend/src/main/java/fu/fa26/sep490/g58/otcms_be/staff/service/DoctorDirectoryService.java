@@ -8,4 +8,5 @@ import java.util.UUID;
 public interface DoctorDirectoryService {
     List<DoctorProfile> listPublic();
     Optional<DoctorProfile> findPublic(UUID id);
+    Optional<fu.fa26.sep490.g58.otcms_be.staff.model.DoctorPublicDetail> findPublicDetail(UUID id);
 }

@@ -37,7 +37,8 @@ public interface AppointmentReassignmentRepository extends JpaRepository<Appoint
                 old_status, new_status, old_doctor_profile_id, new_doctor_profile_id,
                 old_start_time, new_start_time, old_end_time, new_end_time, reason, linked_visit_id,
                 source_visit_id, occurred_at, correlation_id)
-            values (:id, :actor, 'RECEPTIONIST', 'DOCTOR_REASSIGNED', 'CONFIRMED', 'CONFIRMED',
+            values (:id, :actor, (select account_type from accounts where id = :actor),
+                'DOCTOR_REASSIGNED', 'CONFIRMED', 'CONFIRMED',
                 :oldDoctor, :newDoctor, :oldStart, :newStart, :oldEnd, :newEnd,
                 cast(:reason as varchar), cast(:visit as uuid), cast(:sourceVisit as uuid),
                 :occurred, :correlation)
