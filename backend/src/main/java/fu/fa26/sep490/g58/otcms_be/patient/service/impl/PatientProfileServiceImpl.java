@@ -15,6 +15,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
+import java.util.ArrayList;
+import fu.fa26.sep490.g58.otcms_be.common.api.ErrorResponse.FieldError;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
@@ -80,7 +82,98 @@ public class PatientProfileServiceImpl implements PatientProfileService {
 
     private PatientProfile toModel(ProfileRecord profile) {
         return new PatientProfile(profile.id(), profile.fullName(), profile.phoneCanonical(),
-                profile.dateOfBirth(), profile.gender());
+                profile.dateOfBirth(), profile.gender(), profile.phoneOwnerType(), profile.address(), profile.nationalId(),
+                profile.identityDocumentType(), profile.accountId() != null, profile.version());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<PatientProfile> matches(UUID actorAccountId, String rawPhone, LocalDate dob, String rawName) {
+        requireActiveReceptionist(actorAccountId);
+        String phone = canonicalPhone(rawPhone);
+        if (phone == null) throw invalid("phone");
+        if (dob == null || dob.isAfter(LocalDate.now(ZoneId.of("Asia/Ho_Chi_Minh")))) throw invalid("dateOfBirth");
+        var candidates = profiles.match(phone, dob, null);
+        if (candidates.size() > 1) {
+            String name = normalizeName(rawName);
+            if (name.isBlank()) throw new PatientProfileException("PATIENT_MATCH_AMBIGUOUS");
+            if (name.length() < 2 || name.length() > 100) throw invalid("fullName");
+            candidates = profiles.match(phone, dob, name);
+            if (candidates.size() > 1) throw new PatientProfileException("PATIENT_MATCH_AMBIGUOUS");
+        }
+        return candidates.stream().map(this::toModel).toList();
+    }
+
+    @Override
+    @Transactional
+    public PatientProfile create(UUID actorAccountId, String name, String phone, String owner, LocalDate dob,
+            String gender, String address, String nationalId, String documentType) {
+        requireActiveReceptionist(actorAccountId);
+        ProfileRecord record = administrativeRecord(UUID.randomUUID(), null, name, phone, owner, dob, gender,
+                address, nationalId, documentType, 0, true);
+        coordinationGuard.acquire();
+        if (profiles.duplicateExists(record.phoneCanonical(), record.dateOfBirth(), record.fullName()))
+            throw new PatientProfileException("PATIENT_PROFILE_DUPLICATE");
+        return toModel(profiles.create(record, record.phoneOwnerType()));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PatientProfile detail(UUID actorAccountId, UUID patientProfileId) {
+        requireActiveReceptionist(actorAccountId);
+        return toModel(requiredProfile(patientProfileId));
+    }
+
+    @Override
+    @Transactional
+    public PatientProfile update(UUID actorAccountId, UUID patientProfileId, String name, String phone, String owner,
+            LocalDate dob, String gender, String address, String nationalId, String documentType, Long version) {
+        requireActiveReceptionist(actorAccountId);
+        if (version == null || version < 0) throw invalid("version");
+        ProfileRecord existing = requiredProfile(patientProfileId);
+        if (existing.version() != version) throw new PatientProfileException("STALE_VERSION");
+        ProfileRecord record = administrativeRecord(patientProfileId, existing.accountId(), name, phone, owner, dob,
+                gender, address, nationalId, documentType, version, false);
+        return toModel(profiles.update(record, version));
+    }
+
+    private ProfileRecord requiredProfile(UUID id) {
+        return profiles.findProfile(id).orElseThrow(() -> new PatientProfileException("PATIENT_PROFILE_NOT_FOUND"));
+    }
+
+    private void requireActiveReceptionist(UUID actor) {
+        if (!receptionists.isActiveReceptionistAccount(actor)) throw new PatientProfileException("ACCESS_DENIED");
+    }
+
+    private ProfileRecord administrativeRecord(UUID id, UUID accountId, String rawName, String rawPhone, String rawOwner,
+            LocalDate dob, String rawGender, String rawAddress, String rawNationalId, String rawDocumentType,
+            long version, boolean creating) {
+        String name = normalizeName(rawName);
+        String phone = canonicalPhone(rawPhone);
+        String owner = rawOwner == null ? "" : rawOwner.trim().toUpperCase(Locale.ROOT);
+        String gender = rawGender == null ? "" : rawGender.trim().toUpperCase(Locale.ROOT);
+        String address = rawAddress == null ? null : rawAddress.trim();
+        String nationalId = optionalText(rawNationalId);
+        String documentType = optionalText(rawDocumentType);
+        var errors = new ArrayList<FieldError>();
+        if (name.length() < 2 || name.length() > 100) errors.add(field("fullName"));
+        if (phone == null) errors.add(field("phone"));
+        if (!PHONE_OWNERS.contains(owner)) errors.add(field("phoneOwnerType"));
+        if (dob == null || dob.isAfter(LocalDate.now(ZoneId.of("Asia/Ho_Chi_Minh")))) errors.add(field("dateOfBirth"));
+        if (!GENDERS.contains(gender)) errors.add(field("gender"));
+        if (creating && (address == null || address.isBlank())) errors.add(field("address"));
+        if (nationalId != null && nationalId.length() > 20) errors.add(field("nationalId"));
+        if ((nationalId != null && documentType == null) || (documentType != null
+                && !Set.of("CCCD", "PERSONAL_ID", "PASSPORT").contains(documentType)))
+            errors.add(field("identityDocumentType"));
+        if (!errors.isEmpty()) throw new PatientProfileException("VALIDATION_FAILED", errors);
+        return new ProfileRecord(id, accountId, name, phone, owner, dob, gender, address, nationalId, documentType, version);
+    }
+
+    private String optionalText(String text) { return text == null || text.isBlank() ? null : text.trim(); }
+    private FieldError field(String name) { return new FieldError(name, "MSG-17"); }
+    private PatientProfileException invalid(String name) {
+        return new PatientProfileException("VALIDATION_FAILED", List.of(field(name)));
     }
 
     private String normalizeName(String value) {

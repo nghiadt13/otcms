@@ -10,4 +10,10 @@ public interface PatientProfileService {
     Page<PatientProfile> search(String query, int page, int size);
     PatientProfile create(String fullName, String phone, String phoneOwnerType, LocalDate dateOfBirth, String gender);
     ReceptionVerificationProfile getReceptionVerificationProfile(UUID actorAccountId, UUID patientProfileId);
+    java.util.List<PatientProfile> matches(UUID actorAccountId, String phone, LocalDate dateOfBirth, String fullName);
+    PatientProfile create(UUID actorAccountId, String fullName, String phone, String phoneOwnerType,
+            LocalDate dateOfBirth, String gender, String address, String nationalId, String identityDocumentType);
+    PatientProfile detail(UUID actorAccountId, UUID patientProfileId);
+    PatientProfile update(UUID actorAccountId, UUID patientProfileId, String fullName, String phone, String phoneOwnerType,
+            LocalDate dateOfBirth, String gender, String address, String nationalId, String identityDocumentType, Long version);
 }

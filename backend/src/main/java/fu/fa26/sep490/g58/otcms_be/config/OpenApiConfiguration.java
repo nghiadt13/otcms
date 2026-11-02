@@ -52,7 +52,38 @@ public class OpenApiConfiguration {
             }));
             applyAppointmentContractResponses(openApi);
             applyReviewAndNotificationContractResponses(openApi);
+            applyPatientProfileContractResponses(openApi);
         };
+    }
+
+    private void applyPatientProfileContractResponses(OpenAPI openApi) {
+        String root = "/api/v1/patient-profiles";
+        Map<String, Map<PathItem.HttpMethod, List<String>>> contracts = Map.of(
+                root, Map.of(PathItem.HttpMethod.POST, List.of("400", "401", "403", "409", "500")),
+                root + "/matches", Map.of(PathItem.HttpMethod.GET, List.of("400", "401", "403", "409", "500")),
+                root + "/{id}", Map.of(
+                        PathItem.HttpMethod.GET, List.of("400", "401", "403", "404", "500"),
+                        PathItem.HttpMethod.PUT, List.of("400", "401", "403", "404", "409", "500")));
+        contracts.forEach((path, methods) -> {
+            PathItem item = openApi.getPaths().get(path);
+            if (item == null) return;
+            methods.forEach((method, statuses) -> {
+                Operation operation = item.readOperationsMap().get(method);
+                if (operation == null) return;
+                statuses.forEach(status -> {
+                    ApiResponse response = operation.getResponses().get(status);
+                    if (response == null) response = new ApiResponse().description("Patient profile request rejected");
+                    response.setContent(new Content().addMediaType("application/json", new MediaType()
+                            .schema(new Schema<>().$ref("#/components/schemas/ErrorResponse"))));
+                    response.addHeaderObject("X-Correlation-ID", new io.swagger.v3.oas.models.headers.Header()
+                            .description("Request correlation identifier").schema(new Schema<>().type("string")));
+                    operation.getResponses().addApiResponse(status, response);
+                });
+            });
+        });
+        if (openApi.getPaths().get(root) != null
+                && openApi.getPaths().get(root).getPost() != null)
+            setCreatedResponse(openApi, root, "PatientProfileResponse", false);
     }
 
     private void markStrictRequestSchemas(Components components) {

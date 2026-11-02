@@ -10,6 +10,9 @@ public class CreatePatientProfileRequest {
     private @NotBlank String phoneOwnerType;
     private @NotNull LocalDate dateOfBirth;
     private @NotBlank String gender;
+    private @NotBlank String address;
+    private String nationalId;
+    private String identityDocumentType;
     public CreatePatientProfileRequest() { }
     public CreatePatientProfileRequest(@NotBlank String fullName, @NotBlank String phone, @NotBlank String phoneOwnerType, @NotNull LocalDate dateOfBirth, @NotBlank String gender) {
         this.fullName = fullName;
@@ -33,4 +36,13 @@ public class CreatePatientProfileRequest {
     public String getGender() { return gender; }
     public String gender() { return gender; }
     public void setGender(String gender) { this.gender = gender; }
+    public String getAddress() { return address; }
+    public String address() { return address; }
+    public void setAddress(String address) { this.address = address; }
+    public String getNationalId() { return nationalId; }
+    public String nationalId() { return nationalId; }
+    public void setNationalId(String nationalId) { this.nationalId = nationalId; }
+    public String getIdentityDocumentType() { return identityDocumentType; }
+    public String identityDocumentType() { return identityDocumentType; }
+    public void setIdentityDocumentType(String identityDocumentType) { this.identityDocumentType = identityDocumentType; }
 }
