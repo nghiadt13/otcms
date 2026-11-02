@@ -20,6 +20,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
         fu.fa26.sep490.g58.otcms_be.visit.controller.WalkInVisitLifecycleController.class,
         fu.fa26.sep490.g58.otcms_be.visit.controller.VisitCareAssignmentController.class,
         fu.fa26.sep490.g58.otcms_be.visit.controller.VisitRoomAdminController.class,
+        fu.fa26.sep490.g58.otcms_be.visit.controller.StaffRoomQueryController.class,
         fu.fa26.sep490.g58.otcms_be.visit.controller.VisitReceptionReadController.class
 })
 @Order(Ordered.HIGHEST_PRECEDENCE)

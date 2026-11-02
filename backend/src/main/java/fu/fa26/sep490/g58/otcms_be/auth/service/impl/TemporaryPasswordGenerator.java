@@ -6,12 +6,20 @@ import org.springframework.stereotype.Component;
 
 @Component
 public class TemporaryPasswordGenerator {
-    private final SecureRandom random = new SecureRandom();
+    private final SecureRandom random;
 
-    /** 256 random bits produce 43 ASCII characters, within the existing 12..64/72-byte policy. */
+    public TemporaryPasswordGenerator() { this(new SecureRandom()); }
+
+    TemporaryPasswordGenerator(SecureRandom random) { this.random = random; }
+
+    /** Keep 256 random bits per candidate; reject candidates lacking BR-04's letter/digit. */
     public String generate() {
         byte[] bytes = new byte[32];
-        random.nextBytes(bytes);
-        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+        String candidate;
+        do {
+            random.nextBytes(bytes);
+            candidate = Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+        } while (!PasswordPolicy.isValid(candidate));
+        return candidate;
     }
 }

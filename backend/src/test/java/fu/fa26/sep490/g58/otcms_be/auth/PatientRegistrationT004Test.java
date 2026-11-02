@@ -78,8 +78,9 @@ class PatientRegistrationT004Test {
         assertEquals("alice@example.com", email.invoke(service, "  Alice@Example.COM "));
     }
 
-    @Test
-    void registrationAcceptsEightToElevenCharacterLetterAndDigitPassword() {
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"abcd1234", "ábcdefg١"})
+    void registrationAcceptsEightToElevenCharacterLetterAndDigitPassword(String password) {
         AccountRepository accounts = mock(AccountRepository.class);
         ConsentEvidenceRepository consents = mock(ConsentEvidenceRepository.class);
         EmailVerificationChallengeRepository challenges = mock(EmailVerificationChallengeRepository.class);
@@ -98,10 +99,10 @@ class PatientRegistrationT004Test {
                 audits, mail, properties(), concurrency);
 
         service.register(new fu.fa26.sep490.g58.otcms_be.auth.model.dto.request.RegistrationRequest(
-                "Alice Patient", " Alice@Example.com ", "abc12345", "abc12345", true), "198.51.100.8");
+                "Alice Patient", " Alice@Example.com ", password, password, true), "198.51.100.8");
 
         verify(accounts).insertIfEmailAvailable(any(), eq("alice@example.com"), eq("PATIENT"),
-                eq("PENDING_VERIFICATION"), argThat(hash -> !hash.contains("abc12345")), eq("Alice Patient"), any(), any());
+                eq("PENDING_VERIFICATION"), argThat(hash -> !hash.contains(password)), eq("Alice Patient"), any(), any());
         verify(mail).sendVerificationCode(eq("alice@example.com"), matches("\\d{6}"), eq(saved.getId()));
     }
 
