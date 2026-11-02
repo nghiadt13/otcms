@@ -10,6 +10,8 @@ import fu.fa26.sep490.g58.otcms_be.common.model.AdminMutationImpact;
 import fu.fa26.sep490.g58.otcms_be.staff.model.dto.response.DoctorAdminResponse;
 import fu.fa26.sep490.g58.otcms_be.staff.model.dto.response.DoctorItems;
 import fu.fa26.sep490.g58.otcms_be.staff.model.dto.response.DoctorPublicResponse;
+import fu.fa26.sep490.g58.otcms_be.staff.model.dto.response.DoctorPublicDetailResponse;
+import io.swagger.v3.oas.annotations.Operation;
 import fu.fa26.sep490.g58.otcms_be.staff.model.dto.response.ShiftItems;
 import fu.fa26.sep490.g58.otcms_be.staff.service.DoctorDirectoryService;
 import fu.fa26.sep490.g58.otcms_be.staff.service.DoctorScheduleService;
@@ -48,8 +50,11 @@ public class DoctorProfileController {
     }
 
     @GetMapping("/api/v1/doctors/{doctorProfileId}")
-    public ResponseEntity<DoctorPublicResponse> publicProfile(@PathVariable UUID doctorProfileId) {
-        return directory.findPublic(doctorProfileId).map(mapper::toPublicResponse)
+    @Operation(summary = "Read a public doctor profile and seven days of availability",
+            description = "Dates run from today through today + 6 in Asia/Ho_Chi_Minh. hasOpenTime is true if any assigned "
+                    + "public-bookable service has a public slot. Non-accepting doctors have seven false values; hidden/inactive profiles remain 404.")
+    public ResponseEntity<DoctorPublicDetailResponse> publicProfile(@PathVariable UUID doctorProfileId) {
+        return directory.findPublicDetail(doctorProfileId).map(mapper::toPublicDetailResponse)
                 .map(ResponseEntity::ok).orElseGet(() -> ResponseEntity.notFound().build());
     }
 

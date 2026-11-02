@@ -107,7 +107,7 @@ public class AppointmentBookingController {
     }
 
     @PostMapping("/api/v1/appointments/{id}/reassign")
-    @PreAuthorize("hasAuthority('ROLE_RECEPTIONIST')")
+    @PreAuthorize("hasAnyAuthority('ROLE_RECEPTIONIST', 'ROLE_ADMIN')")
     public ResponseEntity<AppointmentResponse> reassign(@PathVariable UUID id,
             @Valid @RequestBody ReassignAppointmentRequest body,
             @AuthenticationPrincipal AuthenticatedAccount account, HttpServletRequest request) {

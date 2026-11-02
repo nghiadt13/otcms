@@ -103,6 +103,28 @@ class VisitRoomAdminT031PostgresIntegrationTest {
         assertEquals(0, jdbc.queryForObject("select count(*) from rooms where room_code = 'T031-ADMIN-DENIED'", Integer.class));
     }
 
+    @Test
+    void staffReadReusesAdminProjectionAndDatabaseOrderingIncludingInactiveRooms() throws Exception {
+        for (String suffix : List.of("B", "A")) {
+            mvc.perform(post("/api/v1/admin/visit-rooms").with(actor(admin, AccountRole.ADMIN)).with(csrf())
+                    .contentType("application/json").content("{\"roomCode\":\"T031-ADMIN-KAN25-" + suffix
+                            + "\",\"displayLabel\":\"Room " + suffix + "\",\"capabilities\":[\"EXAM_ROOM\"]}"))
+                    .andExpect(status().isCreated());
+        }
+        UUID inactive = jdbc.queryForObject("select id from rooms where room_code='T031-ADMIN-KAN25-B'", UUID.class);
+        mvc.perform(delete("/api/v1/admin/visit-rooms/{roomId}", inactive).with(actor(admin, AccountRole.ADMIN)).with(csrf()))
+                .andExpect(status().isNoContent());
+        String staff = mvc.perform(get("/api/v1/staff/rooms").with(actor(receptionist, AccountRole.RECEPTIONIST)))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        String adminBody = mvc.perform(get("/api/v1/admin/visit-rooms").with(actor(admin, AccountRole.ADMIN)))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        var json = tools.jackson.databind.json.JsonMapper.builder().build();
+        assertEquals(json.readTree(adminBody), json.readTree(staff));
+        org.junit.jupiter.api.Assertions.assertTrue(staff.indexOf("T031-ADMIN-KAN25-A") < staff.indexOf("T031-ADMIN-KAN25-B"));
+        mvc.perform(get("/api/v1/staff/rooms").with(actor(receptionist, AccountRole.RECEPTIONIST)))
+                .andExpect(jsonPath("$.items[?(@.roomCode == 'T031-ADMIN-KAN25-B')].active").value(false));
+    }
+
     private UUID account(AccountType type, String label) {
         UUID id = UUID.randomUUID();
         Instant created = Instant.parse("2026-10-01T00:00:00Z");

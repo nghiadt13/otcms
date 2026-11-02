@@ -68,7 +68,7 @@ public class AppointmentAvailabilityController {
     }
 
     @GetMapping("/api/v1/appointments/{appointmentId}/reassignment-availability")
-    @PreAuthorize("hasAuthority('ROLE_RECEPTIONIST')")
+    @PreAuthorize("hasAnyAuthority('ROLE_RECEPTIONIST', 'ROLE_ADMIN')")
     @ResponseStatus(HttpStatus.OK)
     public AppointmentAvailabilityResponse reassignmentAvailability(@org.springframework.web.bind.annotation.PathVariable String appointmentId,
             @RequestParam(required = false) String from, @RequestParam(required = false) String to) {

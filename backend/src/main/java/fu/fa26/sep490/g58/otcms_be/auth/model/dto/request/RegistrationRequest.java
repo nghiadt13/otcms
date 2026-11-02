@@ -10,9 +10,10 @@ public class RegistrationRequest {
     private String fullName;
     @NotBlank @Email @Size(max = 254)
     private String email;
-    @NotBlank @Size(min = 8, max = 64)
+    // BR-04 character and byte limits are enforced by the shared service policy, not UTF-16 @Size.
+    @NotBlank
     private String password;
-    @NotBlank @Size(max = 64)
+    @NotBlank
     private String confirmPassword;
     @AssertTrue
     private boolean patientConsent;

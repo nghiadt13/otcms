@@ -5,6 +5,9 @@ import fu.fa26.sep490.g58.otcms_be.staff.model.DoctorWorkShift;
 import fu.fa26.sep490.g58.otcms_be.staff.model.dto.response.DoctorAdminResponse;
 import fu.fa26.sep490.g58.otcms_be.staff.model.dto.response.DoctorItems;
 import fu.fa26.sep490.g58.otcms_be.staff.model.dto.response.DoctorPublicResponse;
+import fu.fa26.sep490.g58.otcms_be.staff.model.DoctorPublicDetail;
+import fu.fa26.sep490.g58.otcms_be.staff.model.dto.response.DoctorPublicDetailResponse;
+import fu.fa26.sep490.g58.otcms_be.staff.model.dto.response.DoctorAvailabilityDayResponse;
 import fu.fa26.sep490.g58.otcms_be.staff.model.dto.response.ShiftItems;
 import fu.fa26.sep490.g58.otcms_be.staff.model.dto.response.ShiftResponse;
 import fu.fa26.sep490.g58.otcms_be.staff.model.entity.DoctorProfileJpaEntity;
@@ -28,6 +31,12 @@ public class DoctorProfileMapper {
     }
 
     public DoctorPublicResponse toPublicResponse(DoctorProfile p) { return new DoctorPublicResponse(p.id(), p.fullName(), p.photoUrl(), p.specialties(), p.qualifications(), p.biography(), p.consultationInformation()); }
+    public DoctorPublicDetailResponse toPublicDetailResponse(DoctorPublicDetail detail) {
+        var p = detail.profile();
+        return new DoctorPublicDetailResponse(p.id(), p.fullName(), p.photoUrl(), p.specialties(), p.qualifications(),
+                p.biography(), p.consultationInformation(), detail.availability().stream()
+                .map(day -> new DoctorAvailabilityDayResponse(day.date(), day.hasOpenTime())).toList());
+    }
     public DoctorAdminResponse toAdminResponse(DoctorProfile p) { return new DoctorAdminResponse(p.id(), p.accountId(), p.fullName(), p.photoUrl(), p.workContact(), p.specialties(), p.qualifications(), p.biography(), p.consultationInformation(), p.publiclyVisible(), p.acceptingNewBookings(), p.inActiveDirectory()); }
     public DoctorItems toItems(List<DoctorProfile> profiles) { return new DoctorItems(profiles.stream().map(this::toPublicResponse).toList()); }
     public ShiftItems toShiftItems(List<DoctorWorkShift> shifts) { return new ShiftItems(shifts.stream().map(s -> new ShiftResponse(s.id(), s.doctorProfileId(), s.startsAt(), s.endsAt(), s.roomId())).toList()); }

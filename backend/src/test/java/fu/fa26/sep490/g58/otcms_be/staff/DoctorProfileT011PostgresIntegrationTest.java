@@ -35,6 +35,7 @@ class DoctorProfileT011PostgresIntegrationTest {
     @Autowired JdbcTemplate jdbc;
     @Autowired DataSource dataSource;
     @Autowired StaffDirectoryQueryService staffDirectory;
+    @Autowired java.time.Clock clock;
 
     @AfterEach void cleanup() {
         jdbc.update("delete from doctor_time_off where doctor_profile_id in (select id from doctor_profiles where work_contact like 't011-%')");
@@ -90,6 +91,55 @@ class DoctorProfileT011PostgresIntegrationTest {
         mvc.perform(post("/api/v1/admin/doctor-profiles").with(actor(AccountType.ADMIN)).with(csrf())
                         .contentType("application/json").content("{\"accountId\":\"" + accountId + "\",\"fullName\":\"Wrong role\"}"))
                 .andExpect(status().isNotFound()).andExpect(jsonPath("$.error.code").value("DOCTOR_ACCOUNT_UNAVAILABLE"));
+    }
+
+    @Test
+    void publicDetailUsesRealPublicAvailabilityAndListRemainsUnenriched() throws Exception {
+        UUID accountId = createAccount(AccountType.DOCTOR, "kan25");
+        mvc.perform(post("/api/v1/admin/doctor-profiles").with(actor(AccountType.ADMIN)).with(csrf())
+                .contentType("application/json").content("{\"accountId\":\"" + accountId
+                        + "\",\"fullName\":\"KAN25 Doctor\",\"workContact\":\"t011-kan25\"}"))
+                .andExpect(status().isCreated());
+        UUID profileId = jdbc.queryForObject("select id from doctor_profiles where account_id=?", UUID.class, accountId);
+        UUID serviceId = UUID.randomUUID();
+        var zone = java.time.ZoneId.of("Asia/Ho_Chi_Minh");
+        var today = java.time.LocalDate.now(clock.withZone(zone));
+        var starts = today.plusDays(1).atTime(9, 0).atZone(zone).toInstant();
+        try {
+            jdbc.update("update doctor_profiles set publicly_visible=true,accepting_new_bookings=true where id=?", profileId);
+            jdbc.update("insert into clinic_services(id,name,duration_minutes,buffer_minutes,online_bookable,active) "
+                    + "values (?,'KAN25 Public Availability',30,5,true,true)", serviceId);
+            jdbc.update("insert into doctor_services(doctor_profile_id,service_id,active) values (?,?,true)", profileId, serviceId);
+            jdbc.update("insert into doctor_shifts(id,doctor_profile_id,starts_at,ends_at) values (?,?,?,?)",
+                    UUID.randomUUID(), profileId, java.sql.Timestamp.from(starts), java.sql.Timestamp.from(starts.plusSeconds(7200)));
+            mvc.perform(get("/api/v1/doctors/{id}", profileId)).andExpect(status().isOk())
+                    .andExpect(jsonPath("$.availability.length()").value(7))
+                    .andExpect(jsonPath("$.availability[0].date").value(today.toString()))
+                    .andExpect(jsonPath("$.availability[1].hasOpenTime").value(true));
+            mvc.perform(get("/api/v1/doctors")).andExpect(status().isOk())
+                    .andExpect(jsonPath("$.items[?(@.doctorProfileId == '" + profileId + "')].availability").doesNotExist());
+            jdbc.update("update doctor_profiles set accepting_new_bookings=false where id=?", profileId);
+            mvc.perform(get("/api/v1/doctors/{id}", profileId)).andExpect(status().isOk())
+                    .andExpect(jsonPath("$.availability[?(@.hasOpenTime == true)]").isEmpty());
+            jdbc.update("update doctor_profiles set in_active_directory=false where id=?", profileId);
+            mvc.perform(get("/api/v1/doctors/{id}", profileId)).andExpect(status().isNotFound());
+        } finally {
+            jdbc.update("delete from doctor_services where service_id=?", serviceId);
+            jdbc.update("delete from clinic_services where id=?", serviceId);
+        }
+    }
+
+    @Test
+    void openApiKeepsDoctorListSchemaAndAddsDetailAvailabilityAndStaffRooms() throws Exception {
+        String body = mvc.perform(get("/v3/api-docs")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        var document = tools.jackson.databind.json.JsonMapper.builder().build().readTree(body);
+        var schemas = document.get("components").get("schemas");
+        assertNull(schemas.get("DoctorPublicResponse").get("properties").get("availability"));
+        assertNotNull(schemas.get("DoctorPublicDetailResponse").get("properties").get("availability"));
+        assertNotNull(document.get("paths").get("/api/v1/staff/rooms").get("get").get("security"));
+        assertNotNull(document.get("paths").get("/api/v1/appointments"));
+        assertNotNull(document.get("paths").get("/api/v1/public/reviews"));
+        assertNotNull(document.get("paths").get("/api/v1/me/notifications"));
     }
 
     private UUID createAccount(AccountType type, String label) {
