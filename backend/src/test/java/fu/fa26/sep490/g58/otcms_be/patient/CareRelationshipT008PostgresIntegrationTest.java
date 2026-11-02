@@ -76,16 +76,16 @@ class CareRelationshipT008PostgresIntegrationTest {
     }
 
     @Test
-    void linkedProfileIsAuthorizedButOtherPatientProfilesAndDependentRoutesAreDenied() throws Exception {
+    void confirmedDependentAuthorizedAndUnrelatedProfilesAndLegacyRoutesDenied() throws Exception {
         UUID requester = account(), dependent = account(), stranger = account();
         UUID own = profile(requester), target = profile(dependent);
         profile(stranger);
         assertEquals(AuthorizePatientProfileService.AuthorizationScope.SELF,
                 authorization.authorize(requester, own).scope());
         UUID relationship = UUID.randomUUID();
-        jdbc.update("insert into patient_caregivers(id,requester_account_id,dependent_patient_profile_id,confirming_account_id,state,requested_at,confirmed_at) values (?,?,?,?,'CONFIRMED',now(),now())",
-                relationship, requester, target, dependent);
-        assertThrows(PatientAuthorizationDeniedException.class, () -> authorization.authorize(requester, target));
+        jdbc.update("insert into patient_caregivers(id,requester_account_id,dependent_patient_profile_id,confirming_account_id,state,requested_at,confirmed_at,relationship,verification_method,verified_by_account_id,verified_at) values (?,?,?,?,'CONFIRMED',now(),now(),'PARENT','COUNTER_CHECK',?,now())",
+                relationship, requester, target, dependent, requester);
+        assertEquals(AuthorizePatientProfileService.AuthorizationScope.DEPENDENT, authorization.authorize(requester, target).scope());
         assertThrows(PatientAuthorizationDeniedException.class, () -> authorization.authorize(stranger, target));
         mvc.perform(post("/api/v1/care-relationships").with(actor(requester, AccountType.PATIENT)).with(csrf())
                 .contentType("application/json").content("{\"dependentPatientProfileId\":\"" + target + "\"}"))
@@ -96,7 +96,7 @@ class CareRelationshipT008PostgresIntegrationTest {
     }
 
     @Test
-    void noAccountProfileRemainsReceptionistManagedAndDependentRoutesAreAbsent() throws Exception {
+    void unlinkedAccountlessProfileIsDeniedAndLegacyRoutesRemainAbsent() throws Exception {
         UUID requester = account(); profile(requester);
         UUID noAccount = profile(null);
         mvc.perform(post("/api/v1/care-relationships").with(actor(requester, AccountType.PATIENT)).with(csrf())

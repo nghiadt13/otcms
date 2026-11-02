@@ -13,6 +13,36 @@ public class CareRelationship {
     private final Instant confirmedAt;
     private final Instant revokedAt;
     private final UUID revokedByAccountId;
+    private Relationship relationship;
+    private VerificationMethod verificationMethod;
+    private PendingReason pendingReason;
+    private UUID verifiedByAccountId;
+    private Instant verifiedAt;
+
+    public enum Relationship { PARENT, CHILD, SPOUSE, SIBLING }
+    public enum VerificationMethod { EMAIL_OTP, COUNTER_CHECK, CREATED_WITHOUT_OTP }
+    public enum PendingReason { OTP, COUNTER }
+
+    public CareRelationship(UUID id, UUID requester, UUID profile, UUID confirming, State state, Instant requested,
+            Instant confirmed, Instant revoked, UUID revokedBy, Relationship relationship,
+            VerificationMethod method, PendingReason pending, UUID verifiedBy, Instant verified) {
+        this(id, requester, profile, confirming, state, requested, confirmed, revoked, revokedBy);
+        this.relationship = relationship;
+        this.verificationMethod = method;
+        this.pendingReason = pending;
+        this.verifiedByAccountId = verifiedBy;
+        this.verifiedAt = verified;
+    }
+    public Relationship relationship() { return relationship; }
+    public VerificationMethod verificationMethod() { return verificationMethod; }
+    public PendingReason pendingReason() { return pendingReason; }
+    public UUID verifiedByAccountId() { return verifiedByAccountId; }
+    public Instant verifiedAt() { return verifiedAt; }
+    public CareRelationship verified(VerificationMethod method, UUID actor, Instant now) {
+        return new CareRelationship(id, requesterAccountId, dependentPatientProfileId, confirmingAccountId,
+                State.CONFIRMED, requestedAt, now, null, null, relationship, method, null, actor, now);
+    }
+
 
     public CareRelationship(UUID id, UUID requesterAccountId, UUID dependentPatientProfileId, UUID confirmingAccountId, State state, Instant requestedAt, Instant confirmedAt, Instant revokedAt, UUID revokedByAccountId) {
         this.id = id;
@@ -111,6 +141,6 @@ public class CareRelationship {
 
     public CareRelationship revoke(UUID actor, Instant now) {
         return new CareRelationship(id, requesterAccountId, dependentPatientProfileId, confirmingAccountId,
-                State.REVOKED, requestedAt, confirmedAt, now, actor);
+                State.REVOKED, requestedAt, confirmedAt, now, actor, relationship, verificationMethod, null, verifiedByAccountId, verifiedAt);
     }
 }

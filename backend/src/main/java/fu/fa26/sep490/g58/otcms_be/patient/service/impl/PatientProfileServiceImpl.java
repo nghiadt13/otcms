@@ -145,73 +145,16 @@ public class PatientProfileServiceImpl implements PatientProfileService {
         if (!receptionists.isActiveReceptionistAccount(actor)) throw new PatientProfileException("ACCESS_DENIED");
     }
 
-    private ProfileRecord administrativeRecord(UUID id, UUID accountId, String rawName, String rawPhone, String rawOwner,
-            LocalDate dob, String rawGender, String rawAddress, String rawNationalId, String rawDocumentType,
-            long version, boolean creating) {
-        String name = normalizeName(rawName);
-        String phone = canonicalPhone(rawPhone);
-        String owner = rawOwner == null ? "" : rawOwner.trim().toUpperCase(Locale.ROOT);
-        String gender = rawGender == null ? "" : rawGender.trim().toUpperCase(Locale.ROOT);
-        String address = rawAddress == null ? null : rawAddress.trim();
-        String nationalId = optionalText(rawNationalId);
-        String documentType = optionalText(rawDocumentType);
-        var errors = new ArrayList<FieldError>();
-        if (name.length() < 2 || name.length() > 100) errors.add(field("fullName"));
-        if (phone == null) errors.add(field("phone"));
-        if (!PHONE_OWNERS.contains(owner)) errors.add(field("phoneOwnerType"));
-        if (dob == null || dob.isAfter(LocalDate.now(ZoneId.of("Asia/Ho_Chi_Minh")))) errors.add(field("dateOfBirth"));
-        if (!GENDERS.contains(gender)) errors.add(field("gender"));
-        if (creating && (address == null || address.isBlank())) errors.add(field("address"));
-        if (nationalId != null && nationalId.length() > 20) errors.add(field("nationalId"));
-        if ((nationalId != null && documentType == null) || (documentType != null
-                && !Set.of("CCCD", "PERSONAL_ID", "PASSPORT").contains(documentType)))
-            errors.add(field("identityDocumentType"));
-        if (!errors.isEmpty()) throw new PatientProfileException("VALIDATION_FAILED", errors);
-        return new ProfileRecord(id, accountId, name, phone, owner, dob, gender, address, nationalId, documentType, version);
+    private ProfileRecord administrativeRecord(UUID id, UUID accountId, String name, String phone, String owner,
+            LocalDate dob, String gender, String address, String nationalId, String type, long version, boolean creating) {
+        return AdministrativeProfileFields.record(id, accountId, name, phone, owner, dob, gender, address,
+                nationalId, type, version, creating, false);
     }
 
-    private String optionalText(String text) { return text == null || text.isBlank() ? null : text.trim(); }
-    private FieldError field(String name) { return new FieldError(name, "MSG-17"); }
+    private String normalizeName(String value) { return AdministrativeProfileFields.normalizeName(value); }
+    private String canonicalPhone(String value) { return AdministrativeProfileFields.canonicalPhone(value); }
+    private String phoneSearchTerm(String value) { return AdministrativeProfileFields.phoneSearchTerm(value); }
     private PatientProfileException invalid(String name) {
-        return new PatientProfileException("VALIDATION_FAILED", List.of(field(name)));
-    }
-
-    private String normalizeName(String value) {
-        if (value == null) {
-            return "";
-        }
-        return Normalizer.normalize(value.trim().replaceAll("\\s+", " "), Normalizer.Form.NFC);
-    }
-
-    private String canonicalPhone(String raw) {
-        if (raw == null) {
-            return null;
-        }
-        String value = normalizePhonePrefix(raw);
-        String digits = value.substring(1);
-        return digits.matches("[0-9]{8,15}") ? "+" + digits : null;
-    }
-
-    private String phoneSearchTerm(String raw) {
-        if (raw == null) {
-            return null;
-        }
-        String value = normalizePhonePrefix(raw);
-        String digits = value.substring(1);
-        return digits.matches("[0-9]{1,15}") ? "+" + digits : null;
-    }
-
-    private String normalizePhonePrefix(String raw) {
-        String value = raw.trim().replaceAll("[\\s().-]", "");
-        if (value.startsWith("00")) {
-            value = "+" + value.substring(2);
-        }
-        if (value.startsWith("0")) {
-            value = "+84" + value.substring(1);
-        }
-        if (!value.startsWith("+")) {
-            value = "+" + value;
-        }
-        return value;
+        return new PatientProfileException("VALIDATION_FAILED", List.of(new FieldError(name, "MSG-17")));
     }
 }

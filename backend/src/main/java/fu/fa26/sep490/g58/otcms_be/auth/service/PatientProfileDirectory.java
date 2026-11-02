@@ -17,6 +17,7 @@ import java.util.Optional;
     Optional<UUID> findPatientProfile(UUID accountId);
     Optional<ProfileRecord> findProfile(UUID profileId);
     java.util.List<ProfileRecord> match(String phone, LocalDate dateOfBirth, String normalizedFullName);
+    java.util.List<ProfileRecord> matchDependent(String normalizedName, LocalDate dateOfBirth, String nationalId);
     boolean duplicateExists(String phone, LocalDate dateOfBirth, String normalizedFullName);
     ProfileRecord update(ProfileRecord profile, long expectedVersion);
 

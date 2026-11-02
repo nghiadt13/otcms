@@ -19,8 +19,8 @@ public class PatientProfileJpaEntity {
     @Column(name = "account_id", unique = true) private UUID accountId;
     @OneToOne(fetch = FetchType.LAZY) @JoinColumn(name = "account_id", insertable = false, updatable = false) private AccountJpaEntity account;
     @Column(name = "full_name", nullable = false, length = 100) private String fullName;
-    @Column(name = "phone_canonical", nullable = false, length = 16) private String phoneCanonical;
-    @Enumerated(EnumType.STRING) @Column(name = "phone_owner_type", nullable = false, length = 16) private PhoneOwnerType phoneOwnerType;
+    @Column(name = "phone_canonical", length = 16) private String phoneCanonical;
+    @Enumerated(EnumType.STRING) @Column(name = "phone_owner_type", length = 16) private PhoneOwnerType phoneOwnerType;
     @Column(name = "date_of_birth", nullable = false) private LocalDate dateOfBirth;
     @Enumerated(EnumType.STRING) @Column(nullable = false, length = 16) private Gender gender;
     @Column(columnDefinition = "text") private String address;
