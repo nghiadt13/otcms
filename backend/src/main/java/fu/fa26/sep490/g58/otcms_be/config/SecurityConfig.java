@@ -41,7 +41,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/auth/staff/administrator/login").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/clinic-services", "/api/v1/doctors",
                                 "/api/v1/doctors/**", "/api/v1/appointments/availability",
-                                "/api/v1/staff-profiles/*/photo").permitAll()
+                                "/api/v1/staff-profiles/*/photo", "/api/v1/public/reviews").permitAll()
                         .requestMatchers(HttpMethod.HEAD, "/api/v1/clinic-services", "/api/v1/appointments/availability")
                                 .permitAll()
                         .anyRequest().authenticated())

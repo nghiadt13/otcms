@@ -1,5 +1,9 @@
 package fu.fa26.sep490.g58.otcms_be.appointment.service.impl;
 import fu.fa26.sep490.g58.otcms_be.appointment.model.CreatedAppointment;
+import fu.fa26.sep490.g58.otcms_be.appointment.model.CancellableAppointment;
+import fu.fa26.sep490.g58.otcms_be.notification.model.NotificationMessages;
+import fu.fa26.sep490.g58.otcms_be.notification.service.NotificationPublisher;
+import fu.fa26.sep490.g58.otcms_be.staff.service.StaffAvailabilityProviderQueryService;
 
 import fu.fa26.sep490.g58.otcms_be.appointment.exception.AppointmentBookingException;
 import fu.fa26.sep490.g58.otcms_be.appointment.repository.AppointmentCancellationRepository;
@@ -36,16 +40,20 @@ public class CancelAppointmentServiceImpl implements CancelAppointmentService {
     private final Clock clock;
     private final AppointmentLifecycleRepository lifecycle;
     private final VisitScheduledCareService visits;
+    private final NotificationPublisher notifications;
+    private final StaffAvailabilityProviderQueryService doctors;
 
     public CancelAppointmentServiceImpl(CoordinationGuardService guard, AppointmentCancellationRepository appointments,
-            AuthorizePatientProfileService patientAuthorization, AppointmentBookingProperties properties, Clock clock) {
-        this(guard, appointments, patientAuthorization, properties, clock, null, null);
+            AuthorizePatientProfileService patientAuthorization, AppointmentBookingProperties properties, Clock clock,
+            NotificationPublisher notifications, StaffAvailabilityProviderQueryService doctors) {
+        this(guard, appointments, patientAuthorization, properties, clock, null, null, notifications, doctors);
     }
 
     @Autowired
     public CancelAppointmentServiceImpl(CoordinationGuardService guard, AppointmentCancellationRepository appointments,
             AuthorizePatientProfileService patientAuthorization, AppointmentBookingProperties properties, Clock clock,
-            AppointmentLifecycleRepository lifecycle, VisitScheduledCareService visits) {
+            AppointmentLifecycleRepository lifecycle, VisitScheduledCareService visits,
+            NotificationPublisher notifications, StaffAvailabilityProviderQueryService doctors) {
         this.guard = guard;
         this.appointments = appointments;
         this.patientAuthorization = patientAuthorization;
@@ -53,6 +61,8 @@ public class CancelAppointmentServiceImpl implements CancelAppointmentService {
         this.clock = clock;
         this.lifecycle = lifecycle;
         this.visits = visits;
+        this.notifications = notifications;
+        this.doctors = doctors;
     }
 
     @Override
@@ -114,8 +124,10 @@ public class CancelAppointmentServiceImpl implements CancelAppointmentService {
                     .orElseThrow(() -> new AppointmentBookingException("APPOINTMENT_NOT_FOUND"));
             if (!"CHECKED_IN".equals(checkedIn.status())) throw new AppointmentBookingException("APPOINTMENT_NOT_CHANGEABLE");
             try {
-                return lifecycle.transition(checkedIn, command.actorAccountId(), command.actor().name(),
+                var cancelled = lifecycle.transition(checkedIn, command.actorAccountId(), command.actor().name(),
                         "CANCELLED", command.reason().trim(), now, command.correlationId());
+                publishCancellation(current, command);
+                return cancelled;
             } catch (DataAccessException failure) {
                 log.error("Checked-in appointment lifecycle persistence failed for appointment {}", appointmentId, failure);
                 throw new AppointmentBookingException("DEPENDENCY_UNAVAILABLE", failure);
@@ -126,7 +138,14 @@ public class CancelAppointmentServiceImpl implements CancelAppointmentService {
                 && current.startTime().isBefore(now.plus(properties.patientChangeDeadlineMinutes(), ChronoUnit.MINUTES))) {
             throw new AppointmentBookingException("APPOINTMENT_CHANGE_TOO_LATE");
         }
-        return appointments.cancel(current, command.actorAccountId(), command.actor().name(),
+        var cancelled = appointments.cancel(current, command.actorAccountId(), command.actor().name(),
                 command.reason() == null ? null : command.reason().trim(), now, command.correlationId());
+        publishCancellation(current, command);
+        return cancelled;
+    }
+    private void publishCancellation(CancellableAppointment appointment, CancelAppointmentCommand command) {
+        if (command.actor() == CancelAppointmentCommand.Actor.RECEPTIONIST)
+            notifications.publishToPatient(appointment.patientProfileId(), NotificationMessages.appointmentCancelled(
+                    appointment.id(), appointment.startTime(), doctors.findDoctorDisplayName(appointment.doctorProfileId()).orElse("")));
     }
 }
