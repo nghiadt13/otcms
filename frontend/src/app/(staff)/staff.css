@@ -1,0 +1,67 @@
+@media (prefers-reduced-motion: reduce) {
+  [data-slot="dialog-content"],
+  [data-slot="dialog-overlay"],
+  [data-slot="sidebar-container"] {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+@media print {
+  body:has(.reception-print-document) {
+    overflow: visible !important;
+    height: auto !important;
+    background: white;
+  }
+  body:has(.reception-print-document) > :not(:has(.reception-print-document)) {
+    display: none !important;
+  }
+  body:has(.reception-print-document) [data-slot="dialog-overlay"] {
+    display: none !important;
+  }
+  [data-slot="dialog-content"]:has(.reception-print-document) {
+    position: static !important;
+    transform: none !important;
+    translate: none !important;
+    /* Reset the utility variables too: Lightning CSS lowers `translate: none`
+       into transform, while Tailwind's independent translate still applies. */
+    --tw-translate-x: 0px !important;
+    --tw-translate-y: 0px !important;
+    animation: none !important;
+    transition: none !important;
+    display: block !important;
+    width: 100% !important;
+    max-width: none !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+    border: 0 !important;
+    outline: 0 !important;
+    background: white !important;
+  }
+  [data-slot="dialog-content"]:has(.reception-print-document)
+    > :not(.reception-print-document) {
+    display: none !important;
+  }
+  .reception-print-document {
+    position: static;
+    width: 100%;
+    max-width: none;
+    padding: 0;
+    border: 0;
+    box-shadow: none;
+    background: white;
+    color: black;
+  }
+  .reception-no-print {
+    display: none !important;
+  }
+  .reception-print-document tr {
+    break-inside: avoid;
+  }
+  @page {
+    size: A4;
+    margin: 12mm;
+  }
+}

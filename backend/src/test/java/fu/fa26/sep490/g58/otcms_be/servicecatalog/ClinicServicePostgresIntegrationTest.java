@@ -1,0 +1,185 @@
+package fu.fa26.sep490.g58.otcms_be.servicecatalog;
+
+import fu.fa26.sep490.g58.otcms_be.support.LocalPostgresTest;
+import fu.fa26.sep490.g58.otcms_be.auth.model.entity.enums.AccountType;
+import fu.fa26.sep490.g58.otcms_be.common.security.AuthenticatedAccount;
+import org.flywaydb.core.Flyway;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.request.RequestPostProcessor;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.annotation.DirtiesContext;
+
+import javax.sql.DataSource;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.util.List;
+import java.util.ArrayList;
+import java.util.UUID;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+
+@SpringBootTest
+@AutoConfigureMockMvc
+@LocalPostgresTest
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
+class ClinicServicePostgresIntegrationTest {
+    private static final String TEST_SCHEMA = "t010_price_" + UUID.randomUUID().toString().replace("-", "");
+    private static final String TEST_DATABASE_URL = "jdbc:postgresql://127.0.0.1:5432/otcms_test_db";
+    private final List<UUID> actorAccounts = new ArrayList<>();
+    @Autowired MockMvc mvc;
+    @Autowired JdbcTemplate jdbc;
+    @Autowired DataSource dataSource;
+
+    @DynamicPropertySource
+    static void isolateFlywayAndJpaInTemporarySchema(DynamicPropertyRegistry registry) {
+        String username = System.getenv().getOrDefault("OTCMS_TEST_DB_USERNAME", "postgres");
+        String password = System.getenv("OTCMS_TEST_DB_PASSWORD");
+        if (password == null) {
+            throw new IllegalStateException("OTCMS_TEST_DB_PASSWORD is required for the local ClinicService integration test");
+        }
+        try (Connection connection = DriverManager.getConnection(TEST_DATABASE_URL, username, password);
+             Statement statement = connection.createStatement()) {
+            statement.execute("create schema " + TEST_SCHEMA);
+        } catch (SQLException exception) {
+            throw new IllegalStateException("Could not create the isolated ClinicService test schema", exception);
+        }
+
+        registry.add("spring.datasource.url", () -> TEST_DATABASE_URL + "?currentSchema=" + TEST_SCHEMA);
+        registry.add("spring.flyway.schemas", () -> TEST_SCHEMA);
+        registry.add("spring.flyway.default-schema", () -> TEST_SCHEMA);
+    }
+
+    @org.junit.jupiter.api.AfterAll
+    static void dropTemporarySchema() throws SQLException {
+        String username = System.getenv().getOrDefault("OTCMS_TEST_DB_USERNAME", "postgres");
+        String password = System.getenv("OTCMS_TEST_DB_PASSWORD");
+        if (password == null) {
+            return;
+        }
+        try (Connection connection = DriverManager.getConnection(TEST_DATABASE_URL, username, password);
+             Statement statement = connection.createStatement()) {
+            statement.execute("drop schema if exists " + TEST_SCHEMA + " cascade");
+        }
+    }
+
+    @AfterEach void cleanup() {
+        jdbc.execute("alter table service_audits disable trigger tr_service_catalog_audits_immutable");
+        try {
+            jdbc.update("delete from service_audits where service_id in (select id from clinic_services where name like 'T010 %')");
+            jdbc.update("delete from clinic_services where name like 'T010 %'");
+            for (UUID accountId : actorAccounts) jdbc.update("delete from accounts where id = ?", accountId);
+            actorAccounts.clear();
+        } finally {
+            jdbc.execute("alter table service_audits enable trigger tr_service_catalog_audits_immutable");
+        }
+    }
+
+    @Test
+    void cleanSchemaMigratesThroughV004() {
+        String schema = "t010_clean_" + UUID.randomUUID().toString().replace("-", "");
+        jdbc.execute("create schema " + schema);
+        try {
+            Flyway flyway = Flyway.configure().dataSource(dataSource).schemas(schema).defaultSchema(schema)
+                    .locations("classpath:db/migration").target("4").load();
+            assertEquals(5, flyway.migrate().migrationsExecuted);
+            assertEquals(1, jdbc.queryForObject("select count(*) from information_schema.tables where table_schema = ? and table_name = 'clinic_services'", Integer.class, schema));
+            assertEquals(1, jdbc.queryForObject("select count(*) from information_schema.tables where table_schema = ? and table_name = 'doctor_service_assignments'", Integer.class, schema));
+        } finally {
+            jdbc.execute("drop schema if exists " + schema + " cascade");
+        }
+    }
+
+    @Test
+    void publicCatalogOmitsInactiveAndNonOnlineServices() throws Exception {
+        jdbc.update("insert into clinic_services (id,name,duration_minutes,buffer_minutes,online_bookable,active) values (?,?,?,?,?,?)",
+                UUID.randomUUID(), "T010 online", 30, 5, true, true);
+        jdbc.update("insert into clinic_services (id,name,duration_minutes,buffer_minutes,online_bookable,active) values (?,?,?,?,?,?)",
+                UUID.randomUUID(), "T010 staff only", 30, 5, false, true);
+        jdbc.update("insert into clinic_services (id,name,duration_minutes,buffer_minutes,online_bookable,active) values (?,?,?,?,?,?)",
+                UUID.randomUUID(), "T010 inactive online", 30, 5, true, false);
+        mvc.perform(get("/api/v1/clinic-services").param("size", "100"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.items[?(@.name == 'T010 online')]").exists())
+                .andExpect(jsonPath("$.items[0].price").value(0.00))
+                .andExpect(jsonPath("$.items[?(@.name == 'T010 staff only')]").doesNotExist())
+                .andExpect(jsonPath("$.items[?(@.name == 'T010 inactive online')]").doesNotExist());
+    }
+
+    @Test
+    void staffCatalogReturnsEveryActiveServiceAndOmitsInactiveServices() throws Exception {
+        jdbc.update("insert into clinic_services (id,name,duration_minutes,buffer_minutes,online_bookable,active) values (?,?,?,?,?,?)",
+                UUID.randomUUID(), "T010 staff online", 30, 5, true, true);
+        jdbc.update("insert into clinic_services (id,name,duration_minutes,buffer_minutes,online_bookable,active) values (?,?,?,?,?,?)",
+                UUID.randomUUID(), "T010 staff only", 30, 5, false, true);
+        jdbc.update("insert into clinic_services (id,name,duration_minutes,buffer_minutes,online_bookable,active) values (?,?,?,?,?,?)",
+                UUID.randomUUID(), "T010 staff inactive", 30, 5, true, false);
+        mvc.perform(get("/api/v1/staff/clinic-services").with(actor(AccountType.RECEPTIONIST)))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.items[?(@.name == 'T010 staff online')]").exists())
+                .andExpect(jsonPath("$.items[?(@.name == 'T010 staff only')]").exists())
+                .andExpect(jsonPath("$.items[?(@.name == 'T010 staff inactive')]").doesNotExist());
+    }
+
+    @Test
+    void adminDeactivationPreservesServiceRowAndWritesAudit() throws Exception {
+        String response = mvc.perform(post("/api/v1/admin/clinic-services").with(actor(AccountType.ADMIN)).with(csrf()).contentType("application/json")
+                        .content("{\"name\":\"T010 diagnostic\",\"description\":\"Test service\",\"price\":125000.00,\"durationMinutes\":40,\"bufferMinutes\":10,\"onlineBookable\":true}"))
+                .andExpect(status().isCreated()).andExpect(jsonPath("$.active").value(true))
+                .andExpect(jsonPath("$.price").value(125000.00)).andReturn().getResponse().getContentAsString();
+        String id = response.replaceAll(".*\\\"id\\\":\\\"([^\\\"]+)\\\".*", "$1");
+        mvc.perform(put("/api/v1/admin/clinic-services/" + id).with(actor(AccountType.ADMIN)).with(csrf())
+                        .contentType("application/json")
+                        .content("{\"name\":\"T010 diagnostic\",\"description\":\"Test service\",\"price\":95000.50,\"durationMinutes\":40,\"bufferMinutes\":10,\"onlineBookable\":true}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.price").value(95000.50));
+        mvc.perform(delete("/api/v1/admin/clinic-services/" + id).with(actor(AccountType.ADMIN)).with(csrf()))
+                .andExpect(status().isNoContent());
+        assertEquals(1, jdbc.queryForObject("select count(*) from clinic_services where id = ? and active = false", Integer.class, UUID.fromString(id)));
+        assertEquals(1, jdbc.queryForObject("select count(*) from service_audits where service_id = ? and action = 'DEACTIVATED'", Integer.class, UUID.fromString(id)));
+
+        jdbc.update("update clinic_services set active = false where id = ?", UUID.fromString(id));
+        mvc.perform(post("/api/v1/admin/clinic-services/" + id + "/activation").with(actor(AccountType.ADMIN)).with(csrf()))
+                .andExpect(status().isNoContent());
+        assertEquals(1, jdbc.queryForObject("select count(*) from clinic_services where id = ? and active = true", Integer.class, UUID.fromString(id)));
+    }
+
+    @Test
+    void receptionistCannotManageServices() throws Exception {
+        mvc.perform(post("/api/v1/admin/clinic-services").with(actor(AccountType.RECEPTIONIST)).with(csrf()).contentType("application/json")
+                .content("{\"name\":\"T010 denied\",\"price\":0.00,\"durationMinutes\":30,\"bufferMinutes\":0,\"onlineBookable\":false}"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void adminCannotSetNegativeServicePrice() throws Exception {
+        mvc.perform(post("/api/v1/admin/clinic-services").with(actor(AccountType.ADMIN)).with(csrf())
+                        .contentType("application/json")
+                        .content("{\"name\":\"T010 negative price\",\"price\":-1.00,\"durationMinutes\":30,\"bufferMinutes\":0,\"onlineBookable\":false}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    private RequestPostProcessor actor(AccountType type) {
+        UUID accountId = UUID.randomUUID();
+        actorAccounts.add(accountId);
+        jdbc.update("insert into accounts (id, normalized_email, account_type, status, created_at, updated_at) values (?, ?, ?, 'ACTIVE', now(), now())",
+                accountId, accountId + "@t010.test", type.name());
+        var principal = new AuthenticatedAccount(accountId, fu.fa26.sep490.g58.otcms_be.common.security.AccountRole.valueOf(type.name()), UUID.randomUUID());
+        return authentication(new UsernamePasswordAuthenticationToken(principal, null,
+                List.of(new SimpleGrantedAuthority("ROLE_" + type.name()))));
+    }
+}
