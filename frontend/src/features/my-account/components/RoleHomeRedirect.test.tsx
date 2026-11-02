@@ -44,6 +44,7 @@ describe("RoleHomeRedirect", () => {
     ["ADMIN", "/admin"],
     ["OWNER", "/owner/accounts"],
     ["RECEPTIONIST", "/reception"],
+    ["IMAGING_TECHNICIAN", "/imaging"],
   ])("tài khoản %s vào %s", async (accountType, route) => {
     fetchCurrentAccount.mockResolvedValue(accountOf(accountType));
     render(<RoleHomeRedirect />);

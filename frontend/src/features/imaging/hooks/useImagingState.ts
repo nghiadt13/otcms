@@ -12,20 +12,16 @@ import type { ImagingContextValue } from "./imagingContext";
 import {
   readImagingPreview,
   writeImagingPreview,
-  readImagingFirstLogin,
-  writeImagingFirstLogin,
 } from "../api/imagingPreviewStorage";
 
 export function useImagingState(): ImagingContextValue {
   const [state, setState] = useState(createDemoState);
   const [ready, setReady] = useState(false);
-  const [mustChangePassword, setMustChangePassword] = useState(false);
   const [toast, setToast] = useState("");
   useEffect(() => {
     const saved = readImagingPreview();
     const timer = setTimeout(() => {
       if (saved) setState(saved);
-      setMustChangePassword(readImagingFirstLogin());
       setReady(true);
     }, 0);
     return () => clearTimeout(timer);
@@ -40,10 +36,6 @@ export function useImagingState(): ImagingContextValue {
     }
   }, [toast]);
   const notify = (message: string) => setToast(message);
-  const setFirstLogin = (value: boolean) => {
-    setMustChangePassword(value);
-    writeImagingFirstLogin(value);
-  };
   const update = (updater: (state: ImagingState) => ImagingState) =>
     setState(updater);
   function callNext() {
@@ -227,8 +219,6 @@ export function useImagingState(): ImagingContextValue {
   return {
     state,
     ready,
-    mustChangePassword,
-    setFirstLogin,
     toast,
     notify,
     update,
