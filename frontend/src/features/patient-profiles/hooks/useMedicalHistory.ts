@@ -41,8 +41,10 @@ export function useMedicalHistory(patientId: string) {
       const data = await getMedicalHistory(patientId);
       setHistory(data);
       setError(null);
+      return true;
     } catch (err) {
       setError(err);
+      return false;
     }
   }, [patientId]);
 

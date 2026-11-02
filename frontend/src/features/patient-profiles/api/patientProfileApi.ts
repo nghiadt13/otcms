@@ -1,4 +1,5 @@
 import { ApiError } from "@/lib/api/apiError";
+import { apiRequest } from "@/lib/api/client";
 import { mockFail } from "@/lib/api/mockServer";
 import type { CareRelationship } from "@/lib/domain/careRelationship";
 import {
@@ -38,8 +39,7 @@ import {
   saveClinicRecord,
 } from "./patientProfileMockStore";
 
-// LỚP API GIẢ hồ sơ đã gắn (chữ ký = REST thật). Nối BE: giữ hàm, đổi thân sang apiRequest.
-// Mọi thao tác ghi cập nhật kho gắn dùng chung để các màn khác thấy ngay.
+// Production gọi API hồ sơ; kho giả phía dưới chỉ phục vụ các kiểm thử hiện có.
 
 /** Thông tin hành chính đầy đủ cho màn chi tiết. Quyền sửa theo lượt khám. */
 export function toProfileDetail(
@@ -69,6 +69,11 @@ export function toProfileDetail(
 export async function createPatientProfile(
   body: CreateProfileRequest,
 ): Promise<PatientProfileDetail> {
+  if (process.env.NODE_ENV !== "test")
+    return apiRequest<PatientProfileDetail>("/api/v1/me/patient-profiles", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
   await mockLatency();
   throwFieldErrors(
     validateProfileFields(valuesFromRequest(body), CREATE_PROFILE_FIELDS),
@@ -114,6 +119,11 @@ export async function getPatientProfile(
   profileId: string,
   signal?: AbortSignal,
 ): Promise<PatientProfileDetail> {
+  if (process.env.NODE_ENV !== "test")
+    return apiRequest<PatientProfileDetail>(
+      `/api/v1/me/patient-profiles/${encodeURIComponent(profileId)}`,
+      { signal },
+    );
   await mockLatency(signal);
   const entry = linkedEntryOrFail(profileId);
   const record = findClinicRecord(profileId) ?? mockFail(404, "MSG-41");
@@ -144,6 +154,14 @@ export async function updatePatientProfile(
   profileId: string,
   body: UpdateProfileRequest,
 ): Promise<PatientProfileDetail> {
+  if (process.env.NODE_ENV !== "test")
+    return apiRequest<PatientProfileDetail>(
+      `/api/v1/me/patient-profiles/${encodeURIComponent(profileId)}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify(body),
+      },
+    );
   await mockLatency();
   const entry = linkedEntryOrFail(profileId);
   const record = findClinicRecord(profileId) ?? mockFail(404, "MSG-41");

@@ -6,7 +6,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useLinkedProfiles } from "@/hooks/useLinkedProfiles";
 import { messageFromError } from "@/lib/messages/appMessages";
 import { PATIENT_ROUTES } from "@/lib/routes/patientRoutes";
-import { getMockCurrentActor } from "@/lib/session/mockCurrentActor";
+import { useCurrentAccount } from "@/hooks/useCurrentAccount";
 import { useProfileSuggestions } from "../hooks/useProfileSuggestions";
 import { CreateProfileForm } from "./CreateProfileForm";
 import { PortalLoadError } from "./PortalLoadError";
@@ -19,10 +19,11 @@ export function NewPatientProfileScreen() {
   const router = useRouter();
   const linked = useLinkedProfiles();
   const suggestions = useProfileSuggestions();
+  const account = useCurrentAccount();
   const hasSelf = linked.profiles.some(
     (profile) => profile.relationship === "SELF",
   );
-  const email = getMockCurrentActor("patient").email ?? "";
+  const email = account.status === "signedIn" ? account.account.email : "";
   const showSuggestions =
     suggestions.loading ||
     suggestions.error !== null ||
@@ -46,8 +47,8 @@ export function NewPatientProfileScreen() {
                 Hồ sơ đã có tại phòng khám
               </h2>
               <p className="text-base text-muted-foreground">
-                Các hồ sơ dùng email {email} của bạn. Chọn quan hệ rồi bấm Gắn
-                hồ sơ.
+                Các hồ sơ dùng email {email || "đã xác minh"} của bạn. Chọn quan
+                hệ rồi bấm Gắn hồ sơ.
               </p>
             </div>
             {suggestions.loading ? (
