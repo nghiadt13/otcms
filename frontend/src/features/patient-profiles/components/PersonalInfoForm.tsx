@@ -1,75 +1,79 @@
 "use client";
 
-import { Lock } from "lucide-react";
 import { useId, useState, type FormEvent, type ReactNode } from "react";
 import { publicButtonClass } from "@/components/brand/publicButtonStyles";
+import { Label } from "@/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { formatAppMessage } from "@/lib/messages/appMessages";
 import { notifyError, notifySuccess } from "@/lib/messages/notify";
-import { updatePatientProfile } from "../api/patientProfileApi";
-import { fieldErrorsFromResponse } from "../api/patientProfileErrors";
+import {
+  getOwnPatientProfile,
+  updateOwnPatientProfile,
+} from "../api/ownPatientProfileApi";
+import {
+  asOwnProfileStaleError,
+  isOwnProfileAccessLost,
+  isOwnProfileStale,
+  ownProfileDisplayError,
+  ownProfileErrorMessage,
+  ownProfileFieldErrors,
+} from "../api/ownPatientProfileErrors";
 import { formatDateOfBirthText } from "../schema/dateOfBirthText";
 import {
   validateProfileFields,
   type ProfileFieldErrors,
-  type ProfileFieldValues,
 } from "../schema/patientProfileFieldRules";
 import {
-  updateRequestFromValues,
-  valuesFromDetail,
-} from "../schema/patientProfileRequestMapping";
-import type {
-  EditableProfileField,
-  PatientProfileDetail,
-} from "../types/patientProfile";
-import { ProfileSexField } from "./ProfileSexField";
+  ownProfileUpdateFromValues,
+  ownProfileValidationValues,
+  ownProfileValuesFromDetail,
+  type OwnPatientProfileFormValues,
+} from "../schema/ownPatientProfileMapping";
+import type { OwnPatientProfile } from "../types/ownPatientProfile";
 import { ProfileTextField } from "./ProfileTextField";
 
-// Trường hiển thị trên màn Thông tin cá nhân theo đặc tả UC03/UC04: họ tên, ngày sinh, giới
-// tính, CCCD/mã định danh, số điện thoại, địa chỉ. Email là email tài khoản nên đi qua `emailSlot`.
-// Thứ tự cũng là thứ tự nhảy tới ô lỗi đầu tiên.
-const SHOWN_FIELDS: readonly EditableProfileField[] = [
+const EDITED_FIELDS = [
   "fullName",
   "dateOfBirth",
   "sex",
   "citizenId",
   "phone",
   "address",
-];
+] as const;
 
-type ShownField = (typeof SHOWN_FIELDS)[number];
-
-// Form luôn ở chế độ sửa: ô nào BE không cho sửa (`editableFields`) hiện chỉ đọc. Nút Lưu chỉ
-// bật khi có thay đổi và chỉ gửi các trường đã đổi.
 export function PersonalInfoForm({
   detail,
   emailSlot,
   onSaved,
 }: {
-  detail: PatientProfileDetail;
-  /** Ô email tài khoản (đổi bằng OTP), nằm cạnh số điện thoại. */
+  detail: OwnPatientProfile;
   emailSlot: ReactNode;
-  onSaved: (detail: PatientProfileDetail) => void;
+  onSaved: (detail: OwnPatientProfile) => void;
 }) {
   const id = useId();
-  const editable = detail.editableFields.filter((field) =>
-    SHOWN_FIELDS.includes(field),
+  const [serverProfile, setServerProfile] = useState(detail);
+  const [baseline, setBaseline] = useState(() =>
+    ownProfileValuesFromDetail(detail),
   );
-  const [baseline, setBaseline] = useState<ProfileFieldValues>(() =>
-    valuesFromDetail(detail),
+  const [values, setValues] = useState(() =>
+    ownProfileValuesFromDetail(detail),
   );
-  const [values, setValues] = useState<ProfileFieldValues>(baseline);
   const [errors, setErrors] = useState<ProfileFieldErrors>({});
   const [pending, setPending] = useState(false);
+  const [stale, setStale] = useState(false);
+  const [reloadPending, setReloadPending] = useState(false);
+  const [unavailable, setUnavailable] = useState<string | null>(null);
 
-  const changed = editable.filter((field) => values[field] !== baseline[field]);
-  const dirty = changed.length > 0;
-  const locked = (field: ShownField) => !editable.includes(field);
-  const identityLocked =
-    !detail.editableFields.includes("fullName") ||
-    !detail.editableFields.includes("dateOfBirth");
+  const changed = EDITED_FIELDS.filter(
+    (field) => values[field] !== baseline[field],
+  );
+  const identityTypeChanged =
+    values.identityDocumentType !== baseline.identityDocumentType;
+  const dirty = changed.length > 0 || identityTypeChanged;
 
-  function update<K extends keyof ProfileFieldValues>(
+  function update<K extends keyof OwnPatientProfileFormValues>(
     field: K,
-    value: ProfileFieldValues[K],
+    value: OwnPatientProfileFormValues[K],
   ) {
     setValues((current) => ({ ...current, [field]: value }));
   }
@@ -79,12 +83,58 @@ export function PersonalInfoForm({
     setErrors({});
   }
 
+  async function reloadLatest() {
+    const replacingUnavailableSession = unavailable !== null;
+    setReloadPending(true);
+    try {
+      const latest = await getOwnPatientProfile();
+      setServerProfile(latest);
+      const latestValues = ownProfileValuesFromDetail(latest);
+      setBaseline(latestValues);
+      if (replacingUnavailableSession) setValues(latestValues);
+      setErrors({});
+      setStale(false);
+      setUnavailable(null);
+      // Keep the user's draft. Only the baseline and write version move to server data.
+    } catch (error) {
+      if (error instanceof Error && error.name === "AbortError") return;
+      if (
+        isOwnProfileAccessLost(error) ||
+        (typeof error === "object" &&
+          error !== null &&
+          "status" in error &&
+          [401, 403, 404].includes(Number(error.status)))
+      ) {
+        setUnavailable(ownProfileErrorMessage(error));
+        const emptyValues: OwnPatientProfileFormValues = {
+          fullName: "",
+          dateOfBirth: "",
+          sex: "",
+          phone: "",
+          address: "",
+          citizenId: "",
+          identityDocumentType: "",
+        };
+        setValues(emptyValues);
+        setBaseline(emptyValues);
+      }
+      notifyError(ownProfileDisplayError(error));
+    } finally {
+      setReloadPending(false);
+    }
+  }
+
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!dirty) return;
-    const local = validateProfileFields(values, changed);
+    if (!dirty || stale || pending || unavailable) return;
+    const local = validateProfileFields(
+      ownProfileValidationValues(values),
+      EDITED_FIELDS,
+    );
+    if (values.citizenId.trim() && !values.identityDocumentType)
+      local.citizenId = "Chọn loại giấy tờ định danh.";
     setErrors(local);
-    const firstInvalid = SHOWN_FIELDS.find((field) => local[field]);
+    const firstInvalid = EDITED_FIELDS.find((field) => local[field]);
     if (firstInvalid) {
       document.getElementById(`${id}-${firstInvalid}`)?.focus();
       return;
@@ -92,22 +142,65 @@ export function PersonalInfoForm({
 
     setPending(true);
     try {
-      const updated = await updatePatientProfile(
-        detail.id,
-        updateRequestFromValues(values, changed),
+      const updated = await updateOwnPatientProfile(
+        ownProfileUpdateFromValues(values, serverProfile),
       );
-      const next = valuesFromDetail(updated);
+      const next = ownProfileValuesFromDetail(updated);
+      setServerProfile(updated);
       setBaseline(next);
       setValues(next);
-      setPending(false);
-      notifySuccess("MSG-05");
+      setErrors({});
+      setStale(false);
+      notifySuccess("MSG-90");
       onSaved(updated);
     } catch (error) {
+      if (isOwnProfileStale(error)) {
+        setStale(true);
+        notifyError(asOwnProfileStaleError());
+      } else if (ownProfileFieldErrors(error)) {
+        setErrors(ownProfileFieldErrors(error) ?? {});
+      } else {
+        if (
+          isOwnProfileAccessLost(error) ||
+          (typeof error === "object" &&
+            error !== null &&
+            "status" in error &&
+            [401, 403, 404].includes(Number(error.status)))
+        ) {
+          setUnavailable(ownProfileErrorMessage(error));
+          const emptyValues: OwnPatientProfileFormValues = {
+            fullName: "",
+            dateOfBirth: "",
+            sex: "",
+            phone: "",
+            address: "",
+            citizenId: "",
+            identityDocumentType: "",
+          };
+          setValues(emptyValues);
+          setBaseline(emptyValues);
+        }
+        notifyError(ownProfileDisplayError(error));
+      }
+    } finally {
       setPending(false);
-      const fieldErrors = fieldErrorsFromResponse(error);
-      if (fieldErrors) setErrors(fieldErrors);
-      else notifyError(error);
     }
+  }
+
+  if (unavailable) {
+    return (
+      <div className="grid gap-3" role="alert">
+        <p>{unavailable}</p>
+        <button
+          className={publicButtonClass("secondary")}
+          disabled={reloadPending}
+          onClick={() => void reloadLatest()}
+          type="button"
+        >
+          {reloadPending ? "Đang tải..." : "Tải lại hồ sơ"}
+        </button>
+      </div>
+    );
   }
 
   return (
@@ -120,13 +213,6 @@ export function PersonalInfoForm({
         <h3 className="text-lg font-semibold" id={`${id}-identity`}>
           Thông tin cá nhân
         </h3>
-        {identityLocked ? (
-          <p className="flex items-start gap-2 rounded-lg bg-muted px-4 py-3 text-sm text-muted-foreground">
-            <Lock aria-hidden className="mt-0.5 size-4 shrink-0" />
-            Họ và tên, ngày sinh không sửa được trên web vì hồ sơ đã có lượt
-            khám. Nhờ lễ tân sửa tại quầy.
-          </p>
-        ) : null}
         <div className="grid items-start gap-5 sm:grid-cols-2">
           <ProfileTextField
             autoComplete="name"
@@ -135,16 +221,13 @@ export function PersonalInfoForm({
             id={`${id}-fullName`}
             label="Họ và tên"
             onChange={(next) => update("fullName", next)}
-            readOnly={locked("fullName")}
             required
             value={values.fullName}
           />
           <ProfileTextField
             disabled={pending}
             error={errors.dateOfBirth}
-            hint={
-              locked("dateOfBirth") ? undefined : "Gõ liền, ví dụ 20051990."
-            }
+            hint="Gõ liền, ví dụ 20051990."
             id={`${id}-dateOfBirth`}
             inputMode="numeric"
             label="Ngày sinh"
@@ -152,28 +235,87 @@ export function PersonalInfoForm({
               update("dateOfBirth", formatDateOfBirthText(next))
             }
             placeholder="dd/mm/yyyy"
-            readOnly={locked("dateOfBirth")}
             required
             value={values.dateOfBirth}
           />
-          <ProfileSexField
-            disabled={pending || locked("sex")}
-            error={errors.sex}
-            id={`${id}-sex`}
-            onChange={(next) => update("sex", next)}
-            required
-            value={values.sex}
-          />
-          <ProfileTextField
-            disabled={pending}
-            error={errors.citizenId}
-            hint="Không bắt buộc. Trẻ em dùng mã định danh hoặc hộ chiếu."
-            id={`${id}-citizenId`}
-            label="CCCD / Mã định danh"
-            onChange={(next) => update("citizenId", next)}
-            readOnly={locked("citizenId")}
-            value={values.citizenId}
-          />
+          <fieldset className="grid gap-2">
+            <legend className="text-base font-medium">
+              Giới tính{" "}
+              <span aria-hidden className="text-destructive">
+                {" "}
+                *
+              </span>
+            </legend>
+            <RadioGroup
+              aria-describedby={errors.sex ? `${id}-sex-error` : undefined}
+              className="grid-cols-3 gap-3"
+              disabled={pending}
+              onValueChange={(next) => {
+                if (next === "MALE" || next === "FEMALE" || next === "OTHER")
+                  update("sex", next);
+              }}
+              value={values.sex}
+            >
+              {(
+                [
+                  ["MALE", "Nam"],
+                  ["FEMALE", "Nữ"],
+                  ["OTHER", "Khác"],
+                ] as const
+              ).map(([value, label]) => (
+                <Label
+                  className="flex min-h-12 items-center gap-3 rounded-lg border px-3 text-base font-normal"
+                  key={value}
+                >
+                  <RadioGroupItem value={value} />
+                  {label}
+                </Label>
+              ))}
+            </RadioGroup>
+            {errors.sex ? (
+              <p className="text-sm text-destructive" role="alert">
+                {errors.sex}
+              </p>
+            ) : null}
+          </fieldset>
+          <div className="grid gap-2">
+            <ProfileTextField
+              disabled={pending}
+              error={errors.citizenId}
+              hint="Không bắt buộc. Trẻ em dùng mã định danh hoặc hộ chiếu."
+              id={`${id}-citizenId`}
+              label="CCCD / Mã định danh"
+              onChange={(next) => update("citizenId", next)}
+              value={values.citizenId}
+            />
+            {values.citizenId.trim() ? (
+              <label
+                className="grid gap-2 text-base font-medium"
+                htmlFor={`${id}-identityDocumentType`}
+              >
+                Loại giấy tờ định danh
+                <select
+                  className="h-12 rounded-md border bg-background px-3"
+                  disabled={pending}
+                  id={`${id}-identityDocumentType`}
+                  onChange={(event) =>
+                    update(
+                      "identityDocumentType",
+                      event.target
+                        .value as OwnPatientProfileFormValues["identityDocumentType"],
+                    )
+                  }
+                  required
+                  value={values.identityDocumentType}
+                >
+                  <option value="">Chọn loại giấy tờ</option>
+                  <option value="CCCD">CCCD</option>
+                  <option value="PERSONAL_ID">Mã định danh cá nhân</option>
+                  <option value="PASSPORT">Hộ chiếu</option>
+                </select>
+              </label>
+            ) : null}
+          </div>
         </div>
       </section>
 
@@ -191,7 +333,6 @@ export function PersonalInfoForm({
             inputMode="tel"
             label="Số điện thoại"
             onChange={(next) => update("phone", next)}
-            readOnly={locked("phone")}
             required
             value={values.phone}
           />
@@ -204,13 +345,29 @@ export function PersonalInfoForm({
               id={`${id}-address`}
               label="Địa chỉ"
               onChange={(next) => update("address", next)}
-              readOnly={locked("address")}
               required
               value={values.address}
             />
           </div>
         </div>
       </section>
+
+      {stale ? (
+        <div
+          className="grid gap-3 rounded-lg border border-destructive/40 p-4"
+          role="alert"
+        >
+          <p>{formatAppMessage("MSG-16")}</p>
+          <button
+            className={publicButtonClass("secondary")}
+            disabled={reloadPending}
+            onClick={() => void reloadLatest()}
+            type="button"
+          >
+            {reloadPending ? "Đang tải..." : "Tải lại hồ sơ mới nhất"}
+          </button>
+        </div>
+      ) : null}
 
       <div className="flex flex-col gap-4 border-t pt-6 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-sm text-muted-foreground" role="status">
@@ -227,7 +384,7 @@ export function PersonalInfoForm({
           </button>
           <button
             className={publicButtonClass("primary")}
-            disabled={!dirty || pending}
+            disabled={!dirty || pending || stale}
             type="submit"
           >
             {pending ? "Đang lưu..." : "Lưu thay đổi"}

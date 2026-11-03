@@ -71,6 +71,8 @@ function ShellContent({ children }: { children: ReactNode }) {
                 ? "Danh sách phòng chẩn đoán hình ảnh · dữ liệu từ hệ thống"
                 : pathname === "/imaging/change-password"
                   ? "Đổi mật khẩu · kết nối hệ thống"
+                  : pathname === "/imaging/profile" || pathname === "/imaging/profile/edit"
+                    ? "Tài khoản của tôi · dữ liệu từ hệ thống"
                   : "Bản xem thử giao diện · dữ liệu mẫu · giờ mô phỏng 09:10"}
             </span>
             {pathname !== "/imaging/rooms" && pathname !== "/imaging/change-password" && (

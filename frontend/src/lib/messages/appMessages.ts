@@ -8,6 +8,7 @@ export const APP_MESSAGES: Record<string, string> = {
   "MSG-04":
     "Không thể hoàn tất yêu cầu. Vui lòng thử lại sau hoặc bắt đầu lại.",
   "MSG-05": "Thông tin tài khoản đã được cập nhật.",
+  "MSG-06": "Email mới đang chờ xác minh bằng mã OTP.",
   "MSG-07": "Mật khẩu đã được thay đổi.",
   "MSG-08":
     "Không thể hoàn tất yêu cầu với thông tin hiện tại. Vui lòng kiểm tra và thử lại.",

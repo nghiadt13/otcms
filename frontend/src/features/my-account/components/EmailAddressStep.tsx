@@ -5,54 +5,52 @@ import { FieldError } from "@/components/admin/FieldError";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { messageFromError } from "@/lib/messages/appMessages";
+import { myAccountErrorMessage } from "../api/myAccountErrors";
 import { requestMyEmailChange } from "../api/myAccountProfileApi";
+import { useAccountOperation } from "../hooks/useAccountOperation";
 import { EmailChangeErrorNotice } from "./EmailChangeErrorNotice";
 
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
-
-// Bước 1 của đổi email: nhập email mới rồi gửi mã. Email cũ vẫn dùng được tới khi xác minh xong (BR-05).
 export function EmailAddressStep({
   currentEmail,
-  onBusyChange,
   onSent,
   onCancel,
 }: {
   currentEmail: string;
-  onBusyChange: (busy: boolean) => void;
   onSent: (newEmail: string) => void;
   onCancel: () => void;
 }) {
   const inputId = useId();
-  const errorId = `${inputId}-error`;
   const [email, setEmail] = useState("");
   const [fieldError, setFieldError] = useState<string | null>(null);
   const [alertText, setAlertText] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const operation = useAccountOperation();
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const value = email.trim();
-    if (!EMAIL_PATTERN.test(value)) {
+    if (
+      value.length > 254 ||
+      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value) ||
+      /\p{Cc}/u.test(value)
+    ) {
       setFieldError("Email chưa đúng định dạng.");
       return;
     }
-
+    const signal = operation.begin();
+    if (!signal) return;
     setPending(true);
-    onBusyChange(true);
     setAlertText(null);
     try {
-      await requestMyEmailChange(value);
-      // Thành công thì màn này được thay bằng bước nhập mã (unmount), nên không đặt lại trạng thái.
-      onBusyChange(false);
-      onSent(value);
+      await requestMyEmailChange(value, signal);
+      if (operation.isCurrent()) onSent(value);
     } catch (cause) {
-      setAlertText(messageFromError(cause));
-      setPending(false);
-      onBusyChange(false);
+      if (operation.isCurrent()) setAlertText(myAccountErrorMessage(cause));
+    } finally {
+      if (operation.isCurrent()) setPending(false);
+      operation.finish();
     }
   }
-
   return (
     <form className="grid gap-5" noValidate onSubmit={handleSubmit}>
       {alertText ? <EmailChangeErrorNotice text={alertText} /> : null}
@@ -65,8 +63,8 @@ export function EmailAddressStep({
           Email mới
         </Label>
         <Input
-          aria-describedby={fieldError ? errorId : undefined}
-          aria-invalid={fieldError ? true : undefined}
+          aria-describedby={fieldError ? `${inputId}-error` : undefined}
+          aria-invalid={!!fieldError}
           autoComplete="email"
           className="h-12 text-base"
           disabled={pending}
@@ -79,12 +77,11 @@ export function EmailAddressStep({
           type="email"
           value={email}
         />
-        <FieldError id={errorId} message={fieldError} />
+        <FieldError id={`${inputId}-error`} message={fieldError} />
       </div>
       <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
         <Button
           className="h-12 text-base"
-          disabled={pending}
           onClick={onCancel}
           type="button"
           variant="outline"
@@ -96,7 +93,7 @@ export function EmailAddressStep({
           disabled={pending}
           type="submit"
         >
-          {pending ? "Đang gửi..." : "Gửi mã"}
+          {pending ? "Đang xử lý..." : "Gửi mã"}
         </Button>
       </div>
     </form>

@@ -19,7 +19,7 @@ const STATUS_VIEW = {
 
 /** Trang /admin/account: tên đăng nhập, vai trò, trạng thái và ảnh đại diện. */
 export function MyAccountProfile() {
-  const { account, loading, error, reload } = useMyAccount();
+  const { account, loading, error, avatarError, reload } = useMyAccount();
   const [passwordOpen, setPasswordOpen] = useState(false);
 
   const canChangePassword = account?.allowedActions.includes("changePassword");
@@ -67,6 +67,14 @@ export function MyAccountProfile() {
               />
               <Separator />
             </>
+          ) : null}
+          {avatarError ? (
+            <div role="alert" className="text-sm text-destructive">
+              <p>{avatarError}</p>
+              <Button variant="outline" onClick={reload}>
+                Tải lại ảnh
+              </Button>
+            </div>
           ) : null}
           <AvatarEditor account={account} />
         </div>

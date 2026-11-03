@@ -1,72 +1,130 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { useLinkedProfiles } from "@/hooks/useLinkedProfiles";
-import { messageFromError } from "@/lib/messages/appMessages";
-import { getPatientProfile } from "../api/patientProfileApi";
-import type { PatientProfileDetail } from "../types/patientProfile";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { peekSession } from "@/lib/auth/authSession";
+import { formatAppMessage } from "@/lib/messages/appMessages";
+import { getOwnPatientProfile } from "../api/ownPatientProfileApi";
+import {
+  isOwnProfileAccessLost,
+  isOwnProfileMissing,
+  ownProfileErrorMessage,
+} from "../api/ownPatientProfileErrors";
+import type { OwnPatientProfile } from "../types/ownPatientProfile";
 
 export type OwnProfileState =
   | { status: "loading" }
-  /** Tài khoản chưa có hồ sơ "Bản thân". */
   | { status: "missing" }
   | { status: "error"; message: string }
-  | { status: "ready"; detail: PatientProfileDetail };
+  | { status: "ready"; detail: OwnPatientProfile };
 
-/**
- * Hồ sơ hành chính của chính bệnh nhân (hồ sơ quan hệ `SELF`) cho màn Thông tin cá nhân.
- * Tìm id trong danh sách hồ sơ đã gắn, rồi tải chi tiết. `apply` nhận chi tiết trả về sau khi
- * lưu để màn cập nhật ngay mà không tải lại.
- */
+type LoadedState = {
+  key: number;
+  state: OwnProfileState;
+  sessionId?: string | null;
+};
+const MY_ACCOUNT_CHANGED = "my-account:changed";
+const MY_ACCOUNT_ACCESS_LOST = "my-account:access-lost";
+
+/** Loads the caller's profile only; no linked-profile list or inferred SELF record is used. */
 export function useOwnPatientProfile() {
-  const linked = useLinkedProfiles();
-  const selfId =
-    linked.profiles.find((profile) => profile.relationship === "SELF")?.id ??
-    null;
-  const [loaded, setLoaded] = useState<PatientProfileDetail | null>(null);
-  const [failed, setFailed] = useState<{ id: string; message: string } | null>(
-    null,
-  );
-  const [token, setToken] = useState(0);
-  const { reload: reloadLinked } = linked;
+  const [attempt, setAttempt] = useState(0);
+  const [loaded, setLoaded] = useState<LoadedState>({
+    key: -1,
+    state: { status: "loading" },
+  });
+  const requestGeneration = useRef(0);
+  const attemptRef = useRef(attempt);
 
   useEffect(() => {
-    if (!selfId) return;
     const controller = new AbortController();
-    getPatientProfile(selfId, controller.signal)
-      .then((detail) => {
-        if (controller.signal.aborted) return;
-        setLoaded(detail);
-        setFailed(null);
-      })
-      .catch((err: unknown) => {
-        if (controller.signal.aborted) return;
-        setFailed({ id: selfId, message: messageFromError(err) });
-      });
+    const generation = ++requestGeneration.current;
+    const key = attempt;
+    const sessionIdAtStart = peekSession()?.accountId ?? null;
+    getOwnPatientProfile(controller.signal).then(
+      (detail) => {
+        if (
+          controller.signal.aborted ||
+          generation !== requestGeneration.current ||
+          sessionIdAtStart !== (peekSession()?.accountId ?? null)
+        )
+          return;
+        setLoaded({
+          key,
+          state: { status: "ready", detail },
+          sessionId: peekSession()?.accountId ?? null,
+        });
+      },
+      (error: unknown) => {
+        if (
+          controller.signal.aborted ||
+          generation !== requestGeneration.current ||
+          sessionIdAtStart !== (peekSession()?.accountId ?? null)
+        )
+          return;
+        setLoaded({
+          key,
+          state: isOwnProfileAccessLost(error)
+            ? { status: "error", message: ownProfileErrorMessage(error) }
+            : isOwnProfileMissing(error)
+              ? { status: "missing" }
+              : { status: "error", message: ownProfileErrorMessage(error) },
+        });
+      },
+    );
     return () => controller.abort();
-  }, [selfId, token]);
+  }, [attempt]);
 
-  const reload = useCallback(() => {
-    setFailed(null);
-    setToken((n) => n + 1);
-    reloadLinked();
-  }, [reloadLinked]);
-
-  const apply = useCallback((detail: PatientProfileDetail) => {
-    setLoaded(detail);
+  useEffect(() => {
+    const accountChanged = () => {
+      requestGeneration.current++;
+      const next = attemptRef.current + 1;
+      attemptRef.current = next;
+      setLoaded({ key: next, state: { status: "loading" } });
+      setAttempt(next);
+    };
+    const accessLost = () => {
+      requestGeneration.current++;
+      setLoaded({
+        key: attemptRef.current,
+        state: { status: "error", message: formatAppMessage("MSG-14") },
+      });
+    };
+    window.addEventListener(MY_ACCOUNT_CHANGED, accountChanged);
+    window.addEventListener(MY_ACCOUNT_ACCESS_LOST, accessLost);
+    return () => {
+      window.removeEventListener(MY_ACCOUNT_CHANGED, accountChanged);
+      window.removeEventListener(MY_ACCOUNT_ACCESS_LOST, accessLost);
+    };
   }, []);
 
-  const state: OwnProfileState = linked.error
-    ? { status: "error", message: linked.error }
-    : linked.loading
-      ? { status: "loading" }
-      : !selfId
-        ? { status: "missing" }
-        : failed?.id === selfId
-          ? { status: "error", message: failed.message }
-          : loaded?.id === selfId
-            ? { status: "ready", detail: loaded }
-            : { status: "loading" };
+  const reload = useCallback(() => {
+    const next = attemptRef.current + 1;
+    attemptRef.current = next;
+    setLoaded({ key: next, state: { status: "loading" } });
+    setAttempt(next);
+  }, []);
 
-  return { state, reload, apply };
+  const apply = useCallback(
+    (detail: OwnPatientProfile) => {
+      setLoaded({
+        key: attempt,
+        state: { status: "ready", detail },
+        sessionId: peekSession()?.accountId ?? null,
+      });
+    },
+    [attempt],
+  );
+
+  const isCurrentSession =
+    loaded.state.status !== "ready" ||
+    loaded.sessionId === (peekSession()?.accountId ?? null);
+
+  return {
+    state:
+      loaded.key === attempt && isCurrentSession
+        ? loaded.state
+        : ({ status: "loading" } as const),
+    reload,
+    apply,
+  };
 }
