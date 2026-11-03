@@ -4,6 +4,8 @@ import fu.fa26.sep490.g58.otcms_be.auth.service.PatientAccountAdminService;
 import fu.fa26.sep490.g58.otcms_be.auth.model.dto.response.PatientAccountAdminResponse;
 import fu.fa26.sep490.g58.otcms_be.auth.model.dto.response.PatientAccountsPageResponse;
 import fu.fa26.sep490.g58.otcms_be.common.security.AuthenticatedAccount;
+import fu.fa26.sep490.g58.otcms_be.common.web.CorrelationIdFilter;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import java.util.UUID;
@@ -40,13 +42,13 @@ public class PatientAccountAdminController {
 
     @PostMapping("/api/v1/admin/accounts/{accountId}/activation")
     public PatientAccountAdminResponse activate(@AuthenticationPrincipal AuthenticatedAccount actor,
-            @PathVariable UUID accountId) {
-        return accounts.activate(actor, accountId);
+            @PathVariable UUID accountId, HttpServletRequest request) {
+        return accounts.activate(actor, accountId, CorrelationIdFilter.current(request));
     }
 
     @PostMapping("/api/v1/admin/accounts/{accountId}/deactivation")
     public PatientAccountAdminResponse deactivate(@AuthenticationPrincipal AuthenticatedAccount actor,
-            @PathVariable UUID accountId) {
-        return accounts.deactivate(actor, accountId);
+            @PathVariable UUID accountId, HttpServletRequest request) {
+        return accounts.deactivate(actor, accountId, CorrelationIdFilter.current(request));
     }
 }

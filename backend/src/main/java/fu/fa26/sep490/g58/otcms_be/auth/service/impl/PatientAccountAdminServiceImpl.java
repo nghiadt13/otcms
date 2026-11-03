@@ -5,6 +5,8 @@ import fu.fa26.sep490.g58.otcms_be.auth.model.dto.PatientAccountAdminRow;
 import fu.fa26.sep490.g58.otcms_be.auth.model.dto.response.PatientAccountAdminResponse;
 import fu.fa26.sep490.g58.otcms_be.auth.model.dto.response.PatientAccountsPageResponse;
 import fu.fa26.sep490.g58.otcms_be.auth.model.entity.AccountJpaEntity;
+import fu.fa26.sep490.g58.otcms_be.auth.model.entity.AccountManagementAuditJpaEntity;
+import fu.fa26.sep490.g58.otcms_be.auth.repository.AccountManagementAuditRepository;
 import fu.fa26.sep490.g58.otcms_be.auth.model.entity.enums.AccountStatus;
 import fu.fa26.sep490.g58.otcms_be.auth.model.entity.enums.AccountType;
 import fu.fa26.sep490.g58.otcms_be.auth.repository.AccountRepository;
@@ -29,12 +31,14 @@ public class PatientAccountAdminServiceImpl implements PatientAccountAdminServic
     private final AccountRepository accounts;
     private final PatientProfileRepository profiles;
     private final AuthSessionService sessions;
+    private final AccountManagementAuditRepository audits;
 
     public PatientAccountAdminServiceImpl(AccountRepository accounts, PatientProfileRepository profiles,
-            AuthSessionService sessions) {
+            AuthSessionService sessions, AccountManagementAuditRepository audits) {
         this.accounts = accounts;
         this.profiles = profiles;
         this.sessions = sessions;
+        this.audits = audits;
     }
 
     @Override
@@ -69,7 +73,7 @@ public class PatientAccountAdminServiceImpl implements PatientAccountAdminServic
 
     @Override
     @Transactional
-    public PatientAccountAdminResponse activate(AuthenticatedAccount actor, UUID accountId) {
+    public PatientAccountAdminResponse activate(AuthenticatedAccount actor, UUID accountId, String correlationId) {
         requireAdmin(actor);
         AccountJpaEntity account = patientAccountForUpdate(accountId);
         if (account.getStatus() != AccountStatus.DISABLED)
@@ -79,12 +83,14 @@ public class PatientAccountAdminServiceImpl implements PatientAccountAdminServic
         account.setLockedUntil(null);
         account.setUpdatedAt(Instant.now());
         accounts.saveAndFlush(account);
+        audits.saveAndFlush(new AccountManagementAuditJpaEntity(accountId, actor.accountId(), "ACTIVATE",
+                Instant.now(), correlationId));
         return response(account, patientName(account));
     }
 
     @Override
     @Transactional
-    public PatientAccountAdminResponse deactivate(AuthenticatedAccount actor, UUID accountId) {
+    public PatientAccountAdminResponse deactivate(AuthenticatedAccount actor, UUID accountId, String correlationId) {
         requireAdmin(actor);
         AccountJpaEntity account = patientAccountForUpdate(accountId);
         if (account.getStatus() != AccountStatus.ACTIVE)
@@ -93,6 +99,8 @@ public class PatientAccountAdminServiceImpl implements PatientAccountAdminServic
         account.setUpdatedAt(Instant.now());
         accounts.saveAndFlush(account);
         sessions.revokeAll(accountId, "ACCOUNT_DEACTIVATED");
+        audits.saveAndFlush(new AccountManagementAuditJpaEntity(accountId, actor.accountId(), "DEACTIVATE",
+                Instant.now(), correlationId));
         return response(account, patientName(account));
     }
 
