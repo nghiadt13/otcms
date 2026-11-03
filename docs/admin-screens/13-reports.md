@@ -41,7 +41,7 @@ Admin tạo báo cáo theo kỳ và chủ đề; xem trên màn hình hoặc xu�
 **Kết quả:** bảng số liệu + (tuỳ chọn) biểu đồ cột/đường theo `dataviz` của dự án; dòng tổng.
 | Nút | Hiện khi | Hành động |
 | --- | --- | --- |
-| **Xuất báo cáo** | Có kết quả | Tải file (định dạng chọn từ menu: **Excel (.xlsx)**, **PDF**; R3 chưa quy định, đề xuất hai loại này) |
+| **Xuất báo cáo** | Có kết quả | Tải file (định dạng chọn từ menu: **PDF**; Excel và CSV chưa được duyệt, chưa bật) |
 
 - Kỳ hoặc chủ đề không hợp lệ: `MSG-72` đỏ dưới ô; chủ đề ngoài quyền: `MSG-50`; lỗi tạo: `MSG-04`.
 - Kỳ không có dữ liệu: vẫn tạo báo cáo, hiện "Không có hoạt động trong kỳ này" (AF1); vẫn cho xuất.
@@ -54,8 +54,8 @@ Admin tạo báo cáo theo kỳ và chủ đề; xem trên màn hình hoặc xu�
 | --- | --- | --- |
 | GET | `/api/v1/admin/reports/subjects` | Chủ đề theo quyền |
 | POST | `/api/v1/admin/reports` | `{subject, from, to, breakdown?}`; trả dữ liệu bảng |
-| GET | `/api/v1/admin/reports/export?...&format=xlsx\|pdf` | |
+| GET | `/api/v1/admin/reports/export?...&format=pdf` | |
 
 ## Câu hỏi mở
-- Định dạng xuất (xlsx/pdf/csv) và có cần biểu đồ không? R3 chỉ nói "viewing or export".
+- Hiện chỉ xuất PDF theo duyệt ngày 03/11/2026; Excel/CSV và biểu đồ nằm ngoài phạm vi.
 - Khác biệt phạm vi báo cáo giữa Admin và Clinic Owner (R3: "oversight scope", chưa liệt kê).
