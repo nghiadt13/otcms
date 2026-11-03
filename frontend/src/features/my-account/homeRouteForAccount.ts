@@ -16,5 +16,6 @@ export function homeRouteForAccount(accountType: AccountType): string {
   if (accountType === "RECEPTIONIST" || accountType === "DOCTOR") {
     return STAFF_ROUTES.home;
   }
+  if (accountType === "IMAGING_TECHNICIAN") return "/imaging";
   return "/staff-home";
 }

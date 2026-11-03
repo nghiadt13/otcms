@@ -9,7 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useLinkedProfiles } from "@/hooks/useLinkedProfiles";
 import { messageFromError } from "@/lib/messages/appMessages";
 import { PATIENT_ROUTES } from "@/lib/routes/patientRoutes";
-import { getMockCurrentActor } from "@/lib/session/mockCurrentActor";
+import { useCurrentAccount } from "@/hooks/useCurrentAccount";
 import { useProfileSuggestions } from "../hooks/useProfileSuggestions";
 import { MedicalHistoryProfiles } from "./MedicalHistoryProfiles";
 import { PatientProfileList } from "./PatientProfileList";
@@ -21,7 +21,8 @@ import { SuggestionBanner } from "./SuggestionBanner";
 export function PatientProfilesScreen() {
   const { profiles, loading, error, reload } = useLinkedProfiles();
   const suggestions = useProfileSuggestions();
-  const email = getMockCurrentActor("patient").email ?? "";
+  const account = useCurrentAccount();
+  const email = account.status === "signedIn" ? account.account.email : "";
   const showAddButton = !loading && !error && profiles.length > 0;
 
   let body: ReactNode;

@@ -52,20 +52,22 @@ beforeEach(() => {
 });
 
 describe("PatientBookingPage", () => {
-  it("bước 2 chỉ có chính tài khoản, hiện họ tên từ backend, chọn sẵn", async () => {
+  it("bước 2 hiển thị các hồ sơ đã gắn và quan hệ", async () => {
     render(<PatientBookingPage />);
 
     const choice = await screen.findByRole("radiogroup", {
       name: "Ai đi khám?",
     });
     const radios = within(choice).getAllByRole("radio");
-    expect(radios).toHaveLength(1);
-    expect(radios[0]).toBeChecked();
+    expect(radios).toHaveLength(3);
+    expect(radios[0]).not.toBeChecked();
     expect(
-      within(choice).getByRole("radio", { name: "Trần Minh Khoa" }),
+      within(choice).getByRole("radio", { name: /Nguyễn Văn An · Bản thân/ }),
     ).toBeInTheDocument();
-    expect(screen.queryByText(/Nguyễn Gia Huy/)).not.toBeInTheDocument();
-    expect(screen.queryByText(/Sinh ngày/)).not.toBeInTheDocument();
+    expect(
+      within(choice).getByRole("radio", { name: /Nguyễn Gia Huy · Con/ }),
+    ).toBeInTheDocument();
+    expect(within(choice).getAllByText(/Sinh ngày/)).toHaveLength(3);
   });
 
   it("đã đăng nhập: mở thẳng bước 2 Người khám, bước Tài khoản đã xong", async () => {
@@ -111,6 +113,9 @@ describe("PatientBookingPage", () => {
     const user = userEvent.setup();
     render(<PatientBookingPage />);
 
+    await user.click(
+      await screen.findByRole("radio", { name: /Nguyễn Văn An · Bản thân/ }),
+    );
     await user.click(await screen.findByRole("button", { name: "Tiếp tục" }));
     await user.click(
       await screen.findByRole("radio", { name: /Khám chỉnh hình tổng quát/ }),

@@ -6,14 +6,17 @@ import { usePagedList } from "@/hooks/usePagedList";
 import { listAccounts } from "../api/accountApi";
 import type { AccountListItem, AccountListQuery } from "../types/account";
 
-type AccountFilters = Pick<AccountListQuery, "q" | "role" | "status">;
+type AccountFilters = Pick<AccountListQuery, "q" | "role" | "status" | "scope">;
 
 /**
  * Danh sách tài khoản: phân trang phía server. Ô tìm kiếm có `searchText` riêng để gõ
  * mượt; chỉ sau 250 ms mới đẩy vào bộ lọc (và về trang 0).
  */
 export function useAccountList() {
-  const list = usePagedList<AccountListItem, AccountFilters>(listAccounts, {});
+  const list = usePagedList<AccountListItem, AccountFilters>(
+    listAccounts,
+    { scope: "PATIENT" },
+  );
   const { setFilters } = list;
   const [searchText, setSearchText] = useState("");
   const debounced = useDebouncedValue(searchText.trim());

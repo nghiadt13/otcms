@@ -9,6 +9,8 @@ import { IssuedPasswordStep } from "./IssuedPasswordStep";
 
 type AccountReissueDialogProps = {
   accountId: string;
+  /** Tên đăng nhập, hiện lại ở bước kết quả (BE chỉ trả id và mật khẩu). */
+  username: string;
   label: string;
   /** Đóng hết (kể cả khi lỗi); `reload` = true khi nên tải lại bản ghi. */
   onClose: (reload: boolean) => void;
@@ -20,6 +22,7 @@ type AccountReissueDialogProps = {
  */
 export function AccountReissueDialog({
   accountId,
+  username,
   label,
   onClose,
 }: AccountReissueDialogProps) {
@@ -31,7 +34,7 @@ export function AccountReissueDialog({
 
   async function reissue() {
     try {
-      const issued = await reissueAccountPassword(accountId);
+      const issued = await reissueAccountPassword(accountId, username);
       settled.current = true;
       setCredential(issued);
     } catch (error) {

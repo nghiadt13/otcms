@@ -3,6 +3,7 @@ import { addDays } from "@/lib/format/formatDate";
 import type { ItemsResponse } from "@/lib/api/pagination";
 import { ApiError } from "@/lib/api/apiError";
 import { peekCurrentAccount } from "@/lib/auth/currentAccountApi";
+import { listLinkedProfiles } from "@/lib/patient-scope/linkedProfilesApi";
 import { vnIsoOf } from "../schema/bookingTime";
 import type { DoctorRef } from "../types/appointment";
 import type {
@@ -99,8 +100,8 @@ interface AppointmentDto {
 
 /**
  * POST /api/v1/appointments. `doctorId` null (phòng khám sắp xếp): chọn bác sĩ đầu tiên còn trống ở
- * giờ đó, vì backend bắt buộc `doctorId`. `patientProfileId` bỏ trống: backend dùng hồ sơ của tài
- * khoản. `purpose` bắt buộc ở backend: lấy lý do khám bệnh nhân nhập ở bước xác nhận.
+ * giờ đó, vì backend bắt buộc `doctorId`. `patientProfileId` là hồ sơ được chọn;
+ * backend phải kiểm quyền quản lý hồ sơ. `purpose` lấy lý do khám ở bước xác nhận.
  */
 export async function createAppointment(
   body: CreateAppointmentRequest,
@@ -117,6 +118,7 @@ export async function createAppointment(
     created = await apiRequest<AppointmentDto>("/api/v1/appointments", {
       method: "POST",
       body: JSON.stringify({
+        patientProfileId: body.patientId,
         serviceId: body.serviceId,
         doctorId,
         startTime: body.startAt,
@@ -128,12 +130,21 @@ export async function createAppointment(
     throw toBookingApiError(error);
   }
 
+  const patientName =
+    (await listLinkedProfiles()
+      .then(
+        ({ items }) =>
+          items.find((item) => item.id === created.patientProfileId)?.fullName,
+      )
+      .catch(() => undefined)) ??
+    peekCurrentAccount()?.displayName ??
+    "";
   return {
     id: created.id,
     startAt: vnIsoOf(new Date(created.startTime)),
     patient: {
       id: created.patientProfileId,
-      fullName: peekCurrentAccount()?.displayName ?? "",
+      fullName: patientName,
     },
     service: { id: service.id, name: service.name },
     doctor: doctorsById.get(doctorId) ?? { id: doctorId, fullName: "" },
