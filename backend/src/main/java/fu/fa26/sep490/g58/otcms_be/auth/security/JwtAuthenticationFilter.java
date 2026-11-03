@@ -64,7 +64,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         if (path.isEmpty()) path = request.getRequestURI().substring(request.getContextPath().length());
         return ("POST".equals(request.getMethod())
                 && ("/api/auth/change-password".equals(path) || "/api/auth/logout".equals(path)))
-                || ("GET".equals(request.getMethod()) && "/api/auth/csrf".equals(path));
+                || ("GET".equals(request.getMethod())
+                && ("/api/auth/csrf".equals(path) || "/api/v1/me".equals(path)));
     }
 
     private void reject(HttpServletResponse response, int status, String code) throws IOException {
