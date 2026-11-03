@@ -3,6 +3,15 @@ import fu.fa26.sep490.g58.otcms_be.reporting.repository.*;
 import fu.fa26.sep490.g58.otcms_be.reporting.exception.*;
 import fu.fa26.sep490.g58.otcms_be.reporting.service.impl.*;
 import fu.fa26.sep490.g58.otcms_be.support.LocalPostgresTest;
+import fu.fa26.sep490.g58.otcms_be.content.HttpContractCapture;
+import fu.fa26.sep490.g58.otcms_be.reporting.model.ReportingPeriod;
+import org.springframework.context.annotation.Import;
+import org.springframework.core.io.ClassPathResource;
+import org.junit.jupiter.api.AfterAll;
+import java.nio.charset.StandardCharsets;
+import java.sql.Timestamp;
+import tools.jackson.databind.ObjectMapper;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import fu.fa26.sep490.g58.otcms_be.auth.model.entity.enums.AccountType;
 import fu.fa26.sep490.g58.otcms_be.common.security.AuthenticatedAccount;
 import org.flywaydb.core.Flyway;
@@ -35,7 +44,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
-@org.springframework.context.annotation.Import(fu.fa26.sep490.g58.otcms_be.content.HttpContractCapture.class)
+@Import(HttpContractCapture.class)
 @SpringBootTest
 @AutoConfigureMockMvc
 @LocalPostgresTest
@@ -45,7 +54,7 @@ class ReportingPostgresIntegrationTest {
     private static final String TEST_DATABASE_URL="jdbc:postgresql://127.0.0.1:5432/otcms_test_db";
     @Autowired MockMvc mvc;
     @Autowired JdbcTemplate jdbc;
-    @Autowired tools.jackson.databind.ObjectMapper json;
+    @Autowired ObjectMapper json;
     @DynamicPropertySource
     static void isolateFlywayAndJpaInTemporarySchema(DynamicPropertyRegistry registry) {
         String username = System.getenv().getOrDefault("OTCMS_TEST_DB_USERNAME", "postgres");
@@ -64,7 +73,7 @@ class ReportingPostgresIntegrationTest {
         registry.add("spring.flyway.schemas", () -> TEST_SCHEMA);
         registry.add("spring.flyway.default-schema", () -> TEST_SCHEMA);
     }
-    @org.junit.jupiter.api.AfterAll
+    @AfterAll
     static void dropTemporarySchema() throws SQLException {
         String username = System.getenv().getOrDefault("OTCMS_TEST_DB_USERNAME", "postgres");
         String password = System.getenv("OTCMS_TEST_DB_PASSWORD");
@@ -76,31 +85,31 @@ class ReportingPostgresIntegrationTest {
             statement.execute("drop schema if exists " + TEST_SCHEMA + " cascade");
         }
     }
-    @Autowired fu.fa26.sep490.g58.otcms_be.reporting.repository.ReportingRepository reader;
+    @Autowired ReportingRepository reader;
     @Test void aggregatesMatchTheMigratedDatabaseAndMissingSourcesAreExplicit() throws Exception {
-        var p=fu.fa26.sep490.g58.otcms_be.reporting.model.ReportingPeriod.parse("2026-11-01","2026-11-07");
-        long expected=jdbc.queryForObject("select count(*) from appointments where start_time>=? and start_time<?", Long.class,java.sql.Timestamp.from(p.start()),java.sql.Timestamp.from(p.until()));
+        var p=ReportingPeriod.parse("2026-11-01","2026-11-07");
+        long expected=jdbc.queryForObject("select count(*) from appointments where start_time>=? and start_time<?", Long.class,Timestamp.from(p.start()),Timestamp.from(p.until()));
         assertEquals(expected,reader.appointmentCounts(p).values().stream().mapToLong(Long::longValue).sum());
         assertEquals(expected,reader.daily("APPOINTMENTS",p).stream().mapToLong(row->row.count()).sum());
         // These queries must run against Flyway's actual table/column names, even when empty.
         reader.visitCounts(p);
         reader.services(p);
-        mvc.perform(get("/api/v1/admin/dashboard?from=2026-11-01&to=2026-11-07").with(org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user("admin").roles("ADMIN")))
+        mvc.perform(get("/api/v1/admin/dashboard?from=2026-11-01&to=2026-11-07").with(user("admin").roles("ADMIN")))
         .andExpect(status().isOk()).andExpect(jsonPath("$.appointments.total.value").value(expected))
         .andExpect(jsonPath("$.payments.status").value("NO_SOURCE"))
         .andExpect(jsonPath("$.visits.waitingByRoomStatus").value("NO_SOURCE"));
     }
     @Test void nonemptyDailyReportUsesVietnamDatesAndExclusiveNextMidnight() throws Exception {
-        var fixture=new org.springframework.core.io.ClassPathResource("reporting-fixtures.sql");
-        jdbc.execute(fixture.getContentAsString(java.nio.charset.StandardCharsets.UTF_8));
-        var p=fu.fa26.sep490.g58.otcms_be.reporting.model.ReportingPeriod.parse("2030-01-01","2030-01-02");
+        var fixture=new ClassPathResource("reporting-fixtures.sql");
+        jdbc.execute(fixture.getContentAsString(StandardCharsets.UTF_8));
+        var p=ReportingPeriod.parse("2030-01-01","2030-01-02");
         assertEquals(2L,reader.appointmentCounts(p).get("BOOKED"));
         var rows=reader.daily("APPOINTMENTS",p);
         assertEquals(2,rows.size());
         assertEquals("2030-01-01",rows.get(0).date());
         assertEquals("2030-01-02",rows.get(1).date());
         assertEquals(1L,rows.get(1).count());
-        mvc.perform(post("/api/v1/admin/reports").with(org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user("admin").roles("ADMIN")).with(csrf()).contentType("application/json")
+        mvc.perform(post("/api/v1/admin/reports").with(user("admin").roles("ADMIN")).with(csrf()).contentType("application/json")
         .content("{\"subject\":\"APPOINTMENTS\",\"from\":\"2030-01-01\",\"to\":\"2030-01-02\",\"breakdown\":\"DATE\"}"))
         .andExpect(status().isOk()).andExpect(jsonPath("$.hasData").value(true)).andExpect(jsonPath("$.sections[0].totalRow.count").value(2));
     }
@@ -108,27 +117,63 @@ class ReportingPostgresIntegrationTest {
         String path="/api/v1/admin/dashboard?from=2026-11-01&to=2026-11-07";
         mvc.perform(get(path)).andExpect(status().isUnauthorized());
         for(String role:List.of("PATIENT","DOCTOR","RECEPTIONIST","IMAGING_TECHNICIAN"))
-        mvc.perform(get(path).with(org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user("other").roles(role))).andExpect(status().isForbidden());
-        var owner=org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user("owner").roles("OWNER");
+        mvc.perform(get(path).with(user("other").roles(role))).andExpect(status().isForbidden());
+        var owner=user("owner").roles("OWNER");
         mvc.perform(get(path).with(owner)).andExpect(status().isOk());
         for(String query:List.of("from=2026-11-07&to=2026-11-01","from=2026-01-01&to=2026-12-31","from=2026-02-30&to=2026-03-01","from=bad&to=2026-03-01"))
         mvc.perform(get("/api/v1/admin/dashboard?"+query).with(owner)).andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("MSG-72"));
         mvc.perform(post("/api/v1/admin/reports").with(owner).with(csrf()).contentType("application/json").content("{\"subject\":\"PAYMENTS\",\"from\":\"2026-11-01\",\"to\":\"2026-11-07\"}"))
         .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("MSG-72"));
     }
-    @Test void emptyReportIsReadyWithZeroTotalAndNoUnapprovedExports() throws Exception {
-        var admin=org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user("admin").roles("ADMIN");
+    @Test void emptyReportIsReadyWithZeroTotalAndPdfOnly() throws Exception {
+        var admin=user("admin").roles("ADMIN");
         mvc.perform(post("/api/v1/admin/reports").with(admin).with(csrf()).contentType("application/json").content("{\"subject\":\"APPOINTMENTS\",\"from\":\"1900-01-01\",\"to\":\"1900-01-07\",\"breakdown\":\"DATE\"}"))
-        .andExpect(status().isOk()).andExpect(jsonPath("$.hasData").value(false)).andExpect(jsonPath("$.sections[0].totalRow.count").value(0)).andExpect(jsonPath("$.allowedActions").isEmpty());
-        mvc.perform(get("/api/v1/admin/reports/export?format=xlsx").with(admin)).andExpect(status().isServiceUnavailable()).andExpect(jsonPath("$.error.code").value("MSG-04"));
+        .andExpect(status().isOk()).andExpect(jsonPath("$.hasData").value(false)).andExpect(jsonPath("$.sections[0].totalRow.count").value(0)).andExpect(jsonPath("$.allowedActions[0]").value("export")).andExpect(jsonPath("$.exportFormats[0]").value("pdf"));
+        mvc.perform(get("/api/v1/admin/reports/export?subject=APPOINTMENTS&from=1900-01-01&to=1900-01-07&format=xlsx").with(admin)).andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("MSG-72"));
     }
     @Test void subjectsAndEverySupportedReportProjectionKeepTheirContract() throws Exception {
-        var auth = org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user("admin").roles("ADMIN");
+        var auth = user("admin").roles("ADMIN");
         mvc.perform(get("/api/v1/admin/reports/subjects").with(auth)).andExpect(status().isOk());
         for (String subject : List.of("APPOINTMENTS", "VISITS", "SERVICES")) {
             mvc.perform(post("/api/v1/admin/reports").with(auth).with(csrf()).contentType("application/json")
             .content("{\"subject\":\"" + subject + "\",\"from\":\"1900-01-01\",\"to\":\"1900-01-07\"}"))
             .andExpect(status().isOk());
+        }
+    }
+
+    @Test
+    void pdfExportAllowsOnlyAdminAndOwnerAndSetsSafeDownloadHeaders() throws Exception {
+        String path = "/api/v1/admin/reports/export?subject=APPOINTMENTS&from=1900-01-01&to=1900-01-07&breakdown=DATE&format=pdf";
+        for (String role : List.of("ADMIN", "OWNER")) {
+            var response = mvc.perform(get(path).with(user("exporter").roles(role)))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType("application/pdf"))
+                .andExpect(header().string("Cache-Control", "no-store"))
+                .andExpect(header().string("X-Content-Type-Options", "nosniff"))
+                .andExpect(header().string("Content-Disposition", "attachment; filename=\"otcms-appointments-1900-01-01-1900-01-07.pdf\""))
+                .andExpect(header().string("Access-Control-Expose-Headers", "Content-Disposition, X-Correlation-ID"))
+                .andReturn().getResponse();
+            assertEquals("%PDF", new String(response.getContentAsByteArray(), 0, 4, StandardCharsets.US_ASCII));
+        }
+        mvc.perform(get(path)).andExpect(status().isUnauthorized());
+        for (String role : List.of("PATIENT", "DOCTOR", "RECEPTIONIST", "IMAGING_TECHNICIAN", "LAB_TECHNICIAN")) {
+            mvc.perform(get(path).with(user("other").roles(role)))
+                .andExpect(status().isForbidden());
+        }
+    }
+
+    @Test
+    void pdfExportRejectsInvalidSubjectFormatPeriodAndBreakdown() throws Exception {
+        var admin = user("admin").roles("ADMIN");
+        for (String query : List.of(
+            "subject=APPOINTMENTS&from=2026-01-01&to=2026-01-02&format=xlsx",
+            "subject=APPOINTMENTS&from=2026-01-01&to=2026-01-02&format=csv",
+            "subject=APPOINTMENTS&from=2026-01-02&to=2026-01-01&format=pdf",
+            "subject=APPOINTMENTS&from=bad&to=2026-01-01&format=pdf",
+            "subject=PAYMENTS&from=2026-01-01&to=2026-01-02&format=pdf",
+            "subject=SERVICES&from=2026-01-01&to=2026-01-02&breakdown=DATE&format=pdf")) {
+            mvc.perform(get("/api/v1/admin/reports/export?" + query).with(admin))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("MSG-72"));
         }
     }
 }

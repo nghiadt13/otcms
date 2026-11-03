@@ -13,6 +13,10 @@ import fu.fa26.sep490.g58.otcms_be.reporting.model.StatusMetric;
 import fu.fa26.sep490.g58.otcms_be.reporting.repository.ReportingRepository;
 import fu.fa26.sep490.g58.otcms_be.reporting.service.ReportingService;
 import java.time.Instant;
+import java.util.Locale;
+import fu.fa26.sep490.g58.otcms_be.reporting.model.ReportFile;
+import fu.fa26.sep490.g58.otcms_be.reporting.service.ReportPdfWriter;
+import fu.fa26.sep490.g58.otcms_be.servicecatalog.service.GetClinicServiceCatalogService;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -24,10 +28,14 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 public class ReportingServiceImpl implements ReportingService {
     private final ReportingRepository repository;
-    private final fu.fa26.sep490.g58.otcms_be.servicecatalog.service.GetClinicServiceCatalogService catalog;
-    public ReportingServiceImpl(ReportingRepository repository, fu.fa26.sep490.g58.otcms_be.servicecatalog.service.GetClinicServiceCatalogService catalog) {
+    private final GetClinicServiceCatalogService catalog;
+    private final ReportPdfWriter pdfWriter;
+
+    public ReportingServiceImpl(ReportingRepository repository, GetClinicServiceCatalogService catalog,
+        ReportPdfWriter pdfWriter) {
         this.repository = repository;
         this.catalog = catalog;
+        this.pdfWriter = pdfWriter;
     }
     @Override
     public DashboardSummary dashboard(ReportingPeriod period) {
@@ -60,6 +68,23 @@ public class ReportingServiceImpl implements ReportingService {
             : daily.stream().mapToLong(DailyCount::count).sum();
         return new ReportResult(subject, period, breakdown, Instant.now(), daily, services, total);
     }
+    @Override
+    public ReportFile exportPdf(String subject, ReportingPeriod period, String breakdown) {
+        ReportResult result = report(subject, period, breakdown);
+        byte[] content;
+        try {
+            content = pdfWriter.write(result);
+            if (content == null || content.length == 0) {
+                throw new IllegalStateException("Empty PDF output");
+            }
+        } catch (RuntimeException exception) {
+            throw new ReportingOperationException(ReportingOperationException.Reason.EXPORT_UNAVAILABLE);
+        }
+        String fileName = "otcms-" + result.subject().toLowerCase(Locale.ROOT) + "-"
+            + result.period().from() + "-" + result.period().to() + ".pdf";
+        return new ReportFile(fileName, content);
+    }
+
     /** Reuse the owner's public catalog service, including inactive historical services. */
     private List<ServiceUsage> serviceUsage(ReportingPeriod period) {
         var counts = repository.services(period);
