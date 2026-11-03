@@ -3,7 +3,7 @@
 import { useCallback, useState } from "react";
 import { notifyError, notifySuccess } from "@/lib/messages/notify";
 import { activateAccount, deactivateAccount } from "../api/accountApi";
-import type { AccountDetail } from "../types/account";
+import type { AccountDetail, AccountScope } from "../types/account";
 
 export type StatusAction = "activate" | "deactivate";
 
@@ -12,6 +12,8 @@ export type StatusTarget = {
   /** Tên hiển thị trong hộp xác nhận (họ tên hoặc định danh). */
   label: string;
   action: StatusAction;
+  /** Quyết định endpoint bệnh nhân hay nhân viên. */
+  scope: AccountScope;
 };
 
 const STATUS_TEXT: Record<StatusAction, string> = {
@@ -40,7 +42,7 @@ export function useAccountStatusChange({
     const call =
       target.action === "activate" ? activateAccount : deactivateAccount;
     try {
-      const updated = await call(target.id);
+      const updated = await call(target.id, target.scope);
       notifySuccess(
         `Trạng thái tài khoản đã được cập nhật thành ${STATUS_TEXT[target.action]}.`,
       );

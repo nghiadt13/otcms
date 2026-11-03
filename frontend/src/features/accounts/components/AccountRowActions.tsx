@@ -8,7 +8,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { accountIdentifier } from "../accountDisplay";
 import type { StatusTarget } from "../hooks/useAccountStatusChange";
-import type { AccountListItem } from "../types/account";
+import { accountScopeOf, type AccountListItem } from "../types/account";
 
 type AccountRowActionsProps = {
   account: AccountListItem;
@@ -24,6 +24,7 @@ export function AccountRowActions({
 }: AccountRowActionsProps) {
   const identifier = accountIdentifier(account);
   const label = account.fullName ?? identifier;
+  const scope = accountScopeOf(account.accountType);
   const actions: RowAction[] = [];
   if (account.allowedActions.includes("activate"))
     actions.push({
@@ -31,7 +32,7 @@ export function AccountRowActions({
       label: "Kích hoạt",
       icon: Power,
       onSelect: () =>
-        onStatusRequest({ id: account.id, label, action: "activate" }),
+        onStatusRequest({ id: account.id, label, action: "activate", scope }),
     });
   if (account.allowedActions.includes("deactivate"))
     actions.push({
@@ -40,7 +41,7 @@ export function AccountRowActions({
       icon: PowerOff,
       destructive: true,
       onSelect: () =>
-        onStatusRequest({ id: account.id, label, action: "deactivate" }),
+        onStatusRequest({ id: account.id, label, action: "deactivate", scope }),
     });
 
   return (

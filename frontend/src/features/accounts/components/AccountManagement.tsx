@@ -12,7 +12,6 @@ import { AccountFormDialog } from "./AccountFormDialog";
 import { AccountStatusDialog } from "./AccountStatusDialog";
 import { AccountsFilterBar } from "./AccountsFilterBar";
 import { AccountsTable } from "./AccountsTable";
-import { LiveStaffAccountDialog } from "./LiveStaffAccountDialog";
 
 /** Màn Tài khoản người dùng: PageHeader -> bộ lọc -> bảng; chi tiết ở Sheet, tạo ở Dialog. */
 export function AccountManagement() {
@@ -93,6 +92,7 @@ export function AccountManagement() {
       {selectedId ? (
         <AccountDetailSheet
           accountId={selectedId}
+          scope={list.filters.scope ?? "PATIENT"}
           onClose={closeSheet}
           onChanged={handleChanged}
           onStale={reload}
@@ -100,17 +100,10 @@ export function AccountManagement() {
       ) : null}
 
       {createOpen ? (
-        process.env.NODE_ENV === "test" ? (
-          <AccountFormDialog
-            onCreated={reload}
-            onClose={() => setCreateOpen(false)}
-          />
-        ) : (
-          <LiveStaffAccountDialog
-            onCreated={reload}
-            onClose={() => setCreateOpen(false)}
-          />
-        )
+        <AccountFormDialog
+          onCreated={reload}
+          onClose={() => setCreateOpen(false)}
+        />
       ) : null}
     </>
   );

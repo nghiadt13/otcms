@@ -1,157 +1,151 @@
-import { clone, mockDelay, mockFail, paginate } from "@/lib/api/mockServer";
-import type { PageResponse } from "@/lib/api/pagination";
-import { STAFF_ROLES } from "@/lib/domain/clinicRoles";
-import {
-  generateInitialPassword,
-  validateInitialPassword,
-  validateUsername,
-} from "../schema/accountFieldRules";
+import { apiRequest } from "@/lib/api/client";
+import { toQueryString, type PageResponse } from "@/lib/api/pagination";
 import type {
+  AccountAction,
   AccountDetail,
   AccountListItem,
   AccountListQuery,
+  AccountScope,
+  AccountStatus,
   CreateAccountInput,
   IssuedCredential,
+  StaffRole,
 } from "../types/account";
-import { accountStore, computeAllowedActions } from "./accountMockData";
-import {
-  changeLiveAccountStatus,
-  getLiveAccount,
-  listLiveAccounts,
-  reissueLiveAccountPassword,
-} from "./accountLiveApi";
 
-// Lớp API giả cho /api/v1/admin/accounts. Chữ ký khớp phase-02 mục 7: khi nối BE thật
-// chỉ đổi thân hàm sang `apiRequest`. Mật khẩu khởi tạo chỉ có trong phản hồi tạo/cấp lại.
+// Bệnh nhân: /api/v1/admin/accounts (BE trả đúng dạng AccountListItem/AccountDetail).
+// Nhân viên: /api/v1/admin/staff-accounts (KAN-27), dạng riêng nên chuyển ở `fromStaff*`.
 
-const MAX_QUERY_LENGTH = 100;
-const DELAY_MS = 120;
-
-// Danh sách không mang `staffProfile` (chỉ có ở chi tiết).
-const toListItem = (account: AccountDetail): AccountListItem => {
-  const item: Partial<AccountDetail> = { ...account };
-  delete item.staffProfile;
-  return item as AccountListItem;
+type StaffItem = {
+  accountId: string;
+  username: string;
+  role: StaffRole;
+  status: AccountStatus;
+  mustChangePassword: boolean;
+  createdAt: string;
+  staffProfile: { id: string; displayName: string } | null;
 };
 
-function findOrFail(id: string): AccountDetail {
-  const found = accountStore().find((account) => account.id === id);
-  // Mã 404 chờ chốt (MSG-14 theo spec 02, MSG-50 theo phase-00): mock dùng MSG-14.
-  return found ?? mockFail(404, "MSG-14");
+type StaffCreated = { accountId: string; username: string };
+type StaffReissued = { accountId: string; temporaryPassword: string };
+
+/** BE nhân viên không trả `allowedActions`; suy từ trạng thái và hồ sơ như BE bệnh nhân. */
+function staffActions(item: StaffItem): AccountAction[] {
+  return [
+    item.status === "ACTIVE" ? "deactivate" : "activate",
+    "reissuePassword",
+    ...(item.staffProfile ? [] : (["createStaffProfile"] as const)),
+  ];
 }
 
-function refreshActions(account: AccountDetail) {
-  account.allowedActions = computeAllowedActions(account);
+/** Danh sách không mang `staffProfile` (chỉ có ở chi tiết). */
+function fromStaffListItem(item: StaffItem): AccountListItem {
+  return {
+    id: item.accountId,
+    accountType: item.role,
+    username: item.username,
+    email: null,
+    fullName: item.staffProfile?.displayName ?? null,
+    status: item.status,
+    createdAt: item.createdAt,
+    allowedActions: staffActions(item),
+  };
 }
+
+function fromStaffItem(item: StaffItem): AccountDetail {
+  return {
+    ...fromStaffListItem(item),
+    staffProfile: item.staffProfile
+      ? {
+          fullName: item.staffProfile.displayName,
+          role: item.role,
+          workContact: null,
+        }
+      : null,
+  };
+}
+
+const resource = (scope: AccountScope) =>
+  scope === "STAFF" ? "staff-accounts" : "accounts";
+
+const accountPath = (scope: AccountScope, id: string) =>
+  `/api/v1/admin/${resource(scope)}/${encodeURIComponent(id)}` as const;
 
 export async function listAccounts(
   query: AccountListQuery,
   signal?: AbortSignal,
 ): Promise<PageResponse<AccountListItem>> {
-  if (process.env.NODE_ENV !== "test") return listLiveAccounts(query, signal);
-  await mockDelay(DELAY_MS, signal);
-  const keyword = query.q?.trim().toLowerCase() ?? "";
-  if (keyword.length > MAX_QUERY_LENGTH) mockFail(400, "MSG-54");
-
-  const matched = accountStore()
-    .filter((account) => !query.role || account.accountType === query.role)
-    .filter((account) => !query.status || account.status === query.status)
-    .filter(
-      (account) =>
-        !keyword ||
-        [account.username, account.email, account.fullName].some((field) =>
-          field?.toLowerCase().includes(keyword),
-        ),
-    )
-    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
-    .map(toListItem);
-  return clone(paginate(matched, query));
+  const scope = query.scope ?? "PATIENT";
+  const path = `/api/v1/admin/${resource(scope)}${toQueryString({
+    q: query.q,
+    status: query.status,
+    role: scope === "STAFF" ? query.role : undefined,
+    page: query.page ?? 0,
+    size: query.size ?? 20,
+  })}` as const;
+  if (scope === "PATIENT")
+    return apiRequest<PageResponse<AccountListItem>>(path, { signal });
+  const page = await apiRequest<PageResponse<StaffItem>>(path, { signal });
+  return { ...page, items: page.items.map(fromStaffListItem) };
 }
 
-export async function getAccount(id: string): Promise<AccountDetail> {
-  if (process.env.NODE_ENV !== "test") return getLiveAccount(id);
-  await mockDelay(DELAY_MS);
-  return clone(findOrFail(id));
+export async function getAccount(
+  id: string,
+  scope: AccountScope,
+): Promise<AccountDetail> {
+  const detail = await apiRequest<AccountDetail | StaffItem>(
+    accountPath(scope, id),
+  );
+  return scope === "STAFF"
+    ? fromStaffItem(detail as StaffItem)
+    : (detail as AccountDetail);
 }
 
+/** BE chỉ trả id và tên đăng nhập; mật khẩu là giá trị Admin vừa nhập. */
 export async function createAccount(
   input: CreateAccountInput,
 ): Promise<IssuedCredential> {
-  if (process.env.NODE_ENV !== "test")
-    throw new Error("Biểu mẫu tạo tài khoản cũ không hỗ trợ backend hiện tại.");
-  await mockDelay(DELAY_MS);
-  const username = input.username.trim();
-
-  const fieldErrors = [
-    ...(STAFF_ROLES.includes(input.role)
-      ? []
-      : [{ field: "role", code: "MSG-12" as const }]),
-    ...(validateUsername(username)
-      ? [{ field: "username", code: "MSG-12" as const }]
-      : []),
-    ...(validateInitialPassword(input.initialPassword)
-      ? [{ field: "initialPassword", code: "MSG-12" as const }]
-      : []),
-  ];
-  if (fieldErrors.length) mockFail(400, "MSG-12", undefined, fieldErrors);
-
-  // Tên đăng nhập đặc biệt để thử các nhánh lỗi.
-  if (username === "khong.quyen") mockFail(403, "MSG-14");
-  if (username === "loi.tao") mockFail(500, "MSG-16");
-  if (accountStore().some((account) => account.username === username))
-    mockFail(409, "MSG-13", { username }, [
-      { field: "username", code: "MSG-13" },
-    ]);
-
-  const account: AccountDetail = {
-    id: crypto.randomUUID(),
-    accountType: input.role,
-    username,
-    email: null,
-    fullName: null,
-    status: "ACTIVE",
-    createdAt: new Date().toISOString(),
-    allowedActions: [],
-    staffProfile: null,
+  const created = await apiRequest<StaffCreated>(
+    "/api/v1/admin/staff-accounts",
+    { method: "POST", body: JSON.stringify(input) },
+  );
+  return {
+    id: created.accountId,
+    username: created.username,
+    initialPassword: input.initialPassword,
   };
-  refreshActions(account);
-  accountStore().push(account);
-  return { id: account.id, username, initialPassword: input.initialPassword };
 }
 
 async function changeStatus(
   id: string,
-  target: "ACTIVE" | "INACTIVE",
+  scope: AccountScope,
+  action: "activation" | "deactivation",
 ): Promise<AccountDetail> {
-  if (process.env.NODE_ENV !== "test")
-    return changeLiveAccountStatus(
-      id,
-      target === "ACTIVE" ? "activation" : "deactivation",
-    );
-  await mockDelay(DELAY_MS);
-  const account = findOrFail(id);
-  // Đã ở trạng thái đích (ví dụ kích hoạt tài khoản đang Active): không cho phép.
-  if (account.status === target) mockFail(409, "MSG-42");
-  account.status = target;
-  refreshActions(account);
-  return clone(account);
+  const detail = await apiRequest<AccountDetail | StaffItem>(
+    `${accountPath(scope, id)}/${action}`,
+    { method: "POST" },
+  );
+  return scope === "STAFF"
+    ? fromStaffItem(detail as StaffItem)
+    : (detail as AccountDetail);
 }
 
-export const activateAccount = (id: string) => changeStatus(id, "ACTIVE");
-export const deactivateAccount = (id: string) => changeStatus(id, "INACTIVE");
+export const activateAccount = (id: string, scope: AccountScope) =>
+  changeStatus(id, scope, "activation");
+export const deactivateAccount = (id: string, scope: AccountScope) =>
+  changeStatus(id, scope, "deactivation");
 
+/** Chỉ nhân viên; bệnh nhân tự khôi phục bằng OTP. `username` để hiện lại trong bước kết quả. */
 export async function reissueAccountPassword(
   id: string,
+  username: string,
 ): Promise<IssuedCredential> {
-  if (process.env.NODE_ENV !== "test") return reissueLiveAccountPassword(id);
-  await mockDelay(DELAY_MS);
-  const account = findOrFail(id);
-  // Bệnh nhân tự khôi phục bằng OTP email, Admin không cấp lại.
-  if (account.accountType === "PATIENT" || !account.username)
-    mockFail(403, "MSG-14");
+  const reissued = await apiRequest<StaffReissued>(
+    `${accountPath("STAFF", id)}/password-reissues`,
+    { method: "POST" },
+  );
   return {
-    id,
-    username: account.username,
-    initialPassword: generateInitialPassword(),
+    id: reissued.accountId,
+    username,
+    initialPassword: reissued.temporaryPassword,
   };
 }

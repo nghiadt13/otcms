@@ -6,10 +6,20 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { listAccounts } from "../api/accountApi";
 import {
   NON_EXISTENT_ACCOUNT_ID,
-  resetAccountMockStore,
-} from "../api/accountMockData";
+  resetFakeAccountBackend,
+} from "@/test/accountAdminFakeBackend";
+import type { AccountScope } from "../types/account";
 import { AccountDetailSheet } from "./AccountDetailSheet";
 import { formatAppMessage } from "@/lib/messages/appMessages";
+
+// Mock ở ranh giới HTTP: backend giả trả đúng JSON của BE (KAN-27 cho nhân viên).
+vi.mock("@/lib/api/client", async (importOriginal) => {
+  const fake = await import("@/test/accountAdminFakeBackend");
+  return {
+    ...(await importOriginal<typeof import("@/lib/api/client")>()),
+    apiRequest: vi.fn(fake.fakeAccountApiRequest),
+  };
+});
 const push = vi.fn();
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
 
@@ -17,11 +27,17 @@ const onClose = vi.fn();
 const onChanged = vi.fn();
 const onStale = vi.fn();
 
-async function idOf(q: string) {
-  return (await listAccounts({ q })).items[0].id;
+async function idOf(q: string, scope: AccountScope = "STAFF") {
+  return (await listAccounts({ q, scope })).items[0].id;
 }
 
-function Harness({ id }: { id: string }) {
+function Harness({
+  id,
+  scope = "STAFF",
+}: {
+  id: string;
+  scope?: AccountScope;
+}) {
   const [open, setOpen] = useState(true);
   return (
     <>
@@ -29,6 +45,7 @@ function Harness({ id }: { id: string }) {
       {open ? (
         <AccountDetailSheet
           accountId={id}
+          scope={scope}
           onClose={() => {
             onClose();
             setOpen(false);
@@ -44,7 +61,7 @@ function Harness({ id }: { id: string }) {
 const button = (name: string) => screen.queryByRole("button", { name });
 
 beforeEach(() => {
-  resetAccountMockStore();
+  resetFakeAccountBackend();
   vi.clearAllMocks();
 });
 
@@ -65,7 +82,7 @@ describe("AccountDetailSheet", () => {
   });
 
   it("bệnh nhân: không có Cấp lại mật khẩu, Tạo hồ sơ; có email, không có tên đăng nhập", async () => {
-    render(<Harness id={await idOf("lan.tran@")} />);
+    render(<Harness id={await idOf("lan.tran@", "PATIENT")} scope="PATIENT" />);
     expect(await screen.findByText("lan.tran@mail.vn")).toBeInTheDocument();
 
     expect(button("Vô hiệu hóa")).toBeInTheDocument();

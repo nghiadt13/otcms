@@ -15,7 +15,7 @@ type AccountFilters = Pick<AccountListQuery, "q" | "role" | "status" | "scope">;
 export function useAccountList() {
   const list = usePagedList<AccountListItem, AccountFilters>(
     listAccounts,
-    process.env.NODE_ENV === "test" ? {} : { scope: "PATIENT" },
+    { scope: "PATIENT" },
   );
   const { setFilters } = list;
   const [searchText, setSearchText] = useState("");
