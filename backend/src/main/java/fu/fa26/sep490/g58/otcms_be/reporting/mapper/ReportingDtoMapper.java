@@ -3,6 +3,9 @@ package fu.fa26.sep490.g58.otcms_be.reporting.mapper;
 import fu.fa26.sep490.g58.otcms_be.reporting.model.DashboardSummary;
 import fu.fa26.sep490.g58.otcms_be.reporting.model.ReportResult;
 import fu.fa26.sep490.g58.otcms_be.reporting.model.ReportingPeriod;
+import fu.fa26.sep490.g58.otcms_be.reporting.model.dto.ReportingDtos.MetricValueResponse;
+import fu.fa26.sep490.g58.otcms_be.reporting.model.dto.ReportingDtos.StatusMetricResponse;
+import fu.fa26.sep490.g58.otcms_be.reporting.model.dto.ReportingDtos.ServiceComparisonResponse;
 import fu.fa26.sep490.g58.otcms_be.reporting.model.dto.ReportingDtos.ColumnResponse;
 import fu.fa26.sep490.g58.otcms_be.reporting.model.dto.ReportingDtos.CountsResponse;
 import fu.fa26.sep490.g58.otcms_be.reporting.model.dto.ReportingDtos.DailyRowResponse;
@@ -35,9 +38,19 @@ public final class ReportingDtoMapper {
     public static DashboardResponse dashboard(DashboardSummary summary) {
         var unavailable = new UnavailableSourceResponse("NO_SOURCE");
         return new DashboardResponse(period(summary.period()), period(summary.previousPeriod()),
-            new CountsResponse("READY", summary.appointments().total(), summary.appointments().byStatus()),
-            new VisitsResponse("READY", summary.visits().total(), summary.visits().byStatus(), List.of(), "NO_SOURCE"),
-            new ServicesResponse("READY", summary.services()), unavailable, unavailable, unavailable, unavailable);
+            new CountsResponse("READY", metric(summary.appointments().total()),
+                summary.appointments().byStatus().stream().map(ReportingDtoMapper::statusMetric).toList()),
+            new VisitsResponse("READY", metric(summary.visits().total()),
+                summary.visits().byStatus().stream().map(ReportingDtoMapper::statusMetric).toList(), List.of(), "NO_SOURCE"),
+            new ServicesResponse("READY", summary.services().stream().map(item -> new ServiceComparisonResponse(
+                item.serviceId(), item.name(), item.category(), item.value(), item.previousValue())).toList()),
+            unavailable, unavailable, unavailable, unavailable);
+    }
+    private static MetricValueResponse metric(fu.fa26.sep490.g58.otcms_be.reporting.model.MetricValue value) {
+        return new MetricValueResponse(value.value(), value.previousValue());
+    }
+    private static StatusMetricResponse statusMetric(fu.fa26.sep490.g58.otcms_be.reporting.model.StatusMetric value) {
+        return new StatusMetricResponse(value.code(), value.value(), value.previousValue());
     }
     public static SubjectsResponse subjects(List<String> codes) {
         return new SubjectsResponse(codes.stream().map(code -> new SubjectResponse(code, switch (code) {
