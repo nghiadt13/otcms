@@ -1,5 +1,17 @@
 # KAN-29 — My account R3
 
+## P1 — Google login sau khi đổi email OTCMS bằng OTP (2026-11-03)
+
+- Action Record / checkpoint: yêu cầu trực tiếp của người dùng cho phép chuẩn bị diff local và chạy regression trên branch `feat/hung/KAN-29-my-account`, HEAD `17eef8e`. Phạm vi chỉ gồm `GoogleAuthenticationServiceImpl.java`, `T007GoogleAuthenticationServiceTest.java`, `Kan29MyAccountPostgresIntegrationTest.java` và tài liệu này sau khi test hoàn tất.
+- Shadow Plan: đối chiếu nhánh identity đã liên kết; thay đúng phép so sánh email; thêm regression unit và PostgreSQL qua OTP thật; chạy Java 21; ghi kết quả và kiểm tra diff/status.
+- Nhánh `linked.isPresent()` so sánh claim Google với `normalizedEmailAtLink`, thay vì email OTCMS hiện tại. Giữ nguyên lookup provider + subject, kiểm tra emailVerified/PATIENT/ACTIVE và liên kết lần đầu. Không ghi lại email lúc liên kết hoặc chuyển identity sang account khác.
+- Regression mới: 4 ca unit và 4 ca PostgreSQL cho Google login → đổi email OTCMS → Google login lại; email cũ được B sử dụng vẫn xác thực A; claim chưa xác minh bị `AUTHENTICATION_FAILED`; claim dùng email OTCMS mới thay vì email lúc liên kết bị `IDENTITY_LINK_CONFLICT`. PostgreSQL đi qua request/verify OTP thật và xác nhận identity, account, linkedAt, emailAtLink được giữ nguyên; claim bị từ chối không tạo session. Unit mô phỏng kết quả đổi email, không kiểm thử lại OTP.
+- Exact command: `.\mvnw.cmd '-Dtest=T007GoogleAuthenticationServiceTest,Kan29MyAccountPostgresIntegrationTest,T007GoogleOnboardingPostgresIntegrationTest' test`, process-local `JAVA_HOME=C:/Program Files/Java/jdk-21`.
+- Môi trường: container PostgreSQL test hiện có `otcms-kan29-fix-baseline-postgres-test`; dùng lại credential Windows được bảo vệ qua biến môi trường `SPRING_DATASOURCE_PASSWORD`, xóa biến sau khi chạy. Không sửa config, migration, dependency hoặc OTP timing. Wrapper cần chạy ngoài sandbox vì lỗi bootstrap `Cannot index into a null array`; lần thử với credential mặc định lỗi kết nối, chưa kiểm tra được PostgreSQL. Lần chạy cuối với binding test hiện có hoàn tất thành công.
+- Kết quả cuối: **59 tests, 0 failures, 0 errors, 0 skipped; BUILD SUCCESS** — Google auth unit: 7; KAN-29 PostgreSQL: 48; Google onboarding PostgreSQL: 4. Log: `%TEMP%/kan29-google-regression.log`. Không chạy lại full suite; kết quả full suite cũ bên dưới thuộc các đợt kiểm tra trước.
+- Kiểm tra diff: `git diff --check` PASS; `git status --short` chỉ có 4 file trong phạm vi mang trạng thái ` M` (chưa stage); HEAD vẫn `17eef8e`.
+- Sync-back / review: chưa tìm thấy evidence NghiaDT chấp thuận mở rộng Google auth trong tài liệu KAN-29 hiện có. `AI RECOMMENDATION: PENDING HUMAN REVIEW`; NghiaDT cần review phạm vi Google auth trước khi đưa lên PR. Thay đổi chỉ là diff local; không stage, commit, push, rebase hay cập nhật PR.
+
 ## Audit and Action Record
 
 - Approved base: `89c859611cbd7214186e74103b87eaff171896c5`; branch `feat/hung/KAN-29-my-account`, clean and 0/0 against origin/product before implementation.

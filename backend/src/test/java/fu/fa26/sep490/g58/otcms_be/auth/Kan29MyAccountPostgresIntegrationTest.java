@@ -4,6 +4,7 @@ import fu.fa26.sep490.g58.otcms_be.auth.model.entity.*;
 import fu.fa26.sep490.g58.otcms_be.auth.model.entity.enums.*;
 import fu.fa26.sep490.g58.otcms_be.auth.repository.*;
 import fu.fa26.sep490.g58.otcms_be.auth.service.*;
+import fu.fa26.sep490.g58.otcms_be.auth.exception.GoogleAuthenticationException;
 import fu.fa26.sep490.g58.otcms_be.common.security.*;
 import fu.fa26.sep490.g58.otcms_be.support.LocalPostgresTest;
 import java.time.*;
@@ -46,8 +47,12 @@ class Kan29MyAccountPostgresIntegrationTest {
     @Autowired AuthSessionService sessions;
     @Autowired PasswordEncoder encoder;
     @Autowired EmailChangeService emails;
+    @Autowired GoogleAuthenticationService googleAuthentication;
+    @Autowired ExternalIdentityRepository identities;
+    @Autowired AuthSessionRepository authSessions;
     @Autowired JdbcTemplate jdbc;
     @MockitoBean EmailDeliveryService delivery;
+    @MockitoBean GoogleOidcService google;
     final Map<String, String> codes = new ConcurrentHashMap<>();
     final JsonMapper json = JsonMapper.builder().findAndAddModules().build();
     UUID patient;
@@ -182,6 +187,54 @@ class Kan29MyAccountPostgresIntegrationTest {
         assertNotNull(accounts.findById(patient).orElseThrow().getEmailVerifiedAt());
         assertEquals(1, count("select count(*) from email_change_challenges where account_id=? and consumed_at is not null", patient));
         verifyCode(code).andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("MSG-82"));
+    }
+
+    @ParameterizedTest @ValueSource(strings = {"original", "reused", "unverified", "mismatch"})
+    void googleLoginAfterOtpEmailChangePreservesOriginalIdentity(String mode) throws Exception {
+        String originalEmail = accounts.findById(patient).orElseThrow().getNormalizedEmail();
+        String subject = "kan29-" + UUID.randomUUID();
+        when(google.exchange(any(), any(), any()))
+                .thenReturn(new GoogleOidcService.VerifiedGoogleIdentity(subject, originalEmail, true));
+        var first = googleAuthentication.exchange("code", "verifier", "redirect", "127.0.0.1", "kan29");
+        assertEquals(patient, first.body().accountId());
+        token = first.body().accessToken();
+        var originalLink = identities.findByProviderAndProviderSubject(IdentityProvider.GOOGLE, subject).orElseThrow();
+        String target = email();
+        requestEmail(target).andExpect(status().isAccepted());
+        verifyCode(codes.get(target)).andExpect(status().isOk()).andExpect(jsonPath("$.email").value(target));
+        UUID other = null;
+        if (mode.equals("reused")) {
+            other = account(AccountType.PATIENT, false);
+            jdbc.update("update accounts set normalized_email=? where id=?", originalEmail, other);
+        }
+        int sessionCount = authSessions.findAllByAccountId(patient).size();
+        when(google.exchange(any(), any(), any())).thenReturn(new GoogleOidcService.VerifiedGoogleIdentity(
+                subject, mode.equals("mismatch") ? target : originalEmail, !mode.equals("unverified")));
+        if (mode.equals("unverified") || mode.equals("mismatch")) {
+            var ex = assertThrows(GoogleAuthenticationException.class,
+                    () -> googleAuthentication.exchange("code", "verifier", "redirect", "127.0.0.1", "kan29"));
+            assertEquals(mode.equals("unverified") ? "AUTHENTICATION_FAILED" : "IDENTITY_LINK_CONFLICT", ex.getMessage());
+            assertEquals(sessionCount, authSessions.findAllByAccountId(patient).size());
+        } else {
+            var second = googleAuthentication.exchange("code", "verifier", "redirect", "127.0.0.1", "kan29");
+            assertEquals(patient, second.body().accountId());
+            mvc.perform(get("/api/v1/me").header("Authorization", "Bearer " + second.body().accessToken()))
+                    .andExpect(status().isOk()).andExpect(jsonPath("$.id").value(patient.toString()))
+                    .andExpect(jsonPath("$.email").value(target));
+            assertEquals(sessionCount + 1, authSessions.findAllByAccountId(patient).size());
+        }
+        var link = identities.findByProviderAndProviderSubject(IdentityProvider.GOOGLE, subject).orElseThrow();
+        assertEquals(originalLink.getId(), link.getId());
+        assertEquals(originalLink.getLinkedAt(), link.getLinkedAt());
+        assertEquals(originalEmail, link.getNormalizedEmailAtLink());
+        assertEquals(patient, link.getAccount().getId());
+        assertEquals(1, identities.findAllByAccount_Id(patient).size());
+        assertEquals(target, accounts.findById(patient).orElseThrow().getNormalizedEmail());
+        if (other != null) {
+            assertEquals(other, accounts.findByNormalizedEmail(originalEmail).orElseThrow().getId());
+            assertTrue(identities.findAllByAccount_Id(other).isEmpty());
+            assertEquals(0, authSessions.findAllByAccountId(other).size());
+        }
     }
 
     @ParameterizedTest @ValueSource(strings = {"taken", "current", "rate", "delivery"})
