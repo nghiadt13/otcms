@@ -1,7 +1,11 @@
 import { publicApiRequest } from "@/lib/api/client";
 import { apiBaseUrl } from "@/lib/api/apiBaseUrl";
 import { ApiError } from "@/lib/api/apiError";
-import type { PublicDoctor, PublicDoctorDetail, DoctorAvailabilityDay } from "../types/publicDoctor";
+import type {
+  PublicDoctor,
+  PublicDoctorDetail,
+  DoctorAvailabilityDay,
+} from "../types/publicDoctor";
 
 type DoctorResponse = {
   doctorProfileId: string;
@@ -13,7 +17,9 @@ type DoctorResponse = {
   consultationInformation: string | null;
 };
 
-type DoctorDetailResponse = DoctorResponse & { availability: DoctorAvailabilityDay[] };
+type DoctorDetailResponse = DoctorResponse & {
+  availability: DoctorAvailabilityDay[];
+};
 
 function mapDoctor(d: DoctorResponse): PublicDoctor {
   const photo = d.photoUrl?.startsWith("/")
