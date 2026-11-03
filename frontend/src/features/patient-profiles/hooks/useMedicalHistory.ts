@@ -1,38 +1,49 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { isApiError } from "@/lib/api/apiError";
+import { AuthSessionError } from "@/lib/auth/authSession";
 import {
   getMedicalHistory,
   updateMedicalHistory,
 } from "../api/medicalHistoryApi";
+import { isHiddenRecordError } from "../api/patientProfileErrors";
 import type {
   MedicalHistory,
   MedicalHistoryUpdate,
 } from "../types/patientProfile";
 
-/**
- * Tiền sử của một hồ sơ. `save` đặt lại bản đang xem bằng bản vừa lưu (version mới). `refresh`
- * tải lại và trả về promise để màn đợi xong rồi mới dựng lại ô nhập.
- */
+/** Client hiện ném Error thường khi không lấy được access token, trước khi gửi HTTP. */
+function isMedicalHistoryAccessLost(failure: unknown): boolean {
+  return (
+    isHiddenRecordError(failure) ||
+    (isApiError(failure) && failure.status === 401) ||
+    (failure instanceof AuthSessionError &&
+      (failure.status === 401 || failure.status === 403)) ||
+    (failure instanceof Error &&
+      failure.message === "Bạn cần đăng nhập để tiếp tục.")
+  );
+}
+
+/** Màn mount theo key hồ sơ; chỉ thay bản đang xem sau response thành công. */
 export function useMedicalHistory(patientId: string) {
   const [history, setHistory] = useState<MedicalHistory | null>(null);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<unknown>(null);
 
   useEffect(() => {
     const controller = new AbortController();
-    getMedicalHistory(patientId, controller.signal)
-      .then((data) => {
+    getMedicalHistory(patientId, controller.signal).then(
+      (data) => {
         if (controller.signal.aborted) return;
         setHistory(data);
         setError(null);
-        setLoading(false);
-      })
-      .catch((err: unknown) => {
+      },
+      (failure: unknown) => {
         if (controller.signal.aborted) return;
-        setError(err);
-        setLoading(false);
-      });
+        if (isMedicalHistoryAccessLost(failure)) setHistory(null);
+        setError(failure);
+      },
+    );
     return () => controller.abort();
   }, [patientId]);
 
@@ -41,19 +52,34 @@ export function useMedicalHistory(patientId: string) {
       const data = await getMedicalHistory(patientId);
       setHistory(data);
       setError(null);
-    } catch (err) {
-      setError(err);
+      return data;
+    } catch (failure) {
+      // Mất xác thực hoặc quyền truy cập: xóa dữ liệu và để màn unmount editor.
+      if (isMedicalHistoryAccessLost(failure)) {
+        setHistory(null);
+        setError(failure);
+      }
+      // Không nuốt lỗi: editor chỉ bỏ stale khi tải lại thành công.
+      throw failure;
     }
   }, [patientId]);
 
   const save = useCallback(
     async (next: MedicalHistoryUpdate) => {
-      const saved = await updateMedicalHistory(patientId, next);
-      setHistory(saved);
-      return saved;
+      try {
+        const saved = await updateMedicalHistory(patientId, next);
+        setHistory(saved);
+        return saved;
+      } catch (failure) {
+        if (isMedicalHistoryAccessLost(failure)) {
+          setHistory(null);
+          setError(failure);
+        }
+        throw failure;
+      }
     },
     [patientId],
   );
 
-  return { history, loading, error, refresh, save };
+  return { history, loading: !history && !error, error, refresh, save };
 }

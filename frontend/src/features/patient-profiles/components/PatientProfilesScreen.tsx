@@ -11,6 +11,7 @@ import { messageFromError } from "@/lib/messages/appMessages";
 import { PATIENT_ROUTES } from "@/lib/routes/patientRoutes";
 import { getMockCurrentActor } from "@/lib/session/mockCurrentActor";
 import { useProfileSuggestions } from "../hooks/useProfileSuggestions";
+import { MedicalHistoryProfiles } from "./MedicalHistoryProfiles";
 import { PatientProfileList } from "./PatientProfileList";
 import { PortalLoadError } from "./PortalLoadError";
 import { SuggestionBanner } from "./SuggestionBanner";
@@ -69,6 +70,7 @@ export function PatientProfilesScreen() {
         title="Hồ sơ bệnh nhân"
       />
       <div className="space-y-6">
+        <MedicalHistoryProfiles />
         {suggestions.suggestions.length > 0 ? (
           <SuggestionBanner
             count={suggestions.suggestions.length}

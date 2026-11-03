@@ -82,7 +82,7 @@ export type MedicalHistoryField =
 
 export type MedicalHistoryTexts = Record<MedicalHistoryField, string>;
 
-/** GET/PUT /api/v1/patients/{id}/medical-history. */
+/** GET/PUT /api/v1/patient-profiles/{id}/medical-history. */
 export interface MedicalHistory extends MedicalHistoryTexts {
   /** ISO có offset +07:00; null khi chưa ghi lần nào. */
   updatedAt: string | null;
@@ -90,7 +90,7 @@ export interface MedicalHistory extends MedicalHistoryTexts {
   version: number;
 }
 
-/** PUT: các mục và `version` đang xem. Lệch version → 409 STALE. */
+/** PUT: các mục và `version` đang xem. Lệch version → 409 STALE_VERSION. */
 export interface MedicalHistoryUpdate extends MedicalHistoryTexts {
   version: number;
 }

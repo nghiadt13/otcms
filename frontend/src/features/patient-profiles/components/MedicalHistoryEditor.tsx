@@ -1,16 +1,18 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useId, useRef, useState } from "react";
 import { publicButtonClass } from "@/components/brand/publicButtonStyles";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Textarea } from "@/components/ui/textarea";
 import { isApiError } from "@/lib/api/apiError";
 import { formatAppMessage } from "@/lib/messages/appMessages";
-import { notifyError, notifySuccess } from "@/lib/messages/notify";
+import { notifySuccess } from "@/lib/messages/notify";
+import { medicalHistoryErrorMessage } from "../api/medicalHistoryErrors";
 import { isStaleHistoryError } from "../api/patientProfileErrors";
 import {
+  invalidHistoryFields,
   MEDICAL_HISTORY_SECTIONS,
-  isHistoryTextTooLong,
+  trimHistoryText,
 } from "../schema/medicalHistoryRules";
 import type {
   MedicalHistory,
@@ -29,11 +31,7 @@ function textsOf(history: MedicalHistory): MedicalHistoryTexts {
   };
 }
 
-/**
- * Năm mục tiền sử, mỗi mục có "Lưu" riêng. Nút Lưu luôn là nút viền (`secondary`): một màn chỉ có
- * một nút chính, mà nhiều mục có thể sửa cùng lúc. Lưu một mục gửi cả bản đang xem với `version`
- * hiện tại. Lệch version (409 STALE) thì báo người dùng và chặn lưu cho tới khi tải lại.
- */
+/** Lưu từng mục với đủ năm giá trị đã lưu + mục đang sửa. Chỉ một request ghi mỗi lúc. */
 export function MedicalHistoryEditor({
   history,
   canEdit,
@@ -42,11 +40,11 @@ export function MedicalHistoryEditor({
 }: {
   history: MedicalHistory;
   canEdit: boolean;
-  onSave: (next: MedicalHistoryUpdate) => Promise<unknown>;
-  /** Tải lại tiền sử từ máy chủ; màn dựng lại ô nhập sau khi tải xong. */
-  onReload: () => Promise<void>;
+  onSave: (next: MedicalHistoryUpdate) => Promise<MedicalHistory>;
+  onReload: () => Promise<MedicalHistory>;
 }) {
   const id = useId();
+  const [baseline, setBaseline] = useState(history);
   const [drafts, setDrafts] = useState<MedicalHistoryTexts>(() =>
     textsOf(history),
   );
@@ -56,39 +54,75 @@ export function MedicalHistoryEditor({
   const [fieldErrors, setFieldErrors] = useState<
     Partial<Record<MedicalHistoryField, string>>
   >({});
+  const [failure, setFailure] = useState<string | null>(null);
   const [stale, setStale] = useState(false);
+  const [reloading, setReloading] = useState(false);
+  const inFlight = useRef(false);
 
   async function saveField(field: MedicalHistoryField) {
-    const text = drafts[field];
-    if (isHistoryTextTooLong(text)) {
-      setFieldErrors((current) => ({
-        ...current,
-        [field]: formatAppMessage("MSG-17"),
-      }));
-      return;
+    if (!canEdit || stale || inFlight.current) return;
+    const next = {
+      ...textsOf(baseline),
+      [field]: drafts[field],
+      version: baseline.version,
+    };
+    const errors: Partial<Record<MedicalHistoryField, string>> = {};
+    for (const { field: name } of MEDICAL_HISTORY_SECTIONS) {
+      next[name] = trimHistoryText(next[name]);
     }
-    setFieldErrors((current) => ({ ...current, [field]: undefined }));
+    const invalid = invalidHistoryFields(next);
+    for (const { field: name } of MEDICAL_HISTORY_SECTIONS) {
+      if (invalid.includes(name)) errors[name] = formatAppMessage("MSG-20");
+    }
+    setFieldErrors(errors);
+    setFailure(null);
+    if (invalid.length > 0) return;
+
+    inFlight.current = true;
     setPendingField(field);
     try {
-      await onSave({
-        ...textsOf(history),
-        [field]: text,
-        version: history.version,
-      });
+      const saved = await onSave(next);
+      setBaseline(saved);
+      setDrafts((current) => ({
+        ...textsOf(saved),
+        ...Object.fromEntries(
+          MEDICAL_HISTORY_SECTIONS.filter(
+            ({ field: name }) =>
+              name !== field && current[name] !== baseline[name],
+          ).map(({ field: name }) => [name, current[name]]),
+        ),
+      }));
       notifySuccess("MSG-90");
     } catch (error) {
-      if (isStaleHistoryError(error)) {
-        setStale(true);
-      } else if (isApiError(error) && error.status === 400) {
-        setFieldErrors((current) => ({
-          ...current,
-          [field]: formatAppMessage("MSG-17"),
-        }));
-      } else {
-        notifyError(error);
-      }
+      if (isStaleHistoryError(error)) setStale(true);
+      else if (
+        isApiError(error) &&
+        (error.errorCode === "VALIDATION_FAILED" || error.status === 400)
+      )
+        setFieldErrors({ [field]: formatAppMessage("MSG-20") });
+      else setFailure(medicalHistoryErrorMessage(error));
     } finally {
+      inFlight.current = false;
       setPendingField(null);
+    }
+  }
+
+  async function reload() {
+    if (inFlight.current) return;
+    inFlight.current = true;
+    setReloading(true);
+    setFailure(null);
+    try {
+      const latest = await onReload();
+      setBaseline(latest);
+      setDrafts(textsOf(latest));
+      setFieldErrors({});
+      setStale(false);
+    } catch (error) {
+      setFailure(medicalHistoryErrorMessage(error));
+    } finally {
+      inFlight.current = false;
+      setReloading(false);
     }
   }
 
@@ -97,30 +131,32 @@ export function MedicalHistoryEditor({
       {stale ? (
         <Alert variant="destructive">
           <AlertDescription className="space-y-3 text-base">
-            <span className="block">
-              Tiền sử vừa được cập nhật bởi người khác.
-            </span>
+            <span className="block">{formatAppMessage("MSG-16")}</span>
             <button
               className={publicButtonClass("secondary")}
-              onClick={() => void onReload()}
+              disabled={reloading}
+              onClick={() => void reload()}
               type="button"
             >
-              Tải lại
+              {reloading ? "Đang tải lại..." : "Tải lại"}
             </button>
           </AlertDescription>
         </Alert>
       ) : null}
-      {canEdit ? null : (
+      {failure ? (
+        <p className="text-base text-destructive" role="alert">
+          {failure}
+        </p>
+      ) : null}
+      {!canEdit ? (
         <p className="text-base text-muted-foreground">
           Tiền sử của hồ sơ này chỉ xem được từ tài khoản của bạn.
         </p>
-      )}
-
+      ) : null}
       {MEDICAL_HISTORY_SECTIONS.map(({ field, label }) => {
         const titleId = `${id}-${field}-title`;
         const errorId = `${id}-${field}-error`;
         const error = fieldErrors[field];
-        const dirty = drafts[field] !== history[field];
         const busy = pendingField === field;
         return (
           <section className="space-y-3" key={field}>
@@ -132,7 +168,7 @@ export function MedicalHistoryEditor({
               aria-invalid={error ? true : undefined}
               aria-labelledby={titleId}
               className="min-h-28 text-base"
-              disabled={!canEdit || busy}
+              disabled={!canEdit || pendingField !== null || reloading || stale}
               id={`${id}-${field}`}
               onChange={(event) =>
                 setDrafts((current) => ({
@@ -148,17 +184,20 @@ export function MedicalHistoryEditor({
               </p>
             ) : null}
             {canEdit ? (
-              <div>
-                <button
-                  aria-label={`Lưu ${label}`}
-                  className={publicButtonClass("secondary")}
-                  disabled={!dirty || busy || stale}
-                  onClick={() => void saveField(field)}
-                  type="button"
-                >
-                  {busy ? "Đang lưu..." : "Lưu"}
-                </button>
-              </div>
+              <button
+                aria-label={`Lưu ${label}`}
+                className={publicButtonClass("secondary")}
+                disabled={
+                  drafts[field] === baseline[field] ||
+                  pendingField !== null ||
+                  stale ||
+                  reloading
+                }
+                onClick={() => void saveField(field)}
+                type="button"
+              >
+                {busy ? "Đang lưu..." : "Lưu"}
+              </button>
             ) : null}
           </section>
         );
