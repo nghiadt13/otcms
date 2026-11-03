@@ -26,7 +26,8 @@ import org.springframework.transaction.annotation.Transactional;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
-import java.security.SecureRandom;
+import fu.fa26.sep490.g58.otcms_be.auth.service.EmailOtpService;
+import org.springframework.beans.factory.annotation.Autowired;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.HexFormat;
@@ -45,13 +46,22 @@ public class RegistrationServiceImpl implements RegistrationService {
     private final EmailDeliveryService emailDelivery;
     private final AuthProperties properties;
     private final PasswordEncoder passwordEncoder = PasswordEncoderFactories.createDelegatingPasswordEncoder();
-    private final SecureRandom random = new SecureRandom();
+    private final EmailOtpService otp;
     private final AuthConcurrencyRepository concurrency;
 
     public RegistrationServiceImpl(AccountRepository accounts, ConsentEvidenceRepository consents,
                                    EmailVerificationChallengeRepository challenges,
                                    AuthenticationAuditRepository audits, EmailDeliveryService emailDelivery,
                                    AuthProperties properties, AuthConcurrencyRepository concurrency) {
+        this(accounts, consents, challenges, audits, emailDelivery, properties, concurrency, new EmailOtpServiceImpl());
+    }
+
+    @Autowired
+    public RegistrationServiceImpl(AccountRepository accounts, ConsentEvidenceRepository consents,
+            EmailVerificationChallengeRepository challenges, AuthenticationAuditRepository audits,
+            EmailDeliveryService emailDelivery, AuthProperties properties, AuthConcurrencyRepository concurrency,
+            EmailOtpService otp) {
+        this.otp = otp;
         this.accounts = accounts;
         this.consents = consents;
         this.challenges = challenges;
@@ -118,7 +128,7 @@ public class RegistrationServiceImpl implements RegistrationService {
                 .orElseThrow(() -> new RegistrationException("OTP_INVALID_OR_EXPIRED"));
         Instant now = Instant.now();
         if (challenge.getExpiresAt().isBefore(now) || challenge.getFailedAttempts() >= 5
-                || !passwordEncoder.matches(otp, challenge.getOtpHash())) {
+                || !this.otp.matches(otp, challenge.getOtpHash())) {
             if (challenge.getExpiresAt().isAfter(now) && challenge.getFailedAttempts() < 5)
                 challenge.setFailedAttempts(challenge.getFailedAttempts() + 1);
             if (challenge.getFailedAttempts() >= 5) challenge.setSupersededAt(now);
@@ -180,11 +190,11 @@ public class RegistrationServiceImpl implements RegistrationService {
     }
 
     private void sendNewOtp(AccountJpaEntity account, String email, Instant now, String failureOutcome) {
-        String code = String.format(Locale.ROOT, "%06d", random.nextInt(1_000_000));
+        String code = otp.generate();
         EmailVerificationChallengeJpaEntity challenge = new EmailVerificationChallengeJpaEntity();
         challenge.setAccount(account);
-        challenge.setOtpHash(passwordEncoder.encode(code));
-        challenge.setExpiresAt(now.plus(Duration.ofMinutes(10)));
+        challenge.setOtpHash(otp.hash(code));
+        challenge.setExpiresAt(otp.expiresAt(now));
         challenge.setCreatedAt(now);
         challenge.setFailedAttempts(0);
         challenges.save(challenge);

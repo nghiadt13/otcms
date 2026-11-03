@@ -13,4 +13,7 @@ public interface CareRelationshipRepository extends JpaRepository<CareRelationsh
             UUID requesterAccountId, UUID dependentPatientProfileId, Collection<CareRelationship.State> states);
     Collection<CareRelationshipJpaEntity> findAllByRequesterAccountIdAndState(
             UUID requesterAccountId, CareRelationship.State state);
+    java.util.List<CareRelationshipJpaEntity> findAllByRequesterAccountIdOrderByRequestedAtAscIdAsc(UUID accountId);
+    java.util.List<CareRelationshipJpaEntity> findAllByStateAndPendingReasonOrderByRequestedAtAscIdAsc(
+            CareRelationship.State state, CareRelationship.PendingReason pendingReason);
 }
