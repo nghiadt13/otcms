@@ -81,7 +81,11 @@ export function ReportResultPanel({
           </p>
         </div>
         {result.allowedActions.includes("export") ? (
-          <ReportExportMenu exporting={exporting} onExport={onExport} />
+          <ReportExportMenu
+            exporting={exporting}
+            formats={result.exportFormats ?? ["pdf"]}
+            onExport={onExport}
+          />
         ) : null}
       </div>
       {result.hasData ? (

@@ -31,3 +31,12 @@ it("never manufactures export files when the backend capability is unavailable",
     status: 503,
   });
 });
+
+it("downloads PDF using the exact validated report query and PDF format", async () => {
+  mock.download.mockResolvedValue(undefined);
+  await expect(exportReport(query, "pdf")).resolves.toBeUndefined();
+  expect(mock.download).toHaveBeenCalledExactlyOnceWith(
+    "/api/v1/admin/reports/export?subject=APPOINTMENTS&from=2026-11-01&to=2026-11-07&breakdown=DATE&format=pdf",
+    { signal: undefined },
+  );
+});
