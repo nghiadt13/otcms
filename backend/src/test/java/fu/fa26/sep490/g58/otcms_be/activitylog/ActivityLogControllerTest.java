@@ -17,6 +17,7 @@ import fu.fa26.sep490.g58.otcms_be.config.SessionSecurityProperties;
 import fu.fa26.sep490.g58.otcms_be.activitylog.controller.*;
 import fu.fa26.sep490.g58.otcms_be.activitylog.service.*;
 import fu.fa26.sep490.g58.otcms_be.activitylog.model.ActivityLogEntry;
+import fu.fa26.sep490.g58.otcms_be.activitylog.model.ActivityLogPage;
 import java.util.*;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -52,7 +53,7 @@ class ActivityLogControllerTest {
         var entry = new ActivityLogEntry("room:11111111-1111-1111-1111-111111111111", java.time.Instant.now(),
         "admin", "ADMIN", "CREATE_ROOM", null, "ROOM", "P.101", null, "P.101", null);
         when(query.list(anyString(), anyString(), anyString(), anyString(), anyString(), anyInt(), anyInt()))
-        .thenReturn(new ActivityLogRepository.Page(List.of(entry), 0, 20, 1, 1));
+        .thenReturn(new ActivityLogPage(List.of(entry), 0, 20, 1, 1));
         when(query.detail(entry.id())).thenReturn(entry);
         for (String role : List.of("ADMIN", "OWNER")) {
             mvc.perform(get(base).with(user("reader").roles(role))).andExpect(status().isOk())

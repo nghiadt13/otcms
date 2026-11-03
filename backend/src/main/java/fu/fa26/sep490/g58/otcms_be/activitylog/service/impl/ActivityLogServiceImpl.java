@@ -2,6 +2,7 @@ package fu.fa26.sep490.g58.otcms_be.activitylog.service.impl;
 
 import fu.fa26.sep490.g58.otcms_be.activitylog.exception.ActivityLogOperationException;
 import fu.fa26.sep490.g58.otcms_be.activitylog.model.ActivityLogEntry;
+import fu.fa26.sep490.g58.otcms_be.activitylog.model.ActivityLogPage;
 import fu.fa26.sep490.g58.otcms_be.activitylog.repository.ActivityLogRepository;
 import fu.fa26.sep490.g58.otcms_be.activitylog.service.ActivityLogService;
 import java.time.LocalDate;
@@ -21,7 +22,7 @@ public class ActivityLogServiceImpl implements ActivityLogService {
         this.reader = reader;
     }
     @Override
-    public ActivityLogRepository.Page list(String from, String to, String action, String record, String actor,
+    public ActivityLogPage list(String from, String to, String action, String record, String actor,
         int page, int size) {
         try {
             LocalDate start = clean(from).isEmpty() ? null : LocalDate.parse(from);
@@ -33,9 +34,10 @@ public class ActivityLogServiceImpl implements ActivityLogService {
                 throw new IllegalArgumentException();
             }
             Math.multiplyExact(page, size);
-            return reader.list(new ActivityLogRepository.Criteria(start == null ? null : start.atStartOfDay(ZONE).toInstant(),
+            ActivityLogRepository.Page result = reader.list(new ActivityLogRepository.Criteria(start == null ? null : start.atStartOfDay(ZONE).toInstant(),
                 end == null ? null : end.plusDays(1).atStartOfDay(ZONE).toInstant(),
                 category, clean(record), clean(actor), page, size));
+            return new ActivityLogPage(result.items(), result.page(), result.size(), result.totalItems(), result.totalPages());
         }
         catch (java.time.DateTimeException | IllegalArgumentException | ArithmeticException ex) {
             throw new ActivityLogOperationException("MSG-54");
