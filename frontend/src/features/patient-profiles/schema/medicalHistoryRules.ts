@@ -3,12 +3,8 @@ import type {
   MedicalHistoryUpdate,
 } from "../types/patientProfile";
 
-// Luật tiền sử: năm mục văn bản, mỗi mục tối đa 2000 ký tự. Dùng chung cho ô nhập (báo lỗi
-// ngay) và lớp API giả (kiểm tra thân PUT như BE).
-
 export const MAX_HISTORY_TEXT_LENGTH = 2000;
 
-/** Thứ tự hiển thị của năm mục tiền sử, kèm nhãn tiếng Việt. */
 export const MEDICAL_HISTORY_SECTIONS: readonly {
   field: MedicalHistoryField;
   label: string;
@@ -20,15 +16,26 @@ export const MEDICAL_HISTORY_SECTIONS: readonly {
   { field: "orthopedicHistory", label: "Tiền sử chỉnh hình" },
 ];
 
-export function isHistoryTextTooLong(text: string): boolean {
-  return text.length > MAX_HISTORY_TEXT_LENGTH;
+/** Giống Java String.trim() của KAN-28, giữ Unicode whitespace và nội dung bên trong. */
+export function trimHistoryText(text: string): string {
+  let start = 0;
+  let end = text.length;
+  while (start < end && text.charCodeAt(start) <= 32) start++;
+  while (end > start && text.charCodeAt(end - 1) <= 32) end--;
+  return text.slice(start, end);
 }
 
-/** Tên các trường sai trong thân PUT: văn bản quá dài hoặc `version` không phải số nguyên. */
+export function isHistoryTextTooLong(text: string): boolean {
+  return trimHistoryText(text).length > MAX_HISTORY_TEXT_LENGTH;
+}
+
+/** .length đếm UTF-16 units, không đếm code points hay tự cắt nội dung. */
 export function invalidHistoryFields(body: MedicalHistoryUpdate): string[] {
-  const invalid: string[] = MEDICAL_HISTORY_SECTIONS.filter(({ field }) =>
-    isHistoryTextTooLong(body[field]),
+  const invalid: string[] = MEDICAL_HISTORY_SECTIONS.filter(
+    ({ field }) =>
+      typeof body[field] !== "string" || isHistoryTextTooLong(body[field]),
   ).map(({ field }) => field);
-  if (!Number.isInteger(body.version)) invalid.push("version");
+  if (!Number.isSafeInteger(body.version) || body.version < 0)
+    invalid.push("version");
   return invalid;
 }
