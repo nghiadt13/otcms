@@ -16,7 +16,8 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.*;
 
-@RestControllerAdvice(assignableTypes = {CareRelationshipController.class, CounterCareLinkController.class})
+@RestControllerAdvice(assignableTypes = {CareRelationshipController.class, CounterCareLinkController.class,
+        DependentAddOtpController.class})
 @Order(Ordered.HIGHEST_PRECEDENCE)
 public class CareRelationshipExceptionHandler {
     @ExceptionHandler(CareRelationshipException.class)

@@ -10,12 +10,13 @@ describe("homeRouteForAccount", () => {
     expect(homeRouteForAccount(accountType)).toBe("/admin");
   });
 
-  it.each(["RECEPTIONIST", "DOCTOR"] as const)(
-    "nhân viên %s vào khu lễ tân",
-    (accountType) => {
-      expect(homeRouteForAccount(accountType)).toBe("/reception");
-    },
-  );
+  it("lễ tân vào khu lễ tân", () => {
+    expect(homeRouteForAccount("RECEPTIONIST")).toBe("/reception");
+  });
+
+  it("bác sĩ vào khu bác sĩ", () => {
+    expect(homeRouteForAccount("DOCTOR")).toBe("/doctor");
+  });
 });
 
 it("chủ phòng khám vào quản trị tài khoản Admin", () => {

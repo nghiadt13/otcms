@@ -1,11 +1,12 @@
 import type { AccountType } from "@/lib/auth/authSession";
 import { ADMIN_ROUTES } from "@/lib/routes/adminRoutes";
+import { DOCTOR_ROUTES } from "@/lib/routes/doctorRoutes";
 import { PATIENT_ROUTES } from "@/lib/routes/patientRoutes";
 import { STAFF_ROUTES } from "@/lib/routes/staffRoutes";
 
 // Khu làm việc đúng vai trò của tài khoản (loại tài khoản do backend trả ở `GET /api/v1/me`),
 // lối vào chung sau đăng nhập (thay trang /workspace). Hàm thuần: bệnh nhân vào cổng bệnh
-// nhân; chủ phòng khám vào khu owner, quản trị vào admin; còn lại là nhân viên, vào khu lễ tân. Quyền
+// nhân; chủ phòng khám vào khu owner, quản trị vào admin, bác sĩ vào khu bác sĩ; còn lại là nhân viên, vào khu lễ tân. Quyền
 // thật vẫn do backend kiểm từng thao tác.
 export function homeRouteForAccount(accountType: AccountType): string {
   if (accountType === "PATIENT") return PATIENT_ROUTES.account;
@@ -13,9 +14,8 @@ export function homeRouteForAccount(accountType: AccountType): string {
   if (accountType === "ADMIN") {
     return ADMIN_ROUTES.dashboard;
   }
-  if (accountType === "RECEPTIONIST" || accountType === "DOCTOR") {
-    return STAFF_ROUTES.home;
-  }
+  if (accountType === "DOCTOR") return DOCTOR_ROUTES.dashboard;
+  if (accountType === "RECEPTIONIST") return STAFF_ROUTES.home;
   if (accountType === "IMAGING_TECHNICIAN") return "/imaging";
   return "/staff-home";
 }

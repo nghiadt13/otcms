@@ -77,16 +77,21 @@ public class GetAppointmentsServiceImpl implements GetAppointmentsService {
     private List<AppointmentSummary> summaries(List<Row> rows) {
         Map<UUID, Optional<String>> doctorNames = new HashMap<>();
         Map<UUID, Optional<ServiceLabel>> serviceLabels = new HashMap<>();
+        Map<UUID, Optional<String>> patientNames = new HashMap<>();
         return rows.stream().map(row -> summary(row,
                 doctorNames.computeIfAbsent(row.doctorId(), doctors::findDoctorDisplayName).orElse(null),
-                serviceLabels.computeIfAbsent(row.serviceId(), services::findServiceLabel).orElse(null))).toList();
+                serviceLabels.computeIfAbsent(row.serviceId(), services::findServiceLabel).orElse(null),
+                patientNames.computeIfAbsent(row.patientProfileId(),
+                        id -> patients.findProfile(id).map(p -> p.fullName())).orElse(null))).toList();
     }
 
-    private static AppointmentSummary summary(Row row, String doctorDisplayName, ServiceLabel service) {
+    private static AppointmentSummary summary(Row row, String doctorDisplayName, ServiceLabel service,
+            String patientName) {
         return new AppointmentSummary(row.id(), row.patientProfileId(), row.serviceId(), row.doctorId(), row.status(),
                 row.bookingSource(), row.purpose(), row.startTime(), row.endTime(), row.durationMinutes(),
                 row.bufferMinutes(), row.occupiedUntil(), row.visitId(), row.sourceVisitId(), row.createdAt(), row.updatedAt(),
-                doctorDisplayName, service == null ? null : service.name(), service == null ? null : service.price());
+                doctorDisplayName, service == null ? null : service.name(), service == null ? null : service.price(),
+                patientName);
     }
 
     private Scope resolve(UUID accountId, AccountRole role) {

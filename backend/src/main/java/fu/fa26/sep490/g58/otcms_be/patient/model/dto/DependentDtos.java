@@ -14,6 +14,8 @@ public final class DependentDtos {
             @NotNull Relationship relationship) { }
     public record UpdateDependentRequest(@NotBlank String fullName, @NotNull LocalDate dateOfBirth,
             @NotBlank String gender, String phone, String address, String nationalId, String identityDocumentType) { }
+    /** Result of requesting the add-dependent OTP: the request to verify and the masked recipient email. */
+    public record AddOtpResult(UUID requestId, String maskedEmail) { }
     public record VerifyOtpRequest(@NotBlank @Pattern(regexp = "[0-9]{6}") String code) { }
     public record CounterConfirmationRequest(@NotNull @AssertTrue Boolean identityChecked) { }
     @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)

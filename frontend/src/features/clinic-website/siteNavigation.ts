@@ -1,4 +1,5 @@
 import { PATIENT_ROUTES } from "@/lib/routes/patientRoutes";
+import type { ClinicContact } from "./types/websiteContent";
 
 // Mục menu của các trang giới thiệu (header và footer dùng chung một danh sách).
 // "Liên hệ" là neo tới footer nên dùng được ở mọi trang có footer.
@@ -19,6 +20,17 @@ export const siteNavItems: SiteNavItem[] = [
 export const bookAppointmentHref = PATIENT_ROUTES.newAppointment;
 
 export const contactSectionId = "lien-he";
+
+// Thông tin dải trên cùng (giờ làm việc, địa chỉ, hotline) cố định trong code, không đọc từ
+// API nội dung website: quản trị chỉ đăng bài viết/giới thiệu nên API này có thể trả rỗng.
+export const topBarContact: Pick<
+  ClinicContact,
+  "address" | "hotline" | "openingHours"
+> = {
+  address: "12 Nguyễn Thị Minh Khai, Quận 1, TP. Hồ Chí Minh",
+  hotline: "028 3822 1234",
+  openingHours: ["Thứ 2 – Thứ 6: 7:30 – 17:00", "Thứ 7: 7:30 – 12:00"],
+};
 
 /** Mục đang mở: khớp đúng đường dẫn (trang chủ) hoặc đường dẫn con. Neo không bao giờ "đang mở". */
 export function isActiveNavItem(href: string, pathname: string) {

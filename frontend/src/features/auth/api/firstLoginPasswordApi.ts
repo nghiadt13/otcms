@@ -1,1 +1,4 @@
-export { changeFirstLoginPassword, FirstLoginPasswordError } from "@/lib/auth/changePasswordApi";
+export {
+  changeFirstLoginPassword,
+  FirstLoginPasswordError,
+} from "@/lib/auth/changePasswordApi";

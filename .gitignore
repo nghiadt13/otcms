@@ -19,3 +19,5 @@ orthanc-data/
 /backend/otcms-before-migrations.dump
 /backend/slides/
 /backend/scripts/__pycache__/
+/plans/
+

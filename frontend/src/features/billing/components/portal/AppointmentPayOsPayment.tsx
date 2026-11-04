@@ -2,11 +2,9 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { QRCodeSVG } from "qrcode.react";
 import { publicButtonClass } from "@/components/brand/publicButtonStyles";
 import { PortalPageHeader } from "@/components/patient/PortalPageHeader";
 import { Skeleton } from "@/components/ui/skeleton";
-import { formatCurrencyVnd } from "@/lib/format/formatCurrencyVnd";
 import { PATIENT_ROUTES } from "@/lib/routes/patientRoutes";
 import {
   createAppointmentInvoice,
@@ -18,18 +16,12 @@ import {
   type BillingInvoice,
   type PayOsPaymentAttempt,
 } from "../../api/payOsPaymentApi";
+import { PayOsInvoiceCard } from "./PayOsInvoiceCard";
+import { PayOsPaidCard } from "./PayOsPaidCard";
+import { PayOsQrCard } from "./PayOsQrCard";
+import { PayOsTransferDetails } from "./PayOsTransferDetails";
 
 const POLL_INTERVAL_MS = 5_000;
-
-function countdownLabel(milliseconds: number): string {
-  const seconds = Math.max(0, Math.floor(milliseconds / 1_000));
-  const hours = Math.floor(seconds / 3_600);
-  const minutes = Math.floor((seconds % 3_600) / 60);
-  const remainder = seconds % 60;
-  return [hours, minutes, remainder]
-    .map((value) => String(value).padStart(2, "0"))
-    .join(":");
-}
 
 function isTerminal(status: PayOsPaymentAttempt["status"]): boolean {
   return status !== "PENDING";
@@ -48,10 +40,17 @@ function msUntilExpiry(expiresAt: string | null): number {
 export function AppointmentPayOsPayment({
   appointmentId,
   invoiceId,
+  onFinish,
 }: {
   appointmentId?: string;
   invoiceId?: string;
+  /**
+   * Có thì component chạy "nhúng" trong bước thanh toán của wizard đặt lịch: không vẽ tiêu đề
+   * trang, thay các link rời trang bằng nút gọi `onFinish` (xong hoặc trả sau tại quầy).
+   */
+  onFinish?: (result: { paid: boolean }) => void;
 }) {
+  const embedded = onFinish !== undefined;
   const [invoice, setInvoice] = useState<BillingInvoice | null>(null);
   const [attempt, setAttempt] = useState<PayOsPaymentAttempt | null>(null);
   const [loading, setLoading] = useState(true);
@@ -209,189 +208,110 @@ export function AppointmentPayOsPayment({
   if (loading) {
     return (
       <div aria-busy="true" className="space-y-4">
-        <PortalPageHeader title="Đang tạo mã thanh toán" />
+        {embedded ? (
+          <p className="sr-only" role="status">
+            Đang tạo mã thanh toán
+          </p>
+        ) : (
+          <PortalPageHeader title="Đang tạo mã thanh toán" />
+        )}
         <Skeleton className="h-24 w-full" />
         <Skeleton className="h-72 w-full" />
       </div>
     );
   }
 
+  // Đã trả đủ: hóa đơn hết dư nợ hoặc lần thanh toán vừa được xác nhận. Chỉ một card, một nút.
+  const paid =
+    (invoice !== null && invoice.outstandingBalance <= 0) ||
+    attempt?.status === "CONFIRMED";
+  const expired =
+    attempt !== null &&
+    ["EXPIRED", "CANCELLED", "FAILED"].includes(attempt.status);
+  const laterButton = embedded ? (
+    <button
+      className={publicButtonClass("secondary")}
+      onClick={() => onFinish({ paid: false })}
+      type="button"
+    >
+      Thanh toán sau tại quầy
+    </button>
+  ) : null;
+
   return (
-    <div className="space-y-6">
-      <PortalPageHeader
-        description="Hóa đơn được lấy từ backend. Trạng thái thanh toán chỉ được xác nhận sau khi backend nhận và xác minh thông báo từ PayOS."
-        title="Thanh toán hóa đơn"
-      />
+    <div className="space-y-5">
+      {embedded ? (
+        <p className="text-base text-muted-foreground">
+          Lịch hẹn đã được đặt. Thanh toán phí khám ngay bằng mã QR, hoặc trả
+          sau tại quầy khi đến.
+        </p>
+      ) : (
+        <PortalPageHeader
+          description="Hóa đơn được lấy từ backend. Trạng thái thanh toán chỉ được xác nhận sau khi backend nhận và xác minh thông báo từ PayOS."
+          title="Thanh toán hóa đơn"
+        />
+      )}
 
       {error ? (
-        <div className="space-y-4 rounded-lg border bg-card p-5">
+        <div className="space-y-4 rounded-xl border bg-card p-5">
           <p className="text-base text-destructive" role="alert">
             {error}
           </p>
-          <button
-            className={publicButtonClass("secondary")}
-            onClick={() => void load()}
-            type="button"
-          >
-            Thử lại
-          </button>
+          <div className="flex flex-wrap gap-3">
+            <button
+              className={publicButtonClass("secondary")}
+              onClick={() => void load()}
+              type="button"
+            >
+              Thử lại
+            </button>
+            {laterButton}
+          </div>
         </div>
       ) : null}
 
-      {invoice ? (
-        <section className="space-y-4 rounded-lg border bg-card p-5">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <p className="text-sm text-muted-foreground">
-                {invoice.appointmentId
-                  ? "Hóa đơn phí khám"
-                  : "Hóa đơn dịch vụ y tế"}
-              </p>
-              <h2 className="text-lg font-semibold">{invoice.invoiceNumber}</h2>
-              <p className="text-sm text-muted-foreground">
-                Ngày lập{" "}
-                {new Intl.DateTimeFormat("vi-VN", {
-                  dateStyle: "medium",
-                  timeZone: "Asia/Ho_Chi_Minh",
-                }).format(new Date(invoice.issuedAt))}
-              </p>
-            </div>
-            <span className="rounded-full border px-3 py-1 text-sm font-medium">
-              {invoice.status === "PAID" || invoice.outstandingBalance <= 0
-                ? "Đã thanh toán"
-                : invoice.paidAmount > 0
-                  ? "Đã thanh toán một phần"
-                  : "Chờ thanh toán"}
-            </span>
-          </div>
-          <div className="overflow-x-auto rounded-md border">
-            <table className="w-full min-w-[520px] text-sm">
-              <thead className="bg-muted/50 text-left">
-                <tr>
-                  <th className="px-4 py-3 font-medium">Nội dung</th>
-                  <th className="px-4 py-3 text-right font-medium">Số lượng</th>
-                  <th className="px-4 py-3 text-right font-medium">Đơn giá</th>
-                  <th className="px-4 py-3 text-right font-medium">
-                    Thành tiền
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y">
-                {invoice.items.map((item) => (
-                  <tr key={item.lineNumber}>
-                    <td className="px-4 py-3">
-                      <p className="font-medium">
-                        {invoice.appointmentId ? "Phí khám" : "Dịch vụ y tế"}
-                      </p>
-                      <p className="text-muted-foreground">
-                        {item.description}
-                      </p>
-                    </td>
-                    <td className="px-4 py-3 text-right tabular-nums">
-                      {item.quantity}
-                    </td>
-                    <td className="px-4 py-3 text-right tabular-nums">
-                      {formatCurrencyVnd(item.unitPrice)}
-                    </td>
-                    <td className="px-4 py-3 text-right font-medium tabular-nums">
-                      {formatCurrencyVnd(item.lineTotal)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <dl className="ml-auto grid max-w-sm gap-2 border-t pt-4 text-sm">
-            <div className="flex justify-between gap-4">
-              <dt>Tổng tiền</dt>
-              <dd className="font-medium tabular-nums">
-                {formatCurrencyVnd(invoice.totalAmount)}
-              </dd>
-            </div>
-            <div className="flex justify-between gap-4">
-              <dt>Đã thanh toán</dt>
-              <dd className="font-medium tabular-nums">
-                {formatCurrencyVnd(invoice.paidAmount)}
-              </dd>
-            </div>
-            <div className="flex justify-between gap-4 border-t pt-2 text-base">
-              <dt className="font-semibold">Còn phải thanh toán</dt>
-              <dd className="font-semibold tabular-nums">
-                {formatCurrencyVnd(invoice.outstandingBalance)}
-              </dd>
-            </div>
-          </dl>
-        </section>
-      ) : null}
-
-      {invoice && invoice.outstandingBalance <= 0 ? (
-        <p className="rounded-lg border bg-card p-5 text-base" role="status">
-          Hóa đơn này đã được thanh toán.
-        </p>
-      ) : null}
-
-      {attempt?.status === "PENDING" ? (
-        <section className="grid gap-6 rounded-lg border bg-card p-5 sm:grid-cols-2 sm:p-7">
-          <div className="space-y-4">
-            <h2 className="text-lg font-semibold">
-              Quét mã QR bằng ứng dụng ngân hàng
-            </h2>
-            {remainingMs > 0 && attempt.expiresAt ? (
-              <p className="text-base" role="timer" aria-live="off">
-                Mã hết hạn sau{" "}
-                <span className="font-semibold tabular-nums">
-                  {countdownLabel(remainingMs)}
-                </span>
-              </p>
-            ) : attempt.expiresAt ? (
-              <p className="text-base text-destructive" role="status">
-                Đã hết thời gian. Đang xác nhận trạng thái với PayOS…
-              </p>
-            ) : (
-              <p className="text-base text-muted-foreground">
-                Không nhận được thời hạn thanh toán từ PayOS.
-              </p>
-            )}
-            {syncError ? (
-              <p className="text-sm text-destructive" role="alert">
-                Chưa lấy được trạng thái mới nhất. Hệ thống sẽ thử lại; bạn cũng
-                có thể kiểm tra ngay.
-              </p>
-            ) : null}
-            {attempt.checkoutUrl && remainingMs > 0 ? (
-              <a
+      {paid ? (
+        <PayOsPaidCard
+          action={
+            embedded ? (
+              <button
                 className={publicButtonClass("primary")}
-                href={attempt.checkoutUrl}
-                rel="noreferrer"
-                target="_blank"
+                onClick={() => onFinish({ paid: true })}
+                type="button"
               >
-                Mở trang thanh toán PayOS
-              </a>
-            ) : null}
-            <p className="text-sm text-muted-foreground">
-              Không đóng trang này trong lúc thanh toán. Hệ thống kiểm tra trạng
-              thái từ backend tự động.
-            </p>
-          </div>
-          <div className="flex items-center justify-center rounded-lg bg-white p-5">
-            {attempt.qrCode && remainingMs > 0 ? (
-              <QRCodeSVG
-                aria-label="Mã QR thanh toán PayOS"
-                includeMargin
-                size={256}
-                value={attempt.qrCode}
-              />
-            ) : remainingMs > 0 ? (
-              <p className="text-center text-sm text-muted-foreground">
-                PayOS chưa trả dữ liệu QR. Hãy mở trang thanh toán PayOS.
-              </p>
+                Hoàn tất
+              </button>
             ) : (
-              <p className="text-center text-sm text-muted-foreground">
-                Mã QR đã hết hạn.
-              </p>
-            )}
+              <Link
+                className={publicButtonClass("primary")}
+                href={
+                  invoice ? PATIENT_ROUTES.payInvoice(invoice.id) : returnHref
+                }
+              >
+                Xem hóa đơn
+              </Link>
+            )
+          }
+          amount={invoice?.paidAmount || attempt?.amount || 0}
+          invoiceNumber={invoice?.invoiceNumber ?? null}
+        />
+      ) : null}
+
+      {invoice ? <PayOsInvoiceCard invoice={invoice} /> : null}
+
+      {!paid && attempt?.status === "PENDING" ? (
+        <>
+          <div className="grid items-start gap-4 md:grid-cols-2">
+            <PayOsQrCard
+              attempt={attempt}
+              remainingMs={remainingMs}
+              syncError={syncError}
+            />
+            {remainingMs > 0 ? (
+              <PayOsTransferDetails amount={attempt.amount} attempt={attempt} />
+            ) : null}
           </div>
-          <div className="flex flex-wrap gap-3 sm:col-span-2">
+          <div className="flex flex-wrap justify-end gap-3">
             <button
               className={publicButtonClass("secondary")}
               onClick={() => void checkNow()}
@@ -399,61 +319,52 @@ export function AppointmentPayOsPayment({
             >
               Kiểm tra trạng thái
             </button>
-            <Link className={publicButtonClass("secondary")} href={returnHref}>
-              {appointmentId ? "Quay lại lịch hẹn" : "Về hóa đơn"}
-            </Link>
+            {laterButton ?? (
+              <Link
+                className={publicButtonClass("secondary")}
+                href={returnHref}
+              >
+                {appointmentId ? "Quay lại lịch hẹn" : "Về hóa đơn"}
+              </Link>
+            )}
           </div>
-        </section>
+        </>
       ) : null}
 
-      {attempt?.status === "CONFIRMED" ? (
+      {!paid && expired ? (
         <section
-          className="space-y-3 rounded-lg border bg-card p-5"
-          role="status"
-        >
-          <h2 className="text-lg font-semibold">Thanh toán thành công</h2>
-          <p>PayOS đã xác nhận thanh toán cho hóa đơn này.</p>
-          <Link
-            className={publicButtonClass("primary")}
-            href={invoice ? PATIENT_ROUTES.payInvoice(invoice.id) : returnHref}
-          >
-            Xem hóa đơn
-          </Link>
-        </section>
-      ) : null}
-
-      {attempt &&
-      ["EXPIRED", "CANCELLED", "FAILED"].includes(attempt.status) ? (
-        <section
-          className="space-y-4 rounded-lg border bg-card p-5"
+          className="space-y-4 rounded-xl border bg-card p-5"
           role="status"
         >
           <div className="space-y-2">
-            <h2 className="text-lg font-semibold">
+            <h3 className="text-lg font-semibold">
               Mã thanh toán đã hết hiệu lực
-            </h2>
+            </h3>
             <p className="text-sm text-muted-foreground">
               Backend đã đối soát trạng thái với PayOS. Hóa đơn vẫn còn dư nợ;
               bạn có thể tạo mã mới để thanh toán.
             </p>
           </div>
-          <button
-            className={publicButtonClass("primary")}
-            disabled={loading}
-            onClick={retryPayment}
-            type="button"
-          >
-            Tạo mã thanh toán mới
-          </button>
+          <div className="flex flex-wrap gap-3">
+            <button
+              className={publicButtonClass("primary")}
+              disabled={loading}
+              onClick={retryPayment}
+              type="button"
+            >
+              Tạo mã thanh toán mới
+            </button>
+            {laterButton}
+          </div>
         </section>
       ) : null}
 
-      {attempt?.status === "RECONCILIATION_REQUIRED" ? (
+      {!paid && attempt?.status === "RECONCILIATION_REQUIRED" ? (
         <section
-          className="space-y-3 rounded-lg border bg-card p-5"
+          className="space-y-3 rounded-xl border bg-card p-5"
           role="alert"
         >
-          <h2 className="text-lg font-semibold">Cần kiểm tra giao dịch</h2>
+          <h3 className="text-lg font-semibold">Cần kiểm tra giao dịch</h3>
           <p className="text-sm text-muted-foreground">
             Backend chưa thể xác nhận trạng thái an toàn. Không tạo mã mới; vui
             lòng liên hệ lễ tân để đối soát giao dịch.

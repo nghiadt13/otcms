@@ -8,7 +8,7 @@ import { formatDate } from "@/lib/format/formatDate";
 import type { BookingPatient, BookingVariant } from "../../types/booking";
 import { bookingSize } from "./bookingSizes";
 
-// "Ai đi khám?": chọn một hồ sơ đã gắn với tài khoản. Luôn ghi tên, quan hệ và ngày sinh để
+// "Chọn người cần khám": chọn một hồ sơ đã gắn với tài khoản. Ghi tên, quan hệ (hoặc "Chủ tài khoản") và ngày sinh để
 // không nhầm người (chỉ dùng khi có từ hai hồ sơ; một hồ sơ thì khối này không hỏi).
 
 export function BookingPatientChoice({
@@ -36,9 +36,11 @@ export function BookingPatientChoice({
     >
       {patients.map((patient) => {
         const id = `${groupId}-${patient.id}`;
-        const relation = patient.relationship
-          ? CARE_RELATIONSHIP_LABELS[patient.relationship]
-          : null;
+        const isOwner = patient.relationship === "SELF";
+        const relation =
+          patient.relationship && !isOwner
+            ? CARE_RELATIONSHIP_LABELS[patient.relationship]
+            : null;
         return (
           <div
             key={patient.id}
@@ -53,6 +55,11 @@ export function BookingPatientChoice({
                 {relation
                   ? `${patient.fullName} · ${relation}`
                   : patient.fullName}
+                {isOwner ? (
+                  <span className="ml-2 text-xs font-normal text-muted-foreground">
+                    Chủ tài khoản
+                  </span>
+                ) : null}
               </span>
               {patient.dateOfBirth ? (
                 <span className={sizes.detail}>

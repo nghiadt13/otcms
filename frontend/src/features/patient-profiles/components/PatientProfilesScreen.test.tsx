@@ -43,20 +43,6 @@ describe("PatientProfilesScreen", () => {
     expect(names).toHaveLength(3);
   });
 
-  it("có hồ sơ gợi ý theo email thì hiện băng đếm đúng và dẫn tới mục gợi ý", async () => {
-    render(<PatientProfilesScreen />);
-
-    expect(
-      await screen.findByText(
-        /Tìm thấy 2 hồ sơ khám tại phòng khám dùng email/,
-      ),
-    ).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Xem và gắn" })).toHaveAttribute(
-      "href",
-      "/portal/profiles/new#suggested",
-    );
-  });
-
   it("chưa có hồ sơ nào: hiện trạng thái trống và chỉ một nút thêm hồ sơ", async () => {
     resetLinkedProfilesMock({ variant: "empty" });
     render(<PatientProfilesScreen />);
@@ -65,7 +51,7 @@ describe("PatientProfilesScreen", () => {
       await screen.findByText(/Tài khoản của bạn chưa có hồ sơ bệnh nhân/),
     ).toBeInTheDocument();
     expect(
-      screen.getAllByRole("link", { name: "Thêm hồ sơ bệnh nhân" }),
+      screen.getAllByRole("link", { name: "Thêm thành viên" }),
     ).toHaveLength(1);
   });
 

@@ -14,6 +14,14 @@ export const SEX_OPTIONS: readonly { value: PatientSex; label: string }[] = [
   { value: "FEMALE", label: SEX_LABELS.FEMALE },
 ];
 
+/** Quan hệ khi thêm người thân: BE chỉ nhận PARENT/CHILD/SPOUSE/SIBLING (không có SELF). */
+export const DEPENDENT_RELATIONSHIPS: CareRelationship[] = [
+  "PARENT",
+  "CHILD",
+  "SPOUSE",
+  "SIBLING",
+];
+
 /**
  * Quan hệ chọn được khi thêm hồ sơ. "Bản thân" chỉ hiện khi tài khoản chưa có hồ sơ Bản thân;
  * nếu vẫn gửi, BE trả 409 MSG-21.

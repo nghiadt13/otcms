@@ -29,6 +29,8 @@ public class BillingMapper {
         return new PaymentAttemptResponse(attempt.getId(), attempt.getInvoiceId(), attempt.getChannel().name(),
                 attempt.getProvider(), attempt.getAmount(), attempt.getCurrencyCode(), attempt.getStatus().name(),
                 attempt.getCheckoutUrl(), attempt.getQrCode(), attempt.getExpiresAt(), attempt.getCreatedAt(),
-                attempt.getConfirmedAt(), attempt.getReconciliationReason());
+                attempt.getConfirmedAt(), attempt.getReconciliationReason(),
+                attempt.getTransferBankBin(), attempt.getTransferAccountNumber(),
+                attempt.getTransferAccountName(), attempt.getTransferDescription());
     }
 }

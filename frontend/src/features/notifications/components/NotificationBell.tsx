@@ -31,8 +31,15 @@ function RecentPanel({
   return <RecentNotificationsList list={list} onOpenItem={onOpenItem} />;
 }
 
-/** Chuông ở header: badge số chưa đọc, popover 5 thông báo mới nhất, Sheet chi tiết. */
-export function NotificationBell() {
+/**
+ * Chuông ở header: badge số chưa đọc, popover 5 thông báo mới nhất, Sheet chi tiết.
+ * `allNotificationsHref`: trang "Xem tất cả" của khu đang dùng chuông (mặc định khu admin).
+ */
+export function NotificationBell({
+  allNotificationsHref = ADMIN_ROUTES.notifications,
+}: {
+  allNotificationsHref?: string;
+}) {
   const unreadCount = useUnreadNotificationCount();
   const [popoverOpen, setPopoverOpen] = useState(false);
   const [selected, setSelected] = useState<NotificationItem | null>(null);
@@ -68,7 +75,7 @@ export function NotificationBell() {
           <div className="flex items-center justify-between gap-2">
             <PopoverTitle>Thông báo của bạn</PopoverTitle>
             <Link
-              href={ADMIN_ROUTES.notifications}
+              href={allNotificationsHref}
               onClick={() => setPopoverOpen(false)}
               className={cn(buttonVariants({ variant: "link", size: "sm" }))}
             >
