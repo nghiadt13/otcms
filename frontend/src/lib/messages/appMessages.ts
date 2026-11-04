@@ -121,6 +121,15 @@ export const APP_MESSAGES: Record<string, string> = {
   "MSG-20":
     "Thông tin tiền sử bệnh chưa hợp lệ. Vui lòng kiểm tra và chỉnh sửa.",
   "MSG-43": "Thông tin lượt khám đã được cập nhật.",
+  // Khu Bác sĩ /doctor (khám bệnh), câu chữ theo R3 Drive.
+  "MSG-44": "Thông tin khám bệnh đã được lưu.",
+  "MSG-45": "Thông tin cận lâm sàng đã được cập nhật.",
+  "MSG-46": "Đã hủy chỉ định.",
+  "MSG-47":
+    "Tệp không hợp lệ hoặc không khớp với hồ sơ cần xử lý. Vui lòng kiểm tra và thử lại.",
+  "MSG-81": "Đã lưu sửa đổi kết quả. Phiếu kết quả phiên bản mới đã được tạo.",
+  "MSG-86":
+    "Chưa thể hoàn tất khám: cần có chẩn đoán chính và mọi chỉ định đã có kết quả (kể cả kết quả đọc phim) hoặc đã hủy.",
 };
 
 /** Thay `{tham số}` trong câu MSG. Tham số thiếu giữ nguyên để dễ phát hiện. */
