@@ -27,18 +27,27 @@ function ShellContent({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (pathname === "/imaging/login") return;
     let active = true;
-    getSession().then((value) => {
-      if (!active) return;
-      if (!value) router.replace("/imaging/login");
-      else if (value.accountType !== "IMAGING_TECHNICIAN") router.replace("/workspace");
-      else setSession(value);
-    }).catch(() => {
-      if (active) router.replace("/imaging/login");
-    }).finally(() => { if (active) setChecking(false); });
-    return () => { active = false; };
+    getSession()
+      .then((value) => {
+        if (!active) return;
+        if (!value) router.replace("/imaging/login");
+        else if (value.accountType !== "IMAGING_TECHNICIAN")
+          router.replace("/workspace");
+        else setSession(value);
+      })
+      .catch(() => {
+        if (active) router.replace("/imaging/login");
+      })
+      .finally(() => {
+        if (active) setChecking(false);
+      });
+    return () => {
+      active = false;
+    };
   }, [pathname, router]);
 
-  if (pathname === "/imaging/login") return <div className="imaging">{children}</div>;
+  if (pathname === "/imaging/login")
+    return <div className="imaging">{children}</div>;
   if (!ready || checking || !session)
     return (
       <div
@@ -73,15 +82,17 @@ function ShellContent({ children }: { children: ReactNode }) {
                   ? "Đổi mật khẩu · kết nối hệ thống"
                   : "Bản xem thử giao diện · dữ liệu mẫu · giờ mô phỏng 09:10"}
             </span>
-            {pathname !== "/imaging/rooms" && pathname !== "/imaging/change-password" && (
-              <span>{ROOM_NAME} · Ca sáng 07:00 – 12:00</span>
-            )}
+            {pathname !== "/imaging/rooms" &&
+              pathname !== "/imaging/change-password" && (
+                <span>{ROOM_NAME} · Ca sáng 07:00 – 12:00</span>
+              )}
           </div>
           <main
             id="im-content"
             className="im-content min-w-0 flex-1 p-4 text-sm md:p-6"
           >
-            {session.mustChangePassword && pathname !== "/imaging/change-password" ? (
+            {session.mustChangePassword &&
+            pathname !== "/imaging/change-password" ? (
               <div className="space-y-4 rounded-lg border bg-card p-6">
                 <h1 className="text-2xl font-semibold tracking-tight">
                   Cần đổi mật khẩu được cấp
@@ -121,7 +132,10 @@ function ShellContent({ children }: { children: ReactNode }) {
         description="Bạn sẽ quay về màn đăng nhập nhân viên."
         confirmLabel="Đăng xuất"
         pendingLabel="Đang đăng xuất..."
-        onConfirm={async () => { await signOut(); router.replace("/imaging/login"); }}
+        onConfirm={async () => {
+          await signOut();
+          router.replace("/imaging/login");
+        }}
       />
       {toast && (
         <div className="im-toast" role="status" aria-live="polite">

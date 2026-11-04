@@ -19,7 +19,7 @@ function requireIsoDate(text: string): string {
   return iso;
 }
 
-/** Form tạo hồ sơ → thân POST. Gọi sau khi đã kiểm tra đủ trường. */
+/** Form thêm người thân → thân POST. Gọi sau khi đã kiểm tra đủ trường. */
 export function createRequestFromValues(
   values: ProfileFieldValues,
 ): CreateProfileRequest {
@@ -31,10 +31,9 @@ export function createRequestFromValues(
     fullName: values.fullName.trim(),
     dateOfBirth: requireIsoDate(values.dateOfBirth),
     sex,
-    phone: normalizePhone(values.phone),
-    address: values.address.trim(),
     citizenId: values.citizenId.trim() || undefined,
-    email: values.email.trim() || undefined,
+    // Form chỉ có một ô số định danh nên mặc định loại CCCD (BE bắt buộc loại khi có số).
+    identityDocumentType: values.citizenId.trim() ? "CCCD" : undefined,
   };
 }
 

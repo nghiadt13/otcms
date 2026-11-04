@@ -26,6 +26,7 @@ public class AppointmentResponse {
     private final Instant createdAt;
     private final Instant updatedAt;
     private final Boolean examFeePaid;
+    private final String patientName;
     public AppointmentResponse(UUID id, UUID patientProfileId, UUID serviceId, String serviceName, BigDecimal servicePrice, UUID doctorId, String doctorDisplayName, String status, String bookingSource, String purpose, Instant startTime, Instant endTime, int durationMinutes, int bufferMinutes, Instant occupiedUntil, UUID visitId, UUID sourceVisitId, Instant createdAt, Instant updatedAt) {
         this(id, patientProfileId, serviceId, serviceName, servicePrice, doctorId, doctorDisplayName, status,
                 bookingSource, purpose, startTime, endTime, durationMinutes, bufferMinutes, occupiedUntil,
@@ -36,6 +37,16 @@ public class AppointmentResponse {
             String purpose, Instant startTime, Instant endTime, int durationMinutes, int bufferMinutes,
             Instant occupiedUntil, UUID visitId, UUID sourceVisitId, Instant createdAt, Instant updatedAt,
             Boolean examFeePaid) {
+        this(id, patientProfileId, serviceId, serviceName, servicePrice, doctorId, doctorDisplayName, status,
+                bookingSource, purpose, startTime, endTime, durationMinutes, bufferMinutes, occupiedUntil,
+                visitId, sourceVisitId, createdAt, updatedAt, examFeePaid, null);
+    }
+    public AppointmentResponse(UUID id, UUID patientProfileId, UUID serviceId, String serviceName,
+            BigDecimal servicePrice, UUID doctorId, String doctorDisplayName, String status, String bookingSource,
+            String purpose, Instant startTime, Instant endTime, int durationMinutes, int bufferMinutes,
+            Instant occupiedUntil, UUID visitId, UUID sourceVisitId, Instant createdAt, Instant updatedAt,
+            Boolean examFeePaid, String patientName) {
+        this.patientName = patientName;
         this.id = id;
         this.patientProfileId = patientProfileId;
         this.serviceId = serviceId;
@@ -97,9 +108,11 @@ public class AppointmentResponse {
     public Instant updatedAt() { return updatedAt; }
     public Boolean getExamFeePaid() { return examFeePaid; }
     public Boolean examFeePaid() { return examFeePaid; }
+    public String getPatientName() { return patientName; }
+    public String patientName() { return patientName; }
     public AppointmentResponse withExamFeePaid(Boolean paid) {
         return new AppointmentResponse(id, patientProfileId, serviceId, serviceName, servicePrice, doctorId,
                 doctorDisplayName, status, bookingSource, purpose, startTime, endTime, durationMinutes,
-                bufferMinutes, occupiedUntil, visitId, sourceVisitId, createdAt, updatedAt, paid);
+                bufferMinutes, occupiedUntil, visitId, sourceVisitId, createdAt, updatedAt, paid, patientName);
     }
 }

@@ -1,6 +1,5 @@
 import { Toaster } from "@/components/ui/sonner";
 import { BookingMockStoreBootstrap } from "@/features/appointments/components/BookingMockStoreBootstrap";
-import { getPublishedWebsiteContent } from "@/features/clinic-website/api/websiteContentApi";
 import { SiteTopBar } from "@/features/clinic-website/components/SiteTopBar";
 import { siteNavItems } from "@/features/clinic-website/siteNavigation";
 import { PatientNotificationBell } from "@/features/notifications/components/PatientNotificationBell";
@@ -22,7 +21,6 @@ export default async function PatientPortalLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const { contact } = await getPublishedWebsiteContent();
   // Cùng menu trang chủ; neo "Liên hệ" (#lien-he) chỉ có ở footer trang chủ nên trỏ về "/#lien-he".
   const siteLinks = siteNavItems.map((item) => ({
     label: item.label,
@@ -30,7 +28,7 @@ export default async function PatientPortalLayout({
   }));
   return (
     <PatientAuthGate anonymousPaths={[PATIENT_ROUTES.newAppointment]}>
-      <SiteTopBar bookHref={PATIENT_ROUTES.newAppointment} contact={contact} />
+      <SiteTopBar bookHref={PATIENT_ROUTES.newAppointment} />
       <PatientPortalHeader
         notificationSlot={<PatientNotificationBell />}
         siteLinks={siteLinks}

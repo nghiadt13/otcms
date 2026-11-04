@@ -69,10 +69,10 @@ describe("AccountManagement", () => {
 
     expect(within(row).getByText("Nguyễn Thị An")).toBeInTheDocument();
     expect(within(row).getByText("Đang hoạt động")).toBeInTheDocument();
-    expect(screen.getByRole("row", { name: /kttd\.cuong/ })).toBeInTheDocument();
     expect(
-      screen.queryByText(/Đã có lỗi xảy ra/),
-    ).not.toBeInTheDocument();
+      screen.getByRole("row", { name: /kttd\.cuong/ }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Đã có lỗi xảy ra/)).not.toBeInTheDocument();
     expect(
       screen.getAllByRole("button", { name: "Tạo tài khoản" }),
     ).toHaveLength(1);

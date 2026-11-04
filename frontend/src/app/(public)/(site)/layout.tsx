@@ -2,6 +2,7 @@ import { getPublishedWebsiteContent } from "@/features/clinic-website/api/websit
 import { SiteFooter } from "@/features/clinic-website/components/SiteFooter";
 import { SiteHeader } from "@/features/clinic-website/components/SiteHeader";
 import { SiteTopBar } from "@/features/clinic-website/components/SiteTopBar";
+import { topBarContact } from "@/features/clinic-website/siteNavigation";
 
 // Khung chung của các trang giới thiệu (trang chủ, sau này /doctors, /services):
 // dải thông tin (desktop), header dính và footer liên hệ. Màn xác thực nằm ngoài nhóm `(site)` nên không có
@@ -20,8 +21,8 @@ export default async function SiteLayout({
       >
         Bỏ qua tới nội dung
       </a>
-      <SiteTopBar contact={contact} />
-      <SiteHeader hotline={contact.hotline} />
+      <SiteTopBar />
+      <SiteHeader hotline={topBarContact.hotline} />
       <main className="flex-1" id="main-content" tabIndex={-1}>
         {children}
       </main>

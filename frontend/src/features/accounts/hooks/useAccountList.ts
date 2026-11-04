@@ -13,10 +13,9 @@ type AccountFilters = Pick<AccountListQuery, "q" | "role" | "status" | "scope">;
  * mượt; chỉ sau 250 ms mới đẩy vào bộ lọc (và về trang 0).
  */
 export function useAccountList() {
-  const list = usePagedList<AccountListItem, AccountFilters>(
-    listAccounts,
-    { scope: "PATIENT" },
-  );
+  const list = usePagedList<AccountListItem, AccountFilters>(listAccounts, {
+    scope: "PATIENT",
+  });
   const { setFilters } = list;
   const [searchText, setSearchText] = useState("");
   const debounced = useDebouncedValue(searchText.trim());

@@ -41,6 +41,15 @@ export const CREATE_PROFILE_FIELDS: readonly ProfileFieldName[] = [
   "email",
 ];
 
+/** Trường của form thêm người thân (khớp AddDependentRequest ở BE). */
+export const DEPENDENT_CREATE_FIELDS: readonly ProfileFieldName[] = [
+  "relationship",
+  "fullName",
+  "dateOfBirth",
+  "sex",
+  "citizenId",
+];
+
 /** Hồ sơ chưa có lượt khám: sửa được mọi trường hành chính. */
 export const EDITABLE_FIELDS_BEFORE_VISIT: EditableProfileField[] = [
   "fullName",

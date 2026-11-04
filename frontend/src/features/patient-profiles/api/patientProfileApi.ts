@@ -7,7 +7,7 @@ import {
   replaceLinkedProfilesMock,
 } from "@/lib/patient-scope/linkedProfilesMockStore";
 import {
-  CREATE_PROFILE_FIELDS,
+  DEPENDENT_CREATE_FIELDS,
   EDITABLE_FIELDS_AFTER_VISIT,
   EDITABLE_FIELDS_BEFORE_VISIT,
   validateProfileFields,
@@ -15,6 +15,8 @@ import {
 import { normalizePhone } from "../schema/patientProfileFieldChecks";
 import { valuesFromRequest } from "../schema/patientProfileRequestMapping";
 import type {
+  AddDependentBody,
+  AddDependentResult,
   CreateProfileRequest,
   PatientProfileDetail,
   UpdateProfileRequest,
@@ -27,6 +29,7 @@ import {
   toLinkedProfile,
 } from "./patientProfileMockHelpers";
 import { DUPLICATE_PROFILE_DETAIL } from "./patientProfileErrors";
+import { getLinkedProfileDetailLive } from "./patientProfileLiveDetail";
 import {
   MOCK_ACCOUNT_ID,
   type ClinicPatientRecord,
@@ -65,18 +68,60 @@ export function toProfileDetail(
   };
 }
 
-/** POST /api/v1/me/patient-profiles: tạo hồ sơ cho người chưa từng khám và gắn ngay. */
+/** Phản hồi của BE: `profile` chỉ có khi result = LINKED. */
+export interface AddDependentResponse {
+  result: AddDependentResult["status"];
+  linkId?: string;
+  maskedEmail?: string;
+  profile?: { patientProfileId: string };
+}
+
+/** Form → thân JSON thật của BE (AddDependentRequest). */
+export function toAddDependentBody(
+  body: CreateProfileRequest,
+): AddDependentBody {
+  return {
+    relationship: body.relationship,
+    fullName: body.fullName,
+    dateOfBirth: body.dateOfBirth,
+    gender: body.sex,
+    nationalId: body.citizenId,
+    identityDocumentType: body.identityDocumentType,
+  };
+}
+
+/** LinkResult của BE → kết quả thêm người thân của FE. */
+export function toAddDependentResult(
+  response: AddDependentResponse,
+): AddDependentResult {
+  if (response.result === "LINKED" && response.profile)
+    return { status: "LINKED", profileId: response.profile.patientProfileId };
+  if (response.result === "OTP_SENT" && response.linkId)
+    return {
+      status: "OTP_SENT",
+      linkId: response.linkId,
+      maskedEmail: response.maskedEmail,
+    };
+  return { status: "COUNTER_REQUIRED" };
+}
+
+/**
+ * POST /api/v1/me/dependents: thêm người thân. 201 LINKED (hồ sơ mới, gắn ngay);
+ * 202 OTP_SENT (gửi mã tới email của hồ sơ trùng) hoặc COUNTER_REQUIRED (ra quầy xác nhận).
+ */
 export async function createPatientProfile(
   body: CreateProfileRequest,
-): Promise<PatientProfileDetail> {
-  if (process.env.NODE_ENV !== "test")
-    return apiRequest<PatientProfileDetail>("/api/v1/me/patient-profiles", {
-      method: "POST",
-      body: JSON.stringify(body),
-    });
+): Promise<AddDependentResult> {
+  if (process.env.NODE_ENV !== "test") {
+    const response = await apiRequest<AddDependentResponse>(
+      "/api/v1/me/dependents",
+      { method: "POST", body: JSON.stringify(toAddDependentBody(body)) },
+    );
+    return toAddDependentResult(response);
+  }
   await mockLatency();
   throwFieldErrors(
-    validateProfileFields(valuesFromRequest(body), CREATE_PROFILE_FIELDS),
+    validateProfileFields(valuesFromRequest(body), DEPENDENT_CREATE_FIELDS),
   );
   const linked = getLinkedProfileRecords();
   if (
@@ -85,13 +130,20 @@ export async function createPatientProfile(
   )
     mockFail(409, "MSG-21");
 
-  const phone = normalizePhone(body.phone);
-  const duplicated = listClinicRecords().some(
+  const fullName = body.fullName.trim();
+  const matched = listClinicRecords().find(
     (record) =>
-      normalizePhone(record.phone) === phone &&
+      record.fullName.toLowerCase() === fullName.toLowerCase() &&
       record.dateOfBirth === body.dateOfBirth,
   );
-  if (duplicated) throw new ApiError(409, { detail: DUPLICATE_PROFILE_DETAIL });
+  // Trùng cả số định danh: BE gửi OTP tới email trên hồ sơ cũ; thiếu số khớp thì ra quầy.
+  if (matched && matched.citizenId && matched.citizenId === body.citizenId)
+    return {
+      status: "OTP_SENT",
+      linkId: matched.id,
+      maskedEmail: "b***@example.com",
+    };
+  if (matched) throw new ApiError(409, { detail: DUPLICATE_PROFILE_DETAIL });
 
   const record: ClinicPatientRecord = {
     id: nextPatientId(),
@@ -99,10 +151,10 @@ export async function createPatientProfile(
     fullName: body.fullName.trim(),
     dateOfBirth: body.dateOfBirth,
     sex: body.sex,
-    phone,
-    address: body.address.trim(),
+    phone: "",
+    address: null,
     citizenId: body.citizenId?.trim() || null,
-    email: body.email?.trim() || null,
+    email: null,
     hasVisits: false,
     selfAccountId: body.relationship === "SELF" ? MOCK_ACCOUNT_ID : null,
   };
@@ -111,19 +163,16 @@ export async function createPatientProfile(
     ...linked,
     toLinkedProfile(record, body.relationship),
   ]);
-  return toProfileDetail(record, body.relationship);
+  return { status: "LINKED", profileId: record.id };
 }
 
-/** GET /api/v1/me/patient-profiles/{id}. Hồ sơ không gắn với tài khoản → 404 MSG-41. */
+/** Chi tiết hồ sơ đã gắn (BE: /me/patient-profile hoặc /me/dependents/{id}). Không gắn → 404 MSG-41. */
 export async function getPatientProfile(
   profileId: string,
   signal?: AbortSignal,
 ): Promise<PatientProfileDetail> {
   if (process.env.NODE_ENV !== "test")
-    return apiRequest<PatientProfileDetail>(
-      `/api/v1/me/patient-profiles/${encodeURIComponent(profileId)}`,
-      { signal },
-    );
+    return getLinkedProfileDetailLive(profileId, signal);
   await mockLatency(signal);
   const entry = linkedEntryOrFail(profileId);
   const record = findClinicRecord(profileId) ?? mockFail(404, "MSG-41");

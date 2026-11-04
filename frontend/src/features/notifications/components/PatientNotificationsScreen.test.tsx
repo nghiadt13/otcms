@@ -163,7 +163,7 @@ describe("PatientNotificationsScreen", () => {
       await screen.findByText(/chưa nhận được thông báo/),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("link", { name: "Thêm hồ sơ bệnh nhân" }),
+      screen.getByRole("link", { name: "Thêm thành viên" }),
     ).toHaveAttribute("href", "/portal/profiles/new");
     expect(screen.queryByRole("tab")).not.toBeInTheDocument();
     expect(notifyError).not.toHaveBeenCalled();

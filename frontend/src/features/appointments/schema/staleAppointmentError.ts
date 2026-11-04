@@ -6,6 +6,7 @@ export function isStaleAppointmentError(error: unknown): boolean {
     isApiError(error) &&
     (error.status === 404 ||
       error.status === 403 ||
-      ((error.status === 409 || error.status === 422) && error.code === "MSG-32"))
+      ((error.status === 409 || error.status === 422) &&
+        error.code === "MSG-32"))
   );
 }

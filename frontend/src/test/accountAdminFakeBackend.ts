@@ -32,8 +32,13 @@ const PATIENT_COUNT = 45;
 let patients: PatientRow[] = [];
 let staff: StaffRow[] = [];
 
-const uuid = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
-const fail = (status: number, code: MsgCode, fieldErrors?: { field: string; code: MsgCode }[]) => {
+const uuid = (n: number) =>
+  `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
+const fail = (
+  status: number,
+  code: MsgCode,
+  fieldErrors?: { field: string; code: MsgCode }[],
+) => {
   throw new ApiError(status, { code, fieldErrors });
 };
 
@@ -45,11 +50,19 @@ export function resetFakeAccountBackend() {
     email: i === 0 ? "lan.tran@mail.vn" : `benhnhan${i}@mail.vn`,
     fullName: i === 0 ? "Trần Lan" : `Bệnh nhân ${i}`,
     status: (i % 7 === 3 ? "INACTIVE" : "ACTIVE") as Status,
-    createdAt: new Date(Date.UTC(2026, 9, 30 - (i % 28), 2, 0, i)).toISOString(),
+    createdAt: new Date(
+      Date.UTC(2026, 9, 30 - (i % 28), 2, 0, i),
+    ).toISOString(),
     allowedActions: [i % 7 === 3 ? "activate" : "deactivate"],
     staffProfile: null,
   }));
-  const member = (n: number, username: string, role: string, status: Status, name: string | null): StaffRow => ({
+  const member = (
+    n: number,
+    username: string,
+    role: string,
+    status: Status,
+    name: string | null,
+  ): StaffRow => ({
     accountId: uuid(n),
     username,
     role,
@@ -108,27 +121,42 @@ function patientRoute(method: string, rest: string[], url: URL) {
   if (rest.length === 0 && method === "GET") {
     checkQuery(url);
     return page(
-      newestFirst(patients).filter((p) => matches(url, p.status, [p.email, p.fullName])),
+      newestFirst(patients).filter((p) =>
+        matches(url, p.status, [p.email, p.fullName]),
+      ),
       url,
     );
   }
   const row = patients.find((p) => p.id === rest[0]) ?? fail(404, "MSG-14");
   if (rest.length === 1 && method === "GET") return row;
   if (rest[1] === "activation" || rest[1] === "deactivation") {
-    row.status = toggle(row.status, rest[1] === "activation" ? "ACTIVE" : "INACTIVE");
+    row.status = toggle(
+      row.status,
+      rest[1] === "activation" ? "ACTIVE" : "INACTIVE",
+    );
     row.allowedActions = [row.status === "ACTIVE" ? "deactivate" : "activate"];
     return row;
   }
   return fail(404, "MSG-14");
 }
 
-function staffRoute(method: string, rest: string[], url: URL, body: Record<string, string>) {
+function staffRoute(
+  method: string,
+  rest: string[],
+  url: URL,
+  body: Record<string, string>,
+) {
   if (rest.length === 0 && method === "GET") {
     checkQuery(url);
     const role = url.searchParams.get("role");
     return page(
       newestFirst(staff).filter(
-        (s) => (!role || s.role === role) && matches(url, s.status, [s.username, s.staffProfile?.displayName ?? null]),
+        (s) =>
+          (!role || s.role === role) &&
+          matches(url, s.status, [
+            s.username,
+            s.staffProfile?.displayName ?? null,
+          ]),
       ),
       url,
     );
@@ -149,24 +177,43 @@ function staffRoute(method: string, rest: string[], url: URL, body: Record<strin
     };
     staff.push(row);
     // Created không có mật khẩu và không có createdAt/staffProfile.
-    return { accountId: row.accountId, username: row.username, role: row.role, status: row.status, mustChangePassword: true };
+    return {
+      accountId: row.accountId,
+      username: row.username,
+      role: row.role,
+      status: row.status,
+      mustChangePassword: true,
+    };
   }
   const row = staff.find((s) => s.accountId === rest[0]) ?? fail(404, "MSG-14");
   if (rest.length === 1 && method === "GET") return row;
   if (rest[1] === "activation" || rest[1] === "deactivation") {
-    row.status = toggle(row.status, rest[1] === "activation" ? "ACTIVE" : "INACTIVE");
+    row.status = toggle(
+      row.status,
+      rest[1] === "activation" ? "ACTIVE" : "INACTIVE",
+    );
     return row;
   }
   if (rest[1] === "password-reissues")
-    return { accountId: row.accountId, temporaryPassword: `Tmp${Math.random().toString(36).slice(2, 11)}`, mustChangePassword: true };
+    return {
+      accountId: row.accountId,
+      temporaryPassword: `Tmp${Math.random().toString(36).slice(2, 11)}`,
+      mustChangePassword: true,
+    };
   return fail(404, "MSG-14");
 }
 
-export async function fakeAccountApiRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
+export async function fakeAccountApiRequest<T>(
+  path: string,
+  init: RequestInit = {},
+): Promise<T> {
   const url = new URL(path, "http://backend.test");
   const [, , , , group, ...rest] = url.pathname.split("/"); // "", api, v1, admin, <group>, ...
   const method = init.method ?? "GET";
-  const body = typeof init.body === "string" ? (JSON.parse(init.body) as Record<string, string>) : {};
+  const body =
+    typeof init.body === "string"
+      ? (JSON.parse(init.body) as Record<string, string>)
+      : {};
   const result =
     group === "accounts"
       ? patientRoute(method, rest, url)

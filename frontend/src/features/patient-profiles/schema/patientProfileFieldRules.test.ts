@@ -119,16 +119,14 @@ describe("isProfileFieldName", () => {
 });
 
 describe("createRequestFromValues", () => {
-  it("đổi ngày sang ISO, bỏ khoảng trắng số điện thoại, ô tùy chọn rỗng thành undefined", () => {
+  it("đổi ngày sang ISO, chỉ gửi trường BE nhận, số định danh rỗng thì bỏ cả loại giấy tờ", () => {
     expect(createRequestFromValues(VALID)).toEqual({
       relationship: "CHILD",
       fullName: "Nguyễn Gia Bảo",
       dateOfBirth: "2018-02-14",
       sex: "MALE",
-      phone: "0933445566",
-      address: "45 Nguyễn Huệ, Quận 1",
       citizenId: undefined,
-      email: undefined,
+      identityDocumentType: undefined,
     });
   });
 

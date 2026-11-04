@@ -23,11 +23,20 @@ export function RoomsScreen() {
   const [selected, setSelected] = useState<string | null>(null);
   useEffect(() => {
     const controller = new AbortController();
-    listImagingRooms(controller.signal).then((items) => {
-      if (!controller.signal.aborted) { setRooms(items); setError(false); setLoading(false); }
-    }).catch(() => {
-      if (!controller.signal.aborted) { setError(true); setLoading(false); }
-    });
+    listImagingRooms(controller.signal)
+      .then((items) => {
+        if (!controller.signal.aborted) {
+          setRooms(items);
+          setError(false);
+          setLoading(false);
+        }
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) {
+          setError(true);
+          setLoading(false);
+        }
+      });
     return () => controller.abort();
   }, [reload]);
   const matches = rooms.filter(
@@ -82,48 +91,68 @@ export function RoomsScreen() {
           </label>
         </div>
       </Panel>
-      {loading && <Panel><p className="im-panel-body" role="status">Đang tải danh sách phòng…</p></Panel>}
-      {error && <Panel><div className="im-panel-body" role="alert">Không tải được danh sách phòng. <Button type="button" onClick={() => { setLoading(true); setReload((value) => value + 1); }}>Thử lại</Button></div></Panel>}
+      {loading && (
+        <Panel>
+          <p className="im-panel-body" role="status">
+            Đang tải danh sách phòng…
+          </p>
+        </Panel>
+      )}
+      {error && (
+        <Panel>
+          <div className="im-panel-body" role="alert">
+            Không tải được danh sách phòng.{" "}
+            <Button
+              type="button"
+              onClick={() => {
+                setLoading(true);
+                setReload((value) => value + 1);
+              }}
+            >
+              Thử lại
+            </Button>
+          </div>
+        </Panel>
+      )}
       <div className="im-room-grid">
-        {!loading && !error && matches.map((r) => (
-          <Panel
-            key={r.id}
-          >
-            <div className="im-panel-body">
-              <div className="im-inline-between">
-                <span className="im-room-card-icon">
-                  <Icon name="room" size={25} />
-                </span>
-                <Badge
-                  tone={r.availability === "Hoạt động" ? "green" : "amber"}
-                >
-                  {r.availability}
-                </Badge>
+        {!loading &&
+          !error &&
+          matches.map((r) => (
+            <Panel key={r.id}>
+              <div className="im-panel-body">
+                <div className="im-inline-between">
+                  <span className="im-room-card-icon">
+                    <Icon name="room" size={25} />
+                  </span>
+                  <Badge
+                    tone={r.availability === "Hoạt động" ? "green" : "amber"}
+                  >
+                    {r.availability}
+                  </Badge>
+                </div>
+                <h2 className="im-room-card-title">{r.name}</h2>
+                <p className="im-muted im-small">
+                  {r.code}
+                  {r.description ? ` · ${r.description}` : ""}
+                </p>
+                <div className="im-room-service-tags">
+                  {r.capabilities.map((s) => (
+                    <span key={s}>{s}</span>
+                  ))}
+                </div>
+                <div className="im-inline-between">
+                  <span className="im-small im-muted">Thông tin phòng</span>
+                  <Button
+                    variant="ghost"
+                    className="im-text-button"
+                    onClick={() => setSelected(r.id)}
+                  >
+                    Chi tiết <Icon name="arrow" size={15} />
+                  </Button>
+                </div>
               </div>
-              <h2 className="im-room-card-title">{r.name}</h2>
-              <p className="im-muted im-small">
-                  {r.code}{r.description ? ` · ${r.description}` : ""}
-              </p>
-              <div className="im-room-service-tags">
-                {r.capabilities.map((s) => (
-                  <span key={s}>{s}</span>
-                ))}
-              </div>
-              <div className="im-inline-between">
-                <span className="im-small im-muted">
-                  Thông tin phòng
-                </span>
-                <Button
-                  variant="ghost"
-                  className="im-text-button"
-                  onClick={() => setSelected(r.id)}
-                >
-                  Chi tiết <Icon name="arrow" size={15} />
-                </Button>
-              </div>
-            </div>
-          </Panel>
-        ))}
+            </Panel>
+          ))}
       </div>
       {!loading && !error && !matches.length && (
         <Panel>

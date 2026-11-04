@@ -58,7 +58,10 @@ function toAppointment(dto: AdminAppointmentDto): Appointment {
 function reassignError(error: unknown): never {
   if (error instanceof ApiError) {
     const code = error.errorCode;
-    if (code === "APPOINTMENT_NOT_CHANGEABLE" || code === "BOOKING_TIME_IN_PAST")
+    if (
+      code === "APPOINTMENT_NOT_CHANGEABLE" ||
+      code === "BOOKING_TIME_IN_PAST"
+    )
       throw new ApiError(error.status, { code: "MSG-32", errorCode: code });
     if (code === "SLOT_UNAVAILABLE" || code === "DOCTOR_NOT_ELIGIBLE")
       throw new ApiError(error.status, { code: "MSG-24", errorCode: code });
@@ -77,14 +80,23 @@ export async function listAdminReassignmentDoctors(
   const date = todayIsoDate(new Date(startAt));
   const query = new URLSearchParams({ from: date, to: date });
   try {
-    const { slots } = await apiRequest<{ slots: { doctorId: string; doctorDisplayName: string; startTime: string }[] }>(
+    const { slots } = await apiRequest<{
+      slots: {
+        doctorId: string;
+        doctorDisplayName: string;
+        startTime: string;
+      }[];
+    }>(
       `/api/v1/appointments/${encodeURIComponent(appointmentId)}/reassignment-availability?${query}`,
       { signal },
     );
     const doctors = new Map<string, EligibleDoctor>();
     for (const slot of slots) {
       if (Date.parse(slot.startTime) === Date.parse(startAt))
-        doctors.set(slot.doctorId, { id: slot.doctorId, fullName: slot.doctorDisplayName });
+        doctors.set(slot.doctorId, {
+          id: slot.doctorId,
+          fullName: slot.doctorDisplayName,
+        });
     }
     return { items: [...doctors.values()] };
   } catch (error) {
@@ -99,10 +111,15 @@ export async function reassignAdminAppointment(
   reason: string,
 ): Promise<Appointment> {
   try {
-    const updated = await apiRequest<{ doctorId: string; doctorDisplayName: string; startTime: string; status: string }>(
-      `/api/v1/appointments/${encodeURIComponent(appointment.id)}/reassign`,
-      { method: "POST", body: JSON.stringify({ doctorId, reason: reason.trim() }) },
-    );
+    const updated = await apiRequest<{
+      doctorId: string;
+      doctorDisplayName: string;
+      startTime: string;
+      status: string;
+    }>(`/api/v1/appointments/${encodeURIComponent(appointment.id)}/reassign`, {
+      method: "POST",
+      body: JSON.stringify({ doctorId, reason: reason.trim() }),
+    });
     return {
       ...appointment,
       startAt: updated.startTime,

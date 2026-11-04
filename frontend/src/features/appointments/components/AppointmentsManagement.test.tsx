@@ -119,7 +119,10 @@ describe("AppointmentsManagement - chuyển bác sĩ", () => {
     await userEvent.click(
       await screen.findByRole("radio", { name: "BS. Đỗ Minh Tuấn" }),
     );
-    await userEvent.type(screen.getByRole("textbox", { name: "Lý do chuyển bác sĩ" }), "Bác sĩ cũ vắng mặt");
+    await userEvent.type(
+      screen.getByRole("textbox", { name: "Lý do chuyển bác sĩ" }),
+      "Bác sĩ cũ vắng mặt",
+    );
     await userEvent.click(
       screen.getByRole("button", { name: "Chuyển lịch hẹn" }),
     );
@@ -180,7 +183,10 @@ describe("AppointmentsManagement - chuyển bác sĩ", () => {
     await userEvent.click(
       await screen.findByRole("radio", { name: "BS. Đỗ Minh Tuấn" }),
     );
-    await userEvent.type(screen.getByRole("textbox", { name: "Lý do chuyển bác sĩ" }), "Bác sĩ cũ vắng mặt");
+    await userEvent.type(
+      screen.getByRole("textbox", { name: "Lý do chuyển bác sĩ" }),
+      "Bác sĩ cũ vắng mặt",
+    );
     await userEvent.click(
       screen.getByRole("button", { name: "Chuyển lịch hẹn" }),
     );
@@ -204,7 +210,10 @@ describe("AppointmentsManagement - chuyển bác sĩ", () => {
     await userEvent.click(
       await screen.findByRole("radio", { name: "BS. Lê Quang Minh" }),
     );
-    await userEvent.type(screen.getByRole("textbox", { name: "Lý do chuyển bác sĩ" }), "Bác sĩ cũ vắng mặt");
+    await userEvent.type(
+      screen.getByRole("textbox", { name: "Lý do chuyển bác sĩ" }),
+      "Bác sĩ cũ vắng mặt",
+    );
     await userEvent.click(
       screen.getByRole("button", { name: "Chuyển lịch hẹn" }),
     );

@@ -12,7 +12,7 @@ describe("PortalNoProfileState", () => {
       ),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("link", { name: "Thêm hồ sơ bệnh nhân" }),
+      screen.getByRole("link", { name: "Thêm thành viên" }),
     ).toHaveAttribute("href", "/portal/profiles/new");
   });
 });

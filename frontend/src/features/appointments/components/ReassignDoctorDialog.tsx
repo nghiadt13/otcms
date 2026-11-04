@@ -110,10 +110,15 @@ function ReassignBody<T extends ReassignTarget>({
   const noCandidates =
     !eligible.loading && !loadError && eligible.doctors?.length === 0;
   const canNotify =
-    noCandidates && Boolean(api.notifyNoReplacement) && appointment.allowedActions.includes("notifyNoReplacement");
+    noCandidates &&
+    Boolean(api.notifyNoReplacement) &&
+    appointment.allowedActions.includes("notifyNoReplacement");
 
   async function submit() {
-    if (!reason.trim()) { setFieldError("Nhập lý do chuyển bác sĩ."); return; }
+    if (!reason.trim()) {
+      setFieldError("Nhập lý do chuyển bác sĩ.");
+      return;
+    }
     setSubmitting(true);
     setFieldError(undefined);
     try {
@@ -182,8 +187,15 @@ function ReassignBody<T extends ReassignTarget>({
         noCandidateLines={noCandidateLines}
       />
       {!noCandidates && !loadError && !eligible.loading ? (
-        <label className="grid gap-2 text-sm font-medium">Lý do chuyển bác sĩ
-          <Textarea value={reason} maxLength={1000} disabled={submitting} onChange={(event) => setReason(event.target.value)} placeholder="Ví dụ: bác sĩ được phân công vắng mặt" />
+        <label className="grid gap-2 text-sm font-medium">
+          Lý do chuyển bác sĩ
+          <Textarea
+            value={reason}
+            maxLength={1000}
+            disabled={submitting}
+            onChange={(event) => setReason(event.target.value)}
+            placeholder="Ví dụ: bác sĩ được phân công vắng mặt"
+          />
         </label>
       ) : null}
       <DialogFooter>
@@ -197,7 +209,9 @@ function ReassignBody<T extends ReassignTarget>({
         ) : null}
         {!noCandidates && !loadError ? (
           <Button
-            disabled={eligible.loading || !selectedId || !reason.trim() || submitting}
+            disabled={
+              eligible.loading || !selectedId || !reason.trim() || submitting
+            }
             onClick={() => void submit()}
           >
             {submitting ? "Đang chuyển..." : "Chuyển lịch hẹn"}

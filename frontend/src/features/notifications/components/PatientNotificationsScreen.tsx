@@ -36,7 +36,7 @@ export function PatientNotificationsScreen({
             className={publicButtonClass("primary")}
             href={PATIENT_ROUTES.newProfile}
           >
-            Thêm hồ sơ bệnh nhân
+            Thêm thành viên
           </Link>
         }
       >
