@@ -151,7 +151,7 @@ export function PersonalInfoForm({
       setValues(next);
       setErrors({});
       setStale(false);
-      notifySuccess("MSG-90");
+      notifySuccess("MSG-05");
       onSaved(updated);
     } catch (error) {
       if (isOwnProfileStale(error)) {

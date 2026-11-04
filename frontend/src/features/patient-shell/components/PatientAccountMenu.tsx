@@ -3,7 +3,7 @@
 import { ChevronDown, LogOut } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -27,11 +27,13 @@ function initialsOf(name: string): string {
 // `aria-label` nêu tên. Menu có tên và vai trò, các mục tài khoản, rồi Đăng xuất.
 export function PatientAccountMenu({
   displayName,
+  avatarSrc,
   email,
   roleLabel,
   links,
 }: {
   displayName: string;
+  avatarSrc?: string | null;
   email?: string;
   roleLabel: string;
   links: readonly PatientAccountLink[];
@@ -57,6 +59,7 @@ export function PatientAccountMenu({
         }
       >
         <Avatar className="size-9">
+          {avatarSrc ? <AvatarImage alt="" src={avatarSrc} /> : null}
           <AvatarFallback className="bg-primary text-sm font-semibold text-primary-foreground">
             {initialsOf(displayName)}
           </AvatarFallback>
