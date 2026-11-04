@@ -1,21 +1,44 @@
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { resetMyAccountMockStore } from "@/features/my-account/api/myAccountApi";
-import { MOCK_PATIENT_ACCOUNT } from "@/features/my-account/api/myAccountMockData";
-import { resetPatientProfileMock } from "@/features/patient-profiles/api/patientProfileMockStore";
-import { setMockSignedInKind } from "@/lib/session/mockSignedInKind";
+import {
+  ACCOUNT_ID,
+  patientResponse,
+} from "@/features/my-account/api/myAccountTestFixtures";
 import { PortalAreaFrame } from "./PortalAreaFrame";
 
 let pathname = "/portal/appointments";
+vi.mock("@/lib/auth/authSession", async (original) => ({
+  ...(await original<typeof import("@/lib/auth/authSession")>()),
+  peekSession: () => ({ accountId: ACCOUNT_ID }),
+}));
+vi.mock("@/lib/api/client", () => ({
+  apiRequest: vi.fn(async (path: string) => {
+    if (path === "/api/v1/me") return patientResponse();
+    if (path === "/api/v1/me/patient-profile")
+      return {
+        patientProfileId: "profile-an",
+        fullName: "Nguyễn Văn An",
+        phoneCanonical: "+84912345678",
+        phoneOwnerType: "PATIENT",
+        dateOfBirth: "1992-07-21",
+        gender: "MALE",
+        address: null,
+        nationalId: null,
+        identityDocumentType: null,
+        hasAccount: true,
+        version: 4,
+      };
+    throw new Error(`Unexpected HTTP request: ${path}`);
+  }),
+  fetchBlob: vi.fn(),
+}));
 vi.mock("next/navigation", () => ({
   usePathname: () => pathname,
   useRouter: () => ({ replace: vi.fn(), push: vi.fn() }),
 }));
 
 beforeEach(() => {
-  setMockSignedInKind("PATIENT");
-  resetMyAccountMockStore(MOCK_PATIENT_ACCOUNT);
-  resetPatientProfileMock();
+  vi.clearAllMocks();
 });
 
 describe("PortalAreaFrame", () => {

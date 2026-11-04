@@ -6,16 +6,29 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { notifySuccess } from "@/lib/messages/notify";
-import { messageFromError } from "@/lib/messages/appMessages";
+import { myAccountErrorMessage } from "../api/myAccountErrors";
 import { updateMyDisplayName } from "../api/myAccountProfileApi";
-import { emitMyAccountChanged } from "../hooks/useMyAccount";
-
-const NAME_MIN = 2;
-const NAME_MAX = 100;
+import type { MyAccountAction } from "../types/myAccount";
+import {
+  DISPLAY_NAME_MIN as NAME_MIN,
+  DISPLAY_NAME_MAX as NAME_MAX,
+  displayNameLength,
+  trimDisplayName,
+} from "../schema/displayNameRules";
 
 // Một dòng "Tên hiển thị" của màn tài khoản bệnh nhân (UC04). "Sửa" mở ô nhập tại chỗ;
 // "Lưu" gửi cập nhật rồi tải lại tài khoản. Lỗi hiện ngay dưới ô.
-export function DisplayNameRow({ displayName }: { displayName: string }) {
+export function DisplayNameRow({
+  displayName,
+  allowedActions = [],
+  mustChangePassword = false,
+}: {
+  displayName: string;
+  allowedActions?: readonly MyAccountAction[];
+  mustChangePassword?: boolean;
+}) {
+  const canEdit =
+    allowedActions.includes("updateDisplayName") && !mustChangePassword;
   const inputId = useId();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(displayName);
@@ -35,12 +48,13 @@ export function DisplayNameRow({ displayName }: { displayName: string }) {
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const name = draft.trim();
-    if (name.length < NAME_MIN) {
+    if (!canEdit || pending) return;
+    const name = trimDisplayName(draft);
+    if (displayNameLength(name) < NAME_MIN) {
       setError(`Tên hiển thị cần ít nhất ${NAME_MIN} ký tự.`);
       return;
     }
-    if (name.length > NAME_MAX) {
+    if (displayNameLength(name) > NAME_MAX) {
       setError(`Tên hiển thị tối đa ${NAME_MAX} ký tự.`);
       return;
     }
@@ -51,29 +65,30 @@ export function DisplayNameRow({ displayName }: { displayName: string }) {
       await updateMyDisplayName(name);
       notifySuccess("MSG-05");
       setEditing(false);
-      emitMyAccountChanged();
     } catch (cause) {
-      setError(messageFromError(cause));
+      setError(myAccountErrorMessage(cause));
     } finally {
       setPending(false);
     }
   }
 
-  if (!editing) {
+  if (!editing || !canEdit) {
     return (
       <div className="flex items-center justify-between gap-4 px-4 py-3">
         <div className="min-w-0">
           <p className="text-sm text-muted-foreground">Tên hiển thị</p>
           <p className="truncate text-base font-medium">{displayName}</p>
         </div>
-        <Button
-          aria-label="Sửa tên hiển thị"
-          variant="link"
-          className="h-11 shrink-0 px-2 text-base font-semibold"
-          onClick={startEditing}
-        >
-          Sửa
-        </Button>
+        {canEdit ? (
+          <Button
+            aria-label="Sửa tên hiển thị"
+            variant="link"
+            className="h-11 shrink-0 px-2 text-base font-semibold"
+            onClick={startEditing}
+          >
+            Sửa
+          </Button>
+        ) : null}
       </div>
     );
   }

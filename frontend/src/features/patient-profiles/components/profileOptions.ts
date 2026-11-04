@@ -3,10 +3,12 @@ import {
   type CareRelationship,
 } from "@/lib/domain/careRelationship";
 import type { PatientSex } from "../types/patientProfile";
+import type { OwnPatientGender } from "../types/ownPatientProfile";
 
-export const SEX_LABELS: Record<PatientSex, string> = {
+export const SEX_LABELS: Record<PatientSex | OwnPatientGender, string> = {
   MALE: "Nam",
   FEMALE: "Nữ",
+  OTHER: "Khác",
 };
 
 export const SEX_OPTIONS: readonly { value: PatientSex; label: string }[] = [

@@ -2,7 +2,10 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { SidebarProvider } from "@/components/ui/sidebar";
-import { resetMyAccountMockStore } from "@/features/my-account/api/myAccountApi";
+import {
+  accountResponse,
+  ACCOUNT_ID,
+} from "@/features/my-account/api/myAccountTestFixtures";
 import { AdminAccountMenu } from "./AdminAccountMenu";
 
 const replace = vi.fn();
@@ -14,10 +17,21 @@ vi.mock("next/navigation", () => ({
 }));
 
 // Ranh giới ngoài: lớp phiên đăng nhập gọi backend.
-vi.mock("@/lib/auth/authSession", () => ({ signOut }));
+vi.mock("@/lib/auth/authSession", async (original) => ({
+  ...(await original<typeof import("@/lib/auth/authSession")>()),
+  signOut,
+  peekSession: () => ({ accountId: ACCOUNT_ID }),
+}));
+vi.mock("@/lib/api/client", () => ({
+  apiRequest: vi.fn(async (path: string) => {
+    if (path === "/api/v1/me")
+      return accountResponse({ username: "admin.hoa" });
+    throw new Error(`Unexpected HTTP request: ${path}`);
+  }),
+  fetchBlob: vi.fn(),
+}));
 
 beforeEach(() => {
-  resetMyAccountMockStore();
   replace.mockClear();
   signOut.mockClear();
   signOut.mockResolvedValue(undefined);

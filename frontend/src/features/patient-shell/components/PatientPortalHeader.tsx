@@ -29,10 +29,12 @@ import { PatientPortalNav, type PatientSiteLink } from "./PatientPortalNav";
 export function PatientPortalHeader({
   notificationSlot,
   siteLinks,
+  avatarSrc,
 }: {
   notificationSlot?: ReactNode;
   /** Link trang giới thiệu (cùng danh sách menu trang chủ), do layout truyền vào. */
   siteLinks?: PatientSiteLink[];
+  avatarSrc?: string | null;
 }) {
   const pathname = usePathname();
   const current = useCurrentAccount();
@@ -80,6 +82,7 @@ export function PatientPortalHeader({
               {notificationSlot}
               <PatientAccountMenu
                 displayName={displayName}
+                avatarSrc={avatarSrc}
                 email={accountEmail}
                 links={PATIENT_ACCOUNT_LINKS}
                 roleLabel={ROLE_LABELS.PATIENT}

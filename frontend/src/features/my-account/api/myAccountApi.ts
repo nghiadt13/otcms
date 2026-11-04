@@ -1,23 +1,21 @@
 import { mockDelay, mockFail } from "@/lib/api/mockServer";
-import { getSession } from "@/lib/auth/authSession";
-import { getCurrentPatientAccount } from "@/lib/auth/currentPatientAccountApi";
+import { ApiError } from "@/lib/api/apiError";
+import { accountMutation } from "./myAccountMutation";
+import { isAvatarFileValid } from "../schema/avatarRules";
+import { apiRequest } from "@/lib/api/client";
+import { mapMyAccountResponse } from "./myAccountResponse";
 import { isPasswordValid } from "@/lib/domain/passwordPolicy";
 import type { ChangePasswordInput, MyAccount } from "../types/myAccount";
 import {
-  AVATAR_ACCEPTED_TYPES,
-  AVATAR_MAX_BYTES,
   MOCK_MY_ACCOUNT,
   MOCK_SERVICE_ERROR_PASSWORD,
 } from "./myAccountMockData";
 import {
-  accountSnapshot,
   currentMockAccountState,
   resetMockAccountState,
 } from "./myAccountMockStore";
 
-// LỚP API GIẢ: dữ liệu nằm trong bộ nhớ. Khi có backend giữ nguyên chữ ký hàm, đổi thân sang
-// apiRequest("/api/v1/me...") (upload ảnh gửi FormData, part `file`). Tài nguyên của chính người
-// đăng nhập nên dùng /api/v1/me, không đặt dưới /admin. Tên hiển thị và email: myAccountProfileApi.ts.
+// GET/avatar dùng KAN-29 thật. Adapter mật khẩu chưa thuộc giai đoạn này.
 
 const LATENCY_MS = process.env.NODE_ENV === "test" ? 0 : 300;
 
@@ -26,54 +24,50 @@ export function resetMyAccountMockStore(account: MyAccount = MOCK_MY_ACCOUNT) {
   resetMockAccountState(account);
 }
 
-/** GET /api/v1/me */
+/** GET /api/v1/me: cùng đường HTTP cho mọi vai trò và mọi môi trường. */
 export async function getMyAccount(signal?: AbortSignal): Promise<MyAccount> {
-  if (process.env.NODE_ENV !== "test") {
-    const session = await getSession();
-    if (session?.accountType === "PATIENT") {
-      const current = await getCurrentPatientAccount(signal);
-      return {
-        id: current.id,
-        kind: "PATIENT",
-        displayName: current.displayName ?? "Chưa cập nhật tên",
-        email: current.email,
-        status: current.status === "ACTIVE" ? "ACTIVE" : "INACTIVE",
-        avatarUrl: null,
-        allowedActions: ["updateDisplayName", "changePassword"],
-      };
-    }
-  }
-  await mockDelay(LATENCY_MS, signal);
-  return accountSnapshot(currentMockAccountState().account);
+  return mapMyAccountResponse(
+    await apiRequest<unknown>("/api/v1/me", { signal }),
+  );
+}
+/** PUT /api/v1/me/avatar: browser tự đặt multipart boundary. */
+export async function updateMyAvatar(
+  file: File,
+  signal?: AbortSignal,
+): Promise<MyAccount> {
+  if (!isAvatarFileValid(file))
+    throw new ApiError(400, {
+      code: "MSG-08",
+      fieldErrors: [{ field: "photo", code: "MSG-08" }],
+    });
+  const photo = new FormData();
+  photo.append("photo", file);
+  return accountMutation(
+    async () =>
+      mapMyAccountResponse(
+        await apiRequest<unknown>("/api/v1/me/avatar", {
+          method: "PUT",
+          body: photo,
+          ...(signal ? { signal } : {}),
+        }),
+      ),
+    (account) => account,
+    signal,
+  );
 }
 
-/** PUT /api/v1/me/avatar (multipart, part `file`) */
-export async function updateMyAvatar(file: File): Promise<MyAccount> {
-  await mockDelay(LATENCY_MS);
-  if (
-    !AVATAR_ACCEPTED_TYPES.includes(file.type) ||
-    file.size > AVATAR_MAX_BYTES
-  ) {
-    mockFail(400, "MSG-08", undefined, [{ field: "file", code: "MSG-08" }]);
-  }
-  const state = currentMockAccountState();
-  state.account = {
-    ...state.account,
-    avatarUrl:
-      typeof URL.createObjectURL === "function"
-        ? URL.createObjectURL(file)
-        : "https://files.example.com/avatars/mock.jpg",
-  };
-  return accountSnapshot(state.account);
+/** DELETE trả 204; refetch /me để giữ projection/quyền authoritative. */
+export async function removeMyAvatar(signal?: AbortSignal): Promise<void> {
+  return accountMutation(
+    () =>
+      apiRequest<void>("/api/v1/me/avatar", {
+        method: "DELETE",
+        ...(signal ? { signal } : {}),
+      }),
+    undefined,
+    signal,
+  );
 }
-
-/** DELETE /api/v1/me/avatar */
-export async function removeMyAvatar(): Promise<void> {
-  await mockDelay(LATENCY_MS);
-  const state = currentMockAccountState();
-  state.account = { ...state.account, avatarUrl: null };
-}
-
 /** POST /api/v1/me/password */
 export async function changeMyPassword(
   input: ChangePasswordInput,

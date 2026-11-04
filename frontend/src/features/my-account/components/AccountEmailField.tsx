@@ -4,14 +4,18 @@ import { useId, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { EmailChangeDialog } from "./EmailChangeDialog";
+import { useMyAccount } from "../hooks/useMyAccount";
 
-// Email đăng nhập của bệnh nhân (UC04, BR-05): hiện như một ô chỉ đọc cùng cỡ với các ô nhập
-// quanh nó; sửa bằng nút "Đổi" mở hộp thoại OTP gửi tới email mới. Email mới chỉ có hiệu lực
-// sau khi xác minh nên không có ô nhập trực tiếp ở đây.
+/** Prop cũ vẫn được chấp nhận; dữ liệu và quyền chính thức luôn từ /me. */
 export function AccountEmailField({ email }: { email: string }) {
   const id = useId();
-  const [open, setOpen] = useState(false);
-
+  const [openFor, setOpenFor] = useState<string | null>(null);
+  const { account } = useMyAccount();
+  if (!account || account.kind !== "PATIENT") return null;
+  const officialEmail = email === account.email ? email : account.email;
+  const canChange =
+    account.allowedActions.includes("changeEmail") &&
+    !account.mustChangePassword;
   return (
     <div className="grid gap-2">
       <Label className="text-base" id={`${id}-label`}>
@@ -21,29 +25,33 @@ export function AccountEmailField({ email }: { email: string }) {
         <p
           aria-labelledby={`${id}-label`}
           className="min-w-0 truncate text-base"
-          title={email}
+          title={officialEmail}
         >
-          {email}
+          {officialEmail}
         </p>
-        <Button
-          aria-label="Đổi email"
-          className="h-10 shrink-0 px-3 text-base font-semibold"
-          onClick={() => setOpen(true)}
-          type="button"
-          variant="link"
-        >
-          Đổi
-        </Button>
+        {canChange ? (
+          <Button
+            aria-label="Đổi email"
+            className="h-10 shrink-0 px-3 text-base font-semibold"
+            onClick={() => setOpenFor(account.id)}
+            type="button"
+            variant="link"
+          >
+            Đổi
+          </Button>
+        ) : null}
       </div>
       <p className="text-sm text-muted-foreground">
-        Mã xác minh gửi tới email mới. Đến khi xác minh xong, email hiện tại vẫn
-        dùng được.
+        Email hiện tại vẫn dùng được đến khi email mới được xác minh bằng OTP.
       </p>
-      <EmailChangeDialog
-        currentEmail={email}
-        onOpenChange={setOpen}
-        open={open}
-      />
+      {canChange ? (
+        <EmailChangeDialog
+          key={account.id}
+          currentEmail={officialEmail}
+          onOpenChange={(next) => setOpenFor(next ? account.id : null)}
+          open={openFor === account.id}
+        />
+      ) : null}
     </div>
   );
 }

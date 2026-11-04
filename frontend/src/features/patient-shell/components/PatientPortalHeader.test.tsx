@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { PATIENT_NAV_ITEMS, groupPatientNavItems } from "../patientNavigation";
 import { PatientPortalHeader } from "./PatientPortalHeader";
+import { PatientAccountMenu } from "./PatientAccountMenu";
 
 const replace = vi.fn();
 const signOut = vi.hoisted(() => vi.fn());
@@ -12,6 +13,17 @@ let pathname = "/portal";
 vi.mock("next/navigation", () => ({
   usePathname: () => pathname,
   useRouter: () => ({ replace, push: vi.fn() }),
+}));
+vi.mock("@/components/ui/avatar", () => ({
+  Avatar: ({ children }: { children: React.ReactNode }) => (
+    <div>{children}</div>
+  ),
+  AvatarImage: (props: React.ImgHTMLAttributes<HTMLImageElement>) => (
+    <img {...props} data-slot="avatar-image" />
+  ),
+  AvatarFallback: ({ children }: { children: React.ReactNode }) => (
+    <span data-slot="avatar-fallback">{children}</span>
+  ),
 }));
 
 // Ranh giới ngoài: lớp phiên đăng nhập và `GET /api/v1/me` gọi backend. Tên lấy từ tài khoản
@@ -114,6 +126,35 @@ describe("PatientPortalHeader", () => {
     expect(
       screen.queryByRole("link", { name: /Thông báo/ }),
     ).not.toBeInTheDocument();
+  });
+
+  it("hiển thị ảnh do app composition truyền vào và initials khi ảnh bị xóa", async () => {
+    const { rerender } = render(
+      <PatientAccountMenu
+        displayName="Nguyễn Văn An"
+        avatarSrc="blob:avatar-a"
+        roleLabel="Bệnh nhân"
+        links={[]}
+      />,
+    );
+    await waitFor(() =>
+      expect(
+        document.querySelector('[data-slot="avatar-image"]'),
+      ).toHaveAttribute("src", "blob:avatar-a"),
+    );
+
+    rerender(
+      <PatientAccountMenu
+        displayName="Nguyễn Văn An"
+        avatarSrc={null}
+        roleLabel="Bệnh nhân"
+        links={[]}
+      />,
+    );
+    expect(document.querySelector('[data-slot="avatar-image"]')).toBeNull();
+    expect(
+      document.querySelector('[data-slot="avatar-fallback"]'),
+    ).toHaveTextContent("NA");
   });
 
   it("nút Menu chỉ hiện khi đã có mục menu (ẩn mục chưa có)", () => {

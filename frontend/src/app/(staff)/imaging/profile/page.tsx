@@ -1,5 +1,5 @@
-import { ProfileScreen } from "@/features/imaging/components/ProfileScreen";
+import { ImagingAccountProfile } from "@/features/imaging-shell/components/ImagingAccountProfile";
 
 export default function Page() {
-  return <ProfileScreen />;
+  return <ImagingAccountProfile />;
 }

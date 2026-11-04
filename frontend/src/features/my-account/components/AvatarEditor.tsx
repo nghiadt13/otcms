@@ -9,9 +9,9 @@ import { notifyError, notifySuccess } from "@/lib/messages/notify";
 import { removeMyAvatar, updateMyAvatar } from "../api/myAccountApi";
 import {
   AVATAR_ACCEPTED_TYPES,
-  AVATAR_MAX_BYTES,
-} from "../api/myAccountMockData";
-import { emitMyAccountChanged } from "../hooks/useMyAccount";
+  isAvatarFileValid,
+} from "../schema/avatarRules";
+import { useAccountOperation } from "../hooks/useAccountOperation";
 import type { MyAccount } from "../types/myAccount";
 
 const AVATAR_ERROR =
@@ -26,19 +26,28 @@ type AvatarEditorProps = {
 };
 
 /** Chọn, xem trước, lưu và gỡ ảnh đại diện (UC04). Gỡ ảnh đổi lại được nên không hỏi xác nhận. */
-export function AvatarEditor({
+export function AvatarEditor(props: AvatarEditorProps) {
+  return <AvatarEditorContent key={props.account.id} {...props} />;
+}
+
+function AvatarEditorContent({
   account,
   large = false,
   headingLevel: Heading = "h2",
 }: AvatarEditorProps) {
+  const operation = useAccountOperation();
   const inputRef = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState<"save" | "remove" | null>(null);
 
-  const canUpdate = account.allowedActions.includes("updateAvatar");
-  const canRemove = account.allowedActions.includes("removeAvatar");
+  const canUpdate =
+    account.allowedActions.includes("updateAvatar") &&
+    !account.mustChangePassword;
+  const canRemove =
+    account.allowedActions.includes("removeAvatar") &&
+    !account.mustChangePassword;
 
   // Thu hồi object URL khi đổi ảnh chờ hoặc rời trang.
   useEffect(() => {
@@ -56,10 +65,7 @@ export function AvatarEditor({
     const picked = event.target.files?.[0];
     event.target.value = "";
     if (!picked) return;
-    if (
-      !AVATAR_ACCEPTED_TYPES.includes(picked.type) ||
-      picked.size > AVATAR_MAX_BYTES
-    ) {
+    if (!isAvatarFileValid(picked)) {
       setFile(null);
       setError(AVATAR_ERROR);
       return;
@@ -74,39 +80,48 @@ export function AvatarEditor({
   }
 
   async function handleSave() {
-    if (!file) return;
+    if (!file || !canUpdate) return;
+    const signal = operation.begin();
+    if (!signal) return;
     setPending("save");
     try {
-      await updateMyAvatar(file);
-      notifySuccess("Thông tin tài khoản đã được cập nhật.");
+      await updateMyAvatar(file, signal);
+      if (!operation.isCurrent()) return;
+      notifySuccess("MSG-05");
       setFile(null);
       setError(null);
-      emitMyAccountChanged();
-    } catch (err) {
-      if (isApiError(err) && toFieldErrorMap(err.fieldErrors).file) {
+    } catch (cause) {
+      if (!operation.isCurrent()) return;
+      if (
+        isApiError(cause) &&
+        (cause.status === 400 || toFieldErrorMap(cause.fieldErrors).photo)
+      )
         setError(AVATAR_ERROR);
-      } else {
-        notifyError(err);
-      }
+      else notifyError(cause);
     } finally {
-      setPending(null);
+      if (operation.isCurrent()) setPending(null);
+      operation.finish();
     }
   }
 
   async function handleRemove() {
+    if (!canRemove) return;
+    const signal = operation.begin();
+    if (!signal) return;
     setPending("remove");
     try {
-      await removeMyAvatar();
-      notifySuccess("Thông tin tài khoản đã được cập nhật.");
-      emitMyAccountChanged();
-    } catch (err) {
-      notifyError(err);
+      await removeMyAvatar(signal);
+      if (operation.isCurrent()) notifySuccess("MSG-05");
+    } catch (cause) {
+      if (operation.isCurrent()) notifyError(cause);
     } finally {
-      setPending(null);
+      if (operation.isCurrent()) setPending(null);
+      operation.finish();
     }
   }
-
-  const shownUrl = previewUrl ?? account.avatarUrl;
+  const shownUrl =
+    previewUrl ??
+    (account.avatarUrl?.startsWith("blob:") ? account.avatarUrl : null);
   const busy = pending !== null;
   const buttonClass = large ? "h-12 px-5 text-base" : undefined;
 
