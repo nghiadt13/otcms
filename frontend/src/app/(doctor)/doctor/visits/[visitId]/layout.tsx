@@ -1,6 +1,7 @@
-import { DoctorVisitPatientHeader } from "@/features/doctor-shell/components/DoctorVisitPatientHeader";
+import { VisitPatientHeader } from "@/features/doctor-exam/components/VisitPatientHeader";
+import { VisitWorkspaceProvider } from "@/features/doctor-exam/components/VisitWorkspaceProvider";
 
-// Khung workspace khám: thanh thông tin tối thiểu của bệnh nhân luôn hiện ở mọi màn của lượt khám.
+// Khung workspace khám: thông tin tối thiểu của bệnh nhân (BR-13) luôn hiện ở mọi tab của lượt khám.
 export default async function DoctorVisitLayout({
   children,
   params,
@@ -10,9 +11,9 @@ export default async function DoctorVisitLayout({
 }) {
   const { visitId } = await params;
   return (
-    <>
-      <DoctorVisitPatientHeader visitId={visitId} />
+    <VisitWorkspaceProvider visitId={visitId}>
+      <VisitPatientHeader />
       {children}
-    </>
+    </VisitWorkspaceProvider>
   );
 }
