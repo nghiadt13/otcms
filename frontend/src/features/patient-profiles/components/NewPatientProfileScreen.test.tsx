@@ -1,132 +1,97 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { toast } from "sonner";
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { getLinkedProfileRecords } from "@/lib/patient-scope/linkedProfilesMockStore";
-import { PROFILE_MOCK_IDS } from "../api/patientProfileMockData";
-import { resetPatientProfileMock } from "../api/patientProfileMockStore";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { beforeEach, expect, it, vi } from "vitest";
+import { ApiError } from "@/lib/api/apiError";
+import { apiRequest } from "@/lib/api/client";
 import { NewPatientProfileScreen } from "./NewPatientProfileScreen";
 
-const nav = vi.hoisted(() => ({ push: vi.fn(), replace: vi.fn() }));
-vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: nav.push, replace: nav.replace }),
-  notFound: vi.fn(),
+const mocks = vi.hoisted(() => ({ push: vi.fn(), notifySuccess: vi.fn() }));
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push: mocks.push }) }));
+vi.mock("@/lib/messages/notify", () => ({
+  notifySuccess: mocks.notifySuccess,
 }));
-vi.mock("sonner", () => ({
-  toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn() },
-}));
+vi.mock("@/lib/api/client", () => ({ apiRequest: vi.fn() }));
+const request = vi.mocked(apiRequest);
 
-beforeEach(() => {
-  resetPatientProfileMock();
-  vi.clearAllMocks();
-});
+beforeEach(() => vi.resetAllMocks());
 
-/** Điền form tạo hồ sơ với ngày sinh gõ liền (dd/mm/yyyy được tự chèn dấu). */
-async function fillNewProfile(
-  user: ReturnType<typeof userEvent.setup>,
-  { dob, phone }: { dob: string; phone: string },
-) {
-  await user.selectOptions(screen.getByLabelText("Quan hệ với bạn"), "CHILD");
-  await user.type(screen.getByLabelText("Họ và tên"), "Phạm Văn Hải");
-  await user.type(screen.getByLabelText("Ngày sinh (dd/mm/yyyy)"), dob);
-  await user.click(screen.getByRole("radio", { name: "Nam" }));
-  await user.type(screen.getByLabelText("Số điện thoại"), phone);
-  await user.type(screen.getByLabelText("Địa chỉ"), "1 Lý Tự Trọng, Quận 1");
+function submitDependent() {
+  render(<NewPatientProfileScreen />);
+  for (const [label, value] of [
+    ["Họ và tên", "Nguyễn Minh An"],
+    ["Ngày sinh", "2017-05-01"],
+    ["Giới tính", "FEMALE"],
+    ["Quan hệ với bạn", "CHILD"],
+    ["Loại giấy tờ", "CCCD"],
+    ["Số giấy tờ", "001217000001"],
+  ]) {
+    fireEvent.change(screen.getByLabelText(label), { target: { value } });
+  }
+  fireEvent.click(screen.getByRole("button", { name: "Gửi yêu cầu" }));
 }
 
-describe("NewPatientProfileScreen: gợi ý và gắn", () => {
-  it("mỗi hồ sơ gợi ý một dòng; Bản thân không hiện khi tài khoản đã có Bản thân", async () => {
-    render(<NewPatientProfileScreen />);
-
-    const row = (await screen.findByText("Nguyễn Gia Bảo")).closest("li");
-    expect(row).not.toBeNull();
-    if (!row) return;
-    expect(
-      within(row).getByText("Sinh 2018 · BN-000131 · Nam"),
-    ).toBeInTheDocument();
-
-    const select = within(row).getByLabelText("Quan hệ");
-    expect(
-      within(select).queryByRole("option", { name: "Bản thân" }),
-    ).toBeNull();
-    expect(
-      within(select).getByRole("option", { name: "Con" }),
-    ).toBeInTheDocument();
-
-    const createSelect = screen.getByLabelText("Quan hệ với bạn");
-    expect(
-      within(createSelect).queryByRole("option", { name: "Bản thân" }),
-    ).toBeNull();
-  });
-
-  it("gắn hồ sơ gợi ý: chọn quan hệ rồi bấm Gắn, về danh sách và hồ sơ vào kho dùng chung", async () => {
-    const user = userEvent.setup();
-    render(<NewPatientProfileScreen />);
-
-    const row = (await screen.findByText("Nguyễn Gia Bảo")).closest("li");
-    if (!row) throw new Error("Thiếu dòng gợi ý");
-    const button = within(row).getByRole("button", {
-      name: "Gắn hồ sơ Nguyễn Gia Bảo",
-    });
-    expect(button).toBeDisabled();
-
-    await user.selectOptions(within(row).getByLabelText("Quan hệ"), "CHILD");
-    expect(button).toBeEnabled();
-    await user.click(button);
-
-    await waitFor(() =>
-      expect(nav.push).toHaveBeenCalledWith("/portal/profiles"),
-    );
-    expect(toast.success).toHaveBeenCalledWith(
-      "Đã lưu thông tin hồ sơ bệnh nhân.",
-    );
-    expect(getLinkedProfileRecords().map((item) => item.id)).toContain(
-      PROFILE_MOCK_IDS.bao,
-    );
+it("gửi đúng hợp đồng và trở về danh sách khi liên kết ngay", async () => {
+  request.mockResolvedValueOnce({ result: "LINKED", linkId: "link-1" });
+  submitDependent();
+  await waitFor(() => expect(mocks.push).toHaveBeenCalled());
+  expect(mocks.notifySuccess).toHaveBeenCalledWith("MSG-90");
+  expect(request).toHaveBeenCalledWith("/api/v1/me/dependents", {
+    method: "POST",
+    body: JSON.stringify({
+      fullName: "Nguyễn Minh An",
+      dateOfBirth: "2017-05-01",
+      gender: "FEMALE",
+      relationship: "CHILD",
+      nationalId: "001217000001",
+      identityDocumentType: "CCCD",
+    }),
   });
 });
 
-describe("NewPatientProfileScreen: tạo hồ sơ mới", () => {
-  it("thiếu trường bắt buộc: báo lỗi ngay dưới ô và không gửi", async () => {
-    const user = userEvent.setup();
-    render(<NewPatientProfileScreen />);
-
-    await user.click(await screen.findByRole("button", { name: "Tạo hồ sơ" }));
-
-    expect(await screen.findByText("Nhập họ và tên.")).toBeInTheDocument();
-    expect(screen.getByText("Chọn quan hệ với bạn.")).toBeInTheDocument();
-    expect(nav.push).not.toHaveBeenCalled();
+it("hướng dẫn xác minh giấy tờ khi backend yêu cầu đến quầy", async () => {
+  request.mockResolvedValueOnce({
+    result: "COUNTER_REQUIRED",
+    linkId: "link-1",
   });
+  submitDependent();
+  expect(await screen.findByText("Chờ xác nhận tại quầy")).toBeInTheDocument();
+  expect(mocks.push).not.toHaveBeenCalled();
+});
 
-  it("trùng SĐT và ngày sinh với hồ sơ có sẵn: hiện hướng dẫn ra quầy, không chuyển trang", async () => {
-    const user = userEvent.setup();
-    render(<NewPatientProfileScreen />);
-
-    await fillNewProfile(user, { dob: "01011990", phone: "0900000000" });
-    await user.click(screen.getByRole("button", { name: "Tạo hồ sơ" }));
-
-    expect(
-      await screen.findByText(
-        "Có thể hồ sơ này đã có tại phòng khám. Vui lòng mang giấy tờ đến quầy để được gắn.",
-      ),
-    ).toBeInTheDocument();
-    expect(nav.push).not.toHaveBeenCalled();
+it("giữ bước OTP khi mã sai, cho gửi lại và xác nhận mã mới", async () => {
+  const otp = {
+    result: "OTP_SENT",
+    linkId: "link-1",
+    maskedEmail: "a***@example.com",
+  };
+  request
+    .mockResolvedValueOnce(otp)
+    .mockRejectedValueOnce(new ApiError(400, { errorCode: "OTP_INVALID" }))
+    .mockResolvedValueOnce(otp)
+    .mockResolvedValueOnce({ result: "LINKED", linkId: "link-1" });
+  submitDependent();
+  expect(await screen.findByText(/a\*\*\*@example\.com/)).toBeInTheDocument();
+  fireEvent.change(screen.getByLabelText("Mã xác minh"), {
+    target: { value: "111111" },
   });
-
-  it("tạo hồ sơ hợp lệ: thông báo MSG-90 và chuyển tới chi tiết hồ sơ mới", async () => {
-    const user = userEvent.setup();
-    render(<NewPatientProfileScreen />);
-
-    await fillNewProfile(user, { dob: "03042019", phone: "0909123456" });
-    await user.click(screen.getByRole("button", { name: "Tạo hồ sơ" }));
-
-    await waitFor(() =>
-      expect(nav.push).toHaveBeenCalledWith(
-        "/portal/profiles/7e4f0b10-0000-4000-8000-000000000001",
-      ),
-    );
-    expect(toast.success).toHaveBeenCalledWith(
-      "Đã lưu thông tin hồ sơ bệnh nhân.",
-    );
+  fireEvent.click(screen.getByRole("button", { name: "Xác nhận mã" }));
+  expect(await screen.findByRole("alert")).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Gửi lại mã" }));
+  expect(
+    await screen.findByText("Đã gửi lại mã xác minh."),
+  ).toBeInTheDocument();
+  expect(request).toHaveBeenNthCalledWith(
+    3,
+    "/api/v1/me/dependents/links/link-1/otp/resend",
+    { method: "POST" },
+  );
+  fireEvent.change(screen.getByLabelText("Mã xác minh"), {
+    target: { value: "222222" },
   });
+  fireEvent.click(screen.getByRole("button", { name: "Xác nhận mã" }));
+  await waitFor(() => expect(mocks.push).toHaveBeenCalled());
+  expect(request).toHaveBeenNthCalledWith(
+    4,
+    "/api/v1/me/dependents/links/link-1/otp/verify",
+    { method: "POST", body: JSON.stringify({ code: "222222" }) },
+  );
 });

@@ -1,6 +1,7 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@/lib/api/apiError";
-import { listLinkedProfiles } from "./linkedProfilesApi";
+import { apiRequest } from "@/lib/api/client";
+import { listConfirmedProfiles, listLinkedProfiles } from "./linkedProfilesApi";
 import {
   LINKED_PROFILE_VARIANTS,
   replaceLinkedProfilesMock,
@@ -52,4 +53,33 @@ describe("listLinkedProfiles", () => {
     replaceLinkedProfilesMock(LINKED_PROFILE_VARIANTS.default);
     expect(notified).toBe(1);
   });
+});
+
+vi.mock("@/lib/api/client", () => ({ apiRequest: vi.fn() }));
+
+it("lấy hồ sơ thật và không đưa liên kết đang chờ vào bộ chọn", async () => {
+  const profile = {
+    fullName: "Hồ sơ thử",
+    dateOfBirth: "2017-05-01",
+    gender: "OTHER",
+    relationship: "CHILD",
+  };
+  vi.mocked(apiRequest).mockResolvedValueOnce({
+    items: [
+      { ...profile, patientProfileId: "otp", linkStatus: "PENDING_OTP" },
+      {
+        ...profile,
+        patientProfileId: "counter",
+        linkStatus: "PENDING_COUNTER",
+      },
+      { ...profile, patientProfileId: "confirmed", linkStatus: "CONFIRMED" },
+    ],
+  });
+  const signal = new AbortController().signal;
+  const { items } = await listConfirmedProfiles(signal);
+  expect(apiRequest).toHaveBeenCalledWith("/api/v1/me/patient-profiles", {
+    signal,
+  });
+  expect(items).toHaveLength(1);
+  expect(items[0]).toMatchObject({ id: "confirmed", sex: "OTHER" });
 });

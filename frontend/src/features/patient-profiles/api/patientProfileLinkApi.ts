@@ -1,5 +1,5 @@
 import { mockFail } from "@/lib/api/mockServer";
-import { apiRequest } from "@/lib/api/client";
+import { removeDependent } from "./dependentApi";
 import type { ItemsResponse } from "@/lib/api/pagination";
 import {
   getLinkedProfileRecords,
@@ -31,7 +31,7 @@ import {
   saveClinicRecord,
 } from "./patientProfileMockStore";
 
-// Production gọi API gợi ý và gắn/bỏ gắn; kho giả chỉ phục vụ kiểm thử.
+// Fixtures retained for legacy tests while the dependent flow uses dependentApi.
 
 /** Hồ sơ có email trùng email đã xác minh của tài khoản. Không kể đã gắn hay chưa. */
 function hasVerifiedEmail(record: ClinicPatientRecord): boolean {
@@ -52,15 +52,11 @@ function toSuggestion(record: ClinicPatientRecord): SuggestedProfile {
   };
 }
 
-/** GET /api/v1/me/patient-profiles/suggestions */
+/** Fixtures for the former suggestion flow. */
 export async function listSuggestedProfiles(
   signal?: AbortSignal,
 ): Promise<ItemsResponse<SuggestedProfile>> {
-  if (process.env.NODE_ENV !== "test")
-    return apiRequest<ItemsResponse<SuggestedProfile>>(
-      "/api/v1/me/patient-profiles/suggestions",
-      { signal },
-    );
+  if (process.env.NODE_ENV !== "test") return { items: [] };
   await mockLatency(signal);
   if (isSuggestionListFailing()) mockFail(500, "MSG-04");
   const items = listClinicRecords()
@@ -73,18 +69,14 @@ export async function listSuggestedProfiles(
 }
 
 /**
- * POST /api/v1/me/patient-profiles/links. Hồ sơ không còn là gợi ý (không có email khớp,
+ * Legacy test linking. Hồ sơ không còn là gợi ý (không có email khớp,
  * không tồn tại) → 404 MSG-41, để không lộ hồ sơ của người khác. Đã gắn → 409 MSG-21.
  * Bản thân: tài khoản đã có Bản thân, hoặc hồ sơ là Bản thân của tài khoản khác → 409 MSG-21.
  */
 export async function linkSuggestedProfile(
   body: LinkProfileRequest,
 ): Promise<LinkedProfile> {
-  if (process.env.NODE_ENV !== "test")
-    return apiRequest<LinkedProfile>("/api/v1/me/patient-profiles/links", {
-      method: "POST",
-      body: JSON.stringify(body),
-    });
+  if (process.env.NODE_ENV !== "test") mockFail(404, "MSG-21");
   await mockLatency();
   throwFieldErrors(
     validateProfileFields(
@@ -114,17 +106,11 @@ export async function linkSuggestedProfile(
 }
 
 /**
- * DELETE /api/v1/me/patient-profiles/{id}/link. Bỏ quyền xem và đặt lịch; hồ sơ và lịch sử
+ * Gỡ liên kết người thân. Bỏ quyền xem và đặt lịch; hồ sơ và lịch sử
  * khám giữ nguyên (BR-16). Bỏ Bản thân thì hồ sơ không còn là Bản thân của tài khoản này.
  */
 export async function unlinkPatientProfile(profileId: string): Promise<void> {
-  if (process.env.NODE_ENV !== "test")
-    return apiRequest<void>(
-      `/api/v1/me/patient-profiles/${encodeURIComponent(profileId)}/link`,
-      {
-        method: "DELETE",
-      },
-    );
+  if (process.env.NODE_ENV !== "test") return removeDependent(profileId);
   await mockLatency();
   const linked = linkedEntryOrFail(profileId);
   const record = findClinicRecord(profileId);
