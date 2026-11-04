@@ -54,6 +54,10 @@ public class DiagnosticRequestJpaEntity {
     @Column(name = "current_attempt_id")
     private UUID currentAttemptId;
 
+    /** Clinical service order this request fulfils; null for requests created without an order. */
+    @Column(name = "service_order_id")
+    private UUID serviceOrderId;
+
     @Version
     @Column(nullable = false)
     private long version;
@@ -106,6 +110,8 @@ public class DiagnosticRequestJpaEntity {
     public String getCancellationCause() { return cancellationCause; }
     public String getCancellationReason() { return cancellationReason; }
     public UUID getCurrentAttemptId() { return currentAttemptId; }
+    public UUID getServiceOrderId() { return serviceOrderId; }
+    public void setServiceOrderId(UUID serviceOrderId) { this.serviceOrderId = serviceOrderId; }
     public long getVersion() { return version; }
     public Instant getCreatedAt() { return createdAt; }
     public Instant getUpdatedAt() { return updatedAt; }

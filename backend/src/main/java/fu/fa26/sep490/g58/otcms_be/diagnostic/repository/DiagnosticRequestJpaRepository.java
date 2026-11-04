@@ -16,6 +16,9 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 public interface DiagnosticRequestJpaRepository extends JpaRepository<DiagnosticRequestJpaEntity, UUID> {
+    /** True when a request other than the given status (use CANCELLED) already fulfils the order. */
+    boolean existsByServiceOrderIdAndStatusNot(UUID serviceOrderId, DiagnosticRequestStatus status);
+
     List<DiagnosticRequestJpaEntity> findAllByVisitIdOrderByCreatedAtDescIdDesc(UUID visitId);
 
     Page<DiagnosticRequestJpaEntity> findAllByVisitIdOrderByCreatedAtDescIdDesc(UUID visitId, Pageable pageable);

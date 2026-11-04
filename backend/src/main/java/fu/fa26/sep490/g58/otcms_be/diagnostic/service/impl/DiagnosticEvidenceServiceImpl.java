@@ -7,6 +7,7 @@ import fu.fa26.sep490.g58.otcms_be.diagnostic.integration.DiagnosticPortModels.U
 import fu.fa26.sep490.g58.otcms_be.diagnostic.integration.DiagnosticPortModels.UseEvidenceReceipt;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.integration.DiagnosticPortModels.FindingsReleaseEvent;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.integration.DiagnosticPortModels.ReleaseAcknowledgement;
+import fu.fa26.sep490.g58.otcms_be.diagnostic.integration.ClinicalImagingOrderPort;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.integration.FirstUseEvidencePort;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.integration.ImagingBillingPort;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.integration.ImagingStudyPort;
@@ -67,13 +68,15 @@ public class DiagnosticEvidenceServiceImpl implements DiagnosticEvidenceService 
     private final ObjectProvider<ImagingStudyPort> studyPorts;
     private final ObjectProvider<ImagingBillingPort> billingPorts;
     private final ObjectProvider<VisitDiagnosticPort> visitPorts;
+    private final ObjectProvider<ClinicalImagingOrderPort> orderPorts;
 
     public DiagnosticEvidenceServiceImpl(DiagnosticRequestJpaRepository requests,
             DiagnosticAttemptJpaRepository attempts, DiagnosticAuditEventJpaRepository auditEvents,
             DiagnosticOutboxJpaRepository outbox, DiagnosticFindingsVersionJpaRepository findings,
             DiagnosticReportJpaRepository reports, DiagnosticAuthorizationPolicy authorization,
             ObjectProvider<FirstUseEvidencePort> firstUsePorts, ObjectProvider<ImagingStudyPort> studyPorts,
-            ObjectProvider<ImagingBillingPort> billingPorts, ObjectProvider<VisitDiagnosticPort> visitPorts) {
+            ObjectProvider<ImagingBillingPort> billingPorts, ObjectProvider<VisitDiagnosticPort> visitPorts,
+            ObjectProvider<ClinicalImagingOrderPort> orderPorts) {
         this.requests = Objects.requireNonNull(requests, "requests");
         this.attempts = Objects.requireNonNull(attempts, "attempts");
         this.auditEvents = Objects.requireNonNull(auditEvents, "auditEvents");
@@ -85,6 +88,7 @@ public class DiagnosticEvidenceServiceImpl implements DiagnosticEvidenceService 
         this.studyPorts = Objects.requireNonNull(studyPorts, "studyPorts");
         this.billingPorts = Objects.requireNonNull(billingPorts, "billingPorts");
         this.visitPorts = Objects.requireNonNull(visitPorts, "visitPorts");
+        this.orderPorts = Objects.requireNonNull(orderPorts, "orderPorts");
     }
 
     @Override
@@ -230,6 +234,12 @@ public class DiagnosticEvidenceServiceImpl implements DiagnosticEvidenceService 
         attempts.saveAndFlush(attempt);
         request.setStatus(DiagnosticRequestStatus.RESULT_AVAILABLE);
         requests.saveAndFlush(request);
+        // Keep the clinical order in step, so the visit's completion evidence sees the result.
+        if (request.getServiceOrderId() != null) {
+            ClinicalImagingOrderPort orderPort = orderPorts.getIfAvailable();
+            if (orderPort == null) throw dependencyUnavailable();
+            orderPort.markResultAvailable(request.getServiceOrderId());
+        }
         Map<String, Object> payload = studyPayload(evidence);
         recordAudit(evidence.eventId(), request, "LINK_CONFIRMED_STUDY", null, "FEAT-004",
                 Instant.now(), correlationId, payload, DiagnosticOperationOutcome.ALLOWED);

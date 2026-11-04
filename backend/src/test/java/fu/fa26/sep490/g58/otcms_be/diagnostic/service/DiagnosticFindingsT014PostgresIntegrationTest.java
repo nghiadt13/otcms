@@ -139,7 +139,7 @@ class DiagnosticFindingsT014PostgresIntegrationTest {
 
     private DiagnosticRequestView resultAvailable() {
         DiagnosticRequestView created = requests.create(doctor(), visitId, "create-request", serviceId,
-                "MRI", "Chest", "Persistent cough", roomId, "corr-create");
+                "MRI", "Chest", "Persistent cough", roomId, null, "corr-create");
         UUID attemptId = UUID.randomUUID();
         Instant now = Instant.now();
         UseEvidence use = new UseEvidence(UUID.randomUUID(), created.requestId(), attemptId,
