@@ -192,9 +192,27 @@ class DoctorCoreProductionWiringTest {
         assertEquals(3000, request.getClinicalReason().length()); assertEquals(255, request.getBodyArea().length());
     }
 
+    @Test void medicalDocumentProductionBeansAndUniqueUploadMappingAreRegistered() {
+        var handlers = bean(RequestMappingHandlerMapping.class).getHandlerMethods().entrySet().stream().filter(entry ->
+                entry.getKey().getPatternValues().contains("/api/v1/visits/{visitId}/medical-documents")
+                        && entry.getKey().getMethodsCondition().getMethods().contains(RequestMethod.POST)).toList();
+        assertEquals(1, handlers.size()); assertEquals(ClinicalMedicalDocumentController.class, handlers.getFirst().getValue().getBeanType());
+        assertNotNull(bean(ClinicalMedicalDocumentService.class));
+        assertNotNull(bean(fu.fa26.sep490.g58.otcms_be.clinical.security.ClinicalMedicalDocumentAccess.class));
+        assertEquals(fu.fa26.sep490.g58.otcms_be.patient.service.impl.PatientProfileAccessServiceImpl.class,
+                org.springframework.aop.support.AopUtils.getTargetClass(bean(fu.fa26.sep490.g58.otcms_be.patient.service.PatientProfileAccessService.class)));
+    }
+
     @Configuration @EnableWebMvc @EnableTransactionManagement(proxyTargetClass = true)
     @Import({ClinicalImagingRequestController.class, ClinicalExaminationController.class, AfterVisitAdviceController.class,
             DiagnosticRequestController.class, DiagnosticFindingsController.class, DiagnosticHistoryController.class, DiagnosticDtoMapper.class,
+            ClinicalMedicalDocumentController.class, ClinicalMedicalDocumentServiceImpl.class,
+            fu.fa26.sep490.g58.otcms_be.clinical.security.ClinicalMedicalDocumentAccess.class,
+            fu.fa26.sep490.g58.otcms_be.clinical.validation.ClinicalMedicalDocumentFileValidator.class,
+            fu.fa26.sep490.g58.otcms_be.auth.service.impl.ReceptionistAccountAccessServiceImpl.class,
+            fu.fa26.sep490.g58.otcms_be.auth.service.impl.PatientIdentityDirectoryServiceImpl.class,
+            fu.fa26.sep490.g58.otcms_be.auth.service.impl.PatientProfileDirectoryServiceImpl.class,
+            fu.fa26.sep490.g58.otcms_be.patient.service.impl.PatientProfileAccessServiceImpl.class,
             ClinicalImagingRequestServiceImpl.class, ClinicalImagingRequestTransactionService.class, ClinicalOrderingTransactionService.class,
             ClinicalOrderPreparationService.class, ClinicalOrderingServiceImpl.class, ClinicalExaminationServiceImpl.class, AfterVisitAdviceServiceImpl.class,
             ClinicalDoctorIdentityResolver.class, VisitClinicalContextAdapter.class, VisitClinicalCareContextServiceImpl.class,
@@ -211,7 +229,10 @@ class DoctorCoreProductionWiringTest {
                 Class<?>[] repositories = {AccountRepository.class, DoctorProfileRepository.class, ClinicServiceRepository.class,
                         ClinicVisitJpaRepository.class, VisitCareAssignmentRepository.class, ClinicalExaminationRepository.class,
                         ClinicalDiagnosisRepository.class, OrderingRoundRepository.class, ServiceOrderRepository.class,
-                        ClinicalImagingRequestReplayRepository.class, DiagnosticRequestJpaRepository.class, DiagnosticAttemptJpaRepository.class,
+                        ClinicalImagingRequestReplayRepository.class, ClinicalMedicalDocumentRepository.class, ClinicalMedicalDocumentPayloadRepository.class,
+                        fu.fa26.sep490.g58.otcms_be.auth.repository.PatientProfileRepository.class,
+                        fu.fa26.sep490.g58.otcms_be.patient.repository.CareRelationshipRepository.class,
+                        DiagnosticRequestJpaRepository.class, DiagnosticAttemptJpaRepository.class,
                         DiagnosticIdempotencyRecordJpaRepository.class, DiagnosticAuditEventJpaRepository.class,
                         DiagnosticFindingsVersionJpaRepository.class, DiagnosticReportJpaRepository.class,
                         DiagnosticOutboxJpaRepository.class, DiagnosticHistoryAccessAuditJpaRepository.class};

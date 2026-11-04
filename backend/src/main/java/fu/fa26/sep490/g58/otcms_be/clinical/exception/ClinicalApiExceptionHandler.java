@@ -4,6 +4,7 @@ import fu.fa26.sep490.g58.otcms_be.clinical.controller.AfterVisitAdviceControlle
 import fu.fa26.sep490.g58.otcms_be.clinical.controller.ClinicalExaminationController;
 import fu.fa26.sep490.g58.otcms_be.clinical.controller.ClinicalImagingRequestController;
 import fu.fa26.sep490.g58.otcms_be.clinical.controller.DoctorActiveVisitController;
+import fu.fa26.sep490.g58.otcms_be.clinical.controller.ClinicalMedicalDocumentController;
 import fu.fa26.sep490.g58.otcms_be.common.api.ErrorResponse;
 import fu.fa26.sep490.g58.otcms_be.common.web.CorrelationIdFilter;
 import jakarta.persistence.OptimisticLockException;
@@ -24,7 +25,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 @RestControllerAdvice(assignableTypes = {ClinicalExaminationController.class, AfterVisitAdviceController.class,
-        ClinicalImagingRequestController.class, DoctorActiveVisitController.class})
+        ClinicalImagingRequestController.class, DoctorActiveVisitController.class, ClinicalMedicalDocumentController.class})
 @Order(Ordered.HIGHEST_PRECEDENCE)
 public class ClinicalApiExceptionHandler {
     @ExceptionHandler(fu.fa26.sep490.g58.otcms_be.diagnostic.exception.DiagnosticOperationException.class)
@@ -46,7 +47,7 @@ public class ClinicalApiExceptionHandler {
             case "MSG-41" -> 404;
             case "MSG-42", "IDEMPOTENCY_CONFLICT" -> 409;
             case "DEPENDENCY_UNAVAILABLE" -> 503;
-            case "MSG-39", "MSG-08" -> 400;
+            case "MSG-39", "MSG-08", "MSG-47" -> 400;
             default -> 500;
         };
         return problem(status, error.code(), List.of(), request);
@@ -59,7 +60,7 @@ public class ClinicalApiExceptionHandler {
     }
 
     @ExceptionHandler({HttpMessageNotReadableException.class, MethodArgumentTypeMismatchException.class,
-            MissingRequestHeaderException.class})
+            MissingRequestHeaderException.class, org.springframework.web.HttpMediaTypeNotSupportedException.class})
     public ResponseEntity<ErrorResponse> transport(Exception error, HttpServletRequest request) {
         return problem(400, "VALIDATION_FAILED", List.of(), request);
     }
@@ -67,6 +68,15 @@ public class ClinicalApiExceptionHandler {
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<ErrorResponse> denied(Exception error, HttpServletRequest request) {
         return problem(403, "MSG-40", List.of(), request);
+    }
+
+    @ExceptionHandler(org.springframework.web.multipart.MultipartException.class)
+    public ResponseEntity<ErrorResponse> multipart(Exception error, HttpServletRequest request) {
+        return problem(400, "MSG-47", List.of(), request);
+    }
+    @ExceptionHandler(org.springframework.web.multipart.support.MissingServletRequestPartException.class)
+    public ResponseEntity<ErrorResponse> missingPart(Exception error, HttpServletRequest request) {
+        return problem(400, "VALIDATION_FAILED", List.of(), request);
     }
 
     @ExceptionHandler({OptimisticLockingFailureException.class, OptimisticLockException.class})
