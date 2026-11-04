@@ -46,7 +46,9 @@ public class PayOsPaymentGateway implements PaymentGateway {
         Instant providerExpiry = response.getExpiredAt() == null
                 ? expiresAt : Instant.ofEpochSecond(response.getExpiredAt());
         return new GatewayLink(response.getPaymentLinkId(), response.getOrderCode(), response.getCheckoutUrl(),
-                response.getQrCode(), providerExpiry);
+                response.getQrCode(), providerExpiry,
+                new TransferInfo(response.getBin(), response.getAccountNumber(), response.getAccountName(),
+                        response.getDescription()));
     }
 
     @Override

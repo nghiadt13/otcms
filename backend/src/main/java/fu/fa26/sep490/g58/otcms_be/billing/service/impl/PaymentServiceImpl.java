@@ -141,7 +141,12 @@ public class PaymentServiceImpl implements PaymentService {
                 PaymentAttemptJpaEntity managed = attempts.findById(attempt.getId())
                         .orElseThrow(() -> new BillingException("PAYMENT_ATTEMPT_NOT_FOUND"));
                 if (managed.getStatus() == PaymentAttemptStatus.PENDING && managed.getCheckoutUrl() == null) {
-                    managed.attachPayOsLink(link.providerLinkId(), link.checkoutUrl(), link.qrCode(), link.expiresAt());
+                    var transfer = link.transfer();
+                    managed.attachPayOsLink(link.providerLinkId(), link.checkoutUrl(), link.qrCode(), link.expiresAt(),
+                            transfer == null ? null : transfer.bankBin(),
+                            transfer == null ? null : transfer.accountNumber(),
+                            transfer == null ? null : transfer.accountName(),
+                            transfer == null ? null : transfer.description());
                 }
                 return attempts.save(managed);
             });
