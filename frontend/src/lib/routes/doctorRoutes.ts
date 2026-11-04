@@ -4,9 +4,10 @@
 export const DOCTOR_ROUTES = {
   dashboard: "/doctor",
   todayPatients: "/doctor/today",
+  /** Gốc workspace khám: `/doctor/visits/<visitId>[/<màn>]`. */
+  visits: "/doctor/visits",
   imagingStudies: "/doctor/imaging",
   schedule: "/doctor/schedule",
-  rooms: "/doctor/rooms",
   account: "/doctor/account",
   notifications: "/doctor/notifications",
 } as const;

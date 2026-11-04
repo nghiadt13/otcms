@@ -31,9 +31,9 @@ describe("findActiveBreadcrumb", () => {
       groupLabel: "Tổng quan",
       itemTitle: "Bảng điều khiển",
     });
-    expect(findActiveBreadcrumb("/doctor/rooms")).toEqual({
-      groupLabel: "Lịch làm việc",
-      itemTitle: "Danh sách phòng",
+    expect(findActiveBreadcrumb("/doctor/schedule")).toEqual({
+      groupLabel: "Làm việc",
+      itemTitle: "Lịch và phòng",
     });
   });
 
@@ -43,6 +43,10 @@ describe("findActiveBreadcrumb", () => {
 });
 
 describe("doctorNavItems", () => {
+  it("mỗi mục có ít nhất một phần để hiển thị", () => {
+    expect(doctorNavItems.every((item) => item.parts.length > 0)).toBe(true);
+  });
+
   it("không có href trùng", () => {
     const hrefs = doctorNavItems.map((item) => item.href);
     expect(new Set(hrefs).size).toBe(hrefs.length);

@@ -1,6 +1,5 @@
 import {
   CalendarClock,
-  DoorOpen,
   LayoutDashboard,
   type LucideIcon,
   ScanLine,
@@ -8,13 +7,21 @@ import {
 } from "lucide-react";
 import { DOCTOR_ROUTES } from "@/lib/routes/doctorRoutes";
 
+/** Một phần liên quan nằm chung trong một màn (tương ứng một màn hoặc UC của Report 3). */
+export type DoctorScreenPart = {
+  title: string;
+  description: string;
+  /** UC phục vụ phần này theo Report 3 (không ghi nếu R3 không gắn UC riêng). */
+  ucs?: string;
+};
+
 export type DoctorNavItem = {
   title: string;
   href: string;
   icon: LucideIcon;
-  /** UC mà màn hình phục vụ theo Report 3 (không ghi nếu R3 không gắn UC riêng). */
   ucs?: string;
   description: string;
+  parts: DoctorScreenPart[];
 };
 
 export type DoctorNavGroup = {
@@ -25,9 +32,9 @@ export type DoctorNavGroup = {
 };
 
 // Nguồn duy nhất cho sidebar, breadcrumb và trang chờ của khu bác sĩ.
-// Chỉ gồm các màn không cần chọn bệnh nhân trước (Report 3, mục 1.4.2.5). Các màn khám
-// (hồ sơ, phiếu khám, chỉ định, đơn thuốc, hoàn tất lượt khám...) là tab của workspace
-// `/doctor/visits/[visitId]`, mở từ "Bệnh nhân hôm nay", nên không có mục ở đây.
+// Chỉ gồm các màn không cần chọn bệnh nhân trước (Report 3, mục 1.4.2.5). Các màn khám là
+// tab của workspace `/doctor/visits/[visitId]` (xem doctorVisitNavigation.ts). Màn liên
+// quan nhau gom vào một mục; mỗi phần bên trong khai báo ở `parts`.
 // Thêm màn: thêm một mục ở đây rồi tạo `app/(doctor)/doctor/<đường-dẫn>/page.tsx`.
 export const doctorNavGroups: DoctorNavGroup[] = [
   {
@@ -40,6 +47,13 @@ export const doctorNavGroups: DoctorNavGroup[] = [
         icon: LayoutDashboard,
         description:
           "Tóm tắt công việc trong ngày và lối vào bệnh nhân hôm nay, workspace khám, kết quả ảnh.",
+        parts: [
+          {
+            title: "Tóm tắt công việc",
+            description:
+              "Số bệnh nhân hôm nay, lượt khám chờ kết luận, ảnh mới cần xem.",
+          },
+        ],
       },
     ],
   },
@@ -53,12 +67,15 @@ export const doctorNavGroups: DoctorNavGroup[] = [
         ucs: "UC35",
         description:
           "Bệnh nhân đặt hẹn và vãng lai được giao cho bạn, cùng các lượt khám đang chờ kết luận.",
+        parts: [
+          {
+            title: "Danh sách bệnh nhân hôm nay",
+            description:
+              "Trạng thái từng lượt khám và trạng thái chỉ định; bấm để mở workspace khám.",
+            ucs: "UC35",
+          },
+        ],
       },
-    ],
-  },
-  {
-    label: "Chẩn đoán hình ảnh",
-    items: [
       {
         title: "Ảnh chẩn đoán",
         href: DOCTOR_ROUTES.imagingStudies,
@@ -66,25 +83,49 @@ export const doctorNavGroups: DoctorNavGroup[] = [
         ucs: "UC49–UC50",
         description:
           "Các ca chụp do kỹ thuật viên gửi: xem ảnh DICOM và ghi kết luận hình ảnh.",
+        parts: [
+          {
+            title: "Danh sách ca chụp",
+            description: "Các ca chụp thuộc phạm vi chăm sóc của bác sĩ.",
+            ucs: "UC49",
+          },
+          {
+            title: "Xem ảnh DICOM",
+            description: "Mở ca chụp, chuyển giữa các series.",
+            ucs: "UC49",
+          },
+          {
+            title: "Kết luận hình ảnh",
+            description: "Ghi kết luận cho ca chụp đã xem, có thể lưu nháp.",
+            ucs: "UC50",
+          },
+        ],
       },
     ],
   },
   {
-    label: "Lịch làm việc",
+    label: "Làm việc",
+    standalone: true,
     items: [
       {
-        title: "Lịch làm việc",
+        title: "Lịch và phòng",
         href: DOCTOR_ROUTES.schedule,
         icon: CalendarClock,
-        ucs: "UC25",
-        description: "Ca trực của bạn và các giờ còn nhận lịch khám.",
-      },
-      {
-        title: "Danh sách phòng",
-        href: DOCTOR_ROUTES.rooms,
-        icon: DoorOpen,
-        ucs: "UC64",
-        description: "Các phòng khám và tình trạng sử dụng (chỉ xem).",
+        ucs: "UC25, UC64",
+        description:
+          "Ca trực của bạn, các giờ còn nhận lịch khám và tình trạng các phòng khám.",
+        parts: [
+          {
+            title: "Lịch làm việc",
+            description: "Ca trực của bạn và các giờ còn nhận lịch khám.",
+            ucs: "UC25",
+          },
+          {
+            title: "Danh sách phòng",
+            description: "Các phòng khám và tình trạng sử dụng (chỉ xem).",
+            ucs: "UC64",
+          },
+        ],
       },
     ],
   },

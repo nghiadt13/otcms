@@ -8,10 +8,12 @@ import { SidebarTrigger } from "@/components/ui/sidebar";
 import { NotificationBell } from "@/features/notifications/components/NotificationBell";
 import { DOCTOR_ROUTES } from "@/lib/routes/doctorRoutes";
 import { findActiveBreadcrumb } from "../doctorNavigation";
+import { findVisitBreadcrumb } from "../doctorVisitNavigation";
 
 export function DoctorHeader() {
   const pathname = usePathname();
-  const breadcrumb = findActiveBreadcrumb(pathname);
+  const breadcrumb =
+    findVisitBreadcrumb(pathname) ?? findActiveBreadcrumb(pathname);
 
   return (
     <header className="flex h-14 shrink-0 items-center gap-2 border-b px-4">

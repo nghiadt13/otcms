@@ -1,6 +1,6 @@
 "use client";
 
-import { Bone } from "lucide-react";
+import { ArrowLeft, Bone } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
@@ -17,11 +17,21 @@ import {
 import { SidebarNavGroup } from "@/components/shell/SidebarNavGroup";
 import { DOCTOR_ROUTES } from "@/lib/routes/doctorRoutes";
 import { doctorNavGroups, findActiveNavItem } from "../doctorNavigation";
+import {
+  buildVisitSidebarGroups,
+  parseVisitPath,
+  visitHref,
+} from "../doctorVisitNavigation";
 import { DoctorAccountMenu } from "./DoctorAccountMenu";
 
 export function DoctorSidebar() {
   const pathname = usePathname();
-  const activeHref = findActiveNavItem(pathname)?.href;
+  // Mở một lượt khám thì sidebar đổi sang các màn của lượt khám đó (R3, màn 8–27).
+  const visit = parseVisitPath(pathname);
+  const groups = visit ? buildVisitSidebarGroups(visit.visitId) : doctorNavGroups;
+  const activeHref = visit
+    ? visitHref(visit.visitId, visit.section)
+    : findActiveNavItem(pathname)?.href;
   // Trạng thái do người dùng tự bấm; chưa bấm thì mọi nhóm mặc định mở.
   const [userOpen, setUserOpen] = useState<Record<string, boolean>>({});
 
@@ -55,7 +65,20 @@ export function DoctorSidebar() {
       </SidebarHeader>
 
       <SidebarContent>
-        {doctorNavGroups.map((group) => (
+        {visit ? (
+          <SidebarMenu className="px-2 pt-2">
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                render={<Link href={DOCTOR_ROUTES.todayPatients} />}
+                tooltip="Về bệnh nhân hôm nay"
+              >
+                <ArrowLeft />
+                <span>Bệnh nhân hôm nay</span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        ) : null}
+        {groups.map((group) => (
           <SidebarNavGroup
             key={group.label}
             group={group}
