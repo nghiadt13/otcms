@@ -62,17 +62,11 @@ class DiagnosticControllersT016Test {
     }
 
     @Test
-    void createRequestDelegatesAuthenticatedActorAndReturnsCreatedLocation() throws Exception {
+    void diagnosticControllerDoesNotExposeCompetingPublicCreateHandler() throws Exception {
         DiagnosticRequestService requests = mock(DiagnosticRequestService.class);
         DiagnosticStatusService statuses = mock(DiagnosticStatusService.class);
-        UUID requestId = UUID.randomUUID();
         UUID serviceId = UUID.randomUUID();
         UUID roomId = UUID.randomUUID();
-        var view = new DiagnosticRequestView(requestId, visitId, UUID.randomUUID(), actorId,
-                serviceId, roomId, "MRI", "Knee", "Pain", DiagnosticRequestStatus.PENDING,
-                null, null, null, 0, Instant.parse("2026-11-04T10:00:00Z"));
-        when(requests.create(eq(actor), eq(visitId), eq("create-1"), eq(serviceId), eq("MRI"),
-                eq("Knee"), eq("Pain"), eq(roomId), isNull(), eq("unknown"))).thenReturn(view);
         MockMvc mvc = MockMvcBuilders.standaloneSetup(
                 new DiagnosticRequestController(requests, statuses, new DiagnosticDtoMapper()))
                 .setCustomArgumentResolvers(new AuthenticationPrincipalArgumentResolver())
@@ -84,12 +78,9 @@ class DiagnosticControllersT016Test {
                         .contentType("application/json")
                         .content(objectMapper.writeValueAsBytes(new DiagnosticDtos.CreateRequest(
                                 serviceId, "MRI", "Knee", "Pain", roomId, null))))
-                .andExpect(status().isCreated())
-                .andExpect(header().string("Location", "/api/v1/imaging-requests/" + requestId))
-                .andExpect(jsonPath("$.requestId").value(requestId.toString()))
-                .andExpect(jsonPath("$.status").value("PENDING"));
+                .andExpect(status().isMethodNotAllowed());
 
-        verify(requests).create(actor, visitId, "create-1", serviceId, "MRI", "Knee", "Pain", roomId, null, "unknown");
+        org.mockito.Mockito.verifyNoInteractions(requests, statuses);
     }
 
     @Test

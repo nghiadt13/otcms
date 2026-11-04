@@ -54,12 +54,12 @@ class MedicalHistoryServiceTest {
         error("ACCESS_DENIED", () -> service.get(principal(role), target));
         verifyNoInteractions(histories, profiles, access, relations);
     }
-    @Test void temporaryAdapterRequiresActualActiveDoctor() {
+    @Test void retiredTemporaryAdapterCannotAuthorizeEvenAnActiveDoctor() {
         var adapter = new TemporaryR3DoctorCareRelationAdapter(doctors);
         assertFalse(adapter.isResponsibleDoctor(null, target));
         assertFalse(adapter.isResponsibleDoctor(actor, target));
         when(doctors.isActiveDoctorAccount(actor)).thenReturn(true);
-        assertTrue(adapter.isResponsibleDoctor(actor, target));
+        assertFalse(adapter.isResponsibleDoctor(actor, target));
         assertFalse(adapter.isResponsibleDoctor(actor, null));
     }
     @Test void staleWriteDoesNotReadOrReturnHistory() {

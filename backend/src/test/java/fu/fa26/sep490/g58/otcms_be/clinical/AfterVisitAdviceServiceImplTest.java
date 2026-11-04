@@ -244,6 +244,22 @@ class AfterVisitAdviceServiceImplTest {
         return new AfterVisitAdviceService.AdviceCommand(visitId, doctorId, home, activity, rehab, warnings, followUp);
     }
 
+    @Test void explicitFollowUpIndicationIsSavedReadAndPreservedWhenOmitted() {
+        existingExamination(ClinicalExaminationStatus.COMPLETED);
+        var view = service.recordAdvice(new AfterVisitAdviceService.AdviceCommand(visitId, doctorId,
+                null, null, null, null, "Review in two weeks", true));
+        assertEquals(true, view.followUpIndicated());
+        assertEquals(true, service.getAdvice(visitId, doctorId).followUpIndicated());
+        assertEquals(true, service.recordAdvice(command("Rest", null, null, null, null)).followUpIndicated());
+        assertEquals(false, service.recordAdvice(new AfterVisitAdviceService.AdviceCommand(visitId, doctorId,
+                "Rest", null, null, null, null, false)).followUpIndicated());
+    }
+
+    @Test void recommendationTextAloneDoesNotSetFollowUpBoolean() {
+        existingExamination(ClinicalExaminationStatus.COMPLETED);
+        assertNull(service.recordAdvice(command(null, null, null, null, "No follow-up required")).followUpIndicated());
+    }
+
     private void existingExamination(ClinicalExaminationStatus status) {
         var examination = ClinicalExaminationJpaEntity.create(visitId, null, null, null,
                 null, null, null, status, now);

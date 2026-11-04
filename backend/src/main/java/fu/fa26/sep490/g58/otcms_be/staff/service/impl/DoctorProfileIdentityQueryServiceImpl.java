@@ -20,4 +20,10 @@ public class DoctorProfileIdentityQueryServiceImpl implements DoctorProfileIdent
         if (accountId == null) return Optional.empty();
         return profiles.findByAccountId(accountId).map(profile -> profile.id());
     }
+
+    @Override
+    public Optional<UUID> findDoctorAccountId(UUID doctorProfileId) {
+        if (doctorProfileId == null) return Optional.empty();
+        return profiles.findById(doctorProfileId).map(profile -> profile.accountId());
+    }
 }

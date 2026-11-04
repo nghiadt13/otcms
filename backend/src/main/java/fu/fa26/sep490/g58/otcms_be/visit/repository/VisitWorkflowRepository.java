@@ -42,14 +42,13 @@ public class VisitWorkflowRepository {
     public FollowUpEvidenceRow findFollowUpEvidence(UUID visitId, UUID doctorId) {
         List<?> rows = entityManager.createNativeQuery("""
                 select v.patient_profile_id, v.originating_appointment_id,
-                    exists (select 1 from visit_assignments c where c.visit_id = v.id and c.doctor_profile_id = :doctorId and c.status <> 'RELEASED'),
-                    exists (select 1 from visit_examinations e where e.visit_id = v.id and e.doctor_profile_id = :doctorId and e.completed),
-                    exists (select 1 from visit_examinations e where e.visit_id = v.id and e.doctor_profile_id = :doctorId and e.completed and e.follow_up_indicated)
+                    exists (select 1 from visit_assignments c where c.visit_id = v.id and c.doctor_profile_id = :doctorId and c.status in ('IN_PROGRESS', 'COMPLETED'))
                 from visits v where v.id = :visitId
                 """).setParameter("doctorId", doctorId).setParameter("visitId", visitId).getResultList();
         if (rows.isEmpty()) return null;
         Object[] row = (Object[]) rows.getFirst();
-        return new FollowUpEvidenceRow((UUID) row[0], (UUID) row[1], (Boolean) row[2], (Boolean) row[3], (Boolean) row[4]);
+        // Clinical evidence is composed by the service through the Clinical public query, never this repository.
+        return new FollowUpEvidenceRow((UUID) row[0], (UUID) row[1], (Boolean) row[2], false, false);
     }
 
     public boolean lockScheduledVisit(UUID visitId, UUID appointmentId, UUID patientId) {
@@ -106,7 +105,6 @@ public class VisitWorkflowRepository {
                 update visits v set status = 'CLOSED', updated_at = :now
                 where v.id = :visitId and v.originating_appointment_id = :appointmentId and v.patient_profile_id = :patientId
                   and v.source = 'SCHEDULED' and v.status = 'OPEN'
-                  and not exists (select 1 from visit_examinations e where e.visit_id = v.id)
                   and not exists (select 1 from visit_assignments c where c.visit_id = v.id and c.status in ('IN_PROGRESS', 'COMPLETED'))
                 """).setParameter("now", Timestamp.from(command.occurredAt())).setParameter("visitId", command.visitId())
                 .setParameter("appointmentId", command.appointmentId()).setParameter("patientId", command.patientProfileId()).executeUpdate();

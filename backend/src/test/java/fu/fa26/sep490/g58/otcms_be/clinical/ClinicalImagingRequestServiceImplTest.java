@@ -26,6 +26,8 @@ class ClinicalImagingRequestServiceImplTest {
     private final OrderingRoundRepository rounds = mock(OrderingRoundRepository.class);
     private final ServiceOrderRepository orders = mock(ServiceOrderRepository.class);
     private final ClinicalImagingRequestReplayRepository replays = mock(ClinicalImagingRequestReplayRepository.class);
+    private final fu.fa26.sep490.g58.otcms_be.diagnostic.service.DiagnosticImagingRequestRegistration diagnostic =
+            mock(fu.fa26.sep490.g58.otcms_be.diagnostic.service.DiagnosticImagingRequestRegistration.class);
     private final Map<UUID, OrderingRoundJpaEntity> roundRows = new LinkedHashMap<>();
     private final Map<UUID, ServiceOrderJpaEntity> orderRows = new LinkedHashMap<>();
     private final Map<String, ClinicalImagingRequestReplayJpaEntity> replayRows = new HashMap<>();
@@ -182,7 +184,7 @@ class ClinicalImagingRequestServiceImplTest {
     private ClinicalImagingRequestService serviceUsing(ClinicServiceCatalogPort catalogPort) {
         var preparation = new ClinicalOrderPreparationService(visits, catalogPort);
         var writer = new ClinicalOrderingTransactionService(rounds, orders, clock);
-        return new ClinicalImagingRequestServiceImpl(new ClinicalImagingRequestTransactionService(preparation, writer, replays, rounds, orders, clock));
+        return new ClinicalImagingRequestServiceImpl(new ClinicalImagingRequestTransactionService(preparation, writer, replays, rounds, orders, clock, diagnostic));
     }
 
     private ImagingRequestCommand command(String key) { return new ImagingRequestCommand(visitId, doctorId, key, List.of(order())); }

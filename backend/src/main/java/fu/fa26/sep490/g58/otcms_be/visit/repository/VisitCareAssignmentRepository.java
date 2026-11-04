@@ -12,6 +12,13 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 public interface VisitCareAssignmentRepository extends JpaRepository<VisitCareAssignmentJpaEntity, UUID> {
+    @Query("""
+            select (count(a) > 0) from VisitCareAssignmentJpaEntity a join ClinicVisitJpaEntity v on v.id = a.visitId
+            where a.doctorProfileId = :doctorId and v.patientProfileId = :patientId
+                and a.status = 'IN_PROGRESS' and v.status = 'OPEN'
+            """)
+    boolean hasCurrentDoctorCare(@Param("doctorId") UUID doctorProfileId, @Param("patientId") UUID patientProfileId);
+
     interface DoctorActiveCareRow {
         UUID getVisitId();
         UUID getPatientProfileId();

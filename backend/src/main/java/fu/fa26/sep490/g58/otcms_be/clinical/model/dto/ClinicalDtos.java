@@ -30,9 +30,14 @@ public final class ClinicalDtos {
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record AdviceRequest(String homeCareAdvice, String activityAdvice, String rehabilitationAdvice,
-            String warningSigns, String followUpRecommendation) { }
+            String warningSigns, String followUpRecommendation, Boolean followUpIndicated) {
+        public AdviceRequest(String homeCareAdvice, String activityAdvice, String rehabilitationAdvice,
+                String warningSigns, String followUpRecommendation) {
+            this(homeCareAdvice, activityAdvice, rehabilitationAdvice, warningSigns, followUpRecommendation, null);
+        }
+    }
 
     public record AdviceResponse(UUID visitId, String homeCareAdvice, String activityAdvice,
             String rehabilitationAdvice, String warningSigns, String followUpRecommendation,
-            ClinicalExaminationStatus examinationStatus, Instant updatedAt, Long version) { }
+            ClinicalExaminationStatus examinationStatus, Instant updatedAt, Long version, Boolean followUpIndicated) { }
 }

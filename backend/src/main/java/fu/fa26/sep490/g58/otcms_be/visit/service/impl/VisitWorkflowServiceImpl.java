@@ -29,9 +29,12 @@ public class VisitWorkflowServiceImpl implements VisitWorkflowService, Reception
     private final VisitWorkflowRepository workflowRepository;
     private final Clock clock;
     private final VisitRoomCapacityService rooms;
+    private final fu.fa26.sep490.g58.otcms_be.clinical.service.ClinicalFollowUpEvidenceQueryService clinical;
 
-    public VisitWorkflowServiceImpl(VisitWorkflowRepository workflowRepository, Clock clock, VisitRoomCapacityService rooms) {
+    public VisitWorkflowServiceImpl(VisitWorkflowRepository workflowRepository, Clock clock, VisitRoomCapacityService rooms,
+            fu.fa26.sep490.g58.otcms_be.clinical.service.ClinicalFollowUpEvidenceQueryService clinical) {
         this.workflowRepository = workflowRepository; this.clock = clock; this.rooms = rooms;
+        this.clinical = clinical;
     }
 
     @Override
@@ -39,8 +42,10 @@ public class VisitWorkflowServiceImpl implements VisitWorkflowService, Reception
     public FollowUpEvidence requireFollowUpEvidence(UUID visitId, UUID authenticatedDoctorProfileId) {
         VisitWorkflowRepository.FollowUpEvidenceRow row = workflowRepository.findFollowUpEvidence(visitId, authenticatedDoctorProfileId);
         if (row == null) throw new VisitEvidenceException("SOURCE_VISIT_NOT_FOUND");
+        if (!row.assigned()) throw new VisitEvidenceException("SOURCE_VISIT_NOT_FOUND");
+        var examination = clinical.getEvidence(visitId);
         return new FollowUpEvidence(visitId, row.patientProfileId(), authenticatedDoctorProfileId,
-                row.assigned(), row.examinationCompleted(), row.followUpIndicated(), row.originatingAppointmentId(), clock.instant());
+                row.assigned(), examination.examinationCompleted(), examination.followUpIndicated(), row.originatingAppointmentId(), clock.instant());
     }
 
     @Override
@@ -97,6 +102,7 @@ public class VisitWorkflowServiceImpl implements VisitWorkflowService, Reception
         validateScheduledCare(command);
         if (!workflowRepository.lockScheduledVisit(command.visitId(), command.appointmentId(), command.patientProfileId()))
             throw new VisitWorkflowException("VISIT_LINK_CONFLICT");
+        if (clinical.getEvidence(command.visitId()).examinationExists()) throw new VisitWorkflowException("VISIT_CANCELLATION_NOT_ALLOWED");
         if (!workflowRepository.closeCancellableVisit(persistenceData(command))) throw new VisitWorkflowException("VISIT_CANCELLATION_NOT_ALLOWED");
         workflowRepository.releaseReservedCare(command.visitId(), command.occurredAt());
     }

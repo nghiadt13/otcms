@@ -20,6 +20,7 @@ public class ClinicalExaminationJpaEntity {
     @Column(name="rehabilitation_advice", columnDefinition="text") private String rehabilitationAdvice;
     @Column(name="warning_signs", columnDefinition="text") private String warningSigns;
     @Column(name="follow_up_recommendation", columnDefinition="text") private String followUpRecommendation;
+    @Column(name="follow_up_indicated") private Boolean followUpIndicated;
     @Enumerated(EnumType.STRING) @Column(nullable=false, length=16) private ClinicalExaminationStatus status;
     @Column(name="created_at", nullable=false) private Instant createdAt;
     @Column(name="updated_at", nullable=false) private Instant updatedAt;
@@ -47,5 +48,7 @@ public class ClinicalExaminationJpaEntity {
     public String getHomeCareAdvice(){return homeCareAdvice;} public String getActivityAdvice(){return activityAdvice;}
     public String getRehabilitationAdvice(){return rehabilitationAdvice;} public String getWarningSigns(){return warningSigns;}
     public String getFollowUpRecommendation(){return followUpRecommendation;}
+    public Boolean getFollowUpIndicated(){return followUpIndicated;}
+    public void setFollowUpIndicated(Boolean indicated){followUpIndicated=indicated;}
     public Instant getCreatedAt(){return createdAt;} public Instant getUpdatedAt(){return updatedAt;} public Long getVersion(){return version;}
 }

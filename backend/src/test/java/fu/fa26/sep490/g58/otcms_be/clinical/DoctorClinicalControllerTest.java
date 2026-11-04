@@ -163,7 +163,7 @@ class DoctorClinicalControllerTest {
                 .andExpect(jsonPath("$.updatedAt").value(now.toString())).andExpect(jsonPath("$.version").value(3))
                 .andReturn().getResponse().getContentAsString();
         assertFields(body, Set.of("visitId", "homeCareAdvice", "activityAdvice", "rehabilitationAdvice", "warningSigns",
-                "followUpRecommendation", "examinationStatus", "updatedAt", "version"));
+                "followUpRecommendation", "examinationStatus", "updatedAt", "version", "followUpIndicated"));
         verify(advice).getAdvice(visitId, doctorId);
     }
 
@@ -262,7 +262,7 @@ class DoctorClinicalControllerTest {
                 "injuryBodySite", "injurySide", "injuryMechanism", "diagnoses"));
         assertRecordFields(DiagnosisRequest.class, Set.of("code", "type"));
         assertRecordFields(AdviceRequest.class, Set.of("homeCareAdvice", "activityAdvice", "rehabilitationAdvice",
-                "warningSigns", "followUpRecommendation"));
+                "warningSigns", "followUpRecommendation", "followUpIndicated"));
     }
 
     @Test void actualDomainVisitGuardsReachCurrentHttpErrorsWithoutWrites() throws Exception {

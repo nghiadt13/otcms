@@ -27,6 +27,18 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
         ClinicalImagingRequestController.class, DoctorActiveVisitController.class})
 @Order(Ordered.HIGHEST_PRECEDENCE)
 public class ClinicalApiExceptionHandler {
+    @ExceptionHandler(fu.fa26.sep490.g58.otcms_be.diagnostic.exception.DiagnosticOperationException.class)
+    public ResponseEntity<ErrorResponse> registration(
+            fu.fa26.sep490.g58.otcms_be.diagnostic.exception.DiagnosticOperationException error, HttpServletRequest request) {
+        return switch (error.outcome()) {
+            case UNAUTHORIZED_RECORD -> problem(403, "MSG-40", List.of(), request);
+            case RECORD_NOT_FOUND -> problem(404, "MSG-41", List.of(), request);
+            case VISIT_NOT_ELIGIBLE, STATE_CONFLICT, VERSION_CONFLICT -> problem(409, "MSG-42", List.of(), request);
+            case SERVICE_NOT_ELIGIBLE, EVIDENCE_MISMATCH -> problem(400, "MSG-39", List.of(), request);
+            default -> problem(503, "DEPENDENCY_UNAVAILABLE", List.of(), request);
+        };
+    }
+
     @ExceptionHandler(ClinicalOperationException.class)
     public ResponseEntity<ErrorResponse> business(ClinicalOperationException error, HttpServletRequest request) {
         int status = switch (error.code()) {

@@ -51,21 +51,6 @@ public class DiagnosticRequestController {
         this.mapper = mapper;
     }
 
-    @PostMapping("/visits/{visitId}/imaging-requests")
-    @Operation(operationId = "createImagingRequest", summary = "Create and reserve an imaging request")
-    public ResponseEntity<ImagingRequest> create(
-            @Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedAccount principal,
-            @PathVariable UUID visitId,
-            @RequestHeader("Idempotency-Key") String idempotencyKey,
-            @Valid @RequestBody DiagnosticDtos.CreateRequest body,
-            HttpServletRequest request) {
-        DiagnosticRequestView created = requests.create(actor(principal), visitId, idempotencyKey,
-                body.serviceId(), body.imagingType(), body.bodyArea(), body.clinicalReason(), body.roomId(),
-                body.serviceOrderId(), CorrelationIdFilter.current(request));
-        return ResponseEntity.created(URI.create("/api/v1/imaging-requests/" + created.requestId()))
-                .body(mapper.toImagingRequest(created));
-    }
-
     @GetMapping("/visits/{visitId}/imaging-requests")
     @Operation(operationId = "listVisitImagingRequests", summary = "List operational status for a responsible Visit actor")
     public OperationalStatusPage listByVisit(

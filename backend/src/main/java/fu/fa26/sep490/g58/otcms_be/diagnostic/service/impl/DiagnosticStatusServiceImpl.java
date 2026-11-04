@@ -7,6 +7,7 @@ import fu.fa26.sep490.g58.otcms_be.diagnostic.integration.DiagnosticPortModels.V
 import fu.fa26.sep490.g58.otcms_be.diagnostic.integration.DiagnosticPortModels.VisitStatusResponsibility;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.integration.RoomStatusAccessPort;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.integration.VisitDiagnosticPort;
+import fu.fa26.sep490.g58.otcms_be.diagnostic.integration.VisitDiagnosticReadPort;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.model.DiagnosticActor;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.model.DiagnosticOperationalStatus;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.model.DiagnosticOperationalStatusPage;
@@ -36,11 +37,11 @@ public class DiagnosticStatusServiceImpl implements DiagnosticStatusService {
             List.of(DiagnosticRequestStatus.PENDING, DiagnosticRequestStatus.IN_PROGRESS);
 
     private final DiagnosticRequestJpaRepository requests;
-    private final ObjectProvider<VisitDiagnosticPort> visitPorts;
+    private final ObjectProvider<? extends VisitDiagnosticReadPort> visitPorts;
     private final ObjectProvider<RoomStatusAccessPort> roomPorts;
 
     public DiagnosticStatusServiceImpl(DiagnosticRequestJpaRepository requests,
-            ObjectProvider<VisitDiagnosticPort> visitPorts,
+            ObjectProvider<? extends VisitDiagnosticReadPort> visitPorts,
             ObjectProvider<RoomStatusAccessPort> roomPorts) {
         this.requests = Objects.requireNonNull(requests, "requests");
         this.visitPorts = Objects.requireNonNull(visitPorts, "visitPorts");
@@ -82,6 +83,7 @@ public class DiagnosticStatusServiceImpl implements DiagnosticStatusService {
                     : requests.findAllByRoomIdAndStatusInOrderByCreatedAtDescIdDesc(
                             roomId, ACTIVE_UPLOAD_STATUSES, pageable);
             for (DiagnosticRequestJpaEntity request : batch.getContent()) {
+                if (request.getRoomId() == null) continue;
                 boolean assigned = roomAssignments.computeIfAbsent(request.getRoomId(), ignored -> {
                     TechnicianRoomAssignment assignment = authorizeRoom(request.getRoomId(), actor.accountId());
                     return assignment.active() && request.getRoomId().equals(assignment.roomId())
@@ -101,6 +103,7 @@ public class DiagnosticStatusServiceImpl implements DiagnosticStatusService {
         DiagnosticRequestJpaEntity request = requests.findById(requestId).orElseThrow(this::unavailable);
         if (actor == null || actor.kind() != DiagnosticActor.Kind.USER) throw unavailable();
         if (actor.role() == AccountRole.IMAGING_TECHNICIAN) {
+            if (request.getRoomId() == null) throw unavailable();
             if (!ACTIVE_UPLOAD_STATUSES.contains(request.getStatus())) throw unavailable();
             TechnicianRoomAssignment assignment = authorizeRoom(request.getRoomId(), actor.accountId());
             if (!assignment.active() || !request.getRoomId().equals(assignment.roomId())
@@ -118,7 +121,7 @@ public class DiagnosticStatusServiceImpl implements DiagnosticStatusService {
     private VisitStatusAuthorization authorizeVisit(UUID visitId, DiagnosticActor actor,
             VisitStatusResponsibility responsibility) {
         if (visitId == null || actor == null || actor.kind() != DiagnosticActor.Kind.USER) throw unavailable();
-        VisitDiagnosticPort port = visitPorts.getIfAvailable();
+        VisitDiagnosticReadPort port = visitPorts.getIfAvailable();
         if (port == null) throw unavailable();
         try {
             VisitStatusAuthorization authorization = port.authorizeImagingStatus(visitId, actor.accountId(), responsibility);

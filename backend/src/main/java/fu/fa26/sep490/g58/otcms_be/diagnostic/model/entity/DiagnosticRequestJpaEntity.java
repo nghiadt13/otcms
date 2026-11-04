@@ -23,19 +23,21 @@ public class DiagnosticRequestJpaEntity {
     @Column(name = "patient_id", nullable = false)
     private UUID patientId;
 
+    /** Authenticated Doctor account ID, not doctor_profiles.id. Kept for persisted/API compatibility. */
     @Column(name = "ordering_doctor_id", nullable = false)
     private UUID orderingDoctorId;
 
     @Column(name = "service_id", nullable = false)
     private UUID serviceId;
 
-    @Column(name = "room_id", nullable = false)
+    /** Null while PENDING awaiting separate UC24 room assignment. */
+    @Column(name = "room_id")
     private UUID roomId;
 
     @Column(name = "imaging_type", nullable = false, length = 80)
     private String imagingType;
 
-    @Column(name = "body_area", nullable = false, length = 120)
+    @Column(name = "body_area", nullable = false, length = 255)
     private String bodyArea;
 
     @Column(name = "clinical_reason", nullable = false, columnDefinition = "text")

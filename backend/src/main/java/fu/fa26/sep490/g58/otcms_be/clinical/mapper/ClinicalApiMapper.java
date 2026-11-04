@@ -26,12 +26,12 @@ public final class ClinicalApiMapper {
 
     public static AfterVisitAdviceService.AdviceCommand command(UUID visitId, UUID doctorId, AdviceRequest body) {
         return new AfterVisitAdviceService.AdviceCommand(visitId, doctorId, body.homeCareAdvice(),
-                body.activityAdvice(), body.rehabilitationAdvice(), body.warningSigns(), body.followUpRecommendation());
+                body.activityAdvice(), body.rehabilitationAdvice(), body.warningSigns(), body.followUpRecommendation(), body.followUpIndicated());
     }
 
     public static AdviceResponse response(AfterVisitAdviceService.AdviceView view) {
         return new AdviceResponse(view.visitId(), view.homeCareAdvice(), view.activityAdvice(),
                 view.rehabilitationAdvice(), view.warningSigns(), view.followUpRecommendation(),
-                view.examinationStatus(), view.updatedAt(), view.version());
+                view.examinationStatus(), view.updatedAt(), view.version(), view.followUpIndicated());
     }
 }

@@ -36,6 +36,7 @@ public class AfterVisitAdviceServiceImpl implements AfterVisitAdviceService {
                 .orElseThrow(() -> new ClinicalOperationException("MSG-41"));
         examination.updateAfterVisitAdvice(command.homeCareAdvice(), command.activityAdvice(),
                 command.rehabilitationAdvice(), command.warningSigns(), command.followUpRecommendation(), now);
+        if (command.followUpIndicated() != null) examination.setFollowUpIndicated(command.followUpIndicated());
         examination = examinations.save(examination);
         return view(examination);
     }
@@ -63,7 +64,7 @@ public class AfterVisitAdviceServiceImpl implements AfterVisitAdviceService {
         return new AdviceView(examination.getVisitId(), examination.getHomeCareAdvice(),
                 examination.getActivityAdvice(), examination.getRehabilitationAdvice(),
                 examination.getWarningSigns(), examination.getFollowUpRecommendation(),
-                examination.getStatus(), examination.getUpdatedAt(), examination.getVersion());
+                examination.getStatus(), examination.getUpdatedAt(), examination.getVersion(), examination.getFollowUpIndicated());
     }
 
     private static boolean hasAdvice(AdviceCommand command) {

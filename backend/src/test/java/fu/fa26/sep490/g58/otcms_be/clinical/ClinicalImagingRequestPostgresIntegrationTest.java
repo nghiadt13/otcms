@@ -26,13 +26,26 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 class ClinicalImagingRequestPostgresIntegrationTest {
     @MockitoBean VisitClinicalContextPort visits;
     @MockitoBean ClinicServiceCatalogPort catalog;
+    // Isolate external owner reads; registration, Clinical persistence and Diagnostic persistence stay real.
+    @MockitoBean fu.fa26.sep490.g58.otcms_be.diagnostic.integration.VisitDiagnosticReadPort diagnosticVisits;
+    @MockitoBean fu.fa26.sep490.g58.otcms_be.diagnostic.integration.ImagingServiceCatalogPort imagingCatalog;
+    @MockitoBean fu.fa26.sep490.g58.otcms_be.staff.service.DoctorProfileIdentityQueryService doctorIdentities;
+    @MockitoBean fu.fa26.sep490.g58.otcms_be.auth.service.DoctorAccountAccessService doctorAccounts;
     @Autowired ClinicalImagingRequestService service;
     @Autowired JdbcTemplate jdbc;
     private final UUID doctorId = UUID.randomUUID(), patientId = UUID.randomUUID(), serviceId = UUID.randomUUID();
     private final UUID visitId = UUID.randomUUID();
+    private final UUID doctorAccountId = UUID.randomUUID();
     private final String key = "uc38-" + UUID.randomUUID();
 
     @BeforeEach void setUp() {
+        when(doctorIdentities.findDoctorAccountId(doctorId)).thenReturn(java.util.Optional.of(doctorAccountId));
+        when(doctorAccounts.isActiveDoctorAccount(doctorAccountId)).thenReturn(true);
+        when(diagnosticVisits.requireImagingOrderEligibility(any(), eq(doctorAccountId))).thenAnswer(call ->
+                new fu.fa26.sep490.g58.otcms_be.diagnostic.integration.DiagnosticPortModels.VisitEvidence(
+                        call.getArgument(0), patientId, doctorAccountId, true, true, true));
+        when(imagingCatalog.requireImagingService(eq(serviceId), isNull())).thenReturn(
+                new fu.fa26.sep490.g58.otcms_be.diagnostic.integration.DiagnosticPortModels.ImagingService(serviceId, "MRI", true));
         when(visits.getVisitContext(any())).thenAnswer(invocation ->
                 new VisitClinicalContextPort.ClinicalVisitContext(invocation.getArgument(0), patientId, doctorId, true));
         when(catalog.getService(serviceId)).thenReturn(new ClinicServiceCatalogPort.ClinicalServiceSnapshot(
@@ -103,11 +116,24 @@ class ClinicalImagingRequestPostgresIntegrationTest {
                 List.of(new ImagingOrderRequest(serviceId, "Reason", "RIGHT_KNEE", null)));
     }
     private void assertCounts(int count) {
+        assertEquals(count, jdbc.queryForObject("select count(*) from diagnostic_requests where ordering_doctor_id = ? and service_order_id is not null",
+                Integer.class, doctorAccountId));
+        assertEquals(0, jdbc.queryForObject("select count(*) from diagnostic_requests where ordering_doctor_id = ? and room_id is not null",
+                Integer.class, doctorAccountId));
         assertEquals(count, jdbc.queryForObject("select count(*) from clinical_imaging_request_replays where doctor_profile_id = ?",
                 Integer.class, doctorId));
         assertEquals(count, jdbc.queryForObject("select count(*) from clinical_ordering_rounds where ordered_by_doctor_id = ?",
                 Integer.class, doctorId));
         assertEquals(count, jdbc.queryForObject("select count(*) from clinical_service_orders where requesting_doctor_id = ?",
                 Integer.class, doctorId));
+    }
+
+    @Test void diagnosticRegistrationFailureRollsBackRoundOrdersAndReplay() {
+        when(imagingCatalog.requireImagingService(eq(serviceId), isNull())).thenThrow(
+                new fu.fa26.sep490.g58.otcms_be.diagnostic.exception.DiagnosticOperationException(
+                        fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.enums.DiagnosticOperationOutcome.SERVICE_NOT_ELIGIBLE));
+        assertThrows(fu.fa26.sep490.g58.otcms_be.diagnostic.exception.DiagnosticOperationException.class,
+                () -> service.submit(command(visitId, key)));
+        assertCounts(0);
     }
 }

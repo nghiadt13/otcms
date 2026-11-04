@@ -120,6 +120,7 @@ public class DiagnosticEvidenceServiceImpl implements DiagnosticEvidenceService 
 
         DiagnosticRequestJpaEntity request = requests.findByIdForUpdate(evidence.requestId())
                 .orElseThrow(() -> new DiagnosticOperationException(DiagnosticOperationOutcome.RECORD_NOT_FOUND));
+        if (request.getRoomId() == null) throw new DiagnosticOperationException(DiagnosticOperationOutcome.ROOM_NOT_READY);
 
         Optional<DiagnosticAttemptJpaEntity> concurrentFirstUse = attempts.findByFirstUseEventId(evidence.eventId());
         if (concurrentFirstUse.isPresent()) {
