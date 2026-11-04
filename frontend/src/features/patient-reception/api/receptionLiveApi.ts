@@ -247,3 +247,95 @@ export function createReceptionWalkIn(input: {
     }),
   });
 }
+
+export interface PendingReceptionCareLink {
+  linkId: string;
+  fullName: string;
+  dateOfBirth: string;
+  nationalId: string | null;
+  identityDocumentType: string | null;
+  relationship: "PARENT" | "CHILD" | "SPOUSE" | "SIBLING";
+}
+
+export function listPendingReceptionCareLinks(
+  query: string,
+  signal?: AbortSignal,
+) {
+  const params = toQueryString({ query: query.trim() || undefined });
+  return apiRequest<{ items: PendingReceptionCareLink[] }>(
+    `/api/v1/care-links/pending${params}`,
+    { signal },
+  );
+}
+
+export function decideReceptionCareLink(linkId: string, confirmed: boolean) {
+  const action = confirmed ? "counter-confirmation" : "counter-rejection";
+  return apiRequest<unknown>(
+    `/api/v1/care-links/${encodeURIComponent(linkId)}/${action}`,
+    {
+      method: "POST",
+      ...(confirmed ? { body: JSON.stringify({ identityChecked: true }) } : {}),
+    },
+  );
+}
+
+export interface ReceptionProfileFields {
+  fullName: string;
+  dateOfBirth: string;
+  phone: string;
+  phoneOwnerType: string;
+  gender: string;
+  address: string | null;
+  nationalId: string | null;
+  identityDocumentType: string | null;
+}
+
+export interface ReceptionAdministrativeProfile extends Omit<
+  ReceptionProfileFields,
+  "phone"
+> {
+  patientProfileId: string;
+  phoneCanonical: string | null;
+  hasAccount: boolean;
+  version: number;
+}
+
+export function matchReceptionProfiles(
+  phone: string,
+  dateOfBirth: string,
+  signal?: AbortSignal,
+) {
+  const params = toQueryString({ phone, dateOfBirth });
+  return apiRequest<{ items: ReceptionPatient[] }>(
+    `/api/v1/patient-profiles/matches${params}`,
+    { signal },
+  ).then(({ items }) => items);
+}
+
+export function getReceptionAdministrativeProfile(
+  id: string,
+  signal?: AbortSignal,
+) {
+  return apiRequest<ReceptionAdministrativeProfile>(
+    `/api/v1/patient-profiles/${encodeURIComponent(id)}`,
+    { signal },
+  );
+}
+
+export function createReceptionProfile(input: ReceptionProfileFields) {
+  return apiRequest<ReceptionPatient>("/api/v1/patient-profiles", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export function updateReceptionProfile(
+  id: string,
+  version: number,
+  input: ReceptionProfileFields,
+) {
+  return apiRequest<ReceptionAdministrativeProfile>(
+    `/api/v1/patient-profiles/${encodeURIComponent(id)}`,
+    { method: "PUT", body: JSON.stringify({ ...input, version }) },
+  );
+}

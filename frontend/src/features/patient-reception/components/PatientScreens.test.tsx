@@ -1,4 +1,3 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   fireEvent,
   render,
@@ -6,168 +5,151 @@ import {
   waitFor,
   within,
 } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { ReceptionProvider } from "./ReceptionProvider";
-import { ReceptionScreen } from "./ReceptionScreen";
-import { createReceptionSeed } from "../api/receptionSeed";
-import { loadReception, resetReceptionMock } from "../api/receptionApi";
+import { beforeEach, expect, it, vi } from "vitest";
+import { apiRequest } from "@/lib/api/client";
+import { ApiError } from "@/lib/api/apiError";
 import { formatAppMessage } from "@/lib/messages/appMessages";
+import { PatientSearchScreen } from "./PatientScreens";
 
-vi.mock("next/navigation", () => ({
-  useSearchParams: () => new URLSearchParams(),
-  useRouter: () => ({ push: vi.fn() }),
+vi.mock("@/lib/api/client", () => ({ apiRequest: vi.fn() }));
+vi.mock("./ReceptionProvider", () => ({
+  useReception: () => ({ pending: false }),
 }));
-vi.mock("sonner", () => ({
-  toast: { success: vi.fn(), warning: vi.fn(), error: vi.fn() },
-}));
-beforeEach(() => resetReceptionMock(createReceptionSeed("2026-10-27")));
-async function mount() {
-  render(
-    <ReceptionProvider>
-      <ReceptionScreen section="patients" />
-    </ReceptionProvider>,
-  );
-  await screen.findByRole("heading", { name: "Hồ sơ bệnh nhân" });
-}
-function search(q: string) {
-  fireEvent.change(
-    screen.getByLabelText("Tên, số điện thoại hoặc mã bệnh nhân"),
-    { target: { value: q } },
-  );
+vi.mock("@/lib/messages/notify", () => ({ notifySuccess: vi.fn() }));
+const request = vi.mocked(apiRequest);
+const patient = {
+  patientProfileId: "patient-1",
+  fullName: "Trần Văn Bình",
+  phoneCanonical: "+84900000002",
+  dateOfBirth: "1948-08-12",
+};
+const profile = {
+  ...patient,
+  phoneOwnerType: "PATIENT",
+  gender: "MALE",
+  address: "Hà Nội",
+  identityDocumentType: null,
+  nationalId: null,
+  version: 2,
+};
+
+beforeEach(() => vi.resetAllMocks());
+
+function search(keyword: string, dob?: string) {
+  fireEvent.change(screen.getByLabelText("Tên hoặc số điện thoại"), {
+    target: { value: keyword },
+  });
+  if (dob)
+    fireEvent.change(screen.getByLabelText("Ngày sinh"), {
+      target: { value: dob },
+    });
   fireEvent.click(screen.getByRole("button", { name: "Tìm bệnh nhân" }));
 }
-function fillProfile(
-  dialog: HTMLElement,
-  input: { name: string; dob: string; phone: string },
-) {
+
+it.each(["Bình", "binh", "0900000002", "+84 900 000 002"])(
+  "gửi tra cứu %s đến backend",
+  async (keyword) => {
+    request.mockResolvedValueOnce({ content: [patient] });
+    render(<PatientSearchScreen />);
+    search(keyword);
+    expect(await screen.findByText(patient.fullName)).toBeInTheDocument();
+    expect(
+      new URL(request.mock.calls[0][0], "http://example.test").searchParams.get(
+        "query",
+      ),
+    ).toBe(keyword);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  },
+);
+
+it("đối chiếu chính xác số điện thoại và ngày sinh rồi lưu với version đã tải", async () => {
+  request
+    .mockResolvedValueOnce({ items: [patient] })
+    .mockResolvedValueOnce(profile)
+    .mockResolvedValueOnce({ ...profile, address: "Hải Phòng", version: 3 });
+  render(<PatientSearchScreen />);
+  search("0900000002", patient.dateOfBirth);
+  fireEvent.click(await screen.findByRole("button", { name: "Mở hồ sơ" }));
+  const address = await screen.findByLabelText("Địa chỉ");
+  fireEvent.change(address, { target: { value: "Hải Phòng" } });
+  fireEvent.click(screen.getByRole("button", { name: "Lưu hồ sơ" }));
+  await waitFor(() => expect(request).toHaveBeenCalledTimes(3));
+  expect(request.mock.calls[0][0]).toBe(
+    "/api/v1/patient-profiles/matches?phone=0900000002&dateOfBirth=1948-08-12",
+  );
+  expect(request.mock.calls[2][0]).toBe("/api/v1/patient-profiles/patient-1");
+  expect(JSON.parse(String(request.mock.calls[2][1]?.body))).toMatchObject({
+    version: 2,
+    address: "Hải Phòng",
+  });
+  expect(screen.queryByText(/dị ứng|tiền sử/i)).not.toBeInTheDocument();
+});
+
+it("tạo hồ sơ trực tiếp khi chưa tra cứu và truyền ID thật sang Tiếp nhận", async () => {
+  request.mockResolvedValueOnce(patient).mockResolvedValueOnce(profile);
+  render(<PatientSearchScreen />);
+  expect(request).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole("button", { name: "Tạo hồ sơ" }));
+  const dialog = screen.getByRole("dialog");
   for (const [label, value] of [
-    ["Họ và tên *", input.name],
-    ["Ngày sinh *", input.dob],
-    ["Số điện thoại *", input.phone],
-    ["Địa chỉ *", "Địa chỉ mẫu kiểm thử"],
-  ]) {
-    fireEvent.change(within(dialog).getByLabelText(label), {
+    ["Họ và tên", patient.fullName],
+    ["Ngày sinh", patient.dateOfBirth],
+    ["Giới tính", "MALE"],
+    ["Số điện thoại", "0900000002"],
+    ["Địa chỉ", "Hà Nội"],
+  ])
+    fireEvent.change(within(dialog).getByLabelText(label, { exact: true }), {
       target: { value },
     });
-  }
-}
+  fireEvent.click(within(dialog).getByRole("button", { name: "Lưu hồ sơ" }));
+  expect(
+    await screen.findByRole("link", { name: "Tiếp nhận" }),
+  ).toHaveAttribute("href", "/reception?patientId=patient-1");
+  expect(request.mock.calls[0][0]).toBe("/api/v1/patient-profiles");
+  expect(JSON.parse(String(request.mock.calls[0][1]?.body))).not.toHaveProperty(
+    "accountId",
+  );
+});
 
-describe("patient search and walk-in creation with the real mock adapter", () => {
-  it.each(["Bình", "binh", "0900000002", "+84 900 000 002", "bn-0002"])(
-    "finds the patient using only %s",
-    async (q) => {
-      await mount();
-      search(q);
-      expect(screen.getByText("Trần Văn Bình")).toBeInTheDocument();
-      expect(screen.getByText("12/08/1948")).toBeInTheDocument();
-      expect(screen.queryByText("Nguyễn Minh Anh")).not.toBeInTheDocument();
-      expect(screen.getByRole("status")).toHaveTextContent("1 hồ sơ phù hợp");
+it("hiện lỗi khi đối chiếu trùng nhiều hồ sơ", async () => {
+  request.mockRejectedValueOnce(
+    new ApiError(409, { errorCode: "PATIENT_MATCH_AMBIGUOUS" }),
+  );
+  render(<PatientSearchScreen />);
+  search("0900000002", patient.dateOfBirth);
+  expect(await screen.findByRole("alert")).toHaveTextContent(
+    formatAppMessage("MSG-18"),
+  );
+});
+
+it("chỉ gửi xác nhận liên kết sau khi lễ tân xác nhận đã kiểm giấy tờ", async () => {
+  request
+    .mockResolvedValueOnce({
+      items: [
+        {
+          ...patient,
+          linkId: "link-1",
+          relationship: "CHILD",
+          nationalId: "123",
+        },
+      ],
+    })
+    .mockResolvedValueOnce({ result: "LINKED" });
+  render(<PatientSearchScreen />);
+  fireEvent.click(screen.getByRole("button", { name: "Xem yêu cầu chờ" }));
+  fireEvent.click(await screen.findByRole("button", { name: "Xác minh" }));
+  expect(request).toHaveBeenCalledTimes(1);
+  fireEvent.click(
+    screen.getByRole("button", { name: "Xác nhận đã kiểm giấy tờ" }),
+  );
+  expect(
+    await screen.findByText("Không có yêu cầu đang chờ xác nhận."),
+  ).toBeInTheDocument();
+  expect(request).toHaveBeenLastCalledWith(
+    "/api/v1/care-links/link-1/counter-confirmation",
+    {
+      method: "POST",
+      body: JSON.stringify({ identityChecked: true }),
     },
   );
-  it("shows candidates for a shared name/phone and uses birthdate to narrow them without selecting automatically", async () => {
-    const state = createReceptionSeed("2026-10-27");
-    state.patients.push({
-      ...state.patients[1],
-      id: "BN0010",
-      name: "Lê Quốc Bình",
-      dob: "1990-05-05",
-    });
-    resetReceptionMock(state);
-    await mount();
-    search("Bình");
-    expect(screen.getAllByRole("button", { name: "Mở hồ sơ" })).toHaveLength(2);
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText("Ngày sinh (không bắt buộc)"), {
-      target: { value: "1948-08-12" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Tìm bệnh nhân" }));
-    expect(screen.getAllByRole("button", { name: "Mở hồ sơ" })).toHaveLength(1);
-    expect(screen.queryByText("Lê Quốc Bình")).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Xóa bộ lọc" }));
-    expect(screen.queryByText("Trần Văn Bình")).not.toBeInTheDocument();
-    search("0900000002");
-    expect(screen.getAllByRole("button", { name: "Mở hồ sơ" })).toHaveLength(2);
-    const row = screen.getByText("Lê Quốc Bình").closest("tr")!;
-    fireEvent.click(within(row).getByRole("button", { name: "Mở hồ sơ" }));
-    const dialog = await screen.findByRole("dialog", { name: "Lê Quốc Bình" });
-    expect(within(dialog).getByText(/05\/05\/1990/)).toBeInTheDocument();
-    expect(
-      within(dialog).queryByText(/dị ứng|tiền sử/i),
-    ).not.toBeInTheDocument();
-  });
-  it("keeps creation available for an empty or invalid search without showing all patient records", async () => {
-    await mount();
-    expect(screen.getByRole("button", { name: "Tạo hồ sơ" })).toBeEnabled();
-    expect(screen.queryByText("Trần Văn Bình")).not.toBeInTheDocument();
-    search("Bình");
-    expect(screen.getByText("Trần Văn Bình")).toBeInTheDocument();
-    search("---");
-    expect(screen.queryByText("Trần Văn Bình")).not.toBeInTheDocument();
-    expect(screen.getByRole("alert")).toHaveTextContent(
-      formatAppMessage("MSG-54"),
-    );
-    fireEvent.click(screen.getByRole("button", { name: "Tạo hồ sơ" }));
-    const dialog = await screen.findByRole("dialog", {
-      name: "Tạo hồ sơ khám trực tiếp",
-    });
-    expect(within(dialog).getByLabelText("Số điện thoại *")).toHaveValue("");
-    expect(
-      within(dialog).getByRole("button", { name: "Tạo hồ sơ" }),
-    ).toBeDisabled();
-  });
-  it("creates a profile without a prior lookup and shows the new record after saving", async () => {
-    const user = userEvent.setup();
-    await mount();
-    fireEvent.click(screen.getByRole("button", { name: "Tạo hồ sơ" }));
-    const dialog = await screen.findByRole("dialog");
-    fillProfile(dialog, {
-      name: "Bệnh Nhân Mới",
-      dob: "1990-05-05",
-      phone: "0900000088",
-    });
-    await user.click(within(dialog).getByRole("checkbox"));
-    await user.click(within(dialog).getByRole("button", { name: "Tạo hồ sơ" }));
-    await waitFor(() =>
-      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
-    );
-    expect(screen.getByText("Bệnh Nhân Mới")).toBeInTheDocument();
-    const state = await loadReception();
-    expect(state.patients).toHaveLength(10);
-    expect(state.patients[0].name).toBe("Bệnh Nhân Mới");
-  });
-  it("rejects duplicate creation even when the form is opened before searching", async () => {
-    const user = userEvent.setup();
-    await mount();
-    fireEvent.click(screen.getByRole("button", { name: "Tạo hồ sơ" }));
-    const dialog = await screen.findByRole("dialog");
-    fillProfile(dialog, {
-      name: "Trần Văn Bình",
-      dob: "1948-08-12",
-      phone: "+84900000002",
-    });
-    await user.click(within(dialog).getByRole("checkbox"));
-    await user.click(within(dialog).getByRole("button", { name: "Tạo hồ sơ" }));
-    await waitFor(() =>
-      expect(within(dialog).getByRole("alert")).toHaveTextContent(
-        formatAppMessage("MSG-18"),
-      ),
-    );
-    expect((await loadReception()).patients).toHaveLength(9);
-  });
-  it("prefills only a complete phone number and optional birthdate when creating from a search", async () => {
-    await mount();
-    search("+84 900 000 088");
-    fireEvent.change(screen.getByLabelText("Ngày sinh (không bắt buộc)"), {
-      target: { value: "1990-05-05" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Tạo hồ sơ" }));
-    const dialog = await screen.findByRole("dialog");
-    expect(within(dialog).getByLabelText("Số điện thoại *")).toHaveValue(
-      "0900000088",
-    );
-    expect(within(dialog).getByLabelText("Ngày sinh *")).toHaveValue(
-      "1990-05-05",
-    );
-    expect(within(dialog).getByLabelText("Họ và tên *")).toHaveValue("");
-  });
 });
