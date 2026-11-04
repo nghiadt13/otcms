@@ -12,6 +12,27 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 public interface VisitCareAssignmentRepository extends JpaRepository<VisitCareAssignmentJpaEntity, UUID> {
+    interface DoctorActiveCareRow {
+        UUID getVisitId();
+        UUID getPatientProfileId();
+        String getVisitSource();
+        UUID getLinkedAppointmentId();
+        UUID getAssignmentId();
+        String getStepCode();
+        Instant getStartedAt();
+        Instant getExpectedEnd();
+    }
+
+    @Query("""
+            select v.id as visitId, v.patientProfileId as patientProfileId, v.source as visitSource,
+                   v.originatingAppointmentId as linkedAppointmentId, a.id as assignmentId,
+                   a.stepCode as stepCode, a.startsAt as startedAt, a.expectedEnd as expectedEnd
+            from VisitCareAssignmentJpaEntity a join ClinicVisitJpaEntity v on v.id = a.visitId
+            where a.doctorProfileId = :doctorProfileId and a.status = 'IN_PROGRESS' and v.status = 'OPEN'
+            order by a.startsAt asc, a.id asc
+            """)
+    List<DoctorActiveCareRow> findDoctorActiveCare(@Param("doctorProfileId") UUID doctorProfileId);
+
     Optional<VisitCareAssignmentJpaEntity> findFirstByVisitIdAndStatusOrderByAssignedAtDescIdDesc(
             UUID visitId, String status);
 
