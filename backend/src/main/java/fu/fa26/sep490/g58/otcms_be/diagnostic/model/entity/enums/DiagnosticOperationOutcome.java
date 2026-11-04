@@ -1,0 +1,16 @@
+package fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.enums;
+
+public enum DiagnosticOperationOutcome {
+    ALLOWED,
+    UNAUTHORIZED_RECORD,
+    VISIT_NOT_ELIGIBLE,
+    SERVICE_NOT_ELIGIBLE,
+    ROOM_NOT_READY,
+    STATE_CONFLICT,
+    VERSION_CONFLICT,
+    EVIDENCE_MISMATCH,
+    DEPENDENCY_UNAVAILABLE,
+    IDEMPOTENCY_CONFLICT,
+    RECORD_NOT_FOUND,
+    REPORT_NOT_READY
+}
