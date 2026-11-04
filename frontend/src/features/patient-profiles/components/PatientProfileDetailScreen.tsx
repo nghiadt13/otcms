@@ -1,167 +1,250 @@
 "use client";
 
-import { ChevronLeft, ChevronRight } from "lucide-react";
 import Link from "next/link";
-import { notFound, useRouter } from "next/navigation";
-import { useState } from "react";
-import { publicButtonClass } from "@/components/brand/publicButtonStyles";
+import { useRouter } from "next/navigation";
+import { useEffect, useRef, useState, type FormEvent } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { PortalPageHeader } from "@/components/patient/PortalPageHeader";
-import { Skeleton } from "@/components/ui/skeleton";
-import { CARE_RELATIONSHIP_LABELS } from "@/lib/domain/careRelationship";
-import { messageFromError } from "@/lib/messages/appMessages";
 import { PATIENT_ROUTES } from "@/lib/routes/patientRoutes";
-import { cn } from "@/lib/utils";
-import { isHiddenRecordError } from "../api/patientProfileErrors";
-import { usePatientProfile } from "../hooks/usePatientProfile";
-import type { PatientProfileDetail } from "../types/patientProfile";
+import { notifySuccess } from "@/lib/messages/notify";
+import {
+  dependentErrorMessage,
+  getAdministrativeProfile,
+  listManagedProfiles,
+  removeDependent,
+  updateAdministrativeProfile,
+  type AdministrativeProfile,
+} from "../api/dependentApi";
 import { PortalLoadError } from "./PortalLoadError";
-import { ProfileEditForm } from "./ProfileEditForm";
-import { ProfileInfoList } from "./ProfileInfoList";
-import { UnlinkProfileDialog } from "./UnlinkProfileDialog";
 
-// Chi tiết một hồ sơ đã gắn. Nút hiện theo `allowedActions` của BE. 403/404 đi tới trang không
-// tìm thấy của khu; lỗi khác hiện câu và nút thử lại.
 export function PatientProfileDetailScreen({
   profileId,
 }: {
   profileId: string;
 }) {
-  const router = useRouter();
-  const { detail, loading, error, reload } = usePatientProfile(profileId);
-  const [editing, setEditing] = useState(false);
-  const [unlinkOpen, setUnlinkOpen] = useState(false);
+  return <ProfileDetail key={profileId} profileId={profileId} />;
+}
 
-  if (isHiddenRecordError(error)) notFound();
-  if (error)
+function ProfileDetail({ profileId }: { profileId: string }) {
+  const router = useRouter();
+  const [detail, setDetail] = useState<{
+    profile: AdministrativeProfile;
+    own: boolean;
+  } | null>(null);
+  const [error, setError] = useState("");
+  const [loadError, setLoadError] = useState("");
+  const [attempt, setAttempt] = useState(0);
+  const [confirming, setConfirming] = useState(false);
+  const [pending, setPending] = useState(false);
+  const busy = useRef(false);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    const signal = controller.signal;
+    async function load() {
+      try {
+        const { items } = await listManagedProfiles(signal);
+        if (signal.aborted) return;
+        const entry = items.find(
+          (item) =>
+            item.patientProfileId === profileId &&
+            item.linkStatus === "CONFIRMED",
+        );
+        if (!entry) {
+          setLoadError("Không thể quản lý hồ sơ này.");
+          return;
+        }
+        const own = entry.relationship === "SELF";
+        const profile = await getAdministrativeProfile(profileId, own, signal);
+        if (!signal.aborted) setDetail({ profile, own });
+      } catch (cause) {
+        if (!signal.aborted) setLoadError(dependentErrorMessage(cause));
+      }
+    }
+    void load();
+    return () => controller.abort();
+  }, [profileId, attempt]);
+
+  async function run(action: () => Promise<void>) {
+    if (busy.current) return;
+    busy.current = true;
+    setPending(true);
+    setError("");
+    try {
+      await action();
+    } catch (cause) {
+      setError(dependentErrorMessage(cause));
+    } finally {
+      busy.current = false;
+      setPending(false);
+    }
+  }
+
+  if (loadError)
     return (
       <PortalLoadError
-        message={messageFromError(error)}
-        onRetry={reload}
         title="Không tải được hồ sơ."
+        message={loadError}
+        onRetry={() => {
+          setLoadError("");
+          setAttempt((value) => value + 1);
+        }}
       />
     );
-  if (loading || !detail) return <DetailSkeleton />;
+  if (!detail) return <p role="status">Đang tải hồ sơ…</p>;
 
-  const canUpdate = detail.allowedActions.includes("update");
-  const canEditHistory = detail.allowedActions.includes("editHistory");
-  const canUnlink = detail.allowedActions.includes("unlink");
+  const { profile, own } = detail;
 
-  return (
-    <div className="space-y-8">
-      <Link
-        className="inline-flex min-h-11 items-center gap-1 text-base font-medium text-primary underline-offset-4 hover:underline focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
-        href={PATIENT_ROUTES.profiles}
-      >
-        <ChevronLeft aria-hidden />
-        Hồ sơ bệnh nhân
-      </Link>
+  function save(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const data = new FormData(event.currentTarget);
+    const value = (key: string) => String(data.get(key) ?? "").trim();
+    const nationalId = value("nationalId");
+    const identityDocumentType = value("identityDocumentType");
+    if (Boolean(nationalId) !== Boolean(identityDocumentType)) {
+      setError("Chọn loại giấy tờ và nhập số giấy tờ tương ứng.");
+      return;
+    }
+    void run(async () => {
+      const updated = await updateAdministrativeProfile(profile, own, {
+        fullName: value("fullName"),
+        dateOfBirth: value("dateOfBirth"),
+        gender: value("gender"),
+        phone: value("phone") || null,
+        address: value("address") || null,
+        nationalId: nationalId || null,
+        identityDocumentType: identityDocumentType || null,
+      });
+      setDetail({ profile: updated, own });
+      notifySuccess("MSG-90");
+    });
+  }
 
-      <PortalPageHeader
-        actions={
-          canUpdate && !editing ? (
-            <button
-              className={publicButtonClass("secondary")}
-              onClick={() => setEditing(true)}
-              type="button"
-            >
-              Sửa thông tin
-            </button>
-          ) : null
-        }
-        description={`${CARE_RELATIONSHIP_LABELS[detail.relationship]} · Mã bệnh nhân ${detail.patientCode}`}
-        title={detail.fullName}
-      />
-
-      {editing ? (
-        <ProfileEditForm
-          detail={detail}
-          onCancel={() => setEditing(false)}
-          onSaved={() => {
-            setEditing(false);
-            reload();
-          }}
-        />
-      ) : (
-        <ProfileInfoList detail={detail} />
-      )}
-
-      {!editing ? (
-        <ProfileActions
-          canEditHistory={canEditHistory}
-          canUnlink={canUnlink}
-          detail={detail}
-          onUnlinkClick={() => setUnlinkOpen(true)}
-        />
-      ) : null}
-
-      <UnlinkProfileDialog
-        onOpenChange={setUnlinkOpen}
-        onUnlinked={() => router.replace(PATIENT_ROUTES.profiles)}
-        open={unlinkOpen}
-        profile={detail}
-      />
-    </div>
-  );
-}
-
-function ProfileActions({
-  detail,
-  canEditHistory,
-  canUnlink,
-  onUnlinkClick,
-}: {
-  detail: PatientProfileDetail;
-  canEditHistory: boolean;
-  canUnlink: boolean;
-  onUnlinkClick: () => void;
-}) {
-  if (!canEditHistory && !canUnlink) return null;
   return (
     <div className="space-y-6">
-      {canEditHistory ? (
-        <ul className="divide-y overflow-hidden rounded-lg border bg-card">
-          <li>
-            <Link
-              className="flex min-h-14 items-center justify-between gap-3 px-4 py-3 text-base font-medium transition-colors hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none motion-reduce:transition-none"
-              href={PATIENT_ROUTES.profileHistory(detail.id)}
+      <Link className="text-sm underline" href={PATIENT_ROUTES.profiles}>
+        Về danh sách hồ sơ
+      </Link>
+      <PortalPageHeader
+        title={profile.fullName}
+        description="Thông tin hành chính"
+      />
+      <form
+        onSubmit={save}
+        className="max-w-xl space-y-4 rounded-lg border bg-card p-6"
+      >
+        <fieldset
+          disabled={pending || confirming}
+          className="grid gap-4 sm:grid-cols-2"
+        >
+          <label className="grid gap-1.5 sm:col-span-2">
+            Họ và tên
+            <Input name="fullName" required defaultValue={profile.fullName} />
+          </label>
+          <label className="grid gap-1.5">
+            Ngày sinh
+            <Input
+              name="dateOfBirth"
+              type="date"
+              required
+              defaultValue={profile.dateOfBirth}
+            />
+          </label>
+          <label className="grid gap-1.5">
+            Giới tính
+            <select
+              name="gender"
+              defaultValue={profile.gender}
+              className="h-9 rounded-md border bg-background px-3"
             >
-              Tiền sử bệnh
-              <ChevronRight
-                aria-hidden
-                className="size-5 text-muted-foreground"
-              />
-            </Link>
-          </li>
-        </ul>
-      ) : null}
-      {canUnlink ? (
-        <div className="border-t pt-6">
-          <button
-            className={cn(
-              publicButtonClass("secondary"),
-              "text-destructive hover:text-destructive",
-            )}
-            onClick={onUnlinkClick}
-            type="button"
+              <option value="MALE">Nam</option>
+              <option value="FEMALE">Nữ</option>
+              <option value="OTHER">Khác</option>
+            </select>
+          </label>
+          <label className="grid gap-1.5">
+            Số điện thoại
+            <Input
+              name="phone"
+              type="tel"
+              required={own}
+              defaultValue={profile.phoneCanonical ?? ""}
+            />
+          </label>
+          <label className="grid gap-1.5">
+            Địa chỉ
+            <Input name="address" defaultValue={profile.address ?? ""} />
+          </label>
+          <label className="grid gap-1.5">
+            Loại giấy tờ
+            <select
+              name="identityDocumentType"
+              defaultValue={profile.identityDocumentType ?? ""}
+              className="h-9 rounded-md border bg-background px-3"
+            >
+              <option value="">Chưa cung cấp</option>
+              <option value="CCCD">Căn cước công dân</option>
+              <option value="PERSONAL_ID">Số định danh cá nhân</option>
+              <option value="PASSPORT">Hộ chiếu</option>
+            </select>
+          </label>
+          <label className="grid gap-1.5">
+            Số giấy tờ
+            <Input name="nationalId" defaultValue={profile.nationalId ?? ""} />
+          </label>
+        </fieldset>
+        <Button type="submit" disabled={pending || confirming}>
+          Lưu thông tin
+        </Button>
+      </form>
+      {!own &&
+        (confirming ? (
+          <section
+            aria-label="Xác nhận gỡ liên kết"
+            className="max-w-xl space-y-3 rounded-lg border p-4"
           >
-            Bỏ gắn hồ sơ
-          </button>
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
-function DetailSkeleton() {
-  return (
-    <div aria-busy="true" className="space-y-6" role="status">
-      <span className="sr-only">Đang tải hồ sơ</span>
-      <Skeleton className="h-6 w-40 max-w-full" />
-      <div className="space-y-3">
-        <Skeleton className="h-8 w-56 max-w-full" />
-        <Skeleton className="h-5 w-80 max-w-full" />
-      </div>
-      <Skeleton className="h-64 w-full" />
+            <p>
+              Liên kết chăm sóc với {profile.fullName} sẽ kết thúc. Hồ sơ và
+              lịch sử khám tại phòng khám vẫn được giữ.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="outline"
+                disabled={pending}
+                onClick={() => setConfirming(false)}
+              >
+                Giữ liên kết
+              </Button>
+              <Button
+                variant="destructive"
+                disabled={pending}
+                onClick={() =>
+                  void run(async () => {
+                    await removeDependent(profileId);
+                    notifySuccess("MSG-91");
+                    router.replace(PATIENT_ROUTES.profiles);
+                  })
+                }
+              >
+                Xác nhận gỡ
+              </Button>
+            </div>
+          </section>
+        ) : (
+          <Button
+            variant="outline"
+            disabled={pending}
+            onClick={() => setConfirming(true)}
+          >
+            Gỡ liên kết
+          </Button>
+        ))}
+      {error && (
+        <p role="alert" className="text-sm text-destructive">
+          {error}
+        </p>
+      )}
     </div>
   );
 }

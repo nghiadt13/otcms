@@ -1,91 +1,106 @@
 "use client";
 
 import Link from "next/link";
-import type { ReactNode } from "react";
+import { useEffect, useState } from "react";
 import { publicButtonClass } from "@/components/brand/publicButtonStyles";
-import { PortalNoProfileState } from "@/components/patient/PortalEmptyState";
 import { PortalPageHeader } from "@/components/patient/PortalPageHeader";
-import { Skeleton } from "@/components/ui/skeleton";
-import { useLinkedProfiles } from "@/hooks/useLinkedProfiles";
-import { messageFromError } from "@/lib/messages/appMessages";
+import { CARE_RELATIONSHIP_LABELS } from "@/lib/domain/careRelationship";
 import { PATIENT_ROUTES } from "@/lib/routes/patientRoutes";
-import { useCurrentAccount } from "@/hooks/useCurrentAccount";
-import { useProfileSuggestions } from "../hooks/useProfileSuggestions";
+import {
+  dependentErrorMessage,
+  listManagedProfiles,
+  type ManagedProfile,
+} from "../api/dependentApi";
 import { MedicalHistoryProfiles } from "./MedicalHistoryProfiles";
-import { PatientProfileList } from "./PatientProfileList";
 import { PortalLoadError } from "./PortalLoadError";
-import { SuggestionBanner } from "./SuggestionBanner";
 
-// Trang "Hồ sơ bệnh nhân": hồ sơ đã gắn của tài khoản, kèm băng gợi ý khi có hồ sơ khám tại
-// phòng khám dùng cùng email đã xác minh. Đủ bốn trạng thái: tải, lỗi, trống, có dữ liệu.
+const statusLabels = {
+  CONFIRMED: "Đã liên kết",
+  PENDING_OTP: "Chờ OTP",
+  PENDING_COUNTER: "Chờ xác nhận tại quầy",
+};
+
 export function PatientProfilesScreen() {
-  const { profiles, loading, error, reload } = useLinkedProfiles();
-  const suggestions = useProfileSuggestions();
-  const account = useCurrentAccount();
-  const email = account.status === "signedIn" ? account.account.email : "";
-  const showAddButton = !loading && !error && profiles.length > 0;
+  const [profiles, setProfiles] = useState<ManagedProfile[] | null>(null);
+  const [error, setError] = useState("");
+  const [attempt, setAttempt] = useState(0);
 
-  let body: ReactNode;
-  if (loading) {
-    body = (
-      <div
-        aria-busy="true"
-        className="overflow-hidden rounded-lg border bg-card"
-        role="status"
-      >
-        <span className="sr-only">Đang tải hồ sơ</span>
-        <div className="space-y-3 p-4">
-          <Skeleton className="h-16 w-full" />
-          <Skeleton className="h-16 w-full" />
-        </div>
-      </div>
+  useEffect(() => {
+    const controller = new AbortController();
+    listManagedProfiles(controller.signal).then(
+      ({ items }) => {
+        if (!controller.signal.aborted) setProfiles(items);
+      },
+      (cause: unknown) => {
+        if (!controller.signal.aborted) setError(dependentErrorMessage(cause));
+      },
     );
-  } else if (error) {
-    body = (
-      <PortalLoadError
-        message={error}
-        onRetry={reload}
-        title="Không tải được hồ sơ."
-      />
-    );
-  } else if (profiles.length === 0) {
-    body = <PortalNoProfileState />;
-  } else {
-    body = <PatientProfileList profiles={profiles} />;
-  }
+    return () => controller.abort();
+  }, [attempt]);
 
   return (
     <>
       <PortalPageHeader
-        actions={
-          showAddButton ? (
-            <Link
-              className={publicButtonClass("primary")}
-              href={PATIENT_ROUTES.newProfile}
-            >
-              Thêm hồ sơ bệnh nhân
-            </Link>
-          ) : null
-        }
-        description="Hồ sơ của bạn và người thân đã gắn với tài khoản này."
         title="Hồ sơ bệnh nhân"
+        description="Xem hồ sơ của bạn và theo dõi yêu cầu liên kết người thân."
+        actions={
+          <Link
+            className={publicButtonClass("primary")}
+            href={PATIENT_ROUTES.newProfile}
+          >
+            Thêm người thân
+          </Link>
+        }
       />
       <div className="space-y-6">
         <MedicalHistoryProfiles />
-        {suggestions.suggestions.length > 0 ? (
-          <SuggestionBanner
-            count={suggestions.suggestions.length}
-            email={email}
-          />
-        ) : null}
-        {suggestions.error ? (
+        {error ? (
           <PortalLoadError
-            message={messageFromError(suggestions.error)}
-            onRetry={suggestions.reload}
-            title="Chưa tải được hồ sơ gợi ý."
+            title="Không tải được hồ sơ."
+            message={error}
+            onRetry={() => {
+              setError("");
+              setAttempt((value) => value + 1);
+            }}
           />
-        ) : null}
-        {body}
+        ) : profiles === null ? (
+          <p role="status">Đang tải hồ sơ…</p>
+        ) : profiles.length === 0 ? (
+          <p>Chưa có hồ sơ bệnh nhân.</p>
+        ) : (
+          <ul className="divide-y rounded-lg border bg-card">
+            {profiles.map((profile) => (
+              <li
+                key={profile.linkId ?? profile.patientProfileId}
+                className="flex flex-wrap items-center justify-between gap-3 p-4"
+              >
+                <div>
+                  <p className="font-medium">{profile.fullName}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {CARE_RELATIONSHIP_LABELS[profile.relationship]}
+                  </p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="rounded-full bg-muted px-3 py-1 text-sm">
+                    {profile.relationship === "SELF"
+                      ? "Hồ sơ của bạn"
+                      : statusLabels[profile.linkStatus]}
+                  </span>
+                  {profile.linkStatus === "CONFIRMED" && (
+                    <Link
+                      className="text-sm underline"
+                      href={PATIENT_ROUTES.profileDetail(
+                        profile.patientProfileId,
+                      )}
+                    >
+                      Xem hồ sơ
+                    </Link>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
     </>
   );

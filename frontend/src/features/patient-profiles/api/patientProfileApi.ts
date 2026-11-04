@@ -1,3 +1,4 @@
+import { getAdministrativeProfile } from "./dependentApi";
 import { ApiError } from "@/lib/api/apiError";
 import { apiRequest } from "@/lib/api/client";
 import { mockFail } from "@/lib/api/mockServer";
@@ -119,11 +120,30 @@ export async function getPatientProfile(
   profileId: string,
   signal?: AbortSignal,
 ): Promise<PatientProfileDetail> {
-  if (process.env.NODE_ENV !== "test")
-    return apiRequest<PatientProfileDetail>(
-      `/api/v1/me/patient-profiles/${encodeURIComponent(profileId)}`,
-      { signal },
+  if (process.env.NODE_ENV !== "test") {
+    const profile = await getAdministrativeProfile(
+      profileId,
+      true,
+      signal ?? new AbortController().signal,
     );
+    if (profile.patientProfileId !== profileId)
+      throw new ApiError(404, { code: "MSG-21" });
+    return {
+      id: profile.patientProfileId,
+      patientCode: "",
+      relationship: "SELF",
+      fullName: profile.fullName,
+      dateOfBirth: profile.dateOfBirth,
+      sex: profile.gender as PatientProfileDetail["sex"],
+      phone: profile.phoneCanonical ?? "",
+      address: profile.address,
+      citizenId: profile.nationalId,
+      email: null,
+      hasVisits: false,
+      editableFields: [...EDITABLE_FIELDS_BEFORE_VISIT],
+      allowedActions: ["update", "editHistory"],
+    };
+  }
   await mockLatency(signal);
   const entry = linkedEntryOrFail(profileId);
   const record = findClinicRecord(profileId) ?? mockFail(404, "MSG-41");

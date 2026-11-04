@@ -7,7 +7,7 @@ export interface LinkedProfile {
   fullName: string;
   /** YYYY-MM-DD */
   dateOfBirth: string;
-  sex: "MALE" | "FEMALE";
+  sex: "MALE" | "FEMALE" | "OTHER";
   relationship: CareRelationship;
 }
 

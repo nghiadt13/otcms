@@ -1,91 +1,84 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { notFound } from "next/navigation";
-import { toast } from "sonner";
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { getLinkedProfileRecords } from "@/lib/patient-scope/linkedProfilesMockStore";
-import { PROFILE_MOCK_IDS } from "../api/patientProfileMockData";
-import { resetPatientProfileMock } from "../api/patientProfileMockStore";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { beforeEach, expect, it, vi } from "vitest";
+import { apiRequest } from "@/lib/api/client";
 import { PatientProfileDetailScreen } from "./PatientProfileDetailScreen";
 
-const nav = vi.hoisted(() => ({ push: vi.fn(), replace: vi.fn() }));
+const mocks = vi.hoisted(() => ({ replace: vi.fn(), notifySuccess: vi.fn() }));
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: nav.push, replace: nav.replace }),
-  notFound: vi.fn(),
+  useRouter: () => ({ replace: mocks.replace }),
 }));
-vi.mock("sonner", () => ({
-  toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn() },
+vi.mock("@/lib/messages/notify", () => ({
+  notifySuccess: mocks.notifySuccess,
 }));
+vi.mock("@/lib/api/client", () => ({ apiRequest: vi.fn() }));
+const request = vi.mocked(apiRequest);
+const profile = {
+  patientProfileId: "child",
+  fullName: "Nguyễn Minh An",
+  dateOfBirth: "2017-05-01",
+  gender: "FEMALE",
+  phoneCanonical: null,
+  phoneOwnerType: null,
+  address: null,
+  nationalId: null,
+  identityDocumentType: null,
+  version: 0,
+};
 
-const LOCKED_HINT =
-  "Không sửa trên web vì hồ sơ đã có lượt khám. Nhờ lễ tân sửa tại quầy.";
+beforeEach(() => vi.resetAllMocks());
 
-beforeEach(() => {
-  resetPatientProfileMock();
-  vi.clearAllMocks();
+function seed(linkStatus = "CONFIRMED") {
+  request.mockResolvedValueOnce({
+    items: [{ ...profile, relationship: "CHILD", linkStatus }],
+  });
+}
+
+it("tải và lưu hành chính qua endpoint người thân", async () => {
+  seed();
+  request
+    .mockResolvedValueOnce(profile)
+    .mockResolvedValueOnce({ ...profile, address: "Hà Nội" });
+  render(<PatientProfileDetailScreen profileId="child" />);
+  fireEvent.change(await screen.findByLabelText("Địa chỉ"), {
+    target: { value: "Hà Nội" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Lưu thông tin" }));
+  await waitFor(() =>
+    expect(mocks.notifySuccess).toHaveBeenCalledWith("MSG-90"),
+  );
+  expect(request).toHaveBeenNthCalledWith(2, "/api/v1/me/dependents/child", {
+    signal: expect.any(AbortSignal),
+  });
+  expect(request).toHaveBeenNthCalledWith(3, "/api/v1/me/dependents/child", {
+    method: "PUT",
+    body: expect.stringContaining('"address":"Hà Nội"'),
+  });
 });
 
-describe("PatientProfileDetailScreen", () => {
-  it("hồ sơ đã có lượt khám: họ tên và ngày sinh chỉ đọc khi sửa, các trường khác sửa được", async () => {
-    const user = userEvent.setup();
-    render(<PatientProfileDetailScreen profileId={PROFILE_MOCK_IDS.lan} />);
-
-    expect(
-      await screen.findByRole("heading", { name: "Nguyễn Thị Lan" }),
-    ).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Sửa thông tin" }));
-
-    expect(screen.getByLabelText("Họ và tên")).toBeDisabled();
-    expect(screen.getByLabelText("Ngày sinh (dd/mm/yyyy)")).toBeDisabled();
-    expect(screen.getByLabelText("Số điện thoại")).toBeEnabled();
-    expect(screen.getAllByText(LOCKED_HINT)).toHaveLength(2);
+it("yêu cầu xác nhận trước khi gỡ và giữ nguyên lịch sử khám", async () => {
+  seed();
+  request.mockResolvedValueOnce(profile).mockResolvedValueOnce(undefined);
+  render(<PatientProfileDetailScreen profileId="child" />);
+  fireEvent.click(await screen.findByRole("button", { name: "Gỡ liên kết" }));
+  expect(
+    screen.getByText(/lịch sử khám tại phòng khám vẫn được giữ/),
+  ).toBeInTheDocument();
+  expect(request).toHaveBeenCalledTimes(2);
+  fireEvent.click(screen.getByRole("button", { name: "Xác nhận gỡ" }));
+  await waitFor(() =>
+    expect(mocks.replace).toHaveBeenCalledWith("/portal/profiles"),
+  );
+  expect(mocks.notifySuccess).toHaveBeenCalledWith("MSG-91");
+  expect(request).toHaveBeenLastCalledWith("/api/v1/me/dependents/child", {
+    method: "DELETE",
   });
+});
 
-  it("bỏ gắn Bản thân: hộp thoại nói hồ sơ và lịch sử khám vẫn được giữ, kèm cảnh báo", async () => {
-    const user = userEvent.setup();
-    render(<PatientProfileDetailScreen profileId={PROFILE_MOCK_IDS.an} />);
-
-    await user.click(
-      await screen.findByRole("button", { name: "Bỏ gắn hồ sơ" }),
-    );
-    const dialog = await screen.findByRole("alertdialog");
-
-    expect(
-      within(dialog).getByText(
-        /Hồ sơ và lịch sử khám tại phòng khám vẫn được giữ/,
-      ),
-    ).toBeInTheDocument();
-    expect(
-      within(dialog).getByText(/Đây là hồ sơ Bản thân của bạn/),
-    ).toBeInTheDocument();
-  });
-
-  it("bỏ gắn xác nhận: về danh sách, hồ sơ rời kho gắn và hiện MSG-91", async () => {
-    const user = userEvent.setup();
-    render(<PatientProfileDetailScreen profileId={PROFILE_MOCK_IDS.huy} />);
-
-    await user.click(
-      await screen.findByRole("button", { name: "Bỏ gắn hồ sơ" }),
-    );
-    const dialog = await screen.findByRole("alertdialog");
-    await user.click(
-      within(dialog).getByRole("button", { name: "Bỏ gắn hồ sơ" }),
-    );
-
-    await waitFor(() =>
-      expect(nav.replace).toHaveBeenCalledWith("/portal/profiles"),
-    );
-    expect(toast.success).toHaveBeenCalledWith(
-      "Đã gỡ hồ sơ này khỏi danh sách hồ sơ bạn quản lý.",
-    );
-    expect(getLinkedProfileRecords().map((item) => item.id)).not.toContain(
-      PROFILE_MOCK_IDS.huy,
-    );
-  });
-
-  it("hồ sơ không thuộc tài khoản: chuyển sang trang không tìm thấy của khu", async () => {
-    render(<PatientProfileDetailScreen profileId={PROFILE_MOCK_IDS.binh} />);
-
-    await waitFor(() => expect(notFound).toHaveBeenCalled());
-  });
+it("không tải chi tiết của liên kết đang chờ", async () => {
+  seed("PENDING_COUNTER");
+  render(<PatientProfileDetailScreen profileId="child" />);
+  expect(
+    await screen.findByText("Không thể quản lý hồ sơ này."),
+  ).toBeInTheDocument();
+  expect(request).toHaveBeenCalledTimes(1);
 });
