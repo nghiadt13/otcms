@@ -286,7 +286,7 @@ describe("BookingFlow - khu Lễ tân (variant staff)", () => {
   });
 });
 
-describe("BookingFlow - khu bệnh nhân (variant patient, wizard 4 bước)", () => {
+describe("BookingFlow - khu bệnh nhân (variant patient, wizard 5 bước)", () => {
   const next = (user: ReturnType<typeof userEvent.setup>) =>
     user.click(screen.getByRole("button", { name: "Tiếp tục" }));
 
@@ -300,7 +300,7 @@ describe("BookingFlow - khu bệnh nhân (variant patient, wizard 4 bước)", (
     );
 
     expect(
-      screen.getByRole("heading", { level: 2, name: "Ai đi khám?" }),
+      screen.getByRole("heading", { level: 2, name: "Chọn người cần khám" }),
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Tiếp tục" })).toBeDisabled();
   });
@@ -350,7 +350,7 @@ describe("BookingFlow - khu bệnh nhân (variant patient, wizard 4 bước)", (
       />,
     );
 
-    expect(screen.getByRole("radio", { name: /Bản thân/ })).toBeChecked();
+    expect(screen.getByRole("radio", { name: /Chủ tài khoản/ })).toBeChecked();
     await next(user);
     expect(
       await screen.findByRole("radio", { name: /Khám chỉnh hình tổng quát/ }),
@@ -433,14 +433,13 @@ describe("BookingResult", () => {
     expect(
       screen.getByText("Trần Thị Bình · Khám cột sống"),
     ).toBeInTheDocument();
-    expect(
-      screen.getByText(
-        "Thứ ba 27/10/2026 lúc 10:00 · BS. Phạm Thu Hà · Phòng khám 2",
-      ),
-    ).toBeInTheDocument();
-    expect(screen.getByText(/Phí khám/)).toHaveTextContent(
-      "250.000 ₫ · Chưa thanh toán",
-    );
+    const info = screen.getByRole("region", { name: "Thông tin lịch hẹn" });
+    expect(info).toHaveTextContent("Thứ ba 27/10/2026 lúc 10:00");
+    expect(info).toHaveTextContent("BS. Phạm Thu Hà");
+    expect(info).toHaveTextContent("Phòng khám 2");
+    const fee = screen.getByRole("region", { name: "Phí khám" });
+    expect(fee).toHaveTextContent("250.000 ₫");
+    expect(fee).toHaveTextContent("Chưa thanh toán");
     expect(screen.getByText("Đã đặt")).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Về danh sách" }),

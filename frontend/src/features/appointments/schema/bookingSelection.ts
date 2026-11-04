@@ -143,7 +143,7 @@ export interface BookingStepStates {
 
 /**
  * Khối nào hiện, đang mở hay đã chọn. Khối chỉ hiện khi khối trước đã chọn. `hasPatientStep` là
- * true ở khu bệnh nhân (khối "Ai đi khám?"); khu Lễ tân đã cố định người khám từ ngoài.
+ * true ở khu bệnh nhân (khối "Chọn người cần khám"); khu Lễ tân đã cố định người khám từ ngoài.
  */
 export function bookingStepStates(
   selection: BookingSelection,

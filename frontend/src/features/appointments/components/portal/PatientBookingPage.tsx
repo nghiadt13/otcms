@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useCurrentAccount } from "@/hooks/useCurrentAccount";
 import { useLinkedProfiles } from "@/hooks/useLinkedProfiles";
@@ -13,10 +13,19 @@ import { BookingSignInPrompt } from "../booking/wizard/BookingSignInPrompt";
 import { PatientBookingResult } from "./PatientBookingResult";
 import { PatientLoadError } from "./PatientLoadError";
 
+type PaymentRenderer = (args: {
+  appointment: BookedAppointment;
+  onFinish: (result: { paid: boolean }) => void;
+}) => ReactNode;
+
 // Đặt lịch khu bệnh nhân (UC20, UC21, AF1). Lõi luồng là BookingFlow dùng chung (variant patient);
 // trang lấy tài khoản đang đăng nhập làm người khám và đổi sang kết quả sau khi đặt xong.
 
-export function PatientBookingPage() {
+export function PatientBookingPage({
+  renderPayment,
+}: {
+  renderPayment?: PaymentRenderer;
+}) {
   const account = useCurrentAccount();
   // Chưa đăng nhập: dừng ở bước 1 (đăng nhập / đăng ký), chưa gọi API nào cần phiên.
   if (account.status === "anonymous") return <BookingSignInPrompt />;
@@ -28,10 +37,14 @@ export function PatientBookingPage() {
         onRetry={account.reload}
       />
     );
-  return <SignedInBooking />;
+  return <SignedInBooking renderPayment={renderPayment} />;
 }
 
-function SignedInBooking() {
+function SignedInBooking({
+  renderPayment,
+}: {
+  renderPayment?: PaymentRenderer;
+}) {
   const [booked, setBooked] = useState<BookedAppointment | null>(null);
   const linked = useLinkedProfiles();
   if (booked) return <PatientBookingResult appointment={booked} />;
@@ -46,7 +59,7 @@ function SignedInBooking() {
           className={publicButtonClass("primary")}
           href={PATIENT_ROUTES.newProfile}
         >
-          Thêm hồ sơ bệnh nhân
+          Thêm thành viên
         </Link>
       </div>
     );
@@ -54,6 +67,7 @@ function SignedInBooking() {
   return (
     <BookingFlow
       onBooked={setBooked}
+      renderPayment={renderPayment}
       patients={linked.profiles.map((profile) => ({
         id: profile.id,
         fullName: profile.fullName,
