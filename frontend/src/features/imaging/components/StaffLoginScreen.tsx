@@ -20,7 +20,8 @@ export function StaffLoginScreen() {
     const data = new FormData(e.currentTarget);
     const user = String(data.get("username")).trim();
     const password = String(data.get("password"));
-    if (!user || !password) return setError("Nhập email hoặc tên đăng nhập và mật khẩu.");
+    if (!user || !password)
+      return setError("Nhập email hoặc tên đăng nhập và mật khẩu.");
     setError("");
     setLoading(true);
     try {
@@ -30,9 +31,13 @@ export function StaffLoginScreen() {
         setError("Tài khoản này không thuộc kỹ thuật viên chẩn đoán hình ảnh.");
         return;
       }
-      router.replace(session.mustChangePassword ? "/imaging/change-password" : "/imaging");
+      router.replace(
+        session.mustChangePassword ? "/imaging/change-password" : "/imaging",
+      );
     } catch {
-      setError("Không thể đăng nhập bằng thông tin này. Vui lòng kiểm tra và thử lại.");
+      setError(
+        "Không thể đăng nhập bằng thông tin này. Vui lòng kiểm tra và thử lại.",
+      );
     } finally {
       setLoading(false);
     }
@@ -95,7 +100,9 @@ export function StaffLoginScreen() {
           </Button>
         </form>
         <p className="mt-5 text-sm text-muted-foreground">
-          <Link href="/forgot-password?portal=staff" className="underline">Quên mật khẩu?</Link>
+          <Link href="/forgot-password?portal=staff" className="underline">
+            Quên mật khẩu?
+          </Link>
         </p>
       </Card>
     </main>

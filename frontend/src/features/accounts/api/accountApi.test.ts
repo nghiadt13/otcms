@@ -130,7 +130,10 @@ describe("getAccount", () => {
   });
 
   it("nhân viên chưa có hồ sơ: staffProfile null và có Tạo hồ sơ", async () => {
-    const detail = await getAccount("00000000-0000-4000-8000-000000000003", "STAFF");
+    const detail = await getAccount(
+      "00000000-0000-4000-8000-000000000003",
+      "STAFF",
+    );
     expect(detail.staffProfile).toBeNull();
     expect(detail.allowedActions).toContain("createStaffProfile");
   });
@@ -143,7 +146,11 @@ describe("getAccount", () => {
   });
 
   it("id không có -> 404 MSG-14", async () => {
-    await expectApiError(getAccount(NON_EXISTENT_ACCOUNT_ID, "STAFF"), 404, "MSG-14");
+    await expectApiError(
+      getAccount(NON_EXISTENT_ACCOUNT_ID, "STAFF"),
+      404,
+      "MSG-14",
+    );
   });
 });
 
@@ -210,7 +217,9 @@ describe("đổi trạng thái", () => {
     const [first] = (await listAccounts({ scope: "PATIENT", status: "ACTIVE" }))
       .items;
     const off = await deactivateAccount(first.id, "PATIENT");
-    expect(paths().at(-1)).toBe(`/api/v1/admin/accounts/${first.id}/deactivation`);
+    expect(paths().at(-1)).toBe(
+      `/api/v1/admin/accounts/${first.id}/deactivation`,
+    );
     expect(off.status).toBe("INACTIVE");
     expect(off.allowedActions).toEqual(["activate"]);
   });
@@ -239,7 +248,9 @@ describe("reissueAccountPassword", () => {
     const id = "00000000-0000-4000-8000-000000000001";
     const a = await reissueAccountPassword(id, "letan.an");
     const b = await reissueAccountPassword(id, "letan.an");
-    expect(paths()[0]).toBe(`/api/v1/admin/staff-accounts/${id}/password-reissues`);
+    expect(paths()[0]).toBe(
+      `/api/v1/admin/staff-accounts/${id}/password-reissues`,
+    );
     expect(a).toMatchObject({ id, username: "letan.an" });
     expect(a.initialPassword).toBeTruthy();
     expect(a.initialPassword).not.toBe(b.initialPassword);
