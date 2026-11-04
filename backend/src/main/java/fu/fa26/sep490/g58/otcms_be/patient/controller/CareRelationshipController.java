@@ -1,83 +1,65 @@
 package fu.fa26.sep490.g58.otcms_be.patient.controller;
 
 import fu.fa26.sep490.g58.otcms_be.common.security.AuthenticatedAccount;
-import fu.fa26.sep490.g58.otcms_be.patient.exception.CareRelationshipException;
-import fu.fa26.sep490.g58.otcms_be.patient.model.CareRelationship;
-import fu.fa26.sep490.g58.otcms_be.patient.service.ConfirmCareRelationshipService;
-import fu.fa26.sep490.g58.otcms_be.patient.service.RequestCareRelationshipService;
-import jakarta.validation.constraints.NotNull;
+import fu.fa26.sep490.g58.otcms_be.patient.model.dto.DependentDtos.*;
+import fu.fa26.sep490.g58.otcms_be.patient.model.dto.response.PatientProfileDetailResponse;
+import fu.fa26.sep490.g58.otcms_be.patient.service.DependentProfileService;
+import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
-import java.net.URI;
-import java.time.Instant;
 import java.util.UUID;
-import org.springframework.http.ResponseEntity;
+import org.springframework.http.*;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.security.core.Authentication;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
-// Deliberately not a Spring MVC controller under approved FEAT-002 D03: family
-// relationship requests do not grant appointment authority. Family record
-// sharing needs its own reviewed authorization contract before any API exists.
-@RequestMapping("/api/v1/care-relationships")
+@RestController
+@RequestMapping("/api/v1/me")
+@PreAuthorize("hasAuthority('ROLE_PATIENT')")
 public class CareRelationshipController {
-    private final RequestCareRelationshipService requestRelationship;
-    private final ConfirmCareRelationshipService confirmRelationship;
-    public CareRelationshipController(RequestCareRelationshipService requestRelationship,
-                                      ConfirmCareRelationshipService confirmRelationship) {
-        this.requestRelationship = requestRelationship;
-        this.confirmRelationship = confirmRelationship;
+    private final DependentProfileService dependents;
+    public CareRelationshipController(DependentProfileService dependents) { this.dependents = dependents; }
+
+    @PostMapping("/dependents")
+    @Operation(summary = "Add a dependent: create and link, email OTP, or counter verification")
+    public ResponseEntity<LinkResult> add(@AuthenticationPrincipal AuthenticatedAccount actor,
+            @Valid @RequestBody AddDependentRequest request) {
+        var result = dependents.add(actor.accountId(), request);
+        return ResponseEntity.status("LINKED".equals(result.result()) ? 201 : 202)
+                .cacheControl(CacheControl.noStore()).body(result);
     }
-    @PostMapping
-    @PreAuthorize("hasAuthority('ROLE_PATIENT')")
-    public ResponseEntity<CareRelationshipResponse> request(Authentication authentication,
-                                                          @Valid @RequestBody RequestCareRelationshipRequest request) {
-        var relation = requestRelationship.request(actor(authentication), request.dependentPatientProfileId());
-        return ResponseEntity.created(URI.create("/api/v1/care-relationships/" + relation.id()))
-                .body(CareRelationshipResponse.from(relation));
+    @PostMapping("/dependents/links/{linkId}/otp/verify")
+    @Operation(summary = "Verify the dependent account email OTP for a requester-owned link")
+    public ResponseEntity<LinkResult> verify(@AuthenticationPrincipal AuthenticatedAccount actor,
+            @PathVariable UUID linkId, @Valid @RequestBody VerifyOtpRequest request) {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore())
+                .body(dependents.verify(actor.accountId(), linkId, request.code()));
     }
-    @PostMapping("/{relationshipId}/confirm")
-    @PreAuthorize("hasAuthority('ROLE_PATIENT')")
-    public CareRelationshipResponse confirm(Authentication authentication, @PathVariable UUID relationshipId) {
-        return CareRelationshipResponse.from(confirmRelationship.confirm(actor(authentication), relationshipId));
+    @PostMapping("/dependents/links/{linkId}/otp/resend")
+    @Operation(summary = "Replace and resend the current dependent OTP; requester only")
+    public ResponseEntity<LinkResult> resend(@AuthenticationPrincipal AuthenticatedAccount actor, @PathVariable UUID linkId) {
+        return ResponseEntity.accepted().cacheControl(CacheControl.noStore()).body(dependents.resend(actor.accountId(), linkId));
     }
-    private UUID actor(Authentication authentication) {
-        if (authentication == null || !(authentication.getPrincipal() instanceof AuthenticatedAccount actor)
-                || !"PATIENT".equals(actor.accountRole().name())) throw new CareRelationshipException("FORBIDDEN");
-        return actor.accountId();
+    @GetMapping("/patient-profiles")
+    @Operation(summary = "List self first, then confirmed and pending dependents in stable order")
+    public ResponseEntity<Items<ProfileItem>> list(@AuthenticationPrincipal AuthenticatedAccount actor) {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(dependents.list(actor.accountId()));
     }
-        public static class RequestCareRelationshipRequest {
-    private final @NotNull UUID dependentPatientProfileId;
-    public RequestCareRelationshipRequest(@NotNull UUID dependentPatientProfileId) {
-        this.dependentPatientProfileId = dependentPatientProfileId;
+    @GetMapping("/dependents/{profileId}")
+    @Operation(summary = "Read administrative fields of a confirmed dependent")
+    public ResponseEntity<PatientProfileDetailResponse> detail(@AuthenticationPrincipal AuthenticatedAccount actor,
+            @PathVariable UUID profileId) {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(dependents.detail(actor.accountId(), profileId));
     }
-    public UUID getDependentPatientProfileId() { return dependentPatientProfileId; }
-    public UUID dependentPatientProfileId() { return dependentPatientProfileId; }
-}
-        public static class CareRelationshipResponse {
-    private final UUID relationshipId;
-    private final UUID dependentPatientProfileId;
-    private final String state;
-    private final Instant requestedAt;
-    private final Instant confirmedAt;
-    private final Instant revokedAt;
-    public CareRelationshipResponse(UUID relationshipId, UUID dependentPatientProfileId, String state, Instant requestedAt, Instant confirmedAt, Instant revokedAt) {
-        this.relationshipId = relationshipId;
-        this.dependentPatientProfileId = dependentPatientProfileId;
-        this.state = state;
-        this.requestedAt = requestedAt;
-        this.confirmedAt = confirmedAt;
-        this.revokedAt = revokedAt;
+    @PutMapping("/dependents/{profileId}")
+    @Operation(summary = "Update administrative fields without changing account linkage; no client version required")
+    public ResponseEntity<PatientProfileDetailResponse> update(@AuthenticationPrincipal AuthenticatedAccount actor,
+            @PathVariable UUID profileId, @Valid @RequestBody UpdateDependentRequest request) {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(dependents.update(actor.accountId(), profileId, request));
     }
-    public UUID getRelationshipId() { return relationshipId; }
-    public UUID relationshipId() { return relationshipId; }
-    public UUID getDependentPatientProfileId() { return dependentPatientProfileId; }
-    public String getState() { return state; }
-    public Instant getRequestedAt() { return requestedAt; }
-    public Instant getConfirmedAt() { return confirmedAt; }
-    public Instant getRevokedAt() { return revokedAt; }
-static CareRelationshipResponse from(CareRelationship relationship) {
-            return new CareRelationshipResponse(relationship.id(), relationship.dependentPatientProfileId(),
-                    relationship.state().name(), relationship.requestedAt(), relationship.confirmedAt(), relationship.revokedAt());
-        }
-}
+    @DeleteMapping("/dependents/{profileId}")
+    @Operation(summary = "Revoke management access while retaining all clinic records")
+    public ResponseEntity<Void> unlink(@AuthenticationPrincipal AuthenticatedAccount actor, @PathVariable UUID profileId) {
+        dependents.unlink(actor.accountId(), profileId);
+        return ResponseEntity.noContent().build();
+    }
 }

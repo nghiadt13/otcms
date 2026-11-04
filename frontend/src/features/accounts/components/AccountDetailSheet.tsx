@@ -26,12 +26,18 @@ import {
 } from "../accountDisplay";
 import { useAccountDetail } from "../hooks/useAccountDetail";
 import { useAccountStatusChange } from "../hooks/useAccountStatusChange";
-import type { AccountDetail } from "../types/account";
+import {
+  accountScopeOf,
+  type AccountDetail,
+  type AccountScope,
+} from "../types/account";
 import { AccountReissueDialog } from "./AccountReissueDialog";
 import { AccountStatusDialog } from "./AccountStatusDialog";
 
 type AccountDetailSheetProps = {
   accountId: string;
+  /** Nhóm của tài khoản đang xem (tab đang mở), để chọn đúng endpoint. */
+  scope: AccountScope;
   onClose: () => void;
   /** Bản ghi mới sau khi đổi trạng thái, để danh sách cập nhật dòng. */
   onChanged: (account: AccountDetail) => void;
@@ -43,7 +49,12 @@ function detailItems(account: AccountDetail) {
   const isStaff = account.accountType !== "PATIENT";
   const items = [
     isStaff
-      ? { label: "Tên đăng nhập", value: account.username }
+      ? {
+          label: account.username?.includes("@")
+            ? "Email đăng nhập"
+            : "Tên đăng nhập",
+          value: account.username ?? account.email,
+        }
       : { label: "Email", value: account.email },
     {
       label: "Loại tài khoản",
@@ -81,13 +92,14 @@ function detailItems(account: AccountDetail) {
 
 export function AccountDetailSheet({
   accountId,
+  scope,
   onClose,
   onChanged,
   onStale,
 }: AccountDetailSheetProps) {
   const router = useRouter();
   const { detail, loading, error, notFound, rawError, reload, setDetail } =
-    useAccountDetail(accountId);
+    useAccountDetail(accountId, scope);
   const [reissueOpen, setReissueOpen] = useState(false);
 
   const status = useAccountStatusChange({
@@ -154,7 +166,12 @@ export function AccountDetailSheet({
               <Button
                 variant="outline"
                 onClick={() =>
-                  status.request({ id: detail.id, label, action: "deactivate" })
+                  status.request({
+                    id: detail.id,
+                    label,
+                    action: "deactivate",
+                    scope: accountScopeOf(detail.accountType),
+                  })
                 }
               >
                 Vô hiệu hóa
@@ -164,7 +181,12 @@ export function AccountDetailSheet({
               <Button
                 variant="outline"
                 onClick={() =>
-                  status.request({ id: detail.id, label, action: "activate" })
+                  status.request({
+                    id: detail.id,
+                    label,
+                    action: "activate",
+                    scope: accountScopeOf(detail.accountType),
+                  })
                 }
               >
                 Kích hoạt
@@ -203,6 +225,7 @@ export function AccountDetailSheet({
       {reissueOpen && detail ? (
         <AccountReissueDialog
           accountId={detail.id}
+          username={accountIdentifier(detail)}
           label={label}
           onClose={(shouldReload) => {
             setReissueOpen(false);

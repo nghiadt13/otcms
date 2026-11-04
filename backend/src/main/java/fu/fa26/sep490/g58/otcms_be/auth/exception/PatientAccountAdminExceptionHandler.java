@@ -9,13 +9,6 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 @RestControllerAdvice
 public class PatientAccountAdminExceptionHandler {
-    @ExceptionHandler(StaffAccountAdminException.class)
-    public ResponseEntity<ErrorResponse> staff(StaffAccountAdminException exception) {
-        HttpStatus status = "EMAIL_ALREADY_EXISTS".equals(exception.getMessage())
-                ? HttpStatus.CONFLICT : HttpStatus.BAD_REQUEST;
-        return ResponseEntity.status(status).body(ErrorResponse.of(exception.getMessage(),
-                "Staff account request could not be completed", UUID.randomUUID().toString()));
-    }
     @ExceptionHandler(PatientAccountAdminException.class)
     public ResponseEntity<ErrorResponse> handle(PatientAccountAdminException exception) {
         HttpStatus status = switch (exception.getMessage()) {

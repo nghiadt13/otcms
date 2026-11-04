@@ -25,7 +25,8 @@ public final class AppointmentMapper {
                 appointment.doctorDisplayName(), appointment.status(), appointment.bookingSource(), appointment.purpose(),
                 appointment.startTime(), appointment.endTime(), appointment.durationMinutes(),
                 appointment.bufferMinutes(), appointment.occupiedUntil(), appointment.visitId(),
-                appointment.sourceVisitId(), appointment.createdAt(), appointment.updatedAt());
+                appointment.sourceVisitId(), appointment.createdAt(), appointment.updatedAt(), null,
+                appointment.patientName());
     }
 
     public static CheckInResponse toResponse(CheckedInAppointment appointment) {

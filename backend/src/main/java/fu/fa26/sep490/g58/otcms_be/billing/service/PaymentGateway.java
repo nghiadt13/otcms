@@ -15,7 +15,9 @@ public interface PaymentGateway {
             Instant expiresAt, List<GatewayItem> items) { }
     record GatewayItem(String name, int quantity, long unitPrice) { }
     record GatewayLink(String providerLinkId, long orderCode, String checkoutUrl, String qrCode,
-            Instant expiresAt) { }
+            Instant expiresAt, TransferInfo transfer) { }
+    /** Thông tin chuyển khoản mà cổng trả khi tạo link (hiển thị trong app thay vì trang của cổng). */
+    record TransferInfo(String bankBin, String accountNumber, String accountName, String description) { }
     record VerifiedGatewayEvent(String provider, long orderCode, long amount, String currency,
             String paymentLinkId, String transactionReference, String code, boolean successful) { }
     record GatewayPaymentStatus(String status, long orderCode, long amount, long amountPaid,

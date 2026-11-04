@@ -8,6 +8,6 @@ import java.util.UUID;
 public interface PatientAccountAdminService {
     PatientAccountsPageResponse list(AuthenticatedAccount actor, String query, String status, int page, int size);
     PatientAccountAdminResponse detail(AuthenticatedAccount actor, UUID accountId);
-    PatientAccountAdminResponse activate(AuthenticatedAccount actor, UUID accountId);
-    PatientAccountAdminResponse deactivate(AuthenticatedAccount actor, UUID accountId);
+    PatientAccountAdminResponse activate(AuthenticatedAccount actor, UUID accountId, String correlationId);
+    PatientAccountAdminResponse deactivate(AuthenticatedAccount actor, UUID accountId, String correlationId);
 }

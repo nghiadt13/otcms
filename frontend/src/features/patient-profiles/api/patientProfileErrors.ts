@@ -5,12 +5,11 @@ import {
   type ProfileFieldErrors,
 } from "../schema/patientProfileFieldRules";
 
-// Hai lỗi nghiệp vụ dưới đây chưa có mã MSG trong bảng (R3 không định nghĩa). BE trả tên lỗi
+// Lỗi tạo hồ sơ trùng của luồng mock hành chính vẫn dùng detail. BE trả tên lỗi
 // trong `detail` của ProblemDetail, cùng HTTP 409. Màn kiểm tra qua hàm dưới đây, không so
 // chuỗi rải rác. Xem câu hỏi mở trong báo cáo.
 
 export const DUPLICATE_PROFILE_DETAIL = "DUPLICATE_PROFILE";
-export const STALE_HISTORY_DETAIL = "STALE";
 
 /**
  * Lỗi 400 của BE gắn vào đúng ô (MSG-17 theo trường). Trả undefined khi không có trường nào
@@ -38,12 +37,12 @@ export function isDuplicateProfileError(error: unknown): boolean {
   );
 }
 
-/** Tiền sử đã bị người khác sửa sau khi màn tải (409 STALE). */
+/** Tiền sử đã bị người khác sửa sau khi màn tải (409 STALE_VERSION). */
 export function isStaleHistoryError(error: unknown): boolean {
   return (
     isApiError(error) &&
     error.status === 409 &&
-    error.message === STALE_HISTORY_DETAIL
+    error.errorCode === "STALE_VERSION"
   );
 }
 

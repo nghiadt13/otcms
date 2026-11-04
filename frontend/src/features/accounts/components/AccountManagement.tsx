@@ -3,6 +3,7 @@
 import { useCallback, useState } from "react";
 import { PageHeader } from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAccountList } from "../hooks/useAccountList";
 import { useAccountStatusChange } from "../hooks/useAccountStatusChange";
 import type { AccountDetail } from "../types/account";
@@ -38,11 +39,27 @@ export function AccountManagement() {
         title="Tài khoản người dùng"
         description="Cấp tài khoản cho nhân viên và tra cứu tài khoản bệnh nhân."
         actions={
-          <Button onClick={() => setCreateOpen(true)}>Tạo tài khoản</Button>
+          list.filters.scope !== "PATIENT" ? (
+            <Button onClick={() => setCreateOpen(true)}>Tạo tài khoản</Button>
+          ) : undefined
         }
       />
 
+      <Tabs
+        value={list.filters.scope ?? "PATIENT"}
+        onValueChange={(value) => {
+          setSelectedId(null);
+          setFilters({ scope: value as "PATIENT" | "STAFF", role: undefined });
+        }}
+      >
+        <TabsList aria-label="Nhóm tài khoản">
+          <TabsTrigger value="PATIENT">Bệnh nhân</TabsTrigger>
+          <TabsTrigger value="STAFF">Nhân viên</TabsTrigger>
+        </TabsList>
+      </Tabs>
+
       <AccountsFilterBar
+        scope={list.filters.scope}
         searchText={list.searchText}
         onSearchChange={list.setSearchText}
         role={list.filters.role}
@@ -56,6 +73,7 @@ export function AccountManagement() {
         loading={list.loading}
         error={list.error}
         hasFilter={list.hasFilter}
+        scope={list.filters.scope}
         page={list.page}
         totalPages={list.data?.totalPages ?? 1}
         totalItems={list.data?.totalItems ?? 0}
@@ -74,6 +92,7 @@ export function AccountManagement() {
       {selectedId ? (
         <AccountDetailSheet
           accountId={selectedId}
+          scope={list.filters.scope ?? "PATIENT"}
           onClose={closeSheet}
           onChanged={handleChanged}
           onStale={reload}

@@ -6,10 +6,10 @@ import nextTs from "eslint-config-next/typescript";
 // Rào chắn phụ thuộc phía frontend (tương đương quy tắc phụ thuộc của backend):
 // - Một feature chỉ import chính nó và mã dùng chung (`components`, `lib`, `hooks`).
 //   Muốn dùng feature khác thì ghép ở `app/` hoặc lớp shell được khai báo dưới đây.
-// - Các lớp ghép `admin-shell`, `imaging-shell` được import feature nghiệp vụ.
+// - Các lớp ghép `admin-shell`, `doctor-shell`, `imaging-shell` được import feature nghiệp vụ.
 // - Feature không import `app/`; mã dùng chung không import feature hay `app/`.
 // Danh sách feature lấy từ thư mục nên feature mới được bảo vệ ngay.
-const COMPOSITION_FEATURES = ["admin-shell", "imaging-shell"];
+const COMPOSITION_FEATURES = ["admin-shell", "doctor-shell", "imaging-shell"];
 
 const featureNames = readdirSync("./src/features", { withFileTypes: true })
   .filter((entry) => entry.isDirectory())

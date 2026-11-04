@@ -3,6 +3,7 @@ package fu.fa26.sep490.g58.otcms_be.visit.repository;
 import fu.fa26.sep490.g58.otcms_be.visit.model.entity.VisitCareAssignmentJpaEntity;
 import java.sql.Timestamp;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import java.time.Instant;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -11,6 +12,9 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 public interface VisitCareAssignmentRepository extends JpaRepository<VisitCareAssignmentJpaEntity, UUID> {
+    Optional<VisitCareAssignmentJpaEntity> findFirstByVisitIdAndStatusOrderByAssignedAtDescIdDesc(
+            UUID visitId, String status);
+
     @Query(value = """
             select count(*) from visit_assignments where doctor_profile_id = :doctorId
               and status in ('RESERVED', 'IN_PROGRESS')

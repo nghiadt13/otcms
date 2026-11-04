@@ -1,0 +1,76 @@
+package fu.fa26.sep490.g58.otcms_be.clinical.exception;
+
+import fu.fa26.sep490.g58.otcms_be.clinical.controller.AfterVisitAdviceController;
+import fu.fa26.sep490.g58.otcms_be.clinical.controller.ClinicalExaminationController;
+import fu.fa26.sep490.g58.otcms_be.common.api.ErrorResponse;
+import fu.fa26.sep490.g58.otcms_be.common.web.CorrelationIdFilter;
+import jakarta.persistence.OptimisticLockException;
+import jakarta.servlet.http.HttpServletRequest;
+import java.util.List;
+import org.springframework.core.Ordered;
+import org.springframework.core.annotation.Order;
+import org.springframework.dao.DataAccessException;
+import org.springframework.dao.OptimisticLockingFailureException;
+import org.springframework.http.CacheControl;
+import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.transaction.TransactionException;
+import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+
+@RestControllerAdvice(assignableTypes = {ClinicalExaminationController.class, AfterVisitAdviceController.class})
+@Order(Ordered.HIGHEST_PRECEDENCE)
+public class ClinicalApiExceptionHandler {
+    @ExceptionHandler(ClinicalOperationException.class)
+    public ResponseEntity<ErrorResponse> business(ClinicalOperationException error, HttpServletRequest request) {
+        int status = switch (error.code()) {
+            case "MSG-40", "MSG-14" -> 403;
+            case "MSG-41" -> 404;
+            case "MSG-42" -> 409;
+            case "MSG-39", "MSG-08" -> 400;
+            default -> 500;
+        };
+        return problem(status, error.code(), List.of(), request);
+    }
+
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    public ResponseEntity<ErrorResponse> validation(MethodArgumentNotValidException error, HttpServletRequest request) {
+        return problem(400, "VALIDATION_FAILED", error.getBindingResult().getFieldErrors().stream()
+                .map(field -> new ErrorResponse.FieldError(field.getField(), "MSG-39")).distinct().toList(), request);
+    }
+
+    @ExceptionHandler({HttpMessageNotReadableException.class, MethodArgumentTypeMismatchException.class})
+    public ResponseEntity<ErrorResponse> transport(Exception error, HttpServletRequest request) {
+        return problem(400, "VALIDATION_FAILED", List.of(), request);
+    }
+
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<ErrorResponse> denied(Exception error, HttpServletRequest request) {
+        return problem(403, "MSG-40", List.of(), request);
+    }
+
+    @ExceptionHandler({OptimisticLockingFailureException.class, OptimisticLockException.class})
+    public ResponseEntity<ErrorResponse> optimistic(Exception error, HttpServletRequest request) {
+        return problem(409, "MSG-42", List.of(), request);
+    }
+
+    @ExceptionHandler({DataAccessException.class, TransactionException.class})
+    public ResponseEntity<ErrorResponse> dependency(Exception error, HttpServletRequest request) {
+        return problem(503, "DEPENDENCY_UNAVAILABLE", List.of(), request);
+    }
+
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<ErrorResponse> unexpected(Exception error, HttpServletRequest request) {
+        return problem(500, "MSG-04", List.of(), request);
+    }
+
+    private static ResponseEntity<ErrorResponse> problem(int status, String code,
+            List<ErrorResponse.FieldError> fields, HttpServletRequest request) {
+        return ResponseEntity.status(status).cacheControl(CacheControl.noStore())
+                .header(CorrelationIdFilter.HEADER, CorrelationIdFilter.current(request))
+                .body(ErrorResponse.withFieldErrors(code, "Clinical request could not be completed",
+                        CorrelationIdFilter.current(request), fields));
+    }
+}

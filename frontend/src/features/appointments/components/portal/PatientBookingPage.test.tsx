@@ -52,20 +52,24 @@ beforeEach(() => {
 });
 
 describe("PatientBookingPage", () => {
-  it("bước 2 chỉ có chính tài khoản, hiện họ tên từ backend, chọn sẵn", async () => {
+  it("bước 2 hiển thị các hồ sơ đã gắn và quan hệ", async () => {
     render(<PatientBookingPage />);
 
     const choice = await screen.findByRole("radiogroup", {
-      name: "Ai đi khám?",
+      name: "Chọn người cần khám",
     });
     const radios = within(choice).getAllByRole("radio");
-    expect(radios).toHaveLength(1);
-    expect(radios[0]).toBeChecked();
+    expect(radios).toHaveLength(3);
+    expect(radios[0]).not.toBeChecked();
     expect(
-      within(choice).getByRole("radio", { name: "Trần Minh Khoa" }),
+      within(choice).getByRole("radio", {
+        name: /Nguyễn Văn An.*Chủ tài khoản/,
+      }),
     ).toBeInTheDocument();
-    expect(screen.queryByText(/Nguyễn Gia Huy/)).not.toBeInTheDocument();
-    expect(screen.queryByText(/Sinh ngày/)).not.toBeInTheDocument();
+    expect(
+      within(choice).getByRole("radio", { name: /Nguyễn Gia Huy · Con/ }),
+    ).toBeInTheDocument();
+    expect(within(choice).getAllByText(/Sinh ngày/)).toHaveLength(3);
   });
 
   it("đã đăng nhập: mở thẳng bước 2 Người khám, bước Tài khoản đã xong", async () => {
@@ -74,7 +78,7 @@ describe("PatientBookingPage", () => {
     const nav = await screen.findByRole("navigation", {
       name: "Các bước đặt lịch",
     });
-    expect(within(nav).getAllByRole("listitem")).toHaveLength(4);
+    expect(within(nav).getAllByRole("listitem")).toHaveLength(5);
     expect(nav.querySelector('[aria-current="step"]')).toHaveTextContent(
       "Người khám",
     );
@@ -111,6 +115,11 @@ describe("PatientBookingPage", () => {
     const user = userEvent.setup();
     render(<PatientBookingPage />);
 
+    await user.click(
+      await screen.findByRole("radio", {
+        name: /Nguyễn Văn An.*Chủ tài khoản/,
+      }),
+    );
     await user.click(await screen.findByRole("button", { name: "Tiếp tục" }));
     await user.click(
       await screen.findByRole("radio", { name: /Khám chỉnh hình tổng quát/ }),
@@ -137,5 +146,58 @@ describe("PatientBookingPage", () => {
       "/portal/appointments/apt-9001",
     );
     expect(toast.success).toHaveBeenCalledWith("Đã đặt lịch khám thành công.");
+  });
+
+  it("có renderPayment: đặt xong sang bước 5 Thanh toán, khóa bước trước; xong mới ra kết quả", async () => {
+    const user = userEvent.setup();
+    render(
+      <PatientBookingPage
+        renderPayment={({ appointment, onFinish }) => (
+          <button onClick={() => onFinish({ paid: true })} type="button">
+            Thanh toán {appointment.id}
+          </button>
+        )}
+      />,
+    );
+
+    await user.click(
+      await screen.findByRole("radio", {
+        name: /Nguyễn Văn An.*Chủ tài khoản/,
+      }),
+    );
+    await user.click(await screen.findByRole("button", { name: "Tiếp tục" }));
+    await user.click(
+      await screen.findByRole("radio", { name: /Khám chỉnh hình tổng quát/ }),
+    );
+    await user.click(
+      await screen.findByRole("button", { name: "Thứ ba 27/10, còn giờ" }),
+    );
+    await user.click(await screen.findByRole("button", { name: "10:00" }));
+    await user.click(screen.getByRole("button", { name: "Tiếp tục" }));
+    await user.type(
+      screen.getByRole("textbox", { name: "Lý do khám" }),
+      "Đau gối phải",
+    );
+    await user.click(screen.getByRole("button", { name: "Đặt lịch khám" }));
+
+    const pay = await screen.findByRole("button", {
+      name: "Thanh toán apt-9001",
+    });
+    const nav = screen.getByRole("navigation", { name: "Các bước đặt lịch" });
+    expect(nav.querySelector('[aria-current="step"]')).toHaveTextContent(
+      "Thanh toán",
+    );
+    expect(within(nav).queryByRole("button")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "Đã đặt lịch khám" }),
+    ).not.toBeInTheDocument();
+
+    await user.click(pay);
+    expect(
+      await screen.findByRole("heading", {
+        level: 2,
+        name: "Đã đặt lịch khám",
+      }),
+    ).toBeInTheDocument();
   });
 });

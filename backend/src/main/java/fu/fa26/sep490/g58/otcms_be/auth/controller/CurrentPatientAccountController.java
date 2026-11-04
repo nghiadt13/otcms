@@ -32,15 +32,6 @@ public class CurrentPatientAccountController {
         return account.get(actor);
     }
 
-    @PatchMapping("/api/v1/me")
-    @PreAuthorize("hasAuthority('ROLE_PATIENT')")
-    public CurrentPatientAccountService.CurrentPatientAccount update(
-            @AuthenticationPrincipal AuthenticatedAccount actor,
-            @Valid @RequestBody UpdateCurrentPatientAccountRequest request) {
-        if (actor == null || request == null) throw new CurrentPatientAccountException("FORBIDDEN");
-        return account.updateDisplayName(actor, request.getDisplayName());
-    }
-
     public static class UpdateCurrentPatientAccountRequest extends StrictRequestBody {
         @NotBlank
         @Size(min = 2, max = 100)

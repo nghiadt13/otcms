@@ -6,6 +6,13 @@ export type { AccountType, StaffRole };
 
 export type AccountStatus = "ACTIVE" | "INACTIVE";
 
+/** Nhóm tài khoản quyết định endpoint: bệnh nhân và nhân viên có hai API riêng. */
+export type AccountScope = "PATIENT" | "STAFF";
+
+/** Nhóm của một tài khoản theo loại của nó. */
+export const accountScopeOf = (accountType: AccountType): AccountScope =>
+  accountType === "PATIENT" ? "PATIENT" : "STAFF";
+
 /** FE chỉ vẽ nút có trong mảng này, không suy từ `status`. */
 export type AccountAction =
   "deactivate" | "activate" | "reissuePassword" | "createStaffProfile";
@@ -37,6 +44,7 @@ export interface AccountDetail extends AccountListItem {
 }
 
 export interface AccountListQuery extends PageQuery {
+  scope?: AccountScope;
   q?: string;
   role?: AccountType;
   status?: AccountStatus;

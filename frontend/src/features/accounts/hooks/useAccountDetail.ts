@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { isApiError } from "@/lib/api/apiError";
 import { messageFromError } from "@/lib/messages/appMessages";
 import { getAccount } from "../api/accountApi";
-import type { AccountDetail } from "../types/account";
+import type { AccountDetail, AccountScope } from "../types/account";
 
 type Result = {
   id: string;
@@ -13,13 +13,13 @@ type Result = {
 };
 
 /** Chi tiết một tài khoản cho Sheet. Đổi `id` thì bỏ kết quả của id cũ. */
-export function useAccountDetail(id: string) {
+export function useAccountDetail(id: string, scope: AccountScope) {
   const [result, setResult] = useState<Result | null>(null);
   const [reloadToken, setReloadToken] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
-    getAccount(id).then(
+    getAccount(id, scope).then(
       (detail) => {
         if (!cancelled) setResult({ id, detail });
       },
@@ -30,7 +30,7 @@ export function useAccountDetail(id: string) {
     return () => {
       cancelled = true;
     };
-  }, [id, reloadToken]);
+  }, [id, scope, reloadToken]);
 
   const current = result?.id === id ? result : null;
 

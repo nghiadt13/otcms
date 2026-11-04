@@ -18,5 +18,5 @@ public interface AuthorizePatientProfileService {
         public AuthorizationScope scope() { return scope; }
     }
 
-    enum AuthorizationScope { SELF }
+    enum AuthorizationScope { SELF, DEPENDENT }
 }

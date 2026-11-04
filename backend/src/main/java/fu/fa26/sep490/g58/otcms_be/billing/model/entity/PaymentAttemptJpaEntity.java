@@ -31,6 +31,10 @@ public class PaymentAttemptJpaEntity {
     @Column(name = "provider_transaction_reference", length = 128) private String providerTransactionReference;
     @Column(name = "checkout_url", length = 1000) private String checkoutUrl;
     @Column(name = "qr_code", columnDefinition = "text") private String qrCode;
+    @Column(name = "transfer_bank_bin", length = 16) private String transferBankBin;
+    @Column(name = "transfer_account_number", length = 64) private String transferAccountNumber;
+    @Column(name = "transfer_account_name", length = 200) private String transferAccountName;
+    @Column(name = "transfer_description", length = 200) private String transferDescription;
     @Column(name = "created_at", nullable = false, insertable = false, updatable = false) private Instant createdAt;
     @Column(name = "expires_at") private Instant expiresAt;
     @Column(name = "confirmed_at") private Instant confirmedAt;
@@ -71,7 +75,12 @@ public class PaymentAttemptJpaEntity {
         return attempt;
     }
 
-    public void attachPayOsLink(String linkId, String checkoutUrl, String qrCode, Instant expiresAt) {
+    public void attachPayOsLink(String linkId, String checkoutUrl, String qrCode, Instant expiresAt,
+            String bankBin, String accountNumber, String accountName, String description) {
+        this.transferBankBin = bankBin;
+        this.transferAccountNumber = accountNumber;
+        this.transferAccountName = accountName;
+        this.transferDescription = description;
         this.providerPaymentLinkId = linkId;
         this.checkoutUrl = checkoutUrl;
         this.qrCode = qrCode;
@@ -107,6 +116,10 @@ public class PaymentAttemptJpaEntity {
     public String getProviderTransactionReference() { return providerTransactionReference; }
     public String getCheckoutUrl() { return checkoutUrl; }
     public String getQrCode() { return qrCode; }
+    public String getTransferBankBin() { return transferBankBin; }
+    public String getTransferAccountNumber() { return transferAccountNumber; }
+    public String getTransferAccountName() { return transferAccountName; }
+    public String getTransferDescription() { return transferDescription; }
     public Instant getCreatedAt() { return createdAt; }
     public Instant getExpiresAt() { return expiresAt; }
     public Instant getConfirmedAt() { return confirmedAt; }

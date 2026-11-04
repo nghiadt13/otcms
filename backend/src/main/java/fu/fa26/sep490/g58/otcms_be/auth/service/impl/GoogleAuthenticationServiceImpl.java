@@ -57,7 +57,7 @@ public class GoogleAuthenticationServiceImpl implements GoogleAuthenticationServ
         AccountJpaEntity account;
         if (linked.isPresent()) {
             account = linked.get().getAccount();
-            if (!identity.normalizedEmail().equals(account.getNormalizedEmail()) || account.getAccountType() != AccountType.PATIENT)
+            if (!identity.normalizedEmail().equals(linked.get().getNormalizedEmailAtLink()) || account.getAccountType() != AccountType.PATIENT)
                 throw new GoogleAuthenticationException("IDENTITY_LINK_CONFLICT");
         } else {
             account = accounts.findByNormalizedEmail(identity.normalizedEmail()).orElseGet(() -> onboard(request, identity));

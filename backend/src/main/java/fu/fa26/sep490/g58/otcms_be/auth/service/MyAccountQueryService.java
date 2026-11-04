@@ -7,6 +7,13 @@ import java.util.UUID;
 public interface MyAccountQueryService {
     Optional<MyAccountView> find(UUID accountId);
 
-    /** {@code displayName} is the patient profile name, then the name given at registration, then the email local part. */
-    record MyAccountView(UUID id, String accountType, String email, String displayName) { }
+    /** Explicit account display name wins; legacy records retain profile/name/login fallbacks. */
+    record MyAccountView(UUID id, String accountType, String email, String displayName,
+            String kind, String username, String role, String avatarUrl, boolean mustChangePassword,
+            String status, java.util.List<String> allowedActions) {
+        public MyAccountView(UUID id, String accountType, String email, String displayName) {
+            this(id, accountType, email, displayName, "PATIENT".equals(accountType) ? "PATIENT" : "STAFF",
+                    null, accountType, null, false, "ACTIVE", java.util.List.of());
+        }
+    }
 }

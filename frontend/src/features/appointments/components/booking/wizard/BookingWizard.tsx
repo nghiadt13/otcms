@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { useCurrentAccount } from "@/hooks/useCurrentAccount";
 import { PATIENT_ROUTES } from "@/lib/routes/patientRoutes";
@@ -23,15 +23,16 @@ import {
 } from "./BookingScheduleStep";
 import { BookingStepper } from "./BookingStepper";
 
-// Khung wizard 4 bước của khu bệnh nhân: thanh tiến trình, một bảng nội dung cho bước hiện tại,
-// và hàng điều hướng Quay lại / Tiếp tục. Ở bước cuối nút chính là "Đặt lịch khám" (nút `default`
-// duy nhất của màn). Trạng thái và việc gửi nằm ở BookingFlow; file này chỉ vẽ.
+// Khung wizard 5 bước của khu bệnh nhân: thanh tiến trình, một bảng nội dung cho bước hiện tại,
+// và hàng điều hướng Quay lại / Tiếp tục. Ở bước xác nhận nút chính là "Đặt lịch khám" (tạo lịch,
+// rồi sang bước thanh toán). Bước thanh toán tự có nút riêng nên không vẽ hàng điều hướng. Trạng thái và việc gửi nằm ở BookingFlow; file này chỉ vẽ.
 
 const HEADINGS: Record<WizardStepKey, string> = {
   account: "Đặt lịch bằng tài khoản này?",
-  patient: "Ai đi khám?",
+  patient: "Chọn người cần khám",
   schedule: "Chọn loại khám và lịch hẹn",
   review: "Kiểm tra lại lịch hẹn",
+  payment: "Thanh toán phí khám",
 };
 
 export interface BookingWizardProps extends BookingScheduleStepProps {
@@ -47,10 +48,13 @@ export interface BookingWizardProps extends BookingScheduleStepProps {
   onPurposeChange: (value: string) => void;
   submitting: boolean;
   onSubmit: () => void;
+  /** Màn thanh toán của lịch vừa tạo (bước 5). Do trang ghép vì feature này không import billing. */
+  paymentSlot?: ReactNode;
 }
 
 export function BookingWizard(props: BookingWizardProps) {
-  const { step, onStepChange, selection, dispatch, patients } = props;
+  const { step, onStepChange, selection, dispatch, patients, paymentSlot } =
+    props;
   const account = useCurrentAccount();
   const index = wizardStepIndex(step);
   const headingRef = useRef<HTMLHeadingElement>(null);
@@ -71,12 +75,17 @@ export function BookingWizard(props: BookingWizardProps) {
       ? "Nhập lý do khám để đặt lịch."
       : null);
   const canNext = canLeaveWizardStep(step, selection);
-  const next = WIZARD_STEPS[index + 1]?.key;
+  // Từ bước xác nhận không có "Tiếp tục": nút chính là "Đặt lịch khám", đặt xong mới sang thanh toán.
+  const next = step === "review" ? undefined : WIZARD_STEPS[index + 1]?.key;
   const back = WIZARD_STEPS[index - 1]?.key;
 
   return (
     <div className="grid grid-cols-[minmax(0,1fr)] gap-6">
-      <BookingStepper current={step} onGoTo={onStepChange} />
+      <BookingStepper
+        current={step}
+        onGoTo={onStepChange}
+        locked={step === "payment"}
+      />
 
       <section
         aria-labelledby="booking-step-heading"
@@ -104,7 +113,7 @@ export function BookingWizard(props: BookingWizardProps) {
                   dispatch({ type: "selectPatient", patientId })
                 }
                 variant="patient"
-                label="Ai đi khám?"
+                label="Chọn người cần khám"
               />
               <p className="text-base">
                 Chưa thấy người cần đặt?{" "}
@@ -112,7 +121,7 @@ export function BookingWizard(props: BookingWizardProps) {
                   className="inline-flex min-h-11 items-center font-medium text-primary underline-offset-4 hover:underline"
                   href={PATIENT_ROUTES.newProfile}
                 >
-                  Thêm hồ sơ bệnh nhân
+                  Thêm thành viên
                 </Link>
               </p>
             </div>
@@ -137,50 +146,56 @@ export function BookingWizard(props: BookingWizardProps) {
               onGoTo={onStepChange}
             />
           ) : null}
+          {step === "payment" ? paymentSlot : null}
         </div>
       </section>
 
-      <div className="grid gap-2">
-        {hint ? (
-          <p id="booking-step-hint" className="text-base text-muted-foreground">
-            {hint}
-          </p>
-        ) : null}
-        <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-between">
-          {back ? (
-            <Button
-              type="button"
-              variant="outline"
-              className="h-12 px-6 text-base sm:w-auto"
-              onClick={() => onStepChange(back)}
+      {step === "payment" ? null : (
+        <div className="grid gap-2">
+          {hint ? (
+            <p
+              id="booking-step-hint"
+              className="text-base text-muted-foreground"
             >
-              Quay lại
-            </Button>
-          ) : (
-            <span />
-          )}
-          {next ? (
-            <Button
-              type="button"
-              className="h-12 px-8 text-base sm:w-auto"
-              disabled={!canNext}
-              aria-describedby={hint ? "booking-step-hint" : undefined}
-              onClick={() => onStepChange(next)}
-            >
-              Tiếp tục
-            </Button>
-          ) : (
-            <Button
-              type="button"
-              className="h-12 px-8 text-base sm:w-auto"
-              disabled={!props.ready || props.submitting}
-              onClick={props.onSubmit}
-            >
-              {props.submitting ? "Đang đặt lịch..." : "Đặt lịch khám"}
-            </Button>
-          )}
+              {hint}
+            </p>
+          ) : null}
+          <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-between">
+            {back ? (
+              <Button
+                type="button"
+                variant="outline"
+                className="h-12 px-6 text-base sm:w-auto"
+                onClick={() => onStepChange(back)}
+              >
+                Quay lại
+              </Button>
+            ) : (
+              <span />
+            )}
+            {next ? (
+              <Button
+                type="button"
+                className="h-12 px-8 text-base sm:w-auto"
+                disabled={!canNext}
+                aria-describedby={hint ? "booking-step-hint" : undefined}
+                onClick={() => onStepChange(next)}
+              >
+                Tiếp tục
+              </Button>
+            ) : (
+              <Button
+                type="button"
+                className="h-12 px-8 text-base sm:w-auto"
+                disabled={!props.ready || props.submitting}
+                onClick={props.onSubmit}
+              >
+                {props.submitting ? "Đang đặt lịch..." : "Đặt lịch khám"}
+              </Button>
+            )}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

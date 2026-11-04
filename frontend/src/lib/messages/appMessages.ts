@@ -118,6 +118,8 @@ export const APP_MESSAGES: Record<string, string> = {
   // Khu Lễ tân /reception (gộp nhánh thien-quang 25/10/2026), câu chữ theo R3 Drive.
   "MSG-19":
     "Không thể truy cập hồ sơ bệnh nhân này. Vui lòng kiểm tra lại thông tin hoặc quyền truy cập.",
+  "MSG-20":
+    "Thông tin tiền sử bệnh chưa hợp lệ. Vui lòng kiểm tra và chỉnh sửa.",
   "MSG-43": "Thông tin lượt khám đã được cập nhật.",
 };
 

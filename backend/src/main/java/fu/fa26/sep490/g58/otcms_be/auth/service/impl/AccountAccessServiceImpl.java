@@ -27,8 +27,10 @@ public class AccountAccessServiceImpl implements AccountAccessService {
         if (account == null) {
             return AccessState.INVALID_SESSION;
         }
-        // Includes legacy email-based Administrators managed by UC08.
-        if (account.accountType() == AccountType.ADMIN) {
+        // Staff management revocation applies equally to legacy email and username accounts.
+        if (account.accountType() == AccountType.ADMIN || account.accountType() == AccountType.RECEPTIONIST
+                || account.accountType() == AccountType.DOCTOR || account.accountType() == AccountType.LAB_TECHNICIAN
+                || account.accountType() == AccountType.IMAGING_TECHNICIAN) {
             boolean validSession = sessions.existsByIdAndAccountIdAndRevokedAtIsNullAndExpiresAtAfter(
                     actor.sessionId(), actor.accountId(), Instant.now());
             if (account.status() != AccountStatus.ACTIVE || !validSession) {

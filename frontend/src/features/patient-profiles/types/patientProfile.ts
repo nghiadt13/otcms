@@ -52,20 +52,37 @@ export interface LinkProfileRequest {
   relationship: CareRelationship;
 }
 
+/** Loại giấy tờ định danh theo BE (`identityDocumentType`). */
+export type IdentityDocumentType = "CCCD" | "PERSONAL_ID" | "PASSPORT";
+
 /**
- * POST /api/v1/me/patient-profiles. `address` bắt buộc theo đặc tả §2 và bố cục màn (§3);
- * §6 ghi `address?` là chưa chốt, xem báo cáo.
+ * Thân POST /api/v1/me/dependents (BE AddDependentRequest): họ tên, ngày sinh, giới tính,
+ * quan hệ (không gồm SELF), số định danh kèm loại giấy tờ (không bắt buộc, có số thì phải có loại).
  */
 export interface CreateProfileRequest {
   relationship: CareRelationship;
   fullName: string;
   dateOfBirth: string;
   sex: PatientSex;
-  phone: string;
-  address: string;
   citizenId?: string;
-  email?: string;
+  identityDocumentType?: IdentityDocumentType;
 }
+
+/** Thân JSON thật của POST /api/v1/me/dependents (BE AddDependentRequest). */
+export interface AddDependentBody {
+  fullName: string;
+  dateOfBirth: string;
+  gender: PatientSex;
+  nationalId?: string;
+  identityDocumentType?: IdentityDocumentType;
+  relationship: CareRelationship;
+}
+
+/** Kết quả thêm người thân: gắn xong, hoặc cần xác thực thêm (OTP email / xác nhận tại quầy). */
+export type AddDependentResult =
+  | { status: "LINKED"; profileId: string }
+  | { status: "OTP_SENT"; linkId: string; maskedEmail?: string }
+  | { status: "COUNTER_REQUIRED" };
 
 /** PATCH /api/v1/me/patient-profiles/{id}: chỉ các trường trong `editableFields`. */
 export type UpdateProfileRequest = Partial<
@@ -82,7 +99,7 @@ export type MedicalHistoryField =
 
 export type MedicalHistoryTexts = Record<MedicalHistoryField, string>;
 
-/** GET/PUT /api/v1/patients/{id}/medical-history. */
+/** GET/PUT /api/v1/patient-profiles/{id}/medical-history. */
 export interface MedicalHistory extends MedicalHistoryTexts {
   /** ISO có offset +07:00; null khi chưa ghi lần nào. */
   updatedAt: string | null;
@@ -90,7 +107,7 @@ export interface MedicalHistory extends MedicalHistoryTexts {
   version: number;
 }
 
-/** PUT: các mục và `version` đang xem. Lệch version → 409 STALE. */
+/** PUT: các mục và `version` đang xem. Lệch version → 409 STALE_VERSION. */
 export interface MedicalHistoryUpdate extends MedicalHistoryTexts {
   version: number;
 }
