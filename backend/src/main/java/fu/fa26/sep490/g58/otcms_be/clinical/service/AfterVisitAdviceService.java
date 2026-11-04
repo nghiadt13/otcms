@@ -14,4 +14,5 @@ public interface AfterVisitAdviceService {
             ClinicalExaminationStatus examinationStatus, Instant updatedAt, Long version) { }
 
     AdviceView recordAdvice(AdviceCommand command);
+    AdviceView getAdvice(UUID visitId, UUID doctorId);
 }

@@ -168,6 +168,66 @@ class AfterVisitAdviceServiceImplTest {
         verifyNoInteractions(examinations);
     }
 
+    @Test
+    void readExistingAdvicePreservesExaminationWithoutWrites() {
+        var examination = ClinicalExaminationJpaEntity.create(visitId, "Reason", null, null, null, null,
+                null, ClinicalExaminationStatus.COMPLETED, now);
+        examination.updateAfterVisitAdvice("Rest", "Avoid impact", "Rehab", "Swelling", "Review", now);
+        when(examinations.findByVisitId(visitId)).thenReturn(Optional.of(examination));
+        var view = service.getAdvice(visitId, doctorId);
+        assertEquals("Rest", view.homeCareAdvice());
+        assertEquals("Avoid impact", view.activityAdvice());
+        assertEquals("Rehab", view.rehabilitationAdvice());
+        assertEquals("Swelling", view.warningSigns());
+        assertEquals("Review", view.followUpRecommendation());
+        assertEquals(ClinicalExaminationStatus.COMPLETED, view.examinationStatus());
+        assertEquals(now, view.updatedAt());
+        verify(examinations).findByVisitId(visitId);
+        verifyNoMoreInteractions(examinations);
+    }
+
+    @Test
+    void readExaminationWithoutAdviceReturnsEmptyFields() {
+        existingExamination(ClinicalExaminationStatus.DRAFT);
+        var view = service.getAdvice(visitId, doctorId);
+        assertNull(view.homeCareAdvice());
+        assertNull(view.followUpRecommendation());
+        assertEquals(ClinicalExaminationStatus.DRAFT, view.examinationStatus());
+        verify(examinations, never()).save(any());
+    }
+
+    @Test
+    void readRequiresExistingExaminationAndVisit() {
+        assertEquals("MSG-41", assertThrows(ClinicalOperationException.class,
+                () -> service.getAdvice(visitId, doctorId)).code());
+        when(visits.getVisitContext(visitId)).thenReturn(null);
+        assertEquals("MSG-41", assertThrows(ClinicalOperationException.class,
+                () -> service.getAdvice(visitId, doctorId)).code());
+        verify(examinations, never()).save(any());
+    }
+
+    @Test
+    void readRejectsWrongNullAndUnassignedDoctorsBeforePersistence() {
+        assertEquals("MSG-40", assertThrows(ClinicalOperationException.class,
+                () -> service.getAdvice(visitId, UUID.randomUUID())).code());
+        assertEquals("MSG-40", assertThrows(ClinicalOperationException.class,
+                () -> service.getAdvice(visitId, null)).code());
+        when(visits.getVisitContext(visitId)).thenReturn(new VisitClinicalContextPort.ClinicalVisitContext(
+                visitId, UUID.randomUUID(), null, ClinicalVisitStatus.OTHER));
+        assertEquals("MSG-40", assertThrows(ClinicalOperationException.class,
+                () -> service.getAdvice(visitId, doctorId)).code());
+        verifyNoInteractions(examinations);
+    }
+
+    @Test
+    void readRejectsNullVisitAndIsDeclaredReadOnly() throws Exception {
+        assertEquals("MSG-39", assertThrows(ClinicalOperationException.class,
+                () -> service.getAdvice(null, doctorId)).code());
+        verifyNoInteractions(visits, examinations);
+        assertTrue(AfterVisitAdviceServiceImpl.class.getMethod("getAdvice", UUID.class, UUID.class)
+                .getAnnotation(org.springframework.transaction.annotation.Transactional.class).readOnly());
+    }
+
     private AfterVisitAdviceService.AdviceCommand command(String home, String activity, String rehab,
             String warnings, String followUp) {
         return new AfterVisitAdviceService.AdviceCommand(visitId, doctorId, home, activity, rehab, warnings, followUp);

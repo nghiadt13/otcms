@@ -1,10 +1,12 @@
 package fu.fa26.sep490.g58.otcms_be.clinical.service.impl;
 
 import fu.fa26.sep490.g58.otcms_be.clinical.exception.ClinicalOperationException;
+import fu.fa26.sep490.g58.otcms_be.clinical.model.entity.ClinicalExaminationJpaEntity;
 import fu.fa26.sep490.g58.otcms_be.clinical.repository.ClinicalExaminationRepository;
 import fu.fa26.sep490.g58.otcms_be.clinical.service.AfterVisitAdviceService;
 import fu.fa26.sep490.g58.otcms_be.clinical.service.VisitClinicalContextPort;
 import java.time.Clock;
+import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,13 +26,8 @@ public class AfterVisitAdviceServiceImpl implements AfterVisitAdviceService {
     @Override
     @Transactional
     public AdviceView recordAdvice(AdviceCommand command) {
-        if (command == null || command.visitId() == null) throw new ClinicalOperationException("MSG-39");
-        if (command.doctorId() == null) throw new ClinicalOperationException("MSG-40");
-        var context = visits.getVisitContext(command.visitId());
-        if (context == null) throw new ClinicalOperationException("MSG-41");
-        if (context.responsibleDoctorId() == null || !context.responsibleDoctorId().equals(command.doctorId())) {
-            throw new ClinicalOperationException("MSG-40");
-        }
+        if (command == null) throw new ClinicalOperationException("MSG-39");
+        requireResponsibleDoctor(command.visitId(), command.doctorId());
         if (!hasAdvice(command)) throw new ClinicalOperationException("MSG-39");
 
         var now = clock.instant();
@@ -39,6 +36,28 @@ public class AfterVisitAdviceServiceImpl implements AfterVisitAdviceService {
         examination.updateAfterVisitAdvice(command.homeCareAdvice(), command.activityAdvice(),
                 command.rehabilitationAdvice(), command.warningSigns(), command.followUpRecommendation(), now);
         examination = examinations.save(examination);
+        return view(examination);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public AdviceView getAdvice(UUID visitId, UUID doctorId) {
+        requireResponsibleDoctor(visitId, doctorId);
+        return examinations.findByVisitId(visitId).map(AfterVisitAdviceServiceImpl::view)
+                .orElseThrow(() -> new ClinicalOperationException("MSG-41"));
+    }
+
+    private void requireResponsibleDoctor(UUID visitId, UUID doctorId) {
+        if (visitId == null) throw new ClinicalOperationException("MSG-39");
+        if (doctorId == null) throw new ClinicalOperationException("MSG-40");
+        var context = visits.getVisitContext(visitId);
+        if (context == null) throw new ClinicalOperationException("MSG-41");
+        if (context.responsibleDoctorId() == null || !context.responsibleDoctorId().equals(doctorId)) {
+            throw new ClinicalOperationException("MSG-40");
+        }
+    }
+
+    private static AdviceView view(ClinicalExaminationJpaEntity examination) {
         return new AdviceView(examination.getVisitId(), examination.getHomeCareAdvice(),
                 examination.getActivityAdvice(), examination.getRehabilitationAdvice(),
                 examination.getWarningSigns(), examination.getFollowUpRecommendation(),
