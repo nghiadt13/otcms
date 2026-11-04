@@ -70,7 +70,9 @@ function AppointmentDetails({
       <dl>
         <InfoRow label="Bệnh nhân">{a.patientName ?? "Chưa có tên"}</InfoRow>
         <InfoRow label="Ngày / giờ">{timeText(a.startTime)}</InfoRow>
-        <InfoRow label="Dịch vụ">{a.serviceName ?? "Chưa có thông tin"}</InfoRow>
+        <InfoRow label="Dịch vụ">
+          {a.serviceName ?? "Chưa có thông tin"}
+        </InfoRow>
         <InfoRow label="Bác sĩ">
           {a.doctorDisplayName ?? "Chưa phân bác sĩ"}
         </InfoRow>
@@ -223,9 +225,10 @@ export function AppointmentScreen() {
               <Button variant="outline" onClick={() => setDetail(a)}>
                 Chi tiết
               </Button>
-              {canCheckIn(a) && clinicLocal(a.startTime).slice(0, 10) === today && (
-                <RouteLink href={checkInHref(a)}>Tiếp nhận</RouteLink>
-              )}
+              {canCheckIn(a) &&
+                clinicLocal(a.startTime).slice(0, 10) === today && (
+                  <RouteLink href={checkInHref(a)}>Tiếp nhận</RouteLink>
+                )}
             </div>,
           ],
         }))}

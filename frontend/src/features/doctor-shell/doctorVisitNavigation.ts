@@ -98,7 +98,8 @@ export const doctorVisitNavItems: DoctorVisitNavItem[] = [
       },
       {
         title: "Chẩn đoán ICD-10",
-        description: "Một chẩn đoán chính và các chẩn đoán phụ từ nhóm ICD-10 M và S.",
+        description:
+          "Một chẩn đoán chính và các chẩn đoán phụ từ nhóm ICD-10 M và S.",
         ucs: "UC37",
       },
     ],
@@ -169,7 +170,8 @@ export const doctorVisitNavItems: DoctorVisitNavItem[] = [
       },
       {
         title: "Phiếu kết quả khám",
-        description: "Mở phiếu kết quả (PDF) và xem phiên bản hiện hành hay đã thay thế.",
+        description:
+          "Mở phiếu kết quả (PDF) và xem phiên bản hiện hành hay đã thay thế.",
         ucs: "UC39",
       },
       {
@@ -193,7 +195,9 @@ export function visitHref(visitId: string, section: string): string {
   return section ? `${base}/${section}` : base;
 }
 
-const VISIT_PATH = new RegExp(`^${DOCTOR_ROUTES.visits}/([^/]+)(?:/([^/]+))?/?$`);
+const VISIT_PATH = new RegExp(
+  `^${DOCTOR_ROUTES.visits}/([^/]+)(?:/([^/]+))?/?$`,
+);
 
 /** Tách `/doctor/visits/<id>[/<section>]`; null nếu không thuộc workspace khám. */
 export function parseVisitPath(
@@ -205,7 +209,9 @@ export function parseVisitPath(
 }
 
 /** Menu sidebar của một lượt khám: một nhóm không tiêu đề, href đã gắn mã lượt khám. */
-export function buildVisitSidebarGroups(visitId: string): SidebarNavGroupData[] {
+export function buildVisitSidebarGroups(
+  visitId: string,
+): SidebarNavGroupData[] {
   return [
     {
       label: "Lượt khám",

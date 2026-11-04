@@ -5,7 +5,11 @@ import { DoctorSidebar } from "@/features/doctor-shell/components/DoctorSidebar"
 
 // Giai đoạn dựng giao diện: chưa kiểm tra đăng nhập/vai trò ở đây.
 // Quyền thật phải do backend kiểm tra cho từng thao tác (xem AGENTS.md).
-export default function DoctorLayout({ children }: { children: React.ReactNode }) {
+export default function DoctorLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
     <SidebarProvider>
       <DoctorSidebar />

@@ -28,7 +28,9 @@ export function DoctorSidebar() {
   const pathname = usePathname();
   // Mở một lượt khám thì sidebar đổi sang các màn của lượt khám đó (R3, màn 8–27).
   const visit = parseVisitPath(pathname);
-  const groups = visit ? buildVisitSidebarGroups(visit.visitId) : doctorNavGroups;
+  const groups = visit
+    ? buildVisitSidebarGroups(visit.visitId)
+    : doctorNavGroups;
   const activeHref = visit
     ? visitHref(visit.visitId, visit.section)
     : findActiveNavItem(pathname)?.href;

@@ -11,7 +11,12 @@ const nextConfig: NextConfig = {
   // NEXT_PUBLIC_API_BASE_URL="" để trình duyệt gọi API cùng origin.
   async rewrites() {
     if (process.env.OTCMS_DEV_API_PROXY !== "true") return [];
-    return [{ source: "/api/:path*", destination: "http://localhost:8080/api/:path*" }];
+    return [
+      {
+        source: "/api/:path*",
+        destination: "http://localhost:8080/api/:path*",
+      },
+    ];
   },
   turbopack: {
     root: dirname(fileURLToPath(import.meta.url)),

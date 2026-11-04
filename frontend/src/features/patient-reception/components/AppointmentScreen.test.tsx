@@ -67,9 +67,9 @@ describe("reception appointment list (live API)", () => {
     const row = screen.getByText("Lê Thị Hạnh").closest("tr")!;
     expect(within(row).getByText("BS. Trần Văn An")).toBeInTheDocument();
     expect(within(row).getByText("Đã đặt lịch")).toBeInTheDocument();
-    expect(
-      screen.getByText("Phạm Quốc Bảo").closest("tr")!,
-    ).toHaveTextContent("Đã tiếp nhận");
+    expect(screen.getByText("Phạm Quốc Bảo").closest("tr")!).toHaveTextContent(
+      "Đã tiếp nhận",
+    );
   });
 
   it("shows backend UTC instants in clinic (Vietnam) time", async () => {
@@ -89,7 +89,9 @@ describe("reception appointment list (live API)", () => {
     mount();
     await screen.findByText("Lê Thị Hạnh");
     const confirmed = screen.getByText("Lê Thị Hạnh").closest("tr")!;
-    expect(within(confirmed).getByRole("link", { name: "Tiếp nhận" })).toHaveAttribute(
+    expect(
+      within(confirmed).getByRole("link", { name: "Tiếp nhận" }),
+    ).toHaveAttribute(
       "href",
       "/reception?patientId=22222222-aaaa-bbbb-cccc-000000000001&appointmentId=11111111-aaaa-bbbb-cccc-000000000001",
     );

@@ -14,12 +14,17 @@ const FIELDS = [
 
 export function DoctorVisitPatientHeader({ visitId }: { visitId: string }) {
   return (
-    <Card className="mb-6" aria-label={`Thông tin bệnh nhân của lượt khám ${visitId}`}>
+    <Card
+      className="mb-6"
+      aria-label={`Thông tin bệnh nhân của lượt khám ${visitId}`}
+    >
       <CardContent className="grid grid-cols-2 gap-x-6 gap-y-3 py-4 sm:grid-cols-3 lg:grid-cols-6">
         {FIELDS.map((label) => (
           <div key={label} className="min-w-0">
             <p className="text-xs text-muted-foreground">{label}</p>
-            <p className="truncate text-sm text-muted-foreground">Chờ dữ liệu</p>
+            <p className="truncate text-sm text-muted-foreground">
+              Chờ dữ liệu
+            </p>
           </div>
         ))}
       </CardContent>
