@@ -107,6 +107,58 @@ class ClinicalExaminationServiceImplTest {
         assertTrue(result.diagnoses().isEmpty());
     }
 
+    @Test
+    void missingVisitIsRejectedForReadAndWriteWithoutRepositoryAccess() {
+        when(visits.getVisitContext(visitId)).thenReturn(null);
+        assertEquals("MSG-41", assertThrows(ClinicalOperationException.class,
+                () -> service.getExamination(visitId, doctorId)).code());
+        assertEquals("MSG-41", assertThrows(ClinicalOperationException.class,
+                () -> service.saveDraft(command(null, null))).code());
+        verifyNoInteractions(examinations, diagnoses);
+    }
+
+    @Test
+    void nullOrUnassignedDoctorIsRejectedWithoutNpe() {
+        assertEquals("MSG-40", assertThrows(ClinicalOperationException.class,
+                () -> service.getExamination(visitId, null)).code());
+        var nullDoctor = new ClinicalExaminationService.ExaminationCommand(
+                visitId, null, null, null, null, null, null, null, null);
+        assertEquals("MSG-40", assertThrows(ClinicalOperationException.class,
+                () -> service.saveDraft(nullDoctor)).code());
+        when(visits.getVisitContext(visitId)).thenReturn(new VisitClinicalContextPort.ClinicalVisitContext(
+                visitId, UUID.randomUUID(), null, ClinicalVisitStatus.OTHER));
+        assertEquals("MSG-40", assertThrows(ClinicalOperationException.class,
+                () -> service.getExamination(visitId, doctorId)).code());
+        verifyNoInteractions(examinations, diagnoses);
+    }
+
+    @Test
+    void missingExaminationReadUsesUnavailableMessage() {
+        assertEquals("MSG-41", assertThrows(ClinicalOperationException.class,
+                () -> service.getExamination(visitId, doctorId)).code());
+    }
+
+    @Test
+    void ineligibleLegacyContextRejectsWritesButDoesNotInventClosedVisitMapping() {
+        when(visits.getVisitContext(visitId)).thenReturn(new VisitClinicalContextPort.ClinicalVisitContext(
+                visitId, UUID.randomUUID(), doctorId, ClinicalVisitStatus.OTHER));
+        assertThrows(ClinicalOperationException.class, () -> service.saveDraft(command(null, null)));
+        assertThrows(ClinicalOperationException.class, () -> service.completeExamination(command(null, null)));
+        verifyNoInteractions(examinations, diagnoses);
+    }
+
+    @Test
+    void completedExaminationCanBeUpdatedWithExistingIdentity() {
+        var first = service.completeExamination(command("Pain", List.of(
+                new ClinicalExaminationService.Diagnosis("M25", DiagnosisType.PRIMARY))));
+        when(examinations.findByVisitId(visitId)).thenReturn(Optional.of(savedExamination));
+        var updated = service.completeExamination(command("Updated pain", List.of(
+                new ClinicalExaminationService.Diagnosis("S83", DiagnosisType.PRIMARY))));
+        assertEquals(first.id(), updated.id());
+        assertEquals("Updated pain", updated.reasonForVisit());
+        assertEquals(ClinicalExaminationStatus.COMPLETED, updated.status());
+    }
+
     private ClinicalExaminationService.ExaminationCommand command(
             String reason, List<ClinicalExaminationService.Diagnosis> dx) {
         return new ClinicalExaminationService.ExaminationCommand(visitId, doctorId,

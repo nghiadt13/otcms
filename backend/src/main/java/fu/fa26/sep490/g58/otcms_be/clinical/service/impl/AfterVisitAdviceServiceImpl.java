@@ -1,0 +1,57 @@
+package fu.fa26.sep490.g58.otcms_be.clinical.service.impl;
+
+import fu.fa26.sep490.g58.otcms_be.clinical.exception.ClinicalOperationException;
+import fu.fa26.sep490.g58.otcms_be.clinical.repository.ClinicalExaminationRepository;
+import fu.fa26.sep490.g58.otcms_be.clinical.service.AfterVisitAdviceService;
+import fu.fa26.sep490.g58.otcms_be.clinical.service.VisitClinicalContextPort;
+import java.time.Clock;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+@Service
+public class AfterVisitAdviceServiceImpl implements AfterVisitAdviceService {
+    private final VisitClinicalContextPort visits;
+    private final ClinicalExaminationRepository examinations;
+    private final Clock clock;
+
+    public AfterVisitAdviceServiceImpl(VisitClinicalContextPort visits,
+            ClinicalExaminationRepository examinations, Clock clock) {
+        this.visits = visits;
+        this.examinations = examinations;
+        this.clock = clock;
+    }
+
+    @Override
+    @Transactional
+    public AdviceView recordAdvice(AdviceCommand command) {
+        if (command == null || command.visitId() == null) throw new ClinicalOperationException("MSG-39");
+        if (command.doctorId() == null) throw new ClinicalOperationException("MSG-40");
+        var context = visits.getVisitContext(command.visitId());
+        if (context == null) throw new ClinicalOperationException("MSG-41");
+        if (context.responsibleDoctorId() == null || !context.responsibleDoctorId().equals(command.doctorId())) {
+            throw new ClinicalOperationException("MSG-40");
+        }
+        if (!hasAdvice(command)) throw new ClinicalOperationException("MSG-39");
+
+        var now = clock.instant();
+        var examination = examinations.findByVisitId(command.visitId())
+                .orElseThrow(() -> new ClinicalOperationException("MSG-41"));
+        examination.updateAfterVisitAdvice(command.homeCareAdvice(), command.activityAdvice(),
+                command.rehabilitationAdvice(), command.warningSigns(), command.followUpRecommendation(), now);
+        examination = examinations.save(examination);
+        return new AdviceView(examination.getVisitId(), examination.getHomeCareAdvice(),
+                examination.getActivityAdvice(), examination.getRehabilitationAdvice(),
+                examination.getWarningSigns(), examination.getFollowUpRecommendation(),
+                examination.getStatus(), examination.getUpdatedAt(), examination.getVersion());
+    }
+
+    private static boolean hasAdvice(AdviceCommand command) {
+        return present(command.homeCareAdvice()) || present(command.activityAdvice())
+                || present(command.rehabilitationAdvice()) || present(command.warningSigns())
+                || present(command.followUpRecommendation());
+    }
+
+    private static boolean present(String value) {
+        return value != null && !value.isBlank();
+    }
+}

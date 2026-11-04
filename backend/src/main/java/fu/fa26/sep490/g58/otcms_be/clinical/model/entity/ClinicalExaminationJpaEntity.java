@@ -15,6 +15,11 @@ public class ClinicalExaminationJpaEntity {
     @Column(name="injury_body_site", length=120) private String injuryBodySite;
     @Column(name="injury_side", length=24) private String injurySide;
     @Column(name="injury_mechanism", columnDefinition="text") private String injuryMechanism;
+    @Column(name="home_care_advice", columnDefinition="text") private String homeCareAdvice;
+    @Column(name="activity_advice", columnDefinition="text") private String activityAdvice;
+    @Column(name="rehabilitation_advice", columnDefinition="text") private String rehabilitationAdvice;
+    @Column(name="warning_signs", columnDefinition="text") private String warningSigns;
+    @Column(name="follow_up_recommendation", columnDefinition="text") private String followUpRecommendation;
     @Enumerated(EnumType.STRING) @Column(nullable=false, length=16) private ClinicalExaminationStatus status;
     @Column(name="created_at", nullable=false) private Instant createdAt;
     @Column(name="updated_at", nullable=false) private Instant updatedAt;
@@ -27,8 +32,20 @@ public class ClinicalExaminationJpaEntity {
     public void update(String reason,String symptoms,String findings,String site,String side,String mechanism,ClinicalExaminationStatus status,Instant now) {
         reasonForVisit=reason; this.symptoms=symptoms; examinationFindings=findings; injuryBodySite=site; injurySide=side; injuryMechanism=mechanism; this.status=status; updatedAt=now;
     }
+    public void updateAfterVisitAdvice(String homeCare, String activity, String rehabilitation,
+            String warnings, String followUp, Instant now) {
+        homeCareAdvice=homeCare;
+        activityAdvice=activity;
+        rehabilitationAdvice=rehabilitation;
+        warningSigns=warnings;
+        followUpRecommendation=followUp;
+        updatedAt=now;
+    }
     public UUID getId(){return id;} public UUID getVisitId(){return visitId;} public String getReasonForVisit(){return reasonForVisit;}
     public String getSymptoms(){return symptoms;} public String getExaminationFindings(){return examinationFindings;} public String getInjuryBodySite(){return injuryBodySite;}
     public String getInjurySide(){return injurySide;} public String getInjuryMechanism(){return injuryMechanism;} public ClinicalExaminationStatus getStatus(){return status;}
+    public String getHomeCareAdvice(){return homeCareAdvice;} public String getActivityAdvice(){return activityAdvice;}
+    public String getRehabilitationAdvice(){return rehabilitationAdvice;} public String getWarningSigns(){return warningSigns;}
+    public String getFollowUpRecommendation(){return followUpRecommendation;}
     public Instant getCreatedAt(){return createdAt;} public Instant getUpdatedAt(){return updatedAt;} public Long getVersion(){return version;}
 }

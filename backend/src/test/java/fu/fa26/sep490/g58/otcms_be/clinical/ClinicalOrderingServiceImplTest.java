@@ -237,6 +237,35 @@ class ClinicalOrderingServiceImplTest {
         assertFalse(service.isLatestRoundReadyForReview(visitId));
     }
 
+    @Test
+    void missingVisitAndNullDoctorFailBeforePersistence() {
+        when(visits.getVisitContext(visitId)).thenReturn(null);
+        assertEquals("MSG-41", assertThrows(ClinicalOperationException.class,
+                () -> service.submit(command(request(imagingId, "Pain", "Knee", null)))).code());
+        assertEquals("MSG-40", assertThrows(ClinicalOperationException.class,
+                () -> service.submit(new ClinicalOrderingService.SubmitRound(visitId, null, List.of()))).code());
+        verifyNoInteractions(catalog, rounds, orders);
+    }
+
+    @Test
+    void nullOrderAndNullServiceIdAreRejectedWithoutCatalogOrWrites() {
+        assertEquals("MSG-39", assertThrows(ClinicalOperationException.class,
+                () -> service.submit(new ClinicalOrderingService.SubmitRound(visitId, doctorId,
+                        Arrays.asList((ClinicalOrderingService.OrderRequest) null)))).code());
+        assertEquals("MSG-39", assertThrows(ClinicalOperationException.class,
+                () -> service.submit(command(request(null, "Pain", "Knee", null)))).code());
+        verifyNoInteractions(catalog, rounds, orders);
+    }
+
+    @Test
+    void catalogSnapshotMustMatchRequestedServiceIdentity() {
+        when(catalog.getService(imagingId)).thenReturn(snapshot(labId, "Wrong service",
+                ClinicalServiceType.IMAGING, "150.00", true));
+        assertEquals("MSG-39", assertThrows(ClinicalOperationException.class,
+                () -> service.submit(command(request(imagingId, "Pain", "Knee", null)))).code());
+        verifyNoInteractions(rounds, orders);
+    }
+
     private ClinicalOrderingService.SubmitRound command(ClinicalOrderingService.OrderRequest... requests) {
         return new ClinicalOrderingService.SubmitRound(visitId, doctorId, List.of(requests));
     }
