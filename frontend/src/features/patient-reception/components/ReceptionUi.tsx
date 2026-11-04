@@ -33,10 +33,33 @@ export const money = (value: number) =>
   new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND" }).format(
     value,
   );
+const WITH_OFFSET = /T.*(Z|[+-]\d{2}:?\d{2})$/i;
+const clinicParts = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "Asia/Ho_Chi_Minh",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  hourCycle: "h23",
+});
+/**
+ * The backend sends absolute instants (e.g. "...T07:15:00Z"). Re-express them in
+ * clinic time as "YYYY-MM-DDTHH:mm"; strings without an offset stay as written.
+ */
+export function clinicLocal(value: string) {
+  if (!WITH_OFFSET.test(value)) return value;
+  const at = new Date(value);
+  if (Number.isNaN(at.getTime())) return value;
+  const p = Object.fromEntries(
+    clinicParts.formatToParts(at).map((x) => [x.type, x.value]),
+  );
+  return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}`;
+}
 export const dateText = (value: string) =>
-  value.slice(0, 10).split("-").reverse().join("/");
+  clinicLocal(value).slice(0, 10).split("-").reverse().join("/");
 export const timeText = (value: string) =>
-  `${value.slice(11, 16)} · ${dateText(value)}`;
+  `${clinicLocal(value).slice(11, 16)} · ${dateText(value)}`;
 const labels: Record<string, [string, StatusTone]> = {
   booked: ["Đã đặt lịch", "info"],
   "checked-in": ["Đã tiếp nhận", "success"],
