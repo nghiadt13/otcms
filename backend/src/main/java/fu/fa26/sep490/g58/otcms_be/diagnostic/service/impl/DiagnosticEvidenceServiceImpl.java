@@ -217,7 +217,8 @@ public class DiagnosticEvidenceServiceImpl implements DiagnosticEvidenceService 
         ImagingStudyPort studyPort = studyPorts.getIfAvailable();
         if (studyPort == null) throw dependencyUnavailable();
         StudyEvidence confirmed = studyPort.confirmIngestedStudy(evidence.eventId(), evidence.studyRef(),
-                evidence.requestId(), evidence.visitId(), evidence.patientId(), evidence.attemptId());
+                evidence.requestId(), evidence.visitId(), evidence.patientId(), evidence.attemptId(),
+                evidence.verificationEvidence());
         if (!isConfirmedMatch(confirmed, evidence)) throw evidenceMismatch();
 
         DiagnosticEvidenceContext context = new DiagnosticEvidenceContext(request.getId(), request.getVisitId(),
@@ -410,13 +411,15 @@ public class DiagnosticEvidenceServiceImpl implements DiagnosticEvidenceService 
                 && actual.studyRef().equals(expected.studyRef()) && actual.requestId().equals(expected.requestId())
                 && actual.visitId().equals(expected.visitId()) && actual.patientId().equals(expected.patientId())
                 && actual.attemptId().equals(expected.attemptId()) && actual.ingestComplete()
-                && actual.verificationStatus() == StudyVerificationStatus.CONFIRMED_MATCH;
+                && actual.verificationStatus() == StudyVerificationStatus.CONFIRMED_MATCH
+                && actual.verificationEvidence().equals(expected.verificationEvidence());
     }
 
     private Map<String, Object> studyPayload(StudyEvidence evidence) {
         return Map.of("studyRef", evidence.studyRef(), "requestId", evidence.requestId().toString(),
                 "visitId", evidence.visitId().toString(), "patientId", evidence.patientId().toString(),
-                "attemptId", evidence.attemptId().toString());
+                "attemptId", evidence.attemptId().toString(),
+                "verificationEvidence", evidence.verificationEvidence());
     }
 
     private Map<String, Object> usePayload(UseEvidence evidence) {
@@ -445,7 +448,8 @@ public class DiagnosticEvidenceServiceImpl implements DiagnosticEvidenceService 
                 && text(metadata, "requestId").equals(evidence.requestId().toString())
                 && text(metadata, "visitId").equals(evidence.visitId().toString())
                 && text(metadata, "patientId").equals(evidence.patientId().toString())
-                && text(metadata, "attemptId").equals(evidence.attemptId().toString());
+                && text(metadata, "attemptId").equals(evidence.attemptId().toString())
+                && Objects.equals(metadata.get("verificationEvidence"), evidence.verificationEvidence());
     }
 
     private void requireUseEvidence(UseEvidence evidence) {

@@ -16,6 +16,16 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 public interface DiagnosticRequestJpaRepository extends JpaRepository<DiagnosticRequestJpaEntity, UUID> {
+    @Query("""
+            select request from DiagnosticRequestJpaEntity request
+             where request.currentAttemptId is not null
+               and exists (select attempt.id from DiagnosticAttemptJpaEntity attempt
+                            where attempt.requestId = request.id
+                              and attempt.id = request.currentAttemptId
+                              and attempt.studyRef = :studyRef)
+            """)
+    Optional<DiagnosticRequestJpaEntity> findByCurrentStudyRef(@Param("studyRef") String studyRef);
+
     List<DiagnosticRequestJpaEntity> findAllByVisitIdOrderByCreatedAtDescIdDesc(UUID visitId);
 
     Page<DiagnosticRequestJpaEntity> findAllByVisitIdOrderByCreatedAtDescIdDesc(UUID visitId, Pageable pageable);
