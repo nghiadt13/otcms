@@ -195,6 +195,7 @@ class DoctorCoreProductionWiringTest {
     @Configuration @EnableWebMvc @EnableTransactionManagement(proxyTargetClass = true)
     @Import({ClinicalImagingRequestController.class, ClinicalExaminationController.class, AfterVisitAdviceController.class,
             DiagnosticRequestController.class, DiagnosticFindingsController.class, DiagnosticHistoryController.class, DiagnosticDtoMapper.class,
+            ClinicalPrescriptionController.class, ClinicalPrescriptionServiceImpl.class, ClinicalPrescriptionHistoryQueryServiceImpl.class,
             ClinicalImagingRequestServiceImpl.class, ClinicalImagingRequestTransactionService.class, ClinicalOrderingTransactionService.class,
             ClinicalOrderPreparationService.class, ClinicalOrderingServiceImpl.class, ClinicalExaminationServiceImpl.class, AfterVisitAdviceServiceImpl.class,
             ClinicalDoctorIdentityResolver.class, VisitClinicalContextAdapter.class, VisitClinicalCareContextServiceImpl.class,
@@ -211,7 +212,8 @@ class DoctorCoreProductionWiringTest {
                 Class<?>[] repositories = {AccountRepository.class, DoctorProfileRepository.class, ClinicServiceRepository.class,
                         ClinicVisitJpaRepository.class, VisitCareAssignmentRepository.class, ClinicalExaminationRepository.class,
                         ClinicalDiagnosisRepository.class, OrderingRoundRepository.class, ServiceOrderRepository.class,
-                        ClinicalImagingRequestReplayRepository.class, DiagnosticRequestJpaRepository.class, DiagnosticAttemptJpaRepository.class,
+                        ClinicalImagingRequestReplayRepository.class, ClinicalPrescriptionRepository.class, ClinicalPrescriptionItemRepository.class,
+                        DiagnosticRequestJpaRepository.class, DiagnosticAttemptJpaRepository.class,
                         DiagnosticIdempotencyRecordJpaRepository.class, DiagnosticAuditEventJpaRepository.class,
                         DiagnosticFindingsVersionJpaRepository.class, DiagnosticReportJpaRepository.class,
                         DiagnosticOutboxJpaRepository.class, DiagnosticHistoryAccessAuditJpaRepository.class};
