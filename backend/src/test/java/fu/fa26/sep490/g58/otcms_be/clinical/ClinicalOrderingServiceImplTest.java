@@ -31,7 +31,7 @@ class ClinicalOrderingServiceImplTest {
     private final UUID labId = UUID.randomUUID();
     private final ClinicalOrderingTransactionService writer = new ClinicalOrderingTransactionService(rounds, orders,
             Clock.fixed(Instant.parse("2026-11-04T10:00:00Z"), ZoneOffset.UTC));
-    private final ClinicalOrderingServiceImpl service = new ClinicalOrderingServiceImpl(visits, catalog,
+    private final ClinicalOrderingServiceImpl service = new ClinicalOrderingServiceImpl(new fu.fa26.sep490.g58.otcms_be.clinical.service.impl.ClinicalOrderPreparationService(visits, catalog),
             writer, rounds, orders, Clock.fixed(Instant.parse("2026-11-04T10:00:00Z"), ZoneOffset.UTC));
 
     @BeforeEach

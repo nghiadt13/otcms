@@ -257,15 +257,12 @@ class DoctorClinicalControllerTest {
         verifyNoInteractions(examinations, advice, doctors);
     }
 
-    @Test void requestsHaveOnlyDeclaredClinicalFieldsAndImagingMutationIsNotRegistered() throws Exception {
+    @Test void requestsHaveOnlyDeclaredClinicalFields() throws Exception {
         assertRecordFields(ExaminationRequest.class, Set.of("reasonForVisit", "symptoms", "examinationFindings",
                 "injuryBodySite", "injurySide", "injuryMechanism", "diagnoses"));
         assertRecordFields(DiagnosisRequest.class, Set.of("code", "type"));
         assertRecordFields(AdviceRequest.class, Set.of("homeCareAdvice", "activityAdvice", "rehabilitationAdvice",
                 "warningSigns", "followUpRecommendation"));
-        mvc.perform(post("/api/v1/visits/" + visitId + "/imaging-requests").with(actor(AccountRole.DOCTOR)).with(csrf())
-                .contentType("application/json").content("{\"orders\":[]}"))
-                .andExpect(status().isNotFound());
     }
 
     @Test void actualDomainVisitGuardsReachCurrentHttpErrorsWithoutWrites() throws Exception {

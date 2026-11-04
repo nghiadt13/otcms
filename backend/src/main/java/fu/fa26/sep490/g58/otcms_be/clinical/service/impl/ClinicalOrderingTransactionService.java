@@ -36,7 +36,7 @@ public class ClinicalOrderingTransactionService {
             List<OrderSnapshot> snapshots) {
         int roundNumber = rounds.findTopByVisitIdOrderByRoundNumberDesc(visitId)
                 .map(previous -> previous.getRoundNumber() + 1).orElse(1);
-        Instant now = clock.instant();
+        Instant now = clock.instant().truncatedTo(java.time.temporal.ChronoUnit.MICROS);
         var round = rounds.save(new OrderingRoundJpaEntity(visitId, patientId, roundNumber, doctorId, now));
         var savedOrders = new ArrayList<ServiceOrderJpaEntity>();
         for (var snapshot : snapshots) {

@@ -2,6 +2,7 @@ package fu.fa26.sep490.g58.otcms_be.clinical.exception;
 
 import fu.fa26.sep490.g58.otcms_be.clinical.controller.AfterVisitAdviceController;
 import fu.fa26.sep490.g58.otcms_be.clinical.controller.ClinicalExaminationController;
+import fu.fa26.sep490.g58.otcms_be.clinical.controller.ClinicalImagingRequestController;
 import fu.fa26.sep490.g58.otcms_be.common.api.ErrorResponse;
 import fu.fa26.sep490.g58.otcms_be.common.web.CorrelationIdFilter;
 import jakarta.persistence.OptimisticLockException;
@@ -17,10 +18,12 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.transaction.TransactionException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
-@RestControllerAdvice(assignableTypes = {ClinicalExaminationController.class, AfterVisitAdviceController.class})
+@RestControllerAdvice(assignableTypes = {ClinicalExaminationController.class, AfterVisitAdviceController.class,
+        ClinicalImagingRequestController.class})
 @Order(Ordered.HIGHEST_PRECEDENCE)
 public class ClinicalApiExceptionHandler {
     @ExceptionHandler(ClinicalOperationException.class)
@@ -28,7 +31,8 @@ public class ClinicalApiExceptionHandler {
         int status = switch (error.code()) {
             case "MSG-40", "MSG-14" -> 403;
             case "MSG-41" -> 404;
-            case "MSG-42" -> 409;
+            case "MSG-42", "IDEMPOTENCY_CONFLICT" -> 409;
+            case "DEPENDENCY_UNAVAILABLE" -> 503;
             case "MSG-39", "MSG-08" -> 400;
             default -> 500;
         };
@@ -41,7 +45,8 @@ public class ClinicalApiExceptionHandler {
                 .map(field -> new ErrorResponse.FieldError(field.getField(), "MSG-39")).distinct().toList(), request);
     }
 
-    @ExceptionHandler({HttpMessageNotReadableException.class, MethodArgumentTypeMismatchException.class})
+    @ExceptionHandler({HttpMessageNotReadableException.class, MethodArgumentTypeMismatchException.class,
+            MissingRequestHeaderException.class})
     public ResponseEntity<ErrorResponse> transport(Exception error, HttpServletRequest request) {
         return problem(400, "VALIDATION_FAILED", List.of(), request);
     }
