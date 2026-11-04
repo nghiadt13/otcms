@@ -2,8 +2,7 @@ import { CalendarPlus, Clock, MapPin, Phone } from "lucide-react";
 import Link from "next/link";
 import { publicContainerClass } from "@/components/brand/publicLayout";
 import { PublicBookAppointmentLink } from "@/components/brand/PublicBookAppointmentLink";
-import { hotlineTelHref } from "../siteNavigation";
-import type { ClinicContact } from "../types/websiteContent";
+import { hotlineTelHref, topBarContact } from "../siteNavigation";
 
 const topLinkClass =
   "inline-flex items-center gap-1.5 rounded-sm text-white transition-colors duration-150 hover:text-brand-muted focus-visible:outline-2 focus-visible:outline-white motion-reduce:transition-none";
@@ -13,13 +12,8 @@ const topLinkClass =
 // SiteHeader. Màn hẹp ẩn dải này nên SiteHeader tự hiện nút đặt lịch.
 // Không truyền `bookHref`: nút tự chọn đích theo phiên (đã đăng nhập → thẳng trang đặt lịch,
 // chưa → qua đăng nhập); khu bệnh nhân truyền thẳng trang đặt lịch.
-export function SiteTopBar({
-  contact,
-  bookHref,
-}: {
-  contact: ClinicContact;
-  bookHref?: string;
-}) {
+export function SiteTopBar({ bookHref }: { bookHref?: string }) {
+  const contact = topBarContact;
   return (
     <div className="hidden bg-brand-hover text-sm text-brand-muted lg:block">
       <div
