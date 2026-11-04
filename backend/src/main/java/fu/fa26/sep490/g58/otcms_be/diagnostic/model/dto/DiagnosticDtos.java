@@ -19,7 +19,9 @@ public final class DiagnosticDtos {
             @NotBlank @Size(max = 80) String imagingType,
             @NotBlank @Size(max = 120) String bodyArea,
             @NotBlank @Size(max = 2000) String clinicalReason,
-            @NotNull UUID roomId) { }
+            @NotNull UUID roomId,
+            /** Clinical service order this request fulfils; optional while no UI creates orders. */
+            UUID serviceOrderId) { }
 
     public record CancelRequest(@NotNull CancellationCause cause,
             @NotBlank @Size(max = 1000) String reason) { }

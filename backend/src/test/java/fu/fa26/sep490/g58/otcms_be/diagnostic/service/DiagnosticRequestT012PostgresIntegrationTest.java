@@ -7,6 +7,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import fu.fa26.sep490.g58.otcms_be.common.security.AccountRole;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.exception.DiagnosticOperationException;
+import fu.fa26.sep490.g58.otcms_be.diagnostic.integration.ClinicalImagingOrderPort;
+import fu.fa26.sep490.g58.otcms_be.diagnostic.integration.DiagnosticPortModels.ClinicalImagingOrder;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.integration.DiagnosticPortModels.ImagingService;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.integration.DiagnosticPortModels.RoomEvidence;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.integration.DiagnosticPortModels.RoomReservation;
@@ -48,6 +50,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
+import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 @SpringBootTest
@@ -197,14 +200,75 @@ class DiagnosticRequestT012PostgresIntegrationTest {
         DiagnosticActor wrongDoctor = DiagnosticActor.user(UUID.randomUUID(), AccountRole.DOCTOR);
         DiagnosticOperationException deniedCreate = assertThrows(DiagnosticOperationException.class,
                 () -> service.create(wrongDoctor, visitId, "wrong-doctor-create", serviceId, "MRI", "Chest",
-                        "Pain", roomId, "corr-wrong"));
+                        "Pain", roomId, null, "corr-wrong"));
         assertEquals(DiagnosticOperationOutcome.UNAUTHORIZED_RECORD, deniedCreate.outcome());
         assertEquals(0, jdbc.queryForObject("select count(*) from diagnostic_requests where visit_id = ?",
                 Integer.class, visitId));
     }
 
+    @Test
+    void linksTheRequestToAnOpenClinicalOrderOfTheSameVisitAndService() {
+        UUID orderId = UUID.randomUUID();
+        ports.orders.put(orderId, new ClinicalImagingOrder(orderId, visitId, serviceId, true));
+
+        DiagnosticRequestView created = createLinked("link-ok", orderId);
+
+        assertEquals(orderId, jdbc.queryForObject("select service_order_id from diagnostic_requests where id = ?",
+                UUID.class, created.requestId()));
+    }
+
+    @Test
+    void rejectsAnOrderThatIsMissingClosedOrOfAnotherVisitOrService() {
+        UUID missing = UUID.randomUUID();
+        UUID closed = UUID.randomUUID();
+        UUID otherVisit = UUID.randomUUID();
+        UUID otherService = UUID.randomUUID();
+        ports.orders.put(closed, new ClinicalImagingOrder(closed, visitId, serviceId, false));
+        ports.orders.put(otherVisit, new ClinicalImagingOrder(otherVisit, UUID.randomUUID(), serviceId, true));
+        ports.orders.put(otherService, new ClinicalImagingOrder(otherService, visitId, UUID.randomUUID(), true));
+
+        assertEquals(DiagnosticOperationOutcome.RECORD_NOT_FOUND,
+                assertThrows(DiagnosticOperationException.class, () -> createLinked("link-missing", missing)).outcome());
+        for (UUID bad : List.of(closed, otherVisit, otherService)) {
+            assertEquals(DiagnosticOperationOutcome.EVIDENCE_MISMATCH,
+                    assertThrows(DiagnosticOperationException.class, () -> createLinked("link-bad-" + bad, bad)).outcome());
+        }
+        assertEquals(0, jdbc.queryForObject("select count(*) from diagnostic_requests where visit_id = ?",
+                Integer.class, visitId));
+    }
+
+    @Test
+    void anOrderHasOneLiveRequestAndCancellingItFreesTheOrderAndCancelsTheClinicalOrder() {
+        UUID orderId = UUID.randomUUID();
+        ports.orders.put(orderId, new ClinicalImagingOrder(orderId, visitId, serviceId, true));
+        DiagnosticRequestView first = createLinked("link-first", orderId);
+
+        assertEquals(DiagnosticOperationOutcome.STATE_CONFLICT,
+                assertThrows(DiagnosticOperationException.class, () -> createLinked("link-second", orderId)).outcome());
+
+        service.cancel(doctor(), first.requestId(), "link-cancel", 0,
+                CancellationCause.PATIENT_DECLINED, "Patient declined", "corr-cancel");
+        assertEquals(List.of(orderId), ports.orderCancelCalls);
+        assertEquals(DiagnosticRequestStatus.PENDING, createLinked("link-third", orderId).status());
+    }
+
+    @Test
+    void anUnlinkedRequestNeverTouchesTheClinicalOrderPort() {
+        DiagnosticRequestView created = create("unlinked", "Chest", "Pain");
+        service.cancel(doctor(), created.requestId(), "unlinked-cancel", 0,
+                CancellationCause.CLINIC_UNABLE, "Machine down", "corr-cancel");
+
+        assertEquals(List.of(), ports.orderCancelCalls);
+        assertEquals(List.of(), ports.orderResultCalls);
+    }
+
+    private DiagnosticRequestView createLinked(String key, UUID orderId) {
+        return service.create(doctor(), visitId, key, serviceId, "MRI", "Chest", "Pain", roomId, orderId,
+                "corr-create");
+    }
+
     private DiagnosticRequestView create(String key, String bodyArea, String reason) {
-        return service.create(doctor(), visitId, key, serviceId, "MRI", bodyArea, reason, roomId, "corr-create");
+        return service.create(doctor(), visitId, key, serviceId, "MRI", bodyArea, reason, roomId, null, "corr-create");
     }
 
     private DiagnosticActor doctor() { return DiagnosticActor.user(doctorId, AccountRole.DOCTOR); }
@@ -218,9 +282,24 @@ class DiagnosticRequestT012PostgresIntegrationTest {
         @Bean FirstUseEvidencePort firstUseEvidencePort(PortFakes fakes) { return new FakeFirstUsePort(fakes); }
         @Bean ImagingStudyPort imagingStudyPort(PortFakes fakes) { return new FakeStudyPort(fakes); }
         @Bean ImagingBillingPort imagingBillingPort(PortFakes fakes) { return new FakeBillingPort(fakes); }
+        /** Replaces the production adapter so link tests do not need real clinical orders. */
+        @Bean @Primary ClinicalImagingOrderPort clinicalImagingOrderPort(PortFakes fakes) {
+            return new FakeOrderPort(fakes);
+        }
+    }
+
+    static class FakeOrderPort implements ClinicalImagingOrderPort {
+        private final PortFakes state;
+        FakeOrderPort(PortFakes state) { this.state = state; }
+        @Override public ClinicalImagingOrder requireOpenImagingOrder(UUID orderId) { return state.orders.get(orderId); }
+        @Override public void markResultAvailable(UUID orderId) { state.orderResultCalls.add(orderId); }
+        @Override public void cancelOrderIfOpen(UUID orderId, String reason) { state.orderCancelCalls.add(orderId); }
     }
 
     static class PortFakes {
+        final Map<UUID, ClinicalImagingOrder> orders = new HashMap<>();
+        final List<UUID> orderResultCalls = new ArrayList<>();
+        final List<UUID> orderCancelCalls = new ArrayList<>();
         final Map<UUID, VisitEvidence> visits = new HashMap<>();
         final Map<UUID, MutableRoom> rooms = new HashMap<>();
         final Map<UUID, UUID> reservations = new HashMap<>();
@@ -252,6 +331,7 @@ class DiagnosticRequestT012PostgresIntegrationTest {
             firstUseAccepted = true; billingFails = false; resultReadyFails = false;
             findingsReleaseFails = false; findingsReleaseCalls = 0; studyReleaseCalls = 0;
             studyConfirmation = null; billedRequestIds.clear();
+            orders.clear(); orderResultCalls.clear(); orderCancelCalls.clear();
         }
 
     }

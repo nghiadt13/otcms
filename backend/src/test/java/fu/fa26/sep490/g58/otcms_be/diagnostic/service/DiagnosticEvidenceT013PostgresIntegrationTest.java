@@ -12,6 +12,7 @@ import fu.fa26.sep490.g58.otcms_be.diagnostic.integration.DiagnosticPortModels.S
 import fu.fa26.sep490.g58.otcms_be.diagnostic.integration.DiagnosticPortModels.UseEvidence;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.integration.DiagnosticPortModels.UseEvidenceType;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.integration.DiagnosticPortModels.UseEvidenceType;
+import fu.fa26.sep490.g58.otcms_be.diagnostic.integration.DiagnosticPortModels.ClinicalImagingOrder;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.integration.DiagnosticPortModels.VisitEvidence;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.model.DiagnosticActor;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.model.DiagnosticRequestView;
@@ -21,6 +22,7 @@ import fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.enums.DiagnosticReque
 import fu.fa26.sep490.g58.otcms_be.support.LocalPostgresTest;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -208,6 +210,26 @@ class DiagnosticEvidenceT013PostgresIntegrationTest {
     }
 
     @Test
+    void linkingAConfirmedStudyMarksTheLinkedClinicalOrderOnce() {
+        UUID orderId = UUID.randomUUID();
+        ports.orders.put(orderId, new ClinicalImagingOrder(orderId, visitId, serviceId, true));
+        DiagnosticRequestView created = requests.create(doctor(), visitId, "create-linked", serviceId, "MRI",
+                "Chest", "Pain", roomId, orderId, "corr-create");
+        evidenceService.recordFirstUse(DiagnosticActor.trustedIntegration(), useEvidence(created.requestId()),
+                "corr-first-use-linked");
+        UUID attemptId = UUID.fromString(jdbc.queryForObject(
+                "select current_attempt_id from diagnostic_requests where id = ?", String.class, created.requestId()));
+        StudyEvidence incoming = new StudyEvidence(UUID.randomUUID(), "study:opaque:linked", created.requestId(),
+                visitId, patientId, attemptId, StudyVerificationStatus.CONFIRMED_MATCH, true);
+
+        assertEquals(List.of(), ports.orderResultCalls);
+        evidenceService.linkConfirmedStudy(DiagnosticActor.trustedIntegration(), incoming, "corr-linked-study");
+        evidenceService.linkConfirmedStudy(DiagnosticActor.trustedIntegration(), incoming, "corr-linked-replay");
+
+        assertEquals(List.of(orderId), ports.orderResultCalls);
+    }
+
+    @Test
     void invalidStudyEvidenceAndWrongActorAreRejected() {
         DiagnosticRequestView created = createRequest();
         DiagnosticOperationException wrongActor = assertThrows(DiagnosticOperationException.class,
@@ -231,7 +253,7 @@ class DiagnosticEvidenceT013PostgresIntegrationTest {
 
     private DiagnosticRequestView createRequest() {
         return requests.create(doctor(), visitId, "create-" + UUID.randomUUID(), serviceId, "MRI", "Chest",
-                "Pain", roomId, "corr-create");
+                "Pain", roomId, null, "corr-create");
     }
 
     private void cleanAbandonedT013Rows() {

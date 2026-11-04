@@ -2,6 +2,8 @@ package fu.fa26.sep490.g58.otcms_be.diagnostic.service.impl;
 
 import fu.fa26.sep490.g58.otcms_be.common.security.AccountRole;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.exception.DiagnosticOperationException;
+import fu.fa26.sep490.g58.otcms_be.diagnostic.integration.ClinicalImagingOrderPort;
+import fu.fa26.sep490.g58.otcms_be.diagnostic.integration.DiagnosticPortModels.ClinicalImagingOrder;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.integration.DiagnosticPortModels.ImagingService;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.integration.DiagnosticPortModels.RoomEvidence;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.integration.DiagnosticPortModels.RoomReservation;
@@ -60,6 +62,7 @@ public class DiagnosticRequestServiceImpl implements DiagnosticRequestService {
     private final ObjectProvider<VisitDiagnosticPort> visitPorts;
     private final ObjectProvider<RoomReservationPort> roomPorts;
     private final ObjectProvider<ImagingServiceCatalogPort> catalogPorts;
+    private final ObjectProvider<ClinicalImagingOrderPort> orderPorts;
 
     public DiagnosticRequestServiceImpl(DiagnosticRequestJpaRepository requests,
             DiagnosticAttemptJpaRepository attempts,
@@ -68,7 +71,8 @@ public class DiagnosticRequestServiceImpl implements DiagnosticRequestService {
             DiagnosticAuthorizationPolicy authorization,
             ObjectProvider<VisitDiagnosticPort> visitPorts,
             ObjectProvider<RoomReservationPort> roomPorts,
-            ObjectProvider<ImagingServiceCatalogPort> catalogPorts) {
+            ObjectProvider<ImagingServiceCatalogPort> catalogPorts,
+            ObjectProvider<ClinicalImagingOrderPort> orderPorts) {
         this.requests = Objects.requireNonNull(requests, "requests");
         this.attempts = Objects.requireNonNull(attempts, "attempts");
         this.idempotency = Objects.requireNonNull(idempotency, "idempotency");
@@ -77,13 +81,14 @@ public class DiagnosticRequestServiceImpl implements DiagnosticRequestService {
         this.visitPorts = Objects.requireNonNull(visitPorts, "visitPorts");
         this.roomPorts = Objects.requireNonNull(roomPorts, "roomPorts");
         this.catalogPorts = Objects.requireNonNull(catalogPorts, "catalogPorts");
+        this.orderPorts = Objects.requireNonNull(orderPorts, "orderPorts");
     }
 
     @Override
     @Transactional
     public DiagnosticRequestView create(DiagnosticActor actor, UUID visitId, String idempotencyKey,
             UUID serviceId, String imagingType, String bodyArea, String clinicalReason,
-            UUID roomId, String correlationId) {
+            UUID roomId, UUID serviceOrderId, String correlationId) {
         requireDoctor(actor);
         requireText(idempotencyKey, "idempotencyKey");
         requireText(correlationId, "correlationId");
@@ -91,7 +96,8 @@ public class DiagnosticRequestServiceImpl implements DiagnosticRequestService {
         String area = requireText(bodyArea, "bodyArea");
         String reason = requireText(clinicalReason, "clinicalReason");
         UUID operationId = UUID.randomUUID();
-        String fingerprint = fingerprint(serviceId + "\n" + modality + "\n" + area + "\n" + reason + "\n" + roomId);
+        String fingerprint = fingerprint(serviceId + "\n" + modality + "\n" + area + "\n" + reason + "\n" + roomId
+                + "\n" + serviceOrderId);
         int claimed = idempotency.claimActorOperation(operationId, actor.accountId(), visitId, null,
                 CREATE_OPERATION, idempotencyKey, fingerprint);
         if (claimed == 0) {
@@ -108,6 +114,7 @@ public class DiagnosticRequestServiceImpl implements DiagnosticRequestService {
                 || !modality.equalsIgnoreCase(service.imagingType())) {
             throw new DiagnosticOperationException(DiagnosticOperationOutcome.SERVICE_NOT_ELIGIBLE);
         }
+        if (serviceOrderId != null) requireLinkableOrder(serviceOrderId, visitId, serviceId);
         RoomEvidence room = requireRoomEvidence(roomId, modality);
         if (!room.operational() || !room.compatible() || !room.hasCapacity()) {
             throw new DiagnosticOperationException(DiagnosticOperationOutcome.ROOM_NOT_READY);
@@ -118,6 +125,7 @@ public class DiagnosticRequestServiceImpl implements DiagnosticRequestService {
                 visitEvidence.patientId(), actor.accountId(), serviceId, roomId, modality, area, reason,
                 DiagnosticRequestStatus.PENDING, null, null, null);
         request.setCreatedAt(Instant.now());
+        request.setServiceOrderId(serviceOrderId);
         requests.saveAndFlush(request);
 
         RoomReservation reservation = requiredRoomPort().reserveImagingCapacity(
@@ -128,8 +136,11 @@ public class DiagnosticRequestServiceImpl implements DiagnosticRequestService {
         }
 
         DiagnosticRequestView result = toView(request);
-        recordAudit(null, actor, request, "CREATE_REQUEST", correlationId,
-                Map.of("roomId", roomId.toString(), "serviceId", serviceId.toString()));
+        Map<String, Object> auditDetails = new LinkedHashMap<>();
+        auditDetails.put("roomId", roomId.toString());
+        auditDetails.put("serviceId", serviceId.toString());
+        if (serviceOrderId != null) auditDetails.put("serviceOrderId", serviceOrderId.toString());
+        recordAudit(null, actor, request, "CREATE_REQUEST", correlationId, auditDetails);
         saveReplayResult(actor, visitId, null, CREATE_OPERATION, idempotencyKey, result);
         return result;
     }
@@ -217,6 +228,10 @@ public class DiagnosticRequestServiceImpl implements DiagnosticRequestService {
         request.setCancellationReason(reason.trim());
         requests.saveAndFlush(request);
         requiredRoomPort().releaseImagingCapacity(requestId, "DOCTOR_CANCELLED_BEFORE_FIRST_USE");
+        // A cancelled request must not leave its clinical order open, or the visit could never be closed.
+        if (request.getServiceOrderId() != null) {
+            requiredOrderPort().cancelOrderIfOpen(request.getServiceOrderId(), reason.trim());
+        }
         DiagnosticRequestView result = toView(request);
         recordAudit(null, actor, request, operation, correlationId,
                 Map.of("cause", cause.name(), "reason", reason.trim()));
@@ -368,6 +383,24 @@ public class DiagnosticRequestServiceImpl implements DiagnosticRequestService {
         RoomReservationPort port = roomPorts.getIfAvailable();
         if (port == null) throw dependencyUnavailable();
         return port;
+    }
+
+    private ClinicalImagingOrderPort requiredOrderPort() {
+        ClinicalImagingOrderPort port = orderPorts.getIfAvailable();
+        if (port == null) throw dependencyUnavailable();
+        return port;
+    }
+
+    /** The order must exist, still be open, match the visit and service, and not already have a live request. */
+    private void requireLinkableOrder(UUID serviceOrderId, UUID visitId, UUID serviceId) {
+        ClinicalImagingOrder order = requiredOrderPort().requireOpenImagingOrder(serviceOrderId);
+        if (order == null) throw new DiagnosticOperationException(DiagnosticOperationOutcome.RECORD_NOT_FOUND);
+        if (!order.open() || !visitId.equals(order.visitId()) || !serviceId.equals(order.serviceId())) {
+            throw new DiagnosticOperationException(DiagnosticOperationOutcome.EVIDENCE_MISMATCH);
+        }
+        if (requests.existsByServiceOrderIdAndStatusNot(serviceOrderId, DiagnosticRequestStatus.CANCELLED)) {
+            throw new DiagnosticOperationException(DiagnosticOperationOutcome.STATE_CONFLICT);
+        }
     }
 
     private ImagingServiceCatalogPort requiredCatalogPort() {

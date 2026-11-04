@@ -1,6 +1,7 @@
 package fu.fa26.sep490.g58.otcms_be.diagnostic.controller;
 
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -71,7 +72,7 @@ class DiagnosticControllersT016Test {
                 serviceId, roomId, "MRI", "Knee", "Pain", DiagnosticRequestStatus.PENDING,
                 null, null, null, 0, Instant.parse("2026-11-04T10:00:00Z"));
         when(requests.create(eq(actor), eq(visitId), eq("create-1"), eq(serviceId), eq("MRI"),
-                eq("Knee"), eq("Pain"), eq(roomId), eq("unknown"))).thenReturn(view);
+                eq("Knee"), eq("Pain"), eq(roomId), isNull(), eq("unknown"))).thenReturn(view);
         MockMvc mvc = MockMvcBuilders.standaloneSetup(
                 new DiagnosticRequestController(requests, statuses, new DiagnosticDtoMapper()))
                 .setCustomArgumentResolvers(new AuthenticationPrincipalArgumentResolver())
@@ -82,13 +83,13 @@ class DiagnosticControllersT016Test {
                         .header("Idempotency-Key", "create-1")
                         .contentType("application/json")
                         .content(objectMapper.writeValueAsBytes(new DiagnosticDtos.CreateRequest(
-                                serviceId, "MRI", "Knee", "Pain", roomId))))
+                                serviceId, "MRI", "Knee", "Pain", roomId, null))))
                 .andExpect(status().isCreated())
                 .andExpect(header().string("Location", "/api/v1/imaging-requests/" + requestId))
                 .andExpect(jsonPath("$.requestId").value(requestId.toString()))
                 .andExpect(jsonPath("$.status").value("PENDING"));
 
-        verify(requests).create(actor, visitId, "create-1", serviceId, "MRI", "Knee", "Pain", roomId, "unknown");
+        verify(requests).create(actor, visitId, "create-1", serviceId, "MRI", "Knee", "Pain", roomId, null, "unknown");
     }
 
     @Test

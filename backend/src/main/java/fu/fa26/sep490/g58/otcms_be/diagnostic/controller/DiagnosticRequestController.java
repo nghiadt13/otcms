@@ -61,7 +61,7 @@ public class DiagnosticRequestController {
             HttpServletRequest request) {
         DiagnosticRequestView created = requests.create(actor(principal), visitId, idempotencyKey,
                 body.serviceId(), body.imagingType(), body.bodyArea(), body.clinicalReason(), body.roomId(),
-                CorrelationIdFilter.current(request));
+                body.serviceOrderId(), CorrelationIdFilter.current(request));
         return ResponseEntity.created(URI.create("/api/v1/imaging-requests/" + created.requestId()))
                 .body(mapper.toImagingRequest(created));
     }
