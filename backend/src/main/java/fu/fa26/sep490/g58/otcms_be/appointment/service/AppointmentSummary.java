@@ -25,7 +25,9 @@ public class AppointmentSummary {
     private final String doctorDisplayName;
     private final String serviceName;
     private final BigDecimal servicePrice;
-    public AppointmentSummary(UUID id, UUID patientProfileId, UUID serviceId, UUID doctorId, String status, String bookingSource, String purpose, Instant startTime, Instant endTime, int durationMinutes, int bufferMinutes, Instant occupiedUntil, UUID visitId, UUID sourceVisitId, Instant createdAt, Instant updatedAt, String doctorDisplayName, String serviceName, BigDecimal servicePrice) {
+    private final String patientName;
+    public AppointmentSummary(UUID id, UUID patientProfileId, UUID serviceId, UUID doctorId, String status, String bookingSource, String purpose, Instant startTime, Instant endTime, int durationMinutes, int bufferMinutes, Instant occupiedUntil, UUID visitId, UUID sourceVisitId, Instant createdAt, Instant updatedAt, String doctorDisplayName, String serviceName, BigDecimal servicePrice, String patientName) {
+        this.patientName = patientName;
         this.id = id;
         this.patientProfileId = patientProfileId;
         this.serviceId = serviceId;
@@ -84,4 +86,6 @@ public class AppointmentSummary {
     public String serviceName() { return serviceName; }
     public BigDecimal getServicePrice() { return servicePrice; }
     public BigDecimal servicePrice() { return servicePrice; }
+    public String getPatientName() { return patientName; }
+    public String patientName() { return patientName; }
 }
