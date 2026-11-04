@@ -6,7 +6,6 @@ import static org.mockito.Mockito.*;
 
 import fu.fa26.sep490.g58.otcms_be.clinical.exception.ClinicalOperationException;
 import fu.fa26.sep490.g58.otcms_be.clinical.model.ClinicalExaminationStatus;
-import fu.fa26.sep490.g58.otcms_be.clinical.model.ClinicalVisitStatus;
 import fu.fa26.sep490.g58.otcms_be.clinical.model.entity.ClinicalExaminationJpaEntity;
 import fu.fa26.sep490.g58.otcms_be.clinical.repository.ClinicalExaminationRepository;
 import fu.fa26.sep490.g58.otcms_be.clinical.service.AfterVisitAdviceService;
@@ -33,7 +32,7 @@ class AfterVisitAdviceServiceImplTest {
     @BeforeEach
     void setUp() {
         when(visits.getVisitContext(visitId)).thenReturn(new VisitClinicalContextPort.ClinicalVisitContext(
-                visitId, UUID.randomUUID(), doctorId, ClinicalVisitStatus.IN_EXAMINATION));
+                visitId, UUID.randomUUID(), doctorId, true));
         when(examinations.save(any())).thenAnswer(invocation -> {
             saved = invocation.getArgument(0);
             return saved;
@@ -155,7 +154,7 @@ class AfterVisitAdviceServiceImplTest {
     @Test
     void unassignedDoctorIsRejected() {
         when(visits.getVisitContext(visitId)).thenReturn(new VisitClinicalContextPort.ClinicalVisitContext(
-                visitId, UUID.randomUUID(), null, ClinicalVisitStatus.OTHER));
+                visitId, UUID.randomUUID(), null, false));
         assertEquals("MSG-40", assertThrows(ClinicalOperationException.class,
                 () -> service.recordAdvice(command("Rest", null, null, null, null))).code());
         verifyNoInteractions(examinations);
@@ -213,7 +212,7 @@ class AfterVisitAdviceServiceImplTest {
         assertEquals("MSG-40", assertThrows(ClinicalOperationException.class,
                 () -> service.getAdvice(visitId, null)).code());
         when(visits.getVisitContext(visitId)).thenReturn(new VisitClinicalContextPort.ClinicalVisitContext(
-                visitId, UUID.randomUUID(), null, ClinicalVisitStatus.OTHER));
+                visitId, UUID.randomUUID(), null, false));
         assertEquals("MSG-40", assertThrows(ClinicalOperationException.class,
                 () -> service.getAdvice(visitId, doctorId)).code());
         verifyNoInteractions(examinations);
@@ -226,6 +225,18 @@ class AfterVisitAdviceServiceImplTest {
         verifyNoInteractions(visits, examinations);
         assertTrue(AfterVisitAdviceServiceImpl.class.getMethod("getAdvice", UUID.class, UUID.class)
                 .getAnnotation(org.springframework.transaction.annotation.Transactional.class).readOnly());
+    }
+
+    @Test
+    void writeRequiresVisitEligibilityButReadDoesNotGateOnWriteEligibility() {
+        existingExamination(ClinicalExaminationStatus.COMPLETED);
+        when(visits.getVisitContext(visitId)).thenReturn(new VisitClinicalContextPort.ClinicalVisitContext(
+                visitId, UUID.randomUUID(), doctorId, false));
+        assertEquals("MSG-42", assertThrows(ClinicalOperationException.class,
+                () -> service.recordAdvice(command("Rest", null, null, null, null))).code());
+        var view = service.getAdvice(visitId, doctorId);
+        assertEquals(ClinicalExaminationStatus.COMPLETED, view.examinationStatus());
+        verify(examinations, never()).save(any());
     }
 
     private AfterVisitAdviceService.AdviceCommand command(String home, String activity, String rehab,

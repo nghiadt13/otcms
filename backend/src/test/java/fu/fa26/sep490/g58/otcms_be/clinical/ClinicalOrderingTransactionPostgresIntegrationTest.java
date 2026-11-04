@@ -32,7 +32,7 @@ class ClinicalOrderingTransactionPostgresIntegrationTest {
         UUID labId = UUID.randomUUID();
         UUID imagingId = UUID.randomUUID();
         when(visits.getVisitContext(visitId)).thenReturn(new VisitClinicalContextPort.ClinicalVisitContext(
-                visitId, patientId, doctorId, ClinicalVisitStatus.IN_EXAMINATION));
+                visitId, patientId, doctorId, true));
         when(catalog.getService(labId)).thenReturn(new ClinicServiceCatalogPort.ClinicalServiceSnapshot(
                 labId, "CBC", ClinicalServiceType.LABORATORY, new BigDecimal("450.00"), true));
         when(catalog.getService(imagingId)).thenReturn(new ClinicServiceCatalogPort.ClinicalServiceSnapshot(

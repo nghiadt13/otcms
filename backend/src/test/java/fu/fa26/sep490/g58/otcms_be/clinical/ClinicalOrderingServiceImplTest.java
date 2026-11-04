@@ -37,7 +37,7 @@ class ClinicalOrderingServiceImplTest {
     @BeforeEach
     void setUp() {
         when(visits.getVisitContext(visitId)).thenReturn(new VisitClinicalContextPort.ClinicalVisitContext(
-                visitId, patientId, doctorId, ClinicalVisitStatus.IN_EXAMINATION));
+                visitId, patientId, doctorId, true));
         when(rounds.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
         when(orders.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
         when(catalog.getService(imagingId)).thenReturn(snapshot(imagingId, "X-Ray Knee", ClinicalServiceType.IMAGING,
@@ -51,7 +51,8 @@ class ClinicalOrderingServiceImplTest {
     void oneServiceCreatesOneRoundAndSnapshotsOrderFields() {
         var result = service.submit(command(request(imagingId, "Knee pain", "LEFT KNEE", "Weight-bearing")));
         assertEquals(1, result.round().roundNumber());
-        assertTrue(result.requiresAwaitingConclusionTransition());
+        assertEquals(ClinicalVisitStatus.OTHER, result.previousVisitStatus());
+        assertFalse(result.requiresAwaitingConclusionTransition());
         var order = result.round().orders().getFirst();
         assertTrue(order.orderCode().length() <= 32);
         assertTrue(order.orderCode().startsWith("SO-"));
@@ -62,7 +63,8 @@ class ClinicalOrderingServiceImplTest {
         assertEquals(ServiceOrderPaymentStatus.PENDING_PAYMENT, order.paymentStatus());
         verify(rounds).save(any());
         verify(orders).save(any());
-        verify(visits, never()).markAwaitingConclusion(any(), any());
+        verify(visits).getVisitContext(visitId);
+        verifyNoMoreInteractions(visits);
     }
 
     @Test
@@ -87,9 +89,9 @@ class ClinicalOrderingServiceImplTest {
 
     @Test
     void rejectsUnrelatedDoctor() {
-        assertThrows(ClinicalOperationException.class,
+        assertEquals("MSG-40", assertThrows(ClinicalOperationException.class,
                 () -> service.submit(new ClinicalOrderingService.SubmitRound(visitId, UUID.randomUUID(),
-                        List.of(request(labId, "Reason", null, null)))));
+                        List.of(request(labId, "Reason", null, null))))).code());
         verifyNoInteractions(catalog, rounds, orders);
     }
 
@@ -118,18 +120,21 @@ class ClinicalOrderingServiceImplTest {
         when(orders.save(any())).thenThrow(new IllegalStateException("local insert failed"));
         assertThrows(IllegalStateException.class,
                 () -> service.submit(command(request(labId, "Reason", null, null))));
-        verify(visits, never()).markAwaitingConclusion(any(), any());
+        verify(visits).getVisitContext(visitId);
+        verifyNoMoreInteractions(visits);
     }
 
     @Test
-    void submitUsesLocalTransactionAndReturnsPostCommitIntent() throws Exception {
+    void submitUsesLocalTransactionAndReturnsOnlyLegacyCompatibilityMetadata() throws Exception {
         var transactional = ClinicalOrderingTransactionService.class
                 .getMethod("createRound", UUID.class, UUID.class, UUID.class, List.class)
                 .getAnnotation(Transactional.class);
         assertNotNull(transactional);
-        assertTrue(service.submit(command(request(labId, "Reason", null, null)))
-                .requiresAwaitingConclusionTransition());
-        verify(visits, never()).markAwaitingConclusion(any(), any());
+        var result = service.submit(command(request(labId, "Reason", null, null)));
+        assertEquals(ClinicalVisitStatus.OTHER, result.previousVisitStatus());
+        assertFalse(result.requiresAwaitingConclusionTransition());
+        verify(visits).getVisitContext(visitId);
+        verifyNoMoreInteractions(visits);
     }
 
     @Test
@@ -264,6 +269,19 @@ class ClinicalOrderingServiceImplTest {
         assertEquals("MSG-39", assertThrows(ClinicalOperationException.class,
                 () -> service.submit(command(request(imagingId, "Pain", "Knee", null)))).code());
         verifyNoInteractions(rounds, orders);
+    }
+
+    @Test
+    void visitEligibilityAndPatientIdAreRequiredBeforeCatalogOrWrites() {
+        when(visits.getVisitContext(visitId)).thenReturn(new VisitClinicalContextPort.ClinicalVisitContext(
+                visitId, patientId, doctorId, false));
+        assertEquals("MSG-42", assertThrows(ClinicalOperationException.class,
+                () -> service.submit(command(request(imagingId, "Pain", "Knee", null)))).code());
+        when(visits.getVisitContext(visitId)).thenReturn(new VisitClinicalContextPort.ClinicalVisitContext(
+                visitId, null, doctorId, true));
+        assertEquals("MSG-39", assertThrows(ClinicalOperationException.class,
+                () -> service.submit(command(request(imagingId, "Pain", "Knee", null)))).code());
+        verifyNoInteractions(catalog, rounds, orders);
     }
 
     private ClinicalOrderingService.SubmitRound command(ClinicalOrderingService.OrderRequest... requests) {

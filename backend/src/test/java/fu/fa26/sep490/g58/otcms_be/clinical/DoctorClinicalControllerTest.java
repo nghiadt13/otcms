@@ -268,6 +268,32 @@ class DoctorClinicalControllerTest {
                 .andExpect(status().isNotFound());
     }
 
+    @Test void actualDomainVisitGuardsReachCurrentHttpErrorsWithoutWrites() throws Exception {
+        var contexts = mock(VisitClinicalContextPort.class);
+        var examRows = mock(fu.fa26.sep490.g58.otcms_be.clinical.repository.ClinicalExaminationRepository.class);
+        var diagnosisRows = mock(fu.fa26.sep490.g58.otcms_be.clinical.repository.ClinicalDiagnosisRepository.class);
+        var realExaminations = new fu.fa26.sep490.g58.otcms_be.clinical.service.impl.ClinicalExaminationServiceImpl(
+                contexts, examRows, diagnosisRows, java.time.Clock.systemUTC());
+        var realAdvice = new fu.fa26.sep490.g58.otcms_be.clinical.service.impl.AfterVisitAdviceServiceImpl(
+                contexts, examRows, java.time.Clock.systemUTC());
+        when(examinations.saveDraft(any())).thenAnswer(invocation -> realExaminations.saveDraft(invocation.getArgument(0)));
+        when(advice.recordAdvice(any())).thenAnswer(invocation -> realAdvice.recordAdvice(invocation.getArgument(0)));
+
+        mvc.perform(request("draft").with(actor(AccountRole.DOCTOR)).with(csrf()))
+                .andExpect(status().isNotFound()).andExpect(jsonPath("$.error.code").value("MSG-41"));
+        when(contexts.getVisitContext(visitId)).thenReturn(new VisitClinicalContextPort.ClinicalVisitContext(
+                visitId, UUID.randomUUID(), UUID.randomUUID(), true));
+        mvc.perform(request("draft").with(actor(AccountRole.DOCTOR)).with(csrf()))
+                .andExpect(status().isForbidden()).andExpect(jsonPath("$.error.code").value("MSG-40"));
+        when(contexts.getVisitContext(visitId)).thenReturn(new VisitClinicalContextPort.ClinicalVisitContext(
+                visitId, UUID.randomUUID(), doctorId, false));
+        mvc.perform(request("draft").with(actor(AccountRole.DOCTOR)).with(csrf()))
+                .andExpect(status().isConflict()).andExpect(jsonPath("$.error.code").value("MSG-42"));
+        mvc.perform(request("advicePut").with(actor(AccountRole.DOCTOR)).with(csrf()))
+                .andExpect(status().isConflict()).andExpect(jsonPath("$.error.code").value("MSG-42"));
+        verifyNoInteractions(examRows, diagnosisRows);
+    }
+
     private String examPath() { return "/api/v1/visits/" + visitId + "/examination"; }
     private String advicePath() { return "/api/v1/visits/" + visitId + "/after-visit-advice"; }
 

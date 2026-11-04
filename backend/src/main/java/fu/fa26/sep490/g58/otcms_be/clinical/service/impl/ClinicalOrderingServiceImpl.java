@@ -9,10 +9,9 @@ import java.time.*; import java.util.*; import org.springframework.stereotype.Se
   if(c.doctorId()==null)throw new ClinicalOperationException("MSG-40");
   var ctx=visits.getVisitContext(c.visitId());
   if(ctx==null)throw new ClinicalOperationException("MSG-41");
-  if(ctx.responsibleDoctorId()==null||!ctx.responsibleDoctorId().equals(c.doctorId()))throw new ClinicalOperationException("MSG-14");
+  if(ctx.responsibleDoctorId()==null||!ctx.responsibleDoctorId().equals(c.doctorId()))throw new ClinicalOperationException("MSG-40");
   if(ctx.patientId()==null)throw new ClinicalOperationException("MSG-39");
-  // Do not translate OPEN to this legacy state without a Visit-owned eligibility contract.
-  if(ctx.status()!=ClinicalVisitStatus.IN_EXAMINATION)throw new ClinicalOperationException("MSG-08");
+  if(!ctx.clinicalWorkAllowed())throw new ClinicalOperationException("MSG-42");
   if(c.orders()==null||c.orders().isEmpty())throw new ClinicalOperationException("MSG-08");
   var snapshots=c.orders().stream().map(r->{
    if(r==null||r.serviceId()==null)throw new ClinicalOperationException("MSG-39");
@@ -22,7 +21,8 @@ import java.time.*; import java.util.*; import org.springframework.stereotype.Se
    return new ClinicalOrderingTransactionService.OrderSnapshot(r,s);
   }).toList();
   var round=writer.createRound(c.visitId(),ctx.patientId(),c.doctorId(),snapshots);
-  return new SubmitRoundResult(round,ctx.status(),ctx.status()==ClinicalVisitStatus.IN_EXAMINATION);
+  // Legacy compatibility fields only: Visit lifecycle is OPEN/CLOSED; coordination is separate.
+  return new SubmitRoundResult(round,ClinicalVisitStatus.OTHER,false);
  }
  @Override @Transactional(readOnly=true) public OrderView getImagingOrder(UUID id){var o=orders.findById(id).orElseThrow(()->new ClinicalOperationException("MSG-04"));if(o.getServiceType()!=ClinicalServiceType.IMAGING||o.getOrderStatus()==ServiceOrderStatus.CANCELLED)throw new ClinicalOperationException("MSG-08");return view(o);}
  @Override @Transactional public void markImagingResultAvailable(UUID id){var o=orders.findById(id).orElseThrow(()->new ClinicalOperationException("MSG-04"));if(o.getServiceType()!=ClinicalServiceType.IMAGING)throw new ClinicalOperationException("MSG-08");try{o.markResult(clock.instant());}catch(IllegalStateException e){throw new ClinicalOperationException("MSG-08");}orders.save(o);}

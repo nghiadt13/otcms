@@ -27,7 +27,8 @@ public class AfterVisitAdviceServiceImpl implements AfterVisitAdviceService {
     @Transactional
     public AdviceView recordAdvice(AdviceCommand command) {
         if (command == null) throw new ClinicalOperationException("MSG-39");
-        requireResponsibleDoctor(command.visitId(), command.doctorId());
+        var context = requireResponsibleDoctor(command.visitId(), command.doctorId());
+        if (!context.clinicalWorkAllowed()) throw new ClinicalOperationException("MSG-42");
         if (!hasAdvice(command)) throw new ClinicalOperationException("MSG-39");
 
         var now = clock.instant();
@@ -47,7 +48,7 @@ public class AfterVisitAdviceServiceImpl implements AfterVisitAdviceService {
                 .orElseThrow(() -> new ClinicalOperationException("MSG-41"));
     }
 
-    private void requireResponsibleDoctor(UUID visitId, UUID doctorId) {
+    private VisitClinicalContextPort.ClinicalVisitContext requireResponsibleDoctor(UUID visitId, UUID doctorId) {
         if (visitId == null) throw new ClinicalOperationException("MSG-39");
         if (doctorId == null) throw new ClinicalOperationException("MSG-40");
         var context = visits.getVisitContext(visitId);
@@ -55,6 +56,7 @@ public class AfterVisitAdviceServiceImpl implements AfterVisitAdviceService {
         if (context.responsibleDoctorId() == null || !context.responsibleDoctorId().equals(doctorId)) {
             throw new ClinicalOperationException("MSG-40");
         }
+        return context;
     }
 
     private static AdviceView view(ClinicalExaminationJpaEntity examination) {

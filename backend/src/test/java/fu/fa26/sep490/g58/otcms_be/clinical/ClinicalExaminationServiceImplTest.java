@@ -28,7 +28,7 @@ class ClinicalExaminationServiceImplTest {
     @BeforeEach
     void setUp() {
         when(visits.getVisitContext(visitId)).thenReturn(new VisitClinicalContextPort.ClinicalVisitContext(
-                visitId, UUID.randomUUID(), doctorId, ClinicalVisitStatus.IN_EXAMINATION));
+                visitId, UUID.randomUUID(), doctorId, true));
         when(examinations.save(any())).thenAnswer(invocation -> {
             savedExamination = invocation.getArgument(0);
             return savedExamination;
@@ -61,7 +61,7 @@ class ClinicalExaminationServiceImplTest {
     void unrelatedDoctorIsRejected() {
         var command = new ClinicalExaminationService.ExaminationCommand(
                 visitId, UUID.randomUUID(), null, null, null, null, null, null, List.of());
-        assertThrows(ClinicalOperationException.class, () -> service.saveDraft(command));
+        assertEquals("MSG-40", assertThrows(ClinicalOperationException.class, () -> service.saveDraft(command)).code());
         verifyNoInteractions(examinations, diagnoses);
     }
 
@@ -126,7 +126,7 @@ class ClinicalExaminationServiceImplTest {
         assertEquals("MSG-40", assertThrows(ClinicalOperationException.class,
                 () -> service.saveDraft(nullDoctor)).code());
         when(visits.getVisitContext(visitId)).thenReturn(new VisitClinicalContextPort.ClinicalVisitContext(
-                visitId, UUID.randomUUID(), null, ClinicalVisitStatus.OTHER));
+                visitId, UUID.randomUUID(), null, false));
         assertEquals("MSG-40", assertThrows(ClinicalOperationException.class,
                 () -> service.getExamination(visitId, doctorId)).code());
         verifyNoInteractions(examinations, diagnoses);
@@ -139,11 +139,13 @@ class ClinicalExaminationServiceImplTest {
     }
 
     @Test
-    void ineligibleLegacyContextRejectsWritesButDoesNotInventClosedVisitMapping() {
+    void visitOwnedEligibilityRejectsWritesWithCurrentStateMessage() {
         when(visits.getVisitContext(visitId)).thenReturn(new VisitClinicalContextPort.ClinicalVisitContext(
-                visitId, UUID.randomUUID(), doctorId, ClinicalVisitStatus.OTHER));
-        assertThrows(ClinicalOperationException.class, () -> service.saveDraft(command(null, null)));
-        assertThrows(ClinicalOperationException.class, () -> service.completeExamination(command(null, null)));
+                visitId, UUID.randomUUID(), doctorId, false));
+        assertEquals("MSG-42", assertThrows(ClinicalOperationException.class,
+                () -> service.saveDraft(command(null, null))).code());
+        assertEquals("MSG-42", assertThrows(ClinicalOperationException.class,
+                () -> service.completeExamination(command(null, null))).code());
         verifyNoInteractions(examinations, diagnoses);
     }
 
