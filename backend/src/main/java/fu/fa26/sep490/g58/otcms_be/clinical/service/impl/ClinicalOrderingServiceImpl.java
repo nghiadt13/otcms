@@ -1,0 +1,32 @@
+package fu.fa26.sep490.g58.otcms_be.clinical.service.impl;
+import fu.fa26.sep490.g58.otcms_be.clinical.exception.ClinicalOperationException; import fu.fa26.sep490.g58.otcms_be.clinical.model.*; import fu.fa26.sep490.g58.otcms_be.clinical.model.entity.*; import fu.fa26.sep490.g58.otcms_be.clinical.repository.*; import fu.fa26.sep490.g58.otcms_be.clinical.service.*;
+import java.time.*; import java.util.*; import org.springframework.stereotype.Service; import org.springframework.transaction.annotation.Transactional;
+@Service public class ClinicalOrderingServiceImpl implements ClinicalOrderingService {
+ private final VisitClinicalContextPort visits; private final ClinicServiceCatalogPort catalog; private final ClinicalOrderingTransactionService writer; private final OrderingRoundRepository rounds; private final ServiceOrderRepository orders; private final Clock clock;
+ public ClinicalOrderingServiceImpl(VisitClinicalContextPort v,ClinicServiceCatalogPort c,ClinicalOrderingTransactionService writer,OrderingRoundRepository r,ServiceOrderRepository o,Clock clock){visits=v;catalog=c;this.writer=writer;rounds=r;orders=o;this.clock=clock;}
+ @Override public SubmitRoundResult submit(SubmitRound c){
+  if(c==null||c.visitId()==null)throw new ClinicalOperationException("MSG-39");
+  if(c.doctorId()==null)throw new ClinicalOperationException("MSG-40");
+  var ctx=visits.getVisitContext(c.visitId());
+  if(ctx==null)throw new ClinicalOperationException("MSG-41");
+  if(ctx.responsibleDoctorId()==null||!ctx.responsibleDoctorId().equals(c.doctorId()))throw new ClinicalOperationException("MSG-40");
+  if(ctx.patientId()==null)throw new ClinicalOperationException("MSG-39");
+  if(!ctx.clinicalWorkAllowed())throw new ClinicalOperationException("MSG-42");
+  if(c.orders()==null||c.orders().isEmpty())throw new ClinicalOperationException("MSG-08");
+  var snapshots=c.orders().stream().map(r->{
+   if(r==null||r.serviceId()==null)throw new ClinicalOperationException("MSG-39");
+   var s=catalog.getService(r.serviceId());
+   if(s!=null&&!r.serviceId().equals(s.serviceId()))throw new ClinicalOperationException("MSG-39");
+   if(s==null||!s.active()||s.name()==null||s.name().isBlank()||s.type()==null||s.currentPrice()==null||s.currentPrice().signum()<0||r.clinicalReason()==null||r.clinicalReason().isBlank()||(s.type()==ClinicalServiceType.IMAGING&&(r.bodyArea()==null||r.bodyArea().isBlank())))throw new ClinicalOperationException("MSG-08");
+   return new ClinicalOrderingTransactionService.OrderSnapshot(r,s);
+  }).toList();
+  var round=writer.createRound(c.visitId(),ctx.patientId(),c.doctorId(),snapshots);
+  // Legacy compatibility fields only: Visit lifecycle is OPEN/CLOSED; coordination is separate.
+  return new SubmitRoundResult(round,ClinicalVisitStatus.OTHER,false);
+ }
+ @Override @Transactional(readOnly=true) public OrderView getImagingOrder(UUID id){var o=orders.findById(id).orElseThrow(()->new ClinicalOperationException("MSG-04"));if(o.getServiceType()!=ClinicalServiceType.IMAGING||o.getOrderStatus()==ServiceOrderStatus.CANCELLED)throw new ClinicalOperationException("MSG-08");return view(o);}
+ @Override @Transactional public void markImagingResultAvailable(UUID id){var o=orders.findById(id).orElseThrow(()->new ClinicalOperationException("MSG-04"));if(o.getServiceType()!=ClinicalServiceType.IMAGING)throw new ClinicalOperationException("MSG-08");try{o.markResult(clock.instant());}catch(IllegalStateException e){throw new ClinicalOperationException("MSG-08");}orders.save(o);}
+ @Override @Transactional(readOnly=true) public boolean isLatestRoundReadyForReview(UUID visit){var r=rounds.findTopByVisitIdOrderByRoundNumberDesc(visit);if(r.isEmpty())return false;var effective=orders.findByOrderingRoundId(r.get().getId()).stream().filter(o->o.getOrderStatus()!=ServiceOrderStatus.CANCELLED).toList();return !effective.isEmpty()&&effective.stream().allMatch(o->o.getOrderStatus()==ServiceOrderStatus.RESULTS_AVAILABLE);}
+ @Override @Transactional public OrderView cancel(UUID id,String reason){if(reason==null||reason.isBlank())throw new ClinicalOperationException("MSG-08");var o=orders.findById(id).orElseThrow(()->new ClinicalOperationException("MSG-04"));try{o.cancel(reason,clock.instant());}catch(IllegalStateException e){throw new ClinicalOperationException("MSG-08");}return view(orders.save(o));}
+ private OrderView view(ServiceOrderJpaEntity o){return new OrderView(o.getId(),o.getOrderCode(),o.getVisitId(),o.getPatientId(),o.getOrderingRoundId(),o.getServiceId(),o.getServiceNameSnapshot(),o.getServiceType(),o.getRequestingDoctorId(),o.getClinicalReason(),o.getBodyArea(),o.getInstructions(),o.getPriceSnapshot(),o.getOrderStatus(),o.getPaymentStatus());}
+}
