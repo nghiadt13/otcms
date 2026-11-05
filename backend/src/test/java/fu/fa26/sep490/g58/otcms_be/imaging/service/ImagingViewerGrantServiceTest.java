@@ -127,6 +127,39 @@ class ImagingViewerGrantServiceTest {
                 .thenReturn(new ViewAuthorization(true, expiresAt, "review-v5"));
         assertEquals(false, new ImagingViewerGrantService(studies, grants, ownerPorts, audit)
                 .isAuthorized(studyRef, token));
+
+        when(owner.authorizeStudyView(studyRef, actor, "DOCTOR_REVIEW"))
+                .thenReturn(new ViewAuthorization(false, expiresAt, null));
+        assertFalse(new ImagingViewerGrantService(studies, grants, ownerPorts, audit)
+                .isAuthorized(studyRef, token));
+    }
+
+    @Test
+    void rejectsCopiedRevokedAndExpiredGrantTokensBeforeOwnerAuthorization() throws Exception {
+        String studyRef = "study-bound";
+        String token = "B".repeat(43);
+        UUID actor = UUID.randomUUID();
+        String tokenHash = sha256(token);
+        var copied = new ImagingViewerGrantJpaEntity(UUID.randomUUID(), tokenHash, actor,
+                "PATIENT_VIEW", "another-study", "released-v2", Instant.now().minusSeconds(60),
+                Instant.now().plusSeconds(60), null);
+        when(grants.findByTokenSha256(tokenHash)).thenReturn(Optional.of(copied));
+        var service = new ImagingViewerGrantService(studies, grants, ownerPorts, audit);
+
+        assertFalse(service.isAuthorized(studyRef, token));
+
+        var revoked = new ImagingViewerGrantJpaEntity(UUID.randomUUID(), tokenHash, actor,
+                "PATIENT_VIEW", studyRef, "released-v2", Instant.now().minusSeconds(60),
+                Instant.now().plusSeconds(60), Instant.now().minusSeconds(1));
+        when(grants.findByTokenSha256(tokenHash)).thenReturn(Optional.of(revoked));
+        assertFalse(service.isAuthorized(studyRef, token));
+
+        var expired = new ImagingViewerGrantJpaEntity(UUID.randomUUID(), tokenHash, actor,
+                "PATIENT_VIEW", studyRef, "released-v2", Instant.now().minusSeconds(120),
+                Instant.now().minusSeconds(1), null);
+        when(grants.findByTokenSha256(tokenHash)).thenReturn(Optional.of(expired));
+        assertFalse(service.isAuthorized(studyRef, token));
+        verifyNoInteractions(ownerPorts);
     }
 
     private static String sha256(String value) throws Exception {
