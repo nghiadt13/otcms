@@ -21,7 +21,9 @@ export async function createImagingViewerGrant(
   }
   const apiOrigin = new URL(apiBaseUrl, window.location.origin).origin;
   if (apiOrigin !== window.location.origin) {
-    throw new Error("The imaging API and viewer must use the same browser origin.");
+    throw new Error(
+      "The imaging API and viewer must use the same browser origin.",
+    );
   }
   return apiRequest<ImagingViewerGrantResponse>(
     `/api/v1/imaging/studies/${encodeURIComponent(studyRef)}/viewer-grants` as const,

@@ -7,8 +7,10 @@ import static org.mockito.Mockito.when;
 
 import fu.fa26.sep490.g58.otcms_be.common.security.AccountRole;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.exception.DiagnosticOperationException;
+import fu.fa26.sep490.g58.otcms_be.diagnostic.integration.ClinicalImagingOrderPort;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.integration.DiagnosticPortModels.RoomEvidence;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.integration.RoomReservationPort;
+import fu.fa26.sep490.g58.otcms_be.diagnostic.integration.VisitDiagnosticReadPort;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.model.DiagnosticActor;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.model.DiagnosticAssignedImagingWork;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.DiagnosticAttemptJpaEntity;
@@ -96,11 +98,12 @@ class DiagnosticAssignedImagingWorkAuthorizationTest {
         var idempotency = mock(DiagnosticIdempotencyRecordJpaRepository.class);
         var audits = mock(DiagnosticAuditEventJpaRepository.class);
         var authorization = mock(DiagnosticAuthorizationPolicy.class);
-        var visitPorts = (ObjectProvider<fu.fa26.sep490.g58.otcms_be.diagnostic.integration.VisitDiagnosticPort>) mock(ObjectProvider.class);
+        var visitPorts = (ObjectProvider<? extends VisitDiagnosticReadPort>) mock(ObjectProvider.class);
         var roomPorts = (ObjectProvider<RoomReservationPort>) mock(ObjectProvider.class);
         var catalogPorts = (ObjectProvider<fu.fa26.sep490.g58.otcms_be.diagnostic.integration.ImagingServiceCatalogPort>) mock(ObjectProvider.class);
+        var orderPorts = (ObjectProvider<ClinicalImagingOrderPort>) mock(ObjectProvider.class);
         when(roomPorts.getIfAvailable()).thenReturn(roomPort);
         return new DiagnosticRequestServiceImpl(requests, attempts, idempotency, audits, authorization,
-                visitPorts, roomPorts, catalogPorts);
+                visitPorts, roomPorts, catalogPorts, orderPorts);
     }
 }

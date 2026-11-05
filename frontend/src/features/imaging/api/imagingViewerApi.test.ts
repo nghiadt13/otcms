@@ -21,13 +21,14 @@ describe("imagingViewerPath", () => {
     );
   });
 
-  it.each([
-    "1.2.3/../../other-study",
-    "1.a.3",
-    `${"1".repeat(65)}.2`,
-  ])("rejects invalid Study UID %s", (uid) => {
-    expect(() => imagingViewerPath(uid)).toThrow("DICOM Study UID is invalid");
-  });
+  it.each(["1.2.3/../../other-study", "1.a.3", `${"1".repeat(65)}.2`])(
+    "rejects invalid Study UID %s",
+    (uid) => {
+      expect(() => imagingViewerPath(uid)).toThrow(
+        "DICOM Study UID is invalid",
+      );
+    },
+  );
 
   it.each([
     "https://viewer.example/viewer",
@@ -37,8 +38,6 @@ describe("imagingViewerPath", () => {
     "/viewer\\..\\dicom-web",
   ])("rejects unsafe viewer route %s", (path) => {
     vi.stubEnv("NEXT_PUBLIC_OHIF_VIEWER_PATH", path);
-    expect(() => imagingViewerPath(STUDY_UID)).toThrow(
-      "same-origin path",
-    );
+    expect(() => imagingViewerPath(STUDY_UID)).toThrow("same-origin path");
   });
 });
