@@ -128,7 +128,9 @@ class DoctorCoreProductionWiringTest {
         assertInstanceOf(ClinicalImagingOrderAdapter.class, bean(ClinicalImagingOrderPort.class));
         assertInstanceOf(VisitDoctorCareRelationAdapter.class, bean(DoctorCareRelationPort.class));
         assertNotNull(bean(DiagnosticImagingRequestRegistration.class));
-        assertTrue(context.getBeansOfType(VisitDiagnosticPort.class).isEmpty(), "Unimplemented result coordination must not be hidden by a no-op");
+        assertEquals(1, context.getBeansOfType(VisitDiagnosticPort.class).size());
+        assertSame(bean(VisitDiagnosticReadPort.class), bean(VisitDiagnosticPort.class));
+        assertInstanceOf(VisitDiagnosticReadAdapter.class, bean(VisitDiagnosticPort.class));
     }
 
     @Test void multiOrderSubmissionAndReplayUseSameTransactionAndNoDuplicateOperationalWork() {
@@ -284,6 +286,7 @@ class DoctorCoreProductionWiringTest {
             ClinicalOrderPreparationService.class, ClinicalOrderingServiceImpl.class, ClinicalExaminationServiceImpl.class, AfterVisitAdviceServiceImpl.class,
             ClinicalDoctorIdentityResolver.class, VisitClinicalContextAdapter.class, VisitClinicalCareContextServiceImpl.class,
             VisitDoctorCareRelationQueryServiceImpl.class, VisitDoctorCareRelationAdapter.class, VisitDiagnosticReadAdapter.class,
+            VisitImagingCoordinationServiceImpl.class, DiagnosticResultEventQueryServiceImpl.class, DiagnosticEvidenceServiceImpl.class,
             DoctorProfileIdentityQueryServiceImpl.class, DoctorAccountAccessServiceImpl.class, ServiceCatalogClinicalAdapter.class,
             GetClinicServiceCatalogServiceImpl.class, ImagingServiceCatalogAdapter.class, ClinicalImagingOrderAdapter.class,
             DiagnosticImagingRequestRegistrationImpl.class, DiagnosticStatusServiceImpl.class, DiagnosticRequestServiceImpl.class,
@@ -294,7 +297,7 @@ class DoctorCoreProductionWiringTest {
         @Bean static BeanFactoryPostProcessor persistenceOnlyDoubles() {
             return factory -> {
                 Class<?>[] repositories = {AccountRepository.class, DoctorProfileRepository.class, ClinicServiceRepository.class,
-                        ClinicVisitJpaRepository.class, VisitCareAssignmentRepository.class, ClinicalExaminationRepository.class,
+                        ClinicVisitJpaRepository.class, VisitCareAssignmentRepository.class, VisitImagingResultReceiptRepository.class, ClinicalExaminationRepository.class,
                         ClinicalDiagnosisRepository.class, OrderingRoundRepository.class, ServiceOrderRepository.class,
                         ClinicalImagingRequestReplayRepository.class, ClinicalMedicalDocumentRepository.class, ClinicalMedicalDocumentPayloadRepository.class,
                         fu.fa26.sep490.g58.otcms_be.auth.repository.PatientProfileRepository.class,
@@ -319,6 +322,8 @@ class DoctorCoreProductionWiringTest {
         @Override protected void doRollback(DefaultTransactionStatus status) { rollbacks++; }
         @Override protected void doSetRollbackOnly(DefaultTransactionStatus status) { ((State) status.getTransaction()).rollbackOnly = true; }
         @Override protected void doCleanupAfterCompletion(Object transaction) { ((State) transaction).active = false; current.remove(); }
+        @Override protected Object doSuspend(Object transaction) { var state = current.get(); current.remove(); return state; }
+        @Override protected void doResume(Object transaction, Object suspended) { current.set((State) suspended); }
         static class State implements SmartTransactionObject {
             boolean active, rollbackOnly;
             @Override public boolean isRollbackOnly() { return rollbackOnly; }

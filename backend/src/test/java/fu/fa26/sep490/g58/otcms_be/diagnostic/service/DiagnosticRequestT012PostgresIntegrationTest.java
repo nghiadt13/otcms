@@ -276,7 +276,9 @@ class DiagnosticRequestT012PostgresIntegrationTest {
     @TestConfiguration(proxyBeanMethods = false)
     static class PortConfiguration {
         @Bean PortFakes diagnosticRequestPortFakes() { return new PortFakes(); }
-        @Bean VisitDiagnosticPort visitDiagnosticPort(PortFakes fakes) { return new FakeVisitPort(fakes); }
+        // These Diagnostic persistence tests intentionally use their explicit Visit fixture.
+        // Real Visit/Diagnostic composition is verified by DoctorImagingReviewIntegrationTest.
+        @Bean @Primary VisitDiagnosticPort visitDiagnosticPort(PortFakes fakes) { return new FakeVisitPort(fakes); }
         @Bean RoomReservationPort roomReservationPort(PortFakes fakes) { return new FakeRoomPort(fakes); }
         @Bean ImagingServiceCatalogPort imagingServiceCatalogPort(PortFakes fakes) { return new FakeCatalogPort(fakes); }
         @Bean FirstUseEvidencePort firstUseEvidencePort(PortFakes fakes) { return new FakeFirstUsePort(fakes); }
