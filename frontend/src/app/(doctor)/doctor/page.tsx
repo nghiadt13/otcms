@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
-import { DoctorDashboard } from "@/features/doctor-exam/components/DoctorDashboard";
+import { DoctorPlaceholderPage } from "@/features/doctor-shell/components/DoctorPlaceholderPage";
+import { DOCTOR_ROUTES } from "@/lib/routes/doctorRoutes";
 
 export const metadata: Metadata = { title: "Bảng điều khiển" };
 
 export default function DoctorHomePage() {
-  return <DoctorDashboard />;
+  return <DoctorPlaceholderPage href={DOCTOR_ROUTES.dashboard} />;
 }

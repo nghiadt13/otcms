@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
-import { TodayPatientsScreen } from "@/features/doctor-exam/components/TodayPatientsScreen";
+import { DoctorPlaceholderPage } from "@/features/doctor-shell/components/DoctorPlaceholderPage";
+import { DOCTOR_ROUTES } from "@/lib/routes/doctorRoutes";
 
 export const metadata: Metadata = { title: "Bệnh nhân hôm nay" };
 
 export default function DoctorTodayPatientsPage() {
-  return <TodayPatientsScreen />;
+  return <DoctorPlaceholderPage href={DOCTOR_ROUTES.todayPatients} />;
 }

@@ -2,7 +2,6 @@
 
 import { ChevronRight } from "lucide-react";
 import { usePathname } from "next/navigation";
-import type { ReactNode } from "react";
 import { CurrentDateTime } from "@/components/shell/CurrentDateTime";
 import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from "@/components/ui/sidebar";
@@ -11,7 +10,7 @@ import { DOCTOR_ROUTES } from "@/lib/routes/doctorRoutes";
 import { findActiveBreadcrumb } from "../doctorNavigation";
 import { findVisitBreadcrumb } from "../doctorVisitNavigation";
 
-export function DoctorHeader({ extra }: { extra?: ReactNode }) {
+export function DoctorHeader() {
   const pathname = usePathname();
   const breadcrumb =
     findVisitBreadcrumb(pathname) ?? findActiveBreadcrumb(pathname);
@@ -53,7 +52,6 @@ export function DoctorHeader({ extra }: { extra?: ReactNode }) {
       </nav>
 
       <div className="ml-auto flex items-center gap-3">
-        {extra}
         <CurrentDateTime />
         <Separator orientation="vertical" className="h-4" />
         <NotificationBell allNotificationsHref={DOCTOR_ROUTES.notifications} />
