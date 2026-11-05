@@ -19,6 +19,11 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class PatientProfileDirectoryServiceImpl implements PatientProfileDirectory {
+    @Override
+    @Transactional(readOnly = true)
+    public List<ProfileRecord> findProfiles(java.util.Collection<UUID> profileIds) {
+        return profiles.findAllById(profileIds).stream().map(this::toRecord).toList();
+    }
     private final PatientProfileRepository profiles;
 
     public PatientProfileDirectoryServiceImpl(PatientProfileRepository profiles) {

@@ -9,6 +9,12 @@ import java.util.UUID;
 
 @Service
 public class DoctorProfileIdentityQueryServiceImpl implements DoctorProfileIdentityQueryService {
+    @Override
+    @org.springframework.transaction.annotation.Transactional(readOnly = true)
+    public java.util.Map<UUID, String> findDoctorNames(java.util.Collection<UUID> profileIds) {
+        return profiles.findAllById(profileIds).stream().collect(java.util.stream.Collectors.toMap(
+                profile -> profile.id(), profile -> profile.fullName()));
+    }
     private final DoctorProfileRepository profiles;
 
     public DoctorProfileIdentityQueryServiceImpl(DoctorProfileRepository profiles) {
