@@ -85,7 +85,7 @@ Baseline: `feat/hung/KAN-XX-backend-completion`, clean at `4fdfda2`. `git fetch 
 
 Plan: inspect requirements and actual controller/service/persistence/security/tests; implement and verify independent confirmed gaps; record unresolved requirement and owner dependencies explicitly; run relevant broad regression before any completion claim.
 
-Current checkpoint: audit in progress. No completion or delivery approval inferred.
+Current checkpoint: independent source-supported implementations verified; whole-backend completion remains BLOCKED by the decisions and owner dependencies below. No completion or delivery approval inferred.
 
 UC34 release decision: BR-39 requires clinic availability in addition to completed examination. `ClinicalExaminationJpaEntity` currently stores only DRAFT/COMPLETED; Medical Documents stores its own independent `releasedAt`. A team policy decision is pending; completion alone will not be treated as release.
 
@@ -138,3 +138,88 @@ Precommit scope: this audit, VisitReceptionReadController/Service/Impl, two Visi
 ## Broad regression evidence so far
 
 Initial broad selector `*Test,*Tests,!*Postgres*,!*Database*,!OtcmsBeApplicationTests,!T005RealLoginIntegrationTest,!T006A8EvidenceTest`: 1098 tests, 0 failures, 2 errors. The two errors are ContentAuditMigrationOrderTest, which uses direct JDBC/Flyway and requires local database credentials despite not having Postgres in its name. 1096 tests passed; the two DB cases are BLOCKED. Do not describe this initial Maven invocation as passing. The final non-database selector must explicitly exclude that DB suite as well. No secret file was read or database credentials invented.
+
+## Final verification — 2026-11-05
+
+- JDK: 21.0.9, Maven Wrapper 3.9.16.
+- `mvnw.cmd -DskipTests compile`: PASS; log `target/backend-completion-final-compile.log`.
+- `mvnw.cmd test-compile`: PASS, including database test sources; log `target/backend-completion-final-test-compile.log`.
+- `mvnw.cmd "-Dtest=*Test,*Tests,!*Postgres*,!*Database*,!OtcmsBeApplicationTests,!T005RealLoginIntegrationTest,!T006A8EvidenceTest,!ContentAuditMigrationOrderTest" test`: **1107 tests, 0 failures, 0 errors, 0 skipped; BUILD SUCCESS**. Log: `target/backend-completion-final-regression.log`. This includes unit, controller, architecture, Hibernate semantic, Doctor/Clinical/Diagnostic/current-care/UC33/UC38/UC42 compatibility tests. Excluded DB suites were not made passing or silently skipped by editing tests.
+- `POSTGRESQL = BLOCKED`: loopback 127.0.0.1:5432 unavailable on final TCP probe; earlier real Maven database context attempts reported connection refused. SQL execution, Flyway application, DB concurrency/rollback and complete production application startup are not verified.
+- `git diff --check`: PASS; unresolved index entries: NONE; Java source/test conflict markers: NONE (rg exit 1 means no match).
+- Frontend and migration diffs against 4fdfda2: EMPTY. V099 Prescription, V100 Medical Documents and V101 Visit/Diagnostic receipts remain tracked and unchanged. No new migration/version reserved. Fetched origin/product currently ends at V099; no remote branch was merged or copied.
+- Working tree was clean after each implementation commit. No unrelated/untracked user file was staged, discarded or deleted. No push, PR, merge, rebase or reset was performed.
+
+Counts across exactly 69 rows: **48 IMPLEMENTED, 16 PARTIAL, 4 BLOCKED, 1 OWNED BY EXISTING EXTERNAL FEATURE, 0 MISSING, 0 OUT OF SCOPE**. PARTIAL does not mean complete: its remaining portion is explicitly blocked or requires the bounded decision stated in its row. These are source/logic coverage classifications, not database/deployment approval.
+
+## Blocking evidence and minimum decisions
+
+1. **UC34 / BR-39 clinic availability.** Approve the owner and explicit availability signal for a completed Examination, including Advice and post-publication corrections. No Examination releasedAt/publication fact currently exists. A document's release is independent; AfterVisitAdviceServiceImpl can still update advice during allowed current care. Do not silently equate COMPLETED, CLOSED, prescription issuance, or a released PDF with release of the structured examination. Decide whether to adopt an explicitly released report as a signal or approve a separate Examination publication contract. Until then the proposed Patient list/detail/navigation endpoints are not implemented and cannot expose drafts.
+2. **UC28 / BR-37 closure.** Resolve Receptionist closure in the current UC versus Doctor-only WALK_IN closure in production, scheduled-Visit behavior and authoritative completion evidence from each required service owner. Existing closure checks active Doctor and absence of in-progress assignments; it does not itself prove all Clinical/Diagnostic services completed or enforce a per-Visit Doctor relationship. This is a material remaining authorization/business-state risk, not a feature considered ready to ship. Do not widen actor permission or guess closure policy without resolving that conflict.
+3. **Queue/room model.** `Doctor queue return = BLOCKED by missing production queue model/contract`. V023 stores walk-in reception entries/history with FIFO arrival ordering and history-preserving exits. Visit assignments/room reservations are care/occupancy facts, not waiting-list positions. UC24/25/26, scheduled first waiting-list semantics, remaining UC27 queue/completed-service projection, and full UC57/60 availability require approved destination, ordering, actor responsibility, service completion, temporal availability and history semantics. Minimal future contract: a Visit-owned return command triggered by authoritative result readiness, deriving requesting Doctor from backend identities, atomically claiming the existing V101 event receipt with one logical queue transition/history write; exact multi-request return policy and queue representation must first be approved. No queue/room table or fake transition was created.
+4. **Imaging owner.** Production RoomStatusAccessPort, ImagingStudyPort and ReportStoragePort adapters are missing. Technician assigned-room work and end-to-end upload/review/report runtime depend on the relevant owner integration. `Secure DICOM viewer runtime integration = BLOCKED BY IMAGING OWNER MERGE`. Keep exact-study backend authorization → short-lived grant → authenticated DICOMweb gateway → private Orthanc. An opaque studyRef/history row is not a viewer grant. No Long branch merge/copy, Orthanc adapter, raw public URL, or fake gateway was added.
+5. **Patient status scope.** UC44/BR-50 currently describe clinic staff status; the completion task also requests a Patient status surface. Approve that extension and its projection before broadening the existing operational status API. Patient imaging-history self/dependent metadata and released findings now work through the separate existing history contract; this does not imply full UC44 Patient authorization or secure image streaming.
+6. **Reporting and audit.** ReportingServiceImpl supports only APPOINTMENTS/VISITS/SERVICES, and ReportingDtoMapper explicitly emits NO_SOURCE for imaging/payments/unpaid/feedback. Agree event/time bases and whether unpaid amounts mean current balances on period invoices or historical balances as of period end, then define owner summary contracts. V070/V072 activity_log_entries projects staff/room/service/content metadata, not complete Clinical/Diagnostic/payment/account action history. Clinical records do not contain enough immutable actor/event evidence to reconstruct all past actions. Complete audit publication requires owner design and migration coordination; never fabricate historical actors or modify applied migrations. Before a future migration, inventory current/local/product/active-owner branch versions and prove the needed schema/view change.
+7. **Patient history fields.** UC12 Receptionist basic-background authority is not defined at field level; choose the permitted read/write fields before adding that actor to medical history. Doctor and authorized Patient paths remain implemented.
+8. **Availability source.** UC_description.html decisions section explicitly leaves Doctor availability ownership/source open. Existing scheduling/capacity code is preserved; no workforce scheduling scope was invented to resolve that decision.
+9. **Laboratory / Blood Test.** `LABORATORY IMPLEMENTATION BLOCKED BY REQUIREMENT GAP`. Catalog LABORATORY/legacy role constants are not an approved order/specimen/result/release workflow. No Laboratory UC/BR number, schema, endpoint or fake result block was introduced.
+10. **Database/infrastructure.** Restore/provision approved PostgreSQL and run the compiled DB suites and migration/concurrency checks. Real SMTP, PayOS and Imaging integration runtime verification remains environment/owner work; no fake success is reported.
+
+## Review and sync-back
+
+AI Agent Recommendation: **PENDING HUMAN REVIEW** for the proposed release, closure, queue/room, audit/reporting and actor-scope contracts above.
+
+Human Final Review: **PENDING HUMAN REVIEW**; authorized reviewer identity, decision and timestamp not supplied. The implementation task authorizes the tested independent checkpoints; it does not approve these unresolved proposals. Persist the approved decisions before dependent implementation. No proposal is marked approved by the agent.
+
+Implementation-ready: YES for the four committed independent checkpoints; NO for the blocked extensions. Whole backend complete: NO. **READY FOR FINAL BACKEND PUSH: NO**. Source-supported reads are verified locally, but the stated authorization/state and integration gaps must remain visible for the team.
+
+Local implementation commits:
+
+- `c30a064` — Patient e-prescriptions UC37.
+- `8045737` — Patient-owned imaging history authorization/released-report checks.
+- `d590957` — Billing completed payment history, unpaid invoice balances and printable exports UC49/50/51.
+- `9346470` — Authorized staff Visit progress UC27 and batched current-care identity lookup.
+
+Manual delivery only. Existing parent stack remains intact. No further independent production change is claimed without the missing requirement/owner contracts.
+
+
+## Exact changed-file boundary
+
+All paths below are backend-only and relative to the repository root. They are already in the local implementation commits, except this record's final verification update. No blanket staging was used. Final documentation staging boundary is only `backend/docs/backend-completion-audit.md`; after its local commit, no files remain to stage.
+
+```text
+backend/docs/backend-completion-audit.md
+backend/src/main/java/fu/fa26/sep490/g58/otcms_be/auth/service/PatientProfileDirectory.java
+backend/src/main/java/fu/fa26/sep490/g58/otcms_be/auth/service/impl/PatientProfileDirectoryServiceImpl.java
+backend/src/main/java/fu/fa26/sep490/g58/otcms_be/billing/controller/BillingReadController.java
+backend/src/main/java/fu/fa26/sep490/g58/otcms_be/billing/exception/BillingExceptionHandler.java
+backend/src/main/java/fu/fa26/sep490/g58/otcms_be/billing/exception/BillingReadApiExceptionHandler.java
+backend/src/main/java/fu/fa26/sep490/g58/otcms_be/billing/repository/BillingReadRepository.java
+backend/src/main/java/fu/fa26/sep490/g58/otcms_be/billing/service/BillingReadService.java
+backend/src/main/java/fu/fa26/sep490/g58/otcms_be/billing/service/impl/BillingReadServiceImpl.java
+backend/src/main/java/fu/fa26/sep490/g58/otcms_be/clinical/controller/PatientPrescriptionController.java
+backend/src/main/java/fu/fa26/sep490/g58/otcms_be/clinical/exception/ClinicalApiExceptionHandler.java
+backend/src/main/java/fu/fa26/sep490/g58/otcms_be/clinical/repository/ClinicalPrescriptionRepository.java
+backend/src/main/java/fu/fa26/sep490/g58/otcms_be/clinical/service/PatientPrescriptionQueryService.java
+backend/src/main/java/fu/fa26/sep490/g58/otcms_be/clinical/service/impl/PatientPrescriptionQueryServiceImpl.java
+backend/src/main/java/fu/fa26/sep490/g58/otcms_be/diagnostic/controller/DiagnosticHistoryController.java
+backend/src/main/java/fu/fa26/sep490/g58/otcms_be/diagnostic/service/impl/DiagnosticHistoryServiceImpl.java
+backend/src/main/java/fu/fa26/sep490/g58/otcms_be/patient/integration/diagnostic/PatientDiagnosticHistoryAdapter.java
+backend/src/main/java/fu/fa26/sep490/g58/otcms_be/patient/service/impl/PatientClinicalIdentityQueryServiceImpl.java
+backend/src/main/java/fu/fa26/sep490/g58/otcms_be/staff/service/DoctorProfileIdentityQueryService.java
+backend/src/main/java/fu/fa26/sep490/g58/otcms_be/staff/service/impl/DoctorProfileIdentityQueryServiceImpl.java
+backend/src/main/java/fu/fa26/sep490/g58/otcms_be/visit/controller/VisitReceptionReadController.java
+backend/src/main/java/fu/fa26/sep490/g58/otcms_be/visit/service/VisitReceptionReadService.java
+backend/src/main/java/fu/fa26/sep490/g58/otcms_be/visit/service/impl/VisitReceptionReadServiceImpl.java
+backend/src/test/java/fu/fa26/sep490/g58/otcms_be/billing/BillingReadControllerTest.java
+backend/src/test/java/fu/fa26/sep490/g58/otcms_be/billing/BillingReadQuerySemanticTest.java
+backend/src/test/java/fu/fa26/sep490/g58/otcms_be/billing/BillingReadServiceTest.java
+backend/src/test/java/fu/fa26/sep490/g58/otcms_be/clinical/DoctorCoreProductionWiringTest.java
+backend/src/test/java/fu/fa26/sep490/g58/otcms_be/clinical/PatientPrescriptionArchitectureTest.java
+backend/src/test/java/fu/fa26/sep490/g58/otcms_be/clinical/PatientPrescriptionControllerTest.java
+backend/src/test/java/fu/fa26/sep490/g58/otcms_be/clinical/PatientPrescriptionQueryServiceTest.java
+backend/src/test/java/fu/fa26/sep490/g58/otcms_be/diagnostic/service/DiagnosticHistoryT015Test.java
+backend/src/test/java/fu/fa26/sep490/g58/otcms_be/patient/PatientClinicalIdentityQueryServiceImplTest.java
+backend/src/test/java/fu/fa26/sep490/g58/otcms_be/visit/VisitProgressAuthorizationTest.java
+backend/src/test/java/fu/fa26/sep490/g58/otcms_be/visit/VisitProgressControllerTest.java
+```
