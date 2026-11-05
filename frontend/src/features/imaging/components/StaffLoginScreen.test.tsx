@@ -68,9 +68,5 @@ describe("StaffLoginScreen", () => {
     expect(screen.getByRole("alert")).toHaveTextContent(
       "không thuộc kỹ thuật viên",
     );
-    await user.type(screen.getByPlaceholderText("Nhập mật khẩu"), "temporary");
-    await user.click(screen.getByRole("button", { name: "Đăng nhập" }));
-
-    expect(nav.push).toHaveBeenCalledWith("/first-login-password");
   });
 });

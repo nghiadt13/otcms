@@ -7,7 +7,6 @@ import { OtcmsLogo } from "@/components/brand/OtcmsLogo";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useState, type FormEvent } from "react";
-import { AuthSessionError, signInWithPassword } from "@/lib/auth/authSession";
 import { signInWithPassword, signOut } from "@/lib/auth/authSession";
 import { Icon } from "./Icon";
 
