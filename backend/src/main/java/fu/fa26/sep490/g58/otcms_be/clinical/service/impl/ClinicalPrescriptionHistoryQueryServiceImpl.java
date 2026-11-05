@@ -34,4 +34,21 @@ public class ClinicalPrescriptionHistoryQueryServiceImpl implements ClinicalPres
                 items.findByPrescriptionIdOrderByLineNumberAsc(prescription.getId()).stream().map(line -> new PrescriptionLine(
                         line.getLineNumber(), line.getMedicine(), line.getDose(), line.getFrequency(), line.getUsage())).toList());
     }
+
+    @Override public List<IssuedPrescriptionSummary> findIssuedByPatientAndVisitIds(UUID patientId, Collection<UUID> visitIds) {
+        if (patientId == null || visitIds == null || visitIds.size() > 50 || visitIds.stream().anyMatch(Objects::isNull)) {
+            throw new ClinicalOperationException("MSG-39");
+        }
+        if (visitIds.isEmpty()) return List.of();
+        var headers = prescriptions.findByPatientProfileIdAndVisitIdInAndStatusOrderByIssuedAtDescIdDesc(
+                patientId, visitIds, ClinicalPrescriptionStatus.ISSUED);
+        if (headers.isEmpty()) return List.of();
+        var grouped = items.findByPrescriptionIdInOrderByPrescriptionIdAscLineNumberAsc(headers.stream().map(p -> p.getId()).toList())
+                .stream().collect(java.util.stream.Collectors.groupingBy(line -> line.getPrescriptionId()));
+        return headers.stream().map(p -> new IssuedPrescriptionSummary(p.getId(), p.getVisitId(), p.getPatientProfileId(),
+                p.getDoctorProfileId(), p.getIssuedAt(), p.getVersion(), grouped.getOrDefault(p.getId(), List.of()).stream()
+                .sorted(Comparator.comparingInt(line -> line.getLineNumber()))
+                .map(line -> new PrescriptionLine(line.getLineNumber(), line.getMedicine(), line.getDose(), line.getFrequency(), line.getUsage()))
+                .toList())).toList();
+    }
 }
