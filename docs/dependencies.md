@@ -40,3 +40,9 @@ Không dùng Java SDK Supabase cho truy cập dữ liệu: backend kết nối P
 ## Imaging
 
 Compose khóa `orthancteam/orthanc:26.7.0`, `ohif/app:v3.12.18` và `nginx:1.28.0-alpine`. Khi nâng, kiểm tra DICOMweb và viewer cùng nhau. Không dùng tag `latest`; không đưa DICOM thật vào Git hoặc Compose local chưa có phân quyền.
+
+### KAN-43 PDF export (approved 2026-11-03 by NghiaDT)
+
+- `com.github.librepdf:openpdf:3.0.5` and its companion `openpdf-fonts-extra:3.0.5` provide PDF export and embedded Liberation Unicode fonts for Vietnamese. Java 21 compatible; LGPL/MPL library, companion font license included in its distribution. Official source: https://github.com/LibrePDF/OpenPDF.
+- Only PDF is enabled (`exportFormats: ["pdf"]`). Excel remains disabled pending separate approval. The renderer processes server aggregate text only; it does not fetch remote HTML, images or fonts.
+- Export repeats the validated server report query, requires Admin/Owner and returns a non-cacheable attachment. Source data may have changed since the on-screen report was generated.

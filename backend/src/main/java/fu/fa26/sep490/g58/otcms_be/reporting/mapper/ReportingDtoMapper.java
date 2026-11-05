@@ -23,15 +23,18 @@ import fu.fa26.sep490.g58.otcms_be.reporting.model.dto.ReportingDtos.TotalRowRes
 import fu.fa26.sep490.g58.otcms_be.reporting.model.dto.ReportingDtos.UnavailableSourceResponse;
 import fu.fa26.sep490.g58.otcms_be.reporting.model.dto.ReportingDtos.VisitsResponse;
 import java.util.List;
+import fu.fa26.sep490.g58.otcms_be.reporting.model.ReportLabels;
+import fu.fa26.sep490.g58.otcms_be.reporting.model.MetricValue;
+import fu.fa26.sep490.g58.otcms_be.reporting.model.StatusMetric;
 
 /** Fixed presentation metadata belongs here, never in query orchestration. */
 public final class ReportingDtoMapper {
     private ReportingDtoMapper() {
     }
     private static final List<ColumnResponse> DAILY_COLUMNS = List.of(
-        new ColumnResponse("date", "Ngày", "date"), new ColumnResponse("count", "Số lượng", "count"));
+        new ColumnResponse("date", ReportLabels.DATE, "date"), new ColumnResponse("count", ReportLabels.COUNT, "count"));
     private static final List<ColumnResponse> SERVICE_COLUMNS = List.of(
-        new ColumnResponse("name", "Dịch vụ", "text"), new ColumnResponse("count", "Lịch hẹn đã hoàn tất", "count"));
+        new ColumnResponse("name", ReportLabels.SERVICE, "text"), new ColumnResponse("count", ReportLabels.COMPLETED, "count"));
     private static PeriodResponse period(ReportingPeriod period) {
         return new PeriodResponse(period.from().toString(), period.to().toString());
     }
@@ -46,18 +49,14 @@ public final class ReportingDtoMapper {
                 item.serviceId(), item.name(), item.category(), item.value(), item.previousValue())).toList()),
             unavailable, unavailable, unavailable, unavailable);
     }
-    private static MetricValueResponse metric(fu.fa26.sep490.g58.otcms_be.reporting.model.MetricValue value) {
+    private static MetricValueResponse metric(MetricValue value) {
         return new MetricValueResponse(value.value(), value.previousValue());
     }
-    private static StatusMetricResponse statusMetric(fu.fa26.sep490.g58.otcms_be.reporting.model.StatusMetric value) {
+    private static StatusMetricResponse statusMetric(StatusMetric value) {
         return new StatusMetricResponse(value.code(), value.value(), value.previousValue());
     }
     public static SubjectsResponse subjects(List<String> codes) {
-        return new SubjectsResponse(codes.stream().map(code -> new SubjectResponse(code, switch (code) {
-                case "APPOINTMENTS" -> "Lịch hẹn theo ngày";
-                case "VISITS" -> "Lượt khám theo ngày";
-                default -> "Dịch vụ khám theo lịch hẹn đã hoàn tất";
-        }, code.equals("SERVICES") ? List.of() : List.of("DATE"))).toList());
+        return new SubjectsResponse(codes.stream().map(code -> new SubjectResponse(code, ReportLabels.subject(code), code.equals("SERVICES") ? List.of() : List.of("DATE"))).toList());
     }
     public static ReportResponse report(ReportResult result) {
         boolean services = result.subject().equals("SERVICES");
@@ -69,6 +68,6 @@ public final class ReportingDtoMapper {
             result.period().to().toString(), breakdown);
         var section = new SectionResponse(services ? "Dịch vụ khám từ lịch đã hoàn tất" : "Thống kê theo ngày",
             services ? SERVICE_COLUMNS : DAILY_COLUMNS, rows, new TotalRowResponse(result.total()));
-        return new ReportResponse(query, result.total() > 0, result.generatedAt(), List.of(), List.of(section));
+        return new ReportResponse(query, result.total() > 0, result.generatedAt(), List.of("export"), List.of(section), List.of("pdf"));
     }
 }

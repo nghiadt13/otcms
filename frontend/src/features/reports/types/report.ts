@@ -52,4 +52,5 @@ export interface ReportResult {
   generatedAt: string;
   sections: ReportSection[];
   allowedActions: ReportAction[];
+  exportFormats?: ReportExportFormat[];
 }

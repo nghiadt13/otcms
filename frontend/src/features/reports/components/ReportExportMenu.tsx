@@ -11,12 +11,14 @@ import { EXPORT_FORMAT_LABELS } from "../types/reportLabels";
 
 type ReportExportMenuProps = {
   exporting: boolean;
+  formats?: ReportExportFormat[];
   onExport: (format: ReportExportFormat) => void;
 };
 
-/** Nút "Xuất báo cáo" mở menu hai định dạng; chọn xong menu đóng, nút hiện "Đang xuất...". */
+/** Chỉ hiện định dạng backend cho phép; mặc định PDF. */
 export function ReportExportMenu({
   exporting,
+  formats = ["pdf"],
   onExport,
 }: ReportExportMenuProps) {
   const [open, setOpen] = useState(false);
@@ -39,21 +41,19 @@ export function ReportExportMenu({
         align="start"
         className="w-52 max-w-[calc(100vw-2rem)] gap-1 p-1"
       >
-        {(Object.keys(EXPORT_FORMAT_LABELS) as ReportExportFormat[]).map(
-          (format) => (
-            <Button
-              key={format}
-              variant="ghost"
-              className="justify-start"
-              onClick={() => {
-                setOpen(false);
-                onExport(format);
-              }}
-            >
-              {EXPORT_FORMAT_LABELS[format]}
-            </Button>
-          ),
-        )}
+        {formats.map((format) => (
+          <Button
+            key={format}
+            variant="ghost"
+            className="justify-start"
+            onClick={() => {
+              setOpen(false);
+              onExport(format);
+            }}
+          >
+            {EXPORT_FORMAT_LABELS[format]}
+          </Button>
+        ))}
       </PopoverContent>
     </Popover>
   );

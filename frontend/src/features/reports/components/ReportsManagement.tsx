@@ -76,7 +76,7 @@ export function ReportsManagement({
     <div>
       <PageHeader
         title="Báo cáo"
-        description="Xem báo cáo từ các nguồn dữ liệu đã hỗ trợ. Xuất file và các chủ đề chưa có nguồn chưa được bật."
+        description="Xem báo cáo từ các nguồn dữ liệu đã hỗ trợ. Có thể xuất PDF cho các báo cáo đã hỗ trợ."
       />
       <ReportForm
         values={values}

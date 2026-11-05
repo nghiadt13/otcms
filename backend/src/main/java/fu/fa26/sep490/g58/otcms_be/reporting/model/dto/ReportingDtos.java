@@ -60,6 +60,6 @@ public final class ReportingDtos {
     ) {
     }
     public record ReportResponse(ReportQueryResponse query, boolean hasData, Instant generatedAt,
-        List<String> allowedActions, List<SectionResponse> sections) {
+        List<String> allowedActions, List<SectionResponse> sections, List<String> exportFormats) {
     }
 }
