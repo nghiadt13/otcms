@@ -13,14 +13,12 @@ import {
 
 interface ImagingViewerLauncherProps {
   studyRef: string;
-  studyInstanceUid: string;
   purpose: ImagingViewerPurpose;
 }
 
 /** Obtains a same-origin HttpOnly grant before revealing the OHIF link. */
 export function ImagingViewerLauncher({
   studyRef,
-  studyInstanceUid,
   purpose,
 }: ImagingViewerLauncherProps) {
   const [issuing, setIssuing] = useState(false);
@@ -34,7 +32,7 @@ export function ImagingViewerLauncher({
     setViewerPath(null);
     try {
       const grant = await createImagingViewerGrant(studyRef, purpose);
-      setViewerPath(imagingViewerPath(studyInstanceUid));
+      setViewerPath(imagingViewerPath(grant.studyInstanceUid));
       setExpiresAt(grant.expiresAt);
     } catch (cause: unknown) {
       setError(messageFromError(cause));

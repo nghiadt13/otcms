@@ -5,6 +5,7 @@ export type ImagingViewerPurpose = "DOCTOR_REVIEW" | "PATIENT_VIEW";
 
 export interface ImagingViewerGrantResponse {
   expiresAt: string;
+  studyInstanceUid: string;
 }
 
 /**

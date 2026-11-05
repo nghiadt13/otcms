@@ -76,7 +76,7 @@ public class ImagingViewerGrantService {
         grants.revokeActive(studyRef, actorId, now);
         grants.saveAndFlush(new ImagingViewerGrantJpaEntity(UUID.randomUUID(), tokenHash, actorId, purpose,
                 studyRef, decision.authorizedVersionRef(), now, expiresAt, null));
-        return new IssuedGrant(cookieName, token, expiresAt);
+        return new IssuedGrant(cookieName, token, expiresAt, study.getStudyInstanceUid());
     }
 
     /** Revalidates the opaque cookie and owner decision for each gateway request or stream checkpoint. */
@@ -114,5 +114,5 @@ public class ImagingViewerGrantService {
         }
     }
 
-    public record IssuedGrant(String cookieName, String token, Instant expiresAt) { }
+    public record IssuedGrant(String cookieName, String token, Instant expiresAt, String studyInstanceUid) { }
 }

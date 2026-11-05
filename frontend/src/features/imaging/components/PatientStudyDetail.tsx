@@ -71,11 +71,7 @@ export function PatientStudyDetail({ study }: { study: PatientImagingStudy }) {
       </section>
 
       <section aria-label="Trình xem ảnh" className="space-y-3 border-t pt-6">
-        <ImagingViewerLauncher
-          studyRef={study.id}
-          studyInstanceUid={study.studyInstanceUid}
-          purpose="PATIENT_VIEW"
-        />
+        <ImagingViewerLauncher studyRef={study.id} purpose="PATIENT_VIEW" />
       </section>
     </div>
   );

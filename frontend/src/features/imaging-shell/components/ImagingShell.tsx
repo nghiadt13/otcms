@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState, type ReactNode } from "react";
+import { signOut } from "@/lib/auth/authSession";
 import { buttonVariants } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
@@ -20,6 +21,10 @@ function ShellContent({ children }: { children: ReactNode }) {
   const { toast, reset, mustChangePassword, ready } = useImaging();
   const [resetOpen, setResetOpen] = useState(false);
   const [exitOpen, setExitOpen] = useState(false);
+
+  // The real upload worklist and operation screens do not consume demo imaging state.
+  if (pathname === "/imaging/orders" || pathname.startsWith("/imaging/orders/"))
+    return <div className="imaging min-h-dvh">{children}</div>;
 
   if (!ready)
     return (
@@ -99,7 +104,10 @@ function ShellContent({ children }: { children: ReactNode }) {
         description="Bạn sẽ quay về màn đăng nhập nhân viên."
         confirmLabel="Đăng xuất"
         pendingLabel="Đang đăng xuất..."
-        onConfirm={() => router.push("/imaging/login")}
+        onConfirm={async () => {
+          await signOut();
+          router.push("/imaging/login");
+        }}
       />
       {toast && (
         <div className="im-toast" role="status" aria-live="polite">

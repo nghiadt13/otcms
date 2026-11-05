@@ -50,9 +50,10 @@ public class ImagingViewerGrantController {
                 .httpOnly(true).secure(true).sameSite("Strict").path("/dicom-web/")
                 .maxAge(Duration.ofSeconds(maxAge)).build();
         return ResponseEntity.status(201).header(HttpHeaders.SET_COOKIE, cookie.toString())
-                .cacheControl(CacheControl.noStore()).body(new ViewerGrantResponse(grant.expiresAt()));
+                .cacheControl(CacheControl.noStore())
+                .body(new ViewerGrantResponse(grant.expiresAt(), grant.studyInstanceUid()));
     }
 
     public record ViewerGrantRequest(@Pattern(regexp = "DOCTOR_REVIEW|PATIENT_VIEW") String purpose) { }
-    public record ViewerGrantResponse(Instant expiresAt) { }
+    public record ViewerGrantResponse(Instant expiresAt, String studyInstanceUid) { }
 }

@@ -1,12 +1,15 @@
 package fu.fa26.sep490.g58.otcms_be.imaging.repository;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import fu.fa26.sep490.g58.otcms_be.imaging.exception.ImagingOperationException;
 import fu.fa26.sep490.g58.otcms_be.imaging.model.ImagingIdempotencyRecord;
 import fu.fa26.sep490.g58.otcms_be.imaging.model.ImagingOperationRecord;
+import fu.fa26.sep490.g58.otcms_be.imaging.model.ImagingReconciliationDecision;
+import fu.fa26.sep490.g58.otcms_be.imaging.model.ImagingReconciliationDecisionCommand;
 import fu.fa26.sep490.g58.otcms_be.imaging.model.entity.ImagingAuditEventJpaEntity;
 import fu.fa26.sep490.g58.otcms_be.imaging.model.entity.ImagingConfirmationOutboxJpaEntity;
 import fu.fa26.sep490.g58.otcms_be.imaging.model.entity.ImagingReleaseInboxJpaEntity;
@@ -22,7 +25,8 @@ import fu.fa26.sep490.g58.otcms_be.imaging.model.entity.enums.ImagingOperationTy
 import fu.fa26.sep490.g58.otcms_be.imaging.model.entity.enums.ImagingReconciliationClassification;
 import fu.fa26.sep490.g58.otcms_be.imaging.service.impl.ImagingIdempotencyPersistenceService;
 import fu.fa26.sep490.g58.otcms_be.imaging.service.impl.ImagingIngestOperationPersistenceService;
-import fu.fa26.sep490.g58.otcms_be.imaging.service.impl.ImagingReconciliationService;
+import fu.fa26.sep490.g58.otcms_be.imaging.service.ImagingReconciliationService;
+import fu.fa26.sep490.g58.otcms_be.imaging.service.ImagingReconciliationQuery;
 import fu.fa26.sep490.g58.otcms_be.support.LocalPostgresTest;
 import java.time.Instant;
 import java.util.Map;
@@ -32,6 +36,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.transaction.annotation.Transactional;
 
 @SpringBootTest
 @LocalPostgresTest
@@ -52,9 +57,16 @@ class ImagingPersistenceT014PostgresIntegrationTest {
     @Autowired ImagingReconciliationCaseRepository reconciliationCases;
     @Autowired ImagingReconciliationService reconciliation;
     private UUID operationId;
+    private UUID releaseEventId;
 
     @AfterEach
     void cleanup() {
+        if (releaseEventId != null) {
+            jdbc.update("delete from imaging_audit_events where correlation_id = ?", releaseEventId.toString());
+            jdbc.update("delete from imaging_release_inbox where event_id = ?", releaseEventId);
+            jdbc.update("delete from imaging_reconciliation_cases where event_id = ?", releaseEventId);
+            releaseEventId = null;
+        }
         if (operationId != null) {
             jdbc.update("delete from imaging_audit_events where operation_id = ?", operationId);
             jdbc.update("delete from imaging_confirmation_outbox where operation_id = ?", operationId);
@@ -136,6 +148,74 @@ class ImagingPersistenceT014PostgresIntegrationTest {
         assertEquals(2, cases.size());
         assertTrue(cases.stream().anyMatch(item -> item.getCategory().equals("CONFIRMATION")
                 && item.getClassification().equals("RETRYABLE")));
+    }
+
+    @Test
+    void adminDecisionClosesOnlyTheQueueCaseAndPersistsActorAudit() {
+        ImagingOperationRecord operation = operation(ImagingOperationState.QUARANTINED, 0);
+        operationId = operation.id();
+        operations.insert(operation);
+        reconciliation.openOperation(operation.id(), "INGEST",
+                ImagingReconciliationClassification.CONFLICT, "IDENTITY_MISMATCH");
+
+        UUID queueReaderId = UUID.randomUUID();
+        var queue = reconciliation.listQueue(queueReaderId, new ImagingReconciliationQuery(
+                "OPEN", "CONFLICT", "INGEST", 0, 25), "corr-reconciliation-list");
+        assertEquals(1, queue.getTotalElements());
+        var item = queue.getContent().getFirst();
+        UUID adminId = UUID.randomUUID();
+        reconciliation.recordDecision(adminId, item.caseId(), new ImagingReconciliationDecisionCommand(
+                ImagingReconciliationDecision.KEEP_QUARANTINED, "INC-42"), "corr-reconciliation-decision");
+        reconciliation.recordDecision(adminId, item.caseId(), new ImagingReconciliationDecisionCommand(
+                ImagingReconciliationDecision.KEEP_QUARANTINED, "INC-42"), "corr-reconciliation-decision");
+
+        var resolved = reconciliationCases.findById(item.caseId()).orElseThrow();
+        assertEquals("RESOLVED", resolved.getState());
+        assertEquals("INC-42", resolved.getResolutionRef());
+        assertEquals("KEEP_QUARANTINED", resolved.getResolutionDecision());
+        assertEquals(ImagingOperationState.QUARANTINED, operations.findById(operation.id()).orElseThrow().state());
+        assertEquals(1, jdbc.queryForObject("""
+                select count(*) from imaging_audit_events
+                 where operation_id = ? and actor_account_id = ?
+                   and action = 'IMAGING_RECONCILIATION_DECISION'
+                   and correlation_id = 'corr-reconciliation-decision'
+                   and safe_metadata ->> 'decisionCode' = 'KEEP_QUARANTINED'
+                   and safe_metadata ->> 'caseId' = ?
+                """, Integer.class, operation.id(), adminId, item.caseId().toString()));
+        assertEquals(1, jdbc.queryForObject("""
+                select count(*) from imaging_audit_events
+                 where actor_account_id = ? and action = 'IMAGING_RECONCILIATION_QUEUE_READ'
+                   and correlation_id = 'corr-reconciliation-list'
+                """, Integer.class, queueReaderId));
+    }
+
+    @Test
+    @Transactional
+    void reconciliationWorkerClosesRetryableReleaseOnlyAfterMatchingDurableAcceptance() {
+        releaseEventId = UUID.randomUUID();
+        UUID requestId = UUID.randomUUID();
+        UUID visitId = UUID.randomUUID();
+        UUID patientId = UUID.randomUUID();
+        UUID findingsVersionId = UUID.randomUUID();
+        UUID reportId = UUID.randomUUID();
+        String payloadHash = "d".repeat(64);
+        reconciliation.openEvent(releaseEventId, "RELEASE", ImagingReconciliationClassification.RETRYABLE,
+                payloadHash, "RELEASE_BEFORE_LINKED");
+        assertEquals(1, releaseInbox.insertAcceptedIfAbsent(UUID.randomUUID(), releaseEventId, requestId, visitId,
+                patientId, "opaque-study", findingsVersionId, reportId, "e".repeat(64), payloadHash, NOW));
+
+        assertNotNull(reconciliation.reconcileOpenBatch(new UUID(0L, 0L)));
+
+        assertEquals(1, jdbc.queryForObject("""
+                select count(*) from imaging_reconciliation_cases
+                 where event_id = ? and state = 'RESOLVED' and classification = 'LINKED'
+                   and resolution_decision is null
+                """, Integer.class, releaseEventId));
+        assertEquals(1, jdbc.queryForObject("""
+                select count(*) from imaging_audit_events
+                 where action = 'IMAGING_RECONCILIATION_AUTO_CLOSE'
+                   and correlation_id = ? and safe_metadata ->> 'eventId' = ?
+                """, Integer.class, releaseEventId.toString(), releaseEventId.toString()));
     }
 
     @Test

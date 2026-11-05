@@ -29,7 +29,7 @@ class ImagingViewerGrantControllerTest {
         String rawToken = "opaque-secret-token";
         when(grants.issue(actorId, "study-1", "DOCTOR_REVIEW", "unknown"))
                 .thenReturn(new ImagingViewerGrantService.IssuedGrant("OTCMS_VIEW_GRANT_abc", rawToken,
-                        Instant.now().plusSeconds(120)));
+                        Instant.now().plusSeconds(120), "1.2.826.0.1.3680043.8.498.123"));
         var controller = new ImagingViewerGrantController(grants);
 
         var response = controller.issue("study-1", new ImagingViewerGrantController.ViewerGrantRequest("DOCTOR_REVIEW"),
@@ -45,6 +45,7 @@ class ImagingViewerGrantControllerTest {
         org.junit.jupiter.api.Assertions.assertTrue(cookie.contains("SameSite=Strict"));
         org.junit.jupiter.api.Assertions.assertTrue(cookie.contains("Path=/dicom-web/"));
         assertFalse(response.getBody().toString().contains(rawToken));
+        assertEquals("1.2.826.0.1.3680043.8.498.123", response.getBody().studyInstanceUid());
         verify(grants).issue(actorId, "study-1", "DOCTOR_REVIEW", "unknown");
     }
 

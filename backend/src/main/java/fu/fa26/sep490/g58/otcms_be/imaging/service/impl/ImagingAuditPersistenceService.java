@@ -16,7 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class ImagingAuditPersistenceService {
     private static final Set<String> SAFE_METADATA_KEYS = Set.of("purpose", "expiresAt", "state",
             "payloadSizeBytes", "instanceCount", "evidenceCodes", "eventId", "payloadSha256",
-            "reasonCode", "resourceType");
+            "reasonCode", "resourceType", "decisionCode", "resultCount", "caseId");
     private final ImagingAuditEventRepository audits;
 
     public ImagingAuditPersistenceService(ImagingAuditEventRepository audits) { this.audits = audits; }

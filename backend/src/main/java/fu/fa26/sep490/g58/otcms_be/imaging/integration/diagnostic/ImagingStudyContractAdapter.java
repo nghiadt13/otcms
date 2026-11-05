@@ -17,7 +17,7 @@ import fu.fa26.sep490.g58.otcms_be.imaging.repository.ImagingConfirmationOutboxR
 import fu.fa26.sep490.g58.otcms_be.imaging.repository.ImagingReleaseInboxRepository;
 import fu.fa26.sep490.g58.otcms_be.imaging.repository.ImagingStudyRepository;
 import fu.fa26.sep490.g58.otcms_be.imaging.service.impl.ImagingAuditPersistenceService;
-import fu.fa26.sep490.g58.otcms_be.imaging.service.impl.ImagingReconciliationService;
+import fu.fa26.sep490.g58.otcms_be.imaging.service.ImagingReconciliationService;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;

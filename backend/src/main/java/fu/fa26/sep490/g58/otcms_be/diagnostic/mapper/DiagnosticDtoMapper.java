@@ -2,6 +2,8 @@ package fu.fa26.sep490.g58.otcms_be.diagnostic.mapper;
 
 import fu.fa26.sep490.g58.otcms_be.diagnostic.model.DiagnosticRequestPage;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.model.DiagnosticRequestView;
+import fu.fa26.sep490.g58.otcms_be.diagnostic.model.DiagnosticAssignedUploadWorkPage;
+import fu.fa26.sep490.g58.otcms_be.diagnostic.model.DiagnosticAssignedUploadWorkItem;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.model.DiagnosticFindingsView;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.model.DiagnosticReportView;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.model.DiagnosticFindingsReleaseView;
@@ -16,6 +18,8 @@ import fu.fa26.sep490.g58.otcms_be.diagnostic.model.dto.DiagnosticDtos.ImagingHi
 import fu.fa26.sep490.g58.otcms_be.diagnostic.model.dto.DiagnosticDtos.ImagingHistoryPage;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.model.dto.DiagnosticDtos.OperationalRequestStatus;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.model.dto.DiagnosticDtos.OperationalStatusPage;
+import fu.fa26.sep490.g58.otcms_be.diagnostic.model.dto.DiagnosticDtos.AssignedTechnicianUploadWorkItem;
+import fu.fa26.sep490.g58.otcms_be.diagnostic.model.dto.DiagnosticDtos.AssignedTechnicianUploadWorkPage;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.model.dto.response.FindingsVersionResponse;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.model.dto.response.DiagnosticReportResponse;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.model.dto.response.FindingsReleaseStatusResponse;
@@ -69,6 +73,19 @@ public final class DiagnosticDtoMapper {
     public OperationalStatusPage toOperationalStatusPage(DiagnosticOperationalStatusPage page) {
         return new OperationalStatusPage(page.items().stream().map(this::toOperationalStatus).toList(),
                 page.page(), page.size(), page.totalItems());
+    }
+
+    public AssignedTechnicianUploadWorkPage toAssignedTechnicianUploadWorkPage(
+            DiagnosticAssignedUploadWorkPage page) {
+        return new AssignedTechnicianUploadWorkPage(page.items().stream()
+                .map(this::toAssignedTechnicianUploadWorkItem).toList(),
+                page.page(), page.size(), page.totalItems());
+    }
+
+    private AssignedTechnicianUploadWorkItem toAssignedTechnicianUploadWorkItem(
+            DiagnosticAssignedUploadWorkItem item) {
+        return new AssignedTechnicianUploadWorkItem(item.requestId(), item.attemptId(), item.visitId(),
+                item.imagingType(), item.roomId(), item.status(), item.version(), item.createdAt(), item.updatedAt());
     }
 
     public ImagingHistoryPage toImagingHistoryPage(DiagnosticHistoryPage page) {

@@ -10,6 +10,7 @@ import fu.fa26.sep490.g58.otcms_be.diagnostic.integration.ImagingServiceCatalogP
 import fu.fa26.sep490.g58.otcms_be.diagnostic.integration.RoomReservationPort;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.integration.VisitDiagnosticPort;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.model.DiagnosticActor;
+import fu.fa26.sep490.g58.otcms_be.diagnostic.model.DiagnosticAssignedImagingWork;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.model.DiagnosticAttempt;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.model.DiagnosticEvidenceContext;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.model.DiagnosticRequest;
@@ -186,6 +187,33 @@ public class DiagnosticRequestServiceImpl implements DiagnosticRequestService {
             }
         } while (batch.hasNext());
         return new DiagnosticRequestPage(selected, page, size, visible);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public DiagnosticAssignedImagingWork requireAssignedImagingWork(DiagnosticActor actor,
+            UUID requestId, UUID attemptId) {
+        requireImagingTechnician(actor);
+        if (requestId == null || attemptId == null) {
+            throw new DiagnosticOperationException(DiagnosticOperationOutcome.UNAUTHORIZED_RECORD);
+        }
+        DiagnosticRequestJpaEntity request = requests.findById(requestId)
+                .orElseThrow(() -> new DiagnosticOperationException(DiagnosticOperationOutcome.UNAUTHORIZED_RECORD));
+        if (!UPLOAD_STATUSES.contains(request.getStatus()) || !attemptId.equals(request.getCurrentAttemptId())
+                || attempts.findByRequestIdAndId(requestId, attemptId).isEmpty()) {
+            throw new DiagnosticOperationException(DiagnosticOperationOutcome.UNAUTHORIZED_RECORD);
+        }
+        RoomEvidence room = requireRoomEvidence(request.getRoomId(), request.getImagingType());
+        if (room.roomId() == null || !request.getRoomId().equals(room.roomId())) {
+            throw new DiagnosticOperationException(DiagnosticOperationOutcome.DEPENDENCY_UNAVAILABLE);
+        }
+        boolean assigned = room.operational() && room.compatible()
+                && actor.accountId().equals(room.assignedTechnicianId());
+        if (!assigned) {
+            throw new DiagnosticOperationException(DiagnosticOperationOutcome.UNAUTHORIZED_RECORD);
+        }
+        return new DiagnosticAssignedImagingWork(requestId, attemptId, request.getVisitId(),
+                request.getPatientId(), Long.toString(room.roomVersion()), true);
     }
 
     @Override

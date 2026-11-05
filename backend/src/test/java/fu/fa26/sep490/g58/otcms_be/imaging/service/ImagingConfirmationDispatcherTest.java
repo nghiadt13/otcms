@@ -23,6 +23,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
+import org.springframework.data.domain.Pageable;
 import org.mockito.junit.jupiter.MockitoExtension;
 import tools.jackson.databind.ObjectMapper;
 
@@ -35,20 +36,24 @@ class ImagingConfirmationDispatcherTest {
     @Test
     void acceptedConfirmationIsDurablyAcknowledged() {
         ImagingConfirmationOutboxJpaEntity event = event(0);
-        when(outbox.findAllByStatusAndNextAttemptAtLessThanEqualOrderByNextAttemptAtAscCreatedAtAsc(
-                eq("PENDING"), any())).thenReturn(List.of(event));
+        when(outbox.findAllByStatusAndNextAttemptAtLessThanEqualOrderByNextAttemptAtAscCreatedAtAscIdAsc(
+                eq("PENDING"), any(), any(Pageable.class))).thenReturn(List.of(event));
 
         dispatcher(3).dispatchDue();
 
         verify(diagnosticEvidence).linkConfirmedStudy(any(), any(), eq("imaging-confirmation-" + event.getEventId()));
         verify(persistence).acknowledge(event.getId());
+        var pageable = org.mockito.ArgumentCaptor.forClass(Pageable.class);
+        verify(outbox).findAllByStatusAndNextAttemptAtLessThanEqualOrderByNextAttemptAtAscCreatedAtAscIdAsc(
+                eq("PENDING"), any(), pageable.capture());
+        org.junit.jupiter.api.Assertions.assertEquals(50, pageable.getValue().getPageSize());
     }
 
     @Test
     void unavailableOwnerSchedulesBoundedRetryWithStableEventIdentity() {
         ImagingConfirmationOutboxJpaEntity event = event(0);
-        when(outbox.findAllByStatusAndNextAttemptAtLessThanEqualOrderByNextAttemptAtAscCreatedAtAsc(
-                eq("PENDING"), any())).thenReturn(List.of(event));
+        when(outbox.findAllByStatusAndNextAttemptAtLessThanEqualOrderByNextAttemptAtAscCreatedAtAscIdAsc(
+                eq("PENDING"), any(), any(Pageable.class))).thenReturn(List.of(event));
         doThrow(new IllegalStateException("unavailable"))
                 .when(diagnosticEvidence).linkConfirmedStudy(any(), any(), any());
 
@@ -65,8 +70,8 @@ class ImagingConfirmationDispatcherTest {
     @Test
     void exhaustedAttemptsEnterReconciliationInsteadOfRetryingForever() {
         ImagingConfirmationOutboxJpaEntity event = event(2);
-        when(outbox.findAllByStatusAndNextAttemptAtLessThanEqualOrderByNextAttemptAtAscCreatedAtAsc(
-                eq("PENDING"), any())).thenReturn(List.of(event));
+        when(outbox.findAllByStatusAndNextAttemptAtLessThanEqualOrderByNextAttemptAtAscCreatedAtAscIdAsc(
+                eq("PENDING"), any(), any(Pageable.class))).thenReturn(List.of(event));
         doThrow(new IllegalStateException("rejected"))
                 .when(diagnosticEvidence).linkConfirmedStudy(any(), any(), any());
 
@@ -79,8 +84,8 @@ class ImagingConfirmationDispatcherTest {
     @Test
     void permanentOwnerConflictEntersConflictReconciliationWithoutRetry() {
         ImagingConfirmationOutboxJpaEntity event = event(0);
-        when(outbox.findAllByStatusAndNextAttemptAtLessThanEqualOrderByNextAttemptAtAscCreatedAtAsc(
-                eq("PENDING"), any())).thenReturn(List.of(event));
+        when(outbox.findAllByStatusAndNextAttemptAtLessThanEqualOrderByNextAttemptAtAscCreatedAtAscIdAsc(
+                eq("PENDING"), any(), any(Pageable.class))).thenReturn(List.of(event));
         doThrow(new ImagingOperationException(ImagingOperationOutcome.EVIDENCE_MISMATCH))
                 .when(diagnosticEvidence).linkConfirmedStudy(any(), any(), any());
 

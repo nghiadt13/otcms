@@ -22,7 +22,7 @@ import fu.fa26.sep490.g58.otcms_be.imaging.repository.ImagingIngestOperationRepo
 import fu.fa26.sep490.g58.otcms_be.imaging.repository.ImagingReleaseInboxRepository;
 import fu.fa26.sep490.g58.otcms_be.imaging.repository.ImagingStudyRepository;
 import fu.fa26.sep490.g58.otcms_be.imaging.service.impl.ImagingAuditPersistenceService;
-import fu.fa26.sep490.g58.otcms_be.imaging.service.impl.ImagingReconciliationService;
+import fu.fa26.sep490.g58.otcms_be.imaging.service.ImagingReconciliationService;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;

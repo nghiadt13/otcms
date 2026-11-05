@@ -4,14 +4,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { OtcmsLogo } from "@/components/brand/OtcmsLogo";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
-import { useImaging } from "../hooks/useImaging";
+import { AuthSessionError, signInWithPassword } from "@/lib/auth/authSession";
 import { Icon } from "./Icon";
 
 export function StaffLoginScreen() {
-  const { setFirstLogin } = useImaging();
   const router = useRouter();
   const [error, setError] = useState("");
   const [show, setShow] = useState(false);
@@ -21,19 +19,22 @@ export function StaffLoginScreen() {
     const data = new FormData(e.currentTarget);
     const user = String(data.get("username")).trim();
     const password = String(data.get("password"));
-    if (!["ktv.minhanh", "ktv.moi"].includes(user) || password !== "Demo1234")
-      return setError(
-        "Tên đăng nhập hoặc mật khẩu chưa đúng. Sử dụng tài khoản mẫu bên dưới.",
-      );
     setError("");
     setLoading(true);
-    await new Promise((r) => setTimeout(r, 350));
-    if (user === "ktv.moi") {
-      setFirstLogin(true);
-      router.push("/imaging/change-password");
-    } else {
-      setFirstLogin(false);
-      router.push("/imaging");
+    try {
+      const session = await signInWithPassword("staff", user, password);
+      if (session.mustChangePassword) {
+        router.push("/first-login-password");
+      } else {
+        router.push("/imaging");
+      }
+    } catch (cause) {
+      setError(
+        cause instanceof AuthSessionError && cause.status === 401
+          ? "Tên đăng nhập hoặc mật khẩu không đúng hoặc tài khoản không còn khả dụng."
+          : "Không thể đăng nhập lúc này. Vui lòng thử lại sau.",
+      );
+      setLoading(false);
     }
   }
   return (
@@ -53,9 +54,8 @@ export function StaffLoginScreen() {
               className="h-12 text-base"
               name="username"
               autoComplete="username"
-              defaultValue="ktv.minhanh"
               required
-              placeholder="Nhập tên đăng nhập"
+              placeholder="Email hoặc tên đăng nhập"
             />
           </label>
           <label className="im-field">
@@ -97,18 +97,7 @@ export function StaffLoginScreen() {
         <p className="mt-5 text-sm text-muted-foreground">
           Quên mật khẩu? Liên hệ quản trị viên để được cấp lại.
         </p>
-        <details className="mt-5 border-t pt-4 text-sm text-muted-foreground">
-          <summary className="cursor-pointer">Tài khoản mẫu</summary>
-          <p className="mt-2">ktv.minhanh / Demo1234</p>
-          <p className="mt-1">ktv.moi / Demo1234: đổi mật khẩu lần đầu.</p>
-        </details>
       </Card>
-      <Link
-        href="/imaging"
-        className="text-sm font-medium text-primary hover:underline"
-      >
-        Xem trực tiếp giao diện
-      </Link>
     </main>
   );
 }

@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import { PatientStudyListScreen } from "@/features/imaging/components/PatientStudyListScreen";
+import { PatientImagingHistoryScreen } from "@/features/imaging/components/PatientImagingHistoryScreen";
 
 export const metadata = {
   title: "Ảnh chụp | OTCMS",
@@ -9,7 +9,7 @@ export const metadata = {
 export default function PatientImagesPage() {
   return (
     <Suspense fallback={null}>
-      <PatientStudyListScreen />
+      <PatientImagingHistoryScreen />
     </Suspense>
   );
 }

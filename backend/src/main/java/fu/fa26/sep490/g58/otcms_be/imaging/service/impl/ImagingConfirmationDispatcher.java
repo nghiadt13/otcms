@@ -14,12 +14,15 @@ import java.util.List;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.data.domain.PageRequest;
 import tools.jackson.databind.ObjectMapper;
 
 /** Delivers due durable ingest confirmations through FEAT-003's public application service. */
 @Component
 @ConditionalOnProperty(prefix = "otcms.imaging", name = "enabled", havingValue = "true")
 public class ImagingConfirmationDispatcher {
+    private static final int MAX_EVENTS_PER_RUN = 50;
+
     private final ImagingConfirmationOutboxRepository outbox;
     private final DiagnosticEvidenceService diagnosticEvidence;
     private final ImagingConfirmationOutboxPersistenceService persistence;
@@ -37,7 +40,8 @@ public class ImagingConfirmationDispatcher {
     @Scheduled(fixedDelayString = "${otcms.imaging.confirmation-poll-delay-ms:5000}")
     public void dispatchDue() {
         List<ImagingConfirmationOutboxJpaEntity> due = outbox
-                .findAllByStatusAndNextAttemptAtLessThanEqualOrderByNextAttemptAtAscCreatedAtAsc("PENDING", Instant.now());
+                .findAllByStatusAndNextAttemptAtLessThanEqualOrderByNextAttemptAtAscCreatedAtAscIdAsc(
+                        "PENDING", Instant.now(), PageRequest.of(0, MAX_EVENTS_PER_RUN));
         for (ImagingConfirmationOutboxJpaEntity event : due) dispatch(event);
     }
 

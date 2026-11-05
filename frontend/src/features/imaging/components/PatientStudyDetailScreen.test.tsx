@@ -20,6 +20,7 @@ beforeEach(() => {
   nav.notFound.mockClear();
   viewer.createImagingViewerGrant.mockReset().mockResolvedValue({
     expiresAt: "2026-11-05T12:30:00Z",
+    studyInstanceUid: AN_STUDY_UID,
   });
   viewer.imagingViewerPath
     .mockReset()
@@ -37,9 +38,7 @@ describe("PatientStudyDetailScreen", () => {
         name: "X-quang khớp gối 2 tư thế",
       }),
     ).toBeInTheDocument();
-    await user.click(
-      screen.getByRole("button", { name: "Cấp quyền xem ảnh" }),
-    );
+    await user.click(screen.getByRole("button", { name: "Cấp quyền xem ảnh" }));
     expect(viewer.createImagingViewerGrant).toHaveBeenCalledWith(
       "std-an-xray-1",
       "PATIENT_VIEW",

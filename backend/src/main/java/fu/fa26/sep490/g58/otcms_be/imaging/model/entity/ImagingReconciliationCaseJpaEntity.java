@@ -27,6 +27,7 @@ public class ImagingReconciliationCaseJpaEntity {
     @Column(name = "updated_at", nullable = false, insertable = false) private Instant updatedAt;
     @Column(name = "resolved_at") private Instant resolvedAt;
     @Column(name = "resolution_ref", length = 128) private String resolutionRef;
+    @Column(name = "resolution_decision", length = 40) private String resolutionDecision;
 
     protected ImagingReconciliationCaseJpaEntity() { }
 
@@ -60,4 +61,5 @@ public class ImagingReconciliationCaseJpaEntity {
     public Instant getUpdatedAt() { return updatedAt; }
     public Instant getResolvedAt() { return resolvedAt; }
     public String getResolutionRef() { return resolutionRef; }
+    public String getResolutionDecision() { return resolutionDecision; }
 }
