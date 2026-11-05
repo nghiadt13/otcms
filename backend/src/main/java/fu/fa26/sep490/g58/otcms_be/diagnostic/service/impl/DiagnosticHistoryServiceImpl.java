@@ -111,14 +111,19 @@ public class DiagnosticHistoryServiceImpl implements DiagnosticHistoryService {
     private DiagnosticHistoryItem toHistoryItem(DiagnosticRequestJpaEntity request) {
         DiagnosticFindingsVersionJpaEntity version = findings.findFirstByRequestIdAndStateOrderByVersionNumberDesc(
                 request.getId(), DiagnosticFindingsVersionState.COMPLETED).orElse(null);
-        if (version == null || !request.getId().equals(version.getRequestId())
+        if (request.getStatus() == fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.enums.DiagnosticRequestStatus.CANCELLED
+                || version == null || version.getState() != DiagnosticFindingsVersionState.COMPLETED
+                || version.getCompletedAt() == null || !request.getId().equals(version.getRequestId())
                 || !request.getVisitId().equals(version.getVisitId())) {
             return new DiagnosticHistoryItem(request.getId(), request.getVisitId(), request.getImagingType(),
                     request.getStatus(), null, null, null, null);
         }
         DiagnosticReportJpaEntity report = reports.findFirstByRequestIdAndReleasedAtIsNotNullOrderByReportVersionDesc(
                 request.getId()).orElse(null);
-        if (report == null || !Objects.equals(version.getRequiredPdfReportId(), report.getId())
+        if (report == null || report.getReleasedAt() == null
+                || report.getValidationStatus() != fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.enums.DiagnosticReportValidationStatus.VALIDATED
+                || !request.getId().equals(report.getRequestId())
+                || !Objects.equals(version.getRequiredPdfReportId(), report.getId())
                 || !request.getVisitId().equals(report.getVisitId())
                 || !Objects.equals(version.getStudyRef(), report.getStudyRef())) {
             return new DiagnosticHistoryItem(request.getId(), request.getVisitId(), request.getImagingType(),

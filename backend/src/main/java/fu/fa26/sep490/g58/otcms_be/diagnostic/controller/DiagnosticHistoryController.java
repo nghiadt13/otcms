@@ -33,13 +33,14 @@ public class DiagnosticHistoryController {
 
     @GetMapping
     @Operation(operationId = "getImagingHistory", summary = "Get actor-authorized imaging result history")
-    public ImagingHistoryPage getHistory(
+    public org.springframework.http.ResponseEntity<ImagingHistoryPage> getHistory(
             @Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedAccount principal,
             @RequestParam(required = false) UUID patientId,
             @RequestParam(required = false) UUID visitId,
             @RequestParam(defaultValue = "0") @Min(0) int page,
             @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size) {
-        return mapper.toImagingHistoryPage(history.getImagingHistory(
-                DiagnosticActor.user(principal.accountId(), principal.accountRole()), patientId, visitId, page, size));
+        return org.springframework.http.ResponseEntity.ok().cacheControl(org.springframework.http.CacheControl.noStore())
+                .body(mapper.toImagingHistoryPage(history.getImagingHistory(
+                DiagnosticActor.user(principal.accountId(), principal.accountRole()), patientId, visitId, page, size)));
     }
 }

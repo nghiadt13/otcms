@@ -156,6 +156,30 @@ class DoctorCoreProductionWiringTest {
         // Repository doubles do not prove PostgreSQL rollback; the real Spring transaction boundary is verified here.
     }
 
+    @Test void patientImagingHistoryUsesRealActivePatientAndConfirmedRelationshipServices() {
+        UUID patientAccount = UUID.randomUUID(), dependent = UUID.randomUUID();
+        var profile = new fu.fa26.sep490.g58.otcms_be.auth.model.entity.PatientProfileJpaEntity();
+        profile.setId(patientId); profile.setAccountId(patientAccount);
+        when(bean(fu.fa26.sep490.g58.otcms_be.auth.repository.PatientProfileRepository.class).findByAccountId(patientAccount))
+                .thenReturn(Optional.of(profile));
+        when(bean(AccountRepository.class).existsByIdAndAccountTypeAndStatus(eq(patientAccount), any(), any())).thenReturn(true);
+        var link = mock(fu.fa26.sep490.g58.otcms_be.patient.model.entity.CareRelationshipJpaEntity.class);
+        when(link.getDependentPatientProfileId()).thenReturn(dependent);
+        var links = bean(fu.fa26.sep490.g58.otcms_be.patient.repository.CareRelationshipRepository.class);
+        when(links.findAllByRequesterAccountIdAndState(patientAccount, fu.fa26.sep490.g58.otcms_be.patient.model.CareRelationship.State.CONFIRMED))
+                .thenReturn(List.of(link));
+        var port = bean(PatientDiagnosticHistoryPort.class);
+        assertInstanceOf(fu.fa26.sep490.g58.otcms_be.patient.integration.diagnostic.PatientDiagnosticHistoryAdapter.class, port);
+        assertTrue(port.authorizePatientHistory(patientAccount, patientId).authorized());
+        assertTrue(port.authorizePatientHistory(patientAccount, dependent).authorized());
+        assertFalse(port.authorizePatientHistory(patientAccount, UUID.randomUUID()).authorized());
+        when(links.findAllByRequesterAccountIdAndState(patientAccount, fu.fa26.sep490.g58.otcms_be.patient.model.CareRelationship.State.CONFIRMED))
+                .thenReturn(List.of());
+        assertFalse(port.authorizePatientHistory(patientAccount, dependent).authorized());
+        when(bean(AccountRepository.class).existsByIdAndAccountTypeAndStatus(eq(patientAccount), any(), any())).thenReturn(false);
+        assertFalse(port.authorizePatientHistory(patientAccount, patientId).authorized());
+    }
+
     @Test void wrongDoctorIsRejectedBeforeClinicalOrDiagnosticWrites() {
         var bad = new ImagingRequestCommand(visitId, UUID.randomUUID(), "bad", command("", 1).orders());
         assertEquals("MSG-40", assertThrows(ClinicalOperationException.class, () -> bean(ClinicalImagingRequestService.class).submit(bad)).code());
@@ -271,6 +295,7 @@ class DoctorCoreProductionWiringTest {
     @Configuration @EnableWebMvc @EnableTransactionManagement(proxyTargetClass = true)
     @Import({ClinicalImagingRequestController.class, ClinicalExaminationController.class, AfterVisitAdviceController.class,
             ClinicalPastMedicalRecordsController.class, ClinicalPastMedicalRecordsServiceImpl.class,
+            fu.fa26.sep490.g58.otcms_be.patient.integration.diagnostic.PatientDiagnosticHistoryAdapter.class,
             VisitPatientHistoryQueryServiceImpl.class, ClinicalExaminationHistoryQueryServiceImpl.class,
             ClinicalMedicalDocumentHistoryQueryServiceImpl.class, DiagnosticPatientHistoryQueryServiceImpl.class,
             DiagnosticRequestController.class, DiagnosticFindingsController.class, DiagnosticHistoryController.class, DiagnosticDtoMapper.class,

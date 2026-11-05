@@ -198,5 +198,14 @@ class DiagnosticHistoryT015Test {
         assertEquals("No acute findings", result.items().getFirst().findingsText());
         assertEquals(reportId, result.items().getFirst().reportId());
         assertEquals(2, result.items().getFirst().findingsVersion());
+
+        report.setValidationStatus(fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.enums.DiagnosticReportValidationStatus.INVALID);
+        org.junit.jupiter.api.Assertions.assertNull(service.getImagingHistory(actor, null, visitId, 0, 20).items().getFirst().studyRef());
+        report.setValidationStatus(fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.enums.DiagnosticReportValidationStatus.VALIDATED);
+        report.setReleasedAt(null);
+        org.junit.jupiter.api.Assertions.assertNull(service.getImagingHistory(actor, null, visitId, 0, 20).items().getFirst().findingsText());
+        report.setReleasedAt(createdAt);
+        request.setStatus(DiagnosticRequestStatus.CANCELLED);
+        org.junit.jupiter.api.Assertions.assertNull(service.getImagingHistory(actor, null, visitId, 0, 20).items().getFirst().reportId());
     }
 }
