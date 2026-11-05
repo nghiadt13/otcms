@@ -25,8 +25,6 @@ const NEW_PROFILE: CreateProfileRequest = {
   fullName: "Trần Minh Khang",
   dateOfBirth: "2019-04-03",
   sex: "MALE",
-  phone: "0909123456",
-  address: "9 Cách Mạng Tháng Tám, Quận 3",
 };
 
 /** Lỗi của một lời gọi API giả; test fail nếu lời gọi không ném ApiError. */
@@ -147,7 +145,9 @@ describe("linkSuggestedProfile", () => {
 
 describe("createPatientProfile", () => {
   it("tạo xong có mã BN mới, gắn ngay và hiện trong danh sách đã gắn", async () => {
-    const created = await createPatientProfile(NEW_PROFILE);
+    const result = await createPatientProfile(NEW_PROFILE);
+    if (result.status !== "LINKED") throw new Error("Kỳ vọng LINKED");
+    const created = await getPatientProfile(result.profileId);
     // Mã mới lớn hơn mọi mã đang có: cao nhất hiện tại là BN-000789 (Huy).
     expect(created).toMatchObject({
       patientCode: "BN-000790",
@@ -161,28 +161,25 @@ describe("createPatientProfile", () => {
     expect(items.map((item) => item.id)).toContain(created.id);
   });
 
-  it("SĐT và ngày sinh trùng hồ sơ có sẵn → 409 DUPLICATE_PROFILE, không tạo thêm", async () => {
+  it("Họ tên và ngày sinh trùng hồ sơ có sẵn → 409 DUPLICATE_PROFILE, không tạo thêm", async () => {
     const before = getLinkedProfileRecords().length;
     const error = await failureOf(
       createPatientProfile({
         ...NEW_PROFILE,
-        phone: "0900000000",
-        dateOfBirth: "1990-01-01",
+        fullName: "Nguyễn Văn An",
+        dateOfBirth: "1992-07-21",
       }),
     );
     expect(isDuplicateProfileError(error)).toBe(true);
     expect(getLinkedProfileRecords()).toHaveLength(before);
   });
 
-  it("họ tên quá ngắn và SĐT sai → 400 MSG-17 kèm fieldErrors đúng trường", async () => {
+  it("họ tên quá ngắn → 400 MSG-17 kèm fieldErrors đúng trường", async () => {
     const error = await failureOf(
-      createPatientProfile({ ...NEW_PROFILE, fullName: "A", phone: "123" }),
+      createPatientProfile({ ...NEW_PROFILE, fullName: "A" }),
     );
     expect(error).toMatchObject({ status: 400, code: "MSG-17" });
-    expect(error.fieldErrors?.map((item) => item.field).sort()).toEqual([
-      "fullName",
-      "phone",
-    ]);
+    expect(error.fieldErrors?.map((item) => item.field)).toEqual(["fullName"]);
   });
 
   it("Bản thân thứ hai khi tài khoản đã có Bản thân → 409 MSG-21", async () => {

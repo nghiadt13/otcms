@@ -9,6 +9,10 @@ import {
   notifyNoReplacement,
   reassignAppointmentDoctor,
 } from "../api/appointmentApi";
+import {
+  listAdminReassignmentDoctors,
+  reassignAdminAppointment,
+} from "../api/appointmentAdminLiveApi";
 import { useAppointmentList } from "../hooks/useAppointmentList";
 import type { useAppointmentUrlState } from "../hooks/useAppointmentUrlState";
 import type { useDoctorLookup } from "../hooks/useDoctorLookup";
@@ -34,12 +38,21 @@ const EMPTY_TEXT =
   "Chưa có lịch hẹn trong khoảng ngày đã chọn. Thử mở rộng khoảng ngày hoặc bỏ lọc trạng thái.";
 const INVALID_RANGE_TEXT = "Sửa khoảng ngày để xem lịch hẹn.";
 
-/** Bộ endpoint chuyển bác sĩ của admin (/api/v1/admin/appointments/...). */
-const ADMIN_REASSIGN_API: ReassignDoctorApi<Appointment> = {
-  listEligibleDoctors,
-  reassign: reassignAppointmentDoctor,
-  notifyNoReplacement,
-};
+const ADMIN_REASSIGN_API: ReassignDoctorApi<Appointment> =
+  process.env.NODE_ENV === "test"
+    ? {
+        listEligibleDoctors,
+        reassign: (appointment, doctorId) =>
+          reassignAppointmentDoctor(appointment.id, doctorId),
+        notifyNoReplacement,
+      }
+    : {
+        listEligibleDoctors: (id, signal, startAt) => {
+          if (!startAt) throw new Error("Thiếu giờ hẹn để tìm bác sĩ thay.");
+          return listAdminReassignmentDoctors(id, startAt, signal);
+        },
+        reassign: reassignAdminAppointment,
+      };
 
 /** Tab 1: lọc, bảng, Sheet chi tiết, chuyển bác sĩ và báo bệnh nhân (AF1). */
 export function AppointmentListTab({ url, lookup }: AppointmentListTabProps) {

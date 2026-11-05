@@ -30,8 +30,8 @@ export function PatientProfileList({
                 </Badge>
               </span>
               <span className="mt-0.5 block text-sm text-muted-foreground tabular-nums">
-                {profile.patientCode} · {formatDate(profile.dateOfBirth)} ·{" "}
-                {SEX_LABELS[profile.sex]}
+                {profile.patientCode ? `${profile.patientCode} · ` : ""}
+                {formatDate(profile.dateOfBirth)} · {SEX_LABELS[profile.sex]}
               </span>
             </span>
             <ChevronRight

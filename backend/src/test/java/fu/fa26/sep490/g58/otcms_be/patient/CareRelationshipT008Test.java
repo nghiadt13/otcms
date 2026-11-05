@@ -23,7 +23,7 @@ class CareRelationshipT008Test {
     }
 
     @Test
-    void noDependentRelationshipHttpControllerIsRegistered() {
-        assertFalse(CareRelationshipController.class.isAnnotationPresent(RestController.class));
+    void r3DependentRelationshipHttpControllerIsRegistered() {
+        assertTrue(CareRelationshipController.class.isAnnotationPresent(RestController.class));
     }
 }

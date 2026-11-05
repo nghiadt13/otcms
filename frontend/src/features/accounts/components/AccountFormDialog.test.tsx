@@ -4,9 +4,18 @@ import { useState } from "react";
 import { Toaster } from "sonner";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { isPasswordValid } from "@/lib/domain/passwordPolicy";
-import { resetAccountMockStore } from "../api/accountMockData";
+import { resetFakeAccountBackend } from "@/test/accountAdminFakeBackend";
 import { AccountFormDialog } from "./AccountFormDialog";
 import { formatAppMessage } from "@/lib/messages/appMessages";
+
+// Mock ở ranh giới HTTP: backend giả trả đúng JSON của BE (KAN-27 cho nhân viên).
+vi.mock("@/lib/api/client", async (importOriginal) => {
+  const fake = await import("@/test/accountAdminFakeBackend");
+  return {
+    ...(await importOriginal<typeof import("@/lib/api/client")>()),
+    apiRequest: vi.fn(fake.fakeAccountApiRequest),
+  };
+});
 const onCreated = vi.fn();
 const onClose = vi.fn();
 
@@ -39,7 +48,7 @@ async function fill(
 }
 
 beforeEach(() => {
-  resetAccountMockStore();
+  resetFakeAccountBackend();
   onCreated.mockClear();
   onClose.mockClear();
 });

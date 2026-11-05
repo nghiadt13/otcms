@@ -29,7 +29,7 @@ import { DoctorChoice } from "./DoctorChoice";
 import { ServicePicker } from "./ServicePicker";
 import { TimeSlotGrid } from "./TimeSlotGrid";
 
-// Các khối của luồng đặt lịch, theo đúng thứ tự đọc: Ai đi khám → Dịch vụ → Ngày → Giờ → Bác sĩ →
+// Các khối của luồng đặt lịch, theo đúng thứ tự đọc: Chọn người khám → Dịch vụ → Ngày → Giờ → Bác sĩ →
 // Kiểm tra lại. Khối nào hiện, mở hay đã chọn do `steps` quyết định; file này chỉ vẽ.
 
 export interface BookingFlowBlocksProps {
@@ -92,7 +92,7 @@ export function BookingFlowBlocks(props: BookingFlowBlocksProps) {
     <>
       {steps.patient !== "hidden" ? (
         <BookingStep
-          title="Ai đi khám?"
+          title="Chọn người cần khám"
           variant={variant}
           open={steps.patient === "open"}
           summary={
@@ -111,7 +111,7 @@ export function BookingFlowBlocks(props: BookingFlowBlocksProps) {
               dispatch({ type: "selectPatient", patientId })
             }
             variant={variant}
-            label="Ai đi khám?"
+            label="Chọn người cần khám"
           />
         </BookingStep>
       ) : null}

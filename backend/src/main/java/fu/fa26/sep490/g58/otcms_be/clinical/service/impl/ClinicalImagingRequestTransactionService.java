@@ -1,0 +1,94 @@
+package fu.fa26.sep490.g58.otcms_be.clinical.service.impl;
+
+import fu.fa26.sep490.g58.otcms_be.clinical.exception.ClinicalOperationException;
+import fu.fa26.sep490.g58.otcms_be.clinical.model.entity.ClinicalImagingRequestReplayJpaEntity;
+import fu.fa26.sep490.g58.otcms_be.clinical.repository.ClinicalImagingRequestReplayRepository;
+import fu.fa26.sep490.g58.otcms_be.clinical.repository.OrderingRoundRepository;
+import fu.fa26.sep490.g58.otcms_be.clinical.repository.ServiceOrderRepository;
+import fu.fa26.sep490.g58.otcms_be.clinical.service.ClinicalImagingRequestService.*;
+import fu.fa26.sep490.g58.otcms_be.clinical.service.ClinicalOrderingService;
+import java.time.Clock;
+import java.util.Comparator;
+import java.util.Optional;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+/** One local transaction owns round + orders + replay. Never catch uniqueness failure in this bean. */
+@Service
+public class ClinicalImagingRequestTransactionService {
+    private final ClinicalOrderPreparationService preparation;
+    private final ClinicalOrderingTransactionService writer;
+    private final ClinicalImagingRequestReplayRepository replays;
+    private final OrderingRoundRepository rounds;
+    private final ServiceOrderRepository orders;
+    private final Clock clock;
+    private final fu.fa26.sep490.g58.otcms_be.diagnostic.service.DiagnosticImagingRequestRegistration diagnostic;
+
+    public ClinicalImagingRequestTransactionService(ClinicalOrderPreparationService preparation,
+            ClinicalOrderingTransactionService writer, ClinicalImagingRequestReplayRepository replays,
+            OrderingRoundRepository rounds, ServiceOrderRepository orders, Clock clock,
+            fu.fa26.sep490.g58.otcms_be.diagnostic.service.DiagnosticImagingRequestRegistration diagnostic) {
+        this.preparation = preparation;
+        this.writer = writer;
+        this.replays = replays;
+        this.rounds = rounds;
+        this.orders = orders;
+        this.clock = clock;
+        this.diagnostic = diagnostic;
+    }
+
+    @Transactional
+    public SubmissionResult submit(ImagingRequestCommand command, String fingerprint) {
+        var existing = replays.findByDoctorProfileIdAndIdempotencyKey(command.doctorProfileId(), command.idempotencyKey());
+        if (existing.isPresent()) return replay(command, fingerprint, existing.get());
+        var context = preparation.requireCurrentCare(command.visitId(), command.doctorProfileId());
+        var requests = command.orders().stream().map(order -> new ClinicalOrderingService.OrderRequest(
+                order.serviceId(), order.clinicalReason(), order.bodyArea(), order.instructions())).toList();
+        var snapshots = preparation.prepare(requests, true);
+        // writer uses REQUIRED, joining this transaction; it cannot commit before replay insertion.
+        var round = writer.createRound(command.visitId(), context.patientId(), command.doctorProfileId(), snapshots);
+        registerDiagnosticWork(round);
+        replays.saveAndFlush(new ClinicalImagingRequestReplayJpaEntity(command.doctorProfileId(), command.idempotencyKey(),
+                fingerprint, round.id(), clock.instant()));
+        return new SubmissionResult(sorted(round), false);
+    }
+
+    /** Called only outside the failed attempt transaction, after its rollback has completed. */
+    @Transactional
+    public Optional<SubmissionResult> recoverReplay(ImagingRequestCommand command, String fingerprint) {
+        return replays.findByDoctorProfileIdAndIdempotencyKey(command.doctorProfileId(), command.idempotencyKey())
+                .map(existing -> replay(command, fingerprint, existing));
+    }
+
+    private SubmissionResult replay(ImagingRequestCommand command, String fingerprint, ClinicalImagingRequestReplayJpaEntity replay) {
+        if (!fingerprint.equals(replay.getRequestFingerprint())) throw new ClinicalOperationException("IDEMPOTENCY_CONFLICT");
+        preparation.requireCurrentCare(command.visitId(), command.doctorProfileId());
+        var round = rounds.findById(replay.getOrderingRoundId()).orElseThrow(() -> new ClinicalOperationException("DEPENDENCY_UNAVAILABLE"));
+        if (!command.visitId().equals(round.getVisitId()) || !command.doctorProfileId().equals(round.getOrderedByDoctorId())) {
+            throw new ClinicalOperationException("DEPENDENCY_UNAVAILABLE");
+        }
+        var views = orders.findByOrderingRoundId(round.getId()).stream().map(order -> new ClinicalOrderingService.OrderView(
+                order.getId(), order.getOrderCode(), order.getVisitId(), order.getPatientId(), order.getOrderingRoundId(),
+                order.getServiceId(), order.getServiceNameSnapshot(), order.getServiceType(), order.getRequestingDoctorId(),
+                order.getClinicalReason(), order.getBodyArea(), order.getInstructions(), order.getPriceSnapshot(),
+                order.getOrderStatus(), order.getPaymentStatus())).toList();
+        var result = sorted(new ClinicalOrderingService.RoundView(round.getId(), round.getVisitId(),
+                round.getRoundNumber(), round.getOrderedByDoctorId(), round.getOrderedAt(), views));
+        // Also repairs rounds written before Clinical/Diagnostic registration existed. No duplicate work on retry.
+        registerDiagnosticWork(result);
+        return new SubmissionResult(result, true);
+    }
+
+    private void registerDiagnosticWork(ClinicalOrderingService.RoundView round) {
+        for (var order : round.orders()) {
+            diagnostic.register(new fu.fa26.sep490.g58.otcms_be.diagnostic.service.DiagnosticImagingRequestRegistration.RegisterImagingOrder(
+                    order.orderId(), order.visitId(), order.patientId(), order.requestingDoctorId(), order.serviceId(),
+                    order.bodyArea(), order.clinicalReason()));
+        }
+    }
+
+    private static ClinicalOrderingService.RoundView sorted(ClinicalOrderingService.RoundView round) {
+        return new ClinicalOrderingService.RoundView(round.id(), round.visitId(), round.roundNumber(), round.orderedByDoctorId(),
+                round.orderedAt(), round.orders().stream().sorted(Comparator.comparing(order -> order.orderId().toString())).toList());
+    }
+}

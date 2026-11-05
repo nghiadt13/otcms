@@ -7,20 +7,14 @@ import { PortalNoProfileState } from "@/components/patient/PortalEmptyState";
 import { PortalPageHeader } from "@/components/patient/PortalPageHeader";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useLinkedProfiles } from "@/hooks/useLinkedProfiles";
-import { messageFromError } from "@/lib/messages/appMessages";
 import { PATIENT_ROUTES } from "@/lib/routes/patientRoutes";
-import { getMockCurrentActor } from "@/lib/session/mockCurrentActor";
-import { useProfileSuggestions } from "../hooks/useProfileSuggestions";
+import { MedicalHistoryProfiles } from "./MedicalHistoryProfiles";
 import { PatientProfileList } from "./PatientProfileList";
 import { PortalLoadError } from "./PortalLoadError";
-import { SuggestionBanner } from "./SuggestionBanner";
 
-// Trang "Hồ sơ bệnh nhân": hồ sơ đã gắn của tài khoản, kèm băng gợi ý khi có hồ sơ khám tại
-// phòng khám dùng cùng email đã xác minh. Đủ bốn trạng thái: tải, lỗi, trống, có dữ liệu.
+// Trang "Hồ sơ bệnh nhân": hồ sơ đã gắn của tài khoản. Đủ bốn trạng thái: tải, lỗi, trống, có dữ liệu.
 export function PatientProfilesScreen() {
   const { profiles, loading, error, reload } = useLinkedProfiles();
-  const suggestions = useProfileSuggestions();
-  const email = getMockCurrentActor("patient").email ?? "";
   const showAddButton = !loading && !error && profiles.length > 0;
 
   let body: ReactNode;
@@ -61,7 +55,7 @@ export function PatientProfilesScreen() {
               className={publicButtonClass("primary")}
               href={PATIENT_ROUTES.newProfile}
             >
-              Thêm hồ sơ bệnh nhân
+              Thêm thành viên
             </Link>
           ) : null
         }
@@ -69,19 +63,7 @@ export function PatientProfilesScreen() {
         title="Hồ sơ bệnh nhân"
       />
       <div className="space-y-6">
-        {suggestions.suggestions.length > 0 ? (
-          <SuggestionBanner
-            count={suggestions.suggestions.length}
-            email={email}
-          />
-        ) : null}
-        {suggestions.error ? (
-          <PortalLoadError
-            message={messageFromError(suggestions.error)}
-            onRetry={suggestions.reload}
-            title="Chưa tải được hồ sơ gợi ý."
-          />
-        ) : null}
+        <MedicalHistoryProfiles />
         {body}
       </div>
     </>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useReducer, useState } from "react";
+import { useEffect, useReducer, useState, type ReactNode } from "react";
 import { isApiError } from "@/lib/api/apiError";
 import {
   notifyError,
@@ -43,6 +43,14 @@ export type BookingFlowProps = {
       variant: "patient";
       /** Người khám chọn được (trang lấy từ tài khoản đang đăng nhập). */
       patients: readonly BookingPatient[];
+      /**
+       * Màn thanh toán của lịch vừa tạo (bước 5). Có thì đặt xong sẽ sang bước thanh toán thay vì
+       * gọi `onBooked` ngay; `onFinish` gọi `onBooked` khi người dùng xong hoặc chọn trả sau.
+       */
+      renderPayment?: (args: {
+        appointment: BookedAppointment;
+        onFinish: (result: { paid: boolean }) => void;
+      }) => ReactNode;
     }
   | {
       variant: "staff";
@@ -68,6 +76,10 @@ export function BookingFlow(props: BookingFlowProps) {
   const [purpose, setPurpose] = useState("");
   // Chỉ khu bệnh nhân dùng wizard; khu Lễ tân vẫn là trang cuộn (BookingFlowBlocks).
   const [wizardStep, setWizardStep] = useState<WizardStepKey>("patient");
+  // Lịch vừa tạo, đang ở bước thanh toán.
+  const [booked, setBooked] = useState<BookedAppointment | null>(null);
+  const renderPayment =
+    props.variant === "patient" ? props.renderPayment : undefined;
   const services = useBookableServices(variant === "patient");
 
   // Khu bệnh nhân: lựa chọn của người dùng, hoặc hồ sơ duy nhất. Khu Lễ tân: người đã cố định.
@@ -152,8 +164,14 @@ export function BookingFlow(props: BookingFlowProps) {
         doctorId,
         purpose,
       });
-      notifySuccess("MSG-26");
-      onBooked(appointment);
+      if (renderPayment) {
+        // Có bước thanh toán: chưa báo thành công (phí khám còn chờ trả), MSG-26 hiện khi xong bước 5.
+        setBooked(appointment);
+        setWizardStep("payment");
+      } else {
+        notifySuccess("MSG-26");
+        onBooked(appointment);
+      }
     } catch (error) {
       notifyError(error);
       const outcome = bookingSubmitOutcome(error);
@@ -208,6 +226,25 @@ export function BookingFlow(props: BookingFlowProps) {
           onPurposeChange={setPurpose}
           submitting={submitting}
           onSubmit={() => void handleSubmit()}
+          paymentSlot={
+            booked && renderPayment
+              ? renderPayment({
+                  appointment: booked,
+                  onFinish: ({ paid }) => {
+                    notifySuccess("MSG-26");
+                    // Kết quả hiển thị đúng trạng thái phí sau bước thanh toán.
+                    onBooked(
+                      paid
+                        ? {
+                            ...booked,
+                            examFee: { ...booked.examFee, status: "PAID" },
+                          }
+                        : booked,
+                    );
+                  },
+                })
+              : null
+          }
         />
       </div>
     );

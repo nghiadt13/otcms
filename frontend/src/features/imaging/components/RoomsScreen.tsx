@@ -3,8 +3,8 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
-import { useState } from "react";
-import { CURRENT_ROOM, rooms } from "../api/imagingMockData";
+import { useEffect, useState } from "react";
+import { listImagingRooms, type ImagingRoom } from "../api/imagingRoomApi";
 import { Badge } from "./Badge";
 import { Empty } from "./Empty";
 import { Icon } from "./Icon";
@@ -13,13 +13,35 @@ import { PageHeading } from "./PageHeading";
 import { Panel } from "./Panel";
 
 export function RoomsScreen() {
+  const [rooms, setRooms] = useState<ImagingRoom[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+  const [reload, setReload] = useState(0);
   const [search, setSearch] = useState("");
   const [type, setType] = useState("all");
   const [status, setStatus] = useState("all");
   const [selected, setSelected] = useState<string | null>(null);
+  useEffect(() => {
+    const controller = new AbortController();
+    listImagingRooms(controller.signal)
+      .then((items) => {
+        if (!controller.signal.aborted) {
+          setRooms(items);
+          setError(false);
+          setLoading(false);
+        }
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) {
+          setError(true);
+          setLoading(false);
+        }
+      });
+    return () => controller.abort();
+  }, [reload]);
   const matches = rooms.filter(
     (r) =>
-      `${r.name} ${r.id} ${r.services.join(" ")}`
+      `${r.name} ${r.code} ${r.capabilities.join(" ")}`
         .toLowerCase()
         .includes(search.toLowerCase()) &&
       (type === "all" || r.type === type) &&
@@ -69,51 +91,70 @@ export function RoomsScreen() {
           </label>
         </div>
       </Panel>
+      {loading && (
+        <Panel>
+          <p className="im-panel-body" role="status">
+            Đang tải danh sách phòng…
+          </p>
+        </Panel>
+      )}
+      {error && (
+        <Panel>
+          <div className="im-panel-body" role="alert">
+            Không tải được danh sách phòng.{" "}
+            <Button
+              type="button"
+              onClick={() => {
+                setLoading(true);
+                setReload((value) => value + 1);
+              }}
+            >
+              Thử lại
+            </Button>
+          </div>
+        </Panel>
+      )}
       <div className="im-room-grid">
-        {matches.map((r) => (
-          <Panel
-            key={r.id}
-            className={r.id === CURRENT_ROOM ? "im-room-own" : ""}
-          >
-            <div className="im-panel-body">
-              <div className="im-inline-between">
-                <span className="im-room-card-icon">
-                  <Icon name="room" size={25} />
-                </span>
-                <Badge
-                  tone={r.availability === "Hoạt động" ? "green" : "amber"}
-                >
-                  {r.availability}
-                </Badge>
+        {!loading &&
+          !error &&
+          matches.map((r) => (
+            <Panel key={r.id}>
+              <div className="im-panel-body">
+                <div className="im-inline-between">
+                  <span className="im-room-card-icon">
+                    <Icon name="room" size={25} />
+                  </span>
+                  <Badge
+                    tone={r.availability === "Hoạt động" ? "green" : "amber"}
+                  >
+                    {r.availability}
+                  </Badge>
+                </div>
+                <h2 className="im-room-card-title">{r.name}</h2>
+                <p className="im-muted im-small">
+                  {r.code}
+                  {r.description ? ` · ${r.description}` : ""}
+                </p>
+                <div className="im-room-service-tags">
+                  {r.capabilities.map((s) => (
+                    <span key={s}>{s}</span>
+                  ))}
+                </div>
+                <div className="im-inline-between">
+                  <span className="im-small im-muted">Thông tin phòng</span>
+                  <Button
+                    variant="ghost"
+                    className="im-text-button"
+                    onClick={() => setSelected(r.id)}
+                  >
+                    Chi tiết <Icon name="arrow" size={15} />
+                  </Button>
+                </div>
               </div>
-              <h2 className="im-room-card-title">{r.name}</h2>
-              <p className="im-muted im-small">
-                {r.id} · {r.location}
-              </p>
-              <div className="im-room-service-tags">
-                {r.services.map((s) => (
-                  <span key={s}>{s}</span>
-                ))}
-              </div>
-              <div className="im-inline-between">
-                <span className="im-small im-muted">
-                  {r.id === CURRENT_ROOM
-                    ? "Phòng được phân công"
-                    : "Thông tin tham khảo"}
-                </span>
-                <Button
-                  variant="ghost"
-                  className="im-text-button"
-                  onClick={() => setSelected(r.id)}
-                >
-                  Chi tiết <Icon name="arrow" size={15} />
-                </Button>
-              </div>
-            </div>
-          </Panel>
-        ))}
+            </Panel>
+          ))}
       </div>
-      {!matches.length && (
+      {!loading && !error && !matches.length && (
         <Panel>
           <Empty />
         </Panel>
@@ -128,23 +169,23 @@ export function RoomsScreen() {
           <dl className="im-details">
             <div>
               <dt>Mã phòng</dt>
-              <dd>{detail.id}</dd>
+              <dd>{detail.code}</dd>
             </div>
             <div>
               <dt>Loại phòng</dt>
               <dd>{detail.type}</dd>
             </div>
             <div>
-              <dt>Vị trí</dt>
-              <dd>{detail.location}</dd>
+              <dt>Mô tả</dt>
+              <dd>{detail.description || "Chưa cập nhật"}</dd>
             </div>
             <div>
               <dt>Tình trạng</dt>
               <dd>{detail.availability}</dd>
             </div>
             <div>
-              <dt>Dịch vụ hỗ trợ</dt>
-              <dd>{detail.services.join(", ")}</dd>
+              <dt>Khả năng phòng</dt>
+              <dd>{detail.capabilities.join(", ") || "Chưa cập nhật"}</dd>
             </div>
           </dl>
           <footer>

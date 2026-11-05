@@ -1,6 +1,6 @@
 import type { BookingSelection } from "./bookingSelection";
 
-// Bốn bước của wizard đặt lịch khu bệnh nhân. Bước chỉ là cách chia màn hình: giá trị lựa chọn vẫn
+// Năm bước của wizard đặt lịch khu bệnh nhân (bước "payment" chỉ mở sau khi lịch đã được tạo). Bước chỉ là cách chia màn hình: giá trị lựa chọn vẫn
 // nằm ở `BookingSelection`, bước hiện tại là state riêng của BookingFlow.
 
 export const WIZARD_STEPS = [
@@ -8,6 +8,7 @@ export const WIZARD_STEPS = [
   { key: "patient", label: "Người khám" },
   { key: "schedule", label: "Dịch vụ và lịch" },
   { key: "review", label: "Xác nhận" },
+  { key: "payment", label: "Thanh toán" },
 ] as const;
 
 export type WizardStepKey = (typeof WIZARD_STEPS)[number]["key"];
@@ -32,6 +33,7 @@ export function canLeaveWizardStep(
         selection.startAt !== null
       );
     case "review":
+    case "payment":
       return false;
   }
 }

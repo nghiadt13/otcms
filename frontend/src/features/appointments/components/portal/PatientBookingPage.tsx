@@ -1,19 +1,31 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useCurrentAccount } from "@/hooks/useCurrentAccount";
-import type { CurrentAccount } from "@/lib/auth/currentAccountApi";
+import { useLinkedProfiles } from "@/hooks/useLinkedProfiles";
+import Link from "next/link";
+import { PATIENT_ROUTES } from "@/lib/routes/patientRoutes";
+import { publicButtonClass } from "@/components/brand/publicButtonStyles";
 import type { BookedAppointment } from "../../types/booking";
 import { BookingFlow } from "../booking/BookingFlow";
 import { BookingSignInPrompt } from "../booking/wizard/BookingSignInPrompt";
 import { PatientBookingResult } from "./PatientBookingResult";
 import { PatientLoadError } from "./PatientLoadError";
 
+type PaymentRenderer = (args: {
+  appointment: BookedAppointment;
+  onFinish: (result: { paid: boolean }) => void;
+}) => ReactNode;
+
 // Đặt lịch khu bệnh nhân (UC20, UC21, AF1). Lõi luồng là BookingFlow dùng chung (variant patient);
 // trang lấy tài khoản đang đăng nhập làm người khám và đổi sang kết quả sau khi đặt xong.
 
-export function PatientBookingPage() {
+export function PatientBookingPage({
+  renderPayment,
+}: {
+  renderPayment?: PaymentRenderer;
+}) {
   const account = useCurrentAccount();
   // Chưa đăng nhập: dừng ở bước 1 (đăng nhập / đăng ký), chưa gọi API nào cần phiên.
   if (account.status === "anonymous") return <BookingSignInPrompt />;
@@ -25,26 +37,43 @@ export function PatientBookingPage() {
         onRetry={account.reload}
       />
     );
-  return <SignedInBooking account={account.account} />;
+  return <SignedInBooking renderPayment={renderPayment} />;
 }
 
-// Đã đăng nhập: luôn vào thẳng bước 2. Người khám là chính tài khoản (họ tên từ `GET /api/v1/me`);
-// backend tự dùng hồ sơ của tài khoản khi `patientProfileId` bỏ trống. Chưa có API hồ sơ người thân.
-function SignedInBooking({ account }: { account: CurrentAccount }) {
+function SignedInBooking({
+  renderPayment,
+}: {
+  renderPayment?: PaymentRenderer;
+}) {
   const [booked, setBooked] = useState<BookedAppointment | null>(null);
+  const linked = useLinkedProfiles();
   if (booked) return <PatientBookingResult appointment={booked} />;
+  if (linked.loading) return <BookingSkeleton />;
+  if (linked.error)
+    return <PatientLoadError message={linked.error} onRetry={linked.reload} />;
+  if (linked.profiles.length === 0)
+    return (
+      <div className="space-y-4 rounded-lg border bg-card p-5">
+        <p>Hãy tạo hoặc gắn hồ sơ bệnh nhân trước khi đặt lịch.</p>
+        <Link
+          className={publicButtonClass("primary")}
+          href={PATIENT_ROUTES.newProfile}
+        >
+          Thêm thành viên
+        </Link>
+      </div>
+    );
 
   return (
     <BookingFlow
       onBooked={setBooked}
-      patients={[
-        {
-          id: account.id,
-          fullName: account.displayName,
-          dateOfBirth: null,
-          relationship: null,
-        },
-      ]}
+      renderPayment={renderPayment}
+      patients={linked.profiles.map((profile) => ({
+        id: profile.id,
+        fullName: profile.fullName,
+        dateOfBirth: profile.dateOfBirth,
+        relationship: profile.relationship,
+      }))}
       variant="patient"
     />
   );

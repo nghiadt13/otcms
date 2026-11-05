@@ -40,6 +40,11 @@ export interface PayOsPaymentAttempt {
   createdAt: string;
   confirmedAt: string | null;
   reconciliationReason: string | null;
+  /** Thông tin chuyển khoản do PayOS trả khi tạo link; null với lần thanh toán cũ. */
+  transferBankBin?: string | null;
+  transferAccountNumber?: string | null;
+  transferAccountName?: string | null;
+  transferDescription?: string | null;
 }
 
 export interface BillingInvoicePage {

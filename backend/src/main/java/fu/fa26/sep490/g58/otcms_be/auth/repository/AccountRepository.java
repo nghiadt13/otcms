@@ -18,6 +18,18 @@ import java.util.Optional;
 import java.util.UUID;
 
 public interface AccountRepository extends JpaRepository<AccountJpaEntity, UUID> {
+    @Query("select a from AccountJpaEntity a where a.accountType in :types "
+            + "and (:role is null or a.accountType = :role) "
+            + "and (:active is null or (:active = true and a.status = "
+            + "fu.fa26.sep490.g58.otcms_be.auth.model.entity.enums.AccountStatus.ACTIVE) "
+            + "or (:active = false and a.status <> "
+            + "fu.fa26.sep490.g58.otcms_be.auth.model.entity.enums.AccountStatus.ACTIVE)) "
+            + "and coalesce(a.username, '') like :pattern escape '!'")
+    Page<AccountJpaEntity> searchManagedStaff(
+            @Param("types") java.util.Set<fu.fa26.sep490.g58.otcms_be.auth.model.entity.enums.AccountType> types,
+            @Param("role") fu.fa26.sep490.g58.otcms_be.auth.model.entity.enums.AccountType role,
+            @Param("active") Boolean active, @Param("pattern") String pattern, Pageable pageable);
+
     @Query(value = "select new fu.fa26.sep490.g58.otcms_be.auth.model.dto.PatientAccountAdminRow(" +
             "a.id, a.normalizedEmail, coalesce(p.fullName, a.displayName, a.fullName), a.status, a.createdAt) " +
             "from AccountJpaEntity a left join PatientProfileJpaEntity p on p.accountId = a.id " +

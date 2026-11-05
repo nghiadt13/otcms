@@ -63,12 +63,13 @@ public class CredentialLoginServiceImpl implements CredentialLoginService {
     @Override
     @Transactional(noRollbackFor = CredentialLoginException.class)
     public CredentialLoginResponse loginStaff(String identifier, String password, String ip) {
-        // Existing accounts can still use email; current Clinic Staff accounts use username.
-        if (identifier != null && !identifier.contains("@")) {
-            return authenticate(identifier, password, AccountType::isStaff, "STAFF", ip,
-                    () -> accounts.findByUsername(identifier).orElse(null));
-        }
-        return loginMatching(identifier, password, AccountType::isStaff, "STAFF", ip);
+        // A single authentication attempt preserves IP -> account lock order and audit/counter semantics.
+        return authenticate(identifier, password, AccountType::isStaff, "STAFF", ip, () -> {
+            AccountJpaEntity account = identifier == null ? null : accounts.findByUsername(identifier).orElse(null);
+            if (account != null) return account;
+            return identifier != null && identifier.contains("@")
+                    ? accounts.findByNormalizedEmail(normalize(identifier)).orElse(null) : null;
+        });
     }
 
     @Override

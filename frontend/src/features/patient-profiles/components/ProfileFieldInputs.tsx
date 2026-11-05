@@ -19,6 +19,7 @@ export function ProfileFieldInputs({
   errors,
   editable,
   disabled = false,
+  hidden = [],
   onChange,
 }: {
   values: ProfileFieldValues;
@@ -26,6 +27,8 @@ export function ProfileFieldInputs({
   /** Trường người dùng được sửa. Trường ngoài danh sách hiện chỉ đọc. */
   editable: readonly EditableProfileField[];
   disabled?: boolean;
+  /** Trường không vẽ (form thêm người thân chỉ cần vài trường). */
+  hidden?: readonly EditableProfileField[];
   onChange: <K extends keyof ProfileFieldValues>(
     field: K,
     value: ProfileFieldValues[K],
@@ -39,72 +42,86 @@ export function ProfileFieldInputs({
 
   return (
     <>
-      <ProfileTextField
-        disabled={!isEditable("fullName")}
-        error={errors.fullName}
-        hint={lockedHint("fullName")}
-        id={`${id}-fullName`}
-        label="Họ và tên"
-        onChange={(next) => onChange("fullName", next)}
-        value={values.fullName}
-      />
-      <ProfileTextField
-        disabled={!isEditable("dateOfBirth")}
-        error={errors.dateOfBirth}
-        hint={lockedHint("dateOfBirth") ?? "Gõ liền, ví dụ 20051990."}
-        id={`${id}-dateOfBirth`}
-        inputMode="numeric"
-        label="Ngày sinh (dd/mm/yyyy)"
-        onChange={(next) =>
-          onChange("dateOfBirth", formatDateOfBirthText(next))
-        }
-        placeholder="dd/mm/yyyy"
-        value={values.dateOfBirth}
-      />
-      <ProfileSexField
-        disabled={!isEditable("sex")}
-        error={errors.sex}
-        id={`${id}-sex`}
-        onChange={(next) => onChange("sex", next)}
-        value={values.sex}
-      />
-      <ProfileTextField
-        autoComplete="tel"
-        disabled={!isEditable("phone")}
-        error={errors.phone}
-        id={`${id}-phone`}
-        inputMode="tel"
-        label="Số điện thoại"
-        onChange={(next) => onChange("phone", next)}
-        value={values.phone}
-      />
-      <ProfileTextField
-        disabled={!isEditable("address")}
-        error={errors.address}
-        id={`${id}-address`}
-        label="Địa chỉ"
-        onChange={(next) => onChange("address", next)}
-        value={values.address}
-      />
-      <ProfileTextField
-        disabled={!isEditable("citizenId")}
-        error={errors.citizenId}
-        id={`${id}-citizenId`}
-        label="CCCD/Mã định danh (không bắt buộc)"
-        onChange={(next) => onChange("citizenId", next)}
-        value={values.citizenId}
-      />
-      <ProfileTextField
-        autoComplete="email"
-        disabled={!isEditable("email")}
-        error={errors.email}
-        id={`${id}-email`}
-        inputMode="email"
-        label="Email (không bắt buộc)"
-        onChange={(next) => onChange("email", next)}
-        type="email"
-        value={values.email}
-      />
+      {hidden.includes("fullName") ? null : (
+        <ProfileTextField
+          disabled={!isEditable("fullName")}
+          error={errors.fullName}
+          hint={lockedHint("fullName")}
+          id={`${id}-fullName`}
+          label="Họ và tên"
+          onChange={(next) => onChange("fullName", next)}
+          value={values.fullName}
+        />
+      )}
+      {hidden.includes("dateOfBirth") ? null : (
+        <ProfileTextField
+          disabled={!isEditable("dateOfBirth")}
+          error={errors.dateOfBirth}
+          hint={lockedHint("dateOfBirth") ?? "Gõ liền, ví dụ 20051990."}
+          id={`${id}-dateOfBirth`}
+          inputMode="numeric"
+          label="Ngày sinh (dd/mm/yyyy)"
+          onChange={(next) =>
+            onChange("dateOfBirth", formatDateOfBirthText(next))
+          }
+          placeholder="dd/mm/yyyy"
+          value={values.dateOfBirth}
+        />
+      )}
+      {hidden.includes("sex") ? null : (
+        <ProfileSexField
+          disabled={!isEditable("sex")}
+          error={errors.sex}
+          id={`${id}-sex`}
+          onChange={(next) => onChange("sex", next)}
+          value={values.sex}
+        />
+      )}
+      {hidden.includes("phone") ? null : (
+        <ProfileTextField
+          autoComplete="tel"
+          disabled={!isEditable("phone")}
+          error={errors.phone}
+          id={`${id}-phone`}
+          inputMode="tel"
+          label="Số điện thoại"
+          onChange={(next) => onChange("phone", next)}
+          value={values.phone}
+        />
+      )}
+      {hidden.includes("address") ? null : (
+        <ProfileTextField
+          disabled={!isEditable("address")}
+          error={errors.address}
+          id={`${id}-address`}
+          label="Địa chỉ"
+          onChange={(next) => onChange("address", next)}
+          value={values.address}
+        />
+      )}
+      {hidden.includes("citizenId") ? null : (
+        <ProfileTextField
+          disabled={!isEditable("citizenId")}
+          error={errors.citizenId}
+          id={`${id}-citizenId`}
+          label="CCCD/Mã định danh (không bắt buộc)"
+          onChange={(next) => onChange("citizenId", next)}
+          value={values.citizenId}
+        />
+      )}
+      {hidden.includes("email") ? null : (
+        <ProfileTextField
+          autoComplete="email"
+          disabled={!isEditable("email")}
+          error={errors.email}
+          id={`${id}-email`}
+          inputMode="email"
+          label="Email (không bắt buộc)"
+          onChange={(next) => onChange("email", next)}
+          type="email"
+          value={values.email}
+        />
+      )}
     </>
   );
 }

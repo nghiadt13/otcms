@@ -1,4 +1,5 @@
 import { mockFail } from "@/lib/api/mockServer";
+import { apiRequest } from "@/lib/api/client";
 import type { ItemsResponse } from "@/lib/api/pagination";
 import {
   getLinkedProfileRecords,
@@ -30,7 +31,7 @@ import {
   saveClinicRecord,
 } from "./patientProfileMockStore";
 
-// LỚP API GIẢ gợi ý và gắn/bỏ gắn hồ sơ theo email đã xác minh (BR-17). Chữ ký = REST thật.
+// Production gọi API gợi ý và gắn/bỏ gắn; kho giả chỉ phục vụ kiểm thử.
 
 /** Hồ sơ có email trùng email đã xác minh của tài khoản. Không kể đã gắn hay chưa. */
 function hasVerifiedEmail(record: ClinicPatientRecord): boolean {
@@ -55,6 +56,11 @@ function toSuggestion(record: ClinicPatientRecord): SuggestedProfile {
 export async function listSuggestedProfiles(
   signal?: AbortSignal,
 ): Promise<ItemsResponse<SuggestedProfile>> {
+  if (process.env.NODE_ENV !== "test")
+    return apiRequest<ItemsResponse<SuggestedProfile>>(
+      "/api/v1/me/patient-profiles/suggestions",
+      { signal },
+    );
   await mockLatency(signal);
   if (isSuggestionListFailing()) mockFail(500, "MSG-04");
   const items = listClinicRecords()
@@ -74,6 +80,11 @@ export async function listSuggestedProfiles(
 export async function linkSuggestedProfile(
   body: LinkProfileRequest,
 ): Promise<LinkedProfile> {
+  if (process.env.NODE_ENV !== "test")
+    return apiRequest<LinkedProfile>("/api/v1/me/patient-profiles/links", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
   await mockLatency();
   throwFieldErrors(
     validateProfileFields(
@@ -107,6 +118,13 @@ export async function linkSuggestedProfile(
  * khám giữ nguyên (BR-16). Bỏ Bản thân thì hồ sơ không còn là Bản thân của tài khoản này.
  */
 export async function unlinkPatientProfile(profileId: string): Promise<void> {
+  if (process.env.NODE_ENV !== "test")
+    return apiRequest<void>(
+      `/api/v1/me/patient-profiles/${encodeURIComponent(profileId)}/link`,
+      {
+        method: "DELETE",
+      },
+    );
   await mockLatency();
   const linked = linkedEntryOrFail(profileId);
   const record = findClinicRecord(profileId);

@@ -3,51 +3,70 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { StaffLoginScreen } from "./StaffLoginScreen";
 
-const auth = vi.hoisted(() => ({ signInWithPassword: vi.fn() }));
-const nav = vi.hoisted(() => ({ push: vi.fn() }));
-
-vi.mock("@/lib/auth/authSession", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/lib/auth/authSession")>()),
-  signInWithPassword: auth.signInWithPassword,
+const { replace, signInWithPassword, signOut } = vi.hoisted(() => ({
+  replace: vi.fn(),
+  signInWithPassword: vi.fn(),
+  signOut: vi.fn(),
 }));
-vi.mock("next/navigation", () => ({ useRouter: () => nav }));
+vi.mock("next/navigation", () => ({ useRouter: () => ({ replace }) }));
+vi.mock("@/lib/auth/authSession", () => ({ signInWithPassword, signOut }));
+
+beforeEach(() => {
+  replace.mockReset();
+  signInWithPassword.mockReset();
+  signOut.mockReset();
+});
+
+async function logIn() {
+  const user = userEvent.setup();
+  await user.type(
+    screen.getByPlaceholderText("Nhập email hoặc tên đăng nhập"),
+    "ktv.hinhanh",
+  );
+  await user.type(
+    screen.getByPlaceholderText("Nhập mật khẩu"),
+    "MauMatKhau123!",
+  );
+  await user.click(screen.getByRole("button", { name: "Đăng nhập" }));
+}
 
 describe("StaffLoginScreen", () => {
-  beforeEach(() => {
-    auth.signInWithPassword
-      .mockReset()
-      .mockResolvedValue({ mustChangePassword: false });
-    nav.push.mockReset();
-  });
-
-  it("creates a real staff session and routes to the technician workspace", async () => {
-    const user = userEvent.setup();
+  it("KTV hợp lệ vào khu hình ảnh", async () => {
+    signInWithPassword.mockResolvedValue({
+      accountType: "IMAGING_TECHNICIAN",
+      mustChangePassword: false,
+    });
     render(<StaffLoginScreen />);
-
-    await user.type(
-      screen.getByLabelText("Tên đăng nhập"),
-      "tech@example.test",
-    );
-    await user.type(screen.getByPlaceholderText("Nhập mật khẩu"), "secret");
-    await user.click(screen.getByRole("button", { name: "Đăng nhập" }));
-
-    expect(auth.signInWithPassword).toHaveBeenCalledWith(
+    await logIn();
+    expect(signInWithPassword).toHaveBeenCalledWith(
       "staff",
-      "tech@example.test",
-      "secret",
+      "ktv.hinhanh",
+      "MauMatKhau123!",
     );
-    expect(nav.push).toHaveBeenCalledWith("/imaging");
-    expect(screen.queryByText(/tài khoản mẫu/i)).not.toBeInTheDocument();
+    expect(replace).toHaveBeenCalledWith("/imaging");
   });
 
-  it("uses the backend first-login password flow when required", async () => {
-    auth.signInWithPassword.mockResolvedValueOnce({ mustChangePassword: true });
-    const user = userEvent.setup();
+  it("mật khẩu khởi tạo chuyển đến đổi mật khẩu", async () => {
+    signInWithPassword.mockResolvedValue({
+      accountType: "IMAGING_TECHNICIAN",
+      mustChangePassword: true,
+    });
     render(<StaffLoginScreen />);
+    await logIn();
+    expect(replace).toHaveBeenCalledWith("/imaging/change-password");
+  });
 
-    await user.type(
-      screen.getByLabelText("Tên đăng nhập"),
-      "tech@example.test",
+  it("vai trò khác không được giữ phiên ở khu hình ảnh", async () => {
+    signInWithPassword.mockResolvedValue({
+      accountType: "RECEPTIONIST",
+      mustChangePassword: false,
+    });
+    render(<StaffLoginScreen />);
+    await logIn();
+    expect(signOut).toHaveBeenCalledOnce();
+    expect(replace).not.toHaveBeenCalled();
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "không thuộc kỹ thuật viên",
     );
     await user.type(screen.getByPlaceholderText("Nhập mật khẩu"), "temporary");
     await user.click(screen.getByRole("button", { name: "Đăng nhập" }));

@@ -11,7 +11,8 @@ public final class CareRelationshipMapper {
         return new CareRelationship(entity.getId(), entity.getRequesterAccountId(),
                 entity.getDependentPatientProfileId(), entity.getConfirmingAccountId(), entity.getState(),
                 entity.getRequestedAt(), entity.getConfirmedAt(), entity.getRevokedAt(),
-                entity.getRevokedByAccountId());
+                entity.getRevokedByAccountId(), entity.getRelationship(), entity.getVerificationMethod(),
+                entity.getPendingReason(), entity.getVerifiedByAccountId(), entity.getVerifiedAt());
     }
 
     public static CareRelationshipJpaEntity toEntity(CareRelationship relationship) {

@@ -4,8 +4,6 @@ import type { ImagingState, UploadDraft } from "../types/imaging";
 export type ImagingContextValue = {
   state: ImagingState;
   ready: boolean;
-  mustChangePassword: boolean;
-  setFirstLogin: (value: boolean) => void;
   toast: string;
   notify: (message: string) => void;
   update: (updater: (state: ImagingState) => ImagingState) => void;

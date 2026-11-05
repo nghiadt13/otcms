@@ -119,12 +119,16 @@ describe("AppointmentsManagement - chuyển bác sĩ", () => {
     await userEvent.click(
       await screen.findByRole("radio", { name: "BS. Đỗ Minh Tuấn" }),
     );
+    await userEvent.type(
+      screen.getByRole("textbox", { name: "Lý do chuyển bác sĩ" }),
+      "Bác sĩ cũ vắng mặt",
+    );
     await userEvent.click(
       screen.getByRole("button", { name: "Chuyển lịch hẹn" }),
     );
     await waitFor(() =>
       expect(toast.success).toHaveBeenCalledWith(
-        "Đã chuyển lịch hẹn sang bác sĩ BS. Đỗ Minh Tuấn. Bệnh nhân sẽ nhận được thông báo.",
+        "Đã chuyển lịch hẹn sang bác sĩ BS. Đỗ Minh Tuấn.",
       ),
     );
     const row = screen.getByText("Nguyễn Thị Hoa").closest("tr")!;
@@ -179,6 +183,10 @@ describe("AppointmentsManagement - chuyển bác sĩ", () => {
     await userEvent.click(
       await screen.findByRole("radio", { name: "BS. Đỗ Minh Tuấn" }),
     );
+    await userEvent.type(
+      screen.getByRole("textbox", { name: "Lý do chuyển bác sĩ" }),
+      "Bác sĩ cũ vắng mặt",
+    );
     await userEvent.click(
       screen.getByRole("button", { name: "Chuyển lịch hẹn" }),
     );
@@ -201,6 +209,10 @@ describe("AppointmentsManagement - chuyển bác sĩ", () => {
     );
     await userEvent.click(
       await screen.findByRole("radio", { name: "BS. Lê Quang Minh" }),
+    );
+    await userEvent.type(
+      screen.getByRole("textbox", { name: "Lý do chuyển bác sĩ" }),
+      "Bác sĩ cũ vắng mặt",
     );
     await userEvent.click(
       screen.getByRole("button", { name: "Chuyển lịch hẹn" }),

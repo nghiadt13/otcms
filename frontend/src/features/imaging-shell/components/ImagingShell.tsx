@@ -3,6 +3,8 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState, type ReactNode } from "react";
 import { signOut } from "@/lib/auth/authSession";
+import { useEffect, useState, type ReactNode } from "react";
+import { getSession, signOut, type AuthSession } from "@/lib/auth/authSession";
 import { buttonVariants } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
@@ -18,10 +20,37 @@ import { ImagingSidebar } from "./ImagingSidebar";
 function ShellContent({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { toast, reset, mustChangePassword, ready } = useImaging();
+  const { toast, reset, ready } = useImaging();
+  const [session, setSession] = useState<AuthSession | null>(null);
+  const [checking, setChecking] = useState(true);
   const [resetOpen, setResetOpen] = useState(false);
   const [exitOpen, setExitOpen] = useState(false);
 
+  useEffect(() => {
+    if (pathname === "/imaging/login") return;
+    let active = true;
+    getSession()
+      .then((value) => {
+        if (!active) return;
+        if (!value) router.replace("/imaging/login");
+        else if (value.accountType !== "IMAGING_TECHNICIAN")
+          router.replace("/workspace");
+        else setSession(value);
+      })
+      .catch(() => {
+        if (active) router.replace("/imaging/login");
+      })
+      .finally(() => {
+        if (active) setChecking(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [pathname, router]);
+
+  if (pathname === "/imaging/login")
+    return <div className="imaging">{children}</div>;
+  if (!ready || checking || !session)
   // The real upload worklist and operation screens do not consume demo imaging state.
   if (pathname === "/imaging/orders" || pathname.startsWith("/imaging/orders/"))
     return <div className="imaging min-h-dvh">{children}</div>;
@@ -37,8 +66,6 @@ function ShellContent({ children }: { children: ReactNode }) {
         <Skeleton className="h-64 w-full" />
       </div>
     );
-  if (pathname === "/imaging/login")
-    return <div className="imaging">{children}</div>;
   return (
     <div className="imaging">
       <a className="im-skip" href="#im-content">
@@ -56,15 +83,23 @@ function ShellContent({ children }: { children: ReactNode }) {
           />
           <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-secondary/50 px-4 py-2 text-xs text-muted-foreground md:px-6">
             <span>
-              Bản xem thử giao diện · dữ liệu mẫu · giờ mô phỏng 09:10
+              {pathname === "/imaging/rooms"
+                ? "Danh sách phòng chẩn đoán hình ảnh · dữ liệu từ hệ thống"
+                : pathname === "/imaging/change-password"
+                  ? "Đổi mật khẩu · kết nối hệ thống"
+                  : "Bản xem thử giao diện · dữ liệu mẫu · giờ mô phỏng 09:10"}
             </span>
-            <span>{ROOM_NAME} · Ca sáng 07:00 – 12:00</span>
+            {pathname !== "/imaging/rooms" &&
+              pathname !== "/imaging/change-password" && (
+                <span>{ROOM_NAME} · Ca sáng 07:00 – 12:00</span>
+              )}
           </div>
           <main
             id="im-content"
             className="im-content min-w-0 flex-1 p-4 text-sm md:p-6"
           >
-            {mustChangePassword && pathname !== "/imaging/change-password" ? (
+            {session.mustChangePassword &&
+            pathname !== "/imaging/change-password" ? (
               <div className="space-y-4 rounded-lg border bg-card p-6">
                 <h1 className="text-2xl font-semibold tracking-tight">
                   Cần đổi mật khẩu được cấp
@@ -100,13 +135,13 @@ function ShellContent({ children }: { children: ReactNode }) {
       <ConfirmActionDialog
         open={exitOpen}
         onOpenChange={setExitOpen}
-        title="Đăng xuất bản xem thử?"
+        title="Đăng xuất?"
         description="Bạn sẽ quay về màn đăng nhập nhân viên."
         confirmLabel="Đăng xuất"
         pendingLabel="Đang đăng xuất..."
         onConfirm={async () => {
           await signOut();
-          router.push("/imaging/login");
+          router.replace("/imaging/login");
         }}
       />
       {toast && (

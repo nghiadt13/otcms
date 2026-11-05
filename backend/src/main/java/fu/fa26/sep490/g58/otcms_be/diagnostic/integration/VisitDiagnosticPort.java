@@ -11,7 +11,7 @@ import java.time.Instant;
 import java.util.UUID;
 
 /** Public Visit-owned operations consumed by FEAT-003. */
-public interface VisitDiagnosticPort {
+public interface VisitDiagnosticPort extends VisitDiagnosticReadPort {
     VisitEvidence requireImagingOrderEligibility(UUID visitId, UUID actorAccountId);
 
     NoShowDecision acceptDeferredNoShowCancellation(UUID requestId, UUID visitId,

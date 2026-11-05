@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/dialog";
 import { isApiError, toFieldErrorMap } from "@/lib/api/apiError";
 import { formatDateTime } from "@/lib/format/formatDate";
+import { Textarea } from "@/components/ui/textarea";
 import { formatAppMessage, messageFromError } from "@/lib/messages/appMessages";
 import { notifyError, notifySuccess } from "@/lib/messages/notify";
 import { useEligibleDoctors } from "../hooks/useEligibleDoctors";
@@ -81,8 +82,9 @@ function ReassignBody<T extends ReassignTarget>({
   onStale,
   onNotifyRequest,
 }: ReassignBodyProps<T>) {
-  const eligible = useEligibleDoctors(appointment.id, api);
+  const eligible = useEligibleDoctors(appointment.id, appointment.startAt, api);
   const [selectedId, setSelectedId] = useState("");
+  const [reason, setReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [fieldError, setFieldError] = useState<string | undefined>();
   const handledError = useRef<unknown>(null);
@@ -108,13 +110,19 @@ function ReassignBody<T extends ReassignTarget>({
   const noCandidates =
     !eligible.loading && !loadError && eligible.doctors?.length === 0;
   const canNotify =
-    noCandidates && appointment.allowedActions.includes("notifyNoReplacement");
+    noCandidates &&
+    Boolean(api.notifyNoReplacement) &&
+    appointment.allowedActions.includes("notifyNoReplacement");
 
   async function submit() {
+    if (!reason.trim()) {
+      setFieldError("Nhập lý do chuyển bác sĩ.");
+      return;
+    }
     setSubmitting(true);
     setFieldError(undefined);
     try {
-      const updated = await api.reassign(appointment.id, selectedId);
+      const updated = await api.reassign(appointment, selectedId, reason);
       notifySuccess(reassignSuccessText(updated.doctor?.fullName ?? ""));
       onChanged(updated);
     } catch (error) {
@@ -123,7 +131,7 @@ function ReassignBody<T extends ReassignTarget>({
         onStale();
       } else if (
         isApiError(error) &&
-        error.status === 409 &&
+        (error.status === 409 || error.status === 422) &&
         error.code === "MSG-24"
       ) {
         // Bác sĩ vừa chọn không còn khả dụng: giữ Dialog, chọn lại từ danh sách mới.
@@ -178,6 +186,18 @@ function ReassignBody<T extends ReassignTarget>({
         onRetry={eligible.reload}
         noCandidateLines={noCandidateLines}
       />
+      {!noCandidates && !loadError && !eligible.loading ? (
+        <label className="grid gap-2 text-sm font-medium">
+          Lý do chuyển bác sĩ
+          <Textarea
+            value={reason}
+            maxLength={1000}
+            disabled={submitting}
+            onChange={(event) => setReason(event.target.value)}
+            placeholder="Ví dụ: bác sĩ được phân công vắng mặt"
+          />
+        </label>
+      ) : null}
       <DialogFooter>
         <Button variant="outline" disabled={submitting} onClick={onClose}>
           Hủy
@@ -189,7 +209,9 @@ function ReassignBody<T extends ReassignTarget>({
         ) : null}
         {!noCandidates && !loadError ? (
           <Button
-            disabled={eligible.loading || !selectedId || submitting}
+            disabled={
+              eligible.loading || !selectedId || !reason.trim() || submitting
+            }
             onClick={() => void submit()}
           >
             {submitting ? "Đang chuyển..." : "Chuyển lịch hẹn"}

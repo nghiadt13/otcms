@@ -182,7 +182,7 @@ class DiagnosticPersistenceT011PostgresIntegrationTest {
 
     private Flyway flyway(String schema) {
         return Flyway.configure().dataSource(dataSource).schemas(schema).defaultSchema(schema)
-                .locations("classpath:db/migration").target(MigrationVersion.fromVersion("76")).load();
+                .locations("classpath:db/migration").target(MigrationVersion.LATEST).load();
     }
 
     private void createRequest(String schema, UUID requestId, UUID visitId, UUID patientId, UUID doctorId) {

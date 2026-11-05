@@ -5,8 +5,10 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { OtcmsLogo } from "@/components/brand/OtcmsLogo";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { useState, type FormEvent } from "react";
 import { AuthSessionError, signInWithPassword } from "@/lib/auth/authSession";
+import { signInWithPassword, signOut } from "@/lib/auth/authSession";
 import { Icon } from "./Icon";
 
 export function StaffLoginScreen() {
@@ -19,21 +21,25 @@ export function StaffLoginScreen() {
     const data = new FormData(e.currentTarget);
     const user = String(data.get("username")).trim();
     const password = String(data.get("password"));
+    if (!user || !password)
+      return setError("Nhập email hoặc tên đăng nhập và mật khẩu.");
     setError("");
     setLoading(true);
     try {
       const session = await signInWithPassword("staff", user, password);
-      if (session.mustChangePassword) {
-        router.push("/first-login-password");
-      } else {
-        router.push("/imaging");
+      if (session.accountType !== "IMAGING_TECHNICIAN") {
+        await signOut();
+        setError("Tài khoản này không thuộc kỹ thuật viên chẩn đoán hình ảnh.");
+        return;
       }
-    } catch (cause) {
-      setError(
-        cause instanceof AuthSessionError && cause.status === 401
-          ? "Tên đăng nhập hoặc mật khẩu không đúng hoặc tài khoản không còn khả dụng."
-          : "Không thể đăng nhập lúc này. Vui lòng thử lại sau.",
+      router.replace(
+        session.mustChangePassword ? "/imaging/change-password" : "/imaging",
       );
+    } catch {
+      setError(
+        "Không thể đăng nhập bằng thông tin này. Vui lòng kiểm tra và thử lại.",
+      );
+    } finally {
       setLoading(false);
     }
   }
@@ -49,13 +55,13 @@ export function StaffLoginScreen() {
         </p>
         <form onSubmit={submit} className="mt-6 space-y-5">
           <label className="im-field">
-            Tên đăng nhập
+            Email hoặc tên đăng nhập
             <Input
               className="h-12 text-base"
               name="username"
               autoComplete="username"
               required
-              placeholder="Email hoặc tên đăng nhập"
+              placeholder="Nhập email hoặc tên đăng nhập"
             />
           </label>
           <label className="im-field">
@@ -95,7 +101,9 @@ export function StaffLoginScreen() {
           </Button>
         </form>
         <p className="mt-5 text-sm text-muted-foreground">
-          Quên mật khẩu? Liên hệ quản trị viên để được cấp lại.
+          <Link href="/forgot-password?portal=staff" className="underline">
+            Quên mật khẩu?
+          </Link>
         </p>
       </Card>
     </main>
