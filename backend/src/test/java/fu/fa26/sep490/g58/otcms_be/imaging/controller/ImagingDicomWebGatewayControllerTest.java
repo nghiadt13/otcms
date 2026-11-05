@@ -3,6 +3,7 @@ package fu.fa26.sep490.g58.otcms_be.imaging.controller;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.when;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.eq;
@@ -11,6 +12,7 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import fu.fa26.sep490.g58.otcms_be.imaging.config.ImagingProperties;
 import fu.fa26.sep490.g58.otcms_be.imaging.security.ImagingDicomWebScopeResolver;
 import fu.fa26.sep490.g58.otcms_be.imaging.service.impl.ImagingViewerGrantService;
+import fu.fa26.sep490.g58.otcms_be.imaging.service.impl.ImagingAuditPersistenceService;
 import java.net.URI;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
@@ -32,11 +34,12 @@ import com.sun.net.httpserver.HttpServer;
 class ImagingDicomWebGatewayControllerTest {
     @Mock ImagingDicomWebScopeResolver scopes;
     @Mock ImagingViewerGrantService grants;
+    @Mock ImagingAuditPersistenceService audit;
 
     @Test
     void deniesUnscopedStudyEnumerationWithGenericNoStoreResponse() throws Exception {
         ImagingProperties settings = settings();
-        var controller = new ImagingDicomWebGatewayController(settings, scopes, grants);
+        var controller = new ImagingDicomWebGatewayController(settings, scopes, grants, audit);
         var request = new MockHttpServletRequest("GET", "/dicom-web/studies");
         var response = new MockHttpServletResponse();
         when(scopes.resolve("/studies", Map.of())).thenReturn(Optional.empty());
@@ -51,7 +54,7 @@ class ImagingDicomWebGatewayControllerTest {
 
     @Test
     void rejectsWriteMethodsBeforeResolvingStudyOrGrant() throws Exception {
-        var controller = new ImagingDicomWebGatewayController(settings(), scopes, grants);
+        var controller = new ImagingDicomWebGatewayController(settings(), scopes, grants, audit);
         var request = new MockHttpServletRequest("POST", "/dicom-web/studies/1.2.3");
         var response = new MockHttpServletResponse();
 
@@ -60,6 +63,28 @@ class ImagingDicomWebGatewayControllerTest {
         assertEquals(405, response.getStatus());
         assertTrue(response.getContentAsString().contains("request_denied"));
         verifyNoInteractions(scopes, grants);
+    }
+
+    @Test
+    void failsClosedWhenTheRequiredAccessAuditCannotBePersisted() throws Exception {
+        String studyRef = "opaque-study";
+        when(scopes.resolve(eq("/studies/1.2.3"), anyMap()))
+                .thenReturn(Optional.of(new ImagingDicomWebScopeResolver.StudyScope(studyRef, "1.2.3")));
+        when(grants.isAuthorized(eq(studyRef), eq("opaque-token"))).thenReturn(true);
+        doThrow(new IllegalStateException("audit database unavailable"))
+                .when(audit).recordService(eq("IMAGING_GATEWAY"), eq("DICOMWEB_ACCESS"), eq("ALLOWED"),
+                        org.mockito.ArgumentMatchers.isNull(), eq(studyRef), org.mockito.ArgumentMatchers.isNull(),
+                        org.mockito.ArgumentMatchers.isNull(), org.mockito.ArgumentMatchers.isNull(),
+                        org.mockito.ArgumentMatchers.isNull(), org.mockito.ArgumentMatchers.anyString(), anyMap());
+        var controller = new ImagingDicomWebGatewayController(settings(), scopes, grants, audit);
+        var request = new MockHttpServletRequest("GET", "/dicom-web/studies/1.2.3");
+        request.setCookies(new jakarta.servlet.http.Cookie(
+                ImagingViewerGrantService.cookieName(studyRef), "opaque-token"));
+        var response = new MockHttpServletResponse();
+
+        controller.proxy(request, response);
+
+        assertEquals(503, response.getStatus());
     }
 
     @Test
@@ -85,7 +110,7 @@ class ImagingDicomWebGatewayControllerTest {
             when(grants.isAuthorized(eq(studyRef), eq("opaque-token"))).thenReturn(true);
             ImagingProperties properties = new ImagingProperties();
             properties.setOrthancBaseUri(URI.create("http://127.0.0.1:" + upstream.getAddress().getPort()));
-            var controller = new ImagingDicomWebGatewayController(properties, scopes, grants);
+            var controller = new ImagingDicomWebGatewayController(properties, scopes, grants, audit);
             var request = new MockHttpServletRequest("GET", "/dicom-web/studies/1.2.3");
             request.setCookies(new jakarta.servlet.http.Cookie(
                     ImagingViewerGrantService.cookieName(studyRef), "opaque-token"));
@@ -130,7 +155,7 @@ class ImagingDicomWebGatewayControllerTest {
             when(grants.isAuthorized(studyRef, "opaque-token")).thenReturn(true);
             ImagingProperties properties = new ImagingProperties();
             properties.setOrthancBaseUri(URI.create("http://127.0.0.1:" + upstream.getAddress().getPort()));
-            var controller = new ImagingDicomWebGatewayController(properties, scopes, grants);
+            var controller = new ImagingDicomWebGatewayController(properties, scopes, grants, audit);
             var request = new MockHttpServletRequest("GET", "/dicom-web/studies/1.2.3/metadata");
             request.setCookies(new jakarta.servlet.http.Cookie(
                     ImagingViewerGrantService.cookieName(studyRef), "opaque-token"));
@@ -177,7 +202,8 @@ class ImagingDicomWebGatewayControllerTest {
                     .thenAnswer(invocation -> checks.incrementAndGet() == 1);
             ImagingProperties properties = new ImagingProperties();
             properties.setOrthancBaseUri(URI.create("http://127.0.0.1:" + upstream.getAddress().getPort()));
-            var controller = new ImagingDicomWebGatewayController(properties, scopes, grants, Duration.ofMillis(40));
+            var controller = new ImagingDicomWebGatewayController(properties, scopes, grants, audit,
+                    Duration.ofMillis(40));
             var request = new MockHttpServletRequest("GET", "/dicom-web/studies/1.2.3");
             request.setCookies(new jakarta.servlet.http.Cookie(
                     ImagingViewerGrantService.cookieName(studyRef), "opaque-token"));
@@ -216,7 +242,7 @@ class ImagingDicomWebGatewayControllerTest {
             when(grants.isAuthorized(eq(studyRef), eq("opaque-token"))).thenReturn(true);
             ImagingProperties properties = new ImagingProperties();
             properties.setOrthancBaseUri(URI.create("http://127.0.0.1:" + upstream.getAddress().getPort()));
-            var controller = new ImagingDicomWebGatewayController(properties, scopes, grants);
+            var controller = new ImagingDicomWebGatewayController(properties, scopes, grants, audit);
             var request = new MockHttpServletRequest("GET", "/dicom-web/studies/1.2.3/metadata");
             request.setCookies(new jakarta.servlet.http.Cookie(
                     ImagingViewerGrantService.cookieName(studyRef), "opaque-token"));

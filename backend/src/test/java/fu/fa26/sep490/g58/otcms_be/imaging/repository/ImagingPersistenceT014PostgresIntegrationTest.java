@@ -19,8 +19,10 @@ import fu.fa26.sep490.g58.otcms_be.imaging.model.entity.ImagingUidClaimJpaEntity
 import fu.fa26.sep490.g58.otcms_be.imaging.model.entity.ImagingViewerGrantJpaEntity;
 import fu.fa26.sep490.g58.otcms_be.imaging.model.entity.enums.ImagingOperationState;
 import fu.fa26.sep490.g58.otcms_be.imaging.model.entity.enums.ImagingOperationType;
+import fu.fa26.sep490.g58.otcms_be.imaging.model.entity.enums.ImagingReconciliationClassification;
 import fu.fa26.sep490.g58.otcms_be.imaging.service.impl.ImagingIdempotencyPersistenceService;
 import fu.fa26.sep490.g58.otcms_be.imaging.service.impl.ImagingIngestOperationPersistenceService;
+import fu.fa26.sep490.g58.otcms_be.imaging.service.impl.ImagingReconciliationService;
 import fu.fa26.sep490.g58.otcms_be.support.LocalPostgresTest;
 import java.time.Instant;
 import java.util.Map;
@@ -48,6 +50,7 @@ class ImagingPersistenceT014PostgresIntegrationTest {
     @Autowired ImagingViewerGrantRepository viewerGrants;
     @Autowired ImagingAuditEventRepository auditEvents;
     @Autowired ImagingReconciliationCaseRepository reconciliationCases;
+    @Autowired ImagingReconciliationService reconciliation;
     private UUID operationId;
 
     @AfterEach
@@ -123,9 +126,16 @@ class ImagingPersistenceT014PostgresIntegrationTest {
         assertEquals(auditId, auditEvents.findAllByStudyRefOrderByRecordedAtDescIdDesc(studyRef).getFirst().getId());
 
         reconciliationCases.saveAndFlush(new ImagingReconciliationCaseJpaEntity(UUID.randomUUID(), operation.id(),
-                null, "ARCHIVE_PARTIAL_FAILURE", "OPEN", "ARCHIVE_UNCERTAIN", "IMAGING_OPS", NOW,
+                null, "ARCHIVE_PARTIAL_FAILURE", "ORPHANED", "OPEN", "ARCHIVE_UNCERTAIN", "IMAGING_OPS", NOW,
                 null, null));
-        assertEquals(1, reconciliationCases.findAllByOperationIdAndStateNot(operation.id(), "RESOLVED").size());
+        reconciliation.openOperation(operation.id(), "CONFIRMATION",
+                ImagingReconciliationClassification.RETRYABLE, "CONFIRMATION_UNAVAILABLE");
+        reconciliation.openOperation(operation.id(), "CONFIRMATION",
+                ImagingReconciliationClassification.RETRYABLE, "CONFIRMATION_UNAVAILABLE");
+        var cases = reconciliationCases.findAllByOperationIdAndStateNot(operation.id(), "RESOLVED");
+        assertEquals(2, cases.size());
+        assertTrue(cases.stream().anyMatch(item -> item.getCategory().equals("CONFIRMATION")
+                && item.getClassification().equals("RETRYABLE")));
     }
 
     @Test

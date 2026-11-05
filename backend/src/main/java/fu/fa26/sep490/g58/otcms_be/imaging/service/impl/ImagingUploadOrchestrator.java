@@ -9,6 +9,7 @@ import fu.fa26.sep490.g58.otcms_be.imaging.model.ImagingAssignedWork;
 import fu.fa26.sep490.g58.otcms_be.imaging.model.ImagingOperationRecord;
 import fu.fa26.sep490.g58.otcms_be.imaging.model.ImagingOperationStatus;
 import fu.fa26.sep490.g58.otcms_be.imaging.model.entity.enums.ImagingOperationState;
+import fu.fa26.sep490.g58.otcms_be.imaging.model.entity.enums.ImagingReconciliationClassification;
 import fu.fa26.sep490.g58.otcms_be.imaging.model.entity.enums.ImagingVerificationStatus;
 import fu.fa26.sep490.g58.otcms_be.imaging.service.ImagingUploadCommand;
 import fu.fa26.sep490.g58.otcms_be.imaging.validation.ImagingDicomStudyValidator;
@@ -69,10 +70,25 @@ public class ImagingUploadOrchestrator {
             } catch (ImagingOperationException concurrentReplay) {
                 if (concurrentReplay.outcome() != ImagingOperationOutcome.IDEMPOTENCY_CONFLICT) throw concurrentReplay;
                 // Re-read after the conflicting insert transaction has rolled back; the winner is now durable.
-                registered = registration.register(command.actorAccountId(), command.requestId(), command.attemptId(),
-                        command.idempotencyKey(), body.sha256(), body.size(), work);
+                try {
+                    registered = registration.register(command.actorAccountId(), command.requestId(), command.attemptId(),
+                            command.idempotencyKey(), body.sha256(), body.size(), work);
+                } catch (ImagingOperationException replayConflict) {
+                    if (replayConflict.outcome() == ImagingOperationOutcome.IDEMPOTENCY_CONFLICT) {
+                        audit.recordActor(command.actorAccountId(), "IMAGING_UPLOAD", "IDEMPOTENCY_CONFLICT", null,
+                                null, command.requestId(), command.attemptId(), work.visitId(), work.patientId(),
+                                command.requestId().toString(), java.util.Map.of("reasonCode", "UPLOAD_IDEMPOTENCY_CONFLICT"));
+                    }
+                    throw replayConflict;
+                }
             }
-            if (!registered.created()) return registered.operation().toStatus();
+            if (!registered.created()) {
+                var replay = registered.operation();
+                audit.recordActor(command.actorAccountId(), "IMAGING_UPLOAD", "IDEMPOTENT_REPLAY", replay.id(),
+                        replay.studyRef(), replay.requestId(), replay.attemptId(), replay.visitId(), replay.patientId(),
+                        replay.id().toString(), java.util.Map.of("payloadSizeBytes", body.size()));
+                return replay.toStatus();
+            }
             try {
                 audit.recordActor(command.actorAccountId(), "IMAGING_UPLOAD", "STARTED", registered.operation().id(),
                         null, command.requestId(), command.attemptId(), work.visitId(), work.patientId(),
@@ -103,6 +119,11 @@ public class ImagingUploadOrchestrator {
                         operation.id().toString(), java.util.Map.of("evidenceCodes", summary.evidenceCodes()));
                 operations.transition(operation.id(), operation.version(), ImagingOperationState.QUARANTINED,
                         reason, Instant.now());
+                reconciliation.openOperation(operation.id(), "INGEST",
+                        summary.verificationStatus() == ImagingVerificationStatus.MISMATCH
+                                ? ImagingReconciliationClassification.CONFLICT
+                                : ImagingReconciliationClassification.ORPHANED,
+                        reason);
                 return currentStatus(operation.id());
             }
             List<ArchiveInstanceReceipt> receipts = new ArrayList<>();
@@ -123,6 +144,12 @@ public class ImagingUploadOrchestrator {
                         && exception instanceof ImagingOperationException imaging
                         && imaging.outcome() == ImagingOperationOutcome.FILE_INVALID
                         ? ImagingOperationState.FAILED : ImagingOperationState.RECONCILIATION_REQUIRED;
+                audit.recordActor(command.actorAccountId(), "IMAGING_UPLOAD",
+                        next == ImagingOperationState.FAILED ? "FAILED" : "RECONCILIATION_REQUIRED",
+                        operation.id(), operation.studyRef(), operation.requestId(), operation.attemptId(),
+                        operation.visitId(), operation.patientId(), operation.id().toString(),
+                        java.util.Map.of("reasonCode", next == ImagingOperationState.FAILED
+                                ? "ARCHIVE_REJECTED" : "ARCHIVE_OUTCOME_UNCERTAIN"));
                 safeTransition(operation, next, next == ImagingOperationState.FAILED
                         ? "ARCHIVE_REJECTED" : "ARCHIVE_OR_DATABASE_OUTCOME_UNCERTAIN");
                 if (next == ImagingOperationState.RECONCILIATION_REQUIRED) {
@@ -133,13 +160,23 @@ public class ImagingUploadOrchestrator {
             }
         } catch (ImagingOperationException exception) {
             if (exception.outcome() == ImagingOperationOutcome.FILE_INVALID) {
+                audit.recordActor(command.actorAccountId(), "IMAGING_UPLOAD", "REJECTED", operation.id(), null,
+                        operation.requestId(), operation.attemptId(), operation.visitId(), operation.patientId(),
+                        operation.id().toString(), java.util.Map.of("reasonCode", "UPLOAD_VALIDATION_FAILED"));
                 safeTransition(operation, ImagingOperationState.FAILED, "UPLOAD_VALIDATION_FAILED");
             }
             throw exception;
         } catch (java.io.IOException exception) {
+            audit.recordActor(command.actorAccountId(), "IMAGING_UPLOAD", "FAILED", operation.id(), null,
+                    operation.requestId(), operation.attemptId(), operation.visitId(), operation.patientId(),
+                    operation.id().toString(), java.util.Map.of("reasonCode", "UPLOAD_TEMPORARY_IO_FAILED"));
             safeTransition(operation, ImagingOperationState.FAILED, "UPLOAD_TEMPORARY_IO_FAILED");
             throw new ImagingOperationException(ImagingOperationOutcome.DEPENDENCY_UNAVAILABLE);
         } catch (RuntimeException exception) {
+            audit.recordActor(command.actorAccountId(), "IMAGING_UPLOAD", "RECONCILIATION_REQUIRED", operation.id(),
+                    operation.studyRef(), operation.requestId(), operation.attemptId(), operation.visitId(),
+                    operation.patientId(), operation.id().toString(),
+                    java.util.Map.of("reasonCode", "UPLOAD_OUTCOME_UNCERTAIN"));
             safeTransition(operation, ImagingOperationState.RECONCILIATION_REQUIRED, "UPLOAD_OUTCOME_UNCERTAIN");
             reconciliation.openOperation(operation.id(), "INGEST", "UPLOAD_OUTCOME_UNCERTAIN");
             return currentStatus(operation.id());

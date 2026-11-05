@@ -9,6 +9,8 @@ import static org.mockito.Mockito.when;
 
 import fu.fa26.sep490.g58.otcms_be.diagnostic.service.DiagnosticEvidenceService;
 import fu.fa26.sep490.g58.otcms_be.imaging.config.ImagingProperties;
+import fu.fa26.sep490.g58.otcms_be.imaging.exception.ImagingOperationException;
+import fu.fa26.sep490.g58.otcms_be.imaging.exception.ImagingOperationOutcome;
 import fu.fa26.sep490.g58.otcms_be.imaging.model.entity.ImagingConfirmationOutboxJpaEntity;
 import fu.fa26.sep490.g58.otcms_be.imaging.repository.ImagingConfirmationOutboxRepository;
 import fu.fa26.sep490.g58.otcms_be.imaging.service.impl.ImagingConfirmationDispatcher;
@@ -71,6 +73,20 @@ class ImagingConfirmationDispatcherTest {
         dispatcher(3).dispatchDue();
 
         verify(persistence).reconcile(event.getId(), "CONFIRMATION_RETRY_EXHAUSTED");
+        verify(persistence, org.mockito.Mockito.never()).retry(any(), any(), any());
+    }
+
+    @Test
+    void permanentOwnerConflictEntersConflictReconciliationWithoutRetry() {
+        ImagingConfirmationOutboxJpaEntity event = event(0);
+        when(outbox.findAllByStatusAndNextAttemptAtLessThanEqualOrderByNextAttemptAtAscCreatedAtAsc(
+                eq("PENDING"), any())).thenReturn(List.of(event));
+        doThrow(new ImagingOperationException(ImagingOperationOutcome.EVIDENCE_MISMATCH))
+                .when(diagnosticEvidence).linkConfirmedStudy(any(), any(), any());
+
+        dispatcher(3).dispatchDue();
+
+        verify(persistence).reconcile(event.getId(), "CONFIRMATION_REJECTED");
         verify(persistence, org.mockito.Mockito.never()).retry(any(), any(), any());
     }
 

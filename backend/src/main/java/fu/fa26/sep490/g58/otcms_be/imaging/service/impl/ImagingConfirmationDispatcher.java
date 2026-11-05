@@ -5,6 +5,8 @@ import fu.fa26.sep490.g58.otcms_be.diagnostic.integration.DiagnosticPortModels.S
 import fu.fa26.sep490.g58.otcms_be.diagnostic.model.DiagnosticActor;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.service.DiagnosticEvidenceService;
 import fu.fa26.sep490.g58.otcms_be.imaging.config.ImagingProperties;
+import fu.fa26.sep490.g58.otcms_be.imaging.exception.ImagingOperationException;
+import fu.fa26.sep490.g58.otcms_be.imaging.exception.ImagingOperationOutcome;
 import fu.fa26.sep490.g58.otcms_be.imaging.model.entity.ImagingConfirmationOutboxJpaEntity;
 import fu.fa26.sep490.g58.otcms_be.imaging.repository.ImagingConfirmationOutboxRepository;
 import java.time.Instant;
@@ -49,7 +51,20 @@ public class ImagingConfirmationDispatcher {
                             StudyVerificationStatus.CONFIRMED_MATCH, true, evidence),
                     "imaging-confirmation-" + event.getEventId());
             persistence.acknowledge(event.getId());
-        } catch (RuntimeException exception) {
+        } catch (ImagingOperationException rejection) {
+            if (rejection.outcome() == ImagingOperationOutcome.EVIDENCE_MISMATCH
+                    || rejection.outcome() == ImagingOperationOutcome.IDEMPOTENCY_CONFLICT
+                    || rejection.outcome() == ImagingOperationOutcome.STATE_CONFLICT) {
+                persistence.reconcile(event.getId(), "CONFIRMATION_REJECTED");
+                return;
+            }
+            retryOrReconcile(event);
+        } catch (RuntimeException unavailable) {
+            retryOrReconcile(event);
+        }
+    }
+
+    private void retryOrReconcile(ImagingConfirmationOutboxJpaEntity event) {
             if (event.getAttemptCount() + 1 >= settings.getConfirmationMaxAttempts()) {
                 persistence.reconcile(event.getId(), "CONFIRMATION_RETRY_EXHAUSTED");
                 return;
@@ -57,6 +72,5 @@ public class ImagingConfirmationDispatcher {
             long delay = Math.min(settings.getConfirmationMaxDelay().toSeconds(),
                     5L << Math.min(event.getAttemptCount(), 6));
             persistence.retry(event.getId(), Instant.now().plusSeconds(delay), "CONFIRMATION_UNAVAILABLE");
-        }
     }
 }

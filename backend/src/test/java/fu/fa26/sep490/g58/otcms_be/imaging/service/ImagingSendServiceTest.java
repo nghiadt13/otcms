@@ -88,7 +88,16 @@ class ImagingSendServiceTest {
                 () -> service().send(quarantined.actorAccountId(), quarantined.id(), "send-2"));
 
         assertEquals(ImagingOperationOutcome.STATE_CONFLICT, conflict.outcome());
-        verifyNoInteractions(outbox, operationPersistence, audit);
+        verifyNoInteractions(outbox, operationPersistence);
+        verify(audit).recordActor(org.mockito.ArgumentMatchers.eq(quarantined.actorAccountId()),
+                org.mockito.ArgumentMatchers.eq("IMAGING_SEND"), org.mockito.ArgumentMatchers.eq("REJECTED"),
+                org.mockito.ArgumentMatchers.eq(quarantined.id()), org.mockito.ArgumentMatchers.isNull(),
+                org.mockito.ArgumentMatchers.eq(quarantined.requestId()),
+                org.mockito.ArgumentMatchers.eq(quarantined.attemptId()),
+                org.mockito.ArgumentMatchers.eq(quarantined.visitId()),
+                org.mockito.ArgumentMatchers.eq(quarantined.patientId()),
+                org.mockito.ArgumentMatchers.eq(quarantined.id().toString()),
+                org.mockito.ArgumentMatchers.eq(java.util.Map.of("reasonCode", "SEND_STATE_INVALID")));
     }
 
     private ImagingSendService service() {

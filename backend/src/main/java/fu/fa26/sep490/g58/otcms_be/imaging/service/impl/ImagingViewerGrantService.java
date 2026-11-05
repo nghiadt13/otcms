@@ -35,16 +35,24 @@ public class ImagingViewerGrantService {
         this.studies = studies; this.grants = grants; this.ownerPorts = ownerPorts; this.audit = audit;
     }
 
-    @Transactional
+    @Transactional(noRollbackFor = ImagingOperationException.class)
     public IssuedGrant issue(UUID actorId, String studyRef, String purpose, String correlationId) {
-        var study = studies.findById(studyRef)
-                .orElseThrow(() -> new ImagingOperationException(ImagingOperationOutcome.UNAUTHORIZED_RECORD));
+        var study = studies.findById(studyRef).orElse(null);
+        if (study == null) {
+            audit.recordActor(actorId, "IMAGING_VIEWER_GRANT", "DENIED", null, studyRef,
+                    null, null, null, null, correlationId,
+                    java.util.Map.of("purpose", purpose, "reasonCode", "STUDY_NOT_FOUND"));
+            throw new ImagingOperationException(ImagingOperationOutcome.UNAUTHORIZED_RECORD);
+        }
         ViewAuthorization decision;
         try {
             ImagingStudyPort owner = ownerPorts.getIfAvailable();
             if (owner == null) throw new IllegalStateException("FEAT-003 owner contract is unavailable");
             decision = owner.authorizeStudyView(studyRef, actorId, purpose);
         } catch (RuntimeException unavailable) {
+            audit.recordActor(actorId, "IMAGING_VIEWER_GRANT", "DEPENDENCY_UNAVAILABLE", null, studyRef,
+                    study.getRequestId(), study.getAttemptId(), study.getVisitId(), study.getPatientId(),
+                    correlationId, java.util.Map.of("purpose", purpose, "reasonCode", "OWNER_UNAVAILABLE"));
             throw new ImagingOperationException(ImagingOperationOutcome.DEPENDENCY_UNAVAILABLE);
         }
         Instant now = Instant.now();

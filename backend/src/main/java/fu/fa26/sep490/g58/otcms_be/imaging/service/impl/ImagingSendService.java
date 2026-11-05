@@ -41,7 +41,7 @@ public class ImagingSendService {
         this.audit = audit;
     }
 
-    @Transactional
+    @Transactional(noRollbackFor = ImagingOperationException.class)
     public ImagingOperationStatus send(UUID actorId, UUID operationId, String key) {
         var operation = operations.findById(operationId)
                 .orElseThrow(() -> new ImagingOperationException(ImagingOperationOutcome.UNAUTHORIZED_RECORD));
@@ -52,13 +52,24 @@ public class ImagingSendService {
         if (previous.isPresent()) {
             if (!previous.get().toModel().payloadSha256().equals(digest)
                     || !previous.get().toModel().targetOperationId().equals(operationId)) {
+                audit.recordActor(actorId, "IMAGING_SEND", "IDEMPOTENCY_CONFLICT", operationId,
+                        record.studyRef(), record.requestId(), record.attemptId(), record.visitId(),
+                        record.patientId(), operationId.toString(), Map.of("reasonCode", "SEND_IDEMPOTENCY_CONFLICT"));
                 throw new ImagingOperationException(ImagingOperationOutcome.IDEMPOTENCY_CONFLICT);
             }
+            var existingEvent = outbox.findByOperationId(operationId).orElse(null);
+            String eventId = existingEvent == null ? operationId.toString() : existingEvent.getEventId().toString();
+            audit.recordActor(actorId, "IMAGING_SEND", "IDEMPOTENT_REPLAY", operationId, record.studyRef(),
+                    record.requestId(), record.attemptId(), record.visitId(), record.patientId(), eventId,
+                    Map.of("eventId", eventId));
             return record.toStatus();
         }
         if (record.state() != ImagingOperationState.ARCHIVED_NOT_SENT
                 || record.studyRef() == null
                 || record.verificationStatus() != fu.fa26.sep490.g58.otcms_be.imaging.model.entity.enums.ImagingVerificationStatus.CONFIRMED_MATCH) {
+            audit.recordActor(actorId, "IMAGING_SEND", "REJECTED", operationId, record.studyRef(),
+                    record.requestId(), record.attemptId(), record.visitId(), record.patientId(),
+                    operationId.toString(), Map.of("reasonCode", "SEND_STATE_INVALID"));
             throw new ImagingOperationException(ImagingOperationOutcome.STATE_CONFLICT);
         }
         UUID eventId = UUID.randomUUID();

@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -74,15 +75,19 @@ class ImagingViewerGrantServiceTest {
     @Test
     void deniesWhenOwnerDecisionIsUnavailableAndDoesNotPersistGrant() {
         String studyRef = "study-private";
+        UUID actor = UUID.randomUUID();
         when(studies.findById(studyRef)).thenReturn(Optional.of(study(studyRef)));
         when(ownerPorts.getIfAvailable()).thenReturn(null);
 
         ImagingOperationException unavailable = assertThrows(ImagingOperationException.class,
                 () -> new ImagingViewerGrantService(studies, grants, ownerPorts, audit)
-                        .issue(UUID.randomUUID(), studyRef, "PATIENT_VIEW", "corr-2"));
+                        .issue(actor, studyRef, "PATIENT_VIEW", "corr-2"));
 
         assertEquals(ImagingOperationOutcome.DEPENDENCY_UNAVAILABLE, unavailable.outcome());
-        verifyNoInteractions(grants, audit);
+        verifyNoInteractions(grants);
+        verify(audit).recordActor(eq(actor), eq("IMAGING_VIEWER_GRANT"), eq("DEPENDENCY_UNAVAILABLE"),
+                org.mockito.ArgumentMatchers.isNull(), eq(studyRef), any(), any(), any(), any(),
+                eq("corr-2"), any());
     }
 
     @Test

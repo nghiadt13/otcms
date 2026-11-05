@@ -3,6 +3,8 @@ package fu.fa26.sep490.g58.otcms_be.imaging.controller;
 import fu.fa26.sep490.g58.otcms_be.imaging.config.ImagingProperties;
 import fu.fa26.sep490.g58.otcms_be.imaging.security.ImagingDicomWebScopeResolver;
 import fu.fa26.sep490.g58.otcms_be.imaging.service.impl.ImagingViewerGrantService;
+import fu.fa26.sep490.g58.otcms_be.imaging.service.impl.ImagingAuditPersistenceService;
+import fu.fa26.sep490.g58.otcms_be.common.web.CorrelationIdFilter;
 import jakarta.servlet.ServletOutputStream;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
@@ -46,21 +48,23 @@ public class ImagingDicomWebGatewayController {
     private final ImagingProperties settings;
     private final ImagingDicomWebScopeResolver scopes;
     private final ImagingViewerGrantService grants;
+    private final ImagingAuditPersistenceService audit;
     private final RestTemplate archiveClient;
     private final ObjectMapper jsonMapper = new ObjectMapper();
     private final long reauthIntervalNanos;
 
     @Autowired
     public ImagingDicomWebGatewayController(ImagingProperties settings, ImagingDicomWebScopeResolver scopes,
-            ImagingViewerGrantService grants) {
-        this(settings, scopes, grants, Duration.ofSeconds(5));
+            ImagingViewerGrantService grants, ImagingAuditPersistenceService audit) {
+        this(settings, scopes, grants, audit, Duration.ofSeconds(5));
     }
 
     ImagingDicomWebGatewayController(ImagingProperties settings, ImagingDicomWebScopeResolver scopes,
-            ImagingViewerGrantService grants, Duration reauthInterval) {
+            ImagingViewerGrantService grants, ImagingAuditPersistenceService audit, Duration reauthInterval) {
         this.settings = settings;
         this.scopes = scopes;
         this.grants = grants;
+        this.audit = audit;
         this.reauthIntervalNanos = reauthInterval.toNanos();
         Duration connectTimeout = positiveOrDefault(settings.getOrthancConnectTimeout(), Duration.ofSeconds(3));
         HttpClient client = HttpClient.newBuilder().connectTimeout(connectTimeout)
@@ -75,7 +79,7 @@ public class ImagingDicomWebGatewayController {
     public void proxy(HttpServletRequest request, HttpServletResponse response) throws IOException {
         String method = request.getMethod();
         if (!HttpMethod.GET.matches(method) && !HttpMethod.HEAD.matches(method)) {
-            writeDenial(response, HttpStatus.METHOD_NOT_ALLOWED);
+            denyAttempt(request, response, HttpStatus.METHOD_NOT_ALLOWED, null, "METHOD_DENIED");
             return;
         }
         URI archiveUri = settings.getOrthancBaseUri();
@@ -83,27 +87,27 @@ public class ImagingDicomWebGatewayController {
                 || archiveUri.getQuery() != null || archiveUri.getFragment() != null
                 || !("http".equalsIgnoreCase(archiveUri.getScheme())
                 || "https".equalsIgnoreCase(archiveUri.getScheme()))) {
-            writeDenial(response, HttpStatus.BAD_GATEWAY);
+            denyAttempt(request, response, HttpStatus.BAD_GATEWAY, null, "ARCHIVE_CONFIG_UNAVAILABLE");
             return;
         }
         String relativePath = relativePath(request);
         if (relativePath == null) {
-            writeDenial(response, HttpStatus.NOT_FOUND);
+            denyAttempt(request, response, HttpStatus.NOT_FOUND, null, "SCOPE_INVALID");
             return;
         }
         if (request.getQueryString() != null && request.getQueryString().length() > 4096) {
-            writeDenial(response, HttpStatus.NOT_FOUND);
+            denyAttempt(request, response, HttpStatus.NOT_FOUND, null, "QUERY_INVALID");
             return;
         }
         java.util.Optional<ImagingDicomWebScopeResolver.StudyScope> scope;
         try {
             scope = scopes.resolve(relativePath, request.getParameterMap());
         } catch (RuntimeException unavailable) {
-            writeDenial(response, HttpStatus.BAD_GATEWAY);
+            denyAttempt(request, response, HttpStatus.BAD_GATEWAY, null, "SCOPE_UNAVAILABLE");
             return;
         }
         if (scope.isEmpty()) {
-            writeDenial(response, HttpStatus.NOT_FOUND);
+            denyAttempt(request, response, HttpStatus.NOT_FOUND, null, "SCOPE_NOT_FOUND");
             return;
         }
         String studyRef = scope.get().studyRef();
@@ -115,7 +119,11 @@ public class ImagingDicomWebGatewayController {
             authorized = false;
         }
         if (!authorized) {
-            writeDenial(response, HttpStatus.NOT_FOUND);
+            denyAttempt(request, response, HttpStatus.NOT_FOUND, studyRef, "GRANT_DENIED");
+            return;
+        }
+        if (!recordAccess(request, studyRef, "ALLOWED", "GRANT_VALID")) {
+            writeDenial(response, HttpStatus.SERVICE_UNAVAILABLE);
             return;
         }
         try {
@@ -129,6 +137,23 @@ public class ImagingDicomWebGatewayController {
                     });
         } catch (RuntimeException exception) {
             if (!response.isCommitted()) writeDenial(response, HttpStatus.BAD_GATEWAY);
+        }
+    }
+
+    private void denyAttempt(HttpServletRequest request, HttpServletResponse response, HttpStatus status,
+            String studyRef, String reasonCode) throws IOException {
+        recordAccess(request, studyRef, "DENIED", reasonCode);
+        writeDenial(response, status);
+    }
+
+    private boolean recordAccess(HttpServletRequest request, String studyRef, String outcome, String reasonCode) {
+        try {
+            audit.recordService("IMAGING_GATEWAY", "DICOMWEB_ACCESS", outcome, null, studyRef,
+                    null, null, null, null, CorrelationIdFilter.current(request),
+                    Map.of("resourceType", "DICOMWEB", "reasonCode", reasonCode));
+            return true;
+        } catch (RuntimeException auditUnavailable) {
+            return false;
         }
     }
 
