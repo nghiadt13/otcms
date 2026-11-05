@@ -71,6 +71,28 @@ public class ImagingViewerGrantService {
         return new IssuedGrant(cookieName, token, expiresAt);
     }
 
+    /** Revalidates the opaque cookie and owner decision for each gateway request or stream checkpoint. */
+    public boolean isAuthorized(String studyRef, String token) {
+        if (studyRef == null || token == null || token.length() < 32 || token.length() > 128) return false;
+        try {
+            Instant now = Instant.now();
+            var grant = grants.findByTokenSha256(sha256(token));
+            if (grant.isEmpty()) return false;
+            var persisted = grant.get();
+            if (!studyRef.equals(persisted.getStudyRef()) || persisted.getRevokedAt() != null
+                    || !persisted.getExpiresAt().isAfter(now)) return false;
+            ImagingStudyPort owner = ownerPorts.getIfAvailable();
+            if (owner == null) return false;
+            ViewAuthorization decision = owner.authorizeStudyView(studyRef, persisted.getActorAccountId(),
+                    persisted.getPurpose());
+            return decision != null && decision.allowed()
+                    && persisted.getAuthorizedVersionRef().equals(decision.authorizedVersionRef())
+                    && decision.expiresAt() != null && decision.expiresAt().isAfter(now);
+        } catch (RuntimeException unavailable) {
+            return false;
+        }
+    }
+
     public static String cookieName(String studyRef) {
         return "OTCMS_VIEW_GRANT_" + sha256(studyRef).substring(0, 16);
     }

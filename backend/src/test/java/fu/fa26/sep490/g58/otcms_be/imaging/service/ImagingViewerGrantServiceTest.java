@@ -102,6 +102,33 @@ class ImagingViewerGrantServiceTest {
         verify(grants, org.mockito.Mockito.never()).saveAndFlush(any());
     }
 
+    @Test
+    void gatewayAuthorizationRechecksRevocationExpiryAndCurrentOwnerVersion() throws Exception {
+        String studyRef = "study-live";
+        String token = "A".repeat(43);
+        UUID actor = UUID.randomUUID();
+        Instant expiresAt = Instant.now().plusSeconds(120);
+        var persisted = new ImagingViewerGrantJpaEntity(UUID.randomUUID(), sha256(token), actor,
+                "DOCTOR_REVIEW", studyRef, "review-v4", Instant.now(), expiresAt, null);
+        when(grants.findByTokenSha256(sha256(token))).thenReturn(Optional.of(persisted));
+        when(ownerPorts.getIfAvailable()).thenReturn(owner);
+        when(owner.authorizeStudyView(studyRef, actor, "DOCTOR_REVIEW"))
+                .thenReturn(new ViewAuthorization(true, expiresAt, "review-v4"));
+
+        assertEquals(true, new ImagingViewerGrantService(studies, grants, ownerPorts, audit)
+                .isAuthorized(studyRef, token));
+
+        when(owner.authorizeStudyView(studyRef, actor, "DOCTOR_REVIEW"))
+                .thenReturn(new ViewAuthorization(true, expiresAt, "review-v5"));
+        assertEquals(false, new ImagingViewerGrantService(studies, grants, ownerPorts, audit)
+                .isAuthorized(studyRef, token));
+    }
+
+    private static String sha256(String value) throws Exception {
+        return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
+                .digest(value.getBytes(StandardCharsets.UTF_8)));
+    }
+
     private static ImagingStudyJpaEntity study(String studyRef) {
         return new ImagingStudyJpaEntity(studyRef, UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
                 UUID.randomUUID(), UUID.randomUUID(), "orthanc-ref", "1.2.3", "CT", 1, 1,
