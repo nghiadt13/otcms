@@ -142,3 +142,64 @@ backend/src/test/java/fu/fa26/sep490/g58/otcms_be/clinical/ClinicalMedicalDocume
 backend/src/test/java/fu/fa26/sep490/g58/otcms_be/clinical/ClinicalMedicalDocumentPostgresIntegrationTest.java
 backend/src/test/java/fu/fa26/sep490/g58/otcms_be/clinical/ClinicalMedicalDocumentServiceImplTest.java
 backend/src/test/java/fu/fa26/sep490/g58/otcms_be/clinical/MedicalDocumentFixture.java
+
+## Merge/build repair continuation — 2026-11-05
+
+Scope/checkpoint: user explicitly requested semantic repair of the existing origin/product
+merge on `feat/hung/KAN-XX-doctor-medical-documents`, preserving all current work.
+Shadow Plan: inspect index/conflict markers -> inspect both merge sides -> union handler
+and wiring -> stage only resolved paths -> verify Java 21/compile/test-compile/focused
+tests -> record result. No business rule, architecture or migration changes.
+
+Initial HEAD: `3da0a150aa289e575f9ef12dbd3cc2a064bab236`.
+MERGE_HEAD: `ef096b37f1fa207b4aa208148c01868a87691b42` (origin/product).
+Both ClinicalApiExceptionHandler.java and DoctorCoreProductionWiringTest.java were UU,
+with four conflicting blocks containing actual merge markers. The markers explain the
+Java syntax errors. Manually retained BOTH Medical Documents and Prescription imports,
+advice scope, production beans and persistence doubles; no blanket ours/theirs used.
+
+Handler includes Examination, Advice, Imaging, DoctorActiveVisit, Prescription and Medical
+Documents controllers. Existing Clinical/Diagnostic status mappings, MSG-47, transport
+validation, multipart/missing-part, access denial, optimistic-lock and infrastructure
+handling are unchanged. Wiring retains all Medical Document Auth/Patient dependencies,
+payload/metadata repositories, Prescription controller/services/repositories, and existing
+Clinical/Diagnostic/current-care composition. No tests/assertions removed or weakened.
+
+Newly staged paths ONLY (explicit git add):
+
+```text
+backend/src/main/java/fu/fa26/sep490/g58/otcms_be/clinical/exception/ClinicalApiExceptionHandler.java
+backend/src/test/java/fu/fa26/sep490/g58/otcms_be/clinical/DoctorCoreProductionWiringTest.java
+```
+
+Existing staged product/frontend changes and the pre-existing untracked root-level
+`rcmainjavafufa26sep490g58otcms_beclinicalexceptionClinicalApiExceptionHandler.java`
+were preserved. This Action Record continuation remains unstaged; no unrelated path was
+added to the index. No commit/push/merge/rebase/reset/restore/cleanup/delete/frontend edit.
+
+Verification commands from backend, with process-local installed JDK 21:
+
+```powershell
+$env:JAVA_HOME = 'C:\Program Files\Java\jdk-21'
+.\mvnw.cmd -version
+.\mvnw.cmd -DskipTests compile
+.\mvnw.cmd test-compile
+.\mvnw.cmd "-Dtest=ClinicalMedicalDocumentServiceImplTest,ClinicalMedicalDocumentControllerTest,ClinicalMedicalDocumentArchitectureTest,DoctorCoreProductionWiringTest" test
+.\mvnw.cmd "-Dtest=ClinicalPrescriptionControllerTest,ClinicalPrescriptionArchitectureTest" test
+```
+
+The first version check in the current tool shell reported Java 25; the explicit JDK 21
+check reported Java 21.0.9 / Maven 3.9.16. All build/test commands used JDK 21 and passed
+Enforcer; no Enforcer bypass or repository environment change.
+
+Compile: BUILD SUCCESS (867 sources). Test-compile: BUILD SUCCESS (205 test sources).
+Requested focused tests: 49 tests, 0 failures, 0 errors, 0 skipped.
+Prescription preservation regression: 39 tests, 0 failures, 0 errors, 0 skipped; BUILD SUCCESS.
+No PostgreSQL integration test was run or claimed passed by this merge repair.
+
+Final index has no unresolved entries; no markers remain in src/main or src/test.
+git diff --check and git diff --cached --check pass. Merge remains uncommitted for Human
+review. Backend repair is ready; user must review the full existing staged merge, including
+frontend changes prepared earlier and the unrelated untracked root file, before committing.
+No Human reviewer identity/approval is inferred. Sync-back is this continuation plus final
+session report; no additional implementation is required within this repair scope.
