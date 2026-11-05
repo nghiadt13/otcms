@@ -11,7 +11,7 @@ export const IMAGING_FORBIDDEN_STUDY_ID = "std-khac-benh-nhan";
 export const IMAGING_LIST_ERROR_PATIENT_ID = "ERR-500";
 
 export interface MockStudy extends PatientImagingStudySummary {
-  /** Không trả ra API; dùng để dựng `viewerUrl`. */
+  /** UID DICOM dùng làm khóa để cấu hình viewer trong fixture. */
   studyUid: string;
   visitStatus: ImagingVisitStatus;
 }
@@ -51,14 +51,3 @@ export const MOCK_STUDIES: MockStudy[] = [
     studyUid: "1.2.826.0.1.3680043.8.498.10230002",
   },
 ];
-
-/**
- * URL trình xem ảnh giả: chỉ dựng khi đặt `NEXT_PUBLIC_OHIF_DEV_URL` (môi trường dev,
- * chưa có phân quyền). Không đặt thì null và giao diện hiện nút bị khóa kèm lời giải thích.
- */
-export function mockViewerUrl(studyUid: string): string | null {
-  const base = process.env.NEXT_PUBLIC_OHIF_DEV_URL;
-  return base
-    ? `${base}?StudyInstanceUIDs=${encodeURIComponent(studyUid)}`
-    : null;
-}

@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import type { ApiError } from "@/lib/api/apiError";
 import { getPatientStudy, listPatientStudies } from "./imagingStudyApi";
 import {
@@ -59,30 +59,13 @@ describe("listPatientStudies", () => {
 });
 
 describe("getPatientStudy", () => {
-  afterEach(() => {
-    vi.unstubAllEnvs();
-  });
-
-  beforeEach(() => {
-    vi.stubEnv("NEXT_PUBLIC_OHIF_DEV_URL", "");
-  });
-
-  it("chưa có URL trình xem thì viewerUrl là null", async () => {
+  it("trả Study UID trong response chi tiết để cấu hình OHIF qua gateway", async () => {
     const study = await getPatientStudy("std-an-xray-1");
-    expect(study.viewerUrl).toBeNull();
+    expect(study.studyInstanceUid).toBe("1.2.826.0.1.3680043.8.498.10230001");
     expect(study.finding).toContain("Hẹp khe khớp");
   });
 
-  it("có URL trình xem (môi trường dev) thì dựng theo StudyInstanceUIDs", async () => {
-    vi.stubEnv("NEXT_PUBLIC_OHIF_DEV_URL", "http://127.0.0.1:3001/viewer");
-    const study = await getPatientStudy("std-an-xray-1");
-    expect(study.viewerUrl).toBe(
-      "http://127.0.0.1:3001/viewer?StudyInstanceUIDs=1.2.826.0.1.3680043.8.498.10230001",
-    );
-  });
-
   it("lượt Chưa hoàn tất không trả kết luận", async () => {
-    vi.stubEnv("NEXT_PUBLIC_OHIF_DEV_URL", "http://127.0.0.1:3001/viewer");
     const study = await getPatientStudy("std-lan-us-1");
     expect(study.visitStatus).toBe("INCOMPLETE");
     expect(study.finding).toBeNull();
