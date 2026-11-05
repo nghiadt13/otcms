@@ -252,3 +252,38 @@ production UC/BR and workflow contract. Existing broader Diagnostic result coord
 through `VisitDiagnosticPort` remains unimplemented in the baseline (the production wiring
 test explicitly verifies it is not hidden by a no-op); UC33's dedicated internal released
 history query does not depend on that missing port. No broader workflow completion is claimed.
+
+## Local parent integration — 2026-11-05
+
+User now authorizes local commits after tested checkpoints; no pushes/PRs/rebases or
+unrelated edits. Parent is locally verified Medical Documents merge `1fd780a`, which
+contains origin/product `ef096b3` and only backend changes relative to its first parent.
+Original Medical Documents workspace retains the user's frontend and root untracked
+Java file; integration uses a separate worktree to avoid touching those bytes.
+
+Shadow Plan: merge local parent with --no-commit -> inspect every conflict -> preserve
+UC33 owner queries/auth/composition and Prescription/Documents -> compile/test-compile
+under Java 21 -> compatibility tests -> local pre-commit validation -> requested merge commit.
+
+Six conflicts were examined individually: shared handler; Prescription item/header
+repositories; Prescription history interface/implementation; Prescription service test.
+Retained the seven-controller handler, batch history APIs and ordered item queries, and
+the existing deterministic version-write concurrency harness with all original assertions.
+Incoming parent contained the older subset of these declarations. No business logic or
+test assertion was removed. Wiring merged without conflict and retains all production
+owner implementations. Resolved source/test content is identical to pre-merge UC33 HEAD.
+The inherited Medical Documents Action Record supplies parent merge/test evidence.
+No frontend file differs from pre-merge UC33.
+
+Commands from the worktree backend with JAVA_HOME=C:/Program Files/Java/jdk-21:
+
+```powershell
+.\mvnw.cmd -DskipTests compile
+.\mvnw.cmd test-compile
+.\mvnw.cmd "-Dtest=ClinicalPastMedicalRecordsServiceImplTest,ClinicalPastMedicalRecordsControllerTest,ClinicalPastMedicalRecordsArchitectureTest,ClinicalHistoryOwnerQueryTest,PastMedicalRecordsQuerySemanticTest,DiagnosticPatientHistoryQueryServiceImplTest,VisitPatientHistoryQueryServiceImplTest,DoctorCoreProductionWiringTest,ClinicalMedicalDocumentServiceImplTest,ClinicalMedicalDocumentControllerTest,ClinicalMedicalDocumentArchitectureTest,ClinicalPrescriptionServiceImplTest,ClinicalPrescriptionControllerTest,ClinicalPrescriptionArchitectureTest,DoctorCurrentCareAuthorizationTest,DoctorCoreMvcMappingTest" test
+```
+
+Compile and test-compile: BUILD SUCCESS, Java 21 Enforcer passed; 879 production and
+213 test sources compiled. Compatibility suite: 159 tests, 0 failures, 0 errors,
+0 skipped; BUILD SUCCESS. Local pre-commit validation: READY.
+No new migration or DB verification claim. Conflict/whitespace/marker checks are clean.

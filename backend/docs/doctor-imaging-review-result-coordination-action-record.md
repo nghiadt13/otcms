@@ -257,3 +257,77 @@ by the accompanying session; HEAD and V099/V100 remain unchanged.
   requirements still lack a dedicated production UC/BR. Not implemented in this checkpoint.
 - Stale BR-02/BR-04 imaging references need documentation reconciliation; implementation
   uses the explicit requested behavior and matching canonical BR-47/BR-49.
+
+## Local Doctor stack integration — 2026-11-05
+
+User authorizes local tested checkpoint commits, with no push/PR/rebase/reset/cleanup
+or unrelated/frontend edits. Shadow Plan: commit inspected backend-only Medical Documents
+merge -> merge that local parent into UC33 and test -> merge verified UC33 into Imaging
+Review and test -> verify ancestry/migrations/full portable regression -> stop at existing
+queue/Laboratory/secure-viewer blockers. No new production feature is authorized.
+
+Medical Documents: local merge `1fd780a` integrates product `ef096b3` into `3da0a15`.
+Compile/test-compile and 49 Medical Documents/wiring + 39 Prescription tests passed in
+the preceding repair checkpoint; source was unchanged before this commit. Reviewed and
+staged only the valid Medical Documents repair record in addition to backend merge files.
+All pre-existing frontend paths and docs/doctor-frontend.md were individually unstaged,
+without changing their content. Root-level untracked Java file remained untouched.
+The merge's first-parent diff contains backend paths only.
+
+UC33: local merge `5712c41`, parent Medical Documents `1fd780a`. Six conflicts were
+resolved individually, preserving the seven-controller advice, batched owner history
+reads and deterministic Prescription race harness. Source and tests remain identical
+to the prior UC33 commit; no frontend delta. Compile/test-compile passed under Java 21;
+159 focused/compatibility tests passed with 0 failures/errors/skips. UC33 worktree is clean.
+
+Imaging Review: merge the LOCAL UC33 branch using --no-commit --no-ff. Merge is clean,
+with no source/test/migration/frontend changes relative to `e8cd026`; only inherited
+verification documents and ancestry are new. Thus production VisitDiagnosticPort, V101
+receipts, UC38/UC42, owner authorization, idempotency and different-historical-Doctor
+semantics are preserved without choosing a merge side or weakening tests.
+
+Imaging compile/test-compile: BUILD SUCCESS, Java 21 Enforcer passed; 885 production
+and 216 test sources compiled. Focused integration/compatibility: 223 tests, 0 failures,
+0 errors, 0 skipped. Broad portable regression: 474 tests across 49 classes,
+0 failures, 0 errors, 0 skipped; BUILD SUCCESS. No production source or test assertions
+changed during integration. Local pre-commit validation: READY.
+
+Exact focused command, from the isolated Imaging worktree backend with
+JAVA_HOME=C:/Program Files/Java/jdk-21:
+
+```powershell
+.\mvnw.cmd -DskipTests compile
+.\mvnw.cmd test-compile
+.\mvnw.cmd "-Dtest=DoctorCoreProductionWiringTest,DiagnosticControllersT016Test,DoctorImagingRegistrationTest,DiagnosticPatientHistoryQueryServiceImplTest,ClinicalPastMedicalRecordsServiceImplTest,DoctorImagingReviewIntegrationTest,VisitDiagnosticArchitectureTest,ClinicalImagingRequestServiceImplTest,ClinicalImagingRequestControllerTest,ClinicalImagingRequestConcurrencyTest,ClinicalMedicalDocumentServiceImplTest,ClinicalMedicalDocumentControllerTest,ClinicalMedicalDocumentArchitectureTest,ClinicalPrescriptionServiceImplTest,ClinicalPrescriptionControllerTest,ClinicalPrescriptionArchitectureTest" test
+```
+
+Broad regression command (49 classes, includes all portable tests in the three owners):
+
+```powershell
+$stackTests = @(rg --files src/test/java/fu/fa26/sep490/g58/otcms_be/clinical src/test/java/fu/fa26/sep490/g58/otcms_be/diagnostic src/test/java/fu/fa26/sep490/g58/otcms_be/visit | Where-Object { $_.EndsWith('Test.java') -and $_ -notmatch 'Postgres' } | ForEach-Object { [System.IO.Path]::GetFileNameWithoutExtension($_) })
+$stackTests += @('DoctorCurrentCareAuthorizationTest','PatientAuthorizationT008Test','PatientProfileAccessServiceTest')
+$stackTests = @($stackTests | Sort-Object -Unique)
+.\mvnw.cmd ('-Dtest=' + ($stackTests -join ',')) test
+```
+
+Migration blobs compared with original owners and unchanged:
+V099 b8cb1ec80c135a3d5222890afc4e81550bf1500e (product);
+V100 98168658b8101186764e5f8bddc77223516874a8 (Medical Documents);
+V101 a42864135f60f732f3d41ab67a7694f6729e1bf9 (Imaging Review).
+No new migration.
+
+POSTGRESQL = BLOCKED: outside-sandbox TCP connection to 127.0.0.1:5432 failed.
+All DB tests compile but none were executed/claimed PASS. No SQL replay/concurrency,
+database migration application, or secure viewer runtime verification is implied.
+
+Main workspace preserves the user's unrelated local modifications and untracked files.
+Separate Git worktrees perform integration without stash or checkout of those paths.
+SHA-256/absence comparison verified all 69 enumerated unrelated paths unchanged after
+unstaging and branch integration. Both integration worktrees are retained for inspection;
+no worktree or user file is deleted. Final report distinguishes these clean backend
+worktrees from the intentionally dirty original workspace.
+
+No Doctor queue, Laboratory, Orthanc, grant/gateway or frontend feature is implemented.
+Local delivery checkpoint requires backend-only staged paths, no unresolved conflicts,
+no source conflict markers and clean whitespace checks. No Human business/architecture
+approval is inferred. Final local commit uses the user's requested merge message.
