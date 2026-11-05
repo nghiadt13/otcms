@@ -121,6 +121,26 @@ class ActivityLogPostgresIntegrationTest {
         mvc.perform(get("/api/v1/admin/activity-logs/service:"+UUID.randomUUID()).with(auth))
         .andExpect(status().isNotFound()).andExpect(jsonPath("$.error.code").value("MSG-50"));
     }
+    @Test void recordedAccountAndDiagnosticActionsAreVisibleWithoutPrivateMetadata() throws Exception {
+        var auth = actor();
+        UUID actorId = UUID.randomUUID(), target = UUID.randomUUID(), audit = UUID.randomUUID(), diagnostic = UUID.randomUUID();
+        jdbc.update("insert into accounts(id,normalized_email,username,account_type,status,created_at,updated_at) values(?,?,?,'ADMIN','ACTIVE',now(),now())",
+                actorId, actorId + "@audit.test", "recorded-actor-" + actorId);
+        jdbc.update("insert into account_management_audits(id,account_id,actor_account_id,action,occurred_at,correlation_id) values(?,?,?,'ACTIVATE',now(),'uc67')",
+                audit, actorId, actorId);
+        jdbc.update("insert into diagnostic_audit_events(id,actor_account_id,visit_id,action,outcome,correlation_id,metadata) values(?,?,?,'SAVE_FINDINGS','SUCCESS','uc67','{\"findings\":\"PRIVATE-PAYLOAD\"}'::jsonb)",
+                diagnostic, actorId, target);
+        mvc.perform(get("/api/v1/admin/activity-logs").param("action", "ACCOUNT").param("record", actorId.toString()).with(auth))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.totalItems").value(1));
+        mvc.perform(get("/api/v1/admin/activity-logs/diagnostic:" + diagnostic).with(auth))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.recordCode").value(target.toString()))
+                .andExpect(jsonPath("$.actorUsername").value("recorded-actor-" + actorId))
+                .andExpect(jsonPath("$.action").value("SAVE_FINDINGS:SUCCESS"))
+                .andExpect(jsonPath("$.metadata").doesNotExist()).andExpect(jsonPath("$.payload").doesNotExist());
+        mvc.perform(get("/api/v1/admin/activity-logs").param("action", "DIAGNOSTIC").param("record", target.toString()).with(auth))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.totalItems").value(1));
+    }
+
     private RequestPostProcessor actor() {
         UUID accountId=UUID.randomUUID();
         jdbc.update("insert into accounts(id,normalized_email,username,account_type,status,created_at,updated_at) values(?,?,?,'ADMIN','ACTIVE',now(),now())",

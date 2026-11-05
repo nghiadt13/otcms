@@ -16,7 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class ActivityLogServiceImpl implements ActivityLogService {
     private static final ZoneId ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
     private static final Set<String> CATEGORIES = Set.of("ACCOUNT", "STAFF_PROFILE", "STAFF_SHIFT", "ROOM",
-        "SERVICE", "CONTENT", "ANNOUNCEMENT", "REVIEW", "PAYMENT", "RESULT_CORRECTION");
+        "SERVICE", "CONTENT", "ANNOUNCEMENT", "REVIEW", "PAYMENT", "RESULT_CORRECTION", "APPOINTMENT", "VISIT", "DIAGNOSTIC");
     private final ActivityLogRepository reader;
     public ActivityLogServiceImpl(ActivityLogRepository reader) {
         this.reader = reader;
