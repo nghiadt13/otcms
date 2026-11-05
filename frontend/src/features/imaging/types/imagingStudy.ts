@@ -24,7 +24,7 @@ export type ImagingPatientRef = Pick<
   "id" | "fullName" | "relationship"
 >;
 
-/** Dòng danh sách `/portal/images`: không có `viewerUrl`. */
+/** Dòng danh sách `/portal/images`; study UID chỉ có trong response chi tiết. */
 export interface PatientImagingStudySummary {
   id: string;
   visitId: string;
@@ -38,9 +38,9 @@ export interface PatientImagingStudySummary {
   finding: string | null;
 }
 
-/** Chi tiết study. `viewerUrl` có hạn, do BE cấp; null khi chưa mở được trình xem. */
+/** Chi tiết study. UID chỉ dùng làm khóa DICOMweb của OHIF; grant do BE giữ trong cookie HttpOnly. */
 export interface PatientImagingStudy extends PatientImagingStudySummary {
-  viewerUrl: string | null;
+  studyInstanceUid: string;
 }
 
 export interface ImagingStudyListQuery {

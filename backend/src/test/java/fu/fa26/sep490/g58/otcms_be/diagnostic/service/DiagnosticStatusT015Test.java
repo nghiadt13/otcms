@@ -95,6 +95,31 @@ class DiagnosticStatusT015Test {
         assertEquals(1, result.totalItems());
         assertEquals(roomId, result.items().getFirst().roomId());
         assertEquals(DiagnosticRequestStatus.PENDING, result.items().getFirst().status());
+        assertEquals(null, result.items().getFirst().attemptId());
+    }
+
+    @Test
+    void assignedUploadProjectionExposesOnlyTheCurrentAttemptForTechnician() {
+        UUID actorId = UUID.randomUUID();
+        UUID visitId = UUID.randomUUID();
+        UUID roomId = UUID.randomUUID();
+        UUID attemptId = UUID.randomUUID();
+        DiagnosticActor actor = DiagnosticActor.user(actorId, AccountRole.IMAGING_TECHNICIAN);
+        DiagnosticRequestJpaEntity request = new DiagnosticRequestJpaEntity(UUID.randomUUID(), visitId,
+                UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), roomId, "MRI", "KNEE", "reason",
+                DiagnosticRequestStatus.IN_PROGRESS, null, null, attemptId);
+        request.setCreatedAt(Instant.parse("2026-11-01T10:00:00Z"));
+        when(roomPort.authorizeAssignedTechnician(roomId, actorId))
+                .thenReturn(new TechnicianRoomAssignment(roomId, actorId, true));
+        when(requests.findAllByRoomIdAndStatusInOrderByCreatedAtDescIdDesc(eq(roomId), any(), any()))
+                .thenReturn(new PageImpl<>(List.of(request), PageRequest.of(0, 100), 1));
+
+        var result = service.listTechnicianUploadWork(actor, roomId, 0, 20);
+
+        assertEquals(attemptId, result.items().getFirst().attemptId());
+        assertEquals(request.getId(), result.items().getFirst().requestId());
+        assertEquals(visitId, result.items().getFirst().visitId());
+        assertEquals(DiagnosticRequestStatus.IN_PROGRESS, result.items().getFirst().status());
     }
 
     @Test

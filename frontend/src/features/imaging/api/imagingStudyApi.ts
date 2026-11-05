@@ -14,7 +14,6 @@ import {
   IMAGING_FORBIDDEN_STUDY_ID,
   IMAGING_LIST_ERROR_PATIENT_ID,
   MOCK_STUDIES,
-  mockViewerUrl,
   type MockStudy,
 } from "./imagingStudyMockData";
 
@@ -26,7 +25,7 @@ const latency = (signal?: AbortSignal) =>
 
 /** Kết luận chỉ hiện khi lượt Đã hoàn tất (BE quyết định, FE không tự suy). */
 function toSummary(study: MockStudy): PatientImagingStudySummary {
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- studyUid chỉ dùng dựng viewerUrl, không trả ra ngoài
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- UID chỉ xuất hiện ở API chi tiết.
   const { studyUid, ...summary } = study;
   return {
     ...summary,
@@ -61,7 +60,7 @@ export async function listPatientStudies(
   return clone(paginate(items, query));
 }
 
-/** GET /api/v1/imaging-studies/{id}: `viewerUrl` ngắn hạn do BE cấp; 403 MSG-40, 404 MSG-41. */
+/** GET /api/v1/imaging-studies/{id}: BE supplies the opaque study ref and DICOM Study UID. */
 export async function getPatientStudy(
   id: string,
   signal?: AbortSignal,
@@ -77,6 +76,6 @@ export async function getPatientStudy(
   if (!found) mockFail(404, "MSG-41");
   return clone({
     ...toSummary(found),
-    viewerUrl: mockViewerUrl(found.studyUid),
+    studyInstanceUid: found.studyUid,
   });
 }

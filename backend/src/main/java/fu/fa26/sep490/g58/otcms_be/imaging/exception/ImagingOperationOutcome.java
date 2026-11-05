@@ -1,0 +1,13 @@
+package fu.fa26.sep490.g58.otcms_be.imaging.exception;
+
+public enum ImagingOperationOutcome {
+    UNAUTHORIZED_RECORD,
+    RECORD_NOT_FOUND,
+    STATE_CONFLICT,
+    VERSION_CONFLICT,
+    IDEMPOTENCY_CONFLICT,
+    FILE_INVALID,
+    DEPENDENCY_UNAVAILABLE,
+    EVIDENCE_MISMATCH,
+    RECONCILIATION_REQUIRED
+}

@@ -1,8 +1,5 @@
-import { ExternalLink } from "lucide-react";
-import { useId, type ReactNode } from "react";
+import { type ReactNode } from "react";
 import { StatusBadge } from "@/components/admin/StatusBadge";
-import { publicButtonClass } from "@/components/brand/publicButtonStyles";
-import { Button } from "@/components/ui/button";
 import { CARE_RELATIONSHIP_LABELS } from "@/lib/domain/careRelationship";
 import {
   VISIT_STATUS_LABELS,
@@ -13,6 +10,7 @@ import {
   IMAGING_MODALITY_LABELS,
   type PatientImagingStudy,
 } from "../types/imagingStudy";
+import { ImagingViewerLauncher } from "./ImagingViewerLauncher";
 
 function Field({ label, value }: { label: string; value: ReactNode }) {
   return (
@@ -24,12 +22,10 @@ function Field({ label, value }: { label: string; value: ReactNode }) {
 }
 
 /**
- * Thông tin study, kết luận (chỉ khi lượt đã hoàn tất) và nút mở trình xem ảnh.
- * Trình xem mở ở tab mới bằng `viewerUrl` do BE cấp; FE không tự ghép URL.
+ * Thông tin study, kết luận (chỉ khi lượt đã hoàn tất) và luồng cấp quyền mở ảnh.
+ * Viewer grant do BE giữ trong cookie HttpOnly; UI chỉ ghép đường dẫn cùng origin cho Study UID.
  */
 export function PatientStudyDetail({ study }: { study: PatientImagingStudy }) {
-  const hintId = useId();
-  const { viewerUrl } = study;
   return (
     <div className="space-y-8">
       <dl className="grid gap-x-6 gap-y-4 sm:grid-cols-[minmax(0,11rem)_minmax(0,1fr)]">
@@ -75,22 +71,7 @@ export function PatientStudyDetail({ study }: { study: PatientImagingStudy }) {
       </section>
 
       <section aria-label="Trình xem ảnh" className="space-y-3 border-t pt-6">
-        <Button
-          className={publicButtonClass("primary")}
-          disabled={!viewerUrl}
-          aria-describedby={hintId}
-          onClick={() => {
-            if (viewerUrl) window.open(viewerUrl, "_blank", "noopener");
-          }}
-        >
-          <ExternalLink aria-hidden />
-          Mở trình xem ảnh
-        </Button>
-        <p id={hintId} className="text-base text-muted-foreground">
-          {viewerUrl
-            ? "Ảnh mở ở tab mới."
-            : "Trình xem ảnh tạm thời chưa mở được. Vui lòng thử lại sau."}
-        </p>
+        <ImagingViewerLauncher studyRef={study.id} purpose="PATIENT_VIEW" />
       </section>
     </div>
   );

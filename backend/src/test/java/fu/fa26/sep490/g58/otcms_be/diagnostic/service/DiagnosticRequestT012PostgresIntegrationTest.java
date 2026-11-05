@@ -408,11 +408,11 @@ class DiagnosticRequestT012PostgresIntegrationTest {
         private final PortFakes state;
         FakeStudyPort(PortFakes state) { this.state = state; }
         @Override public StudyEvidence confirmIngestedStudy(UUID eventId, String studyRef, UUID requestId,
-                UUID visitId, UUID patientId, UUID attemptId) {
+                UUID visitId, UUID patientId, UUID attemptId, java.util.List<String> verificationEvidence) {
             state.studyCalls++;
             return state.studyConfirmation == null
                     ? new StudyEvidence(eventId, studyRef, requestId, visitId, patientId, attemptId,
-                            StudyVerificationStatus.CONFIRMED_MATCH, true)
+                            StudyVerificationStatus.CONFIRMED_MATCH, true, verificationEvidence)
                     : state.studyConfirmation;
         }
         @Override public fu.fa26.sep490.g58.otcms_be.diagnostic.integration.DiagnosticPortModels.ViewAuthorization

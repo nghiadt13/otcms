@@ -37,7 +37,8 @@ public class SecurityConfig {
                 .exceptionHandling(errors -> errors.authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
                 .authorizeHttpRequests(authorize -> authorize
                         .requestMatchers("/api/auth/**", "/swagger-ui/**", "/swagger-ui.html",
-                                "/v3/api-docs", "/v3/api-docs/**", "/api/v1/payment-webhooks/payos").permitAll()
+                                "/v3/api-docs", "/v3/api-docs/**", "/api/v1/payment-webhooks/payos",
+                                "/dicom-web/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/auth/staff/administrator/login").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/clinic-services", "/api/v1/doctors",
                                 "/api/v1/doctors/**", "/api/v1/appointments/availability",

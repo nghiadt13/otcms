@@ -15,6 +15,8 @@ public interface DiagnosticFindingsVersionJpaRepository
 
     Optional<DiagnosticFindingsVersionJpaEntity> findByIdAndRequestId(UUID id, UUID requestId);
 
+    Optional<DiagnosticFindingsVersionJpaEntity> findByRequestIdAndRequiredPdfReportId(UUID requestId, UUID reportId);
+
     Optional<DiagnosticFindingsVersionJpaEntity> findFirstByRequestIdAndStateOrderByVersionNumberDesc(
             UUID requestId, DiagnosticFindingsVersionState state);
 }

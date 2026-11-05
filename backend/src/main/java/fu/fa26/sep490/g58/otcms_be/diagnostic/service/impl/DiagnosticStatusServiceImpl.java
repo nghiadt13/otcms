@@ -9,6 +9,8 @@ import fu.fa26.sep490.g58.otcms_be.diagnostic.integration.RoomStatusAccessPort;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.integration.VisitDiagnosticPort;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.integration.VisitDiagnosticReadPort;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.model.DiagnosticActor;
+import fu.fa26.sep490.g58.otcms_be.diagnostic.model.DiagnosticAssignedUploadWorkItem;
+import fu.fa26.sep490.g58.otcms_be.diagnostic.model.DiagnosticAssignedUploadWorkPage;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.model.DiagnosticOperationalStatus;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.model.DiagnosticOperationalStatusPage;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.DiagnosticRequestJpaEntity;
@@ -65,13 +67,13 @@ public class DiagnosticStatusServiceImpl implements DiagnosticStatusService {
 
     @Override
     @Transactional(readOnly = true)
-    public DiagnosticOperationalStatusPage listTechnicianUploadWork(
+    public DiagnosticAssignedUploadWorkPage listTechnicianUploadWork(
             DiagnosticActor actor, UUID roomId, int page, int size) {
         requirePage(page, size);
         requireTechnician(actor);
         long first = (long) page * size;
         long last = first + size;
-        List<DiagnosticOperationalStatus> selected = new ArrayList<>(size);
+        List<DiagnosticAssignedUploadWorkItem> selected = new ArrayList<>(size);
         Map<UUID, Boolean> roomAssignments = new HashMap<>();
         int batchNumber = 0;
         long authorizedCount = 0;
@@ -90,11 +92,11 @@ public class DiagnosticStatusServiceImpl implements DiagnosticStatusService {
                             && actor.accountId().equals(assignment.actorId());
                 });
                 if (!assigned) continue;
-                if (authorizedCount >= first && authorizedCount < last) selected.add(toStatus(request));
+                if (authorizedCount >= first && authorizedCount < last) selected.add(toAssignedUploadWork(request));
                 authorizedCount++;
             }
         } while (batch.hasNext());
-        return new DiagnosticOperationalStatusPage(selected, page, size, authorizedCount);
+        return new DiagnosticAssignedUploadWorkPage(selected, page, size, authorizedCount);
     }
 
     @Override
@@ -175,6 +177,12 @@ public class DiagnosticStatusServiceImpl implements DiagnosticStatusService {
         return new DiagnosticOperationalStatus(request.getId(), request.getVisitId(), request.getImagingType(),
                 request.getRoomId(), request.getStatus(), request.getVersion(), request.getCreatedAt(),
                 request.getUpdatedAt());
+    }
+
+    private DiagnosticAssignedUploadWorkItem toAssignedUploadWork(DiagnosticRequestJpaEntity request) {
+        return new DiagnosticAssignedUploadWorkItem(request.getId(), request.getCurrentAttemptId(),
+                request.getVisitId(), request.getImagingType(), request.getRoomId(), request.getStatus(),
+                request.getVersion(), request.getCreatedAt(), request.getUpdatedAt());
     }
 
     private DiagnosticOperationException unavailable() {

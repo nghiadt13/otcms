@@ -2,6 +2,7 @@ package fu.fa26.sep490.g58.otcms_be.diagnostic.integration;
 
 import java.time.Instant;
 import java.util.Objects;
+import java.util.List;
 import java.util.UUID;
 
 /** Value types exchanged with owning features; never backed by their repositories/entities. */
@@ -59,7 +60,7 @@ public final class DiagnosticPortModels {
 
     public record StudyEvidence(UUID eventId, String studyRef, UUID requestId, UUID visitId,
             UUID patientId, UUID attemptId, StudyVerificationStatus verificationStatus,
-            boolean ingestComplete) {
+            boolean ingestComplete, List<String> verificationEvidence) {
         public StudyEvidence {
             Objects.requireNonNull(eventId, "eventId");
             Objects.requireNonNull(studyRef, "studyRef");
@@ -68,10 +69,26 @@ public final class DiagnosticPortModels {
             Objects.requireNonNull(patientId, "patientId");
             Objects.requireNonNull(attemptId, "attemptId");
             Objects.requireNonNull(verificationStatus, "verificationStatus");
+            verificationEvidence = List.copyOf(verificationEvidence);
+            if (verificationEvidence.stream().anyMatch(value -> value == null
+                    || !value.matches("[A-Z][A-Z0-9_]{0,63}"))) {
+                throw new IllegalArgumentException("verification evidence must contain safe stable codes");
+            }
+        }
+
+        public StudyEvidence(UUID eventId, String studyRef, UUID requestId, UUID visitId,
+                UUID patientId, UUID attemptId, StudyVerificationStatus verificationStatus,
+                boolean ingestComplete) {
+            this(eventId, studyRef, requestId, visitId, patientId, attemptId, verificationStatus,
+                    ingestComplete, List.of());
         }
     }
 
-    public record ViewAuthorization(boolean allowed, Instant expiresAt) { }
+    public record ViewAuthorization(boolean allowed, Instant expiresAt, String authorizedVersionRef) {
+        public ViewAuthorization(boolean allowed, Instant expiresAt) {
+            this(allowed, expiresAt, null);
+        }
+    }
 
     public record FindingsReleaseEvent(UUID eventId, UUID requestId, UUID visitId, UUID patientId,
             String studyRef, UUID findingsVersionId, UUID reportId, String reportSha256) { }

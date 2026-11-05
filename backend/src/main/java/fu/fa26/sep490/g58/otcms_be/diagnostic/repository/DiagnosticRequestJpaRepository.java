@@ -16,6 +16,16 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 public interface DiagnosticRequestJpaRepository extends JpaRepository<DiagnosticRequestJpaEntity, UUID> {
+    @Query("""
+            select request from DiagnosticRequestJpaEntity request
+             where request.currentAttemptId is not null
+               and exists (select attempt.id from DiagnosticAttemptJpaEntity attempt
+                            where attempt.requestId = request.id
+                              and attempt.id = request.currentAttemptId
+                              and attempt.studyRef = :studyRef)
+            """)
+    Optional<DiagnosticRequestJpaEntity> findByCurrentStudyRef(@Param("studyRef") String studyRef);
+
     Optional<DiagnosticRequestJpaEntity> findFirstByServiceOrderIdOrderByCreatedAtDescIdDesc(UUID serviceOrderId);
 
     // Same transaction as the Clinical order/replay. Partial unique index V097 serializes concurrent registration.

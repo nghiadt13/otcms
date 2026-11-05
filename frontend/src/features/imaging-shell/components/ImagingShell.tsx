@@ -48,7 +48,23 @@ function ShellContent({ children }: { children: ReactNode }) {
 
   if (pathname === "/imaging/login")
     return <div className="imaging">{children}</div>;
-  if (!ready || checking || !session)
+  if (checking || !session)
+    return (
+      <div
+        className="space-y-4 p-6"
+        role="status"
+        aria-label="Đang mở không gian làm việc"
+      >
+        <Skeleton className="h-8 w-64" />
+        <Skeleton className="h-64 w-full" />
+      </div>
+    );
+
+  // The real upload worklist and operation screens do not consume demo imaging state.
+  if (pathname === "/imaging/orders" || pathname.startsWith("/imaging/orders/"))
+    return <div className="imaging min-h-dvh">{children}</div>;
+
+  if (!ready)
     return (
       <div
         className="space-y-4 p-6"

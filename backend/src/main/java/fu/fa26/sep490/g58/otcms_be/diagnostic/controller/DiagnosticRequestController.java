@@ -10,6 +10,8 @@ import fu.fa26.sep490.g58.otcms_be.diagnostic.model.dto.DiagnosticDtos.Cancellat
 import fu.fa26.sep490.g58.otcms_be.diagnostic.model.dto.DiagnosticDtos.ImagingRequest;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.model.dto.DiagnosticDtos.OperationalRequestStatus;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.model.dto.DiagnosticDtos.OperationalStatusPage;
+import fu.fa26.sep490.g58.otcms_be.diagnostic.model.DiagnosticAssignedUploadWorkPage;
+import fu.fa26.sep490.g58.otcms_be.diagnostic.model.dto.DiagnosticDtos.AssignedTechnicianUploadWorkPage;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.service.DiagnosticRequestService;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.service.DiagnosticStatusService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -63,13 +65,14 @@ public class DiagnosticRequestController {
 
     @GetMapping("/imaging-requests/assigned-upload-work")
     @Operation(operationId = "listAssignedUploadWork", summary = "List operational upload/send work assigned to this Technician")
-    public OperationalStatusPage assignedUploadWork(
+    public AssignedTechnicianUploadWorkPage assignedUploadWork(
             @Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedAccount principal,
             @RequestParam(required = false) UUID roomId,
             @RequestParam(defaultValue = "0") @Min(0) int page,
             @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size) {
-        return mapper.toOperationalStatusPage(
-                statuses.listTechnicianUploadWork(actor(principal), roomId, page, size));
+        DiagnosticAssignedUploadWorkPage work = statuses.listTechnicianUploadWork(
+                actor(principal), roomId, page, size);
+        return mapper.toAssignedTechnicianUploadWorkPage(work);
     }
 
     @GetMapping("/imaging-requests/{requestId}")
