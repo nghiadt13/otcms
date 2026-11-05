@@ -183,8 +183,10 @@ class ClinicalImagingRequestServiceImplTest {
 
     private ClinicalImagingRequestService serviceUsing(ClinicServiceCatalogPort catalogPort) {
         var preparation = new ClinicalOrderPreparationService(visits, catalogPort);
-        var writer = new ClinicalOrderingTransactionService(rounds, orders, clock);
-        return new ClinicalImagingRequestServiceImpl(new ClinicalImagingRequestTransactionService(preparation, writer, replays, rounds, orders, clock, diagnostic));
+        var writer = new ClinicalOrderingTransactionService(rounds, orders, clock,
+                mock(fu.fa26.sep490.g58.otcms_be.common.service.CoordinationGuardService.class), preparation);
+        return new ClinicalImagingRequestServiceImpl(new ClinicalImagingRequestTransactionService(preparation, writer, replays, rounds, orders, clock, diagnostic,
+                mock(fu.fa26.sep490.g58.otcms_be.common.service.CoordinationGuardService.class)));
     }
 
     private ImagingRequestCommand command(String key) { return new ImagingRequestCommand(visitId, doctorId, key, List.of(order())); }

@@ -33,7 +33,7 @@ Status describes source-backed backend capability, not deployment approval or da
 | UC25 | View Room Queue | BLOCKED | No room waiting-list entity/repository/API; room reservations and care assignments represent occupancy, not a queue | Production room/Doctor queue model and actor-scoped read contract | No | Queue inventory V017/V023 and existing blocker record |
 | UC26 | Change Queue Order | BLOCKED | V023 reception FIFO ordered arrivedAt/id, immutable/history-preserving exits; no reorder position/reason command | Approved reordering semantics and history contract | No | Cannot fabricate positions or mutate arrival evidence |
 | UC27 | View Visit Progress | PARTIAL | Existing endpoint now supports Patient self/dependent, active Receptionist and responsible current Doctor; stage/current room/reception position; VisitProgress authorization/HTTP tests | Technician scope, canonical completed-service projection and missing room queue | Implemented safe staff read; remaining extensions BLOCKED | Technician responsibility/service lifecycle and queue owner contracts missing |
-| UC28 | Close Patient Visit | BLOCKED | WalkInVisitLifecycleController/service currently Doctor-only, WALK_IN-only, checks in-progress assignments; UC28 says Receptionist/all required services | Actor, scheduled-Visit closure and canonical required-service completion contract conflict | No policy change before decision | BR-37 and current implementation/spec disagreement; team question pending |
+| UC28 | Close Patient Visit | PARTIAL | Receptionist-only lifecycle/controller, active account, OPEN walk-in/scheduled Visit, locked Clinical completion composition; VisitClosure and ClinicalClosureCoordination tests; additive V102 | Required imaging findings completion cannot be proven by an existing public Diagnostic query | Safe non-imaging closure implemented; imaging fails closed | Diagnostic owner must expose trusted per-required-order completed/released findings evidence; RESULTS_AVAILABLE/REVIEWED alone is insufficient |
 | UC29 | Record Orthopedic Examination | IMPLEMENTED | ClinicalExaminationController/service; active responsible Doctor/current Visit, DRAFT/COMPLETED validation and diagnosis owner persistence; Examination/DoctorCore tests | — | No new work | Completion is not UC34 Patient release |
 | UC30 | Upload Medical Document | IMPLEMENTED | ClinicalMedicalDocument multipart API/service; Doctor/Receptionist scope, patient derived from Visit, file validation and atomic payload write; MedicalDocument tests | — | No new work | V100 DB suites blocked |
 | UC31 | Update Medical Document | IMPLEMENTED | Doctor/version-CAS metadata/payload replacement; released records immutable; MedicalDocument service/controller tests | — | No new work | No payload overwrite after release |
@@ -150,7 +150,7 @@ Initial broad selector `*Test,*Tests,!*Postgres*,!*Database*,!OtcmsBeApplication
 - Frontend and migration diffs against 4fdfda2: EMPTY. V099 Prescription, V100 Medical Documents and V101 Visit/Diagnostic receipts remain tracked and unchanged. No new migration/version reserved. Fetched origin/product currently ends at V099; no remote branch was merged or copied.
 - Working tree was clean after each implementation commit. No unrelated/untracked user file was staged, discarded or deleted. No push, PR, merge, rebase or reset was performed.
 
-Counts across exactly 69 rows: **48 IMPLEMENTED, 16 PARTIAL, 4 BLOCKED, 1 OWNED BY EXISTING EXTERNAL FEATURE, 0 MISSING, 0 OUT OF SCOPE**. PARTIAL does not mean complete: its remaining portion is explicitly blocked or requires the bounded decision stated in its row. These are source/logic coverage classifications, not database/deployment approval.
+Counts across exactly 69 rows: **48 IMPLEMENTED, 17 PARTIAL, 3 BLOCKED, 1 OWNED BY EXISTING EXTERNAL FEATURE, 0 MISSING, 0 OUT OF SCOPE**. PARTIAL does not mean complete: its remaining portion is explicitly blocked or requires the bounded decision stated in its row. These are source/logic coverage classifications, not database/deployment approval.
 
 ## Blocking evidence and minimum decisions
 
@@ -223,3 +223,11 @@ backend/src/test/java/fu/fa26/sep490/g58/otcms_be/patient/PatientClinicalIdentit
 backend/src/test/java/fu/fa26/sep490/g58/otcms_be/visit/VisitProgressAuthorizationTest.java
 backend/src/test/java/fu/fa26/sep490/g58/otcms_be/visit/VisitProgressControllerTest.java
 ```
+
+## Phase 2 ? UC28 checkpoint
+
+The explicit UC28 actor decision in the continuation task supersedes the earlier actor question. Closure now requires active Receptionist, OPEN Visit, no IN_PROGRESS care, existing COMPLETED examination, zero outstanding orders and all non-cancelled order results. Required imaging fails closed: none of the existing Diagnostic public APIs proves per-order completed/released findings for a current Visit. No payment gate, invoice creation, draft release, prescription issuance or clinical-history mutation is added.
+
+Existing transaction guard ? Visit row lock ? Clinical owner read ? closure/release/audit/notification all share the transaction. Examination writes, generic order submission and UC38 acquire the same guard before their first Visit read; the order writer also rechecks current care under the guard. This includes the UC38 replay transaction and avoids an early cached Visit read winning after closure. See backend-completion-phase2-action-record.md. New V102 is required for the database queue actor and scheduled closure audit; applied V027 is unchanged.
+
+Focused UC28/Clinical/Diagnostic/Billing/notification/review compatibility: 580 PASS after updating test constructor/wiring fixtures and expected eligibility recheck count. Initial fixture-only failures were corrected; no specification workaround. PostgreSQL migration and race execution remain unverified pending DB availability.

@@ -22,12 +22,14 @@ public class ClinicalImagingRequestTransactionService {
     private final OrderingRoundRepository rounds;
     private final ServiceOrderRepository orders;
     private final Clock clock;
+    private final fu.fa26.sep490.g58.otcms_be.common.service.CoordinationGuardService guard;
     private final fu.fa26.sep490.g58.otcms_be.diagnostic.service.DiagnosticImagingRequestRegistration diagnostic;
 
     public ClinicalImagingRequestTransactionService(ClinicalOrderPreparationService preparation,
             ClinicalOrderingTransactionService writer, ClinicalImagingRequestReplayRepository replays,
             OrderingRoundRepository rounds, ServiceOrderRepository orders, Clock clock,
-            fu.fa26.sep490.g58.otcms_be.diagnostic.service.DiagnosticImagingRequestRegistration diagnostic) {
+            fu.fa26.sep490.g58.otcms_be.diagnostic.service.DiagnosticImagingRequestRegistration diagnostic,
+            fu.fa26.sep490.g58.otcms_be.common.service.CoordinationGuardService guard) {
         this.preparation = preparation;
         this.writer = writer;
         this.replays = replays;
@@ -35,10 +37,12 @@ public class ClinicalImagingRequestTransactionService {
         this.orders = orders;
         this.clock = clock;
         this.diagnostic = diagnostic;
+        this.guard = guard;
     }
 
     @Transactional
     public SubmissionResult submit(ImagingRequestCommand command, String fingerprint) {
+        guard.acquire();
         var existing = replays.findByDoctorProfileIdAndIdempotencyKey(command.doctorProfileId(), command.idempotencyKey());
         if (existing.isPresent()) return replay(command, fingerprint, existing.get());
         var context = preparation.requireCurrentCare(command.visitId(), command.doctorProfileId());
@@ -56,6 +60,7 @@ public class ClinicalImagingRequestTransactionService {
     /** Called only outside the failed attempt transaction, after its rollback has completed. */
     @Transactional
     public Optional<SubmissionResult> recoverReplay(ImagingRequestCommand command, String fingerprint) {
+        guard.acquire();
         return replays.findByDoctorProfileIdAndIdempotencyKey(command.doctorProfileId(), command.idempotencyKey())
                 .map(existing -> replay(command, fingerprint, existing));
     }

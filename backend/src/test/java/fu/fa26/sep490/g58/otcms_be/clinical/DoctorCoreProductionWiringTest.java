@@ -317,6 +317,12 @@ class DoctorCoreProductionWiringTest {
             DiagnosticImagingRequestRegistrationImpl.class, DiagnosticStatusServiceImpl.class, DiagnosticRequestServiceImpl.class,
             DiagnosticAuthorizationPolicyImpl.class, DiagnosticTransitionPolicyImpl.class, DiagnosticFindingsServiceImpl.class, DiagnosticHistoryServiceImpl.class})
     static class ProductionConfiguration {
+        @Bean fu.fa26.sep490.g58.otcms_be.common.service.CoordinationGuardService coordinationGuard() {
+            var persistence = mock(fu.fa26.sep490.g58.otcms_be.common.repository.CoordinationGuardRepository.class);
+            when(persistence.transactionIsolation()).thenReturn("read committed");
+            when(persistence.lockGuardRow()).thenReturn(true);
+            return new fu.fa26.sep490.g58.otcms_be.common.service.impl.CoordinationGuardServiceImpl(persistence);
+        }
         @Bean Clock clock() { return Clock.systemUTC(); }
         @Bean RecordingTransactions transactionManager() { return new RecordingTransactions(); }
         @Bean static BeanFactoryPostProcessor persistenceOnlyDoubles() {

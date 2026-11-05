@@ -3,12 +3,14 @@ import fu.fa26.sep490.g58.otcms_be.clinical.exception.ClinicalOperationException
 import java.time.Clock; import java.time.Instant; import java.util.*; import java.util.regex.Pattern; import org.springframework.stereotype.Service; import org.springframework.transaction.annotation.Transactional;
 @Service public class ClinicalExaminationServiceImpl implements ClinicalExaminationService {
  private static final Pattern ICD=Pattern.compile("(?i)^[MS][0-9]{2}(\\.[A-Z0-9]{1,4})?$");
+ private final fu.fa26.sep490.g58.otcms_be.common.service.CoordinationGuardService guard;
  private final VisitClinicalContextPort visits; private final ClinicalExaminationRepository exams; private final ClinicalDiagnosisRepository diagnoses; private final Clock clock;
- public ClinicalExaminationServiceImpl(VisitClinicalContextPort visits,ClinicalExaminationRepository exams,ClinicalDiagnosisRepository diagnoses,Clock clock){this.visits=visits;this.exams=exams;this.diagnoses=diagnoses;this.clock=clock;}
+ public ClinicalExaminationServiceImpl(VisitClinicalContextPort visits,ClinicalExaminationRepository exams,ClinicalDiagnosisRepository diagnoses,Clock clock,fu.fa26.sep490.g58.otcms_be.common.service.CoordinationGuardService guard){this.guard=guard;this.visits=visits;this.exams=exams;this.diagnoses=diagnoses;this.clock=clock;}
  @Override @Transactional public ExaminationView saveDraft(ExaminationCommand c){return save(c,ClinicalExaminationStatus.DRAFT);}
  @Override @Transactional public ExaminationView completeExamination(ExaminationCommand c){return save(c,ClinicalExaminationStatus.COMPLETED);}
  private ExaminationView save(ExaminationCommand c,ClinicalExaminationStatus status){
   if(c==null)throw new ClinicalOperationException("MSG-39");
+  guard.acquire();
   var ctx=requireResponsibleDoctor(c.visitId(),c.doctorId());
   if(!ctx.clinicalWorkAllowed())throw new ClinicalOperationException("MSG-42"); var ds=c.diagnoses()==null?List.<Diagnosis>of():c.diagnoses(); if(status==ClinicalExaminationStatus.COMPLETED){if(blank(c.reasonForVisit())||blank(c.symptoms())||blank(c.examinationFindings())||ds.stream().filter(d->d!=null&&d.type()==DiagnosisType.PRIMARY).count()!=1||ds.stream().anyMatch(d->d==null||d.type()==null||d.code()==null||!ICD.matcher(d.code()).matches()))throw new ClinicalOperationException("MSG-08");}
  Instant now=clock.instant(); var e=exams.findByVisitId(c.visitId()).orElseGet(()->ClinicalExaminationJpaEntity.create(c.visitId(),c.reasonForVisit(),c.symptoms(),c.examinationFindings(),c.injuryBodySite(),c.injurySide(),c.injuryMechanism(),status,now)); e.update(c.reasonForVisit(),c.symptoms(),c.examinationFindings(),c.injuryBodySite(),c.injurySide(),c.injuryMechanism(),status,now); e=exams.save(e); diagnoses.deleteByExaminationId(e.getId()); for(var d:ds){if(d==null||d.type()==null||d.code()==null||!ICD.matcher(d.code()).matches())throw new ClinicalOperationException("MSG-08");diagnoses.save(new ClinicalDiagnosisJpaEntity(e.getId(),d.code().toUpperCase(Locale.ROOT),d.type()));} return view(e,ds); }

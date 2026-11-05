@@ -1,11 +1,10 @@
 package fu.fa26.sep490.g58.otcms_be.visit.service.impl;
 import fu.fa26.sep490.g58.otcms_be.notification.model.NotificationMessages;
 import fu.fa26.sep490.g58.otcms_be.notification.service.NotificationPublisher;
-import fu.fa26.sep490.g58.otcms_be.staff.service.DoctorProfileIdentityQueryService;
 import fu.fa26.sep490.g58.otcms_be.staff.service.StaffAvailabilityProviderQueryService;
 import fu.fa26.sep490.g58.otcms_be.visit.service.VisitReviewSourceService;
 
-import fu.fa26.sep490.g58.otcms_be.auth.service.DoctorAccountAccessService;
+import fu.fa26.sep490.g58.otcms_be.clinical.service.ClinicalVisitCompletionEvidenceService;
 import fu.fa26.sep490.g58.otcms_be.auth.service.ReceptionistAccountAccessService;
 import fu.fa26.sep490.g58.otcms_be.common.security.AccountRole;
 import fu.fa26.sep490.g58.otcms_be.common.service.CoordinationGuardService;
@@ -30,30 +29,28 @@ public class WalkInVisitLifecycleServiceImpl implements WalkInVisitLifecycleServ
     private final VisitAuditJpaRepository audits;
     private final ExitWalkInReceptionQueueService queueExit;
     private final ReceptionistAccountAccessService receptionists;
-    private final DoctorAccountAccessService doctors;
+    private final ClinicalVisitCompletionEvidenceService clinical;
     private final Clock clock;
     private final NotificationPublisher notifications;
     private final VisitReviewSourceService reviewSources;
-    private final DoctorProfileIdentityQueryService doctorProfiles;
     private final StaffAvailabilityProviderQueryService doctorNames;
 
     public WalkInVisitLifecycleServiceImpl(CoordinationGuardService guard, ClinicVisitJpaRepository visits,
             WalkInVisitLifecycleRepository lifecycle, VisitAuditJpaRepository audits,
             ExitWalkInReceptionQueueService queueExit, ReceptionistAccountAccessService receptionists,
-            DoctorAccountAccessService doctors, Clock clock,
+            ClinicalVisitCompletionEvidenceService clinical, Clock clock,
             NotificationPublisher notifications, VisitReviewSourceService reviewSources,
-            DoctorProfileIdentityQueryService doctorProfiles, StaffAvailabilityProviderQueryService doctorNames) {
+            StaffAvailabilityProviderQueryService doctorNames) {
         this.guard = guard;
         this.visits = visits;
         this.lifecycle = lifecycle;
         this.audits = audits;
         this.queueExit = queueExit;
         this.receptionists = receptionists;
-        this.doctors = doctors;
+        this.clinical = clinical;
         this.clock = clock;
         this.notifications = notifications;
         this.reviewSources = reviewSources;
-        this.doctorProfiles = doctorProfiles;
         this.doctorNames = doctorNames;
     }
 
@@ -73,43 +70,56 @@ public class WalkInVisitLifecycleServiceImpl implements WalkInVisitLifecycleServ
         if (lifecycle.hasCareStarted(visitId)) {
             throw new VisitOperationException("VISIT_CANCELLATION_NOT_ALLOWED");
         }
-        closeAndRecord(visitId, actorAccountId, actorRole, correlationId, "CANCELLED", clock.instant());
+        closeAndRecord(visitId, actorAccountId, actorRole, correlationId, "CANCELLED", clock.instant(), true);
     }
 
     @Override
     @Transactional
     public void close(UUID visitId, UUID actorAccountId, AccountRole actorRole, String correlationId) {
         validate(visitId, actorAccountId, actorRole, correlationId);
-        if (actorRole != AccountRole.DOCTOR || !doctors.isActiveDoctorAccount(actorAccountId)) {
+        if (actorRole != AccountRole.RECEPTIONIST || !receptionists.isActiveReceptionistAccount(actorAccountId)) {
             throw new VisitOperationException("ACCESS_DENIED");
         }
         guard.acquire();
         var visit = visits.findByIdForUpdate(visitId)
                 .orElseThrow(() -> new VisitOperationException("RESOURCE_NOT_FOUND"));
-        if (!"WALK_IN".equals(visit.getSource()) || !"OPEN".equals(visit.getStatus())
-                || lifecycle.hasInProgressCare(visitId)) {
+        if (!"OPEN".equals(visit.getStatus()) || lifecycle.hasInProgressCare(visitId)) {
+            throw new VisitOperationException("VISIT_CARE_NOT_CHANGEABLE");
+        }
+        // Guard and Visit row lock remain held through the owner read and commit.
+        var evidence = clinical.getCompletionEvidence(visitId);
+        if (evidence == null || !visitId.equals(evidence.visitId()) || !evidence.examinationExists()
+                || !evidence.examinationCompleted() || evidence.outstandingOrderCount() != 0
+                || !evidence.allNonCancelledOrdersHaveResults() || !evidence.imagingOrderIds().isEmpty()) {
+            // RESULT_AVAILABLE is not completed/released findings. Diagnostic currently has no
+            // trusted per-order completion query for UC28; fail closed for required imaging.
             throw new VisitOperationException("VISIT_CARE_NOT_CHANGEABLE");
         }
         var closedAt = clock.instant();
-        closeAndRecord(visitId, actorAccountId, actorRole, correlationId, "VISIT_CLOSED", closedAt);
+        closeAndRecord(visitId, actorAccountId, actorRole, correlationId, "VISIT_CLOSED", closedAt, "WALK_IN".equals(visit.getSource()));
         UUID treatingDoctor = reviewSources.find(visitId).map(VisitReviewSourceService.Source::doctorProfileId)
-                .orElseGet(() -> doctorProfiles.findDoctorProfileId(actorAccountId).orElse(null));
+                .orElse(null);
         String doctorName = treatingDoctor == null ? "" : doctorNames.findDoctorDisplayName(treatingDoctor).orElse("");
         notifications.publishToPatient(visit.getPatientProfileId(),
                 NotificationMessages.visitClosedReviewInvite(visitId, closedAt, doctorName));
     }
 
     private void closeAndRecord(UUID visitId, UUID actorAccountId, AccountRole actorRole, String correlationId,
-            String reason, java.time.Instant now) {
-        queueExit.exit(new ExitWalkInReceptionQueueCommand(visitId, actorAccountId, actorRole,
-                reason, now, correlationId));
-        if (!lifecycle.closeOpenWalkIn(visitId, now)) {
+            String reason, java.time.Instant now, boolean walkIn) {
+        if (walkIn) {
+            queueExit.exit(new ExitWalkInReceptionQueueCommand(visitId, actorAccountId, actorRole,
+                    reason, now, correlationId));
+        }
+        boolean closed = "CANCELLED".equals(reason)
+                ? lifecycle.closeOpenWalkIn(visitId, now) : lifecycle.closeOpenVisit(visitId, now);
+        if (!closed) {
             throw new VisitOperationException("VISIT_CARE_NOT_CHANGEABLE");
         }
         lifecycle.releaseReservedCare(visitId, now);
         VisitAuditJpaEntity audit = "CANCELLED".equals(reason)
                 ? VisitAuditJpaEntity.walkInCancelled(actorAccountId, visitId, now, correlationId)
-                : VisitAuditJpaEntity.walkInClosed(actorAccountId, visitId, now, correlationId);
+                : walkIn ? VisitAuditJpaEntity.walkInClosed(actorAccountId, visitId, now, correlationId)
+                        : VisitAuditJpaEntity.visitClosed(actorAccountId, visitId, now, correlationId);
         audits.saveAndFlush(audit);
     }
 

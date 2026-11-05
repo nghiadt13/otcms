@@ -23,7 +23,7 @@ class ClinicalExaminationServiceImplTest {
     private final UUID doctorId = UUID.randomUUID();
     private ClinicalExaminationJpaEntity savedExamination;
     private final ClinicalExaminationServiceImpl service = new ClinicalExaminationServiceImpl(
-            visits, examinations, diagnoses, Clock.fixed(Instant.parse("2026-11-04T10:00:00Z"), ZoneOffset.UTC));
+            visits, examinations, diagnoses, Clock.fixed(Instant.parse("2026-11-04T10:00:00Z"), ZoneOffset.UTC), mock(fu.fa26.sep490.g58.otcms_be.common.service.CoordinationGuardService.class));
 
     @BeforeEach
     void setUp() {

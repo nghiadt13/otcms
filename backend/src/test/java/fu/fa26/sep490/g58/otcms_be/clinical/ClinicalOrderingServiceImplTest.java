@@ -30,9 +30,12 @@ class ClinicalOrderingServiceImplTest {
     private final UUID imagingId = UUID.randomUUID();
     private final UUID labId = UUID.randomUUID();
     private final ClinicalOrderingTransactionService writer = new ClinicalOrderingTransactionService(rounds, orders,
-            Clock.fixed(Instant.parse("2026-11-04T10:00:00Z"), ZoneOffset.UTC));
+            Clock.fixed(Instant.parse("2026-11-04T10:00:00Z"), ZoneOffset.UTC),
+            mock(fu.fa26.sep490.g58.otcms_be.common.service.CoordinationGuardService.class),
+            new fu.fa26.sep490.g58.otcms_be.clinical.service.impl.ClinicalOrderPreparationService(visits, catalog));
     private final ClinicalOrderingServiceImpl service = new ClinicalOrderingServiceImpl(new fu.fa26.sep490.g58.otcms_be.clinical.service.impl.ClinicalOrderPreparationService(visits, catalog),
-            writer, rounds, orders, Clock.fixed(Instant.parse("2026-11-04T10:00:00Z"), ZoneOffset.UTC));
+            writer, rounds, orders, Clock.fixed(Instant.parse("2026-11-04T10:00:00Z"), ZoneOffset.UTC),
+            mock(fu.fa26.sep490.g58.otcms_be.common.service.CoordinationGuardService.class));
 
     @BeforeEach
     void setUp() {
@@ -63,7 +66,7 @@ class ClinicalOrderingServiceImplTest {
         assertEquals(ServiceOrderPaymentStatus.PENDING_PAYMENT, order.paymentStatus());
         verify(rounds).save(any());
         verify(orders).save(any());
-        verify(visits).getVisitContext(visitId);
+        verify(visits, times(2)).getVisitContext(visitId);
         verifyNoMoreInteractions(visits);
     }
 
@@ -120,7 +123,7 @@ class ClinicalOrderingServiceImplTest {
         when(orders.save(any())).thenThrow(new IllegalStateException("local insert failed"));
         assertThrows(IllegalStateException.class,
                 () -> service.submit(command(request(labId, "Reason", null, null))));
-        verify(visits).getVisitContext(visitId);
+        verify(visits, times(2)).getVisitContext(visitId);
         verifyNoMoreInteractions(visits);
     }
 
@@ -133,7 +136,7 @@ class ClinicalOrderingServiceImplTest {
         var result = service.submit(command(request(labId, "Reason", null, null)));
         assertEquals(ClinicalVisitStatus.OTHER, result.previousVisitStatus());
         assertFalse(result.requiresAwaitingConclusionTransition());
-        verify(visits).getVisitContext(visitId);
+        verify(visits, times(2)).getVisitContext(visitId);
         verifyNoMoreInteractions(visits);
     }
 
