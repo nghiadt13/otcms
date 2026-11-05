@@ -8,6 +8,8 @@ import org.springframework.data.jpa.repository.*;
 import org.springframework.data.repository.query.Param;
 
 public interface ClinicalMedicalDocumentRepository extends JpaRepository<ClinicalMedicalDocumentJpaEntity, UUID> {
+    List<ClinicalMedicalDocumentJpaEntity> findByPatientProfileIdAndVisitIdInAndReleasedAtIsNotNullOrderByCreatedAtDescIdDesc(
+            UUID patientProfileId, Collection<UUID> visitIds);
     List<ClinicalMedicalDocumentJpaEntity> findByVisitIdOrderByCreatedAtDescIdDesc(UUID visitId);
     List<ClinicalMedicalDocumentJpaEntity> findByVisitIdAndReleasedAtIsNotNullOrderByCreatedAtDescIdDesc(UUID visitId);
     List<ClinicalMedicalDocumentJpaEntity> findByVisitIdAndDocumentTypeOrderByCreatedAtDescIdDesc(UUID visitId, ClinicalMedicalDocumentType type);

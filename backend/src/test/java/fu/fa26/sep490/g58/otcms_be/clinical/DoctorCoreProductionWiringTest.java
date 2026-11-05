@@ -203,8 +203,74 @@ class DoctorCoreProductionWiringTest {
                 org.springframework.aop.support.AopUtils.getTargetClass(bean(fu.fa26.sep490.g58.otcms_be.patient.service.PatientProfileAccessService.class)));
     }
 
+    @Test void prescriptionProductionBeansAndUniqueIssuanceMappingAreRegistered() {
+        var handlers = bean(RequestMappingHandlerMapping.class).getHandlerMethods().entrySet().stream().filter(entry ->
+                entry.getKey().getPatternValues().contains("/api/v1/visits/{visitId}/prescription/issuance")
+                        && entry.getKey().getMethodsCondition().getMethods().contains(RequestMethod.POST)).toList();
+        assertEquals(1, handlers.size());
+        assertEquals(ClinicalPrescriptionController.class, handlers.getFirst().getValue().getBeanType());
+        assertEquals(ClinicalPrescriptionServiceImpl.class,
+                org.springframework.aop.support.AopUtils.getTargetClass(bean(ClinicalPrescriptionService.class)));
+        assertEquals(ClinicalPrescriptionHistoryQueryServiceImpl.class,
+                org.springframework.aop.support.AopUtils.getTargetClass(bean(ClinicalPrescriptionHistoryQueryService.class)));
+    }
+
+    @Test void uc33ProductionOwnersRegisterOneGetAndReadThroughRealAdaptersWithAuditTransaction() {
+        var mapping = bean(RequestMappingHandlerMapping.class).getHandlerMethods().entrySet().stream().filter(entry ->
+                entry.getKey().getPatternValues().contains("/api/v1/visits/{currentVisitId}/past-medical-records")
+                        && entry.getKey().getMethodsCondition().getMethods().contains(RequestMethod.GET)).toList();
+        assertEquals(1, mapping.size());
+        when(bean(ClinicVisitJpaRepository.class).findHistoricalVisits(eq(patientId), eq(visitId), any(), any()))
+                .thenReturn(org.springframework.data.domain.Page.empty());
+        when(bean(DiagnosticHistoryAccessAuditJpaRepository.class).save(any())).thenAnswer(call -> {
+            assertInTransaction(); return call.getArgument(0);
+        });
+        var response = bean(ClinicalPastMedicalRecordsService.class).getPastMedicalRecords(visitId, doctorId, accountId, 0, 20);
+        assertTrue(response.items().isEmpty()); assertEquals(patientId, response.patientProfileId());
+        verify(bean(DiagnosticHistoryAccessAuditJpaRepository.class)).save(any());
+        assertEquals(1, bean(RecordingTransactions.class).begins);
+    }
+
+    @Test void uc33DifferentHistoricalDoctorUsesRealOwnersWithoutHistoricalCareAuthorization() {
+        UUID historicalVisit = UUID.randomUUID(), historicalDoctor = UUID.randomUUID(), historicalRequest = UUID.randomUUID();
+        var oldVisit = mock(ClinicVisitJpaEntity.class);
+        when(oldVisit.getId()).thenReturn(historicalVisit);
+        when(oldVisit.getPatientProfileId()).thenReturn(patientId);
+        when(oldVisit.getStatus()).thenReturn("CLOSED");
+        when(oldVisit.getArrivedAt()).thenReturn(Instant.EPOCH.minusSeconds(3600));
+        when(bean(ClinicVisitJpaRepository.class).findHistoricalVisits(eq(patientId), eq(visitId), any(), any()))
+                .thenReturn(new PageImpl<>(List.of(oldVisit)));
+        var prescription = mock(ClinicalPrescriptionJpaEntity.class);
+        when(prescription.getId()).thenReturn(UUID.randomUUID());
+        when(prescription.getVisitId()).thenReturn(historicalVisit);
+        when(prescription.getPatientProfileId()).thenReturn(patientId);
+        when(prescription.getDoctorProfileId()).thenReturn(historicalDoctor);
+        when(prescription.getIssuedAt()).thenReturn(Instant.EPOCH);
+        when(bean(ClinicalPrescriptionRepository.class).findByPatientProfileIdAndVisitIdInAndStatusOrderByIssuedAtDescIdDesc(
+                eq(patientId), eq(Set.of(historicalVisit)), eq(fu.fa26.sep490.g58.otcms_be.clinical.model.ClinicalPrescriptionStatus.ISSUED)))
+                .thenReturn(List.of(prescription));
+        var image = mock(DiagnosticRequestJpaRepository.ReleasedHistoryRow.class);
+        when(image.getPatientId()).thenReturn(patientId);
+        when(image.getVisitId()).thenReturn(historicalVisit);
+        when(image.getRequestId()).thenReturn(historicalRequest);
+        when(image.getStatus()).thenReturn(DiagnosticRequestStatus.REVIEWED);
+        when(image.getFindingsText()).thenReturn("Released historical finding");
+        when(bean(DiagnosticRequestJpaRepository.class).findReleasedPatientHistory(eq(patientId), eq(Set.of(historicalVisit)), any()))
+                .thenReturn(List.of(image));
+        var result = bean(ClinicalPastMedicalRecordsService.class).getPastMedicalRecords(visitId, doctorId, accountId, 0, 20);
+        assertEquals(historicalDoctor, result.items().getFirst().prescription().doctorProfileId());
+        assertEquals(historicalRequest, result.items().getFirst().imagingResults().getFirst().requestId());
+        verify(bean(VisitCareAssignmentRepository.class), never())
+                .findFirstByVisitIdAndStatusOrderByAssignedAtDescIdDesc(eq(historicalVisit), any());
+        verify(bean(DiagnosticHistoryAccessAuditJpaRepository.class)).save(any());
+        verifyNoInteractions(bean(ClinicalMedicalDocumentPayloadRepository.class));
+    }
+
     @Configuration @EnableWebMvc @EnableTransactionManagement(proxyTargetClass = true)
     @Import({ClinicalImagingRequestController.class, ClinicalExaminationController.class, AfterVisitAdviceController.class,
+            ClinicalPastMedicalRecordsController.class, ClinicalPastMedicalRecordsServiceImpl.class,
+            VisitPatientHistoryQueryServiceImpl.class, ClinicalExaminationHistoryQueryServiceImpl.class,
+            ClinicalMedicalDocumentHistoryQueryServiceImpl.class, DiagnosticPatientHistoryQueryServiceImpl.class,
             DiagnosticRequestController.class, DiagnosticFindingsController.class, DiagnosticHistoryController.class, DiagnosticDtoMapper.class,
             ClinicalMedicalDocumentController.class, ClinicalMedicalDocumentServiceImpl.class,
             fu.fa26.sep490.g58.otcms_be.clinical.security.ClinicalMedicalDocumentAccess.class,
@@ -213,6 +279,7 @@ class DoctorCoreProductionWiringTest {
             fu.fa26.sep490.g58.otcms_be.auth.service.impl.PatientIdentityDirectoryServiceImpl.class,
             fu.fa26.sep490.g58.otcms_be.auth.service.impl.PatientProfileDirectoryServiceImpl.class,
             fu.fa26.sep490.g58.otcms_be.patient.service.impl.PatientProfileAccessServiceImpl.class,
+            ClinicalPrescriptionController.class, ClinicalPrescriptionServiceImpl.class, ClinicalPrescriptionHistoryQueryServiceImpl.class,
             ClinicalImagingRequestServiceImpl.class, ClinicalImagingRequestTransactionService.class, ClinicalOrderingTransactionService.class,
             ClinicalOrderPreparationService.class, ClinicalOrderingServiceImpl.class, ClinicalExaminationServiceImpl.class, AfterVisitAdviceServiceImpl.class,
             ClinicalDoctorIdentityResolver.class, VisitClinicalContextAdapter.class, VisitClinicalCareContextServiceImpl.class,
@@ -232,6 +299,7 @@ class DoctorCoreProductionWiringTest {
                         ClinicalImagingRequestReplayRepository.class, ClinicalMedicalDocumentRepository.class, ClinicalMedicalDocumentPayloadRepository.class,
                         fu.fa26.sep490.g58.otcms_be.auth.repository.PatientProfileRepository.class,
                         fu.fa26.sep490.g58.otcms_be.patient.repository.CareRelationshipRepository.class,
+                        ClinicalPrescriptionRepository.class, ClinicalPrescriptionItemRepository.class,
                         DiagnosticRequestJpaRepository.class, DiagnosticAttemptJpaRepository.class,
                         DiagnosticIdempotencyRecordJpaRepository.class, DiagnosticAuditEventJpaRepository.class,
                         DiagnosticFindingsVersionJpaRepository.class, DiagnosticReportJpaRepository.class,

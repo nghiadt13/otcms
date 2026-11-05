@@ -1,17 +1,8 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
-import { DoctorVisitPlaceholderPage } from "@/features/doctor-shell/components/DoctorVisitPlaceholderPage";
-import { findVisitNavItem } from "@/features/doctor-shell/doctorVisitNavigation";
+import { VisitOverview } from "@/features/doctor-exam/components/VisitOverview";
 
 export const metadata: Metadata = { title: "Tổng quan lượt khám" };
 
-export default async function DoctorVisitWorkspacePage({
-  params,
-}: {
-  params: Promise<{ visitId: string }>;
-}) {
-  const { visitId } = await params;
-  const item = findVisitNavItem("");
-  if (!item) notFound();
-  return <DoctorVisitPlaceholderPage item={item} visitId={visitId} />;
+export default function DoctorVisitWorkspacePage() {
+  return <VisitOverview />;
 }

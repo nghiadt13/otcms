@@ -5,6 +5,8 @@ import fu.fa26.sep490.g58.otcms_be.clinical.controller.ClinicalExaminationContro
 import fu.fa26.sep490.g58.otcms_be.clinical.controller.ClinicalImagingRequestController;
 import fu.fa26.sep490.g58.otcms_be.clinical.controller.DoctorActiveVisitController;
 import fu.fa26.sep490.g58.otcms_be.clinical.controller.ClinicalMedicalDocumentController;
+import fu.fa26.sep490.g58.otcms_be.clinical.controller.ClinicalPrescriptionController;
+import fu.fa26.sep490.g58.otcms_be.clinical.controller.ClinicalPastMedicalRecordsController;
 import fu.fa26.sep490.g58.otcms_be.common.api.ErrorResponse;
 import fu.fa26.sep490.g58.otcms_be.common.web.CorrelationIdFilter;
 import jakarta.persistence.OptimisticLockException;
@@ -24,8 +26,15 @@ import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
-@RestControllerAdvice(assignableTypes = {ClinicalExaminationController.class, AfterVisitAdviceController.class,
-        ClinicalImagingRequestController.class, DoctorActiveVisitController.class, ClinicalMedicalDocumentController.class})
+@RestControllerAdvice(assignableTypes = {
+    ClinicalExaminationController.class,
+    AfterVisitAdviceController.class,
+    ClinicalImagingRequestController.class,
+    DoctorActiveVisitController.class,
+    ClinicalPrescriptionController.class,
+    ClinicalMedicalDocumentController.class,
+    ClinicalPastMedicalRecordsController.class
+})
 @Order(Ordered.HIGHEST_PRECEDENCE)
 public class ClinicalApiExceptionHandler {
     @ExceptionHandler(fu.fa26.sep490.g58.otcms_be.diagnostic.exception.DiagnosticOperationException.class)

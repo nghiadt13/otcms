@@ -16,6 +16,38 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 public interface DiagnosticRequestJpaRepository extends JpaRepository<DiagnosticRequestJpaEntity, UUID> {
+    interface ReleasedHistoryRow {
+        UUID getPatientId();
+        UUID getRequestId();
+        UUID getVisitId();
+        String getImagingType();
+        DiagnosticRequestStatus getStatus();
+        String getStudyRef();
+        Integer getFindingsVersion();
+        String getFindingsText();
+        UUID getReportId();
+    }
+
+    @Query("""
+            select r.patientId as patientId, r.id as requestId, r.visitId as visitId,
+                r.imagingType as imagingType, r.status as status, f.studyRef as studyRef,
+                f.versionNumber as findingsVersion, f.findingsText as findingsText, p.id as reportId
+            from DiagnosticRequestJpaEntity r, DiagnosticFindingsVersionJpaEntity f, DiagnosticReportJpaEntity p
+            where r.patientId = :patientId and r.visitId in :visitIds and r.status in :statuses
+                and f.requestId = r.id and f.visitId = r.visitId
+                and f.state = fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.enums.DiagnosticFindingsVersionState.COMPLETED
+                and f.completedAt is not null
+                and p.id = f.requiredPdfReportId and p.requestId = r.id and p.visitId = r.visitId
+                and p.studyRef = f.studyRef and p.releasedAt is not null
+                and p.validationStatus = fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.enums.DiagnosticReportValidationStatus.VALIDATED
+                and not exists (select newer.id from DiagnosticFindingsVersionJpaEntity newer
+                    where newer.requestId = r.id and newer.versionNumber > f.versionNumber
+                    and newer.state = fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.enums.DiagnosticFindingsVersionState.COMPLETED)
+            order by r.createdAt desc, r.id desc
+            """)
+    List<ReleasedHistoryRow> findReleasedPatientHistory(@Param("patientId") UUID patientId,
+            @Param("visitIds") Collection<UUID> visitIds, @Param("statuses") Collection<DiagnosticRequestStatus> statuses);
+
     Optional<DiagnosticRequestJpaEntity> findFirstByServiceOrderIdOrderByCreatedAtDescIdDesc(UUID serviceOrderId);
 
     // Same transaction as the Clinical order/replay. Partial unique index V097 serializes concurrent registration.

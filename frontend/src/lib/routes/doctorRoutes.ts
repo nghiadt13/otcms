@@ -11,3 +11,9 @@ export const DOCTOR_ROUTES = {
   account: "/doctor/account",
   notifications: "/doctor/notifications",
 } as const;
+
+/** Đường dẫn một lượt khám trong workspace bác sĩ; `section` rỗng là tab tổng quan. */
+export function doctorVisitHref(visitId: string, section = ""): string {
+  const base = `${DOCTOR_ROUTES.visits}/${encodeURIComponent(visitId)}`;
+  return section ? `${base}/${section}` : base;
+}
