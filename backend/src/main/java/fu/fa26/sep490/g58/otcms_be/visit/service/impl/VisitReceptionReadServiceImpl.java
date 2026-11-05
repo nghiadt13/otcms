@@ -1,6 +1,9 @@
 package fu.fa26.sep490.g58.otcms_be.visit.service.impl;
 
 import fu.fa26.sep490.g58.otcms_be.auth.service.ReceptionistAccountAccessService;
+import fu.fa26.sep490.g58.otcms_be.auth.service.DoctorAccountAccessService;
+import fu.fa26.sep490.g58.otcms_be.staff.service.DoctorProfileIdentityQueryService;
+import fu.fa26.sep490.g58.otcms_be.visit.service.VisitClinicalCareContextService;
 import fu.fa26.sep490.g58.otcms_be.common.security.AccountRole;
 import fu.fa26.sep490.g58.otcms_be.common.security.AuthenticatedAccount;
 import fu.fa26.sep490.g58.otcms_be.config.AppointmentBookingProperties;
@@ -29,14 +32,45 @@ public class VisitReceptionReadServiceImpl implements VisitReceptionReadService 
     private final ReceptionistAccountAccessService receptionists;
     private final AuthorizePatientProfileService patientAuthorization;
     private final AppointmentBookingProperties booking;
+    private final DoctorAccountAccessService doctors;
+    private final DoctorProfileIdentityQueryService doctorProfiles;
+    private final VisitClinicalCareContextService care;
 
     public VisitReceptionReadServiceImpl(VisitReceptionReadRepository reads,
             ReceptionistAccountAccessService receptionists,
-            AuthorizePatientProfileService patientAuthorization, AppointmentBookingProperties booking) {
+            AuthorizePatientProfileService patientAuthorization, AppointmentBookingProperties booking,
+            DoctorAccountAccessService doctors, DoctorProfileIdentityQueryService doctorProfiles,
+            VisitClinicalCareContextService care) {
         this.reads = reads;
         this.receptionists = receptionists;
         this.patientAuthorization = patientAuthorization;
         this.booking = booking;
+        this.doctors = doctors; this.doctorProfiles = doctorProfiles; this.care = care;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public VisitProgressResponse getProgress(AuthenticatedAccount actor, UUID visitId) {
+        if (actor == null || actor.accountId() == null || actor.accountRole() == null) throw new VisitOperationException("ACCESS_DENIED");
+        if (visitId == null) throw new VisitOperationException("VALIDATION_FAILED");
+        if (actor.accountRole() == AccountRole.PATIENT) return getOwnProgress(actor.accountId(), visitId);
+        UUID expectedPatient = null;
+        if (actor.accountRole() == AccountRole.RECEPTIONIST) {
+            if (!receptionists.isActiveReceptionistAccount(actor.accountId())) throw new VisitOperationException("ACCESS_DENIED");
+        } else if (actor.accountRole() == AccountRole.DOCTOR) {
+            if (!doctors.isActiveDoctorAccount(actor.accountId())) throw new VisitOperationException("ACCESS_DENIED");
+            var profile = doctorProfiles.findDoctorProfileId(actor.accountId()).orElseThrow(() -> new VisitOperationException("ACCESS_DENIED"));
+            var context = care.findClinicalCareContext(visitId).orElseThrow(() -> new VisitOperationException("ACCESS_DENIED"));
+            if (!visitId.equals(context.visitId()) || !context.clinicalWorkAllowed()
+                    || !profile.equals(context.responsibleDoctorProfileId())) throw new VisitOperationException("ACCESS_DENIED");
+            expectedPatient = context.patientProfileId();
+            if (expectedPatient == null) throw new VisitOperationException("ACCESS_DENIED");
+        } else throw new VisitOperationException("ACCESS_DENIED");
+        var row = reads.findProgress(visitId);
+        if (row == null || !visitId.equals(row[0]) || expectedPatient != null && !expectedPatient.equals(row[1])) {
+            throw new VisitOperationException("RESOURCE_NOT_FOUND");
+        }
+        return progress(row);
     }
 
     @Override
@@ -80,6 +114,10 @@ public class VisitReceptionReadServiceImpl implements VisitReceptionReadService 
         } catch (PatientAuthorizationDeniedException exception) {
             throw new VisitOperationException("ACCESS_DENIED", exception);
         }
+        return progress(row);
+    }
+
+    private VisitProgressResponse progress(Object[] row) {
         boolean activeWalkInEntry = "WALK_IN".equals(row[2]) && row[6] != null && "WAITING".equals(row[7]);
         Integer position = null;
         if (activeWalkInEntry) {
