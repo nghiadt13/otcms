@@ -42,19 +42,10 @@ class ClinicalPrescriptionServiceImplTest {
             }
         });
         when(prescriptions.advanceDraftVersion(any(), anyLong(), any(), any())).thenAnswer(call -> {
-            synchronized (rows) {
-                var row = byId(call.getArgument(0));
-                if (row.version != (long) call.getArgument(1) || row.status != ClinicalPrescriptionStatus.DRAFT) return 0;
-                row.author = call.getArgument(2); row.version++; return 1;
-            }
+            return advanceDraft(call.getArgument(0), call.getArgument(1), call.getArgument(2));
         });
         when(prescriptions.issueDraft(any(), anyLong(), anyString(), any(), any())).thenAnswer(call -> {
-            synchronized (rows) {
-                var row = byId(call.getArgument(0));
-                if (row.version != (long) call.getArgument(1) || row.status != ClinicalPrescriptionStatus.DRAFT) return 0;
-                row.key = call.getArgument(2); row.expected = call.getArgument(1); row.author = call.getArgument(3); row.issued = call.getArgument(4);
-                row.status = ClinicalPrescriptionStatus.ISSUED; row.version++; return 1;
-            }
+            return issueDraft(call.getArgument(0), call.getArgument(1), call.getArgument(2), call.getArgument(3), call.getArgument(4));
         });
         when(items.deleteItems(any())).thenAnswer(call -> { var removed = lines.remove(call.getArgument(0)); return removed == null ? 0 : removed.size(); });
         when(items.saveAllAndFlush(anyList())).thenAnswer(call -> {
@@ -71,6 +62,21 @@ class ClinicalPrescriptionServiceImplTest {
     DraftCommand draft(long version, String name) { return new DraftCommand(visitId, doctorId, version, List.of(medicine(name))); }
     IssuanceCommand issuance(long version, String key) { return new IssuanceCommand(visitId, doctorId, version, key); }
     Row byId(UUID id) { return rows.values().stream().filter(row -> row.id.equals(id)).findFirst().orElseThrow(); }
+    int advanceDraft(UUID id, long expectedVersion, UUID author) {
+        synchronized (rows) {
+            var row = byId(id);
+            if (row.version != expectedVersion || row.status != ClinicalPrescriptionStatus.DRAFT) return 0;
+            row.author = author; row.version++; return 1;
+        }
+    }
+    int issueDraft(UUID id, long expectedVersion, String key, UUID author, Instant issued) {
+        synchronized (rows) {
+            var row = byId(id);
+            if (row.version != expectedVersion || row.status != ClinicalPrescriptionStatus.DRAFT) return 0;
+            row.key = key; row.expected = expectedVersion; row.author = author; row.issued = issued;
+            row.status = ClinicalPrescriptionStatus.ISSUED; row.version++; return 1;
+        }
+    }
     List<Row> ordered(ClinicalPrescriptionStatus status) {
         return rows.values().stream().filter(row -> row.status == status)
                 .sorted(Comparator.comparing((Row row) -> row.issued, Comparator.nullsLast(Comparator.reverseOrder()))
@@ -218,6 +224,18 @@ class ClinicalPrescriptionServiceImplTest {
 
     @Test void issuanceVersusDraftUpdateCannotLoseOrOverwriteIssuedContent() throws Exception {
         service.saveDraft(draft(0, "A"));
+        // Both commands reach the versioned write before either changes the fake header/items.
+        // The doubles have no transaction isolation and must not expose an uncommitted delete
+        // as an empty committed prescription. PostgreSQL races remain covered separately.
+        var writes = new CyclicBarrier(2);
+        doAnswer(call -> {
+            writes.await(5, TimeUnit.SECONDS);
+            return advanceDraft(call.getArgument(0), call.getArgument(1), call.getArgument(2));
+        }).when(prescriptions).advanceDraftVersion(any(), anyLong(), any(), any());
+        doAnswer(call -> {
+            writes.await(5, TimeUnit.SECONDS);
+            return issueDraft(call.getArgument(0), call.getArgument(1), call.getArgument(2), call.getArgument(3), call.getArgument(4));
+        }).when(prescriptions).issueDraft(any(), anyLong(), anyString(), any(), any());
         var results = race(() -> service.issue(issuance(1, "key")), () -> service.saveDraft(draft(1, "B")));
         assertEquals(1, results.stream().filter(PrescriptionView.class::isInstance).count()); assertTrue(results.contains("MSG-42"));
         var current = service.getPrescription(visitId, doctorId);

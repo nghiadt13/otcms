@@ -8,6 +8,7 @@ import java.util.*;
 public interface ClinicalPrescriptionHistoryQueryService {
     List<IssuedPrescriptionSummary> findIssuedByPatient(UUID patientProfileId);
     List<IssuedPrescriptionSummary> findIssuedByVisit(UUID visitId);
+    List<IssuedPrescriptionSummary> findIssuedByPatientAndVisitIds(UUID patientProfileId, Collection<UUID> visitIds);
 
     record IssuedPrescriptionSummary(UUID id, UUID visitId, UUID patientProfileId, UUID doctorProfileId,
             Instant issuedAt, long version, List<PrescriptionLine> items) {

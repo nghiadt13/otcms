@@ -10,6 +10,16 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 public interface ClinicVisitJpaRepository extends JpaRepository<ClinicVisitJpaEntity, UUID> {
+    @Query("""
+            select v from ClinicVisitJpaEntity v
+            where v.patientProfileId = :patientId and v.id <> :currentId and v.status = 'CLOSED' and v.arrivedAt <= :before
+                and exists (select a.id from VisitCareAssignmentJpaEntity a where a.visitId = v.id and a.status = 'COMPLETED')
+            order by v.arrivedAt desc, v.id desc
+            """)
+    org.springframework.data.domain.Page<ClinicVisitJpaEntity> findHistoricalVisits(
+            @Param("patientId") UUID patientProfileId, @Param("currentId") UUID currentVisitId,
+            @Param("before") java.time.Instant before, org.springframework.data.domain.Pageable pageable);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select visit from ClinicVisitJpaEntity visit where visit.id = :visitId")
     Optional<ClinicVisitJpaEntity> findByIdForUpdate(@Param("visitId") UUID visitId);
