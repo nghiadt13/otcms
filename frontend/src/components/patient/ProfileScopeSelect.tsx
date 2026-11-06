@@ -16,10 +16,12 @@ export function ProfileScopeSelect({
   profiles,
   value,
   onChange,
+  includeAll = true,
 }: {
   profiles: LinkedProfile[];
   value: string | undefined;
   onChange: (profileId: string | undefined) => void;
+  includeAll?: boolean;
 }) {
   const id = useId();
   if (profiles.length <= 1) return null;
@@ -35,7 +37,13 @@ export function ProfileScopeSelect({
         onChange={(event) => onChange(event.target.value || undefined)}
         value={value ?? ""}
       >
-        <NativeSelectOption value="">Tất cả</NativeSelectOption>
+        {includeAll ? (
+          <NativeSelectOption value="">Tất cả</NativeSelectOption>
+        ) : (
+          <NativeSelectOption value="" disabled>
+            Chọn hồ sơ
+          </NativeSelectOption>
+        )}
         {profiles.map((profile) => (
           <NativeSelectOption key={profile.id} value={profile.id}>
             {`${profile.fullName} · ${CARE_RELATIONSHIP_LABELS[profile.relationship]}`}

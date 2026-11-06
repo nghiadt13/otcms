@@ -19,12 +19,11 @@ import { BackendGapNotice } from "./BackendGapNotice";
 import { MedicalHistoryForm } from "./MedicalHistoryForm";
 import { useVisitWorkspace } from "./VisitWorkspaceProvider";
 
-// Tab Hồ sơ bệnh nhân: tiền sử (UC12), hồ sơ các lượt khám trước (UC40) và lịch hẹn (UC24).
-// Hồ sơ cũ gồm cả lượt chưa kết luận, đánh dấu "chưa kết luận" (BR-65).
+// UC33 uses current Visit; history and appointments use Patient ID.
 
-function PastVisits({ patientProfileId }: { patientProfileId: string }) {
+function PastVisits({ visitId }: { visitId: string }) {
   const api = useDoctorExamApi();
-  const { data, loading } = usePastVisits(patientProfileId);
+  const { data, loading, error, refresh } = usePastVisits(visitId);
   return (
     <section aria-labelledby="past-title" className="space-y-3">
       <h2 id="past-title" className="text-lg font-semibold">
@@ -37,6 +36,8 @@ function PastVisits({ patientProfileId }: { patientProfileId: string }) {
         </BackendGapNotice>
       ) : loading ? (
         <Skeleton className="h-28 w-full" />
+      ) : error ? (
+        <DoctorLoadState loading={false} error={error} retry={refresh} />
       ) : !data || data.length === 0 ? (
         <p className="rounded-lg border bg-card px-4 py-6 text-center text-sm text-muted-foreground">
           Bệnh nhân chưa có lượt khám nào trước đây.
@@ -150,7 +151,7 @@ function History({ patientProfileId }: { patientProfileId: string }) {
 }
 
 export function RecordsScreen() {
-  const { context, loading } = useVisitWorkspace();
+  const { visitId, context, loading } = useVisitWorkspace();
   const patientProfileId = context?.patientProfileId ?? null;
 
   return (
@@ -168,7 +169,7 @@ export function RecordsScreen() {
       ) : (
         <div className="space-y-8">
           <History patientProfileId={patientProfileId} />
-          <PastVisits patientProfileId={patientProfileId} />
+          <PastVisits visitId={visitId} />
           <Appointments patientProfileId={patientProfileId} />
         </div>
       )}

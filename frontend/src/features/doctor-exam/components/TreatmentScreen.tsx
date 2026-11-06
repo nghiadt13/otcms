@@ -14,7 +14,7 @@ import { PrescriptionForm } from "./PrescriptionForm";
 import { isVisitClosed } from "./doctorStatus";
 import { useVisitWorkspace } from "./VisitWorkspaceProvider";
 
-// Tab Điều trị: lời dặn (UC42), đơn thuốc (UC43) và hẹn tái khám (UC21).
+// Tab Điều trị: lời dặn (UC35), đơn thuốc (UC36) và hẹn tái khám (UC21).
 
 export function TreatmentScreen() {
   const { visitId, context } = useVisitWorkspace();
@@ -61,7 +61,7 @@ export function TreatmentScreen() {
             onSaved={advice.refresh}
           />
           <PrescriptionForm
-            key={`rx-${prescription.data?.issuedAt ?? prescription.data?.status ?? "new"}`}
+            key={`rx-${visitId}-${prescription.data?.version ?? "new"}`}
             visitId={visitId}
             initial={prescription.data ?? null}
             available={api.capabilities.prescriptions}

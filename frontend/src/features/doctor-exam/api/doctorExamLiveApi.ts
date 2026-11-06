@@ -3,10 +3,10 @@ import type { DoctorExamApi } from "./doctorExamApi";
 import * as clinical from "./doctorExamLiveClinical";
 import * as orders from "./doctorExamLiveOrders";
 import * as visits from "./doctorExamLiveVisits";
+import * as prescription from "./doctorExamLivePrescription";
+import * as records from "./doctorExamLivePastRecords";
 
-// Bản live của DoctorExamApi: ghép các phần đã có endpoint trên BE `product`. Phần BE chưa có
-// (xét nghiệm, đơn thuốc, hồ sơ cũ, phiếu kết quả) ném 501 BACKEND_NOT_AVAILABLE; màn dựa vào
-// `capabilities` để khóa nút và hiện ghi chú nên không gọi tới các hàm này.
+// Live Clinical/Diagnostic integration. Lab and result sheets remain unavailable.
 
 const missing = (): never => {
   throw new ApiError(501, { errorCode: "BACKEND_NOT_AVAILABLE" });
@@ -16,17 +16,15 @@ export const doctorLiveApi: DoctorExamApi = {
   capabilities: {
     laboratoryOrders: false,
     orderListing: false,
-    prescriptions: false,
-    pastRecords: false,
+    prescriptions: true,
+    pastRecords: true,
     resultSheet: false,
-    closeWithEvidence: false,
     startExamination: true,
     findingsReportPdfRequired: true,
   },
   listTodayPatients: visits.listTodayPatients,
   getVisitContext: visits.getVisitContext,
   startExamination: visits.startExamination,
-  completeVisit: visits.completeVisit,
   bookFollowUp: visits.bookFollowUp,
   getMedicalHistory: visits.getMedicalHistory,
   saveMedicalHistory: visits.saveMedicalHistory,
@@ -42,9 +40,9 @@ export const doctorLiveApi: DoctorExamApi = {
   saveFindings: orders.saveFindings,
   completeFindings: orders.completeFindings,
   listLabResults: async () => [],
-  getPrescription: async () => null,
-  savePrescription: async () => missing(),
-  listPastVisits: async () => [],
+  getPrescription: prescription.getPrescription,
+  savePrescription: prescription.savePrescription,
+  listPastVisits: records.listPastVisits,
   listResultSheets: async () => [],
   amendResult: async () => missing(),
 };

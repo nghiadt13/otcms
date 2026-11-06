@@ -1,5 +1,5 @@
-import { StaffLoginScreen } from "@/features/imaging/components/StaffLoginScreen";
+import { redirect } from "next/navigation";
 
 export default function Page() {
-  return <StaffLoginScreen />;
+  redirect("/staff-login");
 }

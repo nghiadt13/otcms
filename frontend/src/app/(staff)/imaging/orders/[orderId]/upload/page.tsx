@@ -1,4 +1,4 @@
-import { UploadScreen } from "@/features/imaging/components/UploadScreen";
+import { TechnicianImagingUploadScreen } from "@/features/imaging/components/TechnicianImagingUploadScreen";
 
 export default async function Page({
   params,
@@ -6,5 +6,5 @@ export default async function Page({
   params: Promise<{ orderId: string }>;
 }) {
   const { orderId } = await params;
-  return <UploadScreen id={orderId} />;
+  return <TechnicianImagingUploadScreen requestId={orderId} />;
 }

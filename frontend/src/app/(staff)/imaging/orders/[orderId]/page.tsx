@@ -1,4 +1,4 @@
-import { OrderDetailsScreen } from "@/features/imaging/components/OrderDetailsScreen";
+import { redirect } from "next/navigation";
 
 export default async function Page({
   params,
@@ -6,5 +6,5 @@ export default async function Page({
   params: Promise<{ orderId: string }>;
 }) {
   const { orderId } = await params;
-  return <OrderDetailsScreen id={orderId} />;
+  redirect(`/imaging/orders/${encodeURIComponent(orderId)}/upload`);
 }

@@ -48,6 +48,16 @@ public final class DiagnosticDtos {
         public OperationalStatusPage { items = List.copyOf(items); }
     }
 
+    /** Technician-only upload projection; excludes Patient identifiers and clinical details. */
+    public record AssignedTechnicianUploadWorkItem(UUID requestId, UUID attemptId, UUID visitId,
+            String imagingType, UUID roomId, DiagnosticRequestStatus status, long version,
+            Instant createdAt, Instant updatedAt) { }
+
+    public record AssignedTechnicianUploadWorkPage(List<AssignedTechnicianUploadWorkItem> items,
+            int page, int size, long totalElements) {
+        public AssignedTechnicianUploadWorkPage { items = List.copyOf(items); }
+    }
+
     public record ImagingHistoryItem(UUID requestId, UUID visitId, String imagingType,
             DiagnosticRequestStatus status, String studyRef, Integer findingsVersion,
             String findingsText, UUID reportId) { }

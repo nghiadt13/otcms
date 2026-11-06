@@ -49,7 +49,7 @@ export type ExaminationStatus = "DRAFT" | "COMPLETED";
 export type DiagnosisType = "PRIMARY" | "SECONDARY";
 export type Diagnosis = { code: string; type: DiagnosisType };
 
-/** Nội dung bác sĩ nhập ở UC37. */
+/** Nội dung bác sĩ nhập ở UC29. */
 export type ExaminationInput = {
   reasonForVisit: string;
   symptoms: string;
@@ -66,7 +66,7 @@ export type Examination = ExaminationInput & {
   version: number | null;
 };
 
-/** Lời dặn sau khám (UC42). BE chưa có trường "hướng điều trị" (BR-40). */
+/** Lời dặn sau khám (UC35). BE chưa có trường "hướng điều trị" (BR-40). */
 export type AdviceInput = {
   homeCareAdvice: string;
   activityAdvice: string;
@@ -102,7 +102,7 @@ export type OrderDraftItem = {
   instructions: string;
 };
 
-/** Kết quả đọc phim gắn với một chỉ định CĐHA (UC50). */
+/** Kết quả đọc phim gắn với một chỉ định CĐHA (UC42). */
 export type ImagingResult = {
   requestId: string;
   /** Phiên bản dùng cho header X-Expected-Version của BE. */
@@ -148,13 +148,14 @@ export type LabResult = {
 
 export type PrescriptionLine = {
   medicine: string;
-  strength: string;
-  quantity: string;
+  dose: string;
+  frequency: string;
   usage: string;
 };
 export type Prescription = {
   status: "DRAFT" | "ISSUED";
-  note: string;
+  id: string | null;
+  version: number;
   lines: PrescriptionLine[];
   issuedAt: string | null;
 };
@@ -183,7 +184,6 @@ export type DoctorCapabilities = {
   prescriptions: boolean;
   pastRecords: boolean;
   resultSheet: boolean;
-  closeWithEvidence: boolean;
   startExamination: boolean;
   /** BE hiện đòi tệp PDF báo cáo khi hoàn tất kết luận hình ảnh (R3 không đòi). */
   findingsReportPdfRequired: boolean;

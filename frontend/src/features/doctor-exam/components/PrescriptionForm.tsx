@@ -5,20 +5,20 @@ import { useState } from "react";
 import { StatusBadge } from "@/components/admin/StatusBadge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
+import { FieldError } from "@/components/admin/FieldError";
+import { prescriptionItems } from "../schema/prescription";
 import { getDoctorExamApi } from "../api/doctorExamApi";
 import { useAsyncAction } from "../hooks/useAsyncAction";
 import type { Prescription, PrescriptionLine } from "../types/doctorExam";
 import { BackendGapNotice } from "./BackendGapNotice";
 import { FormSection } from "./FormSection";
 
-// Đơn thuốc điện tử (UC43, BR-38): thuốc, hàm lượng, số lượng và cách dùng. Không quản lý tồn kho
-// hay cấp phát. Lưu nháp chưa hiện cho bệnh nhân; phát hành khi xác nhận.
+// UC36: versioned drafts; issued prescriptions are immutable.
 
 const NEW_LINE: PrescriptionLine = {
   medicine: "",
-  strength: "",
-  quantity: "",
+  dose: "",
+  frequency: "",
   usage: "",
 };
 
@@ -28,8 +28,8 @@ const COLUMNS: Array<{
   width: string;
 }> = [
   { key: "medicine", label: "Tên thuốc", width: "sm:col-span-4" },
-  { key: "strength", label: "Hàm lượng", width: "sm:col-span-2" },
-  { key: "quantity", label: "Số lượng", width: "sm:col-span-2" },
+  { key: "dose", label: "Liều dùng", width: "sm:col-span-2" },
+  { key: "frequency", label: "Tần suất", width: "sm:col-span-2" },
   { key: "usage", label: "Cách dùng", width: "sm:col-span-3" },
 ];
 
@@ -50,11 +50,14 @@ export function PrescriptionForm({
   const [lines, setLines] = useState<PrescriptionLine[]>(
     initial?.lines.length ? initial.lines : [NEW_LINE],
   );
-  const [note, setNote] = useState(initial?.note ?? "");
+  const [current, setCurrent] = useState(initial);
+  const [error, setError] = useState<string>();
   const { pending, run } = useAsyncAction();
-  const issued = initial?.status === "ISSUED";
-  const disabled = !available || locked || pending;
-  const filled = lines.filter((line) => line.medicine.trim());
+  const issued = current?.status === "ISSUED";
+  const disabled = !available || locked || pending || issued;
+  const filled = lines.filter((line) =>
+    Object.values(line).some((value) => value.trim()),
+  );
 
   const patch = (index: number, key: keyof PrescriptionLine, value: string) =>
     setLines((current) =>
@@ -64,16 +67,35 @@ export function PrescriptionForm({
     );
 
   async function save(issue: boolean) {
+    if (disabled) return;
+    try {
+      prescriptionItems(lines);
+    } catch {
+      setError(
+        "Nhập đủ tên thuốc, liều dùng, tần suất và cách dùng cho mỗi dòng thuốc.",
+      );
+      return;
+    }
+    setError(undefined);
     const saved = await run(
       () =>
         getDoctorExamApi().savePrescription(
           visitId,
-          { status: "DRAFT", note, lines: filled, issuedAt: null },
+          {
+            id: current?.id ?? null,
+            version: current?.version ?? 0,
+            status: "DRAFT",
+            lines,
+            issuedAt: null,
+          },
           issue,
         ),
       "MSG-44",
     );
-    if (saved) onSaved();
+    if (saved) {
+      setCurrent(saved);
+      onSaved();
+    } else if (issue) onSaved(); // Refresh state after ambiguous issuance; never issue automatically.
   }
 
   return (
@@ -137,34 +159,26 @@ export function PrescriptionForm({
           Thêm thuốc
         </Button>
       </div>
-      <div className="space-y-1.5">
-        <label htmlFor="rx-note" className="text-sm font-medium">
-          Lời dặn khi dùng thuốc
-        </label>
-        <Textarea
-          id="rx-note"
-          rows={2}
-          value={note}
-          onChange={(e) => setNote(e.target.value)}
-        />
-      </div>
-      <div className="flex flex-wrap justify-end gap-2">
-        <Button
-          type="button"
-          variant="outline"
-          disabled={disabled || filled.length === 0}
-          onClick={() => void save(false)}
-        >
-          Lưu nháp
-        </Button>
-        <Button
-          type="button"
-          disabled={disabled || filled.length === 0}
-          onClick={() => void save(true)}
-        >
-          {issued ? "Phát hành lại" : "Phát hành đơn"}
-        </Button>
-      </div>
+      <FieldError message={error} />
+      {!issued ? (
+        <div className="flex flex-wrap justify-end gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            disabled={disabled || filled.length === 0}
+            onClick={() => void save(false)}
+          >
+            Lưu nháp
+          </Button>
+          <Button
+            type="button"
+            disabled={disabled || filled.length === 0}
+            onClick={() => void save(true)}
+          >
+            Phát hành đơn
+          </Button>
+        </div>
+      ) : null}
     </FormSection>
   );
 }

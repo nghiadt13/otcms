@@ -1,4 +1,4 @@
-import { PatientStudyDetailScreen } from "@/features/imaging/components/PatientStudyDetailScreen";
+import { PatientImagingStudyDetailScreen } from "@/features/imaging/components/PatientImagingStudyDetailScreen";
 
 export const metadata = {
   title: "Chi tiết ảnh chụp | OTCMS",
@@ -11,5 +11,5 @@ export default async function PatientImageStudyPage({
   params: Promise<{ studyId: string }>;
 }) {
   const { studyId } = await params;
-  return <PatientStudyDetailScreen key={studyId} studyId={studyId} />;
+  return <PatientImagingStudyDetailScreen key={studyId} studyRef={studyId} />;
 }

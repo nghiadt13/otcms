@@ -1,4 +1,4 @@
-import { ValidationScreen } from "@/features/imaging/components/ValidationScreen";
+import { redirect } from "next/navigation";
 
 export default async function Page({
   params,
@@ -6,5 +6,5 @@ export default async function Page({
   params: Promise<{ orderId: string }>;
 }) {
   const { orderId } = await params;
-  return <ValidationScreen id={orderId} />;
+  redirect(`/imaging/orders/${encodeURIComponent(orderId)}/upload`);
 }

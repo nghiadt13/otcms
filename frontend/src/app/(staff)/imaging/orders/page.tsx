@@ -1,5 +1,5 @@
-import { OrderListScreen } from "@/features/imaging/components/OrderListScreen";
+import { AssignedUploadWorkScreen } from "@/features/imaging/components/AssignedUploadWorkScreen";
 
 export default function Page() {
-  return <OrderListScreen />;
+  return <AssignedUploadWorkScreen />;
 }

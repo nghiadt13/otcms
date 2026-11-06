@@ -31,4 +31,14 @@ class VisitDiagnosticArchitectureTest {
         assertFalse(query.contains(".save("));
         assertFalse(query.contains(".saveAndFlush("));
     }
+    @Test void completionEvidenceIsReadOnlyDiagnosticOwnedAndVisitUsesOnlyPublicContract() {
+        var implementation = fu.fa26.sep490.g58.otcms_be.diagnostic.service.impl.DiagnosticVisitCompletionEvidenceServiceImpl.class;
+        assertTrue(implementation.getAnnotation(org.springframework.transaction.annotation.Transactional.class).readOnly());
+        for (var dependency : implementation.getDeclaredFields()) {
+            assertEquals("fu.fa26.sep490.g58.otcms_be.diagnostic.repository", dependency.getType().getPackageName());
+        }
+        assertTrue(java.util.Arrays.stream(fu.fa26.sep490.g58.otcms_be.visit.service.impl.WalkInVisitLifecycleServiceImpl.class.getDeclaredFields())
+                .anyMatch(f -> f.getType() == fu.fa26.sep490.g58.otcms_be.diagnostic.service.DiagnosticVisitCompletionEvidenceService.class));
+    }
+
 }

@@ -22,14 +22,18 @@ class PastMedicalRecordsQuerySemanticTest {
         try {
             var metadata = new MetadataSources(registry);
             for (var type : new Class<?>[] {ClinicVisitJpaEntity.class, VisitCareAssignmentJpaEntity.class,
-                    DiagnosticRequestJpaEntity.class, DiagnosticFindingsVersionJpaEntity.class, DiagnosticReportJpaEntity.class}) {
+                    DiagnosticRequestJpaEntity.class, DiagnosticAttemptJpaEntity.class, DiagnosticFindingsVersionJpaEntity.class, DiagnosticReportJpaEntity.class}) {
                 metadata.addAnnotatedClass(type);
             }
             try (var factory = metadata.buildMetadata().buildSessionFactory(); var session = factory.openSession()) {
                 for (var repository : new Class<?>[] {ClinicVisitJpaRepository.class, DiagnosticRequestJpaRepository.class}) {
-                    var method = Arrays.stream(repository.getDeclaredMethods())
-                            .filter(m -> m.getName().equals("findHistoricalVisits") || m.getName().equals("findReleasedPatientHistory")).findFirst().orElseThrow();
-                    assertDoesNotThrow(() -> session.createQuery(method.getAnnotation(Query.class).value(), Object.class));
+                    var methods = Arrays.stream(repository.getDeclaredMethods())
+                            .filter(m -> m.getName().equals("findHistoricalVisits") || m.getName().equals("findReleasedPatientHistory")
+                                    || m.getName().equals("findByCurrentStudyRef")).toList();
+                    assertFalse(methods.isEmpty());
+                    for (var method : methods) {
+                        assertDoesNotThrow(() -> session.createQuery(method.getAnnotation(Query.class).value(), Object.class));
+                    }
                 }
             }
         } finally { StandardServiceRegistryBuilder.destroy(registry); }

@@ -215,7 +215,7 @@ describe("lượt khám và danh sách hôm nay", () => {
     });
   });
 
-  it("bắt đầu/hoàn tất: hẹn đặt trước đi qua trạng thái lịch hẹn, vãng lai qua bước chăm sóc và /closure", async () => {
+  it("bắt đầu khám qua lịch hẹn hoặc bước chăm sóc; không có lệnh Doctor đóng lượt", async () => {
     request.mockResolvedValue(undefined);
     const booked = { visitId: "v", appointmentId: "appt-1" } as never;
     const walkIn = { visitId: "v", appointmentId: null } as never;
@@ -228,20 +228,12 @@ describe("lượt khám và danh sách hôm nay", () => {
         body: JSON.stringify({ targetStatus: "IN_PROGRESS" }),
       },
     );
-    await doctorLiveApi.completeVisit(booked);
-    expect(JSON.parse(request.mock.lastCall![1].body)).toEqual({
-      targetStatus: "COMPLETED",
-    });
-
     await doctorLiveApi.startExamination(walkIn);
     expect(request.mock.lastCall![0]).toBe("/api/v1/visits/v/care-assignments");
     expect(JSON.parse(request.mock.lastCall![1].body)).toEqual({
       stepCode: "CONSULTATION",
     });
-    await doctorLiveApi.completeVisit(walkIn);
-    expect(request).toHaveBeenLastCalledWith("/api/v1/visits/v/closure", {
-      method: "POST",
-    });
+    expect(doctorLiveApi).not.toHaveProperty("completeVisit");
   });
 });
 

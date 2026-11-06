@@ -166,10 +166,11 @@ class DoctorImagingReviewIntegrationTest {
         when(bean(DiagnosticAttemptJpaRepository.class).findByRequestIdAndId(requestId, attemptId)).thenReturn(Optional.of(attempt));
         var event = new StudyEvidence(UUID.randomUUID(), study, requestId, visit, patient, attemptId, StudyVerificationStatus.CONFIRMED_MATCH, true);
         var imaging = mock(ImagingStudyPort.class);
-        when(imaging.confirmIngestedStudy(event.eventId(), study, requestId, visit, patient, attemptId)).thenReturn(event);
+        when(imaging.confirmIngestedStudy(event.eventId(), study, requestId, visit, patient, attemptId, event.verificationEvidence())).thenReturn(event);
         context.getBeanFactory().registerSingleton("externalImagingConfirmationDouble", imaging);
         var result = bean(DiagnosticEvidenceService.class).linkConfirmedStudy(DiagnosticActor.trustedIntegration(), event, "test");
         assertEquals(DiagnosticRequestStatus.RESULT_AVAILABLE, result.status());
+        verify(imaging).confirmIngestedStudy(event.eventId(), study, requestId, visit, patient, attemptId, event.verificationEvidence());
         assertEquals(1, bean(DiagnosticEvidenceService.class).dispatchDueOutbox(10,
                 new DiagnosticEvidenceService.RetryPolicy(3, 1, 8)).delivered());
         assertEquals(1, receipts.size()); assertEquals(patient, receipts.get(event.eventId()).getPatientProfileId());
@@ -179,7 +180,7 @@ class DoctorImagingReviewIntegrationTest {
         request.setStatus(DiagnosticRequestStatus.IN_PROGRESS);
         var expected = new StudyEvidence(UUID.randomUUID(), study, requestId, visit, patient, attemptId, StudyVerificationStatus.CONFIRMED_MATCH, true);
         var imaging = mock(ImagingStudyPort.class);
-        when(imaging.confirmIngestedStudy(any(), any(), any(), any(), any(), any())).thenReturn(
+        when(imaging.confirmIngestedStudy(any(), any(), any(), any(), any(), any(), anyList())).thenReturn(
                 new StudyEvidence(expected.eventId(), study, requestId, visit, patient, attemptId, status, true));
         context.getBeanFactory().registerSingleton("externalImagingConfirmationDouble", imaging);
         error(DiagnosticOperationOutcome.EVIDENCE_MISMATCH, () -> bean(DiagnosticEvidenceService.class)

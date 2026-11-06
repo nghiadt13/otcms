@@ -48,6 +48,20 @@ public interface DiagnosticRequestJpaRepository extends JpaRepository<Diagnostic
     List<ReleasedHistoryRow> findReleasedPatientHistory(@Param("patientId") UUID patientId,
             @Param("visitIds") Collection<UUID> visitIds, @Param("statuses") Collection<DiagnosticRequestStatus> statuses);
 
+    @Query("""
+            select request from DiagnosticRequestJpaEntity request
+             where request.currentAttemptId is not null
+               and exists (select attempt.id from DiagnosticAttemptJpaEntity attempt
+                            where attempt.requestId = request.id
+                              and attempt.id = request.currentAttemptId
+                              and attempt.studyRef = :studyRef)
+            """)
+    Optional<DiagnosticRequestJpaEntity> findByCurrentStudyRef(@Param("studyRef") String studyRef);
+
+    // Intentionally global: duplicate live requests, even across Visits, must fail closed.
+    List<DiagnosticRequestJpaEntity> findAllByServiceOrderIdInAndStatusNot(
+            Collection<UUID> serviceOrderIds, DiagnosticRequestStatus status);
+
     Optional<DiagnosticRequestJpaEntity> findFirstByServiceOrderIdOrderByCreatedAtDescIdDesc(UUID serviceOrderId);
 
     // Same transaction as the Clinical order/replay. Partial unique index V097 serializes concurrent registration.

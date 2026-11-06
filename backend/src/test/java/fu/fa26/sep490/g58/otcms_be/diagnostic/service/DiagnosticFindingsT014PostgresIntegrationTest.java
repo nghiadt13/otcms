@@ -54,6 +54,7 @@ class DiagnosticFindingsT014PostgresIntegrationTest {
     @Autowired DiagnosticRequestService requests;
     @Autowired DiagnosticEvidenceService evidence;
     @Autowired DiagnosticFindingsService findings;
+    @Autowired DiagnosticVisitCompletionEvidenceService completion;
     @Autowired JdbcTemplate jdbc;
     @Autowired DiagnosticRequestT012PostgresIntegrationTest.PortFakes ports;
 
@@ -87,6 +88,10 @@ class DiagnosticFindingsT014PostgresIntegrationTest {
         DiagnosticEvidenceService.DispatchSummary firstDispatch = evidence.dispatchDueOutbox(100,
                 new DiagnosticEvidenceService.RetryPolicy(3, 1, 8));
         assertEquals(3, firstDispatch.delivered());
+        UUID clinicalOrder = UUID.randomUUID();
+        jdbc.update("update diagnostic_requests set service_order_id=? where id=?", clinicalOrder, request.requestId());
+        org.junit.jupiter.api.Assertions.assertTrue(completion.getCompletionEvidence(visitId, patientId, java.util.List.of(clinicalOrder)).allComplete());
+        org.junit.jupiter.api.Assertions.assertFalse(completion.getCompletionEvidence(UUID.randomUUID(), patientId, java.util.List.of(clinicalOrder)).allComplete());
         assertEquals(1, jdbc.queryForObject("select count(*) from diagnostic_findings_versions "
                 + "where request_id = ? and version_number = 1 and state = 'COMPLETED'", Integer.class,
                 request.requestId()));
@@ -94,6 +99,7 @@ class DiagnosticFindingsT014PostgresIntegrationTest {
         DiagnosticFindingsView correction = findings.createCorrection(doctor(), request.requestId(), "correct-1",
                 reviewedVersion, "Small left effusion", "Added after image re-review", "corr-correction");
         assertEquals(2, correction.version());
+        org.junit.jupiter.api.Assertions.assertTrue(completion.getCompletionEvidence(visitId, patientId, java.util.List.of(clinicalOrder)).allComplete());
         assertEquals("Added after image re-review", correction.correctionReason());
         assertEquals("COMPLETED", jdbc.queryForObject("select state from diagnostic_findings_versions "
                 + "where request_id = ? and version_number = 1", String.class, request.requestId()));

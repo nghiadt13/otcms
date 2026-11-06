@@ -5,6 +5,7 @@ import fu.fa26.sep490.g58.otcms_be.staff.service.StaffAvailabilityProviderQueryS
 import fu.fa26.sep490.g58.otcms_be.visit.service.VisitReviewSourceService;
 
 import fu.fa26.sep490.g58.otcms_be.clinical.service.ClinicalVisitCompletionEvidenceService;
+import fu.fa26.sep490.g58.otcms_be.diagnostic.service.DiagnosticVisitCompletionEvidenceService;
 import fu.fa26.sep490.g58.otcms_be.auth.service.ReceptionistAccountAccessService;
 import fu.fa26.sep490.g58.otcms_be.common.security.AccountRole;
 import fu.fa26.sep490.g58.otcms_be.common.service.CoordinationGuardService;
@@ -30,6 +31,7 @@ public class WalkInVisitLifecycleServiceImpl implements WalkInVisitLifecycleServ
     private final ExitWalkInReceptionQueueService queueExit;
     private final ReceptionistAccountAccessService receptionists;
     private final ClinicalVisitCompletionEvidenceService clinical;
+    private final DiagnosticVisitCompletionEvidenceService diagnostic;
     private final Clock clock;
     private final NotificationPublisher notifications;
     private final VisitReviewSourceService reviewSources;
@@ -38,7 +40,7 @@ public class WalkInVisitLifecycleServiceImpl implements WalkInVisitLifecycleServ
     public WalkInVisitLifecycleServiceImpl(CoordinationGuardService guard, ClinicVisitJpaRepository visits,
             WalkInVisitLifecycleRepository lifecycle, VisitAuditJpaRepository audits,
             ExitWalkInReceptionQueueService queueExit, ReceptionistAccountAccessService receptionists,
-            ClinicalVisitCompletionEvidenceService clinical, Clock clock,
+            ClinicalVisitCompletionEvidenceService clinical, DiagnosticVisitCompletionEvidenceService diagnostic, Clock clock,
             NotificationPublisher notifications, VisitReviewSourceService reviewSources,
             StaffAvailabilityProviderQueryService doctorNames) {
         this.guard = guard;
@@ -48,6 +50,7 @@ public class WalkInVisitLifecycleServiceImpl implements WalkInVisitLifecycleServ
         this.queueExit = queueExit;
         this.receptionists = receptionists;
         this.clinical = clinical;
+        this.diagnostic = diagnostic;
         this.clock = clock;
         this.notifications = notifications;
         this.reviewSources = reviewSources;
@@ -90,10 +93,17 @@ public class WalkInVisitLifecycleServiceImpl implements WalkInVisitLifecycleServ
         var evidence = clinical.getCompletionEvidence(visitId);
         if (evidence == null || !visitId.equals(evidence.visitId()) || !evidence.examinationExists()
                 || !evidence.examinationCompleted() || evidence.outstandingOrderCount() != 0
-                || !evidence.allNonCancelledOrdersHaveResults() || !evidence.imagingOrderIds().isEmpty()) {
-            // RESULT_AVAILABLE is not completed/released findings. Diagnostic currently has no
-            // trusted per-order completion query for UC28; fail closed for required imaging.
+                || !evidence.allNonCancelledOrdersHaveResults()) {
             throw new VisitOperationException("VISIT_CARE_NOT_CHANGEABLE");
+        }
+        if (!evidence.imagingOrderIds().isEmpty()) {
+            var imaging = diagnostic.getCompletionEvidence(visitId, visit.getPatientProfileId(), evidence.imagingOrderIds());
+            if (imaging == null || !visitId.equals(imaging.visitId())
+                    || !visit.getPatientProfileId().equals(imaging.patientId())
+                    || !java.util.Set.copyOf(evidence.imagingOrderIds()).equals(imaging.requiredServiceOrderIds())
+                    || !imaging.allComplete()) {
+                throw new VisitOperationException("VISIT_CARE_NOT_CHANGEABLE");
+            }
         }
         var closedAt = clock.instant();
         closeAndRecord(visitId, actorAccountId, actorRole, correlationId, "VISIT_CLOSED", closedAt, "WALK_IN".equals(visit.getSource()));
