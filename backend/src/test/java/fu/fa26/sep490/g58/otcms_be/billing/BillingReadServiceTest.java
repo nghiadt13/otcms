@@ -76,7 +76,7 @@ class BillingReadServiceTest {
     InvoiceResponse invoice() {
         return new InvoiceResponse(invoiceId, "INV-1", patient, null, null, "OPEN",
                 new BigDecimal("100000"), new BigDecimal("30000"), new BigDecimal("70000"), Instant.now(),
-                List.of(new InvoiceResponse.Item(1, UUID.randomUUID(), "Khám chỉnh hình", 1, new BigDecimal("100000"), new BigDecimal("100000"))));
+                List.of(new InvoiceResponse.Item(1, UUID.randomUUID(), "Khám chỉnh hình", 1, new BigDecimal("100000"), new BigDecimal("100000"))), "VISIT", null);
     }
     @Test void receiptRepresentsOneConfirmedPartialPaymentRatherThanInvoiceTotal() {
         UUID paymentId = UUID.randomUUID();

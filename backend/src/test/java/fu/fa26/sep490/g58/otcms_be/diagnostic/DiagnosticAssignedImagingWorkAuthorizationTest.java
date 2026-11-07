@@ -104,6 +104,6 @@ class DiagnosticAssignedImagingWorkAuthorizationTest {
         var orderPorts = (ObjectProvider<ClinicalImagingOrderPort>) mock(ObjectProvider.class);
         when(roomPorts.getIfAvailable()).thenReturn(roomPort);
         return new DiagnosticRequestServiceImpl(requests, attempts, idempotency, audits, authorization,
-                visitPorts, roomPorts, catalogPorts, orderPorts);
+                visitPorts, roomPorts, catalogPorts, orderPorts, (ObjectProvider<fu.fa26.sep490.g58.otcms_be.visit.service.ImagingRoomQueueService>) mock(ObjectProvider.class));
     }
 }

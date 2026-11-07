@@ -44,6 +44,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 @Service
 public class InvoiceServiceImpl implements InvoiceService {
     private static final ZoneId CLINIC_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
+    private final fu.fa26.sep490.g58.otcms_be.billing.integration.ClinicalRoundBillingPort clinicalRounds;
     private final InvoiceRepository invoices;
     private final InvoiceItemRepository items;
     private final PaymentAttemptRepository payments;
@@ -59,7 +60,9 @@ public class InvoiceServiceImpl implements InvoiceService {
             PaymentAttemptRepository payments, AppointmentBillingSourceService appointmentSources,
             VisitBillingSourceService visitSources, ClinicServiceBookingQueryService services,
             AuthorizePatientBillingProfileService patientAuthorization, BillingMapper mapper,
-            PlatformTransactionManager transactionManager, Clock clock) {
+            PlatformTransactionManager transactionManager, Clock clock,
+            fu.fa26.sep490.g58.otcms_be.billing.integration.ClinicalRoundBillingPort clinicalRounds) {
+        this.clinicalRounds = clinicalRounds;
         this.invoices = invoices;
         this.items = items;
         this.payments = payments;
@@ -70,6 +73,32 @@ public class InvoiceServiceImpl implements InvoiceService {
         this.mapper = mapper;
         this.transactions = new TransactionTemplate(transactionManager);
         this.clock = clock;
+    }
+
+    @Override
+    public InvoiceResponse createForClinicalRound(UUID roundId, AuthenticatedAccount actor) {
+        requireReceptionist(actor);
+        var prior = invoices.findFirstByClinicalOrderingRoundId(roundId);
+        if (prior.isPresent()) return existing(prior.get());
+        try {
+            return transactions.execute(status -> {
+                var source = clinicalRounds.requirePayableRound(roundId);
+                var existing = invoices.findFirstByClinicalOrderingRoundId(roundId);
+                if (existing.isPresent()) return existing(existing.get());
+                var resolved = source.orders().stream().map(order -> new ResolvedItem(order.serviceId(),
+                        order.serviceNameSnapshot(), 1, order.priceSnapshot())).toList();
+                UUID id = UUID.randomUUID();
+                var invoice = InvoiceJpaEntity.clinicalRound(id, invoiceNumber(id), source.patientId(),
+                        roundId, actor.accountId(), fingerprint("CLINICAL_ROUND", roundId, resolved));
+                invoices.saveAndFlush(invoice);
+                items.saveAll(createItems(id, resolved));
+                items.flush();
+                return response(id);
+            });
+        } catch (DataIntegrityViolationException conflict) {
+            return invoices.findFirstByClinicalOrderingRoundId(roundId).map(this::existing)
+                    .orElseThrow(() -> conflict);
+        }
     }
 
     @Override

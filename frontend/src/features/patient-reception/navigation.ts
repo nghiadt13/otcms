@@ -57,8 +57,9 @@ export const receptionNavigation = [
   },
   {
     section: "orders",
-    title: "Trạng thái chỉ định",
-    description: "Tra cứu tiến độ thực hiện dịch vụ hình ảnh và xét nghiệm.",
+    title: "Chỉ định cận lâm sàng",
+    description:
+      "Thu phí theo đợt bác sĩ chỉ định và gửi yêu cầu hình ảnh đã thanh toán cho KTV.",
     icon: ClipboardList,
     group: "Điều phối",
   },

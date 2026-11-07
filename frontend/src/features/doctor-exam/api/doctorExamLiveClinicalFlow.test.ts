@@ -66,13 +66,11 @@ describe("UC36", () => {
     },
   );
   it("saves first and issues returned version with an idempotency key", async () => {
-    request
-      .mockResolvedValueOnce(dto(8))
-      .mockResolvedValueOnce({
-        ...dto(9),
-        status: "ISSUED",
-        issuedAt: "2026-11-06T00:00:00Z",
-      });
+    request.mockResolvedValueOnce(dto(8)).mockResolvedValueOnce({
+      ...dto(9),
+      status: "ISSUED",
+      issuedAt: "2026-11-06T00:00:00Z",
+    });
     expect(
       await api.savePrescription(
         "current",
@@ -220,7 +218,7 @@ describe("UC33", () => {
       prescriptions: true,
       pastRecords: true,
       laboratoryOrders: false,
-      orderListing: false,
+      orderListing: true,
       resultSheet: false,
     });
     expect(api).not.toHaveProperty("completeVisit");

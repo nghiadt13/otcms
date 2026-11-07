@@ -97,12 +97,12 @@ class DoctorCoreProductionWiringTest {
         when(replays.findByDoctorProfileIdAndIdempotencyKey(any(), any())).thenAnswer(call -> Optional.ofNullable(replayRows.get(call.getArgument(0) + ":" + call.getArgument(1))));
         when(replays.saveAndFlush(any())).thenAnswer(call -> { assertInTransaction(); var row = (ClinicalImagingRequestReplayJpaEntity) call.getArgument(0); replayRows.put(row.getDoctorProfileId() + ":" + row.getIdempotencyKey(), row); return row; });
         var requests = bean(DiagnosticRequestJpaRepository.class);
-        when(requests.findFirstByServiceOrderIdOrderByCreatedAtDescIdDesc(any())).thenAnswer(call -> Optional.ofNullable(diagnosticRows.get(call.getArgument(0))));
-        when(requests.insertUnassigned(any(), any(), any(), any(), any(), any(), any(), any(), any())).thenAnswer(call -> {
-            assertInTransaction(); UUID order = call.getArgument(8);
+        when(requests.findFirstByServiceOrderIdAndStatusNotOrderByCreatedAtDescIdDesc(any(), eq(DiagnosticRequestStatus.CANCELLED))).thenAnswer(call -> Optional.ofNullable(diagnosticRows.get(call.getArgument(0))));
+        when(requests.insertAssigned(any(), any(), any(), any(), any(), any(), any(), any(), any(), any())).thenAnswer(call -> {
+            assertInTransaction(); UUID order = call.getArgument(9);
             if (diagnosticRows.containsKey(order)) return 0;
             var row = new DiagnosticRequestJpaEntity(call.getArgument(0), call.getArgument(1), call.getArgument(2),
-                    call.getArgument(3), call.getArgument(4), null, call.getArgument(5), call.getArgument(6), call.getArgument(7),
+                    call.getArgument(3), call.getArgument(4), call.getArgument(5), call.getArgument(6), call.getArgument(7), call.getArgument(8),
                     DiagnosticRequestStatus.PENDING, null, null, null);
             row.setServiceOrderId(order); row.setCreatedAt(Instant.EPOCH); diagnosticRows.put(order, row); return 1;
         });
@@ -110,12 +110,22 @@ class DoctorCoreProductionWiringTest {
         when(requests.findAllByVisitIdOrderByCreatedAtDescIdDesc(eq(visitId), any())).thenAnswer(call -> new PageImpl<>(new ArrayList<>(diagnosticRows.values())));
     }
 
+    private static final UUID QUEUE_ROOM = UUID.fromString("00000000-0000-0000-0000-000000000901");
+
+    private void dispatchPaid(UUID roundId) {
+        orderRows.values().stream().filter(order -> roundId.equals(order.getOrderingRoundId())).forEach(order -> order.markPaid(Instant.now()));
+        bean(ClinicalRoundWorkflowService.class).dispatch(roundId,
+                new fu.fa26.sep490.g58.otcms_be.common.security.AuthenticatedAccount(UUID.randomUUID(), AccountRole.RECEPTIONIST, UUID.randomUUID()),
+                orderRows.values().stream().filter(order -> roundId.equals(order.getOrderingRoundId()))
+                        .map(order -> new ClinicalRoundWorkflowService.RoomAssignment(order.getId(), QUEUE_ROOM)).toList());
+    }
+
     @AfterEach void close() { context.close(); }
     private <T> T bean(Class<T> type) { return context.getBean(type); }
     private static void assertInTransaction() { assertTrue(TransactionSynchronizationManager.isActualTransactionActive()); }
     private ImagingRequestCommand command(String key, int count) {
         return new ImagingRequestCommand(visitId, doctorId, key, Collections.nCopies(count,
-                new ImagingOrderRequest(serviceId, "Meniscal injury", "RIGHT_KNEE", "AP/lateral")));
+                new ImagingOrderRequest(serviceId, "Meniscal injury", "RIGHT_KNEE", "AP/lateral")), true);
     }
 
     @Test void allProductionControllersAndRequiredAdaptersWireWithExactlyOneUc38Post() {
@@ -136,25 +146,25 @@ class DoctorCoreProductionWiringTest {
     @Test void multiOrderSubmissionAndReplayUseSameTransactionAndNoDuplicateOperationalWork() {
         var service = bean(ClinicalImagingRequestService.class);
         var created = service.submit(command("same-key", 2));
-        assertEquals(1, roundRows.size()); assertEquals(2, diagnosticRows.size()); assertEquals(1, replayRows.size());
+        assertEquals(1, roundRows.size()); assertEquals(0, diagnosticRows.size()); assertEquals(1, replayRows.size());
         assertEquals(1, bean(RecordingTransactions.class).begins);
         assertTrue(diagnosticRows.values().stream().allMatch(row -> accountId.equals(row.getOrderingDoctorId()) && row.getRoomId() == null));
         clearInvocations(bean(ClinicServiceRepository.class), bean(DiagnosticRequestJpaRepository.class));
         var replay = service.submit(command("same-key", 2));
-        assertTrue(replay.replayed()); assertEquals(created.round(), replay.round()); assertEquals(2, diagnosticRows.size());
-        verify(bean(DiagnosticRequestJpaRepository.class), never()).insertUnassigned(any(), any(), any(), any(), any(), any(), any(), any(), any());
+        assertTrue(replay.replayed()); assertEquals(created.round(), replay.round()); assertEquals(0, diagnosticRows.size());
+        verify(bean(DiagnosticRequestJpaRepository.class), never()).insertAssigned(any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
         verifyNoInteractions(bean(ClinicServiceRepository.class));
-        service.submit(command("different-key", 1)); assertEquals(2, roundRows.size()); assertEquals(3, diagnosticRows.size());
+        service.submit(command("different-key", 1)); assertEquals(2, roundRows.size()); assertEquals(0, diagnosticRows.size());
     }
 
-    @Test void registrationFailureRollsBackWholeClinicalAttemptBeforeReplayIsSaved() {
+    @Test void doctorSubmissionDoesNotDependOnDiagnosticAvailability() {
         doThrow(new org.springframework.dao.DataAccessResourceFailureException("Unavailable"))
-                .when(bean(DiagnosticRequestJpaRepository.class)).insertUnassigned(any(), any(), any(), any(), any(), any(), any(), any(), any());
-        assertThrows(org.springframework.dao.DataAccessResourceFailureException.class, () -> bean(ClinicalImagingRequestService.class).submit(command("failed", 1)));
-        assertEquals(1, bean(RecordingTransactions.class).rollbacks); assertEquals(0, bean(RecordingTransactions.class).commits);
-        verify(bean(ClinicalImagingRequestReplayRepository.class), never()).saveAndFlush(any());
-        // Repository doubles do not prove PostgreSQL rollback; the real Spring transaction boundary is verified here.
+                .when(bean(DiagnosticRequestJpaRepository.class)).insertAssigned(any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
+        bean(ClinicalImagingRequestService.class).submit(command("independent", 1));
+        assertEquals(1, replayRows.size()); assertEquals(1, orderRows.size()); assertTrue(diagnosticRows.isEmpty());
+        verify(bean(DiagnosticRequestJpaRepository.class), never()).insertAssigned(any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
     }
+
 
     @Test void patientImagingHistoryUsesRealActivePatientAndConfirmedRelationshipServices() {
         UUID patientAccount = UUID.randomUUID(), dependent = UUID.randomUUID();
@@ -181,17 +191,18 @@ class DoctorCoreProductionWiringTest {
     }
 
     @Test void wrongDoctorIsRejectedBeforeClinicalOrDiagnosticWrites() {
-        var bad = new ImagingRequestCommand(visitId, UUID.randomUUID(), "bad", command("", 1).orders());
+        var bad = new ImagingRequestCommand(visitId, UUID.randomUUID(), "bad", command("", 1).orders(), true);
         assertEquals("MSG-40", assertThrows(ClinicalOperationException.class, () -> bean(ClinicalImagingRequestService.class).submit(bad)).code());
         verify(bean(OrderingRoundRepository.class), never()).save(any()); assertTrue(diagnosticRows.isEmpty());
     }
 
     @Test void statusUsesRealAccountToProfileAndVisitEvidenceForListAndDetail() {
-        bean(ClinicalImagingRequestService.class).submit(command("status", 1));
+        var round = bean(ClinicalImagingRequestService.class).submit(command("status", 1));
+        dispatchPaid(round.round().id());
         var service = bean(DiagnosticStatusService.class);
         var actor = DiagnosticActor.user(accountId, AccountRole.DOCTOR);
         assertEquals(1, service.listVisitStatus(actor, visitId, 0, 20).items().size());
-        assertNull(service.getStatus(actor, diagnosticRows.values().iterator().next().getId()).roomId());
+        assertEquals(QUEUE_ROOM, service.getStatus(actor, diagnosticRows.values().iterator().next().getId()).roomId());
         assertThrows(fu.fa26.sep490.g58.otcms_be.diagnostic.exception.DiagnosticOperationException.class,
                 () -> service.listVisitStatus(DiagnosticActor.user(UUID.randomUUID(), AccountRole.DOCTOR), visitId, 0, 20));
         assertThrows(fu.fa26.sep490.g58.otcms_be.diagnostic.exception.DiagnosticOperationException.class,
@@ -207,13 +218,14 @@ class DoctorCoreProductionWiringTest {
         diagnosticRows.clear();
         var replay = bean(ClinicalImagingRequestService.class).submit(command("legacy-round", 1));
         assertTrue(replay.replayed()); assertEquals(first.round(), replay.round());
-        assertEquals(1, roundRows.size()); assertEquals(1, orderRows.size()); assertEquals(1, diagnosticRows.size());
+        assertEquals(1, roundRows.size()); assertEquals(1, orderRows.size()); assertEquals(0, diagnosticRows.size());
     }
 
     @Test void existingClinicalBodyAreaAndUnboundedReasonContractSurvivesRegistration() {
         var command = new ImagingRequestCommand(visitId, doctorId, "long-content", List.of(new ImagingOrderRequest(
-                serviceId, "r".repeat(3000), "b".repeat(255), null)));
-        bean(ClinicalImagingRequestService.class).submit(command);
+                serviceId, "r".repeat(3000), "b".repeat(255), null)), true);
+        var result = bean(ClinicalImagingRequestService.class).submit(command);
+        dispatchPaid(result.round().id());
         var request = diagnosticRows.values().iterator().next();
         assertEquals(3000, request.getClinicalReason().length()); assertEquals(255, request.getBodyArea().length());
     }
@@ -293,7 +305,8 @@ class DoctorCoreProductionWiringTest {
     }
 
     @Configuration @EnableWebMvc @EnableTransactionManagement(proxyTargetClass = true)
-    @Import({ClinicalImagingRequestController.class, ClinicalExaminationController.class, AfterVisitAdviceController.class,
+    @Import({ClinicalRoundWorkflowController.class, ClinicalRoundWorkflowServiceImpl.class, DiagnosticOrderStatusQueryServiceImpl.class,
+            fu.fa26.sep490.g58.otcms_be.patient.service.impl.PatientClinicalIdentityQueryServiceImpl.class, ClinicalImagingRequestController.class, ClinicalExaminationController.class, AfterVisitAdviceController.class,
             ClinicalPastMedicalRecordsController.class, ClinicalPastMedicalRecordsServiceImpl.class,
             fu.fa26.sep490.g58.otcms_be.patient.integration.diagnostic.PatientDiagnosticHistoryAdapter.class,
             VisitPatientHistoryQueryServiceImpl.class, ClinicalExaminationHistoryQueryServiceImpl.class,
@@ -322,6 +335,12 @@ class DoctorCoreProductionWiringTest {
             when(persistence.transactionIsolation()).thenReturn("read committed");
             when(persistence.lockGuardRow()).thenReturn(true);
             return new fu.fa26.sep490.g58.otcms_be.common.service.impl.CoordinationGuardServiceImpl(persistence);
+        }
+        @Bean fu.fa26.sep490.g58.otcms_be.visit.service.ImagingRoomQueueService queueRooms() {
+            var owner = mock(fu.fa26.sep490.g58.otcms_be.visit.service.ImagingRoomQueueService.class);
+            when(owner.findRooms(any())).thenReturn(Map.of(QUEUE_ROOM,
+                    new fu.fa26.sep490.g58.otcms_be.visit.service.ImagingRoomQueueService.QueueRoom(QUEUE_ROOM, "CDHA-01", "Imaging room")));
+            return owner;
         }
         @Bean Clock clock() { return Clock.systemUTC(); }
         @Bean RecordingTransactions transactionManager() { return new RecordingTransactions(); }

@@ -17,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional
 class StaffRoomAssignmentPostgresIntegrationTest {
     @Autowired JdbcTemplate jdbc;
+    @Autowired jakarta.persistence.EntityManager entityManager;
     @Autowired StaffRoomAssignmentQueryService assignments;
     @Test void shiftBoundariesRoomIdentityProfileAndAccountStatusAreAuthoritative() {
         UUID actor = UUID.randomUUID(), profile = UUID.randomUUID(), room = UUID.randomUUID();
@@ -27,13 +28,20 @@ class StaffRoomAssignmentPostgresIntegrationTest {
         jdbc.update("insert into staff_work_shifts(staff_profile_id,room_id,starts_at,ends_at) values (?,?,?,?)", profile, room, Timestamp.from(start), Timestamp.from(end));
         assertFalse(assignments.isImagingTechnicianAssigned(actor, room, start.minusSeconds(1)));
         assertTrue(assignments.isImagingTechnicianAssigned(actor, room, start));
+        assertTrue(assignments.roomsWithActiveImagingTechnician(java.util.List.of(room), start.minusSeconds(1)).isEmpty());
+        assertEquals(java.util.Set.of(room), assignments.roomsWithActiveImagingTechnician(java.util.List.of(room), start));
+        assertTrue(assignments.roomsWithActiveImagingTechnician(java.util.List.of(room), end).isEmpty());
         assertTrue(assignments.isImagingTechnicianAssigned(actor, room, end.minusSeconds(1)));
         assertFalse(assignments.isImagingTechnicianAssigned(actor, room, end));
         assertFalse(assignments.isImagingTechnicianAssigned(actor, UUID.randomUUID(), start));
         jdbc.update("update staff_profiles set status='REMOVED' where id=?", profile);
+        entityManager.clear();
         assertFalse(assignments.isImagingTechnicianAssigned(actor, room, start));
+        assertTrue(assignments.roomsWithActiveImagingTechnician(java.util.List.of(room), start).isEmpty());
         jdbc.update("update staff_profiles set status='ACTIVE' where id=?", profile);
         jdbc.update("update accounts set status='DISABLED' where id=?", actor);
+        entityManager.clear();
         assertFalse(assignments.isImagingTechnicianAssigned(actor, room, start));
+        assertTrue(assignments.roomsWithActiveImagingTechnician(java.util.List.of(room), start).isEmpty());
     }
 }

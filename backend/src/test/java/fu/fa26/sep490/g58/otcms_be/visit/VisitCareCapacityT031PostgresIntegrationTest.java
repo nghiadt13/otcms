@@ -320,11 +320,17 @@ class VisitCareCapacityT031PostgresIntegrationTest {
         assertEquals(1, jdbc.queryForObject("select count(*) from walk_in_reception_queue_history h "
                 + "join walk_in_reception_queue_entries q on q.id = h.queue_entry_id "
                 + "where q.visit_id = ? and h.reason = 'CARE_STARTED'", Integer.class, visit));
+        // UC28 closure is Receptionist-only; Doctor denial precedes business-state checks.
         mvc.perform(post("/api/v1/visits/{visitId}/closure", visit)
                         .with(actor(doctorAccount, AccountRole.DOCTOR)).with(csrf())
                         .header("X-Correlation-ID", CORRELATION))
+                .andExpect(status().isForbidden());
+        mvc.perform(post("/api/v1/visits/{visitId}/closure", visit)
+                        .with(actor(receptionist, AccountRole.RECEPTIONIST)).with(csrf())
+                        .header("X-Correlation-ID", CORRELATION))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.error.code").value("VISIT_CARE_NOT_CHANGEABLE"));
+        assertEquals("OPEN", jdbc.queryForObject("select status from visits where id = ?", String.class, visit));
     }
 
     @Test

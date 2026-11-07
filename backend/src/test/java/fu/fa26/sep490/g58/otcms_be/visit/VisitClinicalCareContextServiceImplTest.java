@@ -128,6 +128,20 @@ class VisitClinicalCareContextServiceImplTest {
         assertTrue(VisitClinicalCareContextServiceImpl.class.getAnnotation(Transactional.class).readOnly());
     }
 
+    @Test void batchContextsUseTwoBulkReadsAndPreserveNewestCurrentCare() {
+        var newer = inProgress(UUID.randomUUID(), doctorId, now);
+        var older = inProgress(UUID.randomUUID(), UUID.randomUUID(), now.minusSeconds(60));
+        when(visits.findAllById(List.of(visitId))).thenReturn(List.of(openVisit()));
+        when(assignments.findByVisitIdInAndStatusOrderByAssignedAtDescIdDesc(List.of(visitId), "IN_PROGRESS")).thenReturn(List.of(newer, older));
+        var context = service.findClinicalCareContexts(List.of(visitId)).get(visitId);
+        assertEquals(newer.getId(), context.activeCareAssignmentId()); assertEquals(doctorId, context.responsibleDoctorProfileId());
+        assertTrue(context.clinicalWorkAllowed());
+        verify(visits).findAllById(List.of(visitId));
+        verify(assignments).findByVisitIdInAndStatusOrderByAssignedAtDescIdDesc(List.of(visitId), "IN_PROGRESS");
+        verify(visits, never()).findById(any());
+        verify(assignments, never()).findFirstByVisitIdAndStatusOrderByAssignedAtDescIdDesc(any(), any());
+    }
+
     private ClinicVisitJpaEntity openVisit() {
         return ClinicVisitJpaEntity.walkIn(visitId, patientId, null, UUID.randomUUID(), now);
     }

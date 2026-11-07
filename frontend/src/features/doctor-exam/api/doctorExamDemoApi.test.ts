@@ -84,6 +84,7 @@ describe("luồng khám trên bản demo", () => {
       ],
       catalog,
       "key",
+      true,
     );
     expect(created).toMatchObject({
       status: "PENDING_PAYMENT",

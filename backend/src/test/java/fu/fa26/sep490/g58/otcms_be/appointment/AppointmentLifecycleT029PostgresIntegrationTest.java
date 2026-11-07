@@ -107,6 +107,7 @@ class AppointmentLifecycleT029PostgresIntegrationTest {
                 jdbc.update("delete from appointment_audits where appointment_id = ?", id);
                 jdbc.update("update appointments set status = 'CANCELLED', visit_id = null where id = ?", id);
                 for (UUID visit : visits) {
+                    jdbc.update("delete from clinical_examinations where visit_id = ?", visit);
                     jdbc.update("delete from visit_examinations where visit_id = ?", visit);
                     jdbc.update("delete from visit_assignment_audits where visit_id = ?", visit);
                     jdbc.update("delete from visit_assignments where visit_id = ?", visit);
@@ -117,6 +118,7 @@ class AppointmentLifecycleT029PostgresIntegrationTest {
             }
             for (UUID visit : fixtureVisits) {
                 jdbc.update("delete from walk_in_requests where visit_id = ?", visit);
+                jdbc.update("delete from clinical_examinations where visit_id = ?", visit);
                 jdbc.update("delete from visit_examinations where visit_id = ?", visit);
                 jdbc.update("delete from visit_assignment_audits where visit_id = ?", visit);
                 jdbc.update("delete from visit_assignments where visit_id = ?", visit);
@@ -216,12 +218,17 @@ class AppointmentLifecycleT029PostgresIntegrationTest {
     void existingClinicalActivityRejectsCancellationWithoutChangingEitherOwner() throws Exception {
         UUID appointment = checkedInAppointment();
         UUID visit = jdbc.queryForObject("select visit_id from appointments where id = ?", UUID.class, appointment);
-        jdbc.update("insert into visit_examinations (visit_id, doctor_profile_id, completed, follow_up_indicated) values (?, ?, false, false)", visit, doctorProfile);
+        // Cancellation consumes the Clinical owner's examination evidence, including DRAFT.
+        jdbc.update("insert into clinical_examinations (id, visit_id, status, created_at, updated_at) "
+                + "values (?, ?, 'DRAFT', ?, ?)", UUID.randomUUID(), visit, Timestamp.from(NOW), Timestamp.from(NOW));
+        assertEquals(1, jdbc.queryForObject("select count(*) from clinical_examinations where visit_id = ? and status = 'DRAFT'",
+                Integer.class, visit));
         mvc.perform(cancel(appointment)).andExpect(status().isConflict())
                 .andExpect(jsonPath("$.error.code").value("VISIT_CANCELLATION_NOT_ALLOWED"));
         assertEquals("CHECKED_IN", jdbc.queryForObject("select status from appointments where id = ?", String.class, appointment));
         assertEquals("OPEN", jdbc.queryForObject("select status from visits where id = ?", String.class, visit));
         assertEquals(0, jdbc.queryForObject("select count(*) from appointment_audits where appointment_id = ? and new_status = 'CANCELLED'", Integer.class, appointment));
+        assertEquals("DRAFT", jdbc.queryForObject("select status from clinical_examinations where visit_id = ?", String.class, visit));
     }
 
     @Test

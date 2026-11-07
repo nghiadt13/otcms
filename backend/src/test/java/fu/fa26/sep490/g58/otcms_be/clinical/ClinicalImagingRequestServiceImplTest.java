@@ -59,8 +59,24 @@ class ClinicalImagingRequestServiceImplTest {
         });
     }
 
+    @Test void consentIsRequiredBeforeAnyWrite() {
+        var command = command("no-consent");
+        assertCode("MSG-39", () -> service.submit(new ImagingRequestCommand(command.visitId(), command.doctorProfileId(),
+                command.idempotencyKey(), command.orders(), false)));
+        assertNoWrites(); verifyNoInteractions(diagnostic);
+    }
+
+    @Test void doctorSubmissionAndReplayNeverCreateDiagnosticWork() {
+        var first = service.submit(command("consented"));
+        assertEquals(1, orderRows.size());
+        assertEquals(fu.fa26.sep490.g58.otcms_be.clinical.model.ServiceOrderPaymentStatus.PENDING_PAYMENT,
+                first.round().orders().getFirst().paymentStatus());
+        service.submit(command("consented"));
+        verifyNoInteractions(diagnostic);
+    }
+
     @Test void firstSubmissionCreatesOneRoundMultipleImagingOrdersAndDurableReplay() {
-        var result = service.submit(new ImagingRequestCommand(visitId, doctorId, " key ", List.of(order(), order())));
+        var result = service.submit(new ImagingRequestCommand(visitId, doctorId, " key ", List.of(order(), order()), true));
         assertFalse(result.replayed());
         assertEquals(1, roundRows.size()); assertEquals(2, orderRows.size()); assertEquals(1, replayRows.size());
         assertEquals(1, result.round().roundNumber());
@@ -91,7 +107,7 @@ class ClinicalImagingRequestServiceImplTest {
                 change.equals("bodyArea") ? "LEFT_KNEE" : value.bodyArea(),
                 change.equals("instructions") ? "Different instructions" : value.instructions());
         assertCode("IDEMPOTENCY_CONFLICT", () -> service.submit(new ImagingRequestCommand(
-                change.equals("visit") ? UUID.randomUUID() : visitId, doctorId, "key", List.of(changed))));
+                change.equals("visit") ? UUID.randomUUID() : visitId, doctorId, "key", List.of(changed), true)));
         assertEquals(1, roundRows.size()); assertEquals(1, replayRows.size());
     }
 
@@ -101,7 +117,7 @@ class ClinicalImagingRequestServiceImplTest {
         assertNotEquals(first.round().id(), second.round().id()); assertEquals(2, second.round().roundNumber());
         UUID otherDoctor = UUID.randomUUID(), otherVisit = UUID.randomUUID();
         when(visits.getVisitContext(otherVisit)).thenReturn(new VisitClinicalContextPort.ClinicalVisitContext(otherVisit, patientId, otherDoctor, true));
-        var third = service.submit(new ImagingRequestCommand(otherVisit, otherDoctor, "key", List.of(order())));
+        var third = service.submit(new ImagingRequestCommand(otherVisit, otherDoctor, "key", List.of(order()), true));
         assertFalse(third.replayed()); assertEquals(3, replayRows.size());
     }
 
@@ -158,7 +174,7 @@ class ClinicalImagingRequestServiceImplTest {
                 List.of(new ImagingOrderRequest(null, "Reason", "Knee", null)),
                 List.of(new ImagingOrderRequest(serviceId, " ", "Knee", null)),
                 List.of(new ImagingOrderRequest(serviceId, "Reason", " ", null)))) {
-            assertCode("MSG-39", () -> service.submit(new ImagingRequestCommand(visitId, doctorId, "key", items)));
+            assertCode("MSG-39", () -> service.submit(new ImagingRequestCommand(visitId, doctorId, "key", items, true)));
         }
         verifyNoInteractions(visits, catalog); assertNoWrites();
     }
@@ -166,14 +182,14 @@ class ClinicalImagingRequestServiceImplTest {
     @Test void fingerprintIsStableUnambiguousAndSensitiveToOrderAndNullInstructions() {
         var first = new ImagingOrderRequest(serviceId, "a\nb", "c", null);
         var second = new ImagingOrderRequest(serviceId, "a", "b\nc", "");
-        var a = new ImagingRequestCommand(visitId, doctorId, "key", List.of(first, second));
-        var b = new ImagingRequestCommand(visitId, doctorId, "other-key", List.of(first, second));
+        var a = new ImagingRequestCommand(visitId, doctorId, "key", List.of(first, second), true);
+        var b = new ImagingRequestCommand(visitId, doctorId, "other-key", List.of(first, second), true);
         String hash = ClinicalImagingRequestFingerprint.fingerprint(a);
         assertEquals(hash, ClinicalImagingRequestFingerprint.fingerprint(b));
-        assertNotEquals(hash, ClinicalImagingRequestFingerprint.fingerprint(new ImagingRequestCommand(visitId, doctorId, "key", List.of(second, first))));
-        assertNotEquals(ClinicalImagingRequestFingerprint.fingerprint(new ImagingRequestCommand(visitId, doctorId, "key", List.of(first))),
+        assertNotEquals(hash, ClinicalImagingRequestFingerprint.fingerprint(new ImagingRequestCommand(visitId, doctorId, "key", List.of(second, first), true)));
+        assertNotEquals(ClinicalImagingRequestFingerprint.fingerprint(new ImagingRequestCommand(visitId, doctorId, "key", List.of(first), true)),
                 ClinicalImagingRequestFingerprint.fingerprint(new ImagingRequestCommand(visitId, doctorId, "key",
-                        List.of(new ImagingOrderRequest(serviceId, "a\nb", "c", "")))));
+                        List.of(new ImagingOrderRequest(serviceId, "a\nb", "c", "")), true)));
     }
 
     @Test void missingPersistedRoundIsNotTreatedAsSuccessfulReplay() {
@@ -185,11 +201,11 @@ class ClinicalImagingRequestServiceImplTest {
         var preparation = new ClinicalOrderPreparationService(visits, catalogPort);
         var writer = new ClinicalOrderingTransactionService(rounds, orders, clock,
                 mock(fu.fa26.sep490.g58.otcms_be.common.service.CoordinationGuardService.class), preparation);
-        return new ClinicalImagingRequestServiceImpl(new ClinicalImagingRequestTransactionService(preparation, writer, replays, rounds, orders, clock, diagnostic,
+        return new ClinicalImagingRequestServiceImpl(new ClinicalImagingRequestTransactionService(preparation, writer, replays, rounds, orders, clock,
                 mock(fu.fa26.sep490.g58.otcms_be.common.service.CoordinationGuardService.class)));
     }
 
-    private ImagingRequestCommand command(String key) { return new ImagingRequestCommand(visitId, doctorId, key, List.of(order())); }
+    private ImagingRequestCommand command(String key) { return new ImagingRequestCommand(visitId, doctorId, key, List.of(order()), true); }
     private ImagingOrderRequest order() { return new ImagingOrderRequest(serviceId, "Suspected injury", "RIGHT_KNEE", "Weight-bearing"); }
     private ClinicServiceCatalogPort.ClinicalServiceSnapshot snapshot(ClinicalServiceType type, boolean active) {
         return new ClinicServiceCatalogPort.ClinicalServiceSnapshot(serviceId, "X-ray Knee", type, new BigDecimal("250000.00"), active);

@@ -41,6 +41,7 @@ class Kan27StaffAccountPostgresIntegrationTest {
         registry.add("app.auth.session-security.jwt-secret", () -> ephemeral);
         registry.add("app.auth.rate-limit-hmac-secret", () -> ephemeral);
         registry.add("app.auth.login.requests", () -> 10000);
+        registry.add("app.auth.login.window-seconds", () -> 60);
         registry.add("app.auth.staff-network.allowed-cidrs", () -> "127.0.0.1/32");
     }
     @Autowired MockMvc mvc;

@@ -13,6 +13,26 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 public interface VisitRoomJpaRepository extends JpaRepository<VisitRoomJpaEntity, UUID> {
+    interface ImagingQueueRoomRow {
+        boolean getActive();
+        String getType();
+        boolean getImagingCapability();
+        UUID getServiceId();
+        UUID getRoomId();
+        String getRoomCode();
+        String getDisplayLabel();
+    }
+
+    @Query(value = """
+            select s.service_id as "serviceId", r.id as "roomId", r.room_code as "roomCode", r.display_label as "displayLabel",
+                r.active as active, r.room_type as type,
+                exists (select 1 from room_capabilities c where c.room_id = r.id and c.capability_code = 'IMAGING_ROOM') as "imagingCapability"
+            from rooms r join room_supported_services s on s.room_id = r.id
+            where s.service_id in (:serviceIds)
+            order by r.room_code, r.id
+            """, nativeQuery = true)
+    List<ImagingQueueRoomRow> findImagingQueueRooms(@Param("serviceIds") java.util.Collection<UUID> serviceIds);
+
     boolean existsByRoomCode(String roomCode);
 
     List<VisitRoomJpaEntity> findAllByOrderByRoomCodeAscIdAsc();

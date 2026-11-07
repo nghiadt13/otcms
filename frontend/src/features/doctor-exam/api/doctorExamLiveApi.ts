@@ -15,7 +15,7 @@ const missing = (): never => {
 export const doctorLiveApi: DoctorExamApi = {
   capabilities: {
     laboratoryOrders: false,
-    orderListing: false,
+    orderListing: true,
     prescriptions: true,
     pastRecords: true,
     resultSheet: false,

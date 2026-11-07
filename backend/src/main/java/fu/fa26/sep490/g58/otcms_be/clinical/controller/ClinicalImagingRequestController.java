@@ -33,7 +33,7 @@ public class ClinicalImagingRequestController {
         if (key.isBlank() || key.length() > 128) throw new ClinicalOperationException("MSG-39");
         var command = new ClinicalImagingRequestService.ImagingRequestCommand(visitId, doctors.requireDoctorProfile(account),
                 key, body.orders().stream().map(order -> new ClinicalImagingRequestService.ImagingOrderRequest(
-                        order.serviceId(), order.clinicalReason(), order.bodyArea(), order.instructions())).toList());
+                        order.serviceId(), order.clinicalReason(), order.bodyArea(), order.instructions())).toList(), Boolean.TRUE.equals(body.patientConsentConfirmed()));
         var result = imagingRequests.submit(command);
         var round = result.round();
         var response = new ImagingRoundResponse(round.id(), round.visitId(), round.roundNumber(), round.orderedAt(),

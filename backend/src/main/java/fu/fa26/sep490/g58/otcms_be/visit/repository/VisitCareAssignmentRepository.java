@@ -42,6 +42,9 @@ public interface VisitCareAssignmentRepository extends JpaRepository<VisitCareAs
             """)
     List<DoctorActiveCareRow> findDoctorActiveCare(@Param("doctorProfileId") UUID doctorProfileId);
 
+    java.util.List<VisitCareAssignmentJpaEntity> findByVisitIdInAndStatusOrderByAssignedAtDescIdDesc(
+            java.util.Collection<UUID> visitIds, String status);
+
     Optional<VisitCareAssignmentJpaEntity> findFirstByVisitIdAndStatusOrderByAssignedAtDescIdDesc(
             UUID visitId, String status);
 

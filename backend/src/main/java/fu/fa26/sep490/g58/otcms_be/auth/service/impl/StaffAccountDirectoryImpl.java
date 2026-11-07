@@ -24,6 +24,13 @@ public class StaffAccountDirectoryImpl implements StaffAccountDirectory {
 
     @Override
     @Transactional(readOnly = true)
+    public List<Entry> activeStaff(java.util.Collection<UUID> accountIds) {
+        if (accountIds.isEmpty()) return List.of();
+        return accounts.findAllById(accountIds).stream().filter(this::eligible).map(this::entry).toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public Optional<Entry> activeStaff(UUID id) {
         return accounts.findById(id).filter(this::eligible).map(this::entry);
     }

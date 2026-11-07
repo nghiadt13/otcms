@@ -25,7 +25,8 @@ public class ClinicalImagingOrderAdapter implements ClinicalImagingOrderPort {
         try {
             var order = ordering.getImagingOrder(orderId);
             return new ClinicalImagingOrder(order.orderId(), order.visitId(), order.serviceId(),
-                    order.orderStatus() == ServiceOrderStatus.ORDERED);
+                    order.orderStatus() == ServiceOrderStatus.ORDERED,
+                    order.paymentStatus() == fu.fa26.sep490.g58.otcms_be.clinical.model.ServiceOrderPaymentStatus.PAID);
         } catch (ClinicalOperationException notUsable) {
             // Missing, not an imaging order, or cancelled: the caller decides how to report it.
             return null;

@@ -22,7 +22,8 @@ public class BillingMapper {
         BigDecimal paid = paidAmount == null ? BigDecimal.ZERO : paidAmount;
         return new InvoiceResponse(invoice.getId(), invoice.getInvoiceNumber(), invoice.getPatientProfileId(),
                 invoice.getVisitId(), invoice.getAppointmentId(), invoice.getStatus().name(), total,
-                paid, total.subtract(paid).max(BigDecimal.ZERO), invoice.getIssuedAt(), responseItems);
+                paid, total.subtract(paid).max(BigDecimal.ZERO), invoice.getIssuedAt(), responseItems,
+                invoice.getSourceType(), invoice.getClinicalOrderingRoundId());
     }
 
     public PaymentAttemptResponse toPaymentAttempt(PaymentAttemptJpaEntity attempt) {

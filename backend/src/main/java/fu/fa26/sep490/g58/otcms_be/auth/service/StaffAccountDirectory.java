@@ -9,6 +9,7 @@ import java.util.UUID;
 public interface StaffAccountDirectory {
     record Entry(UUID id, String username, String fullName, AccountType role) { }
     List<Entry> activeStaff();
+    List<Entry> activeStaff(java.util.Collection<UUID> accountIds);
     Optional<Entry> activeStaff(UUID id);
     Optional<Entry> staff(UUID id);
 }

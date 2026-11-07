@@ -49,9 +49,12 @@ class DiagnosticFindingsT014PostgresIntegrationTest {
     private UUID doctorId;
     private UUID serviceId;
     private UUID roomId;
+    private UUID serviceOrderId;
     private final String studyRef = "study-" + UUID.randomUUID();
 
     @Autowired DiagnosticRequestService requests;
+    @Autowired DiagnosticImagingRequestRegistration registration;
+    @Autowired org.springframework.transaction.PlatformTransactionManager transactions;
     @Autowired DiagnosticEvidenceService evidence;
     @Autowired DiagnosticFindingsService findings;
     @Autowired DiagnosticVisitCompletionEvidenceService completion;
@@ -66,6 +69,7 @@ class DiagnosticFindingsT014PostgresIntegrationTest {
         doctorId = UUID.randomUUID();
         serviceId = UUID.randomUUID();
         roomId = UUID.randomUUID();
+        serviceOrderId = UUID.randomUUID();
         ports.visits.put(visitId, new VisitEvidence(visitId, patientId, doctorId, true, true, true));
         ports.service = new fu.fa26.sep490.g58.otcms_be.diagnostic.integration.DiagnosticPortModels.ImagingService(
                 serviceId, "MRI", true);
@@ -88,17 +92,24 @@ class DiagnosticFindingsT014PostgresIntegrationTest {
         DiagnosticEvidenceService.DispatchSummary firstDispatch = evidence.dispatchDueOutbox(100,
                 new DiagnosticEvidenceService.RetryPolicy(3, 1, 8));
         assertEquals(3, firstDispatch.delivered());
-        UUID clinicalOrder = UUID.randomUUID();
-        jdbc.update("update diagnostic_requests set service_order_id=? where id=?", clinicalOrder, request.requestId());
+        // Preserve the registration link: JDBC reassignment would stale the managed JPA request.
+        UUID clinicalOrder = serviceOrderId;
         org.junit.jupiter.api.Assertions.assertTrue(completion.getCompletionEvidence(visitId, patientId, java.util.List.of(clinicalOrder)).allComplete());
         org.junit.jupiter.api.Assertions.assertFalse(completion.getCompletionEvidence(UUID.randomUUID(), patientId, java.util.List.of(clinicalOrder)).allComplete());
         assertEquals(1, jdbc.queryForObject("select count(*) from diagnostic_findings_versions "
                 + "where request_id = ? and version_number = 1 and state = 'COMPLETED'", Integer.class,
                 request.requestId()));
 
+        var originalFindings = jdbc.queryForMap("select * from diagnostic_findings_versions where id = ?",
+                firstDraft.findingsVersionId());
+        var originalReport = jdbc.queryForMap("select * from diagnostic_reports where id = ?", firstReport.reportId());
         DiagnosticFindingsView correction = findings.createCorrection(doctor(), request.requestId(), "correct-1",
                 reviewedVersion, "Small left effusion", "Added after image re-review", "corr-correction");
         assertEquals(2, correction.version());
+        assertEquals("PRIVATE", correction.releaseState());
+        assertEquals(correction.findingsVersionId(), findings.createCorrection(doctor(), request.requestId(),
+                "correct-1", reviewedVersion, "Small left effusion", "Added after image re-review",
+                "corr-correction-replay").findingsVersionId());
         org.junit.jupiter.api.Assertions.assertTrue(completion.getCompletionEvidence(visitId, patientId, java.util.List.of(clinicalOrder)).allComplete());
         assertEquals("Added after image re-review", correction.correctionReason());
         assertEquals("COMPLETED", jdbc.queryForObject("select state from diagnostic_findings_versions "
@@ -111,7 +122,37 @@ class DiagnosticFindingsT014PostgresIntegrationTest {
                 "complete-2", reviewedVersion, correction.version(), correctionReport.reportId(), studyRef,
                 "corr-complete-2");
         assertEquals("RELEASE_PENDING", correctionRelease.releaseState());
-        evidence.dispatchDueOutbox(100, new DiagnosticEvidenceService.RetryPolicy(3, 1, 8));
+        assertReleasedVersion(request.requestId(), firstDraft.findingsVersionId(), firstReport.reportId());
+        int ownerAcksBefore = ports.findingsReleaseCalls;
+        java.util.concurrent.atomic.AtomicBoolean observedFirstAck = new java.util.concurrent.atomic.AtomicBoolean();
+        ports.beforeStudyReleaseAck = event -> {
+            // Production has validated the owner ACK, but the study ACK has not returned yet.
+            assertEquals(ownerAcksBefore + 1, ports.findingsReleaseCalls);
+            assertEquals(correction.findingsVersionId(), event.findingsVersionId());
+            assertEquals(correctionReport.reportId(), event.reportId());
+            assertEquals("DRAFT", jdbc.queryForObject(
+                    "select state from diagnostic_findings_versions where id = ?",
+                    String.class, correction.findingsVersionId()));
+            assertNull(jdbc.queryForObject("select released_at from diagnostic_reports where id = ?",
+                    java.sql.Timestamp.class, correctionReport.reportId()));
+            assertReleasedVersion(request.requestId(), firstDraft.findingsVersionId(), firstReport.reportId());
+            observedFirstAck.set(true);
+        };
+        var correctionDispatch = evidence.dispatchDueOutbox(100, new DiagnosticEvidenceService.RetryPolicy(3, 1, 8));
+        org.junit.jupiter.api.Assertions.assertTrue(observedFirstAck.get());
+        assertEquals(1, correctionDispatch.delivered());
+        assertReleasedVersion(request.requestId(), correction.findingsVersionId(), correctionReport.reportId());
+        assertEquals(originalFindings, jdbc.queryForMap(
+                "select * from diagnostic_findings_versions where id = ?", firstDraft.findingsVersionId()));
+        assertEquals(originalReport, jdbc.queryForMap(
+                "select * from diagnostic_reports where id = ?", firstReport.reportId()));
+        assertEquals("RELEASED", findings.complete(doctor(), request.requestId(), "complete-2", reviewedVersion,
+                correction.version(), correctionReport.reportId(), studyRef, "corr-complete-replay").releaseState());
+        int ownerAcksAfter = ports.findingsReleaseCalls;
+        int studyAcksAfter = ports.studyReleaseCalls;
+        assertEquals(0, evidence.dispatchDueOutbox(100, new DiagnosticEvidenceService.RetryPolicy(3, 1, 8)).delivered());
+        assertEquals(ownerAcksAfter, ports.findingsReleaseCalls);
+        assertEquals(studyAcksAfter, ports.studyReleaseCalls);
 
         assertEquals(2, jdbc.queryForObject("select count(*) from diagnostic_findings_versions "
                 + "where request_id = ? and state = 'COMPLETED'", Integer.class, request.requestId()));
@@ -143,9 +184,22 @@ class DiagnosticFindingsT014PostgresIntegrationTest {
                 + "where event_type = 'FINDINGS_RELEASE' and request_id = ?", String.class, request.requestId()));
     }
 
+    private void assertReleasedVersion(UUID requestId, UUID findingsId, UUID reportId) {
+        assertEquals(findingsId, jdbc.queryForObject("select id from diagnostic_findings_versions "
+                + "where request_id = ? and state = 'COMPLETED' order by version_number desc limit 1",
+                UUID.class, requestId));
+        assertEquals(reportId, jdbc.queryForObject("select id from diagnostic_reports "
+                + "where request_id = ? and released_at is not null order by report_version desc limit 1",
+                UUID.class, requestId));
+        assertEquals(reportId, jdbc.queryForObject("select required_pdf_report_id from diagnostic_findings_versions "
+                + "where id = ?", UUID.class, findingsId));
+    }
+
     private DiagnosticRequestView resultAvailable() {
-        DiagnosticRequestView created = requests.create(doctor(), visitId, "create-request", serviceId,
-                "MRI", "Chest", "Persistent cough", roomId, null, "corr-create");
+        UUID orderId = serviceOrderId;
+        ports.orders.put(orderId, new fu.fa26.sep490.g58.otcms_be.diagnostic.integration.DiagnosticPortModels.ClinicalImagingOrder(orderId, visitId, serviceId, true, true));
+        DiagnosticRequestView created = DiagnosticRequestT012PostgresIntegrationTest.registerAssigned(jdbc, transactions, registration, ports,
+                visitId, roomId, orderId, "Chest", "Persistent cough");
         UUID attemptId = UUID.randomUUID();
         Instant now = Instant.now();
         UseEvidence use = new UseEvidence(UUID.randomUUID(), created.requestId(), attemptId,

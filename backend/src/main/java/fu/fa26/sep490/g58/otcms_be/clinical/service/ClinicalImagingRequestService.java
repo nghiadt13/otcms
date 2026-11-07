@@ -7,7 +7,7 @@ public interface ClinicalImagingRequestService {
     SubmissionResult submit(ImagingRequestCommand command);
 
     record ImagingRequestCommand(UUID visitId, UUID doctorProfileId, String idempotencyKey,
-            List<ImagingOrderRequest> orders) { }
+            List<ImagingOrderRequest> orders, boolean patientConsentConfirmed) { }
 
     record ImagingOrderRequest(UUID serviceId, String clinicalReason, String bodyArea, String instructions) { }
 

@@ -242,10 +242,12 @@ it("TreatmentScreen renders issued prescription read-only", async () => {
     screen.queryByRole("button", { name: /Phát hành/ }),
   ).not.toBeInTheDocument();
 });
-it("live readiness refuses to certify incomplete full-order projection and cannot mutate Visit", async () => {
+it("live readiness uses persisted Clinical orders and cannot mutate Visit", async () => {
   workspace(<ClosingScreen />);
   expect(
-    await screen.findByText(/Chưa có danh sách đầy đủ dịch vụ/),
+    await screen.findByText(
+      /Phần khám còn điều kiện chưa đạt hoặc chưa kiểm tra được/,
+    ),
   ).toBeInTheDocument();
   expect(
     screen.queryByText(/^Phần khám đã đủ điều kiện/),

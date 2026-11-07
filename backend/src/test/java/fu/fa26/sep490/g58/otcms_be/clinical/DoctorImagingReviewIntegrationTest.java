@@ -89,9 +89,8 @@ class DoctorImagingReviewIntegrationTest {
                     call.getArgument(4), call.getArgument(5), call.getArgument(6), DiagnosticOperationOutcome.ALLOWED, new HashMap<>())); return 1;
         });
         when(idempotency.findActorOperation(any(), any(), any(), any(), any())).thenAnswer(call -> Optional.ofNullable(keys.get(call.getArgument(3) + ":" + call.getArgument(4))));
-        when(idempotency.completeResult(any(), any())).thenAnswer(call -> {
-            keys.values().stream().filter(k -> k.getId().equals(call.getArgument(0))).findFirst().orElseThrow().getResultPayload().putAll(call.getArgument(1)); return 1;
-        });
+        // Bulk DML does not refresh a previously managed entity; do not hide that production behavior.
+        when(idempotency.completeResult(any(), any())).thenReturn(1);
         var inbox = bean(VisitImagingResultReceiptRepository.class);
         when(inbox.insertReceipt(any(), any(), any(), any(), any(), any(), any())).thenAnswer(call -> {
             UUID id = call.getArgument(0); if (receipts.containsKey(id)) return 0;
@@ -124,6 +123,49 @@ class DoctorImagingReviewIntegrationTest {
                 "IMAGING_RESULT_READY", Map.of("eventId", id.toString(), "requestId", requestId.toString(), "visitId", targetVisit.toString()),
                 DiagnosticOutboxStatus.PENDING, 0, Instant.EPOCH, null, null); events.put(id, row); return row;
     }
+    @Test void correctionAndCompletionReplayUseCompletedManagedPayloadAndPreserveReleaseGates() {
+        var initial = draft();
+        UUID firstReport = report(1, DiagnosticReportValidationStatus.VALIDATED);
+        var old = versions.get(initial.findingsVersionId());
+        old.markReleased(firstReport, Instant.EPOCH);
+        reportRows.get(firstReport).setReleasedAt(Instant.EPOCH);
+        long requestVersion = request.getVersion();
+        var correction = findings().createCorrection(actor(), requestId, "correction", requestVersion,
+                "Small effusion", "Image re-review", "test");
+        var replay = findings().createCorrection(actor(), requestId, "correction", requestVersion,
+                "Small effusion", "Image re-review", "replay");
+        assertEquals(correction.findingsVersionId(), replay.findingsVersionId());
+        assertEquals(2, replay.version()); assertEquals("PRIVATE", replay.releaseState());
+        assertEquals(2, versions.size());
+        UUID secondReport = report(2, DiagnosticReportValidationStatus.VALIDATED);
+        findings().complete(actor(), requestId, "complete-correction", requestVersion, 2, secondReport, study, "test");
+        assertEquals("RELEASE_PENDING", findings().complete(actor(), requestId, "complete-correction",
+                requestVersion, 2, secondReport, study, "replay").releaseState());
+        var imaging = mock(ImagingStudyPort.class);
+        when(imaging.acceptFindingsRelease(any())).thenAnswer(call -> {
+            var event = (FindingsReleaseEvent) call.getArgument(0);
+            assertEquals(1, receipts.size()); // Owner ACK already persisted, second ACK not returned.
+            assertEquals(DiagnosticFindingsVersionState.DRAFT, versions.get(correction.findingsVersionId()).getState());
+            assertNull(reportRows.get(secondReport).getReleasedAt());
+            return new ReleaseAcknowledgement(event.eventId(), requestId,
+                    bean(DiagnosticResultEventQueryService.class).requireFindingsRelease(event).payloadSha256(), true);
+        });
+        context.getBeanFactory().registerSingleton("externalImagingCorrectionDouble", imaging);
+        var retry = new DiagnosticEvidenceService.RetryPolicy(3, 1, 8);
+        assertEquals(1, bean(DiagnosticEvidenceService.class).dispatchDueOutbox(10, retry).delivered());
+        assertEquals(DiagnosticFindingsVersionState.COMPLETED, versions.get(correction.findingsVersionId()).getState());
+        assertNotNull(reportRows.get(secondReport).getReleasedAt());
+        assertEquals("RELEASED", findings().complete(actor(), requestId, "complete-correction",
+                requestVersion, 2, secondReport, study, "released-replay").releaseState());
+        assertEquals(0, bean(DiagnosticEvidenceService.class).dispatchDueOutbox(10, retry).delivered());
+        verify(imaging, times(1)).acceptFindingsRelease(any());
+        assertEquals("No fracture", old.getFindingsText());
+        assertEquals(firstReport, old.getRequiredPdfReportId()); assertEquals(Instant.EPOCH, old.getCompletedAt());
+        assertThrows(IllegalStateException.class, () -> old.reviseDraft("changed", Instant.now()));
+        verify(bean(DiagnosticIdempotencyRecordJpaRepository.class), never()).completeResult(any(), any());
+        verify(bean(DiagnosticIdempotencyRecordJpaRepository.class), atLeastOnce()).saveAndFlush(any());
+    }
+
     @Test void currentDoctorReviewsAndIdenticalReplayIsSafe() {
         review(); assertEquals(DiagnosticRequestStatus.REVIEWED, request.getStatus());
         findings().review(actor(), requestId, "review", 0, study, "test"); assertEquals(1, request.getVersion());

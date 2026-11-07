@@ -67,13 +67,16 @@ class DiagnosticRequestT012PostgresIntegrationTest {
     private UUID technicianId;
 
     @Autowired DiagnosticRequestService service;
+    @Autowired DiagnosticImagingRequestRegistration registration;
+    @Autowired org.springframework.transaction.PlatformTransactionManager transactions;
+    private final Map<String, UUID> fixtureOrders = new HashMap<>();
     @Autowired DiagnosticDtoMapper mapper;
     @Autowired JdbcTemplate jdbc;
     @Autowired PortFakes ports;
 
     @BeforeEach
     void setUp() {
-        ports.reset();
+        ports.reset(); fixtureOrders.clear();
         visitId = UUID.randomUUID();
         patientId = UUID.randomUUID();
         doctorId = UUID.randomUUID();
@@ -110,34 +113,24 @@ class DiagnosticRequestT012PostgresIntegrationTest {
         assertEquals(1, ports.reservationCalls);
         assertEquals(1, jdbc.queryForObject("select count(*) from diagnostic_requests where visit_id = ?",
                 Integer.class, visitId));
-        assertEquals(1, jdbc.queryForObject("select count(*) from diagnostic_idempotency_records "
+        assertEquals(0, jdbc.queryForObject("select count(*) from diagnostic_idempotency_records "
                 + "where visit_id = ? and operation = 'CREATE_REQUEST'", Integer.class, visitId));
 
         DiagnosticOperationException conflict = assertThrows(DiagnosticOperationException.class,
                 () -> create("create-1", "Chest", "Different reason"));
-        assertEquals(DiagnosticOperationOutcome.IDEMPOTENCY_CONFLICT, conflict.outcome());
+        assertEquals(DiagnosticOperationOutcome.EVIDENCE_MISMATCH, conflict.outcome());
     }
 
     @Test
-    void failedEligibilityOrRoomReservationRollsBackTheRequestAndIdempotencyClaim() {
-        ports.rooms.get(roomId).hasCapacity = false;
-        DiagnosticOperationException noCapacity = assertThrows(DiagnosticOperationException.class,
-                () -> create("create-capacity", "Chest", "Pain"));
-        assertEquals(DiagnosticOperationOutcome.ROOM_NOT_READY, noCapacity.outcome());
-        assertEquals(0, jdbc.queryForObject("select count(*) from diagnostic_requests where visit_id = ?",
-                Integer.class, visitId));
-        assertEquals(0, jdbc.queryForObject("select count(*) from diagnostic_idempotency_records where visit_id = ?",
-                Integer.class, visitId));
-
-        ports.rooms.get(roomId).hasCapacity = true;
-        ports.reservationAllowed = false;
-        DiagnosticOperationException reservationRejected = assertThrows(DiagnosticOperationException.class,
-                () -> create("create-reservation", "Chest", "Pain"));
-        assertEquals(DiagnosticOperationOutcome.ROOM_NOT_READY, reservationRejected.outcome());
-        assertEquals(0, jdbc.queryForObject("select count(*) from diagnostic_requests where visit_id = ?",
-                Integer.class, visitId));
-        assertEquals(0, jdbc.queryForObject("select count(*) from diagnostic_idempotency_records where visit_id = ?",
-                Integer.class, visitId));
+    void directDoctorCreationIsRetiredRegardlessOfRoomCapacity() {
+        for (boolean capacity : List.of(false, true)) {
+            ports.rooms.get(roomId).hasCapacity = capacity;
+            var error = assertThrows(DiagnosticOperationException.class, () -> service.create(doctor(), visitId,
+                    "retired", serviceId, "MRI", "Chest", "Pain", roomId, null, "corr"));
+            assertEquals(DiagnosticOperationOutcome.UNAUTHORIZED_RECORD, error.outcome());
+        }
+        assertEquals(0, jdbc.queryForObject("select count(*) from diagnostic_requests where visit_id = ?", Integer.class, visitId));
+        assertEquals(0, jdbc.queryForObject("select count(*) from diagnostic_idempotency_records where visit_id = ?", Integer.class, visitId));
     }
 
     @Test
@@ -209,7 +202,7 @@ class DiagnosticRequestT012PostgresIntegrationTest {
     @Test
     void linksTheRequestToAnOpenClinicalOrderOfTheSameVisitAndService() {
         UUID orderId = UUID.randomUUID();
-        ports.orders.put(orderId, new ClinicalImagingOrder(orderId, visitId, serviceId, true));
+        ports.orders.put(orderId, new ClinicalImagingOrder(orderId, visitId, serviceId, true, true));
 
         DiagnosticRequestView created = createLinked("link-ok", orderId);
 
@@ -223,11 +216,11 @@ class DiagnosticRequestT012PostgresIntegrationTest {
         UUID closed = UUID.randomUUID();
         UUID otherVisit = UUID.randomUUID();
         UUID otherService = UUID.randomUUID();
-        ports.orders.put(closed, new ClinicalImagingOrder(closed, visitId, serviceId, false));
-        ports.orders.put(otherVisit, new ClinicalImagingOrder(otherVisit, UUID.randomUUID(), serviceId, true));
-        ports.orders.put(otherService, new ClinicalImagingOrder(otherService, visitId, UUID.randomUUID(), true));
+        ports.orders.put(closed, new ClinicalImagingOrder(closed, visitId, serviceId, false, true));
+        ports.orders.put(otherVisit, new ClinicalImagingOrder(otherVisit, UUID.randomUUID(), serviceId, true, true));
+        ports.orders.put(otherService, new ClinicalImagingOrder(otherService, visitId, UUID.randomUUID(), true, true));
 
-        assertEquals(DiagnosticOperationOutcome.RECORD_NOT_FOUND,
+        assertEquals(DiagnosticOperationOutcome.EVIDENCE_MISMATCH,
                 assertThrows(DiagnosticOperationException.class, () -> createLinked("link-missing", missing)).outcome());
         for (UUID bad : List.of(closed, otherVisit, otherService)) {
             assertEquals(DiagnosticOperationOutcome.EVIDENCE_MISMATCH,
@@ -240,47 +233,73 @@ class DiagnosticRequestT012PostgresIntegrationTest {
     @Test
     void anOrderHasOneLiveRequestAndCancellingItFreesTheOrderAndCancelsTheClinicalOrder() {
         UUID orderId = UUID.randomUUID();
-        ports.orders.put(orderId, new ClinicalImagingOrder(orderId, visitId, serviceId, true));
+        ports.orders.put(orderId, new ClinicalImagingOrder(orderId, visitId, serviceId, true, true));
         DiagnosticRequestView first = createLinked("link-first", orderId);
 
-        assertEquals(DiagnosticOperationOutcome.STATE_CONFLICT,
-                assertThrows(DiagnosticOperationException.class, () -> createLinked("link-second", orderId)).outcome());
+        assertEquals(first.requestId(), createLinked("link-second", orderId).requestId());
 
         service.cancel(doctor(), first.requestId(), "link-cancel", 0,
                 CancellationCause.PATIENT_DECLINED, "Patient declined", "corr-cancel");
         assertEquals(List.of(orderId), ports.orderCancelCalls);
-        assertEquals(DiagnosticRequestStatus.PENDING, createLinked("link-third", orderId).status());
+        assertThrows(DiagnosticOperationException.class, () -> createLinked("link-third", orderId));
+        assertEquals(0, jdbc.queryForObject("select count(*) from diagnostic_requests where service_order_id=? and status <> 'CANCELLED'", Integer.class, orderId));
     }
 
     @Test
-    void anUnlinkedRequestNeverTouchesTheClinicalOrderPort() {
-        DiagnosticRequestView created = create("unlinked", "Chest", "Pain");
-        service.cancel(doctor(), created.requestId(), "unlinked-cancel", 0,
-                CancellationCause.CLINIC_UNABLE, "Machine down", "corr-cancel");
-
-        assertEquals(List.of(), ports.orderCancelCalls);
-        assertEquals(List.of(), ports.orderResultCalls);
+    void anUnlinkedDirectRequestIsDeniedWithoutClinicalMutation() {
+        assertEquals(DiagnosticOperationOutcome.UNAUTHORIZED_RECORD, assertThrows(DiagnosticOperationException.class,
+                () -> service.create(doctor(), visitId, "unlinked", serviceId, "MRI", "Chest", "Pain", roomId, null, "corr")).outcome());
+        assertEquals(List.of(), ports.orderCancelCalls); assertEquals(List.of(), ports.orderResultCalls);
     }
 
     private DiagnosticRequestView createLinked(String key, UUID orderId) {
-        return service.create(doctor(), visitId, key, serviceId, "MRI", "Chest", "Pain", roomId, orderId,
-                "corr-create");
+        return registerAssigned(jdbc, transactions, registration, ports, visitId, roomId, orderId, "Chest", "Pain");
+    }
+    private DiagnosticRequestView create(String key, String bodyArea, String reason) {
+        UUID order = fixtureOrders.computeIfAbsent(key, ignored -> UUID.randomUUID());
+        ports.orders.put(order, new ClinicalImagingOrder(order, visitId, serviceId, true, true));
+        return registerAssigned(jdbc, transactions, registration, ports, visitId, roomId, order, bodyArea, reason);
     }
 
-    private DiagnosticRequestView create(String key, String bodyArea, String reason) {
-        return service.create(doctor(), visitId, key, serviceId, "MRI", bodyArea, reason, roomId, null, "corr-create");
+    /** Lifecycle fixture: real paid queue registration plus explicit TEST physical reservation evidence. */
+    static DiagnosticRequestView registerAssigned(JdbcTemplate jdbc, org.springframework.transaction.PlatformTransactionManager transactions,
+            DiagnosticImagingRequestRegistration registration, PortFakes ports, UUID visitId, UUID roomId,
+            UUID orderId, String area, String reason) {
+        var visit = ports.visits.get(visitId);
+        UUID id = new org.springframework.transaction.support.TransactionTemplate(transactions).execute(status ->
+                registration.register(new DiagnosticImagingRequestRegistration.RegisterImagingOrder(orderId, visitId,
+                        visit.patientId(), visit.treatingDoctorId(), ports.service.serviceId(), roomId, area, reason)).requestId());
+        // Explicit physical-reservation fixture for legacy lifecycle assertions only; dispatch never calls this.
+        if (!ports.reservations.containsKey(id)) { ports.reservationCalls++; ports.reservations.put(id, roomId); }
+        return jdbc.queryForObject("select * from diagnostic_requests where id = ?", (row, number) -> new DiagnosticRequestView(
+                id, visitId, visit.patientId(), visit.treatingDoctorId(), ports.service.serviceId(), roomId,
+                ports.service.imagingType(), row.getString("body_area"), row.getString("clinical_reason"),
+                DiagnosticRequestStatus.valueOf(row.getString("status")), row.getString("cancellation_cause"),
+                row.getString("cancellation_reason"), null, row.getLong("version"), row.getTimestamp("created_at").toInstant()), id);
     }
 
     private DiagnosticActor doctor() { return DiagnosticActor.user(doctorId, AccountRole.DOCTOR); }
 
     @TestConfiguration(proxyBeanMethods = false)
     static class PortConfiguration {
+        @Bean @Primary fu.fa26.sep490.g58.otcms_be.visit.service.ImagingRoomQueueService registrationQueueRooms() {
+            return org.mockito.Mockito.mock(fu.fa26.sep490.g58.otcms_be.visit.service.ImagingRoomQueueService.class);
+        }
         @Bean PortFakes diagnosticRequestPortFakes() { return new PortFakes(); }
         // These Diagnostic persistence tests intentionally use their explicit Visit fixture.
         // Real Visit/Diagnostic composition is verified by DoctorImagingReviewIntegrationTest.
+        @Bean @Primary fu.fa26.sep490.g58.otcms_be.staff.service.DoctorProfileIdentityQueryService registrationIdentities() {
+            return new fu.fa26.sep490.g58.otcms_be.staff.service.DoctorProfileIdentityQueryService() {
+                public java.util.Map<UUID, String> findDoctorNames(java.util.Collection<UUID> ids) { return java.util.Map.of(); }
+                public java.util.Optional<UUID> findDoctorProfileId(UUID id) { return java.util.Optional.ofNullable(id); }
+                public java.util.Optional<UUID> findDoctorAccountId(UUID id) { return java.util.Optional.ofNullable(id); }
+            };
+        }
+        @Bean @Primary fu.fa26.sep490.g58.otcms_be.auth.service.DoctorAccountAccessService registrationDoctorAccounts() { return id -> true; }
         @Bean @Primary VisitDiagnosticPort visitDiagnosticPort(PortFakes fakes) { return new FakeVisitPort(fakes); }
         @Bean RoomReservationPort roomReservationPort(PortFakes fakes) { return new FakeRoomPort(fakes); }
-        @Bean ImagingServiceCatalogPort imagingServiceCatalogPort(PortFakes fakes) { return new FakeCatalogPort(fakes); }
+        // These lifecycle fixtures use PortFakes.service; keep the production adapter available but select this test port.
+        @Bean @Primary ImagingServiceCatalogPort imagingServiceCatalogPort(PortFakes fakes) { return new FakeCatalogPort(fakes); }
         @Bean FirstUseEvidencePort firstUseEvidencePort(PortFakes fakes) { return new FakeFirstUsePort(fakes); }
         @Bean ImagingStudyPort imagingStudyPort(PortFakes fakes) { return new FakeStudyPort(fakes); }
         @Bean ImagingBillingPort imagingBillingPort(PortFakes fakes) { return new FakeBillingPort(fakes); }
@@ -295,7 +314,11 @@ class DiagnosticRequestT012PostgresIntegrationTest {
         FakeOrderPort(PortFakes state) { this.state = state; }
         @Override public ClinicalImagingOrder requireOpenImagingOrder(UUID orderId) { return state.orders.get(orderId); }
         @Override public void markResultAvailable(UUID orderId) { state.orderResultCalls.add(orderId); }
-        @Override public void cancelOrderIfOpen(UUID orderId, String reason) { state.orderCancelCalls.add(orderId); }
+        @Override public void cancelOrderIfOpen(UUID orderId, String reason) {
+            state.orderCancelCalls.add(orderId);
+            var current = state.orders.get(orderId);
+            if (current != null) state.orders.put(orderId, new ClinicalImagingOrder(orderId, current.visitId(), current.serviceId(), false, current.paid()));
+        }
     }
 
     static class PortFakes {
@@ -317,6 +340,7 @@ class DiagnosticRequestT012PostgresIntegrationTest {
         boolean billingFails;
         boolean resultReadyFails;
         boolean findingsReleaseFails;
+        java.util.function.Consumer<FindingsReleaseEvent> beforeStudyReleaseAck = event -> {};
         int findingsReleaseCalls;
         int studyReleaseCalls;
         StudyEvidence studyConfirmation;
@@ -332,6 +356,7 @@ class DiagnosticRequestT012PostgresIntegrationTest {
             firstUseCalls = 0; studyCalls = 0; billingCalls = 0; resultReadyCalls = 0;
             firstUseAccepted = true; billingFails = false; resultReadyFails = false;
             findingsReleaseFails = false; findingsReleaseCalls = 0; studyReleaseCalls = 0;
+            beforeStudyReleaseAck = event -> {};
             studyConfirmation = null; billedRequestIds.clear();
             orders.clear(); orderResultCalls.clear(); orderCancelCalls.clear();
         }
@@ -382,6 +407,7 @@ class DiagnosticRequestT012PostgresIntegrationTest {
             state.reservations.put(requestId, roomId);
             return new RoomReservation(requestId, roomId, expectedRoomVersion, true);
         }
+        @Override public boolean hasImagingCapacityReservation(UUID requestId) { return state.reservations.containsKey(requestId); }
         @Override public void releaseImagingCapacity(UUID requestId, String cause) {
             state.releaseCalls++;
             state.reservations.remove(requestId);
@@ -425,6 +451,7 @@ class DiagnosticRequestT012PostgresIntegrationTest {
         @Override public ReleaseAcknowledgement acceptFindingsRelease(FindingsReleaseEvent event) {
             state.studyReleaseCalls++;
             if (state.findingsReleaseFails) throw new IllegalStateException("FEAT-004 unavailable");
+            state.beforeStudyReleaseAck.accept(event);
             return new ReleaseAcknowledgement(event.eventId(), event.requestId(), releasePayloadSha256(event), true);
         }
     }

@@ -208,7 +208,14 @@ export const doctorDemoApi: DoctorExamApi = {
     visit.orders = visit.orders.map((o) => progressed(o, Date.now()));
     return visit.orders.map(strip);
   },
-  async submitOrders(visitId, items: OrderDraftItem[], catalog) {
+  async submitOrders(
+    visitId,
+    items: OrderDraftItem[],
+    catalog,
+    _key,
+    patientConsentConfirmed,
+  ) {
+    if (patientConsentConfirmed !== true) mockFail(400, "MSG-39");
     await wait();
     const visit = visitOf(visitId);
     const round = Math.max(0, ...visit.orders.map((o) => o.round ?? 0)) + 1;

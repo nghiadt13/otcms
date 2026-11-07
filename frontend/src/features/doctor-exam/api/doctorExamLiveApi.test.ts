@@ -347,11 +347,15 @@ describe("chỉ định cận lâm sàng và kết luận hình ảnh", () => {
       [item("xq")],
       catalog,
       "key-1",
+      true,
     );
     const [path, init] = request.mock.lastCall!;
     expect(path).toBe("/api/v1/visits/v/imaging-requests");
     expect(init.headers).toEqual({ "Idempotency-Key": "key-1" });
-    expect(JSON.parse(init.body)).toEqual({ orders: [item("xq")] });
+    expect(JSON.parse(init.body)).toEqual({
+      patientConsentConfirmed: true,
+      orders: [item("xq")],
+    });
     expect(created[0]).toMatchObject({
       round: 2,
       status: "PENDING_PAYMENT",
@@ -361,7 +365,7 @@ describe("chỉ định cận lâm sàng và kết luận hình ảnh", () => {
 
   it("chưa gửi chỉ định xét nghiệm lên BE (chưa hỗ trợ)", async () => {
     await expect(
-      doctorLiveApi.submitOrders("v", [item("crp")], catalog, "key"),
+      doctorLiveApi.submitOrders("v", [item("crp")], catalog, "key", true),
     ).rejects.toMatchObject({ status: 400, code: "MSG-39" });
     expect(request).not.toHaveBeenCalled();
   });
@@ -383,22 +387,32 @@ describe("chỉ định cận lâm sàng và kết luận hình ảnh", () => {
         : {
             items: [
               {
-                requestId: "r1",
-                imagingType: "MRI gối",
-                status: "REVIEWED",
-                version: 5,
+                orderId: "o1",
+                orderCode: "CD1",
+                serviceName: "MRI gối",
+                orderStatus: "RESULTS_AVAILABLE",
+                paymentStatus: "PAID",
+                diagnostic: { requestId: "r1", status: "REVIEWED", version: 5 },
               },
               {
-                requestId: "r2",
-                imagingType: "X-quang",
-                status: "PENDING",
-                version: 1,
+                orderId: "o2",
+                orderCode: "CD2",
+                serviceName: "X-quang",
+                orderStatus: "ORDERED",
+                paymentStatus: "PAID",
+                diagnostic: { requestId: "r2", status: "PENDING", version: 1 },
               },
               {
-                requestId: "r3",
-                imagingType: "CT",
-                status: "CANCELLED",
-                version: 2,
+                orderId: "o3",
+                orderCode: "CD3",
+                serviceName: "CT",
+                orderStatus: "CANCELLED",
+                paymentStatus: "PAID",
+                diagnostic: {
+                  requestId: "r3",
+                  status: "CANCELLED",
+                  version: 2,
+                },
               },
             ],
           },
@@ -490,10 +504,12 @@ describe("chỉ định cận lâm sàng và kết luận hình ảnh", () => {
         : {
             items: ["PENDING", "IN_PROGRESS", "RESULT_AVAILABLE"].map(
               (status, i) => ({
-                requestId: "r" + i,
-                imagingType: "X-quang",
-                status,
-                version: 1,
+                orderId: "o" + i,
+                orderCode: "CD" + i,
+                serviceName: "X-quang",
+                paymentStatus: "PAID",
+                orderStatus: "ORDERED",
+                diagnostic: { requestId: "r" + i, status, version: 1 },
               }),
             ),
           },

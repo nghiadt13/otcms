@@ -208,6 +208,8 @@ describe("AccountManagement", () => {
     renderScreen();
     await loaded();
     await search(user, "lan.tran@");
+    // Wait for the debounced search to replace the initial page before opening its row menu.
+    await screen.findByText(/Trang 1\/1/, undefined, SLOW);
     const row = await screen.findByRole(
       "row",
       { name: /lan\.tran@mail\.vn/ },

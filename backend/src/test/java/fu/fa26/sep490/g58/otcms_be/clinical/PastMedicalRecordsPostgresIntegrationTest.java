@@ -58,11 +58,15 @@ class PastMedicalRecordsPostgresIntegrationTest {
         jdbc.update("insert into diagnostic_requests (id,visit_id,patient_id,ordering_doctor_id,service_id,room_id,imaging_type,body_area,clinical_reason,status) values (?,?,?,?,?,?,'MRI','KNEE','UC33 fixture','PENDING')",
                 id, visit, requestPatient, oldAccount, UUID.randomUUID(), UUID.randomUUID());
         jdbc.update("insert into diagnostic_attempts (id,request_id,attempt_number,first_use_event_id,first_use_type,source_id,occurred_at) values (?,?,1,?,'ACQUISITION_STARTED','UC33',now())", attempt, id, UUID.randomUUID());
-        jdbc.update("update diagnostic_requests set status='REVIEWED',current_attempt_id=? where id=?", attempt, id);
+        jdbc.update("update diagnostic_requests set status='IN_PROGRESS',current_attempt_id=? where id=?", attempt, id);
+        jdbc.update("update diagnostic_attempts set study_ref=? where id=? and request_id=?", studyRef(id), attempt, id);
+        jdbc.update("update diagnostic_requests set status='RESULT_AVAILABLE' where id=?", id);
+        jdbc.update("update diagnostic_requests set status='REVIEWED' where id=?", id);
         return id;
     }
+    private String studyRef(UUID requestId) { return "uc33-study-" + requestId; }
     void finding(UUID request, UUID visit, int version, boolean completed, boolean released) {
-        UUID report = UUID.randomUUID(); String study = "uc33-study-" + request;
+        UUID report = UUID.randomUUID(); String study = studyRef(request);
         if (completed) jdbc.update("insert into diagnostic_reports (id,request_id,visit_id,study_ref,report_version,storage_ref,content_sha256,validation_status,uploaded_by_doctor_id,validated_at,released_at) values (?,?,?,?,?,?,?,'VALIDATED',?,now(),?)",
                 report, request, visit, study, version, "uc33-private-" + report, "a".repeat(64), oldAccount, released ? Timestamp.from(now) : null);
         jdbc.update("insert into diagnostic_findings_versions (id,request_id,visit_id,study_ref,version_number,findings_text,recorded_by_doctor_id,state,required_pdf_report_id,completed_at) values (?,?,?,?,?,'UC33 finding',?,?,?,?)",

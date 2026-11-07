@@ -24,25 +24,28 @@ public class DiagnosticImagingRequestRegistrationImpl implements DiagnosticImagi
     private final VisitDiagnosticReadPort visits;
     private final ImagingServiceCatalogPort catalog;
     private final ClinicalImagingOrderPort orders;
+    private final fu.fa26.sep490.g58.otcms_be.visit.service.ImagingRoomQueueService rooms;
 
     public DiagnosticImagingRequestRegistrationImpl(DiagnosticRequestJpaRepository requests,
             DoctorProfileIdentityQueryService identities, DoctorAccountAccessService accounts,
-            VisitDiagnosticReadPort visits, ImagingServiceCatalogPort catalog, ClinicalImagingOrderPort orders) {
+            VisitDiagnosticReadPort visits, ImagingServiceCatalogPort catalog, ClinicalImagingOrderPort orders,
+            fu.fa26.sep490.g58.otcms_be.visit.service.ImagingRoomQueueService rooms) {
         this.requests = requests; this.identities = identities; this.accounts = accounts;
-        this.visits = visits; this.catalog = catalog; this.orders = orders;
+        this.visits = visits; this.catalog = catalog; this.orders = orders; this.rooms = rooms;
     }
 
     @Override
     @Transactional(propagation = Propagation.MANDATORY)
     public RegistrationResult register(RegisterImagingOrder command) {
         if (command == null || command.serviceOrderId() == null || command.visitId() == null || command.patientId() == null
-                || command.orderingDoctorProfileId() == null || command.serviceId() == null || command.bodyArea() == null
+                || command.orderingDoctorProfileId() == null || command.serviceId() == null || command.roomId() == null || command.bodyArea() == null
                 || command.bodyArea().isBlank() || command.bodyArea().length() > 255 || command.clinicalReason() == null
                 || command.clinicalReason().isBlank()) throw failure(DiagnosticOperationOutcome.SERVICE_NOT_ELIGIBLE);
-        // Idempotent replay requires no current catalog lookup; an existing request may already have results or be cancelled.
-        var existing = requests.findFirstByServiceOrderIdOrderByCreatedAtDescIdDesc(command.serviceOrderId());
+        // Active same-room replay remains valid after execution/results. Cancelled requests do not fulfil V097.
+        var existing = requests.findFirstByServiceOrderIdAndStatusNotOrderByCreatedAtDescIdDesc(command.serviceOrderId(), DiagnosticRequestStatus.CANCELLED);
         if (existing.isPresent()) {
             var request = existing.get();
+            if (!command.roomId().equals(request.getRoomId())) throw failure(DiagnosticOperationOutcome.STATE_CONFLICT);
             if (!command.visitId().equals(request.getVisitId()) || !command.patientId().equals(request.getPatientId())
                     || !command.serviceId().equals(request.getServiceId()) || !Objects.equals(command.bodyArea(), request.getBodyArea())
                     || !Objects.equals(command.clinicalReason(), request.getClinicalReason())) throw failure(DiagnosticOperationOutcome.EVIDENCE_MISMATCH);
@@ -59,16 +62,22 @@ public class DiagnosticImagingRequestRegistrationImpl implements DiagnosticImagi
                 || !orderingDoctorAccountId.equals(visit.treatingDoctorId())) throw failure(DiagnosticOperationOutcome.EVIDENCE_MISMATCH);
         if (!visit.open() || !visit.eligible()) throw failure(DiagnosticOperationOutcome.VISIT_NOT_ELIGIBLE);
         var order = orders.requireOpenImagingOrder(command.serviceOrderId());
-        if (order == null || !order.open() || !command.visitId().equals(order.visitId()) || !command.serviceId().equals(order.serviceId())) {
+        if (order == null || !order.open() || !order.paid() || !command.visitId().equals(order.visitId()) || !command.serviceId().equals(order.serviceId())) {
             throw failure(DiagnosticOperationOutcome.EVIDENCE_MISMATCH);
         }
         var service = catalog.requireImagingService(command.serviceId(), null);
         if (service == null || !service.active() || !command.serviceId().equals(service.serviceId())
                 || service.imagingType() == null || service.imagingType().isBlank()) throw failure(DiagnosticOperationOutcome.SERVICE_NOT_ELIGIBLE);
-        requests.insertUnassigned(UUID.randomUUID(), command.visitId(), command.patientId(), orderingDoctorAccountId,
-                command.serviceId(), service.imagingType(), command.bodyArea(), command.clinicalReason(), command.serviceOrderId());
-        var persisted = requests.findFirstByServiceOrderIdOrderByCreatedAtDescIdDesc(command.serviceOrderId())
+        try {
+            rooms.requireEligibleRoom(command.roomId(), command.serviceId(), service.imagingType());
+        } catch (fu.fa26.sep490.g58.otcms_be.visit.exception.VisitOperationException invalidRoom) {
+            throw failure(DiagnosticOperationOutcome.ROOM_NOT_READY);
+        }
+        requests.insertAssigned(UUID.randomUUID(), command.visitId(), command.patientId(), orderingDoctorAccountId,
+                command.serviceId(), command.roomId(), service.imagingType(), command.bodyArea(), command.clinicalReason(), command.serviceOrderId());
+        var persisted = requests.findFirstByServiceOrderIdAndStatusNotOrderByCreatedAtDescIdDesc(command.serviceOrderId(), DiagnosticRequestStatus.CANCELLED)
                 .orElseThrow(() -> failure(DiagnosticOperationOutcome.DEPENDENCY_UNAVAILABLE));
+        if (!command.roomId().equals(persisted.getRoomId())) throw failure(DiagnosticOperationOutcome.STATE_CONFLICT);
         if (!command.visitId().equals(persisted.getVisitId()) || !command.patientId().equals(persisted.getPatientId())
                 || !orderingDoctorAccountId.equals(persisted.getOrderingDoctorId()) || !command.serviceId().equals(persisted.getServiceId())
                 || !command.bodyArea().equals(persisted.getBodyArea()) || !command.clinicalReason().equals(persisted.getClinicalReason())) {

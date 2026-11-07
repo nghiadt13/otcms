@@ -105,7 +105,7 @@ export function useVisitWorkspace(): VisitWorkspaceValue {
 }
 
 /**
- * Gộp danh sách chỉ định từ BE với đợt vừa gửi (chưa có trên BE) và kết luận đã gửi chờ phát hành.
+ * Gộp danh sách chỉ định chuẩn từ BE với phản hồi vừa gửi trong lúc tải lại và kết luận chờ phát hành.
  * Dùng chung cho tab Cận lâm sàng và điều kiện hoàn tất, để hai nơi nhìn cùng một danh sách.
  */
 export function mergeWorkspaceOrders(

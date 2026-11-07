@@ -12,7 +12,6 @@ import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.*;
-import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -53,10 +52,12 @@ class ClinicalImagingRequestPostgresIntegrationTest {
     }
 
     @Test void concurrentExactRequestsPersistOneRoundAndReplayAndReturnSameRound() throws Exception {
-        synchronizeFirstTwoVisitReads();
+        CountDownLatch ready = new CountDownLatch(2);
+        CountDownLatch start = new CountDownLatch(1);
         try (var executor = Executors.newFixedThreadPool(2)) {
-            var first = executor.submit(() -> service.submit(command(visitId, key)));
-            var second = executor.submit(() -> service.submit(command(visitId, key)));
+            var first = executor.submit(startTogether(ready, start, () -> service.submit(command(visitId, key))));
+            var second = executor.submit(startTogether(ready, start, () -> service.submit(command(visitId, key))));
+            releaseWorkers(ready, start);
             var a = first.get(30, TimeUnit.SECONDS); var b = second.get(30, TimeUnit.SECONDS);
             assertEquals(a.round(), b.round()); assertNotEquals(a.replayed(), b.replayed());
         }
@@ -64,11 +65,13 @@ class ClinicalImagingRequestPostgresIntegrationTest {
     }
 
     @Test void duplicateKeyAcrossDifferentVisitsRollsBackLosingRoundAndOrders() throws Exception {
-        synchronizeFirstTwoVisitReads();
+        CountDownLatch ready = new CountDownLatch(2);
+        CountDownLatch start = new CountDownLatch(1);
         UUID otherVisit = UUID.randomUUID();
         try (var executor = Executors.newFixedThreadPool(2)) {
-            var first = executor.submit(() -> outcome(command(visitId, key)));
-            var second = executor.submit(() -> outcome(command(otherVisit, key)));
+            var first = executor.submit(startTogether(ready, start, () -> outcome(command(visitId, key))));
+            var second = executor.submit(startTogether(ready, start, () -> outcome(command(otherVisit, key))));
+            releaseWorkers(ready, start);
             var results = List.of(first.get(30, TimeUnit.SECONDS), second.get(30, TimeUnit.SECONDS));
             assertEquals(1, results.stream().filter(value -> value instanceof SubmissionResult).count());
             assertEquals(1, results.stream().filter(value -> "IDEMPOTENCY_CONFLICT".equals(value)).count());
@@ -77,10 +80,12 @@ class ClinicalImagingRequestPostgresIntegrationTest {
     }
 
     @Test void differentKeysForSameVisitAllocateDistinctRoundNumbers() throws Exception {
-        synchronizeFirstTwoVisitReads();
+        CountDownLatch ready = new CountDownLatch(2);
+        CountDownLatch start = new CountDownLatch(1);
         try (var executor = Executors.newFixedThreadPool(2)) {
-            var first = executor.submit(() -> service.submit(command(visitId, key)));
-            var second = executor.submit(() -> service.submit(command(visitId, key + "-2")));
+            var first = executor.submit(startTogether(ready, start, () -> service.submit(command(visitId, key))));
+            var second = executor.submit(startTogether(ready, start, () -> service.submit(command(visitId, key + "-2"))));
+            releaseWorkers(ready, start);
             var a = first.get(30, TimeUnit.SECONDS); var b = second.get(30, TimeUnit.SECONDS);
             assertNotEquals(a.round().id(), b.round().id());
             assertEquals(java.util.Set.of(1, 2), java.util.Set.of(a.round().roundNumber(), b.round().roundNumber()));
@@ -104,19 +109,30 @@ class ClinicalImagingRequestPostgresIntegrationTest {
         try { return service.submit(command); }
         catch (ClinicalOperationException failure) { return failure.code(); }
     }
-    private void synchronizeFirstTwoVisitReads() {
-        var barrier = new CyclicBarrier(2); var calls = new AtomicInteger();
-        when(visits.getVisitContext(any())).thenAnswer(invocation -> {
-            if (calls.getAndIncrement() < 2) barrier.await(10, TimeUnit.SECONDS);
-            return new VisitClinicalContextPort.ClinicalVisitContext(invocation.getArgument(0), patientId, doctorId, true);
-        });
+    /** Coordinate callers before entering the service: the global guard intentionally serializes transactions. */
+    private <T> Callable<T> startTogether(CountDownLatch ready, CountDownLatch start, Callable<T> action) {
+        return () -> {
+            ready.countDown();
+            if (!start.await(10, TimeUnit.SECONDS)) {
+                throw new TimeoutException("workers did not start together");
+            }
+            return action.call();
+        };
+    }
+
+    private void releaseWorkers(CountDownLatch ready, CountDownLatch start) throws InterruptedException {
+        try {
+            assertTrue(ready.await(10, TimeUnit.SECONDS), "both workers must be ready before starting");
+        } finally {
+            start.countDown();
+        }
     }
     private ImagingRequestCommand command(UUID visit, String requestKey) {
         return new ImagingRequestCommand(visit, doctorId, requestKey,
-                List.of(new ImagingOrderRequest(serviceId, "Reason", "RIGHT_KNEE", null)));
+                List.of(new ImagingOrderRequest(serviceId, "Reason", "RIGHT_KNEE", null)), true);
     }
     private void assertCounts(int count) {
-        assertEquals(count, jdbc.queryForObject("select count(*) from diagnostic_requests where ordering_doctor_id = ? and service_order_id is not null",
+        assertEquals(0, jdbc.queryForObject("select count(*) from diagnostic_requests where ordering_doctor_id = ? and service_order_id is not null",
                 Integer.class, doctorAccountId));
         assertEquals(0, jdbc.queryForObject("select count(*) from diagnostic_requests where ordering_doctor_id = ? and room_id is not null",
                 Integer.class, doctorAccountId));
@@ -128,12 +144,11 @@ class ClinicalImagingRequestPostgresIntegrationTest {
                 Integer.class, doctorId));
     }
 
-    @Test void diagnosticRegistrationFailureRollsBackRoundOrdersAndReplay() {
+    @Test void diagnosticAvailabilityDoesNotAffectDoctorSubmission() {
         when(imagingCatalog.requireImagingService(eq(serviceId), isNull())).thenThrow(
                 new fu.fa26.sep490.g58.otcms_be.diagnostic.exception.DiagnosticOperationException(
                         fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.enums.DiagnosticOperationOutcome.SERVICE_NOT_ELIGIBLE));
-        assertThrows(fu.fa26.sep490.g58.otcms_be.diagnostic.exception.DiagnosticOperationException.class,
-                () -> service.submit(command(visitId, key)));
-        assertCounts(0);
+        service.submit(command(visitId, key));
+        assertCounts(1);
     }
 }

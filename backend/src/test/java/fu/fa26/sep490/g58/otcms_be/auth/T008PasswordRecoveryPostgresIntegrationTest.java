@@ -32,8 +32,15 @@ class T008PasswordRecoveryPostgresIntegrationTest {
     @Autowired PasswordResetChallengeRepository challenges;
     @Autowired PasswordEncoder encoder;
     @MockitoBean EmailDeliveryService email;
+    @Autowired org.springframework.jdbc.core.JdbcTemplate jdbc;
+    private UUID fixtureAccountId;
 
-    @AfterEach void cleanup() { challenges.deleteAll(); sessions.deleteAll(); accounts.deleteAll(); }
+    @AfterEach void cleanup() {
+        if (fixtureAccountId == null) return;
+        jdbc.update("delete from password_resets where account_id=?", fixtureAccountId);
+        jdbc.update("delete from sessions where account_id=?", fixtureAccountId);
+        jdbc.update("delete from accounts where id=?", fixtureAccountId);
+    }
 
     @Test void changingPasswordInvalidatesPreviouslyIssuedResetLink() {
         AccountJpaEntity account = new AccountJpaEntity();
@@ -44,10 +51,12 @@ class T008PasswordRecoveryPostgresIntegrationTest {
         account.setCreatedAt(Instant.now());
         account.setUpdatedAt(Instant.now());
         account = accounts.saveAndFlush(account);
+        fixtureAccountId = account.getId();
 
         recovery.forgot(account.getNormalizedEmail(), AccountType.RECEPTIONIST);
         var token = org.mockito.ArgumentCaptor.forClass(String.class);
-        verify(email).sendPasswordReset(eq(account.getNormalizedEmail()), token.capture(), eq(account.getId()));
+        verify(email).sendStaffPasswordReset(eq(account.getNormalizedEmail()), token.capture(), eq(account.getId()));
+        verify(email, never()).sendPasswordReset(anyString(), anyString(), any());
         String tokenHash = fu.fa26.sep490.g58.otcms_be.auth.service.impl.PasswordRecoveryServiceImpl.hash(token.getValue());
         assertNull(challenges.findByTokenHash(tokenHash).orElseThrow().getSupersededAt());
 
@@ -67,6 +76,7 @@ class T008PasswordRecoveryPostgresIntegrationTest {
         account.setPasswordHash(encoder.encode("old-password-123"));
         account.setCreatedAt(Instant.now()); account.setUpdatedAt(Instant.now());
         account = accounts.saveAndFlush(account);
+        fixtureAccountId = account.getId();
         sessionService.create(account.getId(), "127.0.0.1", "t008");
         sessionService.create(account.getId(), "127.0.0.1", "t008");
 

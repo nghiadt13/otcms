@@ -54,17 +54,34 @@ class MedicalHistoryR3PostgresIntegrationTest {
     @Autowired PatientProfileAccessService access;
     @Autowired HistoryClock clock;
     final JsonMapper json = JsonMapper.builder().findAndAddModules().build();
-    UUID patient, own, doctor;
+    UUID patient, own, doctor, ownCareVisit;
 
     @BeforeEach void setup() {
         clock.now = NOW;
         patient = account(AccountRole.PATIENT); own = profile(patient); doctor = account(AccountRole.DOCTOR);
+        ownCareVisit = currentCare(doctor, own);
     }
     UUID account(AccountRole role) {
         UUID id = UUID.randomUUID();
         jdbc.update("insert into accounts(id,normalized_email,account_type,status,full_name,created_at,updated_at) values (?,?,?,'ACTIVE',?,now(),now())",
                 id, "history-" + id + "@example.test", role.name(), "Actor " + id);
         return id;
+    }
+    UUID doctorProfile(UUID accountId) {
+        jdbc.update("insert into doctor_profiles(id,account_id,full_name) values (?,?,?) on conflict (account_id) do nothing",
+                UUID.randomUUID(), accountId, "Doctor " + accountId);
+        UUID id = jdbc.queryForObject("select id from doctor_profiles where account_id=?", UUID.class, accountId);
+        assertNotEquals(accountId, id); // Authorization must resolve account -> Doctor profile.
+        return id;
+    }
+    UUID currentCare(UUID doctorAccountId, UUID target) {
+        UUID doctorProfileId = doctorProfile(doctorAccountId), visitId = UUID.randomUUID();
+        jdbc.update("insert into visits(id,patient_profile_id,source,arrived_at,checked_in_at,created_by_account_id,status) "
+                + "values (?,?,'WALK_IN',?,?,?,'OPEN')", visitId, target, Timestamp.from(NOW), Timestamp.from(NOW), patient);
+        jdbc.update("insert into visit_assignments(id,visit_id,doctor_profile_id,starts_at,ends_at,status,assigned_at) "
+                + "values (?,?,?,?,?,'IN_PROGRESS',?)", UUID.randomUUID(), visitId, doctorProfileId,
+                Timestamp.from(NOW), Timestamp.from(NOW.plusSeconds(1800)), Timestamp.from(NOW));
+        return visitId;
     }
     UUID profile(UUID account) {
         UUID id = UUID.randomUUID();
@@ -115,7 +132,7 @@ class MedicalHistoryR3PostgresIntegrationTest {
         if (scope.equals("DEPENDENT")) { target = profile(null); link(target, null); assertTrue(access.canAccess(patient, target)); }
         if (scope.equals("DOCTOR")) { caller = doctor; role = AccountRole.DOCTOR; }
         empty(fetch(caller, role, target)); assertEquals(0, count(target));
-        assertEquals(0, jdbc.queryForObject("select count(*) from doctor_profiles where account_id=?", Integer.class, doctor));
+        assertEquals(1, jdbc.queryForObject("select count(*) from doctor_profiles where account_id=?", Integer.class, doctor));
     }
     @Test void firstPutTrimsPersistsActorAndClockThenGetReturnsExactFields() throws Exception {
         var body = body(0); FIELDS.forEach(field -> body.put(field, "  Đau  khớp\nDòng hai e\u0301  "));
@@ -192,6 +209,7 @@ class MedicalHistoryR3PostgresIntegrationTest {
     @ParameterizedTest @EnumSource(AccountRole.class)
     void roleMatrixForGetAndPut(AccountRole role) throws Exception {
         UUID caller = role == AccountRole.PATIENT ? patient : account(role);
+        if (role == AccountRole.DOCTOR) currentCare(caller, own);
         int expected = role == AccountRole.PATIENT || role == AccountRole.DOCTOR ? 200 : 403;
         var first = fetch(caller, role, own).andExpect(status().is(expected));
         var second = write(caller, role, own, body(0)).andExpect(status().is(expected));
@@ -218,6 +236,9 @@ class MedicalHistoryR3PostgresIntegrationTest {
     }
     @Test void missingOwnProfileFailsClosedEvenForConfirmedDependent() throws Exception {
         UUID target = profile(null); link(target, null);
+        // Remove only this test's care fixture before removing its referenced Patient profile.
+        jdbc.update("delete from visit_assignments where visit_id=?", ownCareVisit);
+        jdbc.update("delete from visits where id=?", ownCareVisit);
         jdbc.update("delete from patient_profiles where id=?", own);
         assertFalse(access.canAccess(patient, target));
         fetch(patient, AccountRole.PATIENT, target).andExpect(status().isNotFound());
@@ -233,6 +254,7 @@ class MedicalHistoryR3PostgresIntegrationTest {
         }
         if (!state.equals("MISSING")) {
             var seed = body(0); seed.put("allergies", "Private clinical text");
+            currentCare(doctor, target);
             write(doctor, AccountRole.DOCTOR, target, seed).andExpect(status().isOk());
         }
         fetch(patient, AccountRole.PATIENT, target).andExpect(status().isNotFound()).andExpect(jsonPath("$.error.code").value("PATIENT_PROFILE_NOT_FOUND"))
@@ -240,12 +262,30 @@ class MedicalHistoryR3PostgresIntegrationTest {
         write(patient, AccountRole.PATIENT, target, body(0)).andExpect(status().isNotFound());
         if (!state.equals("MISSING")) assertEquals(1L, jdbc.queryForObject("select version from patient_medical_histories where patient_profile_id=?", Long.class, target));
     }
-    @Test void confirmedDependentPutUsesRequesterAsEditorAndDoctorMissingIs404() throws Exception {
+    @Test void confirmedDependentPutUsesRequesterAsEditorAndMissingTargetRespectsActorScope() throws Exception {
         UUID target = profile(null); link(target, null);
         write(patient, AccountRole.PATIENT, target, body(0)).andExpect(status().isOk()).andExpect(jsonPath("$.updatedBy").value("Actor " + patient));
         assertEquals(patient, jdbc.queryForObject("select updated_by_account_id from patient_medical_histories where patient_profile_id=?", UUID.class, target));
-        fetch(doctor, AccountRole.DOCTOR, UUID.randomUUID()).andExpect(status().isNotFound());
-        write(doctor, AccountRole.DOCTOR, UUID.randomUUID(), body(0)).andExpect(status().isNotFound());
+        UUID missing = UUID.randomUUID();
+        // Current-care authorization precedes existence lookup for Doctors (retired R3 shortcut).
+        fetch(doctor, AccountRole.DOCTOR, missing).andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.error.code").value("ACCESS_DENIED"));
+        write(doctor, AccountRole.DOCTOR, missing, body(0)).andExpect(status().isForbidden());
+        fetch(patient, AccountRole.PATIENT, missing).andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.error.code").value("PATIENT_PROFILE_NOT_FOUND"));
+        write(patient, AccountRole.PATIENT, missing, body(0)).andExpect(status().isNotFound());
+    }
+    @Test void activeDoctorWithoutProfileOrCurrentCareCannotReadOrWrite() throws Exception {
+        UUID unrelatedDoctor = account(AccountRole.DOCTOR);
+        fetch(unrelatedDoctor, AccountRole.DOCTOR, own).andExpect(status().isForbidden());
+        write(unrelatedDoctor, AccountRole.DOCTOR, own, body(0)).andExpect(status().isForbidden());
+        doctorProfile(unrelatedDoctor);
+        fetch(unrelatedDoctor, AccountRole.DOCTOR, own).andExpect(status().isForbidden());
+        write(unrelatedDoctor, AccountRole.DOCTOR, own, body(0)).andExpect(status().isForbidden());
+        UUID unrelatedPatient = profile(null);
+        fetch(doctor, AccountRole.DOCTOR, unrelatedPatient).andExpect(status().isForbidden());
+        write(doctor, AccountRole.DOCTOR, unrelatedPatient, body(0)).andExpect(status().isForbidden());
+        assertEquals(0, count(own)); assertEquals(0, count(unrelatedPatient));
     }
     @Test void anonymousAndCsrfAreNotWeakened() throws Exception {
         mvc.perform(get(path(own))).andExpect(status().isUnauthorized());

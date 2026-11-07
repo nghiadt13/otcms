@@ -77,6 +77,7 @@ export interface DoctorExamApi {
     items: OrderDraftItem[],
     catalog: CatalogService[],
     idempotencyKey: string,
+    patientConsentConfirmed: boolean,
   ): Promise<ParaclinicalOrder[]>;
   cancelOrder(
     order: ParaclinicalOrder,

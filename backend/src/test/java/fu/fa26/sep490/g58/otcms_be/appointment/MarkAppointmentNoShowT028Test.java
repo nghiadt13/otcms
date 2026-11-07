@@ -12,6 +12,10 @@ import fu.fa26.sep490.g58.otcms_be.visit.service.RecordedArrivalQueryService;
 import fu.fa26.sep490.g58.otcms_be.visit.exception.RecordedArrivalNotFoundException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+import fu.fa26.sep490.g58.otcms_be.appointment.exception.AppointmentBookingExceptionHandler;
+import org.springframework.mock.web.MockHttpServletRequest;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -77,13 +81,34 @@ class MarkAppointmentNoShowT028Test {
         verify(appointments, never()).markNoShow(any(), any(), any(), any(), any());
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {"CHECKED_IN", "NO_SHOW"})
+    void committedNonConfirmedStateReturnsConflictBeforeArrivalWindowChecks(String state) {
+        when(appointments.findForUpdate(appointmentId)).thenReturn(Optional.of(new NoShowAppointment(
+                appointmentId, patientId, doctorId, state, confirmed.startTime(), confirmed.endTime(),
+                "CHECKED_IN".equals(state) ? UUID.randomUUID() : null, null)));
+        var failure = assertThrows(AppointmentBookingException.class,
+                () -> transaction.markNoShow(appointmentId, command));
+        assertEquals("APPOINTMENT_NOT_CHANGEABLE", failure.code());
+        assertEquals(409, new AppointmentBookingExceptionHandler().handle(failure, new MockHttpServletRequest())
+                .getStatusCode().value());
+        var order = inOrder(guard, appointments);
+        order.verify(guard).acquire();
+        order.verify(appointments).findForUpdate(appointmentId);
+        verifyNoInteractions(arrivals);
+        verify(appointments, never()).markNoShow(any(), any(), any(), any(), any());
+    }
+
     @Test
     void timelyArrivalBlocksNoShowAndUnavailableEvidenceFailsClosed() {
         doReturn(new RecordedArrivalQueryService.RecordedArrival(appointmentId, patientId,
                 now.minusSeconds(3000), UUID.randomUUID())).when(arrivals)
                 .requireRecordedArrival(appointmentId, patientId, now.minusSeconds(5400), now.minusSeconds(2700));
-        assertEquals("NO_SHOW_NOT_ALLOWED", assertThrows(AppointmentBookingException.class,
-                () -> transaction.markNoShow(appointmentId, command)).code());
+        var timelyFailure = assertThrows(AppointmentBookingException.class,
+                () -> transaction.markNoShow(appointmentId, command));
+        assertEquals("NO_SHOW_NOT_ALLOWED", timelyFailure.code());
+        assertEquals(422, new AppointmentBookingExceptionHandler().handle(timelyFailure, new MockHttpServletRequest())
+                .getStatusCode().value());
 
         doThrow(new IllegalStateException("EVIDENCE_STORE_UNAVAILABLE")).when(arrivals)
                 .requireRecordedArrival(any(), any(), any(), any());

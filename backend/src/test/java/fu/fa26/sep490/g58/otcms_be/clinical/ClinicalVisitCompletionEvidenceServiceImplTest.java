@@ -39,6 +39,23 @@ class ClinicalVisitCompletionEvidenceServiceImplTest {
         when(orders.findByVisitId(visitId)).thenReturn(List.of());
     }
 
+    @Test void legacyUnpaidResultBearingOrderRemainsOutstanding() {
+        var legacy = order(ClinicalServiceType.IMAGING, ServiceOrderStatus.ORDERED, firstRoundId, now);
+        legacy.markResult(now); returnedOrders(legacy);
+        assertEquals(1, service.getCompletionEvidence(visitId).outstandingOrderCount());
+    }
+
+    @Test void pendingPaymentAndPaidUndispatchedOrdersBothRemainOutstanding() {
+        var imaging = order(ClinicalServiceType.IMAGING, ServiceOrderStatus.ORDERED, firstRoundId, now);
+        returnedOrders(imaging);
+        assertEquals(1, service.getCompletionEvidence(visitId).outstandingOrderCount());
+        imaging.markPaid(now.plusSeconds(1));
+        assertEquals(ServiceOrderPaymentStatus.PAID, imaging.getPaymentStatus());
+        var paid = service.getCompletionEvidence(visitId);
+        assertEquals(1, paid.outstandingOrderCount());
+        assertFalse(paid.allNonCancelledOrdersHaveResults());
+    }
+
     @Test
     void noClinicalRecordsReturnEmptyEvidenceWithoutProvingVisitExistence() {
         var evidence = service.getCompletionEvidence(visitId);
@@ -171,11 +188,12 @@ class ClinicalVisitCompletionEvidenceServiceImplTest {
     }
 
     @Test
-    void pendingPaymentDoesNotMakeAvailableClinicalResultsOutstanding() {
-        var available = order(ClinicalServiceType.IMAGING, ServiceOrderStatus.RESULTS_AVAILABLE, firstRoundId, now);
+    void pendingPaymentKeepsAvailableClinicalResultsOutstandingForClosure() {
+        var available = order(ClinicalServiceType.IMAGING, ServiceOrderStatus.ORDERED, firstRoundId, now);
+        available.markResult(now);
         assertEquals(ServiceOrderPaymentStatus.PENDING_PAYMENT, available.getPaymentStatus());
         returnedOrders(available);
-        assertCounts(service.getCompletionEvidence(visitId), 1, 0, true);
+        assertCounts(service.getCompletionEvidence(visitId), 1, 1, true);
     }
 
     @Test
@@ -208,7 +226,7 @@ class ClinicalVisitCompletionEvidenceServiceImplTest {
         var order = new ServiceOrderJpaEntity("SO-test", roundId, visitId, UUID.randomUUID(), UUID.randomUUID(),
                 "Service", type, UUID.randomUUID(), "Clinical reason", "Knee", null, BigDecimal.TEN, createdAt);
         if (status == ServiceOrderStatus.CANCELLED) order.cancel("Cancelled", createdAt);
-        if (status == ServiceOrderStatus.RESULTS_AVAILABLE) order.markResult(createdAt);
+        if (status == ServiceOrderStatus.RESULTS_AVAILABLE) { order.markPaid(createdAt); order.markResult(createdAt); }
         return order;
     }
 

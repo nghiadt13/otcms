@@ -22,6 +22,13 @@ public class InvoiceController {
     private final InvoiceService invoices;
     public InvoiceController(InvoiceService invoices) { this.invoices = invoices; }
 
+    @PostMapping("/clinical-ordering-rounds/{roundId}/invoices")
+    @org.springframework.security.access.prepost.PreAuthorize("hasAuthority('ROLE_RECEPTIONIST')")
+    public InvoiceResponse createForClinicalRound(@PathVariable UUID roundId,
+            @AuthenticationPrincipal AuthenticatedAccount actor) {
+        return invoices.createForClinicalRound(roundId, actor);
+    }
+
     @PostMapping("/visits/{visitId}/invoices")
     public InvoiceResponse createForVisit(@PathVariable UUID visitId,
             @Valid @RequestBody CreateVisitInvoiceRequest request,

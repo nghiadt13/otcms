@@ -72,8 +72,10 @@ class CreateFollowUpAppointmentT030PostgresIntegrationTest {
                 visit, patient, Timestamp.from(NOW.minusSeconds(3600)), Timestamp.from(NOW.minusSeconds(3600)), account);
         jdbc.update("insert into visit_assignments (visit_id, doctor_profile_id, starts_at, ends_at, status) values (?, ?, ?, ?, 'COMPLETED')",
                 visit, doctor, Timestamp.from(NOW.minusSeconds(3600)), Timestamp.from(NOW.minusSeconds(1800)));
-        jdbc.update("insert into visit_examinations (visit_id, doctor_profile_id, completed, follow_up_indicated, completed_at) values (?, ?, true, true, ?)",
-                visit, doctor, Timestamp.from(NOW.minusSeconds(1800)));
+        // Follow-up intent and completion belong to Clinical; care responsibility remains Visit-owned.
+        jdbc.update("insert into clinical_examinations (id, visit_id, status, follow_up_indicated, created_at, updated_at) "
+                + "values (?, ?, 'COMPLETED', true, ?, ?)", UUID.randomUUID(), visit,
+                Timestamp.from(NOW.minusSeconds(1800)), Timestamp.from(NOW.minusSeconds(1800)));
     }
 
     @AfterEach
@@ -85,6 +87,7 @@ class CreateFollowUpAppointmentT030PostgresIntegrationTest {
             if (service != null) {
                 jdbc.update("delete from appointment_audits where appointment_id in (select id from appointments where service_id = ?)", service);
                 jdbc.update("delete from appointments where service_id = ?", service);
+                jdbc.update("delete from clinical_examinations where visit_id = ?", visit);
                 jdbc.update("delete from visit_examinations where visit_id = ?", visit);
                 jdbc.update("delete from visit_assignments where visit_id = ?", visit);
                 jdbc.update("delete from visits where id = ?", visit);

@@ -43,6 +43,8 @@ class DiagnosticEvidenceT013PostgresIntegrationTest {
     private UUID roomId;
 
     @Autowired DiagnosticRequestService requests;
+    @Autowired DiagnosticImagingRequestRegistration registration;
+    @Autowired org.springframework.transaction.PlatformTransactionManager transactions;
     @Autowired DiagnosticEvidenceService evidenceService;
     @Autowired JdbcTemplate jdbc;
     @Autowired DiagnosticRequestT012PostgresIntegrationTest.PortFakes ports;
@@ -212,9 +214,9 @@ class DiagnosticEvidenceT013PostgresIntegrationTest {
     @Test
     void linkingAConfirmedStudyMarksTheLinkedClinicalOrderOnce() {
         UUID orderId = UUID.randomUUID();
-        ports.orders.put(orderId, new ClinicalImagingOrder(orderId, visitId, serviceId, true));
-        DiagnosticRequestView created = requests.create(doctor(), visitId, "create-linked", serviceId, "MRI",
-                "Chest", "Pain", roomId, orderId, "corr-create");
+        ports.orders.put(orderId, new ClinicalImagingOrder(orderId, visitId, serviceId, true, true));
+        DiagnosticRequestView created = DiagnosticRequestT012PostgresIntegrationTest.registerAssigned(jdbc, transactions, registration, ports,
+                visitId, roomId, orderId, "Chest", "Pain");
         evidenceService.recordFirstUse(DiagnosticActor.trustedIntegration(), useEvidence(created.requestId()),
                 "corr-first-use-linked");
         UUID attemptId = UUID.fromString(jdbc.queryForObject(
@@ -252,8 +254,10 @@ class DiagnosticEvidenceT013PostgresIntegrationTest {
     }
 
     private DiagnosticRequestView createRequest() {
-        return requests.create(doctor(), visitId, "create-" + UUID.randomUUID(), serviceId, "MRI", "Chest",
-                "Pain", roomId, null, "corr-create");
+        UUID orderId = UUID.randomUUID();
+        ports.orders.put(orderId, new fu.fa26.sep490.g58.otcms_be.diagnostic.integration.DiagnosticPortModels.ClinicalImagingOrder(orderId, visitId, serviceId, true, true));
+        return DiagnosticRequestT012PostgresIntegrationTest.registerAssigned(jdbc, transactions, registration, ports,
+                visitId, roomId, orderId, "Chest", "Pain");
     }
 
     private void cleanAbandonedT013Rows() {

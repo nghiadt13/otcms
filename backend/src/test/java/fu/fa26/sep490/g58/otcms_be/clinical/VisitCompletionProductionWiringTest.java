@@ -50,9 +50,9 @@ class VisitCompletionProductionWiringTest {
         when(bean(VisitReviewSourceService.class).find(visit)).thenReturn(Optional.empty());
         when(bean(ClinicalExaminationRepository.class).findByVisitId(visit)).thenReturn(Optional.of(
                 ClinicalExaminationJpaEntity.create(visit, "Reason", "Symptoms", "Findings", null, null, null, ClinicalExaminationStatus.COMPLETED, now)));
-        order = orderedImaging(); order.markResult(now);
+        order = orderedImaging(); order.markPaid(now); order.markResult(now);
         when(bean(ServiceOrderRepository.class).findByVisitId(visit)).thenReturn(List.of(order));
-        var diagnostic = new DiagnosticRequestJpaEntity(request, visit, patient, UUID.randomUUID(), order.getServiceId(), UUID.randomUUID(), "MRI", DiagnosticRequestStatus.REVIEWED, null, null, attempt);
+        diagnostic = new DiagnosticRequestJpaEntity(request, visit, patient, UUID.randomUUID(), order.getServiceId(), UUID.randomUUID(), "MRI", DiagnosticRequestStatus.REVIEWED, null, null, attempt);
         diagnostic.setServiceOrderId(order.getId());
         when(bean(DiagnosticRequestJpaRepository.class).findAllByServiceOrderIdInAndStatusNot(anyCollection(), eq(DiagnosticRequestStatus.CANCELLED)))
                 .thenAnswer(c -> { assertTrue(TransactionSynchronizationManager.isActualTransactionActive()); return List.of(diagnostic); });
@@ -63,12 +63,23 @@ class VisitCompletionProductionWiringTest {
         pdf = new DiagnosticReportJpaEntity(report, request, visit, "study", 1, "private", "a".repeat(64), DiagnosticReportValidationStatus.VALIDATED, UUID.randomUUID(), now, now);
         when(bean(DiagnosticReportJpaRepository.class).findAllById(any())).thenReturn(List.of(pdf));
     }
+    DiagnosticRequestJpaEntity diagnostic;
     ServiceOrderJpaEntity orderedImaging() {
         return new ServiceOrderJpaEntity("SO-COMPLETE", UUID.randomUUID(), visit, patient, UUID.randomUUID(), "MRI", ClinicalServiceType.IMAGING,
                 UUID.randomUUID(), "Reason", "Knee", "Instructions", BigDecimal.ONE, now);
     }
     @AfterEach void stop() { if (context != null) context.close(); }
     void close() { bean(WalkInVisitLifecycleService.class).close(visit, actor, AccountRole.RECEPTIONIST, "phase3"); }
+    @Test void unpaidOrPaidUndispatchedOrderBlocksActualVisitClosure() {
+        for (boolean paid : List.of(false, true)) {
+            order = orderedImaging(); if (paid) order.markPaid(now);
+            when(bean(ServiceOrderRepository.class).findByVisitId(visit)).thenReturn(List.of(order));
+            assertThrows(VisitOperationException.class, this::close);
+        }
+        verify(bean(WalkInVisitLifecycleRepository.class), never()).closeOpenVisit(any(), any());
+        verifyNoInteractions(bean(VisitAuditJpaRepository.class), bean(NotificationPublisher.class), bean(ExitWalkInReceptionQueueService.class));
+    }
+
     @Test void actualOwnerQueriesAllowCompleteImagingAndPreserveClosureEffects() {
         close(); verify(bean(WalkInVisitLifecycleRepository.class)).closeOpenVisit(eq(visit), any());
         verify(bean(WalkInVisitLifecycleRepository.class)).releaseReservedCare(eq(visit), any());
@@ -88,6 +99,20 @@ class VisitCompletionProductionWiringTest {
         verify(bean(DiagnosticRequestJpaRepository.class), never()).findAllByServiceOrderIdInAndStatusNot(anyCollection(), any());
         verify(bean(WalkInVisitLifecycleRepository.class)).closeOpenVisit(eq(visit), any());
     }
+    @Test void assignedPendingInProgressAndUncompletedResultAllBlockActualVisitClosure() {
+        assertNotNull(diagnostic.getRoomId());
+        for (var state : List.of(DiagnosticRequestStatus.PENDING, DiagnosticRequestStatus.IN_PROGRESS, DiagnosticRequestStatus.RESULT_AVAILABLE)) {
+            diagnostic.setStatus(state);
+            if (state == DiagnosticRequestStatus.RESULT_AVAILABLE) {
+                when(bean(DiagnosticFindingsVersionJpaRepository.class).findAllByRequestIdInAndState(anyCollection(), eq(DiagnosticFindingsVersionState.COMPLETED)))
+                        .thenReturn(List.of());
+            }
+            assertThrows(VisitOperationException.class, this::close, state.name());
+        }
+        verify(bean(WalkInVisitLifecycleRepository.class), never()).closeOpenVisit(any(), any());
+        verifyNoInteractions(bean(VisitAuditJpaRepository.class), bean(NotificationPublisher.class), bean(ExitWalkInReceptionQueueService.class));
+    }
+
     @Configuration static class Extras {
         @Bean WalkInVisitLifecycleRepository lifecycleRows() { return mock(WalkInVisitLifecycleRepository.class); }
         @Bean VisitAuditJpaRepository auditRows() { return mock(VisitAuditJpaRepository.class); }

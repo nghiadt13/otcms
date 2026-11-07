@@ -16,6 +16,8 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 public interface DiagnosticRequestJpaRepository extends JpaRepository<DiagnosticRequestJpaEntity, UUID> {
+    List<DiagnosticRequestJpaEntity> findAllByServiceOrderIdInOrderByCreatedAtDescIdDesc(Collection<UUID> ids);
+
     interface ReleasedHistoryRow {
         UUID getPatientId();
         UUID getRequestId();
@@ -64,17 +66,20 @@ public interface DiagnosticRequestJpaRepository extends JpaRepository<Diagnostic
 
     Optional<DiagnosticRequestJpaEntity> findFirstByServiceOrderIdOrderByCreatedAtDescIdDesc(UUID serviceOrderId);
 
-    // Same transaction as the Clinical order/replay. Partial unique index V097 serializes concurrent registration.
+    Optional<DiagnosticRequestJpaEntity> findFirstByServiceOrderIdAndStatusNotOrderByCreatedAtDescIdDesc(
+            UUID serviceOrderId, DiagnosticRequestStatus status);
+
+    // Queue assignment only, in the Reception dispatch transaction. V097 prevents duplicate active work.
     @org.springframework.data.jpa.repository.Modifying(flushAutomatically = true)
     @Query(value = """
             insert into diagnostic_requests (id, visit_id, patient_id, ordering_doctor_id, service_id,
-                imaging_type, body_area, clinical_reason, service_order_id, status)
-            values (:id, :visitId, :patientId, :doctorAccountId, :serviceId, :modality, :area, :reason, :orderId, 'PENDING')
+                room_id, imaging_type, body_area, clinical_reason, service_order_id, status)
+            values (:id, :visitId, :patientId, :doctorAccountId, :serviceId, :roomId, :modality, :area, :reason, :orderId, 'PENDING')
             on conflict (service_order_id) where service_order_id is not null and status <> 'CANCELLED' do nothing
             """, nativeQuery = true)
-    int insertUnassigned(@Param("id") UUID id, @Param("visitId") UUID visitId, @Param("patientId") UUID patientId,
+    int insertAssigned(@Param("id") UUID id, @Param("visitId") UUID visitId, @Param("patientId") UUID patientId,
             @Param("doctorAccountId") UUID doctorAccountId, @Param("serviceId") UUID serviceId,
-            @Param("modality") String modality, @Param("area") String area, @Param("reason") String reason,
+            @Param("roomId") UUID roomId, @Param("modality") String modality, @Param("area") String area, @Param("reason") String reason,
             @Param("orderId") UUID orderId);
 
     /** True when a request other than the given status (use CANCELLED) already fulfils the order. */

@@ -21,6 +21,15 @@ class ClinicalClosureCoordinationTest {
     final ClinicalExaminationRepository exams = mock(ClinicalExaminationRepository.class);
     final ClinicalDiagnosisRepository diagnoses = mock(ClinicalDiagnosisRepository.class);
     final ClinicalOrderPreparationService preparation = new ClinicalOrderPreparationService(visits, mock(ClinicServiceCatalogPort.class));
+    @Test void orderCancellationAcquiresSharedGuardBeforeReadingOrders() {
+        var ordering = new fu.fa26.sep490.g58.otcms_be.clinical.service.impl.ClinicalOrderingServiceImpl(
+                mock(ClinicalOrderPreparationService.class), mock(ClinicalOrderingTransactionService.class), rounds, orders,
+                Clock.systemUTC(), guard);
+        doThrow(new IllegalStateException("guard unavailable")).when(guard).acquire();
+        assertThrows(IllegalStateException.class, () -> ordering.cancel(UUID.randomUUID(), "Declined"));
+        verifyNoInteractions(rounds, orders);
+    }
+
     @Test void delayedOrderWriterRechecksClosedVisitAfterGuardBeforeAnyPersistence() {
         doAnswer(call -> { when(visits.getVisitContext(visit)).thenReturn(new VisitClinicalContextPort.ClinicalVisitContext(visit, patient, doctor, false)); return null; }).when(guard).acquire();
         var writer = new ClinicalOrderingTransactionService(rounds, orders, Clock.systemUTC(), guard, preparation);
@@ -45,9 +54,9 @@ class ClinicalClosureCoordinationTest {
         var prep = mock(ClinicalOrderPreparationService.class);
         var replays = mock(ClinicalImagingRequestReplayRepository.class);
         var tx = new ClinicalImagingRequestTransactionService(prep, mock(ClinicalOrderingTransactionService.class), replays,
-                rounds, orders, Clock.systemUTC(), mock(fu.fa26.sep490.g58.otcms_be.diagnostic.service.DiagnosticImagingRequestRegistration.class), guard);
+                rounds, orders, Clock.systemUTC(), guard);
         doThrow(new IllegalStateException("guard unavailable")).when(guard).acquire();
-        var command = new ClinicalImagingRequestService.ImagingRequestCommand(visit, doctor, "key", List.of());
+        var command = new ClinicalImagingRequestService.ImagingRequestCommand(visit, doctor, "key", List.of(), true);
         assertThrows(IllegalStateException.class, () -> tx.submit(command, "fingerprint"));
         assertThrows(IllegalStateException.class, () -> tx.recoverReplay(command, "fingerprint"));
         verifyNoInteractions(prep, replays, rounds, orders);

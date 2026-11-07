@@ -30,6 +30,7 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
     ClinicalExaminationController.class,
     AfterVisitAdviceController.class,
     ClinicalImagingRequestController.class,
+    fu.fa26.sep490.g58.otcms_be.clinical.controller.ClinicalRoundWorkflowController.class,
     DoctorActiveVisitController.class,
     ClinicalPrescriptionController.class,
     ClinicalMedicalDocumentController.class,
@@ -44,7 +45,7 @@ public class ClinicalApiExceptionHandler {
         return switch (error.outcome()) {
             case UNAUTHORIZED_RECORD -> problem(403, "MSG-40", List.of(), request);
             case RECORD_NOT_FOUND -> problem(404, "MSG-41", List.of(), request);
-            case VISIT_NOT_ELIGIBLE, STATE_CONFLICT, VERSION_CONFLICT -> problem(409, "MSG-42", List.of(), request);
+            case VISIT_NOT_ELIGIBLE, STATE_CONFLICT, VERSION_CONFLICT, ROOM_NOT_READY -> problem(409, "MSG-42", List.of(), request);
             case SERVICE_NOT_ELIGIBLE, EVIDENCE_MISMATCH -> problem(400, "MSG-39", List.of(), request);
             default -> problem(503, "DEPENDENCY_UNAVAILABLE", List.of(), request);
         };

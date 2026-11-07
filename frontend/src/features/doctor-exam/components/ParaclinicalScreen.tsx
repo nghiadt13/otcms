@@ -25,8 +25,7 @@ import {
 } from "./VisitWorkspaceProvider";
 
 // Tab Cận lâm sàng: chỉ định (UC45), theo dõi trạng thái (UC52), xem ảnh và kết luận (UC49/50),
-// kết quả xét nghiệm. Bản live chưa liệt kê được chỉ định lâm sàng của lượt khám nên đợt vừa gửi
-// được workspace giữ lại (xem VisitWorkspaceProvider) và gộp vào danh sách này.
+// Clinical ServiceOrders là nguồn danh sách; Diagnostic bổ sung trạng thái sau khi lễ tân gửi KTV.
 
 export function ParaclinicalScreen() {
   const workspace = useVisitWorkspace();

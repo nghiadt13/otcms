@@ -19,7 +19,9 @@ import fu.fa26.sep490.g58.otcms_be.common.service.CoordinationGuardService;
 import fu.fa26.sep490.g58.otcms_be.servicecatalog.service.ManageDoctorServiceAssignmentsService;
 import fu.fa26.sep490.g58.otcms_be.staff.service.ManageDoctorResourcesService;
 import fu.fa26.sep490.g58.otcms_be.support.LocalPostgresTest;
+import java.time.Clock;
 import java.time.Duration;
+import java.time.temporal.ChronoUnit;
 import java.time.Instant;
 import java.sql.Timestamp;
 import java.util.List;
@@ -32,6 +34,7 @@ import java.util.concurrent.TimeUnit;
 import javax.sql.DataSource;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -49,7 +52,8 @@ import org.springframework.transaction.support.TransactionTemplate;
 @AutoConfigureMockMvc
 @LocalPostgresTest
 class T032AdminResourceMutationPostgresIntegrationTest {
-    private static final Instant NOW = Instant.parse("2026-10-20T09:00:00Z");
+    private Instant resourceStart;
+    @Autowired Clock clock;
     @Autowired MockMvc mvc;
     @Autowired JdbcTemplate jdbc;
     @Autowired DataSource dataSource;
@@ -70,6 +74,12 @@ class T032AdminResourceMutationPostgresIntegrationTest {
     private final List<UUID> patientAccountIds = new java.util.ArrayList<>();
     private final List<UUID> appointmentIds = new java.util.ArrayList<>();
     private final List<UUID> visitIds = new java.util.ArrayList<>();
+
+    @BeforeEach
+    void futureResourceBaseline() {
+        // Share production's business clock; fixture periods must stay future as the suite ages.
+        resourceStart = clock.instant().plus(Duration.ofDays(1)).truncatedTo(ChronoUnit.SECONDS);
+    }
 
     @AfterEach
     void cleanup() {
@@ -149,12 +159,12 @@ class T032AdminResourceMutationPostgresIntegrationTest {
     void adminMutationsReturnImpactConflictsAndWriteOnlySuccessfulOwnerAudits() throws Exception {
         createFixtures();
         jdbc.update("insert into doctor_shifts (id,doctor_profile_id,starts_at,ends_at) values (?,?,?,?)",
-                shiftId, doctorId, timestamp(NOW), timestamp(NOW.plus(Duration.ofHours(2))));
+                shiftId, doctorId, timestamp(resourceStart), timestamp(resourceStart.plus(Duration.ofHours(2))));
         UUID bookingId = UUID.randomUUID(); appointmentIds.add(bookingId);
         jdbc.update("insert into appointments (id,patient_profile_id,service_id,doctor_profile_id,status,booking_source,purpose,start_time,end_time,duration_minutes,buffer_minutes,created_by_account_id) " +
                         "values (?, ?, ?, ?, 'CONFIRMED', 'RECEPTIONIST_ASSISTED', 't032 fixture', ?, ?, 30, 10, ?)",
-                bookingId, patientId(), serviceId, doctorId, timestamp(NOW.plus(Duration.ofMinutes(30))),
-                timestamp(NOW.plus(Duration.ofMinutes(60))), adminId);
+                bookingId, patientId(), serviceId, doctorId, timestamp(resourceStart.plus(Duration.ofMinutes(30))),
+                timestamp(resourceStart.plus(Duration.ofMinutes(60))), adminId);
 
         mvc.perform(delete("/api/v1/admin/doctors/{doctorId}/shifts/{shiftId}", doctorId, shiftId)
                         .with(actor(AccountRole.ADMIN, adminId)).with(csrf()))
@@ -170,7 +180,7 @@ class T032AdminResourceMutationPostgresIntegrationTest {
 
         mvc.perform(post("/api/v1/admin/doctors/{doctorId}/time-offs", doctorId)
                         .with(actor(AccountRole.ADMIN, adminId)).with(csrf()).contentType("application/json")
-                        .content("{\"startsAt\":\"2026-10-20T09:20:00Z\",\"endsAt\":\"2026-10-20T10:10:00Z\"}"))
+                        .content(intervalJson(Duration.ofMinutes(20), Duration.ofMinutes(70))))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.error.code").value("RESOURCE_MUTATION_BLOCKED"))
                 .andExpect(jsonPath("$.error.impact.resourceType").value("TIME_OFF"))
@@ -180,7 +190,7 @@ class T032AdminResourceMutationPostgresIntegrationTest {
 
         timeOffId = UUID.randomUUID();
         jdbc.update("insert into doctor_time_off (id,doctor_profile_id,starts_at,ends_at) values (?,?,?,?)",
-                timeOffId, doctorId, timestamp(NOW.plus(Duration.ofMinutes(20))), timestamp(NOW.plus(Duration.ofMinutes(70))));
+                timeOffId, doctorId, timestamp(resourceStart.plus(Duration.ofMinutes(20))), timestamp(resourceStart.plus(Duration.ofMinutes(70))));
         mvc.perform(get("/api/v1/admin/doctors/{doctorId}/time-offs/{timeOffId}/mutation-impact", doctorId, timeOffId)
                         .with(actor(AccountRole.ADMIN, adminId)))
                 .andExpect(status().isOk())
@@ -194,7 +204,7 @@ class T032AdminResourceMutationPostgresIntegrationTest {
         assertEquals(1, jdbc.queryForObject("select count(*) from staff_resource_audits where resource_id=? and resource_type='TIME_OFF' and action='DELETED'", Integer.class, timeOffId));
 
         mvc.perform(post("/api/v1/admin/doctors/{doctorId}/shifts", doctorId).with(actor(AccountRole.ADMIN, adminId)).with(csrf())
-                        .contentType("application/json").content("{\"startsAt\":\"2026-10-20T12:00:00Z\",\"endsAt\":\"2026-10-20T13:00:00Z\"}"))
+                        .contentType("application/json").content(intervalJson(Duration.ofHours(3), Duration.ofHours(4))))
                 .andExpect(status().isCreated()).andExpect(jsonPath("$.id").exists());
         assertEquals(1, jdbc.queryForObject("select count(*) from staff_resource_audits where doctor_profile_id=? and resource_type='WORK_SHIFT' and action='CREATED'", Integer.class, doctorId));
         mvc.perform(patch("/api/v1/admin/doctors/{doctorId}/directory-state", doctorId)
@@ -224,10 +234,10 @@ class T032AdminResourceMutationPostgresIntegrationTest {
         UUID visitId = UUID.randomUUID();
         visitIds.add(visitId);
         UUID patientId = patientId();
-        Instant careStart = NOW.plus(Duration.ofDays(1));
+        Instant careStart = resourceStart.plus(Duration.ofDays(1));
         Instant careEnd = careStart.plus(Duration.ofMinutes(30));
         jdbc.update("insert into visits (id,patient_profile_id,source,arrived_at,checked_in_at,created_by_account_id,status) values (?,?,'WALK_IN',?, ?, ?, 'OPEN')",
-                visitId, patientId, timestamp(NOW), timestamp(NOW), adminId);
+                visitId, patientId, timestamp(resourceStart), timestamp(resourceStart), adminId);
         jdbc.update("insert into visit_assignments (id,visit_id,doctor_profile_id,starts_at,ends_at,status) values (?,?,?, ?, ?, 'RESERVED')",
                 UUID.randomUUID(), visitId, doctorId, timestamp(careStart), timestamp(careEnd));
 
@@ -248,7 +258,7 @@ class T032AdminResourceMutationPostgresIntegrationTest {
         UUID appointmentId = newBookingId();
         UUID visitId = UUID.randomUUID();
         visitIds.add(visitId);
-        Instant appointmentStart = NOW.plus(Duration.ofMinutes(30));
+        Instant appointmentStart = resourceStart.plus(Duration.ofMinutes(30));
         Instant appointmentEnd = appointmentStart.plus(Duration.ofMinutes(30));
         new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
             jdbc.update("insert into appointments (id,patient_profile_id,service_id,doctor_profile_id,status,booking_source,purpose,start_time,end_time,duration_minutes,buffer_minutes,created_by_account_id) " +
@@ -256,16 +266,16 @@ class T032AdminResourceMutationPostgresIntegrationTest {
                     appointmentId, patient, serviceId, doctorId, timestamp(appointmentStart), timestamp(appointmentEnd), adminId);
             jdbc.update("insert into visits (id,patient_profile_id,source,originating_appointment_id,arrived_at,checked_in_at,created_by_account_id,status) " +
                             "values (?,?,'SCHEDULED',?,?,?,?,'OPEN')",
-                    visitId, patient, appointmentId, timestamp(NOW), timestamp(NOW), adminId);
+                    visitId, patient, appointmentId, timestamp(resourceStart), timestamp(resourceStart), adminId);
             jdbc.update("update appointments set status='CHECKED_IN', visit_id=? where id=?", visitId, appointmentId);
             jdbc.update("insert into visit_check_ins (visit_id,receptionist_account_id,reception_type,arrived_at,checked_in_at) " +
                             "values (?,?,'APPOINTMENT_CHECK_IN',?,?)",
-                    visitId, receptionistId, timestamp(NOW), timestamp(NOW));
+                    visitId, receptionistId, timestamp(resourceStart), timestamp(resourceStart));
         });
 
         mvc.perform(post("/api/v1/admin/doctors/{doctorId}/time-offs", doctorId)
                         .with(actor(AccountRole.ADMIN, adminId)).with(csrf()).contentType("application/json")
-                        .content("{\"startsAt\":\"2026-10-20T09:20:00Z\",\"endsAt\":\"2026-10-20T10:10:00Z\"}"))
+                        .content(intervalJson(Duration.ofMinutes(20), Duration.ofMinutes(70))))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.error.code").value("RESOURCE_MUTATION_BLOCKED"))
                 .andExpect(jsonPath("$.error.impact.resourceType").value("TIME_OFF"))
@@ -279,7 +289,7 @@ class T032AdminResourceMutationPostgresIntegrationTest {
     void mutationWaitsForGuardThenRechecksNewBookingAndRejectsWithoutWrites() throws Exception {
         createFixtures();
         jdbc.update("insert into doctor_shifts (id,doctor_profile_id,starts_at,ends_at) values (?,?,?,?)",
-                shiftId, doctorId, timestamp(NOW), timestamp(NOW.plus(Duration.ofHours(2))));
+                shiftId, doctorId, timestamp(resourceStart), timestamp(resourceStart.plus(Duration.ofHours(2))));
         TransactionTemplate tx = new TransactionTemplate(transactionManager);
         CountDownLatch guardHeld = new CountDownLatch(1);
         CountDownLatch releaseWriter = new CountDownLatch(1);
@@ -291,8 +301,8 @@ class T032AdminResourceMutationPostgresIntegrationTest {
                 await(releaseWriter);
                 jdbc.update("insert into appointments (id,patient_profile_id,service_id,doctor_profile_id,status,booking_source,purpose,start_time,end_time,duration_minutes,buffer_minutes,created_by_account_id) " +
                                 "values (?, ?, ?, ?, 'CONFIRMED', 'RECEPTIONIST_ASSISTED', 't032 race', ?, ?, 30, 10, ?)",
-                        newBookingId(), patientId(), serviceId, doctorId, timestamp(NOW.plus(Duration.ofMinutes(30))),
-                        timestamp(NOW.plus(Duration.ofMinutes(60))), adminId);
+                        newBookingId(), patientId(), serviceId, doctorId, timestamp(resourceStart.plus(Duration.ofMinutes(30))),
+                        timestamp(resourceStart.plus(Duration.ofMinutes(60))), adminId);
             }));
             assertTrue(guardHeld.await(5, TimeUnit.SECONDS), "booking writer should acquire T014 first");
             Future<?> mutation = pool.submit(() -> tx.executeWithoutResult(status -> {
@@ -334,9 +344,9 @@ class T032AdminResourceMutationPostgresIntegrationTest {
                 await(releaseWriter);
                 UUID patient = patientId();
                 jdbc.update("insert into visits (id,patient_profile_id,source,arrived_at,checked_in_at,created_by_account_id,status) values (?,?,'WALK_IN',?, ?, ?, 'OPEN')",
-                        visitId, patient, timestamp(NOW), timestamp(NOW), adminId);
+                        visitId, patient, timestamp(resourceStart), timestamp(resourceStart), adminId);
                 jdbc.update("insert into visit_assignments (id,visit_id,doctor_profile_id,starts_at,ends_at,status) values (?,?,?, ?, ?, 'IN_PROGRESS')",
-                        UUID.randomUUID(), visitId, doctorId, timestamp(NOW), timestamp(NOW.plus(Duration.ofMinutes(30))));
+                        UUID.randomUUID(), visitId, doctorId, timestamp(resourceStart), timestamp(resourceStart.plus(Duration.ofMinutes(30))));
             }));
             assertTrue(guardHeld.await(5, TimeUnit.SECONDS), "care writer should acquire T014 first");
             Future<?> mutation = pool.submit(() -> tx.executeWithoutResult(status ->
@@ -377,6 +387,11 @@ class T032AdminResourceMutationPostgresIntegrationTest {
         UUID id = UUID.randomUUID();
         appointmentIds.add(id);
         return id;
+    }
+
+    private String intervalJson(Duration startsAfter, Duration endsAfter) {
+        return "{\"startsAt\":\"" + resourceStart.plus(startsAfter)
+                + "\",\"endsAt\":\"" + resourceStart.plus(endsAfter) + "\"}";
     }
 
     private Timestamp timestamp(Instant instant) { return Timestamp.from(instant); }

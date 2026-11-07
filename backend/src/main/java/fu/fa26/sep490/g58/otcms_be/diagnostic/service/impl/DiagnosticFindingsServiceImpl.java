@@ -441,7 +441,9 @@ public class DiagnosticFindingsServiceImpl implements DiagnosticFindingsService 
             String key, Map<String, Object> payload) {
         DiagnosticIdempotencyRecordJpaEntity record = idempotency.findActorOperation(actor.accountId(),
                 request.getVisitId(), request.getId(), operation, key).orElseThrow(this::dependencyUnavailable);
-        idempotency.completeResult(record.getId(), payload);
+        // Keep the managed record coherent for another call in the same transaction.
+        record.completeResult(payload);
+        idempotency.saveAndFlush(record);
     }
 
     private void audit(DiagnosticRequestJpaEntity request, DiagnosticActor actor, String action,

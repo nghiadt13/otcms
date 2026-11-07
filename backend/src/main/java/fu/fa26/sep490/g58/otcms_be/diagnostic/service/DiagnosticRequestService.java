@@ -9,7 +9,7 @@ import java.util.UUID;
 
 /** FEAT-003 request operations; business rules and record access stay behind this interface. */
 public interface DiagnosticRequestService {
-    /** serviceOrderId is the clinical imaging order this request fulfils; null creates an unlinked request. */
+    /** Retired direct creation boundary. Always denies; use Reception paid Clinical round dispatch. */
     DiagnosticRequestView create(DiagnosticActor actor, UUID visitId, String idempotencyKey,
             UUID serviceId, String imagingType, String bodyArea, String clinicalReason,
             UUID roomId, UUID serviceOrderId, String correlationId);
