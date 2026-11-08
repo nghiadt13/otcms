@@ -1,6 +1,6 @@
 package fu.fa26.sep490.g58.otcms_be.appointment;
 import fu.fa26.sep490.g58.otcms_be.auth.service.PatientProfileDirectory;
-import fu.fa26.sep490.g58.otcms_be.patient.service.AuthorizePatientProfileService;
+import fu.fa26.sep490.g58.otcms_be.patient.service.PatientProfileAccessService;
 import fu.fa26.sep490.g58.otcms_be.servicecatalog.service.ClinicServiceBookingQueryService;
 import fu.fa26.sep490.g58.otcms_be.staff.service.StaffAvailabilityProviderQueryService;
 import fu.fa26.sep490.g58.otcms_be.staff.service.StaffDirectoryQueryService;
@@ -19,6 +19,7 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -26,7 +27,7 @@ import static org.mockito.Mockito.*;
 class GetAppointmentsServiceImplT023Test {
     private final AppointmentQueryRepository queries = mock(AppointmentQueryRepository.class);
     private final PatientProfileDirectory patients = mock(PatientProfileDirectory.class);
-    private final AuthorizePatientProfileService patientAuth = mock(AuthorizePatientProfileService.class);
+    private final PatientProfileAccessService patientAccess = mock(PatientProfileAccessService.class);
     private final StaffDirectoryQueryService staff = mock(StaffDirectoryQueryService.class);
     private final DoctorAccountAccessService doctorAccess = mock(DoctorAccountAccessService.class);
     private final StaffAvailabilityProviderQueryService doctors = mock(StaffAvailabilityProviderQueryService.class);
@@ -34,14 +35,13 @@ class GetAppointmentsServiceImplT023Test {
     private final UUID account = UUID.randomUUID(), patient = UUID.randomUUID(), doctor = UUID.randomUUID(), appointment = UUID.randomUUID();
     private GetAppointmentsServiceImpl handler;
 
-    @BeforeEach void setup() { handler = new GetAppointmentsServiceImpl(queries, patients, patientAuth, staff, doctorAccess,
+    @BeforeEach void setup() { handler = new GetAppointmentsServiceImpl(queries, patients, patientAccess, staff, doctorAccess,
             doctors, services, Clock.fixed(Instant.parse("2026-10-14T00:00:00Z"), ZoneOffset.UTC)); }
 
     @Test void detailCarriesDoctorNameAndServiceNameAndPrice() {
         var service = UUID.randomUUID();
         var start = Instant.parse("2026-10-21T03:00:00Z");
-        when(patients.findPatientProfile(account)).thenReturn(Optional.of(patient));
-        when(patientAuth.authorize(account, patient)).thenReturn(new AuthorizePatientProfileService.AuthorizedPatientProfile(patient, AuthorizePatientProfileService.AuthorizationScope.SELF));
+        when(patientAccess.accessibleProfileIds(account)).thenReturn(Set.of(patient));
         when(queries.findScoped(any(), eq(appointment))).thenReturn(Optional.of(new Row(appointment, patient, service,
                 doctor, "CONFIRMED", "PATIENT_ONLINE", "Đau đầu", start, start.plusSeconds(1800), 30, 10,
                 start.plusSeconds(2400), null, null, start, start)));
@@ -58,8 +58,7 @@ class GetAppointmentsServiceImplT023Test {
 
     @Test void namesAreNullWhenDoctorOrServiceNoLongerExists() {
         var start = Instant.parse("2026-10-21T03:00:00Z");
-        when(patients.findPatientProfile(account)).thenReturn(Optional.of(patient));
-        when(patientAuth.authorize(account, patient)).thenReturn(new AuthorizePatientProfileService.AuthorizedPatientProfile(patient, AuthorizePatientProfileService.AuthorizationScope.SELF));
+        when(patientAccess.accessibleProfileIds(account)).thenReturn(Set.of(patient));
         when(queries.findScoped(any(), eq(appointment))).thenReturn(Optional.of(new Row(appointment, patient,
                 UUID.randomUUID(), doctor, "CONFIRMED", "PATIENT_ONLINE", "x", start, start.plusSeconds(1800), 30, 10,
                 start.plusSeconds(2400), null, null, start, start)));
@@ -74,10 +73,9 @@ class GetAppointmentsServiceImplT023Test {
     }
 
     @Test void patientListUsesCurrentSelfAuthorizationAndConstrainedScope() {
-        when(patients.findPatientProfile(account)).thenReturn(Optional.of(patient));
-        when(patientAuth.authorize(account, patient)).thenReturn(new AuthorizePatientProfileService.AuthorizedPatientProfile(patient, AuthorizePatientProfileService.AuthorizationScope.SELF));
+        when(patientAccess.accessibleProfileIds(account)).thenReturn(Set.of(patient));
         var repositoryPage = new Page(List.of(), 0, 20, 0, 0);
-        when(queries.find(argThat(scope -> scope.type() == ScopeType.PATIENT && patient.equals(scope.profileId())),
+        when(queries.find(argThat(scope -> scope.type() == ScopeType.PATIENT && Set.of(patient).equals(scope.profileIds())),
                 any(Filter.class), eq(0), eq(20))).thenReturn(repositoryPage);
         var result = handler.list(account, AccountRole.PATIENT,
                 new AppointmentSearchFilter(null, null, null, null, null), 0, 20);
@@ -86,11 +84,23 @@ class GetAppointmentsServiceImplT023Test {
         assertEquals(20, result.size());
         assertEquals(0, result.totalElements());
         assertEquals(0, result.totalPages());
-        verify(patientAuth).authorize(account, patient);
+        verify(patientAccess).accessibleProfileIds(account);
+    }
+
+    @Test void patientListCoversSelfAndConfirmedDependents() {
+        var dependent = UUID.randomUUID();
+        when(patientAccess.accessibleProfileIds(account)).thenReturn(Set.of(patient, dependent));
+        when(queries.find(argThat(scope -> scope.type() == ScopeType.PATIENT
+                && Set.of(patient, dependent).equals(scope.profileIds())), any(Filter.class), eq(0), eq(20)))
+                .thenReturn(new Page(List.of(), 0, 20, 0, 0));
+        var result = handler.list(account, AccountRole.PATIENT,
+                new AppointmentSearchFilter(null, null, null, null, dependent), 0, 20);
+        assertEquals(List.of(), result.items());
+        verify(queries).find(any(), argThat(filter -> dependent.equals(filter.patientProfileId())), eq(0), eq(20));
     }
 
     @Test void missingCurrentPatientProfileCannotExpandScope() {
-        when(patients.findPatientProfile(account)).thenReturn(Optional.empty());
+        when(patientAccess.accessibleProfileIds(account)).thenReturn(Set.of());
         var result = handler.list(account, AccountRole.PATIENT,
                 new AppointmentSearchFilter(null, null, null, null, null), 0, 10);
         assertEquals(List.of(), result.items());
@@ -102,13 +112,12 @@ class GetAppointmentsServiceImplT023Test {
     }
 
     @Test void detailReturnsSameNotFoundForMissingOrOtherPatientsAppointment() {
-        when(patients.findPatientProfile(account)).thenReturn(Optional.of(patient));
-        when(patientAuth.authorize(account, patient)).thenReturn(new AuthorizePatientProfileService.AuthorizedPatientProfile(patient, AuthorizePatientProfileService.AuthorizationScope.SELF));
-        when(queries.findScoped(argThat(scope -> scope.type() == ScopeType.PATIENT && patient.equals(scope.profileId())), eq(appointment)))
+        when(patientAccess.accessibleProfileIds(account)).thenReturn(Set.of(patient));
+        when(queries.findScoped(argThat(scope -> scope.type() == ScopeType.PATIENT && Set.of(patient).equals(scope.profileIds())), eq(appointment)))
                 .thenReturn(Optional.empty());
         var error = assertThrows(AppointmentQueryException.class, () -> handler.detail(account, AccountRole.PATIENT, appointment));
         assertEquals("APPOINTMENT_NOT_FOUND", error.code());
-        verify(queries).findScoped(argThat(scope -> scope.type() == ScopeType.PATIENT && patient.equals(scope.profileId())), eq(appointment));
+        verify(queries).findScoped(argThat(scope -> scope.type() == ScopeType.PATIENT && Set.of(patient).equals(scope.profileIds())), eq(appointment));
     }
 
     @Test void doctorDetailRequiresCurrentAssignedDoctorProfile() {

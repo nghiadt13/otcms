@@ -13,12 +13,11 @@ import fu.fa26.sep490.g58.otcms_be.appointment.repository.AppointmentQueryReposi
 import fu.fa26.sep490.g58.otcms_be.appointment.model.Scope;
 import fu.fa26.sep490.g58.otcms_be.appointment.model.ScopeType;
 import fu.fa26.sep490.g58.otcms_be.appointment.service.GetAppointmentsService;
-import fu.fa26.sep490.g58.otcms_be.patient.service.AuthorizePatientProfileService;
+import fu.fa26.sep490.g58.otcms_be.patient.service.PatientProfileAccessService;
 import fu.fa26.sep490.g58.otcms_be.servicecatalog.service.ClinicServiceBookingQueryService;
 import fu.fa26.sep490.g58.otcms_be.servicecatalog.service.ClinicServiceBookingQueryService.ServiceLabel;
 import fu.fa26.sep490.g58.otcms_be.staff.service.StaffAvailabilityProviderQueryService;
 import fu.fa26.sep490.g58.otcms_be.staff.service.StaffDirectoryQueryService;
-import fu.fa26.sep490.g58.otcms_be.patient.exception.PatientAuthorizationDeniedException;
 import fu.fa26.sep490.g58.otcms_be.auth.service.DoctorAccountAccessService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
@@ -36,7 +35,7 @@ import java.util.UUID;
 public class GetAppointmentsServiceImpl implements GetAppointmentsService {
     private final AppointmentQueryRepository queries;
     private final PatientProfileDirectory patients;
-    private final AuthorizePatientProfileService patientAuthorization;
+    private final PatientProfileAccessService patientAccess;
     private final StaffDirectoryQueryService staff;
     private final DoctorAccountAccessService doctorAccess;
     private final StaffAvailabilityProviderQueryService doctors;
@@ -44,10 +43,10 @@ public class GetAppointmentsServiceImpl implements GetAppointmentsService {
     private final Clock clock;
 
     public GetAppointmentsServiceImpl(AppointmentQueryRepository queries, PatientProfileDirectory patients,
-            AuthorizePatientProfileService patientAuthorization, StaffDirectoryQueryService staff,
+            PatientProfileAccessService patientAccess, StaffDirectoryQueryService staff,
             DoctorAccountAccessService doctorAccess, StaffAvailabilityProviderQueryService doctors,
             ClinicServiceBookingQueryService services, Clock clock) {
-        this.queries = queries; this.patients = patients; this.patientAuthorization = patientAuthorization;
+        this.queries = queries; this.patients = patients; this.patientAccess = patientAccess;
         this.staff = staff; this.doctorAccess = doctorAccess; this.doctors = doctors; this.services = services;
         this.clock = clock;
     }
@@ -98,13 +97,9 @@ public class GetAppointmentsServiceImpl implements GetAppointmentsService {
         return switch (role) {
             case RECEPTIONIST -> new Scope(ScopeType.CLINIC, null);
             case PATIENT -> {
-                try {
-                    yield patients.findPatientProfile(accountId)
-                            .map(id -> patientAuthorization.authorize(accountId, id).patientProfileId())
-                            .map(id -> new Scope(ScopeType.PATIENT, id)).orElse(null);
-                } catch (PatientAuthorizationDeniedException denied) {
-                    yield null;
-                }
+                // Hồ sơ bản thân cùng người thân đã xác nhận; rỗng (tài khoản khóa, chưa có hồ sơ) thì không xem được gì.
+                var ids = patientAccess.accessibleProfileIds(accountId);
+                yield ids.isEmpty() ? null : Scope.patient(ids);
             }
             case DOCTOR -> {
                 if (!doctorAccess.isActiveDoctorAccount(accountId)) throw new AppointmentQueryException("ACCESS_DENIED");

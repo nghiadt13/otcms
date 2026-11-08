@@ -37,7 +37,7 @@ public interface AppointmentQueryRepository extends JpaRepository<AppointmentJpa
         return (root, query, builder) -> {
             var predicates = new ArrayList<Predicate>();
             if (id != null) predicates.add(builder.equal(root.get("id"), id));
-            if (scope.type() == ScopeType.PATIENT) predicates.add(builder.equal(root.get("patientProfileId"), scope.profileId()));
+            if (scope.type() == ScopeType.PATIENT) predicates.add(root.get("patientProfileId").in(scope.profileIds()));
             if (scope.type() == ScopeType.DOCTOR) predicates.add(builder.equal(root.get("doctorProfileId"), scope.profileId()));
             if (filter.fromInclusive() != null) predicates.add(builder.greaterThanOrEqualTo(root.get("startTime"), filter.fromInclusive()));
             if (filter.toExclusive() != null) predicates.add(builder.lessThan(root.get("startTime"), filter.toExclusive()));
