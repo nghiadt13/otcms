@@ -124,12 +124,15 @@ describe("PatientPortalHeader", () => {
     );
   });
 
-  it("menu tài khoản có vai trò Bệnh nhân và Đăng xuất về /login", async () => {
+  it("menu tài khoản không hiện nhãn vai trò và Đăng xuất về /login", async () => {
     render(<PatientPortalHeader />);
     await userEvent.click(
       screen.getByRole("button", { name: "Tài khoản: Nguyễn Văn An" }),
     );
-    expect(await screen.findByText("Bệnh nhân")).toBeInTheDocument();
+    expect(
+      await screen.findByRole("menuitem", { name: /Đăng xuất/ }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Bệnh nhân")).not.toBeInTheDocument();
 
     await userEvent.click(
       await screen.findByRole("menuitem", { name: /Đăng xuất/ }),

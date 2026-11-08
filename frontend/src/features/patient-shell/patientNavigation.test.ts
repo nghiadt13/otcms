@@ -9,7 +9,7 @@ import {
 
 const fixtures: PatientNavItem[] = [
   {
-    label: "Hồ sơ bệnh nhân",
+    label: "Quản lý gia đình",
     href: PATIENT_ROUTES.profiles,
     icon: Users,
     group: "Hồ sơ",

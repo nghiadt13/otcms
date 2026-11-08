@@ -94,6 +94,24 @@ describe("ChangePasswordForm", () => {
     ).toBeInTheDocument();
   });
 
+  it("biểu tượng mắt phản ánh trạng thái hiển thị của cả ba ô", async () => {
+    render(<ChangePasswordForm mode="voluntary" onDone={vi.fn()} />);
+    const fields = ["Mật khẩu hiện tại", "Mật khẩu mới", "Nhập lại mật khẩu mới"];
+    const toggles = screen.getAllByRole("button", { name: "Hiện mật khẩu" });
+
+    for (const [index, toggle] of toggles.entries()) {
+      const input = screen.getByLabelText(fields[index]);
+      expect(input).toHaveAttribute("type", "password");
+      expect(toggle.querySelector(".lucide-eye-off")).toBeInTheDocument();
+      await userEvent.click(toggle);
+      expect(input).toHaveAttribute("type", "text");
+      expect(toggle.querySelector(".lucide-eye")).toBeInTheDocument();
+      await userEvent.click(toggle);
+      expect(input).toHaveAttribute("type", "password");
+      expect(toggle.querySelector(".lucide-eye-off")).toBeInTheDocument();
+    }
+  });
+
   it("khi đang gửi: nút 'Đang lưu...' bị khóa", async () => {
     render(<ChangePasswordForm mode="forced" onDone={vi.fn()} />);
     await userEvent.type(

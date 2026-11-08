@@ -24,16 +24,14 @@ function initialsOf(name: string): string {
 }
 
 // Ô tài khoản góc phải: tên hiện từ màn sm trở lên, còn lại là ảnh đại diện nhưng vẫn có
-// `aria-label` nêu tên. Menu có tên và vai trò, các mục tài khoản, rồi Đăng xuất.
+// `aria-label` nêu tên. Menu có tên và email, các mục tài khoản, rồi Đăng xuất.
 export function PatientAccountMenu({
   displayName,
   email,
-  roleLabel,
   links,
 }: {
   displayName: string;
   email?: string;
-  roleLabel: string;
   links: readonly PatientAccountLink[];
 }) {
   const router = useRouter();
@@ -69,7 +67,6 @@ export function PatientAccountMenu({
       <DropdownMenuContent align="end" className="w-64" sideOffset={8}>
         <div className="px-2 py-2">
           <p className="text-base font-medium">{displayName}</p>
-          <p className="text-sm text-muted-foreground">{roleLabel}</p>
           {email ? (
             <p className="truncate text-xs text-muted-foreground">{email}</p>
           ) : null}

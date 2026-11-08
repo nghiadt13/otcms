@@ -1,9 +1,9 @@
 "use client";
 
 import {
-  Bell,
   CalendarDays,
   FileText,
+  KeyRound,
   Pill,
   Receipt,
   UserRound,
@@ -34,7 +34,7 @@ const AREA_GROUPS: readonly (readonly AreaLink[])[] = [
       href: PATIENT_ROUTES.account,
       icon: UserRound,
     },
-    { label: "Hồ sơ và gia đình", href: PATIENT_ROUTES.profiles, icon: Users },
+    { label: "Quản lý gia đình", href: PATIENT_ROUTES.profiles, icon: Users },
   ],
   [
     {
@@ -45,7 +45,7 @@ const AREA_GROUPS: readonly (readonly AreaLink[])[] = [
     { label: "Kết quả khám", href: PATIENT_ROUTES.results, icon: FileText },
     { label: "Đơn thuốc", href: PATIENT_ROUTES.prescriptions, icon: Pill },
     { label: "Thanh toán", href: PATIENT_ROUTES.payments, icon: Receipt },
-    { label: "Thông báo", href: PATIENT_ROUTES.notifications, icon: Bell },
+    { label: "Đổi mật khẩu", href: PATIENT_ROUTES.accountPassword, icon: KeyRound },
   ],
 ];
 
@@ -85,7 +85,8 @@ export function PersonalAreaShell({
                 {links.map((link) => {
                   const active =
                     pathname === link.href ||
-                    pathname.startsWith(`${link.href}/`);
+                    (link.href !== PATIENT_ROUTES.account &&
+                      pathname.startsWith(`${link.href}/`));
                   return (
                     <li key={link.href}>
                       <Link

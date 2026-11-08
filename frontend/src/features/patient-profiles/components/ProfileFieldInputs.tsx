@@ -7,6 +7,11 @@ import type {
   ProfileFieldValues,
 } from "../schema/patientProfileFieldRules";
 import type { EditableProfileField } from "../types/patientProfile";
+import {
+  CITIZEN_ID_LENGTH,
+  digitsOnly,
+} from "../schema/patientProfileFieldChecks";
+import { ProfilePhoneField } from "./ProfilePhoneField";
 import { ProfileSexField } from "./ProfileSexField";
 import { ProfileTextField } from "./ProfileTextField";
 
@@ -78,12 +83,11 @@ export function ProfileFieldInputs({
         />
       )}
       {hidden.includes("phone") ? null : (
-        <ProfileTextField
+        <ProfilePhoneField
           autoComplete="tel"
           disabled={!isEditable("phone")}
           error={errors.phone}
           id={`${id}-phone`}
-          inputMode="tel"
           label="Số điện thoại"
           onChange={(next) => onChange("phone", next)}
           value={values.phone}
@@ -104,8 +108,12 @@ export function ProfileFieldInputs({
           disabled={!isEditable("citizenId")}
           error={errors.citizenId}
           id={`${id}-citizenId`}
+          inputMode="numeric"
           label="CCCD/Mã định danh (không bắt buộc)"
-          onChange={(next) => onChange("citizenId", next)}
+          maxLength={CITIZEN_ID_LENGTH}
+          onChange={(next) =>
+            onChange("citizenId", digitsOnly(next, CITIZEN_ID_LENGTH))
+          }
           value={values.citizenId}
         />
       )}

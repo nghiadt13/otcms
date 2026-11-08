@@ -65,10 +65,6 @@ export function PersonalInfoScreen() {
         <h2 className="text-xl font-semibold" id="personal-edit-heading">
           Chỉnh sửa thông tin
         </h2>
-        <p className="mt-2 max-w-prose text-base text-muted-foreground">
-          Giữ thông tin đúng để phòng khám nhận ra hồ sơ của bạn khi đặt lịch và
-          khi đến khám.
-        </p>
 
         <div className="mt-6 grid gap-8 border-t pt-6">
           {error ? (
@@ -112,26 +108,6 @@ export function PersonalInfoScreen() {
             )}
           </div>
         </div>
-      </section>
-
-      <section
-        aria-labelledby="personal-password-heading"
-        className={`${CARD_CLASS} flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between`}
-      >
-        <div>
-          <h2 className="text-lg font-semibold" id="personal-password-heading">
-            Mật khẩu
-          </h2>
-          <p className="mt-1 text-base text-muted-foreground">
-            Đổi mật khẩu định kỳ để giữ tài khoản an toàn.
-          </p>
-        </div>
-        <Link
-          className={publicButtonClass("secondary")}
-          href={PATIENT_ROUTES.accountPassword}
-        >
-          Đổi mật khẩu
-        </Link>
       </section>
     </>
   );

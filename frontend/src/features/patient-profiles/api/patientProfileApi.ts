@@ -30,6 +30,7 @@ import {
 } from "./patientProfileMockHelpers";
 import { DUPLICATE_PROFILE_DETAIL } from "./patientProfileErrors";
 import { getLinkedProfileDetailLive } from "./patientProfileLiveDetail";
+import { updateLinkedProfileLive } from "./patientProfileLiveUpdate";
 import {
   MOCK_ACCOUNT_ID,
   type ClinicPatientRecord,
@@ -204,13 +205,7 @@ export async function updatePatientProfile(
   body: UpdateProfileRequest,
 ): Promise<PatientProfileDetail> {
   if (process.env.NODE_ENV !== "test")
-    return apiRequest<PatientProfileDetail>(
-      `/api/v1/me/patient-profiles/${encodeURIComponent(profileId)}`,
-      {
-        method: "PATCH",
-        body: JSON.stringify(body),
-      },
-    );
+    return updateLinkedProfileLive(profileId, body);
   await mockLatency();
   const entry = linkedEntryOrFail(profileId);
   const record = findClinicRecord(profileId) ?? mockFail(404, "MSG-41");

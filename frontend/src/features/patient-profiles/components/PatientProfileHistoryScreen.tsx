@@ -52,7 +52,7 @@ function HistoryForProfile({ profileId }: { profileId: string }) {
         href={PATIENT_ROUTES.profiles}
       >
         <ChevronLeft aria-hidden />
-        Hồ sơ bệnh nhân
+        Quản lý gia đình
       </Link>
       <PortalPageHeader
         title="Tiền sử bệnh"

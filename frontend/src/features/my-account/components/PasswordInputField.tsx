@@ -37,7 +37,7 @@ export function PasswordInputField({
   const id = useId();
   const errorId = `${id}-error`;
   const [visible, setVisible] = useState(false);
-  const Icon = visible ? EyeOff : Eye;
+  const Icon = visible ? Eye : EyeOff;
 
   return (
     <div className="grid gap-1.5">

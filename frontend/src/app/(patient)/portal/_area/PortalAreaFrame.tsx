@@ -17,6 +17,7 @@ import { PATIENT_ROUTES } from "@/lib/routes/patientRoutes";
 // (chi tiết, form đặt lịch, thanh toán...) vẫn dùng khung một cột như trước.
 const AREA_PATHS: ReadonlySet<string> = new Set([
   PATIENT_ROUTES.account,
+  PATIENT_ROUTES.accountPassword,
   PATIENT_ROUTES.profiles,
   PATIENT_ROUTES.appointments,
   PATIENT_ROUTES.results,

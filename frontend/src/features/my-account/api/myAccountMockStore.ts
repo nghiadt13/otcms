@@ -13,15 +13,12 @@ import {
 export interface MockAccountState {
   account: MyAccount;
   password: string;
-  /** Email mới đang chờ mã OTP; email cũ vẫn hiệu lực tới khi xác minh xong (BR-05). */
-  pendingEmail: string | null;
 }
 
 function initialState(account: MyAccount): MockAccountState {
   return {
     account: { ...account },
     password: MOCK_CORRECT_CURRENT_PASSWORD,
-    pendingEmail: null,
   };
 }
 
@@ -46,8 +43,7 @@ export function accountSnapshot(account: MyAccount): MyAccount {
     "updateAvatar",
     "changePassword",
   ];
-  if (account.kind === "PATIENT")
-    allowedActions.push("updateDisplayName", "changeEmail");
+  if (account.kind === "PATIENT") allowedActions.push("updateDisplayName");
   // `removeAvatar` chỉ có khi đang có ảnh.
   if (account.avatarUrl) allowedActions.splice(1, 0, "removeAvatar");
   return { ...account, allowedActions };

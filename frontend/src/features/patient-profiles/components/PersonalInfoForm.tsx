@@ -20,6 +20,11 @@ import type {
   EditableProfileField,
   PatientProfileDetail,
 } from "../types/patientProfile";
+import {
+  CITIZEN_ID_LENGTH,
+  digitsOnly,
+} from "../schema/patientProfileFieldChecks";
+import { ProfilePhoneField } from "./ProfilePhoneField";
 import { ProfileSexField } from "./ProfileSexField";
 import { ProfileTextField } from "./ProfileTextField";
 
@@ -72,6 +77,13 @@ export function PersonalInfoForm({
     value: ProfileFieldValues[K],
   ) {
     setValues((current) => ({ ...current, [field]: value }));
+  }
+
+  // Kiểm tra ô số (CCCD, SĐT) ngay khi rời ô để lỗi hiện sớm; ô BE khóa thì bỏ qua.
+  function checkOnBlur(field: "citizenId" | "phone") {
+    if (locked(field)) return;
+    const message = validateProfileFields(values, [field])[field];
+    setErrors((current) => ({ ...current, [field]: message }));
   }
 
   function discard() {
@@ -167,29 +179,35 @@ export function PersonalInfoForm({
           <ProfileTextField
             disabled={pending}
             error={errors.citizenId}
-            hint="Không bắt buộc. Trẻ em dùng mã định danh hoặc hộ chiếu."
             id={`${id}-citizenId`}
+            inputMode="numeric"
             label="CCCD / Mã định danh"
-            onChange={(next) => update("citizenId", next)}
+            maxLength={CITIZEN_ID_LENGTH}
+            onBlur={() => checkOnBlur("citizenId")}
+            onChange={(next) =>
+              update("citizenId", digitsOnly(next, CITIZEN_ID_LENGTH))
+            }
             readOnly={locked("citizenId")}
             value={values.citizenId}
           />
         </div>
       </section>
 
-      <section aria-labelledby={`${id}-contact`} className="grid gap-5">
+      <section
+        aria-labelledby={`${id}-contact`}
+        className="grid gap-5 border-t pt-8"
+      >
         <h3 className="text-lg font-semibold" id={`${id}-contact`}>
           Liên hệ
         </h3>
         <div className="grid items-start gap-5 sm:grid-cols-2">
-          <ProfileTextField
+          <ProfilePhoneField
             autoComplete="tel"
             disabled={pending}
             error={errors.phone}
-            hint="Dùng để phòng khám gọi xác nhận lịch. Không cần xác minh."
             id={`${id}-phone`}
-            inputMode="tel"
             label="Số điện thoại"
+            onBlur={() => checkOnBlur("phone")}
             onChange={(next) => update("phone", next)}
             readOnly={locked("phone")}
             required
@@ -212,27 +230,22 @@ export function PersonalInfoForm({
         </div>
       </section>
 
-      <div className="flex flex-col gap-4 border-t pt-6 sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-sm text-muted-foreground" role="status">
-          {dirty ? "Có thay đổi chưa lưu." : "Chưa có thay đổi."}
-        </p>
-        <div className="flex flex-col-reverse gap-3 sm:flex-row">
-          <button
-            className={publicButtonClass("secondary")}
-            disabled={!dirty || pending}
-            onClick={discard}
-            type="button"
-          >
-            Hủy thay đổi
-          </button>
-          <button
-            className={publicButtonClass("primary")}
-            disabled={!dirty || pending}
-            type="submit"
-          >
-            {pending ? "Đang lưu..." : "Lưu thay đổi"}
-          </button>
-        </div>
+      <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+        <button
+          className={publicButtonClass("secondary")}
+          disabled={!dirty || pending}
+          onClick={discard}
+          type="button"
+        >
+          Hủy thay đổi
+        </button>
+        <button
+          className={publicButtonClass("primary")}
+          disabled={!dirty || pending}
+          type="submit"
+        >
+          {pending ? "Đang lưu..." : "Lưu thay đổi"}
+        </button>
       </div>
     </form>
   );

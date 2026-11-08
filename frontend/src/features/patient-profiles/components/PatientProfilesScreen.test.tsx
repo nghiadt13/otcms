@@ -1,13 +1,8 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { resetLinkedProfilesMock } from "@/lib/patient-scope/linkedProfilesMockStore";
-import { PROFILE_MOCK_IDS } from "../api/patientProfileMockData";
 import { resetPatientProfileMock } from "../api/patientProfileMockStore";
 import { apiRequest } from "@/lib/api/client";
-import {
-  MedicalHistoryTestServer,
-  HISTORY_PROFILE_ID,
-} from "../api/medicalHistoryTestServer";
 import { PatientProfilesScreen } from "./PatientProfilesScreen";
 import { formatAppMessage } from "@/lib/messages/appMessages";
 vi.mock("@/lib/api/client", () => ({ apiRequest: vi.fn() }));
@@ -28,19 +23,31 @@ describe("PatientProfilesScreen", () => {
   it("hiện hồ sơ đã gắn, Bản thân đứng đầu, kèm quan hệ và mã bệnh nhân", async () => {
     render(<PatientProfilesScreen />);
 
-    const self = await screen.findByRole("link", { name: /Nguyễn Văn An/ });
-    expect(self).toHaveAttribute(
-      "href",
-      `/portal/profiles/${PROFILE_MOCK_IDS.an}`,
-    );
-    expect(self).toHaveTextContent("Bản thân");
-    expect(self).toHaveTextContent("BN-000123");
+    const self = await screen.findByRole("heading", { name: "Nguyễn Văn An" });
+    const card = self.closest("article")!;
+    expect(card).toHaveTextContent("Bản thân");
+    expect(card).toHaveTextContent("BN-000123");
 
     const names = screen
       .getAllByRole("listitem")
       .map((item) => item.textContent);
     expect(names[0]).toContain("Nguyễn Văn An");
     expect(names).toHaveLength(3);
+  });
+
+  it("thẻ hiện đủ thông tin hồ sơ và có nút Sửa, Xóa, không còn link xem chi tiết", async () => {
+    render(<PatientProfilesScreen />);
+
+    const heading = await screen.findByRole("heading", {
+      name: "Nguyễn Văn An",
+    });
+    const card = within(heading.closest("article")!);
+    expect(await card.findByText("Số điện thoại")).toBeInTheDocument();
+    expect(card.getByText("CCCD/Mã định danh")).toBeInTheDocument();
+    expect(card.getByText("Địa chỉ")).toBeInTheDocument();
+    expect(card.getByRole("button", { name: "Sửa" })).toBeEnabled();
+    expect(card.getByRole("button", { name: "Xóa" })).toBeEnabled();
+    expect(screen.queryByText("Xem chi tiết")).not.toBeInTheDocument();
   });
 
   it("chưa có hồ sơ nào: hiện trạng thái trống và chỉ một nút thêm hồ sơ", async () => {
@@ -65,34 +72,15 @@ describe("PatientProfilesScreen", () => {
     expect(screen.getByText(formatAppMessage("MSG-04"))).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Thử lại" })).toBeEnabled();
   });
-});
 
-it("lối vào tiền sử dùng UUID thật dù danh sách hành chính mock lỗi, không mở hồ sơ pending/revoked", async () => {
-  resetLinkedProfilesMock({ failList: true });
-  const server = new MedicalHistoryTestServer();
-  for (const linkStatus of ["PENDING_OTP", "PENDING_COUNTER", "REVOKED"]) {
-    server.profiles.push({
-      patientProfileId: linkStatus,
-      fullName: linkStatus,
-      relationship: "CHILD",
-      linkStatus,
-    });
-  }
-  vi.mocked(apiRequest).mockImplementation(server.request);
-  render(<PatientProfilesScreen />);
-  const historyLink = await screen.findByRole("link", { name: /Hồ sơ thật/ });
-  expect(historyLink).toHaveAttribute(
-    "href",
-    `/portal/profiles/${HISTORY_PROFILE_ID}/history`,
-  );
-  expect(screen.getByText("Không tải được hồ sơ.")).toBeInTheDocument();
-  for (const name of ["PENDING_OTP", "PENDING_COUNTER", "REVOKED"])
-    expect(screen.queryByText(name)).not.toBeInTheDocument();
-});
+  it("tiêu đề là Quản lý gia đình, không còn mục tiền sử bệnh hay dòng mô tả cũ", async () => {
+    render(<PatientProfilesScreen />);
 
-it("lối vào tiền sử không có hồ sơ đã xác nhận thì hiện trạng thái trống", async () => {
-  render(<PatientProfilesScreen />);
-  expect(
-    await screen.findByText("Chưa có hồ sơ đã xác nhận để xem tiền sử bệnh."),
-  ).toBeInTheDocument();
+    await screen.findByRole("heading", { name: "Nguyễn Văn An" });
+    expect(
+      screen.getByRole("heading", { level: 1, name: "Quản lý gia đình" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Tiền sử bệnh")).not.toBeInTheDocument();
+    expect(screen.queryByText(/đã gắn với tài khoản này/)).not.toBeInTheDocument();
+  });
 });

@@ -32,6 +32,14 @@ export const topBarContact: Pick<
   openingHours: ["Thứ 2 – Thứ 6: 7:30 – 17:00", "Thứ 7: 7:30 – 12:00"],
 };
 
+// Thông tin liên hệ đầy đủ cho chân trang, cố định trong code vì cùng lý do với dải trên cùng.
+// TODO: `email` là địa chỉ mẫu, thay bằng email thật của phòng khám.
+export const clinicContact: ClinicContact = {
+  ...topBarContact,
+  clinicName: "Phòng khám chấn thương chỉnh hình",
+  email: "lienhe@otcms.vn",
+};
+
 /** Mục đang mở: khớp đúng đường dẫn (trang chủ) hoặc đường dẫn con. Neo không bao giờ "đang mở". */
 export function isActiveNavItem(href: string, pathname: string) {
   if (href.startsWith("#")) return false;

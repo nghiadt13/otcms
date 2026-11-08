@@ -53,8 +53,8 @@ describe("validateProfileFields", () => {
       relationship: "Chọn quan hệ với bạn.",
       fullName: "Họ và tên gồm ít nhất hai chữ, không có số.",
       sex: "Chọn giới tính.",
-      phone: "Số điện thoại gồm 10 chữ số, bắt đầu bằng 0.",
-      citizenId: "Số định danh gồm 8 đến 12 chữ hoặc số.",
+      phone: "Số điện thoại gồm 9 chữ số sau +84.",
+      citizenId: "CCCD gồm đúng 12 chữ số.",
       email: "Email chưa đúng định dạng, ví dụ ten@example.com.",
     });
   });

@@ -8,7 +8,6 @@ import { OtcmsLogo } from "@/components/brand/OtcmsLogo";
 import { publicButtonClass } from "@/components/brand/publicButtonStyles";
 import { publicContainerClass } from "@/components/brand/publicLayout";
 import { useCurrentAccount } from "@/hooks/useCurrentAccount";
-import { ROLE_LABELS } from "@/lib/domain/clinicRoles";
 import { PATIENT_ROUTES } from "@/lib/routes/patientRoutes";
 import { cn } from "@/lib/utils";
 import {
@@ -82,7 +81,6 @@ export function PatientPortalHeader({
                 displayName={displayName}
                 email={accountEmail}
                 links={PATIENT_ACCOUNT_LINKS}
-                roleLabel={ROLE_LABELS.PATIENT}
               />
             </div>
           </>
