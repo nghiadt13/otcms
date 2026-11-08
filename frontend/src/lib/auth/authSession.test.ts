@@ -74,6 +74,15 @@ describe("signInWithPassword", () => {
       password: "password-123",
     });
   });
+  it("gửi rememberMe khi người dùng chọn, không gửi khi bỏ trống", async () => {
+    fetchMock.mockResolvedValueOnce(json(tokenBody("jwt-r")));
+    await signInWithPassword("patient", "an@x.com", "pw", false);
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({
+      email: "an@x.com",
+      password: "pw",
+      rememberMe: false,
+    });
+  });
   it("gọi cổng bệnh nhân kèm cookie và giữ access token trong bộ nhớ", async () => {
     fetchMock.mockResolvedValueOnce(json(tokenBody("jwt-1")));
     const session = await signInWithPassword("patient", " an@x.com ", "pw");

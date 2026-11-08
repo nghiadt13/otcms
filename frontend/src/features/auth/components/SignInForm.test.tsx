@@ -75,6 +75,43 @@ describe("SignInForm: đích sau đăng nhập", () => {
     expect(getMockSignedInKind()).toBe("STAFF");
   });
 
+  it("ghi nhớ đăng nhập mặc định không tick, tick thì gửi rememberMe=true và không lưu mật khẩu", async () => {
+    const user = userEvent.setup();
+    const { unmount } = render(<SignInForm />);
+    const remember = screen.getByRole("checkbox", {
+      name: "Ghi nhớ đăng nhập",
+    });
+    expect(remember).not.toBeChecked();
+    await submitCredentials();
+    expect(signInWithPassword).toHaveBeenLastCalledWith(
+      "patient",
+      "an@example.com",
+      "matkhau123",
+      false,
+    );
+    unmount();
+
+    signInWithPassword.mockClear();
+    render(<SignInForm />);
+    await user.click(
+      screen.getByRole("checkbox", { name: "Ghi nhớ đăng nhập" }),
+    );
+    await submitCredentials();
+    expect(signInWithPassword).toHaveBeenLastCalledWith(
+      "patient",
+      "an@example.com",
+      "matkhau123",
+      true,
+    );
+    // Mật khẩu không được lưu ở trình duyệt, chỉ phiên cookie do backend cấp.
+    expect(JSON.stringify({ ...window.localStorage })).not.toContain(
+      "matkhau123",
+    );
+    expect(JSON.stringify({ ...window.sessionStorage })).not.toContain(
+      "matkhau123",
+    );
+  });
+
   it("nhãn nút lấy từ submitLabel (dùng sau đăng ký)", () => {
     render(<SignInForm submitLabel="Vào cổng bệnh nhân" />);
     expect(
@@ -91,6 +128,7 @@ describe("SignInForm: đăng nhập nội bộ (staff)", () => {
       "staff",
       "an@example.com",
       "matkhau123",
+      false,
     );
     expect(replace).toHaveBeenCalledWith("/workspace");
     expect(getMockSignedInKind()).toBe("STAFF");
@@ -110,6 +148,7 @@ describe("SignInForm: đăng nhập nội bộ (staff)", () => {
       "staff",
       "admin@localhost",
       "matkhau123",
+      false,
     );
   });
 
@@ -127,6 +166,7 @@ describe("SignInForm: đăng nhập nội bộ (staff)", () => {
       "staff",
       "reception.one",
       "matkhau123",
+      false,
     );
   });
 
@@ -180,6 +220,7 @@ describe("SignInForm: tài khoản quản trị", () => {
       "administrator",
       "owner.clinic",
       "matkhau123",
+      false,
     );
     expect(replace).toHaveBeenCalledWith("/workspace");
   });
