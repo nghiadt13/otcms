@@ -44,18 +44,10 @@ public class PatientLoginController {
         CredentialLoginResponse authenticated = login.login(request.email(), request.password(),
                 AccountType.PATIENT, ip);
         AuthSessionService.IssuedSession issued = sessions.create(authenticated.accountId(), ip,
-                httpRequest.getHeader("User-Agent"));
-        response.addHeader(HttpHeaders.SET_COOKIE, cookie(issued.refreshToken()).toString());
+                httpRequest.getHeader("User-Agent"), request.rememberMeOrDefault());
+        response.addHeader(HttpHeaders.SET_COOKIE,
+                RefreshTokenCookie.issue(properties, issued.refreshToken(), issued.rememberMe()).toString());
         return ResponseEntity.ok(issued.body());
     }
 
-    private ResponseCookie cookie(String value) {
-        return ResponseCookie.from("refresh_token", value)
-                .httpOnly(true)
-                .secure(properties.cookieSecure())
-                .sameSite(properties.cookieSameSite())
-                .path("/api/auth")
-                .maxAge(properties.refreshTokenSeconds())
-                .build();
-    }
 }

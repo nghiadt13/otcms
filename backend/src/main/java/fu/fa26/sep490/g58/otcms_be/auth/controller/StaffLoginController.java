@@ -44,7 +44,7 @@ public class StaffLoginController {
         }
 
         return issue(login.login(request.identifier(), request.getPassword(), ip,
-                httpRequest.getHeader("User-Agent"), false), response);
+                httpRequest.getHeader("User-Agent"), false, request.rememberMeOrDefault()), response);
     }
 
     @PostMapping("/administrator/login")
@@ -57,20 +57,13 @@ public class StaffLoginController {
             throw new StaffNetworkAccessException();
         }
         return issue(login.login(request.getUsername(), request.getPassword(), ip,
-                httpRequest.getHeader("User-Agent"), true), response);
+                httpRequest.getHeader("User-Agent"), true, request.rememberMeOrDefault()), response);
     }
 
     private ResponseEntity<SessionTokenResponse> issue(AuthSessionService.IssuedSession issued,
             HttpServletResponse response) {
         response.addHeader(HttpHeaders.SET_COOKIE,
-                ResponseCookie.from("refresh_token", issued.refreshToken())
-                        .httpOnly(true)
-                        .secure(properties.cookieSecure())
-                        .sameSite(properties.cookieSameSite())
-                        .path("/api/auth")
-                        .maxAge(properties.refreshTokenSeconds())
-                        .build()
-                        .toString());
+                RefreshTokenCookie.issue(properties, issued.refreshToken(), issued.rememberMe()).toString());
         return ResponseEntity.ok(issued.body());
     }
 }

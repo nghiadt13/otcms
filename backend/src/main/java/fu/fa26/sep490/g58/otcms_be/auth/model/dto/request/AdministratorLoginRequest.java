@@ -12,4 +12,10 @@ public class AdministratorLoginRequest extends StrictRequestBody {
     private String username;
     @NotBlank
     private String password;
+    /** Không gửi thì coi như ghi nhớ. */
+    private Boolean rememberMe;
+
+    public boolean rememberMeOrDefault() {
+        return rememberMe == null || rememberMe;
+    }
 }

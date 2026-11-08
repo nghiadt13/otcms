@@ -23,4 +23,6 @@ public class AuthSessionJpaEntity {
     @Column(name = "revoke_reason", length = 64) private String revokeReason;
     @Column(name = "client_ip", length = 64) private String clientIp;
     @Column(name = "user_agent", length = 512) private String userAgent;
+    /** Ghi nhớ đăng nhập: true thì cookie refresh bền theo thời hạn, false thì hết khi đóng trình duyệt. */
+    @Column(name = "remember_me", nullable = false) private boolean rememberMe = true;
 }

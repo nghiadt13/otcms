@@ -71,7 +71,7 @@ public class SessionSecurityController {
         requireStaffNetwork(refreshToken, request);
         try {
             AuthSessionService.IssuedSession issued = sessions.rotate(refreshToken);
-            response.addHeader(HttpHeaders.SET_COOKIE, refreshCookie(issued.refreshToken()).toString());
+            response.addHeader(HttpHeaders.SET_COOKIE, RefreshTokenCookie.issue(properties, issued.refreshToken(), issued.rememberMe()).toString());
             return ResponseEntity.ok(issued.body());
         } catch (SessionException exception) {
             response.addHeader(HttpHeaders.SET_COOKIE, clearRefresh().toString());
@@ -97,16 +97,6 @@ public class SessionSecurityController {
         if (!csrf.valid(cookie, header)) {
             throw new SessionException("CSRF_VALIDATION_FAILED");
         }
-    }
-
-    private ResponseCookie refreshCookie(String value) {
-        return ResponseCookie.from("refresh_token", value)
-                .httpOnly(true)
-                .secure(properties.cookieSecure())
-                .sameSite(properties.cookieSameSite())
-                .path("/api/auth")
-                .maxAge(properties.refreshTokenSeconds())
-                .build();
     }
 
     private ResponseCookie clearRefresh() {

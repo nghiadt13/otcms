@@ -34,14 +34,14 @@ class UC08StaffAuthenticationTest {
         when(credentials.loginAdministrator(anyString(), anyString(), anyString()))
                 .thenReturn(new CredentialLoginResponse(id, "ADMIN"));
         var issued = issued(id);
-        when(sessions.create(id, "127.0.0.1", "test")).thenReturn(issued);
-        assertSame(issued, authentication.login("admin@example.test", "issued-password", "127.0.0.1", "test", false));
-        assertSame(issued, authentication.login("admin", "issued-password", "127.0.0.1", "test", true));
+        when(sessions.create(id, "127.0.0.1", "test", true)).thenReturn(issued);
+        assertSame(issued, authentication.login("admin@example.test", "issued-password", "127.0.0.1", "test", false, true));
+        assertSame(issued, authentication.login("admin", "issued-password", "127.0.0.1", "test", true, true));
         var order = inOrder(credentials, sessions);
         order.verify(credentials).loginStaff("admin@example.test", "issued-password", "127.0.0.1");
-        order.verify(sessions).create(id, "127.0.0.1", "test");
+        order.verify(sessions).create(id, "127.0.0.1", "test", true);
         order.verify(credentials).loginAdministrator("admin", "issued-password", "127.0.0.1");
-        order.verify(sessions).create(id, "127.0.0.1", "test");
+        order.verify(sessions).create(id, "127.0.0.1", "test", true);
     }
 
     @Test
@@ -49,7 +49,7 @@ class UC08StaffAuthenticationTest {
         when(credentials.loginAdministrator(anyString(), anyString(), anyString()))
                 .thenThrow(new CredentialLoginException("AUTHENTICATION_FAILED"));
         assertThrows(CredentialLoginException.class,
-                () -> authentication.login("admin", "old-password", "127.0.0.1", "test", true));
+                () -> authentication.login("admin", "old-password", "127.0.0.1", "test", true, true));
         verifyNoInteractions(sessions);
     }
 
@@ -58,7 +58,7 @@ class UC08StaffAuthenticationTest {
         UUID id = UUID.randomUUID();
         when(credentials.loginAdministrator(eq("admin"), anyString(), anyString()))
                 .thenReturn(new CredentialLoginResponse(id, "ADMIN"));
-        when(sessions.create(eq(id), any(), any())).thenReturn(issued(id));
+        when(sessions.create(eq(id), any(), any(), anyBoolean())).thenReturn(issued(id));
         var mvc = MockMvcBuilders.standaloneSetup(controller(List.of("127.0.0.0/8")))
                 .setControllerAdvice(new AuthExceptionHandler()).build();
         mvc.perform(post("/api/auth/staff/administrator/login").contentType("application/json")
@@ -73,11 +73,36 @@ class UC08StaffAuthenticationTest {
     }
 
     @Test
+    void loginWithoutRememberMeIssuesSessionCookieAndRememberedLoginKeepsMaxAge() throws Exception {
+        UUID id = UUID.randomUUID();
+        when(credentials.loginStaff(anyString(), anyString(), anyString()))
+                .thenReturn(new CredentialLoginResponse(id, "RECEPTIONIST"));
+        when(sessions.create(eq(id), any(), any(), eq(false))).thenReturn(issued(id, false));
+        when(sessions.create(eq(id), any(), any(), eq(true))).thenReturn(issued(id, true));
+        var mvc = MockMvcBuilders.standaloneSetup(controller(List.of("127.0.0.0/8")))
+                .setControllerAdvice(new AuthExceptionHandler()).build();
+        mvc.perform(post("/api/auth/staff/login").contentType("application/json")
+                        .content("{\"username\":\"reception.one\",\"password\":\"pass-123\",\"rememberMe\":false}"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Set-Cookie", org.hamcrest.Matchers.not(
+                        org.hamcrest.Matchers.containsString("Max-Age"))));
+        mvc.perform(post("/api/auth/staff/login").contentType("application/json")
+                        .content("{\"username\":\"reception.one\",\"password\":\"pass-123\",\"rememberMe\":true}"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Set-Cookie", org.hamcrest.Matchers.containsString("Max-Age=604800")));
+        // Không gửi rememberMe: giữ hành vi cũ (ghi nhớ).
+        mvc.perform(post("/api/auth/staff/login").contentType("application/json")
+                        .content("{\"username\":\"reception.one\",\"password\":\"pass-123\"}"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Set-Cookie", org.hamcrest.Matchers.containsString("Max-Age=604800")));
+    }
+
+    @Test
     void staffLoginAcceptsUsernameAndKeepsLegacyEmailRequest() throws Exception {
         UUID id = UUID.randomUUID();
         when(credentials.loginStaff(anyString(), anyString(), anyString()))
                 .thenReturn(new CredentialLoginResponse(id, "RECEPTIONIST"));
-        when(sessions.create(eq(id), any(), any())).thenReturn(issued(id));
+        when(sessions.create(eq(id), any(), any(), anyBoolean())).thenReturn(issued(id));
         var mvc = MockMvcBuilders.standaloneSetup(controller(List.of("127.0.0.0/8")))
                 .setControllerAdvice(new AuthExceptionHandler()).build();
         mvc.perform(post("/api/auth/staff/login").contentType("application/json")
@@ -113,7 +138,11 @@ class UC08StaffAuthenticationTest {
     }
 
     private AuthSessionService.IssuedSession issued(UUID id) {
+        return issued(id, true);
+    }
+
+    private AuthSessionService.IssuedSession issued(UUID id, boolean rememberMe) {
         return new AuthSessionService.IssuedSession(
-                new SessionTokenResponse("access", "Bearer", 900, id, "ADMIN", true), "test-refresh");
+                new SessionTokenResponse("access", "Bearer", 900, id, "ADMIN", true), "test-refresh", rememberMe);
     }
 }
