@@ -10,7 +10,7 @@ import { PatientAppointmentRow } from "./PatientAppointmentRow";
 import { PatientLoadError } from "./PatientLoadError";
 
 // Các trạng thái của danh sách: đang tải (khung chờ đúng hình dòng), lỗi, trống (câu dạy cách
-// dùng), có dòng (list có vạch chia, cả dòng là link) và "Xem thêm" khi còn trang.
+// dùng), có thẻ (mỗi lịch một thẻ, nút "Chi tiết lịch khám" là link) và "Xem thêm" khi còn trang.
 
 const EMPTY_TEXT: Record<AppointmentWhen, string> = {
   upcoming:
@@ -20,17 +20,20 @@ const EMPTY_TEXT: Record<AppointmentWhen, string> = {
 
 export function PatientAppointmentListSkeleton() {
   return (
-    <div
-      aria-busy="true"
-      role="status"
-      className="rounded-lg border bg-card divide-y"
-    >
+    <div aria-busy="true" className="space-y-4" role="status">
       <span className="sr-only">Đang tải lịch hẹn</span>
-      {[0, 1, 2].map((row) => (
-        <div className="space-y-2 px-4 py-4" key={row}>
-          <Skeleton className="h-5 w-3/4" />
-          <Skeleton className="h-5 w-1/2" />
-          <Skeleton className="h-4 w-2/3" />
+      {[0, 1].map((card) => (
+        <div className="space-y-4 rounded-xl border bg-card p-6" key={card}>
+          <Skeleton className="h-5 w-24" />
+          <div className="flex gap-4">
+            <Skeleton className="h-20 w-16" />
+            <div className="flex-1 space-y-2">
+              <Skeleton className="h-6 w-20" />
+              <Skeleton className="h-5 w-2/3" />
+              <Skeleton className="h-4 w-1/2" />
+            </div>
+          </div>
+          <Skeleton className="h-12 w-full" />
         </div>
       ))}
     </div>
@@ -59,7 +62,7 @@ export function PatientAppointmentListBody({
 
   return (
     <div className="space-y-4">
-      <ul className="divide-y rounded-lg border bg-card">
+      <ul className="space-y-4">
         {list.items.map((appointment) => (
           <PatientAppointmentRow
             appointment={appointment}

@@ -3,6 +3,8 @@ import { ApiError } from "@/lib/api/apiError";
 import type { PageQuery, PageResponse } from "@/lib/api/pagination";
 import { toQueryString } from "@/lib/api/pagination";
 import { peekCurrentAccount } from "@/lib/auth/currentAccountApi";
+import { listLinkedProfiles } from "@/lib/patient-scope/linkedProfilesApi";
+import type { LinkedProfile } from "@/lib/patient-scope/types";
 import type { AppointmentStatus } from "@/lib/domain/clinicVisit";
 import { vnIsoOf } from "../schema/bookingTime";
 import type {
@@ -17,6 +19,8 @@ import type {
 interface AppointmentDto {
   id: string;
   patientProfileId: string;
+  /** Tên hồ sơ người khám (backend có thể bỏ trống nếu hồ sơ không còn). */
+  patientName?: string | null;
   serviceId: string;
   serviceName: string | null;
   servicePrice: number | null;
@@ -56,7 +60,23 @@ function toStatus(status: string): AppointmentStatus {
   }
 }
 
-function toPatientAppointment(dto: AppointmentDto): PatientAppointment {
+/** Hồ sơ đã gắn theo mã, để ghi đúng tên và quan hệ của người khám. Lỗi tải thì dùng tên trong lịch. */
+async function linkedProfilesById(
+  signal?: AbortSignal,
+): Promise<Map<string, LinkedProfile>> {
+  try {
+    const { items } = await listLinkedProfiles(signal);
+    return new Map(items.map((profile) => [profile.id, profile]));
+  } catch {
+    return new Map();
+  }
+}
+
+function toPatientAppointment(
+  dto: AppointmentDto,
+  profiles: Map<string, LinkedProfile>,
+): PatientAppointment {
+  const linked = profiles.get(dto.patientProfileId);
   const backendStatus = toStatus(dto.status);
   const expired = Date.parse(dto.startTime) <= Date.now();
   const feePaid = dto.examFeePaid === true;
@@ -71,8 +91,12 @@ function toPatientAppointment(dto: AppointmentDto): PatientAppointment {
     startAt: vnIsoOf(new Date(dto.startTime)),
     patient: {
       id: dto.patientProfileId,
-      fullName: peekCurrentAccount()?.displayName ?? "",
-      relationship: "SELF",
+      fullName:
+        linked?.fullName ??
+        dto.patientName ??
+        peekCurrentAccount()?.displayName ??
+        "",
+      relationship: linked?.relationship ?? "SELF",
     },
     visitId: dto.visitId,
     service: { id: dto.serviceId, name: dto.serviceName ?? "Khám bệnh" },
@@ -117,15 +141,20 @@ export async function listMyAppointments(
   query: PatientAppointmentQuery & PageQuery,
   signal?: AbortSignal,
 ): Promise<PageResponse<PatientAppointment>> {
-  const page = await apiRequest<AppointmentPageDto>(
-    `/api/v1/appointments${toQueryString({
-      page: query.page,
-      size: query.size,
-      window: query.when.toUpperCase(),
-    })}`,
-    { signal },
-  );
-  const items = page.items.map(toPatientAppointment);
+  const [page, profiles] = await Promise.all([
+    apiRequest<AppointmentPageDto>(
+      `/api/v1/appointments${toQueryString({
+        page: query.page,
+        size: query.size,
+        window: query.when.toUpperCase(),
+        // Lọc theo người khám: không gửi thì backend trả mọi lịch của tài khoản.
+        patientProfileId: query.patientId,
+      })}`,
+      { signal },
+    ),
+    linkedProfilesById(signal),
+  ]);
+  const items = page.items.map((dto) => toPatientAppointment(dto, profiles));
   return {
     items,
     page: page.page,
@@ -141,11 +170,11 @@ export async function getMyAppointment(
   signal?: AbortSignal,
 ): Promise<PatientAppointment> {
   try {
-    return toPatientAppointment(
-      await apiRequest<AppointmentDto>(`/api/v1/appointments/${id}`, {
-        signal,
-      }),
-    );
+    const [dto, profiles] = await Promise.all([
+      apiRequest<AppointmentDto>(`/api/v1/appointments/${id}`, { signal }),
+      linkedProfilesById(signal),
+    ]);
+    return toPatientAppointment(dto, profiles);
   } catch (error) {
     throw toAppointmentApiError(error);
   }
@@ -156,12 +185,11 @@ export async function cancelMyAppointment(
   id: string,
 ): Promise<PatientAppointment> {
   try {
-    return toPatientAppointment(
-      await apiRequest<AppointmentDto>(`/api/v1/appointments/${id}/cancel`, {
-        method: "POST",
-        body: JSON.stringify({}),
-      }),
+    const dto = await apiRequest<AppointmentDto>(
+      `/api/v1/appointments/${id}/cancel`,
+      { method: "POST", body: JSON.stringify({}) },
     );
+    return toPatientAppointment(dto, await linkedProfilesById());
   } catch (error) {
     throw toAppointmentApiError(error);
   }
