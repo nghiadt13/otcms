@@ -9,10 +9,7 @@ export const metadata = {
 export default function NewPatientAppointmentPage() {
   return (
     <>
-      <PortalPageHeader
-        description="Chọn người khám, dịch vụ, ngày và giờ. Lịch vừa đặt hiện trong Lịch hẹn."
-        title="Đặt lịch khám"
-      />
+      <PortalPageHeader title="Đặt lịch khám" />
       <NewBookingScreen />
     </>
   );

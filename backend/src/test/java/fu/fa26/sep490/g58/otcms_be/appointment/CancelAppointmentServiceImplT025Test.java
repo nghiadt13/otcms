@@ -41,7 +41,7 @@ class CancelAppointmentServiceImplT025Test {
 
     @BeforeEach
     void setUp() {
-        var properties = new AppointmentBookingProperties(30, 120, 1440, 30, 15, 15,
+        var properties = new AppointmentBookingProperties(30, 1440, 30, 15, 15,
                 ZoneId.of("Asia/Ho_Chi_Minh"), new AppointmentBookingProperties.PublicRateLimit(60, 60));
         handler = new CancelAppointmentServiceImpl(guard, appointments, auth, properties,
                 Clock.fixed(now, ZoneId.of("UTC")),

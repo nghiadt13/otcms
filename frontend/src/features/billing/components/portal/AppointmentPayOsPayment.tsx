@@ -46,7 +46,7 @@ export function AppointmentPayOsPayment({
   invoiceId?: string;
   /**
    * Có thì component chạy "nhúng" trong bước thanh toán của wizard đặt lịch: không vẽ tiêu đề
-   * trang, thay các link rời trang bằng nút gọi `onFinish` (xong hoặc trả sau tại quầy).
+   * trang, bỏ các link rời trang và gọi `onFinish({ paid: true })` khi đã thanh toán xong.
    */
   onFinish?: (result: { paid: boolean }) => void;
 }) {
@@ -228,22 +228,14 @@ export function AppointmentPayOsPayment({
   const expired =
     attempt !== null &&
     ["EXPIRED", "CANCELLED", "FAILED"].includes(attempt.status);
-  const laterButton = embedded ? (
-    <button
-      className={publicButtonClass("secondary")}
-      onClick={() => onFinish({ paid: false })}
-      type="button"
-    >
-      Thanh toán sau tại quầy
-    </button>
-  ) : null;
-
+  // Trong wizard đặt lịch thanh toán là bắt buộc (lịch chỉ được xác nhận sau khi trả), nên không có
+  // lối "trả sau tại quầy".
   return (
     <div className="space-y-5">
       {embedded ? (
         <p className="text-base text-muted-foreground">
-          Lịch hẹn đã được đặt. Thanh toán phí khám ngay bằng mã QR, hoặc trả
-          sau tại quầy khi đến.
+          Quét mã QR để thanh toán phí khám. Lịch khám được xác nhận sau khi
+          giao dịch thành công.
         </p>
       ) : (
         <PortalPageHeader
@@ -265,7 +257,6 @@ export function AppointmentPayOsPayment({
             >
               Thử lại
             </button>
-            {laterButton}
           </div>
         </div>
       ) : null}
@@ -319,7 +310,7 @@ export function AppointmentPayOsPayment({
             >
               Kiểm tra trạng thái
             </button>
-            {laterButton ?? (
+            {embedded ? null : (
               <Link
                 className={publicButtonClass("secondary")}
                 href={returnHref}
@@ -354,7 +345,6 @@ export function AppointmentPayOsPayment({
             >
               Tạo mã thanh toán mới
             </button>
-            {laterButton}
           </div>
         </section>
       ) : null}

@@ -104,7 +104,6 @@ app:
 appointment:
   booking:
     max-horizon-days: ${APPOINTMENT_BOOKING_MAX_HORIZON_DAYS:30}
-    online-minimum-notice-minutes: ${APPOINTMENT_BOOKING_ONLINE_MINIMUM_NOTICE_MINUTES:120}
     patient-change-deadline-minutes: ${APPOINTMENT_BOOKING_PATIENT_CHANGE_DEADLINE_MINUTES:1440}
     check-in-early-minutes: ${APPOINTMENT_BOOKING_CHECK_IN_EARLY_MINUTES:30}
     check-in-late-grace-minutes: ${APPOINTMENT_BOOKING_CHECK_IN_LATE_GRACE_MINUTES:15}

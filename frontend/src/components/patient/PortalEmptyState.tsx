@@ -27,14 +27,14 @@ export function PortalNoProfileState() {
       action={
         <Link
           className={publicButtonClass("primary")}
-          href={PATIENT_ROUTES.newProfile}
+          href={PATIENT_ROUTES.account}
         >
-          Thêm thành viên
+          Điền thông tin cá nhân
         </Link>
       }
     >
-      Tài khoản của bạn chưa có hồ sơ bệnh nhân. Thêm hồ sơ để đặt lịch và xem
-      kết quả.
+      Tài khoản của bạn chưa có thông tin cá nhân. Hãy điền đầy đủ để đặt lịch
+      và xem kết quả.
     </PortalEmptyState>
   );
 }

@@ -12,6 +12,7 @@ import { BookingFlow } from "../booking/BookingFlow";
 import { BookingSignInPrompt } from "../booking/wizard/BookingSignInPrompt";
 import { PatientBookingResult } from "./PatientBookingResult";
 import { PatientLoadError } from "./PatientLoadError";
+import { PendingPaymentNotice } from "./PendingPaymentNotice";
 
 type PaymentRenderer = (args: {
   appointment: BookedAppointment;
@@ -68,6 +69,7 @@ function SignedInBooking({
     <BookingFlow
       onBooked={setBooked}
       renderPayment={renderPayment}
+      notice={renderPayment ? <PendingPaymentNotice /> : undefined}
       patients={linked.profiles.map((profile) => ({
         id: profile.id,
         fullName: profile.fullName,

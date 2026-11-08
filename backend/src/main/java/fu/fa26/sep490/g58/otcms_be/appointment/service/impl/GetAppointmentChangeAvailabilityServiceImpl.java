@@ -74,10 +74,8 @@ public class GetAppointmentChangeAvailabilityServiceImpl implements GetAppointme
         if (!assignments.findActiveDoctorProfileIds(appointment.serviceId()).contains(appointment.doctorProfileId())) {
             throw new AppointmentAvailabilityException("DOCTOR_NOT_ELIGIBLE");
         }
-        Instant earliest = actor == AppointmentAvailabilityQuery.Audience.PUBLIC
-                ? now.plus(properties.onlineMinimumNoticeMinutes(), ChronoUnit.MINUTES) : now;
         return generate(appointment, Set.of(appointment.doctorProfileId()), fromDate, toDate)
-                .stream().filter(slot -> !slot.startTime().isBefore(earliest)).toList();
+                .stream().filter(slot -> !slot.startTime().isBefore(now)).toList();
     }
 
     @Override

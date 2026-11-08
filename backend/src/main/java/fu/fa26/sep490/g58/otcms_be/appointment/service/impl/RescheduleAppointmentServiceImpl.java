@@ -92,10 +92,6 @@ public class RescheduleAppointmentServiceImpl implements RescheduleAppointmentSe
                 || clinicStart.toLocalDate().isAfter(today.plusDays(properties.maxHorizonDays()))) {
             throw new AppointmentBookingException("BOOKING_WINDOW_VIOLATION");
         }
-        if (command.actor() == RescheduleAppointmentCommand.Actor.PATIENT
-                && start.isBefore(now.plus(properties.onlineMinimumNoticeMinutes(), ChronoUnit.MINUTES))) {
-            throw new AppointmentBookingException("BOOKING_NOTICE_TOO_SHORT");
-        }
         LocalDate targetDate = clinicStart.toLocalDate();
         var requested = new SlotAvailabilityRequest(Set.of(current.doctorProfileId()), targetDate, targetDate,
                 SlotServiceContext.snapshot(current.serviceId(), current.durationMinutes(), current.bufferMinutes(),

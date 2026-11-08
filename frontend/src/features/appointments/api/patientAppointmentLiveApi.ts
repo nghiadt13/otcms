@@ -27,6 +27,8 @@ interface AppointmentDto {
   doctorId: string;
   doctorDisplayName: string | null;
   status: string;
+  /** PATIENT_ONLINE, RECEPTIONIST_ASSISTED hoặc DOCTOR_FOLLOW_UP. */
+  bookingSource?: string;
   startTime: string;
   endTime: string;
   examFeePaid: boolean | null;
@@ -136,30 +138,83 @@ function toAppointmentApiError(error: unknown): unknown {
   return code ? new ApiError(error.status, { code }) : error;
 }
 
+/**
+ * Lịch bệnh nhân tự đặt trực tuyến mà phí khám chưa trả: bước thanh toán của wizard là bắt buộc nên
+ * lịch này chưa được xác nhận. Không hiện trong danh sách lịch hẹn; chỉ được nhắc ở màn đặt lịch.
+ * Lịch lễ tân đặt hộ và lịch tái khám của bác sĩ vẫn hiện dù chưa trả (trả tại quầy).
+ */
+function isAwaitingOnlinePayment(dto: AppointmentDto): boolean {
+  return (
+    dto.bookingSource === "PATIENT_ONLINE" &&
+    dto.status === "CONFIRMED" &&
+    dto.servicePrice != null &&
+    dto.examFeePaid === false
+  );
+}
+
+/** Cỡ đọc tối đa của BE; đủ để đếm lịch chờ thanh toán trong một cửa sổ thời gian. */
+const AWAITING_SAMPLE_SIZE = 100;
+
+/** Các lịch tự đặt đang chờ thanh toán trong một cửa sổ (sắp tới / đã qua). */
+async function fetchAwaitingPayment(
+  window: "UPCOMING" | "PAST",
+  patientProfileId: string | undefined,
+  signal?: AbortSignal,
+): Promise<AppointmentDto[]> {
+  const page = await apiRequest<AppointmentPageDto>(
+    `/api/v1/appointments${toQueryString({
+      page: 0,
+      size: AWAITING_SAMPLE_SIZE,
+      window,
+      patientProfileId,
+    })}`,
+    { signal },
+  );
+  return page.items.filter(isAwaitingOnlinePayment);
+}
+
+/** Lịch tự đặt đang chờ thanh toán, để màn đặt lịch cho người dùng thanh toán tiếp hoặc hủy. */
+export async function listAwaitingPaymentAppointments(
+  signal?: AbortSignal,
+): Promise<PatientAppointment[]> {
+  const [awaiting, profiles] = await Promise.all([
+    fetchAwaitingPayment("UPCOMING", undefined, signal),
+    linkedProfilesById(signal),
+  ]);
+  return awaiting.map((dto) => toPatientAppointment(dto, profiles));
+}
+
 /** Backend lọc theo giờ kết thúc và trạng thái hủy/vắng trước khi phân trang. */
 export async function listMyAppointments(
   query: PatientAppointmentQuery & PageQuery,
   signal?: AbortSignal,
 ): Promise<PageResponse<PatientAppointment>> {
-  const [page, profiles] = await Promise.all([
+  const window = query.when.toUpperCase() as "UPCOMING" | "PAST";
+  const [page, profiles, hidden] = await Promise.all([
     apiRequest<AppointmentPageDto>(
       `/api/v1/appointments${toQueryString({
         page: query.page,
         size: query.size,
-        window: query.when.toUpperCase(),
+        window,
         // Lọc theo người khám: không gửi thì backend trả mọi lịch của tài khoản.
         patientProfileId: query.patientId,
       })}`,
       { signal },
     ),
     linkedProfilesById(signal),
+    // Số lịch chưa thanh toán xong bị ẩn, để trừ khỏi tổng. Lỗi đếm thì giữ tổng của BE.
+    fetchAwaitingPayment(window, query.patientId, signal).catch(() => []),
   ]);
-  const items = page.items.map((dto) => toPatientAppointment(dto, profiles));
+  // Bỏ lịch chưa thanh toán xong (xem isAwaitingOnlinePayment). "Xem thêm" vẫn đúng vì dựa vào số
+  // trang của BE; một trang có thể ngắn hơn cỡ trang.
+  const items = page.items
+    .filter((dto) => !isAwaitingOnlinePayment(dto))
+    .map((dto) => toPatientAppointment(dto, profiles));
   return {
     items,
     page: page.page,
     size: page.size,
-    totalItems: page.totalElements,
+    totalItems: Math.max(0, page.totalElements - hidden.length),
     totalPages: page.totalPages,
   };
 }

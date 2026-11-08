@@ -17,9 +17,10 @@ import {
 } from "@/lib/session/mockSignedInKind";
 import { PersonalInfoScreen } from "./PersonalInfoScreen";
 
+const { replace } = vi.hoisted(() => ({ replace: vi.fn() }));
 vi.mock("next/navigation", () => ({
   usePathname: () => "/portal/account",
-  useRouter: () => ({ replace: vi.fn(), push: vi.fn() }),
+  useRouter: () => ({ replace, push: vi.fn() }),
 }));
 vi.mock("sonner", () => ({
   toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn() },
@@ -175,14 +176,55 @@ describe("PersonalInfoScreen", () => {
     expect(screen.queryByRole("button", { name: "Đổi email" })).toBeNull();
   });
 
-  it("tài khoản chưa có hồ sơ Bản thân: hiện khối trống dẫn tới thêm hồ sơ", async () => {
+  it("tài khoản chưa có hồ sơ Bản thân: nhắc điền đủ thông tin, form trống, họ tên lấy sẵn từ lúc đăng ký", async () => {
     resetPatientProfileMock({ variant: "noSelfOneChild" });
     render(<PersonalInfoScreen />);
 
+    expect(await screen.findByLabelText(/Họ và tên/)).toHaveValue(
+      MOCK_PATIENT_ACCOUNT.displayName,
+    );
     expect(
-      await screen.findByRole("link", { name: "Thêm hồ sơ của bạn" }),
-    ).toHaveAttribute("href", "/portal/profiles/new");
-    expect(screen.queryByLabelText(/Họ và tên/)).toBeNull();
+      screen.getByText(/Vui lòng điền đầy đủ thông tin cá nhân để tiếp tục/),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText(/Ngày sinh/)).toHaveValue("");
+    expect(screen.getByLabelText(/Địa chỉ/)).toHaveValue("");
+    expect(screen.getByRole("radio", { name: "Nam" })).not.toBeChecked();
+    expect(screen.queryByRole("button", { name: "Hủy thay đổi" })).toBeNull();
+    expect(
+      screen.queryByRole("link", { name: "Thêm hồ sơ của bạn" }),
+    ).toBeNull();
+  });
+
+  it("chưa điền đủ thì không lưu được: báo lỗi từng ô bắt buộc", async () => {
+    resetPatientProfileMock({ variant: "noSelfOneChild" });
+    const user = userEvent.setup();
+    render(<PersonalInfoScreen />);
+
+    await user.click(
+      await screen.findByRole("button", { name: "Lưu và tiếp tục" }),
+    );
+
+    expect(screen.getByText("Nhập ngày sinh.")).toBeInTheDocument();
+    expect(screen.getByText("Chọn giới tính.")).toBeInTheDocument();
+    expect(screen.getByText("Nhập số điện thoại.")).toBeInTheDocument();
+    expect(screen.getByText("Nhập địa chỉ.")).toBeInTheDocument();
+    expect(replace).not.toHaveBeenCalled();
+  });
+
+  it("điền đủ lần đầu rồi quay về trang đang dở (?next=)", async () => {
+    resetPatientProfileMock({ variant: "noSelfOneChild" });
+    const user = userEvent.setup();
+    render(<PersonalInfoScreen next="/portal/appointments/new" />);
+
+    await user.type(await screen.findByLabelText(/Ngày sinh/), "01011990");
+    await user.click(screen.getByRole("radio", { name: "Nam" }));
+    await user.type(screen.getByLabelText(/Số điện thoại/), "912345678");
+    await user.type(screen.getByLabelText(/Địa chỉ/), "12 Lê Lợi, Quận 1");
+    await user.click(screen.getByRole("button", { name: "Lưu và tiếp tục" }));
+
+    await waitFor(() =>
+      expect(replace).toHaveBeenCalledWith("/portal/appointments/new"),
+    );
   });
 
   it("phiên nhân viên mở trang bệnh nhân: báo và chỉ lối đăng nhập bệnh nhân", async () => {

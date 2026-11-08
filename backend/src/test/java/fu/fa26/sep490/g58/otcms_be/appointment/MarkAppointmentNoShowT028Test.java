@@ -37,7 +37,7 @@ class MarkAppointmentNoShowT028Test {
     private final AppointmentNoShowRepository appointments = mock(AppointmentNoShowRepository.class);
     private final RecordedArrivalQueryService arrivals = mock(RecordedArrivalQueryService.class);
     private final MarkAppointmentNoShowTransaction transaction = new MarkAppointmentNoShowTransaction(guard,
-            appointments, arrivals, new AppointmentBookingProperties(30, 120, 1440, 30, 15, 15,
+            appointments, arrivals, new AppointmentBookingProperties(30, 1440, 30, 15, 15,
                     ZoneId.of("Asia/Ho_Chi_Minh"), new AppointmentBookingProperties.PublicRateLimit(60, 60)),
             Clock.fixed(now, ZoneId.of("UTC")));
     private final MarkAppointmentNoShowCommand command = new MarkAppointmentNoShowCommand(actorId, "  absent  ", "trace-id");
@@ -69,7 +69,7 @@ class MarkAppointmentNoShowT028Test {
     void graceBoundaryIsStrictAndDoesNotQueryReception() {
         var boundaryClock = Clock.fixed(now.minusSeconds(1), ZoneId.of("UTC"));
         var boundaryTransaction = new MarkAppointmentNoShowTransaction(guard, appointments, arrivals,
-                new AppointmentBookingProperties(30, 120, 1440, 30, 15, 15, ZoneId.of("UTC"),
+                new AppointmentBookingProperties(30, 1440, 30, 15, 15, ZoneId.of("UTC"),
                         new AppointmentBookingProperties.PublicRateLimit(60, 60)), boundaryClock);
         // Set appointment start so now-minus-one equals start plus the 15 minute grace.
         when(appointments.findForUpdate(appointmentId)).thenReturn(Optional.of(new NoShowAppointment(appointmentId,

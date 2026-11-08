@@ -11,7 +11,6 @@ import java.util.Objects;
 @ConfigurationProperties(prefix = "appointment.booking")
 public class AppointmentBookingProperties {
     private final int maxHorizonDays;
-    private final int onlineMinimumNoticeMinutes;
     private final int patientChangeDeadlineMinutes;
     private final int checkInEarlyMinutes;
     private final int checkInLateGraceMinutes;
@@ -19,11 +18,10 @@ public class AppointmentBookingProperties {
     private final ZoneId clinicTimeZone;
     private final PublicRateLimit publicRateLimit;
     @ConstructorBinding
-    public AppointmentBookingProperties(int maxHorizonDays, int onlineMinimumNoticeMinutes, int patientChangeDeadlineMinutes, int checkInEarlyMinutes, int checkInLateGraceMinutes, int slotIntervalMinutes, ZoneId clinicTimeZone, PublicRateLimit publicRateLimit) {
+    public AppointmentBookingProperties(int maxHorizonDays, int patientChangeDeadlineMinutes, int checkInEarlyMinutes, int checkInLateGraceMinutes, int slotIntervalMinutes, ZoneId clinicTimeZone, PublicRateLimit publicRateLimit) {
         if (maxHorizonDays < 1) {
             throw new IllegalArgumentException("appointment.booking.max-horizon-days must be positive");
         }
-        requireNonNegative(onlineMinimumNoticeMinutes, "online-minimum-notice-minutes");
         requireNonNegative(patientChangeDeadlineMinutes, "patient-change-deadline-minutes");
         requireNonNegative(checkInEarlyMinutes, "check-in-early-minutes");
         requireNonNegative(checkInLateGraceMinutes, "check-in-late-grace-minutes");
@@ -38,7 +36,6 @@ public class AppointmentBookingProperties {
             throw new IllegalArgumentException("appointment.booking.public-rate-limit is required");
         }
         this.maxHorizonDays = maxHorizonDays;
-        this.onlineMinimumNoticeMinutes = onlineMinimumNoticeMinutes;
         this.patientChangeDeadlineMinutes = patientChangeDeadlineMinutes;
         this.checkInEarlyMinutes = checkInEarlyMinutes;
         this.checkInLateGraceMinutes = checkInLateGraceMinutes;
@@ -48,8 +45,6 @@ public class AppointmentBookingProperties {
     }
     public int getMaxHorizonDays() { return maxHorizonDays; }
     public int maxHorizonDays() { return maxHorizonDays; }
-    public int getOnlineMinimumNoticeMinutes() { return onlineMinimumNoticeMinutes; }
-    public int onlineMinimumNoticeMinutes() { return onlineMinimumNoticeMinutes; }
     public int getPatientChangeDeadlineMinutes() { return patientChangeDeadlineMinutes; }
     public int patientChangeDeadlineMinutes() { return patientChangeDeadlineMinutes; }
     public int getCheckInEarlyMinutes() { return checkInEarlyMinutes; }

@@ -43,7 +43,7 @@ class GetAppointmentAvailabilityServiceImplTest {
 
     @BeforeEach
     void setUp() {
-        var properties = new AppointmentBookingProperties(30, 120, 1440, 30, 15, 15,
+        var properties = new AppointmentBookingProperties(30, 1440, 30, 15, 15,
                 ZoneId.of("Asia/Ho_Chi_Minh"), new AppointmentBookingProperties.PublicRateLimit(60, 60));
         handler = new GetAppointmentAvailabilityServiceImpl(services, providers, assignments, slotEngine,
                 properties, Clock.fixed(NOW, ZoneId.of("UTC")));
@@ -64,13 +64,27 @@ class GetAppointmentAvailabilityServiceImplTest {
     }
 
     @Test
-    void publicAudienceRequiresVisibilityAndConfiguredOnlineNotice() {
+    void publicAudienceRequiresVisibilityAndHasNoMinimumNotice() {
+        var result = handler.find(query(AppointmentAvailabilityQuery.Audience.PUBLIC, null));
+
+        // Hidden doctor is excluded; both future slots of the public doctor stay bookable (no notice window).
+        assertEquals(2, result.size());
+        assertEquals(PUBLIC_DOCTOR, result.getFirst().doctorId());
+        assertEquals("Public Doctor", result.getFirst().doctorDisplayName());
+        assertEquals(Instant.parse("2026-10-15T06:45:00Z"), result.getFirst().startTime());
+        assertEquals(Instant.parse("2026-10-15T07:00:00Z"), result.get(1).startTime());
+    }
+
+    @Test
+    void publicAudienceDropsSlotsAlreadyStarted() {
+        when(slotEngine.generate(any())).thenReturn(List.of(
+                slot(PUBLIC_DOCTOR, NOW.minusSeconds(900)),
+                slot(PUBLIC_DOCTOR, NOW)));
+
         var result = handler.find(query(AppointmentAvailabilityQuery.Audience.PUBLIC, null));
 
         assertEquals(1, result.size());
-        assertEquals(PUBLIC_DOCTOR, result.getFirst().doctorId());
-        assertEquals("Public Doctor", result.getFirst().doctorDisplayName());
-        assertEquals(Instant.parse("2026-10-15T07:00:00Z"), result.getFirst().startTime());
+        assertEquals(NOW, result.getFirst().startTime());
     }
 
     @Test

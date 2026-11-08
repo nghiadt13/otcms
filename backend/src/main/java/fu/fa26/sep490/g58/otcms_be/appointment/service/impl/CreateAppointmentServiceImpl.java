@@ -28,7 +28,6 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.temporal.ChronoUnit;
 import java.util.Set;
 import java.util.UUID;
 
@@ -84,10 +83,6 @@ public class CreateAppointmentServiceImpl implements CreateAppointmentService {
         LocalDate clinicToday = LocalDate.ofInstant(now, properties.clinicTimeZone());
         if (startDate.isBefore(clinicToday) || startDate.isAfter(clinicToday.plusDays(properties.maxHorizonDays()))) {
             throw new AppointmentBookingException("BOOKING_WINDOW_VIOLATION");
-        }
-        if (command.actor() == CreateAppointmentCommand.Actor.PATIENT
-                && start.isBefore(now.plus(properties.onlineMinimumNoticeMinutes(), ChronoUnit.MINUTES))) {
-            throw new AppointmentBookingException("BOOKING_NOTICE_TOO_SHORT");
         }
 
         ClinicServiceBookingQueryService.BookingAudience audience = command.actor() == CreateAppointmentCommand.Actor.PATIENT

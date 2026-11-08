@@ -62,7 +62,7 @@ class CreateAppointmentServiceImplTest {
         assignments = mock(ServiceDoctorAssignmentQueryService.class);
         slots = mock(GenerateAvailableSlotsService.class);
         appointments = mock(AppointmentJpaRepository.class);
-        var properties = new AppointmentBookingProperties(60, 30, 60, 15, 15, 15,
+        var properties = new AppointmentBookingProperties(60, 60, 15, 15, 15,
                 ZoneId.of("Asia/Ho_Chi_Minh"), new AppointmentBookingProperties.PublicRateLimit(30, 60));
         handler = new CreateAppointmentServiceImpl(guard, currentProfile, authorization, services, providers,
                 assignments, slots, appointments, properties, Clock.fixed(NOW, ZoneId.of("UTC")),
@@ -129,7 +129,7 @@ class CreateAppointmentServiceImplTest {
 
     @Test
     void receptionistCanCreateAtExactNowBoundaryWhenSlotIsAvailable() {
-        var properties = new AppointmentBookingProperties(60, 30, 60, 15, 15, 15,
+        var properties = new AppointmentBookingProperties(60, 60, 15, 15, 15,
                 ZoneId.of("Asia/Ho_Chi_Minh"), new AppointmentBookingProperties.PublicRateLimit(30, 60));
         handler = new CreateAppointmentServiceImpl(guard, currentProfile, authorization, services, providers,
                 assignments, slots, appointments, properties, Clock.fixed(NOW, ZoneId.of("UTC")),

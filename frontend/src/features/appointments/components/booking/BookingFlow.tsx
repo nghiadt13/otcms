@@ -51,6 +51,8 @@ export type BookingFlowProps = {
         appointment: BookedAppointment;
         onFinish: (result: { paid: boolean }) => void;
       }) => ReactNode;
+      /** Khối nhắc đặt phía trên wizard (ví dụ lịch đang chờ thanh toán). Ẩn ở bước thanh toán. */
+      notice?: ReactNode;
     }
   | {
       variant: "staff";
@@ -226,6 +228,7 @@ export function BookingFlow(props: BookingFlowProps) {
           onPurposeChange={setPurpose}
           submitting={submitting}
           onSubmit={() => void handleSubmit()}
+          notice={props.notice}
           paymentSlot={
             booked && renderPayment
               ? renderPayment({

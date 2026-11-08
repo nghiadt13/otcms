@@ -206,6 +206,11 @@ class DependentProfileServiceTest {
         when(patients.isActivePatient(actor)).thenReturn(false);
         code("ACCESS_DENIED", () -> service.list(actor));
     }
+    @Test void accountWithoutOwnProfileListsNothingInsteadOfFailing() {
+        UUID fresh = UUID.randomUUID(); when(patients.isActivePatient(fresh)).thenReturn(true);
+        when(profiles.findPatientProfile(fresh)).thenReturn(Optional.empty());
+        assertTrue(service.list(fresh).items().isEmpty());
+    }
     @Test void sharedValidationRetainsNameAndDocumentRules() {
         var p = AdministrativeProfileFields.record(target, null, " Nguyễn   An ", null, null, dob,
                 "other", null, " 123 ", "CCCD", 0, false, true);

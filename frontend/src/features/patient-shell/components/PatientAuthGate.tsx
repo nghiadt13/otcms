@@ -5,6 +5,8 @@ import { useEffect, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useCurrentAccount } from "@/hooks/useCurrentAccount";
+import { useLinkedProfiles } from "@/hooks/useLinkedProfiles";
+import { PATIENT_ROUTES } from "@/lib/routes/patientRoutes";
 
 // Cổng vào khu bệnh nhân: chỉ vẽ nội dung khi backend xác nhận người đăng nhập là bệnh nhân.
 // Chưa đăng nhập → về /login (kèm `next` để quay lại đúng trang); tài khoản nhân viên → /workspace
@@ -37,7 +39,8 @@ export function PatientAuthGate({
     }
   }, [state.status, isPatient, guestAllowed, pathname, router]);
 
-  if (isPatient || guestAllowed) return <>{children}</>;
+  if (isPatient) return <ProfileRequiredGate>{children}</ProfileRequiredGate>;
+  if (guestAllowed) return <>{children}</>;
 
   if (state.status === "error") {
     return (
@@ -53,15 +56,49 @@ export function PatientAuthGate({
   }
 
   // Đang kiểm tra hoặc đang chuyển trang: khung chờ, không lộ nội dung khu bệnh nhân.
+  return <GateSkeleton label="Đang kiểm tra đăng nhập" />;
+}
+
+function GateSkeleton({ label }: { label: string }) {
   return (
     <div
       aria-busy="true"
       className="mx-auto grid max-w-md gap-3 px-4 py-16"
       role="status"
     >
-      <span className="sr-only">Đang kiểm tra đăng nhập</span>
+      <span className="sr-only">{label}</span>
       <Skeleton className="h-6 w-2/3" />
       <Skeleton className="h-12 w-full" />
     </div>
   );
+}
+
+// Tài khoản bệnh nhân chưa có hồ sơ "Bản thân" (vừa đăng ký, chưa điền thông tin cá nhân) chưa
+// dùng được dịch vụ nào: mọi API của bệnh nhân (lịch hẹn, kết quả, thanh toán…) đều cần hồ sơ này.
+// Vào bất kỳ trang nào của khu bệnh nhân cũng được đưa tới Thông tin cá nhân (kèm `next` để quay
+// lại đúng trang, như đặt lịch) và chỉ khu `/portal/account` (gồm đổi mật khẩu) mở ra được. Không
+// đọc được danh sách hồ sơ thì không chặn: từng màn tự báo lỗi tải, quyền thật do backend giữ.
+function ProfileRequiredGate({ children }: { children: ReactNode }) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const linked = useLinkedProfiles();
+  const exempt =
+    pathname === PATIENT_ROUTES.account ||
+    pathname.startsWith(`${PATIENT_ROUTES.account}/`);
+  const missing =
+    !linked.loading &&
+    !linked.error &&
+    !linked.profiles.some((profile) => profile.relationship === "SELF");
+  const redirecting = missing && !exempt;
+
+  useEffect(() => {
+    if (!redirecting) return;
+    const next = `${pathname}${window.location.search}`;
+    router.replace(`${PATIENT_ROUTES.account}?next=${encodeURIComponent(next)}`);
+  }, [redirecting, pathname, router]);
+
+  if (exempt) return <>{children}</>;
+  if (linked.loading || redirecting)
+    return <GateSkeleton label="Đang kiểm tra thông tin cá nhân" />;
+  return <>{children}</>;
 }

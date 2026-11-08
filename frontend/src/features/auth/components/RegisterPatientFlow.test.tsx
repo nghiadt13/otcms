@@ -1,17 +1,19 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { authMessages } from "../authMessages";
 import { RegisterPatientFlow } from "./RegisterPatientFlow";
 
-// Bước 3 dùng SignInForm (cần router của Next); chỉ giả router, còn lại đi qua
-// API giả thật như màn hình chạy.
+// Chỉ giả router của Next (để xem trang đích sau khi xác minh); còn lại đi qua API giả
+// thật như màn hình chạy.
+const { replace } = vi.hoisted(() => ({ replace: vi.fn() }));
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ replace: vi.fn() }),
+  useRouter: () => ({ replace }),
 }));
 
 const fetchMock = vi.fn<typeof fetch>();
 beforeEach(() => {
+  replace.mockClear();
   fetchMock.mockReset();
   fetchMock.mockImplementation(async (input, init) => {
     const url = String(input);
@@ -65,7 +67,7 @@ describe("RegisterPatientFlow", () => {
       screen.getByText("Bạn cần đồng ý để tạo tài khoản."),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("heading", { name: "Tạo tài khoản bệnh nhân" }),
+      screen.getByRole("heading", { name: "Đăng ký tài khoản" }),
     ).toBeInTheDocument();
   });
 
@@ -84,7 +86,7 @@ describe("RegisterPatientFlow", () => {
     expect(screen.queryByText("Email chưa đúng định dạng.")).toBeNull();
   });
 
-  it("đi đủ 3 bước: thông tin → xác minh email → vào cổng bệnh nhân", async () => {
+  it("2 bước: thông tin → xác minh email, xong thì chuyển thẳng sang màn đăng nhập", async () => {
     render(<RegisterPatientFlow />);
     const user = await fillDetails("an@example.com");
 
@@ -103,14 +105,8 @@ describe("RegisterPatientFlow", () => {
     await user.type(screen.getByLabelText(/Mã xác minh/), "123456");
     await user.click(screen.getByRole("button", { name: "Xác minh" }));
 
-    expect(
-      await screen.findByRole("heading", { name: "Đăng ký hoàn tất" }),
-    ).toBeInTheDocument();
-    expect(screen.getByText(authMessages["MSG-10"])).toBeInTheDocument();
-    expect(screen.getByLabelText(/^Email/)).toHaveValue("an@example.com");
-    expect(
-      screen.getByRole("button", { name: "Vào cổng bệnh nhân" }),
-    ).toBeInTheDocument();
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/login?registered=1"));
+    expect(screen.queryByText("Bước 3/3")).toBeNull();
     expect(fetchMock).toHaveBeenCalledWith(
       "http://localhost:8080/api/auth/patient/register",
       expect.objectContaining({

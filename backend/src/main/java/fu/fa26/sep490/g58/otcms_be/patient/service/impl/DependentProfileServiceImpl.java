@@ -195,10 +195,12 @@ public class DependentProfileServiceImpl implements DependentProfileService, Cou
 
     @Override
     public Items<ProfileItem> list(UUID actor) {
-        UUID ownId = requirePatient(actor);
-        var own = profile(ownId);
+        if (actor == null || !patients.isActivePatient(actor)) throw new CareRelationshipException("ACCESS_DENIED");
         List<ProfileItem> items = new ArrayList<>();
-        items.add(item(own, "SELF", "CONFIRMED", null));
+        // Tài khoản mới chưa hoàn thành hồ sơ: danh sách rỗng (không có SELF) để giao diện đưa tới màn điền hồ sơ.
+        var ownId = profiles.findPatientProfile(actor);
+        if (ownId.isEmpty()) return new Items<>(List.of());
+        items.add(item(profile(ownId.get()), "SELF", "CONFIRMED", null));
         for (var entity : links.findAllByRequesterAccountIdOrderByRequestedAtAscIdAsc(actor)) {
             var link = CareRelationshipMapper.toModel(entity);
             // Legacy relationships have no truthful R3 relationship/status projection.

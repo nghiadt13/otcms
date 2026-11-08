@@ -50,15 +50,15 @@ describe("PatientProfilesScreen", () => {
     expect(screen.queryByText("Xem chi tiết")).not.toBeInTheDocument();
   });
 
-  it("chưa có hồ sơ nào: hiện trạng thái trống và chỉ một nút thêm hồ sơ", async () => {
+  it("chưa có hồ sơ nào: hiện trạng thái trống và chỉ một nút điền thông tin cá nhân", async () => {
     resetLinkedProfilesMock({ variant: "empty" });
     render(<PatientProfilesScreen />);
 
     expect(
-      await screen.findByText(/Tài khoản của bạn chưa có hồ sơ bệnh nhân/),
+      await screen.findByText(/Tài khoản của bạn chưa có thông tin cá nhân/),
     ).toBeInTheDocument();
     expect(
-      screen.getAllByRole("link", { name: "Thêm thành viên" }),
+      screen.getAllByRole("link", { name: "Điền thông tin cá nhân" }),
     ).toHaveLength(1);
   });
 

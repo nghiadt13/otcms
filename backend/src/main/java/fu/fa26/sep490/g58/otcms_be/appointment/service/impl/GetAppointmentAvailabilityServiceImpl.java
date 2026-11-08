@@ -83,12 +83,9 @@ public class GetAppointmentAvailabilityServiceImpl implements GetAppointmentAvai
         var slotRequest = new SlotAvailabilityRequest(doctorIds, query.fromDate(), query.toDate(),
                 SlotServiceContext.current(service.serviceId(), service.consultationDuration(), service.bufferDuration()));
         List<AvailableSlot> slots = slotEngine.generate(slotRequest);
-        Instant earliestStart = query.audience() == AppointmentAvailabilityQuery.Audience.PUBLIC
-                ? now.plus(properties.onlineMinimumNoticeMinutes(), ChronoUnit.MINUTES)
-                : now;
         return slots.stream()
                 .filter(slot -> eligibleProviders.containsKey(slot.doctorProfileId()))
-                .filter(slot -> !slot.startTime().isBefore(earliestStart))
+                .filter(slot -> !slot.startTime().isBefore(now))
                 .map(slot -> {
                     var provider = eligibleProviders.get(slot.doctorProfileId());
                     return new AppointmentAvailabilitySlot(slot.serviceId(), slot.doctorProfileId(),
