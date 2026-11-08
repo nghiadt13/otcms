@@ -21,3 +21,6 @@ orthanc-data/
 /backend/scripts/__pycache__/
 /plans/
 
+
+# Mật khẩu demo, không commit
+/docs/test-accounts.md

@@ -4,30 +4,9 @@
 
 ## Nguồn yêu cầu
 
-- Căn cứ cho phạm vi hiện tại là bản UC01–UC78: mỗi UC là một file `docs/requirements/UC<số>-<tên>.md`, còn nội dung Business Rule (BR) và Application Message (MSG) mà UC tham chiếu nằm duy nhất trong `docs/appendix-rules.md`. Các UC đang được bổ sung dần; với UC chưa có file trong `docs/requirements/`, số UC ghi trong code (ví dụ `ucs` ở `adminNavigation.ts`) chỉ là tạm: không triển khai luật nghiệp vụ dựa vào chúng khi chưa xác nhận với nhóm, và cập nhật lại số UC khi file được thêm. Khi tài liệu khác mâu thuẫn, xác nhận lại với nhóm trước khi triển khai.
+- Căn cứ cho phạm vi hiện tại là bản UC01–UC78: mỗi UC là một file `docs/requirements/UC<số>-<tên>.md`, các mã Business Rule (BR) và Application Message (MSG) ghi trong frontmatter của UC. `docs/appendix-rules.md` đã cũ: không dùng làm căn cứ nội dung BR/MSG và không grep file này; cần nội dung BR/MSG thì xác nhận với nhóm. Các UC đang được bổ sung dần; với UC chưa có file trong `docs/requirements/`, số UC ghi trong code (ví dụ `ucs` ở `adminNavigation.ts`) chỉ là tạm: không triển khai luật nghiệp vụ dựa vào chúng khi chưa xác nhận với nhóm, và cập nhật lại số UC khi file được thêm. Khi tài liệu khác mâu thuẫn, xác nhận lại với nhóm trước khi triển khai.
 - Phạm vi UC01–UC78 bao gồm quản lý hồ sơ giới thiệu bác sĩ, ca làm việc của bác sĩ/lễ tân/kỹ thuật viên và giờ nhận lịch khám của bác sĩ; loại quản lý kho/vật tư, hồ sơ nhân sự, nghỉ phép, lương và màn hình tự gán quyền. Không khôi phục các tính năng bị loại chỉ vì chúng xuất hiện trong tài liệu cũ.
 - Vai trò phòng khám là cố định theo SRS. Quyền phải được kiểm tra tại backend cho từng thao tác và bản ghi; việc ẩn nút hoặc trang ở frontend chỉ hỗ trợ giao diện.
-
-### Tra cứu UC, BR, MSG nhanh
-
-UC spec nằm ở `docs/requirements/UC<số>-<tên>.md`, mỗi file có frontmatter `id`, `name`, `br: [...]`, `msg: [...]`; trong thân chỉ ghi mã `[BR-xx]`/`[MSG-xx]`. Nội dung BR/MSG chỉ có trong `docs/appendix-rules.md`, mỗi mã là một dòng bảng bắt đầu bằng `| BR-xx |` hoặc `| MSG-xx |`. **Không đọc cả `appendix-rules.md`**; grep đúng mã cần dùng (chạy từ thư mục `otcms`, dùng Bash/Git Bash):
-
-```bash
-# Danh mục UC kèm mã BR/MSG (không mở từng file)
-grep -H -E '^(id|name|br|msg):' docs/requirements/*.md
-
-# Nội dung BR/MSG cụ thể (escape dấu | cho đúng dòng bảng)
-grep -E '^\| (BR-02|MSG-01) \|' docs/appendix-rules.md
-
-# Toàn bộ BR/MSG của một UC, một lệnh
-codes=$(grep -hE '^(br|msg):' docs/requirements/UC01-*.md | grep -oE '(BR|MSG)-[0-9]+' | paste -sd'|')
-grep -E "^\| ($codes) \|" docs/appendix-rules.md
-
-# Ngược lại: UC nào dùng một BR/MSG (-w để BR-2 không khớp BR-25)
-grep -lw 'BR-25' docs/requirements/*.md
-```
-
-File UC ngắn (~50 dòng) nên đọc trọn khi cần luồng; chỉ grep appendix. Mã luôn có 2 chữ số (`BR-02`, không phải `BR-2`).
 
 ## Kiến trúc backend
 

@@ -157,6 +157,6 @@ Thiết kế theo nguyên tắc **đặt được bằng một tay, đọc đư�
 - **Ngày:** dải 14 ngày cuộn ngang (`ToggleGroup`); mỗi ô ghi thứ, ngày và "Còn giờ" hoặc "Hết giờ" bằng chữ.
 - **Giờ:** lưới nút chia "Buổi sáng" và "Buổi chiều", số dùng `tabular-nums`.
 - **Bác sĩ:** mặc định "Phòng khám sắp xếp bác sĩ"; bác sĩ có ca vào giờ đã chọn hiện dạng `RadioGroup`.
-- **Xác nhận:** ghi phí khám và "Thanh toán trực tuyến sau khi đặt hoặc tại quầy khi đến". Hộp thoại hủy nói thẳng hậu quả về tiền (BR-53).
+- **Xác nhận:** ghi phí khám; thanh toán trực tuyến ở bước 5 là bắt buộc (không có lối "trả sau tại quầy" trong luồng tự đặt). Lịch tự đặt chưa trả xong không hiện trong Lịch hẹn mà được nhắc ở màn đặt lịch (thanh toán tiếp hoặc hủy). Hộp thoại hủy nói thẳng hậu quả về tiền (BR-53).
 
 **Kỹ thuật:** thứ tự focus theo thứ tự đọc; chuyển động 150–250ms, ease-out, kèm `motion-reduce:transition-none`; ở 375px không cuộn ngang cả trang (bảng thì cuộn trong khung).
