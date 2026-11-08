@@ -246,8 +246,9 @@ class AppointmentArrivalT053PostgresIntegrationTest {
                 .andExpect(status().isOk()).andExpect(jsonPath("$.source").value("RECEPTIONIST"))
                 .andExpect(jsonPath("$.arrivedAt").value(NOW.toString()));
         testClock.set(NOW.plusSeconds(7200));
-        mvc.perform(markNoShow(timely)).andExpect(status().isUnprocessableEntity())
-                .andExpect(jsonPath("$.error.code").value("NO_SHOW_NOT_ALLOWED"));
+        // QR arrival has already committed CHECKED_IN + Visit, so the state conflict takes precedence.
+        mvc.perform(markNoShow(timely)).andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error.code").value("APPOINTMENT_NOT_CHANGEABLE"));
         mvc.perform(markNoShow(timelyManual)).andExpect(status().isUnprocessableEntity())
                 .andExpect(jsonPath("$.error.code").value("NO_SHOW_NOT_ALLOWED"));
         assertEquals("CHECKED_IN", jdbc.queryForObject("select status from appointments where id = ?", String.class, timely));
@@ -266,6 +267,9 @@ class AppointmentArrivalT053PostgresIntegrationTest {
         mvc.perform(recordQr(noShow, patientAccount, issueProof())).andExpect(status().isConflict())
                 .andExpect(jsonPath("$.error.code").value("APPOINTMENT_NOT_CHANGEABLE"));
         assertNoArrival(noShow);
+        assertEquals("NO_SHOW", jdbc.queryForObject("select status from appointments where id = ?", String.class, noShow));
+        assertEquals(0, jdbc.queryForObject("select count(*) from visits where originating_appointment_id = ?",
+                Integer.class, noShow));
     }
 
     @Test
@@ -283,14 +287,15 @@ class AppointmentArrivalT053PostgresIntegrationTest {
                 var arrival = pool.submit(() -> mvc.perform(recordQr(target, patientAccount, proof))
                         .andReturn().getResponse().getStatus());
                 awaitDatabaseWait("%from appointments where id = %for update%", 1);
-                var noShow = pool.submit(() -> mvc.perform(markNoShow(target))
-                        .andReturn().getResponse().getStatus());
+                var noShow = pool.submit(() -> mvc.perform(markNoShow(target)).andReturn());
                 awaitDatabaseWait("%transaction_guard%for update%", 1);
                 testClock.set(NOW.plusSeconds(7200));
                 blocker.commit();
 
                 assertEquals(200, arrival.get(20, TimeUnit.SECONDS));
-                assertEquals(422, noShow.get(20, TimeUnit.SECONDS));
+                var noShowResult = noShow.get(20, TimeUnit.SECONDS);
+                assertEquals(409, noShowResult.getResponse().getStatus());
+                jsonPath("$.error.code").value("APPOINTMENT_NOT_CHANGEABLE").match(noShowResult);
                 assertEquals("CHECKED_IN", jdbc.queryForObject("select status from appointments where id = ?", String.class, target));
                 assertEquals(1, arrivalCount(target));
                 assertEquals(1, jdbc.queryForObject("select count(*) from visits where originating_appointment_id = ?",

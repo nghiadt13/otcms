@@ -22,23 +22,24 @@ public class ClinicalImagingRequestTransactionService {
     private final OrderingRoundRepository rounds;
     private final ServiceOrderRepository orders;
     private final Clock clock;
-    private final fu.fa26.sep490.g58.otcms_be.diagnostic.service.DiagnosticImagingRequestRegistration diagnostic;
+    private final fu.fa26.sep490.g58.otcms_be.common.service.CoordinationGuardService guard;
 
     public ClinicalImagingRequestTransactionService(ClinicalOrderPreparationService preparation,
             ClinicalOrderingTransactionService writer, ClinicalImagingRequestReplayRepository replays,
             OrderingRoundRepository rounds, ServiceOrderRepository orders, Clock clock,
-            fu.fa26.sep490.g58.otcms_be.diagnostic.service.DiagnosticImagingRequestRegistration diagnostic) {
+            fu.fa26.sep490.g58.otcms_be.common.service.CoordinationGuardService guard) {
         this.preparation = preparation;
         this.writer = writer;
         this.replays = replays;
         this.rounds = rounds;
         this.orders = orders;
         this.clock = clock;
-        this.diagnostic = diagnostic;
+        this.guard = guard;
     }
 
     @Transactional
     public SubmissionResult submit(ImagingRequestCommand command, String fingerprint) {
+        guard.acquire();
         var existing = replays.findByDoctorProfileIdAndIdempotencyKey(command.doctorProfileId(), command.idempotencyKey());
         if (existing.isPresent()) return replay(command, fingerprint, existing.get());
         var context = preparation.requireCurrentCare(command.visitId(), command.doctorProfileId());
@@ -47,7 +48,6 @@ public class ClinicalImagingRequestTransactionService {
         var snapshots = preparation.prepare(requests, true);
         // writer uses REQUIRED, joining this transaction; it cannot commit before replay insertion.
         var round = writer.createRound(command.visitId(), context.patientId(), command.doctorProfileId(), snapshots);
-        registerDiagnosticWork(round);
         replays.saveAndFlush(new ClinicalImagingRequestReplayJpaEntity(command.doctorProfileId(), command.idempotencyKey(),
                 fingerprint, round.id(), clock.instant()));
         return new SubmissionResult(sorted(round), false);
@@ -56,6 +56,7 @@ public class ClinicalImagingRequestTransactionService {
     /** Called only outside the failed attempt transaction, after its rollback has completed. */
     @Transactional
     public Optional<SubmissionResult> recoverReplay(ImagingRequestCommand command, String fingerprint) {
+        guard.acquire();
         return replays.findByDoctorProfileIdAndIdempotencyKey(command.doctorProfileId(), command.idempotencyKey())
                 .map(existing -> replay(command, fingerprint, existing));
     }
@@ -74,17 +75,7 @@ public class ClinicalImagingRequestTransactionService {
                 order.getOrderStatus(), order.getPaymentStatus())).toList();
         var result = sorted(new ClinicalOrderingService.RoundView(round.getId(), round.getVisitId(),
                 round.getRoundNumber(), round.getOrderedByDoctorId(), round.getOrderedAt(), views));
-        // Also repairs rounds written before Clinical/Diagnostic registration existed. No duplicate work on retry.
-        registerDiagnosticWork(result);
         return new SubmissionResult(result, true);
-    }
-
-    private void registerDiagnosticWork(ClinicalOrderingService.RoundView round) {
-        for (var order : round.orders()) {
-            diagnostic.register(new fu.fa26.sep490.g58.otcms_be.diagnostic.service.DiagnosticImagingRequestRegistration.RegisterImagingOrder(
-                    order.orderId(), order.visitId(), order.patientId(), order.requestingDoctorId(), order.serviceId(),
-                    order.bodyArea(), order.clinicalReason()));
-        }
     }
 
     private static ClinicalOrderingService.RoundView sorted(ClinicalOrderingService.RoundView round) {

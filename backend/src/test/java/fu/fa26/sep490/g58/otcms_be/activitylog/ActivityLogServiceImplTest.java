@@ -43,4 +43,12 @@ class ActivityLogServiceImplTest {
         assertEquals("MSG-50", assertThrows(ActivityLogOperationException.class, () -> handler.detail(id)).getMessage());
         assertEquals("MSG-50", assertThrows(ActivityLogOperationException.class, () -> handler.detail("invalid")).getMessage());
     }
+    @Test void recordedAccountVisitAppointmentAndDiagnosticCategoriesUseExistingQueryBoundary() {
+        when(reader.list(any())).thenReturn(new ActivityLogRepository.Page(List.of(), 0, 20, 0, 0));
+        for (String category : List.of("ACCOUNT", "VISIT", "APPOINTMENT", "DIAGNOSTIC")) {
+            handler.list("", "", category, "target", "actor", 0, 20);
+            verify(reader).list(argThat(c -> c.category().equals(category) && c.record().equals("target") && c.actor().equals("actor")));
+        }
+    }
+
 }

@@ -22,7 +22,7 @@ public class InvoiceItemJpaEntity {
     private int lineNumber;
     @Column(name = "service_id")
     private UUID serviceId;
-    @Column(name = "description_snapshot", nullable = false, length = 240)
+    @Column(name = "description_snapshot", nullable = false, length = 255)
     private String descriptionSnapshot;
     @Column(nullable = false)
     private int quantity;

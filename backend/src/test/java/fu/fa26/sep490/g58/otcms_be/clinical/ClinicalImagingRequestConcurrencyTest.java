@@ -31,7 +31,7 @@ class ClinicalImagingRequestConcurrencyTest {
     private final ClinicalImagingRequestService service = new ClinicalImagingRequestServiceImpl(transactions);
     private final UUID visitId = UUID.randomUUID(), doctorId = UUID.randomUUID();
     private final ImagingRequestCommand command = new ImagingRequestCommand(visitId, doctorId, "key",
-            List.of(new ImagingOrderRequest(UUID.randomUUID(), "Reason", "Knee", null)));
+            List.of(new ImagingOrderRequest(UUID.randomUUID(), "Reason", "Knee", null)), true);
 
     @Test void replayUniqueCollisionReloadsWinnerOutsideFailedAttempt() {
         var conflict = unique("uk_clinical_imaging_replay_doctor_key");
@@ -106,7 +106,7 @@ class ClinicalImagingRequestConcurrencyTest {
         when(rounds.findById(winner.getId())).thenReturn(Optional.of(winner));
         when(orders.findByOrderingRoundId(winner.getId())).thenReturn(List.of());
         var target = new ClinicalImagingRequestTransactionService(preparation, writer, replays, rounds, orders, Clock.systemUTC(),
-                mock(fu.fa26.sep490.g58.otcms_be.diagnostic.service.DiagnosticImagingRequestRegistration.class));
+                mock(fu.fa26.sep490.g58.otcms_be.common.service.CoordinationGuardService.class));
         var proxy = new ProxyFactory(target);
         proxy.setProxyTargetClass(true);
         proxy.addAdvice(new TransactionInterceptor(manager, new AnnotationTransactionAttributeSource()));

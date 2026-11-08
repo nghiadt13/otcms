@@ -1,6 +1,5 @@
 "use client";
 
-import { ExternalLink } from "lucide-react";
 import { useState } from "react";
 import { FieldError } from "@/components/admin/FieldError";
 import { Button } from "@/components/ui/button";
@@ -17,10 +16,10 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { getDoctorExamApi } from "../api/doctorExamApi";
 import { useAsyncAction } from "../hooks/useAsyncAction";
-import { viewerUrl } from "../schema/viewerUrl";
+import { DoctorImagingViewer } from "./DoctorImagingViewer";
 import type { ImagingResult, ParaclinicalOrder } from "../types/doctorExam";
 
-// Xem ảnh DICOM (UC49) và ghi kết luận hình ảnh (UC50). Lưu nháp: chưa hiện cho bệnh nhân.
+// Xem ảnh DICOM (UC41) và ghi kết luận hình ảnh (UC42). Lưu nháp: chưa hiện cho bệnh nhân.
 // BE hiện đòi thêm tệp PDF báo cáo khi hoàn tất (capabilities.findingsReportPdfRequired).
 
 export function ImagingFindingsDialog({
@@ -64,7 +63,6 @@ function FindingsBody({
   const [error, setError] = useState<string>();
   const { pending, run } = useAsyncAction();
   const done = imaging?.findingsCompleted ?? false;
-  const url = viewerUrl(imaging?.studyRef ?? null);
   const needsPdf = api.capabilities.findingsReportPdfRequired;
 
   async function save(complete: boolean) {
@@ -95,21 +93,11 @@ function FindingsBody({
       </DialogHeader>
       <div className="space-y-4">
         <div className="flex flex-wrap items-center gap-3 rounded-md border bg-secondary/40 p-3">
-          {url ? (
-            <a
-              href={url}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center gap-1.5 text-sm font-medium text-primary underline-offset-4 hover:underline"
-            >
-              <ExternalLink aria-hidden className="size-4" />
-              Mở ảnh DICOM trong trình xem
-            </a>
+          {imaging?.studyRef ? (
+            <DoctorImagingViewer studyRef={imaging.studyRef} />
           ) : (
             <p className="text-sm text-muted-foreground">
-              {imaging?.studyRef
-                ? "Chưa cấu hình trình xem ảnh DICOM (NEXT_PUBLIC_OHIF_DEV_URL)."
-                : "Chưa có ca chụp để xem."}
+              Chưa có ca chụp để xem.
             </p>
           )}
         </div>

@@ -25,9 +25,9 @@ public class PatientClinicalIdentityQueryServiceImpl implements PatientClinicalI
         var ids = new LinkedHashSet<>(patientProfileIds);
         if (ids.contains(null)) throw new IllegalArgumentException("Patient profile IDs must not be null");
         var result = new LinkedHashMap<UUID, ClinicalIdentity>();
-        for (UUID id : ids) {
-            profiles.findProfile(id).ifPresent(profile -> result.put(profile.id(),
-                    new ClinicalIdentity(profile.id(), profile.fullName(), profile.dateOfBirth(), profile.gender())));
+        for (var profile : profiles.findProfiles(ids)) {
+            if (ids.contains(profile.id())) result.put(profile.id(),
+                    new ClinicalIdentity(profile.id(), profile.fullName(), profile.dateOfBirth(), profile.gender()));
         }
         return Map.copyOf(result);
     }

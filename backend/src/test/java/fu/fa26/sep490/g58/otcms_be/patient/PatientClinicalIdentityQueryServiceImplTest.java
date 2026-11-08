@@ -22,31 +22,30 @@ class PatientClinicalIdentityQueryServiceImplTest {
 
     @Test void knownProfileReturnsOnlyFourClinicalIdentityFieldsWithoutMutation() {
         UUID id = UUID.randomUUID();
-        when(profiles.findProfile(id)).thenReturn(Optional.of(profile(id, "Patient A")));
+        when(profiles.findProfiles(Set.of(id))).thenReturn(List.of(profile(id, "Patient A")));
         var identities = service.findClinicalIdentities(List.of(id));
         assertEquals(new ClinicalIdentity(id, "Patient A", LocalDate.of(2000, 1, 1), "MALE"), identities.get(id));
         var json = tools.jackson.databind.json.JsonMapper.builder().findAndAddModules().build()
                 .readTree(tools.jackson.databind.json.JsonMapper.builder().findAndAddModules().build().writeValueAsString(identities.get(id)));
         assertEquals(Set.of("patientProfileId", "fullName", "dateOfBirth", "gender"), json.propertyNames());
-        verify(profiles).findProfile(id);
+        verify(profiles).findProfiles(Set.of(id));
         verifyNoMoreInteractions(profiles);
         assertThrows(UnsupportedOperationException.class, () -> identities.clear());
     }
 
-    @Test void multipleProfilesAreLookedUpOncePerDistinctId() {
+    @Test void multipleProfilesUseOneBatchWithDistinctIds() {
         UUID a = UUID.randomUUID(), b = UUID.randomUUID();
-        when(profiles.findProfile(a)).thenReturn(Optional.of(profile(a, "Patient A")));
-        when(profiles.findProfile(b)).thenReturn(Optional.of(profile(b, "Patient B")));
+        when(profiles.findProfiles(Set.of(a, b))).thenReturn(List.of(profile(a, "Patient A"), profile(b, "Patient B")));
         var result = service.findClinicalIdentities(List.of(a, b, a));
         assertEquals(2, result.size());
         assertEquals("Patient A", result.get(a).fullName());
         assertEquals("Patient B", result.get(b).fullName());
-        verify(profiles).findProfile(a); verify(profiles).findProfile(b); verifyNoMoreInteractions(profiles);
+        verify(profiles).findProfiles(Set.of(a, b)); verifyNoMoreInteractions(profiles);
     }
 
     @Test void missingProfileIsOmittedSoCallerCanFailClosed() {
         UUID id = UUID.randomUUID();
-        when(profiles.findProfile(id)).thenReturn(Optional.empty());
+        when(profiles.findProfiles(Set.of(id))).thenReturn(List.of());
         assertTrue(service.findClinicalIdentities(List.of(id)).isEmpty());
     }
 
@@ -58,7 +57,7 @@ class PatientClinicalIdentityQueryServiceImplTest {
     @Test void infrastructureFailureDoesNotBecomeMissingIdentity() {
         UUID id = UUID.randomUUID();
         var failure = new IllegalStateException("Profile lookup unavailable");
-        when(profiles.findProfile(id)).thenThrow(failure);
+        when(profiles.findProfiles(Set.of(id))).thenThrow(failure);
         assertSame(failure, assertThrows(IllegalStateException.class, () -> service.findClinicalIdentities(List.of(id))));
     }
 

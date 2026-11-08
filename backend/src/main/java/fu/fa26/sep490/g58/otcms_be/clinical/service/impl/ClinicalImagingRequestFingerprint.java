@@ -16,7 +16,7 @@ public final class ClinicalImagingRequestFingerprint {
     private ClinicalImagingRequestFingerprint() { }
 
     public static ImagingRequestCommand validated(ImagingRequestCommand command) {
-        if (command == null || command.visitId() == null || command.idempotencyKey() == null
+        if (command == null || !command.patientConsentConfirmed() || command.visitId() == null || command.idempotencyKey() == null
                 || command.idempotencyKey().isBlank() || command.idempotencyKey().length() > 128
                 || command.orders() == null || command.orders().isEmpty()) throw new ClinicalOperationException("MSG-39");
         if (command.doctorProfileId() == null) throw new ClinicalOperationException("MSG-40");
@@ -26,7 +26,7 @@ public final class ClinicalImagingRequestFingerprint {
                     || order.bodyArea().length() > 255) throw new ClinicalOperationException("MSG-39");
         }
         return new ImagingRequestCommand(command.visitId(), command.doctorProfileId(),
-                command.idempotencyKey().trim(), List.copyOf(command.orders()));
+                command.idempotencyKey().trim(), List.copyOf(command.orders()), command.patientConsentConfirmed());
     }
 
     public static String fingerprint(ImagingRequestCommand command) {

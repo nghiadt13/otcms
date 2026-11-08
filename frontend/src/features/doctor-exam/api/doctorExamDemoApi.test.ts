@@ -17,37 +17,9 @@ const exam = {
 };
 
 describe("luồng khám trên bản demo", () => {
-  it("hoàn tất khám bị chặn (MSG-86) cho đến khi có chẩn đoán chính và mọi chỉ định xong", async () => {
-    const visitId = "demo-visit-2";
-    const context = await doctorDemoApi.getVisitContext(visitId);
-
-    await expect(doctorDemoApi.completeVisit(context)).rejects.toMatchObject({
-      code: "MSG-86",
-    });
-
-    await doctorDemoApi.saveExamination(visitId, exam, "complete");
-    // Vẫn chặn: X-quang đã có ảnh nhưng bác sĩ chưa kết luận hình ảnh.
-    await expect(doctorDemoApi.completeVisit(context)).rejects.toMatchObject({
-      code: "MSG-86",
-    });
-
-    const [order] = await doctorDemoApi.listOrders(visitId);
-    expect(order.imaging?.reviewed).toBe(false);
-    await doctorDemoApi.saveFindings(order, "Hẹp khe L4–L5");
-    const [reviewed] = await doctorDemoApi.listOrders(visitId);
-    expect(reviewed.imaging).toMatchObject({
-      reviewed: true,
-      findingsCompleted: false,
-    });
-    await doctorDemoApi.completeFindings(reviewed, "Hẹp khe L4–L5", null);
-
-    await doctorDemoApi.completeVisit(context);
-    expect((await doctorDemoApi.getVisitContext(visitId)).status).toBe(
-      "COMPLETED",
-    );
-    expect(await doctorDemoApi.listResultSheets(visitId)).toEqual([
-      expect.objectContaining({ version: 1, status: "CURRENT" }),
-    ]);
+  it("Doctor has no Visit closure command", () => {
+    expect(doctorDemoApi).not.toHaveProperty("completeVisit");
+    expect(doctorDemoApi.capabilities).not.toHaveProperty("closeWithEvidence");
   });
 
   it("sửa kết quả cần lý do, tạo phiên bản mới và đánh dấu bản cũ đã thay thế; chỉ với lượt đã hoàn tất", async () => {
@@ -112,6 +84,7 @@ describe("luồng khám trên bản demo", () => {
       ],
       catalog,
       "key",
+      true,
     );
     expect(created).toMatchObject({
       status: "PENDING_PAYMENT",
@@ -125,5 +98,66 @@ describe("luồng khám trên bản demo", () => {
     await doctorDemoApi.cancelOrder(created, "CLINIC_UNABLE", "Thay chỉ định");
     const [after] = await doctorDemoApi.listOrders("demo-visit-1");
     expect(after.status).toBe("CANCELLED");
+  });
+});
+
+describe("canonical demo compatibility", () => {
+  it("findings review/draft/completion leaves final Visit closure to Receptionist", async () => {
+    const visitId = "demo-visit-2";
+    await doctorDemoApi.saveExamination(visitId, exam, "complete");
+    const [order] = await doctorDemoApi.listOrders(visitId);
+    expect(order.imaging?.reviewed).toBe(false);
+    await doctorDemoApi.saveFindings(order, "Released finding");
+    const [reviewed] = await doctorDemoApi.listOrders(visitId);
+    expect(reviewed.imaging).toMatchObject({
+      reviewed: true,
+      findingsCompleted: false,
+    });
+    await doctorDemoApi.completeFindings(reviewed, "Released finding", null);
+    expect(
+      (await doctorDemoApi.listOrders(visitId))[0].imaging?.findingsCompleted,
+    ).toBe(true);
+    expect((await doctorDemoApi.getVisitContext(visitId)).status).not.toBe(
+      "COMPLETED",
+    );
+  });
+  it("versioned canonical drafts issue once and become immutable", async () => {
+    const value = {
+      id: null,
+      version: 0,
+      status: "DRAFT" as const,
+      issuedAt: null,
+      lines: [
+        {
+          medicine: "Medicine",
+          dose: "1 tablet",
+          frequency: "Twice daily",
+          usage: "After meals",
+        },
+      ],
+    };
+    const draft = await doctorDemoApi.savePrescription(
+      "demo-visit-1",
+      value,
+      false,
+    );
+    expect(draft).toMatchObject({ version: 1, lines: value.lines });
+    expect(draft.id).not.toBeNull();
+    await expect(
+      doctorDemoApi.savePrescription("demo-visit-1", value, false),
+    ).rejects.toMatchObject({ status: 409 });
+    const issued = await doctorDemoApi.savePrescription(
+      "demo-visit-1",
+      draft,
+      true,
+    );
+    expect(issued).toMatchObject({
+      status: "ISSUED",
+      version: 3,
+      lines: value.lines,
+    });
+    await expect(
+      doctorDemoApi.savePrescription("demo-visit-1", issued, false),
+    ).rejects.toMatchObject({ status: 409 });
   });
 });

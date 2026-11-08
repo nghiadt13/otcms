@@ -16,7 +16,8 @@ public interface ClinicalVisitCompletionEvidenceService {
      * Active means non-cancelled, including orders whose results are already available.
      * Zero active orders means allNonCancelledOrdersHaveResults is true.
      * Imaging IDs include both ordered and available requests, sorted by createdAt then UUID string.
-     * Result availability does not establish completed/released imaging findings or payment.
+     * Result availability alone does not establish completed/released findings. Unpaid orders remain outstanding,
+     * including legacy result-bearing orders created before payment-mediated dispatch.
      */
     record ClinicalCompletionEvidence(
             UUID visitId,

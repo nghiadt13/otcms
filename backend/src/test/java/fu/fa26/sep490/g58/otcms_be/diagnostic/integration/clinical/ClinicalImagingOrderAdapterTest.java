@@ -44,7 +44,7 @@ class ClinicalImagingOrderAdapterTest {
 
         ClinicalImagingOrder order = adapter.requireOpenImagingOrder(orderId);
 
-        assertEquals(new ClinicalImagingOrder(orderId, visitId, serviceId, true), order);
+        assertEquals(new ClinicalImagingOrder(orderId, visitId, serviceId, true, false), order);
     }
 
     @Test

@@ -8,8 +8,9 @@ import { PatientSearchScreen } from "./PatientScreens";
 import { AppointmentScreen } from "./AppointmentScreen";
 import { QueueScreen } from "./QueueScreen";
 import { PaymentHistoryScreen, PaymentItemsScreen } from "./PaymentScreens";
-import { OrderScreen, ResultScreen, VisitScreen } from "./VisitScreens";
+import { ResultScreen, VisitScreen } from "./VisitScreens";
 import { NoticeScreen, ReferenceScreen } from "./ReferenceScreens";
+import { ClinicalRoundOrdersScreen } from "./ClinicalRoundOrdersScreen";
 import { AccountScreen } from "./AccountScreen";
 
 export function ReceptionScreen({ section }: { section: ReceptionSection }) {
@@ -34,7 +35,7 @@ export function ReceptionScreen({ section }: { section: ReceptionSection }) {
     case "visits":
       return <VisitScreen />;
     case "orders":
-      return <OrderScreen />;
+      return <ClinicalRoundOrdersScreen />;
     case "payments":
       return <PaymentItemsScreen />;
     case "payment-history":

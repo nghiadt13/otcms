@@ -27,8 +27,10 @@ class VisitT012PostgresIntegrationTest {
     @Autowired DataSource dataSource;
     @Autowired VisitWorkflowService visits;
     @Autowired RecordedArrivalQueryService recordedArrivals;
+    private UUID followUpVisitId;
 
     @AfterEach void cleanup() {
+        if (followUpVisitId != null) jdbc.update("delete from clinical_examinations where visit_id=?", followUpVisitId);
         jdbc.update("delete from appointment_arrivals where actor_account_id in (select id from accounts where normalized_email like 't012-%')");
         jdbc.update("delete from appointments where created_by_account_id in (select id from accounts where normalized_email like 't012-%')");
         jdbc.update("delete from visit_examinations where visit_id in (select id from visits where created_by_account_id in (select id from accounts where normalized_email like 't012-%'))");
@@ -146,8 +148,10 @@ class VisitT012PostgresIntegrationTest {
                 visitId, patientId, Timestamp.from(arrived), Timestamp.from(arrived), receptionistAccountId);
         jdbc.update("insert into visit_assignments (visit_id, doctor_profile_id, starts_at, ends_at, status) values (?, ?, ?, ?, 'COMPLETED')",
                 visitId, doctorId, Timestamp.from(arrived), Timestamp.from(arrived.plusSeconds(1800)));
-        jdbc.update("insert into visit_examinations (visit_id, doctor_profile_id, completed, follow_up_indicated, completed_at) values (?, ?, true, true, ?)",
-                visitId, doctorId, Timestamp.from(arrived.plusSeconds(1800)));
+        followUpVisitId = visitId;
+        jdbc.update("insert into clinical_examinations (id, visit_id, status, follow_up_indicated, created_at, updated_at) "
+                + "values (?, ?, 'COMPLETED', true, ?, ?)", UUID.randomUUID(), visitId,
+                Timestamp.from(arrived), Timestamp.from(arrived.plusSeconds(1800)));
 
         VisitWorkflowService.FollowUpEvidence evidence = visits.requireFollowUpEvidence(visitId, doctorId);
         assertEquals(patientId, evidence.patientProfileId());
@@ -156,10 +160,17 @@ class VisitT012PostgresIntegrationTest {
         assertTrue(evidence.followUpIndicated());
         assertNull(evidence.originatingAppointmentId());
 
-        VisitWorkflowService.FollowUpEvidence otherDoctorEvidence = visits.requireFollowUpEvidence(visitId, otherDoctorId);
-        assertFalse(otherDoctorEvidence.doctorAssignedToCare());
-        assertFalse(otherDoctorEvidence.examinationCompleted());
-        assertFalse(otherDoctorEvidence.followUpIndicated());
+        // The owner API hides unassigned Visits rather than returning another Doctor's clinical evidence.
+        assertEquals("SOURCE_VISIT_NOT_FOUND", assertThrows(VisitEvidenceException.class,
+                () -> visits.requireFollowUpEvidence(visitId, otherDoctorId)).code());
+        jdbc.update("update clinical_examinations set status='DRAFT' where visit_id=?", visitId);
+        assertFalse(visits.requireFollowUpEvidence(visitId, doctorId).examinationCompleted());
+        jdbc.update("update clinical_examinations set status='COMPLETED', follow_up_indicated=false where visit_id=?", visitId);
+        assertFalse(visits.requireFollowUpEvidence(visitId, doctorId).followUpIndicated());
+        jdbc.update("update clinical_examinations set follow_up_indicated=true where visit_id=?", visitId);
+        jdbc.update("update visit_assignments set status='RESERVED' where visit_id=? and doctor_profile_id=?", visitId, doctorId);
+        assertEquals("SOURCE_VISIT_NOT_FOUND", assertThrows(VisitEvidenceException.class,
+                () -> visits.requireFollowUpEvidence(visitId, doctorId)).code());
         assertThrows(VisitEvidenceException.class, () -> visits.requireFollowUpEvidence(UUID.randomUUID(), doctorId));
     }
 

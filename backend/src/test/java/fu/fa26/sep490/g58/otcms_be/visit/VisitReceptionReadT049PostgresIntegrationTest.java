@@ -145,9 +145,13 @@ class VisitReceptionReadT049PostgresIntegrationTest {
         mvc.perform(get("/api/v1/visits/{visitId}/progress", accountlessVisitId)
                         .with(actor(patientAAccountId, AccountType.PATIENT)))
                 .andExpect(status().isForbidden());
+        // Active Receptionists have documented operational progress access; Patient ownership is separate.
         mvc.perform(get("/api/v1/visits/{visitId}/progress", firstVisitId)
                         .with(actor(receptionistId, AccountType.RECEPTIONIST)))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.visitId").value(firstVisitId.toString()))
+                .andExpect(jsonPath("$.queuePosition").value(1))
+                .andExpect(jsonPath("$.currentRoom").value("T049-R1"));
 
         queueExit.exit(new ExitWalkInReceptionQueueCommand(firstVisitId, receptionistId,
                 AccountRole.RECEPTIONIST, "CANCELLED", Instant.now(), "T049-exit-" + UUID.randomUUID()));

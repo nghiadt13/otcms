@@ -13,7 +13,7 @@ public final class DiagnosticPortModels {
             boolean open, boolean examinationStarted, boolean eligible) { }
 
     /** Clinical imaging order as seen by the diagnostic module; open means still ORDERED. */
-    public record ClinicalImagingOrder(UUID orderId, UUID visitId, UUID serviceId, boolean open) { }
+    public record ClinicalImagingOrder(UUID orderId, UUID visitId, UUID serviceId, boolean open, boolean paid) { }
 
     public record VisitHistoryAuthorization(UUID visitId, UUID patientId, UUID treatingDoctorId,
             UUID examinationEvidenceId, String visitStatus, boolean authorized) { }

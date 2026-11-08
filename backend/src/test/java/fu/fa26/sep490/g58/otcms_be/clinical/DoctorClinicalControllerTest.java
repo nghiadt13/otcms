@@ -270,7 +270,7 @@ class DoctorClinicalControllerTest {
         var examRows = mock(fu.fa26.sep490.g58.otcms_be.clinical.repository.ClinicalExaminationRepository.class);
         var diagnosisRows = mock(fu.fa26.sep490.g58.otcms_be.clinical.repository.ClinicalDiagnosisRepository.class);
         var realExaminations = new fu.fa26.sep490.g58.otcms_be.clinical.service.impl.ClinicalExaminationServiceImpl(
-                contexts, examRows, diagnosisRows, java.time.Clock.systemUTC());
+                contexts, examRows, diagnosisRows, java.time.Clock.systemUTC(), mock(fu.fa26.sep490.g58.otcms_be.common.service.CoordinationGuardService.class));
         var realAdvice = new fu.fa26.sep490.g58.otcms_be.clinical.service.impl.AfterVisitAdviceServiceImpl(
                 contexts, examRows, java.time.Clock.systemUTC());
         when(examinations.saveDraft(any())).thenAnswer(invocation -> realExaminations.saveDraft(invocation.getArgument(0)));

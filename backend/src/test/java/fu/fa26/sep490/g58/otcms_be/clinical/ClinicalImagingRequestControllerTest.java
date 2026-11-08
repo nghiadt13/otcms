@@ -42,12 +42,13 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
-@WebMvcTest(ClinicalImagingRequestController.class)
+@WebMvcTest({ClinicalImagingRequestController.class, fu.fa26.sep490.g58.otcms_be.clinical.controller.ClinicalRoundWorkflowController.class})
 @Import({SecurityConfig.class, ClinicalApiExceptionHandler.class, ClinicalDoctorIdentityResolver.class,
         CorrelationIdFilter.class, ClinicalImagingRequestControllerTest.Fixture.class})
 class ClinicalImagingRequestControllerTest {
     @Autowired MockMvc mvc;
     @MockitoBean ClinicalImagingRequestService imaging;
+    @MockitoBean ClinicalRoundWorkflowService workflow;
     @MockitoBean DoctorProfileIdentityQueryService doctors;
     @MockitoBean JwtTokenService tokens;
     @MockitoBean AccountAccessService access;
@@ -70,6 +71,55 @@ class ClinicalImagingRequestControllerTest {
                     .andExpect(jsonPath("$.error.code").value("MSG-40"));
         }
         verifyNoInteractions(imaging, doctors);
+    }
+
+    @Test void consentMustBeExplicitlyTrue() throws Exception {
+        for (String payload : List.of(body().replace("\"patientConsentConfirmed\":true,", ""),
+                body().replace("\"patientConsentConfirmed\":true", "\"patientConsentConfirmed\":false"),
+                body().replace("\"patientConsentConfirmed\":true", "\"patientConsentConfirmed\":null"))) {
+            mvc.perform(request(payload).with(csrf()).with(actor(AccountRole.DOCTOR))).andExpect(status().isBadRequest());
+        }
+        verifyNoInteractions(imaging);
+    }
+
+    @Test void receptionDispatchAndQueueDenyDoctorAndPatientAndAllowReceptionist() throws Exception {
+        String dispatch = "/api/v1/reception/clinical-ordering-rounds/" + roundId + "/imaging-dispatch";
+        when(workflow.dispatch(eq(roundId), any(), any())).thenReturn(List.of(UUID.randomUUID()));
+        when(workflow.listReceptionRounds(any(), eq(0), eq(20))).thenReturn(new ClinicalRoundWorkflowService.RoundPage(0, 20, false, List.of()));
+        for (var role : List.of(AccountRole.DOCTOR, AccountRole.PATIENT)) {
+            mvc.perform(post(dispatch).contentType("application/json").content("{\"assignments\":[{\"serviceOrderId\":\"" + UUID.randomUUID() + "\",\"roomId\":\"" + UUID.randomUUID() + "\"}]}").with(csrf()).with(actor(role))).andExpect(status().isForbidden());
+            mvc.perform(get("/api/v1/reception/clinical-ordering-rounds").with(actor(role))).andExpect(status().isForbidden());
+        }
+        verifyNoInteractions(workflow);
+        mvc.perform(post(dispatch).contentType("application/json").content("{\"assignments\":[{\"serviceOrderId\":\"" + UUID.randomUUID() + "\",\"roomId\":\"" + UUID.randomUUID() + "\"}]}").with(csrf()).with(actor(AccountRole.RECEPTIONIST))).andExpect(status().isOk())
+                .andExpect(jsonPath("$.diagnosticRequestIds.length()").value(1));
+        mvc.perform(get("/api/v1/reception/clinical-ordering-rounds").with(actor(AccountRole.RECEPTIONIST))).andExpect(status().isOk());
+    }
+
+    @Test void roomOptionsAreReceptionOnlyAndReturnMinimalRoomMetadata() throws Exception {
+        UUID orderId = UUID.randomUUID(), roomId = UUID.randomUUID();
+        var result = new ClinicalRoundWorkflowService.RoomOptions(orderId, List.of(
+                new fu.fa26.sep490.g58.otcms_be.visit.service.ImagingRoomQueueService.QueueRoom(roomId, "CDHA-01", "X-ray room")));
+        when(workflow.eligibleImagingRooms(eq(List.of(orderId)), any())).thenReturn(List.of(result));
+        String path = "/api/v1/reception/clinical-service-orders/" + orderId + "/eligible-imaging-rooms";
+        for (var role : AccountRole.values()) if (role != AccountRole.RECEPTIONIST) {
+            mvc.perform(get(path).with(actor(role))).andExpect(status().isForbidden());
+        }
+        mvc.perform(get(path).with(actor(AccountRole.RECEPTIONIST))).andExpect(status().isOk())
+                .andExpect(jsonPath("$.serviceOrderId").value(orderId.toString()))
+                .andExpect(jsonPath("$.items[0].roomId").value(roomId.toString()))
+                .andExpect(jsonPath("$.items[0].technicianId").doesNotExist());
+        mvc.perform(get("/api/v1/reception/clinical-service-orders/eligible-imaging-rooms")
+                .param("serviceOrderIds", orderId.toString()).with(actor(AccountRole.RECEPTIONIST)))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.items[0].serviceOrderId").value(orderId.toString()));
+    }
+    @Test void dispatchBodyRequiresRoomAndOrderIdentifiers() throws Exception {
+        String path = "/api/v1/reception/clinical-ordering-rounds/" + roundId + "/imaging-dispatch";
+        for (String payload : List.of("{}", "{\"assignments\":[]}", "{\"assignments\":[{\"serviceOrderId\":\"" + UUID.randomUUID() + "\"}]}")) {
+            mvc.perform(post(path).contentType("application/json").content(payload).with(csrf()).with(actor(AccountRole.RECEPTIONIST)))
+                    .andExpect(status().isBadRequest());
+        }
+        verifyNoInteractions(workflow);
     }
 
     @Test void missingDoctorProfileIsForbidden() throws Exception {
@@ -124,7 +174,7 @@ class ClinicalImagingRequestControllerTest {
                 .replace("\"serviceId\"", "\"paymentStatus\":\"PAID\",\"orderStatus\":\"CANCELLED\",\"serviceId\"");
         mvc.perform(request(payload).with(csrf()).with(actor(AccountRole.DOCTOR))).andExpect(status().isCreated());
         verify(imaging).submit(new ImagingRequestCommand(visitId, doctorId, "key", List.of(
-                new ImagingOrderRequest(serviceId, "Suspected injury", "RIGHT_KNEE", "Weight-bearing"))));
+                new ImagingOrderRequest(serviceId, "Suspected injury", "RIGHT_KNEE", "Weight-bearing")), true));
         verify(doctors).findDoctorProfileId(accountId);
     }
 
@@ -159,7 +209,7 @@ class ClinicalImagingRequestControllerTest {
     }
 
     private String path() { return "/api/v1/visits/" + visitId + "/imaging-requests"; }
-    private String body() { return "{\"orders\":[{\"serviceId\":\"" + serviceId + "\",\"clinicalReason\":\"Suspected injury\","
+    private String body() { return "{\"patientConsentConfirmed\":true,\"orders\":[{\"serviceId\":\"" + serviceId + "\",\"clinicalReason\":\"Suspected injury\","
             + "\"bodyArea\":\"RIGHT_KNEE\",\"instructions\":\"Weight-bearing\"}]}"; }
     private MockHttpServletRequestBuilder request(String body) {
         return post(path()).header("Idempotency-Key", "key").contentType("application/json").content(body);

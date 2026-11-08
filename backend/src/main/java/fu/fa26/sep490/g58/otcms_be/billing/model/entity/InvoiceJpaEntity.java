@@ -24,6 +24,8 @@ public class InvoiceJpaEntity {
     private UUID visitId;
     @Column(name = "appointment_id")
     private UUID appointmentId;
+    @Column(name = "clinical_ordering_round_id")
+    private UUID clinicalOrderingRoundId;
     @Column(name = "source_type", nullable = false, length = 16)
     private String sourceType;
     @Column(name = "source_fingerprint", nullable = false, length = 64)
@@ -50,6 +52,14 @@ public class InvoiceJpaEntity {
             UUID actorId, String sourceFingerprint) {
         return create(id, number, patientId, null, appointmentId, "APPOINTMENT", actorId, sourceFingerprint);
     }
+
+    public static InvoiceJpaEntity clinicalRound(UUID id, String number, UUID patientId, UUID roundId,
+            UUID actorId, String fingerprint) {
+        var invoice = create(id, number, patientId, null, null, "CLINICAL_ROUND", actorId, fingerprint);
+        invoice.clinicalOrderingRoundId = roundId;
+        return invoice;
+    }
+    public UUID getClinicalOrderingRoundId() { return clinicalOrderingRoundId; }
 
     private static InvoiceJpaEntity create(UUID id, String number, UUID patientId, UUID visitId,
             UUID appointmentId, String sourceType, UUID actorId, String sourceFingerprint) {

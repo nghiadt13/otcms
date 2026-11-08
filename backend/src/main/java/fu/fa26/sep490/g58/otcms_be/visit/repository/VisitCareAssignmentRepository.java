@@ -12,6 +12,8 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 public interface VisitCareAssignmentRepository extends JpaRepository<VisitCareAssignmentJpaEntity, UUID> {
+    Optional<VisitCareAssignmentJpaEntity> findFirstByVisitIdAndDoctorProfileIdAndStatusInOrderByAssignedAtDescIdDesc(
+            UUID visitId, UUID doctorProfileId, java.util.Collection<String> statuses);
     @Query("""
             select (count(a) > 0) from VisitCareAssignmentJpaEntity a join ClinicVisitJpaEntity v on v.id = a.visitId
             where a.doctorProfileId = :doctorId and v.patientProfileId = :patientId
@@ -39,6 +41,9 @@ public interface VisitCareAssignmentRepository extends JpaRepository<VisitCareAs
             order by a.startsAt asc, a.id asc
             """)
     List<DoctorActiveCareRow> findDoctorActiveCare(@Param("doctorProfileId") UUID doctorProfileId);
+
+    java.util.List<VisitCareAssignmentJpaEntity> findByVisitIdInAndStatusOrderByAssignedAtDescIdDesc(
+            java.util.Collection<UUID> visitIds, String status);
 
     Optional<VisitCareAssignmentJpaEntity> findFirstByVisitIdAndStatusOrderByAssignedAtDescIdDesc(
             UUID visitId, String status);

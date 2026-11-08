@@ -1,3 +1,4 @@
+import { DoctorImagingViewerBridge } from "@/features/doctor-shell/components/DoctorImagingViewerBridge";
 import { VisitPatientHeader } from "@/features/doctor-exam/components/VisitPatientHeader";
 import { VisitWorkspaceProvider } from "@/features/doctor-exam/components/VisitWorkspaceProvider";
 
@@ -11,9 +12,11 @@ export default async function DoctorVisitLayout({
 }) {
   const { visitId } = await params;
   return (
-    <VisitWorkspaceProvider visitId={visitId}>
-      <VisitPatientHeader />
-      {children}
-    </VisitWorkspaceProvider>
+    <DoctorImagingViewerBridge>
+      <VisitWorkspaceProvider visitId={visitId}>
+        <VisitPatientHeader />
+        {children}
+      </VisitWorkspaceProvider>
+    </DoctorImagingViewerBridge>
   );
 }

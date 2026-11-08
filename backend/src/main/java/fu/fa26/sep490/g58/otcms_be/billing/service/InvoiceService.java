@@ -7,6 +7,7 @@ import fu.fa26.sep490.g58.otcms_be.common.security.AuthenticatedAccount;
 import java.util.UUID;
 
 public interface InvoiceService {
+    InvoiceResponse createForClinicalRound(UUID roundId, AuthenticatedAccount actor);
     InvoiceResponse createForVisit(UUID visitId, CreateVisitInvoiceRequest request, AuthenticatedAccount actor);
     InvoiceResponse createForAppointment(UUID appointmentId, AuthenticatedAccount actor);
     InvoiceResponse get(UUID invoiceId, AuthenticatedAccount actor);

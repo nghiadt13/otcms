@@ -40,6 +40,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 @Service
 public class PaymentServiceImpl implements PaymentService {
     private static final String PROVIDER = "PAYOS";
+    private final fu.fa26.sep490.g58.otcms_be.billing.integration.ClinicalRoundBillingPort clinicalRounds;
     private final InvoiceRepository invoices;
     private final InvoiceItemRepository items;
     private final PaymentAttemptRepository attempts;
@@ -53,7 +54,9 @@ public class PaymentServiceImpl implements PaymentService {
     public PaymentServiceImpl(InvoiceRepository invoices, InvoiceItemRepository items,
             PaymentAttemptRepository attempts, PaymentGatewayEventRepository events,
             PaymentGatewayRegistry gateways, AuthorizePatientBillingProfileService patientAuthorization,
-            BillingMapper mapper, PlatformTransactionManager transactionManager, Clock clock) {
+            BillingMapper mapper, PlatformTransactionManager transactionManager, Clock clock,
+            fu.fa26.sep490.g58.otcms_be.billing.integration.ClinicalRoundBillingPort clinicalRounds) {
+        this.clinicalRounds = clinicalRounds;
         this.invoices = invoices;
         this.items = items;
         this.attempts = attempts;
@@ -289,6 +292,9 @@ public class PaymentServiceImpl implements PaymentService {
     private void updateInvoiceStatus(InvoiceJpaEntity invoice, UUID invoiceId) {
         invoice.setStatus(outstanding(invoiceId).signum() <= 0 ? InvoiceStatus.PAID : InvoiceStatus.OPEN);
         invoices.save(invoice);
+        if (invoice.getStatus() == InvoiceStatus.PAID && "CLINICAL_ROUND".equals(invoice.getSourceType())) {
+            clinicalRounds.markRoundPaid(invoice.getClinicalOrderingRoundId());
+        }
     }
     private PaymentAttemptJpaEntity findIdempotent(AuthenticatedAccount actor, String key, String fingerprint) {
         if (key == null || key.isBlank() || key.length() > 128) throw new BillingException("IDEMPOTENCY_CONFLICT");

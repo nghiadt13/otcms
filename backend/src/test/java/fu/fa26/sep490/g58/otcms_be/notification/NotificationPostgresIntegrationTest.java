@@ -244,14 +244,20 @@ class NotificationPostgresIntegrationTest {
         assertEquals(replacement, jdbc.queryForObject("select doctor_profile_id from appointments where id=?", UUID.class, created.id()));
     }
     @Test void closeVisitPublishesInvitationOnlyForLinkedPatient() {
-        lifecycle.close(openVisit, doctorAccount, AccountRole.DOCTOR, "notification-test");
+        jdbc.update("insert into visit_assignments(id,visit_id,doctor_profile_id,starts_at,ends_at,status) values (?,?,?,?,?,'COMPLETED')",
+                UUID.randomUUID(), openVisit, doctor, Timestamp.from(NOW.minusSeconds(600)), Timestamp.from(NOW));
+        for (UUID id : List.of(openVisit, unlinkedVisit)) {
+            jdbc.update("insert into clinical_examinations(id,visit_id,status,created_at,updated_at,version) values (?,?,'COMPLETED',?,?,0)",
+                    UUID.randomUUID(), id, Timestamp.from(NOW), Timestamp.from(NOW));
+        }
+        lifecycle.close(openVisit, receptionist, AccountRole.RECEPTIONIST, "notification-test");
         assertEquals("CLOSED", jdbc.queryForObject("select status from visits where id=?", String.class, openVisit));
         assertMessage(NotificationMessages.VISIT_CLOSED_REVIEW_INVITE, a, openVisit, "VISIT", "01/11/2026 lúc 11:00", "Notification test doctor");
         assertEquals(0, count("VISIT_CLOSED", a, openVisit));
         assertThrows(fu.fa26.sep490.g58.otcms_be.visit.exception.VisitOperationException.class,
-                () -> lifecycle.close(openVisit, doctorAccount, AccountRole.DOCTOR, "notification-test"));
+                () -> lifecycle.close(openVisit, receptionist, AccountRole.RECEPTIONIST, "notification-test"));
         assertEquals(1, count(NotificationMessages.VISIT_CLOSED_REVIEW_INVITE, a, openVisit));
-        lifecycle.close(unlinkedVisit, doctorAccount, AccountRole.DOCTOR, "notification-test");
+        lifecycle.close(unlinkedVisit, receptionist, AccountRole.RECEPTIONIST, "notification-test");
         assertEquals(0, jdbc.queryForObject("select count(*) from notifications where related_id=?", Integer.class, unlinkedVisit));
     }
     @Test void bookingForWalkInProfileDoesNotInventRecipient() {

@@ -65,6 +65,7 @@ public class DiagnosticRequestServiceImpl implements DiagnosticRequestService {
     private final ObjectProvider<RoomReservationPort> roomPorts;
     private final ObjectProvider<ImagingServiceCatalogPort> catalogPorts;
     private final ObjectProvider<ClinicalImagingOrderPort> orderPorts;
+    private final ObjectProvider<fu.fa26.sep490.g58.otcms_be.visit.service.ImagingRoomQueueService> queueRooms;
 
     public DiagnosticRequestServiceImpl(DiagnosticRequestJpaRepository requests,
             DiagnosticAttemptJpaRepository attempts,
@@ -74,7 +75,8 @@ public class DiagnosticRequestServiceImpl implements DiagnosticRequestService {
             ObjectProvider<? extends VisitDiagnosticReadPort> visitPorts,
             ObjectProvider<RoomReservationPort> roomPorts,
             ObjectProvider<ImagingServiceCatalogPort> catalogPorts,
-            ObjectProvider<ClinicalImagingOrderPort> orderPorts) {
+            ObjectProvider<ClinicalImagingOrderPort> orderPorts,
+            ObjectProvider<fu.fa26.sep490.g58.otcms_be.visit.service.ImagingRoomQueueService> queueRooms) {
         this.requests = Objects.requireNonNull(requests, "requests");
         this.attempts = Objects.requireNonNull(attempts, "attempts");
         this.idempotency = Objects.requireNonNull(idempotency, "idempotency");
@@ -84,6 +86,7 @@ public class DiagnosticRequestServiceImpl implements DiagnosticRequestService {
         this.roomPorts = Objects.requireNonNull(roomPorts, "roomPorts");
         this.catalogPorts = Objects.requireNonNull(catalogPorts, "catalogPorts");
         this.orderPorts = Objects.requireNonNull(orderPorts, "orderPorts");
+        this.queueRooms = Objects.requireNonNull(queueRooms, "queueRooms");
     }
 
     @Override
@@ -91,60 +94,8 @@ public class DiagnosticRequestServiceImpl implements DiagnosticRequestService {
     public DiagnosticRequestView create(DiagnosticActor actor, UUID visitId, String idempotencyKey,
             UUID serviceId, String imagingType, String bodyArea, String clinicalReason,
             UUID roomId, UUID serviceOrderId, String correlationId) {
-        requireDoctor(actor);
-        requireText(idempotencyKey, "idempotencyKey");
-        requireText(correlationId, "correlationId");
-        String modality = requireText(imagingType, "imagingType");
-        String area = requireText(bodyArea, "bodyArea");
-        String reason = requireText(clinicalReason, "clinicalReason");
-        UUID operationId = UUID.randomUUID();
-        String fingerprint = fingerprint(serviceId + "\n" + modality + "\n" + area + "\n" + reason + "\n" + roomId
-                + "\n" + serviceOrderId);
-        int claimed = idempotency.claimActorOperation(operationId, actor.accountId(), visitId, null,
-                CREATE_OPERATION, idempotencyKey, fingerprint);
-        if (claimed == 0) {
-            DiagnosticIdempotencyRecordJpaEntity saved = idempotency.findActorOperation(actor.accountId(),
-                    visitId, null, CREATE_OPERATION, idempotencyKey).orElseThrow(this::dependencyUnavailable);
-            return replay(saved, fingerprint);
-        }
-
-        VisitEvidence visitEvidence = requiredVisitPort().requireImagingOrderEligibility(visitId, actor.accountId());
-        UUID patientId = visitEvidence == null ? null : visitEvidence.patientId();
-        authorization.requireCreationAllowed(actor, visitId, patientId, visitEvidence);
-        ImagingService service = requiredCatalogPort().requireImagingService(serviceId, modality);
-        if (service == null || !service.active() || !serviceId.equals(service.serviceId())
-                || !modality.equalsIgnoreCase(service.imagingType())) {
-            throw new DiagnosticOperationException(DiagnosticOperationOutcome.SERVICE_NOT_ELIGIBLE);
-        }
-        if (serviceOrderId != null) requireLinkableOrder(serviceOrderId, visitId, serviceId);
-        RoomEvidence room = requireRoomEvidence(roomId, modality);
-        if (!room.operational() || !room.compatible() || !room.hasCapacity()) {
-            throw new DiagnosticOperationException(DiagnosticOperationOutcome.ROOM_NOT_READY);
-        }
-
-        UUID requestId = UUID.randomUUID();
-        DiagnosticRequestJpaEntity request = new DiagnosticRequestJpaEntity(requestId, visitId,
-                visitEvidence.patientId(), actor.accountId(), serviceId, roomId, modality, area, reason,
-                DiagnosticRequestStatus.PENDING, null, null, null);
-        request.setCreatedAt(Instant.now());
-        request.setServiceOrderId(serviceOrderId);
-        requests.saveAndFlush(request);
-
-        RoomReservation reservation = requiredRoomPort().reserveImagingCapacity(
-                requestId, roomId, modality, room.roomVersion());
-        if (reservation == null || !reservation.reserved() || !requestId.equals(reservation.requestId())
-                || !roomId.equals(reservation.roomId()) || reservation.roomVersion() != room.roomVersion()) {
-            throw new DiagnosticOperationException(DiagnosticOperationOutcome.ROOM_NOT_READY);
-        }
-
-        DiagnosticRequestView result = toView(request);
-        Map<String, Object> auditDetails = new LinkedHashMap<>();
-        auditDetails.put("roomId", roomId.toString());
-        auditDetails.put("serviceId", serviceId.toString());
-        if (serviceOrderId != null) auditDetails.put("serviceOrderId", serviceOrderId.toString());
-        recordAudit(null, actor, request, "CREATE_REQUEST", correlationId, auditDetails);
-        saveReplayResult(actor, visitId, null, CREATE_OPERATION, idempotencyKey, result);
-        return result;
+        // Legacy direct creation is retired. Only Reception's paid Clinical round dispatch registers work.
+        throw new DiagnosticOperationException(DiagnosticOperationOutcome.UNAUTHORIZED_RECORD);
     }
 
     @Override
@@ -257,7 +208,10 @@ public class DiagnosticRequestServiceImpl implements DiagnosticRequestService {
         request.setCancellationCause(cause.name());
         request.setCancellationReason(reason.trim());
         requests.saveAndFlush(request);
-        if (request.getRoomId() != null) requiredRoomPort().releaseImagingCapacity(requestId, "DOCTOR_CANCELLED_BEFORE_FIRST_USE");
+        RoomReservationPort reservationOwner = roomPorts.getIfAvailable();
+        if (reservationOwner != null && reservationOwner.hasImagingCapacityReservation(requestId)) {
+            reservationOwner.releaseImagingCapacity(requestId, "DOCTOR_CANCELLED_BEFORE_FIRST_USE");
+        }
         // A cancelled request must not leave its clinical order open, or the visit could never be closed.
         if (request.getServiceOrderId() != null) {
             requiredOrderPort().cancelOrderIfOpen(request.getServiceOrderId(), reason.trim());
@@ -291,20 +245,32 @@ public class DiagnosticRequestServiceImpl implements DiagnosticRequestService {
         VisitEvidence visit = requireDoctorVisit(actor, request);
         DiagnosticRequest domain = toDomain(request);
         authorization.requireAllowed(domain, DiagnosticAction.TRANSFER_ROOM, actor, evidence(request, visit), expectedVersion);
-        if (newRoomId.equals(request.getRoomId())) {
+        if (newRoomId == null || newRoomId.equals(request.getRoomId())) {
             throw new DiagnosticOperationException(DiagnosticOperationOutcome.STATE_CONFLICT);
         }
-        RoomEvidence room = requireRoomEvidence(newRoomId, request.getImagingType());
-        if (!room.operational() || !room.compatible() || !room.hasCapacity()) {
-            throw new DiagnosticOperationException(DiagnosticOperationOutcome.ROOM_NOT_READY);
-        }
         UUID oldRoomId = request.getRoomId();
-        if (oldRoomId != null) requiredRoomPort().releaseImagingCapacity(requestId, "ROOM_TRANSFERRED");
-        RoomReservation reservation = requiredRoomPort().reserveImagingCapacity(
-                requestId, newRoomId, request.getImagingType(), room.roomVersion());
-        if (reservation == null || !reservation.reserved() || !requestId.equals(reservation.requestId())
-                || !newRoomId.equals(reservation.roomId()) || reservation.roomVersion() != room.roomVersion()) {
-            throw new DiagnosticOperationException(DiagnosticOperationOutcome.ROOM_NOT_READY);
+        RoomReservationPort reservationOwner = roomPorts.getIfAvailable();
+        if (reservationOwner != null && reservationOwner.hasImagingCapacityReservation(requestId)) {
+            // Preserve manual/legacy physical transfer semantics only when the owner proves a reservation exists.
+            RoomEvidence room = requireRoomEvidence(newRoomId, request.getImagingType());
+            if (!room.operational() || !room.compatible() || !room.hasCapacity()) {
+                throw new DiagnosticOperationException(DiagnosticOperationOutcome.ROOM_NOT_READY);
+            }
+            reservationOwner.releaseImagingCapacity(requestId, "ROOM_TRANSFERRED");
+            RoomReservation reservation = reservationOwner.reserveImagingCapacity(requestId, newRoomId,
+                    request.getImagingType(), room.roomVersion());
+            if (reservation == null || !reservation.reserved() || !requestId.equals(reservation.requestId())
+                    || !newRoomId.equals(reservation.roomId()) || reservation.roomVersion() != room.roomVersion()) {
+                throw new DiagnosticOperationException(DiagnosticOperationOutcome.ROOM_NOT_READY);
+            }
+        } else {
+            var owner = queueRooms.getIfAvailable();
+            if (owner == null) throw dependencyUnavailable();
+            try {
+                owner.requireEligibleRoom(newRoomId, request.getServiceId(), request.getImagingType());
+            } catch (fu.fa26.sep490.g58.otcms_be.visit.exception.VisitOperationException invalidRoom) {
+                throw new DiagnosticOperationException(DiagnosticOperationOutcome.ROOM_NOT_READY);
+            }
         }
         request.setRoomId(newRoomId);
         requests.saveAndFlush(request);
@@ -426,7 +392,7 @@ public class DiagnosticRequestServiceImpl implements DiagnosticRequestService {
     private void requireLinkableOrder(UUID serviceOrderId, UUID visitId, UUID serviceId) {
         ClinicalImagingOrder order = requiredOrderPort().requireOpenImagingOrder(serviceOrderId);
         if (order == null) throw new DiagnosticOperationException(DiagnosticOperationOutcome.RECORD_NOT_FOUND);
-        if (!order.open() || !visitId.equals(order.visitId()) || !serviceId.equals(order.serviceId())) {
+        if (!order.open() || !order.paid() || !visitId.equals(order.visitId()) || !serviceId.equals(order.serviceId())) {
             throw new DiagnosticOperationException(DiagnosticOperationOutcome.EVIDENCE_MISMATCH);
         }
         if (requests.existsByServiceOrderIdAndStatusNot(serviceOrderId, DiagnosticRequestStatus.CANCELLED)) {

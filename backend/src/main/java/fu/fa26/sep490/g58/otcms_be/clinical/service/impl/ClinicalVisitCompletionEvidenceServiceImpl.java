@@ -34,7 +34,8 @@ public class ClinicalVisitCompletionEvidenceServiceImpl implements ClinicalVisit
                 .filter(order -> order.getOrderStatus() != ServiceOrderStatus.CANCELLED)
                 .toList();
         int outstandingCount = (int) activeOrders.stream()
-                .filter(order -> order.getOrderStatus() == ServiceOrderStatus.ORDERED)
+                .filter(order -> order.getOrderStatus() == ServiceOrderStatus.ORDERED
+                        || order.getPaymentStatus() != fu.fa26.sep490.g58.otcms_be.clinical.model.ServiceOrderPaymentStatus.PAID)
                 .count();
         var imagingOrderIds = activeOrders.stream()
                 .filter(order -> order.getServiceType() == ClinicalServiceType.IMAGING)
@@ -45,6 +46,7 @@ public class ClinicalVisitCompletionEvidenceServiceImpl implements ClinicalVisit
 
         return new ClinicalCompletionEvidence(visitId, examination.isPresent(),
                 examination.map(value -> value.getStatus() == ClinicalExaminationStatus.COMPLETED).orElse(false),
-                activeOrders.size(), outstandingCount, outstandingCount == 0, imagingOrderIds);
+                activeOrders.size(), outstandingCount, activeOrders.stream().allMatch(
+                        order -> order.getOrderStatus() == ServiceOrderStatus.RESULTS_AVAILABLE), imagingOrderIds);
     }
 }

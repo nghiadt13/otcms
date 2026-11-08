@@ -23,7 +23,10 @@ public class BillingExceptionHandler {
         }
         HttpStatus status = switch (exception.code()) {
             case "INVOICE_NOT_FOUND", "PAYMENT_ATTEMPT_NOT_FOUND" -> HttpStatus.NOT_FOUND;
-            case "ACCESS_DENIED" -> HttpStatus.FORBIDDEN;
+            case "ACCESS_DENIED", "MSG-40" -> HttpStatus.FORBIDDEN;
+            case "MSG-41" -> HttpStatus.NOT_FOUND;
+            case "MSG-42" -> HttpStatus.CONFLICT;
+            case "DEPENDENCY_UNAVAILABLE" -> HttpStatus.SERVICE_UNAVAILABLE;
             case "GATEWAY_UNAVAILABLE", "PAYMENT_RECONCILIATION_FAILED" -> HttpStatus.SERVICE_UNAVAILABLE;
             case "INVALID_WEBHOOK" -> HttpStatus.BAD_REQUEST;
             case "IDEMPOTENCY_CONFLICT", "INVOICE_NOT_PAYABLE", "PAYMENT_AMOUNT_INVALID", "SOURCE_NOT_BILLABLE" -> HttpStatus.CONFLICT;

@@ -45,6 +45,11 @@ public class VisitAuditJpaEntity {
         return event(actorAccountId, visitId, "WALK_IN_CLOSED", occurredAt, correlationId);
     }
 
+    public static VisitAuditJpaEntity visitClosed(UUID actorAccountId, UUID visitId, Instant occurredAt,
+            String correlationId) {
+        return event(actorAccountId, visitId, "VISIT_CLOSED", occurredAt, correlationId);
+    }
+
     private static VisitAuditJpaEntity event(UUID actorAccountId, UUID visitId, String action, Instant occurredAt,
             String correlationId) {
         VisitAuditJpaEntity entity = new VisitAuditJpaEntity();

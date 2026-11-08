@@ -47,11 +47,12 @@ public class VisitReceptionReadController {
     }
 
     @GetMapping("/api/v1/visits/{visitId}/progress")
-    @PreAuthorize("hasAuthority('ROLE_PATIENT')")
+    @PreAuthorize("hasAnyAuthority('ROLE_PATIENT','ROLE_RECEPTIONIST','ROLE_DOCTOR')")
     public ResponseEntity<VisitProgressResponse> progress(@PathVariable UUID visitId,
             @AuthenticationPrincipal AuthenticatedAccount account, HttpServletRequest request) {
         if (account == null) throw new VisitOperationException("ACCESS_DENIED");
-        return ResponseEntity.ok().header(CorrelationIdFilter.HEADER, CorrelationIdFilter.current(request))
-                .body(reads.getOwnProgress(account.accountId(), visitId));
+        return ResponseEntity.ok().cacheControl(org.springframework.http.CacheControl.noStore())
+                .header(CorrelationIdFilter.HEADER, CorrelationIdFilter.current(request))
+                .body(reads.getProgress(account, visitId));
     }
 }

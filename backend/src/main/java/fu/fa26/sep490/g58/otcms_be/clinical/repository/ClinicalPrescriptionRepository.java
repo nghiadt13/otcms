@@ -8,7 +8,11 @@ import org.springframework.data.jpa.repository.*;
 import org.springframework.data.repository.query.Param;
 
 public interface ClinicalPrescriptionRepository extends JpaRepository<ClinicalPrescriptionJpaEntity, UUID> {
+    org.springframework.data.domain.Page<ClinicalPrescriptionJpaEntity> findByPatientProfileIdInAndStatus(
+            Collection<UUID> patientIds, ClinicalPrescriptionStatus status, org.springframework.data.domain.Pageable pageable);
     Optional<ClinicalPrescriptionJpaEntity> findByVisitId(UUID visitId);
+    List<ClinicalPrescriptionJpaEntity> findByPatientProfileIdAndVisitIdInAndStatusOrderByIssuedAtDescIdDesc(
+            UUID patientProfileId, Collection<UUID> visitIds, ClinicalPrescriptionStatus status);
     List<ClinicalPrescriptionJpaEntity> findByPatientProfileIdAndStatusOrderByIssuedAtDescIdDesc(UUID patientProfileId, ClinicalPrescriptionStatus status);
     List<ClinicalPrescriptionJpaEntity> findByVisitIdAndStatusOrderByIssuedAtDescIdDesc(UUID visitId, ClinicalPrescriptionStatus status);
 

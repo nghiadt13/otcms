@@ -247,3 +247,69 @@ export function createReceptionWalkIn(input: {
     }),
   });
 }
+
+export type ClinicalRoundOrder = {
+  orderId: string;
+  orderCode: string;
+  serviceName: string;
+  serviceType: string;
+  priceSnapshot: number;
+  orderStatus: string;
+  paymentStatus: "PENDING_PAYMENT" | "PAID";
+  diagnostic: {
+    requestId: string;
+    status: string;
+    version: number;
+    roomId: string | null;
+    roomCode: string | null;
+    displayLabel: string | null;
+  } | null;
+};
+export type ClinicalOrderingRound = {
+  roundId: string;
+  visitId: string;
+  patientProfileId: string;
+  patientName: string | null;
+  roundNumber: number;
+  orderedAt: string;
+  orders: ClinicalRoundOrder[];
+};
+export function listClinicalOrderingRounds(page = 0, signal?: AbortSignal) {
+  return apiRequest<{ items: ClinicalOrderingRound[]; hasMore: boolean }>(
+    `/api/v1/reception/clinical-ordering-rounds?page=${page}&size=20`,
+    { signal },
+  );
+}
+export type ImagingQueueRoom = {
+  roomId: string;
+  roomCode: string;
+  displayLabel: string;
+};
+export type ImagingRoomAssignment = { serviceOrderId: string; roomId: string };
+export async function listClinicalImagingRoomOptions(
+  serviceOrderIds: string[],
+  signal?: AbortSignal,
+) {
+  const items: { serviceOrderId: string; items: ImagingQueueRoom[] }[] = [];
+  for (let offset = 0; offset < serviceOrderIds.length; offset += 200) {
+    const ids = serviceOrderIds
+      .slice(offset, offset + 200)
+      .map(encodeURIComponent)
+      .join(",");
+    const result = await apiRequest<{ items: typeof items }>(
+      `/api/v1/reception/clinical-service-orders/eligible-imaging-rooms?serviceOrderIds=${ids}`,
+      { signal },
+    );
+    items.push(...result.items);
+  }
+  return items;
+}
+export function dispatchClinicalImagingRound(
+  roundId: string,
+  assignments: ImagingRoomAssignment[],
+) {
+  return apiRequest<{ diagnosticRequestIds: string[] }>(
+    `/api/v1/reception/clinical-ordering-rounds/${encodeURIComponent(roundId)}/imaging-dispatch`,
+    { method: "POST", body: JSON.stringify({ assignments }) },
+  );
+}

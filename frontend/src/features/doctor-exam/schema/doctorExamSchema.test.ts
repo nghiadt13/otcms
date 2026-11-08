@@ -19,7 +19,7 @@ import {
 } from "./orderDraft";
 import {
   buildClosingChecklist,
-  canCompleteVisit,
+  isClinicalChecklistReady,
   ordersStep,
 } from "./visitProgress";
 import {
@@ -203,8 +203,12 @@ describe("điều kiện hoàn tất lượt khám (UC36, BR-33)", () => {
 
   it("chưa hoàn tất khi khám còn nháp hoặc chưa có chẩn đoán chính", () => {
     const draft = { ...completed, status: "DRAFT" as const };
-    expect(canCompleteVisit(buildClosingChecklist(draft, []))).toBe(false);
-    expect(canCompleteVisit(buildClosingChecklist(undefined, []))).toBe(false);
+    expect(isClinicalChecklistReady(buildClosingChecklist(draft, []))).toBe(
+      false,
+    );
+    expect(isClinicalChecklistReady(buildClosingChecklist(undefined, []))).toBe(
+      false,
+    );
   });
 
   it("chỉ định chưa có kết quả hoặc CĐHA chưa có kết luận chặn hoàn tất; chỉ định hủy thì không", () => {
@@ -215,14 +219,14 @@ describe("điều kiện hoàn tất lượt khám (UC36, BR-33)", () => {
       imaging: imagingResult(false),
     });
     const cancelled = order({ id: "c", status: "CANCELLED" });
-    expect(canCompleteVisit(buildClosingChecklist(completed, [waiting]))).toBe(
-      false,
-    );
     expect(
-      canCompleteVisit(buildClosingChecklist(completed, [noFindings])),
+      isClinicalChecklistReady(buildClosingChecklist(completed, [waiting])),
     ).toBe(false);
     expect(
-      canCompleteVisit(buildClosingChecklist(completed, [cancelled])),
+      isClinicalChecklistReady(buildClosingChecklist(completed, [noFindings])),
+    ).toBe(false);
+    expect(
+      isClinicalChecklistReady(buildClosingChecklist(completed, [cancelled])),
     ).toBe(true);
     const done = order({
       id: "d",
@@ -230,7 +234,9 @@ describe("điều kiện hoàn tất lượt khám (UC36, BR-33)", () => {
       imaging: imagingResult(true),
     });
     expect(
-      canCompleteVisit(buildClosingChecklist(completed, [done, cancelled])),
+      isClinicalChecklistReady(
+        buildClosingChecklist(completed, [done, cancelled]),
+      ),
     ).toBe(true);
   });
 
@@ -239,7 +245,7 @@ describe("điều kiện hoàn tất lượt khám (UC36, BR-33)", () => {
       examination: true,
       orders: true,
     });
-    expect(canCompleteVisit(items)).toBe(false);
+    expect(isClinicalChecklistReady(items)).toBe(false);
     expect(items.map((i) => i.ok)).toEqual([false, false]);
     expect(items[1].detail).toContain("Chưa kiểm tra được");
   });

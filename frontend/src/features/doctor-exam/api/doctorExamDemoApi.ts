@@ -1,3 +1,4 @@
+import { prescriptionItems } from "../schema/prescription";
 import { mockDelay, mockFail, clone } from "@/lib/api/mockServer";
 import type {
   Advice,
@@ -133,25 +134,13 @@ function applyImaging(
   return clone(next);
 }
 
-function unfinishedOrders(visit: DemoVisit, now: number) {
-  return visit.orders
-    .map((o) => progressed(o, now))
-    .filter((o) => o.status !== "CANCELLED")
-    .filter(
-      (o) =>
-        o.status !== "RESULTS_AVAILABLE" ||
-        (o.kind === "IMAGING" && !o.imaging?.findingsCompleted),
-    );
-}
-
 export const doctorDemoApi: DoctorExamApi = {
   capabilities: {
-    laboratoryOrders: true,
+    laboratoryOrders: false,
     orderListing: true,
     prescriptions: true,
     pastRecords: true,
     resultSheet: true,
-    closeWithEvidence: true,
     startExamination: true,
     findingsReportPdfRequired: false,
   },
@@ -166,20 +155,6 @@ export const doctorDemoApi: DoctorExamApi = {
   async startExamination(context: VisitContext) {
     await wait();
     visitOf(context.visitId).context.status = "IN_EXAMINATION";
-  },
-  async completeVisit(context: VisitContext) {
-    await wait();
-    const visit = visitOf(context.visitId);
-    const primary = visit.examination.diagnoses.some(
-      (d) => d.type === "PRIMARY",
-    );
-    if (!primary || unfinishedOrders(visit, Date.now()).length > 0)
-      mockFail(409, "MSG-86");
-    visit.context.status = "COMPLETED";
-    if (!visit.sheets.length)
-      visit.sheets = [
-        { version: 1, status: "CURRENT", issuedAt: new Date().toISOString() },
-      ];
   },
   async getExamination(visitId, signal) {
     await wait(signal);
@@ -233,7 +208,14 @@ export const doctorDemoApi: DoctorExamApi = {
     visit.orders = visit.orders.map((o) => progressed(o, Date.now()));
     return visit.orders.map(strip);
   },
-  async submitOrders(visitId, items: OrderDraftItem[], catalog) {
+  async submitOrders(
+    visitId,
+    items: OrderDraftItem[],
+    catalog,
+    _key,
+    patientConsentConfirmed,
+  ) {
+    if (patientConsentConfirmed !== true) mockFail(400, "MSG-39");
     await wait();
     const visit = visitOf(visitId);
     const round = Math.max(0, ...visit.orders.map((o) => o.round ?? 0)) + 1;
@@ -320,8 +302,14 @@ export const doctorDemoApi: DoctorExamApi = {
   },
   async savePrescription(visitId, value: Prescription, issue) {
     await wait();
+    const current = visitOf(visitId).prescription;
+    if (current?.status === "ISSUED" || value.status === "ISSUED")
+      mockFail(409, "MSG-42");
+    if ((current?.version ?? 0) !== value.version) mockFail(409, "MSG-42");
     const next: Prescription = {
-      ...value,
+      id: current?.id ?? crypto.randomUUID(),
+      version: (current?.version ?? 0) + (issue ? 2 : 1),
+      lines: prescriptionItems(value.lines),
       status: issue ? "ISSUED" : "DRAFT",
       issuedAt: issue ? new Date().toISOString() : null,
     };
@@ -357,9 +345,9 @@ export const doctorDemoApi: DoctorExamApi = {
       },
     ];
   },
-  async listPastVisits(_id, signal) {
+  async listPastVisits(currentVisitId, signal) {
     await wait(signal);
-    void _id;
+    visitOf(currentVisitId);
     return clone(DEMO_PAST_VISITS);
   },
   async listResultSheets(visitId, signal) {

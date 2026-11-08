@@ -6,6 +6,7 @@ import java.time.LocalDate;
 import java.util.UUID;
 
 public interface VisitReceptionReadService {
+    VisitProgressResponse getProgress(fu.fa26.sep490.g58.otcms_be.common.security.AuthenticatedAccount actor, UUID visitId);
     ReceptionQueueResponse listWalkInQueue(UUID receptionistAccountId, LocalDate date, int page, int size);
     VisitProgressResponse getOwnProgress(UUID patientAccountId, UUID visitId);
 }

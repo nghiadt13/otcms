@@ -252,7 +252,7 @@ public class DiagnosticFindingsServiceImpl implements DiagnosticFindingsService 
         DiagnosticReportValidationStatus persistedStatus = DiagnosticReportValidationStatus.valueOf(validation.name());
         DiagnosticReportJpaEntity report = new DiagnosticReportJpaEntity(stored.reportId(), requestId,
                 request.getVisitId(), studyRef, version, stored.storageRef(),
-                HexFormat.of().formatHex(digest.digest()), persistedStatus, actor.accountId(),
+                contentSha256, persistedStatus, actor.accountId(),
                 persistedStatus == DiagnosticReportValidationStatus.PENDING ? null : Instant.now(), null);
         reports.saveAndFlush(report);
         saveResult(actor, request, UPLOAD_REPORT, idempotencyKey,
@@ -330,6 +330,8 @@ public class DiagnosticFindingsServiceImpl implements DiagnosticFindingsService 
     private void requireDoctorAccess(DiagnosticActor actor, DiagnosticRequestJpaEntity request) {
         if (actor == null || actor.kind() != DiagnosticActor.Kind.USER || actor.role() != AccountRole.DOCTOR
                 || !actor.accountId().equals(request.getOrderingDoctorId())) throw unauthorized();
+        // Replays also require active current care; knowing an old idempotency key grants no access.
+        requireVisitEvidence(actor, request);
     }
 
     private VisitEvidence requireVisitEvidence(DiagnosticActor actor, DiagnosticRequestJpaEntity request) {
@@ -338,12 +340,18 @@ public class DiagnosticFindingsServiceImpl implements DiagnosticFindingsService 
         VisitEvidence evidence;
         try {
             evidence = port.requireImagingOrderEligibility(request.getVisitId(), actor.accountId());
+        } catch (DiagnosticOperationException exception) {
+            throw exception;
         } catch (RuntimeException exception) {
             throw dependencyUnavailable();
         }
         if (evidence == null || !request.getVisitId().equals(evidence.visitId())
                 || !request.getPatientId().equals(evidence.patientId()) || !evidence.examinationStarted()) {
             throw evidenceMismatch();
+        }
+        if (!actor.accountId().equals(evidence.treatingDoctorId())) throw unauthorized();
+        if (!evidence.open() || !evidence.eligible()) {
+            throw new DiagnosticOperationException(DiagnosticOperationOutcome.VISIT_NOT_ELIGIBLE);
         }
         return evidence;
     }
@@ -433,7 +441,9 @@ public class DiagnosticFindingsServiceImpl implements DiagnosticFindingsService 
             String key, Map<String, Object> payload) {
         DiagnosticIdempotencyRecordJpaEntity record = idempotency.findActorOperation(actor.accountId(),
                 request.getVisitId(), request.getId(), operation, key).orElseThrow(this::dependencyUnavailable);
-        idempotency.completeResult(record.getId(), payload);
+        // Keep the managed record coherent for another call in the same transaction.
+        record.completeResult(payload);
+        idempotency.saveAndFlush(record);
     }
 
     private void audit(DiagnosticRequestJpaEntity request, DiagnosticActor actor, String action,

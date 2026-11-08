@@ -287,18 +287,6 @@ export async function startExamination(context: VisitContext): Promise<void> {
   );
 }
 
-/** Hẹn đặt trước đóng qua lệnh trạng thái của lịch hẹn; vãng lai đóng qua `/closure`. */
-export async function completeVisit(context: VisitContext): Promise<void> {
-  if (context.appointmentId) {
-    await patch(context.appointmentId, "COMPLETED");
-    return;
-  }
-  await apiRequest<void>(
-    `/api/v1/visits/${encodeURIComponent(context.visitId)}/closure`,
-    { method: "POST" },
-  );
-}
-
 export async function listPatientAppointments(
   patientProfileId: string,
   signal?: AbortSignal,

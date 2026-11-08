@@ -15,6 +15,13 @@ public class VisitClinicalContextAdapter implements VisitClinicalContextPort {
     }
 
     @Override
+    public java.util.Map<UUID, ClinicalVisitContext> getVisitContexts(java.util.Collection<UUID> visitIds) {
+        return visits.findClinicalCareContexts(visitIds).values().stream().collect(java.util.stream.Collectors.toUnmodifiableMap(
+                context -> context.visitId(), context -> new ClinicalVisitContext(context.visitId(), context.patientProfileId(),
+                        context.responsibleDoctorProfileId(), context.clinicalWorkAllowed())));
+    }
+
+    @Override
     public ClinicalVisitContext getVisitContext(UUID visitId) {
         return visits.findClinicalCareContext(visitId)
                 .map(context -> new ClinicalVisitContext(context.visitId(), context.patientProfileId(),

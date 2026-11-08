@@ -58,8 +58,6 @@ export interface DoctorExamApi {
   getVisitContext(visitId: string, signal?: AbortSignal): Promise<VisitContext>;
   /** Bác sĩ bắt đầu khám: hẹn đặt trước → IN_PROGRESS, vãng lai → bước chăm sóc. */
   startExamination(context: VisitContext): Promise<void>;
-  /** Hoàn tất lượt khám (UC36). */
-  completeVisit(context: VisitContext): Promise<void>;
   getExamination(visitId: string, signal?: AbortSignal): Promise<Examination>;
   saveExamination(
     visitId: string,
@@ -79,6 +77,7 @@ export interface DoctorExamApi {
     items: OrderDraftItem[],
     catalog: CatalogService[],
     idempotencyKey: string,
+    patientConsentConfirmed: boolean,
   ): Promise<ParaclinicalOrder[]>;
   cancelOrder(
     order: ParaclinicalOrder,
@@ -117,7 +116,7 @@ export interface DoctorExamApi {
     signal?: AbortSignal,
   ): Promise<PatientAppointment[]>;
   listPastVisits(
-    patientProfileId: string,
+    currentVisitId: string,
     signal?: AbortSignal,
   ): Promise<PastVisit[]>;
   listResultSheets(

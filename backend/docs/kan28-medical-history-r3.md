@@ -60,11 +60,15 @@ The helper remains unchanged, including missing-self fail-closed and accountless
 dependent access. KAN-28 production code does not query patient_caregivers.
 
 DOCTOR requires the principal role and actual active DOCTOR account. The public Patient
-DoctorCareRelationPort is then checked before profile existence. Its temporary R3/KAN-28
-adapter explicitly permits any active doctor without workspace/visit responsibility lookup,
-and rejects null, inactive and non-doctor accounts. Replace this adapter when a responsible
-doctor/workspace relationship exists. A future false relation returns 403 ACCESS_DENIED.
-No DoctorProfile or workspace assignment is required by the temporary policy.
+DoctorCareRelationPort is checked before profile existence. The original temporary R3
+shortcut was retired by the Doctor-core integration (see
+[Doctor-core integration Action Record](doctor-core-integration-repair-action-record.md)).
+Production now resolves the account to a Doctor profile through the Staff owner, then
+requires Visit-owned evidence: an OPEN Visit for the target Patient with an IN_PROGRESS
+assignment to that Doctor profile. Missing profile/current care returns 403 ACCESS_DENIED
+before target existence lookup, including an unknown target UUID. A Doctor's unrelated,
+RESERVED, COMPLETED or RELEASED care does not grant current access. Patient self/dependent
+404 behavior is unchanged. Historical care access is a separate capability.
 
 BR-12: RECEPTIONIST never receives this data. ADMIN, OWNER and both technician roles are
 also denied GET/PUT with ACCESS_DENIED. Anonymous/CSRF behavior is unchanged. BR-13: the

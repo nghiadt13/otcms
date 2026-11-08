@@ -16,7 +16,7 @@ public final class ImagingRequestDtos {
     private ImagingRequestDtos() { }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public record ImagingRequest(@NotEmpty List<@NotNull @Valid ImagingOrderRequest> orders) { }
+    public record ImagingRequest(@NotNull @jakarta.validation.constraints.AssertTrue Boolean patientConsentConfirmed, @NotEmpty List<@NotNull @Valid ImagingOrderRequest> orders) { }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record ImagingOrderRequest(@NotNull UUID serviceId, @NotBlank String clinicalReason,

@@ -79,4 +79,8 @@ public class DiagnosticIdempotencyRecordJpaEntity {
     public DiagnosticOperationOutcome getResultOutcome() { return resultOutcome; }
     public Map<String, Object> getResultPayload() { return resultPayload; }
     public Instant getRecordedAt() { return recordedAt; }
+
+    public void completeResult(Map<String, Object> payload) {
+        this.resultPayload = Map.copyOf(payload);
+    }
 }

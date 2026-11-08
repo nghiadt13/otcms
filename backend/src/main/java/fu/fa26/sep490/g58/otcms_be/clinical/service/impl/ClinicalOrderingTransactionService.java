@@ -23,17 +23,29 @@ public class ClinicalOrderingTransactionService {
     private final OrderingRoundRepository rounds;
     private final ServiceOrderRepository orders;
     private final Clock clock;
+    private final fu.fa26.sep490.g58.otcms_be.common.service.CoordinationGuardService guard;
+    private final ClinicalOrderPreparationService preparation;
 
     public ClinicalOrderingTransactionService(OrderingRoundRepository rounds,
-            ServiceOrderRepository orders, Clock clock) {
+            ServiceOrderRepository orders, Clock clock,
+            fu.fa26.sep490.g58.otcms_be.common.service.CoordinationGuardService guard,
+            ClinicalOrderPreparationService preparation) {
         this.rounds = rounds;
         this.orders = orders;
         this.clock = clock;
+        this.guard = guard;
+        this.preparation = preparation;
     }
 
     @Transactional
     public ClinicalOrderingService.RoundView createRound(UUID visitId, UUID patientId, UUID doctorId,
             List<OrderSnapshot> snapshots) {
+        guard.acquire();
+        // Preparation outside this transaction may have raced with UC28. Re-read after the guard.
+        var context = preparation.requireCurrentCare(visitId, doctorId);
+        if (!patientId.equals(context.patientId())) {
+            throw new fu.fa26.sep490.g58.otcms_be.clinical.exception.ClinicalOperationException("MSG-39");
+        }
         int roundNumber = rounds.findTopByVisitIdOrderByRoundNumberDesc(visitId)
                 .map(previous -> previous.getRoundNumber() + 1).orElse(1);
         Instant now = clock.instant().truncatedTo(java.time.temporal.ChronoUnit.MICROS);

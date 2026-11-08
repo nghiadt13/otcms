@@ -7,7 +7,7 @@ import type {
   Prescription,
 } from "../types/doctorExam";
 
-// Tóm tắt tiến trình một lượt khám cho tab Tổng quan và điều kiện hoàn tất (UC36, BR-33).
+// Tóm tắt tiến trình một lượt khám cho tab Tổng quan và điều kiện sẵn sàng phần khám; đóng lượt thuộc Lễ tân (UC28).
 
 export type StepState = "TODO" | "IN_PROGRESS" | "DONE";
 export type StepSummary = { state: StepState; summary: string };
@@ -33,7 +33,7 @@ export function activeOrders(
   return orders.filter((order) => order.status !== "CANCELLED");
 }
 
-/** Chỉ định đã có kết quả; CĐHA còn cần bác sĩ hoàn tất kết luận (UC50, BR-33). */
+/** Chỉ định đã có kết quả; CĐHA còn cần bác sĩ hoàn tất kết luận (UC42). */
 export function orderIsResolved(order: ParaclinicalOrder): boolean {
   if (order.status !== "RESULTS_AVAILABLE") return false;
   return order.kind === "IMAGING" ? !!order.imaging?.findingsCompleted : true;
@@ -77,7 +77,7 @@ export type ChecklistItem = {
   detail: string;
 };
 
-/** Điều kiện "Hoàn tất khám": chẩn đoán chính + mọi chỉ định có kết quả hoặc đã hủy (BR-33). */
+/** Điều kiện sẵn sàng phần khám: chẩn đoán chính + mọi chỉ định có kết quả hoặc đã hủy (BR-33). */
 /** `unavailable`: nguồn dữ liệu của mục đó tải lỗi; chưa kiểm được thì coi là chưa đạt (BR-33). */
 export function buildClosingChecklist(
   examination: Examination | undefined,
@@ -117,6 +117,8 @@ export function buildClosingChecklist(
   ];
 }
 
-export function canCompleteVisit(items: readonly ChecklistItem[]): boolean {
+export function isClinicalChecklistReady(
+  items: readonly ChecklistItem[],
+): boolean {
   return items.every((item) => item.ok);
 }

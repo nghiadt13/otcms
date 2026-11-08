@@ -10,6 +10,8 @@ import java.util.Optional;
 
 /** Public persistence use case for the auth-owned profile table. */
     public interface PatientProfileDirectory {
+    /** Internal owner projection; caller must authorize the requested profiles. */
+    java.util.List<ProfileRecord> findProfiles(java.util.Collection<UUID> profileIds);
     Page<ProfileRecord> search(String fullName, String canonicalPhone, Pageable pageable);
     ProfileRecord create(ProfileRecord profile, String phoneOwnerType);
 

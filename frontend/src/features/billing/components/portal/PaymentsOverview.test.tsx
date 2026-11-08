@@ -44,7 +44,7 @@ describe("PaymentsOverview", () => {
       ).toHaveLength(3),
     );
     expect(
-      screen.getByRole("combobox", { name: "Người khám" }),
+      await screen.findByRole("combobox", { name: "Người khám" }),
     ).toBeInTheDocument();
   });
 

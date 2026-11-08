@@ -114,7 +114,7 @@ describe("Ghi nhận khám (UC37)", () => {
   });
 });
 
-describe("Hoàn tất lượt khám (UC36)", () => {
+describe("Sẵn sàng phần khám (UC28 thuộc Lễ tân)", () => {
   function renderClosing(visitId: string) {
     render(
       <VisitWorkspaceProvider visitId={visitId}>
@@ -123,25 +123,27 @@ describe("Hoàn tất lượt khám (UC36)", () => {
     );
   }
 
-  it("còn chỉ định chưa xong thì nêu rõ chỉ định nào và khóa nút hoàn tất", async () => {
+  it("còn chỉ định chưa xong thì nêu rõ điều kiện thiếu; không có nút Doctor đóng lượt", async () => {
     renderClosing("demo-visit-3");
     expect(
       await screen.findByText(/1 chỉ định chưa xong: MRI khớp gối/),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: /Hoàn tất khám/ }),
-    ).toBeDisabled();
+      screen.queryByRole("button", { name: /Hoàn tất khám/ }),
+    ).not.toBeInTheDocument();
   });
 
-  it("lượt đã hoàn tất hiện phiếu kết quả và khóa nút hoàn tất", async () => {
+  it("lượt đã hoàn tất chỉ hiển thị trạng thái, không có lệnh đóng hoặc phiếu kết quả giả", async () => {
     renderClosing("demo-visit-4");
     expect(
       await screen.findByText("Lượt khám đã hoàn tất."),
     ).toBeInTheDocument();
-    expect(await screen.findByText("Phiên bản 1")).toBeInTheDocument();
+    expect(screen.queryByText("Phiên bản 1")).not.toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: /Hoàn tất khám/ }),
-    ).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Lưu sửa đổi" })).toBeDisabled(); // chưa có lý do
+      screen.queryByRole("button", { name: /Hoàn tất khám/ }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Lưu sửa đổi" }),
+    ).not.toBeInTheDocument();
   });
 });

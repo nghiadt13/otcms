@@ -67,6 +67,30 @@ class WalkInQueueT048MigrationPostgresIntegrationTest {
         }
     }
 
+    @Test
+    void uc28MigrationRequiresReceptionistForClosureAndKeepsDoctorCareStart() {
+        String schema = "uc28_queue_" + UUID.randomUUID().toString().replace("-", "");
+        jdbc.execute("create schema " + schema);
+        try {
+            flyway(schema, "102").migrate();
+            UUID receptionist = account(schema, "RECEPTIONIST"), doctor = account(schema, "DOCTOR");
+            UUID patient = UUID.randomUUID();
+            jdbc.update("insert into " + schema + ".patient_profiles "
+                    + "(id, account_id, full_name, phone_canonical, phone_owner_type, date_of_birth, gender) "
+                    + "values (?, null, 'UC28 Patient', ?, 'PATIENT', '1990-01-01', 'OTHER')",
+                    patient, "+848" + UUID.randomUUID().toString().replace("-", "").substring(0, 9));
+            UUID closed = visitWithQueue(schema, patient, receptionist);
+            assertThrows(DataAccessException.class, () -> exit(schema, closed, doctor, "VISIT_CLOSED"));
+            exit(schema, closed, receptionist, "VISIT_CLOSED");
+            assertHistory(schema, closed, receptionist, "VISIT_CLOSED");
+            UUID started = visitWithQueue(schema, patient, receptionist);
+            exit(schema, started, doctor, "CARE_STARTED");
+            assertHistory(schema, started, doctor, "CARE_STARTED");
+        } finally {
+            jdbc.execute("drop schema if exists " + schema + " cascade");
+        }
+    }
+
     private Flyway flyway(String schema, String target) {
         return Flyway.configure().dataSource(dataSource).schemas(schema).defaultSchema(schema)
                 .locations("classpath:db/migration").target(MigrationVersion.fromVersion(target)).load();

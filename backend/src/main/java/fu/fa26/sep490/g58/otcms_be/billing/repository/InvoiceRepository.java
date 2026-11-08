@@ -13,6 +13,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 public interface InvoiceRepository extends JpaRepository<InvoiceJpaEntity, UUID> {
+    Optional<InvoiceJpaEntity> findFirstByClinicalOrderingRoundId(UUID roundId);
     Optional<InvoiceJpaEntity> findFirstByVisitId(UUID visitId);
     Optional<InvoiceJpaEntity> findFirstByAppointmentId(UUID appointmentId);
     java.util.List<InvoiceJpaEntity> findAllByAppointmentIdIn(Collection<UUID> appointmentIds);

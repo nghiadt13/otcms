@@ -9,6 +9,9 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface DiagnosticFindingsVersionJpaRepository
         extends JpaRepository<DiagnosticFindingsVersionJpaEntity, UUID> {
+    List<DiagnosticFindingsVersionJpaEntity> findAllByRequestIdInAndState(
+            java.util.Collection<UUID> requestIds, DiagnosticFindingsVersionState state);
+
     List<DiagnosticFindingsVersionJpaEntity> findAllByRequestIdOrderByVersionNumberDesc(UUID requestId);
 
     Optional<DiagnosticFindingsVersionJpaEntity> findFirstByRequestIdOrderByVersionNumberDesc(UUID requestId);

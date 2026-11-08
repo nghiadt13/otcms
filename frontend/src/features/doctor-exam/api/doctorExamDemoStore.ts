@@ -219,13 +219,14 @@ export function createDemoVisits(): Record<string, DemoVisit> {
       },
       prescription: {
         status: "ISSUED",
-        note: "Uống sau ăn.",
+        id: "demo-rx-issued",
+        version: 2,
         issuedAt: at("08:45"),
         lines: [
           {
             medicine: "Calci + Vitamin D3",
-            strength: "500 mg/200 IU",
-            quantity: "60 viên",
+            dose: "1 viên",
+            frequency: "2 lần/ngày",
             usage: "Ngày uống 2 lần, mỗi lần 1 viên",
           },
         ],
@@ -385,16 +386,16 @@ export const DEMO_PAST_VISITS: PastVisit[] = [
     advice: "Nghỉ ngơi, tập giãn cơ lưng.",
     prescriptions: 1,
     imaging: ["X-quang cột sống thắt lưng: thoái hóa nhẹ L4–L5"],
-    laboratory: ["CRP 3.1 mg/L (bình thường)"],
+    laboratory: [],
   },
   {
     visitId: "past-2",
     visitDate: "2026-05-03",
-    status: "INCOMPLETE",
+    status: "COMPLETED",
     primaryDiagnosis: null,
     advice: null,
     prescriptions: 0,
-    imaging: ["Siêu âm khớp vai: chưa kết luận"],
+    imaging: [],
     laboratory: [],
   },
 ];

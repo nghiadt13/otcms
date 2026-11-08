@@ -36,6 +36,13 @@ public class WalkInVisitLifecycleRepository {
         return changed.intValue() == 1;
     }
 
+    public boolean closeOpenVisit(UUID visitId, java.time.Instant now) {
+        return entityManager.createNativeQuery("""
+                update visits set status = 'CLOSED', updated_at = :now
+                where id = :visitId and status = 'OPEN'
+                """).setParameter("visitId", visitId).setParameter("now", Timestamp.from(now)).executeUpdate() == 1;
+    }
+
     public void releaseReservedCare(UUID visitId, java.time.Instant now) {
         entityManager.createNativeQuery("""
                 update visit_assignments set status = 'RELEASED', released_at = :now

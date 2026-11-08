@@ -115,11 +115,11 @@ export function usePatientAppointments(patientProfileId: string) {
   );
 }
 
-export function usePastVisits(patientProfileId: string) {
+export function usePastVisits(currentVisitId: string) {
   return useAdminRemoteData(
     useCallback(
-      (signal) => getDoctorExamApi().listPastVisits(patientProfileId, signal),
-      [patientProfileId],
+      (signal) => getDoctorExamApi().listPastVisits(currentVisitId, signal),
+      [currentVisitId],
     ),
   );
 }

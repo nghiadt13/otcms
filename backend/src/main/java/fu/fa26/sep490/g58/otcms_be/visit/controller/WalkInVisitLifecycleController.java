@@ -32,7 +32,7 @@ public class WalkInVisitLifecycleController {
     }
 
     @PostMapping("/api/v1/visits/{visitId}/closure")
-    @PreAuthorize("hasAuthority('ROLE_DOCTOR')")
+    @PreAuthorize("hasAuthority('ROLE_RECEPTIONIST')")
     public ResponseEntity<Void> close(@PathVariable UUID visitId,
             @AuthenticationPrincipal AuthenticatedAccount account, HttpServletRequest request) {
         if (account == null) throw new VisitOperationException("ACCESS_DENIED");

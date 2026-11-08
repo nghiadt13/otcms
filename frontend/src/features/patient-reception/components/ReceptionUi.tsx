@@ -193,14 +193,17 @@ export function FormModal({
   onClose,
   children,
   wide,
+  busy = false,
 }: {
   title: string;
   description: string;
   onClose: () => void;
   children: ReactNode;
   wide?: boolean;
+  busy?: boolean;
 }) {
-  const { pending } = useReception();
+  const { pending: contextPending } = useReception();
+  const pending = busy || contextPending;
   return (
     <Dialog
       open

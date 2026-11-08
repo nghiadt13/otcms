@@ -11,5 +11,8 @@ public interface RoomReservationPort {
     RoomReservation reserveImagingCapacity(UUID requestId, UUID roomId, String imagingType,
             long expectedRoomVersion);
 
+    /** Owner must report a real reservation; a non-null request room is only queue assignment. */
+    boolean hasImagingCapacityReservation(UUID requestId);
+
     void releaseImagingCapacity(UUID requestId, String cause);
 }

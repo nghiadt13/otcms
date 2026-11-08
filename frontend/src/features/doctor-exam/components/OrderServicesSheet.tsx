@@ -62,6 +62,7 @@ export function OrderServicesSheet({
 }) {
   const [kind, setKind] = useState<ServiceKind>("IMAGING");
   const [query, setQuery] = useState("");
+  const [consent, setConsent] = useState(false);
   const [draft, setDraft] = useState<OrderDraft>({});
   const [errors, setErrors] = useState<DraftErrors>({});
   // Một khóa cho mỗi lần mở phiếu: gửi lại do mạng chập chờn không tạo thêm đợt (Idempotency-Key).
@@ -75,10 +76,13 @@ export function OrderServicesSheet({
     id: string,
     field: "clinicalReason" | "bodyArea" | "instructions",
     value: string,
-  ) => setDraft((cur) => ({ ...cur, [id]: { ...cur[id], [field]: value } }));
+  ) => {
+    setConsent(false);
+    setDraft((cur) => ({ ...cur, [id]: { ...cur[id], [field]: value } }));
+  };
 
   async function submit() {
-    if (selected.length === 0) return;
+    if (selected.length === 0 || !consent) return;
     const found = validateDraft(draft, catalog);
     setErrors(found);
     if (Object.keys(found).length) {
@@ -92,12 +96,14 @@ export function OrderServicesSheet({
           draftItems(draft, catalog),
           [...catalog],
           key.current,
+          consent,
         ),
-      "MSG-45",
+      "Đã gửi chỉ định cho lễ tân. Bệnh nhân vui lòng đến quầy để thanh toán.",
     );
     if (!created) return;
     onSubmitted(created);
     setDraft({});
+    setConsent(false);
     setErrors({});
     key.current = crypto.randomUUID();
     onOpenChange(false);
@@ -164,9 +170,10 @@ export function OrderServicesSheet({
                       >
                         <Checkbox
                           checked={checked}
-                          onCheckedChange={() =>
-                            setDraft((cur) => toggleService(cur, service.id))
-                          }
+                          onCheckedChange={() => {
+                            setConsent(false);
+                            setDraft((cur) => toggleService(cur, service.id));
+                          }}
                           aria-label={service.name}
                           className="mt-0.5"
                         />
@@ -262,6 +269,17 @@ export function OrderServicesSheet({
           </div>
         </div>
 
+        <label className="flex items-start gap-3 border-t p-4 text-sm">
+          <Checkbox
+            checked={consent}
+            onCheckedChange={(value) => setConsent(value === true)}
+            disabled={pending}
+          />
+          <span>
+            Tôi xác nhận đã thông báo các chỉ định cho bệnh nhân và bệnh nhân
+            đồng ý thực hiện.
+          </span>
+        </label>
         <SheetFooter className="border-t sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm text-muted-foreground">
             {selected.length} dịch vụ ·{" "}
@@ -279,7 +297,7 @@ export function OrderServicesSheet({
             </Button>
             <Button
               type="button"
-              disabled={pending || selected.length === 0}
+              disabled={pending || selected.length === 0 || !consent}
               onClick={() => void submit()}
             >
               {pending ? "Đang gửi..." : "Gửi chỉ định"}

@@ -286,9 +286,11 @@ class VisitCareCapacityT031PostgresIntegrationTest {
     }
 
     @Test
-    void doctorClosureMovesWaitingWalkInQueueEntryToHistory() throws Exception {
+    void receptionistClosureMovesWaitingWalkInQueueEntryToHistory() throws Exception {
+        jdbc.update("insert into clinical_examinations(id,visit_id,status,created_at,updated_at,version) values (?,?,'COMPLETED',?,?,0)",
+                UUID.randomUUID(), visit, Timestamp.from(NOW), Timestamp.from(NOW));
         mvc.perform(post("/api/v1/visits/{visitId}/closure", visit)
-                        .with(actor(doctorAccount, AccountRole.DOCTOR)).with(csrf())
+                        .with(actor(receptionist, AccountRole.RECEPTIONIST)).with(csrf())
                         .header("X-Correlation-ID", CORRELATION))
                 .andExpect(status().isNoContent());
         assertEquals("CLOSED", jdbc.queryForObject("select status from visits where id = ?", String.class, visit));
@@ -297,9 +299,9 @@ class VisitCareCapacityT031PostgresIntegrationTest {
         assertEquals(1, jdbc.queryForObject("select count(*) from walk_in_reception_queue_history h "
                 + "join walk_in_reception_queue_entries q on q.id = h.queue_entry_id "
                 + "where q.visit_id = ? and h.reason = 'VISIT_CLOSED' and h.actor_account_id = ?",
-                Integer.class, visit, doctorAccount));
+                Integer.class, visit, receptionist));
         assertEquals(1, jdbc.queryForObject("select count(*) from visit_audits where visit_id = ? "
-                + "and action = 'WALK_IN_CLOSED' and actor_account_id = ?", Integer.class, visit, doctorAccount));
+                + "and action = 'WALK_IN_CLOSED' and actor_account_id = ?", Integer.class, visit, receptionist));
     }
 
     @Test
@@ -318,11 +320,17 @@ class VisitCareCapacityT031PostgresIntegrationTest {
         assertEquals(1, jdbc.queryForObject("select count(*) from walk_in_reception_queue_history h "
                 + "join walk_in_reception_queue_entries q on q.id = h.queue_entry_id "
                 + "where q.visit_id = ? and h.reason = 'CARE_STARTED'", Integer.class, visit));
+        // UC28 closure is Receptionist-only; Doctor denial precedes business-state checks.
         mvc.perform(post("/api/v1/visits/{visitId}/closure", visit)
                         .with(actor(doctorAccount, AccountRole.DOCTOR)).with(csrf())
                         .header("X-Correlation-ID", CORRELATION))
+                .andExpect(status().isForbidden());
+        mvc.perform(post("/api/v1/visits/{visitId}/closure", visit)
+                        .with(actor(receptionist, AccountRole.RECEPTIONIST)).with(csrf())
+                        .header("X-Correlation-ID", CORRELATION))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.error.code").value("VISIT_CARE_NOT_CHANGEABLE"));
+        assertEquals("OPEN", jdbc.queryForObject("select status from visits where id = ?", String.class, visit));
     }
 
     @Test
