@@ -3,10 +3,11 @@ import { apiRequest } from "@/lib/api/client";
 export type AssignedImagingUploadWork = {
   requestId: string;
   attemptId: string | null;
+  currentStudyRef: string | null;
   visitId: string;
   imagingType: string;
   roomId: string;
-  status: "PENDING" | "IN_PROGRESS";
+  status: "PENDING" | "IN_PROGRESS" | "RESULT_AVAILABLE";
   version: number;
   createdAt: string;
   updatedAt: string;

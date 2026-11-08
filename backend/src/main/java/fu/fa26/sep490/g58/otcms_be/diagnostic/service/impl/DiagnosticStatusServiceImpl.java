@@ -3,6 +3,8 @@ package fu.fa26.sep490.g58.otcms_be.diagnostic.service.impl;
 import fu.fa26.sep490.g58.otcms_be.common.security.AccountRole;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.exception.DiagnosticOperationException;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.integration.DiagnosticPortModels.TechnicianRoomAssignment;
+import fu.fa26.sep490.g58.otcms_be.diagnostic.integration.DiagnosticPortModels.ClinicalImagingOrder;
+import fu.fa26.sep490.g58.otcms_be.diagnostic.integration.ClinicalImagingOrderPort;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.integration.DiagnosticPortModels.VisitStatusAuthorization;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.integration.DiagnosticPortModels.VisitStatusResponsibility;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.integration.RoomStatusAccessPort;
@@ -11,13 +13,16 @@ import fu.fa26.sep490.g58.otcms_be.diagnostic.integration.VisitDiagnosticReadPor
 import fu.fa26.sep490.g58.otcms_be.diagnostic.model.DiagnosticActor;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.model.DiagnosticAssignedUploadWorkItem;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.model.DiagnosticAssignedUploadWorkPage;
+import fu.fa26.sep490.g58.otcms_be.diagnostic.model.DiagnosticPatientIdentity;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.model.DiagnosticOperationalStatus;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.model.DiagnosticOperationalStatusPage;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.DiagnosticRequestJpaEntity;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.enums.DiagnosticOperationOutcome;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.enums.DiagnosticRequestStatus;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.repository.DiagnosticRequestJpaRepository;
+import fu.fa26.sep490.g58.otcms_be.diagnostic.repository.DiagnosticAttemptJpaRepository;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.service.DiagnosticStatusService;
+import fu.fa26.sep490.g58.otcms_be.patient.service.PatientClinicalIdentityQueryService;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -35,19 +40,29 @@ import org.springframework.transaction.annotation.Transactional;
 public class DiagnosticStatusServiceImpl implements DiagnosticStatusService {
     private static final int MAX_SIZE = 100;
     private static final int SCAN_SIZE = 100;
-    private static final List<DiagnosticRequestStatus> ACTIVE_UPLOAD_STATUSES =
-            List.of(DiagnosticRequestStatus.PENDING, DiagnosticRequestStatus.IN_PROGRESS);
+    private static final List<DiagnosticRequestStatus> TECHNICIAN_WORKLIST_STATUSES =
+            List.of(DiagnosticRequestStatus.PENDING, DiagnosticRequestStatus.IN_PROGRESS,
+                    DiagnosticRequestStatus.RESULT_AVAILABLE);
 
     private final DiagnosticRequestJpaRepository requests;
+    private final DiagnosticAttemptJpaRepository attempts;
     private final ObjectProvider<? extends VisitDiagnosticReadPort> visitPorts;
     private final ObjectProvider<RoomStatusAccessPort> roomPorts;
+    private final PatientClinicalIdentityQueryService patientIdentities;
+    private final ClinicalImagingOrderPort clinicalOrders;
 
     public DiagnosticStatusServiceImpl(DiagnosticRequestJpaRepository requests,
+            DiagnosticAttemptJpaRepository attempts,
             ObjectProvider<? extends VisitDiagnosticReadPort> visitPorts,
-            ObjectProvider<RoomStatusAccessPort> roomPorts) {
+            ObjectProvider<RoomStatusAccessPort> roomPorts,
+            PatientClinicalIdentityQueryService patientIdentities,
+            ClinicalImagingOrderPort clinicalOrders) {
         this.requests = Objects.requireNonNull(requests, "requests");
+        this.attempts = Objects.requireNonNull(attempts, "attempts");
         this.visitPorts = Objects.requireNonNull(visitPorts, "visitPorts");
         this.roomPorts = Objects.requireNonNull(roomPorts, "roomPorts");
+        this.patientIdentities = Objects.requireNonNull(patientIdentities, "patientIdentities");
+        this.clinicalOrders = Objects.requireNonNull(clinicalOrders, "clinicalOrders");
     }
 
     @Override
@@ -81,9 +96,9 @@ public class DiagnosticStatusServiceImpl implements DiagnosticStatusService {
         do {
             Pageable pageable = PageRequest.of(batchNumber++, SCAN_SIZE);
             batch = roomId == null
-                    ? requests.findAllByStatusInOrderByCreatedAtDescIdDesc(ACTIVE_UPLOAD_STATUSES, pageable)
+                    ? requests.findAllByStatusInOrderByCreatedAtDescIdDesc(TECHNICIAN_WORKLIST_STATUSES, pageable)
                     : requests.findAllByRoomIdAndStatusInOrderByCreatedAtDescIdDesc(
-                            roomId, ACTIVE_UPLOAD_STATUSES, pageable);
+                            roomId, TECHNICIAN_WORKLIST_STATUSES, pageable);
             for (DiagnosticRequestJpaEntity request : batch.getContent()) {
                 if (request.getRoomId() == null) continue;
                 boolean assigned = roomAssignments.computeIfAbsent(request.getRoomId(), ignored -> {
@@ -96,7 +111,27 @@ public class DiagnosticStatusServiceImpl implements DiagnosticStatusService {
                 authorizedCount++;
             }
         } while (batch.hasNext());
-        return new DiagnosticAssignedUploadWorkPage(selected, page, size, authorizedCount);
+        if (selected.isEmpty()) return new DiagnosticAssignedUploadWorkPage(selected, page, size, authorizedCount);
+        var identities = patientIdentities.findClinicalIdentities(
+                selected.stream().map(DiagnosticAssignedUploadWorkItem::patientProfileId).distinct().toList());
+        List<DiagnosticAssignedUploadWorkItem> enriched = selected.stream().map(item -> {
+            var identity = identities.get(item.patientProfileId());
+            if (identity == null || !item.patientProfileId().equals(identity.patientProfileId())) throw unavailable();
+            ClinicalImagingOrder clinicalOrder = item.serviceOrderId() == null
+                    ? null : clinicalOrders.requireOpenImagingOrder(item.serviceOrderId());
+            String serviceName = clinicalOrder != null
+                    && item.serviceId().equals(clinicalOrder.serviceId()) ? clinicalOrder.serviceName() : null;
+            String instructions = clinicalOrder != null
+                    && item.serviceId().equals(clinicalOrder.serviceId()) ? clinicalOrder.instructions() : null;
+            return new DiagnosticAssignedUploadWorkItem(item.requestId(), item.attemptId(), item.visitId(),
+                    item.patientProfileId(), new DiagnosticPatientIdentity(identity.patientProfileId(),
+                            identity.fullName(), identity.dateOfBirth(), identity.gender()),
+                    item.serviceOrderId(), item.currentStudyRef(), item.serviceId(), serviceName, instructions,
+                    item.imagingType(), item.bodyArea(), item.clinicalReason(), item.roomId(), item.status(),
+                    item.version(), item.createdAt(),
+                    item.updatedAt());
+        }).toList();
+        return new DiagnosticAssignedUploadWorkPage(enriched, page, size, authorizedCount);
     }
 
     @Override
@@ -106,7 +141,7 @@ public class DiagnosticStatusServiceImpl implements DiagnosticStatusService {
         if (actor == null || actor.kind() != DiagnosticActor.Kind.USER) throw unavailable();
         if (actor.role() == AccountRole.IMAGING_TECHNICIAN) {
             if (request.getRoomId() == null) throw unavailable();
-            if (!ACTIVE_UPLOAD_STATUSES.contains(request.getStatus())) throw unavailable();
+            if (!TECHNICIAN_WORKLIST_STATUSES.contains(request.getStatus())) throw unavailable();
             TechnicianRoomAssignment assignment = authorizeRoom(request.getRoomId(), actor.accountId());
             if (!assignment.active() || !request.getRoomId().equals(assignment.roomId())
                     || !actor.accountId().equals(assignment.actorId())) throw unavailable();
@@ -180,9 +215,15 @@ public class DiagnosticStatusServiceImpl implements DiagnosticStatusService {
     }
 
     private DiagnosticAssignedUploadWorkItem toAssignedUploadWork(DiagnosticRequestJpaEntity request) {
+        String studyRef = request.getCurrentAttemptId() == null ? null
+                : attempts.findByRequestIdAndId(request.getId(), request.getCurrentAttemptId())
+                        .map(fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.DiagnosticAttemptJpaEntity::getStudyRef)
+                        .orElse(null);
         return new DiagnosticAssignedUploadWorkItem(request.getId(), request.getCurrentAttemptId(),
-                request.getVisitId(), request.getImagingType(), request.getRoomId(), request.getStatus(),
-                request.getVersion(), request.getCreatedAt(), request.getUpdatedAt());
+                request.getVisitId(), request.getPatientId(), null, request.getServiceOrderId(),
+                studyRef, request.getServiceId(), null, null, request.getImagingType(), request.getBodyArea(),
+                request.getClinicalReason(), request.getRoomId(),
+                request.getStatus(), request.getVersion(), request.getCreatedAt(), request.getUpdatedAt());
     }
 
     private DiagnosticOperationException unavailable() {

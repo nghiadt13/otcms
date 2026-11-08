@@ -63,4 +63,20 @@ class ImagingViewerGrantControllerTest {
 
         verifyNoInteractions(grants);
     }
+
+    @Test
+    void assignedTechnicianMayRequestOnlyAssignedStudyPurpose() {
+        UUID actorId = UUID.randomUUID();
+        when(grants.issue(actorId, "study-1", "TECHNICIAN_ASSIGNED", "unknown"))
+                .thenReturn(new ImagingViewerGrantService.IssuedGrant("OTCMS_VIEW_GRANT_abc", "opaque-token",
+                        Instant.now().plusSeconds(120), "1.2.826.0.1.3680043.8.498.123"));
+
+        var response = new ImagingViewerGrantController(grants).issue("study-1",
+                new ImagingViewerGrantController.ViewerGrantRequest("TECHNICIAN_ASSIGNED"),
+                new AuthenticatedAccount(actorId, AccountRole.IMAGING_TECHNICIAN, UUID.randomUUID()),
+                new MockHttpServletRequest());
+
+        assertEquals(201, response.getStatusCode().value());
+        verify(grants).issue(actorId, "study-1", "TECHNICIAN_ASSIGNED", "unknown");
+    }
 }

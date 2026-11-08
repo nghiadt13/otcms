@@ -9,6 +9,7 @@ import { listAssignedImagingUploadWork } from "../api/imagingIngestApi";
 import { Empty } from "./Empty";
 import { PageHeading } from "./PageHeading";
 import { Panel } from "./Panel";
+import { ImagingViewerLauncher } from "./ImagingViewerLauncher";
 
 export function AssignedUploadWorkScreen() {
   const [items, setItems] = useState<AssignedImagingUploadWork[]>([]);
@@ -86,7 +87,12 @@ export function AssignedUploadWorkScreen() {
                         : "Chờ xác nhận bắt đầu chụp"}
                     </td>
                     <td className="p-3">
-                      {item.attemptId ? (
+                      {item.status === "RESULT_AVAILABLE" && item.currentStudyRef ? (
+                        <ImagingViewerLauncher
+                          studyRef={item.currentStudyRef}
+                          purpose="TECHNICIAN_ASSIGNED"
+                        />
+                      ) : item.attemptId ? (
                         <Link
                           className="text-primary underline underline-offset-4"
                           href={`/imaging/orders/${encodeURIComponent(item.requestId)}/upload`}

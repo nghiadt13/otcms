@@ -1,7 +1,7 @@
 "use client";
 
 import { ExternalLink } from "lucide-react";
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { FieldError } from "@/components/admin/FieldError";
 import { Button } from "@/components/ui/button";
 import {
@@ -15,9 +15,10 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { messageFromError } from "@/lib/messages/appMessages";
+import { createDoctorImagingViewerLink } from "../api/doctorImagingViewerApi";
 import { getDoctorExamApi } from "../api/doctorExamApi";
 import { useAsyncAction } from "../hooks/useAsyncAction";
-import { viewerUrl } from "../schema/viewerUrl";
 import type { ImagingResult, ParaclinicalOrder } from "../types/doctorExam";
 
 // Xem ảnh DICOM (UC49) và ghi kết luận hình ảnh (UC50). Lưu nháp: chưa hiện cho bệnh nhân.
@@ -62,10 +63,42 @@ function FindingsBody({
   const [content, setContent] = useState(imaging?.findingsText ?? "");
   const [report, setReport] = useState<File | null>(null);
   const [error, setError] = useState<string>();
+  const [viewerPath, setViewerPath] = useState<string | null>(null);
+  const [viewerExpiry, setViewerExpiry] = useState<string | null>(null);
+  const [viewerBusy, setViewerBusy] = useState(false);
+  const [viewerError, setViewerError] = useState<string | null>(null);
+  const viewerGrantRequestRef = useRef<Promise<void> | null>(null);
   const { pending, run } = useAsyncAction();
   const done = imaging?.findingsCompleted ?? false;
-  const url = viewerUrl(imaging?.studyRef ?? null);
   const needsPdf = api.capabilities.findingsReportPdfRequired;
+
+  const openViewer = useCallback(() => {
+    if (!imaging?.studyRef) return Promise.resolve();
+    if (viewerGrantRequestRef.current) return viewerGrantRequestRef.current;
+
+    setViewerBusy(true);
+    setViewerError(null);
+    setViewerPath(null);
+    const request = createDoctorImagingViewerLink(imaging.studyRef)
+      .then((grant) => {
+        setViewerPath(grant.url);
+        setViewerExpiry(grant.expiresAt);
+      })
+      .catch((cause: unknown) => {
+        setViewerError(messageFromError(cause));
+      });
+    viewerGrantRequestRef.current = request;
+    void request.finally(() => {
+      if (viewerGrantRequestRef.current === request)
+        viewerGrantRequestRef.current = null;
+      setViewerBusy(false);
+    });
+    return request;
+  }, [imaging?.studyRef]);
+
+  useEffect(() => {
+    if (imaging?.studyRef) void openViewer();
+  }, [imaging?.studyRef, openViewer]);
 
   async function save(complete: boolean) {
     if (complete && !content.trim()) return setError("Nhập kết luận hình ảnh.");
@@ -95,23 +128,44 @@ function FindingsBody({
       </DialogHeader>
       <div className="space-y-4">
         <div className="flex flex-wrap items-center gap-3 rounded-md border bg-secondary/40 p-3">
-          {url ? (
+          {imaging?.studyRef ? (
+            viewerBusy ? (
+              <p role="status" className="text-sm text-muted-foreground">
+                Đang xác thực quyền xem ảnh DICOM…
+              </p>
+            ) : viewerError ? (
+              <div className="flex flex-wrap items-center gap-3">
+                <p role="alert" className="text-sm text-destructive">
+                  {viewerError}
+                </p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => void openViewer()}
+                >
+                  Thử cấp quyền lại
+                </Button>
+              </div>
+            ) : null
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              Chưa có study được liên kết với chỉ định.
+            </p>
+          )}
+          {viewerPath ? (
             <a
-              href={url}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center gap-1.5 text-sm font-medium text-primary underline-offset-4 hover:underline"
+              href={viewerPath}
+              className="text-sm font-medium text-primary underline underline-offset-4"
             >
               <ExternalLink aria-hidden className="size-4" />
               Mở ảnh DICOM trong trình xem
             </a>
-          ) : (
-            <p className="text-sm text-muted-foreground">
-              {imaging?.studyRef
-                ? "Chưa cấu hình trình xem ảnh DICOM (NEXT_PUBLIC_OHIF_DEV_URL)."
-                : "Chưa có ca chụp để xem."}
+          ) : null}
+          {viewerExpiry ? (
+            <p className="w-full text-xs text-muted-foreground">
+              Grant xem ảnh hết hạn lúc {viewerExpiry}.
             </p>
-          )}
+          ) : null}
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="findings-text">Kết luận hình ảnh</Label>

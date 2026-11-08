@@ -4,7 +4,10 @@ import fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.enums.DiagnosticReque
 import java.time.Instant;
 import java.util.UUID;
 
-/** Minimal request/attempt projection for the currently assigned imaging technician. */
+/** Request, attempt, and minimal patient identity for the currently assigned imaging technician. */
 public record DiagnosticAssignedUploadWorkItem(UUID requestId, UUID attemptId, UUID visitId,
-        String imagingType, UUID roomId, DiagnosticRequestStatus status, long version,
+        UUID patientProfileId, DiagnosticPatientIdentity patient, UUID serviceOrderId, String currentStudyRef,
+        UUID serviceId, String serviceName, String technicianInstructions, String imagingType,
+        String bodyArea, String clinicalReason, UUID roomId,
+        DiagnosticRequestStatus status, long version,
         Instant createdAt, Instant updatedAt) { }

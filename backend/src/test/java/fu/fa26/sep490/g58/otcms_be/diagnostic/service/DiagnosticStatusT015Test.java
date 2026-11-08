@@ -11,6 +11,7 @@ import static org.mockito.Mockito.when;
 import fu.fa26.sep490.g58.otcms_be.common.security.AccountRole;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.exception.DiagnosticOperationException;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.integration.DiagnosticPortModels.TechnicianRoomAssignment;
+import fu.fa26.sep490.g58.otcms_be.diagnostic.integration.ClinicalImagingOrderPort;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.integration.DiagnosticPortModels.VisitStatusAuthorization;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.integration.DiagnosticPortModels.VisitStatusResponsibility;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.integration.RoomStatusAccessPort;
@@ -19,9 +20,14 @@ import fu.fa26.sep490.g58.otcms_be.diagnostic.model.DiagnosticActor;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.DiagnosticRequestJpaEntity;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.enums.DiagnosticRequestStatus;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.repository.DiagnosticRequestJpaRepository;
+import fu.fa26.sep490.g58.otcms_be.diagnostic.repository.DiagnosticAttemptJpaRepository;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.service.impl.DiagnosticStatusServiceImpl;
+import fu.fa26.sep490.g58.otcms_be.patient.service.PatientClinicalIdentityQueryService;
+import java.time.LocalDate;
 import java.time.Instant;
+import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -31,16 +37,26 @@ import org.springframework.data.domain.PageRequest;
 
 class DiagnosticStatusT015Test {
     private final DiagnosticRequestJpaRepository requests = mock(DiagnosticRequestJpaRepository.class);
+    private final DiagnosticAttemptJpaRepository attempts = mock(DiagnosticAttemptJpaRepository.class);
     private final ObjectProvider<VisitDiagnosticPort> visitPorts = mock(ObjectProvider.class);
     private final ObjectProvider<RoomStatusAccessPort> roomPorts = mock(ObjectProvider.class);
     private final VisitDiagnosticPort visitPort = mock(VisitDiagnosticPort.class);
     private final RoomStatusAccessPort roomPort = mock(RoomStatusAccessPort.class);
-    private final DiagnosticStatusServiceImpl service = new DiagnosticStatusServiceImpl(requests, visitPorts, roomPorts);
+    private final PatientClinicalIdentityQueryService patientIdentities = mock(PatientClinicalIdentityQueryService.class);
+    private final ClinicalImagingOrderPort clinicalOrders = mock(ClinicalImagingOrderPort.class);
+    private final DiagnosticStatusServiceImpl service = new DiagnosticStatusServiceImpl(
+            requests, attempts, visitPorts, roomPorts, patientIdentities, clinicalOrders);
 
     @BeforeEach
     void configurePorts() {
         when(visitPorts.getIfAvailable()).thenReturn(visitPort);
         when(roomPorts.getIfAvailable()).thenReturn(roomPort);
+        when(patientIdentities.findClinicalIdentities(any())).thenAnswer(invocation -> {
+            Collection<UUID> ids = invocation.getArgument(0);
+            return ids.stream().collect(java.util.stream.Collectors.toMap(
+                    id -> id, id -> new PatientClinicalIdentityQueryService.ClinicalIdentity(
+                            id, "Bệnh nhân kiểm thử", LocalDate.of(1990, 1, 1), "FEMALE")));
+        });
     }
 
     @Test

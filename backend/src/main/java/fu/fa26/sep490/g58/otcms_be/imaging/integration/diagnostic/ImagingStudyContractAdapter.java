@@ -68,14 +68,17 @@ public class ImagingStudyContractAdapter implements ImagingStudyPort {
             throw new ImagingOperationException(ImagingOperationOutcome.EVIDENCE_MISMATCH);
         }
         if (!study.getRequestId().equals(requestId) || !study.getVisitId().equals(visitId)
-                || !study.getPatientId().equals(patientId) || !study.getAttemptId().equals(attemptId)
+                || !study.getPatientId().equals(patientId)
                 || !"CONFIRMED_MATCH".equals(study.getVerificationStatus())) {
             throw new ImagingOperationException(ImagingOperationOutcome.EVIDENCE_MISMATCH);
         }
-        var operation = operations.findById(study.getIngestOperationId())
+        var operation = operations.findById(outbox.getOperationId())
                 .orElseThrow(() -> new ImagingOperationException(ImagingOperationOutcome.RECONCILIATION_REQUIRED));
         var record = operation.toModel();
-        if (!record.verificationEvidence().equals(verificationEvidence)
+        if (!record.id().equals(outbox.getOperationId()) || !record.requestId().equals(requestId)
+                || !record.attemptId().equals(attemptId) || !record.visitId().equals(visitId)
+                || !record.patientId().equals(patientId) || !studyRef.equals(record.studyRef())
+                || !record.verificationEvidence().equals(verificationEvidence)
                 || record.state() == fu.fa26.sep490.g58.otcms_be.imaging.model.entity.enums.ImagingOperationState.QUARANTINED) {
             throw new ImagingOperationException(ImagingOperationOutcome.EVIDENCE_MISMATCH);
         }
@@ -88,6 +91,7 @@ public class ImagingStudyContractAdapter implements ImagingStudyPort {
         AccountRole role = switch (purpose == null ? "" : purpose) {
             case "DOCTOR_REVIEW" -> AccountRole.DOCTOR;
             case "PATIENT_VIEW" -> AccountRole.PATIENT;
+            case "TECHNICIAN_ASSIGNED" -> AccountRole.IMAGING_TECHNICIAN;
             default -> null;
         };
         if (role == null) return new ViewAuthorization(false, null, null);

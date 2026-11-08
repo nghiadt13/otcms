@@ -55,6 +55,18 @@ public class StaffShiftAdminService {
                 staffId, staffId, role, role, roomId, roomId);
     }
 
+    public boolean isActiveImagingTechnicianAssignedToRoom(UUID accountId, UUID roomId, Instant at) {
+        if (accountId == null || roomId == null || at == null) return false;
+        Integer count = jdbc.queryForObject("""
+                SELECT count(*) FROM staff_work_shifts s
+                JOIN staff_profiles p ON p.id = s.staff_profile_id
+                JOIN accounts a ON a.id = p.account_id
+                WHERE a.id = ? AND a.account_type = 'IMAGING_TECHNICIAN'
+                  AND a.status = 'ACTIVE' AND p.status = 'ACTIVE' AND s.room_id = ?
+                  AND s.starts_at <= ? AND s.ends_at > ?
+                """, Integer.class, accountId, roomId, Timestamp.from(at), Timestamp.from(at));
+        return count != null && count == 1;
+    }
     @Transactional(readOnly = true)
     public List<StaffShiftStaffOption> staffOptions() {
         return accounts.activeStaff().stream().map(account -> {

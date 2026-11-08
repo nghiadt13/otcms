@@ -7,6 +7,7 @@ import fu.fa26.sep490.g58.otcms_be.imaging.exception.ImagingOperationException;
 import fu.fa26.sep490.g58.otcms_be.imaging.exception.ImagingOperationOutcome;
 import fu.fa26.sep490.g58.otcms_be.imaging.service.impl.ImagingViewerGrantService;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.Pattern;
 import java.time.Duration;
 import java.time.Instant;
@@ -32,14 +33,17 @@ public class ImagingViewerGrantController {
     public ImagingViewerGrantController(ImagingViewerGrantService grants) { this.grants = grants; }
 
     @PostMapping("/{studyRef}/viewer-grants")
-    @PreAuthorize("hasAnyAuthority('ROLE_DOCTOR', 'ROLE_PATIENT')")
+    @PreAuthorize("hasAnyAuthority('ROLE_DOCTOR', 'ROLE_PATIENT', 'ROLE_IMAGING_TECHNICIAN')")
     public ResponseEntity<ViewerGrantResponse> issue(@PathVariable @Pattern(regexp = "[A-Za-z0-9_-]{1,128}")
-            String studyRef, @RequestBody ViewerGrantRequest request,
+            String studyRef, @Valid @RequestBody ViewerGrantRequest request,
             @AuthenticationPrincipal AuthenticatedAccount account, HttpServletRequest servletRequest) {
         if (account == null || request == null
                 || (account.accountRole() == AccountRole.DOCTOR && !"DOCTOR_REVIEW".equals(request.purpose()))
                 || (account.accountRole() == AccountRole.PATIENT && !"PATIENT_VIEW".equals(request.purpose()))
-                || (account.accountRole() != AccountRole.DOCTOR && account.accountRole() != AccountRole.PATIENT)) {
+                || (account.accountRole() == AccountRole.IMAGING_TECHNICIAN
+                        && !"TECHNICIAN_ASSIGNED".equals(request.purpose()))
+                || (account.accountRole() != AccountRole.DOCTOR && account.accountRole() != AccountRole.PATIENT
+                        && account.accountRole() != AccountRole.IMAGING_TECHNICIAN)) {
             throw new ImagingOperationException(ImagingOperationOutcome.UNAUTHORIZED_RECORD);
         }
         String correlationId = CorrelationIdFilter.current(servletRequest);
@@ -54,6 +58,7 @@ public class ImagingViewerGrantController {
                 .body(new ViewerGrantResponse(grant.expiresAt(), grant.studyInstanceUid()));
     }
 
-    public record ViewerGrantRequest(@Pattern(regexp = "DOCTOR_REVIEW|PATIENT_VIEW") String purpose) { }
+    public record ViewerGrantRequest(@Pattern(regexp = "DOCTOR_REVIEW|PATIENT_VIEW|TECHNICIAN_ASSIGNED")
+            String purpose) { }
     public record ViewerGrantResponse(Instant expiresAt, String studyInstanceUid) { }
 }
