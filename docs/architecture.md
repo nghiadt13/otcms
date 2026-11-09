@@ -44,6 +44,102 @@ Backend tự xác thực danh tính (email + mật khẩu băm bcrypt trong bả
 
 Khu Chủ phòng khám dùng root layout `(owner)` và `/owner/accounts`, giao diện khung ở `features/owner-shell`, nghiệp vụ ở `features/owner-administrators`. Hai feature được ghép tại route layout, không import lẫn nhau. OWNER được điều hướng vào khu này sau đăng nhập. Chi tiết UC07–UC09 đối chiếu SRS (4) và giới hạn tích hợp: [owner-administrator-frontend.md](owner-administrator-frontend.md).
 
+## Appointment: giữ giờ chờ thanh toán (migration V106)
+
+Kế hoạch gốc: `plans/261108-2017-booking-payment-hold-awaiting-payment/`. Tài liệu này ghi kiến trúc đã chốt; hợp đồng API ở [`fe-be-api-contract-patient-reception.md`](fe-be-api-contract-patient-reception.md) (mục "Giữ giờ chờ thanh toán"), cột/ràng buộc ở [`otcms-schema-design.md`](otcms-schema-design.md).
+
+**Khi nào áp dụng.** Đặt lịch online (`booking_source = PATIENT_ONLINE`) với dịch vụ giá > 0 tạo lịch ở trạng thái kỹ thuật `AWAITING_PAYMENT`, giữ giờ đến `payment_deadline = now + 15 phút`. Chỉ khi thanh toán PayOS xong lịch mới thành `CONFIRMED`. Lễ tân đặt hộ, bác sĩ tái khám, dịch vụ giá 0 → `CONFIRMED` ngay, không qua hold. Đặt online có phí phải cách giờ khám ít nhất 15 phút (lỗi `BOOKING_TOO_SOON`).
+
+### Vòng đời trạng thái
+
+```plantuml
+@startuml
+hide empty description
+[*] --> AWAITING_PAYMENT : đặt online, giá > 0
+[*] --> CONFIRMED : lễ tân đặt hộ / tái khám / giá 0
+AWAITING_PAYMENT --> CONFIRMED : PayOS thanh toán xong
+AWAITING_PAYMENT --> PAYMENT_EXPIRED : hết 15' / rời trang / Hủy / đặt lịch mới
+CONFIRMED --> CHECKED_IN
+CONFIRMED --> CANCELLED
+CONFIRMED --> NO_SHOW
+PAYMENT_EXPIRED --> [*]
+note right of AWAITING_PAYMENT
+  Chiếm slot (EXCLUDE) khi chưa quá hạn.
+  Không hiện ở mọi danh sách và báo cáo.
+end note
+note right of PAYMENT_EXPIRED
+  Nhả giờ. Không phải "Cancelled" của R3.
+end note
+@enduml
+```
+
+Các trạng thái sau `CONFIRMED` không đổi (`CHECKED_IN`, `CANCELLED`, `NO_SHOW`, ...). `AWAITING_PAYMENT` và `PAYMENT_EXPIRED` là trạng thái kỹ thuật: không bệnh nhân, bác sĩ, lễ tân, admin nào thấy ở danh sách hay báo cáo; chủ lịch chỉ đọc qua `GET /api/v1/appointments/{id}` (màn thanh toán, bước 5). Nhắc lịch, check-in, đổi lịch/đổi bác sĩ, vắng mặt chỉ nhận `CONFIRMED`; báo cáo loại cả hai trạng thái; màn Payment Items không liệt kê khoản của lịch đang giữ.
+
+### Chiếm slot
+
+Ràng buộc `ex_appointments_doctor_occupied_range` (V013, mở rộng ở V106) tính cả `AWAITING_PAYMENT`; `PAYMENT_EXPIRED` không tính nên nhả giờ. EXCLUDE không dùng `now()`, nên truy vấn occupancy bỏ qua `AWAITING_PAYMENT` đã quá `payment_deadline`, và lúc tạo lịch BE hủy lười mọi hold quá hạn trùng bác sĩ và khoảng giờ trước khi insert.
+
+### Các đường nhả hold
+
+Xếp từ chắc đến yếu:
+
+| # | Đường | Ghi chú |
+| --- | --- | --- |
+| 1 | FE khu bệnh nhân mount (tải trang, reload, đăng nhập lại) gọi `POST /api/v1/appointments/pending-hold/cancel` | Chắc nhất; idempotent, có CSRF |
+| 2 | Rời trang trong app (link, Back) | Hộp thoại xác nhận; đồng ý thì hủy |
+| 3 | Đóng tab | `fetch keepalive` lúc `pagehide`, best-effort (cần CSRF nên không dùng `sendBeacon`) |
+| 4 | Hết hạn | Sweeper theo `payment_deadline`: lưới an toàn cuối |
+| 5 | Tạo lịch mới | Tự hủy mọi hold sống của cùng tài khoản trong cùng transaction → tối đa 1 hold/tài khoản |
+
+Bấm "Hủy" hoặc "Quay lại" ở bước 5, và đăng xuất, cũng là hủy thanh toán (`POST /api/v1/appointments/{id}/cancel` hủy được `AWAITING_PAYMENT`, không áp `APPOINTMENT_CHANGE_TOO_LATE`).
+
+Mọi đường đều qua `settleExpiredAppointment(force)` của billing:
+
+```plantuml
+@startuml
+participant "Đường hủy\n(FE / sweeper / tạo lịch mới)" as Src
+participant Billing
+participant PayOS
+participant Appointment
+
+Src -> Billing : settleExpiredAppointment(force)
+Billing -> Billing : khóa hóa đơn (nếu có)
+Billing -> PayOS : query() trạng thái giao dịch
+alt PAID
+  Billing -> Appointment : confirmPaid -> CONFIRMED
+  Billing --> Src : alreadyPaid = true
+else chưa trả / hết hạn / không có hóa đơn
+  Billing -> Billing : hóa đơn -> VOID
+  Billing -> Appointment : -> PAYMENT_EXPIRED (audit)
+  Billing --> Src : cancelledCount
+end
+@enduml
+```
+
+Sweeper (`ExpireUnpaidAppointmentsJob`) chọn `AWAITING_PAYMENT` quá hạn theo lô (index `ix_appointments_awaiting_deadline`), mỗi lịch một transaction; lỗi một lịch không dừng cả lô. Audit hủy tự động dùng `actor_type = 'SYSTEM'`.
+
+### Cấu hình
+
+| Key (`appointment.booking.*`) | Biến môi trường | Ý nghĩa |
+| --- | --- | --- |
+| `payment-hold-minutes` | `APPOINTMENT_BOOKING_PAYMENT_HOLD_MINUTES` | Thời gian giữ giờ (15) |
+| `payment-hold-sweep-ms` | `APPOINTMENT_BOOKING_PAYMENT_HOLD_SWEEP_MS` | Chu kỳ quét của sweeper |
+| `payment-hold-sweep-enabled` | – | Tắt sweeper khi rollback nhanh |
+
+### Thanh toán và trả muộn
+
+- Hạn QR PayOS = `min(now + TTL link, payment_deadline)`.
+- Hóa đơn `VOID` thì `createOnlineAttempt` ném `INVOICE_NOT_PAYABLE`: không tạo được QR mới.
+- Tiền về sau khi hóa đơn `VOID` hoặc hold đã hết (chuyển khoản trễ): webhook/đối soát **không** lật `VOID` thành `PAID`, đánh `RECONCILIATION_REQUIRED` (R3 NF-06, lễ tân đối soát tại quầy), **không** tự hoàn tiền (BR-53 giữ nguyên). Webhook luôn trả 2xx và không ném lỗi ra ngoài.
+- Thứ tự khóa (tránh deadlock): **hóa đơn trước, lịch sau**, ở webhook, sweeper và hủy.
+- Giá quyết định hold lấy lúc tạo lịch, giá chốt trên hóa đơn (`invoice_items.unit_price_snapshot`) lấy lúc tạo hóa đơn ở bước 5; chấp nhận lệch vài giây.
+
+### Rollout và rollback
+
+- Rollout: BE và FE triển khai cùng lúc.
+- Tắt nhanh: `payment-hold-sweep-enabled=false` hoặc tăng `payment-hold-minutes`.
+- Gỡ hẳn: chuyển mọi `AWAITING_PAYMENT` sang `CANCELLED` và `VOID` hóa đơn tương ứng, rồi migration V107 gỡ hai giá trị khỏi CHECK/EXCLUDE và revert code. Migration V106 không tự đảo được.
+
 ## Frontend
 
 ```text
@@ -82,7 +178,7 @@ frontend/src/
 │   ├── notifications/                   thông báo: chuông + Sheet admin, chuông + trang /portal/notifications (UC63), api giả
 │   ├── appointments/                    lịch hẹn: admin (danh sách, chuyển bác sĩ); booking* lõi đặt lịch dùng chung (BookingFlow, bookingMockStore là kho lịch chung); components/portal (lịch hẹn bệnh nhân)
 │   ├── patient-reception/               khu Lễ tân /reception (xem docs/receptionist-ui.md): ReceptionShell (cùng khung admin qua components/shell) + ReceptionAccountMenu + navigation.ts (menu), các màn hồ sơ/lịch hẹn/tiếp nhận/hàng đợi/thu phí/tra cứu; api/receptionApi.ts là adapter lệnh giả (lỗi mang mã MSG), schema/receptionMessages.ts ánh xạ lệnh → MSG thành công
-│   ├── billing/                         thanh toán: admin (lịch sử, khoản chưa trả); components/portal (khoản cần trả, VNPay, kết quả, lịch sử, phiếu thu)
+│   ├── billing/                         thanh toán: admin (lịch sử, khoản chưa trả); components/portal (khoản cần trả, PayOS, kết quả, lịch sử, phiếu thu)
 │   ├── medical-records/                 kết quả khám khu bệnh nhân (UC41): danh sách, chi tiết theo visibleBlocks
 │   ├── prescriptions/                   đơn thuốc khu bệnh nhân (UC44): danh sách, tài liệu đơn, in
 │   ├── imaging/                         màn kỹ thuật viên (components/hooks/api/schema/types/styles) và ảnh chụp khu bệnh nhân (UC51)

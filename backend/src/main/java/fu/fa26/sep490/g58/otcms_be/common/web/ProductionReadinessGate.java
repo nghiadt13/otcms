@@ -85,7 +85,8 @@ public final class ProductionReadinessGate {
                 || path.startsWith("/api/v1/admin/visit-rooms/") || path.equals("/api/v1/admin/visit-rooms")
                 || path.matches("/api/v1/visits/[^/]+/care-assignments(?:/[^/]+/(?:extensions|completion))?")
                 || path.matches("/api/v1/visits/[^/]+/follow-up-appointments")
-                || path.matches("/api/v1/appointments/[^/]+/(?:status|check-in|reassign|cancel|reschedule)");
+                // pending-hold/cancel only releases a payment hold (frees capacity), so it is never gated.
+                || path.matches("/api/v1/appointments/(?!pending-hold/)[^/]+/(?:status|check-in|reassign|cancel|reschedule)");
     }
 
     private static String text(JsonNode node, String field) {

@@ -78,6 +78,7 @@ app:
       return-url: ${APP_PAYMENT_PAYOS_RETURN_URL:http://localhost:3000/portal/payments/result}
       cancel-url: ${APP_PAYMENT_PAYOS_CANCEL_URL:http://localhost:3000/portal/payments/result}
       link-ttl-seconds: ${APP_PAYMENT_PAYOS_LINK_TTL_SECONDS:900}
+      timeout-ms: ${APP_PAYMENT_PAYOS_TIMEOUT_MS:5000}
   auth:
     password-reset-url: ${APP_AUTH_PASSWORD_RESET_URL:http://localhost:3000/reset-password}
     rate-limit-hmac-secret: ${APP_AUTH_RATE_LIMIT_HMAC_SECRET:}
@@ -109,6 +110,9 @@ appointment:
     check-in-late-grace-minutes: ${APPOINTMENT_BOOKING_CHECK_IN_LATE_GRACE_MINUTES:15}
     slot-interval-minutes: ${APPOINTMENT_BOOKING_SLOT_INTERVAL_MINUTES:15}
     clinic-time-zone: ${APPOINTMENT_BOOKING_CLINIC_TIME_ZONE:Asia/Ho_Chi_Minh}
+    payment-hold-minutes: ${APPOINTMENT_BOOKING_PAYMENT_HOLD_MINUTES:15}
+    payment-hold-sweep-ms: ${APPOINTMENT_BOOKING_PAYMENT_HOLD_SWEEP_MS:30000}
+    payment-hold-sweep-enabled: ${APPOINTMENT_BOOKING_PAYMENT_HOLD_SWEEP_ENABLED:true}
     public-rate-limit:
       requests: ${APPOINTMENT_BOOKING_PUBLIC_RATE_LIMIT_REQUESTS:60}
       window-seconds: ${APPOINTMENT_BOOKING_PUBLIC_RATE_LIMIT_WINDOW_SECONDS:60}

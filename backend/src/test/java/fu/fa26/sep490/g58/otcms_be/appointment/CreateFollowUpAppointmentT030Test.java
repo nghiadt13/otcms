@@ -66,7 +66,7 @@ class CreateFollowUpAppointmentT030Test {
         appointments = mock(AppointmentJpaRepository.class);
         notifications = mock(NotificationPublisher.class);
         var properties = new AppointmentBookingProperties(60, 60, 15, 15, 15,
-                ZoneId.of("Asia/Ho_Chi_Minh"), new AppointmentBookingProperties.PublicRateLimit(30, 60));
+                ZoneId.of("Asia/Ho_Chi_Minh"), new AppointmentBookingProperties.PublicRateLimit(30, 60), 15, 30000L, false);
         service = new CreateFollowUpAppointmentServiceImpl(guard, doctors, visits, services, providers,
                 assignments, slots, appointments, properties, Clock.fixed(NOW, ZoneId.of("UTC")),
                 notifications);

@@ -90,8 +90,9 @@ export function BookingResult({
             </div>
             {examFee.status === "PENDING_PAYMENT" ? (
               <p className="text-sm text-muted-foreground">
-                Phí khám cần được thanh toán trước khi check-in. Bạn có thể
-                thanh toán online hoặc trả tại quầy.
+                {variant === "patient"
+                  ? "Phí khám cần được thanh toán trực tuyến trong 15 phút kể từ khi đặt để giữ lịch."
+                  : "Phí khám cần được thanh toán trước khi check-in. Bạn có thể thanh toán online hoặc trả tại quầy."}
               </p>
             ) : null}
           </div>

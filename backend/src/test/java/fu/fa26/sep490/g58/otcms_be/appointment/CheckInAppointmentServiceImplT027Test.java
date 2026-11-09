@@ -41,7 +41,7 @@ class CheckInAppointmentServiceImplT027Test {
     @BeforeEach
     void setUp() {
         var properties = new AppointmentBookingProperties(30, 1440, 30, 15, 15,
-                ZoneId.of("Asia/Ho_Chi_Minh"), new AppointmentBookingProperties.PublicRateLimit(60, 60));
+                ZoneId.of("Asia/Ho_Chi_Minh"), new AppointmentBookingProperties.PublicRateLimit(60, 60), 15, 30000L, false);
         handler = new CheckInAppointmentTransaction(guard, appointments, reception, properties);
         command = new CheckInAppointmentCommand(actorId, patientId, "t027-key", "trace-id");
         current = new CheckInAppointment(appointmentId, patientId, doctorId,

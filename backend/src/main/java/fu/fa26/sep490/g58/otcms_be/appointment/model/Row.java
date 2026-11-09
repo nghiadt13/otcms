@@ -20,7 +20,12 @@ public class Row {
     private final UUID sourceVisitId;
     private final Instant createdAt;
     private final Instant updatedAt;
+    private final Instant paymentDeadline;
     public Row(UUID id, UUID patientProfileId, UUID serviceId, UUID doctorId, String status, String bookingSource, String purpose, Instant startTime, Instant endTime, int durationMinutes, int bufferMinutes, Instant occupiedUntil, UUID visitId, UUID sourceVisitId, Instant createdAt, Instant updatedAt) {
+        this(id, patientProfileId, serviceId, doctorId, status, bookingSource, purpose, startTime, endTime, durationMinutes, bufferMinutes, occupiedUntil, visitId, sourceVisitId, createdAt, updatedAt, null);
+    }
+    public Row(UUID id, UUID patientProfileId, UUID serviceId, UUID doctorId, String status, String bookingSource, String purpose, Instant startTime, Instant endTime, int durationMinutes, int bufferMinutes, Instant occupiedUntil, UUID visitId, UUID sourceVisitId, Instant createdAt, Instant updatedAt, Instant paymentDeadline) {
+        this.paymentDeadline = paymentDeadline;
         this.id = id;
         this.patientProfileId = patientProfileId;
         this.serviceId = serviceId;
@@ -70,4 +75,6 @@ public class Row {
     public Instant createdAt() { return createdAt; }
     public Instant getUpdatedAt() { return updatedAt; }
     public Instant updatedAt() { return updatedAt; }
+    public Instant getPaymentDeadline() { return paymentDeadline; }
+    public Instant paymentDeadline() { return paymentDeadline; }
 }

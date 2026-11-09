@@ -9,6 +9,9 @@ import fu.fa26.sep490.g58.otcms_be.appointment.repository.AppointmentJpaReposito
 import fu.fa26.sep490.g58.otcms_be.appointment.service.CreateAppointmentCommand;
 import fu.fa26.sep490.g58.otcms_be.appointment.service.CreateAppointmentService;
 import fu.fa26.sep490.g58.otcms_be.appointment.service.GenerateAvailableSlotsService;
+import fu.fa26.sep490.g58.otcms_be.appointment.service.ReleaseAppointmentPaymentHoldService;
+import fu.fa26.sep490.g58.otcms_be.appointment.service.ReleaseAppointmentPaymentHoldService.Actor;
+import fu.fa26.sep490.g58.otcms_be.appointment.repository.AppointmentPaymentHoldRepository;
 
 import fu.fa26.sep490.g58.otcms_be.appointment.model.AppointmentBooking;
 import fu.fa26.sep490.g58.otcms_be.appointment.model.SlotAvailabilityRequest;
@@ -21,19 +24,25 @@ import fu.fa26.sep490.g58.otcms_be.servicecatalog.service.ClinicServiceBookingQu
 import fu.fa26.sep490.g58.otcms_be.servicecatalog.service.ServiceDoctorAssignmentQueryService;
 import fu.fa26.sep490.g58.otcms_be.staff.service.StaffAvailabilityProviderQueryService;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
+import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.Supplier;
 
 /** @ears REQ-BOOK-003 REQ-BOOK-005 REQ-BOOK-006 REQ-BOOK-010–018 */
 @Service
 public class CreateAppointmentServiceImpl implements CreateAppointmentService {
+    private static final String REPLACED_HOLD_REASON = "Đặt lịch mới thay thế giữ chỗ cũ";
     private final CoordinationGuardService coordinationGuard;
     private final PatientProfileDirectory currentPatientProfile;
     private final AuthorizePatientProfileService patientAuthorization;
@@ -45,13 +54,33 @@ public class CreateAppointmentServiceImpl implements CreateAppointmentService {
     private final AppointmentBookingProperties properties;
     private final Clock clock;
     private final NotificationPublisher notifications;
+    private final AppointmentPaymentHoldRepository holds;
+    private final ReleaseAppointmentPaymentHoldService releaseHolds;
+    /** Null in plain unit tests (no transaction manager): the body then simply runs without a transaction. */
+    private final TransactionTemplate transaction;
 
     public CreateAppointmentServiceImpl(CoordinationGuardService coordinationGuard,
             PatientProfileDirectory currentPatientProfile, AuthorizePatientProfileService patientAuthorization,
             ClinicServiceBookingQueryService services, StaffAvailabilityProviderQueryService providers,
             ServiceDoctorAssignmentQueryService assignments, GenerateAvailableSlotsService slotEngine,
             AppointmentJpaRepository appointments, AppointmentBookingProperties properties, Clock clock,
-            NotificationPublisher notifications) {
+            NotificationPublisher notifications, AppointmentPaymentHoldRepository holds,
+            ReleaseAppointmentPaymentHoldService releaseHolds) {
+        this(coordinationGuard, currentPatientProfile, patientAuthorization, services, providers, assignments,
+                slotEngine, appointments, properties, clock, notifications, holds, releaseHolds, null);
+    }
+
+    @Autowired
+    public CreateAppointmentServiceImpl(CoordinationGuardService coordinationGuard,
+            PatientProfileDirectory currentPatientProfile, AuthorizePatientProfileService patientAuthorization,
+            ClinicServiceBookingQueryService services, StaffAvailabilityProviderQueryService providers,
+            ServiceDoctorAssignmentQueryService assignments, GenerateAvailableSlotsService slotEngine,
+            AppointmentJpaRepository appointments, AppointmentBookingProperties properties, Clock clock,
+            NotificationPublisher notifications, AppointmentPaymentHoldRepository holds,
+            ReleaseAppointmentPaymentHoldService releaseHolds, PlatformTransactionManager transactionManager) {
+        this.transaction = transactionManager == null ? null : new TransactionTemplate(transactionManager);
+        this.holds = holds;
+        this.releaseHolds = releaseHolds;
         this.coordinationGuard = coordinationGuard;
         this.currentPatientProfile = currentPatientProfile;
         this.patientAuthorization = patientAuthorization;
@@ -65,10 +94,32 @@ public class CreateAppointmentServiceImpl implements CreateAppointmentService {
         this.notifications = notifications;
     }
 
+    /**
+     * Not @Transactional: the booking patient's own live holds are released first, outside any transaction and
+     * before the coordination guard, because billing may call the gateway (and may confirm a payment in its own
+     * committed transaction). The booking itself then runs in one transaction.
+     */
     @Override
-    @Transactional
     public CreatedAppointment create(CreateAppointmentCommand command) {
         validate(command);
+        releaseOwnHolds(command);
+        return inTransaction(() -> createInTransaction(command));
+    }
+
+    private <T> T inTransaction(Supplier<T> work) {
+        return transaction == null ? work.get() : transaction.execute(status -> work.get());
+    }
+
+    /** A patient account keeps at most one hold: a new booking replaces the older ones (settled with force). */
+    private void releaseOwnHolds(CreateAppointmentCommand command) {
+        if (command.actor() != CreateAppointmentCommand.Actor.PATIENT || holds == null || releaseHolds == null) return;
+        for (UUID id : holds.findHoldIdsByCreator(command.actorAccountId())) {
+            releaseHolds.release(id, true,
+                    Actor.patient(command.actorAccountId(), REPLACED_HOLD_REASON, command.correlationId()));
+        }
+    }
+
+    private CreatedAppointment createInTransaction(CreateAppointmentCommand command) {
         coordinationGuard.acquire();
         Instant now = Instant.now(clock);
         UUID patientProfileId = resolvePatient(command);
@@ -108,12 +159,17 @@ public class CreateAppointmentServiceImpl implements CreateAppointmentService {
             throw new AppointmentBookingException("DOCTOR_NOT_ELIGIBLE");
         }
 
+        releaseLapsedHolds(command, start, start.plus(Duration.ofMinutes(durationMinutes + (long) bufferMinutes)), now);
         var candidateRequest = new SlotAvailabilityRequest(Set.of(command.doctorProfileId()), startDate, startDate,
                 SlotServiceContext.current(service.serviceId(), service.consultationDuration(), service.bufferDuration()));
         var availableSlot = slotEngine.generate(candidateRequest).stream()
                 .filter(slot -> slot.startTime().equals(start))
                 .findFirst()
                 .orElseThrow(() -> new AppointmentBookingException("SLOT_UNAVAILABLE"));
+
+        // Computed after the releases above (they may take time) so the patient gets the full hold window.
+        Instant holdNow = Instant.now(clock);
+        Instant paymentDeadline = paymentDeadline(command, service.serviceId(), start, holdNow);
 
         AppointmentBooking booking = new AppointmentBooking(UUID.randomUUID(), patientProfileId, service.serviceId(),
                 command.doctorProfileId(), command.actor() == CreateAppointmentCommand.Actor.PATIENT
@@ -122,11 +178,40 @@ public class CreateAppointmentServiceImpl implements CreateAppointmentService {
                 command.purpose(), availableSlot.startTime(), availableSlot.endTime(), durationMinutes, bufferMinutes,
                 command.actorAccountId(), command.actor() == CreateAppointmentCommand.Actor.PATIENT
                         ? AppointmentBooking.ActorType.PATIENT : AppointmentBooking.ActorType.RECEPTIONIST,
-                now, command.correlationId());
+                holdNow, command.correlationId(), null, null, null, null, paymentDeadline);
         var created = appointments.save(booking);
-        notifications.publishToPatient(patientProfileId, NotificationMessages.appointmentBooked(booking.id(),
-                booking.startTime(), providers.findDoctorDisplayName(command.doctorProfileId()).orElse("")));
+        // A held slot is not a booking yet: the notification is sent when payment confirms it.
+        if (paymentDeadline == null) {
+            notifications.publishToPatient(patientProfileId, NotificationMessages.appointmentBooked(booking.id(),
+                    booking.startTime(), providers.findDoctorDisplayName(command.doctorProfileId()).orElse("")));
+        }
         return created;
+    }
+
+    /**
+     * Only an online patient booking of a service with a fee holds the slot until payment. Receptionist bookings and
+     * free services are confirmed at once. The hold needs the full hold window before the start so the patient can
+     * actually pay.
+     */
+    private Instant paymentDeadline(CreateAppointmentCommand command, UUID serviceId, Instant start, Instant now) {
+        if (command.actor() != CreateAppointmentCommand.Actor.PATIENT) return null;
+        BigDecimal price = services.findServiceLabel(serviceId)
+                .map(ClinicServiceBookingQueryService.ServiceLabel::price).orElse(null);
+        if (price == null || price.signum() <= 0) return null;
+        Instant deadline = now.plus(Duration.ofMinutes(properties.paymentHoldMinutes()));
+        if (start.isBefore(deadline)) throw new AppointmentBookingException("BOOKING_TOO_SOON");
+        return deadline;
+    }
+
+    /**
+     * Lazy release (same transaction as the insert): the DB EXCLUDE constraint has no clock, so lapsed holds of other
+     * accounts that overlap the new slot must be released first (settled without force: a live QR keeps the hold).
+     */
+    private void releaseLapsedHolds(CreateAppointmentCommand command, Instant start, Instant occupiedUntil, Instant now) {
+        List<UUID> lapsed = holds.findLapsedHoldIdsOverlapping(command.doctorProfileId(), start, occupiedUntil, now);
+        for (UUID id : lapsed) {
+            releaseHolds.release(id, false, Actor.system(command.correlationId()));
+        }
     }
 
     private UUID resolvePatient(CreateAppointmentCommand command) {

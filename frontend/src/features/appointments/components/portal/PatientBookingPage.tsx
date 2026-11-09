@@ -1,23 +1,17 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useState } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useCurrentAccount } from "@/hooks/useCurrentAccount";
 import { useLinkedProfiles } from "@/hooks/useLinkedProfiles";
 import Link from "next/link";
 import { PATIENT_ROUTES } from "@/lib/routes/patientRoutes";
 import { publicButtonClass } from "@/components/brand/publicButtonStyles";
-import type { BookedAppointment } from "../../types/booking";
+import type { BookedAppointment, PaymentRenderer } from "../../types/booking";
 import { BookingFlow } from "../booking/BookingFlow";
 import { BookingSignInPrompt } from "../booking/wizard/BookingSignInPrompt";
 import { PatientBookingResult } from "./PatientBookingResult";
 import { PatientLoadError } from "./PatientLoadError";
-import { PendingPaymentNotice } from "./PendingPaymentNotice";
-
-type PaymentRenderer = (args: {
-  appointment: BookedAppointment;
-  onFinish: (result: { paid: boolean }) => void;
-}) => ReactNode;
 
 // Đặt lịch khu bệnh nhân (UC20, UC21, AF1). Lõi luồng là BookingFlow dùng chung (variant patient);
 // trang lấy tài khoản đang đăng nhập làm người khám và đổi sang kết quả sau khi đặt xong.
@@ -69,7 +63,6 @@ function SignedInBooking({
     <BookingFlow
       onBooked={setBooked}
       renderPayment={renderPayment}
-      notice={renderPayment ? <PendingPaymentNotice /> : undefined}
       patients={linked.profiles.map((profile) => ({
         id: profile.id,
         fullName: profile.fullName,

@@ -9,13 +9,16 @@ const issuedFormat = new Intl.DateTimeFormat("vi-VN", {
 });
 
 function statusLabel(invoice: BillingInvoice): string {
+  if (invoice.status === "VOID") return "Đã hủy";
   if (invoice.status === "PAID" || invoice.outstandingBalance <= 0)
     return "Đã thanh toán";
   return invoice.paidAmount > 0 ? "Đã thanh toán một phần" : "Chờ thanh toán";
 }
 
 export function PayOsInvoiceCard({ invoice }: { invoice: BillingInvoice }) {
-  const paid = invoice.status === "PAID" || invoice.outstandingBalance <= 0;
+  const voided = invoice.status === "VOID";
+  const paid =
+    !voided && (invoice.status === "PAID" || invoice.outstandingBalance <= 0);
   const issuedAt = new Date(invoice.issuedAt);
   return (
     <section
@@ -85,12 +88,14 @@ export function PayOsInvoiceCard({ invoice }: { invoice: BillingInvoice }) {
             {formatCurrencyVnd(invoice.paidAmount)}
           </dd>
         </div>
-        <div className="mt-1 flex items-baseline justify-between gap-4 border-t pt-2">
-          <dt className="text-base font-semibold">Còn phải thanh toán</dt>
-          <dd className="text-xl font-semibold tabular-nums">
-            {formatCurrencyVnd(invoice.outstandingBalance)}
-          </dd>
-        </div>
+        {voided ? null : (
+          <div className="mt-1 flex items-baseline justify-between gap-4 border-t pt-2">
+            <dt className="text-base font-semibold">Còn phải thanh toán</dt>
+            <dd className="text-xl font-semibold tabular-nums">
+              {formatCurrencyVnd(invoice.outstandingBalance)}
+            </dd>
+          </div>
+        )}
       </dl>
     </section>
   );

@@ -3,6 +3,7 @@ package fu.fa26.sep490.g58.otcms_be.config;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.bind.ConstructorBinding;
+import org.springframework.boot.context.properties.bind.DefaultValue;
 
 import java.time.ZoneId;
 import java.util.Objects;
@@ -17,8 +18,14 @@ public class AppointmentBookingProperties {
     private final int slotIntervalMinutes;
     private final ZoneId clinicTimeZone;
     private final PublicRateLimit publicRateLimit;
+    private final int paymentHoldMinutes;
+    private final long paymentHoldSweepMs;
+    private final boolean paymentHoldSweepEnabled;
     @ConstructorBinding
-    public AppointmentBookingProperties(int maxHorizonDays, int patientChangeDeadlineMinutes, int checkInEarlyMinutes, int checkInLateGraceMinutes, int slotIntervalMinutes, ZoneId clinicTimeZone, PublicRateLimit publicRateLimit) {
+    public AppointmentBookingProperties(int maxHorizonDays, int patientChangeDeadlineMinutes, int checkInEarlyMinutes,
+            int checkInLateGraceMinutes, int slotIntervalMinutes, ZoneId clinicTimeZone, PublicRateLimit publicRateLimit,
+            @DefaultValue("15") int paymentHoldMinutes, @DefaultValue("30000") long paymentHoldSweepMs,
+            @DefaultValue("true") boolean paymentHoldSweepEnabled) {
         if (maxHorizonDays < 1) {
             throw new IllegalArgumentException("appointment.booking.max-horizon-days must be positive");
         }
@@ -35,6 +42,15 @@ public class AppointmentBookingProperties {
         if (publicRateLimit == null) {
             throw new IllegalArgumentException("appointment.booking.public-rate-limit is required");
         }
+        if (paymentHoldMinutes < 1) {
+            throw new IllegalArgumentException("appointment.booking.payment-hold-minutes must be positive");
+        }
+        if (paymentHoldSweepMs < 1) {
+            throw new IllegalArgumentException("appointment.booking.payment-hold-sweep-ms must be positive");
+        }
+        this.paymentHoldMinutes = paymentHoldMinutes;
+        this.paymentHoldSweepMs = paymentHoldSweepMs;
+        this.paymentHoldSweepEnabled = paymentHoldSweepEnabled;
         this.maxHorizonDays = maxHorizonDays;
         this.patientChangeDeadlineMinutes = patientChangeDeadlineMinutes;
         this.checkInEarlyMinutes = checkInEarlyMinutes;
@@ -57,6 +73,13 @@ public class AppointmentBookingProperties {
     public ZoneId clinicTimeZone() { return clinicTimeZone; }
     public PublicRateLimit getPublicRateLimit() { return publicRateLimit; }
     public PublicRateLimit publicRateLimit() { return publicRateLimit; }
+    /** How long an online booking with a fee holds the doctor slot while the patient pays. */
+    public int getPaymentHoldMinutes() { return paymentHoldMinutes; }
+    public int paymentHoldMinutes() { return paymentHoldMinutes; }
+    public long getPaymentHoldSweepMs() { return paymentHoldSweepMs; }
+    public long paymentHoldSweepMs() { return paymentHoldSweepMs; }
+    public boolean isPaymentHoldSweepEnabled() { return paymentHoldSweepEnabled; }
+    public boolean paymentHoldSweepEnabled() { return paymentHoldSweepEnabled; }
     private static void requireNonNegative(int value, String property) {
         if (value < 0) {
             throw new IllegalArgumentException("appointment.booking." + property + " must be non-negative");

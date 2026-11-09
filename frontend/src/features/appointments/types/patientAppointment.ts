@@ -29,6 +29,8 @@ export interface PatientAppointment {
   roomName: string;
   isFollowUp: boolean;
   status: AppointmentStatus;
+  /** ISO-8601; chỉ có khi `status` là AWAITING_PAYMENT (lịch đang giữ giờ chờ thanh toán). */
+  paymentDeadline?: string | null;
   examFee: { amount: number; status: ExamFeeStatus };
   /** Bác sĩ vắng và chưa có người thay (UC22 AF1): lịch vẫn Đã đặt. */
   doctorUnavailable: boolean;

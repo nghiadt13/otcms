@@ -90,7 +90,7 @@ public class GetAppointmentsServiceImpl implements GetAppointmentsService {
                 row.bookingSource(), row.purpose(), row.startTime(), row.endTime(), row.durationMinutes(),
                 row.bufferMinutes(), row.occupiedUntil(), row.visitId(), row.sourceVisitId(), row.createdAt(), row.updatedAt(),
                 doctorDisplayName, service == null ? null : service.name(), service == null ? null : service.price(),
-                patientName);
+                patientName, row.paymentDeadline());
     }
 
     private Scope resolve(UUID accountId, AccountRole role) {

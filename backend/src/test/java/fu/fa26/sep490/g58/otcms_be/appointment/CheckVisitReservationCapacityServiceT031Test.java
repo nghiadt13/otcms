@@ -22,8 +22,9 @@ import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
 class CheckVisitReservationCapacityServiceT031Test {
+    private static final java.time.Instant NOW = java.time.Instant.parse("2026-11-09T01:00:00Z");
     private final AppointmentOccupancyRepository occupancy = Mockito.mock(AppointmentOccupancyRepository.class);
-    private final CheckVisitReservationCapacityServiceImpl service = new CheckVisitReservationCapacityServiceImpl(occupancy);
+    private final CheckVisitReservationCapacityServiceImpl service = new CheckVisitReservationCapacityServiceImpl(occupancy, java.time.Clock.fixed(NOW, java.time.ZoneOffset.UTC));
     private final UUID doctorId = UUID.randomUUID();
     private final UUID visitId = UUID.randomUUID();
     private final UUID patientId = UUID.randomUUID();
@@ -36,14 +37,14 @@ class CheckVisitReservationCapacityServiceT031Test {
         when(occupancy.findVisitLinkEvidence(appointmentId))
                 .thenReturn(java.util.Collections.singletonList(new Object[]{patientId, visitId, doctorId, "IN_PROGRESS",
                         start.minusSeconds(1800), end, end, null}));
-        when(occupancy.findOccupiedIntervals(List.of(doctorId), start, end, appointmentId)).thenReturn(List.of());
+        when(occupancy.findOccupiedIntervals(List.of(doctorId), start, end, appointmentId, NOW)).thenReturn(List.of());
 
         var decision = service.checkVisitReservation(new VisitReservation(doctorId, start, end, visitId,
                 appointmentId, patientId));
 
         assertTrue(decision.available());
         assertEquals(appointmentId, decision.validatedLinkedAppointmentId());
-        verify(occupancy).findOccupiedIntervals(List.of(doctorId), start, end, appointmentId);
+        verify(occupancy).findOccupiedIntervals(List.of(doctorId), start, end, appointmentId, NOW);
     }
 
     @Test
@@ -54,7 +55,7 @@ class CheckVisitReservationCapacityServiceT031Test {
         when(occupancy.findVisitLinkEvidence(appointmentId)).thenReturn(java.util.Collections.singletonList(
                 new Object[]{patientId, visitId, doctorId, "IN_PROGRESS", start.minusSeconds(1800),
                         appointmentEnd, occupiedUntil, null}));
-        when(occupancy.findOccupiedIntervals(List.of(doctorId), appointmentEnd, extensionEnd, appointmentId))
+        when(occupancy.findOccupiedIntervals(List.of(doctorId), appointmentEnd, extensionEnd, appointmentId, NOW))
                 .thenReturn(List.of());
 
         var decision = service.checkVisitReservation(new VisitReservation(doctorId, appointmentEnd, extensionEnd,
@@ -75,7 +76,7 @@ class CheckVisitReservationCapacityServiceT031Test {
         when(occupancy.findVisitLinkEvidence(appointmentId)).thenReturn(java.util.Collections.singletonList(
                 new Object[]{patientId, visitId, doctorId, "COMPLETED", start.minusSeconds(1800),
                         appointmentEnd, occupiedUntil, completedAt}));
-        when(occupancy.findOccupiedIntervals(List.of(doctorId), extensionStart, extensionEnd, appointmentId))
+        when(occupancy.findOccupiedIntervals(List.of(doctorId), extensionStart, extensionEnd, appointmentId, NOW))
                 .thenReturn(List.of());
 
         var decision = service.checkVisitReservation(new VisitReservation(doctorId, extensionStart, extensionEnd,
@@ -95,7 +96,7 @@ class CheckVisitReservationCapacityServiceT031Test {
         when(occupancy.findVisitLinkEvidence(appointmentId)).thenReturn(java.util.Collections.singletonList(
                 new Object[]{patientId, visitId, doctorId, "COMPLETED", start.minusSeconds(1800),
                         appointmentEnd, occupiedUntil, completedAt}));
-        when(occupancy.findOccupiedIntervals(List.of(doctorId), extensionStart, extensionEnd, appointmentId))
+        when(occupancy.findOccupiedIntervals(List.of(doctorId), extensionStart, extensionEnd, appointmentId, NOW))
                 .thenReturn(List.of());
 
         var decision = service.checkVisitReservation(new VisitReservation(doctorId, extensionStart, extensionEnd,
@@ -115,7 +116,7 @@ class CheckVisitReservationCapacityServiceT031Test {
         when(occupancy.findVisitLinkEvidence(appointmentId)).thenReturn(java.util.Collections.singletonList(
                 new Object[]{patientId, visitId, doctorId, "COMPLETED", start.minusSeconds(1800),
                         appointmentEnd, occupiedUntil, completedAt}));
-        when(occupancy.findOccupiedIntervals(List.of(doctorId), extensionStart, extensionEnd, appointmentId))
+        when(occupancy.findOccupiedIntervals(List.of(doctorId), extensionStart, extensionEnd, appointmentId, NOW))
                 .thenReturn(List.of());
 
         var decision = service.checkVisitReservation(new VisitReservation(doctorId, extensionStart, extensionEnd,
@@ -129,7 +130,7 @@ class CheckVisitReservationCapacityServiceT031Test {
         when(occupancy.findVisitLinkEvidence(appointmentId)).thenReturn(java.util.Collections.singletonList(
                 new Object[]{patientId, visitId, doctorId, "COMPLETED", start.minusSeconds(1800),
                         start, end, null}));
-        when(occupancy.findOccupiedIntervals(List.of(doctorId), start, end, appointmentId)).thenReturn(List.of());
+        when(occupancy.findOccupiedIntervals(List.of(doctorId), start, end, appointmentId, NOW)).thenReturn(List.of());
 
         assertThrows(AppointmentCapacityUnavailableException.class,
                 () -> service.checkVisitReservation(new VisitReservation(doctorId, start, end, visitId,
@@ -147,7 +148,7 @@ class CheckVisitReservationCapacityServiceT031Test {
 
         assertFalse(decision.available());
         assertNull(decision.validatedLinkedAppointmentId());
-        verify(occupancy, never()).findOccupiedIntervals(Mockito.any(), Mockito.any(), Mockito.any(), Mockito.any());
+        verify(occupancy, never()).findOccupiedIntervals(Mockito.any(), Mockito.any(), Mockito.any(), Mockito.any(), Mockito.any());
     }
 
     @Test
@@ -160,13 +161,13 @@ class CheckVisitReservationCapacityServiceT031Test {
 
         assertFalse(decision.available());
         assertNull(decision.validatedLinkedAppointmentId());
-        verify(occupancy, never()).findOccupiedIntervals(Mockito.any(), Mockito.any(), Mockito.any(), Mockito.any());
+        verify(occupancy, never()).findOccupiedIntervals(Mockito.any(), Mockito.any(), Mockito.any(), Mockito.any(), Mockito.any());
     }
 
     @Test
     void returnsOtherAppointmentConflict() {
         UUID conflicting = UUID.randomUUID();
-        when(occupancy.findOccupiedIntervals(List.of(doctorId), start, end, null)).thenReturn(List.of(
+        when(occupancy.findOccupiedIntervals(List.of(doctorId), start, end, null, NOW)).thenReturn(List.of(
                 new AppointmentOccupancy(conflicting, doctorId,
                         new AvailabilityInterval(start.plusSeconds(300), end.plusSeconds(300)))));
 

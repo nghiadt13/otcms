@@ -38,7 +38,7 @@ class MarkAppointmentNoShowT028Test {
     private final RecordedArrivalQueryService arrivals = mock(RecordedArrivalQueryService.class);
     private final MarkAppointmentNoShowTransaction transaction = new MarkAppointmentNoShowTransaction(guard,
             appointments, arrivals, new AppointmentBookingProperties(30, 1440, 30, 15, 15,
-                    ZoneId.of("Asia/Ho_Chi_Minh"), new AppointmentBookingProperties.PublicRateLimit(60, 60)),
+                    ZoneId.of("Asia/Ho_Chi_Minh"), new AppointmentBookingProperties.PublicRateLimit(60, 60), 15, 30000L, false),
             Clock.fixed(now, ZoneId.of("UTC")));
     private final MarkAppointmentNoShowCommand command = new MarkAppointmentNoShowCommand(actorId, "  absent  ", "trace-id");
     private final NoShowAppointment confirmed = new NoShowAppointment(appointmentId, patientId, doctorId,
@@ -70,7 +70,7 @@ class MarkAppointmentNoShowT028Test {
         var boundaryClock = Clock.fixed(now.minusSeconds(1), ZoneId.of("UTC"));
         var boundaryTransaction = new MarkAppointmentNoShowTransaction(guard, appointments, arrivals,
                 new AppointmentBookingProperties(30, 1440, 30, 15, 15, ZoneId.of("UTC"),
-                        new AppointmentBookingProperties.PublicRateLimit(60, 60)), boundaryClock);
+                        new AppointmentBookingProperties.PublicRateLimit(60, 60), 15, 30000L, false), boundaryClock);
         // Set appointment start so now-minus-one equals start plus the 15 minute grace.
         when(appointments.findForUpdate(appointmentId)).thenReturn(Optional.of(new NoShowAppointment(appointmentId,
                 patientId, doctorId, "CONFIRMED", now.minusSeconds(901), now.minusSeconds(1), null, null)));

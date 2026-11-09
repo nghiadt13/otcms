@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 import static org.mockito.ArgumentMatchers.*;
 import fu.fa26.sep490.g58.otcms_be.billing.exception.BillingException;
+import fu.fa26.sep490.g58.otcms_be.billing.integration.AppointmentPaymentPort;
 import fu.fa26.sep490.g58.otcms_be.billing.integration.ClinicalRoundBillingPort;
 import fu.fa26.sep490.g58.otcms_be.billing.mapper.BillingMapper;
 import fu.fa26.sep490.g58.otcms_be.billing.model.*;
@@ -50,14 +51,22 @@ class ClinicalRoundBillingTest {
     final Map<UUID, InvoiceJpaEntity> invoiceRows = new HashMap<>();
     final Map<UUID, List<InvoiceItemJpaEntity>> itemRows = new HashMap<>();
     final Map<UUID, PaymentAttemptJpaEntity> paymentRows = new HashMap<>();
+    final AppointmentPaymentPort appointmentPort = mock(AppointmentPaymentPort.class);
     InvoiceService invoiceService; PaymentService paymentService;
+    InvoiceSettlementSupport settlementSupport(ClinicalRoundBillingPort clinicalPort) {
+        return new InvoiceSettlementSupport(invoices, items, attempts, clinicalPort, appointmentPort,
+                mock(jakarta.persistence.EntityManager.class));
+    }
     @BeforeEach void setup() {
         when(tx.getTransaction(any())).thenAnswer(call -> new SimpleTransactionStatus());
         when(gateway.provider()).thenReturn("PAYOS");
+        when(appointmentPort.confirmPaid(any())).thenReturn(AppointmentPaymentPort.ConfirmResult.ALREADY_CONFIRMED);
+        var support = settlementSupport(clinical);
         invoiceService = new InvoiceServiceImpl(invoices, items, attempts, mock(AppointmentBillingSourceService.class),
-                visits, catalog, authorization, new BillingMapper(), tx, clock, clinical);
-        paymentService = new PaymentServiceImpl(invoices, items, attempts, events, new PaymentGatewayRegistry(List.of(gateway)),
-                authorization, new BillingMapper(), tx, clock, clinical);
+                visits, catalog, authorization, new BillingMapper(), tx, clock, clinical, appointmentPort,
+                new AppointmentInvoiceVoider(invoices, attempts, support, tx, clock));
+        paymentService = new PaymentServiceImpl(invoices, attempts, events, new PaymentGatewayRegistry(List.of(gateway)),
+                authorization, new BillingMapper(), tx, clock, support, appointmentPort);
         when(clinical.requirePayableRound(roundId)).thenReturn(new ClinicalRoundBillingPort.ClinicalRoundBillingSource(roundId, visitId, patient,
                 List.of(new ClinicalRoundBillingPort.PayableOrder(UUID.randomUUID(), serviceId, "Snapshot X-ray", new BigDecimal("150000")),
                         new ClinicalRoundBillingPort.PayableOrder(UUID.randomUUID(), serviceId, "Snapshot MRI", new BigDecimal("350000")))));
@@ -139,8 +148,8 @@ class ClinicalRoundBillingTest {
                 submitted.forEach(row -> flushedPayments.put(row.getId(), row.getPaymentStatus()));
                 return submitted;
             });
-            paymentService = new PaymentServiceImpl(invoices, items, attempts, events, new PaymentGatewayRegistry(List.of(gateway)),
-                    authorization, new BillingMapper(), tx, clock, adapter);
+            paymentService = new PaymentServiceImpl(invoices, attempts, events, new PaymentGatewayRegistry(List.of(gateway)),
+                    authorization, new BillingMapper(), tx, clock, settlementSupport(adapter), appointmentPort);
         }
         ServiceOrderJpaEntity order(String code, String price) {
             return new ServiceOrderJpaEntity(code, roundId, visitId, patient, serviceId, "Snapshot " + code,

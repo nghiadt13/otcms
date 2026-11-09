@@ -90,6 +90,9 @@ const APPOINTMENT_STATUS: Record<string, string> = {
   COMPLETED: "Đã hoàn tất",
   CANCELLED: "Đã hủy",
   NO_SHOW: "Không đến",
+  // Giữ giờ chờ thanh toán: BE đã ẩn khỏi bác sĩ; chỉ để lỡ trả ra thì không hiện chuỗi thô.
+  AWAITING_PAYMENT: "Chờ thanh toán",
+  PAYMENT_EXPIRED: "Hết hạn giữ chỗ",
 };
 
 function Appointments({ patientProfileId }: { patientProfileId: string }) {

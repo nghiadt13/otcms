@@ -57,18 +57,57 @@ export function resetBookingMock(options: { now?: Date } = {}): void {
  * Bản sao toàn bộ lịch trong kho, sắp theo giờ bắt đầu, có trạng thái phí lấy từ kho phí dùng
  * chung. Sửa bản sao không đổi kho.
  */
-export function readStoredAppointments(): StoredAppointment[] {
+export function readStoredAppointments(
+  options: { includeHolds?: boolean } = {},
+): StoredAppointment[] {
+  expireStoredHolds();
   return clone(records)
+    .filter((record) => options.includeHolds || !isHoldStatus(record.status))
     .map(withFeeStatus)
     .sort(
       (a, b) => a.startAt.localeCompare(b.startAt) || a.id.localeCompare(b.id),
     );
 }
 
+/**
+ * Lịch giữ giờ chờ thanh toán (AWAITING_PAYMENT) và lịch giữ giờ đã nhả (PAYMENT_EXPIRED) chỉ sống ở
+ * bước thanh toán: giống BE, mọi danh sách đọc bằng `readStoredAppointments()` đều không thấy chúng.
+ */
+const isHoldStatus = (status: StoredAppointment["status"]): boolean =>
+  status === "AWAITING_PAYMENT" || status === "PAYMENT_EXPIRED";
+
+/** Giữ giờ quá hạn thì nhả (BE: sweeper), chuyển sang PAYMENT_EXPIRED. */
+function expireStoredHolds(): void {
+  const nowMs = bookingMockNow().getTime();
+  records = records.map((record): StoredAppointment =>
+    record.status === "AWAITING_PAYMENT" &&
+    record.paymentDeadline &&
+    Date.parse(record.paymentDeadline) <= nowMs
+      ? { ...record, status: "PAYMENT_EXPIRED" }
+      : record,
+  );
+}
+
+/**
+ * Hủy mọi giữ giờ còn sống (BE: `pending-hold/cancel` và "tạo lịch mới tự hủy hold cũ"). Trả số hold
+ * đã nhả. Kho giả chưa có thanh toán thật nên không có ca `alreadyPaid`.
+ */
+export function cancelStoredPendingHolds(): number {
+  expireStoredHolds();
+  const held = records.filter((record) => record.status === "AWAITING_PAYMENT");
+  records = records.map((record): StoredAppointment =>
+    record.status === "AWAITING_PAYMENT"
+      ? { ...record, status: "PAYMENT_EXPIRED" }
+      : record,
+  );
+  return held.length;
+}
+
 /** Thêm một lịch mới vào kho (chỉ lớp đặt lịch gọi). */
 export function appendStoredAppointment(record: StoredAppointment): void {
   records.push(clone(record));
-  publishFee(record, getLinkedProfileRecords());
+  // Lịch đang giữ giờ chưa có hóa đơn nên chưa vào kho phí dùng chung (khu thanh toán không thấy).
+  if (!isHoldStatus(record.status)) publishFee(record, getLinkedProfileRecords());
 }
 
 /**
@@ -105,11 +144,15 @@ export function nextAppointmentId(): string {
 
 /** Bác sĩ đã có lịch còn hiệu lực (Đã đặt hoặc Đã tiếp nhận) đúng giờ này. */
 export function isDoctorBusyAt(doctorId: string, startAt: string): boolean {
+  expireStoredHolds();
   return records.some(
     (record) =>
       record.doctor.id === doctorId &&
       record.startAt === startAt &&
-      (record.status === "BOOKED" || record.status === "CHECKED_IN"),
+      // Giữ giờ chưa hết hạn cũng chiếm giờ (BE: occupancy tính AWAITING_PAYMENT còn hạn).
+      (record.status === "BOOKED" ||
+        record.status === "CHECKED_IN" ||
+        record.status === "AWAITING_PAYMENT"),
   );
 }
 

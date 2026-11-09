@@ -134,6 +134,15 @@ export async function getCsrfToken(refresh = false): Promise<string> {
 }
 
 /**
+ * Token CSRF đang nhớ trong bộ nhớ, không gọi mạng; `null` khi chưa lấy. Cho nơi cần header CSRF mà
+ * không chờ được bất đồng bộ (yêu cầu `fetch` keepalive lúc `pagehide`). Luôn đọc lúc gửi chứ đừng chụp
+ * trước: mỗi request ghi dữ liệu đi qua `apiRequest` lấy token mới (`getCsrfToken(true)`) làm đổi cookie.
+ */
+export function peekCsrfToken(): string | null {
+  return csrfToken;
+}
+
+/**
  * Đăng nhập email + mật khẩu qua backend; thành công thì giữ access token trong bộ nhớ.
  * `rememberMe`: true thì cookie phiên bền 7 ngày, false thì hết khi đóng trình duyệt; bỏ trống thì
  * không gửi và backend coi như ghi nhớ. Mật khẩu không bao giờ được lưu ở trình duyệt.

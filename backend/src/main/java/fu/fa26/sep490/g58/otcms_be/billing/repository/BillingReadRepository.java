@@ -49,8 +49,16 @@ public interface BillingReadRepository extends Repository<InvoiceJpaEntity, UUID
     String TOTAL = "(select coalesce(sum(l.unitPriceSnapshot * l.quantity), 0) from InvoiceItemJpaEntity l where l.invoiceId = i.id)";
     String PAID = "(select coalesce(sum(p.amount), 0) from PaymentAttemptJpaEntity p where p.invoiceId = i.id"
             + " and p.status = fu.fa26.sep490.g58.otcms_be.billing.model.PaymentAttemptStatus.CONFIRMED)";
+    /**
+     * Staff never see an online booking hold (AWAITING_PAYMENT) nor an orphan OPEN invoice of a released one
+     * (PAYMENT_EXPIRED): they cannot see the appointment either. READ-ONLY CROSS-FEATURE READ of {@code appointments}
+     * (NOT EXISTS keeps the page/count exact); flagged for NghiaDT's review per AGENTS.md.
+     * Money already received is never hidden: {@link #completedPayments} deliberately has no such filter.
+     */
+    String NOT_PAYMENT_HOLD = " and not exists (select 1 from AppointmentJpaEntity a where a.id = i.appointmentId"
+            + " and a.status in ('AWAITING_PAYMENT', 'PAYMENT_EXPIRED'))";
     String UNPAID = " from InvoiceJpaEntity i where i.status = fu.fa26.sep490.g58.otcms_be.billing.model.InvoiceStatus.OPEN"
-            + " and " + TOTAL + " > " + PAID;
+            + " and " + TOTAL + " > " + PAID + NOT_PAYMENT_HOLD;
     @Query(value = "select i.id as id, i.patientProfileId as patientId, i.invoiceNumber as invoiceNumber,"
             + " i.issuedAt as issuedAt, " + TOTAL + " as totalAmount, " + PAID + " as paidAmount"
             + UNPAID + " order by i.issuedAt asc, i.id asc", countQuery = "select count(i.id)" + UNPAID)

@@ -95,11 +95,15 @@ public class PaymentAttemptJpaEntity {
     public void fail(PaymentAttemptStatus newStatus, String reason) {
         this.status = newStatus;
         this.reconciliationReason = reason;
+        // ck_payment_attempt_confirmation: only CONFIRMED rows carry confirmed_at (an attempt confirmed in this
+        // transaction can still be reverted when the appointment hold turns out to be released).
+        if (newStatus != PaymentAttemptStatus.CONFIRMED) this.confirmedAt = null;
     }
     public void requireReconciliation(String reason, String transactionReference) {
         this.status = PaymentAttemptStatus.RECONCILIATION_REQUIRED;
         this.reconciliationReason = reason;
         this.providerTransactionReference = transactionReference;
+        this.confirmedAt = null;
     }
     public UUID getId() { return id; }
     public UUID getInvoiceId() { return invoiceId; }

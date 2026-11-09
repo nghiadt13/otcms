@@ -14,8 +14,11 @@ import org.springframework.stereotype.Service;
 public class CheckVisitReservationCapacityServiceImpl implements CheckVisitReservationCapacityService {
     private final AppointmentOccupancyRepository occupancy;
 
-    public CheckVisitReservationCapacityServiceImpl(AppointmentOccupancyRepository occupancy) {
+    private final java.time.Clock clock;
+
+    public CheckVisitReservationCapacityServiceImpl(AppointmentOccupancyRepository occupancy, java.time.Clock clock) {
         this.occupancy = occupancy;
+        this.clock = clock;
     }
 
     @Override
@@ -31,7 +34,7 @@ public class CheckVisitReservationCapacityServiceImpl implements CheckVisitReser
         }
         boolean conflictsWithSelfBuffer = false;
         var conflict = occupancy.findOccupiedIntervals(java.util.List.of(reservation.doctorProfileId()),
-                        reservation.startInclusive(), reservation.endExclusive(), validatedLink)
+                        reservation.startInclusive(), reservation.endExclusive(), validatedLink, clock.instant())
                 .stream().findFirst();
         if (validatedLink != null) {
             var link = findValidatedLink(reservation);

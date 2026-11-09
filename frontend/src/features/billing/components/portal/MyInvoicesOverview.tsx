@@ -135,7 +135,8 @@ export function MyInvoicesOverview() {
 
 function InvoiceRow({ invoice }: { invoice: BillingInvoice }) {
   const amount = invoice.outstandingBalance;
-  const isPaid = amount <= 0 || invoice.status === "PAID";
+  const isVoid = invoice.status === "VOID";
+  const isPaid = !isVoid && (amount <= 0 || invoice.status === "PAID");
   const source = invoice.appointmentId
     ? "Lịch khám"
     : invoice.visitId
@@ -153,20 +154,26 @@ function InvoiceRow({ invoice }: { invoice: BillingInvoice }) {
               ? ` · ${issuedDate(invoice.issuedAt)}`
               : ""}
           </p>
-          <p className="text-base">
-            {isPaid ? "Đã thanh toán" : "Còn phải thanh toán"}
-            {": "}
-            <span className="font-semibold tabular-nums">
-              {formatCurrencyVnd(isPaid ? invoice.totalAmount : amount)}
-            </span>
-          </p>
+          {isVoid ? (
+            <p className="text-base text-muted-foreground">Đã hủy</p>
+          ) : (
+            <p className="text-base">
+              {isPaid ? "Đã thanh toán" : "Còn phải thanh toán"}
+              {": "}
+              <span className="font-semibold tabular-nums">
+                {formatCurrencyVnd(isPaid ? invoice.totalAmount : amount)}
+              </span>
+            </p>
+          )}
         </div>
-        <Link
-          className={publicButtonClass(isPaid ? "secondary" : "primary")}
-          href={PATIENT_ROUTES.payInvoice(invoice.id)}
-        >
-          {isPaid ? "Xem hóa đơn" : "Thanh toán"}
-        </Link>
+        {isVoid ? null : (
+          <Link
+            className={publicButtonClass(isPaid ? "secondary" : "primary")}
+            href={PATIENT_ROUTES.payInvoice(invoice.id)}
+          >
+            {isPaid ? "Xem hóa đơn" : "Thanh toán"}
+          </Link>
+        )}
       </div>
     </li>
   );

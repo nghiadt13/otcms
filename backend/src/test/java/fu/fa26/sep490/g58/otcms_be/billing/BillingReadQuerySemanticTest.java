@@ -17,7 +17,8 @@ class BillingReadQuerySemanticTest {
                 .applySetting("hibernate.hbm2ddl.auto", "none").build();
         try {
             var metadata = new MetadataSources(registry);
-            for (var type : new Class<?>[]{InvoiceJpaEntity.class, InvoiceItemJpaEntity.class, PaymentAttemptJpaEntity.class}) {
+            for (var type : new Class<?>[]{InvoiceJpaEntity.class, InvoiceItemJpaEntity.class, PaymentAttemptJpaEntity.class,
+                    fu.fa26.sep490.g58.otcms_be.appointment.model.entity.AppointmentJpaEntity.class}) {
                 metadata.addAnnotatedClass(type);
             }
             try (var factory = metadata.buildMetadata().buildSessionFactory(); var session = factory.openSession()) {

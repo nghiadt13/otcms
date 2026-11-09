@@ -18,6 +18,10 @@ public interface InvoiceRepository extends JpaRepository<InvoiceJpaEntity, UUID>
     Optional<InvoiceJpaEntity> findFirstByAppointmentId(UUID appointmentId);
     java.util.List<InvoiceJpaEntity> findAllByAppointmentIdIn(Collection<UUID> appointmentIds);
     Page<InvoiceJpaEntity> findAllByPatientProfileIdIn(Collection<UUID> patientProfileIds, Pageable pageable);
+    /** Patient invoice list without voided invoices (voided holds are never shown to the patient). */
+    org.springframework.data.domain.Slice<InvoiceJpaEntity> findAllByPatientProfileIdInAndStatusNot(
+            Collection<UUID> patientProfileIds, fu.fa26.sep490.g58.otcms_be.billing.model.InvoiceStatus status,
+            Pageable pageable);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select invoice from InvoiceJpaEntity invoice where invoice.id = :invoiceId")

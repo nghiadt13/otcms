@@ -32,6 +32,8 @@ type AdminAppointmentPageDto = {
   totalPages: number;
 };
 
+// Backend CONFIRMED ↔ màn hình BOOKED. AWAITING_PAYMENT / PAYMENT_EXPIRED (giữ giờ chờ thanh toán) đã
+// được BE ẩn khỏi admin và có trong AppointmentStatus nên không bị hiện chuỗi thô nếu lỡ trả ra.
 const appointmentStatus = (status: string): AppointmentStatus =>
   status === "CONFIRMED" ? "BOOKED" : (status as AppointmentStatus);
 

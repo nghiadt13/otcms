@@ -1,5 +1,6 @@
 import { Toaster } from "@/components/ui/sonner";
 import { BookingMockStoreBootstrap } from "@/features/appointments/components/BookingMockStoreBootstrap";
+import { PendingHoldAutoCancel } from "@/features/appointments/components/portal/PendingHoldAutoCancel";
 import { SiteTopBar } from "@/features/clinic-website/components/SiteTopBar";
 import { siteNavItems } from "@/features/clinic-website/siteNavigation";
 import { PatientNotificationBell } from "@/features/notifications/components/PatientNotificationBell";
@@ -16,6 +17,8 @@ import { PortalAreaFrame } from "./_area/PortalAreaFrame";
 // do backend kiểm từng API. Dải thông tin ghép ở đây vì feature patient-shell không import
 // clinic-website. Chuông thông báo đi qua slot của header.
 // BookingMockStoreBootstrap và PatientNotificationMockBootstrap chỉ nạp kho giả (mock), xóa khi nối BE.
+// PendingHoldAutoCancel: rời trang = hủy thanh toán, mỗi lần nạp layout (tải mới, tải lại, đăng nhập
+// lại) hủy một lần giữ chỗ chờ thanh toán còn sót của tài khoản (trừ /portal/payments/result).
 export default async function PatientPortalLayout({
   children,
 }: {
@@ -35,6 +38,7 @@ export default async function PatientPortalLayout({
       />
       <BookingMockStoreBootstrap />
       <PatientNotificationMockBootstrap />
+      <PendingHoldAutoCancel />
       <main className="mx-auto max-w-3xl px-4 py-6 has-[[data-portal-wide]]:max-w-6xl md:py-10">
         <PortalAreaFrame>{children}</PortalAreaFrame>
       </main>

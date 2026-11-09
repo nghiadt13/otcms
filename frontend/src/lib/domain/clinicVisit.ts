@@ -5,8 +5,18 @@ import type { StatusTone } from "@/components/admin/StatusBadge";
 // Mã giữ nguyên theo hợp đồng API (UPPER_SNAKE). Chỉ thêm giá trị, không đổi tên giá
 // trị đã có: plan lễ tân cũng dùng file này.
 
+/**
+ * `AWAITING_PAYMENT` / `PAYMENT_EXPIRED` là trạng thái kỹ thuật của lịch tự đặt có phí: chỉ sống ở
+ * bước thanh toán của wizard đặt lịch và bị ẩn khỏi mọi danh sách (BE lọc). Có mặt trong kiểu để
+ * các bảng nhãn không vỡ nếu BE lỡ trả ra.
+ */
 export type AppointmentStatus =
-  "BOOKED" | "CHECKED_IN" | "CANCELLED" | "NO_SHOW";
+  | "BOOKED"
+  | "AWAITING_PAYMENT"
+  | "PAYMENT_EXPIRED"
+  | "CHECKED_IN"
+  | "CANCELLED"
+  | "NO_SHOW";
 export type VisitStatus =
   | "WAITING_FOR_EXAMINATION"
   | "IN_EXAMINATION"
@@ -27,12 +37,16 @@ export type PaymentStatus = "SUCCESS" | "PENDING" | "FAILED";
 
 export const APPOINTMENT_STATUS_LABELS: Record<AppointmentStatus, string> = {
   BOOKED: "Đã đặt",
+  AWAITING_PAYMENT: "Chờ thanh toán",
+  PAYMENT_EXPIRED: "Hết hạn giữ chỗ",
   CHECKED_IN: "Đã tiếp nhận",
   CANCELLED: "Đã hủy",
   NO_SHOW: "Không đến",
 };
 export const APPOINTMENT_STATUS_TONE: Record<AppointmentStatus, StatusTone> = {
   BOOKED: "info",
+  AWAITING_PAYMENT: "warning",
+  PAYMENT_EXPIRED: "neutral",
   CHECKED_IN: "success",
   CANCELLED: "neutral",
   NO_SHOW: "warning",

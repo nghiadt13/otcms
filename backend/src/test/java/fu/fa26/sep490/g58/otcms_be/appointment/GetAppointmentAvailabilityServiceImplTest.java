@@ -44,7 +44,7 @@ class GetAppointmentAvailabilityServiceImplTest {
     @BeforeEach
     void setUp() {
         var properties = new AppointmentBookingProperties(30, 1440, 30, 15, 15,
-                ZoneId.of("Asia/Ho_Chi_Minh"), new AppointmentBookingProperties.PublicRateLimit(60, 60));
+                ZoneId.of("Asia/Ho_Chi_Minh"), new AppointmentBookingProperties.PublicRateLimit(60, 60), 15, 30000L, false);
         handler = new GetAppointmentAvailabilityServiceImpl(services, providers, assignments, slotEngine,
                 properties, Clock.fixed(NOW, ZoneId.of("UTC")));
         when(services.findActiveService(SERVICE_ID, ClinicServiceBookingQueryService.BookingAudience.PUBLIC_PATIENT))

@@ -83,6 +83,10 @@ This operation needs one transaction for conflict detection and state update. No
 | `CANCELLED` | No | View history |
 | `RESCHEDULE_REQUIRED` | Yes until a replacement is committed or clinic resolves it | View and choose replacement if policy allows |
 | `NO_SHOW` | No | View history |
+| `AWAITING_PAYMENT` | Yes, only while `payment_deadline > now` (added by V106, see section 9) | Not listed anywhere; owner reads it only via `GET /appointments/{id}` at the payment step |
+| `PAYMENT_EXPIRED` | No | Not listed anywhere; terminal technical state |
+
+Naming note: this proposal says `BOOKED`; the implemented schema and API use `CONFIRMED` for the same state.
 
 The service layer must validate legal transitions and actor authorization. A SQL CHECK constraint alone cannot determine whether the caller is the patient, an approved dependent manager, a receptionist or the responsible doctor.
 
@@ -109,6 +113,26 @@ The MVP uses the simple cancellation policy:
 - clinic staff may handle exceptional cases through an authorized operational workflow, which requires its own API authorization rule and audit record.
 
 The `LATE_CANCELLATION` state is removed from the MVP state machine. A later feature may add it through a new reviewed SPEC and migration.
+
+## 9. Giữ giờ chờ thanh toán (V106, 09/11/2026)
+
+Kế hoạch: `plans/261108-2017-booking-payment-hold-awaiting-payment/`. Kiến trúc: [architecture.md](architecture.md). Hợp đồng API: [fe-be-api-contract-patient-reception.md](fe-be-api-contract-patient-reception.md) mục 3.3.1. BR-22, BR-48, BR-53 của R3 không đổi.
+
+**Áp dụng.** Đặt online (`PATIENT_ONLINE`) với dịch vụ giá > 0 → `AWAITING_PAYMENT`, giữ giờ `payment_deadline = now + 15'` (`appointment.booking.payment-hold-minutes`). Chỉ `CONFIRMED` sau khi PayOS thanh toán xong. Lễ tân đặt hộ, bác sĩ tái khám, dịch vụ giá 0 → `CONFIRMED` ngay. Đặt online có phí phải cách giờ khám ≥ 15' (`BOOKING_TOO_SOON`).
+
+**Vòng đời.**
+
+```text
+AWAITING_PAYMENT -> CONFIRMED | PAYMENT_EXPIRED
+CONFIRMED        -> CHECKED_IN | CANCELLED | NO_SHOW   (không đổi)
+```
+
+- `PAYMENT_EXPIRED` là trạng thái cuối kỹ thuật khi nhả hold (hết 15', rời trang, bấm Hủy/Quay lại, đăng xuất, tạo lịch mới). Không phải `CANCELLED`, không phải "Cancelled" của R3, không vào lịch sử hay báo cáo hủy.
+- `AWAITING_PAYMENT` chiếm slot trong occupancy như lịch hoạt động nhưng chỉ khi chưa quá hạn; `PAYMENT_EXPIRED` nhả giờ.
+- Không ai thấy hai trạng thái này ở danh sách nào (bệnh nhân, bác sĩ, lễ tân, admin, báo cáo). Nhắc lịch, check-in, đổi lịch chỉ nhận `CONFIRMED`.
+- Mỗi tài khoản tối đa một hold sống: tạo lịch mới tự hủy hold cũ.
+- Hủy `AWAITING_PAYMENT` không áp hạn 24 giờ (mục 4); mọi đường hủy hỏi PayOS `query()` trước, đã PAID thì xác nhận lịch.
+- Tiền về muộn sau khi hóa đơn `VOID`: đánh `RECONCILIATION_REQUIRED` (R3 NF-06), không tự hoàn tiền (BR-53).
 
 ```text
 HUMAN DECISION: APPROVED

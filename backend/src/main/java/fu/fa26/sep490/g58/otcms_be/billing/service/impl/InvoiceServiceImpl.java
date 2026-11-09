@@ -3,6 +3,7 @@ package fu.fa26.sep490.g58.otcms_be.billing.service.impl;
 import fu.fa26.sep490.g58.otcms_be.appointment.exception.AppointmentQueryException;
 import fu.fa26.sep490.g58.otcms_be.appointment.service.AppointmentBillingSourceService;
 import fu.fa26.sep490.g58.otcms_be.billing.exception.BillingException;
+import fu.fa26.sep490.g58.otcms_be.billing.integration.AppointmentPaymentPort;
 import fu.fa26.sep490.g58.otcms_be.billing.mapper.BillingMapper;
 import fu.fa26.sep490.g58.otcms_be.billing.model.InvoiceStatus;
 import fu.fa26.sep490.g58.otcms_be.billing.model.PaymentAttemptStatus;
@@ -44,6 +45,9 @@ import org.springframework.transaction.support.TransactionTemplate;
 @Service
 public class InvoiceServiceImpl implements InvoiceService {
     private static final ZoneId CLINIC_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
+    private static final int LIST_SCAN_BATCH = 50;
+    private final AppointmentPaymentPort appointmentHolds;
+    private final AppointmentInvoiceVoider voider;
     private final fu.fa26.sep490.g58.otcms_be.billing.integration.ClinicalRoundBillingPort clinicalRounds;
     private final InvoiceRepository invoices;
     private final InvoiceItemRepository items;
@@ -61,8 +65,11 @@ public class InvoiceServiceImpl implements InvoiceService {
             VisitBillingSourceService visitSources, ClinicServiceBookingQueryService services,
             AuthorizePatientBillingProfileService patientAuthorization, BillingMapper mapper,
             PlatformTransactionManager transactionManager, Clock clock,
-            fu.fa26.sep490.g58.otcms_be.billing.integration.ClinicalRoundBillingPort clinicalRounds) {
+            fu.fa26.sep490.g58.otcms_be.billing.integration.ClinicalRoundBillingPort clinicalRounds,
+            AppointmentPaymentPort appointmentHolds, AppointmentInvoiceVoider voider) {
         this.clinicalRounds = clinicalRounds;
+        this.appointmentHolds = appointmentHolds;
+        this.voider = voider;
         this.invoices = invoices;
         this.items = items;
         this.payments = payments;
@@ -148,9 +155,16 @@ public class InvoiceServiceImpl implements InvoiceService {
         if (actor.accountRole() == AccountRole.PATIENT) {
             authorizePatient(actor.accountId(), source.patientProfileId());
         }
+        // An online booking hold is invisible to staff: only the authorized patient may open its invoice, even when
+        // the invoice already exists (receptionist/admin/other actors get the same refusal as a non-billable source).
+        if ("AWAITING_PAYMENT".equals(source.status()) && actor.accountRole() != AccountRole.PATIENT) {
+            throw new BillingException("SOURCE_NOT_BILLABLE");
+        }
         var existing = invoices.findFirstByAppointmentId(appointmentId);
         if (existing.isPresent()) return existing(existing.get());
-        if (!"CONFIRMED".equals(source.status()) || source.servicePrice() == null
+        // AWAITING_PAYMENT = online booking hold; CONFIRMED = receptionist/legacy booking. Released states stay refused.
+        if (!("CONFIRMED".equals(source.status()) || "AWAITING_PAYMENT".equals(source.status()))
+                || source.servicePrice() == null
                 || source.servicePrice().signum() <= 0 || source.serviceName() == null
                 || source.serviceName().isBlank() || source.servicePrice().stripTrailingZeros().scale() > 0) {
             throw new BillingException("SOURCE_NOT_BILLABLE");
@@ -189,13 +203,34 @@ public class InvoiceServiceImpl implements InvoiceService {
             throw new BillingException("ACCESS_DENIED");
         }
         List<UUID> profileIds = patientAuthorization.accessibleProfileIds(actor.accountId());
-        var results = invoices.findAllByPatientProfileIdIn(profileIds,
-                PageRequest.of(page, size + 1, Sort.by(Sort.Direction.DESC, "issuedAt").and(Sort.by("id"))));
-        List<InvoiceResponse> pageItems = results.getContent().stream().limit(size)
+        // VOID invoices are excluded by the query; invoices of AWAITING_PAYMENT / PAYMENT_EXPIRED appointments are
+        // excluded through the appointment port. Pages are cut AFTER filtering, so offsets and hasMore stay exact:
+        // collect visible invoices (one more than the requested page needs) scanning the DB in stable batches.
+        int skip = page * size;
+        int needed = skip + size + 1;
+        Sort order = Sort.by(Sort.Direction.DESC, "issuedAt").and(Sort.by("id"));
+        List<InvoiceJpaEntity> visible = new ArrayList<>();
+        int batchIndex = 0;
+        while (visible.size() < needed) {
+            var batch = invoices.findAllByPatientProfileIdInAndStatusNot(profileIds, InvoiceStatus.VOID,
+                    PageRequest.of(batchIndex++, LIST_SCAN_BATCH, order));
+            var heldIds = appointmentHolds.heldOrReleasedIds(batch.getContent().stream()
+                    .map(InvoiceJpaEntity::getAppointmentId).filter(java.util.Objects::nonNull).toList());
+            batch.getContent().stream()
+                    .filter(invoice -> invoice.getAppointmentId() == null || !heldIds.contains(invoice.getAppointmentId()))
+                    .forEach(visible::add);
+            if (!batch.hasNext()) break;
+        }
+        List<InvoiceResponse> pageItems = visible.stream().skip(skip).limit(size)
                 .map(invoice -> mapper.toInvoice(invoice, items.findAllByInvoiceIdOrderByLineNumber(invoice.getId()),
                         payments.sumByInvoiceAndStatus(invoice.getId(), PaymentAttemptStatus.CONFIRMED)))
                 .toList();
-        return new InvoicePageResponse(page, size, results.getContent().size() > size, pageItems);
+        return new InvoicePageResponse(page, size, visible.size() > skip + size, pageItems);
+    }
+
+    @Override
+    public VoidResult voidUnpaidAppointmentInvoice(UUID appointmentId) {
+        return voider.voidUnpaid(appointmentId);
     }
 
     private List<ResolvedItem> resolveItems(List<CreateVisitInvoiceRequest.Item> requested) {

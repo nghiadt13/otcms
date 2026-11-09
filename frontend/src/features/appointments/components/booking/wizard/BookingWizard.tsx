@@ -50,8 +50,6 @@ export interface BookingWizardProps extends BookingScheduleStepProps {
   onSubmit: () => void;
   /** Màn thanh toán của lịch vừa tạo (bước 5). Do trang ghép vì feature này không import billing. */
   paymentSlot?: ReactNode;
-  /** Khối nhắc (ví dụ lịch đang chờ thanh toán), chỉ hiện ở các bước trước thanh toán. */
-  notice?: ReactNode;
 }
 
 export function BookingWizard(props: BookingWizardProps) {
@@ -88,8 +86,6 @@ export function BookingWizard(props: BookingWizardProps) {
         onGoTo={onStepChange}
         locked={step === "payment"}
       />
-
-      {step === "payment" ? null : props.notice}
 
       <section
         aria-labelledby="booking-step-heading"

@@ -45,6 +45,9 @@ function badgeKey(status: string) {
       COMPLETED: "completed",
       CANCELLED: "cancelled",
       NO_SHOW: "no-show",
+      // Giữ giờ chờ thanh toán: BE đã ẩn khỏi danh sách lễ tân; chỉ để lỡ trả ra thì không hiện chuỗi thô.
+      AWAITING_PAYMENT: "pending",
+      PAYMENT_EXPIRED: "cancelled",
     }[status] ?? status
   );
 }
