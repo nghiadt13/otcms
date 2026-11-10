@@ -16,7 +16,6 @@ import static org.junit.jupiter.api.Assertions.*;
 class AppointmentBookingPropertiesTest {
     private static final String[] SPEC_DEFAULTS = {
             "appointment.booking.max-horizon-days=30",
-            "appointment.booking.online-minimum-notice-minutes=120",
             "appointment.booking.patient-change-deadline-minutes=1440",
             "appointment.booking.check-in-early-minutes=30",
             "appointment.booking.check-in-late-grace-minutes=15",
@@ -39,7 +38,6 @@ class AppointmentBookingPropertiesTest {
             assertNull(context.getStartupFailure());
             AppointmentBookingProperties properties = context.getBean(AppointmentBookingProperties.class);
             assertEquals(30, properties.maxHorizonDays());
-            assertEquals(120, properties.onlineMinimumNoticeMinutes());
             assertEquals(1440, properties.patientChangeDeadlineMinutes());
             assertEquals(30, properties.checkInEarlyMinutes());
             assertEquals(15, properties.checkInLateGraceMinutes());
@@ -56,7 +54,6 @@ class AppointmentBookingPropertiesTest {
         contextRunner.withUserConfiguration(FixedClockConfiguration.class)
                 .withPropertyValues(
                         "appointment.booking.max-horizon-days=45",
-                        "appointment.booking.online-minimum-notice-minutes=0",
                         "appointment.booking.patient-change-deadline-minutes=0",
                         "appointment.booking.check-in-early-minutes=0",
                         "appointment.booking.check-in-late-grace-minutes=0",
@@ -68,7 +65,6 @@ class AppointmentBookingPropertiesTest {
                     assertNull(context.getStartupFailure());
                     AppointmentBookingProperties properties = context.getBean(AppointmentBookingProperties.class);
                     assertEquals(45, properties.maxHorizonDays());
-                    assertEquals(0, properties.onlineMinimumNoticeMinutes());
                     assertEquals(0, properties.patientChangeDeadlineMinutes());
                     assertEquals(0, properties.checkInEarlyMinutes());
                     assertEquals(0, properties.checkInLateGraceMinutes());
@@ -82,7 +78,6 @@ class AppointmentBookingPropertiesTest {
     @Test
     void rejectsInvalidConfigurationAtContextStartup() {
         assertStartupRejected("appointment.booking.max-horizon-days=0");
-        assertStartupRejected("appointment.booking.online-minimum-notice-minutes=-1");
         assertStartupRejected("appointment.booking.patient-change-deadline-minutes=-1");
         assertStartupRejected("appointment.booking.check-in-early-minutes=-1");
         assertStartupRejected("appointment.booking.check-in-late-grace-minutes=-1");

@@ -1,5 +1,6 @@
 "use client";
 
+import { Plus } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { publicButtonClass } from "@/components/brand/publicButtonStyles";
@@ -8,11 +9,12 @@ import { PortalPageHeader } from "@/components/patient/PortalPageHeader";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useLinkedProfiles } from "@/hooks/useLinkedProfiles";
 import { PATIENT_ROUTES } from "@/lib/routes/patientRoutes";
-import { MedicalHistoryProfiles } from "./MedicalHistoryProfiles";
+import { cn } from "@/lib/utils";
 import { PatientProfileList } from "./PatientProfileList";
 import { PortalLoadError } from "./PortalLoadError";
 
-// Trang "Hồ sơ bệnh nhân": hồ sơ đã gắn của tài khoản. Đủ bốn trạng thái: tải, lỗi, trống, có dữ liệu.
+// Trang "Quản lý gia đình": hồ sơ đã gắn của tài khoản (bản thân và người thân), dạng lưới thẻ. Tiền sử
+// bệnh nằm trong trang chi tiết từng hồ sơ, không hiện ở đây. Đủ bốn trạng thái: tải, lỗi, trống, có dữ liệu.
 export function PatientProfilesScreen() {
   const { profiles, loading, error, reload } = useLinkedProfiles();
   const showAddButton = !loading && !error && profiles.length > 0;
@@ -43,7 +45,7 @@ export function PatientProfilesScreen() {
   } else if (profiles.length === 0) {
     body = <PortalNoProfileState />;
   } else {
-    body = <PatientProfileList profiles={profiles} />;
+    body = <PatientProfileList onChanged={reload} profiles={profiles} />;
   }
 
   return (
@@ -52,20 +54,17 @@ export function PatientProfilesScreen() {
         actions={
           showAddButton ? (
             <Link
-              className={publicButtonClass("primary")}
+              className={cn(publicButtonClass("primary"), "gap-2")}
               href={PATIENT_ROUTES.newProfile}
             >
+              <Plus aria-hidden className="size-5" />
               Thêm thành viên
             </Link>
           ) : null
         }
-        description="Hồ sơ của bạn và người thân đã gắn với tài khoản này."
-        title="Hồ sơ bệnh nhân"
+        title="Quản lý gia đình"
       />
-      <div className="space-y-6">
-        <MedicalHistoryProfiles />
-        {body}
-      </div>
+      {body}
     </>
   );
 }

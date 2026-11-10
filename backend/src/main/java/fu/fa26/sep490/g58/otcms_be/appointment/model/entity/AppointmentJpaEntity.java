@@ -47,6 +47,8 @@ public class AppointmentJpaEntity {
     private UUID sourceAppointmentId;
     @Column(name = "ordering_doctor_profile_id")
     private UUID orderingDoctorProfileId;
+    @Column(name = "payment_deadline")
+    private Instant paymentDeadline;
     @Column(name = "created_by_account_id", nullable = false)
     private UUID createdByAccountId;
     @Column(name = "created_at", insertable = false, updatable = false)
@@ -59,13 +61,15 @@ public class AppointmentJpaEntity {
 
     protected AppointmentJpaEntity() { }
 
-    public static AppointmentJpaEntity confirmed(AppointmentBooking booking) {
+    /** Maps a new booking to its row; status is CONFIRMED, or AWAITING_PAYMENT when the booking holds the slot for payment. */
+    public static AppointmentJpaEntity from(AppointmentBooking booking) {
         AppointmentJpaEntity entity = new AppointmentJpaEntity();
         entity.id = booking.id();
         entity.patientProfileId = booking.patientProfileId();
         entity.serviceId = booking.serviceId();
         entity.doctorProfileId = booking.doctorProfileId();
-        entity.status = "CONFIRMED";
+        entity.status = booking.initialStatus();
+        entity.paymentDeadline = booking.paymentDeadline();
         entity.bookingSource = booking.bookingSource().name();
         entity.purpose = booking.purpose();
         entity.startTime = booking.startTime();
@@ -93,6 +97,8 @@ public class AppointmentJpaEntity {
     public Instant getOccupiedUntil() { return occupiedUntil; }
     public UUID getVisitId() { return visitId; }
     public UUID getSourceVisitId() { return sourceVisitId; }
+    public Instant getPaymentDeadline() { return paymentDeadline; }
+    public UUID getCreatedByAccountId() { return createdByAccountId; }
     public Instant getCreatedAt() { return createdAt; }
     public Instant getUpdatedAt() { return updatedAt; }
 }

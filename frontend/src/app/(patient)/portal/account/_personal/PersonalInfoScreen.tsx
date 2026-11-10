@@ -1,17 +1,19 @@
 "use client";
 
 import Link from "next/link";
-import { publicButtonClass } from "@/components/brand/publicButtonStyles";
-import { PortalEmptyState } from "@/components/patient/PortalEmptyState";
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 import { PortalPageHeader } from "@/components/patient/PortalPageHeader";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
+import { safePortalNext } from "@/features/auth/safePortalNext";
 import { AccountEmailField } from "@/features/my-account/components/AccountEmailField";
 import { AvatarEditor } from "@/features/my-account/components/AvatarEditor";
 import { useMyAccount } from "@/features/my-account/hooks/useMyAccount";
+import { formatAppMessage } from "@/lib/messages/appMessages";
 import { PersonalInfoForm } from "@/features/patient-profiles/components/PersonalInfoForm";
 import { PortalLoadError } from "@/features/patient-profiles/components/PortalLoadError";
 import { useOwnPatientProfile } from "@/features/patient-profiles/hooks/useOwnPatientProfile";
-import { PATIENT_ROUTES } from "@/lib/routes/patientRoutes";
 
 const TITLE = "Thông tin cá nhân";
 
@@ -20,9 +22,17 @@ const CARD_CLASS = "rounded-xl border bg-card p-5 sm:p-8";
 // Thông tin cá nhân của bệnh nhân (/portal/account, UC03, UC04). Ghép hai nguồn ở đây vì feature
 // không import nhau: tài khoản (ảnh, email đăng nhập) từ `my-account`, thông tin hành chính
 // (họ tên, ngày sinh, giới tính, CCCD, SĐT, địa chỉ) từ hồ sơ "Bản thân" của `patient-profiles`.
-export function PersonalInfoScreen() {
+export function PersonalInfoScreen({ next }: { next?: string }) {
+  const router = useRouter();
   const { account, loading, error, reload } = useMyAccount();
   const own = useOwnPatientProfile();
+  // Vừa điền hồ sơ lần đầu: đợi danh sách hồ sơ tải lại (cổng khu bệnh nhân cũng tải lại cùng lúc)
+  // rồi mới quay về trang đang dở, kẻo cổng còn thấy "chưa có hồ sơ" và đẩy ngược về đây.
+  const [created, setCreated] = useState(false);
+  const ownReady = own.state.status === "ready";
+  useEffect(() => {
+    if (created && ownReady && next) router.replace(safePortalNext(next));
+  }, [created, ownReady, next, router]);
 
   if (account?.kind === "STAFF") {
     return (
@@ -65,10 +75,6 @@ export function PersonalInfoScreen() {
         <h2 className="text-xl font-semibold" id="personal-edit-heading">
           Chỉnh sửa thông tin
         </h2>
-        <p className="mt-2 max-w-prose text-base text-muted-foreground">
-          Giữ thông tin đúng để phòng khám nhận ra hồ sơ của bạn khi đặt lịch và
-          khi đến khám.
-        </p>
 
         <div className="mt-6 grid gap-8 border-t pt-6">
           {error ? (
@@ -90,19 +96,19 @@ export function PersonalInfoScreen() {
                 title="Không tải được thông tin cá nhân."
               />
             ) : own.state.status === "missing" ? (
-              <PortalEmptyState
-                action={
-                  <Link
-                    className={publicButtonClass("primary")}
-                    href={PATIENT_ROUTES.newProfile}
-                  >
-                    Thêm hồ sơ của bạn
-                  </Link>
-                }
-              >
-                Tài khoản của bạn chưa có thông tin cá nhân. Thêm hồ sơ của
-                chính bạn để đặt lịch và xem kết quả.
-              </PortalEmptyState>
+              <div className="grid gap-6">
+                <Alert role="status">
+                  <AlertDescription className="text-base text-current">
+                    {formatAppMessage("MSG-06")}
+                  </AlertDescription>
+                </Alert>
+                <PersonalInfoForm
+                  detail={null}
+                  emailSlot={<AccountEmailField email={account.email} />}
+                  initialFullName={account.displayName}
+                  onSaved={() => setCreated(true)}
+                />
+              </div>
             ) : (
               <PersonalInfoForm
                 detail={own.state.detail}
@@ -112,26 +118,6 @@ export function PersonalInfoScreen() {
             )}
           </div>
         </div>
-      </section>
-
-      <section
-        aria-labelledby="personal-password-heading"
-        className={`${CARD_CLASS} flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between`}
-      >
-        <div>
-          <h2 className="text-lg font-semibold" id="personal-password-heading">
-            Mật khẩu
-          </h2>
-          <p className="mt-1 text-base text-muted-foreground">
-            Đổi mật khẩu định kỳ để giữ tài khoản an toàn.
-          </p>
-        </div>
-        <Link
-          className={publicButtonClass("secondary")}
-          href={PATIENT_ROUTES.accountPassword}
-        >
-          Đổi mật khẩu
-        </Link>
       </section>
     </>
   );

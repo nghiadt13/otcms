@@ -18,6 +18,9 @@ describe("clinicVisit: nhãn và tone", () => {
   it("nhãn lịch hẹn theo bảng đã chốt (admin và lễ tân dùng chung)", () => {
     expect(APPOINTMENT_STATUS_LABELS).toEqual({
       BOOKED: "Đã đặt",
+      // Trạng thái kỹ thuật của hold thanh toán: không phải trạng thái R3, BE ẩn khỏi mọi danh sách.
+      AWAITING_PAYMENT: "Chờ thanh toán",
+      PAYMENT_EXPIRED: "Hết hạn giữ chỗ",
       CHECKED_IN: "Đã tiếp nhận",
       CANCELLED: "Đã hủy",
       NO_SHOW: "Không đến",

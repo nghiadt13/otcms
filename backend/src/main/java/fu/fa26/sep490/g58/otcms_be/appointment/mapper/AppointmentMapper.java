@@ -16,7 +16,8 @@ public final class AppointmentMapper {
                 appointment.purpose(),
                 appointment.startTime(), appointment.endTime(), appointment.durationMinutes(),
                 appointment.bufferMinutes(), appointment.occupiedUntil(), appointment.visitId(),
-                appointment.sourceVisitId(), appointment.createdAt(), appointment.updatedAt());
+                appointment.sourceVisitId(), appointment.createdAt(), appointment.updatedAt(), null, null,
+                appointment.paymentDeadline());
     }
 
     public static AppointmentResponse toResponse(AppointmentSummary appointment) {
@@ -26,7 +27,7 @@ public final class AppointmentMapper {
                 appointment.startTime(), appointment.endTime(), appointment.durationMinutes(),
                 appointment.bufferMinutes(), appointment.occupiedUntil(), appointment.visitId(),
                 appointment.sourceVisitId(), appointment.createdAt(), appointment.updatedAt(), null,
-                appointment.patientName());
+                appointment.patientName(), appointment.paymentDeadline());
     }
 
     public static CheckInResponse toResponse(CheckedInAppointment appointment) {

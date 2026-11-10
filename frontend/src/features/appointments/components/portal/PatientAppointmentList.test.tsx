@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@/lib/api/apiError";
@@ -47,7 +47,15 @@ function idOf(patientCode: string): string {
   return profile.id;
 }
 
-/** Các dòng lịch (cả dòng là link tới chi tiết). */
+/** Thẻ lịch có chữ khớp mẫu; nút "Chi tiết lịch khám" trong thẻ là link tới chi tiết. */
+const cardOf = (text: RegExp) =>
+  within(
+    screen
+      .getAllByRole("article")
+      .find((card) => text.test(card.textContent ?? ""))!,
+  );
+
+/** Link "Chi tiết lịch khám" của từng thẻ lịch. */
 const rows = () =>
   screen
     .queryAllByRole("link")
@@ -71,13 +79,14 @@ describe("PatientAppointmentList", () => {
 
     expect(await screen.findAllByText("Đã đặt")).toHaveLength(4);
     expect(rows()).toHaveLength(4);
-    // Tên người khám cũng nằm trong ô chọn; chỉ tính dòng là link.
+    // Tên người khám cũng nằm trong ô chọn; chỉ tính trong thẻ lịch.
     expect(
-      screen.getByRole("link", { name: /Nguyễn Thị Lan · Cha\/Mẹ/ }),
+      cardOf(/Nguyễn Thị Lan · Cha\/Mẹ/).getByRole("link"),
     ).toHaveAttribute("href", "/portal/appointments/apt-1003");
-    expect(
-      screen.getByRole("link", { name: /Nguyễn Gia Huy · Con/ }),
-    ).toHaveAttribute("href", "/portal/appointments/apt-2101");
+    expect(cardOf(/Nguyễn Gia Huy · Con/).getByRole("link")).toHaveAttribute(
+      "href",
+      "/portal/appointments/apt-2101",
+    );
     expect(rows()[0]).toHaveAttribute("href", "/portal/appointments/apt-1001");
   });
 
@@ -86,7 +95,7 @@ describe("PatientAppointmentList", () => {
     nav.search = "tab=past";
     render(<PatientAppointmentList />);
 
-    expect(await screen.findByRole("tab", { name: "Đã qua" })).toHaveAttribute(
+    expect(await screen.findByRole("tab", { name: /Đã qua/ })).toHaveAttribute(
       "aria-selected",
       "true",
     );
@@ -103,7 +112,7 @@ describe("PatientAppointmentList", () => {
   it("đổi tab đẩy URL ?tab=past", async () => {
     const user = userEvent.setup();
     render(<PatientAppointmentList />);
-    await user.click(await screen.findByRole("tab", { name: "Đã qua" }));
+    await user.click(await screen.findByRole("tab", { name: /Đã qua/ }));
     expect(nav.push).toHaveBeenCalledWith("/portal/appointments?tab=past");
   });
 
@@ -125,7 +134,9 @@ describe("PatientAppointmentList", () => {
     nav.search = `profileId=${idOf("BN-000456")}`;
     const { unmount } = render(<PatientAppointmentList />);
     await waitFor(() => expect(rows()).toHaveLength(1));
-    expect(rows()[0]).toHaveTextContent("Nguyễn Thị Lan · Cha/Mẹ");
+    expect(rows()[0].closest("article")).toHaveTextContent(
+      "Nguyễn Thị Lan · Cha/Mẹ",
+    );
     unmount();
 
     nav.search = "profileId=pat-binh";
@@ -145,9 +156,16 @@ describe("PatientAppointmentList", () => {
 
   it("lỗi tải: nói rõ chuyện gì, Thử lại tải lại danh sách", async () => {
     const user = userEvent.setup();
-    vi.mocked(listMyAppointments).mockRejectedValueOnce(
-      new ApiError(500, { code: "MSG-04" }),
-    );
+    // Chỉ lần tải danh sách (cỡ trang 10) lỗi; hai lần đếm số liệu đầu trang vẫn chạy bình thường.
+    const real = vi.mocked(listMyAppointments).getMockImplementation()!;
+    let failOnce = true;
+    vi.mocked(listMyAppointments).mockImplementation((query, signal) => {
+      if (failOnce && query.size === 10) {
+        failOnce = false;
+        return Promise.reject(new ApiError(500, { code: "MSG-04" }));
+      }
+      return real(query, signal);
+    });
     render(<PatientAppointmentList />);
 
     expect(await screen.findByRole("alert")).toHaveTextContent(

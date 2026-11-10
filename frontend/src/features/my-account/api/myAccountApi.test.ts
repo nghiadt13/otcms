@@ -90,7 +90,7 @@ describe("myAccountApi", () => {
         currentPassword: "MatKhauCu1",
         newPassword: "MatKhauMoi2",
       }),
-    ).resolves.toBeUndefined();
+    ).resolves.toEqual({ sessionEnded: false });
     expect(await getMyAccount()).toMatchObject({ mustChangePassword: false });
   });
 });

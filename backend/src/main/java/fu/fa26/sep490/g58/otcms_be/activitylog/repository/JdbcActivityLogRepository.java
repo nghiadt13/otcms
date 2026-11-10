@@ -22,6 +22,13 @@ public class JdbcActivityLogRepository implements ActivityLogRepository {
           e.action, e.category record_type, e.record_label, e.correction_reason, e.record_id::text record_code
         FROM activity_log_entries e LEFT JOIN accounts a ON a.id = e.actor_account_id
         """;
+    /**
+     * Payment holds are technical: while an appointment is AWAITING_PAYMENT, or after its hold was released
+     * (PAYMENT_EXPIRED), no one may see its audit rows. A hold that was paid is CONFIRMED and keeps its rows.
+     * The view tags appointment rows with id 'appointment:' and record_id = the appointment id.
+     */
+    private static final String HIDE_PAYMENT_HOLD_AUDIT = " AND NOT (e.id LIKE 'appointment:%' AND EXISTS ("
+        + "SELECT 1 FROM appointments h WHERE h.id = e.record_id AND h.status IN ('AWAITING_PAYMENT', 'PAYMENT_EXPIRED')))";
     public JdbcActivityLogRepository(NamedParameterJdbcTemplate jdbc) {
         this.jdbc = jdbc;
     }
@@ -31,6 +38,7 @@ public class JdbcActivityLogRepository implements ActivityLogRepository {
         .addValue("category", c.category()).addValue("size", c.size()).addValue("offset", c.page() * c.size());
         var where = new StringBuilder(" WHERE strpos(lower(e.record_label), lower(:record)) > 0"
             + " AND strpos(lower(coalesce(a.username, a.normalized_email, e.actor_account_id::text, 'system')), lower(:actor)) > 0");
+        where.append(HIDE_PAYMENT_HOLD_AUDIT);
         if (!c.category().isEmpty()) {
             where.append(" AND e.category = :category");
         }
@@ -50,7 +58,7 @@ public class JdbcActivityLogRepository implements ActivityLogRepository {
     }
     @Override
     public Optional<ActivityLogEntry> find(String id) {
-        return jdbc.query(SELECT + " WHERE e.id = :id", new MapSqlParameterSource("id", id),
+        return jdbc.query(SELECT + " WHERE e.id = :id" + HIDE_PAYMENT_HOLD_AUDIT, new MapSqlParameterSource("id", id),
             JdbcActivityLogRepository::map).stream().findFirst();
     }
     private static ActivityLogEntry map(ResultSet rs, int row) throws SQLException {

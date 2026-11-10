@@ -1,5 +1,7 @@
 # Ghi chú sửa báo cáo R3: thanh toán online ngay lúc đặt lịch
 
+> **ĐÃ THAY THẾ (09/11/2026).** Bản này mô tả luồng "đặt xong mới trả, được trả sau tại quầy, lịch không tự hủy". Hướng hiện hành: lịch online có phí chỉ Booked sau khi trả, giữ giờ 15', rời trang là hủy, không có "trả sau tại quầy". Xem `plans/261108-2017-booking-payment-hold-awaiting-payment/` (`plan.md`, `r3-update-checklist.md`, `audit-09-11-business-and-docs-gaps.md`).
+
 Ngày: 04/11/2026. Căn cứ: thống nhất với thành viên BE, cho bệnh nhân trả phí khám online ngay trong luồng đặt lịch để khỏi phải đến phòng khám mới trả.
 Tra theo bản local `SRS/report3-md/` (Drive là bản chuẩn, đối chiếu lại khi sửa).
 

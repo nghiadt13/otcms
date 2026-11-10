@@ -25,6 +25,7 @@ public class AppointmentBooking {
     private final UUID sourceAppointmentId;
     private final UUID orderingDoctorProfileId;
     private final String reason;
+    private final Instant paymentDeadline;
     public AppointmentBooking(UUID id, UUID patientProfileId, UUID serviceId, UUID doctorProfileId, BookingSource bookingSource, String purpose, Instant startTime, Instant endTime, int durationMinutes, int bufferMinutes, UUID createdByAccountId, ActorType actorType, Instant occurredAt, String correlationId) {
         this(id, patientProfileId, serviceId, doctorProfileId, bookingSource, purpose, startTime, endTime,
                 durationMinutes, bufferMinutes, createdByAccountId, actorType, occurredAt, correlationId,
@@ -34,6 +35,16 @@ public class AppointmentBooking {
             BookingSource bookingSource, String purpose, Instant startTime, Instant endTime, int durationMinutes,
             int bufferMinutes, UUID createdByAccountId, ActorType actorType, Instant occurredAt, String correlationId,
             UUID sourceVisitId, UUID sourceAppointmentId, UUID orderingDoctorProfileId, String reason) {
+        this(id, patientProfileId, serviceId, doctorProfileId, bookingSource, purpose, startTime, endTime,
+                durationMinutes, bufferMinutes, createdByAccountId, actorType, occurredAt, correlationId,
+                sourceVisitId, sourceAppointmentId, orderingDoctorProfileId, reason, null);
+    }
+    /** @param paymentDeadline non-null makes the booking an AWAITING_PAYMENT hold (online patient bookings with a fee only). */
+    public AppointmentBooking(UUID id, UUID patientProfileId, UUID serviceId, UUID doctorProfileId,
+            BookingSource bookingSource, String purpose, Instant startTime, Instant endTime, int durationMinutes,
+            int bufferMinutes, UUID createdByAccountId, ActorType actorType, Instant occurredAt, String correlationId,
+            UUID sourceVisitId, UUID sourceAppointmentId, UUID orderingDoctorProfileId, String reason,
+            Instant paymentDeadline) {
         Objects.requireNonNull(id, "id");
         Objects.requireNonNull(patientProfileId, "patientProfileId");
         Objects.requireNonNull(serviceId, "serviceId");
@@ -80,6 +91,11 @@ public class AppointmentBooking {
         this.sourceVisitId = sourceVisitId;
         this.sourceAppointmentId = sourceAppointmentId;
         this.orderingDoctorProfileId = orderingDoctorProfileId;
+        if (paymentDeadline != null && (bookingSource != BookingSource.PATIENT_ONLINE
+                || !paymentDeadline.isAfter(occurredAt))) {
+            throw new IllegalArgumentException("Only online patient bookings can hold a slot until a future deadline");
+        }
+        this.paymentDeadline = paymentDeadline;
         this.reason = reason == null ? null : reason.trim();
     }
     public UUID getId() { return id; }
@@ -114,6 +130,9 @@ public class AppointmentBooking {
     public UUID sourceAppointmentId() { return sourceAppointmentId; }
     public UUID orderingDoctorProfileId() { return orderingDoctorProfileId; }
     public String reason() { return reason; }
+    public Instant paymentDeadline() { return paymentDeadline; }
+    /** Initial persisted status: a payment hold or an immediately confirmed booking. */
+    public String initialStatus() { return paymentDeadline == null ? "CONFIRMED" : "AWAITING_PAYMENT"; }
     public enum BookingSource { PATIENT_ONLINE, RECEPTIONIST_ASSISTED, DOCTOR_FOLLOW_UP }
     public enum ActorType { PATIENT, RECEPTIONIST, DOCTOR }
 }

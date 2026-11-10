@@ -92,7 +92,6 @@ Policy is deployment-managed typed application configuration. There is no bookin
 appointment:
   booking:
     max-horizon-days: 30
-    online-minimum-notice-minutes: 120
     patient-change-deadline-minutes: 1440
     slot-interval-minutes: 15
     clinic-time-zone: Asia/Ho_Chi_Minh
@@ -108,8 +107,8 @@ Business services use one injected `Clock`; direct calls to current-time APIs ar
 - Latest bookable date is `clinicToday.plusDays(maxHorizonDays)`. A 30-day horizon may include 31 dates when both endpoints are included.
 - Online patient booking accepts a slot exactly at `now + 120 minutes`.
 - Patient self-service change accepts an appointment exactly at `now + 1440 minutes`; inside that boundary it is rejected.
-- Every create/reschedule rejects a slot before the injected Clock current instant. Equality at now is permitted for notice-exempt workflows if all slot rules pass.
-- Patient reschedule checks both the old appointment change deadline and the new slot online minimum notice. Receptionist create/reschedule and Doctor follow-up bypass online notice but still enforce horizon, non-past start and availability.
+- Every create/reschedule rejects a slot before the injected Clock current instant. Equality at now is permitted if all slot rules pass; there is no minimum-notice rule (removed 2026-11-08).
+- Patient reschedule checks the old appointment change deadline; the new slot only needs to be non-past. All create/reschedule/follow-up flows enforce horizon, non-past start and availability.
 
 ### 4.4 Slot generation and overlap
 
@@ -171,7 +170,7 @@ Cancellation after check-in is allowed only before clinical activity has begun. 
 - Patient reschedule/cancellation is allowed at least 1440 minutes before start and requires current linked self-profile authorization.
 - Patient cancellation reason is optional.
 - Receptionist may reschedule or cancel inside that deadline for an operational reason. `reason` is mandatory.
-- Patient reschedule additionally enforces online notice on the new slot; Receptionist bypasses it but cannot select a past slot.
+- Reschedule: the new slot must be non-past for every actor.
 - Ordinary reschedule atomically replaces the slot and preserves patient, Doctor, service and purpose (D05, UC23/BR-27). Changing Doctor is a separate Receptionist reassignment workflow under D06; it is not an option in ordinary reschedule.
 - Reschedule of an existing booking may retain a deactivated service under D08; it preserves the stored duration/buffer snapshots and must satisfy every other change/slot rule.
 - Successful reschedule records immutable old/new times, unchanged Doctor, actor, reason and timestamp.
@@ -185,7 +184,7 @@ Cancellation after check-in is allowed only before clinical activity has begun. 
 - Patient identity for Doctor follow-up is derived from the authorized source visit. The client cannot replace the patient. Doctor care-based authorization is separate from Patient self-profile authorization under revised D03.
 - Persist `source_visit_id` on the new appointment. If the visit originated from an appointment, an additional source-appointment link may be retained after resolving it through the visit contract; it is not the authority or required source for follow-up.
 - The target service must be active. The selected provider Doctor must accept new bookings and be eligible/available for that service under D07/D08. The ordering Doctor need not be the provider.
-- Follow-up bypasses the online minimum notice but remains within the configured booking horizon. It must not start before the injected Clock's current instant.
+- Follow-up remains within the configured booking horizon. It must not start before the injected Clock's current instant.
 - Reason is required and sensitive; it must not be written to application logs. Creation audit includes the ordering Doctor, source visit, provider, required reason and normal booking evidence.
 - Booking source is `DOCTOR_FOLLOW_UP`; this creates a new `CONFIRMED` appointment subject to normal slot re-check/overlap protection. Existing-booking exceptions under D07/D08 do not permit follow-up with an inactive service or a Doctor removed from new selection.
 - The former appointment-scoped endpoint is superseded as a Context design assumption. SPEC must define the visit-based follow-up endpoint/request and errors using the source-visit contract.

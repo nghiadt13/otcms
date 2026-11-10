@@ -51,4 +51,20 @@ describe("PortalAreaFrame", () => {
       screen.queryByRole("navigation", { name: "Các mục cá nhân" }),
     ).toBeNull();
   });
+
+  it("màn đổi mật khẩu hiển thị và chọn đúng mục trong menu", () => {
+    pathname = "/portal/account/password";
+    render(<PortalAreaFrame>Nội dung đổi mật khẩu</PortalAreaFrame>);
+
+    expect(screen.getByRole("link", { name: "Đổi mật khẩu" })).toHaveAttribute(
+      "href",
+      "/portal/account/password",
+    );
+    expect(screen.getByRole("link", { name: "Đổi mật khẩu" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    expect(screen.getByRole("link", { name: "Thông tin cá nhân" })).not.toHaveAttribute("aria-current");
+    expect(screen.queryByRole("link", { name: "Thông báo" })).toBeNull();
+  });
 });

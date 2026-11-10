@@ -53,18 +53,26 @@ public class AuthSessionServiceImpl implements AuthSessionService {
         this.clock = clock;
     }
 
+    /** Không dựa vào default của interface: gọi nội bộ qua `this` sẽ không có transaction. */
     @Override
     @Transactional
     public IssuedSession create(UUID accountId, String clientIp, String userAgent) {
+        return create(accountId, clientIp, userAgent, true);
+    }
+
+    @Override
+    @Transactional
+    public IssuedSession create(UUID accountId, String clientIp, String userAgent, boolean rememberMe) {
         AccountJpaEntity account = accounts.findByIdForUpdate(accountId)
                 .orElseThrow(() -> new SessionException("AUTHENTICATION_FAILED"));
         if (account.getStatus() != AccountStatus.ACTIVE) {
             throw new SessionException("AUTHENTICATION_FAILED");
         }
-        return createForAccount(account, clientIp, userAgent);
+        return createForAccount(account, clientIp, userAgent, rememberMe);
     }
 
-    private IssuedSession createForAccount(AccountJpaEntity account, String clientIp, String userAgent) {
+    private IssuedSession createForAccount(AccountJpaEntity account, String clientIp, String userAgent,
+            boolean rememberMe) {
         lockAccount(account.getId());
         Instant now = Instant.now(clock);
         var active = sessions.findAllByAccountIdAndRevokedAtIsNullOrderByCreatedAtAscIdAsc(account.getId());
@@ -81,6 +89,7 @@ public class AuthSessionServiceImpl implements AuthSessionService {
         session.setExpiresAt(now.plusSeconds(properties.refreshTokenSeconds()));
         session.setClientIp(clientIp);
         session.setUserAgent(truncate(userAgent, 512));
+        session.setRememberMe(rememberMe);
         sessions.saveAndFlush(session);
         return issued(session, refreshToken);
     }
@@ -121,6 +130,7 @@ public class AuthSessionServiceImpl implements AuthSessionService {
         next.setLastRotatedAt(now);
         next.setClientIp(previous.getClientIp());
         next.setUserAgent(previous.getUserAgent());
+        next.setRememberMe(previous.isRememberMe());
         sessions.saveAndFlush(next);
         return issued(next, nextRefreshToken);
     }
@@ -168,7 +178,7 @@ public class AuthSessionServiceImpl implements AuthSessionService {
                 properties.accessTokenSeconds(),
                 account.getId(),
                 account.getAccountType().name(), account.isMustChangePassword());
-        return new IssuedSession(body, refreshToken);
+        return new IssuedSession(body, refreshToken, session.isRememberMe());
     }
 
     private void lockAccount(UUID accountId) {

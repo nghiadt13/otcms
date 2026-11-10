@@ -73,9 +73,18 @@ export function BookingSummary({
           value={formatCurrencyVnd(price)}
         />
       </dl>
-      <p className={sizes.detail}>
-        Thanh toán trực tuyến sau khi đặt hoặc tại quầy khi đến.
-      </p>
+      {variant === "patient" ? (
+        // Đặt online dịch vụ có phí giữ giờ 15 phút, CONFIRMED chỉ sau khi trả: không có lối trả sau/tại quầy.
+        price > 0 ? (
+          <p className={sizes.detail}>
+            Sau khi đặt, bạn thanh toán trực tuyến trong 15 phút để giữ lịch.
+          </p>
+        ) : null
+      ) : (
+        <p className={sizes.detail}>
+          Thanh toán trực tuyến sau khi đặt hoặc tại quầy khi đến.
+        </p>
+      )}
       <Button
         type="button"
         className={`w-full ${sizes.control}`}

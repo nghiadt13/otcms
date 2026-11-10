@@ -5,11 +5,7 @@ import type { ActorRole } from "@/lib/domain/clinicRoles";
 // nhập bằng email). FE chỉ vẽ nút có trong `allowedActions`; quyền thật do backend kiểm.
 
 export type MyAccountAction =
-  | "updateAvatar"
-  | "removeAvatar"
-  | "changePassword"
-  | "updateDisplayName"
-  | "changeEmail";
+  "updateAvatar" | "removeAvatar" | "changePassword" | "updateDisplayName";
 
 // Giá trị trạng thái khớp phase 02 (accounts): ACTIVE | INACTIVE.
 export type MyAccountStatus = "ACTIVE" | "INACTIVE";
@@ -35,11 +31,16 @@ export interface StaffAccount extends MyAccountBase {
 
 export interface PatientAccount extends MyAccountBase {
   kind: "PATIENT";
-  /** Email đã xác minh; đổi qua OTP gửi tới email mới (BR-05). */
+  /** Email đăng nhập đã xác minh; chỉ xem, không đổi trên web. */
   email: string;
 }
 
 export type MyAccount = StaffAccount | PatientAccount;
+
+/** Kết quả đổi mật khẩu: `sessionEnded` khi BE đã thu hồi phiên nên phải đăng nhập lại. */
+export interface PasswordChangeResult {
+  sessionEnded: boolean;
+}
 
 export interface ChangePasswordInput {
   currentPassword: string;

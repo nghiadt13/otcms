@@ -17,7 +17,7 @@ const items: PatientNavItem[] = [
     group: "Khám bệnh",
   },
   {
-    label: "Hồ sơ bệnh nhân",
+    label: "Quản lý gia đình",
     href: PATIENT_ROUTES.profiles,
     icon: Users,
     group: "Hồ sơ",
@@ -52,7 +52,7 @@ describe("PatientPortalNav", () => {
     const sheet = await screen.findByRole("dialog");
     expect(within(sheet).getByText("Khám bệnh")).toBeInTheDocument();
     expect(within(sheet).getByText("Hồ sơ")).toBeInTheDocument();
-    const link = within(sheet).getByRole("link", { name: "Hồ sơ bệnh nhân" });
+    const link = within(sheet).getByRole("link", { name: "Quản lý gia đình" });
     expect(link).toHaveAttribute("href", "/portal/profiles");
 
     await userEvent.click(link);

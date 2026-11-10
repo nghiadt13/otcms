@@ -10,9 +10,13 @@ import { AuthRequestError, type PatientRegistrationInput } from "../types/auth";
 // Authentication, registration and password recovery call the Spring backend.
 export { requestPasswordReset, resetPassword } from "./passwordRecoveryApi";
 
-export async function signIn(email: string, password: string): Promise<void> {
+export async function signIn(
+  email: string,
+  password: string,
+  rememberMe?: boolean,
+): Promise<void> {
   try {
-    await signInWithPassword("patient", email, password);
+    await signInWithPassword("patient", email, password, rememberMe);
   } catch (cause) {
     // 401 = sai thông tin hoặc tài khoản không đủ điều kiện (MSG-01); còn lại (mạng, 429, 5xx) là
     // lỗi dịch vụ (MSG-04). Không phân biệt lý do để không lộ tài khoản nào tồn tại (BR-03).
@@ -31,10 +35,11 @@ export async function signIn(email: string, password: string): Promise<void> {
 export async function signInStaff(
   email: string,
   password: string,
+  rememberMe?: boolean,
 ): Promise<AuthSession> {
   let session: AuthSession;
   try {
-    session = await signInWithPassword("staff", email, password);
+    session = await signInWithPassword("staff", email, password, rememberMe);
   } catch (cause) {
     const rejected = cause instanceof AuthSessionError && cause.status === 401;
     throw new AuthRequestError(rejected ? "MSG-01" : "MSG-04");
@@ -50,9 +55,15 @@ export async function signInStaff(
 export async function signInAdministrator(
   username: string,
   password: string,
+  rememberMe?: boolean,
 ): Promise<import("@/lib/auth/authSession").AuthSession> {
   try {
-    return await signInWithPassword("administrator", username, password);
+    return await signInWithPassword(
+      "administrator",
+      username,
+      password,
+      rememberMe,
+    );
   } catch (cause) {
     const rejected = cause instanceof AuthSessionError && cause.status === 401;
     throw new AuthRequestError(rejected ? "MSG-01" : "MSG-04");

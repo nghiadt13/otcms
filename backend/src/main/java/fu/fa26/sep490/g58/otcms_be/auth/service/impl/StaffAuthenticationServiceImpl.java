@@ -20,11 +20,12 @@ public class StaffAuthenticationServiceImpl implements StaffAuthenticationServic
     @Override
     @Transactional(noRollbackFor = CredentialLoginException.class)
     public AuthSessionService.IssuedSession login(String identifier, String password, String ip,
-                                                 String userAgent, boolean administratorUsername) {
+                                                 String userAgent, boolean administratorUsername,
+                                                 boolean rememberMe) {
         // Keep the credential row lock until the new session has been persisted.
         var authenticated = administratorUsername
                 ? credentials.loginAdministrator(identifier, password, ip)
                 : credentials.loginStaff(identifier, password, ip);
-        return sessions.create(authenticated.accountId(), ip, userAgent);
+        return sessions.create(authenticated.accountId(), ip, userAgent, rememberMe);
     }
 }

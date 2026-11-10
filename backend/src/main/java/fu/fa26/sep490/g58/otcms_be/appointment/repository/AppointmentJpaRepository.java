@@ -22,12 +22,12 @@ public interface AppointmentJpaRepository extends JpaRepository<AppointmentJpaEn
     @Query(value = """
             insert into appointment_audits (id, appointment_id, actor_account_id, actor_type, action,
                 new_status, new_doctor_profile_id, new_start_time, new_end_time, occurred_at, correlation_id)
-            values (:id, :appointmentId, :actorAccountId, :actorType, 'CREATED', 'CONFIRMED',
+            values (:id, :appointmentId, :actorAccountId, :actorType, 'CREATED', :newStatus,
                 :doctorProfileId, :startTime, :endTime, :occurredAt, :correlationId)
             """, nativeQuery = true)
     int insertCreationAudit(@Param("id") UUID id, @Param("appointmentId") UUID appointmentId,
             @Param("actorAccountId") UUID actorAccountId, @Param("actorType") String actorType,
-            @Param("doctorProfileId") UUID doctorProfileId, @Param("startTime") Instant startTime,
+            @Param("newStatus") String newStatus, @Param("doctorProfileId") UUID doctorProfileId, @Param("startTime") Instant startTime,
             @Param("endTime") Instant endTime, @Param("occurredAt") Instant occurredAt,
             @Param("correlationId") String correlationId);
 
@@ -48,16 +48,16 @@ public interface AppointmentJpaRepository extends JpaRepository<AppointmentJpaEn
     @Query(value = """
             select id, patient_profile_id, service_id, doctor_profile_id, status, booking_source, purpose,
                    start_time, end_time, duration_minutes, buffer_minutes, occupied_until, visit_id,
-                   source_visit_id, created_at, updated_at from appointments where id = :id
+                   source_visit_id, created_at, updated_at, payment_deadline from appointments where id = :id
             """, nativeQuery = true)
     List<Object[]> findCreatedRow(@Param("id") UUID id);
 
     @Override
     default CreatedAppointment save(AppointmentBooking booking) {
         try {
-            saveAndFlush(AppointmentJpaEntity.confirmed(booking));
+            saveAndFlush(AppointmentJpaEntity.from(booking));
             insertCreationAudit(UUID.randomUUID(), booking.id(), booking.createdByAccountId(),
-                    booking.actorType().name(), booking.doctorProfileId(), booking.startTime(),
+                    booking.actorType().name(), booking.initialStatus(), booking.doctorProfileId(), booking.startTime(),
                     booking.endTime(), booking.occurredAt(), booking.correlationId());
             return AppointmentRowMapper.createdAppointment(findCreatedRow(booking.id()).getFirst());
         } catch (DataIntegrityViolationException exception) {
@@ -74,7 +74,7 @@ public interface AppointmentJpaRepository extends JpaRepository<AppointmentJpaEn
     @Override
     default CreatedAppointment saveFollowUp(AppointmentBooking booking) {
         try {
-            saveAndFlush(AppointmentJpaEntity.confirmed(booking));
+            saveAndFlush(AppointmentJpaEntity.from(booking));
             insertFollowUpCreationAudit(UUID.randomUUID(), booking.id(), booking.createdByAccountId(),
                     booking.doctorProfileId(), booking.startTime(), booking.endTime(), booking.reason(),
                     booking.sourceVisitId(), booking.occurredAt(), booking.correlationId());

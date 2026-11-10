@@ -13,6 +13,8 @@ import fu.fa26.sep490.g58.otcms_be.appointment.model.dto.response.AppointmentRes
 import fu.fa26.sep490.g58.otcms_be.appointment.model.dto.response.CheckInResponse;
 import fu.fa26.sep490.g58.otcms_be.appointment.service.CancelAppointmentCommand;
 import fu.fa26.sep490.g58.otcms_be.appointment.service.CancelAppointmentService;
+import fu.fa26.sep490.g58.otcms_be.appointment.service.CancelPendingPaymentHoldService;
+import fu.fa26.sep490.g58.otcms_be.appointment.model.dto.response.CancelPendingHoldResponse;
 import fu.fa26.sep490.g58.otcms_be.appointment.service.CheckInAppointmentCommand;
 import fu.fa26.sep490.g58.otcms_be.appointment.service.CheckInAppointmentService;
 import fu.fa26.sep490.g58.otcms_be.appointment.service.CreateAppointmentCommand;
@@ -53,11 +55,13 @@ public class AppointmentBookingController {
     private final CheckInAppointmentService checkInAppointment;
     private final MarkAppointmentNoShowService markNoShowAppointment;
     private final UpdateAppointmentStatusService updateAppointmentStatus;
+    private final CancelPendingPaymentHoldService cancelPendingHold;
 
     public AppointmentBookingController(CreateAppointmentService createAppointment,
             RescheduleAppointmentService rescheduleAppointment, CancelAppointmentService cancelAppointment,
             ReassignAppointmentService reassignAppointment, CheckInAppointmentService checkInAppointment,
-            MarkAppointmentNoShowService markNoShowAppointment, UpdateAppointmentStatusService updateAppointmentStatus) {
+            MarkAppointmentNoShowService markNoShowAppointment, UpdateAppointmentStatusService updateAppointmentStatus,
+            CancelPendingPaymentHoldService cancelPendingHold) {
         this.createAppointment = createAppointment;
         this.rescheduleAppointment = rescheduleAppointment;
         this.cancelAppointment = cancelAppointment;
@@ -65,6 +69,7 @@ public class AppointmentBookingController {
         this.checkInAppointment = checkInAppointment;
         this.markNoShowAppointment = markNoShowAppointment;
         this.updateAppointmentStatus = updateAppointmentStatus;
+        this.cancelPendingHold = cancelPendingHold;
     }
 
     @PatchMapping("/api/v1/appointments/{id}/status")
@@ -133,6 +138,20 @@ public class AppointmentBookingController {
                 body.getReason(), CorrelationIdFilter.current(request)));
         return ResponseEntity.ok().header(CorrelationIdFilter.HEADER, CorrelationIdFilter.current(request))
                 .body(AppointmentMapper.toResponse(result));
+    }
+
+    /**
+     * Cancels every live payment hold of the signed-in patient (left the payment step, reload, sign-out).
+     * Idempotent; the literal path wins over /appointments/{id}/cancel.
+     */
+    @PostMapping("/api/v1/appointments/pending-hold/cancel")
+    @PreAuthorize("hasAuthority('ROLE_PATIENT')")
+    public ResponseEntity<CancelPendingHoldResponse> cancelPendingHold(
+            @AuthenticationPrincipal AuthenticatedAccount account, HttpServletRequest request) {
+        if (account == null) throw invalid();
+        var result = cancelPendingHold.cancelAll(account.accountId(), CorrelationIdFilter.current(request));
+        return ResponseEntity.ok().header(CorrelationIdFilter.HEADER, CorrelationIdFilter.current(request))
+                .body(new CancelPendingHoldResponse(result.cancelledCount(), result.alreadyPaid()));
     }
 
     @PatchMapping("/api/v1/appointments/{id}/reschedule")

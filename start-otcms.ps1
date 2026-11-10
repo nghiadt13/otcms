@@ -1,7 +1,7 @@
 ﻿$ErrorActionPreference = 'Stop'
 
-# Local test launcher: product worktree + otcms_dev + patient Cloudflare tunnel.
-$product = 'D:\Education\SEP490-FALL2026\tmp\otcms-product-test'
+# Local test launcher: this checkout (otcms, nhánh đang checkout) + otcms_dev + patient Cloudflare tunnel.
+$product = 'D:\Education\SEP490-FALL2026\otcms'
 $localEnv = 'D:\Education\SEP490-FALL2026\otcms\backend\.env.dev'
 $gateway = 'D:\Education\SEP490-FALL2026\tmp\tunnel-gateway.js'
 $cloudflared = 'C:\Program Files (x86)\cloudflared\cloudflared.exe'
@@ -24,12 +24,17 @@ function Start-LoggedPowerShell([string]$Name, [string]$Directory, [string]$Comm
         -RedirectStandardOutput (Join-Path $logDir "$Name.log") `
         -RedirectStandardError (Join-Path $logDir "$Name.err") -PassThru
     $started.Add($process.Id)
+    return $process
 }
 
-function Wait-Http([string]$Url, [int]$Seconds) {
-    for ($i = 0; $i -lt $Seconds; $i++) {
+# Chờ URL trả 200 tối đa $Seconds giây (tính theo đồng hồ thật). Nếu tiến trình con đã thoát thì
+# dừng ngay thay vì chờ hết hạn: lỗi khởi động hiện ra sau vài giây, không phải sau vài phút.
+function Wait-Http([string]$Url, [int]$Seconds, $Process = $null) {
+    $deadline = (Get-Date).AddSeconds($Seconds)
+    while ((Get-Date) -lt $deadline) {
+        if ($Process -and $Process.HasExited) { return $false }
         try {
-            $response = Invoke-WebRequest -UseBasicParsing -Uri $Url -TimeoutSec 15
+            $response = Invoke-WebRequest -UseBasicParsing -Uri $Url -TimeoutSec 5
             if ($response.StatusCode -eq 200) { return $true }
         } catch { }
         Start-Sleep -Seconds 1
@@ -38,8 +43,16 @@ function Wait-Http([string]$Url, [int]$Seconds) {
 }
 
 try {
-    foreach ($path in @($product, $localEnv, $gateway, $cloudflared, "$product\frontend\node_modules")) {
+    foreach ($path in @($product, $localEnv, $gateway, $cloudflared)) {
         if (-not (Test-Path -LiteralPath $path)) { throw "Missing required file or folder: $path" }
+    }
+    # Thư mục node_modules có thể tồn tại nhưng rỗng/hỏng: kiểm tra đúng lệnh `next` và tự cài lại.
+    $nextCmd = "$product\frontend\node_modules\.bin\next.cmd"
+    if (-not (Test-Path -LiteralPath $nextCmd)) {
+        Write-Host 'Frontend dependencies missing, running npm ci (takes a few minutes)...'
+        Push-Location "$product\frontend"
+        try { & npm.cmd ci } finally { Pop-Location }
+        if (-not (Test-Path -LiteralPath $nextCmd)) { throw "npm ci did not install next. Run it manually in $product\frontend" }
     }
     if (-not (Test-NetConnection -ComputerName 127.0.0.1 -Port 5432 -InformationLevel Quiet -WarningAction SilentlyContinue)) {
         throw 'PostgreSQL is not listening on 127.0.0.1:5432.'
@@ -124,12 +137,12 @@ Set-Location '$product\frontend'
 & npm.cmd run dev
 "@
     Write-Host 'Starting backend and frontend...'
-    Start-LoggedPowerShell 'backend' "$product\backend" $backend
-    Start-LoggedPowerShell 'frontend' "$product\frontend" $frontend
+    $backendProcess = Start-LoggedPowerShell 'backend' "$product\backend" $backend
+    $frontendProcess = Start-LoggedPowerShell 'frontend' "$product\frontend" $frontend
     Write-Host 'Waiting for backend...'
-    if (-not (Wait-Http 'http://localhost:8080/v3/api-docs' 120)) { throw "Backend did not start. See $logDir\backend.log and backend.err" }
+    if (-not (Wait-Http 'http://localhost:8080/v3/api-docs' 120 $backendProcess)) { throw "Backend did not start. See $logDir\backend.log and backend.err" }
     Write-Host 'Waiting for frontend...'
-    if (-not (Wait-Http 'http://localhost:3100/login' 90)) { throw "Frontend did not start. See $logDir\frontend.log and frontend.err" }
+    if (-not (Wait-Http 'http://localhost:3100/login' 90 $frontendProcess)) { throw "Frontend did not start. See $logDir\frontend.log and frontend.err" }
     Write-Host 'Checking Cloudflare...'
     if (-not (Wait-Http "$publicUrl/login" 30)) { throw "Cloudflare URL did not respond. See $cfLog" }
 

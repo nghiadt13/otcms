@@ -15,27 +15,37 @@ import java.util.List;
 import java.util.UUID;
 import org.springframework.data.repository.query.Param;
 
+/**
+ * Occupancy reads. AWAITING_PAYMENT holds occupy a doctor slot only while payment_deadline is still in the future
+ * (":now" comes from the injected Clock); PAYMENT_EXPIRED never occupies. The DB EXCLUDE constraint has no clock,
+ * so CreateAppointmentServiceImpl releases lapsed holds before inserting.
+ */
 public interface AppointmentOccupancyRepository extends JpaRepository<AppointmentJpaEntity, UUID> {
     @Query(value = """
             select a.start_time, a.occupied_until from appointments a
-            where a.doctor_profile_id = :doctorId and a.status in ('CONFIRMED', 'CHECKED_IN')
+            where a.doctor_profile_id = :doctorId and (a.status in ('CONFIRMED', 'CHECKED_IN')
+                  or (a.status = 'AWAITING_PAYMENT' and a.payment_deadline > :now))
             order by a.start_time, a.id
             """, nativeQuery = true)
-    List<Object[]> findProtectedBookingIntervals(@Param("doctorId") UUID doctorId);
+    List<Object[]> findProtectedBookingIntervals(@Param("doctorId") UUID doctorId, @Param("now") Instant now);
 
     @Query(value = """
             select count(*) from appointments a where a.doctor_profile_id = :doctorId
-              and a.status in ('CONFIRMED', 'CHECKED_IN')
+              and (a.status in ('CONFIRMED', 'CHECKED_IN')
+                   or (a.status = 'AWAITING_PAYMENT' and a.payment_deadline > :now))
               and a.start_time < :toExclusive and a.occupied_until > :fromInclusive
             """, nativeQuery = true)
     long countBookingsOverlappingTimeOff(@Param("doctorId") UUID doctorId,
-            @Param("fromInclusive") Instant fromInclusive, @Param("toExclusive") Instant toExclusive);
+            @Param("fromInclusive") Instant fromInclusive, @Param("toExclusive") Instant toExclusive,
+            @Param("now") Instant now);
 
     @Query(value = """
             select count(*) from appointments a where a.doctor_profile_id = :doctorId
-              and a.service_id = :serviceId and a.status in ('CONFIRMED', 'CHECKED_IN')
+              and a.service_id = :serviceId and (a.status in ('CONFIRMED', 'CHECKED_IN')
+                   or (a.status = 'AWAITING_PAYMENT' and a.payment_deadline > :now))
             """, nativeQuery = true)
-    long countBookingsForAssignment(@Param("doctorId") UUID doctorId, @Param("serviceId") UUID serviceId);
+    long countBookingsForAssignment(@Param("doctorId") UUID doctorId, @Param("serviceId") UUID serviceId,
+            @Param("now") Instant now);
 
     @Query(value = """
             select a.patient_profile_id, a.visit_id, a.doctor_profile_id, a.status,
@@ -51,23 +61,24 @@ public interface AppointmentOccupancyRepository extends JpaRepository<Appointmen
             select id, doctor_profile_id, start_time, occupied_until
             from appointments
             where doctor_profile_id in (:doctorIds)
-              and status in ('CONFIRMED', 'CHECKED_IN', 'IN_PROGRESS', 'COMPLETED')
+              and (status in ('CONFIRMED', 'CHECKED_IN', 'IN_PROGRESS', 'COMPLETED')
+                   or (status = 'AWAITING_PAYMENT' and payment_deadline > :now))
               and start_time < :toExclusive and occupied_until > :fromInclusive
               and (cast(:excludedAppointmentId as uuid) is null or id <> cast(:excludedAppointmentId as uuid))
             order by doctor_profile_id, start_time, id
             """, nativeQuery = true)
     List<Object[]> findOccupancyRows(@Param("doctorIds") Collection<UUID> doctorIds,
             @Param("fromInclusive") Timestamp fromInclusive, @Param("toExclusive") Timestamp toExclusive,
-            @Param("excludedAppointmentId") UUID excludedAppointmentId);
+            @Param("excludedAppointmentId") UUID excludedAppointmentId, @Param("now") Instant now);
 
     default List<AppointmentOccupancy> findOccupiedIntervals(Collection<UUID> doctorProfileIds,
-            Instant fromInclusive, Instant toExclusive, UUID excludedAppointmentId) {
+            Instant fromInclusive, Instant toExclusive, UUID excludedAppointmentId, Instant now) {
         if (doctorProfileIds == null || doctorProfileIds.isEmpty() || doctorProfileIds.stream().anyMatch(id -> id == null)
-                || fromInclusive == null || toExclusive == null || !fromInclusive.isBefore(toExclusive)) {
+                || fromInclusive == null || toExclusive == null || now == null || !fromInclusive.isBefore(toExclusive)) {
             throw new IllegalArgumentException("Doctor IDs and a positive bounded interval are required");
         }
         return findOccupancyRows(doctorProfileIds.stream().distinct().sorted().toList(),
-                Timestamp.from(fromInclusive), Timestamp.from(toExclusive), excludedAppointmentId)
+                Timestamp.from(fromInclusive), Timestamp.from(toExclusive), excludedAppointmentId, now)
                 .stream().map(row -> new AppointmentOccupancy(AppointmentRowMapper.uuid(row[0]),
                         AppointmentRowMapper.uuid(row[1]), new AvailabilityInterval(
                         AppointmentRowMapper.instant(row[2]), AppointmentRowMapper.instant(row[3])))).toList();

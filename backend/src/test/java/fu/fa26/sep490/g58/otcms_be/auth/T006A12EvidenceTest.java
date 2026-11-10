@@ -38,7 +38,7 @@ class T006A12EvidenceTest {
         when(login.login(anyString(), anyString(), eq(AccountType.PATIENT), anyString()))
                 .thenReturn(new CredentialLoginResponse(UUID.randomUUID(), AccountType.PATIENT.name()));
         var body = new SessionTokenResponse("access", "Bearer", 900, UUID.randomUUID(), "PATIENT");
-        when(sessions.create(any(UUID.class), any(), any())).thenReturn(new AuthSessionService.IssuedSession(body, "refresh-a"));
+        when(sessions.create(any(UUID.class), any(), any(), anyBoolean())).thenReturn(new AuthSessionService.IssuedSession(body, "refresh-a"));
         var mvc = MockMvcBuilders.standaloneSetup(new PatientLoginController(login, new StaffNetworkPolicy(), sessions, properties)).build();
 
         mvc.perform(post("/api/auth/patient/login").contentType("application/json")

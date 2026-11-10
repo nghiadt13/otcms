@@ -11,6 +11,7 @@ import {
   validateCurrentPassword,
   validateNewPassword,
 } from "../schema/passwordFieldRules";
+import type { PasswordChangeResult } from "../types/myAccount";
 import { PasswordInputField } from "./PasswordInputField";
 import { PasswordRequirementList } from "./PasswordRequirementList";
 
@@ -20,7 +21,8 @@ type Errors = Partial<Record<Field, string>>;
 type ChangePasswordFormProps = {
   /** voluntary: có nút Hủy. forced: đổi lần đầu, không có Hủy. */
   mode: "voluntary" | "forced";
-  onDone: () => void;
+  /** Gọi sau khi đổi xong; `sessionEnded` nghĩa là phiên đã bị thu hồi, cần về trang đăng nhập. */
+  onDone: (result: PasswordChangeResult) => void;
   onCancel?: () => void;
   /** Cỡ lớn cho khu bệnh nhân: ô và nút cao 48px, chữ 16px. */
   large?: boolean;
@@ -66,13 +68,16 @@ export function ChangePasswordForm({
 
     setPending(true);
     try {
-      await changeMyPassword({ currentPassword: current, newPassword: next });
+      const result = await changeMyPassword({
+        currentPassword: current,
+        newPassword: next,
+      });
       notifySuccess("Mật khẩu đã được thay đổi.");
       // Xóa mật khẩu khỏi state ngay khi xong.
       setCurrent("");
       setNext("");
       setConfirm("");
-      onDone();
+      onDone(result);
     } catch (err) {
       const fields = isApiError(err) ? toFieldErrorMap(err.fieldErrors) : {};
       if (fields.currentPassword || fields.newPassword) {

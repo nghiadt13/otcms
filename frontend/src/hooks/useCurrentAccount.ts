@@ -2,9 +2,11 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { isApiError } from "@/lib/api/apiError";
+import { ACCOUNT_AVATAR_CHANGED_EVENT } from "@/lib/auth/accountAvatarCache";
 import {
   fetchCurrentAccount,
   peekCurrentAccount,
+  resetCurrentAccountCache,
   type CurrentAccount,
 } from "@/lib/auth/currentAccountApi";
 
@@ -31,6 +33,18 @@ export function useCurrentAccount(): CurrentAccountState & {
       : { status: "loading" };
   });
   const [attempt, setAttempt] = useState(0);
+
+  // Đổi/gỡ ảnh đại diện ở màn tài khoản: đọc lại /me (giữ nội dung đang hiện, không qua loading)
+  // để header biết tài khoản còn ảnh hay không.
+  useEffect(() => {
+    const onAvatarChanged = () => {
+      resetCurrentAccountCache();
+      setAttempt((count) => count + 1);
+    };
+    window.addEventListener(ACCOUNT_AVATAR_CHANGED_EVENT, onAvatarChanged);
+    return () =>
+      window.removeEventListener(ACCOUNT_AVATAR_CHANGED_EVENT, onAvatarChanged);
+  }, []);
 
   useEffect(() => {
     let active = true;

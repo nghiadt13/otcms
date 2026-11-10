@@ -121,6 +121,25 @@ ORDER BY updated_at, id LIMIT :page_size;
 
 These are structural examples. Authorize actor and resource before exposing rows; patient/clinical identifiers must not be included in logs.
 
+## G2. Bổ sung V106: giữ giờ chờ thanh toán (09/11/2026)
+
+Đề xuất này dùng tên `BOOKED`/`ex_appointments_doctor_overlap`; migration thật dùng `CONFIRMED`/`ex_appointments_doctor_occupied_range` (V013). Phần dưới mô tả V106 (`V106__add_appointment_awaiting_payment.sql`) theo tên thật. Kế hoạch: `plans/261108-2017-booking-payment-hold-awaiting-payment/phase-01-database-migration-v106.md`. Vòng đời: [appointment-rules-proposal.md](appointment-rules-proposal.md) mục 9 và [architecture.md](architecture.md).
+
+| Đối tượng | Thay đổi |
+| --- | --- |
+| `appointments.payment_deadline` | Cột mới `TIMESTAMPTZ NULL`; chỉ BE ghi |
+| `appointments.status` (CHECK) | Thêm `AWAITING_PAYMENT`, `PAYMENT_EXPIRED` |
+| `ck_appointments_visit_status_link` | Hai trạng thái mới thuộc nhánh "chưa có lượt khám" (`visit_id IS NULL`), cùng nhóm với `CONFIRMED`, `NO_SHOW` |
+| `ck_appointments_payment_deadline` | `status <> 'AWAITING_PAYMENT' OR payment_deadline IS NOT NULL` |
+| `ex_appointments_doctor_occupied_range` (EXCLUDE) | Drop + add, thêm `AWAITING_PAYMENT` vào điều kiện chiếm giờ; `PAYMENT_EXPIRED` không thuộc điều kiện (nhả giờ) |
+| `ix_appointments_awaiting_deadline` | Index một phần cho sweeper, `status = 'AWAITING_PAYMENT'` |
+| Audit lịch hẹn (CHECK trạng thái cũ/mới, `actor_type`) | Thêm hai trạng thái và `actor_type = 'SYSTEM'` (hủy tự động) |
+| Dữ liệu cũ | Lịch `PATIENT_ONLINE` đang `CONFIRMED`, chưa trả, giá > 0, bắt đầu sau > 15' chuyển `AWAITING_PAYMENT`, hạn `now + 15'`, kèm audit `SYSTEM` (correlation `V106-awaiting-payment`) |
+
+- `'AWAITING_PAYMENT'` dài đúng 16 ký tự, bằng giới hạn `VARCHAR(16)` của `appointments.status` và cột trạng thái trong audit. Trạng thái mới dài hơn phải nới cột trước.
+- Hóa đơn gắn lịch dùng `invoices.status = 'VOID'` (đã có từ V042) khi hold bị nhả.
+- Rollback: chuyển `AWAITING_PAYMENT` sang `CANCELLED` và `VOID` hóa đơn, rồi migration V107 gỡ hai giá trị khỏi CHECK/EXCLUDE. V106 không tự đảo được.
+
 ## H. Senior review and rollout
 
 1. **Normalization/redundancy:** Core OLTP is normalized. Invoice snapshots and prescription item text are intentional historical facts. `patient_profiles` vs `patients` is transitional duplication; define a single write owner and approved backfill before activation.

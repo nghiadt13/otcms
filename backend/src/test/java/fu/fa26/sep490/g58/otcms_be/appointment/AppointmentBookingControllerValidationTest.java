@@ -34,7 +34,8 @@ class AppointmentBookingControllerValidationTest {
         checkIn = mock(CheckInAppointmentService.class);
         var controller = new AppointmentBookingController(create, mock(RescheduleAppointmentService.class),
                 mock(CancelAppointmentService.class), mock(ReassignAppointmentService.class), checkIn,
-                mock(MarkAppointmentNoShowService.class), mock(UpdateAppointmentStatusService.class));
+                mock(MarkAppointmentNoShowService.class), mock(UpdateAppointmentStatusService.class),
+                mock(fu.fa26.sep490.g58.otcms_be.appointment.service.CancelPendingPaymentHoldService.class));
         mvc = MockMvcBuilders.standaloneSetup(controller)
                 .setControllerAdvice(new AppointmentBookingExceptionHandler())
                 .addFilters(new CorrelationIdFilter()).build();

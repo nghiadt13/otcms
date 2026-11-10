@@ -23,6 +23,14 @@ public interface AppointmentCancellationRepository extends JpaRepository<Appoint
             """, nativeQuery = true)
     List<Object[]> findCancellableRowsForUpdate(@Param("id") UUID id);
 
+    /**
+     * Non-locking peek (status, patient_profile_id). A payment hold must be settled with billing BEFORE its row is
+     * locked, so the cancel flow looks first and only locks via findForUpdate for ordinary appointments.
+     */
+    @Query(value = "select status, patient_profile_id from appointments where id = :id", nativeQuery = true)
+    List<Object[]> findStatusAndPatient(@Param("id") UUID id);
+
+    /** CONFIRMED only: a payment hold is released to PAYMENT_EXPIRED (never CANCELLED) by the release service. */
     @Modifying
     @Query(value = """
             update appointments set status = 'CANCELLED', updated_at = :updated

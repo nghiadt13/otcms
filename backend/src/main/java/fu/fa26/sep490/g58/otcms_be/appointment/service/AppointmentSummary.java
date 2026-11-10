@@ -26,7 +26,12 @@ public class AppointmentSummary {
     private final String serviceName;
     private final BigDecimal servicePrice;
     private final String patientName;
+    private final Instant paymentDeadline;
     public AppointmentSummary(UUID id, UUID patientProfileId, UUID serviceId, UUID doctorId, String status, String bookingSource, String purpose, Instant startTime, Instant endTime, int durationMinutes, int bufferMinutes, Instant occupiedUntil, UUID visitId, UUID sourceVisitId, Instant createdAt, Instant updatedAt, String doctorDisplayName, String serviceName, BigDecimal servicePrice, String patientName) {
+        this(id, patientProfileId, serviceId, doctorId, status, bookingSource, purpose, startTime, endTime, durationMinutes, bufferMinutes, occupiedUntil, visitId, sourceVisitId, createdAt, updatedAt, doctorDisplayName, serviceName, servicePrice, patientName, null);
+    }
+    public AppointmentSummary(UUID id, UUID patientProfileId, UUID serviceId, UUID doctorId, String status, String bookingSource, String purpose, Instant startTime, Instant endTime, int durationMinutes, int bufferMinutes, Instant occupiedUntil, UUID visitId, UUID sourceVisitId, Instant createdAt, Instant updatedAt, String doctorDisplayName, String serviceName, BigDecimal servicePrice, String patientName, Instant paymentDeadline) {
+        this.paymentDeadline = paymentDeadline;
         this.patientName = patientName;
         this.id = id;
         this.patientProfileId = patientProfileId;
@@ -88,4 +93,6 @@ public class AppointmentSummary {
     public BigDecimal servicePrice() { return servicePrice; }
     public String getPatientName() { return patientName; }
     public String patientName() { return patientName; }
+    public Instant getPaymentDeadline() { return paymentDeadline; }
+    public Instant paymentDeadline() { return paymentDeadline; }
 }

@@ -3,7 +3,7 @@
 import { Mail, UserRound } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 import {
   clearMockSignedInKind,
   setMockSignedInKind,
@@ -19,12 +19,14 @@ import { authLinkClass } from "./AuthCard";
 import { AuthSubmitButton } from "./AuthSubmitButton";
 import { AuthTextField } from "./AuthTextField";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { PasswordField } from "./PasswordField";
 
 // UC01 Đăng nhập bệnh nhân (email + mật khẩu). Mọi trường hợp bị từ chối (thiếu thông tin,
 // sai mật khẩu, tài khoản không đủ điều kiện) đều hiện cùng MSG-01 để không lộ tài khoản
 // nào tồn tại; lỗi dịch vụ hiện MSG-04. Thành công thì về `next` nếu là đường dẫn an toàn
-// trong khu bệnh nhân, không thì về `/portal`. `defaultEmail` dùng khi vừa đăng ký xong (UC06).
+// trong khu bệnh nhân, không thì về trang chủ (tài khoản chưa điền thông tin cá nhân vẫn dùng bình
+// thường, chỉ bị chặn khi đặt lịch). `defaultEmail` là email điền sẵn nếu có.
 // `staff` là màn đăng nhập nội bộ (/staff-login): gọi endpoint nhân viên rồi về /workspace, nơi
 // `RoleHomeRedirect` chuyển tới khu đúng vai trò (quản trị hoặc lễ tân).
 export function SignInForm({
@@ -45,6 +47,9 @@ export function SignInForm({
     "administrator",
   );
   const [password, setPassword] = useState("");
+  // Không tick: phiên hết khi đóng trình duyệt. Tick: giữ đăng nhập 7 ngày (không lưu mật khẩu).
+  const [rememberMe, setRememberMe] = useState(false);
+  const rememberId = useId();
   const [fieldErrors, setFieldErrors] = useState<{
     email?: string;
     password?: string;
@@ -74,14 +79,14 @@ export function SignInForm({
       if (staff) {
         const session =
           staffMode === "administrator"
-            ? await signInAdministrator(email, password)
-            : await signInStaff(email, password);
+            ? await signInAdministrator(email, password, rememberMe)
+            : await signInStaff(email, password, rememberMe);
         router.replace(
           session.mustChangePassword ? "/first-login-password" : "/workspace",
         );
         return;
       }
-      await signIn(email, password);
+      await signIn(email, password, rememberMe);
       // Giả lập: phiên thật do backend cấp (lib/auth/authSession); ghi loại tài khoản giả để `/api/v1/me` giả trả đúng bệnh nhân.
       setMockSignedInKind("PATIENT");
       router.replace(safePortalNext(next));
@@ -170,16 +175,28 @@ export function SignInForm({
           required
           value={password}
         />
-        {!staff && (
-          <div className="mt-2 flex justify-end">
+        <div className="mt-2 flex items-center justify-between gap-4">
+          <label
+            className="flex cursor-pointer items-center gap-2 text-base"
+            htmlFor={rememberId}
+          >
+            <Checkbox
+              checked={rememberMe}
+              className="size-5 border-muted-foreground [&_svg]:size-4"
+              id={rememberId}
+              onCheckedChange={(next) => setRememberMe(next === true)}
+            />
+            <span>Ghi nhớ đăng nhập</span>
+          </label>
+          {!staff && (
             <Link
               className={`text-base ${authLinkClass}`}
               href="/forgot-password"
             >
               Quên mật khẩu?
             </Link>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       <AuthSubmitButton

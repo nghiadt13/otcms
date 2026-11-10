@@ -3,10 +3,7 @@
 import { useEffect, useState } from "react";
 import NextLink from "next/link";
 import { ProfileScopeSelect } from "@/components/patient/ProfileScopeSelect";
-import {
-  PortalEmptyState,
-  PortalNoProfileState,
-} from "@/components/patient/PortalEmptyState";
+import { PortalEmptyState } from "@/components/patient/PortalEmptyState";
 import { PortalPageHeader } from "@/components/patient/PortalPageHeader";
 import { Button } from "@/components/ui/button";
 import { useLinkedProfiles } from "@/hooks/useLinkedProfiles";
@@ -68,7 +65,9 @@ export function PatientImagingHistoryScreen() {
           </Button>
         </div>
       ) : linked.profiles.length === 0 ? (
-        <PortalNoProfileState />
+        <PortalEmptyState>
+          Chưa có kết quả chẩn đoán hình ảnh nào.
+        </PortalEmptyState>
       ) : (
         <>
           <ProfileScopeSelect

@@ -80,6 +80,11 @@ export function replaceLinkedProfilesMock(next: LinkedProfile[]): void {
   notify();
 }
 
+/** Báo các màn đang đọc tải lại danh sách từ BE (BE vừa thêm hồ sơ, như khi tạo hồ sơ Bản thân lần đầu). */
+export function notifyLinkedProfilesChanged(): void {
+  notify();
+}
+
 /** Đăng ký nhận báo khi kho đổi. Trả về hàm hủy đăng ký (gọi khi unmount). */
 export function subscribeLinkedProfiles(listener: Listener): () => void {
   listeners.add(listener);

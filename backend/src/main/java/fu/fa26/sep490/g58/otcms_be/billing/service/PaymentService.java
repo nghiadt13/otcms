@@ -13,4 +13,9 @@ public interface PaymentService {
     void handleVerifiedGatewayEvent(PaymentGateway.VerifiedGatewayEvent event);
     void recordRejectedGatewayEvent(String provider, Object payload);
     PaymentAttemptResponse reconcile(UUID attemptId, AuthenticatedAccount actor);
+    /**
+     * Internal (no controller): applies a provider status that the caller queried outside any transaction, under
+     * the invoice lock. A PAID status for a VOID invoice is flagged RECONCILIATION_REQUIRED, never applied.
+     */
+    PaymentAttemptResponse applyProviderStatus(UUID attemptId, PaymentGateway.GatewayPaymentStatus providerStatus);
 }

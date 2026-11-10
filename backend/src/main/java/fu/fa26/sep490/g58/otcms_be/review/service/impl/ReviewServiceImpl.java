@@ -38,6 +38,8 @@ public class ReviewServiceImpl implements ReviewService {
         this.notifications = notifications;
     }
     public Items<EligibleVisit> eligible(UUID accountId) {
+        // New account without its own profile yet: nothing to review, not an error.
+        if (profiles.findPatientProfile(accountId).isEmpty()) return new Items<>(List.of());
         var profile = ownProfiles.requireOwnProfile(accountId);
         var reviewed = new HashSet<UUID>();
         reviews.findByPatientProfileIdOrderBySubmittedAtDescIdDesc(profile.id()).forEach(r -> reviewed.add(r.getVisitId()));
@@ -47,6 +49,7 @@ public class ReviewServiceImpl implements ReviewService {
                 .map(v -> new EligibleVisit(v.id(), date(v.arrivedAt()), v.serviceName(), patient(profile))).toList());
     }
     public Items<MyReview> mine(UUID accountId) {
+        if (profiles.findPatientProfile(accountId).isEmpty()) return new Items<>(List.of());
         var profile = ownProfiles.requireOwnProfile(accountId);
         return new Items<>(reviews.findByPatientProfileIdOrderBySubmittedAtDescIdDesc(profile.id()).stream()
                 .map(r -> mine(r, profile)).toList());

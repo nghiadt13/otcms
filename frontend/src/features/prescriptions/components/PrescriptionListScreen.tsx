@@ -3,10 +3,7 @@
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import type { ReactNode } from "react";
 import { ProfileScopeSelect } from "@/components/patient/ProfileScopeSelect";
-import {
-  PortalEmptyState,
-  PortalNoProfileState,
-} from "@/components/patient/PortalEmptyState";
+import { PortalEmptyState } from "@/components/patient/PortalEmptyState";
 import { PortalPageHeader } from "@/components/patient/PortalPageHeader";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -28,24 +25,27 @@ export function PrescriptionListScreen() {
       next ? `${pathname}?profileId=${encodeURIComponent(next)}` : pathname,
     );
 
+  const emptyList = (
+    <PortalEmptyState>
+      Chưa có đơn thuốc nào. Đơn hiện ở đây sau khi bác sĩ kê đơn trong lượt
+      khám.
+    </PortalEmptyState>
+  );
+
   let body: ReactNode;
   if (linked.loading) {
     body = <ListSkeleton />;
   } else if (linked.error) {
     body = <LoadError message={linked.error} onRetry={linked.reload} />;
   } else if (linked.profiles.length === 0) {
-    body = <PortalNoProfileState />;
+    // Chưa điền thông tin cá nhân: chưa có gì để xem, hiện như danh sách trống (chỉ đặt lịch mới bắt buộc).
+    body = emptyList;
   } else if (loading) {
     body = <ListSkeleton />;
   } else if (error) {
     body = <LoadError message={error} onRetry={reload} />;
   } else if (!data || data.items.length === 0) {
-    body = (
-      <PortalEmptyState>
-        Chưa có đơn thuốc nào. Đơn hiện ở đây sau khi bác sĩ kê đơn trong lượt
-        khám.
-      </PortalEmptyState>
-    );
+    body = emptyList;
   } else {
     body = (
       <>

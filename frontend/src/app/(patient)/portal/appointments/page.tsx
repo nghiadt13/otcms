@@ -12,7 +12,7 @@ export default function PatientAppointmentsPage() {
   return (
     <>
       <PortalPageHeader
-        description="Lịch khám sắp tới và đã qua của bạn và người thân."
+        description="Theo dõi và quản lý các lịch khám của bạn và người thân."
         title="Lịch hẹn"
       />
       <Suspense fallback={<PatientAppointmentListSkeleton />}>

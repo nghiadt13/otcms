@@ -36,6 +36,8 @@ public class BillingReadServiceImpl implements BillingReadService {
             if (actor.accountRole() != AccountRole.PATIENT) throw error("ACCESS_DENIED");
             try { scope = patients.accessibleProfileIds(actor.accountId()); }
             catch (PatientAuthorizationDeniedException denied) { throw error("ACCESS_DENIED"); }
+            // New account without its own profile yet: no payments to show, not an error.
+            if (scope.isEmpty() && patientId == null) return new ResultPage<>(List.of(), page, size, 0, 0);
             if (scope.isEmpty() || patientId != null && !scope.contains(patientId)) throw error("ACCESS_DENIED");
         }
         if (patientId != null) { scope = List.of(patientId); staff = false; }

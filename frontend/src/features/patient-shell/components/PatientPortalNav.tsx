@@ -4,6 +4,7 @@ import { Menu } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
+import { useSlidingUnderline } from "@/components/shell/useSlidingUnderline";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -38,21 +39,20 @@ export function PatientPortalNav({
 }) {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
+  const underline = useSlidingUnderline<HTMLElement>();
   if (groups.length === 0 && siteLinks.length === 0) return null;
 
   return (
     <>
       <nav
         aria-label="Menu khu bệnh nhân"
-        className="hidden h-full items-center gap-2 xl:flex"
+        className="relative hidden h-full items-center gap-2 xl:flex"
+        {...underline.navProps}
       >
         {siteLinks.map((link) => {
           const active = isActiveSiteLink(link.href, pathname);
           return (
-            <div
-              className="group relative flex h-full items-center"
-              key={link.href}
-            >
+            <div className="flex h-full items-center" key={link.href}>
               <Link
                 aria-current={active ? "page" : undefined}
                 className={cn(
@@ -63,15 +63,10 @@ export function PatientPortalNav({
               >
                 {link.label}
               </Link>
-              {active && (
-                <span
-                  aria-hidden
-                  className="absolute inset-x-4 bottom-0 h-0.5 rounded-full bg-primary"
-                />
-              )}
             </div>
           );
         })}
+        {underline.indicator}
       </nav>
 
       <Sheet onOpenChange={setOpen} open={open}>

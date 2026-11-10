@@ -4,6 +4,7 @@ import { Lock } from "lucide-react";
 import { useId, useState, type FormEvent, type ReactNode } from "react";
 import { publicButtonClass } from "@/components/brand/publicButtonStyles";
 import { notifyError, notifySuccess } from "@/lib/messages/notify";
+import { createOwnPatientProfile } from "../api/ownPatientProfileCreate";
 import { updatePatientProfile } from "../api/patientProfileApi";
 import { fieldErrorsFromResponse } from "../api/patientProfileErrors";
 import { formatDateOfBirthText } from "../schema/dateOfBirthText";
@@ -13,6 +14,7 @@ import {
   type ProfileFieldValues,
 } from "../schema/patientProfileFieldRules";
 import {
+  emptyOwnProfileValues,
   updateRequestFromValues,
   valuesFromDetail,
 } from "../schema/patientProfileRequestMapping";
@@ -20,6 +22,11 @@ import type {
   EditableProfileField,
   PatientProfileDetail,
 } from "../types/patientProfile";
+import {
+  CITIZEN_ID_LENGTH,
+  digitsOnly,
+} from "../schema/patientProfileFieldChecks";
+import { ProfilePhoneField } from "./ProfilePhoneField";
 import { ProfileSexField } from "./ProfileSexField";
 import { ProfileTextField } from "./ProfileTextField";
 
@@ -37,41 +44,56 @@ const SHOWN_FIELDS: readonly EditableProfileField[] = [
 
 type ShownField = (typeof SHOWN_FIELDS)[number];
 
-// Form luôn ở chế độ sửa: ô nào BE không cho sửa (`editableFields`) hiện chỉ đọc. Nút Lưu chỉ
-// bật khi có thay đổi và chỉ gửi các trường đã đổi.
+// Hai chế độ. Sửa (`detail` có giá trị): ô nào BE không cho sửa (`editableFields`) hiện chỉ đọc;
+// nút Lưu chỉ bật khi có thay đổi và chỉ gửi các trường đã đổi. Tạo lần đầu (`detail` = null, tài
+// khoản mới chưa có hồ sơ "Bản thân"): mọi ô trống (họ tên lấy sẵn từ `initialFullName`), phải
+// điền đủ các ô bắt buộc rồi bấm "Lưu và tiếp tục".
 export function PersonalInfoForm({
   detail,
+  initialFullName = "",
   emailSlot,
   onSaved,
 }: {
-  detail: PatientProfileDetail;
+  detail: PatientProfileDetail | null;
+  initialFullName?: string;
   /** Ô email tài khoản (đổi bằng OTP), nằm cạnh số điện thoại. */
   emailSlot: ReactNode;
   onSaved: (detail: PatientProfileDetail) => void;
 }) {
   const id = useId();
-  const editable = detail.editableFields.filter((field) =>
-    SHOWN_FIELDS.includes(field),
-  );
+  const creating = detail === null;
+  const editable = detail
+    ? detail.editableFields.filter((field) => SHOWN_FIELDS.includes(field))
+    : SHOWN_FIELDS;
   const [baseline, setBaseline] = useState<ProfileFieldValues>(() =>
-    valuesFromDetail(detail),
+    detail ? valuesFromDetail(detail) : emptyOwnProfileValues(initialFullName),
   );
   const [values, setValues] = useState<ProfileFieldValues>(baseline);
   const [errors, setErrors] = useState<ProfileFieldErrors>({});
   const [pending, setPending] = useState(false);
 
-  const changed = editable.filter((field) => values[field] !== baseline[field]);
-  const dirty = changed.length > 0;
+  const changed = creating
+    ? SHOWN_FIELDS
+    : editable.filter((field) => values[field] !== baseline[field]);
+  const dirty = creating || changed.length > 0;
   const locked = (field: ShownField) => !editable.includes(field);
   const identityLocked =
-    !detail.editableFields.includes("fullName") ||
-    !detail.editableFields.includes("dateOfBirth");
+    !!detail &&
+    (!detail.editableFields.includes("fullName") ||
+      !detail.editableFields.includes("dateOfBirth"));
 
   function update<K extends keyof ProfileFieldValues>(
     field: K,
     value: ProfileFieldValues[K],
   ) {
     setValues((current) => ({ ...current, [field]: value }));
+  }
+
+  // Kiểm tra ô số (CCCD, SĐT) ngay khi rời ô để lỗi hiện sớm; ô BE khóa thì bỏ qua.
+  function checkOnBlur(field: "citizenId" | "phone") {
+    if (locked(field)) return;
+    const message = validateProfileFields(values, [field])[field];
+    setErrors((current) => ({ ...current, [field]: message }));
   }
 
   function discard() {
@@ -92,10 +114,12 @@ export function PersonalInfoForm({
 
     setPending(true);
     try {
-      const updated = await updatePatientProfile(
-        detail.id,
-        updateRequestFromValues(values, changed),
-      );
+      const updated = detail
+        ? await updatePatientProfile(
+            detail.id,
+            updateRequestFromValues(values, changed),
+          )
+        : await createOwnPatientProfile(values);
       const next = valuesFromDetail(updated);
       setBaseline(next);
       setValues(next);
@@ -167,29 +191,35 @@ export function PersonalInfoForm({
           <ProfileTextField
             disabled={pending}
             error={errors.citizenId}
-            hint="Không bắt buộc. Trẻ em dùng mã định danh hoặc hộ chiếu."
             id={`${id}-citizenId`}
+            inputMode="numeric"
             label="CCCD / Mã định danh"
-            onChange={(next) => update("citizenId", next)}
+            maxLength={CITIZEN_ID_LENGTH}
+            onBlur={() => checkOnBlur("citizenId")}
+            onChange={(next) =>
+              update("citizenId", digitsOnly(next, CITIZEN_ID_LENGTH))
+            }
             readOnly={locked("citizenId")}
             value={values.citizenId}
           />
         </div>
       </section>
 
-      <section aria-labelledby={`${id}-contact`} className="grid gap-5">
+      <section
+        aria-labelledby={`${id}-contact`}
+        className="grid gap-5 border-t pt-8"
+      >
         <h3 className="text-lg font-semibold" id={`${id}-contact`}>
           Liên hệ
         </h3>
         <div className="grid items-start gap-5 sm:grid-cols-2">
-          <ProfileTextField
+          <ProfilePhoneField
             autoComplete="tel"
             disabled={pending}
             error={errors.phone}
-            hint="Dùng để phòng khám gọi xác nhận lịch. Không cần xác minh."
             id={`${id}-phone`}
-            inputMode="tel"
             label="Số điện thoại"
+            onBlur={() => checkOnBlur("phone")}
             onChange={(next) => update("phone", next)}
             readOnly={locked("phone")}
             required
@@ -212,11 +242,8 @@ export function PersonalInfoForm({
         </div>
       </section>
 
-      <div className="flex flex-col gap-4 border-t pt-6 sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-sm text-muted-foreground" role="status">
-          {dirty ? "Có thay đổi chưa lưu." : "Chưa có thay đổi."}
-        </p>
-        <div className="flex flex-col-reverse gap-3 sm:flex-row">
+      <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+        {creating ? null : (
           <button
             className={publicButtonClass("secondary")}
             disabled={!dirty || pending}
@@ -225,14 +252,18 @@ export function PersonalInfoForm({
           >
             Hủy thay đổi
           </button>
-          <button
-            className={publicButtonClass("primary")}
-            disabled={!dirty || pending}
-            type="submit"
-          >
-            {pending ? "Đang lưu..." : "Lưu thay đổi"}
-          </button>
-        </div>
+        )}
+        <button
+          className={publicButtonClass("primary")}
+          disabled={!dirty || pending}
+          type="submit"
+        >
+          {pending
+            ? "Đang lưu..."
+            : creating
+              ? "Lưu và tiếp tục"
+              : "Lưu thay đổi"}
+        </button>
       </div>
     </form>
   );

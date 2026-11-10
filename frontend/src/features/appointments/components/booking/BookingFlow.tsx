@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useReducer, useState, type ReactNode } from "react";
+import { useEffect, useReducer, useState } from "react";
+import { toast } from "sonner";
 import { isApiError } from "@/lib/api/apiError";
 import {
   notifyError,
@@ -9,6 +10,7 @@ import {
 } from "@/lib/messages/notify";
 import { createAppointment as createMockAppointment } from "../../api/bookingApi";
 import { createAppointment as createLiveAppointment } from "../../api/bookingLiveApi";
+import { clearPayOsIdempotencyKeys } from "../../api/clearPayOsIdempotencyKeys";
 import { useBookableServices } from "../../hooks/useBookableServices";
 import { useOpenTimes } from "../../hooks/useOpenTimes";
 import {
@@ -20,14 +22,19 @@ import {
   upcomingDays,
   type BookingSelection,
 } from "../../schema/bookingSelection";
-import { bookingSubmitOutcome } from "../../schema/bookingSubmitOutcome";
+import {
+  bookingSubmitErrorText,
+  bookingSubmitOutcome,
+} from "../../schema/bookingSubmitOutcome";
 import type {
   BookedAppointment,
   BookingPatient,
   BookingVariant,
+  PaymentRenderer,
 } from "../../types/booking";
 import type { WizardStepKey } from "../../schema/bookingWizard";
 import { BookingFlowBlocks } from "./BookingFlowBlocks";
+import { PaymentHoldStep } from "./PaymentHoldStep";
 import { BookingWizard } from "./wizard/BookingWizard";
 
 // Luồng đặt lịch dùng chung (UC20, UC21): một trang cuộn tiến dần, khối mở khi khối trước đã chọn.
@@ -44,13 +51,12 @@ export type BookingFlowProps = {
       /** Người khám chọn được (trang lấy từ tài khoản đang đăng nhập). */
       patients: readonly BookingPatient[];
       /**
-       * Màn thanh toán của lịch vừa tạo (bước 5). Có thì đặt xong sẽ sang bước thanh toán thay vì
-       * gọi `onBooked` ngay; `onFinish` gọi `onBooked` khi người dùng xong hoặc chọn trả sau.
+       * Màn thanh toán của lịch vừa tạo (bước 5). BE trả AWAITING_PAYMENT (đặt online, dịch vụ có
+       * phí: giữ giờ 15 phút) thì sang bước này thay vì gọi `onBooked` ngay; trả CONFIRMED (dịch vụ
+       * miễn phí) thì báo MSG-26 và bỏ qua bước 5. Rời bước 5 chưa trả = hủy giữ chỗ
+       * (xem PaymentHoldStep). `onFinish` gọi `onBooked` khi đã thanh toán xong.
        */
-      renderPayment?: (args: {
-        appointment: BookedAppointment;
-        onFinish: (result: { paid: boolean }) => void;
-      }) => ReactNode;
+      renderPayment?: PaymentRenderer;
     }
   | {
       variant: "staff";
@@ -157,25 +163,31 @@ export function BookingFlow(props: BookingFlowProps) {
     try {
       const create =
         variant === "patient" ? createLiveAppointment : createMockAppointment;
+      // Đặt lịch mới: bỏ khóa idempotency PayOS còn sót để lần thanh toán này không dính attempt cũ.
+      if (variant === "patient") clearPayOsIdempotencyKeys();
       const appointment = await create({
         patientId,
         serviceId: selection.serviceId,
         startAt: selection.startAt,
         doctorId,
         purpose,
+        bookedOnline: variant === "patient",
       });
-      if (renderPayment) {
-        // Có bước thanh toán: chưa báo thành công (phí khám còn chờ trả), MSG-26 hiện khi xong bước 5.
+      if (appointment.status === "AWAITING_PAYMENT" && renderPayment) {
+        // Giữ giờ chờ thanh toán: chưa báo thành công, MSG-26 hiện sau khi trả xong ở bước 5.
         setBooked(appointment);
         setWizardStep("payment");
       } else {
+        // Đã xác nhận ngay (dịch vụ miễn phí, hoặc không có bước thanh toán): bỏ qua bước 5.
         notifySuccess("MSG-26");
         onBooked(appointment);
       }
     } catch (error) {
-      notifyError(error);
+      const text = bookingSubmitErrorText(error);
+      if (text) toast.error(text);
+      else notifyError(error);
       const outcome = bookingSubmitOutcome(error);
-      if (outcome === "slotTaken") {
+      if (outcome === "slotTaken" || outcome === "tooSoon") {
         dispatch({ type: "reopen", step: "time" });
         setWizardStep("schedule");
         times.reload();
@@ -187,6 +199,14 @@ export function BookingFlow(props: BookingFlowProps) {
     } finally {
       setSubmitting(false);
     }
+  }
+
+  /** Giữ chỗ đã kết thúc (hủy / hết hạn / tab khác hủy): xóa lựa chọn và về bước đầu để đặt lại. */
+  function resetAfterRelease() {
+    setBooked(null);
+    dispatch({ type: "reopen", step: "patient" });
+    setPurpose("");
+    setWizardStep("patient");
   }
 
   if (patients.length === 0)
@@ -227,23 +247,27 @@ export function BookingFlow(props: BookingFlowProps) {
           submitting={submitting}
           onSubmit={() => void handleSubmit()}
           paymentSlot={
-            booked && renderPayment
-              ? renderPayment({
-                  appointment: booked,
-                  onFinish: ({ paid }) => {
-                    notifySuccess("MSG-26");
-                    // Kết quả hiển thị đúng trạng thái phí sau bước thanh toán.
-                    onBooked(
-                      paid
-                        ? {
-                            ...booked,
-                            examFee: { ...booked.examFee, status: "PAID" },
-                          }
-                        : booked,
-                    );
-                  },
-                })
-              : null
+            booked && renderPayment ? (
+              <PaymentHoldStep
+                appointment={booked}
+                onFinish={({ paid, announced }) => {
+                  if (!announced) notifySuccess("MSG-26");
+                  // Kết quả hiển thị đúng trạng thái sau bước thanh toán: trả xong thì lịch đã xác nhận.
+                  onBooked(
+                    paid
+                      ? {
+                          ...booked,
+                          status: "BOOKED",
+                          paymentDeadline: null,
+                          examFee: { ...booked.examFee, status: "PAID" },
+                        }
+                      : booked,
+                  );
+                }}
+                onReleased={resetAfterRelease}
+                renderPayment={renderPayment}
+              />
+            ) : null
           }
         />
       </div>

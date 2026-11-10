@@ -29,7 +29,8 @@ public class JdbcReportingRepository implements ReportingRepository {
     public Map<String,Long> appointmentCounts(ReportingPeriod p) {
         return counts("""
             SELECT CASE WHEN status='CONFIRMED' THEN 'BOOKED' WHEN status IN ('IN_PROGRESS','COMPLETED') THEN 'CHECKED_IN' ELSE status END code,count(*) n
-            FROM appointments WHERE start_time>=:from AND start_time<:until GROUP BY 1
+            FROM appointments WHERE start_time>=:from AND start_time<:until
+              AND status NOT IN ('AWAITING_PAYMENT','PAYMENT_EXPIRED') GROUP BY 1
             """,p);
     }
     @Override
@@ -45,7 +46,9 @@ public class JdbcReportingRepository implements ReportingRepository {
         // Only these fixed identifiers are allowed; no request string is interpolated into SQL.
         String table=subject.equals("APPOINTMENTS")?"appointments":"visits";
         String column=subject.equals("APPOINTMENTS")?"start_time":"checked_in_at";
-        var rows=jdbc.query("SELECT to_char("+column+" AT TIME ZONE 'Asia/Ho_Chi_Minh','YYYY-MM-DD') AS report_date,count(*) n FROM "+table+" WHERE "+column+">=:from AND "+column+"<:until GROUP BY 1 ORDER BY 1",params(p),
+        // Payment-hold states are technical: they are never an appointment in any report.
+        String hiddenHold=subject.equals("APPOINTMENTS")?" AND status NOT IN ('AWAITING_PAYMENT','PAYMENT_EXPIRED')":"";
+        var rows=jdbc.query("SELECT to_char("+column+" AT TIME ZONE 'Asia/Ho_Chi_Minh','YYYY-MM-DD') AS report_date,count(*) n FROM "+table+" WHERE "+column+">=:from AND "+column+"<:until"+hiddenHold+" GROUP BY 1 ORDER BY 1",params(p),
             (rs,i)->new DailyCount(rs.getString("report_date"), rs.getLong("n")));
         return rows;
     }

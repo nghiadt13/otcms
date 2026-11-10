@@ -13,12 +13,35 @@ export const MAX_EMAIL_LENGTH = 254;
 const NAME_PATTERN = /^[A-Za-zÀ-ỹ .'-]+$/;
 const LETTER_PATTERN = /[A-Za-zÀ-ỹ]/;
 const PHONE_PATTERN = /^0\d{9}$/;
-const CITIZEN_ID_PATTERN = /^[A-Za-z0-9]{8,12}$/;
+const CITIZEN_ID_PATTERN = /^\d{12}$/;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 /** Bỏ khoảng trắng, dấu chấm, gạch: "0912 345.678" → "0912345678". */
 export function normalizePhone(raw: string): string {
   return raw.replace(/[\s.-]/g, "");
+}
+
+/** Số điện thoại hiện sau "+84": 9 chữ số, đủ 11 chữ số cùng mã vùng. */
+export const PHONE_DIGITS_AFTER_COUNTRY_CODE = 9;
+export const CITIZEN_ID_LENGTH = 12;
+
+/** Chỉ giữ chữ số, cắt ở độ dài tối đa: dùng cho ô gõ số (CCCD). */
+export function digitsOnly(raw: string, maxLength: number): string {
+  return raw.replace(/\D/g, "").slice(0, maxLength);
+}
+
+/**
+ * Chuỗi người dùng gõ hoặc dán vào ô có sẵn "+84" → số nội địa dạng "0xxxxxxxxx" (dạng BE lưu).
+ * Chấp nhận dán "+84 912...", "84912..." hay "0912...": bỏ mã vùng hoặc số 0 đầu, giữ tối đa 9 số.
+ * Chưa gõ gì (hoặc chỉ gõ số 0) thì trả chuỗi rỗng.
+ */
+export function localPhoneFromInput(raw: string): string {
+  let digits = raw.replace(/\D/g, "");
+  if (digits.startsWith("84") && digits.length > PHONE_DIGITS_AFTER_COUNTRY_CODE)
+    digits = digits.slice(2);
+  else if (digits.startsWith("0")) digits = digits.slice(1);
+  digits = digits.slice(0, PHONE_DIGITS_AFTER_COUNTRY_CODE);
+  return digits ? `0${digits}` : "";
 }
 
 /** Quan hệ thuộc bảng quan hệ dùng chung (chuỗi rỗng khi chưa chọn thì không hợp lệ). */
@@ -49,7 +72,7 @@ export function checkPhone(value: string): string | undefined {
   if (!phone) return "Nhập số điện thoại.";
   return PHONE_PATTERN.test(phone)
     ? undefined
-    : "Số điện thoại gồm 10 chữ số, bắt đầu bằng 0.";
+    : "Số điện thoại gồm 9 chữ số sau +84.";
 }
 
 export function checkAddress(value: string): string | undefined {
@@ -65,7 +88,7 @@ export function checkCitizenId(value: string): string | undefined {
   if (!citizenId) return undefined;
   return CITIZEN_ID_PATTERN.test(citizenId)
     ? undefined
-    : "Số định danh gồm 8 đến 12 chữ hoặc số.";
+    : "CCCD gồm đúng 12 chữ số.";
 }
 
 export function checkEmail(value: string): string | undefined {

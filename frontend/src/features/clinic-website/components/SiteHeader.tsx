@@ -3,11 +3,12 @@
 import { CalendarPlus, Menu, PhoneCall } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 import { OtcmsLogo } from "@/components/brand/OtcmsLogo";
 import { PublicBookAppointmentLink } from "@/components/brand/PublicBookAppointmentLink";
 import { publicButtonClass } from "@/components/brand/publicButtonStyles";
 import { publicContainerClass } from "@/components/brand/publicLayout";
+import { useSlidingUnderline } from "@/components/shell/useSlidingUnderline";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -29,8 +30,16 @@ import { SiteAccountLinks } from "./SiteAccountLinks";
 // hotline đã có ở dải SiteTopBar ngay trên nên header không lặp lại.
 // Dưới xl, bảy mục menu không vừa một hàng nên menu nằm trong Sheet (shadcn) và Sheet mang hotline
 // để người dùng điện thoại bấm gọi. Esc, bẫy focus và trả focus về nút ☰ do Sheet lo.
-export function SiteHeader({ hotline }: { hotline: string }) {
+export function SiteHeader({
+  hotline,
+  notificationSlot,
+}: {
+  hotline: string;
+  /** Chuông thông báo do `app/` ghép vào (feature này không import feature notifications). */
+  notificationSlot?: ReactNode;
+}) {
   const pathname = usePathname();
+  const underline = useSlidingUnderline<HTMLUListElement>();
   const [open, setOpen] = useState(false);
   const items = siteNavItems.map((item) => ({
     ...item,
@@ -42,34 +51,35 @@ export function SiteHeader({ hotline }: { hotline: string }) {
       <div className={`${publicContainerClass} flex h-16 items-center lg:h-20`}>
         <OtcmsLogo tone="onLight" />
 
-        <nav aria-label="Menu chính" className="ml-12 hidden h-full xl:block">
-          <ul className="flex h-full items-center gap-2">
+        <nav aria-label="Menu chính" className="ml-8 hidden h-full xl:block">
+          <ul
+            className="relative flex h-full items-center gap-2"
+            {...underline.navProps}
+          >
             {items.map((item) => (
-              <li className="relative h-full" key={item.href}>
+              <li className="h-full" key={item.href}>
                 <Link
                   aria-current={item.active ? "page" : undefined}
                   className={cn(
-                    "flex h-full items-center px-4 text-base font-medium transition-colors duration-150 outline-none hover:text-primary focus-visible:ring-3 focus-visible:ring-ring/50 motion-reduce:transition-none",
+                    "flex h-full items-center px-3 text-base font-medium whitespace-nowrap transition-colors duration-150 outline-none hover:text-primary focus-visible:ring-3 focus-visible:ring-ring/50 motion-reduce:transition-none",
                     item.active ? "text-primary" : "text-foreground/80",
                   )}
                   href={item.href}
                 >
                   {item.label}
                 </Link>
-                {item.active && (
-                  <span
-                    aria-hidden
-                    className="absolute inset-x-4 bottom-0 h-0.5 rounded-full bg-primary"
-                  />
-                )}
               </li>
             ))}
+            {underline.indicator}
           </ul>
         </nav>
 
         <div className="ml-auto flex items-center gap-6">
           <div className="hidden items-center gap-5 lg:flex">
-            <SiteAccountLinks variant="nav" />
+            <SiteAccountLinks
+              notificationSlot={notificationSlot}
+              variant="nav"
+            />
           </div>
           {/* Từ lg nút đặt lịch đã nằm ở SiteTopBar. */}
           <PublicBookAppointmentLink

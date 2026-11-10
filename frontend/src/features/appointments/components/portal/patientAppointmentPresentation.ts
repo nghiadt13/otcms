@@ -35,6 +35,34 @@ export const examFeeLabel = (examFee: ExamFee): string =>
 export const visitTypeLabel = (isFollowUp: boolean): string =>
   isFollowUp ? VISIT_TYPE_LABELS.FOLLOW_UP : VISIT_TYPE_LABELS.FIRST_VISIT;
 
+/**
+ * Tên dịch vụ tách hai tầng cho thẻ lịch: "Khám Nội – Ngoại khoa với Giáo sư – Phó Giáo sư" →
+ * tiêu đề "Khám Nội", dòng phụ "Ngoại khoa với Giáo sư – Phó Giáo sư". Không có dấu " – " thì chỉ
+ * có tiêu đề.
+ */
+export function splitServiceName(name: string): {
+  title: string;
+  subtitle: string | null;
+} {
+  const index = name.indexOf(" – ");
+  if (index < 0) return { title: name, subtitle: null };
+  return { title: name.slice(0, index), subtitle: name.slice(index + 3) };
+}
+
+/** Ô ngày của thẻ lịch: { month: "11", day: "10", weekday: "Thứ ba" }. */
+export function appointmentDateParts(startAt: string): {
+  month: string;
+  day: string;
+  weekday: string;
+} {
+  const date = dateOfStart(startAt);
+  return {
+    month: String(Number(date.slice(5, 7))),
+    day: String(Number(date.slice(8, 10))),
+    weekday: longWeekdayLabel(date),
+  };
+}
+
 /** "08:30 thứ năm 23/10/2026": giờ và ngày trong câu xác nhận hủy. */
 export function appointmentSentenceTime(startAt: string): string {
   const date = dateOfStart(startAt);

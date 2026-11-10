@@ -49,6 +49,12 @@ function receptionStatusValue(status: string) {
       return "examining";
     case "COMPLETED":
       return "completed";
+    // Giữ giờ chờ thanh toán: BE đã ẩn khỏi danh sách lễ tân (DAILY_RECEPTION_STATUSES cũng loại).
+    // Có ở đây chỉ để lỡ BE trả ra thì không bị hiện nhầm là "Đã đặt lịch".
+    case "AWAITING_PAYMENT":
+      return "pending";
+    case "PAYMENT_EXPIRED":
+      return "cancelled";
     default:
       return "booked";
   }

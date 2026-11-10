@@ -2,6 +2,7 @@ package fu.fa26.sep490.g58.otcms_be.patient.controller;
 
 import fu.fa26.sep490.g58.otcms_be.common.security.AuthenticatedAccount;
 import fu.fa26.sep490.g58.otcms_be.patient.mapper.PatientProfileMapper;
+import fu.fa26.sep490.g58.otcms_be.patient.model.dto.request.CreateMyPatientProfileRequest;
 import fu.fa26.sep490.g58.otcms_be.patient.model.dto.request.UpdatePatientProfileRequest;
 import fu.fa26.sep490.g58.otcms_be.patient.model.dto.response.PatientProfileDetailResponse;
 import fu.fa26.sep490.g58.otcms_be.patient.service.MyPatientProfileService;
@@ -23,6 +24,12 @@ public class MyPatientProfileController {
     @GetMapping
     public ResponseEntity<PatientProfileDetailResponse> get(@AuthenticationPrincipal AuthenticatedAccount actor) {
         return ResponseEntity.ok().header("Cache-Control", "no-store").body(mapper.toDetail(profiles.get(actor)));
+    }
+    /** Hoàn thành hồ sơ lần đầu: 201; 409 MSG-08 khi đã có hồ sơ hoặc trùng hồ sơ tại quầy; 400 MSG-08 kèm fieldErrors. */
+    @PostMapping
+    public ResponseEntity<PatientProfileDetailResponse> create(@AuthenticationPrincipal AuthenticatedAccount actor,
+            @Valid @RequestBody CreateMyPatientProfileRequest request) {
+        return ResponseEntity.status(201).header("Cache-Control", "no-store").body(mapper.toDetail(profiles.create(actor, request)));
     }
     @PutMapping
     public ResponseEntity<PatientProfileDetailResponse> update(@AuthenticationPrincipal AuthenticatedAccount actor,

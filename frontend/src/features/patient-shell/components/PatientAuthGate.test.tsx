@@ -2,6 +2,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@/lib/api/apiError";
+import { resetLinkedProfilesMock } from "@/lib/patient-scope/linkedProfilesMockStore";
 import { PatientAuthGate } from "./PatientAuthGate";
 
 const { replace, fetchCurrentAccount } = vi.hoisted(() => ({
@@ -26,15 +27,16 @@ const accountOf = (accountType: string) => ({
   displayName: "Nguyễn Văn An",
 });
 
-function renderGate() {
+function renderGate(profileRequiredPaths: readonly string[] = []) {
   return render(
-    <PatientAuthGate>
+    <PatientAuthGate profileRequiredPaths={profileRequiredPaths}>
       <p>Nội dung khu bệnh nhân</p>
     </PatientAuthGate>,
   );
 }
 
 beforeEach(() => {
+  resetLinkedProfilesMock();
   replace.mockClear();
   fetchCurrentAccount.mockReset();
 });
@@ -43,6 +45,38 @@ describe("PatientAuthGate", () => {
   it("bệnh nhân đã đăng nhập thì vẽ nội dung", async () => {
     fetchCurrentAccount.mockResolvedValue(accountOf("PATIENT"));
     renderGate();
+    expect(
+      await screen.findByText("Nội dung khu bệnh nhân"),
+    ).toBeInTheDocument();
+    expect(replace).not.toHaveBeenCalled();
+  });
+
+  it("bệnh nhân chưa có hồ sơ Bản thân vẫn vào được các trang thường (không bị chặn)", async () => {
+    resetLinkedProfilesMock({ variant: "empty" });
+    fetchCurrentAccount.mockResolvedValue(accountOf("PATIENT"));
+    renderGate();
+    expect(
+      await screen.findByText("Nội dung khu bệnh nhân"),
+    ).toBeInTheDocument();
+    expect(replace).not.toHaveBeenCalled();
+  });
+
+  it("bệnh nhân chưa có hồ sơ Bản thân mở trang đặt lịch (profileRequiredPaths): được đưa tới Thông tin cá nhân kèm trang đang mở", async () => {
+    resetLinkedProfilesMock({ variant: "empty" });
+    fetchCurrentAccount.mockResolvedValue(accountOf("PATIENT"));
+    renderGate(["/portal/appointments/new"]);
+    await waitFor(() =>
+      expect(replace).toHaveBeenCalledWith(
+        "/portal/account?next=%2Fportal%2Fappointments%2Fnew",
+      ),
+    );
+    expect(screen.queryByText("Nội dung khu bệnh nhân")).toBeNull();
+  });
+
+  it("không đọc được danh sách hồ sơ thì không chặn (từng màn tự báo lỗi tải)", async () => {
+    resetLinkedProfilesMock({ failList: true });
+    fetchCurrentAccount.mockResolvedValue(accountOf("PATIENT"));
+    renderGate(["/portal/appointments/new"]);
     expect(
       await screen.findByText("Nội dung khu bệnh nhân"),
     ).toBeInTheDocument();

@@ -130,9 +130,6 @@ export function BookingReviewStep({
           {purpose.length}/{PURPOSE_MAX_LENGTH}
         </p>
       </div>
-      <p className="text-base text-muted-foreground">
-        Thanh toán trực tuyến sau khi đặt hoặc tại quầy khi đến.
-      </p>
     </div>
   );
 }

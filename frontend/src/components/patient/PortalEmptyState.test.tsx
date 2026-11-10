@@ -4,16 +4,16 @@ import { PortalEmptyState, PortalNoProfileState } from "./PortalEmptyState";
 import { PortalPageHeader } from "./PortalPageHeader";
 
 describe("PortalNoProfileState", () => {
-  it("nói rõ chưa có hồ sơ và dẫn tới trang thêm hồ sơ", () => {
+  it("nói rõ chưa có thông tin cá nhân và dẫn tới trang điền thông tin", () => {
     render(<PortalNoProfileState />);
     expect(
       screen.getByText(
-        "Tài khoản của bạn chưa có hồ sơ bệnh nhân. Thêm hồ sơ để đặt lịch và xem kết quả.",
+        "Tài khoản của bạn chưa có thông tin cá nhân. Hãy điền đầy đủ để đặt lịch và xem kết quả.",
       ),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("link", { name: "Thêm thành viên" }),
-    ).toHaveAttribute("href", "/portal/profiles/new");
+      screen.getByRole("link", { name: "Điền thông tin cá nhân" }),
+    ).toHaveAttribute("href", "/portal/account");
   });
 });
 

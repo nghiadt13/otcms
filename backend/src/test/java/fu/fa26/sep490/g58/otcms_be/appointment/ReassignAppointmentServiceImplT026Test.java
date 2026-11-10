@@ -51,8 +51,8 @@ class ReassignAppointmentServiceImplT026Test {
 
     @BeforeEach
     void setUp() {
-        var properties = new AppointmentBookingProperties(30, 120, 1440, 30, 15, 15,
-                ZoneId.of("Asia/Ho_Chi_Minh"), new AppointmentBookingProperties.PublicRateLimit(60, 60));
+        var properties = new AppointmentBookingProperties(30, 1440, 30, 15, 15,
+                ZoneId.of("Asia/Ho_Chi_Minh"), new AppointmentBookingProperties.PublicRateLimit(60, 60), 15, 30000L, false);
         handler = new ReassignAppointmentServiceImpl(guard, appointments, assignments, providers, slots, properties,
                 Clock.fixed(now, ZoneId.of("UTC")), mock(NotificationPublisher.class));
         current = new ReassignableAppointment(appointmentId, patientId, serviceId,

@@ -25,6 +25,7 @@ public final class AppointmentRowMapper {
     public static CreatedAppointment createdAppointment(Object[] row) {
         return new CreatedAppointment(uuid(row[0]), uuid(row[1]), uuid(row[2]), uuid(row[3]), (String) row[4],
                 (String) row[5], (String) row[6], instant(row[7]), instant(row[8]), integer(row[9]), integer(row[10]),
-                instant(row[11]), uuid(row[12]), uuid(row[13]), instant(row[14]), instant(row[15]));
+                instant(row[11]), uuid(row[12]), uuid(row[13]), instant(row[14]), instant(row[15]),
+                row.length > 16 ? instant(row[16]) : null);
     }
 }

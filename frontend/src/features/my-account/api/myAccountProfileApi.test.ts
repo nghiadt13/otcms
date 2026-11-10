@@ -5,17 +5,8 @@ import {
   setMockSignedInKind,
 } from "@/lib/session/mockSignedInKind";
 import { getMyAccount, resetMyAccountMockStore } from "./myAccountApi";
-import {
-  MOCK_EMAIL_CHANGE_OTP,
-  MOCK_MY_ACCOUNT,
-  MOCK_PATIENT_ACCOUNT,
-  MOCK_TAKEN_EMAIL,
-} from "./myAccountMockData";
-import {
-  requestMyEmailChange,
-  updateMyDisplayName,
-  verifyMyEmailChange,
-} from "./myAccountProfileApi";
+import { MOCK_MY_ACCOUNT, MOCK_PATIENT_ACCOUNT } from "./myAccountMockData";
+import { updateMyDisplayName } from "./myAccountProfileApi";
 
 async function failure(promise: Promise<unknown>): Promise<ApiError> {
   try {
@@ -43,12 +34,9 @@ describe("myAccountProfileApi: tài khoản bệnh nhân", () => {
     });
     expect(account).not.toHaveProperty("username");
     expect(account.allowedActions).toEqual(
-      expect.arrayContaining([
-        "updateDisplayName",
-        "changeEmail",
-        "changePassword",
-      ]),
+      expect.arrayContaining(["updateDisplayName", "changePassword"]),
     );
+    expect(account.allowedActions).not.toContain("changeEmail");
   });
 
   it("đổi tên hiển thị: lưu sau khi cắt khoảng trắng đầu cuối", async () => {
@@ -71,52 +59,14 @@ describe("myAccountProfileApi: tài khoản bệnh nhân", () => {
       displayName: "MSG-12",
     });
   });
-
-  it("đổi email: email cũ vẫn hiệu lực tới khi nhập đúng mã (BR-05)", async () => {
-    await requestMyEmailChange("moi@example.com");
-    expect(await getMyAccount()).toMatchObject({ email: "an@example.com" });
-
-    const verified = await verifyMyEmailChange(MOCK_EMAIL_CHANGE_OTP);
-    expect(verified).toMatchObject({ email: "moi@example.com" });
-    expect(await getMyAccount()).toMatchObject({ email: "moi@example.com" });
-  });
-
-  it("mã OTP sai: 400 MSG-08 gắn vào otp, email không đổi", async () => {
-    await requestMyEmailChange("moi@example.com");
-    const err = await failure(verifyMyEmailChange("000000"));
-    expect(err.status).toBe(400);
-    expect(toFieldErrorMap(err.fieldErrors)).toEqual({ otp: "MSG-08" });
-    expect(await getMyAccount()).toMatchObject({ email: "an@example.com" });
-  });
-
-  it("xác minh khi chưa có yêu cầu đổi email: 400 MSG-08", async () => {
-    const err = await failure(verifyMyEmailChange(MOCK_EMAIL_CHANGE_OTP));
-    expect([err.status, err.code]).toEqual([400, "MSG-08"]);
-  });
-
-  it("email đã thuộc tài khoản khác hoặc trùng email hiện tại: 400 MSG-08 gắn vào newEmail", async () => {
-    const taken = await failure(requestMyEmailChange(MOCK_TAKEN_EMAIL));
-    expect(toFieldErrorMap(taken.fieldErrors)).toEqual({ newEmail: "MSG-08" });
-
-    const same = await failure(requestMyEmailChange("an@example.com"));
-    expect(toFieldErrorMap(same.fieldErrors)).toEqual({ newEmail: "MSG-08" });
-  });
-
-  it("email sai định dạng: 400 MSG-12 gắn vào newEmail", async () => {
-    const err = await failure(requestMyEmailChange("khong-phai-email"));
-    expect(toFieldErrorMap(err.fieldErrors)).toEqual({ newEmail: "MSG-12" });
-  });
 });
 
 describe("myAccountProfileApi: tài khoản nhân viên", () => {
-  it("không sửa được tên hiển thị hay email của nhân viên: 403 MSG-14", async () => {
+  it("không sửa được tên hiển thị của nhân viên: 403 MSG-14", async () => {
     setMockSignedInKind("STAFF");
     resetMyAccountMockStore(MOCK_MY_ACCOUNT);
 
     const name = await failure(updateMyDisplayName("Tên mới"));
     expect([name.status, name.code]).toEqual([403, "MSG-14"]);
-
-    const email = await failure(requestMyEmailChange("moi@example.com"));
-    expect([email.status, email.code]).toEqual([403, "MSG-14"]);
   });
 });

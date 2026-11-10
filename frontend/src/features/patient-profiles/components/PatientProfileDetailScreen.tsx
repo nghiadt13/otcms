@@ -53,7 +53,7 @@ export function PatientProfileDetailScreen({
         href={PATIENT_ROUTES.profiles}
       >
         <ChevronLeft aria-hidden />
-        Hồ sơ bệnh nhân
+        Quản lý gia đình
       </Link>
 
       <PortalPageHeader

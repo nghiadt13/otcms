@@ -19,6 +19,8 @@ public class MyPatientProfileApiExceptionHandler {
             case ACCESS_DENIED -> problem(403, "MSG-14", List.of(), r);
             case NOT_FOUND -> problem(404, "MSG-14", List.of(), r);
             case STALE_VERSION -> problem(409, "STALE_VERSION", List.of(), r);
+            // Đã có hồ sơ Bản thân, hoặc trùng hồ sơ tạo tại quầy (BR-14): không nói rõ trùng với ai.
+            case ALREADY_EXISTS, DUPLICATE -> problem(409, "MSG-08", List.of(), r);
             case INVALID_INPUT -> problem(400, "MSG-08", e.fields(), r);
         };
     }

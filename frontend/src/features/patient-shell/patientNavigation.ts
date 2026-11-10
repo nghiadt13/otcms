@@ -76,7 +76,7 @@ export const PATIENT_NAV_ITEMS: readonly PatientNavItem[] = [
     group: "Khám bệnh",
   },
   {
-    label: "Hồ sơ bệnh nhân",
+    label: "Quản lý gia đình",
     href: "/portal/profiles",
     icon: Users,
     group: "Hồ sơ",

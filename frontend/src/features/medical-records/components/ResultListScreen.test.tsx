@@ -31,14 +31,81 @@ describe("ResultListScreen", () => {
     expect(
       await screen.findByRole("link", { name: /Khám chỉnh hình tổng quát/ }),
     ).toHaveAttribute("href", "/portal/results/vis-an-done");
-    // Mỗi người có hai lượt trong dữ liệu giả, nên mỗi tên có hai dòng.
+    // Mỗi người có hai lượt trong dữ liệu giả, nên mỗi tên có hai thẻ.
+    expect(screen.getAllByRole("link", { name: /Nguyễn Văn An/ })).toHaveLength(
+      2,
+    );
     expect(
-      screen.getAllByRole("link", { name: /Nguyễn Văn An \(Bản thân\)/ }),
+      screen.getAllByRole("link", { name: /Nguyễn Thị Lan/ }),
+    ).toHaveLength(2);
+    // Tên cũng nằm trong ô chọn người khám; chỉ tính trong các thẻ lượt khám.
+    const cardTexts = screen
+      .getAllByRole("article")
+      .map((card) => card.textContent ?? "");
+    expect(
+      cardTexts.filter((text) => text.includes("Nguyễn Văn An · Bản thân")),
     ).toHaveLength(2);
     expect(
-      screen.getAllByRole("link", { name: /Nguyễn Thị Lan \(Cha\/Mẹ\)/ }),
+      cardTexts.filter((text) => text.includes("Nguyễn Thị Lan · Cha/Mẹ")),
     ).toHaveLength(2);
     expect(screen.getByLabelText("Người khám")).toHaveValue("");
+  });
+
+  it("đầu trang có ba số liệu và danh sách nhóm theo tháng, mới nhất trước", async () => {
+    render(<ResultListScreen />);
+    await screen.findByRole("link", { name: /Khám chỉnh hình tổng quát/ });
+
+    const cards = screen.getAllByRole("term").map((term) => ({
+      label: term.textContent,
+      value: term.previousElementSibling?.textContent,
+    }));
+    expect(cards).toEqual([
+      { label: "Lượt khám", value: "04" },
+      { label: "Có kết quả", value: "03" },
+      { label: "Chưa hoàn tất", value: "01" },
+    ]);
+
+    expect(
+      screen
+        .getAllByRole("heading", { level: 3 })
+        .map((heading) => heading.textContent),
+    ).toEqual([
+      "Tháng 10, 2026",
+      "Tháng 9, 2026",
+      "Tháng 7, 2026",
+      "Tháng 6, 2026",
+    ]);
+    expect(screen.getByText("Mới nhất trước")).toBeInTheDocument();
+  });
+
+  it("thẻ có kết quả dẫn tới 'Xem kết quả', thẻ chưa hoàn tất chỉ có 'Chi tiết'", async () => {
+    render(<ResultListScreen />);
+    await screen.findByRole("link", { name: /Khám chỉnh hình tổng quát/ });
+    expect(screen.getAllByText("Có kết quả").length).toBeGreaterThan(0);
+    expect(screen.getByText("Kết quả chưa được hoàn tất")).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: /^Chi tiết.*Khám chỉnh hình,/ }),
+    ).toHaveAttribute("href", "/portal/results/vis-lan-incomplete");
+    expect(
+      screen.getByRole("link", {
+        name: /^Xem kết quả.*Khám chỉnh hình tổng quát/,
+      }),
+    ).toHaveAttribute("href", "/portal/results/vis-an-done");
+  });
+
+  it("tab Đang xử lý chỉ còn lượt chưa hoàn tất", async () => {
+    const user = userEvent.setup();
+    render(<ResultListScreen />);
+    await user.click(
+      await screen.findByRole("tab", { name: /Đang xử lý \(1\)/ }),
+    );
+    expect(screen.getAllByRole("link")).toHaveLength(
+      screen.getAllByRole("link", { name: /^Chi tiết/ }).length,
+    );
+    expect(
+      screen.queryByText("Kết luận đã được công bố"),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText("Kết quả chưa được hoàn tất")).toBeInTheDocument();
   });
 
   it("lọc theo người khám đang có trên URL", async () => {
@@ -82,11 +149,11 @@ describe("ResultListScreen", () => {
     expect(screen.getByRole("button", { name: "Thử lại" })).toBeInTheDocument();
   });
 
-  it("tài khoản chưa có hồ sơ được dẫn tới thêm hồ sơ, không hiện danh sách", async () => {
+  it("tài khoản chưa có thông tin cá nhân: hiện danh sách trống, không bắt điền hồ sơ", async () => {
     resetLinkedProfilesMock({ variant: "empty" });
     render(<ResultListScreen />);
     expect(
-      await screen.findByText(/Tài khoản của bạn chưa có hồ sơ bệnh nhân/),
+      await screen.findByText(/Chưa có kết quả khám nào/),
     ).toBeInTheDocument();
     expect(
       screen.queryByRole("link", { name: /Khám chỉnh hình tổng quát/ }),

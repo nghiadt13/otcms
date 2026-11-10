@@ -1,14 +1,24 @@
 "use client";
 
-import { ChevronDown, CircleUser, LogIn, LogOut, UserPlus } from "lucide-react";
+import {
+  ChevronDown,
+  CircleUser,
+  LogIn,
+  LogOut,
+  UserCog,
+  UserPlus,
+} from "lucide-react";
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { publicButtonClass } from "@/components/brand/publicButtonStyles";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useAccountAvatarUrl } from "@/hooks/useAccountAvatarUrl";
 import { useCurrentAccount } from "@/hooks/useCurrentAccount";
 import { signOut } from "@/lib/auth/authSession";
 import type { CurrentAccount } from "@/lib/auth/currentAccountApi";
@@ -32,6 +42,13 @@ function personalHref(account: CurrentAccount): string {
     : WORKSPACE_HREF;
 }
 
+// Bệnh nhân: "Thông tin cá nhân" (cùng nhãn với menu cổng bệnh nhân); vai trò khác: "Khu làm việc".
+function personalLabel(account: CurrentAccount): string {
+  return account.accountType === "PATIENT"
+    ? "Thông tin cá nhân"
+    : "Khu làm việc";
+}
+
 /**
  * Cụm tài khoản ở header công khai. Chưa đăng nhập: "Đăng nhập" và "Đăng ký". Đã đăng nhập (tên
  * lấy từ backend): biểu tượng người dùng kèm tên, bấm mở menu vào khu làm việc hoặc đăng xuất.
@@ -41,10 +58,13 @@ function personalHref(account: CurrentAccount): string {
 export function SiteAccountLinks({
   variant,
   onNavigate,
+  notificationSlot,
 }: {
   variant: "nav" | "topbar" | "sheet";
   /** Đóng menu di động sau khi bấm một mục. */
   onNavigate?: () => void;
+  /** Chuông thông báo, đứng trước ô tài khoản ở hàng menu; chỉ hiện với bệnh nhân đã đăng nhập. */
+  notificationSlot?: ReactNode;
 }) {
   const state = useCurrentAccount();
   const linkClass = variant === "nav" ? navLinkClass : topLinkClass;
@@ -59,11 +79,16 @@ export function SiteAccountLinks({
 
   if (state.status === "signedIn") {
     return variant !== "sheet" ? (
-      <AccountDropdown
-        account={state.account}
-        onSignOut={handleSignOut}
-        variant={variant}
-      />
+      <>
+        {variant === "nav" && state.account.accountType === "PATIENT"
+          ? notificationSlot
+          : null}
+        <AccountDropdown
+          account={state.account}
+          onSignOut={handleSignOut}
+          variant={variant}
+        />
+      </>
     ) : (
       <AccountStack
         account={state.account}
@@ -117,6 +142,8 @@ function AccountDropdown({
   variant: "nav" | "topbar";
 }) {
   const nav = variant === "nav";
+  // Cùng ảnh đại diện với màn tài khoản; chưa có ảnh thì hiện chữ cái đầu của tên.
+  const avatarUrl = useAccountAvatarUrl(account);
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
@@ -129,12 +156,21 @@ function AccountDropdown({
       >
         {nav ? (
           <>
-            <span
-              aria-hidden
-              className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary text-base font-semibold text-primary-foreground uppercase"
-            >
-              {account.displayName.trim().charAt(0) || "?"}
-            </span>
+            {avatarUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element -- object URL của blob, không qua next/image
+              <img
+                alt=""
+                className="size-9 shrink-0 rounded-full object-cover"
+                src={avatarUrl}
+              />
+            ) : (
+              <span
+                aria-hidden
+                className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary text-base font-semibold text-primary-foreground uppercase"
+              >
+                {account.displayName.trim().charAt(0) || "?"}
+              </span>
+            )}
             <span className="truncate">{account.displayName}</span>
             <ChevronDown
               aria-hidden
@@ -153,12 +189,19 @@ function AccountDropdown({
         className="min-w-56"
         sideOffset={nav ? 8 : 4}
       >
+        <div className="px-2 py-2">
+          <p className="text-base font-medium">{account.displayName}</p>
+          <p className="truncate text-xs text-muted-foreground">
+            {account.email}
+          </p>
+        </div>
+        <DropdownMenuSeparator />
         <DropdownMenuItem
           className="h-11 text-base"
           render={<Link href={personalHref(account)} />}
         >
-          <CircleUser aria-hidden />
-          Cá nhân
+          <UserCog aria-hidden />
+          {personalLabel(account)}
         </DropdownMenuItem>
         <DropdownMenuItem className="h-11 text-base" onClick={onSignOut}>
           <LogOut aria-hidden />
@@ -189,7 +232,7 @@ function AccountStack({
         href={personalHref(account)}
         onClick={onNavigate}
       >
-        Cá nhân
+        {personalLabel(account)}
       </Link>
       <button
         className={publicButtonClass("secondary")}

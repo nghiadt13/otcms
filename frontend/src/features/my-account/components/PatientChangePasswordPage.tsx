@@ -6,7 +6,9 @@ import { PATIENT_ROUTES } from "@/lib/routes/patientRoutes";
 import { ChangePasswordForm } from "./ChangePasswordForm";
 
 // Đổi mật khẩu của bệnh nhân (UC05, BR-06): nhập mật khẩu hiện tại rồi đặt mật khẩu mới.
-// Xong hoặc hủy thì về màn Tài khoản (replace: nút Back không quay lại form đã xóa ô nhập).
+// Hủy thì về màn Tài khoản. Đổi xong: BE đã thu hồi phiên nên về /login để đăng nhập lại bằng mật
+// khẩu mới (không về màn Tài khoản vì phiên cũ không còn dùng được). Dùng replace để nút Back
+// không quay lại form đã xóa ô nhập.
 export function PatientChangePasswordPage() {
   const router = useRouter();
   const backToAccount = () => router.replace(PATIENT_ROUTES.account);
@@ -21,7 +23,9 @@ export function PatientChangePasswordPage() {
         large
         mode="voluntary"
         onCancel={backToAccount}
-        onDone={backToAccount}
+        onDone={({ sessionEnded }) =>
+          sessionEnded ? router.replace("/login") : backToAccount()
+        }
       />
     </>
   );

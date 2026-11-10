@@ -104,3 +104,44 @@ export function valuesFromRequest(
     email: input.email ?? "",
   };
 }
+
+/** Giá trị form trống khi bệnh nhân điền hồ sơ "Bản thân" lần đầu; họ tên lấy sẵn từ lúc đăng ký. */
+export function emptyOwnProfileValues(fullName: string): ProfileFieldValues {
+  return {
+    relationship: "SELF",
+    fullName,
+    dateOfBirth: "",
+    sex: "",
+    phone: "",
+    address: "",
+    citizenId: "",
+    email: "",
+  };
+}
+
+/** Thân POST /api/v1/me/patient-profile (BE CreateMyPatientProfileRequest). Gọi sau khi đã kiểm tra đủ trường. */
+export interface CreateOwnProfileBody {
+  fullName: string;
+  phone: string;
+  dateOfBirth: string;
+  gender: "MALE" | "FEMALE";
+  address: string;
+  nationalId?: string;
+  identityDocumentType?: "CCCD";
+}
+
+export function createOwnRequestFromValues(
+  values: ProfileFieldValues,
+): CreateOwnProfileBody {
+  if (!values.sex) throw new Error("Thiếu giới tính khi gửi form hồ sơ.");
+  const citizenId = values.citizenId.trim();
+  return {
+    fullName: values.fullName.trim(),
+    phone: normalizePhone(values.phone),
+    dateOfBirth: requireIsoDate(values.dateOfBirth),
+    gender: values.sex,
+    address: values.address.trim(),
+    // Form chỉ có một ô số định danh nên mặc định loại CCCD (BE bắt buộc loại khi có số).
+    ...(citizenId ? { nationalId: citizenId, identityDocumentType: "CCCD" as const } : {}),
+  };
+}

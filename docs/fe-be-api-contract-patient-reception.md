@@ -1,6 +1,6 @@
 # Hợp đồng API FE ↔ BE — khu Bệnh nhân, Lễ tân, trang công khai
 
-Cập nhật: 25/10/2026 (gộp khu Lễ tân `/reception` từ nhánh `thien-quang`) · Người tổng hợp: NghiaDT (điều phối FE) · Nguồn: code FE `frontend/src` + ghi chú từng phase (`plans/261024-1610-fe-patient-reception-implementation/api-notes/`).
+Cập nhật: 25/10/2026 (gộp khu Lễ tân `/reception` từ nhánh `thien-quang`); 09/11/2026 (mục 3.3.1: giữ giờ chờ thanh toán `AWAITING_PAYMENT`) · Người tổng hợp: NghiaDT (điều phối FE) · Nguồn: code FE `frontend/src` + ghi chú từng phase (`plans/261024-1610-fe-patient-reception-implementation/api-notes/`).
 
 FE đã dựng xong khu `/portal` (bệnh nhân), `/reception` (Lễ tân: hồ sơ, lịch hẹn, tiếp nhận, hàng đợi, thu phí, tra cứu) và các trang công khai trên **lớp API giả**. Mỗi hàm trong `features/<feature>/api/*Api.ts` đã đúng URL, method, DTO và hình lỗi mà BE cần trả. Tài liệu này là thứ BE làm theo để khi nối chỉ đổi lớp api, không sửa màn hình.
 
@@ -67,7 +67,31 @@ Cột "Chi tiết" trỏ tới mục phụ lục cùng file (DTO, lỗi, luật 
 | POST | `/api/v1/appointments` | Đặt lịch (bệnh nhân và Lễ tân) | P03, I01, R00 |
 | GET | `/api/v1/appointments` | Danh sách lịch: khu bệnh nhân (`profileId`, `tab`) và Lễ tân (`date`, `doctorId`, `status`, `patientId`, `q`) | P04, R00 |
 | GET | `/api/v1/appointments/{id}` | Chi tiết lịch hẹn | P04 |
-| POST | `/api/v1/appointments/{id}/cancel` | Bệnh nhân hủy trước check-in | P04 |
+| POST | `/api/v1/appointments/{id}/cancel` | Bệnh nhân hủy trước check-in; hủy được cả lịch đang giữ giờ `AWAITING_PAYMENT` | P04, mục 3.3.1 |
+| POST | `/api/v1/appointments/pending-hold/cancel` | FE khu bệnh nhân hủy hold đang sống của chính tài khoản (mount layout, rời trang, `pagehide`) | mục 3.3.1 |
+
+#### 3.3.1 Giữ giờ chờ thanh toán (`AWAITING_PAYMENT`, migration V106)
+
+Kế hoạch: `plans/261108-2017-booking-payment-hold-awaiting-payment/`. Kiến trúc và vòng đời: [architecture.md](architecture.md) mục "Appointment: giữ giờ chờ thanh toán". BE và FE phát hành cùng lúc.
+
+**Khi nào.** Đặt online (`PATIENT_ONLINE`) + dịch vụ giá > 0 → `status = AWAITING_PAYMENT`, `paymentDeadline = now + 15'` (cấu hình `appointment.booking.payment-hold-minutes`). Chỉ thành `CONFIRMED` sau khi PayOS thanh toán xong. Lễ tân đặt hộ, bác sĩ tái khám, dịch vụ giá 0 → `CONFIRMED` ngay, `paymentDeadline = null`. Đặt online có phí phải cách giờ khám ≥ 15 phút.
+
+**Thay đổi hợp đồng**
+
+| Endpoint | Thay đổi |
+| --- | --- |
+| `POST /api/v1/appointments` | Response thêm `status`: `"AWAITING_PAYMENT"` \| `"CONFIRMED"` và `paymentDeadline`: ISO có offset \| `null`. Lỗi mới `BOOKING_TOO_SOON`. Tạo lịch mới tự hủy mọi hold sống của cùng tài khoản (tối đa 1 hold/tài khoản) |
+| `GET /api/v1/appointments/{id}` | Có hai trường `status`, `paymentDeadline`. Đây là **nơi duy nhất** chủ lịch đọc được lịch `AWAITING_PAYMENT` / `PAYMENT_EXPIRED` (màn bước 5) |
+| `POST /api/v1/appointments/{id}/cancel` | Hủy được `AWAITING_PAYMENT`; không áp `APPOINTMENT_CHANGE_TOO_LATE`. Đi qua `settleExpiredAppointment(force)`: hỏi PayOS `query()` trước, đã PAID thì xác nhận lịch thay vì hủy |
+| `POST /api/v1/appointments/pending-hold/cancel` | **Mới.** Không body, cần CSRF, idempotent, chỉ tác động hold của chính tài khoản. 200 `{ "cancelledCount": int, "alreadyPaid": boolean }`. `alreadyPaid = true` khi PayOS báo đã PAID: lịch đã được xác nhận, FE báo "bạn đã thanh toán, lịch đã được xác nhận" |
+
+**Mã lỗi.** Mới: `BOOKING_TOO_SOON` (đặt online có phí cách giờ khám dưới 15'). Đã có: `INVOICE_NOT_PAYABLE` (hóa đơn `VOID` thì không tạo được QR mới). Số MSG cho các thông báo mới do NghiaDT gán sau.
+
+**Ẩn khỏi danh sách.** `AWAITING_PAYMENT` và `PAYMENT_EXPIRED` không xuất hiện ở bất kỳ `GET /api/v1/appointments` nào (bệnh nhân `upcoming`/`past`, bác sĩ, Lễ tân, admin), không vào báo cáo, không là nguồn ở `GET /api/v1/payments/payable-sources`. Nhắc lịch, check-in, đổi lịch, đổi bác sĩ chỉ nhận `CONFIRMED`.
+
+**Hạn QR và trả muộn.** `POST /api/v1/invoices/{id}/payment-attempts`: hạn QR = `min(now + TTL link, payment_deadline)`. Tiền về sau khi hóa đơn `VOID`/hold hết hạn: webhook và đối soát không lật `VOID` → `PAID`, đánh `RECONCILIATION_REQUIRED` (R3 NF-06), không tự hoàn tiền (BR-53), webhook luôn trả 2xx.
+
+**Cơ chế hủy phía FE** (chắc → yếu): (1) layout khu bệnh nhân mount gọi `pending-hold/cancel` (trừ route kết quả `/portal/payments/result` nơi PayOS trả về); (2) hộp thoại xác nhận khi rời trang trong app; (3) `fetch keepalive` lúc `pagehide`, best-effort; (4) sweeper khi hết 15'; (5) tạo lịch mới. Rời trang, reload, đóng tab, đăng xuất, bấm Hủy hoặc Quay lại đều là hủy thanh toán; không có banner chờ thanh toán và không có nút "Thanh toán sau tại quầy" cho đặt online.
 
 ### 3.4 Khu Lễ tân `/reception` (UC04, UC05, UC10, UC11, UC13 AF2, UC20–UC22, UC24, UC25, UC29–UC34, UC41, UC52–UC58, UC63, UC64, UC71)
 FE hiện gọi **một adapter lệnh** (`features/patient-reception/api/receptionApi.ts`: `loadReception()` + `executeReception(command, version)`). Khi nối, mỗi lệnh thành một endpoint dưới đây và `loadReception` tách thành các GET theo màn. Chi tiết DTO, lỗi, luật kiểm: phụ lục **R00**.
@@ -434,8 +458,9 @@ Khi nối thật: `GET` ghép query bằng `toQueryString` (`lib/api/pagination.
 
 **BookedAppointment** (201): `{ id: string, startAt: string, patient: { id: string, fullName: string }, service: { id: string, name: string }, doctor: DoctorRef, roomName: string, status: AppointmentStatus /* FE dùng BOOKED */, examFee: { amount: number /* VND, giá chốt */, status: ExamFeeStatus /* PENDING_PAYMENT khi mới đặt */ }, isFollowUp: boolean }`
 - Không trả SĐT, mã BN, người đặt ở response này.
+- **Bổ sung V106 (hiện hành, xem mục 3.3.1):** response thêm `status`: `"AWAITING_PAYMENT"` \| `"CONFIRMED"` và `paymentDeadline`: ISO \| `null`. Câu "FE dùng BOOKED" ở trên là của lớp giả cũ: BE trả `CONFIRMED` thay cho `BOOKED` khi lịch đã được xác nhận. Lỗi mới `BOOKING_TOO_SOON`.
 
-**Enum dùng**: `AppointmentStatus` = BOOKED | CHECKED_IN | CANCELLED | NO_SHOW; `ExamFeeStatus` = PAID | PENDING_PAYMENT | NOT_REQUIRED (`lib/domain/clinicVisit.ts`).
+**Enum dùng**: `AppointmentStatus` = BOOKED | CHECKED_IN | CANCELLED | NO_SHOW (lớp giả cũ; BE bổ sung `AWAITING_PAYMENT` và `PAYMENT_EXPIRED` ở mục 3.3.1, hai giá trị này không bao giờ có trong danh sách); `ExamFeeStatus` = PAID | PENDING_PAYMENT | NOT_REQUIRED (`lib/domain/clinicVisit.ts`).
 
 #### Hợp đồng URL giữa màn (query param)
 
@@ -518,6 +543,7 @@ Hồ sơ đã gắn (`GET /api/v1/me/patient-profiles`, P00) được màn dùng
 5. **Đổi giờ:** không có endpoint. FE chỉ hiện câu "Muốn đổi giờ? Hủy lịch này rồi đặt lịch mới."
 6. **Lịch quá giờ còn BOOKED:** FE xếp vào "Sắp tới" theo trạng thái. BE tự chuyển `NO_SHOW` khi hết ca (NF-08); FE không tự suy.
 7. **Mã BN:** không trả trong `PatientAppointment`. FE lấy từ danh sách hồ sơ đã gắn để nhắc người bệnh.
+8. **Lịch giữ giờ (V106, mục 3.3.1):** `GET /appointments` (cả `upcoming` và `past`) **không** trả `AWAITING_PAYMENT` và `PAYMENT_EXPIRED`; `past` dùng danh sách trạng thái cho phép chứ không phải "mọi trạng thái khác CONFIRMED". `GET /appointments/{id}` vẫn trả được hai trạng thái này cho chủ lịch, kèm `paymentDeadline`. `POST .../cancel` hủy được `AWAITING_PAYMENT` mà không áp hạn hủy `APPOINTMENT_CHANGE_TOO_LATE`.
 
 #### Câu hỏi mở cho BE / nhóm
 
@@ -543,7 +569,7 @@ khu đọc cùng một dữ liệu phí khám, như BE một DB. Nguồn mock: `
 | 4 | `GET /api/v1/payments/{id}` (P06) | Giao dịch của lịch: `sourceKind: "appointment"`, `sourceId` = mã lịch, `items` = [phí khám]. | Không đổi hình trả. `queueAssignments` rỗng (phí khám không có phòng phục vụ). |
 | 5 | `GET /api/v1/appointments`, `GET /api/v1/appointments/{id}` (P04) | `examFee.status` đọc từ kho phí chung: sau thanh toán thành `PAID`; `allowedActions` bỏ `payExamFee`, còn `cancel`. | `payExamFee` chỉ khi lịch BOOKED và phí PENDING_PAYMENT (đúng P04). |
 | 6 | `POST /api/v1/appointments/{id}/cancel` (P04) | Lịch hủy: không còn là nguồn chờ thanh toán. Phí đã PAID giữ PAID, không hoàn tiền (BR-53). Phí chưa trả không bị xóa khỏi lịch, chỉ mất khả năng thanh toán. | Hủy lịch đã trả: BE không tạo khoản hoàn; giao dịch cũ vẫn có trong lịch sử thanh toán. |
-| 7 | `POST /api/v1/appointments` (P03) | Lịch vừa đặt có `examFee` PENDING_PAYMENT và xuất hiện ngay ở nguồn chờ thanh toán (endpoint 1). | Không đổi hình trả 201 (xem đề xuất `allowedActions` trong P04). |
+| 7 | `POST /api/v1/appointments` (P03) | Lịch vừa đặt có `examFee` PENDING_PAYMENT và xuất hiện ngay ở nguồn chờ thanh toán (endpoint 1). **Đã thay thế cho đặt online có phí (V106):** lịch đang giữ giờ `AWAITING_PAYMENT` không là nguồn ở endpoint 1; thanh toán diễn ra ngay ở bước 5 của wizard (xem mục 3.3.1). | Hình trả 201 nay thêm `status`, `paymentDeadline` (mục 3.3.1); vẫn chưa có `allowedActions`. |
 
 #### 2. URL giữa màn (query param)
 

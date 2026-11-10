@@ -4,6 +4,8 @@ import jakarta.validation.constraints.NotBlank;
 public class CredentialLoginRequest {
     private @NotBlank String email;
     private @NotBlank String password;
+    /** Không gửi thì coi như ghi nhớ (giữ hành vi cũ của các client chưa có ô này). */
+    private Boolean rememberMe;
     public CredentialLoginRequest() { }
     public CredentialLoginRequest(@NotBlank String email, @NotBlank String password) {
         this.email = email;
@@ -15,4 +17,7 @@ public class CredentialLoginRequest {
     public String getPassword() { return password; }
     public String password() { return password; }
     public void setPassword(String password) { this.password = password; }
+    public Boolean getRememberMe() { return rememberMe; }
+    public void setRememberMe(Boolean rememberMe) { this.rememberMe = rememberMe; }
+    public boolean rememberMeOrDefault() { return rememberMe == null || rememberMe; }
 }

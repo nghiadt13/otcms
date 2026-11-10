@@ -37,6 +37,7 @@ class ReviewServiceTest {
             mock(fu.fa26.sep490.g58.otcms_be.notification.service.NotificationPublisher.class));
     @BeforeEach void setup() {
         when(own.requireOwnProfile(account)).thenReturn(profile);
+        when(profiles.findPatientProfile(account)).thenReturn(Optional.of(profileId));
         when(profiles.findProfile(profileId)).thenReturn(Optional.of(profile));
         source(profileId, "CLOSED");
     }
@@ -48,6 +49,13 @@ class ReviewServiceTest {
         var review = PatientReviewJpaEntity.submit(visitId, profileId, account, 5, "A valid review", now);
         when(reviews.findById(review.getId())).thenReturn(Optional.of(review));
         return review;
+    }
+    @Test void accountWithoutOwnProfileSeesEmptyReviewLists() {
+        UUID fresh = UUID.randomUUID();
+        when(profiles.findPatientProfile(fresh)).thenReturn(Optional.empty());
+        assertEquals(0, service.eligible(fresh).items().size());
+        assertEquals(0, service.mine(fresh).items().size());
+        verify(own, never()).requireOwnProfile(fresh);
     }
     @Test void eligibleClosedOwnUnreviewedOnly() {
         when(reviews.findByPatientProfileIdOrderBySubmittedAtDescIdDesc(profileId)).thenReturn(List.of());

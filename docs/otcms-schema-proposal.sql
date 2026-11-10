@@ -152,18 +152,25 @@ CREATE TABLE appointments (
     visit_kind text NOT NULL CHECK (visit_kind IN ('INITIAL','FOLLOW_UP')),
     starts_at timestamptz NOT NULL,
     ends_at timestamptz NOT NULL,
-    status text NOT NULL DEFAULT 'BOOKED' CHECK (status IN ('BOOKED','CHECKED_IN','COMPLETED','CANCELLED','RESCHEDULE_REQUIRED','NO_SHOW')),
+    -- V106 (09/11/2026): AWAITING_PAYMENT = technical hold while an online booking is paid (payment_deadline);
+    -- PAYMENT_EXPIRED = terminal state of a released hold (frees the slot, hidden from every list/report).
+    -- Implemented migrations name BOOKED as CONFIRMED and the exclusion ex_appointments_doctor_occupied_range.
+    status text NOT NULL DEFAULT 'BOOKED' CHECK (status IN ('AWAITING_PAYMENT','PAYMENT_EXPIRED','BOOKED','CHECKED_IN','COMPLETED','CANCELLED','RESCHEDULE_REQUIRED','NO_SHOW')),
+    payment_deadline timestamptz,
     cancellation_reason text CHECK (cancellation_reason IS NULL OR cancellation_reason IN ('PATIENT_REQUEST','CLINIC_REQUEST','DOCTOR_UNAVAILABLE','OTHER')),
     reschedule_reason text CHECK (reschedule_reason IS NULL OR reschedule_reason IN ('DOCTOR_UNAVAILABLE','TIME_OFF','CLINIC_REQUEST','OTHER')),
     created_at timestamptz NOT NULL DEFAULT now(),
     updated_at timestamptz NOT NULL DEFAULT now(),
     version bigint NOT NULL DEFAULT 0 CHECK (version >= 0),
     CONSTRAINT chk_appointments_period CHECK (ends_at > starts_at),
+    CONSTRAINT ck_appointments_payment_deadline CHECK (status <> 'AWAITING_PAYMENT' OR payment_deadline IS NOT NULL),
     CONSTRAINT uq_appointments_patient UNIQUE (id,patient_id),
     CONSTRAINT ex_appointments_doctor_overlap EXCLUDE USING gist
       (doctor_account_id WITH =, tstzrange(starts_at,ends_at,'[)') WITH &&)
-      WHERE (status IN ('BOOKED','CHECKED_IN','RESCHEDULE_REQUIRED'))
+      WHERE (status IN ('AWAITING_PAYMENT','BOOKED','CHECKED_IN','RESCHEDULE_REQUIRED'))
 );
+-- Sweeper of expired holds (V106 ix_appointments_awaiting_deadline).
+CREATE INDEX idx_appointments_awaiting_deadline ON appointments(payment_deadline,id) WHERE status = 'AWAITING_PAYMENT';
 CREATE INDEX idx_appointments_patient_start ON appointments(patient_id,starts_at DESC);
 CREATE INDEX idx_appointments_doctor_start ON appointments(doctor_account_id,starts_at);
 CREATE INDEX idx_appointments_service ON appointments(service_id);

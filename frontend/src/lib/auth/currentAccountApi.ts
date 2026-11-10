@@ -11,6 +11,8 @@ export type CurrentAccount = {
   email: string;
   /** Họ tên hồ sơ bệnh nhân; chưa có hồ sơ thì là phần trước @ của email. */
   displayName: string;
+  /** Có giá trị khi tài khoản đã có ảnh đại diện; ảnh thật tải qua `accountAvatarCache`. */
+  avatarUrl?: string | null;
 };
 
 // Nhớ theo tài khoản của phiên hiện tại: đổi hoặc mất phiên thì tải lại. `inflight` gộp các

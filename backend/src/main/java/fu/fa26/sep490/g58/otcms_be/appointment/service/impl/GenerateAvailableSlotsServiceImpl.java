@@ -17,6 +17,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.time.Clock;
 import java.util.Set;
 
 @Service
@@ -26,20 +27,22 @@ public class GenerateAvailableSlotsServiceImpl implements GenerateAvailableSlots
     private final AppointmentOccupancyRepository appointments;
     private final VisitCareReservationQueryService careReservations;
     private final SlotAvailabilityEngine engine;
+    private final Clock clock;
 
     @Autowired
     public GenerateAvailableSlotsServiceImpl(AppointmentBookingProperties properties,
                                          StaffScheduleAvailabilityService staffSchedules,
                                          AppointmentOccupancyRepository appointments,
-                                         VisitCareReservationQueryService careReservations) {
-        this(properties, staffSchedules, appointments, careReservations, new SlotAvailabilityEngine());
+                                         VisitCareReservationQueryService careReservations, Clock clock) {
+        this(properties, staffSchedules, appointments, careReservations, new SlotAvailabilityEngine(), clock);
     }
 
     GenerateAvailableSlotsServiceImpl(AppointmentBookingProperties properties,
                                   StaffScheduleAvailabilityService staffSchedules,
                                   AppointmentOccupancyRepository appointments,
                                   VisitCareReservationQueryService careReservations,
-                                  SlotAvailabilityEngine engine) {
+                                  SlotAvailabilityEngine engine, Clock clock) {
+        this.clock = clock;
         this.properties = properties;
         this.staffSchedules = staffSchedules;
         this.appointments = appointments;
@@ -64,7 +67,8 @@ public class GenerateAvailableSlotsServiceImpl implements GenerateAvailableSlots
                                 interval.startsAt(), interval.endsAt())).toList()))
                 .toList();
         var occupiedAppointments = appointments.findOccupiedIntervals(doctorIds,
-                window.startInclusive(), window.endExclusive(), request.serviceContext().excludedAppointmentId());
+                window.startInclusive(), window.endExclusive(), request.serviceContext().excludedAppointmentId(),
+                clock.instant());
         List<CareOccupancy> occupiedCare = careReservations.findActiveCareReservations(doctorIds,
                         window.startInclusive(), window.endExclusive()).stream()
                 .map(care -> new CareOccupancy(care.assignmentId(), care.doctorProfileId(), care.patientProfileId(),

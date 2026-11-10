@@ -1,10 +1,12 @@
 "use client";
 
+import { ImagePlus, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { FieldError } from "@/components/admin/FieldError";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { isApiError, toFieldErrorMap } from "@/lib/api/apiError";
+import { cn } from "@/lib/utils";
 import { notifyError, notifySuccess } from "@/lib/messages/notify";
 import { removeMyAvatar, updateMyAvatar } from "../api/myAccountApi";
 import {
@@ -130,7 +132,8 @@ export function AvatarEditor({
             {initialsOf(account.displayName)}
           </AvatarFallback>
         </Avatar>
-        <div className="flex flex-wrap items-center gap-2">
+        {/* Nút và dòng gợi ý xếp thành một cột cạnh ảnh: hai nút cùng kiểu, cùng cỡ, đứng sát nhau. */}
+        <div className="grid gap-2">
           <input
             ref={inputRef}
             type="file"
@@ -140,56 +143,63 @@ export function AvatarEditor({
             aria-label="Tệp ảnh đại diện"
             onChange={handlePick}
           />
-          {canUpdate ? (
-            <Button
-              variant="outline"
-              className={buttonClass}
-              disabled={busy}
-              onClick={() => inputRef.current?.click()}
-            >
-              Chọn ảnh
-            </Button>
-          ) : null}
-          {canRemove && !file ? (
-            <Button
-              variant="ghost"
-              className={buttonClass}
-              disabled={busy}
-              onClick={() => void handleRemove()}
-            >
-              {pending === "remove" ? "Đang gỡ..." : "Gỡ ảnh"}
-            </Button>
-          ) : null}
-          {file ? (
-            <>
+          <div className="flex flex-wrap items-center gap-2">
+            {canUpdate ? (
               <Button
-                variant="ghost"
+                variant="outline"
                 className={buttonClass}
                 disabled={busy}
-                onClick={cancelPending}
+                onClick={() => inputRef.current?.click()}
               >
-                Hủy
+                <ImagePlus aria-hidden />
+                Chọn ảnh
               </Button>
+            ) : null}
+            {canRemove && !file ? (
               <Button
-                className={buttonClass}
+                variant="outline"
+                className={cn(
+                  buttonClass,
+                  "text-destructive hover:text-destructive",
+                )}
                 disabled={busy}
-                onClick={() => void handleSave()}
+                onClick={() => void handleRemove()}
               >
-                {pending === "save" ? "Đang lưu..." : "Lưu ảnh"}
+                <Trash2 aria-hidden />
+                {pending === "remove" ? "Đang gỡ..." : "Gỡ ảnh"}
               </Button>
-            </>
-          ) : null}
+            ) : null}
+            {file ? (
+              <>
+                <Button
+                  variant="outline"
+                  className={buttonClass}
+                  disabled={busy}
+                  onClick={cancelPending}
+                >
+                  Hủy
+                </Button>
+                <Button
+                  className={buttonClass}
+                  disabled={busy}
+                  onClick={() => void handleSave()}
+                >
+                  {pending === "save" ? "Đang lưu..." : "Lưu ảnh"}
+                </Button>
+              </>
+            ) : null}
+          </div>
+          <p
+            className={
+              large
+                ? "text-sm text-muted-foreground"
+                : "text-xs text-muted-foreground"
+            }
+          >
+            JPEG, PNG hoặc WEBP, tối đa 2 MB.
+          </p>
         </div>
       </div>
-      <p
-        className={
-          large
-            ? "text-sm text-muted-foreground"
-            : "text-xs text-muted-foreground"
-        }
-      >
-        JPEG, PNG hoặc WEBP, tối đa 2 MB.
-      </p>
       <FieldError message={error} />
     </section>
   );

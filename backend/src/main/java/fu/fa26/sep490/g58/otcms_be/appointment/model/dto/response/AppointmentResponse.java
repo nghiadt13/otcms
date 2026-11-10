@@ -27,6 +27,7 @@ public class AppointmentResponse {
     private final Instant updatedAt;
     private final Boolean examFeePaid;
     private final String patientName;
+    private final Instant paymentDeadline;
     public AppointmentResponse(UUID id, UUID patientProfileId, UUID serviceId, String serviceName, BigDecimal servicePrice, UUID doctorId, String doctorDisplayName, String status, String bookingSource, String purpose, Instant startTime, Instant endTime, int durationMinutes, int bufferMinutes, Instant occupiedUntil, UUID visitId, UUID sourceVisitId, Instant createdAt, Instant updatedAt) {
         this(id, patientProfileId, serviceId, serviceName, servicePrice, doctorId, doctorDisplayName, status,
                 bookingSource, purpose, startTime, endTime, durationMinutes, bufferMinutes, occupiedUntil,
@@ -46,6 +47,17 @@ public class AppointmentResponse {
             String purpose, Instant startTime, Instant endTime, int durationMinutes, int bufferMinutes,
             Instant occupiedUntil, UUID visitId, UUID sourceVisitId, Instant createdAt, Instant updatedAt,
             Boolean examFeePaid, String patientName) {
+        this(id, patientProfileId, serviceId, serviceName, servicePrice, doctorId, doctorDisplayName, status,
+                bookingSource, purpose, startTime, endTime, durationMinutes, bufferMinutes, occupiedUntil,
+                visitId, sourceVisitId, createdAt, updatedAt, examFeePaid, patientName, null);
+    }
+    /** @param paymentDeadline end of the AWAITING_PAYMENT hold (ISO instant in JSON); null for every other status. */
+    public AppointmentResponse(UUID id, UUID patientProfileId, UUID serviceId, String serviceName,
+            BigDecimal servicePrice, UUID doctorId, String doctorDisplayName, String status, String bookingSource,
+            String purpose, Instant startTime, Instant endTime, int durationMinutes, int bufferMinutes,
+            Instant occupiedUntil, UUID visitId, UUID sourceVisitId, Instant createdAt, Instant updatedAt,
+            Boolean examFeePaid, String patientName, Instant paymentDeadline) {
+        this.paymentDeadline = paymentDeadline;
         this.patientName = patientName;
         this.id = id;
         this.patientProfileId = patientProfileId;
@@ -110,9 +122,12 @@ public class AppointmentResponse {
     public Boolean examFeePaid() { return examFeePaid; }
     public String getPatientName() { return patientName; }
     public String patientName() { return patientName; }
+    public Instant getPaymentDeadline() { return paymentDeadline; }
+    public Instant paymentDeadline() { return paymentDeadline; }
     public AppointmentResponse withExamFeePaid(Boolean paid) {
         return new AppointmentResponse(id, patientProfileId, serviceId, serviceName, servicePrice, doctorId,
                 doctorDisplayName, status, bookingSource, purpose, startTime, endTime, durationMinutes,
-                bufferMinutes, occupiedUntil, visitId, sourceVisitId, createdAt, updatedAt, paid, patientName);
+                bufferMinutes, occupiedUntil, visitId, sourceVisitId, createdAt, updatedAt, paid, patientName,
+                paymentDeadline);
     }
 }
