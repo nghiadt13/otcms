@@ -35,13 +35,12 @@ describe("PatientNotificationBell", () => {
     expect(bell).not.toHaveTextContent(/\d/);
   });
 
-  it("tài khoản chưa có hồ sơ đã gắn không có chuông (BR-68)", async () => {
+  it("tài khoản mới chưa có hồ sơ vẫn có chuông", async () => {
     resetLinkedProfilesMock({ variant: "empty" });
     render(<PatientNotificationBell />);
-    await waitFor(() =>
-      expect(screen.queryByRole("link")).not.toBeInTheDocument(),
+    expect(await screen.findByRole("link")).toHaveAttribute(
+      "href",
+      "/portal/notifications",
     );
-    await new Promise((resolve) => setTimeout(resolve, 20));
-    expect(screen.queryByRole("link")).not.toBeInTheDocument();
   });
 });

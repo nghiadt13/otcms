@@ -30,7 +30,10 @@ export default async function PatientPortalLayout({
     href: item.href.startsWith("#") ? `/${item.href}` : item.href,
   }));
   return (
-    <PatientAuthGate anonymousPaths={[PATIENT_ROUTES.newAppointment]}>
+    <PatientAuthGate
+      anonymousPaths={[PATIENT_ROUTES.newAppointment]}
+      profileRequiredPaths={[PATIENT_ROUTES.newAppointment]}
+    >
       <SiteTopBar bookHref={PATIENT_ROUTES.newAppointment} />
       <PatientPortalHeader
         notificationSlot={<PatientNotificationBell />}

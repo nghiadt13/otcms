@@ -8,6 +8,7 @@ import { OtcmsLogo } from "@/components/brand/OtcmsLogo";
 import { publicButtonClass } from "@/components/brand/publicButtonStyles";
 import { publicContainerClass } from "@/components/brand/publicLayout";
 import { useCurrentAccount } from "@/hooks/useCurrentAccount";
+import { useAccountAvatarUrl } from "@/hooks/useAccountAvatarUrl";
 import { PATIENT_ROUTES } from "@/lib/routes/patientRoutes";
 import { cn } from "@/lib/utils";
 import {
@@ -40,6 +41,9 @@ export function PatientPortalHeader({
     current.status === "signedIn" ? current.account.displayName : "Tài khoản";
   const accountEmail =
     current.status === "signedIn" ? current.account.email : undefined;
+  const avatarUrl = useAccountAvatarUrl(
+    current.status === "signedIn" ? current.account : null,
+  );
   // Khách chưa đăng nhập chỉ vào được màn đặt lịch: thay menu khu bệnh nhân bằng Đăng nhập / Đăng ký.
   const guest = current.status === "anonymous";
   const showBookButton = pathname !== PATIENT_ROUTES.newAppointment;
@@ -80,6 +84,7 @@ export function PatientPortalHeader({
               <PatientAccountMenu
                 displayName={displayName}
                 email={accountEmail}
+                avatarUrl={avatarUrl}
                 links={PATIENT_ACCOUNT_LINKS}
               />
             </div>

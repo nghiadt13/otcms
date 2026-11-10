@@ -149,11 +149,11 @@ describe("ResultListScreen", () => {
     expect(screen.getByRole("button", { name: "Thử lại" })).toBeInTheDocument();
   });
 
-  it("tài khoản chưa có thông tin cá nhân được dẫn tới trang điền, không hiện danh sách", async () => {
+  it("tài khoản chưa có thông tin cá nhân: hiện danh sách trống, không bắt điền hồ sơ", async () => {
     resetLinkedProfilesMock({ variant: "empty" });
     render(<ResultListScreen />);
     expect(
-      await screen.findByText(/Tài khoản của bạn chưa có thông tin cá nhân/),
+      await screen.findByText(/Chưa có kết quả khám nào/),
     ).toBeInTheDocument();
     expect(
       screen.queryByRole("link", { name: /Khám chỉnh hình tổng quát/ }),

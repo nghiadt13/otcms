@@ -1,5 +1,9 @@
 import { ApiError } from "@/lib/api/apiError";
-import { apiRequest, fetchBlob } from "@/lib/api/client";
+import { apiRequest } from "@/lib/api/client";
+import {
+  loadAccountAvatarUrl,
+  notifyAccountAvatarChanged,
+} from "@/lib/auth/accountAvatarCache";
 import { mockDelay, mockFail } from "@/lib/api/mockServer";
 import { getSession } from "@/lib/auth/authSession";
 import {
@@ -38,29 +42,6 @@ async function isLivePatientSession(): Promise<boolean> {
   return (await getSession())?.accountType === "PATIENT";
 }
 
-// Ảnh đại diện nằm sau xác thực Bearer nên thẻ <img> không tự tải được: tải về thành blob rồi dùng
-// object URL. Nhớ theo tài khoản để mỗi lần tải lại tài khoản không tạo thêm URL; đổi/gỡ ảnh thì xóa.
-const avatarObjectUrls = new Map<string, string>();
-
-async function avatarObjectUrl(accountId: string): Promise<string | null> {
-  const cached = avatarObjectUrls.get(accountId);
-  if (cached) return cached;
-  try {
-    const { blob } = await fetchBlob(`/api/v1/accounts/${accountId}/avatar`);
-    const url = URL.createObjectURL(blob);
-    avatarObjectUrls.set(accountId, url);
-    return url;
-  } catch {
-    // Ảnh hỏng hoặc đã bị gỡ: hiện chữ cái đầu thay vì làm hỏng cả trang.
-    return null;
-  }
-}
-
-function forgetAvatarObjectUrls() {
-  for (const url of avatarObjectUrls.values()) URL.revokeObjectURL(url);
-  avatarObjectUrls.clear();
-}
-
 /** Chỉ dùng trong test: đặt lại kho dữ liệu giả của loại tài khoản đã cho (mặc định: quản trị). */
 export function resetMyAccountMockStore(account: MyAccount = MOCK_MY_ACCOUNT) {
   resetMockAccountState(account);
@@ -73,13 +54,18 @@ export async function getMyAccount(signal?: AbortSignal): Promise<MyAccount> {
       // /me/patient-account không có ảnh; /me cho biết tài khoản đã có ảnh chưa (`avatarUrl`).
       const [current, me] = await Promise.all([
         getCurrentPatientAccount(signal),
-        apiRequest<{ avatarUrl: string | null }>("/api/v1/me", { signal }),
+        apiRequest<{ avatarUrl: string | null; displayName: string }>(
+          "/api/v1/me",
+          { signal },
+        ),
       ]);
-      const avatarUrl = me.avatarUrl ? await avatarObjectUrl(current.id) : null;
+      const avatarUrl = me.avatarUrl
+        ? await loadAccountAvatarUrl(current.id)
+        : null;
       return {
         id: current.id,
         kind: "PATIENT",
-        displayName: current.displayName ?? "Chưa cập nhật tên",
+        displayName: current.displayName ?? me.displayName,
         email: current.email,
         status: current.status === "ACTIVE" ? "ACTIVE" : "INACTIVE",
         avatarUrl,
@@ -102,7 +88,7 @@ export async function updateMyAvatar(file: File): Promise<MyAccount> {
     const form = new FormData();
     form.append("photo", file);
     await apiRequest("/api/v1/me/avatar", { method: "PUT", body: form });
-    forgetAvatarObjectUrls();
+    notifyAccountAvatarChanged();
     return getMyAccount();
   }
   await mockDelay(LATENCY_MS);
@@ -127,7 +113,7 @@ export async function updateMyAvatar(file: File): Promise<MyAccount> {
 export async function removeMyAvatar(): Promise<void> {
   if (await isLivePatientSession()) {
     await apiRequest("/api/v1/me/avatar", { method: "DELETE" });
-    forgetAvatarObjectUrls();
+    notifyAccountAvatarChanged();
     return;
   }
   await mockDelay(LATENCY_MS);

@@ -3,7 +3,7 @@
 import { ChevronDown, LogOut } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -28,10 +28,13 @@ function initialsOf(name: string): string {
 export function PatientAccountMenu({
   displayName,
   email,
+  avatarUrl,
   links,
 }: {
   displayName: string;
   email?: string;
+  /** Object URL ảnh đại diện (cùng ảnh màn tài khoản); không có thì hiện chữ cái đầu. */
+  avatarUrl?: string | null;
   links: readonly PatientAccountLink[];
 }) {
   const router = useRouter();
@@ -55,6 +58,7 @@ export function PatientAccountMenu({
         }
       >
         <Avatar className="size-9">
+          {avatarUrl ? <AvatarImage alt="" src={avatarUrl} /> : null}
           <AvatarFallback className="bg-primary text-sm font-semibold text-primary-foreground">
             {initialsOf(displayName)}
           </AvatarFallback>

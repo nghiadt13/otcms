@@ -1,7 +1,8 @@
 "use client";
 
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useAccountAvatarUrl } from "@/hooks/useAccountAvatarUrl";
 import type { CurrentAccountState } from "@/hooks/useCurrentAccount";
 
 // Bước 1 (đã đăng nhập): cho người dùng thấy lịch sẽ đặt dưới tài khoản nào. Wizard mở thẳng ở bước 2;
@@ -19,6 +20,9 @@ export function BookingAccountStep({
 }: {
   account: CurrentAccountState;
 }) {
+  const avatarUrl = useAccountAvatarUrl(
+    account.status === "signedIn" ? account.account : null,
+  );
   return (
     <div className="grid gap-4">
       {account.status === "loading" ? (
@@ -26,6 +30,7 @@ export function BookingAccountStep({
       ) : account.status === "signedIn" ? (
         <div className="flex items-center gap-4 rounded-xl border bg-secondary/60 p-4">
           <Avatar className="size-12">
+            {avatarUrl ? <AvatarImage alt="" src={avatarUrl} /> : null}
             <AvatarFallback className="bg-primary text-base font-semibold text-primary-foreground">
               {initialsOf(account.account.displayName)}
             </AvatarFallback>

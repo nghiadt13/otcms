@@ -156,16 +156,11 @@ describe("PatientNotificationsScreen", () => {
     ).toBeInTheDocument();
   });
 
-  it("tài khoản chưa có hồ sơ đã gắn: không có danh sách, có hướng dẫn thêm hồ sơ (BR-68)", async () => {
+  it("tài khoản mới chưa có hồ sơ vẫn mở được màn thông báo, không bị chặn", async () => {
     resetLinkedProfilesMock({ variant: "empty" });
     renderScreen();
-    expect(
-      await screen.findByText(/chưa nhận được thông báo/),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("link", { name: "Thêm thành viên" }),
-    ).toHaveAttribute("href", "/portal/profiles/new");
-    expect(screen.queryByRole("tab")).not.toBeInTheDocument();
+    expect((await screen.findAllByRole("tab")).length).toBeGreaterThan(0);
+    expect(screen.queryByText(/chưa nhận được thông báo/)).toBeNull();
     expect(notifyError).not.toHaveBeenCalled();
   });
 });

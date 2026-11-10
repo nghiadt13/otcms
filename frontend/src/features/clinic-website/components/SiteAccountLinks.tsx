@@ -18,6 +18,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useAccountAvatarUrl } from "@/hooks/useAccountAvatarUrl";
 import { useCurrentAccount } from "@/hooks/useCurrentAccount";
 import { signOut } from "@/lib/auth/authSession";
 import type { CurrentAccount } from "@/lib/auth/currentAccountApi";
@@ -141,6 +142,8 @@ function AccountDropdown({
   variant: "nav" | "topbar";
 }) {
   const nav = variant === "nav";
+  // Cùng ảnh đại diện với màn tài khoản; chưa có ảnh thì hiện chữ cái đầu của tên.
+  const avatarUrl = useAccountAvatarUrl(account);
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
@@ -153,12 +156,21 @@ function AccountDropdown({
       >
         {nav ? (
           <>
-            <span
-              aria-hidden
-              className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary text-base font-semibold text-primary-foreground uppercase"
-            >
-              {account.displayName.trim().charAt(0) || "?"}
-            </span>
+            {avatarUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element -- object URL của blob, không qua next/image
+              <img
+                alt=""
+                className="size-9 shrink-0 rounded-full object-cover"
+                src={avatarUrl}
+              />
+            ) : (
+              <span
+                aria-hidden
+                className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary text-base font-semibold text-primary-foreground uppercase"
+              >
+                {account.displayName.trim().charAt(0) || "?"}
+              </span>
+            )}
             <span className="truncate">{account.displayName}</span>
             <ChevronDown
               aria-hidden

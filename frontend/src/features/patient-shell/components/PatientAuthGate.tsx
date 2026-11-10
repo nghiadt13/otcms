@@ -14,12 +14,16 @@ import { PATIENT_ROUTES } from "@/lib/routes/patientRoutes";
 // nhập vì phiên vẫn còn. Đây chỉ là lớp giao diện: quyền thật do backend kiểm từng API.
 // `anonymousPaths`: những trang tự xử lý khách chưa đăng nhập (màn đặt lịch hiện bước đăng nhập /
 // đăng ký) nên không bị đá sang /login; nhân viên vẫn bị chuyển đi.
+// `profileRequiredPaths`: những trang cần đủ thông tin cá nhân (đặt lịch khám); tài khoản mới chưa
+// có hồ sơ "Bản thân" vẫn dùng mọi trang khác bình thường (danh sách trống).
 export function PatientAuthGate({
   children,
   anonymousPaths = [],
+  profileRequiredPaths = [],
 }: {
   children: ReactNode;
   anonymousPaths?: readonly string[];
+  profileRequiredPaths?: readonly string[];
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -39,7 +43,9 @@ export function PatientAuthGate({
     }
   }, [state.status, isPatient, guestAllowed, pathname, router]);
 
-  if (isPatient) return <ProfileRequiredGate>{children}</ProfileRequiredGate>;
+  if (isPatient && profileRequiredPaths.includes(pathname))
+    return <ProfileRequiredGate>{children}</ProfileRequiredGate>;
+  if (isPatient) return <>{children}</>;
   if (guestAllowed) return <>{children}</>;
 
   if (state.status === "error") {
@@ -73,31 +79,27 @@ function GateSkeleton({ label }: { label: string }) {
   );
 }
 
-// Tài khoản bệnh nhân chưa có hồ sơ "Bản thân" (vừa đăng ký, chưa điền thông tin cá nhân) chưa
-// dùng được dịch vụ nào: mọi API của bệnh nhân (lịch hẹn, kết quả, thanh toán…) đều cần hồ sơ này.
-// Vào bất kỳ trang nào của khu bệnh nhân cũng được đưa tới Thông tin cá nhân (kèm `next` để quay
-// lại đúng trang, như đặt lịch) và chỉ khu `/portal/account` (gồm đổi mật khẩu) mở ra được. Không
-// đọc được danh sách hồ sơ thì không chặn: từng màn tự báo lỗi tải, quyền thật do backend giữ.
+// Trang cần đủ thông tin cá nhân (đặt lịch khám) mà tài khoản chưa có hồ sơ "Bản thân" (vừa đăng
+// ký, chưa điền thông tin): đưa tới Thông tin cá nhân kèm `next` để điền xong quay lại đúng trang.
+// Không đọc được danh sách hồ sơ thì không chặn: màn tự báo lỗi tải, quyền thật do backend giữ.
 function ProfileRequiredGate({ children }: { children: ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const linked = useLinkedProfiles();
-  const exempt =
-    pathname === PATIENT_ROUTES.account ||
-    pathname.startsWith(`${PATIENT_ROUTES.account}/`);
   const missing =
     !linked.loading &&
     !linked.error &&
     !linked.profiles.some((profile) => profile.relationship === "SELF");
-  const redirecting = missing && !exempt;
+  const redirecting = missing;
 
   useEffect(() => {
     if (!redirecting) return;
     const next = `${pathname}${window.location.search}`;
-    router.replace(`${PATIENT_ROUTES.account}?next=${encodeURIComponent(next)}`);
+    router.replace(
+      `${PATIENT_ROUTES.account}?next=${encodeURIComponent(next)}`,
+    );
   }, [redirecting, pathname, router]);
 
-  if (exempt) return <>{children}</>;
   if (linked.loading || redirecting)
     return <GateSkeleton label="Đang kiểm tra thông tin cá nhân" />;
   return <>{children}</>;
