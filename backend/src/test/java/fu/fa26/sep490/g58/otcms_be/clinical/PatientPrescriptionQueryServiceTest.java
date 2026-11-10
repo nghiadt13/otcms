@@ -54,7 +54,9 @@ class PatientPrescriptionQueryServiceTest {
         code("MSG-40", () -> service.list(null, null, 0, 20));
         code("MSG-40", () -> service.detail(new AuthenticatedAccount(accountId, AccountRole.DOCTOR, null), id));
         when(access.accessibleProfileIds(accountId)).thenReturn(Set.of());
-        code("MSG-40", () -> service.list(actor, null, 0, 20));
+        // New account without its own profile: empty list instead of an error; detail still denied.
+        assertEquals(0, service.list(actor, null, 0, 20).items().size());
+        code("MSG-40", () -> service.detail(actor, id));
         verifyNoInteractions(prescriptions);
     }
     @Test void arbitraryPatientFilterRejectedBeforeDataLookup() {

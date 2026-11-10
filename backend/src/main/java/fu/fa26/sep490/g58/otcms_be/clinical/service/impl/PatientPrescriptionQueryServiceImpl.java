@@ -41,6 +41,11 @@ public class PatientPrescriptionQueryServiceImpl implements PatientPrescriptionQ
 
     @Override
     public PrescriptionPage list(AuthenticatedAccount actor, UUID patientId, int page, int size) {
+        // New account without its own profile yet: an empty list, not an error.
+        if (patientId == null && actor != null && actor.accountId() != null && actor.accountRole() == AccountRole.PATIENT
+                && access.accessibleProfileIds(actor.accountId()).isEmpty()) {
+            return new PrescriptionPage(List.of(), page, size, 0, 0);
+        }
         var allowed = scope(actor);
         if (patientId != null && !allowed.contains(patientId)) throw error("MSG-40");
         if (page < 0 || size < 1 || size > 100) throw error("MSG-39");

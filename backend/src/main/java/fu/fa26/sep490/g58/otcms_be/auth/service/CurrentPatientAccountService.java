@@ -30,6 +30,11 @@ public class CurrentPatientAccountService {
                     .map(PatientProfileDirectory.ProfileRecord::fullName)
                     .orElse(null);
         }
+        // Account just registered (no SELF profile yet): fall back to the name typed at sign-up.
+        if (displayName == null || displayName.isBlank()) {
+            String fullName = account.getFullName();
+            displayName = fullName == null || fullName.isBlank() ? null : fullName;
+        }
         return toResponse(account, displayName);
     }
 
