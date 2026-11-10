@@ -12,5 +12,14 @@ public interface ReportStoragePort {
 
     ReportValidationStatus validateStoredReport(UUID reportId);
 
+    /** Adapter-specific reference for object keys that carry visit and version context. */
+    default ReportValidationStatus validateStoredReport(UUID reportId, String storageRef) {
+        return validateStoredReport(reportId);
+    }
+
     InputStream openReleasedReport(UUID reportId, UUID actorId);
+
+    default InputStream openReleasedReport(UUID reportId, String storageRef, UUID actorId) {
+        return openReleasedReport(reportId, actorId);
+    }
 }

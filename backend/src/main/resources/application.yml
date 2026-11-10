@@ -53,6 +53,22 @@ springdoc:
 # datasource URLs and remote PostgreSQL URLs without sslmode=require.
 
 app:
+  diagnostic:
+    report-storage:
+      provider: ${APP_DIAGNOSTIC_REPORT_STORAGE_PROVIDER:local}
+      supabase-s3:
+        endpoint: ${APP_DIAGNOSTIC_SUPABASE_S3_ENDPOINT:}
+        region: ${APP_DIAGNOSTIC_SUPABASE_S3_REGION:}
+        bucket: ${APP_DIAGNOSTIC_SUPABASE_S3_BUCKET:}
+        access-key: ${APP_DIAGNOSTIC_SUPABASE_S3_ACCESS_KEY:}
+        secret-key: ${APP_DIAGNOSTIC_SUPABASE_S3_SECRET_KEY:}
+    report-validation:
+      provider: ${APP_DIAGNOSTIC_REPORT_VALIDATION_PROVIDER:clamav-local}
+      clamav:
+        host: ${APP_DIAGNOSTIC_CLAMAV_HOST:127.0.0.1}
+        port: ${APP_DIAGNOSTIC_CLAMAV_PORT:3310}
+        connect-timeout-ms: ${APP_DIAGNOSTIC_CLAMAV_CONNECT_TIMEOUT_MS:1000}
+        read-timeout-ms: ${APP_DIAGNOSTIC_CLAMAV_READ_TIMEOUT_MS:15000}
   arrival-qr:
     clinic-id: ${APP_ARRIVAL_QR_CLINIC_ID:single-clinic}
     hmac-secret: ${APP_ARRIVAL_QR_HMAC_SECRET:}
