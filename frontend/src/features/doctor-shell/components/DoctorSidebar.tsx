@@ -1,6 +1,7 @@
 "use client";
 
-import { ArrowLeft, Bone } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
+import { OtcmsBrandMark } from "@/components/brand/OtcmsBrandMark";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
@@ -52,9 +53,7 @@ export function DoctorSidebar() {
               render={<Link href={DOCTOR_ROUTES.dashboard} />}
               tooltip="OTCMS Bác sĩ"
             >
-              <span className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-                <Bone aria-hidden className="size-4" />
-              </span>
+              <OtcmsBrandMark className="size-8" />
               <span className="grid flex-1 text-left leading-tight">
                 <span className="truncate font-semibold">OTCMS</span>
                 <span className="truncate text-xs text-muted-foreground">

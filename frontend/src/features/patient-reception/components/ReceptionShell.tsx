@@ -1,8 +1,9 @@
 "use client";
 
+import { OtcmsBrandMark } from "@/components/brand/OtcmsBrandMark";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Bell, Bone, ChevronRight } from "lucide-react";
+import { Bell, ChevronRight } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { CurrentDateTime } from "@/components/shell/CurrentDateTime";
 import {
@@ -62,9 +63,7 @@ function Menu({ onExit }: { onExit: () => void }) {
               render={<Link href="/reception" />}
               tooltip="OTCMS Lễ tân"
             >
-              <span className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-                <Bone className="size-4" aria-hidden />
-              </span>
+              <OtcmsBrandMark className="size-8" />
               <span className="grid flex-1 text-left leading-tight">
                 <span className="truncate font-semibold">OTCMS</span>
                 <span className="truncate text-xs text-muted-foreground">

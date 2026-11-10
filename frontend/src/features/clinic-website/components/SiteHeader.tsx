@@ -51,7 +51,7 @@ export function SiteHeader({
       <div className={`${publicContainerClass} flex h-16 items-center lg:h-20`}>
         <OtcmsLogo tone="onLight" />
 
-        <nav aria-label="Menu chính" className="ml-12 hidden h-full xl:block">
+        <nav aria-label="Menu chính" className="ml-8 hidden h-full xl:block">
           <ul
             className="relative flex h-full items-center gap-2"
             {...underline.navProps}
@@ -61,7 +61,7 @@ export function SiteHeader({
                 <Link
                   aria-current={item.active ? "page" : undefined}
                   className={cn(
-                    "flex h-full items-center px-4 text-base font-medium transition-colors duration-150 outline-none hover:text-primary focus-visible:ring-3 focus-visible:ring-ring/50 motion-reduce:transition-none",
+                    "flex h-full items-center px-3 text-base font-medium whitespace-nowrap transition-colors duration-150 outline-none hover:text-primary focus-visible:ring-3 focus-visible:ring-ring/50 motion-reduce:transition-none",
                     item.active ? "text-primary" : "text-foreground/80",
                   )}
                   href={item.href}

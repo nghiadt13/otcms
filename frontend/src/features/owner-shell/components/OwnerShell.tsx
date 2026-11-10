@@ -1,8 +1,9 @@
 "use client";
 import { useState, type ReactNode } from "react";
+import { OtcmsBrandMark } from "@/components/brand/OtcmsBrandMark";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Bone, ShieldCheck, LogOut } from "lucide-react";
+import { ShieldCheck, LogOut } from "lucide-react";
 import {
   SidebarProvider,
   Sidebar,
@@ -36,9 +37,7 @@ export function OwnerShell({ children }: { children: ReactNode }) {
                 render={<Link href="/owner/accounts" />}
                 tooltip="OTCMS Chủ phòng khám"
               >
-                <span className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-                  <Bone className="size-4" />
-                </span>
+                <OtcmsBrandMark className="size-8" />
                 <span className="grid flex-1 text-left leading-tight">
                   <span className="font-semibold">OTCMS</span>
                   <span className="text-xs text-muted-foreground">

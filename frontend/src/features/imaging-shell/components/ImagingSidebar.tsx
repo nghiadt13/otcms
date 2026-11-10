@@ -1,7 +1,8 @@
 "use client";
+import { OtcmsBrandMark } from "@/components/brand/OtcmsBrandMark";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Bone } from "lucide-react";
+
 import {
   Sidebar,
   SidebarContent,
@@ -35,9 +36,7 @@ export function ImagingSidebar({
               render={<Link href="/imaging" />}
               tooltip="OTCMS · Chẩn đoán hình ảnh"
             >
-              <span className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-                <Bone className="size-4" aria-hidden />
-              </span>
+              <OtcmsBrandMark className="size-8" />
               <span className="grid text-left">
                 <span className="font-semibold">OTCMS</span>
                 <span className="text-xs text-muted-foreground">
