@@ -36,6 +36,7 @@ describe("imagingIngestApi", () => {
         {
           requestId: "request-id",
           attemptId: null,
+          currentStudyRef: null,
           visitId: "visit-id",
           imagingType: "MR",
           roomId: "room-id",
@@ -64,6 +65,7 @@ describe("imagingIngestApi", () => {
       {
         requestId: "request-id",
         attemptId: "attempt-id",
+        currentStudyRef: null,
         visitId: "visit-id",
         imagingType: "MR",
         roomId: "room-id",

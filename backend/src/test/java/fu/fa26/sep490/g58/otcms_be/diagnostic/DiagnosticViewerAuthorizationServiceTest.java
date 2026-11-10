@@ -32,7 +32,7 @@ class DiagnosticViewerAuthorizationServiceTest {
         ObjectProvider<PatientDiagnosticHistoryPort> pp = mock(ObjectProvider.class);
         when(vp.getIfAvailable()).thenReturn(visits);
         when(pp.getIfAvailable()).thenReturn(patients);
-        service = new DiagnosticViewerAuthorizationServiceImpl(requests, reports, findings, vp, pp);
+        service = new DiagnosticViewerAuthorizationServiceImpl(requests, reports, findings, vp, pp, mock(ObjectProvider.class));
         when(requests.findByCurrentStudyRef("study")).thenReturn(Optional.of(request));
         when(request.getId()).thenReturn(requestId);
         when(request.getVisitId()).thenReturn(visit);

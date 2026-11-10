@@ -5,6 +5,7 @@ import fu.fa26.sep490.g58.otcms_be.diagnostic.integration.DiagnosticPortModels.P
 import fu.fa26.sep490.g58.otcms_be.diagnostic.integration.DiagnosticPortModels.ViewAuthorization;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.integration.DiagnosticPortModels.VisitHistoryAuthorization;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.integration.PatientDiagnosticHistoryPort;
+import fu.fa26.sep490.g58.otcms_be.diagnostic.integration.RoomStatusAccessPort;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.integration.VisitDiagnosticPort;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.DiagnosticRequestJpaEntity;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.enums.DiagnosticFindingsVersionState;
@@ -27,13 +28,15 @@ public class DiagnosticViewerAuthorizationServiceImpl implements DiagnosticViewe
     private final DiagnosticFindingsVersionJpaRepository findings;
     private final ObjectProvider<VisitDiagnosticPort> visitPorts;
     private final ObjectProvider<PatientDiagnosticHistoryPort> patientPorts;
+    private final ObjectProvider<RoomStatusAccessPort> roomPorts;
 
     public DiagnosticViewerAuthorizationServiceImpl(DiagnosticRequestJpaRepository requests,
             DiagnosticReportJpaRepository reports, DiagnosticFindingsVersionJpaRepository findings,
             ObjectProvider<VisitDiagnosticPort> visitPorts,
-            ObjectProvider<PatientDiagnosticHistoryPort> patientPorts) {
+            ObjectProvider<PatientDiagnosticHistoryPort> patientPorts,
+            ObjectProvider<RoomStatusAccessPort> roomPorts) {
         this.requests = requests; this.reports = reports; this.findings = findings;
-        this.visitPorts = visitPorts; this.patientPorts = patientPorts;
+        this.visitPorts = visitPorts; this.patientPorts = patientPorts; this.roomPorts = roomPorts;
     }
 
     @Override
@@ -42,6 +45,21 @@ public class DiagnosticViewerAuthorizationServiceImpl implements DiagnosticViewe
         if (actorId == null || studyRef == null || studyRef.isBlank() || purpose == null) return denied();
         DiagnosticRequestJpaEntity request = requests.findByCurrentStudyRef(studyRef).orElse(null);
         if (request == null) return denied();
+        if (role == AccountRole.IMAGING_TECHNICIAN && "TECHNICIAN_ASSIGNED".equals(purpose)) {
+            if (request.getRoomId() == null || request.getCurrentAttemptId() == null
+                    || (request.getStatus() != DiagnosticRequestStatus.RESULT_AVAILABLE
+                            && request.getStatus() != DiagnosticRequestStatus.REVIEWED)) return denied();
+            RoomStatusAccessPort rooms = roomPorts.getIfAvailable();
+            if (rooms == null) return denied();
+            try {
+                var assignment = rooms.authorizeAssignedTechnician(request.getRoomId(), actorId);
+                if (assignment == null || !assignment.active() || !request.getRoomId().equals(assignment.roomId())
+                        || !actorId.equals(assignment.actorId())) return denied();
+            } catch (RuntimeException unavailable) {
+                return denied();
+            }
+            return allowed("ATTEMPT:" + request.getCurrentAttemptId());
+        }
         if (role == AccountRole.DOCTOR && "DOCTOR_REVIEW".equals(purpose)) {
             if (request.getStatus() != DiagnosticRequestStatus.RESULT_AVAILABLE
                     && request.getStatus() != DiagnosticRequestStatus.REVIEWED) return denied();

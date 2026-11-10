@@ -7,6 +7,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 
@@ -48,9 +49,15 @@ public final class DiagnosticDtos {
         public OperationalStatusPage { items = List.copyOf(items); }
     }
 
-    /** Technician-only upload projection; excludes Patient identifiers and clinical details. */
+    /** Technician-only upload identity for requests assigned to the technician's active room. */
+    public record AssignedTechnicianPatient(UUID patientProfileId, String fullName,
+            LocalDate dateOfBirth, String gender) { }
+
     public record AssignedTechnicianUploadWorkItem(UUID requestId, UUID attemptId, UUID visitId,
-            String imagingType, UUID roomId, DiagnosticRequestStatus status, long version,
+            AssignedTechnicianPatient patient, String currentStudyRef, UUID serviceId, String serviceName,
+            String imagingType, String bodyArea, String clinicalReason, String technicianInstructions,
+            UUID roomId,
+            DiagnosticRequestStatus status, long version,
             Instant createdAt, Instant updatedAt) { }
 
     public record AssignedTechnicianUploadWorkPage(List<AssignedTechnicianUploadWorkItem> items,
@@ -67,7 +74,7 @@ public final class DiagnosticDtos {
         public ImagingHistoryPage { items = List.copyOf(items); }
     }
 
-    /** Deliberately omits clinical reason, findings, PDF metadata and study references. */
+    /** Includes minimum identity needed to identify assigned work; omits clinical and study data. */
     public record AssignedUploadWorkItem(UUID requestId, UUID visitId, UUID patientId, UUID roomId,
             String imagingType, DiagnosticRequestStatus status, long version, Instant createdAt) { }
 

@@ -66,7 +66,7 @@ class StaffRoomAssignmentQueryServiceTest {
                 UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), room, "MRI",
                 fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.enums.DiagnosticRequestStatus.PENDING, null, null, null);
         when(requests.findById(requestId)).thenReturn(Optional.of(request));
-        var service = new fu.fa26.sep490.g58.otcms_be.diagnostic.service.impl.DiagnosticStatusServiceImpl(requests, visitPorts, roomPorts);
+        var service = new fu.fa26.sep490.g58.otcms_be.diagnostic.service.impl.DiagnosticStatusServiceImpl(requests, mock(fu.fa26.sep490.g58.otcms_be.diagnostic.repository.DiagnosticAttemptJpaRepository.class), visitPorts, roomPorts, mock(fu.fa26.sep490.g58.otcms_be.patient.service.PatientClinicalIdentityQueryService.class));
         var technician = fu.fa26.sep490.g58.otcms_be.diagnostic.model.DiagnosticActor.user(actor,
                 fu.fa26.sep490.g58.otcms_be.common.security.AccountRole.IMAGING_TECHNICIAN);
         assertEquals(requestId, service.getStatus(technician, requestId).requestId());

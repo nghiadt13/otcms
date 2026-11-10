@@ -20,8 +20,12 @@ services:
   imaging-gateway:
     image: nginx:1.28.0-alpine
     depends_on:
-      - orthanc
       - ohif
+    extra_hosts:
+      # On this Windows Docker Desktop setup, host-gateway resolves only to
+      # an unreachable IPv6 address. Override via OTCMS_DOCKER_HOST_GATEWAY
+      # if Docker Desktop assigns a different reachable host IPv4 address.
+      - "host.docker.internal:${OTCMS_DOCKER_HOST_GATEWAY:-192.168.65.254}"
     ports:
       - "127.0.0.1:3001:80"
     volumes:

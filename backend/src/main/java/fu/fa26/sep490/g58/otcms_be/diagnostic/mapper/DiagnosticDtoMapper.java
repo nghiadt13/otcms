@@ -4,6 +4,7 @@ import fu.fa26.sep490.g58.otcms_be.diagnostic.model.DiagnosticRequestPage;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.model.DiagnosticRequestView;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.model.DiagnosticAssignedUploadWorkPage;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.model.DiagnosticAssignedUploadWorkItem;
+import fu.fa26.sep490.g58.otcms_be.diagnostic.model.DiagnosticPatientIdentity;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.model.DiagnosticFindingsView;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.model.DiagnosticReportView;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.model.DiagnosticFindingsReleaseView;
@@ -12,6 +13,7 @@ import fu.fa26.sep490.g58.otcms_be.diagnostic.model.DiagnosticOperationalStatus;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.model.DiagnosticOperationalStatusPage;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.model.dto.DiagnosticDtos.AssignedUploadWorkItem;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.model.dto.DiagnosticDtos.AssignedUploadWorkPage;
+import fu.fa26.sep490.g58.otcms_be.diagnostic.model.dto.DiagnosticDtos;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.model.dto.DiagnosticDtos.ImagingRequest;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.model.dto.DiagnosticDtos.ImagingRequestPage;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.model.dto.DiagnosticDtos.ImagingHistoryItem;
@@ -85,7 +87,17 @@ public final class DiagnosticDtoMapper {
     private AssignedTechnicianUploadWorkItem toAssignedTechnicianUploadWorkItem(
             DiagnosticAssignedUploadWorkItem item) {
         return new AssignedTechnicianUploadWorkItem(item.requestId(), item.attemptId(), item.visitId(),
-                item.imagingType(), item.roomId(), item.status(), item.version(), item.createdAt(), item.updatedAt());
+                toAssignedTechnicianPatient(item.patient()), item.currentStudyRef(), item.serviceId(),
+                item.serviceName(), item.imagingType(),
+                item.bodyArea(), item.clinicalReason(), item.technicianInstructions(), item.roomId(),
+                item.status(), item.version(),
+                item.createdAt(), item.updatedAt());
+    }
+
+    private DiagnosticDtos.AssignedTechnicianPatient toAssignedTechnicianPatient(
+            DiagnosticPatientIdentity patient) {
+        return new DiagnosticDtos.AssignedTechnicianPatient(patient.patientProfileId(), patient.fullName(),
+                patient.dateOfBirth(), patient.gender());
     }
 
     public ImagingHistoryPage toImagingHistoryPage(DiagnosticHistoryPage page) {

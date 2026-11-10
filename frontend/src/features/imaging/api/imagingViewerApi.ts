@@ -1,7 +1,10 @@
 import { apiRequest } from "@/lib/api/client";
 import { apiBaseUrl } from "@/lib/api/apiBaseUrl";
 
-export type ImagingViewerPurpose = "DOCTOR_REVIEW" | "PATIENT_VIEW";
+export type ImagingViewerPurpose =
+  | "DOCTOR_REVIEW"
+  | "PATIENT_VIEW"
+  | "TECHNICIAN_ASSIGNED";
 
 export interface ImagingViewerGrantResponse {
   expiresAt: string;
@@ -54,4 +57,19 @@ export function imagingViewerPath(studyInstanceUid: string): string {
     throw new Error("The OHIF viewer path must be a same-origin path.");
   }
   return `${path}?StudyInstanceUIDs=${encodeURIComponent(studyInstanceUid)}`;
+}
+
+/** Opens OHIF inside an OTCMS frame so the user always has a visible return action. */
+export function imagingViewerShellPath(
+  studyInstanceUid: string,
+  returnTo: string,
+): string {
+  if (!returnTo.startsWith("/") || returnTo.startsWith("//") || returnTo.includes("\\")) {
+    throw new Error("The viewer return path must stay inside OTCMS.");
+  }
+  const appBasePath = window.location.pathname.startsWith("/otcms/")
+    ? "/otcms"
+    : "";
+  const query = new URLSearchParams({ studyInstanceUid, returnTo });
+  return `${appBasePath}/imaging-viewer?${query.toString()}`;
 }
