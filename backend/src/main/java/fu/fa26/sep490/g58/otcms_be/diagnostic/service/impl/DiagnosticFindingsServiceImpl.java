@@ -237,13 +237,13 @@ public class DiagnosticFindingsServiceImpl implements DiagnosticFindingsService 
         } catch (IOException exception) {
             throw reportInvalid();
         }
-        if (countedContent.count != upload.contentLength()
-                || !contentSha256.equals(HexFormat.of().formatHex(digest.digest()))) throw reportInvalid();
+        String storedSha256 = HexFormat.of().formatHex(digest.digest());
+        if (countedContent.count != upload.contentLength() || !contentSha256.equals(storedSha256)) throw reportInvalid();
         if (!matchesStoredReport(stored, request, studyRef, version)) throw evidenceMismatch();
         ReportValidationStatus validation = stored.validationStatus();
         if (validation == ReportValidationStatus.PENDING) {
             try {
-                validation = storage.validateStoredReport(stored.reportId());
+                validation = storage.validateStoredReport(stored.reportId(), stored.storageRef());
             } catch (RuntimeException exception) {
                 validation = ReportValidationStatus.PENDING;
             }
@@ -252,7 +252,7 @@ public class DiagnosticFindingsServiceImpl implements DiagnosticFindingsService 
         DiagnosticReportValidationStatus persistedStatus = DiagnosticReportValidationStatus.valueOf(validation.name());
         DiagnosticReportJpaEntity report = new DiagnosticReportJpaEntity(stored.reportId(), requestId,
                 request.getVisitId(), studyRef, version, stored.storageRef(),
-                contentSha256, persistedStatus, actor.accountId(),
+                storedSha256, persistedStatus, actor.accountId(),
                 persistedStatus == DiagnosticReportValidationStatus.PENDING ? null : Instant.now(), null);
         reports.saveAndFlush(report);
         saveResult(actor, request, UPLOAD_REPORT, idempotencyKey,
@@ -296,7 +296,7 @@ public class DiagnosticFindingsServiceImpl implements DiagnosticFindingsService 
             if (storage == null) throw dependencyUnavailable();
             ReportValidationStatus validation;
             try {
-                validation = storage.validateStoredReport(reportId);
+                validation = storage.validateStoredReport(reportId, report.getStorageRef());
             } catch (RuntimeException exception) {
                 throw reportNotReady();
             }
