@@ -2,10 +2,10 @@ import { apiRequest } from "@/lib/api/client";
 import { todayIsoDate } from "@/lib/format/formatDate";
 import type { VisitContext } from "../types/doctorExam";
 
-// Lượt khám đang khám của bác sĩ: `GET /api/v1/doctor/visits/active` (BE commit cbf955f). Chỉ gồm
+// Lượt đang có bước khám của bác sĩ: `GET /api/v1/doctor/visits/active` (BE commit cbf955f). Chỉ gồm
 // lượt OPEN có bước chăm sóc IN_PROGRESS của chính bác sĩ, kèm danh tính tối thiểu của bệnh
-// nhân (họ tên, ngày sinh, giới; không có số điện thoại, địa chỉ: BR-13). Đây là nguồn duy nhất
-// cho bệnh nhân vãng lai và cho tuổi/giới của bệnh nhân đặt hẹn.
+// nhân (họ tên, ngày sinh, giới; không có số điện thoại, địa chỉ: BR-13). Hàng chờ (A6) không trả
+// ngày sinh/giới, nên tuổi/giới của ngữ cảnh lượt chỉ lấy được từ đây, khi lượt đang có bước khám.
 
 export type ActiveVisitDto = {
   visitId: string;
@@ -23,10 +23,7 @@ export type ActiveVisitDto = {
   expectedEnd: string | null;
 };
 
-/**
- * Lỗi hoặc BE chưa có endpoint thì trả danh sách rỗng: danh sách hôm nay vẫn dựng được từ lịch hẹn,
- * chỉ thiếu bệnh nhân vãng lai và tuổi/giới.
- */
+/** Lỗi hoặc BE chưa có endpoint thì trả danh sách rỗng: ngữ cảnh lượt chỉ thiếu tuổi/giới. */
 export async function fetchActiveVisits(
   signal?: AbortSignal,
 ): Promise<ActiveVisitDto[]> {

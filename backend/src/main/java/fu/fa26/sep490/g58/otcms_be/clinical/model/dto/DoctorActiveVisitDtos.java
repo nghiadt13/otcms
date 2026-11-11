@@ -10,8 +10,10 @@ public final class DoctorActiveVisitDtos {
 
     public record PatientIdentity(String fullName, LocalDate dateOfBirth, String gender) { }
 
+    /** {@code examStatus} (IN_EXAMINATION or AWAITING_CONCLUSION) and {@code queueNumber} come from the exam queue. */
     public record ActiveVisit(UUID visitId, UUID patientProfileId, PatientIdentity patient, String visitSource,
-            UUID linkedAppointmentId, UUID assignmentId, String stepCode, Instant startedAt, Instant expectedEnd) { }
+            UUID linkedAppointmentId, UUID assignmentId, String stepCode, Instant startedAt, Instant expectedEnd,
+            String examStatus, Integer queueNumber) { }
 
     public record ActiveVisits(List<ActiveVisit> items) {
         public ActiveVisits { items = List.copyOf(items); }

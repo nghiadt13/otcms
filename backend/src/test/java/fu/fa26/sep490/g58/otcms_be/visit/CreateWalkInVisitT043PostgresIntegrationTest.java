@@ -92,6 +92,10 @@ class CreateWalkInVisitT043PostgresIntegrationTest {
                 doctorProfile, doctorAccount);
         jdbc.update("insert into doctor_services (doctor_profile_id, service_id, active) values (?, ?, true)",
                 doctorProfile, serviceId);
+        // The doctor is on shift around NOW, so walk-ins for this doctor pass the on-shift check.
+        jdbc.update("insert into doctor_shifts (id, doctor_profile_id, starts_at, ends_at) values (?, ?, ?, ?)",
+                UUID.randomUUID(), doctorProfile, Timestamp.from(NOW.minusSeconds(3600)),
+                Timestamp.from(NOW.plusSeconds(8 * 3600L)));
     }
 
     @Test
@@ -134,7 +138,7 @@ class CreateWalkInVisitT043PostgresIntegrationTest {
             if (!start.await(10, TimeUnit.SECONDS)) throw new IllegalStateException("Barrier timed out");
             mvc.perform(post("/api/v1/visits/walk-ins").with(csrf()).with(actor(actor, AccountType.RECEPTIONIST))
                     .header("Idempotency-Key", key).contentType("application/json")
-                    .content("{\"patientProfileId\":\"" + patient + "\"}"))
+                    .content(walkInJson(patient, null)))
                     .andExpect(status().isCreated());
         } catch (Throwable error) {
             failure.compareAndSet(null, error);
@@ -165,12 +169,15 @@ class CreateWalkInVisitT043PostgresIntegrationTest {
                 jdbc.update("delete from walk_in_requests where visit_id = ?", visitId);
                 jdbc.update("delete from visit_check_ins where visit_id = ?", visitId);
                 jdbc.update("delete from visit_audits where visit_id = ?", visitId);
+                jdbc.update("delete from visit_exam_queue where visit_id = ?", visitId);
                 jdbc.update("delete from visits where id = ?", visitId);
             }
             for (UUID appointmentId : appointmentIds) {
                 jdbc.update("delete from appointment_audits where appointment_id = ?", appointmentId);
                 jdbc.update("delete from appointments where id = ?", appointmentId);
             }
+            if (doctorProfile != null) jdbc.update("delete from visit_exam_queue where doctor_profile_id = ?", doctorProfile);
+            if (doctorProfile != null) jdbc.update("delete from doctor_shifts where doctor_profile_id = ?", doctorProfile);
             if (doctorProfile != null) jdbc.update("delete from doctor_services where doctor_profile_id = ?", doctorProfile);
             if (serviceId != null) jdbc.update("delete from clinic_services where id = ?", serviceId);
             if (doctorProfile != null) jdbc.update("delete from doctor_profiles where id = ?", doctorProfile);
@@ -199,6 +206,10 @@ class CreateWalkInVisitT043PostgresIntegrationTest {
                 .andExpect(jsonPath("$.patientProfileId").value(patientProfile.toString()))
                 .andExpect(jsonPath("$.priorAppointmentId").doesNotExist())
                 .andExpect(jsonPath("$.arrivedAt").value(NOW.toString()))
+                // The fixture service has price 0, so the walk-in is numbered at once.
+                .andExpect(jsonPath("$.examStatus").value("WAITING"))
+                .andExpect(jsonPath("$.queueNumber").value(1))
+                .andExpect(jsonPath("$.doctorName").value("T043 Doctor"))
                 .andReturn();
         // The ID is read from the persisted replay row so assertions cover the owner write path.
         UUID visitId = jdbc.queryForObject("select visit_id from walk_in_requests where receptionist_account_id = ? "
@@ -214,6 +225,9 @@ class CreateWalkInVisitT043PostgresIntegrationTest {
                 + "and action = 'WALK_IN_CREATED' and occurred_at = ? and correlation_id = ?", Integer.class,
                 visitId, receptionist, Timestamp.from(NOW), CORRELATION));
         assertEquals(1, jdbc.queryForObject("select count(*) from walk_in_requests where visit_id = ?", Integer.class, visitId));
+        assertEquals(1, jdbc.queryForObject("select count(*) from visit_exam_queue where visit_id = ? "
+                + "and exam_status = 'WAITING' and queue_number = 1 and doctor_profile_id = ?", Integer.class,
+                visitId, doctorProfile));
         assertEquals(1, jdbc.queryForObject("select count(*) from walk_in_reception_queue_entries "
                 + "where visit_id = ? and status = 'WAITING'", Integer.class, visitId));
         assertEquals(1, jdbc.queryForObject("select count(*) from walk_in_reception_queue_history h "
@@ -225,7 +239,7 @@ class CreateWalkInVisitT043PostgresIntegrationTest {
 
     @Test
     void exactRequestReplayReturnsTheSameCreationResponseWithoutDuplicateRows() throws Exception {
-        String payload = "{\"patientProfileId\":\"" + patientProfile + "\"}";
+        String payload = walkInJson(patientProfile, null);
         var first = mvc.perform(createRequest(payload, "t043-replay", receptionist, AccountType.RECEPTIONIST))
                 .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
         var replay = mvc.perform(createRequest(payload, "t043-replay", receptionist, AccountType.RECEPTIONIST))
@@ -352,9 +366,14 @@ class CreateWalkInVisitT043PostgresIntegrationTest {
 
     private MockHttpServletRequestBuilder create(UUID profileId, UUID priorAppointmentId, String key, UUID actor,
             AccountType role) {
-        String payload = "{\"patientProfileId\":\"" + profileId + "\""
-                + (priorAppointmentId == null ? "" : ",\"priorAppointmentId\":\"" + priorAppointmentId + "\"") + "}";
-        return createRequest(payload, key, actor, role);
+        return createRequest(walkInJson(profileId, priorAppointmentId), key, actor, role);
+    }
+
+    /** Request body with the two required fields of the walk-in contract: this test's doctor and service. */
+    private String walkInJson(UUID profileId, UUID priorAppointmentId) {
+        return "{\"patientProfileId\":\"" + profileId + "\""
+                + (priorAppointmentId == null ? "" : ",\"priorAppointmentId\":\"" + priorAppointmentId + "\"")
+                + ",\"doctorProfileId\":\"" + doctorProfile + "\",\"serviceId\":\"" + serviceId + "\"}";
     }
 
     private MockHttpServletRequestBuilder createRequest(String payload, String key, UUID actor, AccountType role) {
@@ -439,9 +458,13 @@ class CreateWalkInVisitT043PostgresIntegrationTest {
                     + ") or receptionist_account_id in (" + oldAccounts + ")");
             jdbc.update("delete from visit_check_ins where visit_id in (" + oldVisits + ")");
             jdbc.update("delete from visit_audits where visit_id in (" + oldVisits + ")");
+            jdbc.update("delete from visit_exam_queue where visit_id in (" + oldVisits
+                    + ") or doctor_profile_id in (select id from doctor_profiles where account_id in (" + oldAccounts + "))");
             jdbc.update("delete from visits where id in (" + oldVisits + ")");
             jdbc.update("delete from appointment_audits where appointment_id in (" + oldAppointments + ")");
             jdbc.update("delete from appointments where id in (" + oldAppointments + ")");
+            jdbc.update("delete from doctor_shifts where doctor_profile_id in "
+                    + "(select id from doctor_profiles where account_id in (" + oldAccounts + "))");
             jdbc.update("delete from doctor_services where doctor_profile_id in "
                     + "(select id from doctor_profiles where account_id in (" + oldAccounts + "))");
             jdbc.update("delete from clinic_services where name = 'T043 Service'");

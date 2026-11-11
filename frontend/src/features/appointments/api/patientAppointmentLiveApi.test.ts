@@ -125,3 +125,44 @@ describe("patientAppointmentLiveApi expired appointments", () => {
     expect(appointment.allowedActions).toEqual([]);
   });
 });
+
+// Đồng hồ ở beforeEach: 31/10/2026 09:00 giờ VN. Hạn tự hủy 120 phút (plan mục 3, A11).
+describe("patientAppointmentLiveApi hạn tự hủy 120 phút", () => {
+  it("còn đúng 120 phút: được hủy", async () => {
+    apiRequest.mockResolvedValueOnce({
+      ...dto(true),
+      startTime: "2026-10-31T11:00:00+07:00",
+    });
+    const appointment = await getMyAppointment("apt-past");
+    expect(appointment.status).toBe("BOOKED");
+    expect(appointment.allowedActions).toEqual(["cancel"]);
+  });
+
+  it("còn 119 phút: không có nút hủy, lịch vẫn Đã đặt", async () => {
+    apiRequest.mockResolvedValueOnce({
+      ...dto(true),
+      startTime: "2026-10-31T10:59:00+07:00",
+    });
+    const appointment = await getMyAppointment("apt-past");
+    expect(appointment.status).toBe("BOOKED");
+    expect(appointment.allowedActions).toEqual([]);
+  });
+
+  it("chưa thanh toán còn đủ hạn: được hủy và trả online", async () => {
+    apiRequest.mockResolvedValueOnce({
+      ...dto(false),
+      startTime: "2026-10-31T12:00:00+07:00",
+    });
+    const appointment = await getMyAppointment("apt-past");
+    expect(appointment.allowedActions).toEqual(["cancel", "payExamFee"]);
+  });
+
+  it("chưa thanh toán còn dưới hạn: không hủy được nhưng vẫn trả online", async () => {
+    apiRequest.mockResolvedValueOnce({
+      ...dto(false),
+      startTime: "2026-10-31T10:30:00+07:00",
+    });
+    const appointment = await getMyAppointment("apt-past");
+    expect(appointment.allowedActions).toEqual(["payExamFee"]);
+  });
+});

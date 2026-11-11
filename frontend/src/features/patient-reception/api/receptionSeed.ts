@@ -208,7 +208,6 @@ export function createReceptionSeed(fixtureDay?: string): ReceptionState {
         doctorId: "bs-an",
         firstCheckIn: day,
         status: "waiting",
-        priority: "child",
         followUp: false,
       },
       {
@@ -217,7 +216,6 @@ export function createReceptionSeed(fixtureDay?: string): ReceptionState {
         doctorId: "bs-an",
         firstCheckIn: day,
         status: "waiting",
-        priority: "normal",
         followUp: false,
       },
       {
@@ -226,7 +224,6 @@ export function createReceptionSeed(fixtureDay?: string): ReceptionState {
         doctorId: "bs-minh",
         firstCheckIn: addDays(day, -2),
         status: "awaiting",
-        priority: "normal",
         followUp: false,
       },
       {
@@ -235,7 +232,6 @@ export function createReceptionSeed(fixtureDay?: string): ReceptionState {
         doctorId: "bs-minh",
         firstCheckIn: day,
         status: "awaiting",
-        priority: "normal",
         followUp: false,
       },
       {
@@ -244,7 +240,6 @@ export function createReceptionSeed(fixtureDay?: string): ReceptionState {
         doctorId: "bs-an",
         firstCheckIn: addDays(day, -1),
         status: "completed",
-        priority: "normal",
         followUp: false,
       },
       {
@@ -253,7 +248,6 @@ export function createReceptionSeed(fixtureDay?: string): ReceptionState {
         doctorId: "bs-lan",
         firstCheckIn: addDays(day, -8),
         status: "incomplete",
-        priority: "normal",
         followUp: false,
       },
     ],
@@ -267,7 +261,6 @@ export function createReceptionSeed(fixtureDay?: string): ReceptionState {
         joinedAt: `${day}T08:50:00+07:00`,
         date: day,
         status: "waiting",
-        priority: "child",
         position: 1,
       },
       {
@@ -279,7 +272,6 @@ export function createReceptionSeed(fixtureDay?: string): ReceptionState {
         joinedAt: `${day}T09:00:00+07:00`,
         date: day,
         status: "waiting",
-        priority: "normal",
         position: 2,
       },
       {
@@ -291,7 +283,6 @@ export function createReceptionSeed(fixtureDay?: string): ReceptionState {
         joinedAt: `${day}T09:05:00+07:00`,
         date: day,
         status: "waiting",
-        priority: "normal",
         position: 1,
       },
     ],

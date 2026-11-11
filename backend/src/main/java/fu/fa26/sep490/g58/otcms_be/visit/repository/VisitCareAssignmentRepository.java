@@ -1,6 +1,8 @@
 package fu.fa26.sep490.g58.otcms_be.visit.repository;
 
+import fu.fa26.sep490.g58.otcms_be.visit.model.VisitExamStatus;
 import fu.fa26.sep490.g58.otcms_be.visit.model.entity.VisitCareAssignmentJpaEntity;
+import fu.fa26.sep490.g58.otcms_be.visit.model.entity.VisitExamQueueJpaEntity;
 import java.sql.Timestamp;
 import java.util.List;
 import java.util.Optional;
@@ -30,13 +32,18 @@ public interface VisitCareAssignmentRepository extends JpaRepository<VisitCareAs
         String getStepCode();
         Instant getStartedAt();
         Instant getExpectedEnd();
+        VisitExamStatus getExamStatus();
+        Integer getQueueNumber();
     }
 
+    /** Left join: a visit without an exam-queue row (legacy data) still lists with null status and number. */
     @Query("""
             select v.id as visitId, v.patientProfileId as patientProfileId, v.source as visitSource,
                    v.originatingAppointmentId as linkedAppointmentId, a.id as assignmentId,
-                   a.stepCode as stepCode, a.startsAt as startedAt, a.expectedEnd as expectedEnd
+                   a.stepCode as stepCode, a.startsAt as startedAt, a.expectedEnd as expectedEnd,
+                   q.examStatus as examStatus, q.queueNumber as queueNumber
             from VisitCareAssignmentJpaEntity a join ClinicVisitJpaEntity v on v.id = a.visitId
+                left join VisitExamQueueJpaEntity q on q.visitId = v.id
             where a.doctorProfileId = :doctorProfileId and a.status = 'IN_PROGRESS' and v.status = 'OPEN'
             order by a.startsAt asc, a.id asc
             """)

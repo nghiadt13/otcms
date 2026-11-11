@@ -1,3 +1,5 @@
+import { msgCodeFromBackendError } from "@/lib/messages/backendErrorMsgCodes";
+
 // Lỗi từ API theo ProblemDetail (RFC 9457) + `code` MSG. Mock phải ném đúng hình này.
 export type MsgCode = `MSG-${string}`;
 
@@ -23,7 +25,8 @@ export class ApiError extends Error {
     super(init.detail ?? init.code ?? `API trả về mã ${status}.`);
     this.name = "ApiError";
     this.status = status;
-    this.code = init.code;
+    // Không có `code` MSG thì suy từ mã lỗi thô của BE (bảng ở backendErrorMsgCodes.ts).
+    this.code = init.code ?? msgCodeFromBackendError(init.errorCode);
     this.params = init.params;
     this.fieldErrors = init.fieldErrors;
     this.errorCode = init.errorCode;

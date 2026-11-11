@@ -202,7 +202,8 @@ class ClinicalImagingRequestServiceImplTest {
         var writer = new ClinicalOrderingTransactionService(rounds, orders, clock,
                 mock(fu.fa26.sep490.g58.otcms_be.common.service.CoordinationGuardService.class), preparation);
         return new ClinicalImagingRequestServiceImpl(new ClinicalImagingRequestTransactionService(preparation, writer, replays, rounds, orders, clock,
-                mock(fu.fa26.sep490.g58.otcms_be.common.service.CoordinationGuardService.class)));
+                mock(fu.fa26.sep490.g58.otcms_be.common.service.CoordinationGuardService.class),
+                mock(fu.fa26.sep490.g58.otcms_be.clinical.service.VisitConclusionPort.class)));
     }
 
     private ImagingRequestCommand command(String key) { return new ImagingRequestCommand(visitId, doctorId, key, List.of(order()), true); }

@@ -3,6 +3,7 @@ package fu.fa26.sep490.g58.otcms_be.visit.controller;
 import fu.fa26.sep490.g58.otcms_be.common.security.AuthenticatedAccount;
 import fu.fa26.sep490.g58.otcms_be.common.web.CorrelationIdFilter;
 import fu.fa26.sep490.g58.otcms_be.visit.exception.VisitOperationException;
+import fu.fa26.sep490.g58.otcms_be.visit.model.dto.response.VisitCompletionResponse;
 import fu.fa26.sep490.g58.otcms_be.visit.service.WalkInVisitLifecycleService;
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.UUID;
@@ -39,5 +40,17 @@ public class WalkInVisitLifecycleController {
         lifecycle.close(visitId, account.accountId(), account.accountRole(), CorrelationIdFilter.current(request));
         return ResponseEntity.noContent().header(CorrelationIdFilter.HEADER,
                 CorrelationIdFilter.current(request)).build();
+    }
+
+    /** The responsible doctor ends a walk-in examination (A9). Scheduled visits are ended through their appointment. */
+    @PostMapping("/api/v1/visits/{visitId}/completion")
+    @PreAuthorize("hasAuthority('ROLE_DOCTOR')")
+    public ResponseEntity<VisitCompletionResponse> complete(@PathVariable UUID visitId,
+            @AuthenticationPrincipal AuthenticatedAccount account, HttpServletRequest request) {
+        if (account == null) throw new VisitOperationException("ACCESS_DENIED");
+        var result = lifecycle.completeWalkIn(visitId, account.accountId(), account.accountRole(),
+                CorrelationIdFilter.current(request));
+        return ResponseEntity.ok().header(CorrelationIdFilter.HEADER, CorrelationIdFilter.current(request))
+                .body(new VisitCompletionResponse(result.visitId(), result.examStatus(), result.closedAt()));
     }
 }

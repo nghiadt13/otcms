@@ -1,4 +1,5 @@
-import { formatAppMessage } from "@/lib/messages/appMessages";
+import { InvoiceNotPayableError } from "@/lib/api/billingApi";
+import { formatAppMessage, messageFromError } from "@/lib/messages/appMessages";
 import { formatCurrencyVnd } from "@/lib/format/formatCurrencyVnd";
 import type { ReceptionCommand, ReceptionState } from "../types";
 
@@ -14,7 +15,31 @@ const success = (text: string): ReceptionFeedback => ({
   text,
 });
 
-/** MSG-94: số thứ tự và phòng của các entry vừa tạo cho bệnh nhân trong ngày. */
+/**
+ * MSG-88: số thứ tự và phòng sau khi bệnh nhân vào hàng chờ khám. Thiếu số hoặc phòng thì hiện "—".
+ * Dùng chung cho check-in lịch hẹn, walk-in đã thu phí và thu phí sau từ hàng chờ.
+ */
+export function queuedFeedbackText(
+  queueNumber: number | null,
+  roomLabel: string | null,
+) {
+  return formatAppMessage("MSG-88", {
+    number: queueNumber ?? "—",
+    room: roomLabel ?? "—",
+  });
+}
+
+/**
+ * Chuỗi lỗi khi lập hóa đơn hoặc thu tiền tại quầy. Hóa đơn không còn thanh toán được dùng MSG-49;
+ * các lỗi khác đi qua ánh xạ mã chung (`messageFromError`).
+ */
+export function paymentErrorText(cause: unknown) {
+  return cause instanceof InvoiceNotPayableError
+    ? formatAppMessage("MSG-49")
+    : messageFromError(cause);
+}
+
+/** MSG-88 của mock: số thứ tự và phòng của các entry vừa tạo cho bệnh nhân trong ngày. */
 function checkInFeedback(patientId: string, next: ReceptionState) {
   const visitIds = new Set(
     next.visits.filter((v) => v.patientId === patientId).map((v) => v.id),
@@ -25,7 +50,7 @@ function checkInFeedback(patientId: string, next: ReceptionState) {
   );
   const room = (id: string) => next.rooms.find((r) => r.id === id)?.name ?? id;
   return success(
-    formatAppMessage("MSG-94", {
+    formatAppMessage("MSG-88", {
       number: entries.map((q) => q.number).join(", "),
       room: entries.map((q) => room(q.roomId)).join(", "),
     }),

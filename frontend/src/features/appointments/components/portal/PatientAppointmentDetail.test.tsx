@@ -1,12 +1,14 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
 import { ApiError } from "@/lib/api/apiError";
+import type { ExamQueueItem } from "@/lib/api/examQueueApi";
 import { formatCurrencyVnd } from "@/lib/format/formatCurrencyVnd";
 import { resetLinkedProfilesMock } from "@/lib/patient-scope/linkedProfilesMockStore";
 import { resetBookingMock } from "../../api/bookingMockStore";
 import { resetPatientAppointmentMock } from "../../api/patientAppointmentApi";
+import type { PatientArrivalCheckInResult } from "../../api/patientArrivalCheckInApi";
 
 // vi.mock được đưa lên đầu file: biến dùng trong factory phải khai báo bằng vi.hoisted.
 const nav = vi.hoisted(() => ({ replace: vi.fn(), push: vi.fn() }));
@@ -18,6 +20,12 @@ vi.mock("next/navigation", () => ({
 }));
 vi.mock("sonner", () => ({
   toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn() },
+}));
+// Ranh giới HTTP: check-in QR và hàng chờ đi qua apiRequest (lớp API thật, chỉ thay đường gọi mạng).
+const apiRequest = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/api/client", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/api/client")>()),
+  apiRequest,
 }));
 // Bọc lớp API giả bằng vi.fn để ép lỗi một lần; kho giả vẫn chạy thật.
 vi.mock("../../api/patientAppointmentApi", async (importOriginal) => {
@@ -46,6 +54,66 @@ const dialog = () => screen.getByRole("alertdialog");
 // chuỗi tìm, nên chuẩn hóa cả chuỗi kỳ vọng (cùng cách với test thanh toán).
 const money = (amount: number) => formatCurrencyVnd(amount).replace(/\s/g, " ");
 
+const QUEUE_PATH = "/api/v1/visits/vis-an-today/exam-queue-entry";
+const ARRIVAL_PATH = "/api/v1/appointments/apt-1003/arrivals";
+
+/** Đặt giờ hiện tại là `at`. Lịch mẫu tạo lại theo NOW trước, rồi giữ nguyên khi đổi giờ. */
+function clockAt(at: string): void {
+  vi.setSystemTime(NOW);
+  resetBookingMock();
+  vi.setSystemTime(new Date(at));
+}
+
+/** Trả lời theo đường dẫn; đường không có trong bảng là lỗi, để test không gọi mạng ngoài ý muốn. */
+function answerApi(routes: Record<string, () => Promise<unknown>>): void {
+  apiRequest.mockImplementation((path: string) => {
+    const route = routes[path];
+    return route ? route() : Promise.reject(new Error(`không có mock cho ${path}`));
+  });
+}
+
+function queueEntry(overrides: Partial<ExamQueueItem> = {}): ExamQueueItem {
+  return {
+    visitId: "vis-an-today",
+    queueNumber: 3,
+    examStatus: "WAITING",
+    source: "SCHEDULED",
+    appointmentId: "apt-2001",
+    patientProfileId: "profile-an",
+    patientName: "Nguyễn Văn An",
+    doctorProfileId: "doctor-ha",
+    doctorName: "BS. Phạm Thu Hà",
+    roomId: null,
+    roomLabel: "Phòng khám 2",
+    serviceId: "svc-kham-tq",
+    queuedAt: "2026-10-23T08:30:00+07:00",
+    startedAt: null,
+    finishedAt: null,
+    ...overrides,
+  };
+}
+
+function checkInResult(
+  overrides: Partial<PatientArrivalCheckInResult> = {},
+): PatientArrivalCheckInResult {
+  return {
+    appointmentId: "apt-1003",
+    patientProfileId: "profile-lan",
+    source: "QR",
+    state: "CHECKED_IN",
+    arrivedAt: "2026-10-28T09:00:00+07:00",
+    recordedAt: "2026-10-28T09:00:00+07:00",
+    appointmentStatus: "CHECKED_IN",
+    visitId: "vis-lan-today",
+    checkedInAt: "2026-10-28T09:00:00+07:00",
+    checkedIn: true,
+    queueNumber: 3,
+    doctorName: "BS. Trần Anh Tuấn",
+    roomLabel: "Phòng khám 2",
+    ...overrides,
+  };
+}
+
 beforeEach(() => {
   nav.replace.mockClear();
   nav.push.mockClear();
@@ -57,6 +125,15 @@ beforeEach(() => {
   resetLinkedProfilesMock();
   resetBookingMock({ now: NOW });
   resetPatientAppointmentMock();
+  // Giờ máy khớp kho giả (cố định ở NOW): mốc của màn chi tiết và của kho cùng một lúc.
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(NOW);
+  apiRequest.mockReset();
+  answerApi({ [QUEUE_PATH]: async () => queueEntry() });
+});
+
+afterEach(() => {
+  vi.useRealTimers();
 });
 
 describe("PatientAppointmentDetail: lịch đã thanh toán (Lan)", () => {
@@ -188,9 +265,10 @@ describe("PatientAppointmentDetail: trạng thái đặc biệt", () => {
       within(dialog()).getByRole("button", { name: "Hủy lịch hẹn" }),
     );
 
+    // Chữ lấy từ bảng MSG chung (notifyError gọi toast.error(câu, tùy chọn)): chỉ kiểm tham số đầu.
     await waitFor(() =>
-      expect(toast.error).toHaveBeenCalledWith(
-        "Lịch hẹn này không còn đủ điều kiện để hủy hoặc chuyển bác sĩ. Vui lòng liên hệ phòng khám.",
+      expect(vi.mocked(toast.error).mock.calls[0]?.[0]).toBe(
+        formatAppMessage("MSG-32"),
       ),
     );
     await waitFor(() =>
@@ -254,5 +332,122 @@ describe("PatientAppointmentDetail: trạng thái đặc biệt", () => {
     expect(await screen.findByRole("heading", { level: 1 })).toHaveTextContent(
       "Lịch khám ngày 26/10/2026",
     );
+  });
+});
+
+describe("PatientAppointmentDetail: hạn tự hủy 120 phút", () => {
+  it("đúng 120 phút trước giờ hẹn: vẫn có nút hủy", async () => {
+    clockAt("2026-10-26T06:30:00+07:00");
+    // Premise của test: lịch mẫu 26/10 lúc 08:30.
+    expect((await getMyAppointment("apt-1001")).startAt).toBe(
+      "2026-10-26T08:30:00+07:00",
+    );
+    render(<PatientAppointmentDetail id="apt-1001" />);
+    expect(
+      await screen.findByRole("button", { name: "Hủy lịch hẹn" }),
+    ).toBeInTheDocument();
+  });
+
+  it("còn dưới 120 phút: ẩn nút hủy và hiện ghi chú MSG-32", async () => {
+    clockAt("2026-10-26T06:45:00+07:00");
+    render(<PatientAppointmentDetail id="apt-1001" />);
+    expect(
+      await screen.findByText(formatAppMessage("MSG-32")),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Hủy lịch hẹn" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Muốn đổi giờ? Hủy lịch này rồi đặt lịch mới."),
+    ).not.toBeInTheDocument();
+  });
+});
+
+describe("PatientAppointmentDetail: quét QR tại quầy", () => {
+  it("lịch không phải hôm nay: không có nút quét QR", async () => {
+    render(<PatientAppointmentDetail id="apt-1003" />);
+    expect(
+      await screen.findByRole("heading", {
+        level: 1,
+        name: "Lịch khám ngày 28/10/2026",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Quét QR tại quầy" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("lịch hôm nay đã trả phí: quét mã thì báo MSG-88 có số thứ tự và phòng", async () => {
+    clockAt("2026-10-28T09:00:00+07:00");
+    answerApi({ [ARRIVAL_PATH]: async () => checkInResult() });
+    const user = userEvent.setup();
+    render(<PatientAppointmentDetail id="apt-1003" />);
+
+    await user.click(
+      await screen.findByRole("button", { name: "Quét QR tại quầy" }),
+    );
+    await user.type(screen.getByLabelText("Mã QR"), "qr-proof-1");
+    await user.click(screen.getByRole("button", { name: "Xác nhận mã QR" }));
+
+    await waitFor(() =>
+      expect(toast.success).toHaveBeenCalledWith(
+        "Đã tiếp nhận bệnh nhân. Số thứ tự 3, phòng Phòng khám 2.",
+      ),
+    );
+    expect(apiRequest).toHaveBeenCalledWith(ARRIVAL_PATH, {
+      method: "POST",
+      body: JSON.stringify({ proof: "qr-proof-1" }),
+    });
+  });
+});
+
+describe("PatientAppointmentDetail: số thứ tự khám", () => {
+  it("lượt đã check-in: hiện MSG-88 và bác sĩ phụ trách lấy từ hàng chờ", async () => {
+    render(<PatientAppointmentDetail id="apt-2001" />);
+    expect(
+      await screen.findByText(
+        "Đã tiếp nhận bệnh nhân. Số thứ tự 3, phòng Phòng khám 2.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Bác sĩ phụ trách: BS. Phạm Thu Hà"),
+    ).toBeInTheDocument();
+  });
+
+  it("phòng chưa gắn: MSG-88 ghi phòng là —", async () => {
+    answerApi({ [QUEUE_PATH]: async () => queueEntry({ roomLabel: null }) });
+    render(<PatientAppointmentDetail id="apt-2001" />);
+    expect(
+      await screen.findByText("Đã tiếp nhận bệnh nhân. Số thứ tự 3, phòng —."),
+    ).toBeInTheDocument();
+  });
+
+  it("lượt chưa vào hàng chờ (404): không hiện số và không báo lỗi", async () => {
+    answerApi({
+      [QUEUE_PATH]: async () => {
+        throw new ApiError(404, { code: "MSG-41" });
+      },
+    });
+    render(<PatientAppointmentDetail id="apt-2001" />);
+    expect(
+      await screen.findByRole("link", { name: "Xem tiến độ lượt khám" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Số thứ tự/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("lỗi tải hàng chờ: báo bằng MSG, trang vẫn dùng được", async () => {
+    answerApi({
+      [QUEUE_PATH]: async () => {
+        throw new ApiError(500, { code: "MSG-04" });
+      },
+    });
+    render(<PatientAppointmentDetail id="apt-2001" />);
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      formatAppMessage("MSG-04"),
+    );
+    expect(
+      screen.getByRole("link", { name: "Xem tiến độ lượt khám" }),
+    ).toBeInTheDocument();
   });
 });

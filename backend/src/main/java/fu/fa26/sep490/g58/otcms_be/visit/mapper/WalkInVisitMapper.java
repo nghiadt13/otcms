@@ -8,6 +8,7 @@ public final class WalkInVisitMapper {
 
     public static WalkInVisitResponse toResponse(CreatedWalkInVisit visit) {
         return new WalkInVisitResponse(visit.visitId(), visit.patientProfileId(), visit.priorAppointmentId(),
-                visit.arrivedAt());
+                visit.arrivedAt(), visit.examStatus(), visit.queueNumber(), visit.doctorName(), visit.roomLabel(),
+                visit.feeAmount());
     }
 }

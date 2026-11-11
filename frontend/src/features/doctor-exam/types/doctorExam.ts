@@ -18,8 +18,10 @@ export type TodayPatient = {
   sex: "Nam" | "Nữ" | "Khác" | null;
   patientCode: string | null;
   serviceName: string;
-  /** Giờ hẹn (ISO) hoặc giờ tiếp nhận với vãng lai. */
-  scheduledAt: string;
+  /** Giờ hẹn (ISO) hoặc giờ tiếp nhận với vãng lai; null khi chưa có. */
+  scheduledAt: string | null;
+  /** Số thứ tự trong hàng chờ của bác sĩ; null khi chưa đến (chưa có lượt). */
+  queueNumber: number | null;
   source: "BOOKED" | "WALK_IN";
   status: TodayStatus;
 };

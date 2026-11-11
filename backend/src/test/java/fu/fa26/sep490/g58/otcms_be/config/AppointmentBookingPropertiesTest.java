@@ -16,7 +16,7 @@ import static org.junit.jupiter.api.Assertions.*;
 class AppointmentBookingPropertiesTest {
     private static final String[] SPEC_DEFAULTS = {
             "appointment.booking.max-horizon-days=30",
-            "appointment.booking.patient-change-deadline-minutes=1440",
+            "appointment.booking.patient-change-deadline-minutes=120",
             "appointment.booking.check-in-early-minutes=30",
             "appointment.booking.check-in-late-grace-minutes=15",
             "appointment.booking.slot-interval-minutes=15",
@@ -38,12 +38,14 @@ class AppointmentBookingPropertiesTest {
             assertNull(context.getStartupFailure());
             AppointmentBookingProperties properties = context.getBean(AppointmentBookingProperties.class);
             assertEquals(30, properties.maxHorizonDays());
-            assertEquals(1440, properties.patientChangeDeadlineMinutes());
+            assertEquals(120, properties.patientChangeDeadlineMinutes());
             assertEquals(30, properties.checkInEarlyMinutes());
             assertEquals(15, properties.checkInLateGraceMinutes());
             assertEquals(15, properties.slotIntervalMinutes());
             assertEquals(ZoneId.of("Asia/Ho_Chi_Minh"), properties.clinicTimeZone());
             assertEquals(new AppointmentBookingProperties.PublicRateLimit(60, 60), properties.publicRateLimit());
+            assertEquals(600_000L, properties.noShowSweepMs());
+            assertTrue(properties.noShowSweepEnabled());
             assertEquals(ZoneOffset.UTC, context.getBean(Clock.class).getZone());
         });
     }
@@ -85,6 +87,7 @@ class AppointmentBookingPropertiesTest {
         assertStartupRejected("appointment.booking.clinic-time-zone=Not/A_Zone");
         assertStartupRejected("appointment.booking.public-rate-limit.requests=0");
         assertStartupRejected("appointment.booking.public-rate-limit.window-seconds=0");
+        assertStartupRejected("appointment.booking.no-show-sweep-ms=0");
     }
 
     private void assertStartupRejected(String invalidProperty) {

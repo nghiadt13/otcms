@@ -137,3 +137,33 @@ export const PAYMENT_STATUS_TONE: Record<PaymentStatus, StatusTone> = {
   PENDING: "warning",
   FAILED: "danger",
 };
+
+/**
+ * Trạng thái lượt trong hàng chờ khám (`visit_exam_queue.exam_status`, plan 261111-0208 mục 2).
+ * `PENDING_PAYMENT`: walk-in chưa thu phí, chưa có số thứ tự. `AWAITING_CONCLUSION`: đã chỉ định
+ * cận lâm sàng, bác sĩ chờ kết quả để ghi kết luận.
+ */
+export type ExamQueueStatus =
+  | "PENDING_PAYMENT"
+  | "WAITING"
+  | "IN_EXAMINATION"
+  | "AWAITING_CONCLUSION"
+  | "COMPLETED"
+  | "CANCELLED";
+
+export const EXAM_QUEUE_STATUS_LABELS: Record<ExamQueueStatus, string> = {
+  PENDING_PAYMENT: "Chờ thu phí",
+  WAITING: "Chờ khám",
+  IN_EXAMINATION: "Đang khám",
+  AWAITING_CONCLUSION: "Chờ kết luận",
+  COMPLETED: "Đã khám xong",
+  CANCELLED: "Đã hủy",
+};
+export const EXAM_QUEUE_STATUS_TONE: Record<ExamQueueStatus, StatusTone> = {
+  PENDING_PAYMENT: "warning",
+  WAITING: "info",
+  IN_EXAMINATION: "success",
+  AWAITING_CONCLUSION: "info",
+  COMPLETED: "success",
+  CANCELLED: "neutral",
+};

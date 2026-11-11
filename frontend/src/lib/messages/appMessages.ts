@@ -131,6 +131,8 @@ export const APP_MESSAGES: Record<string, string> = {
   "MSG-81": "Đã lưu sửa đổi kết quả. Phiếu kết quả phiên bản mới đã được tạo.",
   "MSG-86":
     "Chưa thể hoàn tất khám: cần có chẩn đoán chính và mọi chỉ định đã có kết quả (kể cả kết quả đọc phim) hoặc đã hủy.",
+  // R3 MSG-88: bệnh nhân được tiếp nhận vào hàng chờ khám. MSG-94 có cùng câu nhưng không có trong R3.
+  "MSG-88": "Đã tiếp nhận bệnh nhân. Số thứ tự {number}, phòng {room}.",
 };
 
 /** Thay `{tham số}` trong câu MSG. Tham số thiếu giữ nguyên để dễ phát hiện. */

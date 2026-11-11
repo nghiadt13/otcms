@@ -237,6 +237,15 @@ export function createDemoVisits(): Record<string, DemoVisit> {
   };
 }
 
+/** Số thứ tự demo theo thứ tự check-in của bác sĩ; lượt không có số thì không nằm trong map. */
+const DEMO_QUEUE_NUMBERS: Partial<Record<string, number>> = {
+  "demo-visit-3": 1,
+  "demo-visit-2": 2,
+  "demo-visit-1": 3,
+  "demo-visit-6": 4,
+  "demo-visit-4": 5,
+};
+
 export function demoTodayPatients(
   visits: Record<string, DemoVisit>,
 ): TodayPatient[] {
@@ -250,6 +259,7 @@ export function demoTodayPatients(
     patientCode: c.patientCode,
     serviceName: c.serviceName ?? "",
     scheduledAt: c.scheduledAt ?? at("08:00"),
+    queueNumber: DEMO_QUEUE_NUMBERS[c.visitId] ?? null,
     source: c.source ?? "BOOKED",
     status: c.status ?? "WAITING_FOR_EXAMINATION",
   }));
@@ -263,10 +273,13 @@ export function demoTodayPatients(
     patientCode: "BN-000125",
     serviceName: "Khám cơ xương khớp",
     scheduledAt: at("10:30"),
+    queueNumber: null,
     source: "BOOKED",
     status: "NOT_ARRIVED",
   });
-  return rows.sort((a, b) => a.scheduledAt.localeCompare(b.scheduledAt));
+  return rows.sort((a, b) =>
+    (a.scheduledAt ?? "").localeCompare(b.scheduledAt ?? ""),
+  );
 }
 
 export const DEMO_CATALOG: CatalogService[] = [

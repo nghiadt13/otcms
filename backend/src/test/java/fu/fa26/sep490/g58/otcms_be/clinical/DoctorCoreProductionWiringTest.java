@@ -330,6 +330,8 @@ class DoctorCoreProductionWiringTest {
             DiagnosticImagingRequestRegistrationImpl.class, DiagnosticStatusServiceImpl.class, DiagnosticRequestServiceImpl.class,
             DiagnosticAuthorizationPolicyImpl.class, DiagnosticTransitionPolicyImpl.class, DiagnosticFindingsServiceImpl.class, DiagnosticHistoryServiceImpl.class})
     static class ProductionConfiguration {
+        /** Visit-owned exam queue move is a side-effect boundary here; the real adapter needs the queue repositories. */
+        @Bean VisitConclusionPort visitConclusions() { return mock(VisitConclusionPort.class); }
         @Bean fu.fa26.sep490.g58.otcms_be.common.service.CoordinationGuardService coordinationGuard() {
             var persistence = mock(fu.fa26.sep490.g58.otcms_be.common.repository.CoordinationGuardRepository.class);
             when(persistence.transactionIsolation()).thenReturn("read committed");

@@ -7,6 +7,7 @@ import fu.fa26.sep490.g58.otcms_be.clinical.repository.OrderingRoundRepository;
 import fu.fa26.sep490.g58.otcms_be.clinical.repository.ServiceOrderRepository;
 import fu.fa26.sep490.g58.otcms_be.clinical.service.ClinicalImagingRequestService.*;
 import fu.fa26.sep490.g58.otcms_be.clinical.service.ClinicalOrderingService;
+import fu.fa26.sep490.g58.otcms_be.clinical.service.VisitConclusionPort;
 import java.time.Clock;
 import java.util.Comparator;
 import java.util.Optional;
@@ -23,11 +24,13 @@ public class ClinicalImagingRequestTransactionService {
     private final ServiceOrderRepository orders;
     private final Clock clock;
     private final fu.fa26.sep490.g58.otcms_be.common.service.CoordinationGuardService guard;
+    private final VisitConclusionPort conclusions;
 
     public ClinicalImagingRequestTransactionService(ClinicalOrderPreparationService preparation,
             ClinicalOrderingTransactionService writer, ClinicalImagingRequestReplayRepository replays,
             OrderingRoundRepository rounds, ServiceOrderRepository orders, Clock clock,
-            fu.fa26.sep490.g58.otcms_be.common.service.CoordinationGuardService guard) {
+            fu.fa26.sep490.g58.otcms_be.common.service.CoordinationGuardService guard,
+            VisitConclusionPort conclusions) {
         this.preparation = preparation;
         this.writer = writer;
         this.replays = replays;
@@ -35,6 +38,7 @@ public class ClinicalImagingRequestTransactionService {
         this.orders = orders;
         this.clock = clock;
         this.guard = guard;
+        this.conclusions = conclusions;
     }
 
     @Transactional
@@ -48,6 +52,8 @@ public class ClinicalImagingRequestTransactionService {
         var snapshots = preparation.prepare(requests, true);
         // writer uses REQUIRED, joining this transaction; it cannot commit before replay insertion.
         var round = writer.createRound(command.visitId(), context.patientId(), command.doctorProfileId(), snapshots);
+        // The doctor now waits for imaging: the queue hands over to the next patient. Replays do not repeat this.
+        conclusions.markAwaitingConclusion(command.visitId(), clock.instant());
         replays.saveAndFlush(new ClinicalImagingRequestReplayJpaEntity(command.doctorProfileId(), command.idempotencyKey(),
                 fingerprint, round.id(), clock.instant()));
         return new SubmissionResult(sorted(round), false);

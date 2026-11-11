@@ -29,15 +29,6 @@ public class VisitWorkflowRepository {
         public boolean examinationCompleted() { return examinationCompleted; }
         public boolean followUpIndicated() { return followUpIndicated; }
     }
-    public static class CompletedCareRow {
-        private final UUID assignmentId; private final String stepCode; private final Timestamp expectedEnd;
-        public CompletedCareRow(UUID assignmentId, String stepCode, Timestamp expectedEnd) {
-            this.assignmentId = assignmentId; this.stepCode = stepCode; this.expectedEnd = expectedEnd;
-        }
-        public UUID assignmentId() { return assignmentId; }
-        public String stepCode() { return stepCode; }
-        public Timestamp expectedEnd() { return expectedEnd; }
-    }
 
     public FollowUpEvidenceRow findFollowUpEvidence(UUID visitId, UUID doctorId) {
         List<?> rows = entityManager.createNativeQuery("""
@@ -65,39 +56,17 @@ public class VisitWorkflowRepository {
         return count.intValue() != 0;
     }
 
-    public boolean hasDoctorCareConflict(UUID doctorId, Instant now, Instant scheduledEnd) {
-        Number count = (Number) entityManager.createNativeQuery("""
-                select count(*) from visit_assignments where doctor_profile_id = :doctorId
-                  and status in ('RESERVED', 'IN_PROGRESS') and starts_at < :scheduledEnd and ends_at > :now
-                """).setParameter("doctorId", doctorId).setParameter("scheduledEnd", Timestamp.from(scheduledEnd))
-                .setParameter("now", Timestamp.from(now)).getSingleResult();
-        return count.intValue() != 0;
-    }
-
-    public void insertScheduledCare(UUID assignmentId, ScheduledCarePersistenceData command, Instant now) {
+    /** The care interval ends at {@code expectedEnd}, which the caller keeps after {@code now} (CHECK ends_at > starts_at). */
+    public void insertScheduledCare(UUID assignmentId, ScheduledCarePersistenceData command, Instant expectedEnd,
+            Instant now) {
         entityManager.createNativeQuery("""
                 insert into visit_assignments (id, visit_id, doctor_profile_id, starts_at, ends_at, status,
                     assigned_at, step_code, expected_duration_minutes)
-                values (:id, :visitId, :doctorId, :now, :scheduledEnd, 'IN_PROGRESS', :now, 'SCHEDULED_APPOINTMENT', :duration)
+                values (:id, :visitId, :doctorId, :now, :expectedEnd, 'IN_PROGRESS', :now, 'SCHEDULED_APPOINTMENT', :duration)
                 """).setParameter("id", assignmentId).setParameter("visitId", command.visitId())
                 .setParameter("doctorId", command.doctorProfileId()).setParameter("now", Timestamp.from(now))
-                .setParameter("scheduledEnd", Timestamp.from(command.scheduledEnd()))
+                .setParameter("expectedEnd", Timestamp.from(expectedEnd))
                 .setParameter("duration", command.expectedDurationMinutes()).executeUpdate();
-    }
-
-    @SuppressWarnings("unchecked")
-    public CompletedCareRow completeScheduledCare(ScheduledCarePersistenceData command) {
-        List<Object[]> rows = entityManager.createNativeQuery("""
-                update visit_assignments c set status = 'COMPLETED', actual_ended_at = :actualEnd
-                where c.visit_id = :visitId and c.doctor_profile_id = :doctorId and c.status = 'IN_PROGRESS'
-                  and exists (select 1 from visits v where v.id = c.visit_id and v.originating_appointment_id = :appointmentId
-                    and v.patient_profile_id = :patientId and v.status = 'OPEN') returning c.id, c.step_code, c.ends_at
-                """).setParameter("visitId", command.visitId()).setParameter("doctorId", command.doctorProfileId())
-                .setParameter("appointmentId", command.appointmentId()).setParameter("patientId", command.patientProfileId())
-                .setParameter("actualEnd", Timestamp.from(command.occurredAt())).getResultList();
-        if (rows.size() != 1) return null;
-        Object[] row = rows.getFirst();
-        return new CompletedCareRow((UUID) row[0], (String) row[1], toTimestamp(row[2]));
     }
 
     public boolean closeCancellableVisit(ScheduledCarePersistenceData command) {
@@ -131,16 +100,6 @@ public class VisitWorkflowRepository {
                 .setParameter("actorId", actorId).setParameter("action", action).setParameter("stepCode", stepCode)
                 .setParameter("oldEnd", oldEnd).setParameter("newEnd", newEnd).setParameter("occurredAt", Timestamp.from(occurredAt))
                 .setParameter("correlationId", correlationId).executeUpdate();
-    }
-
-    public void appendCapacityConflict(UUID visitId, UUID actorId, Instant occurredAt, String correlationId) {
-        entityManager.createNativeQuery("""
-                insert into visit_assignment_audits (id, visit_id, assignment_id, actor_account_id, action, step_code,
-                    old_expected_end, new_expected_end, occurred_at, correlation_id)
-                values (:id, :visitId, null, :actorId, 'CAPACITY_CONFLICT', 'SCHEDULED_APPOINTMENT', null, null, :occurredAt, :correlationId)
-                on conflict do nothing
-                """).setParameter("id", UUID.randomUUID()).setParameter("visitId", visitId).setParameter("actorId", actorId)
-                .setParameter("occurredAt", Timestamp.from(occurredAt)).setParameter("correlationId", correlationId).executeUpdate();
     }
 
     public boolean hasVisitFromAppointment(UUID appointmentId) {
@@ -191,10 +150,4 @@ public class VisitWorkflowRepository {
         return Boolean.TRUE.equals(consistent);
     }
 
-    private static Timestamp toTimestamp(Object value) {
-        if (value instanceof Timestamp timestamp) return timestamp;
-        if (value instanceof Instant instant) return Timestamp.from(instant);
-        if (value instanceof java.time.OffsetDateTime offsetDateTime) return Timestamp.from(offsetDateTime.toInstant());
-        throw new IllegalStateException("Unexpected care timestamp value");
-    }
 }

@@ -12,12 +12,13 @@ import {
   isClinicalChecklistReady,
 } from "../schema/visitProgress";
 import { DoctorLoadState } from "./DoctorLoadState";
+import { FinishVisitAction } from "./FinishVisitAction";
 import { isVisitClosed } from "./doctorStatus";
 import {
   mergeWorkspaceOrders,
   useVisitWorkspace,
 } from "./VisitWorkspaceProvider";
-/** UC28 closure belongs to Receptionist. Doctor sees clinical readiness only. */
+/** Điều kiện hoàn tất phần khám (BR-33) và nút bác sĩ kết thúc lượt (plan 261111-0208 A9). */
 export function ClosingScreen() {
   const workspace = useVisitWorkspace();
   const { visitId, context } = workspace;
@@ -25,6 +26,11 @@ export function ClosingScreen() {
   const orders = useOrders(visitId);
   const api = useDoctorExamApi();
   const closed = isVisitClosed(context?.status ?? null);
+  // Bác sĩ kết thúc lượt khi đang khám hoặc chờ kết luận; lượt đã xong thì chỉ xem.
+  const finishable =
+    !closed &&
+    (context?.status === "IN_EXAMINATION" ||
+      context?.status === "AWAITING_CONCLUSION");
   const checklist = buildClosingChecklist(
     examination.data,
     mergeWorkspaceOrders(
@@ -38,11 +44,16 @@ export function ClosingScreen() {
     },
   );
   const ready = isClinicalChecklistReady(checklist);
+  const reloadAll = () => {
+    examination.refresh();
+    orders.refresh();
+    workspace.refresh();
+  };
   return (
     <>
       <PageHeader
         title="Điều kiện hoàn tất phần khám"
-        description="Bác sĩ kiểm tra phần khám. Lễ tân thực hiện đóng lượt khám."
+        description="Bác sĩ kiểm tra phần khám, rồi kết thúc lượt khám khi đủ điều kiện."
       />
       {examination.loading || orders.loading ? (
         <DoctorLoadState loading retry={() => undefined} />
@@ -80,9 +91,18 @@ export function ClosingScreen() {
             {closed
               ? "Lượt khám đã hoàn tất."
               : ready
-                ? "Phần khám đã đủ điều kiện. Lễ tân sẽ thực hiện đóng lượt khám sau khi các dịch vụ bắt buộc hoàn tất."
-                : "Phần khám còn điều kiện chưa đạt hoặc chưa kiểm tra được. Lễ tân chỉ đóng lượt khám khi đủ bằng chứng hoàn tất."}
+                ? "Phần khám đã đủ điều kiện. Bác sĩ có thể kết thúc lượt khám."
+                : "Phần khám còn điều kiện chưa đạt hoặc chưa kiểm tra được. Chỉ kết thúc lượt khi đủ bằng chứng hoàn tất."}
           </p>
+          {finishable && context ? (
+            <div className="mt-4 border-t pt-4">
+              <FinishVisitAction
+                context={context}
+                ready={ready}
+                onFailed={reloadAll}
+              />
+            </div>
+          ) : null}
           {!api.capabilities.orderListing && !closed ? (
             <p className="mt-2 text-sm text-muted-foreground">
               Chưa có danh sách đầy đủ dịch vụ lâm sàng để xác nhận điều kiện

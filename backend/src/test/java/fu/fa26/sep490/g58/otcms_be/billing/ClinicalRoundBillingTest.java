@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.*;
 import fu.fa26.sep490.g58.otcms_be.billing.exception.BillingException;
 import fu.fa26.sep490.g58.otcms_be.billing.integration.AppointmentPaymentPort;
 import fu.fa26.sep490.g58.otcms_be.billing.integration.ClinicalRoundBillingPort;
+import fu.fa26.sep490.g58.otcms_be.billing.integration.VisitFeeSettlementPort;
 import fu.fa26.sep490.g58.otcms_be.billing.mapper.BillingMapper;
 import fu.fa26.sep490.g58.otcms_be.billing.model.*;
 import fu.fa26.sep490.g58.otcms_be.billing.model.entity.*;
@@ -55,7 +56,7 @@ class ClinicalRoundBillingTest {
     InvoiceService invoiceService; PaymentService paymentService;
     InvoiceSettlementSupport settlementSupport(ClinicalRoundBillingPort clinicalPort) {
         return new InvoiceSettlementSupport(invoices, items, attempts, clinicalPort, appointmentPort,
-                mock(jakarta.persistence.EntityManager.class));
+                mock(VisitFeeSettlementPort.class), mock(jakarta.persistence.EntityManager.class));
     }
     @BeforeEach void setup() {
         when(tx.getTransaction(any())).thenAnswer(call -> new SimpleTransactionStatus());

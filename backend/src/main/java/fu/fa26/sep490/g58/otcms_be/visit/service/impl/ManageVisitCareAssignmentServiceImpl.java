@@ -22,6 +22,7 @@ import fu.fa26.sep490.g58.otcms_be.visit.service.ExitWalkInReceptionQueueService
 import fu.fa26.sep490.g58.otcms_be.visit.service.ManageVisitCareAssignmentService;
 import fu.fa26.sep490.g58.otcms_be.visit.service.RecordVisitCapacityConflictCommand;
 import fu.fa26.sep490.g58.otcms_be.visit.service.StartWalkInCareStepCommand;
+import fu.fa26.sep490.g58.otcms_be.visit.service.VisitExamQueueService;
 import fu.fa26.sep490.g58.otcms_be.visit.service.VisitRoomCapacityService;
 import java.sql.Timestamp;
 import java.time.Clock;
@@ -34,6 +35,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class ManageVisitCareAssignmentServiceImpl implements ManageVisitCareAssignmentService {
+    /** Used when a care step has no configured duration; starting an examination never fails on configuration. */
+    private static final int DEFAULT_CARE_STEP_MINUTES = 30;
     private final CoordinationGuardService guard;
     private final DoctorProfileIdentityQueryService doctors;
     private final CheckVisitReservationCapacityService appointments;
@@ -42,12 +45,14 @@ public class ManageVisitCareAssignmentServiceImpl implements ManageVisitCareAssi
     private final VisitRoomCapacityService rooms;
     private final VisitCareProperties properties;
     private final ExitWalkInReceptionQueueService queueExit;
+    private final VisitExamQueueService examQueue;
     private final Clock clock;
 
     public ManageVisitCareAssignmentServiceImpl(CoordinationGuardService guard, DoctorProfileIdentityQueryService doctors,
             CheckVisitReservationCapacityService appointments, VisitCareAssignmentRepository assignments,
             VisitCareAssignmentAuditRepository audits, VisitRoomCapacityService rooms,
-            VisitCareProperties properties, ExitWalkInReceptionQueueService queueExit, Clock clock) {
+            VisitCareProperties properties, ExitWalkInReceptionQueueService queueExit,
+            VisitExamQueueService examQueue, Clock clock) {
         this.guard = guard;
         this.doctors = doctors;
         this.appointments = appointments;
@@ -56,11 +61,16 @@ public class ManageVisitCareAssignmentServiceImpl implements ManageVisitCareAssi
         this.rooms = rooms;
         this.properties = properties;
         this.queueExit = queueExit;
+        this.examQueue = examQueue;
         this.clock = clock;
     }
 
+    /**
+     * Starts the examination. No time window, doctor-overlap or room check: the queue allows one IN_EXAMINATION
+     * visit per doctor and the care interval is only an estimate. The care is IN_PROGRESS until the doctor closes it.
+     */
     @Override
-    @Transactional(noRollbackFor = VisitCapacityConflictException.class)
+    @Transactional
     public CareStepAssignment startWalkIn(StartWalkInCareStepCommand command) {
         validate(command);
         requireDoctor(command.actorRole());
@@ -70,24 +80,12 @@ public class ManageVisitCareAssignmentServiceImpl implements ManageVisitCareAssi
         if (!"WALK_IN".equals(visit[2]) || !"OPEN".equals(visit[4])) {
             throw new VisitOperationException("VISIT_CARE_NOT_CHANGEABLE");
         }
-        int duration = configuredDuration(command.stepCode());
+        int duration = durationMinutes(command.stepCode());
         Instant now = clock.instant();
         Instant expectedEnd = safePlusMinutes(now, duration);
-        try {
-            ensureDoctorCapacity(command.visitId(), (UUID) visit[1], doctorId, now, expectedEnd, null, null);
-        } catch (VisitOperationException exception) {
-            if ("VISIT_CAPACITY_NOT_AVAILABLE".equals(exception.code())
-                    || "VISIT_LINK_CONFLICT".equals(exception.code())) {
-                audits.appendConflict(command.visitId(), null, command.actorAccountId(), command.correlationId(),
-                        command.stepCode(), Timestamp.from(now));
-                throw new VisitCapacityConflictException(exception.code());
-            }
-            throw exception;
-        }
         ensureNoActiveVisitCare(command.visitId(), null);
-
-        RoomReservationPlan roomPlan = prepareRoom(command.visitId(), null, command.actorAccountId(),
-                command.stepCode(), command.correlationId(), now, now, expectedEnd);
+        // Before any write: an unpaid walk-in (PENDING_PAYMENT) or another visit of this doctor fails here.
+        examQueue.startExamination(command.visitId(), doctorId, now);
 
         queueExit.exit(new ExitWalkInReceptionQueueCommand(command.visitId(), command.actorAccountId(),
                 command.actorRole(), "CARE_STARTED", now, command.correlationId()));
@@ -95,12 +93,10 @@ public class ManageVisitCareAssignmentServiceImpl implements ManageVisitCareAssi
         UUID assignmentId = UUID.randomUUID();
         assignments.saveAndFlush(VisitCareAssignmentJpaEntity.inProgress(assignmentId, command.visitId(), doctorId,
                 command.stepCode(), duration, now, expectedEnd));
-        rooms.reserve(roomPlan, command.visitId(), assignmentId, command.actorAccountId(),
-                command.correlationId(), now);
         audits.append(command.visitId(), assignmentId, command.actorAccountId(), "STARTED", command.stepCode(),
                 null, Timestamp.from(expectedEnd), Timestamp.from(now), command.correlationId());
         return new CareStepAssignment(assignmentId, command.visitId(), doctorId, command.stepCode(), "IN_PROGRESS",
-                now, expectedEnd, null, roomPlan.roomId(), roomPlan.roomCode());
+                now, expectedEnd, null);
     }
 
     @Override
@@ -117,7 +113,7 @@ public class ManageVisitCareAssignmentServiceImpl implements ManageVisitCareAssi
         if (!doctorId.equals(assignment.doctorProfileId()) || !"IN_PROGRESS".equals(assignment.status())) {
             throw new VisitOperationException("VISIT_CARE_NOT_CHANGEABLE");
         }
-        int additionalMinutes = configuredDuration(command.stepCode());
+        int additionalMinutes = durationMinutes(command.stepCode());
         Instant now = clock.instant();
         Instant extensionFrom = now.isAfter(assignment.expectedEnd()) ? now : assignment.expectedEnd();
         Instant newExpectedEnd = safePlusMinutes(extensionFrom, additionalMinutes);
@@ -201,6 +197,25 @@ public class ManageVisitCareAssignmentServiceImpl implements ManageVisitCareAssi
                 command.correlationId(), "CAPACITY_CONFLICT", Timestamp.from(now));
     }
 
+    @Override
+    @Transactional
+    public void completeDoctorCare(UUID visitId, UUID doctorProfileId, UUID actorAccountId, String correlationId,
+            Instant actualEnd) {
+        acquireGuard();
+        VisitCareAssignmentJpaEntity care = assignments
+                .findFirstByVisitIdAndStatusOrderByAssignedAtDescIdDesc(visitId, "IN_PROGRESS")
+                .filter(entity -> doctorProfileId.equals(entity.getDoctorProfileId()))
+                .orElseThrow(() -> new VisitOperationException("VISIT_EXAM_STATE_CONFLICT"));
+        if (assignments.complete(care.getId(), visitId, doctorProfileId, Timestamp.from(actualEnd)) != 1) {
+            throw new VisitOperationException("VISIT_EXAM_STATE_CONFLICT");
+        }
+        // Legacy reservations from before examinations stopped reserving rooms are released here; none is a no-op.
+        rooms.complete(visitId, care.getId(), actorAccountId, correlationId, actualEnd);
+        audits.append(visitId, care.getId(), actorAccountId, "COMPLETED", care.getStepCode(),
+                Timestamp.from(care.getExpectedEnd()), Timestamp.from(care.getExpectedEnd()),
+                Timestamp.from(actualEnd), correlationId);
+    }
+
     private void ensureDoctorCapacity(UUID visitId, UUID patientId, UUID doctorId, Instant from, Instant to,
             UUID excludedAssignmentId, UUID linkedAppointmentId) {
         if (assignments.countDoctorConflicts(doctorId, Timestamp.from(from), Timestamp.from(to), excludedAssignmentId) > 0) {
@@ -246,12 +261,11 @@ public class ManageVisitCareAssignmentServiceImpl implements ManageVisitCareAssi
         }
     }
 
-    private int configuredDuration(String stepCode) {
+    private int durationMinutes(String stepCode) {
         if (stepCode == null || !stepCode.matches("[A-Z][A-Z0-9_]{0,63}")) {
             throw new VisitOperationException("VALIDATION_FAILED");
         }
-        return properties.durationMinutes(stepCode)
-                .orElseThrow(() -> new VisitOperationException("VISIT_CARE_STEP_NOT_CONFIGURED"));
+        return properties.durationMinutes(stepCode).orElse(DEFAULT_CARE_STEP_MINUTES);
     }
 
     private void acquireGuard() {

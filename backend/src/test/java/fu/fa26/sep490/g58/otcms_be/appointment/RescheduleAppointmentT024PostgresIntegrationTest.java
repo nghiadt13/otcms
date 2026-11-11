@@ -115,11 +115,25 @@ class RescheduleAppointmentT024PostgresIntegrationTest {
     }
 
     @Test
-    void patientRescheduleUpdatesSameBookingAndWritesCorrelatedAudit() throws Exception {
+    void patientCannotRescheduleOwnBookingAndNothingIsWritten() throws Exception {
         mvc.perform(patch("/api/v1/appointments/{id}/reschedule", appointment)
                         .with(actor(patientAccount, AccountType.PATIENT)).with(csrf())
                         .header("X-Correlation-ID", CORRELATION).contentType("application/json")
                         .content("{\"startTime\":\"" + TARGET_START + "\"}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error.code").value("APPOINTMENT_NOT_CHANGEABLE"));
+        assertEquals(OLD_START, jdbc.queryForObject("select start_time from appointments where id = ?", Timestamp.class,
+                appointment).toInstant());
+        assertEquals(0, jdbc.queryForObject("select count(*) from appointment_audits where appointment_id = ? "
+                + "and action = 'RESCHEDULED'", Integer.class, appointment));
+    }
+
+    @Test
+    void receptionistRescheduleUpdatesSameBookingAndWritesCorrelatedAudit() throws Exception {
+        mvc.perform(patch("/api/v1/appointments/{id}/reschedule", appointment)
+                        .with(actor(receptionistAccount, AccountType.RECEPTIONIST)).with(csrf())
+                        .header("X-Correlation-ID", CORRELATION).contentType("application/json")
+                        .content("{\"startTime\":\"" + TARGET_START + "\",\"reason\":\"Clinic requested a change\"}"))
                 .andExpect(status().isOk())
                 .andExpect(header().string("X-Correlation-ID", CORRELATION))
                 .andExpect(jsonPath("$.id").value(appointment.toString()))
@@ -131,9 +145,10 @@ class RescheduleAppointmentT024PostgresIntegrationTest {
                 .andExpect(jsonPath("$.bufferMinutes").value(0));
         assertEquals(1, jdbc.queryForObject("select count(*) from appointments where id = ?", Integer.class, appointment));
         assertEquals(1, jdbc.queryForObject("select count(*) from appointment_audits where appointment_id = ? "
-                + "and action = 'RESCHEDULED' and actor_account_id = ? and actor_type = 'PATIENT' "
-                + "and old_start_time = ? and new_start_time = ? and correlation_id = ?", Integer.class,
-                appointment, patientAccount, Timestamp.from(OLD_START), Timestamp.from(TARGET_START), CORRELATION));
+                + "and action = 'RESCHEDULED' and actor_account_id = ? and actor_type = 'RECEPTIONIST' "
+                + "and old_start_time = ? and new_start_time = ? and correlation_id = ? "
+                + "and reason = 'Clinic requested a change'", Integer.class,
+                appointment, receptionistAccount, Timestamp.from(OLD_START), Timestamp.from(TARGET_START), CORRELATION));
     }
 
     @Test

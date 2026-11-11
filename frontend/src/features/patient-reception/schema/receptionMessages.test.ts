@@ -8,7 +8,13 @@ import {
 } from "../api/receptionApi";
 import { createReceptionSeed } from "../api/receptionSeed";
 import type { ReceptionCommand } from "../types";
-import { receptionFeedback } from "./receptionMessages";
+import {
+  paymentErrorText,
+  queuedFeedbackText,
+  receptionFeedback,
+} from "./receptionMessages";
+import { ApiError } from "@/lib/api/apiError";
+import { InvoiceNotPayableError } from "@/lib/api/billingApi";
 
 // Thông báo lễ tân đi qua adapter thật để kiểm câu chữ đúng bảng MSG của R3.
 const DAY = "2026-10-24";
@@ -34,14 +40,13 @@ describe("receptionFeedback", () => {
     );
   });
 
-  it("tiếp nhận dùng MSG-94 kèm số thứ tự và tên phòng", async () => {
+  it("tiếp nhận dùng MSG-88 kèm số thứ tự và tên phòng", async () => {
     await cash(["phi-LH001"]);
     const feedback = await command({
       type: "check-in",
       patientId: "BN0001",
       appointmentId: "LH001",
       present: true,
-      priority: "normal",
     });
     expect(feedback?.text).toMatch(
       /^Đã tiếp nhận bệnh nhân\. Số thứ tự \S+-\d{3}, phòng .+\.$/,
@@ -82,5 +87,40 @@ describe("receptionFeedback", () => {
         })
       )?.text,
     ).toBe(APP_MESSAGES["MSG-26"]);
+  });
+});
+
+describe("queue and payment feedback", () => {
+  it("queuedFeedbackText dùng MSG-88 với số thứ tự và phòng", () => {
+    expect(queuedFeedbackText(3, "Phòng 101")).toBe(
+      formatAppMessage("MSG-88", { number: 3, room: "Phòng 101" }),
+    );
+    expect(queuedFeedbackText(3, "Phòng 101")).toBe(
+      "Đã tiếp nhận bệnh nhân. Số thứ tự 3, phòng Phòng 101.",
+    );
+  });
+
+  it("queuedFeedbackText thay phòng thiếu bằng dấu gạch, số thiếu cũng vậy", () => {
+    expect(queuedFeedbackText(7, null)).toBe(
+      "Đã tiếp nhận bệnh nhân. Số thứ tự 7, phòng —.",
+    );
+    expect(queuedFeedbackText(null, null)).toBe(
+      "Đã tiếp nhận bệnh nhân. Số thứ tự —, phòng —.",
+    );
+  });
+
+  it("paymentErrorText: hóa đơn không còn thanh toán được là MSG-49, lỗi có mã đi qua bảng MSG", () => {
+    expect(paymentErrorText(new InvoiceNotPayableError())).toBe(
+      APP_MESSAGES["MSG-49"],
+    );
+    expect(paymentErrorText(new ApiError(409, { code: "MSG-42" }))).toBe(
+      APP_MESSAGES["MSG-42"],
+    );
+  });
+
+  it("paymentErrorText: lỗi không rõ nguồn rơi về MSG-04", () => {
+    expect(paymentErrorText(new TypeError("Failed to fetch"))).toBe(
+      APP_MESSAGES["MSG-04"],
+    );
   });
 });

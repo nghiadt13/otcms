@@ -22,6 +22,7 @@ import {
   TextField,
   timeText,
 } from "./ReceptionUi";
+import { ReceptionBookingDialog } from "./ReceptionBookingDialog";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const REFRESH_MS = 10_000;
@@ -108,6 +109,8 @@ export function AppointmentScreen() {
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState("");
   const [detail, setDetail] = useState<ReceptionAppointment | null>(null);
+  const [booking, setBooking] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -139,7 +142,7 @@ export function AppointmentScreen() {
       controller.abort();
       window.clearInterval(timer);
     };
-  }, [date, status, patientProfileId]);
+  }, [date, status, patientProfileId, reloadKey]);
 
   const keyword = search.trim().toLocaleLowerCase();
   const rows = items
@@ -156,6 +159,7 @@ export function AppointmentScreen() {
       <PageHeader
         title="Lịch hẹn"
         description="Xem lịch hẹn của phòng khám theo ngày và trạng thái; tiếp nhận bệnh nhân đã đến."
+        actions={<Button onClick={() => setBooking(true)}>Đặt lịch hộ</Button>}
       />
       <div className="mb-4 grid gap-3 sm:grid-cols-3">
         <TextField
@@ -240,6 +244,15 @@ export function AppointmentScreen() {
         <AppointmentDetails
           appointment={detail}
           onClose={() => setDetail(null)}
+        />
+      )}
+      {booking && (
+        <ReceptionBookingDialog
+          onBooked={() => {
+            setBooking(false);
+            setReloadKey((value) => value + 1);
+          }}
+          onClose={() => setBooking(false)}
         />
       )}
     </>

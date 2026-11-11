@@ -11,6 +11,8 @@ import { doctorDemoApi, resetDoctorDemo } from "../api/doctorExamDemoApi";
 import type { Prescription } from "../types/doctorExam";
 const request = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/api/client", () => ({ apiRequest: request }));
+// Nút kết thúc lượt điều hướng về danh sách; test này không chạy trong app router.
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
 vi.mock("@/lib/messages/notify", () => ({
   notifySuccess: vi.fn(),
   notifyError: vi.fn(),
@@ -99,6 +101,24 @@ beforeEach(() => {
       if (prescription) return prescription;
       throw new ApiError(404, { code: "MSG-41" });
     }
+    if (path === "/api/v1/visits/current/exam-queue-entry")
+      return {
+        visitId: "current",
+        queueNumber: 1,
+        examStatus: "IN_EXAMINATION",
+        source: "WALK_IN",
+        appointmentId: null,
+        patientProfileId: "patient",
+        patientName: "Patient",
+        doctorProfileId: "doctor",
+        doctorName: "BS. Test",
+        roomId: null,
+        roomLabel: null,
+        serviceId: null,
+        queuedAt: null,
+        startedAt: null,
+        finishedAt: null,
+      };
     if (path.includes("imaging-requests")) return { items: [] };
     throw new Error(`Unexpected request: ${path}`);
   });
@@ -255,13 +275,17 @@ it("live readiness uses persisted Clinical orders and cannot mutate Visit", asyn
   expect(
     screen.queryByRole("button", { name: /Hoàn tất khám/ }),
   ).not.toBeInTheDocument();
+  // Điều kiện chưa đạt: nút kết thúc có mặt nhưng bị khóa.
+  expect(
+    screen.getByRole("button", { name: "Kết thúc lượt khám" }),
+  ).toBeDisabled();
   expect(
     request.mock.calls.some(
       ([, init]) => init?.method && init.method !== "GET",
     ),
   ).toBe(false);
 });
-it("ready demo checklist hands closure to Receptionist and leaves Visit open", async () => {
+it("ready demo checklist lets the doctor finish the visit; the visit stays open until then", async () => {
   window.localStorage.setItem("otcms.doctorDemo", "1");
   await doctorDemoApi.saveExamination(
     "demo-visit-1",
@@ -282,11 +306,14 @@ it("ready demo checklist hands closure to Receptionist and leaves Visit open", a
     </VisitWorkspaceProvider>,
   );
   expect(
-    await screen.findByText(/^Phần khám đã đủ điều kiện\. Lễ tân/),
+    await screen.findByText(
+      /^Phần khám đã đủ điều kiện\. Bác sĩ có thể kết thúc/,
+    ),
   ).toBeInTheDocument();
+  // Lưu khám hoàn tất đưa lượt sang đang khám (demo); đủ điều kiện thì bác sĩ kết thúc được.
   expect(
-    screen.queryByRole("button", { name: /Hoàn tất khám/ }),
-  ).not.toBeInTheDocument();
+    screen.getByRole("button", { name: "Kết thúc lượt khám" }),
+  ).toBeEnabled();
   expect((await doctorDemoApi.getVisitContext("demo-visit-1")).status).not.toBe(
     "COMPLETED",
   );

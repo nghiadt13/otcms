@@ -1,6 +1,9 @@
 "use client";
 
-import type { ReceptionSection } from "../navigation";
+import {
+  isReceptionSectionAvailable,
+  type ReceptionSection,
+} from "../navigation";
 import { useReception } from "./ReceptionProvider";
 import { DataLoading } from "./ReceptionUi";
 import { IntakeScreen } from "./IntakeScreen";
@@ -15,6 +18,7 @@ import { AccountScreen } from "./AccountScreen";
 
 export function ReceptionScreen({ section }: { section: ReceptionSection }) {
   const { data, loading, error } = useReception();
+  if (!isReceptionSectionAvailable(section)) return <ReceptionSectionLocked />;
   if (!data)
     return loading ? (
       <DataLoading />
@@ -51,4 +55,19 @@ export function ReceptionScreen({ section }: { section: ReceptionSection }) {
     case "account":
       return <AccountScreen />;
   }
+}
+
+/** Màn còn dữ liệu giả: ở production khoá cho tới khi nối BE hoặc bật lại cờ demo. */
+function ReceptionSectionLocked() {
+  return (
+    <section className="mx-auto max-w-xl space-y-4 p-6">
+      <h1 className="text-2xl font-semibold">
+        Khu vực lễ tân chưa được kích hoạt
+      </h1>
+      <p>
+        Giao diện đang trong giai đoạn thử nghiệm. Cần kết nối API và phân quyền
+        trước khi sử dụng vận hành.
+      </p>
+    </section>
+  );
 }

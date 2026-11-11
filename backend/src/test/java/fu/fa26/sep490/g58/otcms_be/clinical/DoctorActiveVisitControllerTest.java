@@ -95,7 +95,8 @@ class DoctorActiveVisitControllerTest {
         String step = source.equals("SCHEDULED") ? "SCHEDULED_APPOINTMENT" : "EXAMINATION";
         UUID linked = source.equals("SCHEDULED") ? appointmentId : null;
         when(visits.findActiveVisits(doctorId)).thenReturn(List.of(new DoctorActiveVisit(visitId, patientId, source,
-                linked, assignmentId, step, start, start.plusSeconds(1800))));
+                linked, assignmentId, step, start, start.plusSeconds(1800),
+                fu.fa26.sep490.g58.otcms_be.visit.model.VisitExamStatus.IN_EXAMINATION, 1)));
         when(patients.findClinicalIdentities(List.of(patientId))).thenReturn(Map.of(patientId,
                 new ClinicalIdentity(patientId, "Nguyen Van A", LocalDate.of(2000, 1, 1), "MALE")));
         String json = mvc.perform(get(PATH).with(actor(AccountRole.DOCTOR))).andExpect(status().isOk())
@@ -111,12 +112,14 @@ class DoctorActiveVisitControllerTest {
                 .andExpect(jsonPath("$.items[0].stepCode").value(step))
                 .andExpect(jsonPath("$.items[0].startedAt").value(start.toString()))
                 .andExpect(jsonPath("$.items[0].expectedEnd").value(start.plusSeconds(1800).toString()))
+                .andExpect(jsonPath("$.items[0].examStatus").value("IN_EXAMINATION"))
+                .andExpect(jsonPath("$.items[0].queueNumber").value(1))
                 .andReturn().getResponse().getContentAsString();
         var tree = tools.jackson.databind.json.JsonMapper.builder().build().readTree(json);
         assertEquals(Set.of("items"), tree.propertyNames());
         var item = tree.get("items").get(0);
         assertEquals(Set.of("visitId", "patientProfileId", "patient", "visitSource", "linkedAppointmentId",
-                "assignmentId", "stepCode", "startedAt", "expectedEnd"), item.propertyNames());
+                "assignmentId", "stepCode", "startedAt", "expectedEnd", "examStatus", "queueNumber"), item.propertyNames());
         assertEquals(Set.of("fullName", "dateOfBirth", "gender"), item.get("patient").propertyNames());
         verify(patients).findClinicalIdentities(List.of(patientId));
     }
@@ -132,7 +135,8 @@ class DoctorActiveVisitControllerTest {
 
     @Test void missingPatientProducesDependencyErrorWithoutPartialItems() throws Exception {
         when(visits.findActiveVisits(doctorId)).thenReturn(List.of(new DoctorActiveVisit(visitId, patientId, "WALK_IN",
-                null, assignmentId, "EXAMINATION", Instant.EPOCH, Instant.EPOCH.plusSeconds(1800))));
+                null, assignmentId, "EXAMINATION", Instant.EPOCH, Instant.EPOCH.plusSeconds(1800),
+                fu.fa26.sep490.g58.otcms_be.visit.model.VisitExamStatus.IN_EXAMINATION, 1)));
         when(patients.findClinicalIdentities(List.of(patientId))).thenReturn(Map.of());
         mvc.perform(get(PATH).with(actor(AccountRole.DOCTOR))).andExpect(status().isServiceUnavailable())
                 .andExpect(jsonPath("$.error.code").value("DEPENDENCY_UNAVAILABLE"))

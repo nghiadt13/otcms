@@ -58,6 +58,11 @@ export interface DoctorExamApi {
   getVisitContext(visitId: string, signal?: AbortSignal): Promise<VisitContext>;
   /** Bác sĩ bắt đầu khám: hẹn đặt trước → IN_PROGRESS, vãng lai → bước chăm sóc. */
   startExamination(context: VisitContext): Promise<void>;
+  /**
+   * Bác sĩ kết thúc lượt: lịch hẹn đóng qua trạng thái COMPLETED, walk-in qua lệnh completion. BE từ chối
+   * (VISIT_COMPLETION_NOT_ALLOWED, MSG-42) khi phần khám chưa đủ bằng chứng hoàn tất.
+   */
+  finishVisit(context: VisitContext): Promise<void>;
   getExamination(visitId: string, signal?: AbortSignal): Promise<Examination>;
   saveExamination(
     visitId: string,

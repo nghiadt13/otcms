@@ -10,6 +10,7 @@ import fu.fa26.sep490.g58.otcms_be.visit.model.entity.VisitCareAssignmentJpaEnti
 import fu.fa26.sep490.g58.otcms_be.visit.repository.ClinicVisitJpaRepository;
 import fu.fa26.sep490.g58.otcms_be.visit.repository.VisitCareAssignmentRepository;
 import fu.fa26.sep490.g58.otcms_be.visit.service.VisitClinicalCareContextService;
+import fu.fa26.sep490.g58.otcms_be.visit.service.VisitExamQueueService;
 import fu.fa26.sep490.g58.otcms_be.visit.service.impl.VisitClinicalCareContextServiceImpl;
 import java.time.Instant;
 import java.util.Optional;
@@ -34,6 +35,8 @@ class VisitClinicalContextProductionWiringTest {
         new ApplicationContextRunner().withUserConfiguration(ProductionBeans.class)
                 .withBean(ClinicVisitJpaRepository.class, () -> visits)
                 .withBean(VisitCareAssignmentRepository.class, () -> assignments)
+                // The package scan also finds VisitConclusionAdapter, which needs the exam queue; it is not under test here.
+                .withBean(VisitExamQueueService.class, () -> mock(VisitExamQueueService.class))
                 .run(context -> {
                     assertThat(context).hasNotFailed().hasSingleBean(VisitClinicalContextPort.class)
                             .hasSingleBean(VisitClinicalCareContextService.class);

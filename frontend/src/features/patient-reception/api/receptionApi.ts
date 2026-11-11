@@ -7,19 +7,14 @@ import {
   isFutureSlot,
   availableDoctors,
   patientBookingAt,
-  receptionPriority,
-  agePriority,
   latestRoundReady,
   normalizePhone,
   normalizeText,
   onDuty,
-  priorityRank,
-  queueSort,
   validatePatient,
   withinReturnWindow,
 } from "../schema/receptionRules";
 import {
-  PRIORITIES,
   type Charge,
   type QueueEntry,
   type ReceptionCommand,
@@ -178,15 +173,17 @@ function addQueue(
     date: today(s),
     number: `${roomId.replace(/^p/, "").toUpperCase()}-${String(number).padStart(3, "0")}`,
     status: "waiting",
-    priority: visit.priority,
     joinedAt,
     position: 0,
   };
   s.queues.push(queue);
-  insertByPriority(s, queue);
+  appendToQueue(s, queue);
   return queue;
 }
-function insertByPriority(s: ReceptionState, entry: QueueEntry) {
+// Hàng chờ xếp theo thời điểm vào hàng; vị trí đánh lại theo thứ tự đó.
+const byQueueOrder = (a: QueueEntry, b: QueueEntry) =>
+  a.position - b.position || a.joinedAt.localeCompare(b.joinedAt);
+function appendToQueue(s: ReceptionState, entry: QueueEntry) {
   const list = s.queues
     .filter(
       (q) =>
@@ -196,13 +193,9 @@ function insertByPriority(s: ReceptionState, entry: QueueEntry) {
         q.date === entry.date &&
         q.status === "waiting",
     )
-    .sort(queueSort);
+    .sort(byQueueOrder);
   const index = list.findIndex(
-    (q) =>
-      !q.calledAt &&
-      (priorityRank(q.priority) > priorityRank(entry.priority) ||
-        (priorityRank(q.priority) === priorityRank(entry.priority) &&
-          q.joinedAt > entry.joinedAt)),
+    (q) => !q.calledAt && q.joinedAt > entry.joinedAt,
   );
   list.splice(index < 0 ? list.length : index, 0, entry);
   list.forEach((q, i) => {
@@ -500,24 +493,7 @@ export async function executeReception(
     }
     case "check-in": {
       requireThat(command.present, "MSG-39", 400);
-      const patient = find(s.patients, command.patientId, "MSG-18");
-      requireThat(command.priority in PRIORITIES, "MSG-39", 400);
-      requireThat(
-        command.priority !== "pregnant" || patient.sex === "Nữ",
-        "MSG-39",
-        400,
-      );
-      requireThat(
-        !["child", "elderly"].includes(command.priority) ||
-          command.priority === agePriority(patient.dob, today(s)),
-        "MSG-39",
-        400,
-      );
-      const priority = receptionPriority(
-        patient.dob,
-        today(s),
-        command.priority,
-      );
+      find(s.patients, command.patientId, "MSG-18");
       if (command.returnVisitId) {
         const visit = find(s.visits, command.returnVisitId);
         requireThat(
@@ -533,7 +509,6 @@ export async function executeReception(
           ),
           "MSG-37",
         );
-        visit.priority = priority;
         const paid = s.orders.filter(
           (o) => o.visitId === visit.id && o.status === "paid",
         );
@@ -612,7 +587,6 @@ export async function executeReception(
         doctorId: doctor.id,
         firstCheckIn: today(s),
         status: "waiting",
-        priority,
         followUp: false,
         appointmentId: a?.id,
       };
@@ -639,7 +613,7 @@ export async function executeReception(
             q.date === today(s) &&
             q.status === "waiting",
         )
-        .sort(queueSort)[0];
+        .sort(byQueueOrder)[0];
       requireThat(entry, "MSG-41");
       requireThat(
         !s.queues.some(
@@ -670,7 +644,7 @@ export async function executeReception(
         q.status = "waiting";
         q.calledAt = undefined;
         q.joinedAt = s.clock;
-        insertByPriority(s, q);
+        appendToQueue(s, q);
       } else {
         requireThat(q.status === "waiting" && q.calledAt, "MSG-42");
         if (command.action === "absent") {
@@ -697,13 +671,12 @@ export async function executeReception(
             x.date === today(s) &&
             x.status === "waiting",
         )
-        .sort(queueSort);
+        .sort(byQueueOrder);
       requireThat(
         Number.isInteger(command.position) &&
           command.position >= 1 &&
           command.position <= list.length &&
-          command.reason.trim().length >= 5 &&
-          command.priority in PRIORITIES,
+          command.reason.trim().length >= 5,
         "MSG-39",
         400,
       );
@@ -711,33 +684,18 @@ export async function executeReception(
         !list.slice(command.position - 1).some((x) => x.calledAt),
         "MSG-42",
       );
-      const before = `${q.number}, vị trí ${q.position}, ${PRIORITIES[q.priority]}`;
+      const before = `${q.number}, vị trí ${q.position}`;
       list.splice(list.indexOf(q), 1);
       list.splice(command.position - 1, 0, q);
       list.forEach((x, i) => {
         x.position = i + 1;
       });
-      const visit = find(s.visits, q.visitId);
-      const patient = find(s.patients, visit.patientId);
-      requireThat(
-        command.priority !== "pregnant" || patient.sex === "Nữ",
-        "MSG-39",
-        400,
-      );
-      requireThat(
-        !["child", "elderly"].includes(command.priority) ||
-          command.priority === agePriority(patient.dob, today(s)),
-        "MSG-39",
-        400,
-      );
-      q.priority = receptionPriority(patient.dob, today(s), command.priority);
-      visit.priority = q.priority;
       history(
         s,
         "Điều chỉnh hàng đợi",
         command.reason.trim(),
         before,
-        `${q.number}, vị trí ${q.position}, ${PRIORITIES[q.priority]}`,
+        `${q.number}, vị trí ${q.position}`,
       );
       break;
     }

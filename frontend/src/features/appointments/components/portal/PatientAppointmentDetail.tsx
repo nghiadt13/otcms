@@ -14,14 +14,18 @@ import {
   APPOINTMENT_STATUS_LABELS,
   APPOINTMENT_STATUS_TONE,
 } from "@/lib/domain/clinicVisit";
-import { messageFromError } from "@/lib/messages/appMessages";
+import { todayIsoDate } from "@/lib/format/formatDate";
+import { formatAppMessage, messageFromError } from "@/lib/messages/appMessages";
 import { PATIENT_ROUTES } from "@/lib/routes/patientRoutes";
 import { usePatientAppointment } from "../../hooks/usePatientAppointment";
+import { usePatientExamQueueEntry } from "../../hooks/usePatientExamQueueEntry";
+import { dateOfStart } from "../../schema/bookingTime";
 import type { PatientAppointment } from "../../types/patientAppointment";
 import { PatientAppointmentActions } from "./PatientAppointmentActions";
 import { PatientArrivalQrCheckIn } from "./PatientArrivalQrCheckIn";
 import { PatientAppointmentFacts } from "./PatientAppointmentFacts";
 import { PatientCancelDialog } from "./PatientCancelDialog";
+import { PatientExamQueueStatus } from "./PatientExamQueueStatus";
 import { PatientLoadError } from "./PatientLoadError";
 import {
   appointmentDetailTitle,
@@ -33,9 +37,10 @@ import {
 // trang không tìm thấy của khu, không lộ lý do. Mọi nút theo `allowedActions` của BE.
 
 export function PatientAppointmentDetail({ id }: { id: string }) {
-  const { appointment, loading, error, reload, replace } =
+  const { appointment, loadedAt, loading, error, reload, replace } =
     usePatientAppointment(id);
   const { profiles } = useLinkedProfiles();
+  const queue = usePatientExamQueueEntry(appointment?.visitId ?? null);
   const [cancelOpen, setCancelOpen] = useState(false);
 
   if (error && isApiError(error) && error.code === "MSG-29") notFound();
@@ -56,6 +61,21 @@ export function PatientAppointmentDetail({ id }: { id: string }) {
   const patientCode = profiles.find(
     (profile) => profile.id === appointment.patient.id,
   )?.patientCode;
+  // Mốc tính theo lúc tải lịch (`loadedAt`, cùng lúc BE tính allowedActions): đã tới giờ chưa, và có
+  // phải ngày hôm nay (giờ VN) không.
+  const started = Date.parse(appointment.startAt) <= loadedAt;
+  const paid = appointment.examFee.status === "PAID";
+  const feeSettled = paid || appointment.examFee.status === "NOT_REQUIRED";
+  const isToday =
+    dateOfStart(appointment.startAt) === todayIsoDate(new Date(loadedAt));
+  // Check-in QR chỉ trong ngày hẹn, khi phí đã xong (A7); trong ngày không có khung giờ.
+  const canArriveByQr =
+    appointment.status === "BOOKED" && isToday && feeSettled;
+  // Còn dưới hạn tự hủy: không có nút hủy, nhắc bằng MSG-32 (plan B1).
+  const cancelWindowClosed =
+    appointment.status === "BOOKED" &&
+    !started &&
+    !appointment.allowedActions.includes("cancel");
 
   return (
     <DetailFrame
@@ -74,23 +94,30 @@ export function PatientAppointmentDetail({ id }: { id: string }) {
         </Alert>
       ) : null}
       <PatientAppointmentFacts appointment={appointment} />
-      {appointment.status === "BOOKED" &&
-      appointment.examFee.status === "PAID" ? (
+      {queue.entry ? <PatientExamQueueStatus entry={queue.entry} /> : null}
+      {queue.error ? (
+        <p className="text-base text-destructive" role="alert">
+          {messageFromError(queue.error)}
+        </p>
+      ) : null}
+      {canArriveByQr ? (
         <PatientArrivalQrCheckIn
           appointment={appointment}
           onRecorded={() => void reload()}
         />
       ) : null}
-      {appointment.status === "BOOKED" &&
-      appointment.examFee.status === "PAID" &&
-      !appointment.allowedActions.includes("cancel") ? (
+      {appointment.status === "BOOKED" && started && paid ? (
         <p className="text-base text-muted-foreground">
           Lịch hẹn đã qua và phí khám đã thanh toán. Vui lòng liên hệ lễ tân để
           được hỗ trợ.
         </p>
       ) : null}
-      {appointment.status === "BOOKED" &&
-      appointment.allowedActions.includes("cancel") ? (
+      {cancelWindowClosed ? (
+        <p className="text-base text-muted-foreground">
+          {formatAppMessage("MSG-32")}
+        </p>
+      ) : null}
+      {appointment.status === "BOOKED" && !started ? (
         <p className="text-base text-muted-foreground">
           {arrivalNote(patientCode)}
         </p>

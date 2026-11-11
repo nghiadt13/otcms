@@ -274,6 +274,7 @@ function patient(patch: Partial<TodayPatient>): TodayPatient {
     patientCode: null,
     serviceName: "Khám",
     scheduledAt: "2026-11-04T01:00:00Z",
+    queueNumber: null,
     source: "BOOKED",
     status: "WAITING_FOR_EXAMINATION",
     ...patch,
@@ -291,7 +292,7 @@ describe("Bệnh nhân hôm nay (UC35)", () => {
     patient({ visitId: null, patientName: "Lê Văn C", status: "NOT_ARRIVED" }),
   ];
 
-  it("đếm theo trạng thái và lọc theo tên không phân biệt dấu, sắp theo giờ", () => {
+  it("đếm theo trạng thái và lọc theo tên không phân biệt dấu, sắp theo nhóm trạng thái", () => {
     const counts = countByStatus(list);
     expect(counts).toMatchObject({
       ALL: 3,
@@ -302,12 +303,40 @@ describe("Bệnh nhân hôm nay (UC35)", () => {
     expect(
       filterPatients(list, "ALL", "tran thi").map((p) => p.visitId),
     ).toEqual(["2"]);
+    // Đang khám trước, rồi chờ khám, rồi chưa đến (dù giờ hẹn của chờ khám muộn hơn).
     expect(filterPatients(list, "ALL", "").map((p) => p.visitId)).toEqual([
       "2",
-      null,
       "1",
+      null,
     ]);
     expect(filterPatients(list, "IN_EXAMINATION", "").length).toBe(1);
+  });
+
+  it("chờ khám sắp theo số thứ tự chứ không theo giờ; đã xong xếp cuối", () => {
+    const queue = [
+      patient({
+        visitId: "w2",
+        queueNumber: 2,
+        scheduledAt: "2026-11-04T01:00:00Z",
+      }),
+      patient({
+        visitId: "w1",
+        queueNumber: 1,
+        scheduledAt: "2026-11-04T05:00:00Z",
+      }),
+      patient({ visitId: "done", status: "COMPLETED", queueNumber: 0 }),
+      patient({
+        visitId: "await",
+        status: "AWAITING_CONCLUSION",
+        queueNumber: 3,
+      }),
+    ];
+    expect(filterPatients(queue, "ALL", "").map((p) => p.visitId)).toEqual([
+      "await",
+      "w1",
+      "w2",
+      "done",
+    ]);
   });
 
   it("chỉ mở được lượt khám đã có mã (đã check-in)", () => {

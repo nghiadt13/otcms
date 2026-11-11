@@ -1,4 +1,5 @@
 import { prescriptionItems } from "../schema/prescription";
+import { activeOrders, orderIsResolved } from "../schema/visitProgress";
 import { mockDelay, mockFail, clone } from "@/lib/api/mockServer";
 import type {
   Advice,
@@ -155,6 +156,21 @@ export const doctorDemoApi: DoctorExamApi = {
   async startExamination(context: VisitContext) {
     await wait();
     visitOf(context.visitId).context.status = "IN_EXAMINATION";
+  },
+  async finishVisit(context: VisitContext) {
+    await wait();
+    const visit = visitOf(context.visitId);
+    const now = Date.now();
+    const open =
+      visit.context.status === "IN_EXAMINATION" ||
+      visit.context.status === "AWAITING_CONCLUSION";
+    const waiting = activeOrders(
+      visit.orders.map((o) => progressed(o, now)),
+    ).some((o) => !orderIsResolved(o));
+    // Giống BE: chỉ kết thúc khi phần khám đã hoàn tất và mọi chỉ định đã có kết quả hoặc đã hủy.
+    if (!open || visit.examination.status !== "COMPLETED" || waiting)
+      mockFail(409, "MSG-42");
+    visit.context.status = "COMPLETED";
   },
   async getExamination(visitId, signal) {
     await wait(signal);

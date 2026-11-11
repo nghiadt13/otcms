@@ -120,5 +120,7 @@ class VisitCompletionProductionWiringTest {
         @Bean NotificationPublisher notifications() { return mock(NotificationPublisher.class); }
         @Bean VisitReviewSourceService reviewSources() { return mock(VisitReviewSourceService.class); }
         @Bean StaffAvailabilityProviderQueryService names() { return mock(StaffAvailabilityProviderQueryService.class); }
+        @Bean VisitExamQueueService examQueue() { return mock(VisitExamQueueService.class); }
+        @Bean ManageVisitCareAssignmentService careAssignments() { return mock(ManageVisitCareAssignmentService.class); }
     }
 }

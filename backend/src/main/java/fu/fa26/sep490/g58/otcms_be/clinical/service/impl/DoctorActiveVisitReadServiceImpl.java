@@ -41,7 +41,8 @@ public class DoctorActiveVisitReadServiceImpl implements DoctorActiveVisitReadSe
             return new ActiveVisit(visit.visitId(), visit.patientProfileId(),
                     new PatientIdentity(patient.fullName(), patient.dateOfBirth(), patient.gender()),
                     visit.visitSource(), visit.linkedAppointmentId(), visit.assignmentId(), visit.stepCode(),
-                    visit.startedAt(), visit.expectedEnd());
+                    visit.startedAt(), visit.expectedEnd(),
+                    visit.examStatus() == null ? null : visit.examStatus().name(), visit.queueNumber());
         }).toList();
         return new ActiveVisits(items);
     }

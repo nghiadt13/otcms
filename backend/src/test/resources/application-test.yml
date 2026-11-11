@@ -27,7 +27,9 @@ spring:
 
 appointment:
   booking:
-    # Background sweeper is off in tests (shared DB); tests call ExpireUnpaidAppointmentsJob.sweepOnce().
+    # Background sweepers are off in tests (shared DB); tests call ExpireUnpaidAppointmentsJob.sweepOnce()
+    # and MarkNoShowAfterShiftJob.sweepOnce() directly.
     payment-hold-sweep-enabled: false
+    no-show-sweep-enabled: false
     readiness:
       required: false

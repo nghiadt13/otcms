@@ -160,9 +160,9 @@ class ReassignAppointmentT026PostgresIntegrationTest {
 
     @Test
     void adminDoesNotGainOtherAppointmentMutationPermissions() throws Exception {
+        // Admin may cancel (B4, see AppointmentLifecycleT029/CancelAppointmentT025 tests); every other mutation stays denied.
         String root = "/api/v1/appointments/" + appointment;
         var requests = List.of(
-                post(root + "/cancel").content("{\"reason\":\"Cancelled\"}"),
                 org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch(root + "/reschedule")
                         .content("{\"startTime\":\"" + SLOT + "\",\"reason\":\"Reschedule\"}"),
                 org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch(root + "/status")

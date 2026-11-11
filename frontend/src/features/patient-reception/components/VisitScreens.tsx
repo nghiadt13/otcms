@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { Printer } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
-import { onDuty, normalizeText, queueSort } from "../schema/receptionRules";
+import { onDuty, normalizeText } from "../schema/receptionRules";
 import { receptionDemoExpiry } from "../api/receptionApi";
 import type { Visit, ResultSheet } from "../types";
 import { useReception } from "./ReceptionProvider";
@@ -140,7 +140,7 @@ export function VisitDetail({
                     x.date === q.date &&
                     x.status === "waiting",
                 )
-                .sort(queueSort);
+                .sort((a, b) => a.position - b.position);
               return (
                 <li
                   key={q.id}

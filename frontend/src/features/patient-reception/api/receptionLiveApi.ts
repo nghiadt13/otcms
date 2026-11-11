@@ -59,13 +59,6 @@ export type ReceptionArrivalWorklist = {
   items: ReceptionArrival[];
 };
 
-export type ReceptionWalkIn = {
-  visitId: string;
-  patientProfileId: string;
-  priorAppointmentId: string | null;
-  arrivedAt: string;
-};
-
 export type ReceptionQueue = {
   date: string;
   page: number;
@@ -215,37 +208,31 @@ export function listWalkInReceptionQueue(date: string, signal?: AbortSignal) {
   });
 }
 
+/** Kết quả check-in (A7): lượt đã vào hàng chờ với số thứ tự của bác sĩ và phòng của ca. */
+export type ReceptionCheckIn = {
+  appointmentId: string;
+  visitId: string;
+  checkedInAt: string;
+  queueNumber: number;
+  doctorName: string;
+  roomLabel: string | null;
+};
+
 export function checkInAppointment(input: {
   appointmentId: string;
   verifiedPatientProfileId: string;
   idempotencyKey: string;
 }) {
-  return apiRequest<{
-    appointmentId: string;
-    visitId: string;
-    checkedInAt: string;
-  }>(`/api/v1/appointments/${input.appointmentId}/check-in`, {
-    method: "POST",
-    headers: { "Idempotency-Key": input.idempotencyKey },
-    body: JSON.stringify({
-      verifiedPatientProfileId: input.verifiedPatientProfileId,
-    }),
-  });
-}
-
-export function createReceptionWalkIn(input: {
-  patientProfileId: string;
-  priorAppointmentId?: string;
-  idempotencyKey: string;
-}) {
-  return apiRequest<ReceptionWalkIn>("/api/v1/visits/walk-ins", {
-    method: "POST",
-    headers: { "Idempotency-Key": input.idempotencyKey },
-    body: JSON.stringify({
-      patientProfileId: input.patientProfileId,
-      priorAppointmentId: input.priorAppointmentId,
-    }),
-  });
+  return apiRequest<ReceptionCheckIn>(
+    `/api/v1/appointments/${input.appointmentId}/check-in`,
+    {
+      method: "POST",
+      headers: { "Idempotency-Key": input.idempotencyKey },
+      body: JSON.stringify({
+        verifiedPatientProfileId: input.verifiedPatientProfileId,
+      }),
+    },
+  );
 }
 
 export type ClinicalRoundOrder = {

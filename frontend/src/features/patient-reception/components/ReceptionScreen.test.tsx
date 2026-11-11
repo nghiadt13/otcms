@@ -33,24 +33,19 @@ function mount(section: Parameters<typeof ReceptionScreen>[0]["section"]) {
 }
 
 describe("receptionist screens with real mock adapter", () => {
-  it("loads real queue state, calls and marks a patient absent without closing the visit", async () => {
-    mount("queues");
-    await screen.findByRole("heading", { name: "Hàng đợi phòng" });
-    fireEvent.click(
-      screen.getByRole("button", { name: "Gọi bệnh nhân tiếp theo" }),
-    );
-    await screen.findByRole("button", { name: "Đã vào phòng" });
-    expect(
-      screen.getByRole("button", { name: "Gọi bệnh nhân tiếp theo" }),
-    ).toBeDisabled();
-    fireEvent.click(screen.getByRole("button", { name: "Ghi vắng mặt" }));
-    await screen.findByRole("button", { name: "Đã quay lại" });
-    expect(
-      (await loadReception()).visits.find((v) => v.id === "LK001")?.status,
-    ).toBe("waiting");
-    expect(
-      screen.queryByRole("button", { name: /đóng lượt/i }),
-    ).not.toBeInTheDocument();
+  it("ở production không có cờ demo, màn còn dữ liệu giả bị khoá", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("NEXT_PUBLIC_RECEPTION_DEMO", "");
+    try {
+      mount("payments");
+      expect(
+        await screen.findByRole("heading", {
+          name: "Khu vực lễ tân chưa được kích hoạt",
+        }),
+      ).toBeInTheDocument();
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
   it("searches by phone alone and reveals administrative details only", async () => {
     mount("patients");

@@ -8,7 +8,11 @@ import { buttonVariants } from "@/components/ui/button";
 import { formatDate, formatTime, todayIsoDate } from "@/lib/format/formatDate";
 import { DOCTOR_ROUTES, doctorVisitHref } from "@/lib/routes/doctorRoutes";
 import { useTodayPatients } from "../hooks/useDoctorData";
-import { canOpenVisit, countByStatus } from "../schema/todayPatientsModel";
+import {
+  canOpenVisit,
+  countByStatus,
+  sortTodayPatients,
+} from "../schema/todayPatientsModel";
 import { TodayStatusBadge } from "./doctorStatus";
 
 // Bảng điều khiển: tóm tắt công việc trong ngày và lối vào bệnh nhân cần xử lý (R3 màn 4).
@@ -24,15 +28,15 @@ const STATS = [
 export function DoctorDashboard() {
   const { data, error, loading, refresh } = useTodayPatients();
   const counts = countByStatus(data ?? []);
-  const active = (data ?? [])
-    .filter(
+  const active = sortTodayPatients(
+    (data ?? []).filter(
       (p) =>
         canOpenVisit(p) &&
         (p.status === "IN_EXAMINATION" ||
           p.status === "AWAITING_CONCLUSION" ||
           p.status === "WAITING_FOR_EXAMINATION"),
-    )
-    .sort((a, b) => a.scheduledAt.localeCompare(b.scheduledAt));
+    ),
+  );
 
   return (
     <>
@@ -80,7 +84,9 @@ export function DoctorDashboard() {
                     className="flex flex-wrap items-center gap-3 px-4 py-3"
                   >
                     <span className="w-14 text-sm tabular-nums text-muted-foreground">
-                      {formatTime(patient.scheduledAt)}
+                      {patient.scheduledAt
+                        ? formatTime(patient.scheduledAt)
+                        : "—"}
                     </span>
                     <div className="min-w-0 flex-1">
                       <p className="truncate font-medium">

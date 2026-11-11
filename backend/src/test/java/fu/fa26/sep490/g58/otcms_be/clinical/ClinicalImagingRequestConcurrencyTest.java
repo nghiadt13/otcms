@@ -106,7 +106,8 @@ class ClinicalImagingRequestConcurrencyTest {
         when(rounds.findById(winner.getId())).thenReturn(Optional.of(winner));
         when(orders.findByOrderingRoundId(winner.getId())).thenReturn(List.of());
         var target = new ClinicalImagingRequestTransactionService(preparation, writer, replays, rounds, orders, Clock.systemUTC(),
-                mock(fu.fa26.sep490.g58.otcms_be.common.service.CoordinationGuardService.class));
+                mock(fu.fa26.sep490.g58.otcms_be.common.service.CoordinationGuardService.class),
+                mock(fu.fa26.sep490.g58.otcms_be.clinical.service.VisitConclusionPort.class));
         var proxy = new ProxyFactory(target);
         proxy.setProxyTargetClass(true);
         proxy.addAdvice(new TransactionInterceptor(manager, new AnnotationTransactionAttributeSource()));

@@ -4,6 +4,8 @@ import {
   APPOINTMENT_STATUS_TONE,
   EXAM_FEE_STATUS_LABELS,
   EXAM_FEE_STATUS_TONE,
+  EXAM_QUEUE_STATUS_LABELS,
+  EXAM_QUEUE_STATUS_TONE,
   PAYMENT_STATUS_LABELS,
   PAYMENT_STATUS_TONE,
   QUEUE_STATUS_LABELS,
@@ -34,10 +36,24 @@ describe("clinicVisit: nhãn và tone", () => {
     ["chỉ định", SERVICE_ORDER_STATUS_LABELS, SERVICE_ORDER_STATUS_TONE],
     ["phí khám", EXAM_FEE_STATUS_LABELS, EXAM_FEE_STATUS_TONE],
     ["thanh toán", PAYMENT_STATUS_LABELS, PAYMENT_STATUS_TONE],
+    ["hàng chờ khám", EXAM_QUEUE_STATUS_LABELS, EXAM_QUEUE_STATUS_TONE],
   ])("mỗi trạng thái %s đều có nhãn và tone", (_name, labels, tones) => {
     expect(Object.keys(tones).sort()).toEqual(Object.keys(labels).sort());
     for (const value of Object.values(labels)) {
       expect(value.trim().length).toBeGreaterThan(0);
     }
+  });
+});
+
+describe("clinicVisit: hàng chờ khám", () => {
+  it("nhãn trạng thái hàng chờ theo bảng đã chốt", () => {
+    expect(EXAM_QUEUE_STATUS_LABELS).toEqual({
+      PENDING_PAYMENT: "Chờ thu phí",
+      WAITING: "Chờ khám",
+      IN_EXAMINATION: "Đang khám",
+      AWAITING_CONCLUSION: "Chờ kết luận",
+      COMPLETED: "Đã khám xong",
+      CANCELLED: "Đã hủy",
+    });
   });
 });

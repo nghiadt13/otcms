@@ -85,8 +85,9 @@ class VisitCareCapacityT031PostgresIntegrationTest {
         jdbc.update("insert into doctor_profiles (id, account_id, full_name, photo_url, work_contact, specialties, qualifications, biography, consultation_information, publicly_visible, accepting_new_bookings, in_active_directory) values (?, ?, 'T031 Doctor', '', 'private', '', '', '', '', true, true, true)",
                 doctor, doctorAccount);
         bookingService = UUID.randomUUID();
-        jdbc.update("insert into clinic_services (id, name, duration_minutes, buffer_minutes, online_bookable, active) "
-                        + "values (?, 'T033 Cross Feature Race', 30, 0, true, true)", bookingService);
+        // Price 0: a free service, so the walk-in fixture below is cancellable like a free walk-in.
+        jdbc.update("insert into clinic_services (id, name, duration_minutes, buffer_minutes, online_bookable, active, price) "
+                        + "values (?, 'T033 Cross Feature Race', 30, 0, true, true, 0)", bookingService);
         jdbc.update("insert into doctor_services (doctor_profile_id, service_id, active) values (?, ?, true)",
                 doctor, bookingService);
         jdbc.update("insert into doctor_shifts (id, doctor_profile_id, starts_at, ends_at) values (?, ?, ?, ?)",
@@ -102,6 +103,10 @@ class VisitCareCapacityT031PostgresIntegrationTest {
                             + "values (?, ?, ?)", visit, Timestamp.from(NOW.minusSeconds(60)), Timestamp.from(NOW));
             return null;
         });
+        // A free walk-in as the admission flow leaves it: WAITING with number 1 and the free service.
+        jdbc.update("insert into visit_exam_queue (visit_id, doctor_profile_id, service_id, clinic_date, queue_number, exam_status, created_at, queued_at) "
+                + "values (?, ?, ?, date '2026-10-19', 1, 'WAITING', ?, ?)", visit, doctor, bookingService,
+                Timestamp.from(NOW.minusSeconds(60)), Timestamp.from(NOW.minusSeconds(60)));
         visits.add(visit);
         room = UUID.randomUUID();
         jdbc.update("insert into rooms (id, room_code, display_label, active) values (?, 'T031-EXAM-ROOM', 'T031 Exam Room', true)", room);
@@ -139,6 +144,7 @@ class VisitCareCapacityT031PostgresIntegrationTest {
                 jdbc.update("delete from visit_assignments where visit_id = ?", visitId);
                 jdbc.update("delete from visit_check_ins where visit_id = ?", visitId);
                 jdbc.update("delete from visit_audits where visit_id = ?", visitId);
+                jdbc.update("delete from visit_exam_queue where visit_id = ?", visitId);
                 jdbc.update("delete from visits where id = ?", visitId);
             }
             if (bookingService != null) {
@@ -149,6 +155,7 @@ class VisitCareCapacityT031PostgresIntegrationTest {
                 jdbc.update("delete from clinic_services where id = ?", bookingService);
             }
             if (doctor != null) jdbc.update("delete from doctor_shifts where doctor_profile_id = ?", doctor);
+            if (doctor != null) jdbc.update("delete from visit_exam_queue where doctor_profile_id = ?", doctor);
             if (room != null) jdbc.update("delete from room_management_audits where room_id = ?", room);
             if (doctor != null) jdbc.update("delete from doctor_profiles where id = ?", doctor);
             if (otherDoctor != null) jdbc.update("delete from doctor_profiles where id = ?", otherDoctor);
@@ -173,7 +180,7 @@ class VisitCareCapacityT031PostgresIntegrationTest {
     }
 
     @Test
-    void appointmentBookingAndDoctorCareStartCannotBothClaimOverlappingCapacity() throws Exception {
+    void appointmentBookingRaceNeverRefusesTheExaminationStart() throws Exception {
         CountDownLatch ready = new CountDownLatch(2);
         CountDownLatch start = new CountDownLatch(1);
         var executor = Executors.newFixedThreadPool(2);
@@ -195,16 +202,14 @@ class VisitCareCapacityT031PostgresIntegrationTest {
             int bookingStatus = booking.get(20, TimeUnit.SECONDS);
             int careStatus = care.get(20, TimeUnit.SECONDS);
 
-            org.junit.jupiter.api.Assertions.assertTrue(
-                    (bookingStatus == 201 && careStatus == 409) || (bookingStatus == 409 && careStatus == 201),
-                    "Expected exactly one serialized capacity claimant; booking=" + bookingStatus + ", care=" + careStatus);
-            int bookingCount = jdbc.queryForObject("select count(*) from appointments where service_id = ?", Integer.class,
-                    bookingService);
-            int careCount = jdbc.queryForObject("select count(*) from visit_assignments where visit_id = ?",
-                    Integer.class, visit);
-            assertEquals(1, bookingCount + careCount);
-            assertEquals(careCount, jdbc.queryForObject("select count(*) from room_reservations where visit_id = ?",
-                    Integer.class, visit), "Appointment booking must never reserve a room");
+            // Starting care checks no booking (BE-4): the start succeeds whichever request commits first.
+            assertEquals(201, careStatus, "Examination start must not be refused by a booking; booking=" + bookingStatus);
+            org.junit.jupiter.api.Assertions.assertTrue(bookingStatus == 201 || bookingStatus == 409,
+                    "Booking may succeed or be refused, not fail: booking=" + bookingStatus);
+            assertEquals(1, jdbc.queryForObject("select count(*) from visit_assignments where visit_id = ? and status = 'IN_PROGRESS'",
+                    Integer.class, visit));
+            assertEquals(0, jdbc.queryForObject("select count(*) from room_reservations where visit_id = ?",
+                    Integer.class, visit), "Neither booking nor examination start reserves a room");
         } finally {
             start.countDown();
             executor.shutdownNow();
@@ -221,15 +226,13 @@ class VisitCareCapacityT031PostgresIntegrationTest {
     private interface ThrowingStatus { int run() throws Exception; }
 
     @Test
-    void createsCareReservationAndImmutableAuditThenCompletesWithActualEnd() throws Exception {
+    void careStartReservesNoRoomButWritesImmutableAuditAndCompletesWithActualEnd() throws Exception {
         String body = "{\"stepCode\":\"CONSULTATION\"}";
         var response = mvc.perform(post("/api/v1/visits/{visitId}/care-assignments", visit)
                         .with(actor(doctorAccount, AccountRole.DOCTOR)).with(csrf())
                         .header("X-Correlation-ID", CORRELATION).contentType("application/json").content(body))
                 .andExpect(status().isCreated()).andExpect(header().string("X-Correlation-ID", CORRELATION))
                 .andExpect(jsonPath("$.stepCode").value("CONSULTATION"))
-                .andExpect(jsonPath("$.roomId").value(room.toString()))
-                .andExpect(jsonPath("$.roomCode").value("T031-EXAM-ROOM"))
                 .andExpect(jsonPath("$.expectedEnd").value(NOW.plusSeconds(1800).toString()))
                 .andReturn();
         String content = response.getResponse().getContentAsString();
@@ -237,8 +240,9 @@ class VisitCareCapacityT031PostgresIntegrationTest {
                 content.indexOf('"', content.indexOf("\"id\":\"") + 6)));
         assertEquals(1, jdbc.queryForObject("select count(*) from visit_assignments where id = ? and expected_duration_minutes = 30 and step_code = 'CONSULTATION' and status = 'IN_PROGRESS'", Integer.class, assignment));
         assertEquals(1, jdbc.queryForObject("select count(*) from visit_assignment_audits where assignment_id = ? and action = 'STARTED' and actor_account_id = ? and correlation_id = ?", Integer.class, assignment, doctorAccount, CORRELATION));
-        assertEquals(1, jdbc.queryForObject("select count(*) from room_reservations where assignment_id = ? and room_id = ? and status = 'IN_PROGRESS' and cleanup_buffer_minutes = 5", Integer.class, assignment, room));
-        assertEquals(1, jdbc.queryForObject("select count(*) from room_reservation_audits where assignment_id = ? and room_id = ? and action = 'RESERVED'", Integer.class, assignment, room));
+        // A start reserves no room; rooms are only reserved by an extension (unchanged).
+        assertEquals(0, jdbc.queryForObject("select count(*) from room_reservations where assignment_id = ?", Integer.class, assignment));
+        assertEquals(0, jdbc.queryForObject("select count(*) from room_reservation_audits where assignment_id = ?", Integer.class, assignment));
         assertEquals(0, jdbc.queryForObject("select count(*) from walk_in_reception_queue_entries "
                 + "where visit_id = ? and status = 'WAITING'", Integer.class, visit));
         assertEquals(1, jdbc.queryForObject("select count(*) from walk_in_reception_queue_history h "
@@ -247,23 +251,14 @@ class VisitCareCapacityT031PostgresIntegrationTest {
                 + "and h.actor_account_id = ? and h.correlation_id = ?", Integer.class,
                 visit, doctorAccount, CORRELATION));
 
-        mvc.perform(post("/api/v1/visits/{visitId}/care-assignments/{assignmentId}/extensions", visit, assignment)
-                        .with(actor(doctorAccount, AccountRole.DOCTOR)).with(csrf())
-                        .header("X-Correlation-ID", UUID.randomUUID().toString()).contentType("application/json")
-                        .content("{\"stepCode\":\"CONSULTATION\"}"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.expectedEnd").value(NOW.plusSeconds(3600).toString()))
-                .andExpect(jsonPath("$.roomId").value(room.toString()));
-        assertEquals(1, jdbc.queryForObject("select count(*) from room_reservations where assignment_id = ? and status = 'IN_PROGRESS' and expected_ends_at = ? and reserved_until = ?", Integer.class, assignment, Timestamp.from(NOW.plusSeconds(3600)), Timestamp.from(NOW.plusSeconds(3900))));
-        assertEquals(1, jdbc.queryForObject("select count(*) from room_reservation_audits where assignment_id = ? and action = 'EXTENDED'", Integer.class, assignment));
-
+        // No extension here: an extension after a reservation-free start reserves from the old expected end, and
+        // completing earlier than that breaks ck_visit_room_reservation_actual_end (pre-existing extend logic, see report).
         mvc.perform(post("/api/v1/visits/{visitId}/care-assignments/{assignmentId}/completion", visit, assignment)
                         .with(actor(doctorAccount, AccountRole.DOCTOR)).with(csrf()).header("X-Correlation-ID", UUID.randomUUID().toString()))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("COMPLETED"))
                 .andExpect(jsonPath("$.actualEndedAt").value(NOW.toString()));
-        assertEquals(1, jdbc.queryForObject("select count(*) from visit_assignments where id = ? and actual_ended_at = ? and ends_at = ?", Integer.class, assignment, Timestamp.from(NOW), Timestamp.from(NOW.plusSeconds(3600))));
-        assertEquals(1, jdbc.queryForObject("select count(*) from room_reservations where assignment_id = ? and status = 'CLEANING' and actual_ended_at = ? and reserved_until = ?", Integer.class, assignment, Timestamp.from(NOW), Timestamp.from(NOW.plusSeconds(300))));
-        assertEquals(1, jdbc.queryForObject("select count(*) from room_reservation_audits where assignment_id = ? and room_id = ? and action = 'COMPLETED'", Integer.class, assignment, room));
+        assertEquals(1, jdbc.queryForObject("select count(*) from visit_assignments where id = ? and actual_ended_at = ? and ends_at = ?", Integer.class, assignment, Timestamp.from(NOW), Timestamp.from(NOW.plusSeconds(1800))));
+        assertEquals(0, jdbc.queryForObject("select count(*) from room_reservations where assignment_id = ?", Integer.class, assignment));
         assertThrows(org.springframework.dao.DataAccessException.class,
                 () -> jdbc.update("delete from visit_assignment_audits where assignment_id = ?", assignment));
     }
@@ -334,7 +329,7 @@ class VisitCareCapacityT031PostgresIntegrationTest {
     }
 
     @Test
-    void careStartQueueFailureRollsBackCareAndRoomWrites() throws Exception {
+    void careStartQueueFailureRollsBackCareAndExamQueueWrites() throws Exception {
         installQueueExitFailureTrigger();
         try {
             mvc.perform(post("/api/v1/visits/{visitId}/care-assignments", visit)
@@ -348,8 +343,9 @@ class VisitCareCapacityT031PostgresIntegrationTest {
         }
         assertEquals(0, jdbc.queryForObject("select count(*) from visit_assignments where visit_id = ?",
                 Integer.class, visit));
-        assertEquals(0, jdbc.queryForObject("select count(*) from room_reservations where visit_id = ?",
-                Integer.class, visit));
+        // The queue move to IN_EXAMINATION happens before the reception exit, so it rolls back with the care.
+        assertEquals("WAITING", jdbc.queryForObject("select exam_status from visit_exam_queue where visit_id = ?",
+                String.class, visit));
         assertEquals(0, jdbc.queryForObject("select count(*) from visit_assignment_audits where visit_id = ?",
                 Integer.class, visit));
         assertEquals(1, jdbc.queryForObject("select count(*) from walk_in_reception_queue_entries "
@@ -388,7 +384,7 @@ class VisitCareCapacityT031PostgresIntegrationTest {
     }
 
     @Test
-    void capacityConflictKeepsAssignmentAbsentAndPersistsCoordinationAudit() throws Exception {
+    void doctorExaminingAnotherVisitRefusesStartWithoutAssignmentOrAudit() throws Exception {
         UUID conflictingVisit = UUID.randomUUID();
         UUID conflictingAssignment = UUID.randomUUID();
         jdbc.update("insert into visits (id, patient_profile_id, source, arrived_at, checked_in_at, created_by_account_id) values (?, ?, 'WALK_IN', ?, ?, ?)",
@@ -396,17 +392,22 @@ class VisitCareCapacityT031PostgresIntegrationTest {
         visits.add(conflictingVisit);
         jdbc.update("insert into visit_assignments (id, visit_id, doctor_profile_id, starts_at, ends_at, status, assigned_at, step_code, expected_duration_minutes) values (?, ?, ?, ?, ?, 'IN_PROGRESS', ?, 'CONSULTATION', 30)",
                 conflictingAssignment, conflictingVisit, doctor, Timestamp.from(NOW), Timestamp.from(NOW.plusSeconds(900)), Timestamp.from(NOW));
+        // The queue decides doctor conflicts: this doctor is already examining conflictingVisit (number 2).
+        jdbc.update("insert into visit_exam_queue (visit_id, doctor_profile_id, clinic_date, queue_number, exam_status, created_at, queued_at, started_at) "
+                + "values (?, ?, date '2026-10-19', 2, 'IN_EXAMINATION', ?, ?, ?)", conflictingVisit, doctor,
+                Timestamp.from(NOW.minusSeconds(120)), Timestamp.from(NOW.minusSeconds(120)), Timestamp.from(NOW.minusSeconds(60)));
         mvc.perform(post("/api/v1/visits/{visitId}/care-assignments", visit)
                         .with(actor(doctorAccount, AccountRole.DOCTOR)).with(csrf())
                         .header("X-Correlation-ID", CORRELATION).contentType("application/json")
                         .content("{\"stepCode\":\"CONSULTATION\"}"))
-                .andExpect(status().isConflict()).andExpect(jsonPath("$.error.code").value("VISIT_CAPACITY_NOT_AVAILABLE"));
+                .andExpect(status().isConflict()).andExpect(jsonPath("$.error.code").value("VISIT_EXAM_STATE_CONFLICT"));
         assertEquals(0, jdbc.queryForObject("select count(*) from visit_assignments where visit_id = ?", Integer.class, visit));
-        assertEquals(1, jdbc.queryForObject("select count(*) from visit_assignment_audits where visit_id = ? and action = 'CAPACITY_CONFLICT' and assignment_id is null and correlation_id = ?", Integer.class, visit, CORRELATION));
+        assertEquals(0, jdbc.queryForObject("select count(*) from visit_assignment_audits where visit_id = ?", Integer.class, visit));
+        assertEquals("WAITING", jdbc.queryForObject("select exam_status from visit_exam_queue where visit_id = ?", String.class, visit));
     }
 
     @Test
-    void roomCapacityConflictDoesNotCreateCareAssignmentAndPersistsBothAuditSignals() throws Exception {
+    void fullRoomDoesNotRefuseAnExaminationAndReservesNoRoom() throws Exception {
         UUID occupiedVisit = UUID.randomUUID();
         UUID occupiedAssignment = UUID.randomUUID();
         UUID occupiedReservation = UUID.randomUUID();
@@ -423,31 +424,35 @@ class VisitCareCapacityT031PostgresIntegrationTest {
                         .with(actor(doctorAccount, AccountRole.DOCTOR)).with(csrf())
                         .header("X-Correlation-ID", CORRELATION).contentType("application/json")
                         .content("{\"stepCode\":\"CONSULTATION\"}"))
-                .andExpect(status().isConflict()).andExpect(jsonPath("$.error.code").value("VISIT_CAPACITY_NOT_AVAILABLE"));
+                .andExpect(status().isCreated());
 
-        assertEquals(0, jdbc.queryForObject("select count(*) from visit_assignments where visit_id = ?", Integer.class, visit));
-        assertEquals(1, jdbc.queryForObject("select count(*) from visit_assignment_audits where visit_id = ? and action = 'CAPACITY_CONFLICT' and correlation_id = ?", Integer.class, visit, CORRELATION));
-        assertEquals(1, jdbc.queryForObject("select count(*) from room_reservation_audits where visit_id = ? and action = 'CAPACITY_CONFLICT' and correlation_id = ?", Integer.class, visit, CORRELATION));
+        // The occupied room has no effect: the start takes no room and writes no room reservation or capacity audit.
+        assertEquals(1, jdbc.queryForObject("select count(*) from visit_assignments where visit_id = ? and status = 'IN_PROGRESS'", Integer.class, visit));
+        assertEquals(0, jdbc.queryForObject("select count(*) from room_reservations where visit_id = ?", Integer.class, visit));
+        assertEquals(0, jdbc.queryForObject("select count(*) from room_reservation_audits where visit_id = ? and action = 'CAPACITY_CONFLICT'", Integer.class, visit));
     }
 
     @Test
-    void concurrentCareStartsCannotAllocateTheSameRoom() throws Exception {
+    void concurrentStartsOfOneDoctorsTwoVisitsExamineExactlyOne() throws Exception {
         UUID otherVisit = UUID.randomUUID();
         jdbc.update("insert into visits (id, patient_profile_id, source, arrived_at, checked_in_at, created_by_account_id) values (?, ?, 'WALK_IN', ?, ?, ?)",
                 otherVisit, patient, Timestamp.from(NOW.minusSeconds(60)), Timestamp.from(NOW.minusSeconds(60)), receptionist);
+        // The second visit of the same doctor, waiting with number 2 and the free service.
+        jdbc.update("insert into visit_exam_queue (visit_id, doctor_profile_id, service_id, clinic_date, queue_number, exam_status, created_at, queued_at) "
+                + "values (?, ?, ?, date '2026-10-19', 2, 'WAITING', ?, ?)", otherVisit, doctor, bookingService,
+                Timestamp.from(NOW.minusSeconds(30)), Timestamp.from(NOW.minusSeconds(30)));
         visits.add(otherVisit);
         CountDownLatch ready = new CountDownLatch(2);
         CountDownLatch start = new CountDownLatch(1);
         try (var pool = Executors.newFixedThreadPool(2)) {
-            var first = pool.submit(() -> concurrentCareStart(visit, doctorAccount, "t031-room-race-a", ready, start));
-            var second = pool.submit(() -> concurrentCareStart(otherVisit, otherDoctorAccount, "t031-room-race-b", ready, start));
-            if (!ready.await(5, TimeUnit.SECONDS)) throw new AssertionError("T031 room race setup timed out");
+            var first = pool.submit(() -> concurrentCareStart(visit, doctorAccount, "t031-queue-race-a", ready, start));
+            var second = pool.submit(() -> concurrentCareStart(otherVisit, doctorAccount, "t031-queue-race-b", ready, start));
+            if (!ready.await(5, TimeUnit.SECONDS)) throw new AssertionError("T031 queue race setup timed out");
             start.countDown();
             int firstStatus = first.get(15, TimeUnit.SECONDS);
             int secondStatus = second.get(15, TimeUnit.SECONDS);
-            assertEquals(201, (firstStatus == 201 || secondStatus == 201) ? 201 : -1);
-            assertEquals(409, (firstStatus == 409 || secondStatus == 409) ? 409 : -1);
-            assertEquals(1, jdbc.queryForObject("select count(*) from room_reservations where room_id = ? and status = 'IN_PROGRESS'", Integer.class, room));
+            assertEquals(List.of(201, 409), List.of(firstStatus, secondStatus).stream().sorted().toList());
+            assertEquals(1, jdbc.queryForObject("select count(*) from visit_exam_queue where doctor_profile_id = ? and exam_status = 'IN_EXAMINATION'", Integer.class, doctor));
             assertEquals(1, jdbc.queryForObject("select count(*) from visit_assignments where visit_id in (?, ?) and status = 'IN_PROGRESS'", Integer.class, visit, otherVisit));
         } finally {
             start.countDown();
@@ -461,6 +466,11 @@ class VisitCareCapacityT031PostgresIntegrationTest {
                         .header("X-Correlation-ID", UUID.randomUUID().toString()).contentType("application/json")
                         .content("{\"stepCode\":\"CONSULTATION\"}"))
                 .andExpect(status().isCreated());
+        // A start reserves no room any more, so an active reservation is seeded directly for this guard check.
+        UUID assignment = jdbc.queryForObject("select id from visit_assignments where visit_id = ? and status = 'IN_PROGRESS'", UUID.class, visit);
+        jdbc.update("insert into room_reservations (id, visit_id, assignment_id, room_id, step_code, capability_code, starts_at, expected_ends_at, reserved_until, cleanup_buffer_minutes, status, assigned_at) values (?, ?, ?, ?, 'CONSULTATION', 'EXAM_ROOM', ?, ?, ?, 5, 'IN_PROGRESS', ?)",
+                UUID.randomUUID(), visit, assignment, room, Timestamp.from(NOW), Timestamp.from(NOW.plusSeconds(1800)),
+                Timestamp.from(NOW.plusSeconds(2100)), Timestamp.from(NOW));
 
         mvc.perform(put("/api/v1/admin/visit-rooms/{roomId}", room)
                         .with(actor(adminAccount, AccountRole.ADMIN)).with(csrf())
@@ -480,7 +490,7 @@ class VisitCareCapacityT031PostgresIntegrationTest {
     }
 
     @Test
-    void roomDeactivationAndCareStartSerializeUnderSharedGuard() throws Exception {
+    void careStartAndRoomDeactivationDoNotInterfereBecauseStartsReserveNoRoom() throws Exception {
         CountDownLatch ready = new CountDownLatch(2);
         CountDownLatch start = new CountDownLatch(1);
         try (var pool = Executors.newFixedThreadPool(2)) {
@@ -490,16 +500,11 @@ class VisitCareCapacityT031PostgresIntegrationTest {
             start.countDown();
             int careStatus = careStart.get(15, TimeUnit.SECONDS);
             int adminStatus = deactivation.get(15, TimeUnit.SECONDS);
-            if (careStatus == 201) {
-                assertEquals(409, adminStatus);
-                assertEquals(1, jdbc.queryForObject("select count(*) from rooms where id = ? and active", Integer.class, room));
-                assertEquals(1, jdbc.queryForObject("select count(*) from room_reservations where room_id = ? and status = 'IN_PROGRESS'", Integer.class, room));
-            } else {
-                assertEquals(409, careStatus);
-                assertEquals(204, adminStatus);
-                assertEquals(0, jdbc.queryForObject("select count(*) from rooms where id = ? and active", Integer.class, room));
-                assertEquals(0, jdbc.queryForObject("select count(*) from room_reservations where room_id = ? and status = 'IN_PROGRESS'", Integer.class, room));
-            }
+            // A start checks no room, so the deactivation is never blocked by it, whichever request commits first.
+            assertEquals(201, careStatus);
+            assertEquals(204, adminStatus);
+            assertEquals(0, jdbc.queryForObject("select count(*) from rooms where id = ? and active", Integer.class, room));
+            assertEquals(0, jdbc.queryForObject("select count(*) from room_reservations where visit_id = ?", Integer.class, visit));
         } finally {
             start.countDown();
         }

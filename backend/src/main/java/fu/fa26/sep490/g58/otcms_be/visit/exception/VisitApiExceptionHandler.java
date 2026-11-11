@@ -21,7 +21,8 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
         fu.fa26.sep490.g58.otcms_be.visit.controller.VisitCareAssignmentController.class,
         fu.fa26.sep490.g58.otcms_be.visit.controller.VisitRoomAdminController.class,
         fu.fa26.sep490.g58.otcms_be.visit.controller.StaffRoomQueryController.class,
-        fu.fa26.sep490.g58.otcms_be.visit.controller.VisitReceptionReadController.class
+        fu.fa26.sep490.g58.otcms_be.visit.controller.VisitReceptionReadController.class,
+        fu.fa26.sep490.g58.otcms_be.visit.controller.VisitExamQueueController.class
 })
 @Order(Ordered.HIGHEST_PRECEDENCE)
 public class VisitApiExceptionHandler {
@@ -33,7 +34,8 @@ public class VisitApiExceptionHandler {
             case "IDEMPOTENCY_CONFLICT", "VISIT_LINK_CONFLICT", "VISIT_CAPACITY_NOT_AVAILABLE",
                     "VISIT_CARE_NOT_CHANGEABLE", "SLOT_UNAVAILABLE", "DUPLICATE_ROOM_CODE",
                     "ROOM_HAS_ACTIVE_RESERVATIONS", "VISIT_CANCELLATION_NOT_ALLOWED",
-                    "VISIT_RECEPTION_QUEUE_CONFLICT" -> HttpStatus.CONFLICT;
+                    "VISIT_RECEPTION_QUEUE_CONFLICT", "DOCTOR_NOT_ON_SHIFT" -> HttpStatus.CONFLICT;
+            case "VISIT_EXAM_STATE_CONFLICT", "VISIT_COMPLETION_NOT_ALLOWED" -> HttpStatus.CONFLICT;
             case "VISIT_CARE_STEP_NOT_CONFIGURED" -> HttpStatus.SERVICE_UNAVAILABLE;
             case "DEPENDENCY_UNAVAILABLE" -> HttpStatus.SERVICE_UNAVAILABLE;
             default -> HttpStatus.BAD_REQUEST;

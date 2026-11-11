@@ -102,14 +102,22 @@ class AppointmentArrivalT053PostgresIntegrationTest {
                 jdbc.update("delete from appointment_audits where appointment_id = ?", id);
                 jdbc.update("update appointments set status = 'CANCELLED', visit_id = null where id = ?", id);
                 jdbc.update("delete from appointment_arrivals where appointment_id = ?", id);
+                jdbc.update("delete from payment_attempts where invoice_id in "
+                        + "(select id from invoices where appointment_id = ?)", id);
+                jdbc.update("delete from invoice_items where invoice_id in "
+                        + "(select id from invoices where appointment_id = ?)", id);
+                jdbc.update("delete from invoices where appointment_id = ?", id);
                 List<UUID> visits = jdbc.query("select id from visits where originating_appointment_id = ?",
                         (rs, row) -> rs.getObject("id", UUID.class), id);
                 for (UUID visit : visits) jdbc.update("delete from visit_check_ins where visit_id = ?", visit);
+                jdbc.update("delete from visit_exam_queue where visit_id in "
+                        + "(select id from visits where originating_appointment_id = ?)", id);
                 jdbc.update("delete from visits where originating_appointment_id = ?", id);
                 jdbc.update("delete from appointments where id = ?", id);
             }
             jdbc.update("delete from doctor_services where doctor_profile_id = ?", doctorProfile);
             jdbc.update("delete from clinic_services where id = ?", service);
+            jdbc.update("delete from visit_exam_queue where doctor_profile_id = ?", doctorProfile);
             jdbc.update("delete from doctor_profiles where id = ?", doctorProfile);
             jdbc.update("delete from patient_profiles where id in (?, ?)", patientProfile, otherPatientProfile);
             jdbc.update("delete from accounts where id in (?, ?, ?, ?)", patientAccount, otherPatientAccount,
@@ -167,13 +175,16 @@ class AppointmentArrivalT053PostgresIntegrationTest {
                 .andExpect(jsonPath("$.checkedIn").value(true))
                 .andExpect(jsonPath("$.appointmentStatus").value("CHECKED_IN"))
                 .andExpect(jsonPath("$.visitId").isNotEmpty())
-                .andExpect(jsonPath("$.arrivedAt").value(NOW.toString())).andReturn();
+                .andExpect(jsonPath("$.arrivedAt").value(NOW.toString()))
+                .andExpect(jsonPath("$.queueNumber").value(1))
+                .andExpect(jsonPath("$.doctorName").value("T053 Doctor")).andReturn();
         String firstVisit = json(first.getResponse().getContentAsString(), "visitId");
         testClock.set(NOW.plusSeconds(10));
         mvc.perform(recordQr(target, patientAccount, issueProof())).andExpect(status().isOk())
                 .andExpect(jsonPath("$.checkedIn").value(true))
                 .andExpect(jsonPath("$.visitId").value(firstVisit))
-                .andExpect(jsonPath("$.arrivedAt").value(NOW.toString()));
+                .andExpect(jsonPath("$.arrivedAt").value(NOW.toString()))
+                .andExpect(jsonPath("$.queueNumber").value(1));
         assertEquals(1, arrivalCount(target));
         assertEquals(patientAccount, jdbc.queryForObject("select actor_account_id from appointment_arrivals where appointment_id = ?",
                 UUID.class, target));
@@ -318,6 +329,59 @@ class AppointmentArrivalT053PostgresIntegrationTest {
                 .andExpect(status().isOk()).andExpect(jsonPath("$.state").value("LATE"));
         mvc.perform(markNoShow(target)).andExpect(status().isOk()).andExpect(jsonPath("$.status").value("NO_SHOW"));
         assertEquals(1, arrivalCount(target));
+    }
+
+    @Test
+    void qrCheckInIsRefusedUntilTheExamFeeIsPaidThenReturnsTheQueueNumber() throws Exception {
+        jdbc.update("update clinic_services set price = 250000 where id = ?", service);
+        UUID target = appointment(NOW.plusSeconds(600), patientProfile);
+
+        mvc.perform(recordQr(target, patientAccount, issueProof()))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error.code").value("EXAM_FEE_UNPAID"));
+        assertNoArrival(target);
+        assertEquals("CONFIRMED", jdbc.queryForObject("select status from appointments where id = ?", String.class, target));
+
+        // The receptionist collects the fee at the counter with the existing billing endpoints.
+        mvc.perform(post("/api/v1/appointments/{id}/invoices", target)
+                        .with(actor(receptionistAccount, AccountType.RECEPTIONIST)).with(testCsrf()))
+                .andExpect(status().isOk());
+        UUID invoice = jdbc.queryForObject("select id from invoices where appointment_id = ?", UUID.class, target);
+        mvc.perform(post("/api/v1/invoices/{id}/counter-payments", invoice)
+                        .with(actor(receptionistAccount, AccountType.RECEPTIONIST)).with(testCsrf())
+                        .header("Idempotency-Key", "t053-fee-counter").contentType("application/json")
+                        .content("{\"amount\":250000,\"method\":\"CASH\"}"))
+                .andExpect(status().isOk());
+
+        mvc.perform(recordQr(target, patientAccount, issueProof()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.appointmentStatus").value("CHECKED_IN"))
+                .andExpect(jsonPath("$.queueNumber").value(1))
+                .andExpect(jsonPath("$.doctorName").value("T053 Doctor"));
+        assertEquals(1, arrivalCount(target));
+    }
+
+    @Test
+    void manualArrivalRecordedBeforeTheOldWindowNoLongerBlocksSameDayCheckIn() throws Exception {
+        // Manual records have no window, so an arrival two hours early used to block check-in forever.
+        UUID target = appointment(NOW.plusSeconds(7200), patientProfile);
+        mvc.perform(manual(target, receptionistAccount, "Patient came early")).andExpect(status().isOk());
+
+        testClock.set(NOW.plusSeconds(10));
+        mvc.perform(receptionCheckIn(target, "t053-early-manual"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.queueNumber").value(1))
+                .andExpect(jsonPath("$.checkedInAt").value(NOW.plusSeconds(10).toString()));
+        assertEquals("CHECKED_IN", jdbc.queryForObject("select status from appointments where id = ?", String.class, target));
+        assertEquals(NOW, jdbc.queryForObject("select arrived_at from visits where originating_appointment_id = ?",
+                Timestamp.class, target).toInstant());
+    }
+
+    private org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder receptionCheckIn(UUID id, String key) {
+        return post("/api/v1/appointments/{id}/check-in", id)
+                .with(actor(receptionistAccount, AccountType.RECEPTIONIST)).with(testCsrf())
+                .header("Idempotency-Key", key).header("X-Correlation-ID", CORRELATION)
+                .contentType("application/json").content("{\"verifiedPatientProfileId\":\"" + patientProfile + "\"}");
     }
 
     private void awaitDatabaseWait(String queryPattern, int minimumWaiters) throws Exception {

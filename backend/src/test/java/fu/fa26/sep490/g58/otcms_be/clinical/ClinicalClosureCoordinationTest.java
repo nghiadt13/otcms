@@ -54,7 +54,7 @@ class ClinicalClosureCoordinationTest {
         var prep = mock(ClinicalOrderPreparationService.class);
         var replays = mock(ClinicalImagingRequestReplayRepository.class);
         var tx = new ClinicalImagingRequestTransactionService(prep, mock(ClinicalOrderingTransactionService.class), replays,
-                rounds, orders, Clock.systemUTC(), guard);
+                rounds, orders, Clock.systemUTC(), guard, mock(fu.fa26.sep490.g58.otcms_be.clinical.service.VisitConclusionPort.class));
         doThrow(new IllegalStateException("guard unavailable")).when(guard).acquire();
         var command = new ClinicalImagingRequestService.ImagingRequestCommand(visit, doctor, "key", List.of(), true);
         assertThrows(IllegalStateException.class, () -> tx.submit(command, "fingerprint"));

@@ -37,8 +37,8 @@ public class WalkInVisitController {
             throw invalid();
         }
         var created = createWalkInVisit.create(new CreateWalkInVisitCommand(account.accountId(), account.accountRole(),
-                body.getPatientProfileId(), body.getPriorAppointmentId(), idempotencyKey.trim(),
-                CorrelationIdFilter.current(request)));
+                body.getPatientProfileId(), body.getPriorAppointmentId(), body.getDoctorProfileId(),
+                body.getServiceId(), idempotencyKey.trim(), CorrelationIdFilter.current(request)));
         return ResponseEntity.status(HttpStatus.CREATED)
                 .header(CorrelationIdFilter.HEADER, CorrelationIdFilter.current(request))
                 .body(WalkInVisitMapper.toResponse(created));

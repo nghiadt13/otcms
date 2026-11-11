@@ -12,23 +12,6 @@ export type PatientSearchQuery = {
   q: string;
   dob?: string;
 };
-export type Priority =
-  | "normal"
-  | "emergency"
-  | "child"
-  | "pregnant"
-  | "disability"
-  | "elderly"
-  | "merit";
-export const PRIORITIES: Record<Priority, string> = {
-  normal: "Thông thường",
-  emergency: "Cấp cứu",
-  child: "Trẻ dưới 6 tuổi",
-  pregnant: "Phụ nữ mang thai",
-  disability: "Khuyết tật nặng / đặc biệt nặng",
-  elderly: "Từ đủ 75 tuổi trở lên",
-  merit: "Người có công với cách mạng",
-};
 export type Room = {
   id: string;
   name: string;
@@ -77,7 +60,6 @@ export type Visit = {
   appointmentId?: string;
   firstCheckIn: string;
   status: VisitStatus;
-  priority: Priority;
   followUp: boolean;
   previousVisitId?: string;
 };
@@ -90,7 +72,6 @@ export type QueueEntry = {
   joinedAt: string;
   date: string;
   status: "waiting" | "serving" | "absent" | "done" | "closed";
-  priority: Priority;
   position: number;
   calledAt?: string;
   callerId?: string;
@@ -233,7 +214,6 @@ export type ReceptionCommand =
       patientId: string;
       appointmentId?: string;
       returnVisitId?: string;
-      priority: Priority;
       present: boolean;
     }
   | { type: "call-next"; roomId: string; kind: "exam" | "review" }
@@ -246,7 +226,6 @@ export type ReceptionCommand =
       type: "reorder";
       id: string;
       position: number;
-      priority: Priority;
       reason: string;
     }
   | { type: "move-room"; id: string; roomId: string; reason: string }

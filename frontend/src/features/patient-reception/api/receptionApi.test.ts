@@ -136,83 +136,6 @@ describe("patient identification and care links", () => {
   });
 });
 
-describe("automatic reception age priority", () => {
-  it("rejects pregnancy priority for a male patient without checking them in", async () => {
-    await expect(
-      command({
-        type: "check-in",
-        patientId: "BN0002",
-        appointmentId: "LH002",
-        present: true,
-        priority: "pregnant",
-      }),
-    ).rejects.toThrow("MSG-39");
-    expect(
-      (await loadReception()).appointments.find((a) => a.id === "LH002")
-        ?.status,
-    ).toBe("booked");
-  });
-  it("allows the confirmed pregnancy category for a female patient", async () => {
-    await cash(["phi-LH001"]);
-    const next = await command({
-      type: "check-in",
-      patientId: "BN0001",
-      appointmentId: "LH001",
-      present: true,
-      priority: "pregnant",
-    });
-    expect(next.visits.find((v) => v.appointmentId === "LH001")?.priority).toBe(
-      "pregnant",
-    );
-  });
-  it("rejects assigning pregnancy priority to a male patient in the queue", async () => {
-    const state = await loadReception();
-    const entry = state.queues.find(
-      (q) => q.visitId === "LK002" && q.status === "waiting",
-    )!;
-    await expect(
-      command({
-        type: "reorder",
-        id: entry.id,
-        position: 1,
-        priority: "pregnant",
-        reason: "Kiểm tra nhóm ưu tiên",
-      }),
-    ).rejects.toThrow("MSG-39");
-    expect(
-      (await loadReception()).queues.find((q) => q.id === entry.id)?.priority,
-    ).toBe(entry.priority);
-  });
-  it("assigns elderly priority from DOB even if a stale client submits normal", async () => {
-    const state = await command({
-      type: "check-in",
-      patientId: "BN0002",
-      appointmentId: "LH002",
-      present: true,
-      priority: "normal",
-    });
-    const visit = state.visits.find((v) => v.appointmentId === "LH002")!;
-    expect(visit.priority).toBe("elderly");
-    expect(state.queues.find((q) => q.visitId === visit.id)?.priority).toBe(
-      "elderly",
-    );
-  });
-  it("rejects child priority for an adult without partially checking in", async () => {
-    await expect(
-      command({
-        type: "check-in",
-        patientId: "BN0002",
-        appointmentId: "LH002",
-        present: true,
-        priority: "child",
-      }),
-    ).rejects.toThrow("MSG-39");
-    expect(
-      (await loadReception()).appointments.find((a) => a.id === "LH002")
-        ?.status,
-    ).toBe("booked");
-  });
-});
 describe("appointment scheduling", () => {
   it("rejects two patients booking the same doctor and time without creating an extra charge", async () => {
     const input = {
@@ -456,7 +379,6 @@ describe("check-in and return visit", () => {
     patientId: "BN0001",
     appointmentId: "LH001",
     present: true,
-    priority: "normal",
   };
   it("blocks unpaid or absent check-in; paid fee issues one visit and queue only", async () => {
     await expect(command(checkin)).rejects.toThrow("MSG-37");
@@ -481,7 +403,6 @@ describe("check-in and return visit", () => {
       type: "check-in",
       patientId: "BN0003",
       present: true,
-      priority: "normal",
     });
     expect(result.appointments).toHaveLength(seed().appointments.length);
     expect(result.visits[0]).toMatchObject({
@@ -498,7 +419,6 @@ describe("check-in and return visit", () => {
         patientId: "BN0003",
         appointmentId: "LH003",
         present: true,
-        priority: "normal",
       }),
     ).rejects.toThrow("MSG-41");
   });
@@ -523,7 +443,6 @@ describe("check-in and return visit", () => {
         patientId: "BN0006",
         returnVisitId: "LK003",
         present: true,
-        priority: "normal",
       }),
     ).rejects.toThrow("MSG-37");
   });
@@ -537,7 +456,6 @@ describe("check-in and return visit", () => {
       patientId: "BN0006",
       returnVisitId: "LK003",
       present: true,
-      priority: "normal",
     });
     expect(result.visits).toHaveLength(state.visits.length);
     expect(result.charges).toHaveLength(state.charges.length);
@@ -558,7 +476,6 @@ describe("check-in and return visit", () => {
         patientId: "BN0006",
         returnVisitId: "LK003",
         present: true,
-        priority: "normal",
       }),
     ).rejects.toThrow("MSG-37");
     expect(
@@ -592,7 +509,7 @@ describe("queues", () => {
       "examining",
     );
   });
-  it("absence frees room and same-day return keeps priority with new arrival time", async () => {
+  it("absence frees room and same-day return re-joins the queue with a new arrival time", async () => {
     await command({ type: "call-next", roomId: "p101", kind: "exam" });
     await command({ type: "queue-action", id: "q1", action: "absent" });
     const next = await command({
@@ -608,7 +525,6 @@ describe("queues", () => {
     });
     expect(returned.queues.find((q) => q.id === "q1")).toMatchObject({
       status: "waiting",
-      priority: "child",
       joinedAt: returned.clock,
       calledAt: undefined,
     });
@@ -631,7 +547,6 @@ describe("queues", () => {
         type: "reorder",
         id: "q2",
         position: 1,
-        priority: "emergency",
         reason: "",
       }),
     ).rejects.toThrow("MSG-39");
@@ -639,7 +554,6 @@ describe("queues", () => {
       type: "reorder",
       id: "q2",
       position: 1,
-      priority: "emergency",
       reason: "Điều phối theo tình huống cấp cứu",
     });
     expect(result.audit[0]).toMatchObject({

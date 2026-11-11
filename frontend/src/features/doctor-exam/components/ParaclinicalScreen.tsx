@@ -135,6 +135,8 @@ export function ParaclinicalScreen() {
         onSubmitted={(created) => {
           workspace.addSubmittedOrders(created);
           orders.refresh();
+          // BE chuyển lượt sang chờ kết luận khi có chỉ định CĐHA: đọc lại ngữ cảnh để header đúng trạng thái.
+          workspace.refresh();
         }}
       />
       <CancelOrderDialog

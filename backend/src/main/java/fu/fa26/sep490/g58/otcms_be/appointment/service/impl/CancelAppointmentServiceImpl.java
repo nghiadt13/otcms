@@ -86,7 +86,7 @@ public class CancelAppointmentServiceImpl implements CancelAppointmentService {
                 || command.correlationId() == null || command.correlationId().isBlank()
                 || command.correlationId().length() > 128
                 || (command.reason() != null && (command.reason().isBlank() || command.reason().trim().length() > 1000))
-                || (command.actor() == CancelAppointmentCommand.Actor.RECEPTIONIST
+                || (command.actor() != CancelAppointmentCommand.Actor.PATIENT
                     && (command.reason() == null || command.reason().isBlank() || command.reason().trim().length() > 1000))) {
             throw new AppointmentBookingException("VALIDATION_FAILED");
         }
@@ -120,12 +120,12 @@ public class CancelAppointmentServiceImpl implements CancelAppointmentService {
             }
         }
         Instant now = Instant.now(clock);
-        if (command.actor() == CancelAppointmentCommand.Actor.RECEPTIONIST
-                && "IN_PROGRESS".equals(current.status())) {
+        if (command.actor() != CancelAppointmentCommand.Actor.PATIENT && "IN_PROGRESS".equals(current.status())) {
             throw new AppointmentBookingException("VISIT_CANCELLATION_NOT_ALLOWED");
         }
         if ("CHECKED_IN".equals(current.status())) {
-            if (command.actor() != CancelAppointmentCommand.Actor.RECEPTIONIST) {
+            // B3: after check-in only the admin may cancel (and only while care has not started, see below).
+            if (command.actor() != CancelAppointmentCommand.Actor.ADMIN) {
                 throw new AppointmentBookingException("APPOINTMENT_NOT_CHANGEABLE");
             }
             if (lifecycle == null || visits == null) {
@@ -201,7 +201,7 @@ public class CancelAppointmentServiceImpl implements CancelAppointmentService {
     }
 
     private void publishCancellation(CancellableAppointment appointment, CancelAppointmentCommand command) {
-        if (command.actor() == CancelAppointmentCommand.Actor.RECEPTIONIST)
+        if (command.actor() != CancelAppointmentCommand.Actor.PATIENT)
             notifications.publishToPatient(appointment.patientProfileId(), NotificationMessages.appointmentCancelled(
                     appointment.id(), appointment.startTime(), doctors.findDoctorDisplayName(appointment.doctorProfileId()).orElse("")));
     }

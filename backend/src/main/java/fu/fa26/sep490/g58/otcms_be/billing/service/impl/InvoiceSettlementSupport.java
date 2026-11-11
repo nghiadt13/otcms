@@ -2,6 +2,7 @@ package fu.fa26.sep490.g58.otcms_be.billing.service.impl;
 
 import fu.fa26.sep490.g58.otcms_be.billing.integration.AppointmentPaymentPort;
 import fu.fa26.sep490.g58.otcms_be.billing.integration.ClinicalRoundBillingPort;
+import fu.fa26.sep490.g58.otcms_be.billing.integration.VisitFeeSettlementPort;
 import fu.fa26.sep490.g58.otcms_be.billing.model.InvoiceStatus;
 import fu.fa26.sep490.g58.otcms_be.billing.model.PaymentAttemptStatus;
 import fu.fa26.sep490.g58.otcms_be.billing.model.PaymentChannel;
@@ -20,8 +21,9 @@ import org.springframework.stereotype.Component;
 
 /**
  * Invoice settlement shared by counter payments, webhooks and reconcile: recomputes the invoice status after a
- * confirmed attempt and runs the source hooks (clinical round paid, appointment hold confirmed). Always runs inside
- * the caller's transaction, with the invoice row already locked (lock order: invoice first, appointment second).
+ * confirmed attempt and runs the source hooks (clinical round paid, appointment hold confirmed, walk-in fee paid).
+ * Always runs inside the caller's transaction, with the invoice row already locked (lock order: invoice first,
+ * appointment second).
  */
 @Component
 public class InvoiceSettlementSupport {
@@ -33,16 +35,18 @@ public class InvoiceSettlementSupport {
     private final PaymentAttemptRepository attempts;
     private final ClinicalRoundBillingPort clinicalRounds;
     private final AppointmentPaymentPort appointments;
+    private final VisitFeeSettlementPort visitFees;
     private final EntityManager entityManager;
 
     public InvoiceSettlementSupport(InvoiceRepository invoices, InvoiceItemRepository items,
             PaymentAttemptRepository attempts, ClinicalRoundBillingPort clinicalRounds,
-            AppointmentPaymentPort appointments, EntityManager entityManager) {
+            AppointmentPaymentPort appointments, VisitFeeSettlementPort visitFees, EntityManager entityManager) {
         this.invoices = invoices;
         this.items = items;
         this.attempts = attempts;
         this.clinicalRounds = clinicalRounds;
         this.appointments = appointments;
+        this.visitFees = visitFees;
         this.entityManager = entityManager;
     }
 
@@ -95,6 +99,9 @@ public class InvoiceSettlementSupport {
         invoices.save(invoice);
         if (invoice.getStatus() == InvoiceStatus.PAID && "CLINICAL_ROUND".equals(invoice.getSourceType())) {
             clinicalRounds.markRoundPaid(invoice.getClinicalOrderingRoundId());
+        }
+        if (invoice.getStatus() == InvoiceStatus.PAID && "VISIT".equals(invoice.getSourceType())) {
+            visitFees.onVisitInvoicePaid(invoice.getVisitId());
         }
         return true;
     }

@@ -2,6 +2,7 @@ import { ApiError } from "@/lib/api/apiError";
 import type { DoctorExamApi } from "./doctorExamApi";
 import * as clinical from "./doctorExamLiveClinical";
 import * as orders from "./doctorExamLiveOrders";
+import * as queue from "./doctorExamLiveQueue";
 import * as visits from "./doctorExamLiveVisits";
 import * as prescription from "./doctorExamLivePrescription";
 import * as records from "./doctorExamLivePastRecords";
@@ -22,9 +23,10 @@ export const doctorLiveApi: DoctorExamApi = {
     startExamination: true,
     findingsReportPdfRequired: true,
   },
-  listTodayPatients: visits.listTodayPatients,
-  getVisitContext: visits.getVisitContext,
-  startExamination: visits.startExamination,
+  listTodayPatients: queue.listTodayPatients,
+  getVisitContext: queue.getVisitContext,
+  startExamination: queue.startExamination,
+  finishVisit: queue.finishVisit,
   bookFollowUp: visits.bookFollowUp,
   getMedicalHistory: visits.getMedicalHistory,
   saveMedicalHistory: visits.saveMedicalHistory,

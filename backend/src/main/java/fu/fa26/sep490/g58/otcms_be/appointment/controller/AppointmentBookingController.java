@@ -124,7 +124,7 @@ public class AppointmentBookingController {
     }
 
     @PostMapping("/api/v1/appointments/{id}/cancel")
-    @PreAuthorize("hasAnyAuthority('ROLE_PATIENT', 'ROLE_RECEPTIONIST')")
+    @PreAuthorize("hasAnyAuthority('ROLE_PATIENT', 'ROLE_RECEPTIONIST', 'ROLE_ADMIN')")
     public ResponseEntity<AppointmentResponse> cancel(@PathVariable UUID id,
             @Valid @RequestBody CancelAppointmentRequest body,
             @AuthenticationPrincipal AuthenticatedAccount account, HttpServletRequest request) {
@@ -132,6 +132,7 @@ public class AppointmentBookingController {
         CancelAppointmentCommand.Actor actor = switch (account.accountRole()) {
             case PATIENT -> CancelAppointmentCommand.Actor.PATIENT;
             case RECEPTIONIST -> CancelAppointmentCommand.Actor.RECEPTIONIST;
+            case ADMIN -> CancelAppointmentCommand.Actor.ADMIN;
             default -> throw new AppointmentBookingException("ACCESS_DENIED");
         };
         var result = cancelAppointment.cancel(id, new CancelAppointmentCommand(account.accountId(), actor,

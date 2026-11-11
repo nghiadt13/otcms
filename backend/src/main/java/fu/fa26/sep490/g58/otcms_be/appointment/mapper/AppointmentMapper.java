@@ -31,6 +31,9 @@ public final class AppointmentMapper {
     }
 
     public static CheckInResponse toResponse(CheckedInAppointment appointment) {
-        return new CheckInResponse(appointment.appointmentId(), appointment.visitId(), appointment.checkedInAt());
+        var ticket = appointment.queueTicket();
+        return new CheckInResponse(appointment.appointmentId(), appointment.visitId(), appointment.checkedInAt(),
+                ticket == null ? null : ticket.queueNumber(), ticket == null ? null : ticket.doctorName(),
+                ticket == null ? null : ticket.roomLabel());
     }
 }

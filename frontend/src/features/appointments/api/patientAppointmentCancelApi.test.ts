@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { isApiError, type ApiError } from "@/lib/api/apiError";
 import { resetLinkedProfilesMock } from "@/lib/patient-scope/linkedProfilesMockStore";
 import { readStoredAppointments, resetBookingMock } from "./bookingMockStore";
@@ -85,5 +85,29 @@ describe("cancelMyAppointment", () => {
       status: 404,
       code: "MSG-29",
     });
+  });
+});
+
+describe("cancelMyAppointment hạn tự hủy 120 phút", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("còn dưới 120 phút: 422 MSG-32, lịch vẫn Đã đặt; đúng 120 phút: hủy được", async () => {
+    // Lịch mẫu tính theo ngày lúc tạo kho: tạo kho lúc NOW, rồi chỉ đặt đồng hồ quanh giờ hẹn.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(NOW);
+    resetBookingMock();
+    const start = Date.parse((await getMyAppointment("apt-1001")).startAt);
+
+    vi.setSystemTime(start - 119 * 60_000);
+    expect(await errorOf(cancelMyAppointment("apt-1001"))).toMatchObject({
+      status: 422,
+      code: "MSG-32",
+    });
+    expect((await getMyAppointment("apt-1001")).status).toBe("BOOKED");
+
+    vi.setSystemTime(start - 120 * 60_000);
+    expect((await cancelMyAppointment("apt-1001")).status).toBe("CANCELLED");
   });
 });

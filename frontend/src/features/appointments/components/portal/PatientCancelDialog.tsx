@@ -2,7 +2,6 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { toast } from "sonner";
 import { publicButtonClass } from "@/components/brand/publicButtonStyles";
 import {
   AlertDialog,
@@ -23,11 +22,6 @@ import {
   appointmentSentenceTime,
   refundNotice,
 } from "./patientAppointmentPresentation";
-
-// Lời khuyên sau MSG-32 cho khu bệnh nhân: lịch đã check-in hoặc không còn Đã đặt. Chữ theo đặc
-// tả R3 (MSG-32), không dùng câu "chuyển lịch" của bảng MSG dùng chung cho khu Lễ tân.
-const NOT_CANCELLABLE_TEXT =
-  "Lịch hẹn này không còn đủ điều kiện để hủy hoặc chuyển bác sĩ. Vui lòng liên hệ phòng khám.";
 
 // Hộp thoại hủy (UC24, BR-22, BR-53): nói rõ giờ được nhả và phí đã trả không hoàn lại. Nút cao
 // h-12 cho người dùng lớn tuổi. Lỗi 5xx giữ hộp thoại để thử lại; 409/403/404 đóng và xử lý.
@@ -58,8 +52,9 @@ export function PatientCancelDialog({
       onCancelled(next);
       onOpenChange(false);
     } catch (error) {
+      // MSG-32 (đã check-in, hoặc còn dưới 120 phút trước giờ hẹn): chữ từ bảng MSG chung, rồi tải lại.
       if (isApiError(error) && error.code === "MSG-32") {
-        toast.error(NOT_CANCELLABLE_TEXT);
+        notifyError(error);
         onOpenChange(false);
         onReload();
       } else if (isApiError(error) && error.code === "MSG-29") {

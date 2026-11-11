@@ -7,7 +7,7 @@ import type {
   Prescription,
 } from "../types/doctorExam";
 
-// Tóm tắt tiến trình một lượt khám cho tab Tổng quan và điều kiện sẵn sàng phần khám; đóng lượt thuộc Lễ tân (UC28).
+// Tóm tắt tiến trình một lượt khám cho tab Tổng quan và điều kiện sẵn sàng phần khám; bác sĩ kết thúc lượt (plan 261111-0208).
 
 export type StepState = "TODO" | "IN_PROGRESS" | "DONE";
 export type StepSummary = { state: StepState; summary: string };

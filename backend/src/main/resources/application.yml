@@ -105,7 +105,7 @@ app:
 appointment:
   booking:
     max-horizon-days: ${APPOINTMENT_BOOKING_MAX_HORIZON_DAYS:30}
-    patient-change-deadline-minutes: ${APPOINTMENT_BOOKING_PATIENT_CHANGE_DEADLINE_MINUTES:1440}
+    patient-change-deadline-minutes: ${APPOINTMENT_BOOKING_PATIENT_CHANGE_DEADLINE_MINUTES:120}
     check-in-early-minutes: ${APPOINTMENT_BOOKING_CHECK_IN_EARLY_MINUTES:30}
     check-in-late-grace-minutes: ${APPOINTMENT_BOOKING_CHECK_IN_LATE_GRACE_MINUTES:15}
     slot-interval-minutes: ${APPOINTMENT_BOOKING_SLOT_INTERVAL_MINUTES:15}
@@ -113,6 +113,8 @@ appointment:
     payment-hold-minutes: ${APPOINTMENT_BOOKING_PAYMENT_HOLD_MINUTES:15}
     payment-hold-sweep-ms: ${APPOINTMENT_BOOKING_PAYMENT_HOLD_SWEEP_MS:30000}
     payment-hold-sweep-enabled: ${APPOINTMENT_BOOKING_PAYMENT_HOLD_SWEEP_ENABLED:true}
+    no-show-sweep-ms: ${APPOINTMENT_BOOKING_NO_SHOW_SWEEP_MS:600000}
+    no-show-sweep-enabled: ${APPOINTMENT_BOOKING_NO_SHOW_SWEEP_ENABLED:true}
     public-rate-limit:
       requests: ${APPOINTMENT_BOOKING_PUBLIC_RATE_LIMIT_REQUESTS:60}
       window-seconds: ${APPOINTMENT_BOOKING_PUBLIC_RATE_LIMIT_WINDOW_SECONDS:60}

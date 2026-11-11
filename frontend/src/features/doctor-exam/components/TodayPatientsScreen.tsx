@@ -55,8 +55,11 @@ function PatientRow({ patient }: { patient: TodayPatient }) {
   const open = canOpenVisit(patient);
   return (
     <TableRow>
+      <TableCell className="w-14 tabular-nums">
+        {patient.queueNumber ?? "—"}
+      </TableCell>
       <TableCell className="w-20 tabular-nums">
-        {formatTime(patient.scheduledAt)}
+        {patient.scheduledAt ? formatTime(patient.scheduledAt) : "—"}
       </TableCell>
       <TableCell>
         <PatientCell patient={patient} />
@@ -176,6 +179,7 @@ export function TodayPatientsScreen() {
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead>STT</TableHead>
                 <TableHead>Giờ</TableHead>
                 <TableHead>Bệnh nhân</TableHead>
                 <TableHead className="hidden xl:table-cell">Dịch vụ</TableHead>

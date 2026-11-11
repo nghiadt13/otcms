@@ -23,7 +23,6 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.temporal.ChronoUnit;
 import java.util.Set;
 import java.util.UUID;
 
@@ -73,13 +72,11 @@ public class RescheduleAppointmentServiceImpl implements RescheduleAppointmentSe
             } catch (PatientAuthorizationDeniedException denied) {
                 throw new AppointmentBookingException("APPOINTMENT_NOT_FOUND", denied);
             }
+            // B1: a patient cannot move their own booking; the clinic reschedules through the receptionist.
+            throw new AppointmentBookingException("APPOINTMENT_NOT_CHANGEABLE");
         }
         if (!"CONFIRMED".equals(current.status())) throw new AppointmentBookingException("APPOINTMENT_NOT_CHANGEABLE");
         Instant now = Instant.now(clock);
-        if (command.actor() == RescheduleAppointmentCommand.Actor.PATIENT
-                && current.startTime().isBefore(now.plus(properties.patientChangeDeadlineMinutes(), ChronoUnit.MINUTES))) {
-            throw new AppointmentBookingException("APPOINTMENT_CHANGE_TOO_LATE");
-        }
         Instant start = command.startTime().toInstant();
         if (start.isBefore(now)) throw new AppointmentBookingException("BOOKING_TIME_IN_PAST");
         LocalDateTime clinicStart = LocalDateTime.ofInstant(start, properties.clinicTimeZone());

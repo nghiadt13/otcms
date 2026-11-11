@@ -6,6 +6,8 @@ import type { PatientAppointment } from "../types/patientAppointment";
 
 interface DetailState {
   data: PatientAppointment | null;
+  /** Lúc tải xong (epoch ms): mốc "đã tới giờ" và "hôm nay" của màn tính theo lúc này. */
+  loadedAt: number;
   loading: boolean;
   /** Lỗi thô (thường là ApiError) để màn đọc mã MSG. */
   error: Error | null;
@@ -18,6 +20,7 @@ interface DetailState {
 export function usePatientAppointment(id: string) {
   const [state, setState] = useState<DetailState>({
     data: null,
+    loadedAt: 0,
     loading: true,
     error: null,
   });
@@ -28,12 +31,13 @@ export function usePatientAppointment(id: string) {
     getMyAppointment(id, controller.signal)
       .then((data) => {
         if (controller.signal.aborted) return;
-        setState({ data, loading: false, error: null });
+        setState({ data, loadedAt: Date.now(), loading: false, error: null });
       })
       .catch((error: unknown) => {
         if (controller.signal.aborted) return;
         setState({
           data: null,
+          loadedAt: 0,
           loading: false,
           error: error instanceof Error ? error : new Error(String(error)),
         });
@@ -66,6 +70,7 @@ export function usePatientAppointment(id: string) {
 
   return {
     appointment: state.data,
+    loadedAt: state.loadedAt,
     loading: state.loading,
     error: state.error,
     reload,

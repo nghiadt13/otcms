@@ -1,9 +1,13 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { isApiError } from "@/lib/api/apiError";
 import { Button } from "@/components/ui/button";
-import { recordPatientQrArrival } from "@/lib/api/clinicArrivalApi";
+import { notifySuccess } from "@/lib/messages/notify";
+import { recordPatientArrivalCheckIn } from "../../api/patientArrivalCheckInApi";
+import {
+  arrivalFailureOf,
+  type ArrivalFailure,
+} from "../../schema/patientArrivalFailure";
 import type { PatientAppointment } from "../../types/patientAppointment";
 
 export function PatientArrivalQrCheckIn({
@@ -15,7 +19,7 @@ export function PatientArrivalQrCheckIn({
 }) {
   const [open, setOpen] = useState(false);
   const [proof, setProof] = useState("");
-  const [error, setError] = useState("");
+  const [error, setError] = useState<ArrivalFailure | null>(null);
   const [pending, setPending] = useState(false);
   const [cameraState, setCameraState] = useState<
     "closed" | "opening" | "scanning"
@@ -40,7 +44,7 @@ export function PatientArrivalQrCheckIn({
     setCameraState("opening");
     scanSubmittedRef.current = false;
     setCameraMessage("");
-    setError("");
+    setError(null);
     try {
       if (!navigator.mediaDevices?.getUserMedia) {
         throw new Error("SECURE_CONTEXT_REQUIRED");
@@ -55,7 +59,7 @@ export function PatientArrivalQrCheckIn({
           scanSubmittedRef.current = true;
           const scannedProof = result.getText();
           setProof(scannedProof);
-          setError("");
+          setError(null);
           stopCamera();
           void submit(scannedProof);
         },
@@ -90,28 +94,24 @@ export function PatientArrivalQrCheckIn({
     const cleanProof = value.trim();
     if (!cleanProof || pending) return;
     setPending(true);
-    setError("");
+    setError(null);
     try {
-      const result = await recordPatientQrArrival(appointment.id, cleanProof);
+      const result = await recordPatientArrivalCheckIn(
+        appointment.id,
+        cleanProof,
+      );
       if (!result.checkedIn) {
         throw new Error("CHECK_IN_NOT_COMPLETED");
       }
       stopCamera();
+      notifySuccess("MSG-88", {
+        number: result.queueNumber ?? "—",
+        room: result.roomLabel ?? "—",
+      });
       onRecorded();
       setOpen(false);
     } catch (cause) {
-      setError(
-        isApiError(cause) && cause.errorCode === "CHECK_IN_TIME_NOT_ALLOWED"
-          ? "Chỉ có thể quét check-in từ 30 phút trước đến 15 phút sau giờ hẹn. Nếu không đúng khung giờ, hãy nhờ lễ tân hỗ trợ tiếp nhận."
-          : isApiError(cause) && cause.errorCode === "ARRIVAL_PROOF_INVALID"
-            ? "Mã QR không hợp lệ hoặc đã hết hạn. Hãy quét mã mới đang hiển thị tại quầy."
-            : isApiError(cause) &&
-                cause.errorCode === "APPOINTMENT_NOT_CHANGEABLE"
-              ? "Lịch hẹn không còn đủ điều kiện check-in. Hãy nhờ lễ tân kiểm tra giúp."
-              : isApiError(cause)
-                ? cause.message
-                : "Không thể hoàn tất check-in. Hãy nhờ lễ tân hỗ trợ.",
-      );
+      setError(arrivalFailureOf(cause));
     } finally {
       setPending(false);
     }
@@ -187,9 +187,12 @@ export function PatientArrivalQrCheckIn({
         />
       </label>
       {error && (
-        <p role="alert" className="text-sm text-destructive">
-          {error}
-        </p>
+        <div className="space-y-1 text-sm" role="alert">
+          <p className="text-destructive">{error.message}</p>
+          {error.hint ? (
+            <p className="text-muted-foreground">{error.hint}</p>
+          ) : null}
+        </div>
       )}
       <div className="flex flex-wrap justify-end gap-2">
         <Button

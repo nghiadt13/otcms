@@ -72,6 +72,9 @@ public class UpdateAppointmentStatusServiceImpl implements UpdateAppointmentStat
             String code = failure.code();
             if ("VISIT_CANCELLATION_NOT_ALLOWED".equals(code)) throw new AppointmentBookingException(code, failure);
             if ("VISIT_LINK_CONFLICT".equals(code)) throw new AppointmentBookingException(code, failure);
+            if ("VISIT_EXAM_STATE_CONFLICT".equals(code) || "VISIT_COMPLETION_NOT_ALLOWED".equals(code)) {
+                throw new AppointmentBookingException(code, failure);
+            }
             if ("VISIT_CAPACITY_NOT_AVAILABLE".equals(code)) {
                 throw new AppointmentCapacityConflictException(failure);
             }

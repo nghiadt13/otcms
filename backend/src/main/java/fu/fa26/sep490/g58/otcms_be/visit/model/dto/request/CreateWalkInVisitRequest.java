@@ -10,6 +10,12 @@ public class CreateWalkInVisitRequest extends StrictRequestBody {
     @NotNull
     private UUID patientProfileId;
     private UUID priorAppointmentId;
+    /** Doctor chosen by reception; must be on shift when the walk-in is created. */
+    @NotNull
+    private UUID doctorProfileId;
+    /** EXAMINATION service whose price is the walk-in fee (0 = free, numbered at once). */
+    @NotNull
+    private UUID serviceId;
 
     public CreateWalkInVisitRequest() { }
 
@@ -18,4 +24,8 @@ public class CreateWalkInVisitRequest extends StrictRequestBody {
     @Schema(nullable = true)
     public UUID getPriorAppointmentId() { return priorAppointmentId; }
     public void setPriorAppointmentId(UUID priorAppointmentId) { this.priorAppointmentId = priorAppointmentId; }
+    public UUID getDoctorProfileId() { return doctorProfileId; }
+    public void setDoctorProfileId(UUID doctorProfileId) { this.doctorProfileId = doctorProfileId; }
+    public UUID getServiceId() { return serviceId; }
+    public void setServiceId(UUID serviceId) { this.serviceId = serviceId; }
 }

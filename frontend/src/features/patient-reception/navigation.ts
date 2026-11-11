@@ -124,3 +124,18 @@ export type ReceptionSection = (typeof receptionNavigation)[number]["section"];
 export const receptionHref = (section = "") =>
   `/reception${section ? `/${section}` : ""}`;
 export const ReceiptIcon = ReceiptText;
+
+/** Màn đã nối BE thật: mở được ở production mà không cần `NEXT_PUBLIC_RECEPTION_DEMO`. */
+const LIVE_RECEPTION_SECTIONS: ReadonlySet<ReceptionSection> =
+  new Set<ReceptionSection>(["", "appointments", "queues", "orders"]);
+
+/** Màn còn dữ liệu giả chỉ mở ở môi trường dev/test hoặc khi bật cờ demo ở production. */
+export function isReceptionSectionAvailable(
+  section: ReceptionSection,
+): boolean {
+  if (LIVE_RECEPTION_SECTIONS.has(section)) return true;
+  return (
+    process.env.NODE_ENV !== "production" ||
+    process.env.NEXT_PUBLIC_RECEPTION_DEMO === "true"
+  );
+}

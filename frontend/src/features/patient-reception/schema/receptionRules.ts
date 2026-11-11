@@ -2,9 +2,7 @@ import type {
   PatientInput,
   Patient,
   PatientSearchQuery,
-  Priority,
   ReceptionState,
-  QueueEntry,
 } from "../types";
 
 export const clinicDate = (date = new Date()) =>
@@ -93,30 +91,6 @@ export function validatePatient(input: PatientInput, today: string) {
     errors.email = "Email chưa hợp lệ.";
   return errors;
 }
-/** Age is evaluated on the reception date, never stored permanently on a patient profile. */
-export function agePriority(dob: string, date: string): Priority {
-  if (!isDate(dob) || !isDate(date) || dob > date) return "normal";
-  const years =
-    Number(date.slice(0, 4)) -
-    Number(dob.slice(0, 4)) -
-    (date.slice(5) < dob.slice(5) ? 1 : 0);
-  return years < 6 ? "child" : years >= 75 ? "elderly" : "normal";
-}
-export function receptionPriority(
-  dob: string,
-  date: string,
-  selected: Priority,
-): Priority {
-  return ["normal", "child", "elderly"].includes(selected)
-    ? agePriority(dob, date)
-    : selected;
-}
-// Clinic priority configuration: emergency first, other entitled groups together, then normal.
-export function priorityRank(priority: Priority) {
-  return priority === "emergency" ? 0 : priority === "normal" ? 2 : 1;
-}
-export const queueSort = (a: QueueEntry, b: QueueEntry) =>
-  a.position - b.position || a.joinedAt.localeCompare(b.joinedAt);
 export function withinReturnWindow(first: string, today: string) {
   return today >= first && today <= addDays(first, 6);
 }

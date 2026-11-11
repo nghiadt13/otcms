@@ -1,10 +1,12 @@
 package fu.fa26.sep490.g58.otcms_be.visit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -18,11 +20,11 @@ import fu.fa26.sep490.g58.otcms_be.common.service.CoordinationGuardService;
 import fu.fa26.sep490.g58.otcms_be.staff.service.DoctorProfileIdentityQueryService;
 import fu.fa26.sep490.g58.otcms_be.visit.config.VisitCareProperties;
 import fu.fa26.sep490.g58.otcms_be.visit.exception.VisitOperationException;
-import fu.fa26.sep490.g58.otcms_be.visit.exception.VisitCapacityConflictException;
 import fu.fa26.sep490.g58.otcms_be.visit.model.entity.VisitCareAssignmentJpaEntity;
 import fu.fa26.sep490.g58.otcms_be.visit.model.RoomReservationPlan;
 import fu.fa26.sep490.g58.otcms_be.visit.repository.VisitCareAssignmentAuditRepository;
 import fu.fa26.sep490.g58.otcms_be.visit.repository.VisitCareAssignmentRepository;
+import fu.fa26.sep490.g58.otcms_be.visit.service.VisitExamQueueService;
 import fu.fa26.sep490.g58.otcms_be.visit.service.VisitRoomCapacityService;
 import fu.fa26.sep490.g58.otcms_be.visit.service.ExitWalkInReceptionQueueCommand;
 import fu.fa26.sep490.g58.otcms_be.visit.service.ExitWalkInReceptionQueueService;
@@ -40,6 +42,10 @@ import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+/**
+ * Care start and extension rules. A start no longer checks time windows, doctor overlap or rooms: the exam queue
+ * decides doctor conflicts (plans/261111-0208-visit-flow-r3, BE-4 R2).
+ */
 class VisitCareCapacityT031Test {
     private static final Instant NOW = Instant.parse("2026-10-19T10:00:00Z");
     private final UUID visitId = UUID.randomUUID();
@@ -56,8 +62,10 @@ class VisitCareCapacityT031Test {
     private final VisitRoomCapacityService rooms = mock(VisitRoomCapacityService.class);
     private final VisitCareProperties properties = new VisitCareProperties();
     private final ExitWalkInReceptionQueueService queueExit = mock(ExitWalkInReceptionQueueService.class);
+    private final VisitExamQueueService examQueue = mock(VisitExamQueueService.class);
     private final ManageVisitCareAssignmentServiceImpl service = new ManageVisitCareAssignmentServiceImpl(guard,
-            doctors, appointments, assignments, audits, rooms, properties, queueExit, Clock.fixed(NOW, ZoneOffset.UTC));
+            doctors, appointments, assignments, audits, rooms, properties, queueExit, examQueue,
+            Clock.fixed(NOW, ZoneOffset.UTC));
 
     @BeforeEach
     void setUp() {
@@ -74,7 +82,7 @@ class VisitCareCapacityT031Test {
     }
 
     @Test
-    void startsWalkInWithDerivedDoctorConfiguredDurationAndImmutableAudit() {
+    void startsWalkInWithConfiguredDurationAfterQueueAdmissionWithoutRoomOrCapacityChecks() {
         when(assignments.findVisitForUpdate(visitId)).thenReturn(java.util.Collections.singletonList(visitRow("WALK_IN", null)));
 
         var created = service.startWalkIn(new StartWalkInCareStepCommand(visitId, doctorAccountId,
@@ -83,48 +91,49 @@ class VisitCareCapacityT031Test {
         assertEquals(doctorId, created.doctorProfileId());
         assertEquals(NOW.plusSeconds(1800), created.expectedEnd());
         assertEquals("IN_PROGRESS", created.status());
+        assertNull(created.roomId());
         verify(queueExit).exit(new ExitWalkInReceptionQueueCommand(visitId, doctorAccountId,
                 AccountRole.DOCTOR, "CARE_STARTED", NOW, "corr-t031"));
-        var order = inOrder(guard, assignments, appointments, audits);
+        var order = inOrder(guard, assignments, examQueue, queueExit, audits);
         order.verify(guard).acquire();
         order.verify(assignments).findVisitForUpdate(visitId);
-        order.verify(appointments).checkVisitReservation(any());
+        order.verify(examQueue).startExamination(visitId, doctorId, NOW);
+        order.verify(queueExit).exit(any(ExitWalkInReceptionQueueCommand.class));
         order.verify(assignments).saveAndFlush(any(VisitCareAssignmentJpaEntity.class));
-        verify(rooms).reserve(any(RoomReservationPlan.class), eq(visitId), eq(created.id()), eq(doctorAccountId),
-                eq("corr-t031"), eq(NOW));
         order.verify(audits).append(eq(visitId), eq(created.id()), eq(doctorAccountId), eq("STARTED"),
                 eq("CONSULTATION"), eq(null), eq(Timestamp.from(created.expectedEnd())),
                 eq(Timestamp.from(NOW)), eq("corr-t031"));
+        verify(appointments, never()).checkVisitReservation(any());
+        verify(rooms, never()).prepare(any(), any(), any(), any());
+        verify(rooms, never()).reserve(any(), any(), any(), any(), any(), any());
     }
 
     @Test
-    void missingStepConfigurationFailsClosedWithoutReservationOrWrite() {
+    void unconfiguredStepStartsWithDefaultThirtyMinutesInsteadOfFailing() {
         properties.setCareStepDurationMinutes(java.util.Map.of());
         when(assignments.findVisitForUpdate(visitId)).thenReturn(java.util.Collections.singletonList(visitRow("WALK_IN", null)));
 
-        var failure = assertThrows(VisitOperationException.class, () -> service.startWalkIn(
-                new StartWalkInCareStepCommand(visitId, doctorAccountId, AccountRole.DOCTOR,
-                        "RESULT_REVIEW", "corr-t031")));
+        var created = service.startWalkIn(new StartWalkInCareStepCommand(visitId, doctorAccountId,
+                AccountRole.DOCTOR, "CONSULTATION", "corr-t031"));
 
-        assertEquals("VISIT_CARE_STEP_NOT_CONFIGURED", failure.code());
-        verify(assignments, never()).saveAndFlush(any());
-        verifyNoInteractions(appointments, audits);
+        assertEquals(NOW.plusSeconds(1800), created.expectedEnd());
+        verify(examQueue).startExamination(visitId, doctorId, NOW);
+        verify(assignments).saveAndFlush(any(VisitCareAssignmentJpaEntity.class));
     }
 
     @Test
-    void appointmentConflictDoesNotCreateCareAssignment() {
+    void queueConflictStopsStartBeforeAnyCareWriteOrReceptionExit() {
         when(assignments.findVisitForUpdate(visitId)).thenReturn(java.util.Collections.singletonList(visitRow("WALK_IN", null)));
-        when(appointments.checkVisitReservation(any()))
-                .thenReturn(new CheckVisitReservationCapacityService.CapacityDecision(false, appointmentId, null));
+        doThrow(new VisitOperationException("VISIT_EXAM_STATE_CONFLICT"))
+                .when(examQueue).startExamination(visitId, doctorId, NOW);
 
-        var failure = assertThrows(VisitCapacityConflictException.class, () -> service.startWalkIn(
+        var failure = assertThrows(VisitOperationException.class, () -> service.startWalkIn(
                 new StartWalkInCareStepCommand(visitId, doctorAccountId, AccountRole.DOCTOR,
                         "CONSULTATION", "corr-t031")));
 
-        assertEquals("VISIT_CAPACITY_NOT_AVAILABLE", failure.getMessage());
+        assertEquals("VISIT_EXAM_STATE_CONFLICT", failure.code());
         verify(assignments, never()).saveAndFlush(any());
-        verify(audits).appendConflict(eq(visitId), eq(null), eq(doctorAccountId), eq("corr-t031"),
-                eq("CONSULTATION"), eq(Timestamp.from(NOW)));
+        verifyNoInteractions(queueExit, audits, appointments);
     }
 
     @Test
@@ -173,13 +182,13 @@ class VisitCareCapacityT031Test {
     }
 
     @Test
-    void nonDoctorCannotAcquireCapacityOrMutateVisit() {
+    void nonDoctorIsRejectedBeforeAnyWrite() {
         var failure = assertThrows(VisitOperationException.class, () -> service.startWalkIn(
                 new StartWalkInCareStepCommand(visitId, doctorAccountId, AccountRole.RECEPTIONIST,
                         "CONSULTATION", "corr-t031")));
 
         assertEquals("ACCESS_DENIED", failure.code());
-        verifyNoInteractions(guard, doctors, appointments, assignments, audits);
+        verifyNoInteractions(guard, doctors, appointments, assignments, audits, examQueue);
     }
 
     private Object[] visitRow(String source, UUID linkedAppointmentId) {

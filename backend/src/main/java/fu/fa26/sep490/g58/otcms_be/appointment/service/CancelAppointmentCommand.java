@@ -22,5 +22,5 @@ public class CancelAppointmentCommand {
     public String reason() { return reason; }
     public String getCorrelationId() { return correlationId; }
     public String correlationId() { return correlationId; }
-    public enum Actor { PATIENT, RECEPTIONIST }
+    public enum Actor { PATIENT, RECEPTIONIST, ADMIN }
 }

@@ -17,9 +17,23 @@ const exam = {
 };
 
 describe("luồng khám trên bản demo", () => {
-  it("Doctor has no Visit closure command", () => {
-    expect(doctorDemoApi).not.toHaveProperty("completeVisit");
+  it("bác sĩ kết thúc lượt được trên bản demo: chỉ khi phần khám hoàn tất và không còn chỉ định chờ", async () => {
+    expect(doctorDemoApi.finishVisit).toEqual(expect.any(Function));
     expect(doctorDemoApi.capabilities).not.toHaveProperty("closeWithEvidence");
+    const waiting = await doctorDemoApi.getVisitContext("demo-visit-1");
+    await expect(doctorDemoApi.finishVisit(waiting)).rejects.toMatchObject({
+      code: "MSG-42",
+    });
+    const context = await doctorDemoApi.getVisitContext("demo-visit-3");
+    await expect(doctorDemoApi.finishVisit(context)).rejects.toMatchObject({
+      code: "MSG-42",
+    });
+    const [mri] = await doctorDemoApi.listOrders("demo-visit-3");
+    await doctorDemoApi.cancelOrder(mri, "CLINIC_UNABLE", "Máy đang bảo trì");
+    await doctorDemoApi.finishVisit(context);
+    expect((await doctorDemoApi.getVisitContext("demo-visit-3")).status).toBe(
+      "COMPLETED",
+    );
   });
 
   it("sửa kết quả cần lý do, tạo phiên bản mới và đánh dấu bản cũ đã thay thế; chỉ với lượt đã hoàn tất", async () => {
@@ -102,7 +116,7 @@ describe("luồng khám trên bản demo", () => {
 });
 
 describe("canonical demo compatibility", () => {
-  it("findings review/draft/completion leaves final Visit closure to Receptionist", async () => {
+  it("findings review/draft/completion leaves the visit open for the doctor to finish", async () => {
     const visitId = "demo-visit-2";
     await doctorDemoApi.saveExamination(visitId, exam, "complete");
     const [order] = await doctorDemoApi.listOrders(visitId);

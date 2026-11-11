@@ -21,7 +21,8 @@ public class VisitDoctorActiveCareReadServiceImpl implements VisitDoctorActiveCa
         if (doctorProfileId == null) throw new IllegalArgumentException("Doctor profile ID is required");
         return assignments.findDoctorActiveCare(doctorProfileId).stream()
                 .map(row -> new DoctorActiveVisit(row.getVisitId(), row.getPatientProfileId(), row.getVisitSource(),
-                        row.getLinkedAppointmentId(), row.getAssignmentId(), row.getStepCode(), row.getStartedAt(), row.getExpectedEnd()))
+                        row.getLinkedAppointmentId(), row.getAssignmentId(), row.getStepCode(), row.getStartedAt(),
+                        row.getExpectedEnd(), row.getExamStatus(), row.getQueueNumber()))
                 .toList();
     }
 }

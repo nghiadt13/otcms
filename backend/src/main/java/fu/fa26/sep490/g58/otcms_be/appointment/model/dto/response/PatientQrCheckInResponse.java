@@ -13,4 +13,7 @@ public record PatientQrCheckInResponse(
         String appointmentStatus,
         UUID visitId,
         Instant checkedInAt,
-        boolean checkedIn) { }
+        boolean checkedIn,
+        Integer queueNumber,
+        String doctorName,
+        String roomLabel) { }

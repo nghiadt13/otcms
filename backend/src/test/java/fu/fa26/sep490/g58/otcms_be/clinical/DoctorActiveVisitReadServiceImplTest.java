@@ -78,6 +78,7 @@ class DoctorActiveVisitReadServiceImplTest {
     private ClinicalIdentity patient() { return new ClinicalIdentity(patientId, "Patient A", LocalDate.of(2000, 1, 1), "MALE"); }
     private DoctorActiveVisit visit() {
         return new DoctorActiveVisit(UUID.randomUUID(), patientId, "WALK_IN", null, UUID.randomUUID(), "EXAMINATION",
-                Instant.parse("2026-11-04T14:00:00Z"), Instant.parse("2026-11-04T14:30:00Z"));
+                Instant.parse("2026-11-04T14:00:00Z"), Instant.parse("2026-11-04T14:30:00Z"),
+                fu.fa26.sep490.g58.otcms_be.visit.model.VisitExamStatus.IN_EXAMINATION, 1);
     }
 }

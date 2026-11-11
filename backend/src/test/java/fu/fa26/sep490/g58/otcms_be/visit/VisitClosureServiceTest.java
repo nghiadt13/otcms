@@ -9,12 +9,19 @@ import fu.fa26.sep490.g58.otcms_be.clinical.service.ClinicalVisitCompletionEvide
 import fu.fa26.sep490.g58.otcms_be.common.security.AccountRole;
 import fu.fa26.sep490.g58.otcms_be.common.service.CoordinationGuardService;
 import fu.fa26.sep490.g58.otcms_be.notification.service.NotificationPublisher;
+import fu.fa26.sep490.g58.otcms_be.servicecatalog.model.ClinicService;
+import fu.fa26.sep490.g58.otcms_be.servicecatalog.model.ClinicServiceType;
+import fu.fa26.sep490.g58.otcms_be.servicecatalog.service.GetClinicServiceCatalogService;
+import fu.fa26.sep490.g58.otcms_be.staff.service.DoctorProfileIdentityQueryService;
 import fu.fa26.sep490.g58.otcms_be.staff.service.StaffAvailabilityProviderQueryService;
 import fu.fa26.sep490.g58.otcms_be.visit.exception.VisitOperationException;
+import fu.fa26.sep490.g58.otcms_be.visit.model.ExamQueueEntry;
+import fu.fa26.sep490.g58.otcms_be.visit.model.VisitExamStatus;
 import fu.fa26.sep490.g58.otcms_be.visit.model.entity.*;
 import fu.fa26.sep490.g58.otcms_be.visit.repository.*;
 import fu.fa26.sep490.g58.otcms_be.visit.service.*;
 import fu.fa26.sep490.g58.otcms_be.visit.service.impl.WalkInVisitLifecycleServiceImpl;
+import java.math.BigDecimal;
 import java.time.*;
 import java.util.*;
 import org.junit.jupiter.api.*;
@@ -35,8 +42,11 @@ class VisitClosureServiceTest {
     final NotificationPublisher notifications = mock(NotificationPublisher.class);
     final VisitReviewSourceService reviews = mock(VisitReviewSourceService.class);
     final StaffAvailabilityProviderQueryService names = mock(StaffAvailabilityProviderQueryService.class);
+    final VisitExamQueueService examQueue = mock(VisitExamQueueService.class);
+    final GetClinicServiceCatalogService catalog = mock(GetClinicServiceCatalogService.class);
     final WalkInVisitLifecycleServiceImpl service = new WalkInVisitLifecycleServiceImpl(guard, visits, lifecycle,
-            audits, queue, receptionists, clinical, diagnostic, Clock.fixed(now, ZoneOffset.UTC), notifications, reviews, names);
+            audits, queue, receptionists, clinical, diagnostic, Clock.fixed(now, ZoneOffset.UTC), notifications, reviews, names,
+            examQueue, catalog, mock(ManageVisitCareAssignmentService.class), mock(DoctorProfileIdentityQueryService.class));
     @BeforeEach void setup() {
         when(receptionists.isActiveReceptionistAccount(actor)).thenReturn(true);
         when(visits.findByIdForUpdate(id)).thenReturn(Optional.of(ClinicVisitJpaEntity.walkIn(id, patient, null, actor, now)));
@@ -127,5 +137,60 @@ class VisitClosureServiceTest {
         service.cancel(id, actor, AccountRole.RECEPTIONIST, "cancel");
         verifyNoInteractions(clinical, notifications); verify(lifecycle).closeOpenWalkIn(id, now);
         verify(queue).exit(argThat(c -> c.reason().equals("CANCELLED")));
+        verify(examQueue).cancel(id, now);
+    }
+
+    @Test void walkInWithoutQueueRowCancelsAsBefore() {
+        when(lifecycle.closeOpenWalkIn(id, now)).thenReturn(true);
+        service.cancel(id, actor, AccountRole.RECEPTIONIST, "cancel");
+        verify(examQueue).cancel(id, now); verify(lifecycle).closeOpenWalkIn(id, now);
+    }
+
+    @Test void walkInAwaitingFeeCancelsItsQueueRow() {
+        when(lifecycle.closeOpenWalkIn(id, now)).thenReturn(true);
+        when(examQueue.find(id)).thenReturn(Optional.of(queueEntry(VisitExamStatus.PENDING_PAYMENT, UUID.randomUUID())));
+        service.cancel(id, actor, AccountRole.RECEPTIONIST, "cancel");
+        verify(lifecycle).closeOpenWalkIn(id, now); verify(examQueue).cancel(id, now);
+        verifyNoInteractions(catalog);
+    }
+
+    @Test void paidWalkInWaitingForExaminationCannotBeCancelled() {
+        UUID paidService = UUID.randomUUID();
+        when(catalog.getService(paidService)).thenReturn(examination(paidService, new BigDecimal("250000.00")));
+        when(examQueue.find(id)).thenReturn(Optional.of(queueEntry(VisitExamStatus.WAITING, paidService)));
+        denied("VISIT_CANCELLATION_NOT_ALLOWED", () -> service.cancel(id, actor, AccountRole.RECEPTIONIST, "cancel"));
+        verify(lifecycle, never()).closeOpenWalkIn(any(), any()); verify(examQueue, never()).cancel(any(), any());
+        verifyNoInteractions(queue, audits);
+    }
+
+    @Test void freeWalkInWaitingCanStillBeCancelled() {
+        UUID freeService = UUID.randomUUID();
+        when(catalog.getService(freeService)).thenReturn(examination(freeService, BigDecimal.ZERO));
+        when(lifecycle.closeOpenWalkIn(id, now)).thenReturn(true);
+        when(examQueue.find(id)).thenReturn(Optional.of(queueEntry(VisitExamStatus.WAITING, freeService)));
+        service.cancel(id, actor, AccountRole.RECEPTIONIST, "cancel");
+        verify(examQueue).cancel(id, now); verify(lifecycle).closeOpenWalkIn(id, now);
+    }
+
+    @ParameterizedTest @EnumSource(value = VisitExamStatus.class, names = {"IN_EXAMINATION", "AWAITING_CONCLUSION", "COMPLETED", "CANCELLED"})
+    void walkInPastTheQueueStepCannotBeCancelled(VisitExamStatus status) {
+        when(examQueue.find(id)).thenReturn(Optional.of(queueEntry(status, UUID.randomUUID())));
+        denied("VISIT_CANCELLATION_NOT_ALLOWED", () -> service.cancel(id, actor, AccountRole.RECEPTIONIST, "cancel"));
+        verify(lifecycle, never()).closeOpenWalkIn(any(), any()); verify(examQueue, never()).cancel(any(), any());
+    }
+
+    @Test void walkInWaitingWithoutServiceFailsClosedWithoutCatalogLookup() {
+        when(examQueue.find(id)).thenReturn(Optional.of(queueEntry(VisitExamStatus.WAITING, null)));
+        denied("VISIT_CANCELLATION_NOT_ALLOWED", () -> service.cancel(id, actor, AccountRole.RECEPTIONIST, "cancel"));
+        verifyNoInteractions(catalog); verify(examQueue, never()).cancel(any(), any());
+    }
+
+    ExamQueueEntry queueEntry(VisitExamStatus status, UUID serviceId) {
+        return new ExamQueueEntry(id, doctor, null, serviceId, status == VisitExamStatus.PENDING_PAYMENT ? null : 1,
+                status, now.atZone(ZoneOffset.UTC).toLocalDate(), now, null, null, null);
+    }
+    ClinicService examination(UUID serviceId, BigDecimal price) {
+        return new ClinicService(serviceId, "Kham", "", ClinicServiceType.EXAMINATION, price, Duration.ofMinutes(30),
+                Duration.ZERO, false, true);
     }
 }

@@ -54,95 +54,164 @@ const appointment = (patch: Record<string, unknown> = {}) => ({
   ...patch,
 });
 
+/** Dòng hàng chờ (A2 và A6) với giá trị mặc định của một lượt theo lịch hẹn đang chờ. */
+const queueRow = (patch: Record<string, unknown> = {}) => ({
+  visitId: "visit-1",
+  queueNumber: 1,
+  examStatus: "WAITING",
+  source: "SCHEDULED",
+  appointmentId: "appt-1",
+  patientProfileId: "pat-1",
+  patientName: "Nguyễn Văn An",
+  doctorProfileId: "doc-1",
+  doctorName: "BS. Minh",
+  roomId: null,
+  roomLabel: null,
+  serviceId: null,
+  queuedAt: "2026-11-04T01:00:00Z",
+  startedAt: null,
+  finishedAt: null,
+  dateOfBirth: "1980-05-20",
+  gender: "MALE",
+  ...patch,
+});
+
 describe("lượt khám và danh sách hôm nay", () => {
-  it("danh sách hôm nay suy từ /appointments, bỏ hẹn hủy/không đến và đổi trạng thái sang lượt khám", async () => {
+  it("danh sách hôm nay lấy từ hàng chờ (A2), thêm lịch đã xác nhận chưa đến, không đọc /doctor/visits/active", async () => {
     route({
+      "/api/v1/doctor/exam-queue": {
+        items: [
+          queueRow({
+            visitId: "v-walk",
+            queueNumber: 2,
+            source: "WALK_IN",
+            appointmentId: null,
+          }),
+          queueRow({
+            visitId: "visit-1",
+            examStatus: "IN_EXAMINATION",
+            appointmentId: "a1",
+          }),
+          queueRow({
+            visitId: "v-old",
+            examStatus: "AWAITING_CONCLUSION",
+            appointmentId: "a9",
+            queuedAt: "2026-11-10T01:00:00Z",
+          }),
+        ],
+      },
       "/api/v1/appointments?": {
         items: [
-          appointment(),
+          appointment({ id: "a1", status: "IN_PROGRESS", visitId: "visit-1" }),
           appointment({ id: "a2", status: "CONFIRMED", visitId: null }),
-          appointment({ id: "a3", status: "IN_PROGRESS", visitId: "v3" }),
           appointment({ id: "a4", status: "CANCELLED" }),
           appointment({ id: "a5", status: "NO_SHOW" }),
         ],
       },
-      "/api/v1/doctor/visits/active": { items: [] },
     });
     const rows = await doctorLiveApi.listTodayPatients();
-    expect(request.mock.calls[0][0]).toMatch(
+    expect(request.mock.calls[0][0]).toBe("/api/v1/doctor/exam-queue");
+    expect(request.mock.calls[1][0]).toMatch(
       /^\/api\/v1\/appointments\?from=\d{4}-\d{2}-\d{2}&to=\d{4}-\d{2}-\d{2}&size=100&page=0$/,
     );
+    expect(
+      request.mock.calls.some((call) =>
+        String(call[0]).startsWith("/api/v1/doctor/visits/active"),
+      ),
+    ).toBe(false);
     expect(rows.map((r) => r.status)).toEqual([
       "WAITING_FOR_EXAMINATION",
-      "NOT_ARRIVED",
       "IN_EXAMINATION",
+      "AWAITING_CONCLUSION",
+      "NOT_ARRIVED",
     ]);
-    expect(rows[1].visitId).toBeNull();
+    expect(rows[1]).toMatchObject({
+      visitId: "visit-1",
+      serviceName: "Khám cơ xương khớp",
+      queueNumber: 1,
+    });
+    expect(rows[3]).toMatchObject({
+      appointmentId: "a2",
+      visitId: null,
+      queueNumber: null,
+    });
   });
 
-  it("lượt đang khám ghép tuổi/giới vào hẹn tương ứng và thêm bệnh nhân vãng lai", async () => {
+  it("walk-in đang chờ có mã lượt, số thứ tự, tuổi và giới lấy từ hàng chờ", async () => {
     route({
+      "/api/v1/doctor/exam-queue": {
+        items: [
+          queueRow({
+            visitId: "walk-1",
+            queueNumber: 4,
+            examStatus: "WAITING",
+            source: "WALK_IN",
+            appointmentId: null,
+            patientName: "Đỗ Thanh Bình",
+            dateOfBirth: "1990-01-01",
+            gender: "FEMALE",
+          }),
+        ],
+      },
+      "/api/v1/appointments?": { items: [] },
+    });
+    const [walkIn] = await doctorLiveApi.listTodayPatients();
+    expect(walkIn).toMatchObject({
+      visitId: "walk-1",
+      queueNumber: 4,
+      status: "WAITING_FOR_EXAMINATION",
+      source: "WALK_IN",
+      appointmentId: null,
+      patientName: "Đỗ Thanh Bình",
+      sex: "Nữ",
+      serviceName: "Khám bệnh",
+      scheduledAt: "2026-11-04T01:00:00Z",
+    });
+    expect(walkIn.age).toBeGreaterThan(20);
+  });
+
+  it("hàng chờ lỗi thì báo lỗi, không dựng danh sách từ lịch hẹn", async () => {
+    route({
+      "/api/v1/doctor/exam-queue": new ApiError(500, {}),
+      "/api/v1/appointments?": {
+        items: [appointment({ status: "CONFIRMED", visitId: null })],
+      },
+    });
+    await expect(doctorLiveApi.listTodayPatients()).rejects.toBeInstanceOf(
+      ApiError,
+    );
+  });
+
+  it("lịch đã có dòng hàng chờ không lặp ở nhóm Chưa đến; lịch đã xác nhận khác vẫn hiện", async () => {
+    route({
+      "/api/v1/doctor/exam-queue": {
+        items: [queueRow({ appointmentId: "appt-1", visitId: "visit-1" })],
+      },
       "/api/v1/appointments?": {
         items: [
           appointment({
             id: "appt-1",
+            status: "CONFIRMED",
             visitId: "visit-1",
-            status: "CHECKED_IN",
           }),
-        ],
-      },
-      "/api/v1/doctor/visits/active": {
-        items: [
-          active({
-            visitId: "visit-1",
-            linkedAppointmentId: "appt-1",
-            visitSource: "SCHEDULED",
-          }),
-          active({
-            visitId: "walk-1",
-            linkedAppointmentId: null,
-            visitSource: "WALK_IN",
-            stepCode: "CONSULTATION",
-            patient: {
-              fullName: "Đỗ Thanh Bình",
-              dateOfBirth: "1990-01-01",
-              gender: "FEMALE",
-            },
-          }),
+          appointment({ id: "appt-2", status: "CONFIRMED", visitId: null }),
         ],
       },
     });
     const rows = await doctorLiveApi.listTodayPatients();
-    expect(rows).toHaveLength(2);
-    expect(rows[0]).toMatchObject({
-      visitId: "visit-1",
-      status: "IN_EXAMINATION",
-      sex: "Nam",
-      source: "BOOKED",
-    });
-    expect(rows[0].age).toBeGreaterThan(20);
-    expect(rows[1]).toMatchObject({
-      visitId: "walk-1",
-      patientName: "Đỗ Thanh Bình",
-      source: "WALK_IN",
-      sex: "Nữ",
-      status: "IN_EXAMINATION",
-      appointmentId: null,
-    });
+    expect(rows.map((r) => r.appointmentId)).toEqual(["appt-1", "appt-2"]);
+    expect(rows.map((r) => r.status)).toEqual([
+      "WAITING_FOR_EXAMINATION",
+      "NOT_ARRIVED",
+    ]);
   });
 
-  it("endpoint lượt đang khám lỗi (BE cũ) thì danh sách vẫn dựng từ lịch hẹn", async () => {
+  it("ngữ cảnh lượt: trạng thái từ hàng chờ (sau chỉ định là chờ kết luận), tuổi/giới từ /doctor/visits/active, chi tiết từ hẹn liên kết", async () => {
     route({
-      "/api/v1/appointments?": { items: [appointment()] },
-      "/api/v1/doctor/visits/active": new ApiError(404, {}),
-    });
-    const rows = await doctorLiveApi.listTodayPatients();
-    expect(rows).toHaveLength(1);
-    expect(rows[0].age).toBeNull();
-  });
-
-  it("ngữ cảnh lượt đang khám lấy họ tên, tuổi, giới từ /doctor/visits/active và chi tiết từ hẹn liên kết", async () => {
-    route({
+      "/api/v1/visits/visit-1/exam-queue-entry": queueRow({
+        examStatus: "AWAITING_CONCLUSION",
+        doctorProfileId: "doc-9",
+      }),
       "/api/v1/doctor/visits/active": { items: [active()] },
       "/api/v1/appointments/appt-1": appointment({
         doctorId: "doc-9",
@@ -162,7 +231,7 @@ describe("lượt khám và danh sách hôm nay", () => {
       doctorProfileId: "doc-9",
       appointmentId: "appt-1",
       sex: "Nam",
-      status: "IN_EXAMINATION",
+      status: "AWAITING_CONCLUSION",
       source: "BOOKED",
       serviceName: "Tái khám",
       allergies: "Penicillin",
@@ -172,47 +241,55 @@ describe("lượt khám và danh sách hôm nay", () => {
     expect(context.age).toBeGreaterThan(20);
   });
 
-  it("lượt đang khám của vãng lai không có hẹn: không có mã hẹn để bắt đầu/hoàn tất qua lịch hẹn", async () => {
+  it("walk-in đang chờ (không có hẹn, chưa có bước khám) có trạng thái chờ khám và tên từ hàng chờ; thiếu tiền sử không làm hỏng", async () => {
     route({
-      "/api/v1/doctor/visits/active": {
-        items: [active({ linkedAppointmentId: null, visitSource: "WALK_IN" })],
-      },
-      "/api/v1/patient-profiles/": new ApiError(403, {}),
-    });
-    const context = await doctorLiveApi.getVisitContext("visit-1");
-    expect(context).toMatchObject({
-      appointmentId: null,
-      source: "WALK_IN",
-      allergiesLoaded: false,
-    });
-  });
-
-  it("lượt chưa đang khám (chờ, đã hoàn tất) tìm qua lịch hẹn, thiếu tuổi/giới; thiếu tiền sử không làm hỏng", async () => {
-    route({
+      "/api/v1/visits/walk-1/exam-queue-entry": queueRow({
+        visitId: "walk-1",
+        examStatus: "WAITING",
+        source: "WALK_IN",
+        appointmentId: null,
+        patientName: "Đỗ Thanh Bình",
+        queueNumber: 4,
+      }),
       "/api/v1/doctor/visits/active": { items: [] },
-      "/api/v1/appointments?": { items: [appointment()] },
       "/api/v1/patient-profiles/": new ApiError(403, { code: "MSG-19" }),
     });
-    const context = await doctorLiveApi.getVisitContext("visit-1");
+    const context = await doctorLiveApi.getVisitContext("walk-1");
     expect(context).toMatchObject({
-      patientName: "Nguyễn Văn An",
-      patientProfileId: "pat-1",
-      doctorProfileId: "doc-1",
+      visitId: "walk-1",
+      appointmentId: null,
+      source: "WALK_IN",
       status: "WAITING_FOR_EXAMINATION",
+      patientName: "Đỗ Thanh Bình",
       allergies: "",
       allergiesLoaded: false,
       age: null,
     });
+    expect(context.scheduledAt).toBe("2026-11-04T01:00:00Z");
+  });
 
-    route({
-      "/api/v1/doctor/visits/active": { items: [] },
-      "/api/v1/appointments?": { items: [] },
-    });
+  it("lượt không có trong hàng chờ (404) thì ngữ cảnh rỗng và không quét lịch hẹn", async () => {
+    route({ "/api/v1/doctor/visits/active": { items: [] } });
     expect(await doctorLiveApi.getVisitContext("unknown")).toMatchObject({
       visitId: "unknown",
+      status: null,
       patientName: null,
       patientProfileId: null,
     });
+    expect(
+      request.mock.calls.some((call) =>
+        String(call[0]).startsWith("/api/v1/appointments"),
+      ),
+    ).toBe(false);
+  });
+
+  it("lỗi khác khi đọc hàng chờ thì ném ra, không coi như chưa có trạng thái", async () => {
+    route({
+      "/api/v1/visits/visit-1/exam-queue-entry": new ApiError(403, {}),
+    });
+    await expect(
+      doctorLiveApi.getVisitContext("visit-1"),
+    ).rejects.toBeInstanceOf(ApiError);
   });
 
   it("bắt đầu khám qua lịch hẹn hoặc bước chăm sóc; không có lệnh Doctor đóng lượt", async () => {
@@ -233,7 +310,41 @@ describe("lượt khám và danh sách hôm nay", () => {
     expect(JSON.parse(request.mock.lastCall![1].body)).toEqual({
       stepCode: "CONSULTATION",
     });
-    expect(doctorLiveApi).not.toHaveProperty("completeVisit");
+  });
+
+  it("kết thúc lượt: lịch hẹn đóng qua PATCH COMPLETED, walk-in qua POST completion", async () => {
+    request.mockResolvedValue({
+      visitId: "v",
+      examStatus: "COMPLETED",
+      closedAt: "2026-11-11T02:00:00Z",
+    });
+    await doctorLiveApi.finishVisit({
+      visitId: "v",
+      appointmentId: "appt-1",
+    } as never);
+    expect(request).toHaveBeenLastCalledWith(
+      "/api/v1/appointments/appt-1/status",
+      {
+        method: "PATCH",
+        body: JSON.stringify({ targetStatus: "COMPLETED" }),
+      },
+    );
+    await doctorLiveApi.finishVisit({
+      visitId: "v",
+      appointmentId: null,
+    } as never);
+    expect(request).toHaveBeenLastCalledWith("/api/v1/visits/v/completion", {
+      method: "POST",
+    });
+  });
+
+  it("kết thúc bị từ chối vì thiếu bằng chứng giữ mã MSG-42 để màn hiện đúng", async () => {
+    request.mockRejectedValueOnce(
+      new ApiError(409, { errorCode: "VISIT_COMPLETION_NOT_ALLOWED" }),
+    );
+    await expect(
+      doctorLiveApi.finishVisit({ visitId: "v", appointmentId: null } as never),
+    ).rejects.toMatchObject({ code: "MSG-42" });
   });
 });
 
@@ -543,9 +654,21 @@ describe("chỉ định cận lâm sàng và kết luận hình ảnh", () => {
 });
 
 describe("ngữ cảnh lượt khám nhiều trang và tiền sử", () => {
-  it("duyệt các trang lịch hẹn cho tới khi gặp lượt khám", async () => {
+  it("không quét các trang lịch hẹn: tên lấy từ hàng chờ, chi tiết hẹn lấy theo mã hẹn của hàng chờ", async () => {
     request.mockImplementation(async (path: string) => {
       if (path.startsWith("/api/v1/doctor/visits/active")) return { items: [] };
+      if (path === "/api/v1/visits/target/exam-queue-entry")
+        return queueRow({
+          visitId: "target",
+          appointmentId: "appt-7",
+          patientName: "Trang hai",
+        });
+      if (path === "/api/v1/appointments/appt-7")
+        return appointment({
+          id: "appt-7",
+          visitId: "target",
+          serviceName: "Tái khám",
+        });
       if (path.includes("medical-history"))
         return {
           allergies: "",
@@ -553,19 +676,20 @@ describe("ngữ cảnh lượt khám nhiều trang và tiền sử", () => {
           orthopedicHistory: "",
           version: 1,
         };
-      return path.includes("page=0")
-        ? { items: [appointment({ visitId: "other" })], page: 0, totalPages: 2 }
-        : {
-            items: [
-              appointment({ visitId: "target", patientName: "Trang hai" }),
-            ],
-            page: 1,
-            totalPages: 2,
-          };
+      throw new ApiError(404, {});
     });
     const context = await doctorLiveApi.getVisitContext("target");
-    expect(context.patientName).toBe("Trang hai");
-    expect(context.allergiesLoaded).toBe(true);
+    expect(context).toMatchObject({
+      patientName: "Trang hai",
+      appointmentId: "appt-7",
+      serviceName: "Tái khám",
+      allergiesLoaded: true,
+    });
+    expect(
+      request.mock.calls.some((call) =>
+        String(call[0]).startsWith("/api/v1/appointments?"),
+      ),
+    ).toBe(false);
   });
 
   it("đọc tiền sử lỗi thì báo chưa đọc được dị ứng thay vì coi như không có", async () => {

@@ -17,6 +17,7 @@ import type {
   PatientAppointmentAction,
   PatientAppointmentQuery,
 } from "../types/patientAppointment";
+import { isPatientCancellable } from "../schema/patientCancelWindow";
 import { BOOKABLE_SERVICES, doctorById } from "./bookingMockCatalog";
 import {
   bookingMockNow,
@@ -48,17 +49,21 @@ export function resetPatientAppointmentMock(): void {
   cancelledOwnIds.clear();
 }
 
-/** Việc làm được theo trạng thái, mô phỏng BE: chỉ lịch Đã đặt được hủy; phí chưa trả mới trả online. */
+/**
+ * Việc làm được theo trạng thái, mô phỏng BE: chỉ lịch Đã đặt chưa tới giờ; hủy khi còn đủ hạn tự hủy
+ * (120 phút); phí chưa trả mới trả online.
+ */
 function allowedActionsOf(
   status: AppointmentStatus,
   feeStatus: ExamFeeStatus,
   startAt: string,
 ): PatientAppointmentAction[] {
-  if (status !== "BOOKED" || Date.parse(startAt) <= bookingMockNow().getTime())
-    return [];
-  return feeStatus === "PENDING_PAYMENT"
-    ? ["cancel", "payExamFee"]
-    : ["cancel"];
+  const now = bookingMockNow().getTime();
+  if (status !== "BOOKED" || Date.parse(startAt) <= now) return [];
+  const actions: PatientAppointmentAction[] = [];
+  if (isPatientCancellable(startAt, now)) actions.push("cancel");
+  if (feeStatus === "PENDING_PAYMENT") actions.push("payExamFee");
+  return actions;
 }
 
 type Projection = Omit<PatientAppointment, "patient" | "allowedActions">;
@@ -241,7 +246,8 @@ export async function getMyAppointment(
 
 /**
  * POST /api/v1/appointments/{id}/cancel: chỉ lịch Đã đặt. Lịch đã check-in ở quầy (kịch bản
- * `RACE_APPOINTMENT_ID`) hoặc đã qua → 409 MSG-32. Hủy xong giờ được nhả; phí đã trả không hoàn lại.
+ * `RACE_APPOINTMENT_ID`) hoặc đã qua → 409 MSG-32. Còn dưới hạn tự hủy 120 phút → 422 MSG-32 (BE:
+ * APPOINTMENT_CHANGE_TOO_LATE). Hủy xong giờ được nhả; phí đã trả không hoàn lại.
  */
 export async function cancelMyAppointment(
   id: string,
@@ -255,6 +261,8 @@ export async function cancelMyAppointment(
   }
   if (current.status !== "BOOKED" || id === RACE_APPOINTMENT_ID)
     mockFail(409, "MSG-32");
+  if (!isPatientCancellable(current.startAt, bookingMockNow().getTime()))
+    mockFail(422, "MSG-32");
   if (readStoredAppointments().some((record) => record.id === id))
     cancelStoredAppointment(id);
   else {

@@ -114,16 +114,21 @@ public class InvoiceServiceImpl implements InvoiceService {
         if (request == null || request.items() == null || request.items().isEmpty()) {
             throw new BillingException("SOURCE_NOT_BILLABLE");
         }
+        // One invoice per visit: an existing one is returned as it is, so a retry after the walk-in fee was paid is safe.
+        var existing = invoices.findFirstByVisitId(visitId);
+        if (existing.isPresent()) return existing(existing.get());
         VisitBillingSourceService.BillingSource source;
         try {
-            source = visitSources.requireClosedVisit(visitId);
+            source = visitSources.requireBillableVisit(visitId);
         } catch (VisitOperationException exception) {
             throw new BillingException("SOURCE_NOT_BILLABLE", exception);
         }
         List<ResolvedItem> resolved = resolveItems(request.items());
+        // A pending walk-in fee is invoiced as exactly one line: its fee service, quantity 1.
+        if (source.requiredServiceId() != null && !isSingleFeeLine(resolved, source.requiredServiceId())) {
+            throw new BillingException("SOURCE_NOT_BILLABLE");
+        }
         String fingerprint = fingerprint("VISIT", visitId, resolved);
-        var existing = invoices.findFirstByVisitId(visitId);
-        if (existing.isPresent()) return existing(existing.get());
         UUID invoiceId = UUID.randomUUID();
         InvoiceJpaEntity invoice = InvoiceJpaEntity.visit(invoiceId, invoiceNumber(invoiceId),
                 source.patientProfileId(), visitId, actor.accountId(), fingerprint);
@@ -249,6 +254,11 @@ public class InvoiceServiceImpl implements InvoiceService {
                     label.price().setScale(2, java.math.RoundingMode.UNNECESSARY)));
         }
         return List.copyOf(resolved);
+    }
+
+    private static boolean isSingleFeeLine(List<ResolvedItem> resolved, UUID feeServiceId) {
+        return resolved.size() == 1 && resolved.get(0).serviceId().equals(feeServiceId)
+                && resolved.get(0).quantity() == 1;
     }
 
     private List<InvoiceItemJpaEntity> createItems(UUID invoiceId, List<ResolvedItem> resolved) {

@@ -4,7 +4,6 @@ import fu.fa26.sep490.g58.otcms_be.appointment.mapper.AppointmentRowMapper;
 import fu.fa26.sep490.g58.otcms_be.appointment.model.entity.AppointmentJpaEntity;
 import fu.fa26.sep490.g58.otcms_be.appointment.model.CheckInAppointment;
 import fu.fa26.sep490.g58.otcms_be.appointment.model.CheckInReplay;
-import fu.fa26.sep490.g58.otcms_be.appointment.model.CheckedInAppointment;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -79,7 +78,7 @@ public interface AppointmentCheckInRepository extends JpaRepository<AppointmentJ
                 AppointmentRowMapper.uuid(row[5]), AppointmentRowMapper.instant(row[6])));
     }
 
-    default CheckedInAppointment completeCheckIn(CheckInAppointment appointment, UUID actorAccountId,
+    default void completeCheckIn(CheckInAppointment appointment, UUID actorAccountId,
             UUID verifiedPatientProfileId,
             String idempotencyKey, String requestFingerprint, UUID visitId, Instant checkedInAt,
             String correlationId) {
@@ -91,6 +90,5 @@ public interface AppointmentCheckInRepository extends JpaRepository<AppointmentJ
                 correlationId, appointment.id(), verifiedPatientProfileId);
         insertCheckInReplay(actorAccountId, appointment.id(), idempotencyKey, requestFingerprint,
                 visitId, Timestamp.from(checkedInAt));
-        return new CheckedInAppointment(appointment.id(), visitId, checkedInAt);
     }
 }

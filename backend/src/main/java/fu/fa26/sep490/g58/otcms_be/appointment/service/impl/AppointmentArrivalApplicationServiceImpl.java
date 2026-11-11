@@ -19,6 +19,7 @@ import fu.fa26.sep490.g58.otcms_be.visit.service.AppointmentArrivalClaimStore;
 import fu.fa26.sep490.g58.otcms_be.visit.service.AppointmentArrivalClaimStore.ArrivalClaim;
 import fu.fa26.sep490.g58.otcms_be.visit.service.ReceptionWorkflowService;
 import fu.fa26.sep490.g58.otcms_be.visit.exception.VisitOperationException;
+import fu.fa26.sep490.g58.otcms_be.visit.model.ExamQueueTicket;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -90,7 +91,8 @@ public class AppointmentArrivalApplicationServiceImpl implements AppointmentArri
                         throw new AppointmentBookingException("VISIT_LINK_CONFLICT");
                     }
                     return qrResponse(claim, appointment.startTime(), appointment.status(),
-                            appointment.visitId(), null, true);
+                            appointment.visitId(), null, true,
+                            reception.findExamQueueTicket(appointment.visitId()).orElse(null));
                 }
                 if (!"CONFIRMED".equals(appointment.status())) {
                     throw new AppointmentBookingException("APPOINTMENT_NOT_CHANGEABLE");
@@ -100,17 +102,11 @@ public class AppointmentArrivalApplicationServiceImpl implements AppointmentArri
                 claim = record(appointmentId, patientProfileId, accountId, "PATIENT_QR", null, now);
             }
 
-            Instant allowedStart = appointment.startTime().minus(booking.checkInEarlyMinutes(), ChronoUnit.MINUTES);
-            Instant allowedEnd = appointment.startTime().plus(booking.checkInLateGraceMinutes(), ChronoUnit.MINUTES);
-            if (now.isBefore(allowedStart) || now.isAfter(allowedEnd)
-                    || claim.arrivedAt().isBefore(allowedStart) || claim.arrivedAt().isAfter(allowedEnd)) {
-                throw new AppointmentBookingException("CHECK_IN_TIME_NOT_ALLOWED");
-            }
-
+            // Clinic-day and exam-fee rules are enforced inside the check-in transaction, shared with the counter path.
             var checkedIn = checkIn.checkIn(appointmentId, new CheckInAppointmentCommand(accountId,
                     patientProfileId, "patient-qr:" + appointmentId, correlationId));
             return qrResponse(claim, appointment.startTime(), "CHECKED_IN", checkedIn.visitId(),
-                    checkedIn.checkedInAt(), true);
+                    checkedIn.checkedInAt(), true, checkedIn.queueTicket());
         } catch (DataAccessException exception) {
             throw new AppointmentBookingException("DEPENDENCY_UNAVAILABLE", exception);
         }
@@ -223,10 +219,12 @@ public class AppointmentArrivalApplicationServiceImpl implements AppointmentArri
     }
 
     private PatientQrCheckInResponse qrResponse(ArrivalClaim claim, Instant appointmentStart,
-            String appointmentStatus, UUID visitId, Instant checkedInAt, boolean checkedIn) {
+            String appointmentStatus, UUID visitId, Instant checkedInAt, boolean checkedIn, ExamQueueTicket ticket) {
         return new PatientQrCheckInResponse(claim.appointmentId(), claim.patientProfileId(),
                 claim.source(), state(claim.arrivedAt(), appointmentStart),
-                claim.arrivedAt(), claim.recordedAt(), appointmentStatus, visitId, checkedInAt, checkedIn);
+                claim.arrivedAt(), claim.recordedAt(), appointmentStatus, visitId, checkedInAt, checkedIn,
+                ticket == null ? null : ticket.queueNumber(), ticket == null ? null : ticket.doctorName(),
+                ticket == null ? null : ticket.roomLabel());
     }
 
     private boolean hasStartedVisit(CheckInAppointment appointment) {

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { PageHeader } from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
+import { messageFromError } from "@/lib/messages/appMessages";
 import {
   createClinicalRoundInvoice,
   getBillingInvoice,
@@ -15,7 +16,7 @@ import {
   type ImagingQueueRoom,
   type ClinicalOrderingRound,
 } from "../api/receptionLiveApi";
-import { ClinicalRoundPaymentForm } from "./PaymentScreens";
+import { CounterPaymentForm } from "./CounterPaymentForm";
 import { money } from "./ReceptionUi";
 
 async function loadRoundQueue(page: number, signal?: AbortSignal) {
@@ -83,9 +84,8 @@ export function ClinicalRoundOrdersScreen() {
       .then((result) => {
         if (!controller.signal.aborted) applyQueue(result);
       })
-      .catch(() => {
-        if (!controller.signal.aborted)
-          setError("Chưa tải được chỉ định cận lâm sàng.");
+      .catch((cause) => {
+        if (!controller.signal.aborted) setError(messageFromError(cause));
       })
       .finally(() => {
         if (!controller.signal.aborted) setLoading(false);
@@ -310,9 +310,12 @@ export function ClinicalRoundOrdersScreen() {
         </Button>
       </div>
       {invoice && (
-        <ClinicalRoundPaymentForm
+        <CounterPaymentForm
           key={invoice.id}
           invoice={invoice}
+          title="Thanh toán đợt chỉ định"
+          description="Ghi nhận khoản thu trên hóa đơn đợt chỉ định của bác sĩ."
+          note="Chỉ được gửi KTV sau khi hóa đơn được thanh toán đầy đủ."
           onClose={() => setInvoice(null)}
           onPaid={async () => {
             await getBillingInvoice(invoice.id);

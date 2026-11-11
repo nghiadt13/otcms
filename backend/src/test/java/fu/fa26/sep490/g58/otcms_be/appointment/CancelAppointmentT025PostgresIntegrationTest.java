@@ -49,6 +49,7 @@ class CancelAppointmentT025PostgresIntegrationTest {
     private UUID otherPatientAccount;
     private UUID receptionistAccount;
     private UUID doctorAccount;
+    private UUID adminAccount;
     private UUID patientProfile;
     private UUID otherPatientProfile;
     private UUID doctorProfile;
@@ -61,6 +62,7 @@ class CancelAppointmentT025PostgresIntegrationTest {
         otherPatientAccount = account("PATIENT", "other");
         receptionistAccount = account("RECEPTIONIST", "receptionist");
         doctorAccount = account("DOCTOR", "doctor");
+        adminAccount = account("ADMIN", "admin");
         patientProfile = patient(patientAccount, "T025 Patient");
         otherPatientProfile = patient(otherPatientAccount, "T025 Other");
         doctorProfile = UUID.randomUUID();
@@ -91,7 +93,7 @@ class CancelAppointmentT025PostgresIntegrationTest {
             if (doctorProfile != null) jdbc.update("delete from doctor_profiles where id = ?", doctorProfile);
             if (patientProfile != null) jdbc.update("delete from patient_profiles where id = ?", patientProfile);
             if (otherPatientProfile != null) jdbc.update("delete from patient_profiles where id = ?", otherPatientProfile);
-            for (UUID id : new UUID[]{patientAccount, otherPatientAccount, receptionistAccount, doctorAccount}) {
+            for (UUID id : new UUID[]{patientAccount, otherPatientAccount, receptionistAccount, doctorAccount, adminAccount}) {
                 if (id != null) jdbc.update("delete from accounts where id = ?", id);
             }
         } finally {
@@ -148,8 +150,8 @@ class CancelAppointmentT025PostgresIntegrationTest {
     }
 
     @Test
-    void patientInsideDeadlineCannotCancel() throws Exception {
-        Instant insideDeadline = NOW.plusSeconds(1439 * 60L);
+    void patientCancelsOnlyWhenStartIsMoreThanTwoHoursAway() throws Exception {
+        Instant insideDeadline = NOW.plusSeconds(119 * 60L);
         jdbc.update("update appointments set start_time = ?, end_time = ? where id = ?",
                 Timestamp.from(insideDeadline), Timestamp.from(insideDeadline.plusSeconds(1800)), appointment);
         mvc.perform(post("/api/v1/appointments/{id}/cancel", appointment)
@@ -157,6 +159,40 @@ class CancelAppointmentT025PostgresIntegrationTest {
                         .contentType("application/json").content("{}"))
                 .andExpect(status().isUnprocessableEntity())
                 .andExpect(jsonPath("$.error.code").value("APPOINTMENT_CHANGE_TOO_LATE"));
+        assertEquals("CONFIRMED", jdbc.queryForObject("select status from appointments where id = ?", String.class, appointment));
+
+        Instant outsideDeadline = NOW.plusSeconds(121 * 60L);
+        jdbc.update("update appointments set start_time = ?, end_time = ? where id = ?",
+                Timestamp.from(outsideDeadline), Timestamp.from(outsideDeadline.plusSeconds(1800)), appointment);
+        mvc.perform(post("/api/v1/appointments/{id}/cancel", appointment)
+                        .with(actor(patientAccount, AccountType.PATIENT)).with(csrf())
+                        .contentType("application/json").content("{}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("CANCELLED"));
+    }
+
+    @Test
+    void adminCancelsConfirmedAppointmentInsideTwoHoursWithReasonAndAdminAudit() throws Exception {
+        Instant soon = NOW.plusSeconds(30 * 60L);
+        jdbc.update("update appointments set start_time = ?, end_time = ? where id = ?",
+                Timestamp.from(soon), Timestamp.from(soon.plusSeconds(1800)), appointment);
+        mvc.perform(post("/api/v1/appointments/{id}/cancel", appointment)
+                        .with(actor(adminAccount, AccountType.ADMIN)).with(csrf())
+                        .header("X-Correlation-ID", CORRELATION).contentType("application/json")
+                        .content("{\"reason\":\"Clinic closed for maintenance\"}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("CANCELLED"));
+        assertEquals(1, jdbc.queryForObject("select count(*) from appointment_audits where appointment_id = ? "
+                + "and actor_account_id = ? and actor_type = 'ADMIN' and action = 'CANCELLED' "
+                + "and old_status = 'CONFIRMED' and new_status = 'CANCELLED' "
+                + "and reason = 'Clinic closed for maintenance' and correlation_id = ?", Integer.class,
+                appointment, adminAccount, CORRELATION));
+    }
+
+    @Test
+    void adminCancellationWithoutReasonIsRejected() throws Exception {
+        mvc.perform(post("/api/v1/appointments/{id}/cancel", appointment)
+                        .with(actor(adminAccount, AccountType.ADMIN)).with(csrf())
+                        .contentType("application/json").content("{}"))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
         assertEquals("CONFIRMED", jdbc.queryForObject("select status from appointments where id = ?", String.class, appointment));
     }
 

@@ -17,6 +17,12 @@ describe("mã MSG khu Lễ tân", () => {
     ).toBe("Đã tiếp nhận bệnh nhân. Số thứ tự 12, phòng Phòng khám 2.");
   });
 
+  it("MSG-88 (R3) thay {number} và {room} khi tiếp nhận xong", () => {
+    expect(
+      formatAppMessage("MSG-88", { number: 12, room: "Phòng khám 2" }),
+    ).toBe("Đã tiếp nhận bệnh nhân. Số thứ tự 12, phòng Phòng khám 2.");
+  });
+
   it("MSG-48 thay {amount} bằng số tiền vừa ghi nhận", () => {
     expect(formatAppMessage("MSG-48", { amount: "150.000 ₫" })).toBe(
       "Đã ghi nhận thanh toán 150.000 ₫. Phiếu thu đã được tạo.",

@@ -7,8 +7,10 @@ import { listLinkedProfiles } from "@/lib/patient-scope/linkedProfilesApi";
 import type { LinkedProfile } from "@/lib/patient-scope/types";
 import type { AppointmentStatus } from "@/lib/domain/clinicVisit";
 import { vnIsoOf } from "../schema/bookingTime";
+import { isPatientCancellable } from "../schema/patientCancelWindow";
 import type {
   PatientAppointment,
+  PatientAppointmentAction,
   PatientAppointmentQuery,
 } from "../types/patientAppointment";
 
@@ -81,13 +83,30 @@ async function linkedProfilesById(
   }
 }
 
+/**
+ * Việc người bệnh làm được (BE không trả danh sách này). Hủy chỉ khi lịch Đã đặt, chưa tới giờ và còn đủ
+ * hạn tự hủy; trả online khi phí dịch vụ có giá và chưa trả.
+ */
+function allowedActionsOf(
+  status: AppointmentStatus,
+  dto: AppointmentDto,
+  now: number,
+): PatientAppointmentAction[] {
+  if (status !== "BOOKED" || Date.parse(dto.startTime) <= now) return [];
+  const actions: PatientAppointmentAction[] = [];
+  if (isPatientCancellable(dto.startTime, now)) actions.push("cancel");
+  if (dto.servicePrice != null && !dto.examFeePaid) actions.push("payExamFee");
+  return actions;
+}
+
 function toPatientAppointment(
   dto: AppointmentDto,
   profiles: Map<string, LinkedProfile>,
 ): PatientAppointment {
   const linked = profiles.get(dto.patientProfileId);
   const backendStatus = toStatus(dto.status);
-  const expired = Date.parse(dto.startTime) <= Date.now();
+  const now = Date.now();
+  const expired = Date.parse(dto.startTime) <= now;
   const feePaid = dto.examFeePaid === true;
   // Lịch đã bắt đầu mà chưa thanh toán được đóng như lịch đã hủy. Nếu đã trả,
   // giữ trạng thái để nhân viên xử lý nhưng không cho người bệnh thao tác tiếp.
@@ -124,12 +143,7 @@ function toPatientAppointment(
             : "PENDING_PAYMENT",
     },
     doctorUnavailable: false,
-    allowedActions:
-      status === "BOOKED" && !expired
-        ? dto.servicePrice != null && !dto.examFeePaid
-          ? ["cancel", "payExamFee"]
-          : ["cancel"]
-        : [],
+    allowedActions: allowedActionsOf(status, dto, now),
   };
 }
 

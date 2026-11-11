@@ -21,11 +21,22 @@ public class AppointmentBookingProperties {
     private final int paymentHoldMinutes;
     private final long paymentHoldSweepMs;
     private final boolean paymentHoldSweepEnabled;
+    private final long noShowSweepMs;
+    private final boolean noShowSweepEnabled;
+    /** Policy without the no-show sweep keys: the sweep runs every 10 minutes and is enabled (the yml defaults). */
+    public AppointmentBookingProperties(int maxHorizonDays, int patientChangeDeadlineMinutes, int checkInEarlyMinutes,
+            int checkInLateGraceMinutes, int slotIntervalMinutes, ZoneId clinicTimeZone, PublicRateLimit publicRateLimit,
+            int paymentHoldMinutes, long paymentHoldSweepMs, boolean paymentHoldSweepEnabled) {
+        this(maxHorizonDays, patientChangeDeadlineMinutes, checkInEarlyMinutes, checkInLateGraceMinutes,
+                slotIntervalMinutes, clinicTimeZone, publicRateLimit, paymentHoldMinutes, paymentHoldSweepMs,
+                paymentHoldSweepEnabled, 600_000L, true);
+    }
     @ConstructorBinding
     public AppointmentBookingProperties(int maxHorizonDays, int patientChangeDeadlineMinutes, int checkInEarlyMinutes,
             int checkInLateGraceMinutes, int slotIntervalMinutes, ZoneId clinicTimeZone, PublicRateLimit publicRateLimit,
             @DefaultValue("15") int paymentHoldMinutes, @DefaultValue("30000") long paymentHoldSweepMs,
-            @DefaultValue("true") boolean paymentHoldSweepEnabled) {
+            @DefaultValue("true") boolean paymentHoldSweepEnabled,
+            @DefaultValue("600000") long noShowSweepMs, @DefaultValue("true") boolean noShowSweepEnabled) {
         if (maxHorizonDays < 1) {
             throw new IllegalArgumentException("appointment.booking.max-horizon-days must be positive");
         }
@@ -48,9 +59,14 @@ public class AppointmentBookingProperties {
         if (paymentHoldSweepMs < 1) {
             throw new IllegalArgumentException("appointment.booking.payment-hold-sweep-ms must be positive");
         }
+        if (noShowSweepMs < 1) {
+            throw new IllegalArgumentException("appointment.booking.no-show-sweep-ms must be positive");
+        }
         this.paymentHoldMinutes = paymentHoldMinutes;
         this.paymentHoldSweepMs = paymentHoldSweepMs;
         this.paymentHoldSweepEnabled = paymentHoldSweepEnabled;
+        this.noShowSweepMs = noShowSweepMs;
+        this.noShowSweepEnabled = noShowSweepEnabled;
         this.maxHorizonDays = maxHorizonDays;
         this.patientChangeDeadlineMinutes = patientChangeDeadlineMinutes;
         this.checkInEarlyMinutes = checkInEarlyMinutes;
@@ -80,6 +96,11 @@ public class AppointmentBookingProperties {
     public long paymentHoldSweepMs() { return paymentHoldSweepMs; }
     public boolean isPaymentHoldSweepEnabled() { return paymentHoldSweepEnabled; }
     public boolean paymentHoldSweepEnabled() { return paymentHoldSweepEnabled; }
+    /** Period of the automatic no-show sweep (fixed delay between runs). */
+    public long getNoShowSweepMs() { return noShowSweepMs; }
+    public long noShowSweepMs() { return noShowSweepMs; }
+    public boolean isNoShowSweepEnabled() { return noShowSweepEnabled; }
+    public boolean noShowSweepEnabled() { return noShowSweepEnabled; }
     private static void requireNonNegative(int value, String property) {
         if (value < 0) {
             throw new IllegalArgumentException("appointment.booking." + property + " must be non-negative");
