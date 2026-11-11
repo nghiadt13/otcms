@@ -1,9 +1,10 @@
 ﻿$ErrorActionPreference = 'Stop'
 
-# Local test launcher: this checkout (otcms, nhánh đang checkout) + otcms_dev + patient Cloudflare tunnel.
+# Local test launcher: this checkout (otcms, nhánh đang checkout) + otcms_dev + Orthanc/OHIF (Docker)
+# + Cloudflare tunnel. Một cổng duy nhất 3001 (nginx imaging-gateway trong compose.yaml) gom
+# /otcms (frontend 3000), /api và /dicom-web (backend 8080), /viewer (OHIF).
 $product = 'D:\Education\SEP490-FALL2026\otcms'
 $localEnv = 'D:\Education\SEP490-FALL2026\otcms\backend\.env.dev'
-$gateway = 'D:\Education\SEP490-FALL2026\tmp\tunnel-gateway.js'
 $cloudflared = 'C:\Program Files (x86)\cloudflared\cloudflared.exe'
 $logDir = Join-Path $env:TEMP 'otcms-launch'
 $shell = (Get-Command pwsh -ErrorAction Stop).Source
@@ -43,7 +44,7 @@ function Wait-Http([string]$Url, [int]$Seconds, $Process = $null) {
 }
 
 try {
-    foreach ($path in @($product, $localEnv, $gateway, $cloudflared)) {
+    foreach ($path in @($product, $localEnv, $cloudflared)) {
         if (-not (Test-Path -LiteralPath $path)) { throw "Missing required file or folder: $path" }
     }
     # Thư mục node_modules có thể tồn tại nhưng rỗng/hỏng: kiểm tra đúng lệnh `next` và tự cài lại.
@@ -57,15 +58,17 @@ try {
     if (-not (Test-NetConnection -ComputerName 127.0.0.1 -Port 5432 -InformationLevel Quiet -WarningAction SilentlyContinue)) {
         throw 'PostgreSQL is not listening on 127.0.0.1:5432.'
     }
+    & docker info *> $null
+    if ($LASTEXITCODE -ne 0) { throw 'Docker is not running. Start Docker Desktop first (needed for Orthanc/OHIF and the 3001 gateway).' }
     # Stop only known OTCMS listeners; never kill an unrelated application by port alone.
-    $occupied = @(Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue | Where-Object { $_.LocalPort -in 3000, 3100, 8080 })
+    # Cổng 3001 do container Docker giữ nên không nằm trong danh sách này.
+    $occupied = @(Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue | Where-Object { $_.LocalPort -in 3000, 8080 })
     $roots = [System.Collections.Generic.List[int]]::new()
     foreach ($socket in $occupied) {
         $process = Get-CimInstance Win32_Process -Filter "ProcessId=$($socket.OwningProcess)"
         if (-not $process) { continue }
         $known = $false
         $rootId = [int]$process.ProcessId
-        if ($socket.LocalPort -eq 3100 -and $process.CommandLine -match 'tunnel-gateway\.js') { $known = $true }
         if ($socket.LocalPort -eq 3000 -and $process.CommandLine -match '(?i)(otcms-product-test|SEP490-FALL2026\\otcms)\\frontend\\') { $known = $true }
         if ($socket.LocalPort -eq 8080 -and $process.CommandLine -match 'fu\.fa26\.sep490\.g58\.otcms_be\.OtcmsBeApplication') {
             $parent = Get-CimInstance Win32_Process -Filter "ProcessId=$($process.ParentProcessId)"
@@ -77,26 +80,26 @@ try {
         if (-not $known) { throw "Port $($socket.LocalPort) is used by another application (PID $($socket.OwningProcess))." }
         if (-not $roots.Contains($rootId)) { $roots.Add($rootId) }
     }
-    foreach ($cloud in @(Get-CimInstance Win32_Process -Filter "Name='cloudflared.exe'" | Where-Object { $_.CommandLine -match '--url[ =]+http://(localhost|127\.0\.0\.1):3100' })) {
+    foreach ($cloud in @(Get-CimInstance Win32_Process -Filter "Name='cloudflared.exe'" | Where-Object { $_.CommandLine -match '--url[ =]+http://(localhost|127\.0\.0\.1):(3001|3100)' })) {
         Stop-ProcessTree ([int]$cloud.ProcessId)
     }
     if ($roots.Count) { Write-Host 'Stopping previous OTCMS processes...' }
     foreach ($rootId in $roots) { Stop-ProcessTree $rootId }
     if ($roots.Count) { Start-Sleep -Seconds 2 }
-    $occupied = @(Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue | Where-Object { $_.LocalPort -in 3000, 3100, 8080 })
+    $occupied = @(Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue | Where-Object { $_.LocalPort -in 3000, 8080 })
     if ($occupied.Count) {
         $ports = ($occupied.LocalPort | Sort-Object -Unique) -join ', '
         throw "Port(s) $ports are already in use. Stop those applications before starting OTCMS."
     }
     New-Item -ItemType Directory -Path $logDir -Force | Out-Null
 
-    Write-Host 'Starting gateway and Cloudflare tunnel...'
-    $gatewayProcess = Start-Process -FilePath $node -ArgumentList @('"' + $gateway + '"') -WindowStyle Hidden `
-        -RedirectStandardOutput (Join-Path $logDir 'gateway.log') `
-        -RedirectStandardError (Join-Path $logDir 'gateway.err') -PassThru
-    $started.Add($gatewayProcess.Id)
+    Write-Host 'Starting Orthanc, OHIF and gateway (Docker)...'
+    Push-Location $product
+    try { & docker compose up -d orthanc ohif imaging-gateway } finally { Pop-Location }
+    if ($LASTEXITCODE -ne 0) { throw 'docker compose up failed.' }
+    Write-Host 'Starting Cloudflare tunnel...'
     $cfLog = Join-Path $logDir 'cloudflare.err'
-    $cloudProcess = Start-Process -FilePath $cloudflared -ArgumentList @('tunnel', '--no-autoupdate', '--url', 'http://localhost:3100') `
+    $cloudProcess = Start-Process -FilePath $cloudflared -ArgumentList @('tunnel', '--no-autoupdate', '--url', 'http://localhost:3001') `
         -WindowStyle Hidden -RedirectStandardOutput (Join-Path $logDir 'cloudflare.log') `
         -RedirectStandardError $cfLog -PassThru
     $started.Add($cloudProcess.Id)
@@ -122,16 +125,25 @@ foreach (`$line in Get-Content -LiteralPath '$localEnv' -Encoding UTF8) {
 `$env:SPRING_DATASOURCE_USERNAME = `$env:SUPABASE_DB_USERNAME
 `$env:SPRING_DATASOURCE_PASSWORD = `$env:SUPABASE_DB_PASSWORD
 `$env:SERVER_PORT = '8080'
-`$origins = 'http://localhost:3000,http://127.0.0.1:3000,http://localhost:3100,http://127.0.0.1:3100,$publicUrl'
+`$origins = 'http://localhost:3000,http://127.0.0.1:3000,http://localhost:3001,http://127.0.0.1:3001,$publicUrl'
 `$env:APP_AUTH_PATIENT_ORIGINS = `$origins
 `$env:APP_AUTH_STAFF_ORIGINS = `$origins
 `$env:APP_AUTH_COOKIE_SECURE = 'false'
 `$env:SPRING_APPLICATION_JSON = '{"otcms":{"visit":{"care-step-room-capability":{"SCHEDULED_APPOINTMENT":"EXAMINATION"},"room-cleanup-buffer-minutes":{"EXAMINATION":0}}}}'
+`$env:OTCMS_IMAGING_ENABLED = 'true'
+`$env:OTCMS_IMAGING_MAX_UPLOAD_BYTES = '80000000'
+`$env:OTCMS_IMAGING_MAX_UPLOAD_FILES = '128'
+`$env:OTCMS_IMAGING_MAX_CONCURRENT_UPLOADS = '1'
+`$env:OTCMS_IMAGING_ORTHANC_BASE_URI = 'http://localhost:8042'
+`$env:OTCMS_IMAGING_ORTHANC_CONNECT_TIMEOUT = 'PT3S'
+`$env:OTCMS_IMAGING_ORTHANC_RESPONSE_TIMEOUT = 'PT30S'
 Set-Location '$product\backend'
 & .\mvnw.cmd spring-boot:run
 "@
     $frontend = @"
-`$env:NEXT_PUBLIC_API_BASE_URL = 'http://localhost:3100'
+`$env:NEXT_BASE_PATH = '/otcms'
+`$env:NEXT_PUBLIC_API_BASE_URL = 'http://localhost:3001'
+`$env:NEXT_PUBLIC_OHIF_VIEWER_PATH = '/viewer'
 `$env:OTCMS_DEV_API_PROXY = 'false'
 Set-Location '$product\frontend'
 & npm.cmd run dev
@@ -142,15 +154,15 @@ Set-Location '$product\frontend'
     Write-Host 'Waiting for backend...'
     if (-not (Wait-Http 'http://localhost:8080/v3/api-docs' 120 $backendProcess)) { throw "Backend did not start. See $logDir\backend.log and backend.err" }
     Write-Host 'Waiting for frontend...'
-    if (-not (Wait-Http 'http://localhost:3100/login' 90 $frontendProcess)) { throw "Frontend did not start. See $logDir\frontend.log and frontend.err" }
+    if (-not (Wait-Http 'http://localhost:3001/otcms/login' 90 $frontendProcess)) { throw "Frontend did not start. See $logDir\frontend.log and frontend.err" }
     Write-Host 'Checking Cloudflare...'
-    if (-not (Wait-Http "$publicUrl/login" 30)) { throw "Cloudflare URL did not respond. See $cfLog" }
+    if (-not (Wait-Http "$publicUrl/otcms/login" 30)) { throw "Cloudflare URL did not respond. See $cfLog" }
 
     Write-Host ''
     Write-Host 'OTCMS is ready.' -ForegroundColor Green
     Write-Host 'Database: otcms_dev'
-    Write-Host 'Local:    http://localhost:3100'
-    Write-Host "Public:   $publicUrl"
+    Write-Host 'Local:    http://localhost:3001/otcms/login'
+    Write-Host "Public:   $publicUrl/otcms/login"
     Write-Host "Logs:     $logDir"
     Write-Host 'Keep the public URL private. It changes whenever the tunnel restarts.'
 } catch {
