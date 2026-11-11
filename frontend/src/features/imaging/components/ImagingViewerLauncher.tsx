@@ -1,13 +1,13 @@
 "use client";
 
 import { ExternalLink } from "lucide-react";
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { publicButtonClass } from "@/components/brand/publicButtonStyles";
 import { Button } from "@/components/ui/button";
 import { messageFromError } from "@/lib/messages/appMessages";
+import { PATIENT_ROUTES } from "@/lib/routes/patientRoutes";
 import {
   createImagingViewerGrant,
-  imagingViewerPath,
   imagingViewerShellPath,
   type ImagingViewerPurpose,
 } from "../api/imagingViewerApi";
@@ -15,33 +15,41 @@ import {
 interface ImagingViewerLauncherProps {
   studyRef: string;
   purpose: ImagingViewerPurpose;
+  autoAuthorize?: boolean;
 }
 
-/** Creates a scoped grant when the actor opens the linked study. */
+/** Creates a scoped grant when the actor opens the linked study or doctor order. */
 export function ImagingViewerLauncher({
   studyRef,
   purpose,
+  autoAuthorize = false,
 }: ImagingViewerLauncherProps) {
   const [issuing, setIssuing] = useState(false);
   const [viewerPath, setViewerPath] = useState<string | null>(null);
   const [expiresAt, setExpiresAt] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const autoAuthorizeStarted = useRef(false);
 
-  async function openViewer() {
+  const openViewer = useCallback(async () => {
     setIssuing(true);
     setError(null);
     setViewerPath(null);
     try {
       const grant = await createImagingViewerGrant(studyRef, purpose);
+      const returnTo = `${window.location.pathname}${window.location.search}`;
       const path =
-        purpose === "TECHNICIAN_ASSIGNED"
+        purpose === "PATIENT_VIEW"
           ? imagingViewerShellPath(
               grant.studyInstanceUid,
-              `${window.location.pathname}${window.location.search}`,
+              returnTo,
+              PATIENT_ROUTES.imageViewer,
             )
-          : imagingViewerPath(grant.studyInstanceUid);
+          : imagingViewerShellPath(grant.studyInstanceUid, returnTo);
       setExpiresAt(grant.expiresAt);
-      if (purpose === "TECHNICIAN_ASSIGNED") {
+      if (
+        purpose === "TECHNICIAN_ASSIGNED" ||
+        purpose === "PATIENT_VIEW"
+      ) {
         window.location.assign(path);
       } else {
         setViewerPath(path);
@@ -51,22 +59,42 @@ export function ImagingViewerLauncher({
     } finally {
       setIssuing(false);
     }
-  }
+  }, [purpose, studyRef]);
+
+  useEffect(() => {
+    if (!autoAuthorize || autoAuthorizeStarted.current) return;
+    autoAuthorizeStarted.current = true;
+    void openViewer();
+  }, [autoAuthorize, openViewer]);
 
   return (
     <div className="space-y-3">
-      <Button
-        className={publicButtonClass("primary")}
-        disabled={issuing}
-        aria-busy={issuing}
-        onClick={() => void openViewer()}
-      >
-        {issuing
-          ? "Đang xác thực và mở viewer…"
-          : purpose === "TECHNICIAN_ASSIGNED"
-            ? "Mở OHIF Viewer"
-            : "Cấp quyền xem ảnh"}
-      </Button>
+      {autoAuthorize ? (
+        issuing ? (
+          <p
+            role="status"
+            aria-busy="true"
+            className="text-sm text-muted-foreground"
+          >
+            Đang xác nhận quyền xem ảnh…
+          </p>
+        ) : null
+      ) : (
+        <Button
+          className={publicButtonClass("primary")}
+          disabled={issuing}
+          aria-busy={issuing}
+          onClick={() => void openViewer()}
+        >
+          {issuing
+            ? "Đang xác thực và mở viewer…"
+            : purpose === "TECHNICIAN_ASSIGNED"
+              ? "Mở OHIF Viewer"
+              : purpose === "PATIENT_VIEW"
+                ? "Xem ảnh"
+                : "Cấp quyền xem ảnh"}
+        </Button>
+      )}
       {error ? (
         <div className="space-y-2">
           <p role="alert" className="text-base text-destructive">
@@ -84,19 +112,17 @@ export function ImagingViewerLauncher({
             className="inline-flex min-h-11 items-center gap-2 rounded-md text-base font-medium text-primary underline-offset-4 hover:underline focus-visible:ring-2 focus-visible:ring-ring"
           >
             <ExternalLink aria-hidden />
-            Mở trình xem ảnh
+            {purpose === "DOCTOR_REVIEW"
+              ? "Mở ảnh DICOM"
+              : "Mở trình xem ảnh"}
           </a>
           <p className="text-sm text-muted-foreground">
             Quyền xem tạm thời hết hạn lúc {expiresAt}.
           </p>
         </div>
-      ) : purpose === "TECHNICIAN_ASSIGNED" && !error ? (
-        <p className="text-sm text-muted-foreground">
-          Hệ thống tự xác thực quyền được phân công khi mở study.
-        </p>
-      ) : purpose !== "TECHNICIAN_ASSIGNED" ? (
+      ) : purpose !== "TECHNICIAN_ASSIGNED" && !autoAuthorize ? (
         <p className="text-base text-muted-foreground">
-          Backend sẽ xác nhận quyền truy cập trước khi mở OHIF.
+          Hệ thống sẽ xác nhận quyền truy cập rồi mở ảnh.
         </p>
       ) : null}
     </div>

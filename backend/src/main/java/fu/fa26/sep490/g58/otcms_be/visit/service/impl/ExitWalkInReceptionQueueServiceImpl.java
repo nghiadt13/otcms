@@ -14,7 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class ExitWalkInReceptionQueueServiceImpl implements ExitWalkInReceptionQueueService {
-    private static final Set<String> DOCTOR_REASONS = Set.of("CARE_STARTED");
+    private static final Set<String> DOCTOR_REASONS = Set.of("CARE_STARTED", "VISIT_CLOSED");
     private final WalkInReceptionQueueEntryJpaRepository entries;
     private final ClinicVisitJpaRepository visits;
     private final ReceptionistAccountAccessService receptionists;

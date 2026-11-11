@@ -16,6 +16,7 @@ import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -32,6 +33,35 @@ public class StaffShiftAdminService {
     public StaffShiftAdminService(JdbcTemplate jdbc, StaffAccountDirectory accounts, ManageVisitRoomService rooms,
             CoordinationGuardService guard) {
         this.jdbc = jdbc; this.accounts = accounts; this.rooms = rooms; this.guard = guard;
+    }
+
+    @Transactional(readOnly = true)
+    public boolean isActiveImagingTechnicianAssignedToRoom(UUID accountId, UUID roomId, Instant at) {
+        if (accountId == null || roomId == null || at == null) return false;
+        Integer count = jdbc.queryForObject("""
+                SELECT count(*) FROM staff_work_shifts s
+                JOIN staff_profiles p ON p.id = s.staff_profile_id
+                JOIN accounts a ON a.id = p.account_id
+                WHERE a.id = ? AND a.account_type = 'IMAGING_TECHNICIAN'
+                  AND a.status = 'ACTIVE' AND p.status = 'ACTIVE' AND s.room_id = ?
+                  AND s.starts_at <= ? AND s.ends_at > ?
+                """, Integer.class, accountId, roomId, Timestamp.from(at), Timestamp.from(at));
+        return count != null && count == 1;
+    }
+
+    @Transactional(readOnly = true)
+    public Optional<UUID> activeImagingTechnicianForRoom(UUID roomId, Instant at) {
+        if (roomId == null || at == null) return Optional.empty();
+        List<UUID> assignedAccounts = jdbc.query("""
+                SELECT a.id FROM staff_work_shifts s
+                JOIN staff_profiles p ON p.id = s.staff_profile_id
+                JOIN accounts a ON a.id = p.account_id
+                WHERE a.account_type = 'IMAGING_TECHNICIAN'
+                  AND a.status = 'ACTIVE' AND p.status = 'ACTIVE' AND s.room_id = ?
+                  AND s.starts_at <= ? AND s.ends_at > ?
+                ORDER BY s.starts_at, s.id
+                """, (rs, rowNum) -> rs.getObject(1, UUID.class), roomId, Timestamp.from(at), Timestamp.from(at));
+        return assignedAccounts.size() == 1 ? Optional.of(assignedAccounts.get(0)) : Optional.empty();
     }
 
     @Transactional(readOnly = true)

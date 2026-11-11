@@ -9,6 +9,9 @@ import java.util.UUID;
  * the diagnostic request only tracks where and how the study is performed.
  */
 public interface ClinicalImagingOrderPort {
+    record OrderDetails(UUID visitId, UUID serviceId, String serviceName, String instructions) { }
+
+    default OrderDetails getOrderDetails(UUID orderId) { return null; }
     /** Returns the imaging order, or null when it does not exist, is not imaging, or is cancelled. */
     ClinicalImagingOrder requireOpenImagingOrder(UUID orderId);
 

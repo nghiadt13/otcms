@@ -1,6 +1,9 @@
 "use client";
+
+import { useEffect, useState } from "react";
 import { CircleCheck, CircleX } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import {
   useDoctorExamApi,
@@ -11,26 +14,30 @@ import {
   buildClosingChecklist,
   isClinicalChecklistReady,
 } from "../schema/visitProgress";
+import { doctorErrorMessage } from "../schema/doctorErrors";
 import { DoctorLoadState } from "./DoctorLoadState";
 import { isVisitClosed } from "./doctorStatus";
 import {
   mergeWorkspaceOrders,
   useVisitWorkspace,
 } from "./VisitWorkspaceProvider";
-/** UC28 closure belongs to Receptionist. Doctor sees clinical readiness only. */
+
 export function ClosingScreen() {
   const workspace = useVisitWorkspace();
   const { visitId, context } = workspace;
   const examination = useExamination(visitId);
   const orders = useOrders(visitId);
   const api = useDoctorExamApi();
-  const closed = isVisitClosed(context?.status ?? null);
+  const [closing, setClosing] = useState(false);
+  const [closeError, setCloseError] = useState<unknown>(null);
+  const [closedLocally, setClosedLocally] = useState(false);
+  const closed = closedLocally || isVisitClosed(context?.status ?? null);
   const checklist = buildClosingChecklist(
     examination.data,
     mergeWorkspaceOrders(
       orders.data ?? [],
       workspace.submittedOrders,
-      workspace.completedFindings,
+      workspace.findingsAwaitingRelease,
     ),
     {
       examination: !!examination.error,
@@ -38,11 +45,49 @@ export function ClosingScreen() {
     },
   );
   const ready = isClinicalChecklistReady(checklist);
+  const waitingForRelease =
+    [...workspace.findingsAwaitingRelease].some(
+      (requestId) => {
+        const order = orders.data?.find(
+          (candidate) => candidate.imaging?.requestId === requestId,
+        );
+        return (
+          !order?.imaging?.findingsCompleted &&
+          order?.imaging?.findingsReleaseState !== "RELEASE_FAILED"
+        );
+      },
+    ) ||
+    !!orders.data?.some(
+      (order) => order.imaging?.findingsReleaseState === "RELEASE_PENDING",
+    );
+
+  useEffect(() => {
+    if (!waitingForRelease || closed) return;
+    const timer = window.setInterval(orders.refresh, 5000);
+    return () => window.clearInterval(timer);
+  }, [closed, orders.refresh, waitingForRelease]);
+
+  async function closeVisit() {
+    setClosing(true);
+    setCloseError(null);
+    try {
+      await api.closeVisit(visitId);
+      setClosedLocally(true);
+      workspace.refresh();
+    } catch (error) {
+      setCloseError(error);
+      examination.refresh();
+      orders.refresh();
+    } finally {
+      setClosing(false);
+    }
+  }
+
   return (
     <>
       <PageHeader
         title="Điều kiện hoàn tất phần khám"
-        description="Bác sĩ kiểm tra phần khám. Lễ tân thực hiện đóng lượt khám."
+        description="Bác sĩ kiểm tra các điều kiện và kết thúc lượt khám khi đã hoàn tất chuyên môn."
       />
       {examination.loading || orders.loading ? (
         <DoctorLoadState loading retry={() => undefined} />
@@ -80,13 +125,12 @@ export function ClosingScreen() {
             {closed
               ? "Lượt khám đã hoàn tất."
               : ready
-                ? "Phần khám đã đủ điều kiện. Lễ tân sẽ thực hiện đóng lượt khám sau khi các dịch vụ bắt buộc hoàn tất."
-                : "Phần khám còn điều kiện chưa đạt hoặc chưa kiểm tra được. Lễ tân chỉ đóng lượt khám khi đủ bằng chứng hoàn tất."}
+                ? "Phần khám đã đủ điều kiện để kết thúc."
+                : "Lượt khám còn điều kiện chưa đạt hoặc chưa kiểm tra được."}
           </p>
           {!api.capabilities.orderListing && !closed ? (
             <p className="mt-2 text-sm text-muted-foreground">
-              Chưa có danh sách đầy đủ dịch vụ lâm sàng để xác nhận điều kiện
-              hoàn tất.
+              Chưa có danh sách đầy đủ dịch vụ lâm sàng để xác nhận điều kiện hoàn tất.
             </p>
           ) : null}
           {examination.error || orders.error ? (
@@ -98,6 +142,18 @@ export function ClosingScreen() {
                 orders.refresh();
               }}
             />
+          ) : null}
+          {closeError ? (
+            <p className="mt-3 text-sm text-destructive" role="alert">
+              {doctorErrorMessage(closeError)}
+            </p>
+          ) : null}
+          {ready && !closed ? (
+            <div className="mt-5">
+              <Button onClick={closeVisit} disabled={closing}>
+                {closing ? "Đang hoàn tất…" : "Hoàn tất lượt khám"}
+              </Button>
+            </div>
           ) : null}
         </section>
       )}

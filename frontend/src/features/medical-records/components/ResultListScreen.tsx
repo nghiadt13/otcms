@@ -85,7 +85,7 @@ export function ResultListScreen() {
     data.items.length > 0;
 
   return (
-    <div className="space-y-8">
+    <div className="min-w-0 space-y-6 sm:space-y-8">
       <PortalPageHeader
         title="Kết quả khám"
         description="Theo dõi kết quả thăm khám và hồ sơ y tế của bạn và người thân."
@@ -117,14 +117,14 @@ export function ResultListScreen() {
             onValueChange={(value) => setTab(value as ResultTab)}
             value={tab}
           >
-            <TabsList className="grid h-14! w-full grid-cols-3">
-              <TabsTrigger className="text-base" value="ALL">
+            <TabsList className="grid w-full grid-cols-1 gap-1 p-1 group-data-horizontal/tabs:h-auto sm:grid-cols-3">
+              <TabsTrigger className="min-h-11 whitespace-normal px-2 text-sm sm:text-base" value="ALL">
                 {tabLabel("Tất cả", counts.total)}
               </TabsTrigger>
-              <TabsTrigger className="text-base" value="COMPLETED">
+              <TabsTrigger className="min-h-11 whitespace-normal px-2 text-sm sm:text-base" value="COMPLETED">
                 {tabLabel("Có kết quả", counts.completed)}
               </TabsTrigger>
-              <TabsTrigger className="text-base" value="INCOMPLETE">
+              <TabsTrigger className="min-h-11 whitespace-normal px-2 text-sm sm:text-base" value="INCOMPLETE">
                 {tabLabel("Đang xử lý", counts.incomplete)}
               </TabsTrigger>
             </TabsList>

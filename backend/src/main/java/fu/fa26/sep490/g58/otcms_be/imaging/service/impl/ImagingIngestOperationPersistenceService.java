@@ -27,6 +27,12 @@ public class ImagingIngestOperationPersistenceService {
         return operations.findById(id).map(ImagingIngestOperationJpaEntity::toModel);
     }
 
+    @Transactional(readOnly = true)
+    public Optional<ImagingOperationRecord> findLatest(UUID requestId, UUID attemptId) {
+        return operations.findFirstByRequestIdAndAttemptIdOrderByCreatedAtDescIdDesc(requestId, attemptId)
+                .map(ImagingIngestOperationJpaEntity::toModel);
+    }
+
     @Transactional
     public void insert(ImagingOperationRecord operation) {
         operations.saveAndFlush(new ImagingIngestOperationJpaEntity(operation));

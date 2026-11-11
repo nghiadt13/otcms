@@ -49,12 +49,12 @@ class VisitClosureControllerTest {
         return authentication(new UsernamePasswordAuthenticationToken(new AuthenticatedAccount(account, role, null), null,
                 List.of(new SimpleGrantedAuthority("ROLE_" + role.name()))));
     }
-    @Test void receptionistUsesAuthenticatedIdentity() throws Exception {
-        mvc.perform(post(path()).with(actor(AccountRole.RECEPTIONIST)).with(csrf())).andExpect(status().isNoContent());
-        verify(reads).close(eq(visit), eq(account), eq(AccountRole.RECEPTIONIST), anyString());
+    @Test void doctorUsesAuthenticatedIdentity() throws Exception {
+        mvc.perform(post(path()).with(actor(AccountRole.DOCTOR)).with(csrf())).andExpect(status().isNoContent());
+        verify(reads).close(eq(visit), eq(account), eq(AccountRole.DOCTOR), anyString());
     }
-    @Test void doctorPatientAndOtherActorsDenied() throws Exception {
-        for (var role : List.of(AccountRole.PATIENT, AccountRole.DOCTOR, AccountRole.ADMIN, AccountRole.OWNER, AccountRole.IMAGING_TECHNICIAN)) {
+    @Test void receptionistPatientAndOtherActorsDenied() throws Exception {
+        for (var role : List.of(AccountRole.PATIENT, AccountRole.RECEPTIONIST, AccountRole.ADMIN, AccountRole.OWNER, AccountRole.IMAGING_TECHNICIAN)) {
             mvc.perform(post(path()).with(actor(role)).with(csrf())).andExpect(status().isForbidden());
         }
         verifyNoInteractions(reads);
@@ -62,13 +62,13 @@ class VisitClosureControllerTest {
     @Test void anonymousDenied() throws Exception {
         mvc.perform(post(path()).with(csrf())).andExpect(status().isUnauthorized()); verifyNoInteractions(reads);
     }
-    @Test void inactiveReceptionistDenialPreservesErrorContract() throws Exception {
-        doThrow(new VisitOperationException("ACCESS_DENIED")).when(reads).close(eq(visit), eq(account), eq(AccountRole.RECEPTIONIST), anyString());
-        mvc.perform(post(path()).with(actor(AccountRole.RECEPTIONIST)).with(csrf())).andExpect(status().isForbidden());
+    @Test void inactiveDoctorDenialPreservesErrorContract() throws Exception {
+        doThrow(new VisitOperationException("ACCESS_DENIED")).when(reads).close(eq(visit), eq(account), eq(AccountRole.DOCTOR), anyString());
+        mvc.perform(post(path()).with(actor(AccountRole.DOCTOR)).with(csrf())).andExpect(status().isForbidden());
     }
     @Test void incompleteClinicalWorkReturnsConflict() throws Exception {
-        doThrow(new VisitOperationException("VISIT_CARE_NOT_CHANGEABLE")).when(reads).close(eq(visit), eq(account), eq(AccountRole.RECEPTIONIST), anyString());
-        mvc.perform(post(path()).with(actor(AccountRole.RECEPTIONIST)).with(csrf())).andExpect(status().isConflict());
+        doThrow(new VisitOperationException("VISIT_CARE_NOT_CHANGEABLE")).when(reads).close(eq(visit), eq(account), eq(AccountRole.DOCTOR), anyString());
+        mvc.perform(post(path()).with(actor(AccountRole.DOCTOR)).with(csrf())).andExpect(status().isConflict());
     }
     @TestConfiguration @EnableWebSecurity @EnableConfigurationProperties(SessionSecurityProperties.class)
     static class Fixture { }

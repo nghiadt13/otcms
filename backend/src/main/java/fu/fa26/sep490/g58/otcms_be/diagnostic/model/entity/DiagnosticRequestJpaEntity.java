@@ -60,6 +60,15 @@ public class DiagnosticRequestJpaEntity {
     @Column(name = "service_order_id")
     private UUID serviceOrderId;
 
+    @Column(name = "billing_invoice_id")
+    private UUID billingInvoiceId;
+
+    @Column(name = "billing_paid_event_id")
+    private UUID billingPaidEventId;
+
+    @Column(name = "billing_refund_event_id")
+    private UUID billingRefundEventId;
+
     @Version
     @Column(nullable = false)
     private long version;
@@ -113,7 +122,20 @@ public class DiagnosticRequestJpaEntity {
     public String getCancellationReason() { return cancellationReason; }
     public UUID getCurrentAttemptId() { return currentAttemptId; }
     public UUID getServiceOrderId() { return serviceOrderId; }
+    public UUID getBillingInvoiceId() { return billingInvoiceId; }
+    public UUID getBillingPaidEventId() { return billingPaidEventId; }
+    public UUID getBillingRefundEventId() { return billingRefundEventId; }
     public void setServiceOrderId(UUID serviceOrderId) { this.serviceOrderId = serviceOrderId; }
+    public void recordInvoicePaid(UUID invoiceId, UUID eventId) {
+        this.billingInvoiceId = invoiceId;
+        this.billingPaidEventId = eventId;
+    }
+    public void recordInvoiceItemRefund(UUID eventId, String reason) {
+        this.billingRefundEventId = eventId;
+        this.status = DiagnosticRequestStatus.CANCELLED;
+        this.cancellationCause = "CLINIC_UNABLE";
+        this.cancellationReason = reason;
+    }
     public long getVersion() { return version; }
     public Instant getCreatedAt() { return createdAt; }
     public Instant getUpdatedAt() { return updatedAt; }

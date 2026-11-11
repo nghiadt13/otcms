@@ -44,6 +44,7 @@ export async function listCatalog(
 type RequestStatusDto = {
   requestId: string;
   imagingType: string;
+  studyRef?: string | null;
   status:
     "PENDING" | "IN_PROGRESS" | "RESULT_AVAILABLE" | "REVIEWED" | "CANCELLED";
   version: number;
@@ -53,6 +54,13 @@ type HistoryItemDto = {
   studyRef: string | null;
   findingsText: string | null;
   findingsVersion: number | null;
+  reportId: string | null;
+};
+type CurrentFindingsDto = {
+  version: number;
+  status: "DRAFT" | "COMPLETED";
+  releaseState: "PRIVATE" | "RELEASE_PENDING" | "RELEASED" | "RELEASE_FAILED";
+  content: string;
   reportId: string | null;
 };
 
@@ -118,7 +126,7 @@ function clinicalOrder(
       ? {
           requestId: request.requestId,
           version: request.version,
-          studyRef: null,
+          studyRef: request.studyRef ?? null,
           reviewed: request.status === "REVIEWED",
           findingsText: "",
           findingsVersion: null,
@@ -150,22 +158,43 @@ export async function listOrders(
   const byRequest = new Map(
     history.items.map((item) => [item.requestId, item]),
   );
-  return orders.map((order) => {
+  const releasedOrders = orders.map((order) => {
     const past = order.imaging ? byRequest.get(order.imaging.requestId) : null;
     return order.imaging && past
       ? {
           ...order,
           imaging: {
             ...order.imaging,
-            studyRef: past.studyRef,
+            studyRef: past.studyRef ?? order.imaging.studyRef,
             findingsText: past.findingsText ?? "",
             findingsVersion: past.findingsVersion,
             reportId: past.reportId,
             findingsCompleted: !!past.reportId && past.findingsVersion !== null,
+            findingsReleaseState: "RELEASED" as const,
           },
         }
       : order;
   });
+  return Promise.all(
+    releasedOrders.map(async (order) => {
+      if (
+        !order.imaging ||
+        order.imaging.findingsCompleted ||
+        !order.imaging.reviewed
+      ) {
+        return order;
+      }
+      const current = await getFindings(order, signal);
+      if (!current) return order;
+      const statusNote =
+        current.findingsReleaseState === "RELEASE_PENDING"
+          ? "Đã gửi kết luận, chờ phát hành"
+          : current.findingsReleaseState === "RELEASE_FAILED"
+            ? "Chưa phát hành được kết luận"
+            : order.statusNote;
+      return { ...order, statusNote, imaging: current };
+    }),
+  );
 }
 
 export async function submitOrders(
@@ -192,6 +221,33 @@ export async function submitOrders(
 }
 
 const idem = () => ({ "Idempotency-Key": crypto.randomUUID() });
+
+export async function getFindings(
+  order: ParaclinicalOrder,
+  signal?: AbortSignal,
+): Promise<ImagingResult | null> {
+  const imaging = order.imaging;
+  if (!imaging) throw new ApiError(404, { code: "MSG-41" });
+  try {
+    const current = await apiRequest<CurrentFindingsDto>(
+      `/api/v1/imaging-requests/${encodeURIComponent(imaging.requestId)}/findings/current`,
+      { signal },
+    );
+    return {
+      ...imaging,
+      reviewed: true,
+      findingsText: current.content,
+      findingsVersion: current.version,
+      findingsCompleted:
+        current.status === "COMPLETED" && current.releaseState === "RELEASED",
+      findingsReleaseState: current.releaseState,
+      reportId: current.reportId,
+    };
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 404) return null;
+    throw error;
+  }
+}
 
 async function currentRequest(
   requestId: string,
@@ -262,6 +318,8 @@ export async function saveFindings(
     version: await currentVersion(imaging.requestId),
     findingsText: content,
     findingsVersion: draft.version,
+    findingsCompleted: false,
+    findingsReleaseState: "PRIVATE",
   };
 }
 
@@ -281,7 +339,9 @@ export async function completeFindings(
     `${base}/reports?expectedVersion=${await currentVersion(saved.requestId)}`,
     { method: "POST", headers: idem(), body: form },
   );
-  await apiRequest<unknown>(`${base}/findings/completions`, {
+  const completion = await apiRequest<{
+    releaseState: NonNullable<ImagingResult["findingsReleaseState"]>;
+  }>(`${base}/findings/completions`, {
     method: "POST",
     headers: {
       ...idem(),
@@ -297,6 +357,7 @@ export async function completeFindings(
     ...saved,
     version: await currentVersion(saved.requestId),
     reportId: uploaded.reportId,
-    findingsCompleted: true,
+    findingsCompleted: completion.releaseState === "RELEASED",
+    findingsReleaseState: completion.releaseState,
   };
 }

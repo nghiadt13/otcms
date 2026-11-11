@@ -148,7 +148,7 @@ class DiagnosticPaidRegistrationTest {
         beans.addBean("roomStatus", new StaffDiagnosticRoomStatusAdapter(staff, clock));
         var patientIdentities = mock(fu.fa26.sep490.g58.otcms_be.patient.service.PatientClinicalIdentityQueryService.class);
         when(patientIdentities.findClinicalIdentities(any())).thenReturn(Map.of(patient, new fu.fa26.sep490.g58.otcms_be.patient.service.PatientClinicalIdentityQueryService.ClinicalIdentity(patient, "Patient", java.time.LocalDate.of(1990, 1, 1), "MALE")));
-        var status = new DiagnosticStatusServiceImpl(requests, mock(fu.fa26.sep490.g58.otcms_be.diagnostic.repository.DiagnosticAttemptJpaRepository.class), beans.getBeanProvider(VisitDiagnosticReadPort.class), beans.getBeanProvider(RoomStatusAccessPort.class), patientIdentities);
+        var status = new DiagnosticStatusServiceImpl(requests, mock(fu.fa26.sep490.g58.otcms_be.diagnostic.repository.DiagnosticAttemptJpaRepository.class), beans.getBeanProvider(VisitDiagnosticReadPort.class), beans.getBeanProvider(RoomStatusAccessPort.class), patientIdentities, orders);
         var assigned = DiagnosticActor.user(technician, AccountRole.IMAGING_TECHNICIAN);
         var round = new fu.fa26.sep490.g58.otcms_be.clinical.model.entity.OrderingRoundJpaEntity(visit, patient, 1, doctor, clock.instant());
         var clinicalOrder = new fu.fa26.sep490.g58.otcms_be.clinical.model.entity.ServiceOrderJpaEntity("CD-QUEUE", round.getId(), visit, patient,

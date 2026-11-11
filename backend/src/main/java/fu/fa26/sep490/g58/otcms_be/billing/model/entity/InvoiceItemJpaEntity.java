@@ -22,6 +22,8 @@ public class InvoiceItemJpaEntity {
     private int lineNumber;
     @Column(name = "service_id")
     private UUID serviceId;
+    @Column(name = "clinical_order_id")
+    private UUID clinicalOrderId;
     @Column(name = "description_snapshot", nullable = false, length = 255)
     private String descriptionSnapshot;
     @Column(nullable = false)
@@ -33,9 +35,15 @@ public class InvoiceItemJpaEntity {
 
     public InvoiceItemJpaEntity(UUID invoiceId, int lineNumber, UUID serviceId, String description,
             int quantity, BigDecimal unitPrice) {
+        this(invoiceId, lineNumber, serviceId, null, description, quantity, unitPrice);
+    }
+
+    public InvoiceItemJpaEntity(UUID invoiceId, int lineNumber, UUID serviceId, UUID clinicalOrderId,
+            String description, int quantity, BigDecimal unitPrice) {
         this.invoiceId = invoiceId;
         this.lineNumber = lineNumber;
         this.serviceId = serviceId;
+        this.clinicalOrderId = clinicalOrderId;
         this.descriptionSnapshot = description;
         this.quantity = quantity;
         this.unitPriceSnapshot = unitPrice;
@@ -44,6 +52,7 @@ public class InvoiceItemJpaEntity {
     public UUID getInvoiceId() { return invoiceId; }
     public int getLineNumber() { return lineNumber; }
     public UUID getServiceId() { return serviceId; }
+    public UUID getClinicalOrderId() { return clinicalOrderId; }
     public String getDescriptionSnapshot() { return descriptionSnapshot; }
     public int getQuantity() { return quantity; }
     public BigDecimal getUnitPriceSnapshot() { return unitPriceSnapshot; }
@@ -52,6 +61,10 @@ public class InvoiceItemJpaEntity {
         private UUID invoiceId;
         private int lineNumber;
         public Key() { }
+        public Key(UUID invoiceId, int lineNumber) {
+            this.invoiceId = invoiceId;
+            this.lineNumber = lineNumber;
+        }
         @Override public boolean equals(Object other) {
             return other instanceof Key key && lineNumber == key.lineNumber && Objects.equals(invoiceId, key.invoiceId);
         }

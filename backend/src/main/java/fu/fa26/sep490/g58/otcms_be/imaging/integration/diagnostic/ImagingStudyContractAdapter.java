@@ -69,7 +69,8 @@ public class ImagingStudyContractAdapter implements ImagingStudyPort {
         }
         if (!study.getRequestId().equals(requestId) || !study.getVisitId().equals(visitId)
                 || !study.getPatientId().equals(patientId)
-                || !"CONFIRMED_MATCH".equals(study.getVerificationStatus())) {
+                || !("CONFIRMED_MATCH".equals(study.getVerificationStatus())
+                || "REQUEST_CONTEXT_MATCH".equals(study.getVerificationStatus()))) {
             throw new ImagingOperationException(ImagingOperationOutcome.EVIDENCE_MISMATCH);
         }
         var operation = operations.findById(outbox.getOperationId())
@@ -78,12 +79,13 @@ public class ImagingStudyContractAdapter implements ImagingStudyPort {
         if (!record.id().equals(outbox.getOperationId()) || !record.requestId().equals(requestId)
                 || !record.attemptId().equals(attemptId) || !record.visitId().equals(visitId)
                 || !record.patientId().equals(patientId) || !studyRef.equals(record.studyRef())
+                || !record.verificationStatus().name().equals(outbox.getVerificationStatus())
                 || !record.verificationEvidence().equals(verificationEvidence)
                 || record.state() == fu.fa26.sep490.g58.otcms_be.imaging.model.entity.enums.ImagingOperationState.QUARANTINED) {
             throw new ImagingOperationException(ImagingOperationOutcome.EVIDENCE_MISMATCH);
         }
         return new StudyEvidence(eventId, studyRef, requestId, visitId, patientId, attemptId,
-                StudyVerificationStatus.CONFIRMED_MATCH, true, verificationEvidence);
+                StudyVerificationStatus.valueOf(outbox.getVerificationStatus()), true, verificationEvidence);
     }
 
     @Override

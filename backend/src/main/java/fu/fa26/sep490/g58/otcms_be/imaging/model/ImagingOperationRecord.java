@@ -41,6 +41,6 @@ public record ImagingOperationRecord(UUID id, String studyRef, UUID requestId, U
     }
 
     public ImagingOperationStatus toStatus() {
-        return new ImagingOperationStatus(id, state, createdAt, updatedAt, safeOutcomeCode);
+        return new ImagingOperationStatus(id, state, createdAt, updatedAt, safeOutcomeCode, instanceCount);
     }
 }

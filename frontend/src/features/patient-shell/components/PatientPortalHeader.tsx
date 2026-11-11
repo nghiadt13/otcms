@@ -55,7 +55,7 @@ export function PatientPortalHeader({
     pathname === PATIENT_ROUTES.notifications;
 
   return (
-    <header className="sticky top-0 z-40 border-b bg-background/95 shadow-sm shadow-foreground/5 backdrop-blur">
+    <header className="relative z-40 border-b bg-background/95 shadow-sm shadow-foreground/5 backdrop-blur sm:sticky sm:top-0">
       <div
         className={`${publicContainerClass} flex flex-wrap items-center gap-x-3 gap-y-3 py-3 sm:h-16 sm:flex-nowrap sm:py-0 lg:h-20`}
       >
@@ -79,7 +79,7 @@ export function PatientPortalHeader({
               />
             </div>
 
-            <div className="flex items-center gap-2 xl:ml-auto">
+            <div className="ml-auto flex items-center gap-2 sm:ml-0 xl:ml-auto">
               {notificationSlot}
               <PatientAccountMenu
                 displayName={displayName}

@@ -34,6 +34,7 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
     DoctorActiveVisitController.class,
     ClinicalPrescriptionController.class,
     ClinicalMedicalDocumentController.class,
+    fu.fa26.sep490.g58.otcms_be.clinical.controller.PatientVisitResultController.class,
     ClinicalPastMedicalRecordsController.class,
     fu.fa26.sep490.g58.otcms_be.clinical.controller.PatientPrescriptionController.class
 })

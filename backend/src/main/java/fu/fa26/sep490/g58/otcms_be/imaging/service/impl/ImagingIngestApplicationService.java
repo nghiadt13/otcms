@@ -2,10 +2,12 @@ package fu.fa26.sep490.g58.otcms_be.imaging.service.impl;
 
 import fu.fa26.sep490.g58.otcms_be.imaging.exception.ImagingOperationException;
 import fu.fa26.sep490.g58.otcms_be.imaging.exception.ImagingOperationOutcome;
+import fu.fa26.sep490.g58.otcms_be.imaging.model.ImagingOperationRecord;
 import fu.fa26.sep490.g58.otcms_be.imaging.model.ImagingOperationStatus;
 import fu.fa26.sep490.g58.otcms_be.imaging.model.entity.enums.ImagingOperationState;
 import fu.fa26.sep490.g58.otcms_be.imaging.service.ImagingIngestService;
 import fu.fa26.sep490.g58.otcms_be.imaging.service.ImagingUploadCommand;
+import java.util.Optional;
 import java.util.UUID;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -51,13 +53,36 @@ public class ImagingIngestApplicationService implements ImagingIngestService {
     public ImagingOperationStatus getOperationStatus(UUID actorAccountId, UUID operationId) {
         var operation = operations.findById(operationId)
                 .orElseThrow(() -> new ImagingOperationException(ImagingOperationOutcome.UNAUTHORIZED_RECORD));
-        workAuthorization.requireAssignedWork(actorAccountId, operation.requestId(), operation.attemptId());
+        if (operation.state() == ImagingOperationState.CONFIRMATION_PENDING
+                || operation.state() == ImagingOperationState.LINKED) {
+            // FEAT-003 can publish the result and close the active upload assignment before this
+            // asynchronous confirmation reaches LINKED. The technician who created the operation
+            // must still be able to poll its final status; this does not grant DICOM viewer access.
+            if (!operation.actorAccountId().equals(actorAccountId)) {
+                throw new ImagingOperationException(ImagingOperationOutcome.UNAUTHORIZED_RECORD);
+            }
+        } else {
+            workAuthorization.requireAssignedWork(actorAccountId, operation.requestId(), operation.attemptId());
+        }
         if (audit != null) {
             audit.recordActor(actorAccountId, "IMAGING_OPERATION_STATUS_READ", "ALLOWED", operationId,
                     operation.studyRef(), operation.requestId(), operation.attemptId(), operation.visitId(),
                     operation.patientId(), operationId.toString(), java.util.Map.of("state", operation.state().name()));
         }
         return operation.toStatus();
+    }
+
+    @Override
+    public Optional<ImagingOperationStatus> getLatestOperation(UUID actorAccountId, UUID requestId, UUID attemptId) {
+        workAuthorization.requireAssignedWork(actorAccountId, requestId, attemptId);
+        Optional<ImagingOperationRecord> latest = operations.findLatest(requestId, attemptId);
+        if (audit != null) {
+            latest.ifPresent(operation -> audit.recordActor(actorAccountId, "IMAGING_OPERATION_STATUS_READ",
+                    "ALLOWED", operation.id(), operation.studyRef(), operation.requestId(), operation.attemptId(),
+                    operation.visitId(), operation.patientId(), operation.id().toString(),
+                    java.util.Map.of("state", operation.state().name())));
+        }
+        return latest.map(ImagingOperationRecord::toStatus);
     }
 
     @Override

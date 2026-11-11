@@ -21,6 +21,7 @@ import fu.fa26.sep490.g58.otcms_be.diagnostic.model.DiagnosticRequestPage;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.model.DiagnosticRequestView;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.model.dto.DiagnosticDtos.CancellationCause;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.DiagnosticAuditEventJpaEntity;
+import fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.DiagnosticAttemptJpaEntity;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.DiagnosticIdempotencyRecordJpaEntity;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.DiagnosticRequestJpaEntity;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.enums.DiagnosticAction;
@@ -178,6 +179,69 @@ public class DiagnosticRequestServiceImpl implements DiagnosticRequestService {
         }
         return new DiagnosticAssignedImagingWork(requestId, attemptId, request.getVisitId(),
                 request.getPatientId(), Long.toString(room.roomVersion()), true);
+    }
+
+    @Override
+    @Transactional
+    public DiagnosticRequestView startImaging(DiagnosticActor actor, UUID requestId, String idempotencyKey,
+            long expectedVersion, String correlationId) {
+        requireImagingTechnician(actor);
+        requireText(idempotencyKey, "idempotencyKey");
+        requireText(correlationId, "correlationId");
+        DiagnosticRequestJpaEntity preliminary = requests.findById(requestId)
+                .orElseThrow(() -> new DiagnosticOperationException(DiagnosticOperationOutcome.RECORD_NOT_FOUND));
+        String operation = "START_IMAGING_ACQUISITION";
+        String requestFingerprint = fingerprint(requestId + ":" + expectedVersion);
+        int claimed = idempotency.claimActorOperation(UUID.randomUUID(), actor.accountId(),
+                preliminary.getVisitId(), requestId, operation, idempotencyKey, requestFingerprint);
+        if (claimed == 0) {
+            return replay(idempotency.findActorOperation(actor.accountId(), preliminary.getVisitId(),
+                    requestId, operation, idempotencyKey).orElseThrow(this::dependencyUnavailable), requestFingerprint);
+        }
+
+        DiagnosticRequestJpaEntity request = requests.findByIdForUpdate(requestId)
+                .orElseThrow(() -> new DiagnosticOperationException(DiagnosticOperationOutcome.RECORD_NOT_FOUND));
+        if (request.getStatus() != DiagnosticRequestStatus.PENDING || request.getCurrentAttemptId() != null) {
+            throw new DiagnosticOperationException(DiagnosticOperationOutcome.STATE_CONFLICT);
+        }
+        ClinicalImagingOrderPort orders = orderPorts.getIfAvailable();
+        ClinicalImagingOrder order = orders == null || request.getServiceOrderId() == null
+                ? null : orders.requireOpenImagingOrder(request.getServiceOrderId());
+        if (order == null || !order.open() || !order.paid()
+                || !request.getVisitId().equals(order.visitId())
+                || !request.getServiceId().equals(order.serviceId())) {
+            throw new DiagnosticOperationException(DiagnosticOperationOutcome.STATE_CONFLICT);
+        }
+        if (request.getRoomId() == null) {
+            throw new DiagnosticOperationException(DiagnosticOperationOutcome.ROOM_NOT_READY);
+        }
+        RoomEvidence room = requireRoomEvidence(request.getRoomId(), request.getImagingType());
+        if (!room.operational() || !room.compatible()) {
+            throw new DiagnosticOperationException(DiagnosticOperationOutcome.ROOM_NOT_READY);
+        }
+        if (!actor.accountId().equals(room.assignedTechnicianId())) {
+            throw new DiagnosticOperationException(DiagnosticOperationOutcome.UNAUTHORIZED_RECORD);
+        }
+
+        UUID eventId = UUID.randomUUID();
+        UUID attemptId = UUID.randomUUID();
+        DiagnosticEvidenceContext evidence = new DiagnosticEvidenceContext(request.getId(), request.getVisitId(),
+                request.getPatientId(), null, eventId, attemptId, true, false, false, false, false);
+        authorization.requireAllowed(toDomain(request), DiagnosticAction.RECORD_FIRST_USE, actor,
+                evidence, expectedVersion);
+        DiagnosticAttemptJpaEntity attempt = new DiagnosticAttemptJpaEntity(attemptId, request.getId(), 1,
+                eventId, "ACQUISITION_STARTED", "OTCMS_TECHNICIAN_START", actor.accountId(), Instant.now(), null);
+        attempts.saveAndFlush(attempt);
+        request.setCurrentAttemptId(attemptId);
+        request.setStatus(DiagnosticRequestStatus.IN_PROGRESS);
+        requests.saveAndFlush(request);
+
+        DiagnosticRequestView result = toView(request);
+        recordAudit(eventId, actor, request, DiagnosticAction.RECORD_FIRST_USE.name(), correlationId,
+                Map.of("attemptId", attemptId.toString(), "firstUseType", "ACQUISITION_STARTED",
+                        "source", "OTCMS_TECHNICIAN_START", "serviceOrderId", request.getServiceOrderId().toString()));
+        saveReplayResult(actor, request.getVisitId(), requestId, operation, idempotencyKey, result);
+        return result;
     }
 
     @Override

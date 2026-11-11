@@ -1,11 +1,22 @@
-import { apiRequest } from "@/lib/api/client";
+import { apiRequest, apiRequestWithUploadProgress } from "@/lib/api/client";
 
 export type AssignedImagingUploadWork = {
   requestId: string;
   attemptId: string | null;
-  currentStudyRef: string | null;
   visitId: string;
+  patient: {
+    patientProfileId: string;
+    fullName: string;
+    dateOfBirth: string | null;
+    gender: string | null;
+  };
+  currentStudyRef: string | null;
+  serviceId: string | null;
+  serviceName: string | null;
   imagingType: string;
+  bodyArea: string | null;
+  clinicalReason: string | null;
+  technicianInstructions: string | null;
   roomId: string;
   status: "PENDING" | "IN_PROGRESS" | "RESULT_AVAILABLE";
   version: number;
@@ -36,6 +47,9 @@ export type ImagingOperationResponse = {
   updatedAt: string;
   statusUrl: string;
   error?: { code: string; message: string } | null;
+  instanceCount?: number | null;
+  adminResolutionRecorded?: boolean;
+  externalResolutionConfirmed?: boolean;
 };
 
 export type ImagingUploadSubmission = {
@@ -54,6 +68,13 @@ export async function listAssignedImagingUploadWork(
     `/api/v1/imaging-requests/assigned-upload-work?${query}` as const,
     { signal },
   );
+}
+
+export async function startImagingAcquisition(requestId: string, expectedVersion: number, idempotencyKey: string) {
+  return apiRequest(`/api/v1/imaging-requests/${encodeURIComponent(requestId)}/acquisition-starts`, {
+    method: "POST",
+    headers: { "Idempotency-Key": idempotencyKey, "X-Expected-Version": String(expectedVersion) },
+  });
 }
 
 /** Build one immutable multipart entity so a retry can reuse byte-identical request bytes. */
@@ -94,21 +115,23 @@ export function prepareImagingUpload(files: File[]): ImagingUploadSubmission {
 export async function uploadImagingStudy(
   work: AssignedImagingUploadWork,
   submission: ImagingUploadSubmission,
+  onProgress?: (loaded: number, total: number) => void,
 ): Promise<ImagingOperationResponse> {
   if (!work.attemptId) {
     throw new Error("Chỉ định chưa có attempt được FEAT-003 xác nhận.");
   }
-  return apiRequest<ImagingOperationResponse>(
-    `/api/v1/imaging/requests/${encodeURIComponent(work.requestId)}/attempts/${encodeURIComponent(work.attemptId)}/ingest-operations` as const,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": submission.contentType,
-        "Idempotency-Key": submission.idempotencyKey,
-      },
-      body: submission.body,
+  const path = `/api/v1/imaging/requests/${encodeURIComponent(work.requestId)}/attempts/${encodeURIComponent(work.attemptId)}/ingest-operations` as const;
+  const init: RequestInit = {
+    method: "POST",
+    headers: {
+      "Content-Type": submission.contentType,
+      "Idempotency-Key": submission.idempotencyKey,
     },
-  );
+    body: submission.body,
+  };
+  return onProgress
+    ? apiRequestWithUploadProgress<ImagingOperationResponse>(path, init, onProgress)
+    : apiRequest<ImagingOperationResponse>(path, init);
 }
 
 export async function getImagingOperation(
@@ -119,6 +142,18 @@ export async function getImagingOperation(
     `/api/v1/imaging/ingest-operations/${encodeURIComponent(operationId)}` as const,
     { signal },
   );
+}
+
+export async function getLatestImagingOperation(
+  requestId: string,
+  attemptId: string,
+  signal?: AbortSignal,
+): Promise<ImagingOperationResponse | null> {
+  const operations = await apiRequest<ImagingOperationResponse[]>(
+    `/api/v1/imaging/requests/${encodeURIComponent(requestId)}/attempts/${encodeURIComponent(attemptId)}/ingest-operations` as const,
+    { signal },
+  );
+  return operations[0] ?? null;
 }
 
 export async function sendImagingOperation(

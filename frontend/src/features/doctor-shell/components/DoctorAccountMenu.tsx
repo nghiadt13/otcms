@@ -30,7 +30,13 @@ import type { MyAccount } from "@/features/my-account/types/myAccount";
 // bệnh nhân) hiện tên hiển thị và nhãn "Bệnh nhân".
 function accountLabels(account: MyAccount): { name: string; role: string } {
   return account.kind === "STAFF"
-    ? { name: account.username, role: ROLE_LABELS[account.role] }
+    ? {
+        name:
+          account.role === "ORTHOPEDIC_DOCTOR" && account.displayName.trim()
+            ? account.displayName
+            : account.username,
+        role: ROLE_LABELS[account.role],
+      }
     : { name: account.displayName, role: ROLE_LABELS.PATIENT };
 }
 

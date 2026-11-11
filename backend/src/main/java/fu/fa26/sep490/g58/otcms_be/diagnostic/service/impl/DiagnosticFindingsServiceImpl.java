@@ -119,6 +119,22 @@ public class DiagnosticFindingsServiceImpl implements DiagnosticFindingsService 
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public DiagnosticFindingsView getCurrent(DiagnosticActor actor, UUID requestId) {
+        DiagnosticRequestJpaEntity request = requests.findById(requestId)
+                .orElseThrow(() -> new DiagnosticOperationException(DiagnosticOperationOutcome.RECORD_NOT_FOUND));
+        requireDoctorAccess(actor, request);
+        DiagnosticAttemptJpaEntity attempt = currentStudy(request);
+        DiagnosticFindingsVersionJpaEntity latest = latestFindings(requestId);
+        if (latest == null || !attempt.getStudyRef().equals(latest.getStudyRef())) {
+            throw new DiagnosticOperationException(DiagnosticOperationOutcome.RECORD_NOT_FOUND);
+        }
+        String releaseState = latest.getState() == DiagnosticFindingsVersionState.COMPLETED
+                ? "RELEASED" : releaseState(requestId, latest.getId());
+        return findingsView(latest, releaseState);
+    }
+
+    @Override
     @Transactional
     public DiagnosticFindingsView saveDraft(DiagnosticActor actor, UUID requestId, String idempotencyKey,
             long expectedVersion, String content, String correlationId) {
@@ -137,6 +153,7 @@ public class DiagnosticFindingsServiceImpl implements DiagnosticFindingsService 
         if (latest != null && latest.getState() == DiagnosticFindingsVersionState.COMPLETED) {
             throw stateConflict();
         }
+        if (latest != null && hasReleaseEvent(requestId, latest.getId())) throw stateConflict();
         if (latest == null) {
             latest = new DiagnosticFindingsVersionJpaEntity(UUID.randomUUID(), requestId, request.getVisitId(),
                     studyRef, 1, body, actor.accountId(), Instant.now(), DiagnosticFindingsVersionState.DRAFT,
@@ -206,12 +223,27 @@ public class DiagnosticFindingsServiceImpl implements DiagnosticFindingsService 
         if (latest != null && latest.getState() == DiagnosticFindingsVersionState.COMPLETED) {
             throw stateConflict();
         }
+        if (latest != null && hasReleaseEvent(requestId, latest.getId())) throw stateConflict();
         String contentSha256 = hashUpload(upload);
         String fingerprint = fingerprint(studyRef + "\n" + expectedVersion + "\n" + upload.contentLength()
                 + "\n" + version + "\n" + contentSha256);
         DiagnosticIdempotencyRecordJpaEntity replay = claim(actor, request, UPLOAD_REPORT, idempotencyKey, fingerprint);
         if (replay != null) return reportReplay(requestId, replay);
         requireVersion(request, expectedVersion);
+        DiagnosticReportJpaEntity existingReport = reports.findByRequestIdAndReportVersion(requestId, version)
+                .orElse(null);
+        if (existingReport != null) {
+            if (!studyRef.equals(existingReport.getStudyRef())
+                    || !contentSha256.equals(existingReport.getContentSha256())) {
+                throw stateConflict();
+            }
+            saveResult(actor, request, UPLOAD_REPORT, idempotencyKey,
+                    Map.of("reportId", existingReport.getId().toString(), "fingerprint", fingerprint));
+            audit(request, actor, "REUSE_EXISTING_CLINIC_REPORT", correlationId,
+                    Map.of("reportId", existingReport.getId().toString(), "version", version));
+            return new DiagnosticReportView(existingReport.getId(), existingReport.getValidationStatus().name(),
+                    existingReport.getReportVersion());
+        }
         ReportStoragePort storage = reportPorts.getIfAvailable();
         if (storage == null) throw dependencyUnavailable();
         UUID reportId = UUID.randomUUID();
@@ -273,7 +305,11 @@ public class DiagnosticFindingsServiceImpl implements DiagnosticFindingsService 
         if (replay != null) {
             UUID eventId = UUID.fromString(text(replay.getResultPayload(), "eventId"));
             String state = outbox.findByEventId(eventId)
-                    .map(event -> event.getStatus().name().equals("DELIVERED") ? "RELEASED" : "RELEASE_PENDING")
+                    .map(event -> switch (event.getStatus().name()) {
+                        case "DELIVERED" -> "RELEASED";
+                        case "DEAD_LETTER" -> "RELEASE_FAILED";
+                        default -> "RELEASE_PENDING";
+                    })
                     .orElse("RELEASE_PENDING");
             return new DiagnosticFindingsReleaseView(requestId,
                     number(replay.getResultPayload(), "findingsVersion"), state);
@@ -288,6 +324,26 @@ public class DiagnosticFindingsServiceImpl implements DiagnosticFindingsService 
                 .orElseThrow(() -> new DiagnosticOperationException(DiagnosticOperationOutcome.RECORD_NOT_FOUND));
         if (version.getState() != DiagnosticFindingsVersionState.DRAFT || !studyRef.equals(version.getStudyRef())) {
             throw stateConflict();
+        }
+        DiagnosticOutboxJpaEntity pendingRelease = outbox
+                .findAllByRequestIdAndEventTypeOrderByCreatedAtDesc(requestId, RELEASE_EVENT).stream()
+                .filter(event -> "PENDING".equals(event.getStatus().name())
+                        && version.getId().toString().equals(text(event.getPayload(), "findingsVersionId")))
+                .findFirst().orElse(null);
+        if (pendingRelease != null) {
+            if (!reportId.toString().equals(text(pendingRelease.getPayload(), "reportId"))
+                    || !studyRef.equals(text(pendingRelease.getPayload(), "studyRef"))) {
+                throw evidenceMismatch();
+            }
+            saveResult(actor, request, COMPLETE, idempotencyKey, Map.of(
+                    "eventId", pendingRelease.getEventId().toString(),
+                    "findingsVersion", findingsVersion,
+                    "releaseState", "RELEASE_PENDING"));
+            audit(request, actor, "REPLAY_FINDINGS_RELEASE", correlationId,
+                    Map.of("eventId", pendingRelease.getEventId().toString(),
+                            "findingsVersionId", version.getId().toString(),
+                            "releaseState", "RELEASE_PENDING"));
+            return new DiagnosticFindingsReleaseView(requestId, findingsVersion, "RELEASE_PENDING");
         }
         DiagnosticReportJpaEntity report = reports.findByIdAndRequestId(reportId, requestId)
                 .orElseThrow(this::reportNotReady);
@@ -372,6 +428,25 @@ public class DiagnosticFindingsServiceImpl implements DiagnosticFindingsService 
 
     private DiagnosticFindingsVersionJpaEntity latestFindings(UUID requestId) {
         return findings.findFirstByRequestIdOrderByVersionNumberDesc(requestId).orElse(null);
+    }
+
+    private String releaseState(UUID requestId, UUID findingsVersionId) {
+        for (DiagnosticOutboxJpaEntity event : outbox
+                .findAllByRequestIdAndEventTypeOrderByCreatedAtDesc(requestId, RELEASE_EVENT)) {
+            if (!findingsVersionId.toString().equals(text(event.getPayload(), "findingsVersionId"))) continue;
+            return switch (event.getStatus().name()) {
+                case "DELIVERED" -> "RELEASED";
+                case "DEAD_LETTER" -> "RELEASE_FAILED";
+                default -> "RELEASE_PENDING";
+            };
+        }
+        return "PRIVATE";
+    }
+
+    private boolean hasReleaseEvent(UUID requestId, UUID findingsVersionId) {
+        return outbox.findAllByRequestIdAndEventTypeOrderByCreatedAtDesc(requestId, RELEASE_EVENT).stream()
+                .anyMatch(event -> findingsVersionId.toString()
+                        .equals(text(event.getPayload(), "findingsVersionId")));
     }
 
     private void requireReviewed(DiagnosticRequestJpaEntity request) {

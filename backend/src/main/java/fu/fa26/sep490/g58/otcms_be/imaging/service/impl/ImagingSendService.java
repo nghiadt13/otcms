@@ -66,7 +66,8 @@ public class ImagingSendService {
         }
         if (record.state() != ImagingOperationState.ARCHIVED_NOT_SENT
                 || record.studyRef() == null
-                || record.verificationStatus() != fu.fa26.sep490.g58.otcms_be.imaging.model.entity.enums.ImagingVerificationStatus.CONFIRMED_MATCH) {
+                || (record.verificationStatus() != fu.fa26.sep490.g58.otcms_be.imaging.model.entity.enums.ImagingVerificationStatus.CONFIRMED_MATCH
+                && record.verificationStatus() != fu.fa26.sep490.g58.otcms_be.imaging.model.entity.enums.ImagingVerificationStatus.REQUEST_CONTEXT_MATCH)) {
             audit.recordActor(actorId, "IMAGING_SEND", "REJECTED", operationId, record.studyRef(),
                     record.requestId(), record.attemptId(), record.visitId(), record.patientId(),
                     operationId.toString(), Map.of("reasonCode", "SEND_STATE_INVALID"));

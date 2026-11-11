@@ -1,6 +1,7 @@
 package fu.fa26.sep490.g58.otcms_be.imaging.service;
 
 import fu.fa26.sep490.g58.otcms_be.imaging.model.ImagingOperationStatus;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -15,6 +16,9 @@ public interface ImagingIngestService {
 
     /** Authorize the actor against the persisted operation owner before returning its state. */
     ImagingOperationStatus getOperationStatus(UUID actorAccountId, UUID operationId);
+
+    /** Read the most recent operation only after rechecking the current request/attempt assignment. */
+    Optional<ImagingOperationStatus> getLatestOperation(UUID actorAccountId, UUID requestId, UUID attemptId);
 
     /** Recheck both persisted operation ownership and current assigned request/attempt authority. */
     ImagingOperationStatus send(UUID actorAccountId, UUID operationId, String idempotencyKey);

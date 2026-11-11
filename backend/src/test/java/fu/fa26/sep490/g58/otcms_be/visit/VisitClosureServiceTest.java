@@ -4,12 +4,14 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 import static org.mockito.ArgumentMatchers.*;
 import fu.fa26.sep490.g58.otcms_be.auth.service.ReceptionistAccountAccessService;
+import fu.fa26.sep490.g58.otcms_be.auth.service.DoctorAccountAccessService;
 import fu.fa26.sep490.g58.otcms_be.clinical.service.ClinicalVisitCompletionEvidenceService;
 import fu.fa26.sep490.g58.otcms_be.clinical.service.ClinicalVisitCompletionEvidenceService.ClinicalCompletionEvidence;
 import fu.fa26.sep490.g58.otcms_be.common.security.AccountRole;
 import fu.fa26.sep490.g58.otcms_be.common.service.CoordinationGuardService;
 import fu.fa26.sep490.g58.otcms_be.notification.service.NotificationPublisher;
 import fu.fa26.sep490.g58.otcms_be.staff.service.StaffAvailabilityProviderQueryService;
+import fu.fa26.sep490.g58.otcms_be.staff.service.DoctorProfileIdentityQueryService;
 import fu.fa26.sep490.g58.otcms_be.visit.exception.VisitOperationException;
 import fu.fa26.sep490.g58.otcms_be.visit.model.entity.*;
 import fu.fa26.sep490.g58.otcms_be.visit.repository.*;
@@ -29,16 +31,22 @@ class VisitClosureServiceTest {
     final WalkInVisitLifecycleRepository lifecycle = mock(WalkInVisitLifecycleRepository.class);
     final VisitAuditJpaRepository audits = mock(VisitAuditJpaRepository.class);
     final ExitWalkInReceptionQueueService queue = mock(ExitWalkInReceptionQueueService.class);
+    final ManageVisitCareAssignmentService careAssignments = mock(ManageVisitCareAssignmentService.class);
     final ReceptionistAccountAccessService receptionists = mock(ReceptionistAccountAccessService.class);
+    final DoctorAccountAccessService doctors = mock(DoctorAccountAccessService.class);
+    final DoctorProfileIdentityQueryService doctorProfiles = mock(DoctorProfileIdentityQueryService.class);
     final ClinicalVisitCompletionEvidenceService clinical = mock(ClinicalVisitCompletionEvidenceService.class);
     final fu.fa26.sep490.g58.otcms_be.diagnostic.service.DiagnosticVisitCompletionEvidenceService diagnostic = mock(fu.fa26.sep490.g58.otcms_be.diagnostic.service.DiagnosticVisitCompletionEvidenceService.class);
     final NotificationPublisher notifications = mock(NotificationPublisher.class);
     final VisitReviewSourceService reviews = mock(VisitReviewSourceService.class);
     final StaffAvailabilityProviderQueryService names = mock(StaffAvailabilityProviderQueryService.class);
     final WalkInVisitLifecycleServiceImpl service = new WalkInVisitLifecycleServiceImpl(guard, visits, lifecycle,
-            audits, queue, receptionists, clinical, diagnostic, Clock.fixed(now, ZoneOffset.UTC), notifications, reviews, names);
+            audits, queue, careAssignments, receptionists, doctors, doctorProfiles, clinical, diagnostic,
+            Clock.fixed(now, ZoneOffset.UTC), notifications, reviews, names);
     @BeforeEach void setup() {
         when(receptionists.isActiveReceptionistAccount(actor)).thenReturn(true);
+        when(doctors.isActiveDoctorAccount(actor)).thenReturn(true);
+        when(doctorProfiles.findDoctorProfileId(actor)).thenReturn(Optional.of(doctor));
         when(visits.findByIdForUpdate(id)).thenReturn(Optional.of(ClinicVisitJpaEntity.walkIn(id, patient, null, actor, now)));
         when(clinical.getCompletionEvidence(id)).thenReturn(evidence(true, true, 0, true, List.of()));
         when(lifecycle.closeOpenVisit(id, now)).thenReturn(true);
@@ -48,28 +56,33 @@ class VisitClosureServiceTest {
     ClinicalCompletionEvidence evidence(boolean exists, boolean complete, int outstanding, boolean results, List<UUID> imaging) {
         return new ClinicalCompletionEvidence(id, exists, complete, outstanding + imaging.size(), outstanding, results, imaging);
     }
-    void close() { service.close(id, actor, AccountRole.RECEPTIONIST, "uc28"); }
+    void close() { service.close(id, actor, AccountRole.DOCTOR, "main-workflow"); }
     void denied(String code, Runnable action) { assertEquals(code, assertThrows(VisitOperationException.class, action::run).code()); }
     void unchanged() { verify(lifecycle, never()).closeOpenVisit(any(), any()); verifyNoInteractions(queue, audits, notifications); }
-    @Test void activeReceptionistClosesWithCompletedClinicalEvidencePreservingSideEffectsAndLockOrder() {
+    @Test void responsibleDoctorClosesWithCompletedClinicalEvidencePreservingSideEffectsAndLockOrder() {
         close();
         var sequence = inOrder(guard, visits, clinical, queue, lifecycle, audits, notifications);
         sequence.verify(guard).acquire(); sequence.verify(visits).findByIdForUpdate(id);
         sequence.verify(clinical).getCompletionEvidence(id);
-        sequence.verify(queue).exit(argThat(c -> c.actorRole() == AccountRole.RECEPTIONIST && c.reason().equals("VISIT_CLOSED")));
+        sequence.verify(queue).exit(argThat(c -> c.actorRole() == AccountRole.DOCTOR && c.reason().equals("VISIT_CLOSED")));
         sequence.verify(lifecycle).closeOpenVisit(id, now); sequence.verify(lifecycle).releaseReservedCare(id, now);
         sequence.verify(audits).saveAndFlush(any(VisitAuditJpaEntity.class));
         sequence.verify(notifications).publishToPatient(eq(patient), argThat(m -> m.type().equals("VISIT_CLOSED_REVIEW_INVITE") && m.content().contains("Treating Doctor")));
         verify(names).findDoctorDisplayName(doctor);
     }
-    @ParameterizedTest @EnumSource(value = AccountRole.class, names = {"DOCTOR", "PATIENT", "ADMIN", "OWNER", "IMAGING_TECHNICIAN"})
+    @ParameterizedTest @EnumSource(value = AccountRole.class, names = {"RECEPTIONIST", "PATIENT", "ADMIN", "OWNER", "IMAGING_TECHNICIAN"})
     void otherRolesDeniedBeforeReads(AccountRole role) {
         denied("ACCESS_DENIED", () -> service.close(id, actor, role, "uc28"));
         verifyNoInteractions(guard, visits, clinical, queue, audits, notifications);
     }
-    @Test void inactiveReceptionistDenied() {
-        when(receptionists.isActiveReceptionistAccount(actor)).thenReturn(false);
+    @Test void inactiveDoctorDenied() {
+        when(doctors.isActiveDoctorAccount(actor)).thenReturn(false);
         denied("ACCESS_DENIED", this::close); verifyNoInteractions(guard, visits, clinical); unchanged();
+    }
+    @Test void differentDoctorCannotCloseVisit() {
+        when(reviews.find(id)).thenReturn(Optional.of(new VisitReviewSourceService.Source(
+                id, patient, "OPEN", now, "", "", null, UUID.randomUUID())));
+        denied("ACCESS_DENIED", this::close); verifyNoInteractions(clinical); unchanged();
     }
     @Test void noExaminationRejected() { when(clinical.getCompletionEvidence(id)).thenReturn(evidence(false, false, 0, true, List.of())); denied("VISIT_CARE_NOT_CHANGEABLE", this::close); unchanged(); }
     @Test void incompleteExaminationRejected() { when(clinical.getCompletionEvidence(id)).thenReturn(evidence(true, false, 0, true, List.of())); denied("VISIT_CARE_NOT_CHANGEABLE", this::close); unchanged(); }
@@ -81,7 +94,13 @@ class VisitClosureServiceTest {
         when(visits.findByIdForUpdate(id)).thenReturn(Optional.of(visit));
         denied("VISIT_CARE_NOT_CHANGEABLE", this::close); verifyNoInteractions(clinical); unchanged();
     }
-    @Test void inProgressCareRejected() { when(lifecycle.hasInProgressCare(id)).thenReturn(true); denied("VISIT_CARE_NOT_CHANGEABLE", this::close); verifyNoInteractions(clinical); unchanged(); }
+    @Test void inProgressCareRejectedWhenItCannotBeCompletedAsTheCurrentConsultation() {
+        when(lifecycle.hasInProgressCare(id)).thenReturn(true);
+        denied("VISIT_CARE_NOT_CHANGEABLE", this::close);
+        verify(clinical).getCompletionEvidence(id);
+        verify(careAssignments).completeDoctorConsultationForVisitClosure(any());
+        unchanged();
+    }
     @Test void missingVisitRejected() { when(visits.findByIdForUpdate(id)).thenReturn(Optional.empty()); denied("RESOURCE_NOT_FOUND", this::close); unchanged(); }
     @Test void evidenceFailurePropagatesWithoutClosing() { when(clinical.getCompletionEvidence(id)).thenThrow(new IllegalStateException("owner unavailable")); assertThrows(IllegalStateException.class, this::close); unchanged(); }
     @Test void scheduledVisitClosesWithoutWalkInQueueMutation() {

@@ -156,6 +156,10 @@ export const doctorDemoApi: DoctorExamApi = {
     await wait();
     visitOf(context.visitId).context.status = "IN_EXAMINATION";
   },
+  async closeVisit(visitId) {
+    await wait();
+    visitOf(visitId).context.status = "COMPLETED";
+  },
   async getExamination(visitId, signal) {
     await wait(signal);
     return clone(visitOf(visitId).examination);
@@ -258,6 +262,13 @@ export const doctorDemoApi: DoctorExamApi = {
       statusNote: null,
       cancellable: false,
     });
+  },
+  async getFindings(order) {
+    await wait();
+    const imaging = order.imaging ?? mockFail(404, "MSG-41");
+    return imaging.findingsText || imaging.findingsVersion !== null
+      ? clone(imaging)
+      : null;
   },
   async saveFindings(order, content) {
     await wait();

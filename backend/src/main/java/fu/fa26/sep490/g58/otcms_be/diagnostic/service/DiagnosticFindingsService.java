@@ -12,6 +12,8 @@ public interface DiagnosticFindingsService {
     DiagnosticRequestView review(DiagnosticActor actor, UUID requestId, String idempotencyKey,
             long expectedVersion, String studyRef, String correlationId);
 
+    DiagnosticFindingsView getCurrent(DiagnosticActor actor, UUID requestId);
+
     DiagnosticFindingsView saveDraft(DiagnosticActor actor, UUID requestId, String idempotencyKey,
             long expectedVersion, String content, String correlationId);
 

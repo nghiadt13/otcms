@@ -10,6 +10,8 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface DiagnosticReportJpaRepository extends JpaRepository<DiagnosticReportJpaEntity, UUID> {
     List<DiagnosticReportJpaEntity> findAllByRequestIdOrderByReportVersionDesc(UUID requestId);
 
+    Optional<DiagnosticReportJpaEntity> findByRequestIdAndReportVersion(UUID requestId, int reportVersion);
+
     Optional<DiagnosticReportJpaEntity> findFirstByRequestIdAndValidationStatusOrderByReportVersionDesc(
             UUID requestId, DiagnosticReportValidationStatus validationStatus);
 

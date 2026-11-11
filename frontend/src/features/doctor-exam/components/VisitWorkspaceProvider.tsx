@@ -27,9 +27,9 @@ type VisitWorkspaceValue = {
   submittedOrders: readonly ParaclinicalOrder[];
   addSubmittedOrders: (orders: ParaclinicalOrder[]) => void;
   dropSubmittedOrder: (orderId: string) => void;
-  /** Mã yêu cầu ảnh đã hoàn tất kết luận nhưng chưa thấy phát hành. */
-  completedFindings: ReadonlySet<string>;
-  markFindingsCompleted: (requestId: string) => void;
+  /** Mã yêu cầu ảnh đã gửi phát hành nhưng chưa thấy kết quả đã phát hành. */
+  findingsAwaitingRelease: ReadonlySet<string>;
+  markFindingsAwaitingRelease: (requestId: string) => void;
 };
 
 const WorkspaceContext = createContext<VisitWorkspaceValue | null>(null);
@@ -48,7 +48,7 @@ export function VisitWorkspaceProvider({
     ),
   );
   const [submittedOrders, setSubmitted] = useState<ParaclinicalOrder[]>([]);
-  const [completedFindings, setCompleted] = useState<ReadonlySet<string>>(
+  const [findingsAwaitingRelease, setAwaitingRelease] = useState<ReadonlySet<string>>(
     () => new Set(),
   );
   const addSubmittedOrders = useCallback(
@@ -60,8 +60,8 @@ export function VisitWorkspaceProvider({
       setSubmitted((cur) => cur.filter((order) => order.id !== orderId)),
     [],
   );
-  const markFindingsCompleted = useCallback(
-    (requestId: string) => setCompleted((cur) => new Set(cur).add(requestId)),
+  const markFindingsAwaitingRelease = useCallback(
+    (requestId: string) => setAwaitingRelease((cur) => new Set(cur).add(requestId)),
     [],
   );
   const value = useMemo(
@@ -74,8 +74,8 @@ export function VisitWorkspaceProvider({
       submittedOrders,
       addSubmittedOrders,
       dropSubmittedOrder,
-      completedFindings,
-      markFindingsCompleted,
+      findingsAwaitingRelease,
+      markFindingsAwaitingRelease,
     }),
     [
       visitId,
@@ -86,8 +86,8 @@ export function VisitWorkspaceProvider({
       submittedOrders,
       addSubmittedOrders,
       dropSubmittedOrder,
-      completedFindings,
-      markFindingsCompleted,
+      findingsAwaitingRelease,
+      markFindingsAwaitingRelease,
     ],
   );
   return (
@@ -111,17 +111,22 @@ export function useVisitWorkspace(): VisitWorkspaceValue {
 export function mergeWorkspaceOrders(
   loaded: readonly ParaclinicalOrder[],
   submitted: readonly ParaclinicalOrder[],
-  completedFindings: ReadonlySet<string>,
+  findingsAwaitingRelease: ReadonlySet<string>,
 ): ParaclinicalOrder[] {
   const extra = submitted.filter((s) => !loaded.some((o) => o.id === s.id));
   return [...loaded, ...extra].map((order) =>
     order.imaging &&
-    completedFindings.has(order.imaging.requestId) &&
-    !order.imaging.findingsCompleted
+    findingsAwaitingRelease.has(order.imaging.requestId) &&
+    !order.imaging.findingsCompleted &&
+    order.imaging.findingsReleaseState !== "RELEASE_FAILED"
       ? {
           ...order,
           statusNote: "Đã gửi kết luận, chờ phát hành",
-          imaging: { ...order.imaging, findingsCompleted: true },
+          imaging: {
+            ...order.imaging,
+            findingsCompleted: false,
+            findingsReleaseState: "RELEASE_PENDING",
+          },
         }
       : order,
   );

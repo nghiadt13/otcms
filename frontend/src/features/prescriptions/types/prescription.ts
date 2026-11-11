@@ -13,19 +13,24 @@ export interface PrescriptionItem {
 }
 
 /** Thông tin người bệnh in trên đơn; kèm quan hệ để giao diện nói rõ "của ai". */
-export type PrescriptionPatient = Pick<
-  LinkedProfile,
-  "fullName" | "dateOfBirth" | "patientCode" | "relationship"
->;
+export type PrescriptionRelationship =
+  | LinkedProfile["relationship"]
+  | "DEPENDENT";
+
+export type PrescriptionPatient = Pick<LinkedProfile, "fullName"> & {
+  relationship: PrescriptionRelationship;
+  dateOfBirth: string | null;
+  patientCode?: string | null;
+};
 
 export interface PrescriptionDocument {
   id: string;
   /** ISO có offset +07:00 */
   issuedAt: string;
-  doctorName: string;
-  clinicName: string;
+  doctorName: string | null;
+  clinicName: string | null;
   patient: PrescriptionPatient;
-  diagnosis: string;
+  diagnosis: string | null;
   items: PrescriptionItem[];
 }
 
@@ -34,8 +39,10 @@ export interface PrescriptionListItem {
   id: string;
   issuedAt: string;
   itemCount: number;
-  doctorName: string;
-  patient: Pick<LinkedProfile, "id" | "fullName" | "relationship">;
+  doctorName: string | null;
+  patient: Pick<LinkedProfile, "id" | "fullName"> & {
+    relationship: PrescriptionRelationship;
+  };
 }
 
 export interface PrescriptionListQuery {

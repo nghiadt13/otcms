@@ -55,7 +55,11 @@ export function PrescriptionDetailScreen({
       </Link>
       <PortalPageHeader
         title={`Đơn thuốc ngày ${formatDate(prescription.issuedAt)}`}
-        description={`${prescription.patient.fullName} (${CARE_RELATIONSHIP_LABELS[prescription.patient.relationship]})`}
+        description={`${prescription.patient.fullName} (${
+          prescription.patient.relationship === "DEPENDENT"
+            ? "Người thân"
+            : CARE_RELATIONSHIP_LABELS[prescription.patient.relationship]
+        })`}
       />
       <PrescriptionDocumentView document={prescription} />
     </div>

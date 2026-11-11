@@ -3,6 +3,7 @@ package fu.fa26.sep490.g58.otcms_be.imaging.repository;
 import fu.fa26.sep490.g58.otcms_be.imaging.model.entity.ImagingIngestOperationJpaEntity;
 import fu.fa26.sep490.g58.otcms_be.imaging.model.entity.enums.ImagingOperationState;
 import java.time.Instant;
+import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
@@ -11,6 +12,9 @@ import org.springframework.data.repository.query.Param;
 
 public interface ImagingIngestOperationRepository
         extends JpaRepository<ImagingIngestOperationJpaEntity, UUID> {
+    Optional<ImagingIngestOperationJpaEntity> findFirstByRequestIdAndAttemptIdOrderByCreatedAtDescIdDesc(
+            UUID requestId, UUID attemptId);
+
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("""
             update ImagingIngestOperationJpaEntity operation

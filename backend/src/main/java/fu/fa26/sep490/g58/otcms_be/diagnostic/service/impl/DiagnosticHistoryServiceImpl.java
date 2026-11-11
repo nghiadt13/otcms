@@ -116,7 +116,7 @@ public class DiagnosticHistoryServiceImpl implements DiagnosticHistoryService {
                 || version.getCompletedAt() == null || !request.getId().equals(version.getRequestId())
                 || !request.getVisitId().equals(version.getVisitId())) {
             return new DiagnosticHistoryItem(request.getId(), request.getVisitId(), request.getImagingType(),
-                    request.getStatus(), null, null, null, null);
+                    request.getStatus(), null, null, null, null, request.getBodyArea());
         }
         DiagnosticReportJpaEntity report = reports.findFirstByRequestIdAndReleasedAtIsNotNullOrderByReportVersionDesc(
                 request.getId()).orElse(null);
@@ -127,11 +127,11 @@ public class DiagnosticHistoryServiceImpl implements DiagnosticHistoryService {
                 || !request.getVisitId().equals(report.getVisitId())
                 || !Objects.equals(version.getStudyRef(), report.getStudyRef())) {
             return new DiagnosticHistoryItem(request.getId(), request.getVisitId(), request.getImagingType(),
-                    request.getStatus(), null, null, null, null);
+                    request.getStatus(), null, null, null, null, request.getBodyArea());
         }
         return new DiagnosticHistoryItem(request.getId(), request.getVisitId(), request.getImagingType(),
                 request.getStatus(), version.getStudyRef(), version.getVersionNumber(), version.getFindingsText(),
-                report.getId());
+                report.getId(), request.getBodyArea());
     }
 
     private VisitHistoryAuthorization authorizeVisitHistory(UUID visitId, UUID actorId) {

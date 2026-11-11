@@ -36,7 +36,8 @@ public class ImagingApiExceptionHandler {
         ImagingOperationOutcome outcome = exception.outcome();
         HttpStatus status = switch (outcome) {
             case UNAUTHORIZED_RECORD, RECORD_NOT_FOUND -> HttpStatus.NOT_FOUND;
-            case STATE_CONFLICT, VERSION_CONFLICT, IDEMPOTENCY_CONFLICT, EVIDENCE_MISMATCH -> HttpStatus.CONFLICT;
+            case STATE_CONFLICT, VERSION_CONFLICT, IDEMPOTENCY_CONFLICT, EVIDENCE_MISMATCH,
+                    ARCHIVE_STUDY_ALREADY_LINKED -> HttpStatus.CONFLICT;
             case FILE_INVALID -> HttpStatus.UNPROCESSABLE_ENTITY;
             case DEPENDENCY_UNAVAILABLE -> HttpStatus.SERVICE_UNAVAILABLE;
             case RECONCILIATION_REQUIRED -> HttpStatus.ACCEPTED;

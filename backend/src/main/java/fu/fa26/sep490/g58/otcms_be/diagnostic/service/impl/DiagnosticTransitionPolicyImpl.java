@@ -67,7 +67,8 @@ public final class DiagnosticTransitionPolicyImpl implements DiagnosticTransitio
     private DiagnosticOperationOutcome evaluateFirstUse(DiagnosticRequest request, DiagnosticActor actor,
             DiagnosticEvidenceContext evidence) {
         if (request.status() != DiagnosticRequestStatus.PENDING) return DiagnosticOperationOutcome.STATE_CONFLICT;
-        if (actor.kind() != DiagnosticActor.Kind.TRUSTED_INTEGRATION) {
+        if (actor.kind() != DiagnosticActor.Kind.TRUSTED_INTEGRATION
+                && !(actor.kind() == DiagnosticActor.Kind.USER && actor.role() == AccountRole.IMAGING_TECHNICIAN)) {
             return DiagnosticOperationOutcome.UNAUTHORIZED_RECORD;
         }
         return evidence.trustedFirstUse() && evidence.eventId() != null && evidence.attemptId() != null

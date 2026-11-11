@@ -24,8 +24,10 @@ import fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.DiagnosticFindingsVer
 import fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.DiagnosticReportJpaEntity;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.DiagnosticRequestJpaEntity;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.enums.DiagnosticAction;
+import fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.enums.DiagnosticFindingsVersionState;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.enums.DiagnosticOperationOutcome;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.enums.DiagnosticOutboxStatus;
+import fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.enums.DiagnosticReportValidationStatus;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.enums.DiagnosticRequestStatus;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.repository.DiagnosticAttemptJpaRepository;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.repository.DiagnosticAuditEventJpaRepository;
@@ -49,7 +51,10 @@ import java.util.UUID;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 @Service
 public class DiagnosticEvidenceServiceImpl implements DiagnosticEvidenceService {
@@ -69,6 +74,7 @@ public class DiagnosticEvidenceServiceImpl implements DiagnosticEvidenceService 
     private final ObjectProvider<ImagingBillingPort> billingPorts;
     private final ObjectProvider<VisitDiagnosticPort> visitPorts;
     private final ObjectProvider<ClinicalImagingOrderPort> orderPorts;
+    private final TransactionTemplate outboxTransaction;
 
     public DiagnosticEvidenceServiceImpl(DiagnosticRequestJpaRepository requests,
             DiagnosticAttemptJpaRepository attempts, DiagnosticAuditEventJpaRepository auditEvents,
@@ -76,7 +82,7 @@ public class DiagnosticEvidenceServiceImpl implements DiagnosticEvidenceService 
             DiagnosticReportJpaRepository reports, DiagnosticAuthorizationPolicy authorization,
             ObjectProvider<FirstUseEvidencePort> firstUsePorts, ObjectProvider<ImagingStudyPort> studyPorts,
             ObjectProvider<ImagingBillingPort> billingPorts, ObjectProvider<VisitDiagnosticPort> visitPorts,
-            ObjectProvider<ClinicalImagingOrderPort> orderPorts) {
+            ObjectProvider<ClinicalImagingOrderPort> orderPorts, PlatformTransactionManager transactionManager) {
         this.requests = Objects.requireNonNull(requests, "requests");
         this.attempts = Objects.requireNonNull(attempts, "attempts");
         this.auditEvents = Objects.requireNonNull(auditEvents, "auditEvents");
@@ -89,6 +95,9 @@ public class DiagnosticEvidenceServiceImpl implements DiagnosticEvidenceService 
         this.billingPorts = Objects.requireNonNull(billingPorts, "billingPorts");
         this.visitPorts = Objects.requireNonNull(visitPorts, "visitPorts");
         this.orderPorts = Objects.requireNonNull(orderPorts, "orderPorts");
+        this.outboxTransaction = new TransactionTemplate(Objects.requireNonNull(transactionManager,
+                "transactionManager"));
+        this.outboxTransaction.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
     }
 
     @Override
@@ -253,38 +262,62 @@ public class DiagnosticEvidenceServiceImpl implements DiagnosticEvidenceService 
     }
 
     @Override
-    @Transactional
     public DispatchSummary dispatchDueOutbox(int batchSize, RetryPolicy retryPolicy) {
         if (batchSize < 1 || batchSize > 100 || retryPolicy == null) {
             throw new IllegalArgumentException("batchSize must be 1..100 and retry policy is required");
         }
-        List<DiagnosticOutboxJpaEntity> due = outbox.lockDueEvents(DiagnosticOutboxStatus.PENDING,
+        List<UUID> due = outbox.findDueEventIds(DiagnosticOutboxStatus.PENDING,
                 Instant.now(), PageRequest.of(0, batchSize));
         int delivered = 0;
         int retryScheduled = 0;
         int deadLettered = 0;
-        for (DiagnosticOutboxJpaEntity event : due) {
+        for (UUID eventId : due) {
             try {
-                deliver(event);
-                event.setStatus(DiagnosticOutboxStatus.DELIVERED);
-                event.setDeliveredAt(Instant.now());
-                event.setLastError(null);
-                delivered++;
+                boolean wasDelivered = Boolean.TRUE.equals(outboxTransaction.execute(status ->
+                        deliverOutboxEvent(eventId)));
+                if (wasDelivered) delivered++;
             } catch (RuntimeException failure) {
-                int nextAttempt = event.getAttemptCount() + 1;
-                event.setAttemptCount(nextAttempt);
-                event.setLastError(failure.getClass().getSimpleName());
-                if (nextAttempt >= retryPolicy.maxAttempts()) {
-                    event.setStatus(DiagnosticOutboxStatus.DEAD_LETTER);
-                    deadLettered++;
-                } else {
-                    event.setNextAttemptAt(Instant.now().plusSeconds(backoffSeconds(nextAttempt, retryPolicy)));
-                    retryScheduled++;
-                }
+                DispatchFailure outcome = outboxTransaction.execute(status ->
+                        recordOutboxFailure(eventId, retryPolicy, failure));
+                if (outcome == DispatchFailure.RETRY_SCHEDULED) retryScheduled++;
+                if (outcome == DispatchFailure.DEAD_LETTERED) deadLettered++;
             }
         }
-        outbox.flush();
         return new DispatchSummary(due.size(), delivered, retryScheduled, deadLettered);
+    }
+
+    private boolean deliverOutboxEvent(UUID eventId) {
+        DiagnosticOutboxJpaEntity event = outbox.findByIdForUpdate(eventId).orElse(null);
+        if (event == null || event.getStatus() != DiagnosticOutboxStatus.PENDING
+                || event.getNextAttemptAt().isAfter(Instant.now())) return false;
+        deliver(event);
+        event.setStatus(DiagnosticOutboxStatus.DELIVERED);
+        event.setDeliveredAt(Instant.now());
+        event.setLastError(null);
+        outbox.saveAndFlush(event);
+        return true;
+    }
+
+    private DispatchFailure recordOutboxFailure(UUID eventId, RetryPolicy retryPolicy, RuntimeException failure) {
+        DiagnosticOutboxJpaEntity event = outbox.findByIdForUpdate(eventId).orElse(null);
+        if (event == null || event.getStatus() != DiagnosticOutboxStatus.PENDING) return DispatchFailure.NONE;
+        int nextAttempt = event.getAttemptCount() + 1;
+        event.setAttemptCount(nextAttempt);
+        event.setLastError(failure.getClass().getSimpleName());
+        if (nextAttempt >= retryPolicy.maxAttempts()) {
+            event.setStatus(DiagnosticOutboxStatus.DEAD_LETTER);
+            outbox.saveAndFlush(event);
+            return DispatchFailure.DEAD_LETTERED;
+        }
+        event.setNextAttemptAt(Instant.now().plusSeconds(backoffSeconds(nextAttempt, retryPolicy)));
+        outbox.saveAndFlush(event);
+        return DispatchFailure.RETRY_SCHEDULED;
+    }
+
+    private enum DispatchFailure {
+        NONE,
+        RETRY_SCHEDULED,
+        DEAD_LETTERED
     }
 
     private void deliver(DiagnosticOutboxJpaEntity event) {
@@ -316,12 +349,16 @@ public class DiagnosticEvidenceServiceImpl implements DiagnosticEvidenceService 
                 outboxEvent.getVisitId(), uuid(payload, "patientId"), text(payload, "studyRef"),
                 uuid(payload, "findingsVersionId"), uuid(payload, "reportId"), text(payload, "reportSha256"));
         String payloadSha256 = releasePayloadSha256(event);
-        VisitDiagnosticPort visit = visitPorts.getIfAvailable();
-        ImagingStudyPort study = studyPorts.getIfAvailable();
-        if (visit == null || study == null) throw dependencyUnavailable();
-        requireReleaseAck(visit.publishFindingsReleased(event), event, payloadSha256);
-        requireReleaseAck(study.acceptFindingsRelease(event), event, payloadSha256);
-
+        Map<String, Object> expectedPayload = Map.of(
+                "eventId", event.eventId().toString(),
+                "requestId", event.requestId().toString(),
+                "visitId", event.visitId().toString(),
+                "patientId", event.patientId().toString(),
+                "studyRef", event.studyRef(),
+                "findingsVersionId", event.findingsVersionId().toString(),
+                "reportId", event.reportId().toString(),
+                "reportSha256", event.reportSha256());
+        if (!expectedPayload.equals(payload)) throw evidenceMismatch();
         DiagnosticRequestJpaEntity request = requests.findByIdForUpdate(event.requestId())
                 .orElseThrow(this::dependencyUnavailable);
         if (!request.getVisitId().equals(event.visitId()) || !request.getPatientId().equals(event.patientId())
@@ -332,7 +369,24 @@ public class DiagnosticEvidenceServiceImpl implements DiagnosticEvidenceService 
                 .orElseThrow(this::dependencyUnavailable);
         if (!version.getStudyRef().equals(event.studyRef())
                 || !report.getStudyRef().equals(event.studyRef()) || !report.getVisitId().equals(event.visitId())
-                || !report.getContentSha256().equals(event.reportSha256())) throw evidenceMismatch();
+                || !Objects.equals(report.getContentSha256(), event.reportSha256())
+                || request.getStatus() != DiagnosticRequestStatus.REVIEWED
+                || report.getValidationStatus() != DiagnosticReportValidationStatus.VALIDATED
+                || report.getValidatedAt() == null
+                || report.getReportVersion() != version.getVersionNumber()) throw evidenceMismatch();
+        if (version.getState() == DiagnosticFindingsVersionState.COMPLETED) {
+            if (event.reportId().equals(version.getRequiredPdfReportId())
+                    && report.getReleasedAt() != null) {
+                return;
+            }
+            throw evidenceMismatch();
+        }
+        if (report.getReleasedAt() != null) throw evidenceMismatch();
+        VisitDiagnosticPort visit = visitPorts.getIfAvailable();
+        ImagingStudyPort study = studyPorts.getIfAvailable();
+        if (visit == null || study == null) throw dependencyUnavailable();
+        requireReleaseAck(visit.publishFindingsReleased(event), event, payloadSha256);
+        requireReleaseAck(study.acceptFindingsRelease(event), event, payloadSha256);
         Instant releasedAt = Instant.now();
         report.setReleasedAt(releasedAt);
         reports.saveAndFlush(report);
@@ -422,7 +476,7 @@ public class DiagnosticEvidenceServiceImpl implements DiagnosticEvidenceService 
                 && actual.studyRef().equals(expected.studyRef()) && actual.requestId().equals(expected.requestId())
                 && actual.visitId().equals(expected.visitId()) && actual.patientId().equals(expected.patientId())
                 && actual.attemptId().equals(expected.attemptId()) && actual.ingestComplete()
-                && actual.verificationStatus() == StudyVerificationStatus.CONFIRMED_MATCH
+                && isAcceptedStudyVerification(actual.verificationStatus())
                 && actual.verificationEvidence().equals(expected.verificationEvidence());
     }
 
@@ -476,7 +530,12 @@ public class DiagnosticEvidenceServiceImpl implements DiagnosticEvidenceService 
                 || evidence.studyRef().isBlank() || evidence.requestId() == null || evidence.visitId() == null
                 || evidence.patientId() == null || evidence.attemptId() == null
                 || evidence.verificationStatus() == null || !evidence.ingestComplete()
-                || evidence.verificationStatus() != StudyVerificationStatus.CONFIRMED_MATCH) throw evidenceMismatch();
+                || !isAcceptedStudyVerification(evidence.verificationStatus())) throw evidenceMismatch();
+    }
+
+    private boolean isAcceptedStudyVerification(StudyVerificationStatus status) {
+        return status == StudyVerificationStatus.CONFIRMED_MATCH
+                || status == StudyVerificationStatus.REQUEST_CONTEXT_MATCH;
     }
 
     private void requireTrustedIntegration(DiagnosticActor actor) {

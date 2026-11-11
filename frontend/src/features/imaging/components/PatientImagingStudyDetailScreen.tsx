@@ -1,12 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { ArrowLeft } from "lucide-react";
 import { ProfileScopeSelect } from "@/components/patient/ProfileScopeSelect";
 import { PortalNoProfileState } from "@/components/patient/PortalEmptyState";
 import { PortalPageHeader } from "@/components/patient/PortalPageHeader";
 import { Button } from "@/components/ui/button";
 import { useLinkedProfiles } from "@/hooks/useLinkedProfiles";
 import { messageFromError } from "@/lib/messages/appMessages";
+import { PATIENT_ROUTES } from "@/lib/routes/patientRoutes";
 import {
   listPatientImagingHistory,
   type PatientImagingHistoryItem,
@@ -18,6 +21,7 @@ export function PatientImagingStudyDetailScreen({
 }: {
   studyRef: string;
 }) {
+  const router = useRouter();
   const linked = useLinkedProfiles();
   const [profileId, setProfileId] = useState("");
   const [item, setItem] = useState<PatientImagingHistoryItem | null>(null);
@@ -55,6 +59,14 @@ export function PatientImagingStudyDetailScreen({
     setItem(null);
   }
 
+  function handleBack() {
+    if (window.history.length > 1) {
+      router.back();
+      return;
+    }
+    router.push(PATIENT_ROUTES.results);
+  }
+
   if (linked.loading) return <p role="status">Đang tải hồ sơ…</p>;
   if (linked.error) return <p role="alert">{linked.error}</p>;
   if (linked.profiles.length === 0) return <PortalNoProfileState />;
@@ -62,8 +74,14 @@ export function PatientImagingStudyDetailScreen({
   return (
     <div className="space-y-6">
       <PortalPageHeader
-        title="Chi tiết study"
-        description="Chi tiết được tải từ lịch sử ảnh đã phân quyền; OHIF chỉ mở sau khi cấp grant."
+        title="Chi tiết kết quả ảnh"
+        description="Thông tin chỉ định, kết luận và ảnh DICOM của lượt khám."
+        actions={
+          <Button variant="outline" onClick={handleBack}>
+            <ArrowLeft aria-hidden />
+            Quay lại
+          </Button>
+        }
       />
       {linked.profiles.length > 1 ? (
         <ProfileScopeSelect

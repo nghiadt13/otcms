@@ -7,7 +7,10 @@ import {
   uploadImagingStudy,
 } from "./imagingIngestApi";
 
-vi.mock("@/lib/api/client", () => ({ apiRequest: vi.fn() }));
+vi.mock("@/lib/api/client", () => ({
+  apiRequest: vi.fn(),
+  apiRequestWithUploadProgress: vi.fn(),
+}));
 
 describe("imagingIngestApi", () => {
   beforeEach(() => vi.mocked(apiRequest).mockReset());
@@ -38,7 +41,18 @@ describe("imagingIngestApi", () => {
           attemptId: null,
           currentStudyRef: null,
           visitId: "visit-id",
+          patient: {
+            patientProfileId: "patient-id",
+            fullName: "Nguyễn Văn An",
+            dateOfBirth: null,
+            gender: null,
+          },
+          serviceId: "service-id",
+          serviceName: null,
           imagingType: "MR",
+          bodyArea: null,
+          clinicalReason: null,
+          technicianInstructions: null,
           roomId: "room-id",
           status: "PENDING",
           version: 1,
@@ -67,7 +81,18 @@ describe("imagingIngestApi", () => {
         attemptId: "attempt-id",
         currentStudyRef: null,
         visitId: "visit-id",
+          patient: {
+            patientProfileId: "patient-id",
+            fullName: "Nguyễn Văn An",
+            dateOfBirth: null,
+            gender: null,
+          },
+          serviceId: "service-id",
+          serviceName: null,
         imagingType: "MR",
+          bodyArea: null,
+          clinicalReason: null,
+          technicianInstructions: null,
         roomId: "room-id",
         status: "IN_PROGRESS",
         version: 2,

@@ -1,7 +1,7 @@
 "use client";
 
 import { ClipboardPlus } from "lucide-react";
-import { useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { PageHeader } from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -39,23 +39,33 @@ export function ParaclinicalScreen() {
   const [focused, setFocused] = useState<ParaclinicalOrder | null>(null);
   const capabilities = useDoctorExamApi().capabilities;
   const closed = isVisitClosed(context?.status ?? null);
+  const refreshOrders = orders.refresh;
+  const markFindingsAwaitingRelease = workspace.markFindingsAwaitingRelease;
 
-  const merged = mergeWorkspaceOrders(
-    orders.data ?? [],
-    workspace.submittedOrders,
-    workspace.completedFindings,
+  const merged = useMemo(
+    () =>
+      mergeWorkspaceOrders(
+        orders.data ?? [],
+        workspace.submittedOrders,
+        workspace.findingsAwaitingRelease,
+      ),
+    [orders.data, workspace.submittedOrders, workspace.findingsAwaitingRelease],
   );
   const focus = focused
     ? (merged.find((order) => order.id === focused.id) ?? focused)
     : null;
 
-  function onFindingsChanged(result: ImagingResult, completed: boolean) {
-    setFocused((current) =>
-      current?.imaging ? { ...current, imaging: result } : current,
-    );
-    if (completed) workspace.markFindingsCompleted(result.requestId);
-    orders.refresh();
-  }
+  const onFindingsChanged = useCallback(
+    (result: ImagingResult, submitted: boolean) => {
+      setFocused((current) =>
+        current?.imaging ? { ...current, imaging: result } : current,
+      );
+      if (submitted)
+        markFindingsAwaitingRelease(result.requestId);
+      refreshOrders();
+    },
+    [markFindingsAwaitingRelease, refreshOrders],
+  );
 
   return (
     <>

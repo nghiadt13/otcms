@@ -23,6 +23,7 @@ public interface DiagnosticRequestJpaRepository extends JpaRepository<Diagnostic
         UUID getRequestId();
         UUID getVisitId();
         String getImagingType();
+        String getBodyArea();
         DiagnosticRequestStatus getStatus();
         String getStudyRef();
         Integer getFindingsVersion();
@@ -32,7 +33,7 @@ public interface DiagnosticRequestJpaRepository extends JpaRepository<Diagnostic
 
     @Query("""
             select r.patientId as patientId, r.id as requestId, r.visitId as visitId,
-                r.imagingType as imagingType, r.status as status, f.studyRef as studyRef,
+                r.imagingType as imagingType, r.bodyArea as bodyArea, r.status as status, f.studyRef as studyRef,
                 f.versionNumber as findingsVersion, f.findingsText as findingsText, p.id as reportId
             from DiagnosticRequestJpaEntity r, DiagnosticFindingsVersionJpaEntity f, DiagnosticReportJpaEntity p
             where r.patientId = :patientId and r.visitId in :visitIds and r.status in :statuses
@@ -65,6 +66,10 @@ public interface DiagnosticRequestJpaRepository extends JpaRepository<Diagnostic
             Collection<UUID> serviceOrderIds, DiagnosticRequestStatus status);
 
     Optional<DiagnosticRequestJpaEntity> findFirstByServiceOrderIdOrderByCreatedAtDescIdDesc(UUID serviceOrderId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select request from DiagnosticRequestJpaEntity request where request.serviceOrderId = :orderId")
+    Optional<DiagnosticRequestJpaEntity> findByServiceOrderIdForUpdate(@Param("orderId") UUID orderId);
 
     Optional<DiagnosticRequestJpaEntity> findFirstByServiceOrderIdAndStatusNotOrderByCreatedAtDescIdDesc(
             UUID serviceOrderId, DiagnosticRequestStatus status);

@@ -1,6 +1,8 @@
 package fu.fa26.sep490.g58.otcms_be.imaging.service.impl;
 
 import fu.fa26.sep490.g58.otcms_be.imaging.integration.orthanc.ArchiveInstanceReceipt;
+import fu.fa26.sep490.g58.otcms_be.imaging.exception.ImagingOperationException;
+import fu.fa26.sep490.g58.otcms_be.imaging.exception.ImagingOperationOutcome;
 import fu.fa26.sep490.g58.otcms_be.imaging.model.ImagingOperationRecord;
 import fu.fa26.sep490.g58.otcms_be.imaging.model.ImagingDicomStudyValidation;
 import fu.fa26.sep490.g58.otcms_be.imaging.model.entity.ImagingStudyInstanceJpaEntity;
@@ -46,6 +48,18 @@ public class ImagingStudyPersistenceService {
         if (receipts.stream().anyMatch(receipt -> !archiveStudyRef.equals(receipt.archiveStudyRef()))) {
             throw new IllegalStateException("Orthanc returned multiple study references for one study");
         }
+        var existing = studies.findByArchiveStudyRef(archiveStudyRef);
+        if (existing.isPresent()) {
+            ImagingStudyJpaEntity study = existing.get();
+            if (!sameOwner(study, operation)
+                    || !study.getStudyInstanceUid().equals(validation.studyInstanceUid())
+                    || !study.getModality().equals(validation.modality())
+                    || study.getSeriesCount() != validation.seriesCount()
+                    || study.getInstanceCount() != validation.instanceCount()) {
+                throw new ImagingOperationException(ImagingOperationOutcome.ARCHIVE_STUDY_ALREADY_LINKED);
+            }
+            return new StudyReferences(study.getStudyRef(), archiveStudyRef);
+        }
         String studyRef = "img_" + UUID.randomUUID().toString().replace("-", "");
         studies.saveAndFlush(new ImagingStudyJpaEntity(studyRef, operation.id(), operation.requestId(),
                 operation.attemptId(), operation.visitId(), operation.patientId(), archiveStudyRef,
@@ -84,6 +98,13 @@ public class ImagingStudyPersistenceService {
         }
         uidClaims.flush();
         return new StudyReferences(studyRef, archiveStudyRef);
+    }
+
+    private boolean sameOwner(ImagingStudyJpaEntity study, ImagingOperationRecord operation) {
+        return study.getRequestId().equals(operation.requestId())
+                && study.getAttemptId().equals(operation.attemptId())
+                && study.getVisitId().equals(operation.visitId())
+                && study.getPatientId().equals(operation.patientId());
     }
 
     public record StudyReferences(String studyRef, String archiveStudyRef) { }

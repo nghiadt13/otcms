@@ -3,7 +3,7 @@
  * Không dùng khung hay bóng khi in, lề giấy A4 rộng 15mm.
  */
 @media print {
-  :global(body) * {
+  :global(body):has(.printArea) * {
     visibility: hidden;
   }
 

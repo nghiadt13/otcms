@@ -63,13 +63,25 @@ export function imagingViewerPath(studyInstanceUid: string): string {
 export function imagingViewerShellPath(
   studyInstanceUid: string,
   returnTo: string,
+  shellPath = "/imaging-viewer",
 ): string {
-  if (!returnTo.startsWith("/") || returnTo.startsWith("//") || returnTo.includes("\\")) {
+  if (
+    !returnTo.startsWith("/") ||
+    returnTo.startsWith("//") ||
+    returnTo.includes("\\")
+  ) {
     throw new Error("The viewer return path must stay inside OTCMS.");
+  }
+  if (
+    !shellPath.startsWith("/") ||
+    shellPath.startsWith("//") ||
+    /[?#\\\u0000-\u001f]/.test(shellPath)
+  ) {
+    throw new Error("The viewer shell path must stay inside OTCMS.");
   }
   const appBasePath = window.location.pathname.startsWith("/otcms/")
     ? "/otcms"
     : "";
   const query = new URLSearchParams({ studyInstanceUid, returnTo });
-  return `${appBasePath}/imaging-viewer?${query.toString()}`;
+  return `${appBasePath}${shellPath}?${query.toString()}`;
 }

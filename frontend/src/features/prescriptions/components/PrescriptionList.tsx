@@ -23,8 +23,11 @@ export function PrescriptionList({ items }: { items: PrescriptionListItem[] }) {
               </span>
               <span className="block text-base text-muted-foreground">
                 {item.patient.fullName} (
-                {CARE_RELATIONSHIP_LABELS[item.patient.relationship]}) ·{" "}
-                {item.doctorName}
+                {item.patient.relationship === "DEPENDENT"
+                  ? "Người thân"
+                  : CARE_RELATIONSHIP_LABELS[item.patient.relationship]}
+                ) ·{" "}
+                {item.doctorName || "Bác sĩ"}
               </span>
             </span>
             <ChevronRight

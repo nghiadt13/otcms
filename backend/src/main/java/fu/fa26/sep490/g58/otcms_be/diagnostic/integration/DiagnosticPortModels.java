@@ -56,7 +56,7 @@ public final class DiagnosticPortModels {
     public record UseEvidenceReceipt(UUID eventId, UUID requestId, UUID attemptId,
             boolean accepted, boolean replayed) { }
 
-    public enum StudyVerificationStatus { CONFIRMED_MATCH, MISMATCH, PENDING, REJECTED }
+    public enum StudyVerificationStatus { CONFIRMED_MATCH, REQUEST_CONTEXT_MATCH, MISMATCH, PENDING, REJECTED }
 
     public record StudyEvidence(UUID eventId, String studyRef, UUID requestId, UUID visitId,
             UUID patientId, UUID attemptId, StudyVerificationStatus verificationStatus,

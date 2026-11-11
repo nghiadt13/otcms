@@ -16,6 +16,7 @@ import fu.fa26.sep490.g58.otcms_be.visit.model.entity.VisitCareAssignmentJpaEnti
 import fu.fa26.sep490.g58.otcms_be.visit.repository.VisitCareAssignmentAuditRepository;
 import fu.fa26.sep490.g58.otcms_be.visit.repository.VisitCareAssignmentRepository;
 import fu.fa26.sep490.g58.otcms_be.visit.service.CompleteWalkInCareStepCommand;
+import fu.fa26.sep490.g58.otcms_be.visit.service.CompleteDoctorCareForClosureCommand;
 import fu.fa26.sep490.g58.otcms_be.visit.service.ExtendVisitCareAssignmentCommand;
 import fu.fa26.sep490.g58.otcms_be.visit.service.ExitWalkInReceptionQueueCommand;
 import fu.fa26.sep490.g58.otcms_be.visit.service.ExitWalkInReceptionQueueService;
@@ -181,6 +182,39 @@ public class ManageVisitCareAssignmentServiceImpl implements ManageVisitCareAssi
 
     @Override
     @Transactional
+    public void completeDoctorConsultationForVisitClosure(CompleteDoctorCareForClosureCommand command) {
+        validate(command);
+        requireDoctor(command.actorRole());
+        acquireGuard();
+        UUID doctorId = resolveDoctor(command.actorAccountId());
+        Object[] visit = lockVisit(command.visitId());
+        if (!"OPEN".equals(visit[4])) throw new VisitOperationException("VISIT_CARE_NOT_CHANGEABLE");
+
+        List<VisitCareAssignmentJpaEntity> active = assignments.findByVisitIdInAndStatusOrderByAssignedAtDescIdDesc(
+                List.of(command.visitId()), "IN_PROGRESS");
+        if (active.isEmpty()) return;
+        if (active.size() != 1) throw new VisitOperationException("VISIT_CARE_NOT_CHANGEABLE");
+
+        var current = lockAssignment(active.getFirst().getId(), command.visitId());
+        CareStepAssignment assignment = toAssignment(current);
+        if (!doctorId.equals(assignment.doctorProfileId()) || !"CONSULTATION".equals(assignment.stepCode())
+                || !"IN_PROGRESS".equals(assignment.status())) {
+            throw new VisitOperationException("VISIT_CARE_NOT_CHANGEABLE");
+        }
+
+        Instant actualEnd = clock.instant();
+        if (actualEnd.isBefore(assignment.startsAt())) throw new VisitOperationException("VALIDATION_FAILED");
+        if (assignments.complete(assignment.id(), assignment.visitId(), doctorId, Timestamp.from(actualEnd)) != 1) {
+            throw new VisitOperationException("VISIT_CARE_NOT_CHANGEABLE");
+        }
+        rooms.complete(command.visitId(), assignment.id(), command.actorAccountId(), command.correlationId(), actualEnd);
+        audits.append(command.visitId(), assignment.id(), command.actorAccountId(), "COMPLETED", assignment.stepCode(),
+                Timestamp.from(assignment.expectedEnd()), Timestamp.from(assignment.expectedEnd()),
+                Timestamp.from(actualEnd), command.correlationId());
+    }
+
+    @Override
+    @Transactional
     public void recordCapacityConflict(RecordVisitCapacityConflictCommand command) {
         if (command == null || command.visitId() == null || command.assignmentId() == null
                 || command.actorAccountId() == null || command.actorRole() != AccountRole.DOCTOR
@@ -322,6 +356,14 @@ public class ManageVisitCareAssignmentServiceImpl implements ManageVisitCareAssi
     private static void validate(CompleteWalkInCareStepCommand command) {
         if (command == null || command.visitId() == null || command.assignmentId() == null
                 || command.actorAccountId() == null || command.actorRole() == null || command.correlationId() == null
+                || command.correlationId().isBlank() || command.correlationId().length() > 128) {
+            throw new VisitOperationException("VALIDATION_FAILED");
+        }
+    }
+
+    private static void validate(CompleteDoctorCareForClosureCommand command) {
+        if (command == null || command.visitId() == null || command.actorAccountId() == null
+                || command.actorRole() == null || command.correlationId() == null
                 || command.correlationId().isBlank() || command.correlationId().length() > 128) {
             throw new VisitOperationException("VALIDATION_FAILED");
         }

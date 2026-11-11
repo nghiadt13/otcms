@@ -7,7 +7,7 @@ import type {
   Prescription,
 } from "../types/doctorExam";
 
-// Tóm tắt tiến trình một lượt khám cho tab Tổng quan và điều kiện sẵn sàng phần khám; đóng lượt thuộc Lễ tân (UC28).
+// Visit progress and readiness checks before the treating Doctor closes the visit.
 
 export type StepState = "TODO" | "IN_PROGRESS" | "DONE";
 export type StepSummary = { state: StepState; summary: string };
@@ -86,6 +86,18 @@ export function buildClosingChecklist(
 ): ChecklistItem[] {
   const primary = examination && primaryDiagnosis(examination.diagnoses);
   const waiting = activeOrders(orders).filter((o) => !orderIsResolved(o));
+  const waitingNames = waiting
+    .map((order) => {
+      const releaseState = order.imaging?.findingsReleaseState;
+      const releaseNote =
+        releaseState === "RELEASE_PENDING"
+          ? " (đang chờ phát hành)"
+          : releaseState === "RELEASE_FAILED"
+            ? " (phát hành chưa thành công)"
+            : "";
+      return `${order.serviceName}${releaseNote}`;
+    })
+    .join(", ");
   return [
     {
       id: "diagnosis",
@@ -110,9 +122,7 @@ export function buildClosingChecklist(
         ? "Chưa kiểm tra được trạng thái chỉ định. Tải lại rồi thử lại."
         : waiting.length === 0
           ? "Không còn chỉ định đang chờ."
-          : `${waiting.length} chỉ định chưa xong: ${waiting
-              .map((o) => o.serviceName)
-              .join(", ")}.`,
+          : `${waiting.length} chỉ định chưa xong: ${waitingNames}.`,
     },
   ];
 }

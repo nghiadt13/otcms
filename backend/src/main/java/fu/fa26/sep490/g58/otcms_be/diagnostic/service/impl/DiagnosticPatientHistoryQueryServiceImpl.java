@@ -29,7 +29,7 @@ public class DiagnosticPatientHistoryQueryServiceImpl implements DiagnosticPatie
                         List.of(DiagnosticRequestStatus.RESULT_AVAILABLE, DiagnosticRequestStatus.REVIEWED)).stream()
                     .map(r -> new HistoricalImagingResult(r.getPatientId(), new DiagnosticHistoryItem(r.getRequestId(),
                             r.getVisitId(), r.getImagingType(), r.getStatus(), r.getStudyRef(), r.getFindingsVersion(),
-                            r.getFindingsText(), r.getReportId()))).toList();
+                            r.getFindingsText(), r.getReportId(), r.getBodyArea()))).toList();
         audits.save(new DiagnosticHistoryAccessAuditJpaEntity(UUID.randomUUID(), actorId, DiagnosticHistoryScope.PATIENT,
                 patientId, page, size, results.size()));
         return results;

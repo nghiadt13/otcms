@@ -10,9 +10,11 @@ import { findActiveImagingItem } from "../imagingNavigation";
 export function ImagingHeader({
   onReset,
   onExit,
+  showDemoActions = true,
 }: {
   onReset: () => void;
   onExit: () => void;
+  showDemoActions?: boolean;
 }) {
   const pathname = usePathname();
   const { state } = useImaging();
@@ -29,17 +31,21 @@ export function ImagingHeader({
         {currentItem?.title ?? "Chẩn đoán hình ảnh"}
       </Link>
       <div className="ml-auto flex items-center gap-2">
-        <span className="hidden text-xs text-muted-foreground md:block">
-          24/10/2026 · 09:10
-        </span>
-        <Button
-          variant="ghost"
-          size="icon"
-          aria-label="Khôi phục dữ liệu mẫu"
-          onClick={onReset}
-        >
-          <RefreshCw />
-        </Button>
+        {showDemoActions && (
+          <>
+            <span className="hidden text-xs text-muted-foreground md:block">
+              24/10/2026 · 09:10
+            </span>
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label="Khôi phục dữ liệu mẫu"
+              onClick={onReset}
+            >
+              <RefreshCw />
+            </Button>
+          </>
+        )}
         <Link
           href="/imaging/notifications"
           className={buttonVariants({ variant: "ghost", size: "icon" })}

@@ -6,6 +6,7 @@ import fu.fa26.sep490.g58.otcms_be.diagnostic.integration.DiagnosticPortModels.T
 import fu.fa26.sep490.g58.otcms_be.diagnostic.integration.DiagnosticPortModels.VisitStatusAuthorization;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.integration.DiagnosticPortModels.VisitStatusResponsibility;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.integration.RoomStatusAccessPort;
+import fu.fa26.sep490.g58.otcms_be.diagnostic.integration.ClinicalImagingOrderPort;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.integration.VisitDiagnosticPort;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.integration.VisitDiagnosticReadPort;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.model.DiagnosticActor;
@@ -47,17 +48,19 @@ public class DiagnosticStatusServiceImpl implements DiagnosticStatusService {
     private final ObjectProvider<? extends VisitDiagnosticReadPort> visitPorts;
     private final ObjectProvider<RoomStatusAccessPort> roomPorts;
     private final PatientClinicalIdentityQueryService patientIdentities;
+    private final ClinicalImagingOrderPort clinicalOrders;
 
     public DiagnosticStatusServiceImpl(DiagnosticRequestJpaRepository requests,
             DiagnosticAttemptJpaRepository attempts,
             ObjectProvider<? extends VisitDiagnosticReadPort> visitPorts,
             ObjectProvider<RoomStatusAccessPort> roomPorts,
-            PatientClinicalIdentityQueryService patientIdentities) {
+            PatientClinicalIdentityQueryService patientIdentities, ClinicalImagingOrderPort clinicalOrders) {
         this.requests = Objects.requireNonNull(requests, "requests");
         this.attempts = Objects.requireNonNull(attempts, "attempts");
         this.visitPorts = Objects.requireNonNull(visitPorts, "visitPorts");
         this.roomPorts = Objects.requireNonNull(roomPorts, "roomPorts");
         this.patientIdentities = Objects.requireNonNull(patientIdentities, "patientIdentities");
+        this.clinicalOrders = Objects.requireNonNull(clinicalOrders, "clinicalOrders");
     }
 
     @Override
@@ -112,11 +115,13 @@ public class DiagnosticStatusServiceImpl implements DiagnosticStatusService {
         List<DiagnosticAssignedUploadWorkItem> enriched = selected.stream().map(item -> {
             var identity = identities.get(item.patientProfileId());
             if (identity == null || !item.patientProfileId().equals(identity.patientProfileId())) throw unavailable();
-            // Service name and technician instructions stay null until the clinical order port exposes them.
+            var order = item.serviceOrderId() == null ? null : clinicalOrders.getOrderDetails(item.serviceOrderId());
+            if (order != null && (!item.visitId().equals(order.visitId()) || !item.serviceId().equals(order.serviceId()))) throw unavailable();
             return new DiagnosticAssignedUploadWorkItem(item.requestId(), item.attemptId(), item.visitId(),
                     item.patientProfileId(), new DiagnosticPatientIdentity(identity.patientProfileId(),
                             identity.fullName(), identity.dateOfBirth(), identity.gender()),
-                    item.serviceOrderId(), item.currentStudyRef(), item.serviceId(), null, null,
+                    item.serviceOrderId(), item.currentStudyRef(), item.serviceId(),
+                    order == null ? null : order.serviceName(), order == null ? null : order.instructions(),
                     item.imagingType(), item.bodyArea(), item.clinicalReason(), item.roomId(), item.status(),
                     item.version(), item.createdAt(),
                     item.updatedAt());

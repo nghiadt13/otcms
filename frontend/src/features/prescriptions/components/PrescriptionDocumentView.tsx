@@ -43,7 +43,9 @@ export function PrescriptionDocumentView({
         )}
       >
         <header className="space-y-4 border-b pb-4">
-          <p className="text-lg font-semibold">{document.clinicName}</p>
+          <p className="text-lg font-semibold">
+            {document.clinicName || "Phòng khám"}
+          </p>
           <dl className="grid gap-x-6 gap-y-3 sm:grid-cols-2">
             <div>
               <dt className="text-muted-foreground">Ngày kê đơn</dt>
@@ -51,24 +53,28 @@ export function PrescriptionDocumentView({
             </div>
             <div>
               <dt className="text-muted-foreground">Bác sĩ kê đơn</dt>
-              <dd>{document.doctorName}</dd>
+              <dd>{document.doctorName || "—"}</dd>
             </div>
             <div>
               <dt className="text-muted-foreground">Người bệnh</dt>
               <dd className="break-words">
                 {patient.fullName}, sinh ngày{" "}
                 <span className="tabular-nums">
-                  {formatDate(patient.dateOfBirth)}
+                  {patient.dateOfBirth
+                    ? formatDate(patient.dateOfBirth)
+                    : "—"}
                 </span>
               </dd>
             </div>
             <div>
               <dt className="text-muted-foreground">Mã bệnh nhân</dt>
-              <dd className="tabular-nums">{patient.patientCode}</dd>
+              <dd className="tabular-nums">{patient.patientCode || "—"}</dd>
             </div>
             <div className="sm:col-span-2">
               <dt className="text-muted-foreground">Chẩn đoán</dt>
-              <dd className="break-words">{document.diagnosis}</dd>
+              <dd className="break-words">
+                {document.diagnosis || "Chưa ghi nhận"}
+              </dd>
             </div>
           </dl>
         </header>
@@ -80,6 +86,28 @@ export function PrescriptionDocumentView({
           <h2 id="prescription-items-title" className="text-lg font-semibold">
             Thuốc đã kê
           </h2>
+          <ul className="space-y-3 sm:hidden print:hidden">
+            {document.items.map((item) => (
+              <li key={item.medicine} className="space-y-2 rounded-lg border p-4">
+                <h3 className="font-semibold break-words">{item.medicine}</h3>
+                <dl className="space-y-2 text-sm">
+                  <div>
+                    <dt className="text-muted-foreground">Liều dùng</dt>
+                    <dd className="break-words">{item.dose}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-muted-foreground">Số lần</dt>
+                    <dd className="break-words">{item.frequency}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-muted-foreground">Cách dùng</dt>
+                    <dd className="break-words">{item.usage}</dd>
+                  </div>
+                </dl>
+              </li>
+            ))}
+          </ul>
+          <div className="hidden sm:block print:block">
           <Table className="text-base">
             <TableHeader>
               <TableRow>
@@ -112,6 +140,7 @@ export function PrescriptionDocumentView({
               ))}
             </TableBody>
           </Table>
+          </div>
         </section>
       </article>
     </>

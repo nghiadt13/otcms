@@ -114,6 +114,7 @@ export type ImagingResult = {
   findingsVersion: number | null;
   findingsCompleted: boolean;
   reportId: string | null;
+  findingsReleaseState?: "PRIVATE" | "RELEASE_PENDING" | "RELEASED" | "RELEASE_FAILED";
 };
 
 export type ParaclinicalOrder = {

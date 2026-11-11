@@ -17,12 +17,29 @@ public interface DiagnosticOutboxJpaRepository extends JpaRepository<DiagnosticO
     Optional<DiagnosticOutboxJpaEntity> findByEventId(UUID eventId);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select event from DiagnosticOutboxJpaEntity event where event.id = :id")
+    Optional<DiagnosticOutboxJpaEntity> findByIdForUpdate(@Param("id") UUID id);
+
+    List<DiagnosticOutboxJpaEntity> findAllByRequestIdAndEventTypeOrderByCreatedAtDesc(
+            UUID requestId, String eventType);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("""
             select event from DiagnosticOutboxJpaEntity event
             where event.status = :status and event.nextAttemptAt <= :now
             order by event.nextAttemptAt asc, event.createdAt asc
             """)
     List<DiagnosticOutboxJpaEntity> lockDueEvents(
+            @Param("status") DiagnosticOutboxStatus status,
+            @Param("now") Instant now,
+            Pageable pageable);
+
+    @Query("""
+            select event.id from DiagnosticOutboxJpaEntity event
+            where event.status = :status and event.nextAttemptAt <= :now
+            order by event.nextAttemptAt asc, event.createdAt asc, event.id asc
+            """)
+    List<UUID> findDueEventIds(
             @Param("status") DiagnosticOutboxStatus status,
             @Param("now") Instant now,
             Pageable pageable);

@@ -1,4 +1,4 @@
-import { redirect } from "next/navigation";
+import { AssignedUploadWorkDetailScreen } from "@/features/imaging/components/AssignedUploadWorkDetailScreen";
 
 export default async function Page({
   params,
@@ -6,5 +6,5 @@ export default async function Page({
   params: Promise<{ orderId: string }>;
 }) {
   const { orderId } = await params;
-  redirect(`/imaging/orders/${encodeURIComponent(orderId)}/upload`);
+  return <AssignedUploadWorkDetailScreen requestId={orderId} />;
 }

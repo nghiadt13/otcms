@@ -86,6 +86,87 @@ export async function apiRequest<T>(
   return response.json() as Promise<T>;
 }
 
+/** Gọi API ghi dữ liệu bằng XMLHttpRequest để báo tiến trình gửi body theo byte. */
+export async function apiRequestWithUploadProgress<T>(
+  path: `/api/v1/${string}`,
+  init: RequestInit = {},
+  onProgress?: (loaded: number, total: number) => void,
+): Promise<T> {
+  let response = await sendWithUploadProgress(path, init, onProgress);
+  if ((response.status === 403 || response.status === 401) && isMutation(init))
+    response = await sendWithUploadProgress(path, init, onProgress);
+  if (!response.ok) throw await toApiError(response);
+  if (response.status === 204) return undefined as T;
+  return response.json() as Promise<T>;
+}
+
+async function sendWithUploadProgress(
+  path: `/api/v1/${string}`,
+  init: RequestInit,
+  onProgress?: (loaded: number, total: number) => void,
+): Promise<Response> {
+  const headers = await authorizedHeaders(init);
+  const request = () => xhrRequest(`${apiBaseUrl}${path}`, init, headers, onProgress);
+  const response = await request();
+  if (response.status !== 401) return response;
+
+  const session = await refreshSession();
+  if (!session) return response;
+  headers.set("Authorization", `Bearer ${session.accessToken}`);
+  return request();
+}
+
+function xhrRequest(
+  url: string,
+  init: RequestInit,
+  headers: Headers,
+  onProgress?: (loaded: number, total: number) => void,
+): Promise<Response> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    const signal = init.signal;
+    const abort = () => xhr.abort();
+    const cleanup = () => signal?.removeEventListener("abort", abort);
+
+    xhr.open(init.method ?? "GET", url);
+    xhr.withCredentials = isMutation(init);
+    headers.forEach((value, name) => xhr.setRequestHeader(name, value));
+    xhr.upload.onprogress = (event) => {
+      if (event.lengthComputable) onProgress?.(event.loaded, event.total);
+    };
+    xhr.onerror = () => {
+      cleanup();
+      reject(new TypeError("Không thể kết nối tới máy chủ."));
+    };
+    xhr.onabort = () => {
+      cleanup();
+      reject(new DOMException("Request aborted", "AbortError"));
+    };
+    xhr.onload = () => {
+      cleanup();
+      const responseHeaders = new Headers();
+      for (const line of xhr.getAllResponseHeaders().trim().split(/[\r\n]+/)) {
+        const separator = line.indexOf(":");
+        if (separator > 0)
+          responseHeaders.append(line.slice(0, separator).trim(), line.slice(separator + 1).trim());
+      }
+      resolve(new Response(xhr.responseText || null, {
+        status: xhr.status,
+        statusText: xhr.statusText,
+        headers: responseHeaders,
+      }));
+    };
+    if (signal) {
+      if (signal.aborted) {
+        reject(new DOMException("Request aborted", "AbortError"));
+        return;
+      }
+      signal.addEventListener("abort", abort, { once: true });
+    }
+    xhr.send((init.body as XMLHttpRequestBodyInit | null | undefined) ?? null);
+  });
+}
+
 async function send(
   path: `/api/v1/${string}`,
   init: RequestInit,

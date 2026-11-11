@@ -9,6 +9,8 @@ import java.util.UUID;
 
 /** FEAT-003 request operations; business rules and record access stay behind this interface. */
 public interface DiagnosticRequestService {
+    DiagnosticRequestView startImaging(DiagnosticActor actor, UUID requestId, String idempotencyKey,
+            long expectedVersion, String correlationId);
     /** Retired direct creation boundary. Always denies; use Reception paid Clinical round dispatch. */
     DiagnosticRequestView create(DiagnosticActor actor, UUID visitId, String idempotencyKey,
             UUID serviceId, String imagingType, String bodyArea, String clinicalReason,

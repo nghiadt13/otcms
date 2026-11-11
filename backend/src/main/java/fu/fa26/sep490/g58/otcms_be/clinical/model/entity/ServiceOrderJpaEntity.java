@@ -8,7 +8,7 @@ public class ServiceOrderJpaEntity {
  @Column(name="requesting_doctor_id",nullable=false) private UUID requestingDoctorId; @Column(name="clinical_reason",nullable=false,columnDefinition="text") private String clinicalReason;
  @Column(name="body_area") private String bodyArea; @Column(columnDefinition="text") private String instructions; @Column(name="price_snapshot",nullable=false,precision=12,scale=2) private BigDecimal priceSnapshot;
  @Enumerated(EnumType.STRING) @Column(name="order_status",nullable=false,length=24) private ServiceOrderStatus orderStatus; @Enumerated(EnumType.STRING) @Column(name="payment_status",nullable=false,length=24) private ServiceOrderPaymentStatus paymentStatus;
- @Column(name="cancel_reason",columnDefinition="text") private String cancelReason; @Column(name="created_at",nullable=false) private Instant createdAt; @Column(name="updated_at",nullable=false) private Instant updatedAt; @Version private Long version;
+ @Column(name="cancel_reason",columnDefinition="text") private String cancelReason; @Column(name="created_at",nullable=false) private Instant createdAt; @Column(name="updated_at",nullable=false) private Instant updatedAt; @Column(name="billing_refund_event_id") private UUID billingRefundEventId; @Version private Long version;
  protected ServiceOrderJpaEntity(){}
  public ServiceOrderJpaEntity(String code,UUID round,UUID visit,UUID patient,UUID service,String name,ClinicalServiceType type,UUID doctor,String reason,String area,String instructions,BigDecimal price,Instant now){id=UUID.randomUUID();orderCode=code;orderingRoundId=round;visitId=visit;patientId=patient;serviceId=service;serviceNameSnapshot=name;serviceType=type;requestingDoctorId=doctor;clinicalReason=reason;bodyArea=area;this.instructions=instructions;priceSnapshot=price;orderStatus=ServiceOrderStatus.ORDERED;paymentStatus=ServiceOrderPaymentStatus.PENDING_PAYMENT;createdAt=now;updatedAt=now;}
  public void cancel(String reason,Instant now){if(orderStatus!=ServiceOrderStatus.ORDERED)throw new IllegalStateException("ORDER_NOT_CANCELLABLE");orderStatus=ServiceOrderStatus.CANCELLED;cancelReason=reason;updatedAt=now;}
@@ -17,6 +17,20 @@ public class ServiceOrderJpaEntity {
   paymentStatus = ServiceOrderPaymentStatus.PAID;
   updatedAt = now;
  }
+ public void cancelForVerifiedRefund(UUID eventId, String reason, Instant now) {
+  if (eventId == null || reason == null || reason.isBlank() || now == null) throw new IllegalArgumentException("Invalid refund evidence");
+  if (billingRefundEventId != null) {
+   if (billingRefundEventId.equals(eventId)) return;
+   throw new IllegalStateException("ORDER_REFUND_ALREADY_RECORDED");
+  }
+  if (orderStatus != ServiceOrderStatus.ORDERED || paymentStatus != ServiceOrderPaymentStatus.PAID) {
+   throw new IllegalStateException("ORDER_NOT_REFUNDABLE");
+  }
+  billingRefundEventId = eventId;
+  orderStatus = ServiceOrderStatus.CANCELLED;
+  cancelReason = reason;
+  updatedAt = now;
+ }
  public void markResult(Instant now){if(orderStatus==ServiceOrderStatus.CANCELLED)throw new IllegalStateException("ORDER_CANCELLED");if(orderStatus==ServiceOrderStatus.ORDERED){orderStatus=ServiceOrderStatus.RESULTS_AVAILABLE;updatedAt=now;}}
- public UUID getId(){return id;} public String getOrderCode(){return orderCode;} public UUID getOrderingRoundId(){return orderingRoundId;} public UUID getVisitId(){return visitId;} public UUID getPatientId(){return patientId;} public UUID getServiceId(){return serviceId;} public String getServiceNameSnapshot(){return serviceNameSnapshot;} public ClinicalServiceType getServiceType(){return serviceType;} public UUID getRequestingDoctorId(){return requestingDoctorId;} public String getClinicalReason(){return clinicalReason;} public String getBodyArea(){return bodyArea;} public String getInstructions(){return instructions;} public BigDecimal getPriceSnapshot(){return priceSnapshot;} public ServiceOrderStatus getOrderStatus(){return orderStatus;} public ServiceOrderPaymentStatus getPaymentStatus(){return paymentStatus;} public String getCancelReason(){return cancelReason;} public Instant getCreatedAt(){return createdAt;} public Instant getUpdatedAt(){return updatedAt;} public Long getVersion(){return version;}
+ public UUID getId(){return id;} public String getOrderCode(){return orderCode;} public UUID getOrderingRoundId(){return orderingRoundId;} public UUID getVisitId(){return visitId;} public UUID getPatientId(){return patientId;} public UUID getServiceId(){return serviceId;} public String getServiceNameSnapshot(){return serviceNameSnapshot;} public ClinicalServiceType getServiceType(){return serviceType;} public UUID getRequestingDoctorId(){return requestingDoctorId;} public String getClinicalReason(){return clinicalReason;} public String getBodyArea(){return bodyArea;} public String getInstructions(){return instructions;} public BigDecimal getPriceSnapshot(){return priceSnapshot;} public ServiceOrderStatus getOrderStatus(){return orderStatus;} public ServiceOrderPaymentStatus getPaymentStatus(){return paymentStatus;} public String getCancelReason(){return cancelReason;} public Instant getCreatedAt(){return createdAt;} public Instant getUpdatedAt(){return updatedAt;} public UUID getBillingRefundEventId(){return billingRefundEventId;} public Long getVersion(){return version;}
 }

@@ -23,7 +23,10 @@ import {
 } from "../schema/visitProgress";
 import { doctorErrorMessage } from "../schema/doctorErrors";
 import { OrderStatusBadge } from "./doctorStatus";
-import { useVisitWorkspace } from "./VisitWorkspaceProvider";
+import {
+  mergeWorkspaceOrders,
+  useVisitWorkspace,
+} from "./VisitWorkspaceProvider";
 
 const STATE_ICON = {
   TODO: CircleDashed,
@@ -106,12 +109,24 @@ function stepOf<T>(
 }
 
 export function VisitOverview() {
-  const { visitId } = useVisitWorkspace();
+  const workspace = useVisitWorkspace();
+  const { visitId } = workspace;
   const examination = useExamination(visitId);
   const orders = useOrders(visitId);
   const advice = useAdvice(visitId);
   const prescription = usePrescription(visitId);
   const href = (section: string) => doctorVisitHref(visitId, section);
+  const paraclinicalStep =
+    failed(orders) ??
+    (orders.data === undefined
+      ? undefined
+      : ordersStep(
+          mergeWorkspaceOrders(
+            orders.data,
+            workspace.submittedOrders,
+            workspace.findingsAwaitingRelease,
+          ),
+        ));
 
   return (
     <>
@@ -136,7 +151,7 @@ export function VisitOverview() {
             />
             <Step
               title="Cận lâm sàng"
-              step={stepOf(orders, ordersStep)}
+              step={paraclinicalStep}
               href={href("paraclinical")}
               action="Chỉ định"
             />

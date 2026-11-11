@@ -6,5 +6,6 @@ public interface ManageVisitCareAssignmentService {
     CareStepAssignment startWalkIn(StartWalkInCareStepCommand command);
     CareStepAssignment extend(ExtendVisitCareAssignmentCommand command);
     CareStepAssignment completeWalkIn(CompleteWalkInCareStepCommand command);
+    void completeDoctorConsultationForVisitClosure(CompleteDoctorCareForClosureCommand command);
     void recordCapacityConflict(RecordVisitCapacityConflictCommand command);
 }

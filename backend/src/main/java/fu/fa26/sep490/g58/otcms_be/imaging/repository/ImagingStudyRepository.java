@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface ImagingStudyRepository extends JpaRepository<ImagingStudyJpaEntity, String> {
     Optional<ImagingStudyJpaEntity> findByIngestOperationId(UUID ingestOperationId);
+    Optional<ImagingStudyJpaEntity> findByArchiveStudyRef(String archiveStudyRef);
     Optional<ImagingStudyJpaEntity> findByStudyInstanceUid(String studyInstanceUid);
     List<ImagingStudyJpaEntity> findAllByRequestIdAndAttemptIdOrderByCreatedAtDesc(
             UUID requestId, UUID attemptId);

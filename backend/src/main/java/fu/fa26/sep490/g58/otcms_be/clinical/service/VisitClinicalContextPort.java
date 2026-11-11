@@ -8,5 +8,10 @@ public interface VisitClinicalContextPort {
     java.util.Map<UUID, ClinicalVisitContext> getVisitContexts(java.util.Collection<UUID> visitIds);
 
     record ClinicalVisitContext(UUID visitId, UUID patientId, UUID responsibleDoctorId,
-            boolean clinicalWorkAllowed) { }
+            boolean visitOpen, boolean clinicalWorkAllowed) {
+        public ClinicalVisitContext(UUID visitId, UUID patientId, UUID responsibleDoctorId,
+                boolean clinicalWorkAllowed) {
+            this(visitId, patientId, responsibleDoctorId, clinicalWorkAllowed, clinicalWorkAllowed);
+        }
+    }
 }

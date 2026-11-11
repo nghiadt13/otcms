@@ -21,6 +21,16 @@ public class ClinicalImagingOrderAdapter implements ClinicalImagingOrderPort {
     }
 
     @Override
+    public OrderDetails getOrderDetails(UUID orderId) {
+        try {
+            var order = ordering.getImagingOrder(orderId);
+            return new OrderDetails(order.visitId(), order.serviceId(), order.serviceName(), order.instructions());
+        } catch (ClinicalOperationException notUsable) {
+            return null;
+        }
+    }
+
+    @Override
     public ClinicalImagingOrder requireOpenImagingOrder(UUID orderId) {
         try {
             var order = ordering.getImagingOrder(orderId);

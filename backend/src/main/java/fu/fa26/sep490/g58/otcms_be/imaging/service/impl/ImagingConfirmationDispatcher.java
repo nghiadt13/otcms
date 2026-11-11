@@ -52,7 +52,7 @@ public class ImagingConfirmationDispatcher {
             diagnosticEvidence.linkConfirmedStudy(DiagnosticActor.trustedIntegration(),
                     new StudyEvidence(event.getEventId(), event.getStudyRef(), event.getRequestId(),
                             event.getVisitId(), event.getPatientId(), event.getAttemptId(),
-                            StudyVerificationStatus.CONFIRMED_MATCH, true, evidence),
+                            StudyVerificationStatus.valueOf(event.getVerificationStatus()), true, evidence),
                     "imaging-confirmation-" + event.getEventId());
             persistence.acknowledge(event.getId());
         } catch (ImagingOperationException rejection) {

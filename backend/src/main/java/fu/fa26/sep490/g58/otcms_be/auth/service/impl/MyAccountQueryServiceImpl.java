@@ -8,6 +8,7 @@ import fu.fa26.sep490.g58.otcms_be.auth.repository.AccountAvatarRepository;
 import fu.fa26.sep490.g58.otcms_be.auth.model.entity.enums.AccountType;
 import fu.fa26.sep490.g58.otcms_be.auth.model.entity.enums.AccountStatus;
 import fu.fa26.sep490.g58.otcms_be.auth.service.MyAccountQueryService;
+import fu.fa26.sep490.g58.otcms_be.staff.service.DoctorProfileIdentityQueryService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -19,12 +20,14 @@ public class MyAccountQueryServiceImpl implements MyAccountQueryService {
     private final AccountRepository accounts;
     private final PatientProfileRepository profiles;
     private final AccountAvatarRepository avatars;
+    private final DoctorProfileIdentityQueryService doctorProfiles;
 
     public MyAccountQueryServiceImpl(AccountRepository accounts, PatientProfileRepository profiles,
-            AccountAvatarRepository avatars) {
+            AccountAvatarRepository avatars, DoctorProfileIdentityQueryService doctorProfiles) {
         this.accounts = accounts;
         this.profiles = profiles;
         this.avatars = avatars;
+        this.doctorProfiles = doctorProfiles;
     }
 
     @Override
@@ -35,7 +38,14 @@ public class MyAccountQueryServiceImpl implements MyAccountQueryService {
 
     private MyAccountView toView(AccountJpaEntity account) {
         String email = account.getNormalizedEmail() == null ? "" : account.getNormalizedEmail();
-        String displayName = Optional.ofNullable(account.getDisplayName()).filter(name -> !name.isBlank())
+        String doctorName = account.getAccountType() == AccountType.DOCTOR
+                ? doctorProfiles.findDoctorProfileId(account.getId())
+                        .map(profileId -> doctorProfiles.findDoctorNames(java.util.List.of(profileId)).get(profileId))
+                        .filter(name -> name != null && !name.isBlank())
+                        .orElse(null)
+                : null;
+        String displayName = Optional.ofNullable(doctorName)
+                .or(() -> Optional.ofNullable(account.getDisplayName()).filter(name -> !name.isBlank()))
                 .or(() -> profiles.findByAccountId(account.getId())
                 .map(PatientProfileJpaEntity::getFullName)
                 .filter(name -> !name.isBlank()))

@@ -287,6 +287,13 @@ export async function startExamination(context: VisitContext): Promise<void> {
   );
 }
 
+export async function closeVisit(visitId: string): Promise<void> {
+  await apiRequest<unknown>(
+    `/api/v1/visits/${encodeURIComponent(visitId)}/closure`,
+    { method: "POST" },
+  );
+}
+
 export async function listPatientAppointments(
   patientProfileId: string,
   signal?: AbortSignal,

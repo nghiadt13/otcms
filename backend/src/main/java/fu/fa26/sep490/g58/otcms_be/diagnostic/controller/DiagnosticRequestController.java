@@ -75,6 +75,18 @@ public class DiagnosticRequestController {
         return mapper.toAssignedTechnicianUploadWorkPage(work);
     }
 
+    @PostMapping("/imaging-requests/{requestId}/acquisition-starts")
+    @Operation(operationId = "startImagingAcquisition", summary = "Record technician start of the paid imaging service")
+    public ImagingRequest startImaging(
+            @Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedAccount principal,
+            @PathVariable UUID requestId,
+            @RequestHeader("Idempotency-Key") String idempotencyKey,
+            @RequestHeader("X-Expected-Version") @Min(0) long expectedVersion,
+            HttpServletRequest request) {
+        return mapper.toImagingRequest(requests.startImaging(actor(principal), requestId, idempotencyKey,
+                expectedVersion, CorrelationIdFilter.current(request)));
+    }
+
     @GetMapping("/imaging-requests/{requestId}")
     @Operation(operationId = "getImagingRequest", summary = "Get request status for a responsible actor")
     public OperationalRequestStatus get(@Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedAccount principal,

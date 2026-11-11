@@ -1,6 +1,5 @@
 package fu.fa26.sep490.g58.otcms_be.imaging.validation;
 
-import fu.fa26.sep490.g58.otcms_be.imaging.config.ImagingIdentityProperties;
 import fu.fa26.sep490.g58.otcms_be.imaging.config.ImagingProperties;
 import fu.fa26.sep490.g58.otcms_be.imaging.exception.ImagingOperationException;
 import fu.fa26.sep490.g58.otcms_be.imaging.exception.ImagingOperationOutcome;
@@ -17,9 +16,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Set;
-import java.util.UUID;
 import java.nio.charset.StandardCharsets;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
@@ -29,7 +26,6 @@ import org.apache.commons.fileupload2.core.FileUploadException;
 import org.apache.commons.fileupload2.core.RequestContext;
 import org.apache.commons.fileupload2.jakarta.servlet6.JakartaServletFileUpload;
 import org.dcm4che3.data.Attributes;
-import org.dcm4che3.data.Sequence;
 import org.dcm4che3.data.Tag;
 import org.dcm4che3.io.DicomInputStream;
 import org.dcm4che3.io.DicomInputStream.IncludeBulkData;
@@ -44,11 +40,16 @@ public class ImagingDicomStudyValidator {
     private static final String MULTIPART_TYPE = "multipart/form-data";
 
     private final ImagingProperties limits;
-    private final ImagingIdentityProperties identityMappings;
 
-    public ImagingDicomStudyValidator(ImagingProperties limits, ImagingIdentityProperties identityMappings) {
+    @org.springframework.beans.factory.annotation.Autowired
+    public ImagingDicomStudyValidator(ImagingProperties limits) {
         this.limits = limits;
-        this.identityMappings = identityMappings;
+    }
+
+    /** Compatibility constructor for existing validator unit fixtures. */
+    public ImagingDicomStudyValidator(ImagingProperties limits,
+            fu.fa26.sep490.g58.otcms_be.imaging.config.ImagingIdentityProperties ignored) {
+        this(limits);
     }
 
     public ImagingDicomStudyValidation validate(String contentType, long declaredContentLength,
@@ -249,9 +250,7 @@ public class ImagingDicomStudyValidator {
             String sopUid = required(dataset.getString(Tag.SOPInstanceUID));
             String modality = required(dataset.getString(Tag.Modality)).toUpperCase(Locale.ROOT);
             if (!SUPPORTED_MODALITIES.contains(modality)) invalid("MODALITY_UNSUPPORTED");
-            DicomInstanceMetadata result = new DicomInstanceMetadata(file, studyUid, seriesUid, sopUid,
-                    modality, clean(dataset.getString(Tag.PatientID)), clean(dataset.getString(Tag.IssuerOfPatientID)),
-                    clean(dataset.getString(Tag.AccessionNumber)), accessionIssuer(dataset));
+            DicomInstanceMetadata result = new DicomInstanceMetadata(file, studyUid, seriesUid, sopUid, modality);
             return result;
         } catch (IOException exception) {
             throw new ValidationException("DICOM_PARSE_ERROR");
@@ -260,68 +259,21 @@ public class ImagingDicomStudyValidator {
 
     private ImagingDicomStudyValidation summarize(List<DicomInstanceMetadata> files,
             ImagingAssignedWork assignedWork) {
+        if (assignedWork == null || !assignedWork.currentlyAssigned()) invalid("ASSIGNED_WORK_REQUIRED");
         DicomInstanceMetadata first = files.getFirst();
         Set<String> seriesUids = new HashSet<>();
         Set<String> sopUids = new HashSet<>();
         List<String> evidence = new ArrayList<>();
-        boolean conflictingIdentity = false;
         for (DicomInstanceMetadata file : files) {
             if (!first.studyUid.equals(file.studyUid)) invalid("MULTIPLE_STUDIES_IN_ARCHIVE");
             if (!first.modality.equals(file.modality)) invalid("MIXED_MODALITY_IN_STUDY");
             if (!sopUids.add(file.sopUid)) invalid("DUPLICATE_INSTANCE_UID");
             seriesUids.add(file.seriesUid);
-            if (!first.sameIdentity(file)) conflictingIdentity = true;
         }
-        if (conflictingIdentity) {
-            evidence.add("DICOM_IDENTITY_CONFLICT");
-            return result(ImagingVerificationStatus.MISMATCH, first, seriesUids.size(), files.size(), evidence);
-        }
-        ImagingVerificationStatus status = verifyIdentity(first, assignedWork, evidence);
-        return result(status, first, seriesUids.size(), files.size(), evidence);
-    }
-
-    private ImagingVerificationStatus verifyIdentity(DicomInstanceMetadata file,
-            ImagingAssignedWork assignedWork, List<String> evidence) {
-        boolean unknown = false;
-        if (file.patientId == null) { evidence.add("PATIENT_ID_MISSING"); unknown = true; }
-        if (file.patientIssuer == null) { evidence.add("PATIENT_ISSUER_MISSING"); unknown = true; }
-        if (file.accessionNumber == null) { evidence.add("ACCESSION_NUMBER_MISSING"); unknown = true; }
-        if (file.accessionIssuer == null) { evidence.add("ACCESSION_ISSUER_MISSING"); unknown = true; }
-        if (unknown) return ImagingVerificationStatus.UNKNOWN;
-
-        UUID mappedPatient = lookup(identityMappings.getPatientOwnerByIssuer(), file.patientIssuer, file.patientId);
-        UUID mappedRequest = lookup(identityMappings.getRequestByAccessionIssuer(),
-                file.accessionIssuer, file.accessionNumber);
-        if (mappedPatient == null) { evidence.add("PATIENT_ISSUER_MAPPING_UNKNOWN"); unknown = true; }
-        else if (!mappedPatient.equals(assignedWork.patientId())) evidence.add("PATIENT_OWNER_MISMATCH");
-        if (mappedRequest == null) { evidence.add("ACCESSION_ISSUER_MAPPING_UNKNOWN"); unknown = true; }
-        else if (!mappedRequest.equals(assignedWork.requestId())) evidence.add("REQUEST_OWNER_MISMATCH");
-        if (evidence.contains("PATIENT_OWNER_MISMATCH") || evidence.contains("REQUEST_OWNER_MISMATCH")) {
-            return ImagingVerificationStatus.MISMATCH;
-        }
-        if (unknown) return ImagingVerificationStatus.UNKNOWN;
-        evidence.add("PATIENT_OWNER_MATCH");
-        evidence.add("REQUEST_OWNER_MATCH");
-        return ImagingVerificationStatus.CONFIRMED_MATCH;
-    }
-
-    private static UUID lookup(Map<String, Map<String, UUID>> mappings, String issuer, String value) {
-        Map<String, UUID> byIdentifier = mappings.get(issuer);
-        return byIdentifier == null ? null : byIdentifier.get(value);
-    }
-
-    private static String accessionIssuer(Attributes dataset) {
-        Sequence issuerSequence = dataset.getSequence(Tag.IssuerOfAccessionNumberSequence);
-        if (issuerSequence == null || issuerSequence.isEmpty()) return null;
-        Attributes issuer = issuerSequence.getFirst();
-        String localNamespace = clean(issuer.getString(Tag.LocalNamespaceEntityID));
-        String universalEntity = clean(issuer.getString(Tag.UniversalEntityID));
-        String universalType = clean(issuer.getString(Tag.UniversalEntityIDType));
-        List<String> parts = new ArrayList<>();
-        if (localNamespace != null) parts.add("LOCAL=" + localNamespace);
-        if (universalEntity != null) parts.add("UNIVERSAL=" + universalEntity);
-        if (universalType != null) parts.add("TYPE=" + universalType);
-        return parts.isEmpty() ? null : String.join("|", parts);
+        // The authenticated assigned-work context is authoritative for linking this upload.
+        // DICOM patient/accession tags do not block or establish that link.
+        evidence.add("REQUEST_ATTEMPT_CONTEXT");
+        return result(ImagingVerificationStatus.REQUEST_CONTEXT_MATCH, first, seriesUids.size(), files.size(), evidence);
     }
 
     private static ImagingDicomStudyValidation result(ImagingVerificationStatus status,
@@ -361,25 +313,11 @@ public class ImagingDicomStudyValidator {
         private final String seriesUid;
         private final String sopUid;
         private final String modality;
-        private final String patientId;
-        private final String patientIssuer;
-        private final String accessionNumber;
-        private final String accessionIssuer;
 
         private DicomInstanceMetadata(Path temporaryFile, String studyUid, String seriesUid, String sopUid,
-                String modality, String patientId, String patientIssuer, String accessionNumber,
-                String accessionIssuer) {
+                String modality) {
             this.temporaryFile = temporaryFile; this.studyUid = studyUid; this.seriesUid = seriesUid;
-            this.sopUid = sopUid; this.modality = modality; this.patientId = patientId;
-            this.patientIssuer = patientIssuer; this.accessionNumber = accessionNumber;
-            this.accessionIssuer = accessionIssuer;
-        }
-
-        private boolean sameIdentity(DicomInstanceMetadata other) {
-            return java.util.Objects.equals(patientId, other.patientId)
-                    && java.util.Objects.equals(patientIssuer, other.patientIssuer)
-                    && java.util.Objects.equals(accessionNumber, other.accessionNumber)
-                    && java.util.Objects.equals(accessionIssuer, other.accessionIssuer);
+            this.sopUid = sopUid; this.modality = modality;
         }
 
         private void deleteTemporaryFile() {

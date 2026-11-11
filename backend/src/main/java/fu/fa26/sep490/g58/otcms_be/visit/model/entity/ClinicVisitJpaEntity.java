@@ -62,6 +62,7 @@ public class ClinicVisitJpaEntity {
     public UUID getId() { return id; }
     public UUID getPatientProfileId() { return patientProfileId; }
     public String getSource() { return source; }
+    public UUID getOriginatingAppointmentId() { return originatingAppointmentId; }
     public UUID getPriorAppointmentId() { return priorAppointmentId; }
     public Instant getArrivedAt() { return arrivedAt; }
     public Instant getCheckedInAt() { return checkedInAt; }

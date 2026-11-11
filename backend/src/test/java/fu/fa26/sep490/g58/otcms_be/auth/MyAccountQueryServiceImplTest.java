@@ -7,6 +7,7 @@ import fu.fa26.sep490.g58.otcms_be.auth.repository.AccountRepository;
 import fu.fa26.sep490.g58.otcms_be.auth.repository.PatientProfileRepository;
 import fu.fa26.sep490.g58.otcms_be.auth.repository.AccountAvatarRepository;
 import fu.fa26.sep490.g58.otcms_be.auth.service.impl.MyAccountQueryServiceImpl;
+import fu.fa26.sep490.g58.otcms_be.staff.service.DoctorProfileIdentityQueryService;
 import org.junit.jupiter.api.Test;
 
 import java.util.Optional;
@@ -21,7 +22,9 @@ class MyAccountQueryServiceImplTest {
     private final AccountRepository accounts = mock(AccountRepository.class);
     private final PatientProfileRepository profiles = mock(PatientProfileRepository.class);
     private final AccountAvatarRepository avatars = mock(AccountAvatarRepository.class);
-    private final MyAccountQueryServiceImpl service = new MyAccountQueryServiceImpl(accounts, profiles, avatars);
+    private final DoctorProfileIdentityQueryService doctorProfiles = mock(DoctorProfileIdentityQueryService.class);
+    private final MyAccountQueryServiceImpl service = new MyAccountQueryServiceImpl(accounts, profiles, avatars,
+            doctorProfiles);
 
     private AccountJpaEntity account(UUID id, String email, AccountType type) {
         AccountJpaEntity account = new AccountJpaEntity();

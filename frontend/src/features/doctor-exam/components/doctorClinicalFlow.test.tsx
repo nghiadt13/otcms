@@ -261,7 +261,8 @@ it("live readiness uses persisted Clinical orders and cannot mutate Visit", asyn
     ),
   ).toBe(false);
 });
-it("ready demo checklist hands closure to Receptionist and leaves Visit open", async () => {
+it("ready demo checklist lets the Doctor close the Visit", async () => {
+  const user = userEvent.setup();
   window.localStorage.setItem("otcms.doctorDemo", "1");
   await doctorDemoApi.saveExamination(
     "demo-visit-1",
@@ -281,13 +282,11 @@ it("ready demo checklist hands closure to Receptionist and leaves Visit open", a
       <ClosingScreen />
     </VisitWorkspaceProvider>,
   );
-  expect(
-    await screen.findByText(/^Phần khám đã đủ điều kiện\. Lễ tân/),
-  ).toBeInTheDocument();
-  expect(
-    screen.queryByRole("button", { name: /Hoàn tất khám/ }),
-  ).not.toBeInTheDocument();
-  expect((await doctorDemoApi.getVisitContext("demo-visit-1")).status).not.toBe(
-    "COMPLETED",
-  );
+  const closeButton = await screen.findByRole("button");
+  await user.click(closeButton);
+  await waitFor(async () => {
+    expect((await doctorDemoApi.getVisitContext("demo-visit-1")).status).toBe(
+      "COMPLETED",
+    );
+  });
 });

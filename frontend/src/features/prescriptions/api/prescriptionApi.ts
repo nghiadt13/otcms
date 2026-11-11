@@ -17,8 +17,8 @@ import {
   PRESCRIPTION_NOT_ISSUED_ID,
 } from "./prescriptionMockData";
 
-// Lớp API giả cho đơn thuốc. Chữ ký khớp REST của BE; khi nối BE đặt USE_MOCK = false.
-const USE_MOCK = true;
+// Giữ dữ liệu mẫu cho unit test; các môi trường chạy ứng dụng đọc API backend.
+const USE_MOCK = process.env.NODE_ENV === "test";
 
 const latency = (signal?: AbortSignal) =>
   mockDelay(process.env.NODE_ENV === "test" ? 0 : 300, signal);

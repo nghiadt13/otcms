@@ -97,18 +97,22 @@ async function listStaffProfiles(signal?: AbortSignal) {
       items: {
         doctorProfileId: string;
         fullName: string;
-        inActiveDirectory: boolean;
       }[];
     }>("/api/v1/admin/doctor-profiles", { signal }),
   ]);
-  const options = new Map(staff.items.map((item) => [item.staffId, item]));
+  // Staff profiles and doctor profiles are separate identity domains. Never
+  // use a generic staffId as the ID for /admin/doctors/{doctorProfileId}.
+  const options = new Map(
+    staff.items
+      .filter((item) => profileRole(item.role) !== "ORTHOPEDIC_DOCTOR")
+      .map((item) => [item.staffId, item]),
+  );
   for (const doctor of doctors.items) {
-    if (doctor.inActiveDirectory)
-      options.set(doctor.doctorProfileId, {
-        staffId: doctor.doctorProfileId,
-        fullName: doctor.fullName,
-        role: "DOCTOR",
-      });
+    options.set(doctor.doctorProfileId, {
+      staffId: doctor.doctorProfileId,
+      fullName: doctor.fullName,
+      role: "DOCTOR",
+    });
   }
   return { items: [...options.values()] };
 }

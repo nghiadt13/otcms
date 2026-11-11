@@ -96,7 +96,8 @@ export function OrderTable({
                   {order.kind === "IMAGING" && order.imaging?.studyRef ? (
                     <Button size="sm" onClick={() => onOpenFindings(order)}>
                       <ScanSearch aria-hidden />
-                      {order.imaging.findingsCompleted
+                      {order.imaging.findingsCompleted ||
+                      order.imaging.findingsReleaseState === "RELEASE_PENDING"
                         ? "Xem kết luận"
                         : "Xem ảnh, kết luận"}
                     </Button>

@@ -11,7 +11,9 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.constraints.Pattern;
 import java.io.IOException;
 import java.net.URI;
+import java.util.List;
 import java.util.UUID;
+import org.springframework.http.CacheControl;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -64,6 +66,18 @@ public class ImagingIngestController {
         }
         return ResponseEntity.ok(ImagingOperationResponse.from(
                 ingest.getOperationStatus(account.accountId(), operationId)));
+    }
+
+    @GetMapping("/requests/{requestId}/attempts/{attemptId}/ingest-operations")
+    @PreAuthorize("hasAuthority('ROLE_IMAGING_TECHNICIAN')")
+    public ResponseEntity<List<ImagingOperationResponse>> getLatestOperation(@PathVariable UUID requestId,
+            @PathVariable UUID attemptId, @AuthenticationPrincipal AuthenticatedAccount account) {
+        if (account == null || account.accountRole() != AccountRole.IMAGING_TECHNICIAN) {
+            throw new ImagingOperationException(ImagingOperationOutcome.UNAUTHORIZED_RECORD);
+        }
+        List<ImagingOperationResponse> latest = ingest.getLatestOperation(account.accountId(), requestId, attemptId)
+                .map(ImagingOperationResponse::from).stream().toList();
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(latest);
     }
 
     @PostMapping("/ingest-operations/{operationId}/send")

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 /** Discard stale results when filters change or the component is unmounted. */
 export function useAdminRemoteData<T>(
@@ -27,10 +27,11 @@ export function useAdminRemoteData<T>(
   }, [load, revision]);
   const current =
     result?.load === load && result.revision === revision ? result : undefined;
+  const refresh = useCallback(() => setRevision((v) => v + 1), []);
   return {
     data: current?.data,
     error: current?.error,
     loading: !current,
-    refresh: () => setRevision((v) => v + 1),
+    refresh,
   };
 }

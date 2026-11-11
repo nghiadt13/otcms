@@ -48,7 +48,8 @@ public class ClinicalRoundWorkflowServiceImpl implements ClinicalRoundWorkflowSe
         var rows = orders.findByVisitId(visitId).stream()
                 .filter(order -> order.getServiceType() == ClinicalServiceType.IMAGING).toList();
         var diagnostic = statuses.findByServiceOrders(rows.stream().map(ServiceOrderJpaEntity::getId).toList());
-        return rows.stream().map(order -> view(order, roundNumbers.getOrDefault(order.getOrderingRoundId(), 0), diagnostic))
+        var studyRefs = statuses.findDoctorStudyRefsByServiceOrders(rows.stream().map(ServiceOrderJpaEntity::getId).toList());
+        return rows.stream().map(order -> view(order, roundNumbers.getOrDefault(order.getOrderingRoundId(), 0), diagnostic, studyRefs))
                 .sorted(Comparator.comparingInt(Order::roundNumber).thenComparing(Order::orderCode)).toList();
     }
     @Override
@@ -134,9 +135,20 @@ public class ClinicalRoundWorkflowServiceImpl implements ClinicalRoundWorkflowSe
                         order.getBodyArea(), order.getClinicalReason())).requestId()).toList();
     }
     private static Order view(ServiceOrderJpaEntity order, int roundNumber, Map<UUID, OrderDiagnosticStatus> diagnostic) {
+        return view(order, roundNumber, diagnostic, Map.of());
+    }
+    private static Order view(ServiceOrderJpaEntity order, int roundNumber, Map<UUID, OrderDiagnosticStatus> diagnostic,
+            Map<UUID, String> doctorStudyRefs) {
+        doctorStudyRefs = Objects.requireNonNullElse(doctorStudyRefs, Map.of());
+        var currentDiagnostic = diagnostic.get(order.getId());
+        if (currentDiagnostic != null && doctorStudyRefs.containsKey(order.getId())) {
+            currentDiagnostic = new OrderDiagnosticStatus(currentDiagnostic.requestId(), currentDiagnostic.status(),
+                    currentDiagnostic.version(), currentDiagnostic.roomId(), currentDiagnostic.roomCode(),
+                    currentDiagnostic.displayLabel(), doctorStudyRefs.get(order.getId()));
+        }
         return new Order(order.getId(), order.getOrderCode(), order.getOrderingRoundId(), roundNumber, order.getServiceId(),
                 order.getServiceNameSnapshot(), order.getServiceType(), order.getClinicalReason(), order.getBodyArea(), order.getPriceSnapshot(),
-                order.getOrderStatus(), order.getPaymentStatus(), diagnostic.get(order.getId()));
+                order.getOrderStatus(), order.getPaymentStatus(), currentDiagnostic);
     }
     private static void requireReceptionist(AuthenticatedAccount actor) {
         if (actor == null || actor.accountRole() != AccountRole.RECEPTIONIST) throw new ClinicalOperationException("MSG-40");

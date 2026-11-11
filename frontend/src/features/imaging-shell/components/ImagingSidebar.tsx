@@ -20,9 +20,11 @@ import { ImagingAccountMenu } from "./ImagingAccountMenu";
 export function ImagingSidebar({
   onReset,
   onExit,
+  showDemoActions = true,
 }: {
   onReset: () => void;
   onExit: () => void;
+  showDemoActions?: boolean;
 }) {
   const pathname = usePathname();
 
@@ -57,7 +59,11 @@ export function ImagingSidebar({
         ))}
       </SidebarContent>
       <SidebarFooter>
-        <ImagingAccountMenu onReset={onReset} onExit={onExit} />
+        <ImagingAccountMenu
+          onReset={onReset}
+          onExit={onExit}
+          showDemoActions={showDemoActions}
+        />
       </SidebarFooter>
       <SidebarRail />
     </Sidebar>

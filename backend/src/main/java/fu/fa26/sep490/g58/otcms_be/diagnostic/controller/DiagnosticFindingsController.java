@@ -22,10 +22,13 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
 import java.util.UUID;
+import org.springframework.http.CacheControl;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -57,6 +60,14 @@ public class DiagnosticFindingsController {
         DiagnosticRequestView view = findings.review(actor(principal), requestId, idempotencyKey,
                 expectedVersion, body.studyRef(), CorrelationIdFilter.current(request));
         return mapper.toImagingRequest(view);
+    }
+
+    @GetMapping("/findings/current")
+    public ResponseEntity<FindingsVersionResponse> getCurrent(
+            @AuthenticationPrincipal AuthenticatedAccount principal,
+            @PathVariable UUID requestId) {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore())
+                .body(mapper.toFindingsVersion(findings.getCurrent(actor(principal), requestId)));
     }
 
     @PostMapping("/findings")

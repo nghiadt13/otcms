@@ -17,7 +17,8 @@ const exam = {
 };
 
 describe("luồng khám trên bản demo", () => {
-  it("Doctor has no Visit closure command", () => {
+  it("Doctor closes Visit through the closure command", () => {
+    expect(doctorDemoApi).toHaveProperty("closeVisit");
     expect(doctorDemoApi).not.toHaveProperty("completeVisit");
     expect(doctorDemoApi.capabilities).not.toHaveProperty("closeWithEvidence");
   });
@@ -102,7 +103,7 @@ describe("luồng khám trên bản demo", () => {
 });
 
 describe("canonical demo compatibility", () => {
-  it("findings review/draft/completion leaves final Visit closure to Receptionist", async () => {
+  it("findings completion lets the treating Doctor close the Visit", async () => {
     const visitId = "demo-visit-2";
     await doctorDemoApi.saveExamination(visitId, exam, "complete");
     const [order] = await doctorDemoApi.listOrders(visitId);
@@ -117,9 +118,8 @@ describe("canonical demo compatibility", () => {
     expect(
       (await doctorDemoApi.listOrders(visitId))[0].imaging?.findingsCompleted,
     ).toBe(true);
-    expect((await doctorDemoApi.getVisitContext(visitId)).status).not.toBe(
-      "COMPLETED",
-    );
+    await doctorDemoApi.closeVisit(visitId);
+    expect((await doctorDemoApi.getVisitContext(visitId)).status).toBe("COMPLETED");
   });
   it("versioned canonical drafts issue once and become immutable", async () => {
     const value = {

@@ -16,6 +16,7 @@ import type {
   ChangePasswordInput,
   MyAccount,
   PasswordChangeResult,
+  StaffAccount,
 } from "../types/myAccount";
 import {
   AVATAR_ACCEPTED_TYPES,
@@ -42,6 +43,17 @@ async function isLivePatientSession(): Promise<boolean> {
   return (await getSession())?.accountType === "PATIENT";
 }
 
+async function isLiveStaffSession(): Promise<boolean> {
+  if (process.env.NODE_ENV === "test") return false;
+  const accountType = (await getSession())?.accountType;
+  return accountType !== undefined && accountType !== "PATIENT";
+}
+
+async function isLiveAccountSession(): Promise<boolean> {
+  if (process.env.NODE_ENV === "test") return false;
+  return Boolean(await getSession());
+}
+
 /** Chỉ dùng trong test: đặt lại kho dữ liệu giả của loại tài khoản đã cho (mặc định: quản trị). */
 export function resetMyAccountMockStore(account: MyAccount = MOCK_MY_ACCOUNT) {
   resetMockAccountState(account);
@@ -50,6 +62,32 @@ export function resetMyAccountMockStore(account: MyAccount = MOCK_MY_ACCOUNT) {
 /** GET /api/v1/me */
 export async function getMyAccount(signal?: AbortSignal): Promise<MyAccount> {
   if (process.env.NODE_ENV !== "test") {
+    if (await isLiveStaffSession()) {
+      const me = await apiRequest<{
+        id: string;
+        displayName: string;
+        username: string;
+        role: StaffAccount["role"];
+        status: StaffAccount["status"];
+        mustChangePassword: boolean;
+        avatarUrl: string | null;
+        allowedActions: StaffAccount["allowedActions"];
+      }>("/api/v1/me", { signal });
+      const avatarUrl = me.avatarUrl
+        ? await loadAccountAvatarUrl(me.id)
+        : null;
+      return {
+        id: me.id,
+        kind: "STAFF",
+        displayName: me.displayName,
+        username: me.username,
+        role: me.role,
+        status: me.status,
+        mustChangePassword: me.mustChangePassword,
+        avatarUrl,
+        allowedActions: me.allowedActions,
+      };
+    }
     if (await isLivePatientSession()) {
       // /me/patient-account không có ảnh; /me cho biết tài khoản đã có ảnh chưa (`avatarUrl`).
       const [current, me] = await Promise.all([
@@ -84,7 +122,7 @@ export async function getMyAccount(signal?: AbortSignal): Promise<MyAccount> {
 
 /** PUT /api/v1/me/avatar (multipart, part `photo`) */
 export async function updateMyAvatar(file: File): Promise<MyAccount> {
-  if (await isLivePatientSession()) {
+  if (await isLiveAccountSession()) {
     const form = new FormData();
     form.append("photo", file);
     await apiRequest("/api/v1/me/avatar", { method: "PUT", body: form });
@@ -111,7 +149,7 @@ export async function updateMyAvatar(file: File): Promise<MyAccount> {
 
 /** DELETE /api/v1/me/avatar */
 export async function removeMyAvatar(): Promise<void> {
-  if (await isLivePatientSession()) {
+  if (await isLiveAccountSession()) {
     await apiRequest("/api/v1/me/avatar", { method: "DELETE" });
     notifyAccountAvatarChanged();
     return;
@@ -153,7 +191,7 @@ export function toPasswordApiError(error: unknown): unknown {
 export async function changeMyPassword(
   input: ChangePasswordInput,
 ): Promise<PasswordChangeResult> {
-  if (await isLivePatientSession()) {
+  if (await isLiveAccountSession()) {
     try {
       await changeFirstLoginPassword(input.currentPassword, input.newPassword);
     } catch (error) {

@@ -1,20 +1,30 @@
 package fu.fa26.sep490.g58.otcms_be.diagnostic.service.impl;
 
 import fu.fa26.sep490.g58.otcms_be.diagnostic.repository.DiagnosticRequestJpaRepository;
+import fu.fa26.sep490.g58.otcms_be.diagnostic.repository.DiagnosticAttemptJpaRepository;
+import fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.DiagnosticAttemptJpaEntity;
+import fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.enums.DiagnosticRequestStatus;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.service.DiagnosticOrderStatusQueryService;
 import java.util.Collection;
 import java.util.Map;
 import java.util.UUID;
 import java.util.LinkedHashMap;
+import java.util.HashSet;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class DiagnosticOrderStatusQueryServiceImpl implements DiagnosticOrderStatusQueryService {
     private final DiagnosticRequestJpaRepository requests;
+    private final DiagnosticAttemptJpaRepository attempts;
     private final fu.fa26.sep490.g58.otcms_be.visit.service.ImagingRoomQueueService rooms;
     public DiagnosticOrderStatusQueryServiceImpl(DiagnosticRequestJpaRepository requests,
-            fu.fa26.sep490.g58.otcms_be.visit.service.ImagingRoomQueueService rooms) { this.requests = requests; this.rooms = rooms; }
+            DiagnosticAttemptJpaRepository attempts,
+            fu.fa26.sep490.g58.otcms_be.visit.service.ImagingRoomQueueService rooms) {
+        this.requests = requests;
+        this.attempts = attempts;
+        this.rooms = rooms;
+    }
     @Override
     @Transactional(readOnly = true)
     public Map<UUID, OrderDiagnosticStatus> findByServiceOrders(Collection<UUID> ids) {
@@ -26,7 +36,35 @@ public class DiagnosticOrderStatusQueryServiceImpl implements DiagnosticOrderSta
             var room = request.getRoomId() == null ? null : labels.get(request.getRoomId());
             result.putIfAbsent(request.getServiceOrderId(), new OrderDiagnosticStatus(request.getId(),
                     request.getStatus().name(), request.getVersion(), request.getRoomId(),
-                    room == null ? null : room.roomCode(), room == null ? null : room.displayLabel()));
+                    room == null ? null : room.roomCode(), room == null ? null : room.displayLabel(), null));
+        }
+        return Map.copyOf(result);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Map<UUID, String> findDoctorStudyRefsByServiceOrders(Collection<UUID> ids) {
+        if (ids.isEmpty()) return Map.of();
+        var result = new LinkedHashMap<UUID, String>();
+        var rows = requests.findAllByServiceOrderIdInOrderByCreatedAtDescIdDesc(ids);
+        var latestOrderIds = new HashSet<UUID>();
+        var currentAttemptIds = rows.stream()
+                .filter(request -> request.getStatus() == DiagnosticRequestStatus.RESULT_AVAILABLE
+                        || request.getStatus() == DiagnosticRequestStatus.REVIEWED)
+                .map(request -> request.getCurrentAttemptId()).filter(java.util.Objects::nonNull).distinct().toList();
+        var currentAttempts = attempts.findAllById(currentAttemptIds).stream()
+                .collect(java.util.stream.Collectors.toMap(
+                        DiagnosticAttemptJpaEntity::getId,
+                        attempt -> attempt));
+        for (var request : rows) {
+            if (request.getServiceOrderId() == null || !latestOrderIds.add(request.getServiceOrderId())
+                    || request.getCurrentAttemptId() == null
+                    || (request.getStatus() != DiagnosticRequestStatus.RESULT_AVAILABLE
+                        && request.getStatus() != DiagnosticRequestStatus.REVIEWED)) continue;
+            var attempt = currentAttempts.get(request.getCurrentAttemptId());
+            if (attempt == null || !request.getId().equals(attempt.getRequestId())) continue;
+            var studyRef = attempt.getStudyRef();
+            if (studyRef != null && !studyRef.isBlank()) result.putIfAbsent(request.getServiceOrderId(), studyRef);
         }
         return Map.copyOf(result);
     }

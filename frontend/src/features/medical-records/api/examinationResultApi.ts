@@ -16,9 +16,29 @@ import {
   RESULT_LIST_ERROR_PATIENT_ID,
 } from "./examinationResultMockData";
 import { MOCK_VISITS } from "./examinationResultMockVisits";
+import { findIcdEntry } from "@/lib/domain/icd10Catalog";
 
-// Lớp API giả cho kết quả khám. Chữ ký khớp REST của BE; khi nối BE đặt USE_MOCK = false.
-const USE_MOCK = true;
+// Mẫu chỉ dùng trong unit test; ứng dụng thật đọc kết quả từ API của Spring Boot.
+const USE_MOCK = process.env.NODE_ENV === "test";
+
+function withDiagnosisTitles(result: ExaminationResult): ExaminationResult {
+  if (!result.examination) return result;
+  const enrich = (
+    items: NonNullable<ExaminationResult["examination"]>["primaryDiagnoses"],
+  ) =>
+    items.map((item) => ({
+      ...item,
+      title: item.title || findIcdEntry(item.code)?.name || "",
+    }));
+  return {
+    ...result,
+    examination: {
+      ...result.examination,
+      primaryDiagnoses: enrich(result.examination.primaryDiagnoses),
+      secondaryDiagnoses: enrich(result.examination.secondaryDiagnoses),
+    },
+  };
+}
 
 const latency = (signal?: AbortSignal) =>
   mockDelay(process.env.NODE_ENV === "test" ? 0 : 300, signal);
@@ -72,10 +92,10 @@ export async function getVisitResult(
   signal?: AbortSignal,
 ): Promise<ExaminationResult> {
   if (!USE_MOCK)
-    return apiRequest<ExaminationResult>(
+    return withDiagnosisTitles(await apiRequest<ExaminationResult>(
       `/api/v1/visits/${encodeURIComponent(visitId)}/results` as const,
       { signal },
-    );
+    ));
   await latency(signal);
   return mockVisitOrFail(visitId);
 }

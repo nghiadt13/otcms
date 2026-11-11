@@ -8,6 +8,7 @@ function renderDoctorViewer(studyRef: string) {
       key={studyRef}
       studyRef={studyRef}
       purpose="DOCTOR_REVIEW"
+      autoAuthorize
     />
   );
 }

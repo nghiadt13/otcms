@@ -18,6 +18,7 @@ export const PATIENT_ROUTES = {
 
   images: "/portal/images",
   imageStudy: (studyId: string) => `/portal/images/${enc(studyId)}`,
+  imageViewer: "/patient-image-viewer",
 
   payments: "/portal/payments",
   payAppointment: (appointmentId: string) =>

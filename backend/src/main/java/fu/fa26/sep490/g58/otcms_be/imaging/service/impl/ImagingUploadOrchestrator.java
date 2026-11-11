@@ -9,8 +9,6 @@ import fu.fa26.sep490.g58.otcms_be.imaging.model.ImagingAssignedWork;
 import fu.fa26.sep490.g58.otcms_be.imaging.model.ImagingOperationRecord;
 import fu.fa26.sep490.g58.otcms_be.imaging.model.ImagingOperationStatus;
 import fu.fa26.sep490.g58.otcms_be.imaging.model.entity.enums.ImagingOperationState;
-import fu.fa26.sep490.g58.otcms_be.imaging.model.entity.enums.ImagingReconciliationClassification;
-import fu.fa26.sep490.g58.otcms_be.imaging.model.entity.enums.ImagingVerificationStatus;
 import fu.fa26.sep490.g58.otcms_be.imaging.service.ImagingUploadCommand;
 import fu.fa26.sep490.g58.otcms_be.imaging.service.ImagingReconciliationService;
 import fu.fa26.sep490.g58.otcms_be.imaging.validation.ImagingDicomStudyValidator;
@@ -112,21 +110,6 @@ public class ImagingUploadOrchestrator {
                 ValidatedDicomStudy validated = validator.validateAndExtract(command.contentType(), body.size(), input, work)) {
             var summary = validated.summary();
             operations.recordValidation(operation.id(), summary);
-            if (summary.verificationStatus() != ImagingVerificationStatus.CONFIRMED_MATCH) {
-                String reason = summary.verificationStatus() == ImagingVerificationStatus.MISMATCH
-                        ? "IDENTITY_MISMATCH" : "IDENTITY_UNKNOWN";
-                audit.recordActor(command.actorAccountId(), "IMAGING_UPLOAD", "QUARANTINED", operation.id(),
-                        null, operation.requestId(), operation.attemptId(), operation.visitId(), operation.patientId(),
-                        operation.id().toString(), java.util.Map.of("evidenceCodes", summary.evidenceCodes()));
-                operations.transition(operation.id(), operation.version(), ImagingOperationState.QUARANTINED,
-                        reason, Instant.now());
-                reconciliation.openOperation(operation.id(), "INGEST",
-                        summary.verificationStatus() == ImagingVerificationStatus.MISMATCH
-                                ? ImagingReconciliationClassification.CONFLICT
-                                : ImagingReconciliationClassification.ORPHANED,
-                        reason);
-                return currentStatus(operation.id());
-            }
             List<ArchiveInstanceReceipt> receipts = new ArrayList<>();
             try {
                 for (var file : validated.instanceFiles()) receipts.add(archive.storeInstance(file));
@@ -136,9 +119,20 @@ public class ImagingUploadOrchestrator {
                 audit.recordActor(command.actorAccountId(), "IMAGING_UPLOAD", "ARCHIVED_NOT_SENT", operation.id(),
                         references.studyRef(), operation.requestId(), operation.attemptId(), operation.visitId(),
                         operation.patientId(), operation.id().toString(),
-                        java.util.Map.of("instanceCount", summary.instanceCount()));
+                        java.util.Map.of("instanceCount", summary.instanceCount(),
+                                "evidenceCodes", summary.evidenceCodes()));
                 operations.transition(operation.id(), operation.version(), ImagingOperationState.ARCHIVED_NOT_SENT,
                         null, Instant.now());
+                return currentStatus(operation.id());
+            } catch (ImagingOperationException exception) {
+                if (exception.outcome() != ImagingOperationOutcome.ARCHIVE_STUDY_ALREADY_LINKED) throw exception;
+                String archiveStudyRef = receipts.isEmpty() ? null : receipts.getFirst().archiveStudyRef();
+                operations.recordStudyReferences(operation.id(), null, archiveStudyRef);
+                audit.recordActor(command.actorAccountId(), "IMAGING_UPLOAD", "REJECTED", operation.id(), null,
+                        operation.requestId(), operation.attemptId(), operation.visitId(), operation.patientId(),
+                        operation.id().toString(), java.util.Map.of("reasonCode", "ARCHIVE_STUDY_ALREADY_LINKED"));
+                operations.transition(operation.id(), operation.version(), ImagingOperationState.FAILED,
+                        "ARCHIVE_STUDY_ALREADY_LINKED", Instant.now());
                 return currentStatus(operation.id());
             } catch (RuntimeException exception) {
                 ImagingOperationState next = receipts.isEmpty()

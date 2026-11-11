@@ -14,5 +14,8 @@ public interface RoomReservationPort {
     /** Owner must report a real reservation; a non-null request room is only queue assignment. */
     boolean hasImagingCapacityReservation(UUID requestId);
 
+    /** Billing may refund an imaging order only when the Room owner finds no suitable alternative. */
+    default boolean hasEligibleAlternative(UUID excludedRoomId, String imagingType) { return false; }
+
     void releaseImagingCapacity(UUID requestId, String cause);
 }

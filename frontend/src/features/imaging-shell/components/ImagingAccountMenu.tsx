@@ -50,9 +50,11 @@ function AccountSummary() {
 export function ImagingAccountMenu({
   onReset,
   onExit,
+  showDemoActions = true,
 }: {
   onReset: () => void;
   onExit: () => void;
+  showDemoActions?: boolean;
 }) {
   const { isMobile, setOpenMobile } = useSidebar();
   const { profile } = useImaging().state;
@@ -88,9 +90,11 @@ export function ImagingAccountMenu({
             >
               <KeyRound /> Đổi mật khẩu
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={onReset}>
-              <RefreshCw /> Khôi phục dữ liệu mẫu
-            </DropdownMenuItem>
+            {showDemoActions && (
+              <DropdownMenuItem onClick={onReset}>
+                <RefreshCw /> Khôi phục dữ liệu mẫu
+              </DropdownMenuItem>
+            )}
             <DropdownMenuSeparator />
             <DropdownMenuItem variant="destructive" onClick={onExit}>
               <LogOut /> Đăng xuất

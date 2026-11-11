@@ -40,6 +40,8 @@ export interface ExaminationSection {
   advice: string;
   /** YYYY-MM-DD, null khi không hẹn tái khám. */
   followUpDate: string | null;
+  /** Ghi chú tái khám khi backend chưa lưu được ngày cụ thể. */
+  followUpNote?: string | null;
 }
 
 export interface ImagingResultItem {
@@ -76,18 +78,20 @@ export interface AdministrativeInfo {
   fullName: string;
   /** YYYY-MM-DD */
   dateOfBirth: string;
-  sex: "MALE" | "FEMALE";
-  patientCode: string;
-  phone: string;
+  sex: "MALE" | "FEMALE" | "OTHER";
+  patientCode: string | null;
+  phone: string | null;
   address: string | null;
 }
 
 export interface ResultSheetVersion {
+  id?: string;
   version: number;
   /** Bản REPLACED là bản cũ đã bị thay thế. */
   status: "CURRENT" | "REPLACED";
   /** ISO có offset +07:00 */
   issuedAt: string;
+  title?: string;
   /** URL có chữ ký và hạn do BE cấp; FE không lưu lại. */
   fileUrl: string;
 }

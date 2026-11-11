@@ -45,13 +45,13 @@ const ITEMS: {
 
 export function ResultSummaryCards({ counts }: { counts: ResultCounts }) {
   return (
-    <dl className="grid grid-cols-3 gap-3 sm:gap-4">
+    <dl className="grid grid-cols-1 gap-3 min-[480px]:grid-cols-3 sm:gap-4">
       {ITEMS.map(({ key, badge, tone, label, icon: Icon, iconTone }) => (
         <div
           className="flex flex-col gap-3 rounded-xl border bg-card p-4 sm:p-5"
           key={key}
         >
-          <div className="flex items-start justify-between gap-2">
+          <div className="flex flex-wrap items-start justify-between gap-2">
             <span
               aria-hidden
               className={cn(

@@ -43,7 +43,8 @@ class DiagnosticStatusT015Test {
     private final RoomStatusAccessPort roomPort = mock(RoomStatusAccessPort.class);
     private final PatientClinicalIdentityQueryService patientIdentities = mock(PatientClinicalIdentityQueryService.class);
     private final DiagnosticStatusServiceImpl service = new DiagnosticStatusServiceImpl(
-            requests, attempts, visitPorts, roomPorts, patientIdentities);
+            requests, attempts, visitPorts, roomPorts, patientIdentities,
+            mock(fu.fa26.sep490.g58.otcms_be.diagnostic.integration.ClinicalImagingOrderPort.class));
 
     @BeforeEach
     void configurePorts() {
