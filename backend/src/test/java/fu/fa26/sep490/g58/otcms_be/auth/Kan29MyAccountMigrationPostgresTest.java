@@ -10,7 +10,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class Kan29MyAccountMigrationPostgresTest {
     @TempDir Path directory;
-    static final String URL = "jdbc:postgresql://127.0.0.1:5432/otcms_test_db";
+    static final String URL = "jdbc:postgresql://127.0.0.1:" + System.getenv().getOrDefault("OTCMS_TEST_DB_PORT", "5432") + "/otcms_test_db";
     static final String MIGRATION = "V052__my_account_r3.sql";
     @Test void freshMigrationEnforcesAvatarAndChallengeConstraints() throws Exception { verify(false); }
     @Test void upgradeFromProductPreservesV048ThroughV051History() throws Exception { verify(true); }

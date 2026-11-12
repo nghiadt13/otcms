@@ -1,4 +1,4 @@
-# Luật chung cho người và AI agent — đợt gộp DB 85 → 33 bảng
+# Luật chung cho người và AI agent — đợt gộp DB, tối đa 35 bảng
 
 > Đọc HẾT file này trước khi mở file phase của mình. Có chỗ nào phase ghi khác file này thì làm theo phase. Có chỗ nào không rõ thì DỪNG và hỏi NghiaDT; không đoán.
 
@@ -14,7 +14,7 @@ Không đọc thêm: `old/`, `docs/requirements/`, các plan cũ trong `otcms/pl
 
 ## 2. Mục tiêu của đợt này (và KHÔNG phải mục tiêu)
 
-- Mục tiêu: đổi phần lưu trữ sang 33 bảng. **API giữ nguyên tuyệt đối**: URL, method, request body, response body, mã HTTP, mã MSG. FE không phải sửa (trừ 2 tính năng bị bỏ: nghỉ phép bác sĩ, đăng nhập Google).
+- Mốc người dùng chốt là 33 bảng, cho phép tối đa 35. Bản migration staged hiện giữ thêm `website_images` và `imaging_reconciliation_cases`, nên có 35 bảng; xem `plan.md` mục 2 và ghi chú bàn giao. **API giữ nguyên tuyệt đối**: URL, method, request body, response body, mã HTTP, mã MSG. FE không phải sửa (trừ 2 tính năng bị bỏ: nghỉ phép bác sĩ, đăng nhập Google).
 - KHÔNG làm: thêm tính năng, đổi tên class/hàm cho đẹp, format lại file, "dọn" code không liên quan, nâng thư viện, sửa lỗi ngoài phạm vi phase. Thấy lỗi ngoài phạm vi → ghi vào mục "Ghi chú cho NghiaDT" trong mô tả PR.
 
 ## 3. Nhánh và PR
@@ -27,7 +27,9 @@ Không đọc thêm: `old/`, `docs/requirements/`, các plan cũ trong `otcms/pl
 
 ## 4. Database: chỉ dùng Docker local
 
-- Khởi động: trong `otcms/` chạy `docker compose -f docker-compose.final-db.yml up -d`. Postgres chạy ở `127.0.0.1:${OTCMS_DB_PORT:-5432}` với 2 DB: `otcms_dev` (chạy app) và `otcms_test_db` (chạy test).
+- Khởi động: trong `otcms/` chạy `docker compose -f docker-compose.final-db.yml up -d`. Postgres 17 (image `postgres:17-bookworm`, vì bản Debian mới không nhận múi giờ `Asia/Saigon` của JVM) chạy ở `127.0.0.1:${OTCMS_DB_PORT:-5432}` với 2 DB: `otcms_dev` (chạy app) và `otcms_test_db` (chạy test).
+- **Mật khẩu container phải bằng `OTCMS_TEST_DB_PASSWORD` trong file `backend/.env` của bạn** (Spring đọc `.env` và giá trị đó thắng biến môi trường). Đặt `OTCMS_DB_PASSWORD=<giá trị đó>` trong shell khi chạy `docker compose … up` lần đầu (mật khẩu chỉ áp lúc tạo volume; đổi thì phải `down -v`). Không ghi mật khẩu vào file nào.
+- Máy đã có Postgres local chiếm 5432: đặt `OTCMS_DB_PORT=5433` (cho Docker và app) và `OTCMS_TEST_DB_PORT=5433` (cho test).
 - **CẤM** trỏ app nhánh refactor vào Supabase (`SUPABASE_DB_URL`). Chạy app dùng profile `final-db` (`SPRING_PROFILES_ACTIVE=final-db`), profile này trỏ vào Docker.
 - Sau mỗi lần pull/rebase có migration mới của người khác: reset DB rồi chạy lại: `docker compose -f docker-compose.final-db.yml down -v && docker compose -f docker-compose.final-db.yml up -d`. Lý do: các phase merge không theo thứ tự số migration; Flyway không cho chạy migration số nhỏ hơn số đã chạy.
 - Không sửa file `.env*`. Không in mật khẩu ra log hay vào PR.
@@ -76,7 +78,7 @@ Trong `otcms/backend`, đặt env theo `otcms/AGENTS.md` mục test (`APP_AUTH_L
 
 1. Reset DB Docker (mục 4).
 2. `./mvnw test` — báo số test chạy / lỗi. Lỗi có sẵn được phép: `AdministratorAccountDatabaseVerificationTest.upgradeFromV019…`, `T005RealLoginIntegrationTest.wrongPasswords…`, `Kan27StaffAccountMigrationPostgresTest`, `ContentAuditMigrationOrderTest` (và các test migration đã `@Disabled` theo 6.5). Lỗi khác = phải sửa.
-3. So hợp đồng API: chạy app profile `final-db`, `curl -s http://localhost:8080/v3/api-docs > /tmp/api-after.json`, rồi `node plans/261113-final-db/tools/compare-openapi.mjs plans/261113-final-db/api-baseline.json /tmp/api-after.json`. Kết quả phải là "no differences" (trừ endpoint phase cho phép xoá).
+3. So hợp đồng API: `./mvnw test -Dtest=OpenApiContractSnapshotTest` (ghi `plans/261113-final-db/.snapshots/openapi-current.json`), rồi từ thư mục `otcms/`: `node plans/261113-final-db/tools/compare-openapi.mjs plans/261113-final-db/api-baseline.json plans/261113-final-db/.snapshots/openapi-current.json`. Kết quả phải là "no differences". Chỉ phase được phép xoá endpoint mới thêm `--allow <regex đường dẫn>` và `--allow-schema <regex tên DTO>`, đúng như phase ghi.
 4. Các lệnh grep "phải rỗng" ghi trong phase.
 5. Không chạy 2 lệnh `mvnw` cùng lúc.
 

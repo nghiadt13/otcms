@@ -1,0 +1,8 @@
+# Profile for the final-db refactor: run the app against the local Docker Postgres
+# (docker-compose.final-db.yml), never against Supabase.
+#   SPRING_PROFILES_ACTIVE=final-db ./mvnw spring-boot:run
+spring:
+  datasource:
+    url: jdbc:postgresql://127.0.0.1:${OTCMS_DB_PORT:5432}/otcms_dev
+    username: ${OTCMS_DB_USERNAME:postgres}
+    password: ${OTCMS_DB_PASSWORD:otcms_local}

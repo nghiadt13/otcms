@@ -12,7 +12,7 @@ import static org.junit.jupiter.api.Assertions.*;
 /** Isolated schemas in the documented local test DB; no application schema cleanup. */
 class Kan27StaffAccountMigrationPostgresTest {
     @TempDir Path directory;
-    private static final String URL = "jdbc:postgresql://127.0.0.1:5432/otcms_test_db";
+    private static final String URL = "jdbc:postgresql://127.0.0.1:" + System.getenv().getOrDefault("OTCMS_TEST_DB_PORT", "5432") + "/otcms_test_db";
     private static final String V050 = "V050__staff_account_management_r3.sql";
 
     @Test void freshMigrationWithoutV049V051OrV052EnforcesR3Constraints() throws Exception { verify(false); }

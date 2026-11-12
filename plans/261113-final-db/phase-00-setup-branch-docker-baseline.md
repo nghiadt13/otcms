@@ -1,7 +1,7 @@
 ---
 phase: 0
 title: "Nhánh, Docker, baseline API, migration staged"
-status: pending
+status: completed
 priority: P1
 effort: "4h"
 owner: NghiaDT
@@ -33,7 +33,7 @@ Dựng nền cho mọi phase khác:
 - Create: `otcms/docker/final-db-init/01-create-databases.sql` (`CREATE DATABASE otcms_dev; CREATE DATABASE otcms_test_db;`).
 - Create: `backend/src/main/resources/application-final-db.yml`
   - datasource `jdbc:postgresql://127.0.0.1:${OTCMS_DB_PORT:5432}/otcms_dev`;
-  - user/password lấy từ `OTCMS_DB34_USERNAME` / `OTCMS_DB34_PASSWORD`;
+  - user/password lấy từ `OTCMS_DB_USERNAME` / `OTCMS_DB_PASSWORD`;
   - không chứa mật khẩu thật.
 - Modify: `backend/src/test/resources/application-test.yml`
   - chỉ đổi dòng `url` thành `jdbc:postgresql://127.0.0.1:${OTCMS_TEST_DB_PORT:5432}/otcms_test_db`;
@@ -77,12 +77,24 @@ Dựng nền cho mọi phase khác:
 8. Đẩy lên `final-db`. Đây là commit duy nhất được làm thẳng trên nhánh tích hợp: `chore(final-db): add docker db, api baseline, staged migrations`.
 
 ## Success Criteria
-- [ ] `docker compose -f docker-compose.final-db.yml up -d` tạo đủ 2 DB, app profile `final-db` khởi động được trên code `product`.
-- [ ] `./mvnw test` trên nhánh mới cho cùng kết quả với `product` (chỉ 4 lỗi có sẵn), chạy với `OTCMS_TEST_DB_PORT` trỏ vào Docker.
-- [ ] `node tools/compare-openapi.mjs api-baseline.json api-baseline.json` in ra "no differences".
-- [ ] Áp lần lượt V109–V120 lên DB rỗng không lỗi; `\dt public.*` (không tính `flyway_schema_history`) ra 35 bảng.
-- [ ] `grep -rn "supabase" backend/src/main/resources/application-final-db.yml` rỗng.
+- [x] Docker có đủ 2 DB, app profile `final-db` khởi động được trên code `product` (HTTP tạm 18080, DB port 5433).
+- [x] `./mvnw.cmd test`: 2051 test, 5 lỗi thuộc 4 lớp lỗi có sẵn, chạy với `OTCMS_TEST_DB_PORT` trỏ vào Docker.
+- [x] So baseline với snapshot test và OpenAPI từ app profile `final-db`: "no differences".
+- [x] Áp lần lượt V109–V120 lên DB nháp không lỗi; ra 35 bảng đúng danh sách, 0 hàm trigger mồ côi và 0 tham chiếu SQL tĩnh tới bảng đã drop.
+- [x] URL datasource profile `final-db` cố định loopback; kiểm chạy thực tế trên Docker.
+
+Bằng chứng và giới hạn của kết quả: `phase-00-verification.md`. Mốc ban đầu 33 bảng, trần 35; bản staged đang kiểm là 35 bảng. Code nghiệp vụ chưa chuyển sang schema mới ở mốc phase 00. Trạng thái bàn giao/phát hành mới nhất xem `HANDOFF.md`.
 
 ## Risk Assessment
 - **Bản Postgres Docker khác Supabase làm cú pháp lệch.** Dấu hiệu: migration chạy được ở Docker nhưng lỗi trên Supabase lúc merge. Xử lý: dùng cùng bản chính; phase 10 chạy thử trên Supabase trước khi merge.
 - **Viết hết migration trước có thể sai so với code.** Đã chấp nhận: phase sửa file staged trong PR của mình (agent-rules mục 5).
+
+## Ghi chú thực hiện (13/11, NghiaDT + Claude)
+
+So với kế hoạch ở trên, khi làm thật có 4 chỗ đổi:
+- **Image:** `postgres:17-bookworm`, không dùng `postgres:17`. Bản Debian mới từ chối múi giờ `Asia/Saigon`, là múi giờ mặc định của JVM trên máy Việt Nam.
+- **Mật khẩu container:** phải bằng `OTCMS_TEST_DB_PASSWORD` trong `backend/.env`, vì Spring đọc `.env` và giá trị đó thắng biến môi trường. Đặt `OTCMS_DB_PASSWORD` trong shell lúc chạy `up` lần đầu. Biến port: `OTCMS_DB_PORT` (Docker và app), `OTCMS_TEST_DB_PORT` (test). Máy NghiaDT dùng 5433.
+- **Chụp OpenAPI bằng test, không bật app:** `OpenApiContractSnapshotTest` (`backend/src/test/java/.../support/`) ghi ra `plans/261113-final-db/.snapshots/openapi-current.json`. Baseline 203 path, 279 schema, lưu ở `api-baseline.json`.
+- **So sánh:** `tools/compare-openapi.mjs` có thêm tham số `--allow-schema` cho DTO của tính năng đã bỏ. Chạy thử migration trên DB nháp: `tools/apply-migrations-scratch.sh` (biến `SCRATCH_DB`).
+- **Mốc test (code `product` trên Docker, 13/11):** `./mvnw test` cho 2051 test, 5 lỗi. Cả 5 đều thuộc 4 lớp lỗi có sẵn: `Kan27StaffAccountMigrationPostgresTest` (2 method), `T005RealLoginIntegrationTest.wrongPasswords…`, `AdministratorAccountDatabaseVerificationTest.upgradeFromV019…`, `ContentAuditMigrationOrderTest`. Lần chạy đầu có 1 lỗi lẻ ở `Kan29MyAccountPostgresIntegrationTest.expiredOrAbsentOtp`, không lặp lại ở lần sau, nên coi là test chập chờn.
+- **Port của test:** 9 file test từng ghim cứng `127.0.0.1:5432`, nay đọc `OTCMS_TEST_DB_PORT` (mặc định 5432). Phải đặt cả biến môi trường `OTCMS_TEST_DB_PASSWORD`, vì vài test tự mở kết nối JDBC.

@@ -174,7 +174,7 @@ LEFT JOIN payment_attempts pa ON pa.provider = e.provider AND pa.provider_order_
 -- 3. Bỏ bảng cũ. Đã kiểm trên V108: không trigger, không hàm nào, không FK nào tham chiếu.
 DROP TABLE payment_gateway_events;
 ```
-Không backfill `last_event_fingerprint` cho dữ liệu cũ: replay sau migration vẫn không đổi trạng thái vì `CONFIRMED` là trạng thái cuối.
+(13/11: V119 CÓ backfill `last_event_fingerprint` từ sự kiện đã xác thực mới nhất, bỏ DUPLICATE — giữ đúng hành vi chống trùng cũ cho dữ liệu demo. Câu cũ bên dưới không còn áp dụng.) Không backfill `last_event_fingerprint` cho dữ liệu cũ: replay sau migration vẫn không đổi trạng thái vì `CONFIRMED` là trạng thái cuối.
 
 ## Related Code Files
 Đường dẫn Java tương đối với `backend/src/main/java/fu/fa26/sep490/g58/otcms_be/`. Test tương đối với `backend/src/test/java/fu/fa26/sep490/g58/otcms_be/`. Migration tương đối với `backend/src/main/resources/`.

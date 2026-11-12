@@ -1,6 +1,6 @@
 ---
 title: "Gộp DB OTCMS 85 → 35 bảng (final-db)"
-status: pending
+status: in-progress
 created: 2026-11-13
 owner: NghiaDT
 branch: final-db
@@ -38,6 +38,8 @@ Người làm và agent đọc theo thứ tự: `agent-rules.md` → file này �
 ## 2. Tên bảng cuối cùng (tên vật lý)
 
 Giữ tên cũ khi một bảng cũ "nuốt" bảng khác (D7). Chỉ 4 bảng có tên mới. Tổng 35 bảng.
+
+> Mốc NghiaDT đã chốt là **33 bảng, trần 35**. Hai bảng giữ thêm trong lúc Claude soạn plan là `website_images` và `imaging_reconciliation_cases`. Kết quả phase 00 kiểm chứng phương án staged 35 bảng này; không đồng nghĩa đã kiểm chứng các tính năng sau refactor, hay người dùng đã chốt riêng từng thay đổi so với mốc 33.
 
 | # | Bảng thật | Tên logic trong schema | Gộp từ | Phase |
 |---|---|---|---|---|
