@@ -2,6 +2,9 @@
 
 Đây là quy ước làm việc của repository OTCMS. Cập nhật tài liệu khi thay đổi kiến trúc hoặc cách đặt tên.
 
+> **Đang refactor DB trên nhánh `final-db` (13/11/2026; phase 10 gỡ mục này trước khi merge vào `product`).**
+> Nếu bạn đang ở nhánh `final-db` hoặc `final-db-pNN-…`: trước khi làm, đọc `plans/261113-final-db/agent-rules.md`, `plans/261113-final-db/plan.md` (mục 2–3) và đúng file phase được giao. Chỉ làm phase đó. Luật trong `agent-rules.md` được ưu tiên hơn file này khi khác nhau.
+
 ## Nguồn yêu cầu
 
 - Căn cứ cho phạm vi hiện tại là bản UC01–UC78: mỗi UC là một file `docs/requirements/UC<số>-<tên>.md`, các mã Business Rule (BR) và Application Message (MSG) ghi trong frontmatter của UC. `docs/appendix-rules.md` đã cũ: không dùng làm căn cứ nội dung BR/MSG và không grep file này; cần nội dung BR/MSG thì xác nhận với nhóm. Các UC đang được bổ sung dần; với UC chưa có file trong `docs/requirements/`, số UC ghi trong code (ví dụ `ucs` ở `adminNavigation.ts`) chỉ là tạm: không triển khai luật nghiệp vụ dựa vào chúng khi chưa xác nhận với nhóm, và cập nhật lại số UC khi file được thêm. Khi tài liệu khác mâu thuẫn, xác nhận lại với nhóm trước khi triển khai.
