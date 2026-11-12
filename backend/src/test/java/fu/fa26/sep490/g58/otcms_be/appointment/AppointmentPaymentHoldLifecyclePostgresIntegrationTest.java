@@ -128,6 +128,11 @@ class AppointmentPaymentHoldLifecyclePostgresIntegrationTest extends PaymentHold
         UUID paid = createHold(patientA, SLOT_2);
         UUID live = createHold(patientB, SLOT_3);
         assertEquals(Result.CONFIRMED, confirmPayment.confirmPaid(paid));
+        // Repository fixture for the new view. The production appointment writer moves in phase 04.
+        jdbc.update("insert into audit_logs(id,occurred_at,source,category,action,record_type,entity_id,record_label,actor_account_id) "
+                + "select id,occurred_at,'appointment_audits','APPOINTMENT',action,'APPOINTMENT',"
+                + "appointment_id,appointment_id::text,actor_account_id from appointment_audits "
+                + "where appointment_id in (?,?,?)", released, paid, live);
         UUID releasedAudit = jdbc.queryForObject("select id from appointment_audits where appointment_id = ? limit 1", UUID.class, released);
 
         // Released hold: CREATED + STATUS_CHANGED rows exist in the table but none is exposed (rows and total agree).

@@ -66,7 +66,8 @@ class ContentAuditMigrationOrderTest {
         }
     }
     private void migrate(String schema,String username,String password) {
-        Flyway.configure().dataSource(URL,username,password).schemas(schema).defaultSchema(schema).outOfOrder(true)
+        // This historical test verifies the legacy V070/V103 content projection, replaced by V109.
+        Flyway.configure().dataSource(URL,username,password).schemas(schema).defaultSchema(schema).outOfOrder(true).target("108")
         .locations("filesystem:"+directory.toAbsolutePath()).load().migrate();
     }
 }

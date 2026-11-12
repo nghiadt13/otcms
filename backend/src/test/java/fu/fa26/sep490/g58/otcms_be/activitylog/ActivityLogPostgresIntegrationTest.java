@@ -76,7 +76,7 @@ class ActivityLogPostgresIntegrationTest {
             statement.execute("drop schema if exists " + TEST_SCHEMA + " cascade");
         }
     }
-    @Test void catalogCreateAndUpdateAreCommittedWithSafeSearchableAuditRows() throws Exception {
+    @Test void catalogCreateAndUpdateKeepLegacyAuditUntilPhase07MovesTheWriter() throws Exception {
         var auth=actor();
         String body="""
                 {"name":"KAN40 audit service","type":"EXAMINATION","price":200000,"durationMinutes":20,"bufferMinutes":0,"onlineBookable":true,"indicators":[]}
@@ -87,17 +87,11 @@ class ActivityLogPostgresIntegrationTest {
         mvc.perform(put("/api/v1/admin/clinic-services/"+id).with(auth).with(csrf()).contentType("application/json")
         .content(body.replace("200000","250000"))).andExpect(status().isOk());
         assertEquals(2,jdbc.queryForObject("select count(*) from service_audits where service_id=?",Integer.class,UUID.fromString(id)));
-        String list=mvc.perform(get("/api/v1/admin/activity-logs").param("action","SERVICE").param("record","KAN40 audit service").with(auth))
-        .andExpect(status().isOk()).andExpect(jsonPath("$.totalItems").value(2))
-        .andExpect(jsonPath("$.items[0].action").value("UPDATE_SERVICE"))
-        .andExpect(jsonPath("$.items[0].allowedActions[0]").value("view"))
-        .andReturn().getResponse().getContentAsString();
-        String auditId=json.readTree(list).get("items").get(0).get("id").asText();
-        mvc.perform(get("/api/v1/admin/activity-logs/"+auditId).with(auth)).andExpect(status().isOk())
-        .andExpect(jsonPath("$.recordCode").value(id)).andExpect(jsonPath("$.beforeState").doesNotExist())
-        .andExpect(jsonPath("$.afterState").doesNotExist());
+        // Phase 01 deliberately reads only audit_logs; the catalog writer moves in phase 07.
+        mvc.perform(get("/api/v1/admin/activity-logs").param("action","SERVICE").param("record","KAN40 audit service").with(auth))
+        .andExpect(status().isOk()).andExpect(jsonPath("$.totalItems").value(0));
     }
-    @Test void creatingRoomProducesVisibleRoomEventAndSearchIsLiteral() throws Exception {
+    @Test void creatingRoomKeepsLegacyAuditUntilPhase07MovesTheWriter() throws Exception {
         var auth=actor();
         String code="K40_"+UUID.randomUUID().toString().substring(0,8);
         String service=mvc.perform(post("/api/v1/admin/clinic-services").with(auth).with(csrf()).contentType("application/json")
@@ -108,9 +102,9 @@ class ActivityLogPostgresIntegrationTest {
         mvc.perform(post("/api/v1/admin/visit-rooms").with(auth).with(csrf()).contentType("application/json")
         .content("{\"roomCode\":\""+code+"\",\"displayLabel\":\"Audit test room\",\"type\":\"EXAMINATION\",\"capabilities\":[],\"serviceIds\":[\""+serviceId+"\"]}"))
         .andExpect(status().isCreated());
+        assertEquals(1,jdbc.queryForObject("select count(*) from room_management_audits a join rooms r on r.id=a.room_id where r.room_code=upper(?)",Integer.class,code));
         mvc.perform(get("/api/v1/admin/activity-logs").param("action","ROOM").param("record",code).with(auth))
-        .andExpect(status().isOk()).andExpect(jsonPath("$.totalItems").value(1))
-        .andExpect(jsonPath("$.items[0].action").value("CREATE_ROOM"));
+        .andExpect(status().isOk()).andExpect(jsonPath("$.totalItems").value(0));
         mvc.perform(get("/api/v1/admin/activity-logs").param("record","%' OR 1=1 --").with(auth))
         .andExpect(status().isOk()).andExpect(jsonPath("$.totalItems").value(0));
     }
@@ -126,10 +120,12 @@ class ActivityLogPostgresIntegrationTest {
         UUID actorId = UUID.randomUUID(), target = UUID.randomUUID(), audit = UUID.randomUUID(), diagnostic = UUID.randomUUID();
         jdbc.update("insert into accounts(id,normalized_email,username,account_type,status,created_at,updated_at) values(?,?,?,'ADMIN','ACTIVE',now(),now())",
                 actorId, actorId + "@audit.test", "recorded-actor-" + actorId);
-        jdbc.update("insert into account_management_audits(id,account_id,actor_account_id,action,occurred_at,correlation_id) values(?,?,?,'ACTIVATE',now(),'uc67')",
-                audit, actorId, actorId);
-        jdbc.update("insert into diagnostic_audit_events(id,actor_account_id,visit_id,action,outcome,correlation_id,metadata) values(?,?,?,'SAVE_FINDINGS','SUCCESS','uc67','{\"findings\":\"PRIVATE-PAYLOAD\"}'::jsonb)",
-                diagnostic, actorId, target);
+        jdbc.update("insert into audit_logs(id,source,category,record_type,entity_id,record_label,actor_account_id,action) "
+                + "values(?,'account_management_audits','ACCOUNT','ACCOUNT',?,?,?,'ACTIVATE')",
+                audit, actorId, actorId.toString(), actorId);
+        jdbc.update("insert into audit_logs(id,source,category,record_type,entity_id,record_label,actor_account_id,action,metadata) "
+                + "values(?,'diagnostic_audit_events','DIAGNOSTIC','DIAGNOSTIC_REQUEST',?,?,?,'SAVE_FINDINGS:SUCCESS',"
+                + "'{\"findings\":\"PRIVATE-PAYLOAD\"}'::jsonb)", diagnostic, target, target.toString(), actorId);
         mvc.perform(get("/api/v1/admin/activity-logs").param("action", "ACCOUNT").param("record", actorId.toString()).with(auth))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.totalItems").value(1));
         mvc.perform(get("/api/v1/admin/activity-logs/diagnostic:" + diagnostic).with(auth))

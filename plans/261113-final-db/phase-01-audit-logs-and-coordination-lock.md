@@ -1,7 +1,7 @@
 ---
 phase: 1
 title: "audit_logs + AuditLogWriter, view nhật ký, bỏ transaction_guard"
-status: pending
+status: completed
 priority: P1
 effort: "3h"
 owner: NghiaDT
@@ -45,7 +45,7 @@ dedup_key varchar(200) NULL UNIQUE   -- chỉ dùng cho recordIfAbsent (thay cá
 ```
 `schema-33-tables.md` mục 2.11 là bản gốc; khi lệch thì **file này là chuẩn** (`record_type` thay `entity_type`, không có `duration_ms`).
 - Index:
-  - `(source, action, identifier_hmac, occurred_at)`: phase 02 dùng để đếm số lần đăng nhập (rate-limit).
+  - `(source, action, outcome, identifier_hmac, occurred_at)`: phase 02 dùng để đếm số lần đăng nhập (rate-limit).
   - `(visible_in_activity_log, occurred_at DESC)`.
   - `(record_type, entity_id)`.
   - `(actor_account_id)`.
@@ -114,6 +114,7 @@ public interface AuditLogWriter {
 - `AuditLogWriterImpl` dùng `AuditLogJpaEntity` + `AuditLogRepository`. `correlation_id` lấy từ MDC (`CorrelationIdFilter` đã đặt).
 - `beforeState` / `afterState` chuyển thành JSON bằng `ObjectMapper` của Spring. Trước khi ghi, gọi `SensitiveDataRedactor` (có sẵn trong `common.security`).
 - `MANDATORY`: gọi ngoài transaction là lỗi ngay. Mục đích là ép log ghi cùng transaction với thao tác.
+- `actorType` để trống mà có `actorAccountId` thì ghi `ACCOUNT` (V112 cũng chép dữ liệu cũ với `ACCOUNT`).
 - `AuditLogRepository` thêm sẵn hàm đếm cho rate-limit của phase 02: `long countBySourceAndActionAndOutcomeAndIdentifierHmacAndOccurredAtAfter(String source, String action, String outcome, String identifierHmac, Instant since)` (cần lọc `outcome`, vd LOGIN_IP/ATTEMPT, RATE_LIMIT_ATTEMPT).
 
 ### Khoá điều phối
@@ -149,11 +150,25 @@ return true;
 6. Chạy toàn bộ `./mvnw test` và so OpenAPI.
 
 ## Success Criteria
-- [ ] `grep -rn "transaction_guard" backend/src/main` rỗng.
-- [ ] 2 test mới đạt; `./mvnw test` chỉ còn lỗi có sẵn.
-- [ ] So OpenAPI: no differences.
-- [ ] Gọi `GET /api/v1/admin/activity-logs` bằng tài khoản Admin trả 200, không lỗi SQL.
+- [x] Không còn truy vấn `transaction_guard` trong `backend/src/main/java`; migration lịch sử và V109 vẫn có tên bảng để tạo/xoá đúng cách.
+- [x] 16 test mới đạt; hồi quy cuối `./mvnw test`: 2067 test, 3 failures + 2 errors đúng 5 lỗi baseline, 0 skipped. Phát hiện race billing ở các lượt trước vẫn được ghi riêng.
+- [x] So OpenAPI: no differences.
+- [x] Gọi `GET /api/v1/admin/activity-logs` bằng Admin/Owner qua MockMvc với PostgreSQL thật trả 200, Patient nhận 403; không lỗi SQL.
+
+Bằng chứng, lệnh chạy, review và các giới hạn: `phase-01-verification.md`.
 
 ## Risk Assessment
 - **Các bảng audit cũ vẫn được ghi cho tới khi phase sở hữu chuyển sang**, nên nhật ký tạm thiếu dòng. Đã chấp nhận; phase 10 kiểm đủ 13 nguồn.
 - **Khoá advisory không bị chặn bởi `FOR UPDATE NOWAIT`.** Nếu có code nào gọi `transaction_guard` với `NOWAIT`, grep bước Success sẽ bắt được.
+
+## Ghi chú triển khai 13/11
+
+- Nhánh thực hiện: `final-db-p01-audit-logs`; các thay đổi setup phase 00 được giữ nguyên, sẽ tách commit trước phase 01.
+- `AuditEntry` dùng Lombok sinh builder, giữ nguyên lời gọi `AuditEntry.builder(source, category, action, recordType)` và các setter nêu trên.
+- `AuditLogRepository` chỉ công khai INSERT, INSERT chống trùng và hàm đếm; không có API update/delete. Dữ liệu JSON được chuẩn hoá rồi che theo cấu trúc trước khi serialize, tránh làm hỏng JSON bằng regex trên toàn chuỗi.
+- File phụ trợ cần sửa ngoài danh sách ban đầu: `SensitiveDataRedactor` (che JSON lồng nhau, cả snake_case), `CorrelationIdFilter` (đặt/khôi phục MDC), `JdbcActivityLogRepository` (COALESCE nhãn NULL để list/detail nhất quán).
+- Test cũ liên quan view được cập nhật theo thay đổi đã chấp nhận: service/room vẫn ghi bảng legacy tới phase 07; test đọc account/diagnostic dùng fixture `audit_logs`. Test lọc payment-hold dùng fixture audit mới, vẫn giữ assert loại bỏ hold và hiển thị lịch đã thanh toán. Không chuyển writer nghiệp vụ trước phase sở hữu.
+- `ContentAuditMigrationOrderTest` được ghim target V108 để tiếp tục kiểm đúng view legacy V070/V103 mà test được viết cho; test đường lỗi cũ vẫn giữ nguyên, không thêm Disabled.
+- `AppointmentArrivalT053PostgresIntegrationTest` và `T032AdminResourceMutationPostgresIntegrationTest` quan sát chờ advisory lock thay cho khoá hàng; không sửa logic nghiệp vụ appointment/visit.
+- Grep toàn `src/main` như checklist cũ không thể rỗng vì migration V001–V108 là bất biến và V109 phải DROP bảng cũ. Phạm vi nghiệm thu đúng là Java đang chạy.
+- Phát hiện bổ sung ngoài phạm vi: `phase-01-existing-billing-race.md`. Không gộp vào 5 lỗi baseline; code billing không thay trong phase này.

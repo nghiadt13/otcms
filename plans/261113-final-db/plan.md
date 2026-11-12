@@ -11,6 +11,8 @@ base: product @ 21e304cd (V108, 85 bảng)
 
 Người làm và agent đọc theo thứ tự: `agent-rules.md` → file này → file phase của mình → `schema-33-tables.md` khi cần cột chi tiết.
 
+**Cập nhật thực thi 13/11:** phase 00 và 01 đã hoàn tất kiểm chứng trên nhánh `final-db-p01-audit-logs`; phase 02–10 vẫn pending. Hồi quy phase 01: 2067 test, đúng 5 lỗi baseline, 16 test mới đạt; xem `phase-01-verification.md`. Race billing phát hiện ở các lượt trước được bàn giao riêng, chưa sửa. Chưa merge vào nhánh tích hợp; dùng git/Jira để kiểm trạng thái phát hành thực tế.
+
 ## 1. Mục tiêu, ràng buộc, ngoài phạm vi, nghiệm thu
 
 - **Mục tiêu:** DB còn 35 bảng = mức tối đa (33 bảng chốt 12/11 + giữ `website_images` và `imaging_reconciliation_cases` 13/11). Không phase nào được thêm bảng và mọi tính năng đang chạy trên `product` vẫn chạy như cũ.

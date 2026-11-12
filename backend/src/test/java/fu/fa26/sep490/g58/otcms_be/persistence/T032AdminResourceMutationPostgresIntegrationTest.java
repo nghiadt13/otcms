@@ -458,7 +458,7 @@ class T032AdminResourceMutationPostgresIntegrationTest {
         long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(4);
         while (System.nanoTime() < deadline) {
             Integer waiting = jdbc.queryForObject("select count(*) from pg_stat_activity "
-                    + "where wait_event_type='Lock' and query ilike '%transaction_guard%'", Integer.class);
+                    + "where wait_event_type='Lock' and query ilike '%pg_advisory_xact_lock%'", Integer.class);
             if (waiting != null && waiting > 0) return;
             try {
                 Thread.sleep(25);

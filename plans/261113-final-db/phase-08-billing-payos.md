@@ -18,6 +18,8 @@ Tên vật lý giữ nguyên: `payment_attempts` (tên logic `payments`), `invoi
 
 **Phụ thuộc:** phase 01 đã merge. V119 chép nhật ký vào `audit_logs` (V109), và test dùng `AuditLogWriter`.
 
+**Phát hiện bàn giao từ kiểm phase 01:** đọc `phase-01-existing-billing-race.md` trước khi sửa phần khóa invoice. Race webhook đối đầu release đã được tái hiện ở code cũ, ngoài 5 lỗi baseline lịch sử. Giữ nguyên test và xử lý trong phần billing hoặc PR sửa riêng trước nghiệm thu phase 10; không bỏ qua lỗi chỉ vì migration payOS đã chạy được.
+
 ## Requirements
 - `POST /api/v1/payment-webhooks/payos` giữ hành vi cũ: sự kiện đã xác thực trả 200; chữ ký sai hoặc payload không đọc được trả 400 `INVALID_WEBHOOK`.
 - Gửi lại đúng sự kiện đã xử lý: không đổi trạng thái, không ghi thêm dòng nhật ký, trả 200.

@@ -299,7 +299,7 @@ class AppointmentArrivalT053PostgresIntegrationTest {
                         .andReturn().getResponse().getStatus());
                 awaitDatabaseWait("%from appointments where id = %for update%", 1);
                 var noShow = pool.submit(() -> mvc.perform(markNoShow(target)).andReturn());
-                awaitDatabaseWait("%transaction_guard%for update%", 1);
+                awaitDatabaseWait("%pg_advisory_xact_lock%", 1);
                 testClock.set(NOW.plusSeconds(7200));
                 blocker.commit();
 

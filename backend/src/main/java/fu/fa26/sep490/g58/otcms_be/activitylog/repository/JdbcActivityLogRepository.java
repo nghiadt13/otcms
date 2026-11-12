@@ -36,7 +36,7 @@ public class JdbcActivityLogRepository implements ActivityLogRepository {
     public Page list(Criteria c) {
         var params = new MapSqlParameterSource().addValue("record", c.record()).addValue("actor", c.actor())
         .addValue("category", c.category()).addValue("size", c.size()).addValue("offset", c.page() * c.size());
-        var where = new StringBuilder(" WHERE strpos(lower(e.record_label), lower(:record)) > 0"
+        var where = new StringBuilder(" WHERE strpos(lower(coalesce(e.record_label, '')), lower(:record)) > 0"
             + " AND strpos(lower(coalesce(a.username, a.normalized_email, e.actor_account_id::text, 'system')), lower(:actor)) > 0");
         where.append(HIDE_PAYMENT_HOLD_AUDIT);
         if (!c.category().isEmpty()) {

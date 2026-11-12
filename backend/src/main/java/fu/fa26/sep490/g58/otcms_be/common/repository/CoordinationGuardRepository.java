@@ -1,12 +1,13 @@
 package fu.fa26.sep490.g58.otcms_be.common.repository;
 
 import jakarta.persistence.EntityManager;
-import java.util.List;
 import org.springframework.stereotype.Repository;
 
-/** PostgreSQL row lock used to coordinate booking-affecting write transactions. */
+/** PostgreSQL transaction lock used to coordinate booking-affecting writes. */
 @Repository
 public class CoordinationGuardRepository {
+    // One shared lock for every transaction that can change booking availability.
+    private static final long COORDINATION_LOCK_KEY = 4_903_490_001L;
     private final EntityManager entityManager;
 
     public CoordinationGuardRepository(EntityManager entityManager) {
@@ -23,8 +24,8 @@ public class CoordinationGuardRepository {
     }
 
     public boolean lockGuardRow() {
-        List<?> rows = entityManager.createNativeQuery(
-                "SELECT guard_id FROM transaction_guard WHERE guard_id = 1 FOR UPDATE").getResultList();
-        return !rows.isEmpty();
+        entityManager.createNativeQuery("SELECT pg_advisory_xact_lock(:key)")
+                .setParameter("key", COORDINATION_LOCK_KEY).getSingleResult();
+        return true;
     }
 }
