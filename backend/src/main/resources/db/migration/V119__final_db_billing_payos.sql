@@ -13,8 +13,8 @@ ALTER TABLE payment_attempts
         CHECK ((last_event_fingerprint IS NULL) = (signature_verified IS NULL));
 
 -- 2. Latest verified event fingerprint per attempt.
---    DEVIATION: phase-08 (Architecture 5 and Risk) says "no backfill". This block follows the
---    staging brief instead. Delete this block to keep the spec behaviour.
+--    Backfill follows the 13/11 decision (phase-08 note under section 5): keeps the old replay
+--    guard working for existing demo data.
 --    DUPLICATE events never set the fingerprint (same rule as the phase-08 PaymentServiceImpl).
 UPDATE payment_attempts pa
 SET last_event_fingerprint = latest.event_fingerprint,

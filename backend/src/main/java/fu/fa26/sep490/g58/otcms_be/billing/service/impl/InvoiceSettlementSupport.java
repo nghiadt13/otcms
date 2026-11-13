@@ -12,6 +12,7 @@ import fu.fa26.sep490.g58.otcms_be.billing.repository.InvoiceItemRepository;
 import fu.fa26.sep490.g58.otcms_be.billing.repository.InvoiceRepository;
 import fu.fa26.sep490.g58.otcms_be.billing.repository.PaymentAttemptRepository;
 import jakarta.persistence.EntityManager;
+import jakarta.persistence.LockModeType;
 import java.math.BigDecimal;
 import java.util.Optional;
 import java.util.UUID;
@@ -56,12 +57,15 @@ public class InvoiceSettlementSupport {
      * persistence context (open-in-view shares it for the whole HTTP request) and could overwrite the winner.
      */
     Optional<InvoiceJpaEntity> lockInvoiceFresh(UUID invoiceId, PaymentAttemptJpaEntity... staleAttempts) {
-        Optional<InvoiceJpaEntity> locked = invoices.findByIdForUpdate(invoiceId);
-        locked.ifPresent(invoice -> {
-            refresh(invoice);
-            for (PaymentAttemptJpaEntity attempt : staleAttempts) refresh(attempt);
-        });
-        return locked;
+        // Lock with refresh(PESSIMISTIC_WRITE), not a locking query: when the invoice is already managed with an
+        // older @Version (another transaction committed meanwhile), Hibernate's locking query checks that version
+        // and throws an optimistic-lock failure before we can re-read. refresh(..., lock) issues SELECT ... FOR UPDATE
+        // and loads the committed state, so the caller always decides on the fresh row it holds the lock on.
+        InvoiceJpaEntity invoice = entityManager.find(InvoiceJpaEntity.class, invoiceId);
+        if (invoice == null) return Optional.empty();
+        entityManager.refresh(invoice, LockModeType.PESSIMISTIC_WRITE);
+        for (PaymentAttemptJpaEntity attempt : staleAttempts) refresh(attempt);
+        return Optional.of(invoice);
     }
 
     private void refresh(Object entity) {

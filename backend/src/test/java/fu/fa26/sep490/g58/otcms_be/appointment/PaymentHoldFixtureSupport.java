@@ -86,8 +86,6 @@ abstract class PaymentHoldFixtureSupport {
                 Object[] args = {patientA, patientB, receptionist};
                 String mine = "(select id from appointments where created_by_account_id in " + creators + ")";
                 String myInvoices = "(select id from invoices where appointment_id in " + mine + ")";
-                jdbc.update("delete from payment_gateway_events where provider_order_code in (select provider_order_code "
-                        + "from payment_attempts where invoice_id in " + myInvoices + ")", args);
                 jdbc.update("delete from payment_attempts where invoice_id in " + myInvoices, args);
                 jdbc.update("delete from invoice_items where invoice_id in " + myInvoices, args);
                 jdbc.update("delete from invoices where appointment_id in " + mine, args);

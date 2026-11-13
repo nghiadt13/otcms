@@ -39,7 +39,7 @@ class ClinicalRoundBillingTest {
     final InvoiceRepository invoices = mock(InvoiceRepository.class);
     final InvoiceItemRepository items = mock(InvoiceItemRepository.class);
     final PaymentAttemptRepository attempts = mock(PaymentAttemptRepository.class);
-    final PaymentGatewayEventRepository events = mock(PaymentGatewayEventRepository.class);
+    final fu.fa26.sep490.g58.otcms_be.common.audit.AuditLogWriter audit = mock(fu.fa26.sep490.g58.otcms_be.common.audit.AuditLogWriter.class);
     final ClinicalRoundBillingPort clinical = mock(ClinicalRoundBillingPort.class);
     final VisitBillingSourceService visits = mock(VisitBillingSourceService.class);
     final ClinicServiceBookingQueryService catalog = mock(ClinicServiceBookingQueryService.class);
@@ -55,8 +55,12 @@ class ClinicalRoundBillingTest {
     final AppointmentPaymentPort appointmentPort = mock(AppointmentPaymentPort.class);
     InvoiceService invoiceService; PaymentService paymentService;
     InvoiceSettlementSupport settlementSupport(ClinicalRoundBillingPort clinicalPort) {
+        // lockInvoiceFresh reads the invoice through EntityManager.find then refresh(PESSIMISTIC_WRITE); serve the
+        // in-memory rows from find, refresh stays a no-op on the mock.
+        var entityManager = mock(jakarta.persistence.EntityManager.class);
+        when(entityManager.find(eq(InvoiceJpaEntity.class), any())).thenAnswer(call -> invoiceRows.get(call.getArgument(1)));
         return new InvoiceSettlementSupport(invoices, items, attempts, clinicalPort, appointmentPort,
-                mock(VisitFeeSettlementPort.class), mock(jakarta.persistence.EntityManager.class));
+                mock(VisitFeeSettlementPort.class), entityManager);
     }
     @BeforeEach void setup() {
         when(tx.getTransaction(any())).thenAnswer(call -> new SimpleTransactionStatus());
@@ -66,7 +70,7 @@ class ClinicalRoundBillingTest {
         invoiceService = new InvoiceServiceImpl(invoices, items, attempts, mock(AppointmentBillingSourceService.class),
                 visits, catalog, authorization, new BillingMapper(), tx, clock, clinical, appointmentPort,
                 new AppointmentInvoiceVoider(invoices, attempts, support, tx, clock));
-        paymentService = new PaymentServiceImpl(invoices, attempts, events, new PaymentGatewayRegistry(List.of(gateway)),
+        paymentService = new PaymentServiceImpl(invoices, attempts, audit, new PaymentGatewayRegistry(List.of(gateway)),
                 authorization, new BillingMapper(), tx, clock, support, appointmentPort);
         when(clinical.requirePayableRound(roundId)).thenReturn(new ClinicalRoundBillingPort.ClinicalRoundBillingSource(roundId, visitId, patient,
                 List.of(new ClinicalRoundBillingPort.PayableOrder(UUID.randomUUID(), serviceId, "Snapshot X-ray", new BigDecimal("150000")),
@@ -149,7 +153,7 @@ class ClinicalRoundBillingTest {
                 submitted.forEach(row -> flushedPayments.put(row.getId(), row.getPaymentStatus()));
                 return submitted;
             });
-            paymentService = new PaymentServiceImpl(invoices, attempts, events, new PaymentGatewayRegistry(List.of(gateway)),
+            paymentService = new PaymentServiceImpl(invoices, attempts, audit, new PaymentGatewayRegistry(List.of(gateway)),
                     authorization, new BillingMapper(), tx, clock, settlementSupport(adapter), appointmentPort);
         }
         ServiceOrderJpaEntity order(String code, String price) {

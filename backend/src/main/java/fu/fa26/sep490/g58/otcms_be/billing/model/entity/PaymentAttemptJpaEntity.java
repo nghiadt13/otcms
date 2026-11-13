@@ -39,6 +39,8 @@ public class PaymentAttemptJpaEntity {
     @Column(name = "expires_at") private Instant expiresAt;
     @Column(name = "confirmed_at") private Instant confirmedAt;
     @Column(name = "reconciliation_reason", length = 500) private String reconciliationReason;
+    @Column(name = "last_event_fingerprint", length = 64) private String lastEventFingerprint;
+    @Column(name = "signature_verified") private Boolean signatureVerified;
 
     protected PaymentAttemptJpaEntity() { }
 
@@ -105,6 +107,11 @@ public class PaymentAttemptJpaEntity {
         this.providerTransactionReference = transactionReference;
         this.confirmedAt = null;
     }
+    public void recordVerifiedEvent(String fingerprint) {
+        this.lastEventFingerprint = fingerprint;
+        this.signatureVerified = Boolean.TRUE;
+    }
+    public String getLastEventFingerprint() { return lastEventFingerprint; }
     public UUID getId() { return id; }
     public UUID getInvoiceId() { return invoiceId; }
     public PaymentChannel getChannel() { return channel; }

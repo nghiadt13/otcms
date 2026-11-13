@@ -104,8 +104,6 @@ abstract class HoldBillingTestSupport {
     void removeFixture() {
         for (UUID invoiceId : jdbc.queryForList("select id from invoices where patient_profile_id = ?",
                 UUID.class, patientProfileId)) {
-            jdbc.update("delete from payment_gateway_events where provider_order_code in "
-                    + "(select provider_order_code from payment_attempts where invoice_id = ?)", invoiceId);
             jdbc.update("delete from payment_attempts where invoice_id = ?", invoiceId);
             jdbc.update("delete from invoice_items where invoice_id = ?", invoiceId);
             jdbc.update("delete from invoices where id = ?", invoiceId);
@@ -178,8 +176,11 @@ abstract class HoldBillingTestSupport {
     }
 
     List<String> eventOutcomes(long orderCode) {
-        return jdbc.queryForList("select outcome || ':' || coalesce(outcome_detail, '') from payment_gateway_events "
-                + "where provider_order_code = ? order by received_at", String.class, orderCode);
+        // audit_logs is append-only (cannot be cleaned between tests), so callers use a unique order code.
+        // Sorted alphabetically: a frozen test clock can give several rows the same occurred_at.
+        return jdbc.queryForList("select action || ':' || coalesce(metadata->>'detail', '') as line from audit_logs "
+                + "where source = 'payment_gateway_events' and metadata->>'orderCode' = ? order by line",
+                String.class, String.valueOf(orderCode));
     }
 
     PaymentGateway.VerifiedGatewayEvent paidEvent(long orderCode) {
@@ -193,6 +194,12 @@ abstract class HoldBillingTestSupport {
                 + "\",\"reference\":\"" + reference + "\",\"success\":true}";
         return mockMvc.perform(post("/api/v1/payment-webhooks/payos").contentType(MediaType.APPLICATION_JSON)
                 .content(body)).andReturn().getResponse().getStatus();
+    }
+
+    /** Posts a raw body to the PayOS webhook; returns status and body so error codes can be asserted. */
+    org.springframework.mock.web.MockHttpServletResponse postRawWebhook(String body) throws Exception {
+        return mockMvc.perform(post("/api/v1/payment-webhooks/payos").contentType(MediaType.APPLICATION_JSON)
+                .content(body)).andReturn().getResponse();
     }
 
     private void insertAccount(UUID id, String type) {
