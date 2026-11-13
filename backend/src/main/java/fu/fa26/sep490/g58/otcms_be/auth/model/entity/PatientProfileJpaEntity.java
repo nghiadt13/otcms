@@ -8,6 +8,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import java.time.LocalDate;
+import java.time.Instant;
 import java.util.UUID;
 
 @Entity @Table(name = "patient_profiles")
@@ -27,5 +28,13 @@ public class PatientProfileJpaEntity {
     @Column(name = "national_id", length = 20) private String nationalId;
     @Enumerated(EnumType.STRING)
     @Column(name = "identity_document_type", length = 16) private IdentityDocumentType identityDocumentType;
+    @Column(nullable = false, length = 2000, insertable = false, updatable = false) private String conditions;
+    @Column(nullable = false, length = 2000, insertable = false, updatable = false) private String allergies;
+    @Column(nullable = false, length = 2000, insertable = false, updatable = false) private String procedures;
+    @Column(nullable = false, length = 2000, insertable = false, updatable = false) private String injuries;
+    @Column(name = "orthopedic_history", nullable = false, length = 2000, insertable = false, updatable = false) private String orthopedicHistory;
+    @Column(name = "medical_history_updated_at", insertable = false, updatable = false) private Instant medicalHistoryUpdatedAt;
+    @Column(name = "medical_history_updated_by", insertable = false, updatable = false) private UUID medicalHistoryUpdatedBy;
+    @Column(name = "medical_history_version", nullable = false, insertable = false, updatable = false) private long medicalHistoryVersion;
     @Version @Column(nullable = false) private long version;
 }

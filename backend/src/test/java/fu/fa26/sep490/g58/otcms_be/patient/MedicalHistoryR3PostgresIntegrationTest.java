@@ -118,7 +118,7 @@ class MedicalHistoryR3PostgresIntegrationTest {
     JsonNode response(ResultActions action) throws Exception {
         return json.readTree(action.andReturn().getResponse().getContentAsString());
     }
-    int count(UUID target) { return jdbc.queryForObject("select count(*) from patient_medical_histories where patient_profile_id=?", Integer.class, target); }
+    int count(UUID target) { return jdbc.queryForObject("select count(*) from patient_profiles where id=? and medical_history_updated_at is not null", Integer.class, target); }
     void empty(ResultActions action) throws Exception {
         var node = response(action.andExpect(status().isOk()).andExpect(header().string("Cache-Control", "no-store")));
         assertEquals(8, node.size()); FIELDS.forEach(field -> assertEquals("", node.get(field).asText()));
@@ -142,8 +142,8 @@ class MedicalHistoryR3PostgresIntegrationTest {
         FIELDS.forEach(field -> assertEquals("Đau  khớp\nDòng hai e\u0301", saved.get(field).asText()));
         assertEquals(1, saved.get("version").asLong()); assertEquals("Actor " + patient, saved.get("updatedBy").asText());
         assertEquals("2026-11-02T10:04:05+07:00", saved.get("updatedAt").asText()); assertEquals(8, saved.size());
-        assertEquals(patient, jdbc.queryForObject("select updated_by_account_id from patient_medical_histories where patient_profile_id=?", UUID.class, own));
-        assertEquals(Timestamp.from(NOW), jdbc.queryForObject("select updated_at from patient_medical_histories where patient_profile_id=?", Timestamp.class, own));
+        assertEquals(patient, jdbc.queryForObject("select medical_history_updated_by from patient_profiles where id=?", UUID.class, own));
+        assertEquals(Timestamp.from(NOW), jdbc.queryForObject("select medical_history_updated_at from patient_profiles where id=?", Timestamp.class, own));
         var fetched = response(fetch(doctor, AccountRole.DOCTOR, own).andExpect(status().isOk())); assertEquals(saved, fetched);
         assertFalse(fetched.toString().contains("@example.test")); assertFalse(fetched.has("patientProfileId"));
     }
@@ -260,12 +260,12 @@ class MedicalHistoryR3PostgresIntegrationTest {
         fetch(patient, AccountRole.PATIENT, target).andExpect(status().isNotFound()).andExpect(jsonPath("$.error.code").value("PATIENT_PROFILE_NOT_FOUND"))
                 .andExpect(jsonPath("$.error.message").value("Không thể truy cập hồ sơ bệnh nhân này. Vui lòng kiểm tra lại thông tin hoặc quyền truy cập."));
         write(patient, AccountRole.PATIENT, target, body(0)).andExpect(status().isNotFound());
-        if (!state.equals("MISSING")) assertEquals(1L, jdbc.queryForObject("select version from patient_medical_histories where patient_profile_id=?", Long.class, target));
+        if (!state.equals("MISSING")) assertEquals(1L, jdbc.queryForObject("select medical_history_version from patient_profiles where id=?", Long.class, target));
     }
     @Test void confirmedDependentPutUsesRequesterAsEditorAndMissingTargetRespectsActorScope() throws Exception {
         UUID target = profile(null); link(target, null);
         write(patient, AccountRole.PATIENT, target, body(0)).andExpect(status().isOk()).andExpect(jsonPath("$.updatedBy").value("Actor " + patient));
-        assertEquals(patient, jdbc.queryForObject("select updated_by_account_id from patient_medical_histories where patient_profile_id=?", UUID.class, target));
+        assertEquals(patient, jdbc.queryForObject("select medical_history_updated_by from patient_profiles where id=?", UUID.class, target));
         UUID missing = UUID.randomUUID();
         // Current-care authorization precedes existence lookup for Doctors (retired R3 shortcut).
         fetch(doctor, AccountRole.DOCTOR, missing).andExpect(status().isForbidden())
@@ -298,7 +298,7 @@ class MedicalHistoryR3PostgresIntegrationTest {
         assertEquals(0, count(own)); write(patient, AccountRole.PATIENT, own, body(0)).andExpect(status().isOk());
         for (int version : List.of(0, 2)) write(doctor, AccountRole.DOCTOR, own, body(version)).andExpect(status().isConflict())
                 .andExpect(jsonPath("$.error.message").value("Không thể hoàn tất yêu cầu. Hãy tải lại trạng thái trước khi thử lại."));
-        assertEquals(1L, jdbc.queryForObject("select version from patient_medical_histories where patient_profile_id=?", Long.class, own));
+        assertEquals(1L, jdbc.queryForObject("select medical_history_version from patient_profiles where id=?", Long.class, own));
     }
     List<org.springframework.mock.web.MockHttpServletResponse> race(Callable<org.springframework.mock.web.MockHttpServletResponse> a,
             Callable<org.springframework.mock.web.MockHttpServletResponse> b) throws Exception {
@@ -323,9 +323,9 @@ class MedicalHistoryR3PostgresIntegrationTest {
         var loser = replies.stream().filter(r -> r.getStatus() == 409).findFirst().orElseThrow();
         assertEquals("STALE_VERSION", json.readTree(loser.getContentAsString()).get("error").get("code").asText());
         boolean patientWon = replies.getFirst().getStatus() == 200;
-        assertEquals(patientWon ? "Patient wins" : "Doctor wins", jdbc.queryForObject("select conditions from patient_medical_histories where patient_profile_id=?", String.class, own));
-        assertEquals(patientWon ? patient : doctor, jdbc.queryForObject("select updated_by_account_id from patient_medical_histories where patient_profile_id=?", UUID.class, own));
-        assertEquals(1, count(own)); assertEquals(version + 1L, jdbc.queryForObject("select version from patient_medical_histories where patient_profile_id=?", Long.class, own));
+        assertEquals(patientWon ? "Patient wins" : "Doctor wins", jdbc.queryForObject("select conditions from patient_profiles where id=?", String.class, own));
+        assertEquals(patientWon ? patient : doctor, jdbc.queryForObject("select medical_history_updated_by from patient_profiles where id=?", UUID.class, own));
+        assertEquals(1, count(own)); assertEquals(version + 1L, jdbc.queryForObject("select medical_history_version from patient_profiles where id=?", Long.class, own));
     }
     @Test void repositoryInsertRaceUsesIndependentRealTransactionsWithoutGlobalGuard() throws Exception {
         try (var pool = Executors.newFixedThreadPool(2)) {
@@ -350,26 +350,30 @@ class MedicalHistoryR3PostgresIntegrationTest {
         write(patient, AccountRole.PATIENT, target, body(before)).andExpect(status().isNotFound()); assertEquals(before, count(target));
         assertEquals(1, jdbc.queryForObject("select count(*) from patient_profiles where id=?", Integer.class, target));
     }
+    @Test void profileVersionDoesNotChangeMedicalHistoryVersion() throws Exception {
+        write(patient, AccountRole.PATIENT, own, body(0)).andExpect(status().isOk());
+        jdbc.update("update patient_profiles set version=version+1 where id=?", own);
+        write(patient, AccountRole.PATIENT, own, body(1)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.version").value(2));
+    }
     @Test void schemaEnforcesUniquenessReferencesDefaultsLengthsAndVersion() {
-        jdbc.update("insert into patient_medical_histories(patient_profile_id,updated_at,updated_by_account_id) values (?,?,?)", own, Timestamp.from(NOW), doctor);
-        assertEquals(1L, jdbc.queryForObject("select version from patient_medical_histories where patient_profile_id=?", Long.class, own));
-        assertEquals("", jdbc.queryForObject("select conditions from patient_medical_histories where patient_profile_id=?", String.class, own));
-        assertThrows(Exception.class, () -> jdbc.update("insert into patient_medical_histories(patient_profile_id,updated_at,updated_by_account_id) values (?,?,?)", own, Timestamp.from(NOW), patient));
-        assertThrows(Exception.class, () -> jdbc.update("insert into patient_medical_histories(patient_profile_id,updated_at,updated_by_account_id) values (?,?,?)", UUID.randomUUID(), Timestamp.from(NOW), patient));
-        UUID another = profile(null);
-        assertThrows(Exception.class, () -> jdbc.update("insert into patient_medical_histories(patient_profile_id,updated_at,updated_by_account_id) values (?,?,?)", another, Timestamp.from(NOW), UUID.randomUUID()));
+        jdbc.update("update patient_profiles set medical_history_updated_at=?, medical_history_updated_by=?, medical_history_version=1 where id=?", Timestamp.from(NOW), doctor, own);
+        assertEquals(1L, jdbc.queryForObject("select medical_history_version from patient_profiles where id=?", Long.class, own));
+        assertEquals("", jdbc.queryForObject("select conditions from patient_profiles where id=?", String.class, own));
+        assertThrows(Exception.class, () -> jdbc.update("update patient_profiles set medical_history_updated_by=? where id=?", UUID.randomUUID(), own));
         for (String column : List.of("conditions", "allergies", "procedures", "injuries", "orthopedic_history")) {
-            assertThrows(Exception.class, () -> jdbc.update("update patient_medical_histories set " + column + "=null where patient_profile_id=?", own));
-            jdbc.update("update patient_medical_histories set " + column + "=? where patient_profile_id=?", "x".repeat(2000), own);
-            assertThrows(Exception.class, () -> jdbc.update("update patient_medical_histories set " + column + "=? where patient_profile_id=?", "x".repeat(2001), own));
+            assertThrows(Exception.class, () -> jdbc.update("update patient_profiles set " + column + "=null where id=?", own));
+            jdbc.update("update patient_profiles set " + column + "=? where id=?", "x".repeat(2000), own);
+            assertThrows(Exception.class, () -> jdbc.update("update patient_profiles set " + column + "=? where id=?", "x".repeat(2001), own));
         }
-        assertThrows(Exception.class, () -> jdbc.update("update patient_medical_histories set version=0 where patient_profile_id=?", own));
-        assertThrows(Exception.class, () -> jdbc.update("update patient_medical_histories set updated_at=null where patient_profile_id=?", own));
-        assertThrows(Exception.class, () -> jdbc.update("update patient_medical_histories set updated_by_account_id=null where patient_profile_id=?", own));
+        assertThrows(Exception.class, () -> jdbc.update("update patient_profiles set medical_history_version=0 where id=?", own));
+        assertThrows(Exception.class, () -> jdbc.update("update patient_profiles set medical_history_updated_at=null where id=?", own));
+        assertThrows(Exception.class, () -> jdbc.update("update patient_profiles set medical_history_updated_by=null where id=?", own));
         assertThrows(Exception.class, () -> jdbc.update("delete from patient_profiles where id=?", own));
         assertThrows(Exception.class, () -> jdbc.update("delete from accounts where id=?", doctor));
-        assertEquals(9, jdbc.queryForObject("select count(*) from information_schema.columns where table_schema=? and table_name='patient_medical_histories'", Integer.class, SCHEMA));
+        assertEquals(8, jdbc.queryForObject("select count(*) from information_schema.columns where table_schema=? and table_name='patient_profiles' and column_name in ('conditions','allergies','procedures','injuries','orthopedic_history','medical_history_updated_at','medical_history_updated_by','medical_history_version')", Integer.class, SCHEMA));
     }
+    @org.junit.jupiter.api.Disabled("final-db: patient_medical_histories đã gộp vào patient_profiles")
     @Test void migrationAppliesAfterV072OutOfOrderAndPreservesV049() throws Exception {
         String upgrade = "kan28_upgrade_" + UUID.randomUUID().toString().replace("-", "");
         var directory = java.nio.file.Files.createTempDirectory(java.nio.file.Path.of("target"), "kan28-before-");
@@ -386,6 +390,33 @@ class MedicalHistoryR3PostgresIntegrationTest {
         assertEquals(checksum, jdbc.queryForObject("select checksum from " + upgrade + ".flyway_schema_history where version::numeric=49", Integer.class));
         assertEquals(1, jdbc.queryForObject("select count(*) from " + upgrade + ".patient_profiles where id=? and phone_canonical is null", Integer.class, legacy));
         assertEquals(0, jdbc.queryForObject("select count(*) from " + upgrade + ".patient_medical_histories", Integer.class));
+    }
+    @Test void v111MigratesExistingHistoryAndCareChallengesWithoutLosingData() {
+        String upgrade = "p06_upgrade_" + UUID.randomUUID().toString().replace("-", "");
+        try {
+            Flyway.configure().dataSource(dataSource).schemas(upgrade).defaultSchema(upgrade).target("110").load().migrate();
+            UUID owner = UUID.randomUUID(), recipient = UUID.randomUUID(), profile = UUID.randomUUID();
+            UUID link = UUID.randomUUID(), careCode = UUID.randomUUID(), addCode = UUID.randomUUID();
+            for (UUID account : List.of(owner, recipient))
+                jdbc.update("insert into " + upgrade + ".accounts(id,normalized_email,account_type,status,full_name,created_at,updated_at) values (?,?,'PATIENT','ACTIVE','Actor',now(),now())", account, account + "@example.test");
+            jdbc.update("insert into " + upgrade + ".patient_profiles(id,account_id,full_name,phone_canonical,phone_owner_type,date_of_birth,gender,version) values (?,?,'Recipient','+84912345678','PATIENT','2000-01-02','OTHER',7)", profile, recipient);
+            jdbc.update("insert into " + upgrade + ".patient_medical_histories(patient_profile_id,conditions,allergies,procedures,injuries,orthopedic_history,updated_at,updated_by_account_id,version) values (?,'condition','allergy','procedure','injury','orthopedic',now(),?,3)", profile, owner);
+            jdbc.update("insert into " + upgrade + ".patient_caregivers(id,requester_account_id,dependent_patient_profile_id,confirming_account_id,state,requested_at,relationship,pending_reason) values (?,?,?,?,'REQUESTED',now(),'CHILD','OTP')", link, owner, profile, recipient);
+            jdbc.update("insert into " + upgrade + ".care_link_otp_challenges(id,link_id,recipient_account_id,otp_hash,created_at,expires_at,failed_attempts) values (?,?,?,'care-hash',now()-interval '20 minutes',now()-interval '10 minutes',2)", careCode, link, recipient);
+            jdbc.update("insert into " + upgrade + ".dependent_add_requests(id,requester_account_id,full_name,date_of_birth,gender,national_id,identity_document_type,relationship,otp_hash,created_at,expires_at,failed_attempts) values (?,?,'Dependent','2001-02-03','OTHER','123456789','CCCD','CHILD','add-hash',now()-interval '20 minutes',now()-interval '10 minutes',1)", addCode, owner);
+            assertEquals(1, Flyway.configure().dataSource(dataSource).schemas(upgrade).defaultSchema(upgrade).target("111").load().migrate().migrationsExecuted);
+            var history = jdbc.queryForMap("select conditions,allergies,procedures,injuries,orthopedic_history,medical_history_updated_at,medical_history_updated_by,medical_history_version,version from " + upgrade + ".patient_profiles where id=?", profile);
+            assertEquals("condition", history.get("conditions")); assertEquals("allergy", history.get("allergies"));
+            assertEquals("procedure", history.get("procedures")); assertEquals("injury", history.get("injuries"));
+            assertEquals("orthopedic", history.get("orthopedic_history")); assertNotNull(history.get("medical_history_updated_at"));
+            assertEquals(owner, history.get("medical_history_updated_by"));
+            assertEquals(3L, ((Number) history.get("medical_history_version")).longValue()); assertEquals(7L, ((Number) history.get("version")).longValue());
+            assertEquals(1, jdbc.queryForObject("select count(*) from " + upgrade + ".patient_caregivers where id=?", Integer.class, link));
+            assertEquals(1, jdbc.queryForObject("select count(*) from " + upgrade + ".verification_codes where id=? and account_id=? and link_id=? and purpose='CARE_LINK' and code_hash='care-hash' and failed_attempts=2", Integer.class, careCode, recipient, link));
+            assertEquals(1, jdbc.queryForObject("select count(*) from " + upgrade + ".verification_codes where id=? and account_id=? and purpose='DEPENDENT_ADD' and code_hash='add-hash' and failed_attempts=1 and payload->>'fullName'='Dependent' and payload->>'dateOfBirth'='2001-02-03' and payload->>'gender'='OTHER' and payload->>'nationalId'='123456789' and payload->>'identityDocumentType'='CCCD' and payload->>'relationship'='CHILD'", Integer.class, addCode, owner));
+        } finally {
+            jdbc.execute("drop schema if exists " + upgrade + " cascade");
+        }
     }
     @Test void openApiContainsR3RouteAndBothMethods() throws Exception {
         var document = response(mvc.perform(get("/v3/api-docs")).andExpect(status().isOk()));

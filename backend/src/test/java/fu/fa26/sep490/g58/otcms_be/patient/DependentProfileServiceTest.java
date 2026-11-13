@@ -1,6 +1,7 @@
 package fu.fa26.sep490.g58.otcms_be.patient;
 
 import fu.fa26.sep490.g58.otcms_be.auth.service.*;
+import fu.fa26.sep490.g58.otcms_be.auth.model.entity.VerificationCodeJpaEntity;
 import fu.fa26.sep490.g58.otcms_be.auth.service.PatientProfileDirectory.ProfileRecord;
 import fu.fa26.sep490.g58.otcms_be.auth.service.impl.EmailOtpServiceImpl;
 import fu.fa26.sep490.g58.otcms_be.common.service.CoordinationGuardService;
@@ -42,13 +43,13 @@ class DependentProfileServiceTest {
 
     @BeforeEach void setup() {
         Map<UUID, CareRelationshipJpaEntity> savedLinks = new HashMap<>();
-        Map<UUID, CareLinkOtpChallengeJpaEntity> savedChallenges = new HashMap<>();
+        Map<UUID, VerificationCodeJpaEntity> savedChallenges = new HashMap<>();
         when(links.saveAndFlush(any())).thenAnswer(invocation -> {
             CareRelationshipJpaEntity link = invocation.getArgument(0); savedLinks.put(link.getId(), link); return link;
         });
         when(links.findById(any())).thenAnswer(invocation -> Optional.ofNullable(savedLinks.get(invocation.getArgument(0))));
         when(challenges.saveAndFlush(any())).thenAnswer(invocation -> {
-            CareLinkOtpChallengeJpaEntity c = invocation.getArgument(0); savedChallenges.put(c.getId(), c); return c;
+            VerificationCodeJpaEntity c = invocation.getArgument(0); if (c.getId() == null) c.setId(UUID.randomUUID()); savedChallenges.put(c.getId(), c); return c;
         });
         when(challenges.findByIdForUpdate(any())).thenAnswer(invocation -> Optional.ofNullable(savedChallenges.get(invocation.getArgument(0))));
         when(challenges.findCurrentForUpdate(any())).thenAnswer(invocation -> savedChallenges.values().stream()
@@ -58,7 +59,7 @@ class DependentProfileServiceTest {
             if (c == null || !c.getLinkId().equals(invocation.getArgument(1)) || c.getConsumedAt() != null
                     || c.getSupersededAt() != null || !c.getExpiresAt().isAfter(invocation.getArgument(3))
                     || c.getFailedAttempts() >= (int) invocation.getArgument(4)) return 0;
-            c.setOtpHash(invocation.getArgument(2)); return 1;
+            c.setCodeHash(invocation.getArgument(2)); return 1;
         });
         when(patients.isActivePatient(actor)).thenReturn(true);
         when(profiles.findPatientProfile(actor)).thenReturn(Optional.of(own));
@@ -105,11 +106,11 @@ class DependentProfileServiceTest {
         var sent = ArgumentCaptor.forClass(String.class);
         verify(email).sendVerificationCode(eq("dependent@example.test"), sent.capture(), eq(recipient));
         verify(accounts, never()).find(actor);
-        var saved = ArgumentCaptor.forClass(CareLinkOtpChallengeJpaEntity.class);
+        var saved = ArgumentCaptor.forClass(VerificationCodeJpaEntity.class);
         verify(challenges).saveAndFlush(saved.capture());
         verify(challenges).activateIfCurrent(eq(saved.getValue().getId()), eq(result.linkId()), anyString(), eq(now), eq(5));
-        assertNotEquals(sent.getValue(), saved.getValue().getOtpHash());
-        assertTrue(otp.matches(sent.getValue(), saved.getValue().getOtpHash()));
+        assertNotEquals(sent.getValue(), saved.getValue().getCodeHash());
+        assertTrue(otp.matches(sent.getValue(), saved.getValue().getCodeHash()));
         assertEquals(now.plusSeconds(600), saved.getValue().getExpiresAt());
     }
     @ParameterizedTest @NullSource @ValueSource(strings = {"PERSONAL_ID", "PASSPORT"})
@@ -149,9 +150,9 @@ class DependentProfileServiceTest {
         var p = profile(recipient, "CCCD", "123"); existing(p);
         when(accounts.find(recipient)).thenReturn(Optional.of(new MyAccountQueryService.MyAccountView(recipient,
                 "PATIENT", "dependent@example.test", "Dependent")));
-        when(challenges.countByRecipientAccountIdAndCreatedAtAfter(eq(recipient), any())).thenReturn(3L);
+        when(challenges.countRecipientSince(eq(recipient), any())).thenReturn(3L);
         code("RATE_LIMIT_EXCEEDED", () -> service.add(actor, request("123", "CCCD")));
-        when(challenges.countByRecipientAccountIdAndCreatedAtAfter(eq(recipient), any())).thenReturn(0L);
+        when(challenges.countRecipientSince(eq(recipient), any())).thenReturn(0L);
         doThrow(new IllegalStateException("internal details")).when(email).sendVerificationCode(any(), any(), any());
         code("EMAIL_DELIVERY_UNAVAILABLE", () -> service.add(actor, request("123", "CCCD")));
     }
@@ -171,10 +172,10 @@ class DependentProfileServiceTest {
         code("OTP_INVALID", () -> service.verify(actor, link.id(), "123456"));
         verify(links, never()).saveAndFlush(any());
     }
-    CareLinkOtpChallengeJpaEntity challenge(UUID linkId) {
-        var c = new CareLinkOtpChallengeJpaEntity(); c.setId(UUID.randomUUID()); c.setLinkId(linkId);
-        c.setRecipientAccountId(recipient); c.setCreatedAt(now); c.setExpiresAt(now.plusSeconds(600));
-        c.setOtpHash(otp.hash("123456")); return c;
+    VerificationCodeJpaEntity challenge(UUID linkId) {
+        var c = new VerificationCodeJpaEntity(); c.setId(UUID.randomUUID()); c.setLinkId(linkId);
+        c.setAccountId(recipient); c.setCreatedAt(now); c.setExpiresAt(now.plusSeconds(600));
+        c.setCodeHash(otp.hash("123456")); return c;
     }
     @Test void fifthFailureSupersedesAndSavesAttemptEvidence() {
         var link = link(State.REQUESTED, PendingReason.OTP);

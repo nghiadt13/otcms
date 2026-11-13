@@ -10,7 +10,8 @@ import fu.fa26.sep490.g58.otcms_be.patient.model.CareRelationship;
 import fu.fa26.sep490.g58.otcms_be.patient.model.CareRelationship.*;
 import fu.fa26.sep490.g58.otcms_be.patient.model.dto.DependentDtos.*;
 import fu.fa26.sep490.g58.otcms_be.patient.model.dto.response.PatientProfileDetailResponse;
-import fu.fa26.sep490.g58.otcms_be.patient.model.entity.CareLinkOtpChallengeJpaEntity;
+import fu.fa26.sep490.g58.otcms_be.auth.model.entity.VerificationCodeJpaEntity;
+import fu.fa26.sep490.g58.otcms_be.auth.model.entity.enums.VerificationPurpose;
 import fu.fa26.sep490.g58.otcms_be.patient.repository.*;
 import fu.fa26.sep490.g58.otcms_be.patient.service.*;
 import java.time.*;
@@ -101,12 +102,12 @@ public class DependentProfileServiceImpl implements DependentProfileService, Cou
         var challenge = challenges.findCurrentForUpdate(linkId).orElseThrow(CareOtpInvalidException::new);
         Instant now = clock.instant();
         var profile = profile(link.dependentPatientProfileId());
-        if (!Objects.equals(challenge.getRecipientAccountId(), profile.accountId())
+        if (!Objects.equals(challenge.getAccountId(), profile.accountId())
                 || !Objects.equals(link.confirmingAccountId(), profile.accountId())
                 || challenge.getConsumedAt() != null || challenge.getSupersededAt() != null
                 || !challenge.getExpiresAt().isAfter(now) || challenge.getFailedAttempts() >= EmailOtpService.MAX_FAILED_ATTEMPTS)
             throw new CareOtpInvalidException();
-        if (code == null || !code.matches("[0-9]{6}") || !otp.matches(code, challenge.getOtpHash())) {
+        if (code == null || !code.matches("[0-9]{6}") || !otp.matches(code, challenge.getCodeHash())) {
             challenge.setFailedAttempts(challenge.getFailedAttempts() + 1);
             if (challenge.getFailedAttempts() >= EmailOtpService.MAX_FAILED_ATTEMPTS) challenge.setSupersededAt(now);
             challenges.saveAndFlush(challenge);
@@ -138,22 +139,23 @@ public class DependentProfileServiceImpl implements DependentProfileService, Cou
 
     private PreparedLink prepareOtp(CareRelationship link, ProfileRecord profile, String recipient, Instant now) {
         Instant since = now.minusSeconds(auth.resend().windowSeconds());
-        if (challenges.countByRecipientAccountIdAndCreatedAtAfter(profile.accountId(), since) >= auth.resend().requests()
-                || challenges.countByLinkIdAndCreatedAtAfter(link.id(), since) >= auth.resend().requests())
+        if (challenges.countRecipientSince(profile.accountId(), since) >= auth.resend().requests()
+                || challenges.countLinkSince(link.id(), since) >= auth.resend().requests())
             throw new CareRelationshipException("RATE_LIMIT_EXCEEDED");
         challenges.findCurrentForUpdate(link.id()).ifPresent(previous -> {
             previous.setSupersededAt(now);
             challenges.saveAndFlush(previous);
         });
         String code = otp.generate();
-        var challenge = new CareLinkOtpChallengeJpaEntity();
-        challenge.setId(UUID.randomUUID()); challenge.setLinkId(link.id());
-        challenge.setRecipientAccountId(profile.accountId());
+        var challenge = new VerificationCodeJpaEntity();
+        challenge.setPurpose(VerificationPurpose.CARE_LINK);
+        challenge.setLinkId(link.id());
+        challenge.setAccountId(profile.accountId());
         // A hash of a non-code cannot match any valid six-digit request. Activation happens
         // only after SMTP succeeds; even failed compensation cannot enable an unsent code.
-        challenge.setOtpHash(otp.hash("DELIVERY_PENDING"));
+        challenge.setCodeHash(otp.hash("DELIVERY_PENDING"));
         challenge.setExpiresAt(otp.expiresAt(now)); challenge.setCreatedAt(now);
-        challenges.saveAndFlush(challenge);
+        challenge = challenges.saveAndFlush(challenge);
         return new PreparedLink(new LinkResult("OTP_SENT", link.id(), maskEmail(recipient), null),
                 new OtpDelivery(challenge.getId(), link.id(), profile.accountId(), recipient, code, otp.hash(code)));
     }

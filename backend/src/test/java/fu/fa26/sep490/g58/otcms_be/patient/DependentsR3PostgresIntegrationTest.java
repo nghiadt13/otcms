@@ -111,7 +111,7 @@ class DependentsR3PostgresIntegrationTest {
         assertTrue(access.canAccess(actor, target)); assertEquals(AuthorizePatientProfileService.AuthorizationScope.DEPENDENT,
                 authorization.authorize(actor, target).scope());
         assertEquals("CREATED_WITHOUT_OTP", jdbc.queryForObject("select verification_method from patient_caregivers where id=?", String.class, link));
-        assertEquals(0, jdbc.queryForObject("select count(*) from care_link_otp_challenges where link_id=?", Integer.class, link));
+        assertEquals(0, jdbc.queryForObject("select count(*) from verification_codes where purpose='CARE_LINK' and link_id=?", Integer.class, link));
     }
     @Test void linkFailureRollsBackNewProfile() throws Exception {
         jdbc.execute("create function kan26_reject_link() returns trigger language plpgsql as $$ begin raise exception 'test link failure'; end; $$");
@@ -127,7 +127,7 @@ class DependentsR3PostgresIntegrationTest {
         assertEquals(recipient + "@example.test", delivery.addresses.get(recipient)); assertFalse(delivery.codes.containsKey(actor));
         assertFalse(access.canAccess(actor, target));
         String code = delivery.codes.get(recipient);
-        assertNotEquals(code, jdbc.queryForObject("select otp_hash from care_link_otp_challenges where link_id=?", String.class, link));
+        assertNotEquals(code, jdbc.queryForObject("select code_hash from verification_codes where purpose='CARE_LINK' and link_id=?", String.class, link));
         verify(actor, link, code).andExpect(status().isOk()).andExpect(jsonPath("$.result").value("LINKED"));
         assertTrue(access.canAccess(actor, target));
         var row = jdbc.queryForMap("select * from patient_caregivers where id=?", link);
@@ -139,11 +139,11 @@ class DependentsR3PostgresIntegrationTest {
         String wrong = "000000".equals(delivery.codes.get(recipient)) ? "111111" : "000000";
         for (int attempt = 1; attempt <= 5; attempt++) {
             verify(actor, link, wrong).andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("OTP_INVALID"));
-            assertEquals(attempt, jdbc.queryForObject("select failed_attempts from care_link_otp_challenges where link_id=?", Integer.class, link));
+            assertEquals(attempt, jdbc.queryForObject("select failed_attempts from verification_codes where purpose='CARE_LINK' and link_id=?", Integer.class, link));
         }
         verify(actor, link, delivery.codes.get(recipient)).andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error.code").value("OTP_INVALID"));
-        assertNotNull(jdbc.queryForObject("select superseded_at from care_link_otp_challenges where link_id=?", Timestamp.class, link));
+        assertNotNull(jdbc.queryForObject("select superseded_at from verification_codes where purpose='CARE_LINK' and link_id=?", Timestamp.class, link));
     }
     @ParameterizedTest @ValueSource(longs = {600, 601})
     void expiryAndExactBoundaryAreInvalid(long advance) throws Exception {
@@ -157,32 +157,32 @@ class DependentsR3PostgresIntegrationTest {
         String before = jdbc.queryForObject("select row_to_json(c)::text from patient_caregivers c where id=?", String.class, link);
         resend(actor, link).andExpect(status().isAccepted()).andExpect(jsonPath("$.result").value("OTP_SENT"));
         assertEquals(before, jdbc.queryForObject("select row_to_json(c)::text from patient_caregivers c where id=?", String.class, link));
-        assertEquals(1, jdbc.queryForObject("select count(*) from care_link_otp_challenges where link_id=? and superseded_at is not null", Integer.class, link));
+        assertEquals(1, jdbc.queryForObject("select count(*) from verification_codes where purpose='CARE_LINK' and link_id=? and superseded_at is not null", Integer.class, link));
         if (!oldCode.equals(delivery.codes.get(recipient))) verify(actor, link, oldCode).andExpect(status().isBadRequest());
         resend(actor, link).andExpect(status().isAccepted());
         resend(actor, link).andExpect(status().isTooManyRequests()).andExpect(jsonPath("$.error.code").value("RATE_LIMIT_EXCEEDED"));
-        assertEquals(1, jdbc.queryForObject("select count(*) from care_link_otp_challenges where link_id=? and consumed_at is null and superseded_at is null", Integer.class, link));
+        assertEquals(1, jdbc.queryForObject("select count(*) from verification_codes where purpose='CARE_LINK' and link_id=? and consumed_at is null and superseded_at is null", Integer.class, link));
     }
     @Test void emailFailureInvalidatesChallengeRetainsPendingLinkAndConsumesQuota() throws Exception {
         UUID recipient = account("PATIENT"); profile(recipient, name, number, "CCCD"); delivery.fail = true;
         add(number, "CCCD", 503);
         UUID link = jdbc.queryForObject("select c.id from patient_caregivers c join patient_profiles p on p.id=c.dependent_patient_profile_id where p.full_name=?", UUID.class, name);
         assertEquals("REQUESTED", jdbc.queryForObject("select state from patient_caregivers where id=?", String.class, link));
-        assertEquals(1, jdbc.queryForObject("select count(*) from care_link_otp_challenges where link_id=? and superseded_at is not null", Integer.class, link));
+        assertEquals(1, jdbc.queryForObject("select count(*) from verification_codes where purpose='CARE_LINK' and link_id=? and superseded_at is not null", Integer.class, link));
         verify(actor, link, "123456").andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("OTP_INVALID"));
         add(number, "CCCD", 409);
         resend(actor, link).andExpect(status().isServiceUnavailable());
         resend(actor, link).andExpect(status().isServiceUnavailable());
         resend(actor, link).andExpect(status().isTooManyRequests());
-        assertEquals(3, jdbc.queryForObject("select count(*) from care_link_otp_challenges where link_id=? and superseded_at is not null", Integer.class, link));
-        assertEquals(0, jdbc.queryForObject("select count(*) from care_link_otp_challenges where link_id=? and consumed_at is null and superseded_at is null", Integer.class, link));
+        assertEquals(3, jdbc.queryForObject("select count(*) from verification_codes where purpose='CARE_LINK' and link_id=? and superseded_at is not null", Integer.class, link));
+        assertEquals(0, jdbc.queryForObject("select count(*) from verification_codes where purpose='CARE_LINK' and link_id=? and consumed_at is null and superseded_at is null", Integer.class, link));
     }
     @ParameterizedTest @NullSource @ValueSource(strings = {"PERSONAL_ID", "PASSPORT"})
     void branchCNonCccdHasNoChallenge(String type) throws Exception {
         UUID recipient = account("PATIENT"), target = profile(recipient, name, number, type);
         var result = add(number, type == null ? "CCCD" : type, 202); UUID link = id(result, "linkId");
         assertEquals("COUNTER_REQUIRED", result.get("result").asText()); assertFalse(access.canAccess(actor, target));
-        assertEquals(0, jdbc.queryForObject("select count(*) from care_link_otp_challenges where link_id=?", Integer.class, link));
+        assertEquals(0, jdbc.queryForObject("select count(*) from verification_codes where purpose='CARE_LINK' and link_id=?", Integer.class, link));
         assertFalse(delivery.codes.containsKey(recipient));
     }
     @Test void missingDocumentAndAccountlessExistingRequireCounter() throws Exception {
@@ -241,6 +241,48 @@ class DependentsR3PostgresIntegrationTest {
         mvc.perform(get("/api/v1/me/dependents/{id}", target).with(actor(actor, "PATIENT"))).andExpect(status().isNotFound());
         name += " Changed"; add(number, "CCCD", 202);
         assertEquals(2, jdbc.queryForObject("select count(*) from patient_caregivers where requester_account_id=? and dependent_patient_profile_id=?", Integer.class, actor, target));
+    }
+    @Test void dependentAddPayloadIsClearedOnUseAndAfterExpiryByNextRequest() throws Exception {
+        // Another account's request expired 10 minutes ago: kept, its owner may still resend.
+        UUID other = account("PATIENT"), recentRow = UUID.randomUUID(), oldRow = UUID.randomUUID(), ownLockedRow = UUID.randomUUID();
+        jdbc.update("insert into verification_codes(id,account_id,purpose,code_hash,payload,expires_at,created_at) values (?,?,'DEPENDENT_ADD','stale-hash',?::jsonb,?,?)",
+                recentRow, other, body(name, number, "CCCD"), Timestamp.from(NOW.minusSeconds(600)), Timestamp.from(NOW.minusSeconds(1200)));
+        // Another account's request expired two days ago: details dropped.
+        jdbc.update("insert into verification_codes(id,account_id,purpose,code_hash,payload,expires_at,created_at,superseded_at) values (?,?,'DEPENDENT_ADD','stale-hash',?::jsonb,?,?,?)",
+                oldRow, account("PATIENT"), body(name, number, "CCCD"), Timestamp.from(NOW.minusSeconds(172800)),
+                Timestamp.from(NOW.minusSeconds(173700)), Timestamp.from(NOW.minusSeconds(173000)));
+        // The actor's own request locked after 5 wrong codes (superseded, details kept for resend): dropped now.
+        jdbc.update("insert into verification_codes(id,account_id,purpose,code_hash,payload,expires_at,created_at,superseded_at,failed_attempts) values (?,?,'DEPENDENT_ADD','stale-hash',?::jsonb,?,?,?,5)",
+                ownLockedRow, actor, body(name, number, "CCCD"), Timestamp.from(NOW.plusSeconds(300)),
+                Timestamp.from(NOW.minusSeconds(600)), Timestamp.from(NOW.minusSeconds(60)));
+        var created = mvc.perform(post("/api/v1/me/dependents/add-requests").with(actor(actor, "PATIENT")).with(csrf())
+                .contentType("application/json").content(body(name, number, "CCCD"))).andExpect(status().isAccepted()).andReturn();
+        UUID request = UUID.fromString(json.readTree(created.getResponse().getContentAsString()).get("requestId").asText());
+        assertNotNull(jdbc.queryForObject("select payload::text from verification_codes where id=?", String.class, request));
+        assertNotNull(jdbc.queryForObject("select payload::text from verification_codes where id=?", String.class, recentRow));
+        assertNull(jdbc.queryForObject("select payload::text from verification_codes where id=?", String.class, oldRow));
+        assertNull(jdbc.queryForObject("select payload::text from verification_codes where id=?", String.class, ownLockedRow));
+        String code = delivery.codes.get(actor);
+        mvc.perform(post("/api/v1/me/dependents/add-requests/{requestId}/verify", request).with(actor(actor, "PATIENT")).with(csrf())
+                .contentType("application/json").content(json.writeValueAsString(Map.of("code", code)))).andExpect(status().isCreated());
+        assertNull(jdbc.queryForObject("select payload::text from verification_codes where id=?", String.class, request));
+        assertNotNull(jdbc.queryForObject("select consumed_at from verification_codes where id=?", Timestamp.class, request));
+    }
+    @Test void dependentProfileEditKeepsMedicalHistoryAndItsVersion() throws Exception {
+        UUID target = id(add(number, "CCCD", 201).get("profile"), "patientProfileId");
+        mvc.perform(put("/api/v1/patient-profiles/{id}/medical-history", target).with(actor(actor, "PATIENT")).with(csrf())
+                .contentType("application/json").content(historyBody(0))).andExpect(status().isOk()).andExpect(jsonPath("$.version").value(1));
+        String edit = json.writeValueAsString(Map.of("fullName", name + " Edited", "dateOfBirth", "2000-01-02", "gender", "OTHER",
+                "phone", "0912345678", "address", " HN ", "nationalId", number, "identityDocumentType", "CCCD"));
+        mvc.perform(put("/api/v1/me/dependents/{id}", target).with(actor(actor, "PATIENT")).with(csrf())
+                .contentType("application/json").content(edit)).andExpect(status().isOk()).andExpect(jsonPath("$.version").value(1));
+        assertEquals("Tien su", jdbc.queryForObject("select conditions from patient_profiles where id=?", String.class, target));
+        mvc.perform(put("/api/v1/patient-profiles/{id}/medical-history", target).with(actor(actor, "PATIENT")).with(csrf())
+                .contentType("application/json").content(historyBody(1))).andExpect(status().isOk()).andExpect(jsonPath("$.version").value(2));
+    }
+    String historyBody(long version) throws Exception {
+        return json.writeValueAsString(Map.of("conditions", "Tien su", "allergies", "", "procedures", "", "injuries", "",
+                "orthopedicHistory", "", "version", version));
     }
     @Test void matchingNormalizesLegacyNamePreservesAccentsAndRejectsAmbiguity() throws Exception {
         profile(null, "  " + java.text.Normalizer.normalize(name, java.text.Normalizer.Form.NFD).replace(" ", "   ") + "  ", number, null);
@@ -322,7 +364,7 @@ class DependentsR3PostgresIntegrationTest {
         UUID recipient = account("PATIENT"), link = otpLink(recipient); String code = delivery.codes.get(recipient);
         var statuses = race(() -> verify(actor, link, code).andReturn().getResponse().getStatus());
         assertEquals(List.of(200, 409), statuses.stream().sorted().toList());
-        assertEquals(1, jdbc.queryForObject("select count(*) from care_link_otp_challenges where link_id=? and consumed_at is not null", Integer.class, link));
+        assertEquals(1, jdbc.queryForObject("select count(*) from verification_codes where purpose='CARE_LINK' and link_id=? and consumed_at is not null", Integer.class, link));
     }
     List<Integer> race(Callable<Integer> action) throws Exception {
         try (var executor = Executors.newFixedThreadPool(2)) {
@@ -386,16 +428,18 @@ class DependentsR3PostgresIntegrationTest {
         jdbc.update("insert into " + schema + ".patient_profiles(id,account_id,full_name,phone_canonical,phone_owner_type,date_of_birth,gender) values (?,?,'Legacy','+84912345678','PATIENT','2000-01-02','OTHER')", p, second);
         jdbc.update("insert into " + schema + ".patient_caregivers(id,requester_account_id,dependent_patient_profile_id,confirming_account_id,state,requested_at,confirmed_at) values (?,?,?,?,'CONFIRMED',now(),now())", link, first, p, second);
         // Install later versions first, then resolve the new lower-number migration out of order.
+        // V111 reads care_link_otp_challenges, which V049 creates, so it waits until V049 is applied.
         var migrationDirectory = java.nio.file.Files.createTempDirectory(java.nio.file.Path.of("target"), "kan26-later-");
         try (var paths = java.nio.file.Files.list(java.nio.file.Path.of("src/main/resources/db/migration"))) {
-            for (var migration : paths.filter(pth -> !pth.getFileName().toString().startsWith("V049__")).toList())
+            for (var migration : paths.filter(pth -> !pth.getFileName().toString().matches("V(049|111)__.*")).toList())
                 java.nio.file.Files.copy(migration, migrationDirectory.resolve(migration.getFileName()));
         }
         Flyway.configure().dataSource(dataSource).schemas(schema).defaultSchema(schema)
                 .locations("filesystem:" + migrationDirectory.toAbsolutePath()).load().migrate();
         var migrated = Flyway.configure().dataSource(dataSource).schemas(schema).defaultSchema(schema)
-                .outOfOrder(true).load().migrate();
+                .outOfOrder(true).target("49").load().migrate();
         assertEquals(1, migrated.migrationsExecuted);
+        assertEquals(1, Flyway.configure().dataSource(dataSource).schemas(schema).defaultSchema(schema).load().migrate().migrationsExecuted);
         assertNull(jdbc.queryForObject("select relationship from " + schema + ".patient_caregivers where id=?", String.class, link));
         assertNull(jdbc.queryForObject("select verified_at from " + schema + ".patient_caregivers where id=?", Timestamp.class, link));
         assertThrows(Exception.class, () -> jdbc.update("delete from " + schema + ".patient_caregivers where id=?", link));
@@ -488,14 +532,14 @@ class DependentsR3PostgresIntegrationTest {
                 // The delivery code is not enabled in persistence before the network call succeeds.
                 String wrong = "000000".equals(gate.code) ? "111111" : "000000";
                 verify(actor, pendingLink, wrong).andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("OTP_INVALID"));
-                UUID challenge = jdbc.queryForObject("select id from care_link_otp_challenges where link_id=? and consumed_at is null and superseded_at is null", UUID.class, pendingLink);
-                assertEquals(1, jdbc.queryForObject("select failed_attempts from care_link_otp_challenges where id=?", Integer.class, challenge));
+                UUID challenge = jdbc.queryForObject("select id from verification_codes where purpose='CARE_LINK' and link_id=? and consumed_at is null and superseded_at is null", UUID.class, pendingLink);
+                assertEquals(1, jdbc.queryForObject("select failed_attempts from verification_codes where purpose='CARE_LINK' and id=?", Integer.class, challenge));
                 var booked = executor.submit(() -> mvc.perform(post("/api/v1/appointments").with(actor(other, "PATIENT")).with(csrf())
                         .contentType("application/json").content(booking)).andReturn().getResponse().getStatus());
                 assertEquals(201, booked.get(4, TimeUnit.SECONDS));
                 assertEquals(1, gate.release.getCount(), "Booking must finish while SMTP is still blocked");
                 gate.release.countDown(); assertEquals(202, care.get(5, TimeUnit.SECONDS));
-                assertEquals(1, jdbc.queryForObject("select failed_attempts from care_link_otp_challenges where id=?", Integer.class, challenge),
+                assertEquals(1, jdbc.queryForObject("select failed_attempts from verification_codes where purpose='CARE_LINK' and id=?", Integer.class, challenge),
                         "Activation must preserve attempts committed while SMTP was blocked");
                 verify(actor, pendingLink, gate.code).andExpect(status().isOk());
             } finally { gate.release.countDown(); }
@@ -512,33 +556,55 @@ class DependentsR3PostgresIntegrationTest {
             try {
                 assertTrue(gate.entered.await(5, TimeUnit.SECONDS));
                 UUID link = jdbc.queryForObject("select c.id from patient_caregivers c join patient_profiles p on p.id=c.dependent_patient_profile_id where p.full_name=?", UUID.class, name);
-                UUID originalChallenge = jdbc.queryForObject("select id from care_link_otp_challenges where link_id=? and superseded_at is null", UUID.class, link);
+                UUID originalChallenge = jdbc.queryForObject("select id from verification_codes where purpose='CARE_LINK' and link_id=? and superseded_at is null", UUID.class, link);
                 resend(actor, link).andExpect(status().isAccepted()); String replacement = delivery.codes.get(recipient);
                 String wrong = "000000".equals(replacement) ? "111111" : "000000";
                 verify(actor, link, wrong).andExpect(status().isBadRequest());
-                UUID replacementChallenge = jdbc.queryForObject("select id from care_link_otp_challenges where link_id=? and consumed_at is null and superseded_at is null", UUID.class, link);
+                UUID replacementChallenge = jdbc.queryForObject("select id from verification_codes where purpose='CARE_LINK' and link_id=? and consumed_at is null and superseded_at is null", UUID.class, link);
                 assertNotEquals(originalChallenge, replacementChallenge);
-                assertEquals(1, jdbc.queryForObject("select failed_attempts from care_link_otp_challenges where id=?", Integer.class, replacementChallenge));
-                String before = jdbc.queryForObject("select row_to_json(c)::text from care_link_otp_challenges c where id=?", String.class, replacementChallenge);
+                assertEquals(1, jdbc.queryForObject("select failed_attempts from verification_codes where purpose='CARE_LINK' and id=?", Integer.class, replacementChallenge));
+                String before = jdbc.queryForObject("select row_to_json(c)::text from verification_codes c where c.purpose='CARE_LINK' and id=?", String.class, replacementChallenge);
                 // Successful old SMTP reaches activation, which must update zero eligible rows (409).
                 gate.release.countDown(); assertEquals(failedDelivery ? 503 : 409, original.get(5, TimeUnit.SECONDS));
-                String after = jdbc.queryForObject("select row_to_json(c)::text from care_link_otp_challenges c where id=?", String.class, replacementChallenge);
+                String after = jdbc.queryForObject("select row_to_json(c)::text from verification_codes c where c.purpose='CARE_LINK' and id=?", String.class, replacementChallenge);
                 assertTrue(Objects.equals(before, after), "Old delivery must not change replacement hash, attempts or timestamps");
-                assertNotNull(jdbc.queryForObject("select superseded_at from care_link_otp_challenges where id=?", Timestamp.class, originalChallenge));
-                assertEquals(1, jdbc.queryForObject("select count(*) from care_link_otp_challenges where link_id=? and consumed_at is null and superseded_at is null", Integer.class, link));
+                assertNotNull(jdbc.queryForObject("select superseded_at from verification_codes where purpose='CARE_LINK' and id=?", Timestamp.class, originalChallenge));
+                assertEquals(1, jdbc.queryForObject("select count(*) from verification_codes where purpose='CARE_LINK' and link_id=? and consumed_at is null and superseded_at is null", Integer.class, link));
                 verify(actor, link, replacement).andExpect(status().isOk());
             } finally { gate.release.countDown(); }
         }
     }
 
+    @Test void differentLinksForSameRecipientMayBothHaveCurrentCodes() throws Exception {
+        UUID recipient = account("PATIENT"), firstOwner = actor;
+        UUID firstLink = otpLink(recipient);
+        actor = account("PATIENT"); profile(actor, "Second requester", actor.toString().substring(0, 20), "CCCD");
+        UUID secondLink = id(add(number, "CCCD", 202), "linkId");
+        assertNotEquals(firstLink, secondLink);
+        assertEquals(2, jdbc.queryForObject("select count(*) from verification_codes where purpose='CARE_LINK' and account_id=? and consumed_at is null and superseded_at is null", Integer.class, recipient));
+        assertEquals(1, jdbc.queryForObject("select count(*) from verification_codes where purpose='CARE_LINK' and link_id=? and consumed_at is null and superseded_at is null", Integer.class, firstLink));
+        assertEquals(1, jdbc.queryForObject("select count(*) from verification_codes where purpose='CARE_LINK' and link_id=? and consumed_at is null and superseded_at is null", Integer.class, secondLink));
+        assertNotEquals(firstOwner, actor);
+    }
+
+    @Test void careLinkRateLimitExcludesEmailVerificationCodes() throws Exception {
+        UUID recipient = account("PATIENT"), link = otpLink(recipient);
+        for (int i = 0; i < 3; i++) {
+            jdbc.update("insert into verification_codes(id,account_id,purpose,code_hash,created_at,expires_at,consumed_at) values (?,?,'EMAIL_VERIFY','hash',?,?,?)",
+                    UUID.randomUUID(), recipient, Timestamp.from(NOW.minusSeconds(30)), Timestamp.from(NOW.plusSeconds(600)), Timestamp.from(NOW.minusSeconds(1)));
+        }
+        resend(actor, link).andExpect(status().isAccepted());
+        assertEquals(2, jdbc.queryForObject("select count(*) from verification_codes where purpose='CARE_LINK' and account_id=?", Integer.class, recipient));
+    }
+
     @Test void constraintsRejectInvalidMetadataHistoryAndSecondCurrentChallenge() throws Exception {
         UUID recipient = account("PATIENT"), link = otpLink(recipient);
-        assertThrows(Exception.class, () -> jdbc.update("insert into care_link_otp_challenges(id,link_id,recipient_account_id,otp_hash,expires_at,created_at) values (?,?,?,'hash',?,?)",
+        assertThrows(Exception.class, () -> jdbc.update("insert into verification_codes(id,link_id,account_id,code_hash,expires_at,created_at,purpose) values (?,?,?,'hash',?,?,'CARE_LINK')",
                 UUID.randomUUID(), link, recipient, Timestamp.from(NOW.plusSeconds(600)), Timestamp.from(NOW)));
-        assertThrows(Exception.class, () -> jdbc.update("update care_link_otp_challenges set failed_attempts=6 where link_id=?", link));
-        assertThrows(Exception.class, () -> jdbc.update("update care_link_otp_challenges set expires_at=created_at where link_id=?", link));
-        assertThrows(Exception.class, () -> jdbc.update("update care_link_otp_challenges set consumed_at=created_at-interval '1 second' where link_id=?", link));
-        assertThrows(Exception.class, () -> jdbc.update("update care_link_otp_challenges set superseded_at=created_at-interval '1 second' where link_id=?", link));
+        assertThrows(Exception.class, () -> jdbc.update("update verification_codes set failed_attempts=6 where purpose='CARE_LINK' and link_id=?", link));
+        assertThrows(Exception.class, () -> jdbc.update("update verification_codes set expires_at=created_at where purpose='CARE_LINK' and link_id=?", link));
+        assertThrows(Exception.class, () -> jdbc.update("update verification_codes set consumed_at=created_at-interval '1 second' where purpose='CARE_LINK' and link_id=?", link));
+        assertThrows(Exception.class, () -> jdbc.update("update verification_codes set superseded_at=created_at-interval '1 second' where purpose='CARE_LINK' and link_id=?", link));
         assertThrows(Exception.class, () -> jdbc.update("update patient_caregivers set relationship='PARENT' where id=?", link));
         assertThrows(Exception.class, () -> jdbc.update("update patient_caregivers set pending_reason='COUNTER' where id=?", link));
         assertThrows(Exception.class, () -> jdbc.update("update patient_caregivers set state='CONFIRMED',confirmed_at=requested_at where id=?", link));
@@ -559,7 +625,7 @@ class DependentsR3PostgresIntegrationTest {
             assertEquals(202, results.getLast());
             assertEquals("REQUESTED", jdbc.queryForObject("select state from patient_caregivers where id=?", String.class, link));
         }
-        assertTrue(jdbc.queryForObject("select count(*) from care_link_otp_challenges where link_id=? and consumed_at is null and superseded_at is null", Integer.class, link) <= 1);
+        assertTrue(jdbc.queryForObject("select count(*) from verification_codes where purpose='CARE_LINK' and link_id=? and consumed_at is null and superseded_at is null", Integer.class, link) <= 1);
     }
     @Test void revokeVersusUpdateCannotWriteAfterRevocation() throws Exception {
         UUID target = id(add(number, "CCCD", 201).get("profile"), "patientProfileId");

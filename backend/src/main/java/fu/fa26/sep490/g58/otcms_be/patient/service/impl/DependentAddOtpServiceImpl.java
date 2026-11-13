@@ -6,11 +6,14 @@ import fu.fa26.sep490.g58.otcms_be.config.AuthProperties;
 import fu.fa26.sep490.g58.otcms_be.patient.exception.*;
 import fu.fa26.sep490.g58.otcms_be.patient.model.CareRelationship.Relationship;
 import fu.fa26.sep490.g58.otcms_be.patient.model.dto.DependentDtos.*;
-import fu.fa26.sep490.g58.otcms_be.patient.model.entity.DependentAddRequestJpaEntity;
+import fu.fa26.sep490.g58.otcms_be.auth.model.entity.VerificationCodeJpaEntity;
+import fu.fa26.sep490.g58.otcms_be.auth.model.entity.enums.VerificationPurpose;
+import fu.fa26.sep490.g58.otcms_be.patient.model.DependentAddPayload;
 import fu.fa26.sep490.g58.otcms_be.patient.repository.DependentAddRequestRepository;
 import fu.fa26.sep490.g58.otcms_be.patient.service.DependentAddOtpService;
 import fu.fa26.sep490.g58.otcms_be.patient.service.DependentProfileService;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
@@ -28,6 +31,9 @@ import org.springframework.transaction.support.TransactionTemplate;
  */
 @Service
 public class DependentAddOtpServiceImpl implements DependentAddOtpService {
+    /** How long an expired request keeps its dependent details for its owner's "resend". */
+    static final Duration STALE_PAYLOAD_RETENTION = Duration.ofDays(1);
+
     private final PatientIdentityDirectory patients;
     private final MyAccountQueryService accounts;
     private final DependentAddRequestRepository requests;
@@ -67,10 +73,10 @@ public class DependentAddOtpServiceImpl implements DependentAddOtpService {
     public AddOtpResult resend(UUID actor, UUID requestId) {
         requirePatient(actor);
         var stored = transactions.execute(status -> {
-            var row = requests.findById(requestId)
-                    .filter(r -> r.getRequesterAccountId().equals(actor)).orElse(null);
+            var row = requests.findByIdForUpdate(requestId)
+                    .filter(r -> r.getAccountId().equals(actor)).orElse(null);
             if (row == null) throw new CareRelationshipException("CARE_LINK_NOT_FOUND");
-            if (row.getConsumedAt() != null) throw new CareRelationshipException("CARE_LINK_NOT_AVAILABLE");
+            if (row.getConsumedAt() != null || row.getPayload() == null) throw new CareRelationshipException("CARE_LINK_NOT_AVAILABLE");
             return toRequest(row);
         });
         return issue(actor, stored);
@@ -85,20 +91,23 @@ public class DependentAddOtpServiceImpl implements DependentAddOtpService {
         AddDependentRequest confirmed = transactions.execute(status -> {
             guard.acquire();
             var row = requests.findByIdForUpdate(requestId)
-                    .filter(r -> r.getRequesterAccountId().equals(actor)).orElse(null);
+                    .filter(r -> r.getAccountId().equals(actor)).orElse(null);
             if (row == null) throw new CareRelationshipException("CARE_LINK_NOT_FOUND");
             Instant now = clock.instant();
             if (row.getConsumedAt() != null || row.getSupersededAt() != null || !row.getExpiresAt().isAfter(now)
                     || row.getFailedAttempts() >= EmailOtpService.MAX_FAILED_ATTEMPTS) return null;
-            if (code == null || !code.matches("[0-9]{6}") || !otp.matches(code, row.getOtpHash())) {
+            if (code == null || !code.matches("[0-9]{6}") || !otp.matches(code, row.getCodeHash())) {
                 row.setFailedAttempts(row.getFailedAttempts() + 1);
+                // Locks the code but keeps the details so "resend" still works (same as before the merge).
                 if (row.getFailedAttempts() >= EmailOtpService.MAX_FAILED_ATTEMPTS) row.setSupersededAt(now);
                 requests.saveAndFlush(row);
                 return null;
             }
+            AddDependentRequest result = toRequest(row);
             row.setConsumedAt(now);
+            row.setPayload(null);
             requests.saveAndFlush(row);
-            return toRequest(row);
+            return result;
         });
         if (confirmed == null) throw new CareOtpInvalidException();
         return dependents.add(actor, confirmed);
@@ -109,29 +118,31 @@ public class DependentAddOtpServiceImpl implements DependentAddOtpService {
                 .filter(value -> value != null && !value.isBlank() && value.indexOf('@') > 0)
                 .orElseThrow(() -> new CareRelationshipException("EMAIL_DELIVERY_UNAVAILABLE"));
         String code = otp.generate();
-        UUID id = UUID.randomUUID();
-        transactions.executeWithoutResult(status -> {
+        UUID id = transactions.execute(status -> {
             guard.acquire();
             Instant now = clock.instant();
+            // No cleanup job: each new request drops the actor's earlier details and any account's details expired
+            // more than a day ago, so a recently expired request of someone else can still be resent.
+            requests.clearStalePayloads(actor, now.minus(STALE_PAYLOAD_RETENTION));
             Instant since = now.minusSeconds(auth.resend().windowSeconds());
-            if (requests.countByRequesterAccountIdAndCreatedAtAfter(actor, since) >= auth.resend().requests())
+            if (requests.countRequestsSince(actor, since) >= auth.resend().requests())
                 throw new CareRelationshipException("RATE_LIMIT_EXCEEDED");
             requests.supersedeOpenRequests(actor, now);
-            var row = new DependentAddRequestJpaEntity();
-            row.setId(id); row.setRequesterAccountId(actor);
-            row.setFullName(request.fullName()); row.setDateOfBirth(request.dateOfBirth());
-            row.setGender(request.gender()); row.setNationalId(request.nationalId());
-            row.setIdentityDocumentType(request.identityDocumentType());
-            row.setRelationship(request.relationship().name());
+            var row = new VerificationCodeJpaEntity();
+            row.setPurpose(VerificationPurpose.DEPENDENT_ADD);
+            row.setAccountId(actor);
+            row.setPayload(new DependentAddPayload(request.fullName(), request.dateOfBirth(), request.gender(),
+                    request.nationalId(), request.identityDocumentType(), request.relationship().name()));
             // A hash of a non-code matches no six-digit input; the real hash is set only after SMTP succeeds.
-            row.setOtpHash(otp.hash("DELIVERY_PENDING"));
+            row.setCodeHash(otp.hash("DELIVERY_PENDING"));
             row.setExpiresAt(otp.expiresAt(now)); row.setCreatedAt(now);
-            requests.saveAndFlush(row);
+            return requests.saveAndFlush(row).getId();
         });
         try { email.sendVerificationCode(recipient, code, actor); }
         catch (RuntimeException failure) {
             transactions.executeWithoutResult(status -> requests.findByIdForUpdate(id).ifPresent(row -> {
                 row.setSupersededAt(clock.instant());
+                row.setPayload(null);
                 requests.saveAndFlush(row);
             }));
             throw new CareRelationshipException("EMAIL_DELIVERY_UNAVAILABLE");
@@ -148,8 +159,9 @@ public class DependentAddOtpServiceImpl implements DependentAddOtpService {
         if (actor == null || !patients.isActivePatient(actor)) throw new CareRelationshipException("ACCESS_DENIED");
     }
 
-    private static AddDependentRequest toRequest(DependentAddRequestJpaEntity row) {
-        return new AddDependentRequest(row.getFullName(), row.getDateOfBirth(), row.getGender(), row.getNationalId(),
-                row.getIdentityDocumentType(), Relationship.valueOf(row.getRelationship()));
+    private static AddDependentRequest toRequest(VerificationCodeJpaEntity row) {
+        var p = row.getPayload();
+        return new AddDependentRequest(p.fullName(), p.dateOfBirth(), p.gender(), p.nationalId(),
+                p.identityDocumentType(), Relationship.valueOf(p.relationship()));
     }
 }

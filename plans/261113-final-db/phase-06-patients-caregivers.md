@@ -21,7 +21,7 @@ migration: V111__final_db_patients_caregivers.sql
 - **R1 Tiền sử.** `GET` và `PUT /api/v1/patient-profiles/{id}/medical-history` giữ nguyên. Response có `version`. FE gửi lại `version` khi lưu (`features/patient-profiles/hooks/useMedicalHistory.ts`). `version = 0` nghĩa là tạo mới; khác 0 thì so khớp, lệch thì `STALE_VERSION`.
 - **R1b Cột riêng.** Dùng cột `medical_history_version`, KHÔNG dùng chung `patient_profiles.version`. Lý do: `patient_profiles.version` là khoá lạc quan của `PatientProfileDirectoryServiceImpl.update`. Nếu dùng chung, sửa hồ sơ cơ bản làm tiền sử báo `STALE_VERSION` và ngược lại, tức là đổi hành vi API. Lệch với schema-33 mục 2.2, xem Câu hỏi 1.
 - **R2 Người thân theo R3.** BR-16: chỉ quản lý, xem, thanh toán khi liên kết đã `CONFIRMED`; kết thúc thì mất quyền nhưng giữ hồ sơ khám. BR-17: liên kết hồ sơ đã có cần OTP gửi tới email trên hồ sơ, hoặc kiểm giấy tờ tại quầy. BR-19: chỉ xem, thanh toán cho bản thân và người thân đã được duyệt. UC-13 (R3 mục 2.3.4). Phase này KHÔNG đổi logic đó; chỉ đổi nơi lưu OTP.
-- **R3 Payload.** `payload` của `DEPENDENT_ADD` (họ tên, ngày sinh, giới tính, CCCD, quan hệ) chỉ tồn tại khi còn cần: NULL khi đã dùng (`consumed_at`) hoặc đã hết hạn (`expires_at <= now`). Hệ quả với "Gửi lại mã": Câu hỏi 2.
+- **R3 Payload.** `payload` của `DEPENDENT_ADD` (họ tên, ngày sinh, giới tính, CCCD, quan hệ) chỉ tồn tại khi còn cần. Quy tắc cuối cùng: bảng P1–P7 trong mục "Câu hỏi còn mở" (ĐÃ CHỐT 13/11 chiều); dòng gốc "NULL khi hết hạn" đã được thay.
 - **R4 Không lộ dữ liệu nhạy cảm.** OTP, `code_hash`, CCCD và `payload` không đi vào audit, log hay response. Phase này không thêm audit mới.
 - **R5 Rate-limit.** Giới hạn gửi lại giữ nguyên, nhưng đếm theo `purpose`. Đếm `CARE_LINK` không được tính `EMAIL_VERIFY` hay `PASSWORD_RESET` của cùng tài khoản.
 
@@ -228,7 +228,7 @@ public record DependentAddPayload(String fullName, LocalDate dateOfBirth, String
 - [ ] Test mới đạt:
   - [ ] hai link khác nhau cùng một người nhận đều có mã hiện hành (regression của UNIQUE);
   - [ ] payload NULL sau khi dùng mã;
-  - [ ] payload NULL khi hết hạn;
+  - [ ] payload theo bảng P1–P7 (giữ khi sai 5 lần; tài khoản khác không xoá yêu cầu hết hạn < 1 ngày; xoá khi ≥ 1 ngày);
   - [ ] lưu tiền sử sau khi sửa hồ sơ cơ bản không báo `STALE_VERSION`;
   - [ ] chép dữ liệu demo giữ đủ số dòng tiền sử và người thân;
   - [ ] rate-limit `CARE_LINK` không đếm `EMAIL_VERIFY`.
@@ -251,6 +251,22 @@ public record DependentAddPayload(String fullName, LocalDate dateOfBirth, String
 > **ĐÃ CHỐT 13/11 (tiêu chí: giữ API + tính năng đang chạy):** Q1 dùng cột riêng `medical_history_version`. Q2 `payload` chỉ set NULL khi mã được dùng hoặc bị thay bằng mã mới, KHÔNG xoá lúc hết hạn, để "Gửi lại mã" của FE vẫn chạy; dọn payload hết hạn khi có yêu cầu mới như đề xuất, không thêm job. Q3 GIỮ luồng `DEPENDENT_ADD` vì đang chạy; lệch R3 UC-13 đã báo NghiaDT để xem lại R3, không sửa trong đợt này. Q4 entity `VerificationCodeJpaEntity` nằm ở package `auth` (phase 02); phase 06 có repository riêng trong `patient` trên cùng entity, được phép. Q5 không thêm job.
 >
 > **Bổ sung 13/11:** `DEPENDENT_ADD` nằm trong UNIQUE "1 mã đang mở mỗi tài khoản mỗi mục đích" (xem phase 02, mục ĐÃ CHỐT). `DependentAddOtpServiceImpl.issue` giữ thứ tự: supersede mã cũ rồi mới insert, cùng transaction.
+>
+> **ĐÃ CHỐT 13/11 chiều (NghiaDT) — vòng đời thông tin người thân tạm (`payload`, có CCCD). Dùng làm căn cứ viết test (Report 5.x):**
+>
+> | # | Tình huống | `payload` | "Gửi lại mã" |
+> |---|---|---|---|
+> | P1 | Nhập đúng mã, thêm người thân thành công | xoá ngay (đã chuyển sang hồ sơ người thân) | không còn (mã đã dùng) |
+> | P2 | Nhập sai 5 lần | GIỮ (mã bị khoá: `superseded_at`, `failed_attempts = 5`; nhập đúng cũng bị từ chối) | được, mã mới mang lại đúng thông tin cũ (như code trước khi gộp) |
+> | P3 | Mã hết hạn (15 phút), người dùng còn trên trang | giữ | được, trong vòng 1 ngày sau khi hết hạn |
+> | P4 | Chính tài khoản đó tạo yêu cầu mới / gửi lại mã | xoá thông tin của mọi yêu cầu cũ của tài khoản đó | — |
+> | P5 | Tài khoản KHÁC tạo yêu cầu, yêu cầu của mình hết hạn < 1 ngày | giữ (không bị ảnh hưởng chéo) | được |
+> | P6 | Bất kỳ tài khoản nào tạo yêu cầu, yêu cầu của người khác đã hết hạn ≥ 1 ngày | xoá | không (trả `CARE_LINK_NOT_AVAILABLE`, phải nhập lại) |
+> | P7 | Gửi email thất bại | xoá, yêu cầu bị huỷ | — |
+>
+> Không có job chạy nền: việc dọn (P4, P6) chỉ chạy khi có người tạo yêu cầu thêm người thân (`DependentAddRequestRepository.clearStalePayloads(account, now - 1 ngày)`, hằng `DependentAddOtpServiceImpl.STALE_PAYLOAD_RETENTION`). Hệ quả chấp nhận: nếu không ai dùng chức năng, CCCD bỏ dở nằm lại tới lần kế tiếp. Lý do bỏ cách dọn của Codex (xoá mọi yêu cầu hết hạn của tất cả tài khoản): việc của tài khoản B làm hỏng "Gửi lại mã" của tài khoản A một cách ngẫu nhiên.
+>
+> Test đã có: `DependentAddOtpServiceTest` (`fifthWrongAttemptLocksTheCodeButKeepsDetailsForResend` P2, `expiredCurrentRequestCanBeResent` P3+P4, `newRequestClearsOwnDetailsAndOnlyDetailsExpiredOverADay`, `correctCodeAddsDependentOnceWithStoredDetails` P1, `emailFailureSupersedesTheRequestAndReportsUnavailable` P7); `DependentsR3PostgresIntegrationTest.dependentAddPayloadIsClearedOnUseAndAfterExpiryByNextRequest` (P1, P4 với mã bị khoá, P5, P6 trên DB thật). Ca nên thêm khi viết system test: P5 và P6 qua giao diện (hai tài khoản bệnh nhân, chỉnh `expires_at` trong DB).
 
 Các câu bên dưới giữ lại để tra lý do.
 1. **(Chặn)** Version tiền sử: dùng cột riêng `medical_history_version` (đề xuất, giữ đúng `STALE_VERSION`) hay dùng chung `patient_profiles.version` như schema-33 mục 2.2? Hệ quả của phương án dùng chung đã ghi ở Risk.
