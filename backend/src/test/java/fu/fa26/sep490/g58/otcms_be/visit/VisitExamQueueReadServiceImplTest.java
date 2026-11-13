@@ -181,9 +181,9 @@ class VisitExamQueueReadServiceImplTest {
         when(room.getId()).thenReturn(ROOM);
         when(room.getDisplayLabel()).thenReturn("Phong 1");
         when(rooms.findAllById(List.of(ROOM))).thenReturn(List.of(room));
-        when(queue.countByDoctorProfileIdAndClinicDateAndExamStatus(DOCTOR_A, TODAY, VisitExamStatus.WAITING))
+        when(queue.countExamRows(DOCTOR_A, TODAY, "WAITING"))
                 .thenReturn(2L);
-        when(queue.countByDoctorProfileIdAndClinicDateAndExamStatus(DOCTOR_C, TODAY, VisitExamStatus.WAITING))
+        when(queue.countExamRows(DOCTOR_C, TODAY, "WAITING"))
                 .thenReturn(0L);
 
         List<ExamQueueDtos.OnShiftDoctor> doctors = service.onShiftDoctors(NOW).items();

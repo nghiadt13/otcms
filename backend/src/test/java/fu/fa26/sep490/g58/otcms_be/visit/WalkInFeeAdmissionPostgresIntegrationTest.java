@@ -105,8 +105,7 @@ class WalkInFeeAdmissionPostgresIntegrationTest {
         assertEquals(Integer.valueOf(1), queueNumber(visitId));
         assertEquals("OPEN", visitStatus(visitId));
         // The legacy reception queue keeps its row until the doctor starts the examination.
-        assertEquals("WAITING", jdbc.queryForObject("select status from walk_in_reception_queue_entries "
-                + "where visit_id = ?", String.class, visitId));
+        assertEquals("WAITING", jdbc.queryForObject("select status from queue_entries where stage = 'RECEPTION' and visit_id = ?", String.class, visitId));
     }
 
     @Test
@@ -189,7 +188,7 @@ class WalkInFeeAdmissionPostgresIntegrationTest {
         mvc.perform(createWalkIn("wf-off-shift", patientProfile, doctorProfile, feeService))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.error.code").value("DOCTOR_NOT_ON_SHIFT"));
-        assertEquals(0, jdbc.queryForObject("select count(*) from walk_in_requests where receptionist_account_id = ?",
+        assertEquals(0, jdbc.queryForObject("select count(*) from visits where created_by_account_id = ?",
                 Integer.class, receptionist));
     }
 
@@ -245,8 +244,7 @@ class WalkInFeeAdmissionPostgresIntegrationTest {
     }
 
     private UUID visitOf(String key) {
-        return jdbc.queryForObject("select visit_id from walk_in_requests where receptionist_account_id = ? "
-                + "and idempotency_key = ?", UUID.class, receptionist, key);
+        return jdbc.queryForObject("select id from visits where created_by_account_id = ? and walk_in_idempotency_key = ?", UUID.class, receptionist, key);
     }
 
     private UUID invoiceOf(UUID visitId) {
@@ -262,11 +260,11 @@ class WalkInFeeAdmissionPostgresIntegrationTest {
     }
 
     private String queueStatus(UUID visitId) {
-        return jdbc.queryForObject("select exam_status from visit_exam_queue where visit_id = ?", String.class, visitId);
+        return jdbc.queryForObject("select status from queue_entries where stage = 'EXAM' and visit_id = ?", String.class, visitId);
     }
 
     private Integer queueNumber(UUID visitId) {
-        return jdbc.queryForObject("select queue_number from visit_exam_queue where visit_id = ?", Integer.class, visitId);
+        return jdbc.queryForObject("select queue_number from queue_entries where stage = 'EXAM' and visit_id = ?", Integer.class, visitId);
     }
 
     private String visitStatus(UUID visitId) {
@@ -277,24 +275,21 @@ class WalkInFeeAdmissionPostgresIntegrationTest {
     void cleanUp() {
         // Audit and walk-in history rows are append-only; their triggers are switched off for this cleanup only.
         String ownVisits = "select id from visits where created_by_account_id = ?";
-        jdbc.execute("alter table visit_audits disable trigger tr_visit_audits_immutable");
-        jdbc.execute("alter table visit_audits disable trigger tr_visit_audits_no_truncate");
-        jdbc.execute("alter table walk_in_reception_queue_history disable trigger all");
+        jdbc.execute("alter table audit_logs disable trigger tr_audit_logs_immutable");
+        jdbc.execute("alter table audit_logs disable trigger tr_audit_logs_no_truncate");
         try {
             jdbc.update("delete from payment_attempts where invoice_id in (select id from invoices where visit_id in ("
                     + ownVisits + "))", receptionist);
             jdbc.update("delete from invoice_items where invoice_id in (select id from invoices where visit_id in ("
                     + ownVisits + "))", receptionist);
             jdbc.update("delete from invoices where visit_id in (" + ownVisits + ")", receptionist);
-            jdbc.update("delete from walk_in_reception_queue_history where queue_entry_id in (select id from "
-                    + "walk_in_reception_queue_entries where visit_id in (" + ownVisits + "))", receptionist);
-            jdbc.update("delete from walk_in_reception_queue_entries where visit_id in (" + ownVisits + ")", receptionist);
-            jdbc.update("delete from walk_in_requests where visit_id in (" + ownVisits
-                    + ") or receptionist_account_id = ?", receptionist, receptionist);
-            jdbc.update("delete from visit_exam_queue where visit_id in (" + ownVisits
-                    + ") or doctor_profile_id = ?", receptionist, doctorProfile);
-            jdbc.update("delete from visit_check_ins where visit_id in (" + ownVisits + ")", receptionist);
-            jdbc.update("delete from visit_audits where visit_id in (" + ownVisits + ")", receptionist);
+            jdbc.update("delete from audit_logs where source in ('walk_in_reception_queue_history', 'visit_assignment_audits', 'visit_audits') and record_label in (select id::text from (" + ownVisits + ") fixture_visits)", receptionist);
+            jdbc.update("delete from queue_entries where stage = 'RECEPTION' and visit_id in (" + ownVisits + ")", receptionist);
+
+            jdbc.update("delete from queue_entries where stage = 'EXAM' and (visit_id in (" + ownVisits
+                    + ") or doctor_profile_id = ?)", receptionist, doctorProfile);
+
+            jdbc.update("delete from audit_logs where source = 'visit_audits' and record_label in (select id::text from (" + ownVisits + ") fixture_visits)", receptionist);
             jdbc.update("delete from visits where created_by_account_id = ?", receptionist);
             jdbc.update("delete from work_shifts where staff_profile_id = ?", doctorProfile);
             jdbc.update("delete from doctor_services where doctor_profile_id = ?", doctorProfile);
@@ -303,9 +298,8 @@ class WalkInFeeAdmissionPostgresIntegrationTest {
             jdbc.update("delete from patient_profiles where id = ?", patientProfile);
             jdbc.update("delete from accounts where id in (?, ?, ?)", receptionist, patientAccount, doctorAccount);
         } finally {
-            jdbc.execute("alter table walk_in_reception_queue_history enable trigger all");
-            jdbc.execute("alter table visit_audits enable trigger tr_visit_audits_immutable");
-            jdbc.execute("alter table visit_audits enable trigger tr_visit_audits_no_truncate");
+                jdbc.execute("alter table audit_logs enable trigger tr_audit_logs_immutable");
+            jdbc.execute("alter table audit_logs enable trigger tr_audit_logs_no_truncate");
         }
     }
 

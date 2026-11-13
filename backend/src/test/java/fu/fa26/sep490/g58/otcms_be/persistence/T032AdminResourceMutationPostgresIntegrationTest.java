@@ -89,7 +89,7 @@ class T032AdminResourceMutationPostgresIntegrationTest {
                 jdbc.update("update appointments set status='CANCELLED', visit_id=null where id=?", appointment);
             }
             for (UUID visit : visitIds) {
-                jdbc.update("delete from visit_check_ins where visit_id=?", visit);
+
                 jdbc.update("delete from visit_assignments where visit_id=?", visit);
             }
             for (UUID visit : visitIds) jdbc.update("delete from visits where id=?", visit);
@@ -244,9 +244,7 @@ class T032AdminResourceMutationPostgresIntegrationTest {
                             "values (?,?,'SCHEDULED',?,?,?,?,'OPEN')",
                     visitId, patient, appointmentId, timestamp(resourceStart), timestamp(resourceStart), adminId);
             jdbc.update("update appointments set status='CHECKED_IN', visit_id=? where id=?", visitId, appointmentId);
-            jdbc.update("insert into visit_check_ins (visit_id,receptionist_account_id,reception_type,arrived_at,checked_in_at) " +
-                            "values (?,?,'APPOINTMENT_CHECK_IN',?,?)",
-                    visitId, receptionistId, timestamp(resourceStart), timestamp(resourceStart));
+
         });
 
         jdbc.update("insert into work_shifts (id,staff_profile_id,starts_at,ends_at) values (?,?,?,?)",

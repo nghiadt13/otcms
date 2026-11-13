@@ -1,5 +1,7 @@
 package fu.fa26.sep490.g58.otcms_be.clinical;
 
+import fu.fa26.sep490.g58.otcms_be.visit.service.impl.VisitAuditRecorder;
+
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -45,7 +47,7 @@ class VisitCompletionProductionWiringTest {
                 ClinicalVisitCompletionEvidenceServiceImpl.class, DiagnosticVisitCompletionEvidenceServiceImpl.class,
                 WalkInVisitLifecycleServiceImpl.class); context.refresh();
         when(bean(AccountRepository.class).existsByIdAndAccountTypeAndStatus(eq(actor), eq(AccountType.RECEPTIONIST), any())).thenReturn(true);
-        when(bean(ClinicVisitJpaRepository.class).findByIdForUpdate(visit)).thenReturn(Optional.of(ClinicVisitJpaEntity.walkIn(visit, patient, null, actor, now)));
+        when(bean(ClinicVisitJpaRepository.class).findByIdForUpdate(visit)).thenReturn(Optional.of(ClinicVisitJpaEntity.walkIn(visit, patient, null, actor, now, null, null)));
         when(bean(WalkInVisitLifecycleRepository.class).closeOpenVisit(eq(visit), any())).thenReturn(true);
         when(bean(VisitReviewSourceService.class).find(visit)).thenReturn(Optional.empty());
         when(bean(ClinicalExaminationRepository.class).findByVisitId(visit)).thenReturn(Optional.of(
@@ -77,19 +79,19 @@ class VisitCompletionProductionWiringTest {
             assertThrows(VisitOperationException.class, this::close);
         }
         verify(bean(WalkInVisitLifecycleRepository.class), never()).closeOpenVisit(any(), any());
-        verifyNoInteractions(bean(VisitAuditJpaRepository.class), bean(NotificationPublisher.class), bean(ExitWalkInReceptionQueueService.class));
+        verifyNoInteractions(bean(VisitAuditRecorder.class), bean(NotificationPublisher.class), bean(ExitWalkInReceptionQueueService.class));
     }
 
     @Test void actualOwnerQueriesAllowCompleteImagingAndPreserveClosureEffects() {
         close(); verify(bean(WalkInVisitLifecycleRepository.class)).closeOpenVisit(eq(visit), any());
         verify(bean(WalkInVisitLifecycleRepository.class)).releaseReservedCare(eq(visit), any());
-        verify(bean(VisitAuditJpaRepository.class)).saveAndFlush(any()); verify(bean(NotificationPublisher.class)).publishToPatient(eq(patient), any());
+        verify(bean(VisitAuditRecorder.class)).walkInClosed(eq(actor), eq(visit), any(), any()); verify(bean(NotificationPublisher.class)).publishToPatient(eq(patient), any());
         assertEquals(1, bean(DoctorCoreProductionWiringTest.RecordingTransactions.class).commits);
     }
     @Test void actualOwnerQueryRejectsUnreleasedReportBeforeAnyClosureEffects() {
         pdf.setReleasedAt(null); assertThrows(VisitOperationException.class, this::close);
         verify(bean(WalkInVisitLifecycleRepository.class), never()).closeOpenVisit(any(), any());
-        verifyNoInteractions(bean(VisitAuditJpaRepository.class), bean(NotificationPublisher.class), bean(ExitWalkInReceptionQueueService.class));
+        verifyNoInteractions(bean(VisitAuditRecorder.class), bean(NotificationPublisher.class), bean(ExitWalkInReceptionQueueService.class));
         assertEquals(1, bean(DoctorCoreProductionWiringTest.RecordingTransactions.class).rollbacks);
     }
     @Test void canceledClinicalImagingDoesNotRequireDiagnosticFulfillment() {
@@ -110,12 +112,12 @@ class VisitCompletionProductionWiringTest {
             assertThrows(VisitOperationException.class, this::close, state.name());
         }
         verify(bean(WalkInVisitLifecycleRepository.class), never()).closeOpenVisit(any(), any());
-        verifyNoInteractions(bean(VisitAuditJpaRepository.class), bean(NotificationPublisher.class), bean(ExitWalkInReceptionQueueService.class));
+        verifyNoInteractions(bean(VisitAuditRecorder.class), bean(NotificationPublisher.class), bean(ExitWalkInReceptionQueueService.class));
     }
 
     @Configuration static class Extras {
         @Bean WalkInVisitLifecycleRepository lifecycleRows() { return mock(WalkInVisitLifecycleRepository.class); }
-        @Bean VisitAuditJpaRepository auditRows() { return mock(VisitAuditJpaRepository.class); }
+        @Bean VisitAuditRecorder auditRows() { return mock(VisitAuditRecorder.class); }
         @Bean ExitWalkInReceptionQueueService queueExit() { return mock(ExitWalkInReceptionQueueService.class); }
         @Bean NotificationPublisher notifications() { return mock(NotificationPublisher.class); }
         @Bean VisitReviewSourceService reviewSources() { return mock(VisitReviewSourceService.class); }

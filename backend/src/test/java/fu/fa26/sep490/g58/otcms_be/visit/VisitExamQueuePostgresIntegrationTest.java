@@ -103,7 +103,7 @@ class VisitExamQueuePostgresIntegrationTest {
         queue.complete(visit2, doctorAProfileId, now);
         entityManager.flush();
         assertEquals("COMPLETED", jdbc.queryForObject(
-                "select exam_status from visit_exam_queue where visit_id = ?", String.class, visit2));
+                "select status from queue_entries where stage = 'EXAM' and visit_id = ?", String.class, visit2));
     }
 
     @Test

@@ -90,18 +90,6 @@ public class VisitWorkflowRepository {
                 .setParameter("visitId", visitId).setParameter("doctorId", doctorId).getSingleResult();
     }
 
-    public void appendCareAudit(UUID visitId, UUID assignmentId, UUID actorId, String action, String stepCode,
-            Timestamp oldEnd, Timestamp newEnd, Instant occurredAt, String correlationId) {
-        entityManager.createNativeQuery("""
-                insert into visit_assignment_audits (id, visit_id, assignment_id, actor_account_id, action, step_code,
-                    old_expected_end, new_expected_end, occurred_at, correlation_id)
-                values (:id, :visitId, :assignmentId, :actorId, :action, :stepCode, :oldEnd, :newEnd, :occurredAt, :correlationId)
-                """).setParameter("id", UUID.randomUUID()).setParameter("visitId", visitId).setParameter("assignmentId", assignmentId)
-                .setParameter("actorId", actorId).setParameter("action", action).setParameter("stepCode", stepCode)
-                .setParameter("oldEnd", oldEnd).setParameter("newEnd", newEnd).setParameter("occurredAt", Timestamp.from(occurredAt))
-                .setParameter("correlationId", correlationId).executeUpdate();
-    }
-
     public boolean hasVisitFromAppointment(UUID appointmentId) {
         Number count = (Number) entityManager.createNativeQuery("select count(*) from visits where originating_appointment_id = :appointmentId")
                 .setParameter("appointmentId", appointmentId).getSingleResult();
@@ -121,11 +109,6 @@ public class VisitWorkflowRepository {
                 """).setParameter("visitId", visitId).setParameter("patientId", data.patientId()).setParameter("appointmentId", data.appointmentId())
                 .setParameter("arrivedAt", Timestamp.from(data.arrivedAt())).setParameter("checkedInAt", Timestamp.from(data.checkedInAt()))
                 .setParameter("actorId", data.actorId()).executeUpdate();
-        entityManager.createNativeQuery("""
-                insert into visit_check_ins (visit_id, receptionist_account_id, reception_type, arrived_at, checked_in_at, prior_appointment_id)
-                values (:visitId, :actorId, 'APPOINTMENT_CHECK_IN', :arrivedAt, :checkedInAt, null)
-                """).setParameter("visitId", visitId).setParameter("actorId", data.actorId())
-                .setParameter("arrivedAt", Timestamp.from(data.arrivedAt())).setParameter("checkedInAt", Timestamp.from(data.checkedInAt())).executeUpdate();
     }
     public static class CheckInData {
         private final UUID appointmentId, patientId, actorId; private final Instant arrivedAt, checkedInAt;
@@ -142,10 +125,9 @@ public class VisitWorkflowRepository {
 
     public boolean hasConsistentCheckInEvidence(UUID appointmentId, UUID patientId, UUID visitId) {
         Boolean consistent = (Boolean) entityManager.createNativeQuery("""
-                select exists (select 1 from visits v join visit_check_ins r on r.visit_id = v.id
+                select exists (select 1 from visits v
                 where v.id = :visitId and v.originating_appointment_id = :appointmentId and v.patient_profile_id = :patientId
-                and v.source = 'SCHEDULED' and r.reception_type = 'APPOINTMENT_CHECK_IN' and r.prior_appointment_id is null
-                and r.receptionist_account_id is not null and r.checked_in_at = v.checked_in_at and r.arrived_at = v.arrived_at)
+                and v.source = 'SCHEDULED')
                 """).setParameter("visitId", visitId).setParameter("appointmentId", appointmentId).setParameter("patientId", patientId).getSingleResult();
         return Boolean.TRUE.equals(consistent);
     }

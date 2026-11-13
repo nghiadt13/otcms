@@ -13,7 +13,6 @@ import fu.fa26.sep490.g58.otcms_be.visit.exception.VisitRoomCapacityConflictExce
 import fu.fa26.sep490.g58.otcms_be.visit.model.CareStepAssignment;
 import fu.fa26.sep490.g58.otcms_be.visit.model.RoomReservationPlan;
 import fu.fa26.sep490.g58.otcms_be.visit.model.entity.VisitCareAssignmentJpaEntity;
-import fu.fa26.sep490.g58.otcms_be.visit.repository.VisitCareAssignmentAuditRepository;
 import fu.fa26.sep490.g58.otcms_be.visit.repository.VisitCareAssignmentRepository;
 import fu.fa26.sep490.g58.otcms_be.visit.service.CompleteWalkInCareStepCommand;
 import fu.fa26.sep490.g58.otcms_be.visit.service.ExtendVisitCareAssignmentCommand;
@@ -41,7 +40,7 @@ public class ManageVisitCareAssignmentServiceImpl implements ManageVisitCareAssi
     private final DoctorProfileIdentityQueryService doctors;
     private final CheckVisitReservationCapacityService appointments;
     private final VisitCareAssignmentRepository assignments;
-    private final VisitCareAssignmentAuditRepository audits;
+    private final VisitAuditRecorder audit;
     private final VisitRoomCapacityService rooms;
     private final VisitCareProperties properties;
     private final ExitWalkInReceptionQueueService queueExit;
@@ -50,14 +49,14 @@ public class ManageVisitCareAssignmentServiceImpl implements ManageVisitCareAssi
 
     public ManageVisitCareAssignmentServiceImpl(CoordinationGuardService guard, DoctorProfileIdentityQueryService doctors,
             CheckVisitReservationCapacityService appointments, VisitCareAssignmentRepository assignments,
-            VisitCareAssignmentAuditRepository audits, VisitRoomCapacityService rooms,
+            VisitAuditRecorder audit, VisitRoomCapacityService rooms,
             VisitCareProperties properties, ExitWalkInReceptionQueueService queueExit,
             VisitExamQueueService examQueue, Clock clock) {
         this.guard = guard;
         this.doctors = doctors;
         this.appointments = appointments;
         this.assignments = assignments;
-        this.audits = audits;
+        this.audit = audit;
         this.rooms = rooms;
         this.properties = properties;
         this.queueExit = queueExit;
@@ -93,8 +92,8 @@ public class ManageVisitCareAssignmentServiceImpl implements ManageVisitCareAssi
         UUID assignmentId = UUID.randomUUID();
         assignments.saveAndFlush(VisitCareAssignmentJpaEntity.inProgress(assignmentId, command.visitId(), doctorId,
                 command.stepCode(), duration, now, expectedEnd));
-        audits.append(command.visitId(), assignmentId, command.actorAccountId(), "STARTED", command.stepCode(),
-                null, Timestamp.from(expectedEnd), Timestamp.from(now), command.correlationId());
+        audit.careAssignment(command.visitId(), assignmentId, command.actorAccountId(), "STARTED", command.stepCode(),
+                null, expectedEnd, now, command.correlationId());
         return new CareStepAssignment(assignmentId, command.visitId(), doctorId, command.stepCode(), "IN_PROGRESS",
                 now, expectedEnd, null);
     }
@@ -125,8 +124,8 @@ public class ManageVisitCareAssignmentServiceImpl implements ManageVisitCareAssi
         } catch (VisitOperationException exception) {
             if ("VISIT_CAPACITY_NOT_AVAILABLE".equals(exception.code())
                     || "VISIT_LINK_CONFLICT".equals(exception.code())) {
-                audits.appendConflict(command.visitId(), assignment.id(), command.actorAccountId(),
-                        command.correlationId(), command.stepCode(), Timestamp.from(now));
+                audit.careCapacityConflict(command.visitId(), assignment.id(), command.actorAccountId(),
+                        command.correlationId(), command.stepCode(), now);
                 throw new VisitCapacityConflictException(exception.code());
             }
             throw exception;
@@ -138,8 +137,8 @@ public class ManageVisitCareAssignmentServiceImpl implements ManageVisitCareAssi
         }
         rooms.extend(roomPlan, command.visitId(), assignment.id(), command.actorAccountId(),
                 command.correlationId(), now);
-        audits.append(command.visitId(), assignment.id(), command.actorAccountId(), "EXTENDED", command.stepCode(),
-                Timestamp.from(assignment.expectedEnd()), Timestamp.from(newExpectedEnd), Timestamp.from(now),
+        audit.careAssignment(command.visitId(), assignment.id(), command.actorAccountId(), "EXTENDED", command.stepCode(),
+                assignment.expectedEnd(), newExpectedEnd, now,
                 command.correlationId());
         return new CareStepAssignment(assignment.id(), assignment.visitId(), assignment.doctorProfileId(),
                 assignment.stepCode(), assignment.status(), assignment.startsAt(), newExpectedEnd, null,
@@ -168,9 +167,9 @@ public class ManageVisitCareAssignmentServiceImpl implements ManageVisitCareAssi
             throw new VisitOperationException("VISIT_CARE_NOT_CHANGEABLE");
         }
         rooms.complete(command.visitId(), assignment.id(), command.actorAccountId(), command.correlationId(), actualEnd);
-        audits.append(command.visitId(), assignment.id(), command.actorAccountId(), "COMPLETED", assignment.stepCode(),
-                Timestamp.from(assignment.expectedEnd()), Timestamp.from(assignment.expectedEnd()),
-                Timestamp.from(actualEnd), command.correlationId());
+        audit.careAssignment(command.visitId(), assignment.id(), command.actorAccountId(), "COMPLETED", assignment.stepCode(),
+                assignment.expectedEnd(), assignment.expectedEnd(),
+                actualEnd, command.correlationId());
         return new CareStepAssignment(assignment.id(), assignment.visitId(), assignment.doctorProfileId(),
                 assignment.stepCode(), "COMPLETED", assignment.startsAt(), assignment.expectedEnd(), actualEnd);
     }
@@ -193,8 +192,8 @@ public class ManageVisitCareAssignmentServiceImpl implements ManageVisitCareAssi
             throw new VisitOperationException("VISIT_CARE_NOT_CHANGEABLE");
         }
         Instant now = clock.instant();
-        audits.appendConflict(command.visitId(), command.assignmentId(), command.actorAccountId(),
-                command.correlationId(), "CAPACITY_CONFLICT", Timestamp.from(now));
+        audit.careCapacityConflict(command.visitId(), command.assignmentId(), command.actorAccountId(),
+                command.correlationId(), "CAPACITY_CONFLICT", now);
     }
 
     @Override
@@ -211,9 +210,9 @@ public class ManageVisitCareAssignmentServiceImpl implements ManageVisitCareAssi
         }
         // Legacy reservations from before examinations stopped reserving rooms are released here; none is a no-op.
         rooms.complete(visitId, care.getId(), actorAccountId, correlationId, actualEnd);
-        audits.append(visitId, care.getId(), actorAccountId, "COMPLETED", care.getStepCode(),
-                Timestamp.from(care.getExpectedEnd()), Timestamp.from(care.getExpectedEnd()),
-                Timestamp.from(actualEnd), correlationId);
+        audit.careAssignment(visitId, care.getId(), actorAccountId, "COMPLETED", care.getStepCode(),
+                care.getExpectedEnd(), care.getExpectedEnd(),
+                actualEnd, correlationId);
     }
 
     private void ensureDoctorCapacity(UUID visitId, UUID patientId, UUID doctorId, Instant from, Instant to,
@@ -245,8 +244,8 @@ public class ManageVisitCareAssignmentServiceImpl implements ManageVisitCareAssi
         try {
             return rooms.prepare(stepCode, startsAt, expectedEnd, assignmentId);
         } catch (VisitRoomCapacityConflictException exception) {
-            audits.appendConflict(visitId, assignmentId, actorAccountId, correlationId,
-                    stepCode, Timestamp.from(occurredAt));
+            audit.careCapacityConflict(visitId, assignmentId, actorAccountId, correlationId,
+                    stepCode, occurredAt);
             rooms.recordConflict(visitId, assignmentId, actorAccountId, stepCode, correlationId, occurredAt);
             throw new VisitCapacityConflictException("VISIT_CAPACITY_NOT_AVAILABLE");
         }

@@ -101,9 +101,7 @@ class SlotAvailabilityT018PostgresIntegrationTest {
             jdbc.update("insert into visits (id, patient_profile_id, source, originating_appointment_id, arrived_at, checked_in_at, created_by_account_id) "
                             + "values (?, ?, 'SCHEDULED', ?, ?, ?, ?)", visitId, patientId, appointmentId,
                     Timestamp.from(dayStart), Timestamp.from(dayStart), receptionistAccountId);
-            jdbc.update("insert into visit_check_ins (visit_id, receptionist_account_id, reception_type, arrived_at, checked_in_at) "
-                            + "values (?, ?, 'APPOINTMENT_CHECK_IN', ?, ?)", visitId, receptionistAccountId,
-                    Timestamp.from(dayStart), Timestamp.from(dayStart));
+
             jdbc.update("update appointments set status = 'CHECKED_IN', visit_id = ? where id = ?", visitId, appointmentId);
         });
         jdbc.update("insert into visit_assignments (id, visit_id, doctor_profile_id, starts_at, ends_at, status) "
@@ -117,7 +115,7 @@ class SlotAvailabilityT018PostgresIntegrationTest {
                                UUID shiftId) {
         jdbc.update("update appointments set status = 'CONFIRMED', visit_id = null where id = ?", appointmentId);
         jdbc.update("delete from visit_assignments where id = ?", careAssignmentId);
-        jdbc.update("delete from visit_check_ins where visit_id = ?", visitId);
+
         jdbc.update("delete from visits where id = ?", visitId);
         jdbc.update("delete from appointments where id = ?", appointmentId);
         jdbc.update("delete from work_shifts where id = ?", shiftId);

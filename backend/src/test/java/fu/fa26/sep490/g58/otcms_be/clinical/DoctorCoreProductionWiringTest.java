@@ -76,7 +76,7 @@ class DoctorCoreProductionWiringTest {
         when(bean(StaffProfileRepository.class).findByIdAndDoctorTrue(doctorId)).thenReturn(Optional.of(profile));
         when(bean(AccountRepository.class).existsByIdAndAccountTypeAndStatus(eq(accountId), any(), any())).thenReturn(true);
         when(bean(ClinicVisitJpaRepository.class).findById(visitId)).thenReturn(Optional.of(
-                ClinicVisitJpaEntity.walkIn(visitId, patientId, null, UUID.randomUUID(), Instant.EPOCH)));
+                ClinicVisitJpaEntity.walkIn(visitId, patientId, null, UUID.randomUUID(), Instant.EPOCH, null, null)));
         when(bean(VisitCareAssignmentRepository.class).findFirstByVisitIdAndStatusOrderByAssignedAtDescIdDesc(visitId, "IN_PROGRESS"))
                 .thenReturn(Optional.of(VisitCareAssignmentJpaEntity.inProgress(UUID.randomUUID(), visitId, doctorId,
                         "ORTHOPEDIC", 30, Instant.EPOCH, Instant.EPOCH.plusSeconds(1800))));

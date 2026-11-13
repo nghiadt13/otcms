@@ -20,12 +20,12 @@ class VisitPatientHistoryQueryServiceImplTest {
         assertEquals("RESOURCE_NOT_FOUND", assertThrows(VisitOperationException.class, () -> service.findPastVisits(patient, current, 0, 20)).code());
     }
     @Test void differentPatientCannotSelectHistory() {
-        when(visits.findById(current)).thenReturn(Optional.of(ClinicVisitJpaEntity.walkIn(current, UUID.randomUUID(), null, UUID.randomUUID(), Instant.EPOCH)));
+        when(visits.findById(current)).thenReturn(Optional.of(ClinicVisitJpaEntity.walkIn(current, UUID.randomUUID(), null, UUID.randomUUID(), Instant.EPOCH, null, null)));
         assertEquals("ACCESS_DENIED", assertThrows(VisitOperationException.class, () -> service.findPastVisits(patient, current, 0, 20)).code());
         verify(visits, never()).findHistoricalVisits(any(), any(), any(), any());
     }
     @Test void pageMapsVisitFactsAndRepositoryPreservesStableOrderAndTotal() {
-        var currentRow = ClinicVisitJpaEntity.walkIn(current, patient, null, UUID.randomUUID(), Instant.EPOCH.plusSeconds(100));
+        var currentRow = ClinicVisitJpaEntity.walkIn(current, patient, null, UUID.randomUUID(), Instant.EPOCH.plusSeconds(100), null, null);
         when(visits.findById(current)).thenReturn(Optional.of(currentRow));
         var newer = mock(ClinicVisitJpaEntity.class); var older = mock(ClinicVisitJpaEntity.class);
         when(newer.getId()).thenReturn(UUID.randomUUID()); when(older.getId()).thenReturn(UUID.randomUUID());

@@ -32,9 +32,9 @@ class VisitT012PostgresIntegrationTest {
     @AfterEach void cleanup() {
         if (followUpVisitId != null) jdbc.update("delete from clinical_examinations where visit_id=?", followUpVisitId);
         jdbc.update("delete from appointments where created_by_account_id in (select id from accounts where normalized_email like 't012-%')");
-        jdbc.update("delete from visit_examinations where visit_id in (select id from visits where created_by_account_id in (select id from accounts where normalized_email like 't012-%'))");
+
         jdbc.update("delete from visit_assignments where visit_id in (select id from visits where created_by_account_id in (select id from accounts where normalized_email like 't012-%'))");
-        jdbc.update("delete from visit_check_ins where receptionist_account_id in (select id from accounts where normalized_email like 't012-%')");
+
         jdbc.update("delete from visits where created_by_account_id in (select id from accounts where normalized_email like 't012-%')");
         jdbc.update("delete from doctor_services where doctor_profile_id in (select id from staff_profiles where work_contact like 't012-%')");
         jdbc.update("delete from clinic_services where name = 'T012 service'");

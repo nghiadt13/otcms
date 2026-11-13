@@ -19,9 +19,10 @@ public class VisitReceptionReadRepository {
                 with active as (
                     select q.id, q.visit_id, q.arrived_at, q.status,
                            row_number() over (order by q.arrived_at, q.id) as position
-                    from walk_in_reception_queue_entries q
+                    from queue_entries q
                     join visits v on v.id = q.visit_id and v.source = 'WALK_IN'
-                    where q.status = 'WAITING' and q.arrived_at >= :from and q.arrived_at < :to
+                    where q.stage = 'RECEPTION' and q.status = 'WAITING'
+                      and q.arrived_at >= :from and q.arrived_at < :to
                 )
                 select a.id, a.visit_id, a.arrived_at, a.status, a.position,
                        coalesce(c.step_code, v.status) as current_stage, r.room_code
@@ -58,7 +59,7 @@ public class VisitReceptionReadRepository {
                     where visit_id = v.id and status = 'IN_PROGRESS'
                     order by starts_at desc, id desc limit 1
                 ) c on true
-                left join walk_in_reception_queue_entries q on q.visit_id = v.id and q.status = 'WAITING'
+                left join queue_entries q on q.visit_id = v.id and q.stage = 'RECEPTION' and q.status = 'WAITING'
                 left join lateral (
                     select room.room_code from room_reservations reservation
                     join rooms room on room.id = reservation.room_id
@@ -74,16 +75,16 @@ public class VisitReceptionReadRepository {
         @SuppressWarnings("unchecked")
         List<Number> rows = entityManager.createNativeQuery("""
                 select (select count(*)
-                        from walk_in_reception_queue_entries earlier
+                        from queue_entries earlier
                         join visits earlier_visit on earlier_visit.id = earlier.visit_id
                             and earlier_visit.source = 'WALK_IN'
-                        where earlier.status = 'WAITING'
+                        where earlier.stage = 'RECEPTION' and earlier.status = 'WAITING'
                           and (earlier.arrived_at, earlier.id) < (current.arrived_at, current.id)
                           and earlier.arrived_at >= :from and earlier.arrived_at < :to) + 1
-                from walk_in_reception_queue_entries current
+                from queue_entries current
                 join visits current_visit on current_visit.id = current.visit_id
                     and current_visit.source = 'WALK_IN'
-                where current.id = :queueEntryId and current.status = 'WAITING'
+                where current.id = :queueEntryId and current.stage = 'RECEPTION' and current.status = 'WAITING'
                   and current.arrived_at >= :from and current.arrived_at < :to
                 """).setParameter("queueEntryId", queueEntryId).setParameter("from", from)
                 .setParameter("to", to).getResultList();

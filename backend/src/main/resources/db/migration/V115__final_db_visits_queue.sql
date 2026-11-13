@@ -144,14 +144,20 @@ SELECT a.id, a.occurred_at, 'visit_audits', 'VISIT', a.action, 'VISIT', a.visit_
        true, a.actor_account_id, a.correlation_id
 FROM visit_audits a;
 
+-- CAPACITY_CONFLICT rows get the dedup_key the Java writer computes (VisitAuditEntries.careCapacityConflictKey),
+-- so the shared uk_audit_logs_dedup_key replaces uq_visit_care_assignment_conflict_correlation (same pattern as V112).
 INSERT INTO audit_logs (id, occurred_at, source, category, action, record_type, entity_id, record_label,
-                        visible_in_activity_log, actor_account_id, before_state, after_state, metadata, correlation_id)
+                        visible_in_activity_log, actor_account_id, before_state, after_state, metadata, correlation_id,
+                        dedup_key)
 SELECT a.id, a.occurred_at, 'visit_assignment_audits', 'VISIT', a.action, 'VISIT_ASSIGNMENT',
        COALESCE(a.assignment_id, a.visit_id), a.visit_id::text, true, a.actor_account_id,
        jsonb_build_object('expectedEnd', a.old_expected_end),
        jsonb_build_object('expectedEnd', a.new_expected_end),
        jsonb_build_object('stepCode', a.step_code),
-       a.correlation_id
+       a.correlation_id,
+       CASE WHEN a.action = 'CAPACITY_CONFLICT'
+            THEN 'care-capacity:' || encode(sha256(convert_to(a.visit_id::text || ':' || a.actor_account_id::text || ':' || a.correlation_id, 'UTF8')), 'hex')
+            ELSE NULL END
 FROM visit_assignment_audits a;
 
 -- Walk-in queue history: action is the exit reason, or the target status for the entry row.
@@ -163,10 +169,6 @@ SELECT h.id, h.occurred_at, 'walk_in_reception_queue_history', 'VISIT', COALESCE
        h.correlation_id
 FROM walk_in_reception_queue_history h
 JOIN walk_in_reception_queue_entries e ON e.id = h.queue_entry_id;
-
--- Replaces uq_visit_care_assignment_conflict_correlation: one CAPACITY_CONFLICT row per visit, actor and correlation.
-CREATE UNIQUE INDEX uq_audit_logs_visit_capacity_conflict ON audit_logs (source, record_label, actor_account_id, correlation_id)
-    WHERE source = 'visit_assignment_audits' AND action = 'CAPACITY_CONFLICT';
 
 -- Drop the triggers that use the functions being removed, plus the triggers on tables being dropped
 -- (the two rewritten functions are re-attached to queue_entries below).
@@ -196,7 +198,7 @@ DROP FUNCTION reject_visit_care_assignment_audit_mutation();
 
 -- Linked visit must be a SCHEDULED visit of the same appointment. SCHEDULED visits only come from check-in,
 -- so this replaces the old visit_check_ins evidence lookup.
-CREATE OR REPLACE FUNCTION public.enforce_appointment_visit_link() RETURNS trigger
+CREATE OR REPLACE FUNCTION enforce_appointment_visit_link() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
 DECLARE
@@ -253,7 +255,7 @@ END;
 $$;
 
 -- Walk-in entries only: the visit must be WALK_IN, the row starts WAITING, and arrival equals the visit's arrival.
-CREATE OR REPLACE FUNCTION public.enforce_walk_in_reception_queue_visit() RETURNS trigger
+CREATE OR REPLACE FUNCTION enforce_walk_in_reception_queue_visit() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
 DECLARE
@@ -282,7 +284,7 @@ END;
 $$;
 
 -- Reception entries only. stage is also frozen here, so a RECEPTION row cannot turn into an EXAM row.
-CREATE OR REPLACE FUNCTION public.protect_walk_in_reception_queue_entry_lifecycle() RETURNS trigger
+CREATE OR REPLACE FUNCTION protect_walk_in_reception_queue_entry_lifecycle() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
 BEGIN
@@ -307,7 +309,7 @@ END;
 $$;
 
 -- Same behaviour as before, reading reception rows of queue_entries.
-CREATE OR REPLACE FUNCTION public.protect_queued_visit_source_and_arrival() RETURNS trigger
+CREATE OR REPLACE FUNCTION protect_queued_visit_source_and_arrival() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
 BEGIN

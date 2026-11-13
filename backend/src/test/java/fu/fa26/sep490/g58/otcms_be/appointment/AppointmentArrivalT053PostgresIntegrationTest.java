@@ -105,15 +105,14 @@ class AppointmentArrivalT053PostgresIntegrationTest {
                 jdbc.update("delete from invoices where appointment_id = ?", id);
                 List<UUID> visits = jdbc.query("select id from visits where originating_appointment_id = ?",
                         (rs, row) -> rs.getObject("id", UUID.class), id);
-                for (UUID visit : visits) jdbc.update("delete from visit_check_ins where visit_id = ?", visit);
-                jdbc.update("delete from visit_exam_queue where visit_id in "
-                        + "(select id from visits where originating_appointment_id = ?)", id);
+
+                jdbc.update("delete from queue_entries where stage = 'EXAM' and visit_id in (select id from visits where originating_appointment_id = ?)", id);
                 jdbc.update("delete from visits where originating_appointment_id = ?", id);
                 jdbc.update("delete from appointments where id = ?", id);
             }
             jdbc.update("delete from doctor_services where doctor_profile_id = ?", doctorProfile);
             jdbc.update("delete from clinic_services where id = ?", service);
-            jdbc.update("delete from visit_exam_queue where doctor_profile_id = ?", doctorProfile);
+            jdbc.update("delete from queue_entries where stage = 'EXAM' and doctor_profile_id = ?", doctorProfile);
             jdbc.update("delete from staff_profiles where id = ?", doctorProfile);
             jdbc.update("delete from patient_profiles where id in (?, ?)", patientProfile, otherPatientProfile);
             jdbc.update("delete from accounts where id in (?, ?, ?, ?)", patientAccount, otherPatientAccount,
@@ -278,8 +277,7 @@ class AppointmentArrivalT053PostgresIntegrationTest {
                 Integer.class, timely));
         assertEquals(0, jdbc.queryForObject("select count(*) from visits where originating_appointment_id = ?",
                 Integer.class, timelyManual));
-        assertEquals(0, jdbc.queryForObject("select count(*) from walk_in_reception_queue_entries q "
-                + "join visits v on v.id = q.visit_id where v.originating_appointment_id in (?, ?)",
+        assertEquals(0, jdbc.queryForObject("select count(*) from queue_entries q join visits v on v.id = q.visit_id where q.stage = 'RECEPTION' and v.originating_appointment_id in (?, ?)",
                 Integer.class, timely, timelyManual));
 
         UUID noShow = appointment(NOW.minusSeconds(3600), patientProfile);

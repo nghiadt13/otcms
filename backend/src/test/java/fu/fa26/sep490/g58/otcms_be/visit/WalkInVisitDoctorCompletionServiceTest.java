@@ -1,5 +1,7 @@
 package fu.fa26.sep490.g58.otcms_be.visit;
 
+import fu.fa26.sep490.g58.otcms_be.visit.service.impl.VisitAuditRecorder;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
@@ -27,7 +29,6 @@ import fu.fa26.sep490.g58.otcms_be.visit.model.VisitCompletionResult;
 import fu.fa26.sep490.g58.otcms_be.visit.model.VisitExamStatus;
 import fu.fa26.sep490.g58.otcms_be.visit.model.entity.ClinicVisitJpaEntity;
 import fu.fa26.sep490.g58.otcms_be.visit.repository.ClinicVisitJpaRepository;
-import fu.fa26.sep490.g58.otcms_be.visit.repository.VisitAuditJpaRepository;
 import fu.fa26.sep490.g58.otcms_be.visit.repository.WalkInVisitLifecycleRepository;
 import fu.fa26.sep490.g58.otcms_be.visit.service.ExitWalkInReceptionQueueService;
 import fu.fa26.sep490.g58.otcms_be.visit.service.ManageVisitCareAssignmentService;
@@ -59,7 +60,7 @@ class WalkInVisitDoctorCompletionServiceTest {
     private final CoordinationGuardService guard = mock(CoordinationGuardService.class);
     private final ClinicVisitJpaRepository visits = mock(ClinicVisitJpaRepository.class);
     private final WalkInVisitLifecycleRepository lifecycle = mock(WalkInVisitLifecycleRepository.class);
-    private final VisitAuditJpaRepository audits = mock(VisitAuditJpaRepository.class);
+    private final VisitAuditRecorder audits = mock(VisitAuditRecorder.class);
     private final ExitWalkInReceptionQueueService queue = mock(ExitWalkInReceptionQueueService.class);
     private final ReceptionistAccountAccessService receptionists = mock(ReceptionistAccountAccessService.class);
     private final ClinicalVisitCompletionEvidenceService clinical = mock(ClinicalVisitCompletionEvidenceService.class);
@@ -79,7 +80,7 @@ class WalkInVisitDoctorCompletionServiceTest {
     void setUp() {
         when(doctorProfiles.findDoctorProfileId(doctorAccount)).thenReturn(Optional.of(doctorProfile));
         when(visits.findByIdForUpdate(visitId)).thenReturn(Optional.of(
-                ClinicVisitJpaEntity.walkIn(visitId, patient, null, doctorAccount, now)));
+                ClinicVisitJpaEntity.walkIn(visitId, patient, null, doctorAccount, now, null, null)));
         when(examQueue.find(visitId)).thenReturn(Optional.of(entry(doctorProfile, VisitExamStatus.IN_EXAMINATION)));
         when(clinical.getCompletionEvidence(visitId)).thenReturn(evidence(true));
         when(lifecycle.closeOpenVisit(visitId, now)).thenReturn(true);

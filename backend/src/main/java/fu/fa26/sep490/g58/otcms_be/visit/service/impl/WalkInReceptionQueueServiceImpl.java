@@ -6,7 +6,7 @@ import fu.fa26.sep490.g58.otcms_be.common.security.AuthenticatedAccount;
 import fu.fa26.sep490.g58.otcms_be.visit.exception.VisitOperationException;
 import fu.fa26.sep490.g58.otcms_be.visit.model.dto.response.WalkInReceptionQueueEntryResponse;
 import fu.fa26.sep490.g58.otcms_be.visit.model.entity.ClinicVisitJpaEntity;
-import fu.fa26.sep490.g58.otcms_be.visit.model.entity.WalkInReceptionQueueEntryJpaEntity;
+import fu.fa26.sep490.g58.otcms_be.visit.model.entity.QueueEntryJpaEntity;
 import fu.fa26.sep490.g58.otcms_be.visit.repository.ClinicVisitJpaRepository;
 import fu.fa26.sep490.g58.otcms_be.visit.repository.WalkInReceptionQueueEntryJpaRepository;
 import fu.fa26.sep490.g58.otcms_be.visit.service.CreateWalkInReceptionQueueEntryCommand;
@@ -27,14 +27,16 @@ public class WalkInReceptionQueueServiceImpl implements WalkInReceptionQueueServ
     private final WalkInReceptionQueueEntryJpaRepository entries;
     private final ReceptionistAccountAccessService receptionistAccess;
     private final Clock clock;
+    private final VisitAuditRecorder audit;
 
     public WalkInReceptionQueueServiceImpl(ClinicVisitJpaRepository visits,
             WalkInReceptionQueueEntryJpaRepository entries, ReceptionistAccountAccessService receptionistAccess,
-            Clock clock) {
+            Clock clock, VisitAuditRecorder audit) {
         this.visits = visits;
         this.entries = entries;
         this.receptionistAccess = receptionistAccess;
         this.clock = clock;
+        this.audit = audit;
     }
 
     @Override
@@ -60,18 +62,16 @@ public class WalkInReceptionQueueServiceImpl implements WalkInReceptionQueueServ
         }
 
         Instant enteredAt = clock.instant();
-        entries.setAuditActor(principal.accountId().toString());
-        entries.setAuditCorrelation(command.correlationId() == null ? "" : command.correlationId());
-        WalkInReceptionQueueEntryJpaEntity entry;
+        QueueEntryJpaEntity entry;
         try {
-            entry = entries.saveAndFlush(
-                    WalkInReceptionQueueEntryJpaEntity.waiting(visit.getId(), visit.getArrivedAt(), enteredAt));
+            entry = entries.saveAndFlush(QueueEntryJpaEntity.reception(visit.getId(), visit.getArrivedAt(), enteredAt));
         } catch (DataIntegrityViolationException exception) {
-            if (hasConstraint(exception, "uk_walk_in_reception_queue_active_visit")) {
+            if (hasConstraint(exception, "uq_queue_entries_reception_active_visit")) {
                 throw new VisitOperationException("QUEUE_ENTRY_ALREADY_ACTIVE", exception);
             }
             throw exception;
         }
+        audit.queueEntered(entry.getVisitId(), entry.getId(), principal.accountId(), command.correlationId());
         return new WalkInReceptionQueueEntryResponse(entry.getId(), entry.getVisitId(), entry.getArrivedAt(),
                 entry.getStatus(), entry.getEnteredAt());
     }

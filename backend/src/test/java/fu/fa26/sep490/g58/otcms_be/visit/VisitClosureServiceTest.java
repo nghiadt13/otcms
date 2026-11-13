@@ -1,5 +1,7 @@
 package fu.fa26.sep490.g58.otcms_be.visit;
 
+import fu.fa26.sep490.g58.otcms_be.visit.service.impl.VisitAuditRecorder;
+
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -34,7 +36,7 @@ class VisitClosureServiceTest {
     final CoordinationGuardService guard = mock(CoordinationGuardService.class);
     final ClinicVisitJpaRepository visits = mock(ClinicVisitJpaRepository.class);
     final WalkInVisitLifecycleRepository lifecycle = mock(WalkInVisitLifecycleRepository.class);
-    final VisitAuditJpaRepository audits = mock(VisitAuditJpaRepository.class);
+    final VisitAuditRecorder audits = mock(VisitAuditRecorder.class);
     final ExitWalkInReceptionQueueService queue = mock(ExitWalkInReceptionQueueService.class);
     final ReceptionistAccountAccessService receptionists = mock(ReceptionistAccountAccessService.class);
     final ClinicalVisitCompletionEvidenceService clinical = mock(ClinicalVisitCompletionEvidenceService.class);
@@ -49,7 +51,7 @@ class VisitClosureServiceTest {
             examQueue, catalog, mock(ManageVisitCareAssignmentService.class), mock(DoctorProfileIdentityQueryService.class));
     @BeforeEach void setup() {
         when(receptionists.isActiveReceptionistAccount(actor)).thenReturn(true);
-        when(visits.findByIdForUpdate(id)).thenReturn(Optional.of(ClinicVisitJpaEntity.walkIn(id, patient, null, actor, now)));
+        when(visits.findByIdForUpdate(id)).thenReturn(Optional.of(ClinicVisitJpaEntity.walkIn(id, patient, null, actor, now, null, null)));
         when(clinical.getCompletionEvidence(id)).thenReturn(evidence(true, true, 0, true, List.of()));
         when(lifecycle.closeOpenVisit(id, now)).thenReturn(true);
         when(reviews.find(id)).thenReturn(Optional.of(new VisitReviewSourceService.Source(id, patient, "CLOSED", now, "", "", null, doctor)));
@@ -68,7 +70,7 @@ class VisitClosureServiceTest {
         sequence.verify(clinical).getCompletionEvidence(id);
         sequence.verify(queue).exit(argThat(c -> c.actorRole() == AccountRole.RECEPTIONIST && c.reason().equals("VISIT_CLOSED")));
         sequence.verify(lifecycle).closeOpenVisit(id, now); sequence.verify(lifecycle).releaseReservedCare(id, now);
-        sequence.verify(audits).saveAndFlush(any(VisitAuditJpaEntity.class));
+        sequence.verify(audits).walkInClosed(actor, id, now, "uc28");
         sequence.verify(notifications).publishToPatient(eq(patient), argThat(m -> m.type().equals("VISIT_CLOSED_REVIEW_INVITE") && m.content().contains("Treating Doctor")));
         verify(names).findDoctorDisplayName(doctor);
     }
@@ -97,7 +99,7 @@ class VisitClosureServiceTest {
     @Test void scheduledVisitClosesWithoutWalkInQueueMutation() {
         var visit = mock(ClinicVisitJpaEntity.class); when(visit.getStatus()).thenReturn("OPEN"); when(visit.getSource()).thenReturn("APPOINTMENT"); when(visit.getPatientProfileId()).thenReturn(patient);
         when(visits.findByIdForUpdate(id)).thenReturn(Optional.of(visit)); close();
-        verifyNoInteractions(queue); verify(lifecycle).closeOpenVisit(id, now); verify(lifecycle).releaseReservedCare(id, now); verify(audits).saveAndFlush(any()); verify(notifications).publishToPatient(eq(patient), any());
+        verifyNoInteractions(queue); verify(lifecycle).closeOpenVisit(id, now); verify(lifecycle).releaseReservedCare(id, now); verify(audits).visitClosed(actor, id, now, "uc28"); verify(notifications).publishToPatient(eq(patient), any());
     }
     @Test void completedReleasedImagingClosesAfterOwnerReadUnderTheGuard() {
         UUID order = UUID.randomUUID();

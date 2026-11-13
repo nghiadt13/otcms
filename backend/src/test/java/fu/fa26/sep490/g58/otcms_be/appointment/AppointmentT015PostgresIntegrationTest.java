@@ -64,8 +64,6 @@ class AppointmentT015PostgresIntegrationTest {
                 jdbc.execute("set local search_path to " + schema);
                 jdbc.update("insert into " + schema + ".visits (id, patient_profile_id, source, originating_appointment_id, arrived_at, checked_in_at, created_by_account_id) values (?, ?, 'SCHEDULED', ?, ?, ?, ?)",
                         visitId, fixture.patientId(), completed, Timestamp.from(start), Timestamp.from(start), fixture.receptionistId());
-                jdbc.update("insert into " + schema + ".visit_check_ins (visit_id, receptionist_account_id, reception_type, arrived_at, checked_in_at) values (?, ?, 'APPOINTMENT_CHECK_IN', ?, ?)",
-                        visitId, fixture.receptionistId(), Timestamp.from(start), Timestamp.from(start));
                 jdbc.update("update " + schema + ".appointments set status = 'COMPLETED', visit_id = ? where id = ?", visitId, completed);
             });
 
@@ -147,8 +145,6 @@ class AppointmentT015PostgresIntegrationTest {
             jdbc.execute("set local search_path to " + schema);
             jdbc.update("insert into " + schema + ".visits (id, patient_profile_id, source, originating_appointment_id, arrived_at, checked_in_at, created_by_account_id) values (?, ?, 'SCHEDULED', ?, ?, ?, ?)",
                     visitId, fixture.patientId(), appointmentId, Timestamp.from(start), Timestamp.from(start), fixture.receptionistId());
-            jdbc.update("insert into " + schema + ".visit_check_ins (visit_id, receptionist_account_id, reception_type, arrived_at, checked_in_at) values (?, ?, 'APPOINTMENT_CHECK_IN', ?, ?)",
-                    visitId, fixture.receptionistId(), Timestamp.from(start), Timestamp.from(start));
             jdbc.update("update " + schema + ".appointments set status = ?, visit_id = ? where id = ?", state, visitId, appointmentId);
         });
     }

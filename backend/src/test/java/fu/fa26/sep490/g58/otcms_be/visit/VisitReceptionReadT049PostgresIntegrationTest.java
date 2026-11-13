@@ -83,21 +83,21 @@ class VisitReceptionReadT049PostgresIntegrationTest {
     void cleanUp() {
         org.springframework.security.core.context.SecurityContextHolder.clearContext();
         if (receptionistId == null) return;
-        jdbc.execute("alter table walk_in_reception_queue_history disable trigger tr_walk_in_reception_queue_history_immutable");
-        jdbc.execute("alter table walk_in_reception_queue_history disable trigger tr_walk_in_reception_queue_history_no_truncate");
+        jdbc.execute("alter table audit_logs disable trigger tr_audit_logs_immutable");
+        jdbc.execute("alter table audit_logs disable trigger tr_audit_logs_no_truncate");
         if (roomId != null) jdbc.update("delete from room_reservations where room_id = ?", roomId);
         if (assignmentId != null) jdbc.update("delete from visit_assignments where id = ?", assignmentId);
         if (roomId != null) jdbc.update("delete from rooms where id = ?", roomId);
-        if (doctorProfileId != null) jdbc.update("delete from staff_profiles where id = ?", doctorProfileId);
         List<UUID> visitIds = List.of(firstVisitId, secondVisitId, accountlessVisitId);
         for (UUID visitId : visitIds) {
-            jdbc.update("delete from walk_in_reception_queue_history where queue_entry_id in "
-                    + "(select id from walk_in_reception_queue_entries where visit_id = ?)", visitId);
-            jdbc.update("delete from walk_in_reception_queue_entries where visit_id = ?", visitId);
+            jdbc.update("delete from audit_logs where source = 'walk_in_reception_queue_history' and entity_id = ?", visitId);
+            jdbc.update("delete from queue_entries where stage = 'RECEPTION' and visit_id = ?", visitId);
+            jdbc.update("delete from queue_entries where stage = 'EXAM' and visit_id = ?", visitId);
             jdbc.update("delete from visits where id = ?", visitId);
         }
-        jdbc.execute("alter table walk_in_reception_queue_history enable trigger tr_walk_in_reception_queue_history_immutable");
-        jdbc.execute("alter table walk_in_reception_queue_history enable trigger tr_walk_in_reception_queue_history_no_truncate");
+        jdbc.execute("alter table audit_logs enable trigger tr_audit_logs_immutable");
+        jdbc.execute("alter table audit_logs enable trigger tr_audit_logs_no_truncate");
+        if (doctorProfileId != null) jdbc.update("delete from staff_profiles where id = ?", doctorProfileId);
         if (patientAProfileId != null) jdbc.update("delete from patient_profiles where id = ?", patientAProfileId);
         if (patientBProfileId != null) jdbc.update("delete from patient_profiles where id = ?", patientBProfileId);
         if (accountlessProfileId != null) jdbc.update("delete from patient_profiles where id = ?", accountlessProfileId);
@@ -129,6 +129,23 @@ class VisitReceptionReadT049PostgresIntegrationTest {
                 .andExpect(jsonPath("$.items.length()").value(1))
                 .andExpect(jsonPath("$.items[0].visitId").value(accountlessVisitId.toString()))
                 .andExpect(jsonPath("$.items[0].position").value(3));
+    }
+
+    @Test
+    void receptionQueueIgnoresExamRowsWithWaitingStatus() throws Exception {
+        jdbc.update("insert into queue_entries (visit_id, stage, status, doctor_profile_id, clinic_date, queue_number, entered_at, queued_at) values (?, 'EXAM', 'WAITING', ?, ?, 1, now(), now())", firstVisitId, doctorProfileId, clinicDate);
+        mvc.perform(get("/api/v1/reception-queue").with(actor(receptionistId, AccountType.RECEPTIONIST))
+                        .param("date", clinicDate.toString()).param("page", "0").param("size", "10"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.items.length()").value(3))
+                .andExpect(jsonPath("$.items[0].visitId").value(firstVisitId.toString()))
+                .andExpect(jsonPath("$.items[1].position").value(2))
+                .andExpect(jsonPath("$.items[2].position").value(3));
+        mvc.perform(get("/api/v1/visits/{visitId}/progress", firstVisitId).with(actor(patientAAccountId, AccountType.PATIENT)))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.queuePosition").value(1));
+        queueExit.exit(new ExitWalkInReceptionQueueCommand(firstVisitId, receptionistId, AccountRole.RECEPTIONIST,
+                "CANCELLED", Instant.now(), "t049-stage-isolation"));
+        mvc.perform(get("/api/v1/visits/{visitId}/progress", firstVisitId).with(actor(patientAAccountId, AccountType.PATIENT)))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.queuePosition").doesNotExist());
     }
 
     @Test
@@ -169,8 +186,7 @@ class VisitReceptionReadT049PostgresIntegrationTest {
         mvc.perform(get("/api/v1/reception-queue").with(actor(receptionistId, AccountType.RECEPTIONIST))
                         .param("date", clinicDate.toString()).param("page", "0").param("size", "101"))
                 .andExpect(status().isBadRequest());
-        assertTrue(jdbc.queryForObject("select count(*) from walk_in_reception_queue_entries "
-                + "where visit_id in (?, ?, ?)", Integer.class, firstVisitId, secondVisitId, accountlessVisitId) == 3);
+        assertTrue(jdbc.queryForObject("select count(*) from queue_entries where stage = 'RECEPTION' and visit_id in (?, ?, ?)", Integer.class, firstVisitId, secondVisitId, accountlessVisitId) == 3);
     }
 
     private UUID account(AccountType type) {

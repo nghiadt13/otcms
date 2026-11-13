@@ -84,7 +84,7 @@ class MarkAppointmentNoShowT028PostgresIntegrationTest {
                 jdbc.update("update appointments set status = 'CANCELLED', visit_id = null where id = ?", id);
                 List<UUID> visits = jdbc.query("select id from visits where originating_appointment_id = ?",
                         (rs, row) -> rs.getObject("id", UUID.class), id);
-                for (UUID visit : visits) jdbc.update("delete from visit_check_ins where visit_id = ?", visit);
+
                 jdbc.update("delete from visits where originating_appointment_id = ?", id);
                 jdbc.update("delete from appointments where id = ?", id);
             }
@@ -111,8 +111,7 @@ class MarkAppointmentNoShowT028PostgresIntegrationTest {
                 Integer.class, appointment, receptionistAccount, CORRELATION));
         assertEquals(0, jdbc.queryForObject("select count(*) from visits where originating_appointment_id = ?",
                 Integer.class, appointment));
-        assertEquals(0, jdbc.queryForObject("select count(*) from walk_in_reception_queue_entries q "
-                + "join visits v on v.id = q.visit_id where v.originating_appointment_id = ?",
+        assertEquals(0, jdbc.queryForObject("select count(*) from queue_entries q join visits v on v.id = q.visit_id where q.stage = 'RECEPTION' and v.originating_appointment_id = ?",
                 Integer.class, appointment));
     }
 
@@ -159,8 +158,7 @@ class MarkAppointmentNoShowT028PostgresIntegrationTest {
                     + "and action = 'STATUS_CHANGED' and after_state->>'status' = 'NO_SHOW'", Integer.class, appointment));
             assertEquals(0, jdbc.queryForObject("select count(*) from visits where originating_appointment_id = ?",
                     Integer.class, appointment));
-            assertEquals(0, jdbc.queryForObject("select count(*) from walk_in_reception_queue_entries q "
-                    + "join visits v on v.id = q.visit_id where v.originating_appointment_id = ?",
+            assertEquals(0, jdbc.queryForObject("select count(*) from queue_entries q join visits v on v.id = q.visit_id where q.stage = 'RECEPTION' and v.originating_appointment_id = ?",
                     Integer.class, appointment));
         } finally {
             start.countDown();

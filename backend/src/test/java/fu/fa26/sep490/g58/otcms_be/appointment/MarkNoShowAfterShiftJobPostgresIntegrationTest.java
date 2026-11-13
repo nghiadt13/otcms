@@ -105,11 +105,9 @@ class MarkNoShowAfterShiftJobPostgresIntegrationTest {
     void cleanUp() {
         if (service == null) return;
         String auditMode = triggerMode("audit_logs", "tr_audit_logs_immutable");
-        String careAuditMode = triggerMode("visit_assignment_audits", "tr_visit_care_assignment_audits_immutable");
-        String visitAuditMode = triggerMode("visit_audits", "tr_visit_audits_immutable");
+
+
         jdbc.execute("alter table audit_logs disable trigger tr_audit_logs_immutable");
-        jdbc.execute("alter table visit_assignment_audits disable trigger tr_visit_care_assignment_audits_immutable");
-        jdbc.execute("alter table visit_audits disable trigger tr_visit_audits_immutable");
         try {
             jdbc.execute("drop trigger if exists tr_nosho_reject_audit on audit_logs");
             jdbc.execute("drop function if exists reject_nosho_sweep_audit()");
@@ -119,16 +117,16 @@ class MarkNoShowAfterShiftJobPostgresIntegrationTest {
                     + "(select id from appointments where service_id = ?)", service);
             jdbc.update("update appointments set status = 'CANCELLED', visit_id = null where service_id = ?", service);
             for (UUID visit : visits) {
-                jdbc.update("delete from visit_exam_queue where visit_id = ?", visit);
-                jdbc.update("delete from visit_assignment_audits where visit_id = ?", visit);
+                jdbc.update("delete from queue_entries where stage = 'EXAM' and visit_id = ?", visit);
+                jdbc.update("delete from audit_logs where source = 'visit_assignment_audits' and record_label = ?::text", visit);
                 jdbc.update("delete from visit_assignments where visit_id = ?", visit);
-                jdbc.update("delete from visit_check_ins where visit_id = ?", visit);
-                jdbc.update("delete from visit_audits where visit_id = ?", visit);
+
+                jdbc.update("delete from audit_logs where source = 'visit_audits' and record_label = ?::text", visit);
                 jdbc.update("delete from visits where id = ?", visit);
             }
             jdbc.update("delete from appointments where service_id = ?", service);
             for (UUID profile : doctorProfiles) {
-                jdbc.update("delete from visit_exam_queue where doctor_profile_id = ?", profile);
+                jdbc.update("delete from queue_entries where stage = 'EXAM' and doctor_profile_id = ?", profile);
                 jdbc.update("delete from work_shifts where staff_profile_id = ?", profile);
                 jdbc.update("delete from doctor_services where doctor_profile_id = ?", profile);
                 jdbc.update("delete from staff_profiles where id = ?", profile);
@@ -138,8 +136,6 @@ class MarkNoShowAfterShiftJobPostgresIntegrationTest {
             for (UUID id : accounts) jdbc.update("delete from accounts where id = ?", id);
         } finally {
             restoreTrigger("audit_logs", "tr_audit_logs_immutable", auditMode);
-            restoreTrigger("visit_assignment_audits", "tr_visit_care_assignment_audits_immutable", careAuditMode);
-            restoreTrigger("visit_audits", "tr_visit_audits_immutable", visitAuditMode);
         }
     }
 

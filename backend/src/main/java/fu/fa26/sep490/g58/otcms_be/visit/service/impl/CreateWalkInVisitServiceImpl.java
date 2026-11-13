@@ -1,5 +1,6 @@
 package fu.fa26.sep490.g58.otcms_be.visit.service.impl;
 
+import fu.fa26.sep490.g58.otcms_be.auth.service.ReceptionistAccountAccessService;
 import fu.fa26.sep490.g58.otcms_be.common.security.AccountRole;
 import fu.fa26.sep490.g58.otcms_be.common.service.CoordinationGuardService;
 import fu.fa26.sep490.g58.otcms_be.servicecatalog.exception.ClinicServiceException;
@@ -14,17 +15,11 @@ import fu.fa26.sep490.g58.otcms_be.visit.exception.VisitOperationException;
 import fu.fa26.sep490.g58.otcms_be.visit.model.CreatedWalkInVisit;
 import fu.fa26.sep490.g58.otcms_be.visit.model.ExamQueueEntry;
 import fu.fa26.sep490.g58.otcms_be.visit.model.entity.ClinicVisitJpaEntity;
-import fu.fa26.sep490.g58.otcms_be.visit.model.entity.VisitAuditJpaEntity;
-import fu.fa26.sep490.g58.otcms_be.visit.model.entity.VisitInitialReceptionJpaEntity;
+import fu.fa26.sep490.g58.otcms_be.visit.model.entity.QueueEntryJpaEntity;
 import fu.fa26.sep490.g58.otcms_be.visit.model.entity.VisitRoomJpaEntity;
-import fu.fa26.sep490.g58.otcms_be.visit.model.entity.WalkInReceptionQueueEntryJpaEntity;
-import fu.fa26.sep490.g58.otcms_be.visit.model.entity.WalkInReceptionReplayJpaEntity;
 import fu.fa26.sep490.g58.otcms_be.visit.repository.ClinicVisitJpaRepository;
-import fu.fa26.sep490.g58.otcms_be.visit.repository.VisitAuditJpaRepository;
-import fu.fa26.sep490.g58.otcms_be.visit.repository.VisitInitialReceptionJpaRepository;
 import fu.fa26.sep490.g58.otcms_be.visit.repository.VisitRoomJpaRepository;
 import fu.fa26.sep490.g58.otcms_be.visit.repository.WalkInReceptionQueueEntryJpaRepository;
-import fu.fa26.sep490.g58.otcms_be.visit.repository.WalkInReceptionReplayJpaRepository;
 import fu.fa26.sep490.g58.otcms_be.visit.service.CreateWalkInVisitCommand;
 import fu.fa26.sep490.g58.otcms_be.visit.service.CreateWalkInVisitService;
 import fu.fa26.sep490.g58.otcms_be.visit.service.VisitExamQueueService;
@@ -49,10 +44,9 @@ public class CreateWalkInVisitServiceImpl implements CreateWalkInVisitService {
 
     private final CoordinationGuardService coordinationGuard;
     private final ClinicVisitJpaRepository visits;
-    private final VisitInitialReceptionJpaRepository receptions;
-    private final VisitAuditJpaRepository audits;
-    private final WalkInReceptionReplayJpaRepository replays;
     private final WalkInReceptionQueueEntryJpaRepository queueEntries;
+    private final VisitAuditRecorder audit;
+    private final ReceptionistAccountAccessService receptionists;
     private final VisitExamQueueService examQueue;
     private final DoctorScheduleService schedules;
     private final DoctorProfileIdentityQueryService doctorProfiles;
@@ -61,17 +55,16 @@ public class CreateWalkInVisitServiceImpl implements CreateWalkInVisitService {
     private final Clock clock;
 
     public CreateWalkInVisitServiceImpl(CoordinationGuardService coordinationGuard, ClinicVisitJpaRepository visits,
-            VisitInitialReceptionJpaRepository receptions, VisitAuditJpaRepository audits,
-            WalkInReceptionReplayJpaRepository replays, WalkInReceptionQueueEntryJpaRepository queueEntries,
+            WalkInReceptionQueueEntryJpaRepository queueEntries, VisitAuditRecorder audit,
+            ReceptionistAccountAccessService receptionists,
             VisitExamQueueService examQueue, DoctorScheduleService schedules,
             DoctorProfileIdentityQueryService doctorProfiles, GetClinicServiceCatalogService catalog,
             VisitRoomJpaRepository rooms, Clock clock) {
         this.coordinationGuard = coordinationGuard;
         this.visits = visits;
-        this.receptions = receptions;
-        this.audits = audits;
-        this.replays = replays;
         this.queueEntries = queueEntries;
+        this.audit = audit;
+        this.receptionists = receptionists;
         this.examQueue = examQueue;
         this.schedules = schedules;
         this.doctorProfiles = doctorProfiles;
@@ -93,14 +86,19 @@ public class CreateWalkInVisitServiceImpl implements CreateWalkInVisitService {
 
         coordinationGuard.acquire();
 
-        var replay = replays.findByReceptionistAccountIdAndIdempotencyKey(command.actorAccountId(), key);
+        // Replay: the key now lives on the visit row (walk_in_requests is gone). The guard above serializes
+        // creates; uk_clinic_visits_walk_in_idempotency still backs it at the database.
+        var replay = visits.findByCreatedByAccountIdAndWalkInIdempotencyKey(command.actorAccountId(), key);
         if (replay.isPresent()) {
-            var stored = replay.get();
-            if (!fingerprint.equals(stored.getRequestFingerprint())) {
+            if (!fingerprint.equals(replay.get().getWalkInRequestFingerprint())) {
                 throw new VisitOperationException("IDEMPOTENCY_CONFLICT");
             }
-            return visits.findById(stored.getVisitId()).map(this::result)
-                    .orElseThrow(() -> new VisitOperationException("VISIT_LINK_CONFLICT"));
+            return result(replay.get());
+        }
+
+        // The old queue trigger refused a reception entry unless the actor was an ACTIVE RECEPTIONIST account.
+        if (!receptionists.isActiveReceptionistAccount(command.actorAccountId())) {
+            throw new VisitOperationException("ACCESS_DENIED");
         }
 
         Instant arrivedAt = clock.instant();
@@ -111,7 +109,7 @@ public class CreateWalkInVisitServiceImpl implements CreateWalkInVisitService {
         ClinicVisitJpaEntity visit;
         try {
             visit = visits.saveAndFlush(ClinicVisitJpaEntity.walkIn(visitId, command.patientProfileId(),
-                    command.priorAppointmentId(), command.actorAccountId(), arrivedAt));
+                    command.priorAppointmentId(), command.actorAccountId(), arrivedAt, key, fingerprint));
         } catch (DataIntegrityViolationException exception) {
             if (hasConstraint(exception, PATIENT_FK) || hasConstraint(exception, PRIOR_APPOINTMENT_FK)) {
                 throw new VisitOperationException("RESOURCE_NOT_FOUND", exception);
@@ -119,21 +117,15 @@ public class CreateWalkInVisitServiceImpl implements CreateWalkInVisitService {
             throw exception;
         }
 
-        receptions.save(VisitInitialReceptionJpaEntity.walkIn(visitId, command.actorAccountId(),
-                command.priorAppointmentId(), arrivedAt));
-        audits.save(VisitAuditJpaEntity.walkInCreated(command.actorAccountId(), visitId, arrivedAt,
-                command.correlationId()));
-        queueEntries.setAuditActor(command.actorAccountId().toString());
-        queueEntries.setAuditCorrelation(command.correlationId());
-        queueEntries.saveAndFlush(WalkInReceptionQueueEntryJpaEntity.waiting(visitId, arrivedAt, arrivedAt));
+        audit.walkInCreated(command.actorAccountId(), visitId, arrivedAt, command.correlationId());
+        QueueEntryJpaEntity entry = queueEntries.saveAndFlush(QueueEntryJpaEntity.reception(visitId, arrivedAt, arrivedAt));
+        audit.queueEntered(visitId, entry.getId(), command.actorAccountId(), command.correlationId());
         // A fee walk-in waits unnumbered until billing reports the fee paid; a free one is numbered at once.
         if (fee.signum() > 0) {
             examQueue.createPendingPayment(visitId, command.doctorProfileId(), command.serviceId(), arrivedAt);
         } else {
             examQueue.enqueueWaiting(visitId, command.doctorProfileId(), command.serviceId(), arrivedAt);
         }
-        replays.saveAndFlush(WalkInReceptionReplayJpaEntity.create(command.actorAccountId(), key, fingerprint,
-                visitId));
 
         return result(visit);
     }

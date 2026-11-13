@@ -143,7 +143,7 @@ class VisitClinicalCareContextServiceImplTest {
     }
 
     private ClinicVisitJpaEntity openVisit() {
-        return ClinicVisitJpaEntity.walkIn(visitId, patientId, null, UUID.randomUUID(), now);
+        return ClinicVisitJpaEntity.walkIn(visitId, patientId, null, UUID.randomUUID(), now, null, null);
     }
 
     private VisitCareAssignmentJpaEntity inProgress(UUID id, UUID doctor, Instant assignedAt) {

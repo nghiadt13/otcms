@@ -52,7 +52,7 @@ class VisitWorkflowCheckInServiceImplTest {
     private final VisitRoomJpaRepository visitRooms = mock(VisitRoomJpaRepository.class);
     private final VisitWorkflowServiceImpl visits = new VisitWorkflowServiceImpl(repository,
             Clock.fixed(now, ZoneOffset.UTC), mock(WalkInVisitLifecycleService.class),
-            mock(ClinicalFollowUpEvidenceQueryService.class), examQueue, doctorProfiles, visitRooms);
+            mock(ClinicalFollowUpEvidenceQueryService.class), examQueue, doctorProfiles, visitRooms, mock(fu.fa26.sep490.g58.otcms_be.visit.service.impl.VisitAuditRecorder.class));
     private final ExamQueueTicket ticket = new ExamQueueTicket(1, doctorId, "Dr. A", roomId, "Room 2");
 
     @BeforeEach

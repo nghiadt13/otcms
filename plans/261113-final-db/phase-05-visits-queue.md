@@ -251,11 +251,13 @@ Test mới (agent-rules 6.3), thêm vào file có sẵn:
 12. Dán kết quả vào PR theo mẫu agent-rules mục 8.
 
 ## Success Criteria
-- [ ] `grep -rn "visit_check_ins\|walk_in_requests\|walk_in_reception_queue_entries\|walk_in_reception_queue_history\|visit_exam_queue\|visit_audits\|visit_assignment_audits\|visit_examinations" backend/src/main/java` rỗng.
+
+**Chốt 13/11/2026:** các grep tên bảng cũ bên dưới chỉ yêu cầu không còn truy cập bảng cũ qua SQL/entity/repository. Cho phép tên cũ trong hằng `source`, chú thích và assert/filter trên `audit_logs` để giữ tương thích V115. Ghi riêng các kết quả grep được phép; không đổi giá trị source để làm grep rỗng.
+- [ ] `grep -rn "visit_check_ins\|walk_in_requests\|walk_in_reception_queue_entries\|walk_in_reception_queue_history\|visit_exam_queue\|visit_audits\|visit_assignment_audits\|visit_examinations" backend/src/main/java` không còn truy cập SQL/entity/repository vào bảng cũ; cho phép source/chú thích đã chốt ở trên.
 - [ ] `grep -rn "VisitInitialReception\|WalkInReceptionReplay\|WalkInReceptionQueueEntryJpaEntity\|WalkInReceptionQueueHistory\|VisitExamQueueJpaEntity\|VisitAuditJpaEntity\|VisitAuditJpaRepository\|VisitCareAssignmentAuditRepository\|setAuditActor\|setAuditCorrelation" backend/src/main/java` rỗng.
 - [ ] `grep -rn "uk_walk_in_reception\|uk_visit_exam_queue\|uk_visit_care_assignment" backend/src/main/java` rỗng.
 - [ ] `grep -rn "queue_entries" backend/src/main/java` chỉ ra các dòng đều có `stage =`. Kiểm bằng mắt.
-- [ ] `grep -rln "visit_examinations\|visit_check_ins\|visit_exam_queue\|walk_in_reception_queue\|walk_in_requests\|visit_audits\|visit_assignment_audits" backend/src/test` chỉ còn `DoctorCoreArchitectureTest`.
+- [ ] `grep -rln "visit_examinations\|visit_check_ins\|visit_exam_queue\|walk_in_reception_queue\|walk_in_requests\|visit_audits\|visit_assignment_audits" backend/src/test` chỉ còn `DoctorCoreArchitectureTest` chỉ còn source/filter/assert trên audit_logs, DoctorCoreArchitectureTest, và test migration cố ý dừng trước V115 (giữ nội dung theo mục Modify:test và agent-rules 6.5).
 - [ ] Truy vấn `pg_proc` ở mục 4.4 rỗng.
 - [ ] Trên dữ liệu demo sau V115: số dòng `audit_logs` theo từng `source` khớp số dòng bảng cũ đo trước khi chạy (ghi PR).
 - [ ] `./mvnw test`: chỉ còn lỗi có sẵn theo AGENTS.md.

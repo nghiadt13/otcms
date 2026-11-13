@@ -112,8 +112,8 @@ public class VisitExamQueueReadServiceImpl implements VisitExamQueueReadService 
                         .thenComparing(OnShiftCandidate::doctorProfileId))
                 .map(candidate -> new ExamQueueDtos.OnShiftDoctor(candidate.doctorProfileId(), candidate.doctorName(),
                         candidate.roomId(), candidate.roomId() == null ? null : roomLabels.get(candidate.roomId()),
-                        queue.countByDoctorProfileIdAndClinicDateAndExamStatus(candidate.doctorProfileId(), today,
-                                VisitExamStatus.WAITING)))
+                        queue.countExamRows(candidate.doctorProfileId(), today,
+                                VisitExamStatus.WAITING.name())))
                 .toList());
     }
 

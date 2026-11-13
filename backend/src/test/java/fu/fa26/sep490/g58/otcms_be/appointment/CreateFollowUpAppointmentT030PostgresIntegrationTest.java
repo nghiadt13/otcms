@@ -88,7 +88,7 @@ class CreateFollowUpAppointmentT030PostgresIntegrationTest {
                 jdbc.update("delete from audit_logs where source = 'appointment_audits' and entity_id in (select id from appointments where service_id = ?)", service);
                 jdbc.update("delete from appointments where service_id = ?", service);
                 jdbc.update("delete from clinical_examinations where visit_id = ?", visit);
-                jdbc.update("delete from visit_examinations where visit_id = ?", visit);
+
                 jdbc.update("delete from visit_assignments where visit_id = ?", visit);
                 jdbc.update("delete from visits where id = ?", visit);
                 jdbc.update("delete from work_shifts where staff_profile_id = ?", doctor);

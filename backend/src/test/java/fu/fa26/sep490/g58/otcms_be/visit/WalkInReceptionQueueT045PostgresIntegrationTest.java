@@ -49,6 +49,7 @@ class WalkInReceptionQueueT045PostgresIntegrationTest {
     @Autowired WalkInReceptionQueueService queue;
     @Autowired WalkInReceptionQueueEntryJpaRepository queueEntries;
     @Autowired PlatformTransactionManager transactionManager;
+    @Autowired fu.fa26.sep490.g58.otcms_be.visit.service.ExitWalkInReceptionQueueService queueExit;
 
     private UUID receptionistAccountId;
     private UUID patientAccountId;
@@ -78,14 +79,13 @@ class WalkInReceptionQueueT045PostgresIntegrationTest {
         SecurityContextHolder.clearContext();
         if (testInfo.getTestMethod().orElseThrow().getName().equals("rejectsQueueRowsForScheduledVisits")) return;
         if (visitId != null) {
-            jdbc.execute("alter table walk_in_reception_queue_history disable trigger tr_walk_in_reception_queue_history_immutable");
-            jdbc.execute("alter table walk_in_reception_queue_history disable trigger tr_walk_in_reception_queue_history_no_truncate");
-            jdbc.update("delete from walk_in_reception_queue_history where queue_entry_id in "
-                    + "(select id from walk_in_reception_queue_entries where visit_id = ?)", visitId);
-            jdbc.update("delete from walk_in_reception_queue_entries where visit_id = ?", visitId);
+            jdbc.execute("alter table audit_logs disable trigger tr_audit_logs_immutable");
+            jdbc.execute("alter table audit_logs disable trigger tr_audit_logs_no_truncate");
+            jdbc.update("delete from audit_logs where source = 'walk_in_reception_queue_history' and entity_id = ?", visitId);
+            jdbc.update("delete from queue_entries where stage = 'RECEPTION' and visit_id = ?", visitId);
             jdbc.update("delete from visits where id = ?", visitId);
-            jdbc.execute("alter table walk_in_reception_queue_history enable trigger tr_walk_in_reception_queue_history_immutable");
-            jdbc.execute("alter table walk_in_reception_queue_history enable trigger tr_walk_in_reception_queue_history_no_truncate");
+            jdbc.execute("alter table audit_logs enable trigger tr_audit_logs_immutable");
+            jdbc.execute("alter table audit_logs enable trigger tr_audit_logs_no_truncate");
         }
         if (patientProfileId != null) jdbc.update("delete from patient_profiles where id = ?", patientProfileId);
         if (patientAccountId != null) jdbc.update("delete from accounts where id = ?", patientAccountId);
@@ -98,34 +98,25 @@ class WalkInReceptionQueueT045PostgresIntegrationTest {
         assertEquals(visitId, first.visitId());
         assertEquals(arrivedAt, first.arrivedAt());
         assertEquals("WAITING", first.status());
-        assertEquals(1, jdbc.queryForObject("select count(*) from walk_in_reception_queue_history "
-                + "where queue_entry_id = ? and from_status is null and to_status = 'WAITING' "
-                + "and actor_account_id = ?", Integer.class, first.id(), receptionistAccountId));
+        assertEquals(1, jdbc.queryForObject("select count(*) from audit_logs where source = 'walk_in_reception_queue_history' and metadata->>'queueEntryId' = ?::text and metadata->>'fromStatus' is null and metadata->>'toStatus' = 'WAITING' and actor_account_id = ?", Integer.class, first.id(), receptionistAccountId));
         VisitOperationException duplicate = assertThrows(VisitOperationException.class,
                 () -> queue.createWaitingEntry(command(visitId, AccountRole.RECEPTIONIST)));
         assertEquals("QUEUE_ENTRY_ALREADY_ACTIVE", duplicate.code());
 
         Instant leftAt = Instant.now();
-        assertThrows(DataAccessException.class, () -> jdbc.update(
-                "update walk_in_reception_queue_entries set status = 'LEFT_RECEPTION', left_at = ?, "
-                        + "exit_reason = 'CANCELLED' where id = ?", Timestamp.from(leftAt), first.id()));
-        assertEquals(1, jdbc.queryForObject("select count(*) from walk_in_reception_queue_history "
-                + "where queue_entry_id = ?", Integer.class, first.id()));
-        new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
-            queueEntries.setAuditActor(receptionistAccountId.toString());
-            queueEntries.setAuditCorrelation(PREFIX + "exit");
-            jdbc.update("update walk_in_reception_queue_entries set status = 'LEFT_RECEPTION', left_at = ?, "
-                    + "exit_reason = 'CANCELLED' where id = ?", Timestamp.from(leftAt), first.id());
-        });
-        assertEquals(2, jdbc.queryForObject("select count(*) from walk_in_reception_queue_history "
-                + "where queue_entry_id = ?", Integer.class, first.id()));
+        assertEquals("ACCESS_DENIED", assertThrows(VisitOperationException.class, () -> queueExit.exit(
+                new fu.fa26.sep490.g58.otcms_be.visit.service.ExitWalkInReceptionQueueCommand(visitId,
+                        receptionistAccountId, AccountRole.PATIENT, "CANCELLED", leftAt, PREFIX + "exit"))).code());
+        assertEquals(1, jdbc.queryForObject("select count(*) from audit_logs where source = 'walk_in_reception_queue_history' and entity_id = ?", Integer.class, visitId));
+        queueExit.exit(new fu.fa26.sep490.g58.otcms_be.visit.service.ExitWalkInReceptionQueueCommand(visitId,
+                receptionistAccountId, AccountRole.RECEPTIONIST, "CANCELLED", leftAt, PREFIX + "exit"));
+        assertEquals(2, jdbc.queryForObject("select count(*) from audit_logs where source = 'walk_in_reception_queue_history' and metadata->>'queueEntryId' = ?::text", Integer.class, first.id()));
 
         var second = queue.createWaitingEntry(command(visitId, AccountRole.RECEPTIONIST));
         assertTrue(!first.id().equals(second.id()));
-        assertEquals(2, jdbc.queryForObject("select count(*) from walk_in_reception_queue_entries where visit_id = ?",
+        assertEquals(2, jdbc.queryForObject("select count(*) from queue_entries where stage = 'RECEPTION' and visit_id = ?",
                 Integer.class, visitId));
-        assertEquals(1, jdbc.queryForObject("select count(*) from walk_in_reception_queue_entries "
-                + "where visit_id = ? and status = 'WAITING'", Integer.class, visitId));
+        assertEquals(1, jdbc.queryForObject("select count(*) from queue_entries where stage = 'RECEPTION' and visit_id = ? and status = 'WAITING'", Integer.class, visitId));
     }
 
     @Test
@@ -149,7 +140,7 @@ class WalkInReceptionQueueT045PostgresIntegrationTest {
         assertThrows(VisitOperationException.class,
                 () -> queue.createWaitingEntry(command(visitId, AccountRole.RECEPTIONIST)));
         jdbc.update("update accounts set status = 'ACTIVE' where id = ?", receptionistAccountId);
-        assertEquals(0, jdbc.queryForObject("select count(*) from walk_in_reception_queue_entries where visit_id = ?",
+        assertEquals(0, jdbc.queryForObject("select count(*) from queue_entries where stage = 'RECEPTION' and visit_id = ?",
                 Integer.class, visitId));
 
         var entry = queue.createWaitingEntry(command(visitId, AccountRole.RECEPTIONIST));
@@ -157,30 +148,25 @@ class WalkInReceptionQueueT045PostgresIntegrationTest {
         assertThrows(DataAccessException.class, () -> jdbc.update("update visits set arrived_at = ? where id = ?",
                 Timestamp.from(arrivedAt.plusSeconds(1)), visitId));
         assertThrows(DataAccessException.class,
-                () -> jdbc.update("update walk_in_reception_queue_history set reason = 'CANCELLED' where queue_entry_id = ?", entry.id()));
+                () -> jdbc.update("update audit_logs set action = 'CANCELLED' where metadata->>'queueEntryId' = ?::text", entry.id()));
         assertThrows(DataAccessException.class,
-                () -> jdbc.update("delete from walk_in_reception_queue_history where queue_entry_id = ?", entry.id()));
-        assertThrows(DataAccessException.class, () -> jdbc.update(
-                "insert into walk_in_reception_queue_history (queue_entry_id, to_status) values (?, 'WAITING')",
-                entry.id()));
-        assertThrows(DataAccessException.class, () -> jdbc.execute("truncate walk_in_reception_queue_history"));
+                () -> jdbc.update("delete from audit_logs where source = 'walk_in_reception_queue_history' and metadata->>'queueEntryId' = ?::text", entry.id()));
+        assertThrows(DataAccessException.class, () -> jdbc.execute("truncate audit_logs"));
         assertThrows(DataAccessException.class,
-                () -> jdbc.update("delete from walk_in_reception_queue_entries where id = ?", entry.id()));
+                () -> jdbc.update("update queue_entries set entered_at = entered_at + interval '1 second' where stage = 'RECEPTION' and id = ?", entry.id()));
         assertThrows(DataAccessException.class, () -> jdbc.update("delete from visits where id = ?", visitId));
     }
 
     @Test
     void rejectsInvalidInitialAndExitStatesAndProvidesFifoIndexes() {
-        assertThrows(DataAccessException.class, () -> jdbc.update("insert into walk_in_reception_queue_entries "
-                        + "(visit_id, arrived_at, status, left_at, exit_reason) values (?, ?, 'LEFT_RECEPTION', now(), 'CANCELLED')",
+        assertThrows(DataAccessException.class, () -> jdbc.update("insert into queue_entries (stage, entered_at, visit_id, arrived_at, status, left_at, exit_reason) values ('RECEPTION', now(), ?, ?, 'LEFT_RECEPTION', now(), 'CANCELLED')",
                 visitId, Timestamp.from(arrivedAt)));
-        assertThrows(DataAccessException.class, () -> jdbc.update("insert into walk_in_reception_queue_entries "
-                        + "(visit_id, arrived_at, status, left_at, exit_reason) values (?, ?, 'LEFT_RECEPTION', now(), 'INVALID')",
+        assertThrows(DataAccessException.class, () -> jdbc.update("insert into queue_entries (stage, entered_at, visit_id, arrived_at, status, left_at, exit_reason) values ('RECEPTION', now(), ?, ?, 'LEFT_RECEPTION', now(), 'INVALID')",
                 visitId, Timestamp.from(arrivedAt)));
         assertEquals(1, jdbc.queryForObject("select count(*) from pg_indexes where schemaname = 'public' "
-                + "and indexname = 'ix_walk_in_reception_queue_fifo'", Integer.class));
+                + "and indexname = 'ix_queue_entries_reception_fifo'", Integer.class));
         assertEquals(1, jdbc.queryForObject("select count(*) from pg_indexes where schemaname = 'public' "
-                + "and indexname = 'uk_walk_in_reception_queue_active_visit'", Integer.class));
+                + "and indexname = 'uq_queue_entries_reception_active_visit'", Integer.class));
     }
 
     @Test
@@ -219,8 +205,7 @@ class WalkInReceptionQueueT045PostgresIntegrationTest {
                     () -> queueAttempt.get(5, TimeUnit.SECONDS));
             assertTrue(failure.getCause() instanceof VisitOperationException);
             assertEquals("VISIT_NOT_QUEUEABLE", ((VisitOperationException) failure.getCause()).code());
-            assertEquals(0, jdbc.queryForObject("select count(*) from walk_in_reception_queue_entries "
-                    + "where visit_id = ?", Integer.class, visitId));
+            assertEquals(0, jdbc.queryForObject("select count(*) from queue_entries where stage = 'RECEPTION' and visit_id = ?", Integer.class, visitId));
         } finally {
             releaseCloser.countDown();
             SecurityContextHolder.clearContext();
@@ -255,13 +240,10 @@ class WalkInReceptionQueueT045PostgresIntegrationTest {
                 Timestamp.from(checkInAt.plusSeconds(1800)), scheduledVisitId, receptionistAccountId);
         jdbc.update("update visits set source = 'SCHEDULED', originating_appointment_id = ? where id = ?",
                 appointmentId, scheduledVisitId);
-        jdbc.update("insert into visit_check_ins (visit_id, receptionist_account_id, reception_type, arrived_at, "
-                        + "checked_in_at) values (?, ?, 'APPOINTMENT_CHECK_IN', ?, ?)",
-                scheduledVisitId, receptionistAccountId, Timestamp.from(checkInAt), Timestamp.from(checkInAt));
+
 
         jdbc.execute("savepoint t045_scheduled_queue_rejection");
-        assertThrows(DataAccessException.class, () -> jdbc.update("insert into walk_in_reception_queue_entries "
-                        + "(visit_id, arrived_at) values (?, ?)", scheduledVisitId, Timestamp.from(checkInAt)));
+        assertThrows(DataAccessException.class, () -> jdbc.update("insert into queue_entries (stage, status, entered_at, visit_id, arrived_at) values ('RECEPTION', 'WAITING', now(), ?, ?)", scheduledVisitId, Timestamp.from(checkInAt)));
         jdbc.execute("rollback to savepoint t045_scheduled_queue_rejection");
         jdbc.execute("release savepoint t045_scheduled_queue_rejection");
     }

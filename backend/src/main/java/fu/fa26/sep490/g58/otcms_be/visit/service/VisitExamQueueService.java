@@ -7,7 +7,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 /**
- * The only writer of the exam queue ({@code visit_exam_queue}).
+ * The only writer of the exam queue ({@code queue_entries (stage EXAM)}).
  * Write methods require an existing transaction and a held {@code CoordinationGuardService} guard
  * from the caller; queue numbers are assigned as max+1 under that guard.
  * An illegal move throws {@code VisitOperationException("VISIT_EXAM_STATE_CONFLICT")}.

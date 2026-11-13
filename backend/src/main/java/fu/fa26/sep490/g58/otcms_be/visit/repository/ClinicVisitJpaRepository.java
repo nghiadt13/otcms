@@ -23,4 +23,8 @@ public interface ClinicVisitJpaRepository extends JpaRepository<ClinicVisitJpaEn
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select visit from ClinicVisitJpaEntity visit where visit.id = :visitId")
     Optional<ClinicVisitJpaEntity> findByIdForUpdate(@Param("visitId") UUID visitId);
+
+    /** Walk-in replay lookup; same scope as uk_clinic_visits_walk_in_idempotency (creator, key). */
+    Optional<ClinicVisitJpaEntity> findByCreatedByAccountIdAndWalkInIdempotencyKey(UUID createdByAccountId,
+            String walkInIdempotencyKey);
 }

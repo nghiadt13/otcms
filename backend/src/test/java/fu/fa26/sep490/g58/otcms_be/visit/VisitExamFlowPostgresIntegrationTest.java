@@ -343,11 +343,11 @@ class VisitExamFlowPostgresIntegrationTest {
     }
 
     private String queueStatus(UUID visit) {
-        return jdbc.queryForObject("select exam_status from visit_exam_queue where visit_id = ?", String.class, visit);
+        return jdbc.queryForObject("select status from queue_entries where stage = 'EXAM' and visit_id = ?", String.class, visit);
     }
 
     private int queueNumber(UUID visit) {
-        return jdbc.queryForObject("select queue_number from visit_exam_queue where visit_id = ?", Integer.class, visit);
+        return jdbc.queryForObject("select queue_number from queue_entries where stage = 'EXAM' and visit_id = ?", Integer.class, visit);
     }
 
     private String visitStatus(UUID visit) {

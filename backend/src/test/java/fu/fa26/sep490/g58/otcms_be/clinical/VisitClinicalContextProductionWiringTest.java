@@ -28,7 +28,7 @@ class VisitClinicalContextProductionWiringTest {
         UUID visitId = UUID.randomUUID(), patientId = UUID.randomUUID(), doctorId = UUID.randomUUID();
         Instant now = Instant.parse("2026-11-04T10:00:00Z");
         when(visits.findById(visitId)).thenReturn(Optional.of(
-                ClinicVisitJpaEntity.walkIn(visitId, patientId, null, UUID.randomUUID(), now)));
+                ClinicVisitJpaEntity.walkIn(visitId, patientId, null, UUID.randomUUID(), now, null, null)));
         when(assignments.findFirstByVisitIdAndStatusOrderByAssignedAtDescIdDesc(visitId, "IN_PROGRESS"))
                 .thenReturn(Optional.of(VisitCareAssignmentJpaEntity.inProgress(UUID.randomUUID(), visitId,
                         doctorId, "EXAMINATION", 30, now, now.plusSeconds(1800))));

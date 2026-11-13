@@ -1,5 +1,7 @@
 package fu.fa26.sep490.g58.otcms_be.visit;
 
+import fu.fa26.sep490.g58.otcms_be.visit.service.impl.VisitAuditRecorder;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -22,7 +24,6 @@ import fu.fa26.sep490.g58.otcms_be.visit.config.VisitCareProperties;
 import fu.fa26.sep490.g58.otcms_be.visit.exception.VisitOperationException;
 import fu.fa26.sep490.g58.otcms_be.visit.model.entity.VisitCareAssignmentJpaEntity;
 import fu.fa26.sep490.g58.otcms_be.visit.model.RoomReservationPlan;
-import fu.fa26.sep490.g58.otcms_be.visit.repository.VisitCareAssignmentAuditRepository;
 import fu.fa26.sep490.g58.otcms_be.visit.repository.VisitCareAssignmentRepository;
 import fu.fa26.sep490.g58.otcms_be.visit.service.VisitExamQueueService;
 import fu.fa26.sep490.g58.otcms_be.visit.service.VisitRoomCapacityService;
@@ -58,7 +59,7 @@ class VisitCareCapacityT031Test {
     private final DoctorProfileIdentityQueryService doctors = mock(DoctorProfileIdentityQueryService.class);
     private final CheckVisitReservationCapacityService appointments = mock(CheckVisitReservationCapacityService.class);
     private final VisitCareAssignmentRepository assignments = mock(VisitCareAssignmentRepository.class);
-    private final VisitCareAssignmentAuditRepository audits = mock(VisitCareAssignmentAuditRepository.class);
+    private final VisitAuditRecorder audits = mock(VisitAuditRecorder.class);
     private final VisitRoomCapacityService rooms = mock(VisitRoomCapacityService.class);
     private final VisitCareProperties properties = new VisitCareProperties();
     private final ExitWalkInReceptionQueueService queueExit = mock(ExitWalkInReceptionQueueService.class);
@@ -100,9 +101,9 @@ class VisitCareCapacityT031Test {
         order.verify(examQueue).startExamination(visitId, doctorId, NOW);
         order.verify(queueExit).exit(any(ExitWalkInReceptionQueueCommand.class));
         order.verify(assignments).saveAndFlush(any(VisitCareAssignmentJpaEntity.class));
-        order.verify(audits).append(eq(visitId), eq(created.id()), eq(doctorAccountId), eq("STARTED"),
-                eq("CONSULTATION"), eq(null), eq(Timestamp.from(created.expectedEnd())),
-                eq(Timestamp.from(NOW)), eq("corr-t031"));
+        order.verify(audits).careAssignment(eq(visitId), eq(created.id()), eq(doctorAccountId), eq("STARTED"),
+                eq("CONSULTATION"), eq(null), eq(created.expectedEnd()),
+                eq(NOW), eq("corr-t031"));
         verify(appointments, never()).checkVisitReservation(any());
         verify(rooms, never()).prepare(any(), any(), any(), any());
         verify(rooms, never()).reserve(any(), any(), any(), any(), any(), any());
@@ -159,8 +160,8 @@ class VisitCareCapacityT031Test {
                     && reservation.endExclusive().equals(updated.expectedEnd());
         }));
         verify(assignments).extend(assignmentId, visitId, Timestamp.from(updated.expectedEnd()), 45);
-        verify(audits).append(visitId, assignmentId, doctorAccountId, "EXTENDED", "RESULT_REVIEW",
-                Timestamp.from(oldEnd), Timestamp.from(updated.expectedEnd()), Timestamp.from(NOW), "corr-t031");
+        verify(audits).careAssignment(visitId, assignmentId, doctorAccountId, "EXTENDED", "RESULT_REVIEW",
+                oldEnd, updated.expectedEnd(), NOW, "corr-t031");
     }
 
     @Test

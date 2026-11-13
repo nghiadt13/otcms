@@ -55,7 +55,7 @@ class DoctorImagingReviewIntegrationTest {
         when(bean(StaffProfileRepository.class).findByAccountIdAndDoctorTrue(account)).thenReturn(Optional.of(profile));
         when(bean(AccountRepository.class).existsByIdAndAccountTypeAndStatus(eq(account), eq(AccountType.DOCTOR), any())).thenReturn(true);
         when(bean(ClinicVisitJpaRepository.class).findById(visit)).thenReturn(Optional.of(
-                ClinicVisitJpaEntity.walkIn(visit, patient, null, account, Instant.EPOCH)));
+                ClinicVisitJpaEntity.walkIn(visit, patient, null, account, Instant.EPOCH, null, null)));
         when(bean(VisitCareAssignmentRepository.class).findFirstByVisitIdAndStatusOrderByAssignedAtDescIdDesc(visit, "IN_PROGRESS"))
                 .thenReturn(Optional.of(VisitCareAssignmentJpaEntity.inProgress(UUID.randomUUID(), visit, doctor,
                         "ORTHOPEDIC", 30, Instant.EPOCH, Instant.EPOCH.plusSeconds(1800))));
@@ -186,7 +186,7 @@ class DoctorImagingReviewIntegrationTest {
         error(DiagnosticOperationOutcome.UNAUTHORIZED_RECORD, this::review);
     }
     @Test void mismatchedPatientDeniedBeforeReview() {
-        when(bean(ClinicVisitJpaRepository.class).findById(visit)).thenReturn(Optional.of(ClinicVisitJpaEntity.walkIn(visit, UUID.randomUUID(), null, account, Instant.EPOCH)));
+        when(bean(ClinicVisitJpaRepository.class).findById(visit)).thenReturn(Optional.of(ClinicVisitJpaEntity.walkIn(visit, UUID.randomUUID(), null, account, Instant.EPOCH, null, null)));
         error(DiagnosticOperationOutcome.EVIDENCE_MISMATCH, this::review);
     }
     @Test void closedVisitCannotReview() {
@@ -259,7 +259,7 @@ class DoctorImagingReviewIntegrationTest {
     @Test void resultReadyRejectsWrongVisitAndPatient() {
         var wrong = ready(UUID.randomUUID());
         error(DiagnosticOperationOutcome.EVIDENCE_MISMATCH, () -> bean(VisitDiagnosticPort.class).publishResultReady(requestId, wrong.getVisitId(), wrong.getEventId()));
-        var event = ready(visit); when(bean(ClinicVisitJpaRepository.class).findById(visit)).thenReturn(Optional.of(ClinicVisitJpaEntity.walkIn(visit, UUID.randomUUID(), null, account, Instant.EPOCH)));
+        var event = ready(visit); when(bean(ClinicVisitJpaRepository.class).findById(visit)).thenReturn(Optional.of(ClinicVisitJpaEntity.walkIn(visit, UUID.randomUUID(), null, account, Instant.EPOCH, null, null)));
         error(DiagnosticOperationOutcome.EVIDENCE_MISMATCH, () -> bean(VisitDiagnosticPort.class).publishResultReady(requestId, visit, event.getEventId())); assertTrue(receipts.isEmpty());
     }
     @Test void resultReadyRequiresExistingVisit() {
