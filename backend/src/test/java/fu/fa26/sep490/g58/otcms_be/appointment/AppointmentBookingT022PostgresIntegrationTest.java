@@ -77,7 +77,7 @@ class AppointmentBookingT022PostgresIntegrationTest {
                         + "values (true, ?, ?, 'T022 Doctor', '', 'private', '', '', '', '', true, true, true)", doctorProfile, doctorAccount);
         jdbc.update("insert into doctor_services (doctor_profile_id, service_id, active) values (?, ?, true)",
                 doctorProfile, service);
-        jdbc.update("insert into doctor_shifts (id, doctor_profile_id, starts_at, ends_at) values (?, ?, ?, ?)",
+        jdbc.update("insert into work_shifts (id, staff_profile_id, starts_at, ends_at) values (?, ?, ?, ?)",
                 UUID.randomUUID(), doctorProfile, Timestamp.from(Instant.parse("2026-10-16T02:00:00Z")),
                 Timestamp.from(Instant.parse("2026-10-16T05:00:00Z")));
     }
@@ -101,7 +101,7 @@ class AppointmentBookingT022PostgresIntegrationTest {
                 jdbc.update("delete from clinic_services where id = ?", service);
             }
             if (doctorProfile != null) {
-                jdbc.update("delete from doctor_shifts where doctor_profile_id = ?", doctorProfile);
+                jdbc.update("delete from work_shifts where staff_profile_id = ?", doctorProfile);
                 jdbc.update("delete from staff_profiles where id = ?", doctorProfile);
             }
             if (patientProfile != null) jdbc.update("delete from patient_profiles where id = ?", patientProfile);

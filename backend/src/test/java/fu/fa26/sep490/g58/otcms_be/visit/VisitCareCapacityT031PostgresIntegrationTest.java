@@ -57,6 +57,7 @@ class VisitCareCapacityT031PostgresIntegrationTest {
     @Autowired MockMvc mvc;
     @Autowired JdbcTemplate jdbc;
     @Autowired PlatformTransactionManager transactionManager;
+    @Autowired fu.fa26.sep490.g58.otcms_be.visit.repository.VisitRoomReservationRepository roomReservations;
 
     private UUID doctorAccount;
     private UUID patientAccount;
@@ -90,7 +91,7 @@ class VisitCareCapacityT031PostgresIntegrationTest {
                         + "values (?, 'T033 Cross Feature Race', 30, 0, true, true, 0)", bookingService);
         jdbc.update("insert into doctor_services (doctor_profile_id, service_id, active) values (?, ?, true)",
                 doctor, bookingService);
-        jdbc.update("insert into doctor_shifts (id, doctor_profile_id, starts_at, ends_at) values (?, ?, ?, ?)",
+        jdbc.update("insert into work_shifts (id, staff_profile_id, starts_at, ends_at) values (?, ?, ?, ?)",
                 UUID.randomUUID(), doctor, Timestamp.from(NOW.minusSeconds(300)), Timestamp.from(NOW.plusSeconds(7200)));
         jdbc.update("insert into visits (id, patient_profile_id, source, arrived_at, checked_in_at, created_by_account_id) values (?, ?, 'WALK_IN', ?, ?, ?)",
                 visit, patient, Timestamp.from(NOW.minusSeconds(60)), Timestamp.from(NOW.minusSeconds(60)), receptionist);
@@ -110,7 +111,7 @@ class VisitCareCapacityT031PostgresIntegrationTest {
         visits.add(visit);
         room = UUID.randomUUID();
         jdbc.update("insert into rooms (id, room_code, display_label, active) values (?, 'T031-EXAM-ROOM', 'T031 Exam Room', true)", room);
-        jdbc.update("insert into room_capabilities (room_id, capability_code) values (?, 'EXAM_ROOM')", room);
+        jdbc.update("update rooms set capabilities = array['EXAM_ROOM'] where id = ?", room);
         otherDoctorAccount = account(AccountType.DOCTOR, "other-doctor");
         otherDoctor = UUID.randomUUID();
         jdbc.update("insert into staff_profiles (is_doctor, id, account_id, display_name, photo_url, work_contact, specialties, qualifications, biography, consultation_information, publicly_visible, accepting_new_bookings, in_active_directory) values (true, ?, ?, 'T031 Other Doctor', '', 'private', '', '', '', '', true, true, true)", otherDoctor, otherDoctorAccount);
@@ -120,16 +121,10 @@ class VisitCareCapacityT031PostgresIntegrationTest {
     void cleanUp() {
         String careAuditImmutable = triggerMode("visit_assignment_audits", "tr_visit_care_assignment_audits_immutable");
         String careAuditNoTruncate = triggerMode("visit_assignment_audits", "tr_visit_care_assignment_audits_no_truncate");
-        String roomAuditImmutable = triggerMode("room_reservation_audits", "tr_visit_room_reservation_audits_immutable");
-        String roomManagementAuditImmutable = triggerMode("room_management_audits", "tr_visit_room_management_audits_immutable");
-        String roomManagementAuditNoTruncate = triggerMode("room_management_audits", "tr_visit_room_management_audits_no_truncate");
-        String appointmentAuditTrigger = jdbc.queryForObject("select tgenabled::text from pg_trigger where tgrelid = 'audit_logs'::regclass and tgname = 'tr_audit_logs_immutable'", String.class);
+        String auditLogsImmutable = triggerMode("audit_logs", "tr_audit_logs_immutable");
         String visitAuditTrigger = jdbc.queryForObject("select tgenabled::text from pg_trigger where tgrelid = 'visit_audits'::regclass and tgname = 'tr_visit_audits_immutable'", String.class);
         jdbc.execute("alter table visit_assignment_audits disable trigger tr_visit_care_assignment_audits_immutable");
         jdbc.execute("alter table visit_assignment_audits disable trigger tr_visit_care_assignment_audits_no_truncate");
-        jdbc.execute("alter table room_reservation_audits disable trigger tr_visit_room_reservation_audits_immutable");
-        jdbc.execute("alter table room_management_audits disable trigger tr_visit_room_management_audits_immutable");
-        jdbc.execute("alter table room_management_audits disable trigger tr_visit_room_management_audits_no_truncate");
         jdbc.execute("alter table audit_logs disable trigger tr_audit_logs_immutable");
         jdbc.execute("alter table visit_audits disable trigger tr_visit_audits_immutable");
         jdbc.execute("alter table walk_in_reception_queue_history disable trigger all");
@@ -139,7 +134,7 @@ class VisitCareCapacityT031PostgresIntegrationTest {
                         + "(select id from walk_in_reception_queue_entries where visit_id = ?)", visitId);
                 jdbc.update("delete from walk_in_reception_queue_entries where visit_id = ?", visitId);
                 jdbc.update("delete from visit_assignment_audits where visit_id = ?", visitId);
-                jdbc.update("delete from room_reservation_audits where visit_id = ?", visitId);
+                jdbc.update("delete from audit_logs where source = 'room_reservation_audits' and metadata->>'visitId' = ?::text", visitId);
                 jdbc.update("delete from room_reservations where visit_id = ?", visitId);
                 jdbc.update("delete from visit_assignments where visit_id = ?", visitId);
                 jdbc.update("delete from visit_check_ins where visit_id = ?", visitId);
@@ -154,13 +149,13 @@ class VisitCareCapacityT031PostgresIntegrationTest {
                 jdbc.update("delete from doctor_services where service_id = ?", bookingService);
                 jdbc.update("delete from clinic_services where id = ?", bookingService);
             }
-            if (doctor != null) jdbc.update("delete from doctor_shifts where doctor_profile_id = ?", doctor);
+            if (doctor != null) jdbc.update("delete from work_shifts where staff_profile_id = ?", doctor);
             if (doctor != null) jdbc.update("delete from visit_exam_queue where doctor_profile_id = ?", doctor);
-            if (room != null) jdbc.update("delete from room_management_audits where room_id = ?", room);
+            if (room != null) jdbc.update("delete from audit_logs where source = 'room_management_audits' and entity_id = ?", room);
             if (doctor != null) jdbc.update("delete from staff_profiles where id = ?", doctor);
             if (otherDoctor != null) jdbc.update("delete from staff_profiles where id = ?", otherDoctor);
             if (room != null) {
-                jdbc.update("delete from room_capabilities where room_id = ?", room);
+
                 jdbc.update("delete from rooms where id = ?", room);
             }
             if (patient != null) jdbc.update("delete from patient_profiles where id = ?", patient);
@@ -171,12 +166,23 @@ class VisitCareCapacityT031PostgresIntegrationTest {
             jdbc.execute("alter table walk_in_reception_queue_history enable trigger all");
             restoreTrigger("visit_assignment_audits", "tr_visit_care_assignment_audits_immutable", careAuditImmutable);
             restoreTrigger("visit_assignment_audits", "tr_visit_care_assignment_audits_no_truncate", careAuditNoTruncate);
-            restoreTrigger("room_reservation_audits", "tr_visit_room_reservation_audits_immutable", roomAuditImmutable);
-            restoreTrigger("room_management_audits", "tr_visit_room_management_audits_immutable", roomManagementAuditImmutable);
-            restoreTrigger("room_management_audits", "tr_visit_room_management_audits_no_truncate", roomManagementAuditNoTruncate);
-            restoreTrigger("audit_logs", "tr_audit_logs_immutable", appointmentAuditTrigger);
+            restoreTrigger("audit_logs", "tr_audit_logs_immutable", auditLogsImmutable);
             restoreTrigger("visit_audits", "tr_visit_audits_immutable", visitAuditTrigger);
         }
+    }
+
+    @Test
+    void repeatedCapacityConflictsDeduplicateAndMatchMigrationKey() {
+        new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
+            roomReservations.appendConflict(visit, null, doctorAccount, "CONSULTATION", CORRELATION, NOW);
+            roomReservations.appendConflict(visit, null, doctorAccount, "CONSULTATION", CORRELATION, NOW);
+            // Legacy audit columns for actor and correlation were NOT NULL.
+            assertThrows(NullPointerException.class, () -> roomReservations.appendConflict(visit, null, doctorAccount, "CONSULTATION", null, NOW));
+            assertThrows(NullPointerException.class, () -> roomReservations.appendConflict(visit, null, null, "CONSULTATION", CORRELATION, NOW));
+        });
+        assertEquals(1, jdbc.queryForObject("select count(*) from audit_logs where source='room_reservation_audits' and action='CAPACITY_CONFLICT' and entity_id=? and correlation_id=? and dedup_key = 'room-capacity:' || encode(sha256(convert_to(?::text || ':' || ?::text || ':' || ?, 'UTF8')), 'hex')", Integer.class,
+                visit, CORRELATION, visit, doctorAccount, CORRELATION));
+        assertEquals(1, jdbc.queryForObject("select count(*) from audit_logs where source='room_reservation_audits' and action='CAPACITY_CONFLICT' and entity_id=?", Integer.class, visit));
     }
 
     @Test
@@ -242,7 +248,7 @@ class VisitCareCapacityT031PostgresIntegrationTest {
         assertEquals(1, jdbc.queryForObject("select count(*) from visit_assignment_audits where assignment_id = ? and action = 'STARTED' and actor_account_id = ? and correlation_id = ?", Integer.class, assignment, doctorAccount, CORRELATION));
         // A start reserves no room; rooms are only reserved by an extension (unchanged).
         assertEquals(0, jdbc.queryForObject("select count(*) from room_reservations where assignment_id = ?", Integer.class, assignment));
-        assertEquals(0, jdbc.queryForObject("select count(*) from room_reservation_audits where assignment_id = ?", Integer.class, assignment));
+        assertEquals(0, jdbc.queryForObject("select count(*) from audit_logs where source = 'room_reservation_audits' and metadata->>'assignmentId' = ?::text", Integer.class, assignment));
         assertEquals(0, jdbc.queryForObject("select count(*) from walk_in_reception_queue_entries "
                 + "where visit_id = ? and status = 'WAITING'", Integer.class, visit));
         assertEquals(1, jdbc.queryForObject("select count(*) from walk_in_reception_queue_history h "
@@ -429,7 +435,7 @@ class VisitCareCapacityT031PostgresIntegrationTest {
         // The occupied room has no effect: the start takes no room and writes no room reservation or capacity audit.
         assertEquals(1, jdbc.queryForObject("select count(*) from visit_assignments where visit_id = ? and status = 'IN_PROGRESS'", Integer.class, visit));
         assertEquals(0, jdbc.queryForObject("select count(*) from room_reservations where visit_id = ?", Integer.class, visit));
-        assertEquals(0, jdbc.queryForObject("select count(*) from room_reservation_audits where visit_id = ? and action = 'CAPACITY_CONFLICT'", Integer.class, visit));
+        assertEquals(0, jdbc.queryForObject("select count(*) from audit_logs where source = 'room_reservation_audits' and metadata->>'visitId' = ?::text and action = 'CAPACITY_CONFLICT'", Integer.class, visit));
     }
 
     @Test

@@ -78,17 +78,18 @@ LEFT JOIN rooms r ON r.id = a.room_id;
 
 -- 4d. Room reservations. CAPACITY_CONFLICT rows have no reservation_id, so entity_id = visit_id.
 INSERT INTO audit_logs (id, occurred_at, source, category, action, record_type, entity_id, record_label,
-                        visible_in_activity_log, actor_account_id, actor_type, metadata, correlation_id)
+                        visible_in_activity_log, actor_account_id, actor_type, metadata, correlation_id, dedup_key)
 SELECT a.id, a.occurred_at, 'room_reservation_audits', 'ROOM', a.action, 'ROOM_RESERVATION',
        coalesce(a.reservation_id, a.visit_id), a.visit_id::text,
        true, a.actor_account_id, 'ACCOUNT',
        jsonb_build_object('visitId', a.visit_id, 'assignmentId', a.assignment_id, 'roomId', a.room_id, 'stepCode', a.step_code),
-       a.correlation_id
+       a.correlation_id,
+       CASE WHEN a.action = 'CAPACITY_CONFLICT' AND a.actor_account_id IS NOT NULL AND a.correlation_id IS NOT NULL
+            THEN 'room-capacity:' || encode(sha256(convert_to(a.visit_id::text || ':' || a.actor_account_id::text || ':' || a.correlation_id, 'UTF8')), 'hex')
+            ELSE NULL END
 FROM room_reservation_audits a;
 
--- Replaces UNIQUE (visit_id, actor_account_id, correlation_id) WHERE action = 'CAPACITY_CONFLICT' of the old table.
-CREATE UNIQUE INDEX uq_audit_logs_room_capacity_conflict ON audit_logs (entity_id, actor_account_id, correlation_id)
-    WHERE source = 'room_reservation_audits' AND action = 'CAPACITY_CONFLICT';
+-- The shared dedup_key unique constraint replaces the old partial unique index.
 
 -- 5. Triggers first, then their functions (no other object uses them), then the tables.
 -- staff_resource_audits keeps its trigger and function until V120.

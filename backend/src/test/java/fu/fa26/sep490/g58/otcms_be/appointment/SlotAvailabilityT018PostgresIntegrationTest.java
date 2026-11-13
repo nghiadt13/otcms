@@ -90,7 +90,7 @@ class SlotAvailabilityT018PostgresIntegrationTest {
                         + "values (true, ?, ?, 'T018 Doctor', '', '', '', '')", doctorId, doctorAccountId);
         jdbc.update("insert into doctor_services (doctor_profile_id, service_id, active) values (?, ?, true)",
                 doctorId, serviceId);
-        jdbc.update("insert into doctor_shifts (id, doctor_profile_id, starts_at, ends_at) values (?, ?, ?, ?)",
+        jdbc.update("insert into work_shifts (id, staff_profile_id, starts_at, ends_at) values (?, ?, ?, ?)",
                 shiftId, doctorId, Timestamp.from(dayStart), Timestamp.from(dayStart.plus(Duration.ofHours(4))));
         jdbc.update("insert into appointments (id, patient_profile_id, service_id, doctor_profile_id, status, booking_source, purpose, "
                         + "start_time, end_time, duration_minutes, buffer_minutes, created_by_account_id) "
@@ -120,7 +120,7 @@ class SlotAvailabilityT018PostgresIntegrationTest {
         jdbc.update("delete from visit_check_ins where visit_id = ?", visitId);
         jdbc.update("delete from visits where id = ?", visitId);
         jdbc.update("delete from appointments where id = ?", appointmentId);
-        jdbc.update("delete from doctor_shifts where id = ?", shiftId);
+        jdbc.update("delete from work_shifts where id = ?", shiftId);
         jdbc.update("delete from doctor_services where doctor_profile_id = ? and service_id = ?", doctorId, serviceId);
         jdbc.update("delete from clinic_services where id = ?", serviceId);
         jdbc.update("delete from patient_profiles where id = ?", patientId);

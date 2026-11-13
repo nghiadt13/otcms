@@ -8,10 +8,10 @@ import java.time.Instant;
 import java.util.UUID;
 
 @Entity
-@Table(name = "doctor_shifts")
+@Table(name = "work_shifts")
 public class DoctorWorkShiftJpaEntity {
     @Id private UUID id;
-    @Column(name = "doctor_profile_id", nullable = false) private UUID doctorProfileId;
+    @Column(name = "staff_profile_id", nullable = false) private UUID doctorProfileId;
     @Column(name = "room_id") private UUID roomId;
     @Column(name = "starts_at", nullable = false) private Instant startsAt;
     @Column(name = "ends_at", nullable = false) private Instant endsAt;

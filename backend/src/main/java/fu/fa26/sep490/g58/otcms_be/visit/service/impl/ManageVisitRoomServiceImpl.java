@@ -1,6 +1,10 @@
 package fu.fa26.sep490.g58.otcms_be.visit.service.impl;
 
 import fu.fa26.sep490.g58.otcms_be.common.service.CoordinationGuardService;
+import fu.fa26.sep490.g58.otcms_be.common.audit.AuditEntry;
+import fu.fa26.sep490.g58.otcms_be.common.audit.AuditLogWriter;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
 import fu.fa26.sep490.g58.otcms_be.common.exception.CoordinationGuardUnavailableException;
 import fu.fa26.sep490.g58.otcms_be.visit.exception.VisitOperationException;
 import fu.fa26.sep490.g58.otcms_be.visit.mapper.VisitRoomMapper;
@@ -30,13 +34,17 @@ public class ManageVisitRoomServiceImpl implements ManageVisitRoomService {
     private final VisitRoomJpaRepository rooms;
     private final GetClinicServiceCatalogService catalog;
     private final Clock clock;
+    private final AuditLogWriter auditLog;
+    private final ObjectMapper objectMapper;
 
     public ManageVisitRoomServiceImpl(CoordinationGuardService guard, VisitRoomJpaRepository rooms,
-            GetClinicServiceCatalogService catalog, Clock clock) {
+            GetClinicServiceCatalogService catalog, Clock clock, AuditLogWriter auditLog, ObjectMapper objectMapper) {
         this.guard = guard;
         this.rooms = rooms;
         this.catalog = catalog;
         this.clock = clock;
+        this.auditLog = auditLog;
+        this.objectMapper = objectMapper;
     }
 
     @Override
@@ -168,9 +176,26 @@ public class ManageVisitRoomServiceImpl implements ManageVisitRoomService {
 
     private void appendAudit(UUID roomId, UUID actorAccountId, String action, String beforeState,
             String correlationId, java.time.Instant occurredAt) {
-        String afterState = rooms.snapshot(roomId);
-        rooms.appendManagementAudit(UUID.randomUUID(), roomId, actorAccountId, action, beforeState,
-                afterState, occurredAt, correlationId);
+        JsonNode afterState = readJson(rooms.snapshot(roomId));
+        String mdcKey = fu.fa26.sep490.g58.otcms_be.common.web.CorrelationIdFilter.MDC_KEY;
+        String previous = org.slf4j.MDC.get(mdcKey);
+        try {
+            if (correlationId == null) org.slf4j.MDC.remove(mdcKey);
+            else org.slf4j.MDC.put(mdcKey, correlationId);
+            auditLog.record(AuditEntry.builder("room_management_audits", "ROOM",
+                switch (action) { case "CREATED" -> "CREATE_ROOM"; case "UPDATED" -> "UPDATE_ROOM"; default -> "CHANGE_ROOM_STATUS"; }, "ROOM")
+                .entityId(roomId).recordLabel(afterState.path("roomCode").asText()).actorAccountId(actorAccountId)
+                .beforeState(beforeState == null ? null : readJson(beforeState)).afterState(afterState)
+                .occurredAt(occurredAt).build());
+        } finally {
+            if (previous == null) org.slf4j.MDC.remove(mdcKey);
+            else org.slf4j.MDC.put(mdcKey, previous);
+        }
+    }
+
+    private JsonNode readJson(String json) {
+        try { return objectMapper.readTree(json); }
+        catch (tools.jackson.core.JacksonException e) { throw new IllegalStateException(e); }
     }
 
     private void acquireGuard() {

@@ -17,7 +17,7 @@ import fu.fa26.sep490.g58.otcms_be.staff.mapper.DoctorProfileMapper;
 import fu.fa26.sep490.g58.otcms_be.staff.model.entity.DoctorWorkShiftJpaEntity;
 import fu.fa26.sep490.g58.otcms_be.staff.repository.StaffProfileRepository;
 import fu.fa26.sep490.g58.otcms_be.staff.repository.DoctorWorkShiftRepository;
-import fu.fa26.sep490.g58.otcms_be.staff.repository.StaffResourceManagementAuditRepository;
+import fu.fa26.sep490.g58.otcms_be.staff.service.DoctorProfileIdentityQueryService;
 import fu.fa26.sep490.g58.otcms_be.staff.service.ManageDoctorResourcesService;
 import java.time.Clock;
 import java.time.Instant;
@@ -33,7 +33,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class ManageDoctorResourcesServiceImpl implements ManageDoctorResourcesService {
     private final StaffProfileRepository profiles;
     private final DoctorWorkShiftRepository shifts;
-    private final StaffResourceManagementAuditRepository audits;
+    private final DoctorProfileIdentityQueryService identity;
     private final AuditLogWriter auditLogs;
     private final AppointmentMutationImpactService appointments;
     private final VisitMutationImpactService visits;
@@ -44,18 +44,18 @@ public class ManageDoctorResourcesServiceImpl implements ManageDoctorResourcesSe
 
     @Autowired
     public ManageDoctorResourcesServiceImpl(StaffProfileRepository profiles, DoctorWorkShiftRepository shifts,
-            StaffResourceManagementAuditRepository audits, AuditLogWriter auditLogs,
+            DoctorProfileIdentityQueryService identity, AuditLogWriter auditLogs,
             AppointmentMutationImpactService appointments, VisitMutationImpactService visits,
             CoordinationGuardService guard, Clock clock, ManageVisitRoomService rooms, JdbcTemplate jdbc) {
-        this.profiles=profiles; this.shifts=shifts; this.audits=audits; this.auditLogs=auditLogs;
+        this.profiles=profiles; this.shifts=shifts; this.identity=identity; this.auditLogs=auditLogs;
         this.appointments=appointments; this.visits=visits; this.guard=guard; this.clock=clock; this.rooms=rooms; this.jdbc=jdbc;
     }
 
     public ManageDoctorResourcesServiceImpl(StaffProfileRepository profiles, DoctorWorkShiftRepository shifts,
-            StaffResourceManagementAuditRepository audits, AuditLogWriter auditLogs,
+            DoctorProfileIdentityQueryService identity, AuditLogWriter auditLogs,
             AppointmentMutationImpactService appointments, VisitMutationImpactService visits,
             CoordinationGuardService guard, Clock clock) {
-        this(profiles, shifts, audits, auditLogs, appointments, visits, guard, clock, null, null);
+        this(profiles, shifts, identity, auditLogs, appointments, visits, guard, clock, null, null);
     }
 
     public DoctorIntervalResponse createShift(UUID doctorId, Instant startsAt, Instant endsAt,
@@ -93,7 +93,7 @@ public class ManageDoctorResourcesServiceImpl implements ManageDoctorResourcesSe
         AdminMutationImpact impact = shiftImpact(doctorId, shiftId, null, null, other);
         if (impact.isBlocked()) throw new ResourceMutationBlockedException(impact);
         shifts.delete(shift);
-        audit(doctorId, actor.accountId(), "WORK_SHIFT", shiftId, "DELETED", intervalJson(shift.startsAt(), shift.endsAt()), "{}", correlationId);
+        audit(doctorId, actor.accountId(), "WORK_SHIFT", shiftId, "DELETED", intervalJson(shift.startsAt(), shift.endsAt()), Map.of(), correlationId);
     }
 
     @Override @Transactional
@@ -110,7 +110,7 @@ public class ManageDoctorResourcesServiceImpl implements ManageDoctorResourcesSe
             throw new DoctorProfileException("DOCTOR_SHIFT_OVERLAP");
         AdminMutationImpact impact = shiftImpact(doctorId, shiftId, startsAt, endsAt, other);
         if (impact.isBlocked()) throw new ResourceMutationBlockedException(impact);
-        String before=intervalJson(shift.startsAt(), shift.endsAt()); shift.updateInterval(startsAt, endsAt, roomId);
+        var before=intervalJson(shift.startsAt(), shift.endsAt()); shift.updateInterval(startsAt, endsAt, roomId);
         var saved=shifts.save(shift);
         audit(doctorId, actor.accountId(), "WORK_SHIFT", shiftId, "UPDATED", before, intervalJson(startsAt, endsAt), correlationId);
         return new DoctorIntervalResponse(saved.id(), saved.doctorProfileId(), saved.startsAt(), saved.endsAt(), saved.roomId());
@@ -181,10 +181,8 @@ public class ManageDoctorResourcesServiceImpl implements ManageDoctorResourcesSe
     private void ensureRoomAvailable(UUID roomId, Instant startsAt, Instant endsAt, UUID ignoreId) {
         if (roomId == null || jdbc == null) return;
         Integer count = jdbc.queryForObject("""
-                SELECT (SELECT count(*) FROM doctor_shifts WHERE room_id=? AND starts_at < ? AND ends_at > ? AND (?::uuid IS NULL OR id<>?))
-                     + (SELECT count(*) FROM staff_work_shifts WHERE room_id=? AND starts_at < ? AND ends_at > ?)
-                """, Integer.class, roomId, Timestamp.from(endsAt), Timestamp.from(startsAt), ignoreId, ignoreId,
-                roomId, Timestamp.from(endsAt), Timestamp.from(startsAt));
+                SELECT count(*) FROM work_shifts WHERE room_id=? AND starts_at < ? AND ends_at > ? AND (?::uuid IS NULL OR id<>?)
+                """, Integer.class, roomId, Timestamp.from(endsAt), Timestamp.from(startsAt), ignoreId, ignoreId);
         if (count != null && count > 0) throw new DoctorProfileException("DOCTOR_SHIFT_OVERLAP");
     }
     private boolean covers(Instant from, Instant to, Instant bookingFrom, Instant bookingTo) {
@@ -194,12 +192,24 @@ public class ManageDoctorResourcesServiceImpl implements ManageDoctorResourcesSe
         return startA.isBefore(endB) && endA.isAfter(startB);
     }
     private void audit(UUID doctorId, UUID actorId, String type, UUID resourceId, String action,
-            String before, String after, String correlationId) {
-        audits.append(UUID.randomUUID(), doctorId, actorId, type, resourceId, action,
-                before, after, clock.instant(), correlationId);
+            Map<String, Object> before, Map<String, Object> after, String correlationId) {
+        String name = identity.findDoctorNames(java.util.List.of(doctorId)).get(doctorId);
+        String mdcKey = fu.fa26.sep490.g58.otcms_be.common.web.CorrelationIdFilter.MDC_KEY;
+        String previous = org.slf4j.MDC.get(mdcKey);
+        try {
+            if (correlationId == null) org.slf4j.MDC.remove(mdcKey);
+            else org.slf4j.MDC.put(mdcKey, correlationId);
+            auditLogs.record(AuditEntry.builder("staff_resource_audits", "STAFF_SHIFT",
+                            switch (action) { case "CREATED" -> "CREATE_STAFF_SHIFT"; case "DELETED" -> "CANCEL_STAFF_SHIFT"; default -> "UPDATE_STAFF_SHIFT"; }, "WORK_SHIFT")
+                    .entityId(resourceId).recordLabel(name == null ? resourceId.toString() : name)
+                    .actorAccountId(actorId).beforeState(before).afterState(after).occurredAt(clock.instant()).build());
+        } finally {
+            if (previous == null) org.slf4j.MDC.remove(mdcKey);
+            else org.slf4j.MDC.put(mdcKey, previous);
+        }
     }
-    private String intervalJson(Instant startsAt, Instant endsAt) {
-        return "{\"startsAt\":\"" + startsAt + "\",\"endsAt\":\"" + endsAt + "\"}";
+    private Map<String, Object> intervalJson(Instant startsAt, Instant endsAt) {
+        return Map.of("startsAt", startsAt.toString(), "endsAt", endsAt.toString());
     }
     private void validate(UUID doctorId, Instant startsAt, Instant endsAt, AuthenticatedAccount actor, String correlationId) {
         validateIds(doctorId, actor, correlationId);

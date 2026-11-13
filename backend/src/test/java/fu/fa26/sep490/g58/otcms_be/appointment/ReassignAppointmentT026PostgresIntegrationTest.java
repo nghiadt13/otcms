@@ -91,7 +91,7 @@ class ReassignAppointmentT026PostgresIntegrationTest {
             if (service != null) {
                 jdbc.update("delete from audit_logs where source = 'appointment_audits' and entity_id in (select id from appointments where service_id = ?)", service);
                 jdbc.update("delete from appointments where service_id = ?", service);
-                jdbc.update("delete from doctor_shifts where doctor_profile_id in (?, ?, ?)", currentDoctor, replacementDoctor, unassignedDoctor);
+                jdbc.update("delete from work_shifts where staff_profile_id in (?, ?, ?)", currentDoctor, replacementDoctor, unassignedDoctor);
                 jdbc.update("delete from doctor_services where service_id = ?", service);
                 jdbc.update("delete from clinic_services where id = ?", service);
             }
@@ -235,7 +235,7 @@ class ReassignAppointmentT026PostgresIntegrationTest {
     }
 
     private void shift(UUID doctor) {
-        jdbc.update("insert into doctor_shifts (id, doctor_profile_id, starts_at, ends_at) values (?, ?, ?, ?)",
+        jdbc.update("insert into work_shifts (id, staff_profile_id, starts_at, ends_at) values (?, ?, ?, ?)",
                 UUID.randomUUID(), doctor, Timestamp.from(Instant.parse("2026-10-16T02:00:00Z")),
                 Timestamp.from(Instant.parse("2026-10-16T05:00:00Z")));
     }

@@ -81,14 +81,14 @@ class ClinicServicePostgresIntegrationTest {
     }
 
     @AfterEach void cleanup() {
-        jdbc.execute("alter table service_audits disable trigger tr_service_catalog_audits_immutable");
+        jdbc.execute("alter table audit_logs disable trigger tr_audit_logs_immutable");
         try {
-            jdbc.update("delete from service_audits where service_id in (select id from clinic_services where name like 'T010 %')");
+            jdbc.update("delete from audit_logs where source='service_audits' and entity_id in (select id from clinic_services where name like 'T010 %')");
             jdbc.update("delete from clinic_services where name like 'T010 %'");
             for (UUID accountId : actorAccounts) jdbc.update("delete from accounts where id = ?", accountId);
             actorAccounts.clear();
         } finally {
-            jdbc.execute("alter table service_audits enable trigger tr_service_catalog_audits_immutable");
+            jdbc.execute("alter table audit_logs enable trigger tr_audit_logs_immutable");
         }
     }
 
@@ -150,12 +150,13 @@ class ClinicServicePostgresIntegrationTest {
         mvc.perform(delete("/api/v1/admin/clinic-services/" + id).with(actor(AccountType.ADMIN)).with(csrf()))
                 .andExpect(status().isNoContent());
         assertEquals(1, jdbc.queryForObject("select count(*) from clinic_services where id = ? and active = false", Integer.class, UUID.fromString(id)));
-        assertEquals(1, jdbc.queryForObject("select count(*) from service_audits where service_id = ? and action = 'DEACTIVATED'", Integer.class, UUID.fromString(id)));
+        assertEquals(1, jdbc.queryForObject("select count(*) from audit_logs where source = 'service_audits' and entity_id = ? and action = 'CHANGE_SERVICE_STATUS'", Integer.class, UUID.fromString(id)));
 
         jdbc.update("update clinic_services set active = false where id = ?", UUID.fromString(id));
         mvc.perform(post("/api/v1/admin/clinic-services/" + id + "/activation").with(actor(AccountType.ADMIN)).with(csrf()))
                 .andExpect(status().isNoContent());
         assertEquals(1, jdbc.queryForObject("select count(*) from clinic_services where id = ? and active = true", Integer.class, UUID.fromString(id)));
+        assertEquals(1, jdbc.queryForObject("select count(*) from audit_logs where source='service_audits' and entity_id=? and action='UPDATE_SERVICE' and record_label='T010 diagnostic' and before_state->>'active'='false' and after_state->>'active'='true'", Integer.class, UUID.fromString(id)));
     }
 
     @Test

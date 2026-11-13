@@ -73,7 +73,7 @@ class WalkInFeeAdmissionPostgresIntegrationTest {
         }
         // On shift around now: the walk-in check uses the real clock.
         Instant now = Instant.now();
-        jdbc.update("insert into doctor_shifts (id, doctor_profile_id, starts_at, ends_at) values (?, ?, ?, ?)",
+        jdbc.update("insert into work_shifts (id, staff_profile_id, starts_at, ends_at) values (?, ?, ?, ?)",
                 UUID.randomUUID(), doctorProfile, Timestamp.from(now.minusSeconds(3600)),
                 Timestamp.from(now.plusSeconds(8 * 3600L)));
     }
@@ -184,7 +184,7 @@ class WalkInFeeAdmissionPostgresIntegrationTest {
 
     @Test
     void walkInIsRefusedWhenTheChosenDoctorIsOffShift() throws Exception {
-        jdbc.update("delete from doctor_shifts where doctor_profile_id = ?", doctorProfile);
+        jdbc.update("delete from work_shifts where staff_profile_id = ?", doctorProfile);
 
         mvc.perform(createWalkIn("wf-off-shift", patientProfile, doctorProfile, feeService))
                 .andExpect(status().isConflict())
@@ -296,7 +296,7 @@ class WalkInFeeAdmissionPostgresIntegrationTest {
             jdbc.update("delete from visit_check_ins where visit_id in (" + ownVisits + ")", receptionist);
             jdbc.update("delete from visit_audits where visit_id in (" + ownVisits + ")", receptionist);
             jdbc.update("delete from visits where created_by_account_id = ?", receptionist);
-            jdbc.update("delete from doctor_shifts where doctor_profile_id = ?", doctorProfile);
+            jdbc.update("delete from work_shifts where staff_profile_id = ?", doctorProfile);
             jdbc.update("delete from doctor_services where doctor_profile_id = ?", doctorProfile);
             jdbc.update("delete from clinic_services where id in (?, ?, ?)", feeService, otherFeeService, freeService);
             jdbc.update("delete from staff_profiles where id = ?", doctorProfile);

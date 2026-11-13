@@ -210,7 +210,7 @@ class VisitExamQueuePostgresIntegrationTest {
     }
 
     private void shift(UUID doctorProfileId, UUID roomId, Instant startsAt, Instant endsAt) {
-        jdbc.update("insert into doctor_shifts (id, doctor_profile_id, starts_at, ends_at, room_id) "
+        jdbc.update("insert into work_shifts (id, staff_profile_id, starts_at, ends_at, room_id) "
                 + "values (?, ?, ?, ?, ?)", UUID.randomUUID(), doctorProfileId, Timestamp.from(startsAt),
                 Timestamp.from(endsAt), roomId);
     }

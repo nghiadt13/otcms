@@ -8,8 +8,8 @@ import fu.fa26.sep490.g58.otcms_be.servicecatalog.mapper.ClinicServiceMapper;
 import fu.fa26.sep490.g58.otcms_be.servicecatalog.model.ClinicService;
 import fu.fa26.sep490.g58.otcms_be.servicecatalog.repository.ClinicServiceRepository;
 import fu.fa26.sep490.g58.otcms_be.servicecatalog.service.ActivateClinicServiceService;
-import fu.fa26.sep490.g58.otcms_be.servicecatalog.repository.ServiceCatalogManagementAuditRepository;
-import java.time.Clock;
+import fu.fa26.sep490.g58.otcms_be.servicecatalog.service.ServiceCatalogAuditRecorder;
+import java.util.Map;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -18,15 +18,13 @@ import org.springframework.transaction.annotation.Transactional;
 public class ActivateClinicServiceServiceImpl implements ActivateClinicServiceService {
     private final ClinicServiceRepository services;
     private final CoordinationGuardService coordinationGuard;
-    private final ServiceCatalogManagementAuditRepository audits;
-    private final Clock clock;
+    private final ServiceCatalogAuditRecorder audits;
 
     public ActivateClinicServiceServiceImpl(ClinicServiceRepository services, CoordinationGuardService coordinationGuard,
-            ServiceCatalogManagementAuditRepository audits, Clock clock) {
+            ServiceCatalogAuditRecorder audits) {
         this.services = services;
         this.coordinationGuard = coordinationGuard;
         this.audits = audits;
-        this.clock = clock;
     }
 
     @Override
@@ -43,8 +41,8 @@ public class ActivateClinicServiceServiceImpl implements ActivateClinicServiceSe
         if (!existing.active()) {
             existing.activate();
             services.save(existing);
-            audits.append(UUID.randomUUID(), serviceId, actor.accountId(), "CLINIC_SERVICE", serviceId,
-                    "UPDATED", "{\"active\":false}", "{\"active\":true}", clock.instant(), correlationId);
+            audits.record(serviceId, existing.name(), actor.accountId(), "CLINIC_SERVICE", serviceId,
+                    "UPDATED", Map.of("active", false), Map.of("active", true));
         }
     }
 }

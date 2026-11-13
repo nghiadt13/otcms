@@ -49,7 +49,7 @@ class DoctorOnlyLookupTest {
 
     @AfterEach
     void cleanup() {
-        jdbc.update("delete from doctor_shifts where doctor_profile_id in "
+        jdbc.update("delete from work_shifts where staff_profile_id in "
                 + "(select id from staff_profiles where account_id in (select id from accounts where normalized_email like ?))",
                 EMAIL_PREFIX + "%");
         jdbc.update("delete from staff_profiles where account_id in (select id from accounts where normalized_email like ?)",

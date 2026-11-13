@@ -76,7 +76,7 @@ class ActivityLogPostgresIntegrationTest {
             statement.execute("drop schema if exists " + TEST_SCHEMA + " cascade");
         }
     }
-    @Test void catalogCreateAndUpdateKeepLegacyAuditUntilPhase07MovesTheWriter() throws Exception {
+    @Test void catalogCreateAndUpdateAppearInActivityLog() throws Exception {
         var auth=actor();
         String body="""
                 {"name":"KAN40 audit service","type":"EXAMINATION","price":200000,"durationMinutes":20,"bufferMinutes":0,"onlineBookable":true,"indicators":[]}
@@ -86,12 +86,11 @@ class ActivityLogPostgresIntegrationTest {
         String id=json.readTree(result).get("id").asText();
         mvc.perform(put("/api/v1/admin/clinic-services/"+id).with(auth).with(csrf()).contentType("application/json")
         .content(body.replace("200000","250000"))).andExpect(status().isOk());
-        assertEquals(2,jdbc.queryForObject("select count(*) from service_audits where service_id=?",Integer.class,UUID.fromString(id)));
-        // Phase 01 deliberately reads only audit_logs; the catalog writer moves in phase 07.
+        assertEquals(2,jdbc.queryForObject("select count(*) from audit_logs where source='service_audits' and entity_id=? and action in ('CREATE_SERVICE','UPDATE_SERVICE')",Integer.class,UUID.fromString(id)));
         mvc.perform(get("/api/v1/admin/activity-logs").param("action","SERVICE").param("record","KAN40 audit service").with(auth))
-        .andExpect(status().isOk()).andExpect(jsonPath("$.totalItems").value(0));
+        .andExpect(status().isOk()).andExpect(jsonPath("$.totalItems").value(2));
     }
-    @Test void creatingRoomKeepsLegacyAuditUntilPhase07MovesTheWriter() throws Exception {
+    @Test void creatingRoomAppearsInActivityLog() throws Exception {
         var auth=actor();
         String code="K40_"+UUID.randomUUID().toString().substring(0,8);
         String service=mvc.perform(post("/api/v1/admin/clinic-services").with(auth).with(csrf()).contentType("application/json")
@@ -102,9 +101,9 @@ class ActivityLogPostgresIntegrationTest {
         mvc.perform(post("/api/v1/admin/visit-rooms").with(auth).with(csrf()).contentType("application/json")
         .content("{\"roomCode\":\""+code+"\",\"displayLabel\":\"Audit test room\",\"type\":\"EXAMINATION\",\"capabilities\":[],\"serviceIds\":[\""+serviceId+"\"]}"))
         .andExpect(status().isCreated());
-        assertEquals(1,jdbc.queryForObject("select count(*) from room_management_audits a join rooms r on r.id=a.room_id where r.room_code=upper(?)",Integer.class,code));
+        assertEquals(1,jdbc.queryForObject("select count(*) from audit_logs a join rooms r on r.id=a.entity_id where a.source='room_management_audits' and a.action='CREATE_ROOM' and r.room_code=upper(?)",Integer.class,code));
         mvc.perform(get("/api/v1/admin/activity-logs").param("action","ROOM").param("record",code).with(auth))
-        .andExpect(status().isOk()).andExpect(jsonPath("$.totalItems").value(0));
+        .andExpect(status().isOk()).andExpect(jsonPath("$.totalItems").value(1));
         mvc.perform(get("/api/v1/admin/activity-logs").param("record","%' OR 1=1 --").with(auth))
         .andExpect(status().isOk()).andExpect(jsonPath("$.totalItems").value(0));
     }

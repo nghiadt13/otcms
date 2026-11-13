@@ -359,7 +359,7 @@ class DependentsR3PostgresIntegrationTest {
         jdbc.update("insert into staff_profiles(is_doctor, id,account_id,display_name,photo_url,work_contact,specialties,qualifications,biography,consultation_information,publicly_visible,accepting_new_bookings,in_active_directory) "
                 + "values (true, ?,?,'KAN26 Doctor','','','','','','',true,true,true)", doctor, doctorAccount);
         jdbc.update("insert into doctor_services(doctor_profile_id,service_id,active) values (?,?,true)", doctor, clinicService);
-        jdbc.update("insert into doctor_shifts(id,doctor_profile_id,starts_at,ends_at) values (?,?,?,?)", UUID.randomUUID(), doctor,
+        jdbc.update("insert into work_shifts(id,staff_profile_id,starts_at,ends_at) values (?,?,?,?)", UUID.randomUUID(), doctor,
                 Timestamp.from(Instant.parse("2026-10-16T02:00:00Z")), Timestamp.from(Instant.parse("2026-10-16T05:00:00Z")));
         return json.writeValueAsString(Map.of("patientProfileId", target, "serviceId", clinicService, "doctorId", doctor,
                 "startTime", "2026-10-16T03:00:00Z", "purpose", "Routine visit"));

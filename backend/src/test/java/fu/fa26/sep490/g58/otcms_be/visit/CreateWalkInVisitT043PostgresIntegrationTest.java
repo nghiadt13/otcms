@@ -93,7 +93,7 @@ class CreateWalkInVisitT043PostgresIntegrationTest {
         jdbc.update("insert into doctor_services (doctor_profile_id, service_id, active) values (?, ?, true)",
                 doctorProfile, serviceId);
         // The doctor is on shift around NOW, so walk-ins for this doctor pass the on-shift check.
-        jdbc.update("insert into doctor_shifts (id, doctor_profile_id, starts_at, ends_at) values (?, ?, ?, ?)",
+        jdbc.update("insert into work_shifts (id, staff_profile_id, starts_at, ends_at) values (?, ?, ?, ?)",
                 UUID.randomUUID(), doctorProfile, Timestamp.from(NOW.minusSeconds(3600)),
                 Timestamp.from(NOW.plusSeconds(8 * 3600L)));
     }
@@ -177,7 +177,7 @@ class CreateWalkInVisitT043PostgresIntegrationTest {
                 jdbc.update("delete from appointments where id = ?", appointmentId);
             }
             if (doctorProfile != null) jdbc.update("delete from visit_exam_queue where doctor_profile_id = ?", doctorProfile);
-            if (doctorProfile != null) jdbc.update("delete from doctor_shifts where doctor_profile_id = ?", doctorProfile);
+            if (doctorProfile != null) jdbc.update("delete from work_shifts where staff_profile_id = ?", doctorProfile);
             if (doctorProfile != null) jdbc.update("delete from doctor_services where doctor_profile_id = ?", doctorProfile);
             if (serviceId != null) jdbc.update("delete from clinic_services where id = ?", serviceId);
             if (doctorProfile != null) jdbc.update("delete from staff_profiles where id = ?", doctorProfile);
@@ -465,7 +465,7 @@ class CreateWalkInVisitT043PostgresIntegrationTest {
             jdbc.update("delete from visits where id in (" + oldVisits + ")");
             jdbc.update("delete from audit_logs where source = 'appointment_audits' and entity_id in (" + oldAppointments + ")");
             jdbc.update("delete from appointments where id in (" + oldAppointments + ")");
-            jdbc.update("delete from doctor_shifts where doctor_profile_id in "
+            jdbc.update("delete from work_shifts where staff_profile_id in "
                     + "(select id from staff_profiles where account_id in (" + oldAccounts + "))");
             jdbc.update("delete from doctor_services where doctor_profile_id in "
                     + "(select id from staff_profiles where account_id in (" + oldAccounts + "))");

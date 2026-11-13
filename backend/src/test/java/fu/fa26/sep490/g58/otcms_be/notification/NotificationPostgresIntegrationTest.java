@@ -567,7 +567,7 @@ class NotificationPostgresIntegrationTest {
     private void doctor(UUID id, UUID account) {
         jdbc.update("insert into staff_profiles(is_doctor, id,account_id,display_name,publicly_visible,accepting_new_bookings,in_active_directory) values (true, ?,?,'Notification test doctor',true,true,true)", id, account);
         jdbc.update("insert into doctor_services(doctor_profile_id,service_id,active) values (?,?,true)", id, serviceId);
-        jdbc.update("insert into doctor_shifts(id,doctor_profile_id,starts_at,ends_at) values (?,?,?,?)", UUID.randomUUID(), id,
+        jdbc.update("insert into work_shifts(id,staff_profile_id,starts_at,ends_at) values (?,?,?,?)", UUID.randomUUID(), id,
                 Timestamp.from(Instant.parse("2026-11-03T02:00:00Z")), Timestamp.from(Instant.parse("2026-11-03T05:00:00Z")));
     }
     private void visit(UUID id, UUID target, String status) {

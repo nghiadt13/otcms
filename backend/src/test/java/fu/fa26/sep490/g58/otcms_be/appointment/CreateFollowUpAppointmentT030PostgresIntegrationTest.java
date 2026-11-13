@@ -66,7 +66,7 @@ class CreateFollowUpAppointmentT030PostgresIntegrationTest {
                 doctor, account);
         jdbc.update("insert into clinic_services (id, name, duration_minutes, buffer_minutes, online_bookable, active) values (?, 'T030 Follow-up', 30, 5, false, true)", service);
         jdbc.update("insert into doctor_services (doctor_profile_id, service_id, active) values (?, ?, true)", doctor, service);
-        jdbc.update("insert into doctor_shifts (id, doctor_profile_id, starts_at, ends_at) values (?, ?, ?, ?)",
+        jdbc.update("insert into work_shifts (id, staff_profile_id, starts_at, ends_at) values (?, ?, ?, ?)",
                 UUID.randomUUID(), doctor, Timestamp.from(SLOT.minusSeconds(3600)), Timestamp.from(SLOT.plusSeconds(7200)));
         jdbc.update("insert into visits (id, patient_profile_id, source, arrived_at, checked_in_at, created_by_account_id) values (?, ?, 'WALK_IN', ?, ?, ?)",
                 visit, patient, Timestamp.from(NOW.minusSeconds(3600)), Timestamp.from(NOW.minusSeconds(3600)), account);
@@ -91,7 +91,7 @@ class CreateFollowUpAppointmentT030PostgresIntegrationTest {
                 jdbc.update("delete from visit_examinations where visit_id = ?", visit);
                 jdbc.update("delete from visit_assignments where visit_id = ?", visit);
                 jdbc.update("delete from visits where id = ?", visit);
-                jdbc.update("delete from doctor_shifts where doctor_profile_id = ?", doctor);
+                jdbc.update("delete from work_shifts where staff_profile_id = ?", doctor);
                 jdbc.update("delete from doctor_services where service_id = ?", service);
                 jdbc.update("delete from clinic_services where id = ?", service);
             }

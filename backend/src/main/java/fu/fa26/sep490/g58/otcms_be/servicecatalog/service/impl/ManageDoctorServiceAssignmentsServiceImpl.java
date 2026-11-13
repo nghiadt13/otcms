@@ -13,9 +13,9 @@ import fu.fa26.sep490.g58.otcms_be.servicecatalog.model.dto.response.DoctorAssig
 import fu.fa26.sep490.g58.otcms_be.servicecatalog.model.entity.DoctorServiceAssignmentJpaEntity;
 import fu.fa26.sep490.g58.otcms_be.servicecatalog.repository.ClinicServiceRepository;
 import fu.fa26.sep490.g58.otcms_be.servicecatalog.repository.DoctorServiceAssignmentRepository;
-import fu.fa26.sep490.g58.otcms_be.servicecatalog.repository.ServiceCatalogManagementAuditRepository;
+import fu.fa26.sep490.g58.otcms_be.servicecatalog.service.ServiceCatalogAuditRecorder;
+import java.util.Map;
 import fu.fa26.sep490.g58.otcms_be.servicecatalog.service.ManageDoctorServiceAssignmentsService;
-import java.time.Clock;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
@@ -25,18 +25,17 @@ import org.springframework.transaction.annotation.Transactional;
 public class ManageDoctorServiceAssignmentsServiceImpl implements ManageDoctorServiceAssignmentsService {
     private final ClinicServiceRepository services;
     private final DoctorServiceAssignmentRepository assignments;
-    private final ServiceCatalogManagementAuditRepository audits;
+    private final ServiceCatalogAuditRecorder audits;
     private final DoctorProfileQueryService doctors;
     private final AppointmentMutationImpactService appointmentImpact;
     private final VisitMutationImpactService visitImpact;
     private final CoordinationGuardService guard;
-    private final Clock clock;
     public ManageDoctorServiceAssignmentsServiceImpl(ClinicServiceRepository services,
-            DoctorServiceAssignmentRepository assignments, ServiceCatalogManagementAuditRepository audits,
+            DoctorServiceAssignmentRepository assignments, ServiceCatalogAuditRecorder audits,
             DoctorProfileQueryService doctors, AppointmentMutationImpactService appointmentImpact,
-            VisitMutationImpactService visitImpact, CoordinationGuardService guard, Clock clock) {
+            VisitMutationImpactService visitImpact, CoordinationGuardService guard) {
         this.services=services; this.assignments=assignments; this.audits=audits; this.doctors=doctors;
-        this.appointmentImpact=appointmentImpact; this.visitImpact=visitImpact; this.guard=guard; this.clock=clock;
+        this.appointmentImpact=appointmentImpact; this.visitImpact=visitImpact; this.guard=guard;
     }
     @Override @Transactional(readOnly = true)
     public List<DoctorAssignmentResponse> list(UUID serviceId) {
@@ -60,24 +59,23 @@ public class ManageDoctorServiceAssignmentsServiceImpl implements ManageDoctorSe
             throw new ClinicServiceException("DOCTOR_ASSIGNMENT_ALREADY_EXISTS");
         UUID assignmentId=UUID.randomUUID();
         assignments.save(new DoctorServiceAssignmentJpaEntity(assignmentId, doctorId, serviceId, true));
-        audits.append(UUID.randomUUID(), serviceId, actor.accountId(), "DOCTOR_ASSIGNMENT", assignmentId, "CREATED", null,
-                "{\"doctorProfileId\":\""+doctorId+"\",\"active\":true}", clock.instant(), correlationId);
+        audits.record(serviceId, service.name(), actor.accountId(), "DOCTOR_ASSIGNMENT", assignmentId, "CREATED", null,
+                Map.of("doctorProfileId", doctorId, "active", true));
         return new DoctorAssignmentResponse(assignmentId, service.id(), doctorId);
     }
     @Override @Transactional
     public void remove(UUID serviceId, UUID assignmentId, AuthenticatedAccount actor, String correlationId) {
         validate(serviceId, actor, correlationId); if (assignmentId == null) throw invalid();
         guard.acquire();
-        services.findById(serviceId).orElseThrow(() -> new ClinicServiceException("SERVICE_NOT_FOUND"));
+        var service = services.findById(serviceId).orElseThrow(() -> new ClinicServiceException("SERVICE_NOT_FOUND"));
         var assignment=assignments.findByIdAndServiceIdAndActiveTrue(assignmentId, serviceId)
                 .orElseThrow(() -> new ClinicServiceException("DOCTOR_ASSIGNMENT_NOT_FOUND"));
         AdminMutationImpact impact = assignmentImpact(assignment, serviceId, assignmentId);
         if (impact.isBlocked()) throw new ResourceMutationBlockedException(impact);
         assignment.deactivate();
         assignments.save(assignment);
-        audits.append(UUID.randomUUID(), serviceId, actor.accountId(), "DOCTOR_ASSIGNMENT", assignmentId, "DELETED",
-                "{\"doctorProfileId\":\""+assignment.doctorProfileId()+"\",\"active\":true}",
-                "{\"active\":false}", clock.instant(), correlationId);
+        audits.record(serviceId, service.name(), actor.accountId(), "DOCTOR_ASSIGNMENT", assignmentId, "DELETED",
+                Map.of("doctorProfileId", assignment.doctorProfileId(), "active", true), Map.of("active", false));
     }
     @Override @Transactional
     public AdminMutationImpact assessRemovalImpact(UUID serviceId, UUID assignmentId, AuthenticatedAccount actor) {

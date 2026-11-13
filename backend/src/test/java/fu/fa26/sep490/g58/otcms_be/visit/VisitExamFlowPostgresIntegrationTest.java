@@ -79,7 +79,7 @@ class VisitExamFlowPostgresIntegrationTest {
         doctorAccount = account(AccountType.DOCTOR);
         doctor = doctorProfile(doctorAccount, "EF Doctor");
         UUID room = room();
-        jdbc.update("insert into doctor_shifts (id, doctor_profile_id, starts_at, ends_at, room_id) values (?, ?, ?, ?, ?)",
+        jdbc.update("insert into work_shifts (id, staff_profile_id, starts_at, ends_at, room_id) values (?, ?, ?, ?, ?)",
                 UUID.randomUUID(), doctor, ts(NOW.minus(Duration.ofHours(9))), ts(NOW.plus(Duration.ofHours(8))), room);
         freeExamination = service("EF free consultation", "EXAMINATION", BigDecimal.ZERO, null);
         imagingService = service("EF knee MRI", "IMAGING", new BigDecimal("100"), "MRI");

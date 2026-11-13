@@ -38,7 +38,7 @@ class DoctorProfileT011PostgresIntegrationTest {
     @Autowired java.time.Clock clock;
 
     @AfterEach void cleanup() {
-        jdbc.update("delete from doctor_shifts where doctor_profile_id in (select id from staff_profiles where work_contact like 't011-%')");
+        jdbc.update("delete from work_shifts where staff_profile_id in (select id from staff_profiles where work_contact like 't011-%')");
         jdbc.update("delete from staff_profiles where work_contact like 't011-%'");
         jdbc.update("delete from accounts where normalized_email like 't011-%'");
     }
@@ -108,7 +108,7 @@ class DoctorProfileT011PostgresIntegrationTest {
             jdbc.update("insert into clinic_services(id,name,duration_minutes,buffer_minutes,online_bookable,active) "
                     + "values (?,'KAN25 Public Availability',30,5,true,true)", serviceId);
             jdbc.update("insert into doctor_services(doctor_profile_id,service_id,active) values (?,?,true)", profileId, serviceId);
-            jdbc.update("insert into doctor_shifts(id,doctor_profile_id,starts_at,ends_at) values (?,?,?,?)",
+            jdbc.update("insert into work_shifts(id,staff_profile_id,starts_at,ends_at) values (?,?,?,?)",
                     UUID.randomUUID(), profileId, java.sql.Timestamp.from(starts), java.sql.Timestamp.from(starts.plusSeconds(7200)));
             mvc.perform(get("/api/v1/doctors/{id}", profileId)).andExpect(status().isOk())
                     .andExpect(jsonPath("$.availability.length()").value(7))

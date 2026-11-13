@@ -71,7 +71,7 @@ abstract class PaymentHoldFixtureSupport {
             jdbc.update("insert into doctor_services (doctor_profile_id, service_id, active) values (?, ?, true)",
                     doctorProfile, service);
         }
-        jdbc.update("insert into doctor_shifts (id, doctor_profile_id, starts_at, ends_at) values (?, ?, ?, ?)",
+        jdbc.update("insert into work_shifts (id, staff_profile_id, starts_at, ends_at) values (?, ?, ?, ?)",
                 UUID.randomUUID(), doctorProfile, Timestamp.from(Instant.parse("2026-10-16T02:00:00Z")),
                 Timestamp.from(Instant.parse("2026-10-16T05:00:00Z")));
     }
@@ -96,7 +96,7 @@ abstract class PaymentHoldFixtureSupport {
                 jdbc.update("delete from appointments where created_by_account_id in " + creators, args);
                 jdbc.update("delete from doctor_services where doctor_profile_id = ?", doctorProfile);
                 jdbc.update("delete from clinic_services where id in (?, ?)", paidService, freeService);
-                jdbc.update("delete from doctor_shifts where doctor_profile_id = ?", doctorProfile);
+                jdbc.update("delete from work_shifts where staff_profile_id = ?", doctorProfile);
                 jdbc.update("delete from staff_profiles where id = ?", doctorProfile);
                 jdbc.update("delete from patient_profiles where id in (?, ?)", profileA, profileB);
                 jdbc.update("delete from accounts where id in (?, ?, ?, ?)", patientA, patientB, receptionist, doctorAccount);
