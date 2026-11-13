@@ -62,7 +62,7 @@ class CheckInAppointmentServiceImplT027Test {
         handler = handlerAt(now);
         command = new CheckInAppointmentCommand(actorId, patientId, "t027-key", "trace-id");
         current = new CheckInAppointment(appointmentId, patientId, doctorId,
-                "CONFIRMED", null, null, now.plusSeconds(1800));
+                "CONFIRMED", null, null, now.plusSeconds(1800), java.time.Instant.parse("2026-10-26T10:30:00Z"));
         when(appointments.findReplay(actorId, appointmentId, "t027-key")).thenReturn(Optional.empty());
         when(appointments.findForUpdate(appointmentId)).thenReturn(Optional.of(current));
         when(billingSources.requireSource(appointmentId)).thenReturn(source(BigDecimal.ZERO));
@@ -83,8 +83,8 @@ class CheckInAppointmentServiceImplT027Test {
         verify(reception).checkInAtomically(request.capture());
         assertEquals(doctorId, request.getValue().doctorProfileId());
         assertEquals(patientId, request.getValue().patientProfileId());
-        verify(appointments).completeCheckIn(eq(current), eq(actorId), eq(patientId), eq("t027-key"), anyString(),
-                eq(visitId), eq(now), eq("trace-id"));
+        verify(appointments).completeCheckIn(eq(current), eq(actorId), eq("t027-key"), anyString(),
+                eq(visitId), eq(now));
     }
 
     @Test
@@ -92,28 +92,28 @@ class CheckInAppointmentServiceImplT027Test {
         // 07:00 clinic time for a 15:00 clinic-time appointment: the old -30/+15 minute window is gone.
         Instant morning = Instant.parse("2026-10-14T00:00:00Z");
         current = new CheckInAppointment(appointmentId, patientId, doctorId,
-                "CONFIRMED", null, null, Instant.parse("2026-10-14T08:00:00Z"));
+                "CONFIRMED", null, null, Instant.parse("2026-10-14T08:00:00Z"), java.time.Instant.parse("2026-10-26T10:30:00Z"));
         when(appointments.findForUpdate(appointmentId)).thenReturn(Optional.of(current));
         when(reception.checkInAtomically(any())).thenReturn(checkedInAt(morning));
 
         var result = handlerAt(morning).checkIn(appointmentId, command);
 
         assertEquals(new CheckedInAppointment(appointmentId, visitId, morning, ticket), result);
-        verify(appointments).completeCheckIn(eq(current), eq(actorId), eq(patientId), eq("t027-key"), anyString(),
-                eq(visitId), eq(morning), eq("trace-id"));
+        verify(appointments).completeCheckIn(eq(current), eq(actorId), eq("t027-key"), anyString(),
+                eq(visitId), eq(morning));
     }
 
     @Test
     void rejectsAppointmentOnAnotherClinicDayBeforeCreatingVisit() {
         // Yesterday (15:00 clinic time) and tomorrow (10:00 clinic time) are both refused.
         for (Instant start : List.of(Instant.parse("2026-10-13T08:00:00Z"), Instant.parse("2026-10-15T03:00:00Z"))) {
-            current = new CheckInAppointment(appointmentId, patientId, doctorId, "CONFIRMED", null, null, start);
+            current = new CheckInAppointment(appointmentId, patientId, doctorId, "CONFIRMED", null, null, start, java.time.Instant.parse("2026-10-26T10:30:00Z"));
             when(appointments.findForUpdate(appointmentId)).thenReturn(Optional.of(current));
             assertEquals("CHECK_IN_TIME_NOT_ALLOWED", assertThrows(AppointmentBookingException.class,
                     () -> handler.checkIn(appointmentId, command)).code());
         }
         verifyNoInteractions(reception, invoicePaidStatus);
-        verify(appointments, never()).completeCheckIn(any(), any(), any(), any(), any(), any(), any(), any());
+        verify(appointments, never()).completeCheckIn(any(), any(), any(), any(), any(), any());
     }
 
     @Test
@@ -127,7 +127,7 @@ class CheckInAppointmentServiceImplT027Test {
         verify(appointments, never()).findForUpdate(any());
         verify(reception, never()).checkInAtomically(any());
         verifyNoInteractions(billingSources, invoicePaidStatus);
-        verify(appointments, never()).completeCheckIn(any(), any(), any(), any(), any(), any(), any(), any());
+        verify(appointments, never()).completeCheckIn(any(), any(), any(), any(), any(), any());
     }
 
     @Test
@@ -153,14 +153,14 @@ class CheckInAppointmentServiceImplT027Test {
     @Test
     void rejectsAnInconsistentExistingVisitLinkBeforeCreatingAnotherVisit() {
         var linked = new CheckInAppointment(appointmentId, patientId, doctorId,
-                "CHECKED_IN", visitId, null, now.plusSeconds(1800));
+                "CHECKED_IN", visitId, null, now.plusSeconds(1800), java.time.Instant.parse("2026-10-26T10:30:00Z"));
         when(appointments.findForUpdate(appointmentId)).thenReturn(Optional.of(linked));
 
         assertEquals("VISIT_LINK_CONFLICT", assertThrows(AppointmentBookingException.class,
                 () -> handler.checkIn(appointmentId, command)).code());
         verify(reception).hasConsistentCheckInEvidence(appointmentId, patientId, visitId);
         verify(reception, never()).checkInAtomically(any());
-        verify(appointments, never()).completeCheckIn(any(), any(), any(), any(), any(), any(), any(), any());
+        verify(appointments, never()).completeCheckIn(any(), any(), any(), any(), any(), any());
     }
 
     @Test
@@ -180,7 +180,7 @@ class CheckInAppointmentServiceImplT027Test {
         assertEquals("EXAM_FEE_UNPAID", assertThrows(AppointmentBookingException.class,
                 () -> handler.checkIn(appointmentId, command)).code());
         verifyNoInteractions(reception);
-        verify(appointments, never()).completeCheckIn(any(), any(), any(), any(), any(), any(), any(), any());
+        verify(appointments, never()).completeCheckIn(any(), any(), any(), any(), any(), any());
     }
 
     @Test
@@ -226,12 +226,12 @@ class CheckInAppointmentServiceImplT027Test {
 
         assertEquals("VISIT_LINK_CONFLICT", assertThrows(AppointmentBookingException.class,
                 () -> handler.checkIn(appointmentId, command)).code());
-        verify(appointments, never()).completeCheckIn(any(), any(), any(), any(), any(), any(), any(), any());
+        verify(appointments, never()).completeCheckIn(any(), any(), any(), any(), any(), any());
     }
 
     private CheckInAppointmentTransaction handlerAt(Instant clockNow) {
         return new CheckInAppointmentTransaction(guard, appointments, reception, billingSources, invoicePaidStatus,
-                properties, Clock.fixed(clockNow, ZoneOffset.UTC));
+                properties, Clock.fixed(clockNow, ZoneOffset.UTC), org.mockito.Mockito.mock(fu.fa26.sep490.g58.otcms_be.common.audit.AuditLogWriter.class));
     }
 
     private AppointmentBillingSourceService.BillingSource source(BigDecimal price) {

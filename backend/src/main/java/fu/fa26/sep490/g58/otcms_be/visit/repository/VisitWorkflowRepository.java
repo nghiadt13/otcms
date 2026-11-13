@@ -109,7 +109,7 @@ public class VisitWorkflowRepository {
     }
 
     public List<Object[]> findRecordedArrival(UUID appointmentId) {
-        return entityManager.createNativeQuery("select patient_profile_id, arrived_at from appointment_arrivals where appointment_id = :appointmentId")
+        return entityManager.createNativeQuery("select patient_profile_id, arrived_at from appointments where id = :appointmentId and arrived_at is not null")
                 .setParameter("appointmentId", appointmentId).getResultList();
     }
 

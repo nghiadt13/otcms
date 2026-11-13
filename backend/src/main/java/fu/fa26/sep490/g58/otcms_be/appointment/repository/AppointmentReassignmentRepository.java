@@ -31,25 +31,8 @@ public interface AppointmentReassignmentRepository extends JpaRepository<Appoint
     int updateDoctor(@Param("id") UUID id, @Param("newDoctor") UUID newDoctor,
             @Param("updated") Timestamp updated);
 
-    @Modifying
-    @Query(value = """
-            insert into appointment_audits (appointment_id, actor_account_id, actor_type, action,
-                old_status, new_status, old_doctor_profile_id, new_doctor_profile_id,
-                old_start_time, new_start_time, old_end_time, new_end_time, reason, linked_visit_id,
-                source_visit_id, occurred_at, correlation_id)
-            values (:id, :actor, (select account_type from accounts where id = :actor),
-                'DOCTOR_REASSIGNED', 'CONFIRMED', 'CONFIRMED',
-                :oldDoctor, :newDoctor, :oldStart, :newStart, :oldEnd, :newEnd,
-                cast(:reason as varchar), cast(:visit as uuid), cast(:sourceVisit as uuid),
-                :occurred, :correlation)
-            """, nativeQuery = true)
-    int insertReassignmentAudit(@Param("id") UUID id, @Param("actor") UUID actor,
-            @Param("oldDoctor") UUID oldDoctor, @Param("newDoctor") UUID newDoctor,
-            @Param("oldStart") Timestamp oldStart, @Param("newStart") Timestamp newStart,
-            @Param("oldEnd") Timestamp oldEnd, @Param("newEnd") Timestamp newEnd,
-            @Param("reason") String reason, @Param("visit") UUID visit,
-            @Param("sourceVisit") UUID sourceVisit, @Param("occurred") Timestamp occurred,
-            @Param("correlation") String correlation);
+    @Query(value = "select account_type from accounts where id = :actor", nativeQuery = true)
+    String findAccountType(@Param("actor") UUID actor);
 
     @Query(value = """
             select id, patient_profile_id, service_id, doctor_profile_id, status, booking_source, purpose,
@@ -73,10 +56,6 @@ public interface AppointmentReassignmentRepository extends JpaRepository<Appoint
         if (updateDoctor(old.id(), newDoctorProfileId, Timestamp.from(occurredAt)) != 1) {
             throw new IllegalStateException("Appointment changed inside guarded reassignment transaction");
         }
-        insertReassignmentAudit(old.id(), actorAccountId, old.doctorProfileId(), newDoctorProfileId,
-                Timestamp.from(old.startTime()), Timestamp.from(old.startTime()),
-                Timestamp.from(old.endTime()), Timestamp.from(old.endTime()), reason, old.visitId(),
-                old.sourceVisitId(), Timestamp.from(occurredAt), correlationId);
         return AppointmentRowMapper.createdAppointment(findReassignedResult(old.id()).getFirst());
     }
 }

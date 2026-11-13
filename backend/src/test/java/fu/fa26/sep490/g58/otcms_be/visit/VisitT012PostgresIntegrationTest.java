@@ -31,7 +31,6 @@ class VisitT012PostgresIntegrationTest {
 
     @AfterEach void cleanup() {
         if (followUpVisitId != null) jdbc.update("delete from clinical_examinations where visit_id=?", followUpVisitId);
-        jdbc.update("delete from appointment_arrivals where actor_account_id in (select id from accounts where normalized_email like 't012-%')");
         jdbc.update("delete from appointments where created_by_account_id in (select id from accounts where normalized_email like 't012-%')");
         jdbc.update("delete from visit_examinations where visit_id in (select id from visits where created_by_account_id in (select id from accounts where normalized_email like 't012-%'))");
         jdbc.update("delete from visit_assignments where visit_id in (select id from visits where created_by_account_id in (select id from accounts where normalized_email like 't012-%'))");
@@ -195,8 +194,9 @@ class VisitT012PostgresIntegrationTest {
         Instant startsAt = arrivedAt.plusSeconds(3600);
         jdbc.update("insert into appointments (id, patient_profile_id, service_id, doctor_profile_id, booking_source, purpose, start_time, end_time, duration_minutes, buffer_minutes, created_by_account_id) values (?, ?, ?, ?, 'PATIENT_ONLINE', 'T012 arrival evidence', ?, ?, 30, 0, ?)",
                 appointmentId, patientId, serviceId, doctorId, Timestamp.from(startsAt), Timestamp.from(startsAt.plusSeconds(1800)), patientAccountId);
-        jdbc.update("insert into appointment_arrivals (appointment_id, patient_profile_id, actor_account_id, source, arrived_at) values (?, ?, ?, 'LEGACY_RECEPTIONIST', ?)",
-                appointmentId, patientId, receptionistId, Timestamp.from(arrivedAt));
+        jdbc.update("update appointments set arrived_at = ?, arrival_source = 'LEGACY_RECEPTIONIST', "
+                + "arrival_recorded_at = now(), arrival_recorded_by = ? where id = ? and patient_profile_id = ?",
+                Timestamp.from(arrivedAt), receptionistId, appointmentId, patientId);
 
         RecordedArrivalQueryService.RecordedArrival result = recordedArrivals.requireRecordedArrival(
                 appointmentId, patientId, arrivedAt, arrivedAt);

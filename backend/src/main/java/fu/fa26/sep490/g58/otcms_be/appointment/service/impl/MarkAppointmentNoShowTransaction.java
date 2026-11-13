@@ -1,5 +1,8 @@
 package fu.fa26.sep490.g58.otcms_be.appointment.service.impl;
 
+import fu.fa26.sep490.g58.otcms_be.appointment.mapper.AppointmentAuditEntries;
+import fu.fa26.sep490.g58.otcms_be.common.audit.AuditLogWriter;
+
 import fu.fa26.sep490.g58.otcms_be.appointment.exception.AppointmentBookingException;
 import fu.fa26.sep490.g58.otcms_be.appointment.model.CreatedAppointment;
 import fu.fa26.sep490.g58.otcms_be.appointment.repository.AppointmentNoShowRepository;
@@ -18,6 +21,7 @@ import java.util.UUID;
 
 @Service
 public class MarkAppointmentNoShowTransaction {
+    private final AuditLogWriter auditLogWriter;
     private final CoordinationGuardService guard;
     private final AppointmentNoShowRepository appointments;
     private final RecordedArrivalQueryService arrivals;
@@ -25,7 +29,8 @@ public class MarkAppointmentNoShowTransaction {
     private final Clock clock;
 
     public MarkAppointmentNoShowTransaction(CoordinationGuardService guard, AppointmentNoShowRepository appointments,
-            RecordedArrivalQueryService arrivals, AppointmentBookingProperties properties, Clock clock) {
+            RecordedArrivalQueryService arrivals, AppointmentBookingProperties properties, Clock clock, AuditLogWriter auditLogWriter) {
+        this.auditLogWriter = auditLogWriter;
         this.guard = guard;
         this.appointments = appointments;
         this.arrivals = arrivals;
@@ -75,7 +80,12 @@ public class MarkAppointmentNoShowTransaction {
             throw new AppointmentBookingException("DEPENDENCY_UNAVAILABLE", unavailable);
         }
 
-        return appointments.markNoShow(current, command.actorAccountId(),
+        var result = appointments.markNoShow(current, command.actorAccountId(),
                 command.reason() == null ? null : command.reason().trim(), now, command.correlationId());
+        AppointmentAuditEntries.record(auditLogWriter, AppointmentAuditEntries.changed(current.id(), command.actorAccountId(), "RECEPTIONIST", "STATUS_CHANGED",
+                "CONFIRMED", "NO_SHOW", current.doctorProfileId(), current.doctorProfileId(),
+                current.startTime(), current.startTime(), current.endTime(), current.endTime(),
+                current.visitId(), current.sourceVisitId(), command.reason() == null ? null : command.reason().trim(), null, now), command.correlationId());
+        return result;
     }
 }

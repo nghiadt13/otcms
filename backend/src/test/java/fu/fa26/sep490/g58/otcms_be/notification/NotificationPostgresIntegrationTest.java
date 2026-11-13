@@ -338,7 +338,7 @@ class NotificationPostgresIntegrationTest {
         }));
         assertTrue(causeContains(failure, "change notification failure"));
         assertEquals(0, jdbc.queryForObject("select count(*) from appointments where created_by_account_id=?", Integer.class, a));
-        assertEquals(0, jdbc.queryForObject("select count(*) from appointment_audits where actor_account_id=?", Integer.class, receptionist));
+        assertEquals(0, jdbc.queryForObject("select count(*) from audit_logs where source = 'appointment_audits' and actor_account_id=?", Integer.class, receptionist));
         assertEquals(0, jdbc.queryForObject("select count(*) from notifications where recipient_account_id=?", Integer.class, a));
     }
     private void changeAppointment(String operation, UUID id) {
@@ -408,7 +408,7 @@ class NotificationPostgresIntegrationTest {
         }));
         assertTrue(causeContains(failure, "booking notification test failure"));
         assertEquals(0, jdbc.queryForObject("select count(*) from appointments where created_by_account_id=?", Integer.class, a));
-        assertEquals(0, jdbc.queryForObject("select count(*) from appointment_audits where actor_account_id=?", Integer.class, a));
+        assertEquals(0, jdbc.queryForObject("select count(*) from audit_logs where source = 'appointment_audits' and actor_account_id=?", Integer.class, a));
         assertEquals(0, jdbc.queryForObject("select count(*) from notifications where recipient_account_id=?", Integer.class, a));
     }
     @Test void cancelDoesNotPublishReviewInvitation() {

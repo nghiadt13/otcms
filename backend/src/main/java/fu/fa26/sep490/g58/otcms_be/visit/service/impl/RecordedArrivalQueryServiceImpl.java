@@ -4,7 +4,7 @@ import fu.fa26.sep490.g58.otcms_be.visit.exception.RecordedArrivalNotFoundExcept
 import fu.fa26.sep490.g58.otcms_be.visit.service.RecordedArrivalQueryService;
 import fu.fa26.sep490.g58.otcms_be.visit.service.RecordedArrivalQueryService.RecordedArrival;
 import fu.fa26.sep490.g58.otcms_be.visit.exception.VisitEvidenceException;
-import fu.fa26.sep490.g58.otcms_be.visit.repository.VisitInitialReceptionJpaRepository;
+import fu.fa26.sep490.g58.otcms_be.visit.repository.AppointmentArrivalRepository;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.OffsetDateTime;
@@ -16,9 +16,9 @@ import org.springframework.transaction.annotation.Transactional;
 /** Visit-owned public query for recorded appointment arrival evidence. */
 @Service
 public class RecordedArrivalQueryServiceImpl implements RecordedArrivalQueryService {
-    private final VisitInitialReceptionJpaRepository receptions;
+    private final AppointmentArrivalRepository receptions;
 
-    public RecordedArrivalQueryServiceImpl(VisitInitialReceptionJpaRepository receptions) {
+    public RecordedArrivalQueryServiceImpl(AppointmentArrivalRepository receptions) {
         this.receptions = receptions;
     }
 

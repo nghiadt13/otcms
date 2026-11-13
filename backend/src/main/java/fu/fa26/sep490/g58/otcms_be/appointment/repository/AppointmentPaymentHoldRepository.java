@@ -64,22 +64,6 @@ public interface AppointmentPaymentHoldRepository extends JpaRepository<Appointm
             """, nativeQuery = true)
     int markPaymentExpired(@Param("id") UUID id, @Param("now") Instant now);
 
-    @Modifying
-    @Query(value = """
-            insert into appointment_audits (id, appointment_id, actor_account_id, actor_type, action,
-                old_status, new_status, old_doctor_profile_id, new_doctor_profile_id,
-                old_start_time, new_start_time, old_end_time, new_end_time, reason, occurred_at, correlation_id)
-            values (:auditId, :id, :actorAccountId, :actorType, 'STATUS_CHANGED', :oldStatus, :newStatus,
-                :doctorId, :doctorId, :startTime, :startTime, :endTime, :endTime, cast(:reason as varchar),
-                :occurredAt, :correlationId)
-            """, nativeQuery = true)
-    int insertStatusAudit(@Param("auditId") UUID auditId, @Param("id") UUID id,
-            @Param("actorAccountId") UUID actorAccountId, @Param("actorType") String actorType,
-            @Param("oldStatus") String oldStatus, @Param("newStatus") String newStatus,
-            @Param("doctorId") UUID doctorId, @Param("startTime") Instant startTime,
-            @Param("endTime") Instant endTime, @Param("reason") String reason,
-            @Param("occurredAt") Instant occurredAt, @Param("correlationId") String correlationId);
-
     /** Sweeper candidates: lapsed holds, oldest deadline first. No row lock is taken. */
     @Query(value = """
             select id from appointments

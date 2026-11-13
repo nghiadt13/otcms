@@ -42,8 +42,8 @@ class AppointmentPaymentHoldBookingPostgresIntegrationTest extends PaymentHoldPo
 
         assertEquals(NOW.plus(Duration.ofMinutes(15)), Instant.parse((String) json(body, "$.paymentDeadline")));
         assertEquals("AWAITING_PAYMENT", statusOf(id));
-        assertEquals(1, count("select count(*) from appointment_audits where appointment_id = ? and action = 'CREATED' "
-                + "and new_status = 'AWAITING_PAYMENT' and actor_type = 'PATIENT'", id));
+        assertEquals(1, count("select count(*) from audit_logs where source = 'appointment_audits' and entity_id = ? and action = 'CREATED' "
+                + "and after_state->>'status' = 'AWAITING_PAYMENT' and actor_type = 'PATIENT'", id));
         assertEquals(0, notificationsFor(id));
 
         // The owner reads the hold back by id, with the same deadline.
@@ -68,8 +68,8 @@ class AppointmentPaymentHoldBookingPostgresIntegrationTest extends PaymentHoldPo
         assertNull(json(assisted, "$.paymentDeadline"));
         assertEquals("RECEPTIONIST_ASSISTED", jdbc.queryForObject(
                 "select booking_source from appointments where id = ?", String.class, assistedId));
-        assertEquals(1, count("select count(*) from appointment_audits where appointment_id = ? and action = 'CREATED' "
-                + "and new_status = 'CONFIRMED'", assistedId));
+        assertEquals(1, count("select count(*) from audit_logs where source = 'appointment_audits' and entity_id = ? and action = 'CREATED' "
+                + "and after_state->>'status' = 'CONFIRMED'", assistedId));
         assertEquals(1, notificationsFor(assistedId));
     }
 
@@ -113,8 +113,8 @@ class AppointmentPaymentHoldBookingPostgresIntegrationTest extends PaymentHoldPo
                 .andExpect(jsonPath("$.status").value("AWAITING_PAYMENT"));
 
         assertEquals("PAYMENT_EXPIRED", statusOf(lapsed));
-        Map<String, Object> audit = jdbc.queryForMap("select actor_type, actor_account_id, action, old_status, new_status, "
-                + "reason from appointment_audits where appointment_id = ? and new_status = 'PAYMENT_EXPIRED'", lapsed);
+        Map<String, Object> audit = jdbc.queryForMap("select actor_type, actor_account_id, action, before_state->>'status' as old_status, after_state->>'status' as new_status, "
+                + "metadata->>'reason' as reason from audit_logs where source = 'appointment_audits' and entity_id = ? and after_state->>'status' = 'PAYMENT_EXPIRED'", lapsed);
         assertEquals("SYSTEM", audit.get("actor_type"));
         assertEquals(patientA, audit.get("actor_account_id"));
         assertEquals("STATUS_CHANGED", audit.get("action"));
@@ -147,8 +147,8 @@ class AppointmentPaymentHoldBookingPostgresIntegrationTest extends PaymentHoldPo
         UUID second = createHold(patientA, SLOT_2);
         assertEquals("PAYMENT_EXPIRED", statusOf(first));
         assertEquals("AWAITING_PAYMENT", statusOf(second));
-        assertEquals(1, count("select count(*) from appointment_audits where appointment_id = ? "
-                + "and actor_type = 'PATIENT' and action = 'STATUS_CHANGED' and new_status = 'PAYMENT_EXPIRED'", first));
+        assertEquals(1, count("select count(*) from audit_logs where source = 'appointment_audits' and entity_id = ? "
+                + "and actor_type = 'PATIENT' and action = 'STATUS_CHANGED' and after_state->>'status' = 'PAYMENT_EXPIRED'", first));
         verify(settlement).settle(first, true);
 
         // Booking the very slot just held is allowed: the old hold goes first.
@@ -177,9 +177,9 @@ class AppointmentPaymentHoldBookingPostgresIntegrationTest extends PaymentHoldPo
                 .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("PAYMENT_EXPIRED"));
         assertEquals("PAYMENT_EXPIRED", statusOf(hold));
         verify(settlement).settle(hold, true);
-        assertEquals(1, count("select count(*) from appointment_audits where appointment_id = ? and actor_type = 'PATIENT' "
-                + "and actor_account_id = ? and action = 'STATUS_CHANGED' and old_status = 'AWAITING_PAYMENT' "
-                + "and new_status = 'PAYMENT_EXPIRED'", hold, patientA));
+        assertEquals(1, count("select count(*) from audit_logs where source = 'appointment_audits' and entity_id = ? and actor_type = 'PATIENT' "
+                + "and actor_account_id = ? and action = 'STATUS_CHANGED' and before_state->>'status' = 'AWAITING_PAYMENT' "
+                + "and after_state->>'status' = 'PAYMENT_EXPIRED'", hold, patientA));
 
         mvc.perform(post("/api/v1/appointments/" + confirmed + "/cancel").with(actor(patientA, AccountRole.PATIENT)).with(csrf())
                         .contentType("application/json").content("{}"))
@@ -266,6 +266,6 @@ class AppointmentPaymentHoldBookingPostgresIntegrationTest extends PaymentHoldPo
                         .content("{\"doctorId\":\"" + UUID.randomUUID() + "\",\"reason\":\"swap\"}"))
                 .andExpect(status().isConflict()).andExpect(jsonPath("$.error.code").value("APPOINTMENT_NOT_CHANGEABLE"));
         assertEquals("AWAITING_PAYMENT", statusOf(hold));
-        assertEquals(0, count("select count(*) from appointment_audits where appointment_id = ? and action <> 'CREATED'", hold));
+        assertEquals(0, count("select count(*) from audit_logs where source = 'appointment_audits' and entity_id = ? and action <> 'CREATED'", hold));
     }
 }

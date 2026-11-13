@@ -76,16 +76,12 @@ class MarkAppointmentNoShowT028PostgresIntegrationTest {
 
     @AfterEach
     void cleanUp() {
-        String auditTrigger = triggerMode("appointment_audits", "tr_appointment_audits_immutable");
-        String replayTrigger = triggerMode("appointment_checkin_requests", "tr_appointment_command_replays_immutable");
-        jdbc.execute("alter table appointment_audits disable trigger tr_appointment_audits_immutable");
-        jdbc.execute("alter table appointment_checkin_requests disable trigger tr_appointment_command_replays_immutable");
+        String auditTrigger = triggerMode("audit_logs", "tr_audit_logs_immutable");
+        jdbc.execute("alter table audit_logs disable trigger tr_audit_logs_immutable");
         try {
             for (UUID id : appointments) {
-                jdbc.update("delete from appointment_checkin_requests where appointment_id = ?", id);
-                jdbc.update("delete from appointment_audits where appointment_id = ?", id);
+                jdbc.update("delete from audit_logs where source = 'appointment_audits' and entity_id = ?", id);
                 jdbc.update("update appointments set status = 'CANCELLED', visit_id = null where id = ?", id);
-                jdbc.update("delete from appointment_arrivals where appointment_id = ?", id);
                 List<UUID> visits = jdbc.query("select id from visits where originating_appointment_id = ?",
                         (rs, row) -> rs.getObject("id", UUID.class), id);
                 for (UUID visit : visits) jdbc.update("delete from visit_check_ins where visit_id = ?", visit);
@@ -99,8 +95,7 @@ class MarkAppointmentNoShowT028PostgresIntegrationTest {
             for (UUID id : new UUID[]{patientAccount, receptionistAccount, doctorAccount})
                 jdbc.update("delete from accounts where id = ?", id);
         } finally {
-            restoreTrigger("appointment_audits", "tr_appointment_audits_immutable", auditTrigger);
-            restoreTrigger("appointment_checkin_requests", "tr_appointment_command_replays_immutable", replayTrigger);
+            restoreTrigger("audit_logs", "tr_audit_logs_immutable", auditTrigger);
         }
     }
 
@@ -110,9 +105,9 @@ class MarkAppointmentNoShowT028PostgresIntegrationTest {
         mvc.perform(markNoShow(appointment, receptionistAccount, AccountType.RECEPTIONIST, "absent"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("NO_SHOW"));
         assertEquals("NO_SHOW", jdbc.queryForObject("select status from appointments where id = ?", String.class, appointment));
-        assertEquals(1, jdbc.queryForObject("select count(*) from appointment_audits where appointment_id = ? "
-                + "and old_status = 'CONFIRMED' and new_status = 'NO_SHOW' and actor_account_id = ? "
-                + "and actor_type = 'RECEPTIONIST' and reason = 'absent' and correlation_id = ?",
+        assertEquals(1, jdbc.queryForObject("select count(*) from audit_logs where source = 'appointment_audits' and entity_id = ? "
+                + "and before_state->>'status' = 'CONFIRMED' and after_state->>'status' = 'NO_SHOW' and actor_account_id = ? "
+                + "and actor_type = 'RECEPTIONIST' and metadata->>'reason' = 'absent' and correlation_id = ?",
                 Integer.class, appointment, receptionistAccount, CORRELATION));
         assertEquals(0, jdbc.queryForObject("select count(*) from visits where originating_appointment_id = ?",
                 Integer.class, appointment));
@@ -129,12 +124,12 @@ class MarkAppointmentNoShowT028PostgresIntegrationTest {
         assertEquals("CONFIRMED", jdbc.queryForObject("select status from appointments where id = ?", String.class, boundary));
 
         UUID timely = appointment(NOW.minusSeconds(3600));
-        jdbc.update("insert into appointment_arrivals (appointment_id, patient_profile_id, actor_account_id, source, arrived_at) "
-                + "values (?, ?, ?, 'LEGACY_RECEPTIONIST', ?)", timely, patientProfile, receptionistAccount, Timestamp.from(NOW.minusSeconds(3000)));
+        jdbc.update("update appointments set arrival_recorded_by = ?, arrival_source = 'LEGACY_RECEPTIONIST', "
+                + "arrived_at = ?, arrival_recorded_at = now() where id = ?", receptionistAccount, Timestamp.from(NOW.minusSeconds(3000)), timely);
         mvc.perform(markNoShow(timely, receptionistAccount, AccountType.RECEPTIONIST, null))
                 .andExpect(status().isUnprocessableEntity()).andExpect(jsonPath("$.error.code").value("NO_SHOW_NOT_ALLOWED"));
         assertEquals("CONFIRMED", jdbc.queryForObject("select status from appointments where id = ?", String.class, timely));
-        assertEquals(0, jdbc.queryForObject("select count(*) from appointment_audits where appointment_id = ? and new_status = 'NO_SHOW'",
+        assertEquals(0, jdbc.queryForObject("select count(*) from audit_logs where source = 'appointment_audits' and entity_id = ? and after_state->>'status' = 'NO_SHOW'",
                 Integer.class, timely));
     }
 
@@ -160,8 +155,8 @@ class MarkAppointmentNoShowT028PostgresIntegrationTest {
                 throw new AssertionError("Expected late check-in to be rejected by state or grace policy, got " + checkInStatus);
             }
             assertEquals("NO_SHOW", jdbc.queryForObject("select status from appointments where id = ?", String.class, appointment));
-            assertEquals(1, jdbc.queryForObject("select count(*) from appointment_audits where appointment_id = ? "
-                    + "and action = 'STATUS_CHANGED' and new_status = 'NO_SHOW'", Integer.class, appointment));
+            assertEquals(1, jdbc.queryForObject("select count(*) from audit_logs where source = 'appointment_audits' and entity_id = ? "
+                    + "and action = 'STATUS_CHANGED' and after_state->>'status' = 'NO_SHOW'", Integer.class, appointment));
             assertEquals(0, jdbc.queryForObject("select count(*) from visits where originating_appointment_id = ?",
                     Integer.class, appointment));
             assertEquals(0, jdbc.queryForObject("select count(*) from walk_in_reception_queue_entries q "
@@ -201,11 +196,13 @@ class MarkAppointmentNoShowT028PostgresIntegrationTest {
                         + "purpose, start_time, end_time, duration_minutes, buffer_minutes, created_by_account_id) "
                         + "values (?, ?, ?, ?, 'CONFIRMED', 'PATIENT_ONLINE', 'T028 test', ?, ?, 30, 5, ?)",
                 id, patientProfile, service, doctorProfile, Timestamp.from(start), Timestamp.from(start.plusSeconds(1800)), patientAccount);
-        jdbc.update("insert into appointment_audits (appointment_id, actor_account_id, actor_type, action, old_status, "
-                        + "new_status, old_doctor_profile_id, new_doctor_profile_id, new_start_time, new_end_time, occurred_at, correlation_id) "
-                        + "values (?, ?, 'PATIENT', 'CREATED', null, 'CONFIRMED', null, ?, ?, ?, ?, ?)",
-                id, patientAccount, doctorProfile, Timestamp.from(start), Timestamp.from(start.plusSeconds(1800)),
-                Timestamp.from(NOW), UUID.randomUUID().toString());
+        jdbc.update("insert into audit_logs (source, category, action, record_type, entity_id, record_label, "
+                + "actor_account_id, actor_type, after_state, occurred_at, correlation_id) values "
+                + "('appointment_audits', 'APPOINTMENT', 'CREATED', 'APPOINTMENT', ?, ?, ?, 'PATIENT', "
+                + "jsonb_build_object('status', 'CONFIRMED', 'doctorProfileId', cast(? as uuid), "
+                + "'startTime', cast(? as timestamptz), 'endTime', cast(? as timestamptz)), ?, ?)",
+                id, id.toString(), patientAccount, doctorProfile, Timestamp.from(start), Timestamp.from(start.plusSeconds(1800)), Timestamp.from(NOW),
+                UUID.randomUUID().toString());
         return id;
     }
 

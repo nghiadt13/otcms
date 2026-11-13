@@ -74,7 +74,7 @@ class CreateAppointmentServiceImplTest {
                 ZoneId.of("Asia/Ho_Chi_Minh"), new AppointmentBookingProperties.PublicRateLimit(30, 60), 15, 30000L, false);
         handler = new CreateAppointmentServiceImpl(guard, currentProfile, authorization, services, providers,
                 assignments, slots, appointments, properties, Clock.fixed(NOW, ZoneId.of("UTC")),
-                notifications, holds, release);
+                notifications, holds, release, org.mockito.Mockito.mock(fu.fa26.sep490.g58.otcms_be.common.audit.AuditLogWriter.class));
     }
 
     @Test
@@ -141,7 +141,7 @@ class CreateAppointmentServiceImplTest {
                 ZoneId.of("Asia/Ho_Chi_Minh"), new AppointmentBookingProperties.PublicRateLimit(30, 60), 15, 30000L, false);
         handler = new CreateAppointmentServiceImpl(guard, currentProfile, authorization, services, providers,
                 assignments, slots, appointments, properties, Clock.fixed(NOW, ZoneId.of("UTC")),
-                notifications, holds, release);
+                notifications, holds, release, org.mockito.Mockito.mock(fu.fa26.sep490.g58.otcms_be.common.audit.AuditLogWriter.class));
         when(services.findActiveService(SERVICE,
                 ClinicServiceBookingQueryService.BookingAudience.RECEPTIONIST))
                 .thenReturn(new ClinicServiceBookingQueryService.BookableService(SERVICE, "Visit",

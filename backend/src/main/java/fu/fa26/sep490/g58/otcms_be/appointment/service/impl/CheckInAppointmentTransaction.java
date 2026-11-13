@@ -1,5 +1,8 @@
 package fu.fa26.sep490.g58.otcms_be.appointment.service.impl;
 
+import fu.fa26.sep490.g58.otcms_be.appointment.mapper.AppointmentAuditEntries;
+import fu.fa26.sep490.g58.otcms_be.common.audit.AuditLogWriter;
+
 import fu.fa26.sep490.g58.otcms_be.appointment.exception.AppointmentBookingException;
 import fu.fa26.sep490.g58.otcms_be.appointment.exception.AppointmentQueryException;
 import fu.fa26.sep490.g58.otcms_be.appointment.model.CheckedInAppointment;
@@ -12,6 +15,7 @@ import fu.fa26.sep490.g58.otcms_be.common.service.CoordinationGuardService;
 import fu.fa26.sep490.g58.otcms_be.visit.exception.ReceptionWorkflowException;
 import fu.fa26.sep490.g58.otcms_be.visit.service.ReceptionWorkflowService;
 import org.springframework.stereotype.Service;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
@@ -29,6 +33,7 @@ import java.util.UUID;
 /** @ears REQ-BOOK-055 REQ-RECEPTION-002 REQ-RECEPTION-003 REQ-RECEPTION-010 */
 @Service
 public class CheckInAppointmentTransaction {
+    private final AuditLogWriter auditLogWriter;
     private static final String FINGERPRINT_PREFIX = "appointment-check-in-v2:";
 
     private final CoordinationGuardService guard;
@@ -42,7 +47,8 @@ public class CheckInAppointmentTransaction {
     public CheckInAppointmentTransaction(CoordinationGuardService guard, AppointmentCheckInRepository appointments,
             ReceptionWorkflowService reception, AppointmentBillingSourceService billingSources,
             AppointmentInvoicePaidStatusQueryService invoicePaidStatus, AppointmentBookingProperties properties,
-            Clock clock) {
+            Clock clock, AuditLogWriter auditLogWriter) {
+        this.auditLogWriter = auditLogWriter;
         this.guard = guard;
         this.appointments = appointments;
         this.reception = reception;
@@ -112,8 +118,18 @@ public class CheckInAppointmentTransaction {
             throw new AppointmentBookingException("VISIT_LINK_CONFLICT");
         }
         Instant checkedInAt = receptionResult.checkedInAt();
-        appointments.completeCheckIn(current, command.actorAccountId(), command.verifiedPatientProfileId(),
-                key, requestFingerprint, receptionResult.visitId(), checkedInAt, command.correlationId());
+        try {
+            appointments.completeCheckIn(current, command.actorAccountId(), key, requestFingerprint,
+                    receptionResult.visitId(), checkedInAt);
+        } catch (DataIntegrityViolationException duplicateKey) {
+            if (!isCheckInKeyConflict(duplicateKey)) throw duplicateKey;
+            throw new AppointmentBookingException("IDEMPOTENCY_CONFLICT", duplicateKey);
+        }
+        AppointmentAuditEntries.record(auditLogWriter, AppointmentAuditEntries.changed(current.id(), command.actorAccountId(),
+                "RECEPTIONIST", "STATUS_CHANGED", "CONFIRMED", "CHECKED_IN", current.doctorProfileId(),
+                current.doctorProfileId(), current.startTime(), current.startTime(), current.endTime(), current.endTime(),
+                receptionResult.visitId(), current.sourceVisitId(), null, command.verifiedPatientProfileId(), checkedInAt),
+                command.correlationId());
         return new CheckedInAppointment(appointmentId, receptionResult.visitId(), checkedInAt,
                 receptionResult.ticket());
     }
@@ -138,6 +154,16 @@ public class CheckInAppointmentTransaction {
         if (!invoicePaidStatus.paidStatus(List.of(appointmentId)).getOrDefault(appointmentId, false)) {
             throw new AppointmentBookingException("EXAM_FEE_UNPAID");
         }
+    }
+
+    private static boolean isCheckInKeyConflict(Throwable failure) {
+        for (Throwable cause = failure; cause != null; cause = cause.getCause()) {
+            if (cause instanceof org.hibernate.exception.ConstraintViolationException violation
+                    && "uk_appointments_checkin_actor_key".equals(violation.getConstraintName())) return true;
+            if (cause instanceof java.sql.SQLException sql && "23505".equals(sql.getSQLState())
+                    && sql.getMessage() != null && sql.getMessage().contains("uk_appointments_checkin_actor_key")) return true;
+        }
+        return false;
     }
 
     private static String fingerprint(String value) {

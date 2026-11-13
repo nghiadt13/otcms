@@ -1,4 +1,7 @@
 package fu.fa26.sep490.g58.otcms_be.appointment.service.impl;
+
+import fu.fa26.sep490.g58.otcms_be.appointment.mapper.AppointmentAuditEntries;
+import fu.fa26.sep490.g58.otcms_be.common.audit.AuditLogWriter;
 import fu.fa26.sep490.g58.otcms_be.appointment.model.CreatedAppointment;
 import fu.fa26.sep490.g58.otcms_be.appointment.model.CancellableAppointment;
 import fu.fa26.sep490.g58.otcms_be.notification.model.NotificationMessages;
@@ -36,6 +39,7 @@ import java.util.function.Supplier;
 
 @Service
 public class CancelAppointmentServiceImpl implements CancelAppointmentService {
+    private final AuditLogWriter auditLogWriter;
     private static final Logger log = LoggerFactory.getLogger(CancelAppointmentServiceImpl.class);
     private final CoordinationGuardService guard;
     private final AppointmentCancellationRepository appointments;
@@ -52,8 +56,8 @@ public class CancelAppointmentServiceImpl implements CancelAppointmentService {
 
     public CancelAppointmentServiceImpl(CoordinationGuardService guard, AppointmentCancellationRepository appointments,
             AuthorizePatientProfileService patientAuthorization, AppointmentBookingProperties properties, Clock clock,
-            NotificationPublisher notifications, StaffAvailabilityProviderQueryService doctors) {
-        this(guard, appointments, patientAuthorization, properties, clock, null, null, notifications, doctors, null, null);
+            NotificationPublisher notifications, StaffAvailabilityProviderQueryService doctors, AuditLogWriter auditLogWriter) {
+        this(guard, appointments, patientAuthorization, properties, clock, null, null, notifications, doctors, null, null, auditLogWriter);
     }
 
     @Autowired
@@ -61,7 +65,8 @@ public class CancelAppointmentServiceImpl implements CancelAppointmentService {
             AuthorizePatientProfileService patientAuthorization, AppointmentBookingProperties properties, Clock clock,
             AppointmentLifecycleRepository lifecycle, VisitScheduledCareService visits,
             NotificationPublisher notifications, StaffAvailabilityProviderQueryService doctors,
-            ReleaseAppointmentPaymentHoldService releaseHold, PlatformTransactionManager transactionManager) {
+            ReleaseAppointmentPaymentHoldService releaseHold, PlatformTransactionManager transactionManager, AuditLogWriter auditLogWriter) {
+        this.auditLogWriter = auditLogWriter;
         this.transaction = transactionManager == null ? null : new TransactionTemplate(transactionManager);
         this.releaseHold = releaseHold;
         this.guard = guard;
@@ -154,6 +159,10 @@ public class CancelAppointmentServiceImpl implements CancelAppointmentService {
             try {
                 var cancelled = lifecycle.transition(checkedIn, command.actorAccountId(), command.actor().name(),
                         "CANCELLED", command.reason().trim(), now, command.correlationId());
+                AppointmentAuditEntries.record(auditLogWriter, AppointmentAuditEntries.changed(checkedIn.id(), command.actorAccountId(), command.actor().name(), "CANCELLED",
+                checkedIn.status(), "CANCELLED", checkedIn.doctorProfileId(), checkedIn.doctorProfileId(),
+                checkedIn.startTime(), checkedIn.startTime(), checkedIn.endTime(), checkedIn.endTime(),
+                checkedIn.visitId(), checkedIn.sourceVisitId(), command.reason().trim(), null, now), command.correlationId());
                 publishCancellation(current, command);
                 return cancelled;
             } catch (DataAccessException failure) {
@@ -168,6 +177,10 @@ public class CancelAppointmentServiceImpl implements CancelAppointmentService {
         }
         var cancelled = appointments.cancel(current, command.actorAccountId(), command.actor().name(),
                 command.reason() == null ? null : command.reason().trim(), now, command.correlationId());
+        AppointmentAuditEntries.record(auditLogWriter, AppointmentAuditEntries.changed(current.id(), command.actorAccountId(), command.actor().name(), "CANCELLED",
+                "CONFIRMED", "CANCELLED", current.doctorProfileId(), current.doctorProfileId(),
+                current.startTime(), current.startTime(), current.endTime(), current.endTime(),
+                current.visitId(), current.sourceVisitId(), command.reason() == null ? null : command.reason().trim(), null, now), command.correlationId());
         publishCancellation(current, command);
         return cancelled;
     }

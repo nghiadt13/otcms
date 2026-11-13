@@ -154,9 +154,9 @@ class CreateWalkInVisitT043PostgresIntegrationTest {
         String appointmentAuditTriggerMode = null;
         if (!appointmentIds.isEmpty()) {
             appointmentAuditTriggerMode = jdbc.queryForObject("select tgenabled::text from pg_trigger "
-                    + "where tgrelid = 'appointment_audits'::regclass and tgname = 'tr_appointment_audits_immutable'",
+                    + "where tgrelid = 'audit_logs'::regclass and tgname = 'tr_audit_logs_immutable'",
                     String.class);
-            jdbc.execute("alter table appointment_audits disable trigger tr_appointment_audits_immutable");
+            jdbc.execute("alter table audit_logs disable trigger tr_audit_logs_immutable");
         }
         jdbc.execute("alter table visit_audits disable trigger tr_visit_audits_immutable");
         jdbc.execute("alter table visit_audits disable trigger tr_visit_audits_no_truncate");
@@ -173,7 +173,7 @@ class CreateWalkInVisitT043PostgresIntegrationTest {
                 jdbc.update("delete from visits where id = ?", visitId);
             }
             for (UUID appointmentId : appointmentIds) {
-                jdbc.update("delete from appointment_audits where appointment_id = ?", appointmentId);
+                jdbc.update("delete from audit_logs where source = 'appointment_audits' and entity_id = ?", appointmentId);
                 jdbc.update("delete from appointments where id = ?", appointmentId);
             }
             if (doctorProfile != null) jdbc.update("delete from visit_exam_queue where doctor_profile_id = ?", doctorProfile);
@@ -391,9 +391,11 @@ class CreateWalkInVisitT043PostgresIntegrationTest {
                         + "values (?, ?, ?, ?, 'CONFIRMED', 'PATIENT_ONLINE', 'T043 prior appointment', ?, ?, 30, 5, ?)",
                 id, patientId, serviceId, doctorProfile, Timestamp.from(start), Timestamp.from(start.plusSeconds(1800)),
                 patientOwnerAccountId);
-        jdbc.update("insert into appointment_audits (appointment_id, actor_account_id, actor_type, action, old_status, "
-                        + "new_status, old_doctor_profile_id, new_doctor_profile_id, new_start_time, new_end_time, occurred_at, correlation_id) "
-                        + "values (?, ?, 'PATIENT', 'CREATED', null, 'CONFIRMED', null, ?, ?, ?, ?, ?)",
+        jdbc.update("insert into audit_logs (entity_id, actor_account_id, actor_type, action, source, category, record_type, "
+                        + "after_state, occurred_at, correlation_id) values (?, ?, 'PATIENT', 'CREATED', "
+                        + "'appointment_audits', 'APPOINTMENT', 'APPOINTMENT', "
+                        + "jsonb_build_object('status', 'CONFIRMED', 'doctorProfileId', cast(? as uuid), "
+                        + "'startTime', cast(? as timestamptz), 'endTime', cast(? as timestamptz)), ?, ?)",
                 id, patientOwnerAccountId, doctorProfile, Timestamp.from(start), Timestamp.from(start.plusSeconds(1800)),
                 Timestamp.from(NOW), UUID.randomUUID().toString());
         return id;
@@ -433,10 +435,10 @@ class CreateWalkInVisitT043PostgresIntegrationTest {
 
     private void restoreAppointmentAuditTrigger(String mode) {
         switch (mode) {
-            case "D" -> jdbc.execute("alter table appointment_audits disable trigger tr_appointment_audits_immutable");
-            case "R" -> jdbc.execute("alter table appointment_audits enable replica trigger tr_appointment_audits_immutable");
-            case "A" -> jdbc.execute("alter table appointment_audits enable always trigger tr_appointment_audits_immutable");
-            default -> jdbc.execute("alter table appointment_audits enable trigger tr_appointment_audits_immutable");
+            case "D" -> jdbc.execute("alter table audit_logs disable trigger tr_audit_logs_immutable");
+            case "R" -> jdbc.execute("alter table audit_logs enable replica trigger tr_audit_logs_immutable");
+            case "A" -> jdbc.execute("alter table audit_logs enable always trigger tr_audit_logs_immutable");
+            default -> jdbc.execute("alter table audit_logs enable trigger tr_audit_logs_immutable");
         }
     }
 
@@ -444,10 +446,10 @@ class CreateWalkInVisitT043PostgresIntegrationTest {
         String visitAuditMode = jdbc.queryForObject("select tgenabled::text from pg_trigger "
                 + "where tgrelid = 'visit_audits'::regclass and tgname = 'tr_visit_audits_immutable'", String.class);
         String appointmentAuditMode = jdbc.queryForObject("select tgenabled::text from pg_trigger "
-                + "where tgrelid = 'appointment_audits'::regclass and tgname = 'tr_appointment_audits_immutable'",
+                + "where tgrelid = 'audit_logs'::regclass and tgname = 'tr_audit_logs_immutable'",
                 String.class);
         jdbc.execute("alter table visit_audits disable trigger tr_visit_audits_immutable");
-        jdbc.execute("alter table appointment_audits disable trigger tr_appointment_audits_immutable");
+        jdbc.execute("alter table audit_logs disable trigger tr_audit_logs_immutable");
         try {
             String oldAccounts = "select id from accounts where normalized_email like 't043-%@example.test'";
             String oldVisits = "select id from visits where created_by_account_id in (" + oldAccounts + ")";
@@ -461,7 +463,7 @@ class CreateWalkInVisitT043PostgresIntegrationTest {
             jdbc.update("delete from visit_exam_queue where visit_id in (" + oldVisits
                     + ") or doctor_profile_id in (select id from staff_profiles where account_id in (" + oldAccounts + "))");
             jdbc.update("delete from visits where id in (" + oldVisits + ")");
-            jdbc.update("delete from appointment_audits where appointment_id in (" + oldAppointments + ")");
+            jdbc.update("delete from audit_logs where source = 'appointment_audits' and entity_id in (" + oldAppointments + ")");
             jdbc.update("delete from appointments where id in (" + oldAppointments + ")");
             jdbc.update("delete from doctor_shifts where doctor_profile_id in "
                     + "(select id from staff_profiles where account_id in (" + oldAccounts + "))");

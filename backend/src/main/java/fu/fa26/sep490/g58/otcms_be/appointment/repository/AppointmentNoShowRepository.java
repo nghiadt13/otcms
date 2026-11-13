@@ -29,24 +29,6 @@ public interface AppointmentNoShowRepository extends JpaRepository<AppointmentJp
             """, nativeQuery = true)
     int updateNoShow(@Param("id") UUID id, @Param("updated") Timestamp updated);
 
-    @Modifying
-    @Query(value = """
-            insert into appointment_audits (id, appointment_id, actor_account_id, actor_type, action,
-                old_status, new_status, old_doctor_profile_id, new_doctor_profile_id,
-                old_start_time, new_start_time, old_end_time, new_end_time, reason, linked_visit_id,
-                source_visit_id, occurred_at, correlation_id)
-            values (:auditId, :id, :actor, :actorType, 'STATUS_CHANGED', 'CONFIRMED', 'NO_SHOW',
-                :doctor, :doctor, :oldStart, :newStart, :oldEnd, :newEnd, cast(:reason as varchar), cast(:visit as uuid),
-                cast(:sourceVisit as uuid), :occurred, :correlation)
-            """, nativeQuery = true)
-    int insertNoShowAudit(@Param("auditId") UUID auditId, @Param("id") UUID id,
-            @Param("actor") UUID actor, @Param("actorType") String actorType, @Param("doctor") UUID doctor,
-            @Param("oldStart") Timestamp oldStart,
-            @Param("newStart") Timestamp newStart, @Param("oldEnd") Timestamp oldEnd,
-            @Param("newEnd") Timestamp newEnd, @Param("reason") String reason, @Param("visit") UUID visit,
-            @Param("sourceVisit") UUID sourceVisit, @Param("occurred") Timestamp occurred,
-            @Param("correlation") String correlation);
-
     @Query(value = """
             select id, patient_profile_id, service_id, doctor_profile_id, status, booking_source, purpose,
                    start_time, end_time, duration_minutes, buffer_minutes, occupied_until, visit_id,
@@ -73,10 +55,6 @@ public interface AppointmentNoShowRepository extends JpaRepository<AppointmentJp
         if (updateNoShow(old.id(), Timestamp.from(occurredAt)) != 1) {
             throw new IllegalStateException("Appointment changed inside guarded no-show transaction");
         }
-        insertNoShowAudit(UUID.randomUUID(), old.id(), actor, actorType, old.doctorProfileId(),
-                Timestamp.from(old.startTime()), Timestamp.from(old.startTime()),
-                Timestamp.from(old.endTime()), Timestamp.from(old.endTime()), reason, old.visitId(),
-                old.sourceVisitId(), Timestamp.from(occurredAt), correlationId);
         return AppointmentRowMapper.createdAppointment(findNoShowResult(old.id()).getFirst());
     }
 
@@ -98,7 +76,7 @@ public interface AppointmentNoShowRepository extends JpaRepository<AppointmentJp
     List<UUID> findCreatedByAccountIds(@Param("id") UUID id);
 
     /**
-     * Account recorded on a SYSTEM audit row: the one that created the booking (appointment_audits.actor_account_id is
+     * Account recorded on a SYSTEM audit row: the one that created the booking (audit actor_account_id is
      * NOT NULL; the payment-hold sweep uses the same convention).
      */
     default UUID createdByAccountId(UUID id) {

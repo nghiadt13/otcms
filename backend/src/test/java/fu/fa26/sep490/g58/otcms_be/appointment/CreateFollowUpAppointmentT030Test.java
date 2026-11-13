@@ -69,7 +69,7 @@ class CreateFollowUpAppointmentT030Test {
                 ZoneId.of("Asia/Ho_Chi_Minh"), new AppointmentBookingProperties.PublicRateLimit(30, 60), 15, 30000L, false);
         service = new CreateFollowUpAppointmentServiceImpl(guard, doctors, visits, services, providers,
                 assignments, slots, appointments, properties, Clock.fixed(NOW, ZoneId.of("UTC")),
-                notifications);
+                notifications, org.mockito.Mockito.mock(fu.fa26.sep490.g58.otcms_be.common.audit.AuditLogWriter.class));
     }
 
     @Test

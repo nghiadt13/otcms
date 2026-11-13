@@ -104,22 +104,18 @@ class MarkNoShowAfterShiftJobPostgresIntegrationTest {
     @AfterEach
     void cleanUp() {
         if (service == null) return;
-        String auditMode = triggerMode("appointment_audits", "tr_appointment_audits_immutable");
-        String replayMode = triggerMode("appointment_checkin_requests", "tr_appointment_command_replays_immutable");
+        String auditMode = triggerMode("audit_logs", "tr_audit_logs_immutable");
         String careAuditMode = triggerMode("visit_assignment_audits", "tr_visit_care_assignment_audits_immutable");
         String visitAuditMode = triggerMode("visit_audits", "tr_visit_audits_immutable");
-        jdbc.execute("alter table appointment_audits disable trigger tr_appointment_audits_immutable");
-        jdbc.execute("alter table appointment_checkin_requests disable trigger tr_appointment_command_replays_immutable");
+        jdbc.execute("alter table audit_logs disable trigger tr_audit_logs_immutable");
         jdbc.execute("alter table visit_assignment_audits disable trigger tr_visit_care_assignment_audits_immutable");
         jdbc.execute("alter table visit_audits disable trigger tr_visit_audits_immutable");
         try {
-            jdbc.execute("drop trigger if exists tr_nosho_reject_audit on appointment_audits");
+            jdbc.execute("drop trigger if exists tr_nosho_reject_audit on audit_logs");
             jdbc.execute("drop function if exists reject_nosho_sweep_audit()");
             List<UUID> visits = jdbc.query("select visit_id from appointments where service_id = ? and visit_id is not null",
                     (rs, row) -> rs.getObject("visit_id", UUID.class), service);
-            jdbc.update("delete from appointment_checkin_requests where appointment_id in "
-                    + "(select id from appointments where service_id = ?)", service);
-            jdbc.update("delete from appointment_audits where appointment_id in "
+            jdbc.update("delete from audit_logs where source = 'appointment_audits' and entity_id in "
                     + "(select id from appointments where service_id = ?)", service);
             jdbc.update("update appointments set status = 'CANCELLED', visit_id = null where service_id = ?", service);
             for (UUID visit : visits) {
@@ -141,8 +137,7 @@ class MarkNoShowAfterShiftJobPostgresIntegrationTest {
             jdbc.update("delete from clinic_services where id = ?", service);
             for (UUID id : accounts) jdbc.update("delete from accounts where id = ?", id);
         } finally {
-            restoreTrigger("appointment_audits", "tr_appointment_audits_immutable", auditMode);
-            restoreTrigger("appointment_checkin_requests", "tr_appointment_command_replays_immutable", replayMode);
+            restoreTrigger("audit_logs", "tr_audit_logs_immutable", auditMode);
             restoreTrigger("visit_assignment_audits", "tr_visit_care_assignment_audits_immutable", careAuditMode);
             restoreTrigger("visit_audits", "tr_visit_audits_immutable", visitAuditMode);
         }
@@ -155,9 +150,9 @@ class MarkNoShowAfterShiftJobPostgresIntegrationTest {
         assertEquals("NO_SHOW", statusOf(due));
         assertEquals("NO_SHOW", statusOf(pastDayNoShift));
         assertEquals("NO_SHOW", statusOf(dueAfterFailure));
-        assertEquals(1, jdbc.queryForObject("select count(*) from appointment_audits where appointment_id = ? "
-                + "and actor_type = 'SYSTEM' and action = 'STATUS_CHANGED' and old_status = 'CONFIRMED' "
-                + "and new_status = 'NO_SHOW' and actor_account_id = ? and reason = ? and correlation_id = ?", Integer.class,
+        assertEquals(1, jdbc.queryForObject("select count(*) from audit_logs where source = 'appointment_audits' and entity_id = ? "
+                + "and actor_type = 'SYSTEM' and action = 'STATUS_CHANGED' and before_state->>'status' = 'CONFIRMED' "
+                + "and after_state->>'status' = 'NO_SHOW' and actor_account_id = ? and metadata->>'reason' = ? and correlation_id = ?", Integer.class,
                 due, patientAccount, REASON, "no-show-sweep-" + due));
         assertNull(jdbc.queryForObject("select visit_id from appointments where id = ?", UUID.class, due));
     }
@@ -176,29 +171,29 @@ class MarkNoShowAfterShiftJobPostgresIntegrationTest {
         job.sweepOnce();
 
         assertEquals("CHECKED_IN", statusOf(checkedIn));
-        assertEquals(0, jdbc.queryForObject("select count(*) from appointment_audits where appointment_id = ? "
-                + "and new_status = 'NO_SHOW'", Integer.class, checkedIn));
+        assertEquals(0, jdbc.queryForObject("select count(*) from audit_logs where source = 'appointment_audits' and entity_id = ? "
+                + "and after_state->>'status' = 'NO_SHOW'", Integer.class, checkedIn));
     }
 
     @Test
     void failingBookingStaysConfirmedAndDoesNotStopTheBatch() {
-        jdbc.execute("drop trigger if exists tr_nosho_reject_audit on appointment_audits");
+        jdbc.execute("drop trigger if exists tr_nosho_reject_audit on audit_logs");
         jdbc.execute("drop function if exists reject_nosho_sweep_audit()");
         jdbc.execute("create function reject_nosho_sweep_audit() returns trigger language plpgsql as $$ begin "
-                + "if new.appointment_id = '" + failing + "' and new.new_status = 'NO_SHOW' then "
+                + "if new.entity_id = '" + failing + "' and new.after_state->>'status' = 'NO_SHOW' then "
                 + "raise exception 'injected no-show audit failure'; end if; return new; end $$");
-        jdbc.execute("create trigger tr_nosho_reject_audit before insert on appointment_audits "
+        jdbc.execute("create trigger tr_nosho_reject_audit before insert on audit_logs "
                 + "for each row execute function reject_nosho_sweep_audit()");
         try {
             job.sweepOnce();
         } finally {
-            jdbc.execute("drop trigger if exists tr_nosho_reject_audit on appointment_audits");
+            jdbc.execute("drop trigger if exists tr_nosho_reject_audit on audit_logs");
             jdbc.execute("drop function if exists reject_nosho_sweep_audit()");
         }
 
         assertEquals("CONFIRMED", statusOf(failing));
-        assertEquals(0, jdbc.queryForObject("select count(*) from appointment_audits where appointment_id = ? "
-                + "and new_status = 'NO_SHOW'", Integer.class, failing));
+        assertEquals(0, jdbc.queryForObject("select count(*) from audit_logs where source = 'appointment_audits' and entity_id = ? "
+                + "and after_state->>'status' = 'NO_SHOW'", Integer.class, failing));
         assertEquals("NO_SHOW", statusOf(dueAfterFailure));
     }
 
@@ -254,10 +249,12 @@ class MarkNoShowAfterShiftJobPostgresIntegrationTest {
                         + "booking_source, purpose, start_time, end_time, duration_minutes, buffer_minutes, created_by_account_id) "
                         + "values (?, ?, ?, ?, 'CONFIRMED', 'PATIENT_ONLINE', 'NS purpose', ?, ?, 30, 0, ?)",
                 id, patientProfile, service, doctor, Timestamp.from(start), Timestamp.from(end), patientAccount);
-        jdbc.update("insert into appointment_audits (appointment_id, actor_account_id, actor_type, action, new_status, "
-                        + "new_doctor_profile_id, new_start_time, new_end_time, occurred_at, correlation_id) "
-                        + "values (?, ?, 'PATIENT', 'CREATED', 'CONFIRMED', ?, ?, ?, ?, ?)",
-                id, patientAccount, doctor, Timestamp.from(start), Timestamp.from(end), Timestamp.from(NOW),
+        jdbc.update("insert into audit_logs (source, category, action, record_type, entity_id, record_label, "
+                + "actor_account_id, actor_type, after_state, occurred_at, correlation_id) values "
+                + "('appointment_audits', 'APPOINTMENT', 'CREATED', 'APPOINTMENT', ?, ?, ?, 'PATIENT', "
+                + "jsonb_build_object('status', 'CONFIRMED', 'doctorProfileId', cast(? as uuid), "
+                + "'startTime', cast(? as timestamptz), 'endTime', cast(? as timestamptz)), ?, ?)",
+                id, id.toString(), patientAccount, doctor, Timestamp.from(start), Timestamp.from(end), Timestamp.from(NOW),
                 UUID.randomUUID().toString());
         return id;
     }

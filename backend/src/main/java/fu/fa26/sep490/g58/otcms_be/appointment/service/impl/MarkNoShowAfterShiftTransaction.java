@@ -1,5 +1,8 @@
 package fu.fa26.sep490.g58.otcms_be.appointment.service.impl;
 
+import fu.fa26.sep490.g58.otcms_be.appointment.mapper.AppointmentAuditEntries;
+import fu.fa26.sep490.g58.otcms_be.common.audit.AuditLogWriter;
+
 import fu.fa26.sep490.g58.otcms_be.appointment.model.NoShowAppointment;
 import fu.fa26.sep490.g58.otcms_be.appointment.repository.AppointmentNoShowRepository;
 import fu.fa26.sep490.g58.otcms_be.common.service.CoordinationGuardService;
@@ -19,6 +22,7 @@ import java.util.UUID;
  */
 @Service
 public class MarkNoShowAfterShiftTransaction {
+    private final AuditLogWriter auditLogWriter;
     /** Stored as the audit reason of an automatic no-show. */
     static final String SHIFT_ENDED_REASON = "Hết ca làm việc của bác sĩ, bệnh nhân không đến";
 
@@ -37,7 +41,8 @@ public class MarkNoShowAfterShiftTransaction {
     private final AppointmentBookingProperties properties;
 
     public MarkNoShowAfterShiftTransaction(CoordinationGuardService guard, AppointmentNoShowRepository appointments,
-            DoctorScheduleService schedules, AppointmentBookingProperties properties) {
+            DoctorScheduleService schedules, AppointmentBookingProperties properties, AuditLogWriter auditLogWriter) {
+        this.auditLogWriter = auditLogWriter;
         this.guard = guard;
         this.appointments = appointments;
         this.schedules = schedules;
@@ -57,6 +62,10 @@ public class MarkNoShowAfterShiftTransaction {
         UUID creator = appointments.createdByAccountId(appointmentId);
         appointments.markNoShow(current, creator, "SYSTEM", SHIFT_ENDED_REASON, now,
                 "no-show-sweep-" + appointmentId);
+        AppointmentAuditEntries.record(auditLogWriter, AppointmentAuditEntries.changed(current.id(), creator, "SYSTEM", "STATUS_CHANGED",
+                "CONFIRMED", "NO_SHOW", current.doctorProfileId(), current.doctorProfileId(),
+                current.startTime(), current.startTime(), current.endTime(), current.endTime(),
+                current.visitId(), current.sourceVisitId(), SHIFT_ENDED_REASON, null, now), "no-show-sweep-" + appointmentId);
         return Outcome.MARKED;
     }
 

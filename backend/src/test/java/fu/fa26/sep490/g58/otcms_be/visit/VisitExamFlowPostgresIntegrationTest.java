@@ -316,9 +316,11 @@ class VisitExamFlowPostgresIntegrationTest {
                 + "booking_source, purpose, start_time, end_time, duration_minutes, buffer_minutes, created_by_account_id) "
                 + "values (?, ?, ?, ?, 'CONFIRMED', 'PATIENT_ONLINE', 'EF purpose', ?, ?, 30, 5, ?)",
                 id, patientProfile, freeExamination, doctor, ts(start), ts(end), patientAccount);
-        jdbc.update("insert into appointment_audits (appointment_id, actor_account_id, actor_type, action, new_status, "
-                + "new_doctor_profile_id, new_start_time, new_end_time, occurred_at, correlation_id) "
-                + "values (?, ?, 'PATIENT', 'CREATED', 'CONFIRMED', ?, ?, ?, ?, ?)",
+        jdbc.update("insert into audit_logs (entity_id, actor_account_id, actor_type, action, source, category, record_type, "
+                + "after_state, occurred_at, correlation_id) values (?, ?, 'PATIENT', 'CREATED', "
+                + "'appointment_audits', 'APPOINTMENT', 'APPOINTMENT', "
+                + "jsonb_build_object('status', 'CONFIRMED', 'doctorProfileId', cast(? as uuid), "
+                + "'startTime', cast(? as timestamptz), 'endTime', cast(? as timestamptz)), ?, ?)",
                 id, patientAccount, doctor, ts(start), ts(end), ts(NOW), UUID.randomUUID().toString());
         return id;
     }

@@ -58,8 +58,10 @@ class AppointmentAwaitingPaymentV106PostgresIntegrationTest {
                     Timestamp.class, legacyUnpaid).toInstant();
             assertTrue(Duration.between(Instant.now(), deadline).abs().compareTo(Duration.ofMinutes(16)) < 0);
             assertTrue(deadline.isAfter(Instant.now().plus(10, ChronoUnit.MINUTES)));
-            Map<String, Object> audit = jdbc.queryForMap("select actor_type, action, old_status, new_status from "
-                    + schema + ".appointment_audits where appointment_id = ?", legacyUnpaid);
+            // V106 wrote appointment_audits; V114 carried the row into audit_logs (source 'appointment_audits').
+            Map<String, Object> audit = jdbc.queryForMap("select actor_type, action, before_state->>'status' as old_status, "
+                    + "after_state->>'status' as new_status from " + schema
+                    + ".audit_logs where source = 'appointment_audits' and entity_id = ?", legacyUnpaid);
             assertEquals("SYSTEM", audit.get("actor_type"));
             assertEquals("STATUS_CHANGED", audit.get("action"));
             assertEquals("CONFIRMED", audit.get("old_status"));
@@ -71,7 +73,7 @@ class AppointmentAwaitingPaymentV106PostgresIntegrationTest {
             assertEquals("CANCELLED", status(schema, alreadyCancelled));
             assertNull(jdbc.queryForObject("select payment_deadline from " + schema + ".appointments where id = ?",
                     Timestamp.class, byReceptionist));
-            assertEquals(1, jdbc.queryForObject("select count(*) from " + schema + ".appointment_audits where correlation_id = 'V106-awaiting-payment'",
+            assertEquals(1, jdbc.queryForObject("select count(*) from " + schema + ".audit_logs where source = 'appointment_audits' and correlation_id = 'V106-awaiting-payment'",
                     Integer.class));
         } finally {
             dropSchema(schema);
@@ -103,12 +105,13 @@ class AppointmentAwaitingPaymentV106PostgresIntegrationTest {
             assertEquals("CONFIRMED", status(schema, rebooked));
 
             UUID audit = UUID.randomUUID();
-            jdbc.update("insert into " + schema + ".appointment_audits (id, appointment_id, actor_account_id, actor_type, action, old_status, new_status, "
-                            + "old_doctor_profile_id, new_doctor_profile_id, old_start_time, new_start_time, old_end_time, new_end_time, reason, occurred_at, correlation_id) "
-                            + "values (?, ?, ?, 'SYSTEM', 'STATUS_CHANGED', 'AWAITING_PAYMENT', 'PAYMENT_EXPIRED', ?, ?, ?, ?, ?, ?, 'Het thoi gian thanh toan', now(), 't106')",
-                    audit, hold, f.patientAccount, f.doctorId, f.doctorId, Timestamp.from(start), Timestamp.from(start),
-                    Timestamp.from(start.plusSeconds(1800)), Timestamp.from(start.plusSeconds(1800)));
-            assertEquals(1, jdbc.queryForObject("select count(*) from " + schema + ".appointment_audits where id = ?", Integer.class, audit));
+            jdbc.update("insert into " + schema + ".audit_logs (id, source, category, action, record_type, entity_id, record_label, "
+                            + "actor_account_id, actor_type, before_state, after_state, metadata, occurred_at, correlation_id) "
+                            + "values (?, 'appointment_audits', 'APPOINTMENT', 'STATUS_CHANGED', 'APPOINTMENT', ?, ?, ?, 'SYSTEM', "
+                            + "jsonb_build_object('status', 'AWAITING_PAYMENT'), jsonb_build_object('status', 'PAYMENT_EXPIRED'), "
+                            + "jsonb_build_object('reason', 'Het thoi gian thanh toan'), now(), 't106')",
+                    audit, hold, hold.toString(), f.patientAccount);
+            assertEquals(1, jdbc.queryForObject("select count(*) from " + schema + ".audit_logs where id = ?", Integer.class, audit));
         } finally {
             dropSchema(schema);
         }

@@ -123,14 +123,14 @@ class VisitCareCapacityT031PostgresIntegrationTest {
         String roomAuditImmutable = triggerMode("room_reservation_audits", "tr_visit_room_reservation_audits_immutable");
         String roomManagementAuditImmutable = triggerMode("room_management_audits", "tr_visit_room_management_audits_immutable");
         String roomManagementAuditNoTruncate = triggerMode("room_management_audits", "tr_visit_room_management_audits_no_truncate");
-        String appointmentAuditTrigger = jdbc.queryForObject("select tgenabled::text from pg_trigger where tgrelid = 'appointment_audits'::regclass and tgname = 'tr_appointment_audits_immutable'", String.class);
+        String appointmentAuditTrigger = jdbc.queryForObject("select tgenabled::text from pg_trigger where tgrelid = 'audit_logs'::regclass and tgname = 'tr_audit_logs_immutable'", String.class);
         String visitAuditTrigger = jdbc.queryForObject("select tgenabled::text from pg_trigger where tgrelid = 'visit_audits'::regclass and tgname = 'tr_visit_audits_immutable'", String.class);
         jdbc.execute("alter table visit_assignment_audits disable trigger tr_visit_care_assignment_audits_immutable");
         jdbc.execute("alter table visit_assignment_audits disable trigger tr_visit_care_assignment_audits_no_truncate");
         jdbc.execute("alter table room_reservation_audits disable trigger tr_visit_room_reservation_audits_immutable");
         jdbc.execute("alter table room_management_audits disable trigger tr_visit_room_management_audits_immutable");
         jdbc.execute("alter table room_management_audits disable trigger tr_visit_room_management_audits_no_truncate");
-        jdbc.execute("alter table appointment_audits disable trigger tr_appointment_audits_immutable");
+        jdbc.execute("alter table audit_logs disable trigger tr_audit_logs_immutable");
         jdbc.execute("alter table visit_audits disable trigger tr_visit_audits_immutable");
         jdbc.execute("alter table walk_in_reception_queue_history disable trigger all");
         try {
@@ -148,7 +148,7 @@ class VisitCareCapacityT031PostgresIntegrationTest {
                 jdbc.update("delete from visits where id = ?", visitId);
             }
             if (bookingService != null) {
-                jdbc.update("delete from appointment_audits where appointment_id in "
+                jdbc.update("delete from audit_logs where source = 'appointment_audits' and entity_id in "
                         + "(select id from appointments where service_id = ?)", bookingService);
                 jdbc.update("delete from appointments where service_id = ?", bookingService);
                 jdbc.update("delete from doctor_services where service_id = ?", bookingService);
@@ -174,7 +174,7 @@ class VisitCareCapacityT031PostgresIntegrationTest {
             restoreTrigger("room_reservation_audits", "tr_visit_room_reservation_audits_immutable", roomAuditImmutable);
             restoreTrigger("room_management_audits", "tr_visit_room_management_audits_immutable", roomManagementAuditImmutable);
             restoreTrigger("room_management_audits", "tr_visit_room_management_audits_no_truncate", roomManagementAuditNoTruncate);
-            restoreTrigger("appointment_audits", "tr_appointment_audits_immutable", appointmentAuditTrigger);
+            restoreTrigger("audit_logs", "tr_audit_logs_immutable", appointmentAuditTrigger);
             restoreTrigger("visit_audits", "tr_visit_audits_immutable", visitAuditTrigger);
         }
     }

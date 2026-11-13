@@ -34,21 +34,6 @@ public interface AppointmentRescheduleRepository extends JpaRepository<Appointme
     int updateSchedule(@Param("id") UUID id, @Param("start") Timestamp start,
             @Param("end") Timestamp end, @Param("updated") Timestamp updated);
 
-    @Modifying
-    @Query(value = """
-            insert into appointment_audits (appointment_id, actor_account_id, actor_type, action,
-                old_status, new_status, old_doctor_profile_id, new_doctor_profile_id,
-                old_start_time, new_start_time, old_end_time, new_end_time, reason, occurred_at, correlation_id)
-            values (:id, :actor, :actorType, 'RESCHEDULED', 'CONFIRMED', 'CONFIRMED', :doctor, :doctor,
-                :oldStart, :newStart, :oldEnd, :newEnd, :reason, :occurred, :correlation)
-            """, nativeQuery = true)
-    int insertRescheduleAudit(@Param("id") UUID id, @Param("actor") UUID actor,
-            @Param("actorType") String actorType, @Param("doctor") UUID doctor,
-            @Param("oldStart") Timestamp oldStart, @Param("newStart") Timestamp newStart,
-            @Param("oldEnd") Timestamp oldEnd, @Param("newEnd") Timestamp newEnd,
-            @Param("reason") String reason, @Param("occurred") Timestamp occurred,
-            @Param("correlation") String correlation);
-
     @Query(value = """
             select id, patient_profile_id, service_id, doctor_profile_id, status, booking_source, purpose,
                    start_time, end_time, duration_minutes, buffer_minutes, occupied_until, visit_id,
@@ -77,9 +62,6 @@ public interface AppointmentRescheduleRepository extends JpaRepository<Appointme
             if (hasSqlState(exception, "23P01")) throw new AppointmentBookingException("SLOT_UNAVAILABLE", exception);
             throw exception;
         }
-        insertRescheduleAudit(old.id(), actorAccountId, actorType, old.doctorProfileId(),
-                Timestamp.from(old.startTime()), Timestamp.from(start), Timestamp.from(old.endTime()),
-                Timestamp.from(end), reason, Timestamp.from(occurredAt), correlationId);
         return AppointmentRowMapper.createdAppointment(findRescheduledResult(old.id()).getFirst());
     }
 

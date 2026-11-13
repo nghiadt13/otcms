@@ -1,4 +1,7 @@
 package fu.fa26.sep490.g58.otcms_be.appointment.service.impl;
+
+import fu.fa26.sep490.g58.otcms_be.appointment.mapper.AppointmentAuditEntries;
+import fu.fa26.sep490.g58.otcms_be.common.audit.AuditLogWriter;
 import fu.fa26.sep490.g58.otcms_be.appointment.model.CreatedAppointment;
 import fu.fa26.sep490.g58.otcms_be.notification.model.NotificationMessages;
 import fu.fa26.sep490.g58.otcms_be.notification.service.NotificationPublisher;
@@ -28,6 +31,7 @@ import java.util.UUID;
 
 @Service
 public class RescheduleAppointmentServiceImpl implements RescheduleAppointmentService {
+    private final AuditLogWriter auditLogWriter;
     private final CoordinationGuardService guard;
     private final AppointmentRescheduleRepository appointments;
     private final AuthorizePatientProfileService patientAuthorization;
@@ -40,7 +44,8 @@ public class RescheduleAppointmentServiceImpl implements RescheduleAppointmentSe
     public RescheduleAppointmentServiceImpl(CoordinationGuardService guard, AppointmentRescheduleRepository appointments,
             AuthorizePatientProfileService patientAuthorization, GenerateAvailableSlotsService slotEngine,
             AppointmentBookingProperties properties, Clock clock,
-            NotificationPublisher notifications, StaffAvailabilityProviderQueryService doctors) {
+            NotificationPublisher notifications, StaffAvailabilityProviderQueryService doctors, AuditLogWriter auditLogWriter) {
+        this.auditLogWriter = auditLogWriter;
         this.guard = guard;
         this.appointments = appointments;
         this.patientAuthorization = patientAuthorization;
@@ -98,6 +103,10 @@ public class RescheduleAppointmentServiceImpl implements RescheduleAppointmentSe
         var changed = appointments.reschedule(current, slot.startTime(), slot.endTime(), command.actorAccountId(),
                 command.actor().name(), command.reason() == null ? null : command.reason().trim(), now,
                 command.correlationId());
+        AppointmentAuditEntries.record(auditLogWriter, AppointmentAuditEntries.changed(current.id(), command.actorAccountId(),
+                command.actor().name(), "RESCHEDULED", "CONFIRMED", "CONFIRMED", current.doctorProfileId(),
+                current.doctorProfileId(), current.startTime(), slot.startTime(), current.endTime(), slot.endTime(),
+                null, null, command.reason() == null ? null : command.reason().trim(), null, now), command.correlationId());
         notifications.publishToPatient(current.patientProfileId(), NotificationMessages.appointmentRescheduled(
                 current.id(), slot.startTime(), doctors.findDoctorDisplayName(current.doctorProfileId()).orElse("")));
         return changed;

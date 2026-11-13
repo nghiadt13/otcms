@@ -92,16 +92,12 @@ class AppointmentArrivalT053PostgresIntegrationTest {
 
     @AfterEach
     void cleanUp() {
-        String auditTrigger = triggerMode("appointment_audits", "tr_appointment_audits_immutable");
-        String checkInTrigger = triggerMode("appointment_checkin_requests", "tr_appointment_command_replays_immutable");
-        jdbc.execute("alter table appointment_audits disable trigger tr_appointment_audits_immutable");
-        jdbc.execute("alter table appointment_checkin_requests disable trigger tr_appointment_command_replays_immutable");
+        String auditTrigger = triggerMode("audit_logs", "tr_audit_logs_immutable");
+        jdbc.execute("alter table audit_logs disable trigger tr_audit_logs_immutable");
         try {
             for (UUID id : appointments) {
-                jdbc.update("delete from appointment_checkin_requests where appointment_id = ?", id);
-                jdbc.update("delete from appointment_audits where appointment_id = ?", id);
+                jdbc.update("delete from audit_logs where source = 'appointment_audits' and entity_id = ?", id);
                 jdbc.update("update appointments set status = 'CANCELLED', visit_id = null where id = ?", id);
-                jdbc.update("delete from appointment_arrivals where appointment_id = ?", id);
                 jdbc.update("delete from payment_attempts where invoice_id in "
                         + "(select id from invoices where appointment_id = ?)", id);
                 jdbc.update("delete from invoice_items where invoice_id in "
@@ -123,8 +119,7 @@ class AppointmentArrivalT053PostgresIntegrationTest {
             jdbc.update("delete from accounts where id in (?, ?, ?, ?)", patientAccount, otherPatientAccount,
                     receptionistAccount, doctorAccount);
         } finally {
-            restoreTrigger("appointment_audits", "tr_appointment_audits_immutable", auditTrigger);
-            restoreTrigger("appointment_checkin_requests", "tr_appointment_command_replays_immutable", checkInTrigger);
+            restoreTrigger("audit_logs", "tr_audit_logs_immutable", auditTrigger);
         }
     }
 
@@ -186,9 +181,9 @@ class AppointmentArrivalT053PostgresIntegrationTest {
                 .andExpect(jsonPath("$.arrivedAt").value(NOW.toString()))
                 .andExpect(jsonPath("$.queueNumber").value(1));
         assertEquals(1, arrivalCount(target));
-        assertEquals(patientAccount, jdbc.queryForObject("select actor_account_id from appointment_arrivals where appointment_id = ?",
+        assertEquals(patientAccount, jdbc.queryForObject("select arrival_recorded_by from appointments where id = ?",
                 UUID.class, target));
-        assertEquals("PATIENT_QR", jdbc.queryForObject("select source from appointment_arrivals where appointment_id = ?",
+        assertEquals("PATIENT_QR", jdbc.queryForObject("select arrival_source from appointments where id = ?",
                 String.class, target));
         assertEquals("CHECKED_IN", jdbc.queryForObject("select status from appointments where id = ?",
                 String.class, target));
@@ -216,9 +211,23 @@ class AppointmentArrivalT053PostgresIntegrationTest {
         mvc.perform(manual(target, receptionistAccount, "different duplicate reason"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.arrivedAt").value(NOW.toString()));
         assertEquals(1, arrivalCount(target));
-        assertEquals(receptionistAccount, jdbc.queryForObject("select actor_account_id from appointment_arrivals where appointment_id = ?",
+        assertEquals(receptionistAccount, jdbc.queryForObject("select arrival_recorded_by from appointments where id = ?",
                 UUID.class, target));
-        assertEquals("Helped patient scan QR", jdbc.queryForObject("select reason from appointment_arrivals where appointment_id = ?",
+        assertEquals("Helped patient scan QR", jdbc.queryForObject("select arrival_reason from appointments where id = ?",
+                String.class, target));
+    }
+
+    @Test
+    void secondArrivalKeepsFirstRecord() throws Exception {
+        UUID target = appointment(NOW.plusSeconds(3600), patientProfile);
+        mvc.perform(manual(target, receptionistAccount, "First reason"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.arrivedAt").value(NOW.toString()));
+        testClock.set(NOW.plusSeconds(20));
+        mvc.perform(manual(target, receptionistAccount, "Second reason"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.arrivedAt").value(NOW.toString()));
+        assertEquals(NOW, jdbc.queryForObject("select arrived_at from appointments where id = ?",
+                Timestamp.class, target).toInstant());
+        assertEquals("First reason", jdbc.queryForObject("select arrival_reason from appointments where id = ?",
                 String.class, target));
     }
 
@@ -311,7 +320,7 @@ class AppointmentArrivalT053PostgresIntegrationTest {
                 assertEquals(1, arrivalCount(target));
                 assertEquals(1, jdbc.queryForObject("select count(*) from visits where originating_appointment_id = ?",
                         Integer.class, target));
-                assertEquals(NOW, jdbc.queryForObject("select arrived_at from appointment_arrivals where appointment_id = ?",
+                assertEquals(NOW, jdbc.queryForObject("select arrived_at from appointments where id = ?",
                         Timestamp.class, target).toInstant());
             } finally {
                 blocker.rollback();
@@ -427,10 +436,12 @@ class AppointmentArrivalT053PostgresIntegrationTest {
                         + "purpose, start_time, end_time, duration_minutes, buffer_minutes, created_by_account_id) "
                         + "values (?, ?, ?, ?, 'CONFIRMED', 'PATIENT_ONLINE', 'T053 arrival', ?, ?, 30, 5, ?)",
                 id, owner, service, doctorProfile, Timestamp.from(start), Timestamp.from(start.plusSeconds(1800)), ownerAccount);
-        jdbc.update("insert into appointment_audits (appointment_id, actor_account_id, actor_type, action, old_status, "
-                        + "new_status, old_doctor_profile_id, new_doctor_profile_id, new_start_time, new_end_time, occurred_at, correlation_id) "
-                        + "values (?, ?, 'PATIENT', 'CREATED', null, 'CONFIRMED', null, ?, ?, ?, ?, ?)",
-                id, ownerAccount, doctorProfile, Timestamp.from(start), Timestamp.from(start.plusSeconds(1800)),
+        jdbc.update("insert into audit_logs (source, category, action, record_type, entity_id, record_label, "
+                        + "actor_account_id, actor_type, after_state, occurred_at, correlation_id) "
+                        + "values ('appointment_audits', 'APPOINTMENT', 'CREATED', 'APPOINTMENT', ?, ?, ?, 'PATIENT', "
+                        + "jsonb_build_object('status', 'CONFIRMED', 'doctorProfileId', cast(? as uuid), "
+                        + "'startTime', cast(? as timestamptz), 'endTime', cast(? as timestamptz)), ?, ?)",
+                id, id.toString(), ownerAccount, doctorProfile, Timestamp.from(start), Timestamp.from(start.plusSeconds(1800)),
                 Timestamp.from(NOW), UUID.randomUUID().toString());
         return id;
     }
@@ -474,7 +485,7 @@ class AppointmentArrivalT053PostgresIntegrationTest {
     }
 
     private int arrivalCount(UUID id) {
-        return jdbc.queryForObject("select count(*) from appointment_arrivals where appointment_id = ?", Integer.class, id);
+        return jdbc.queryForObject("select count(*) from appointments where id = ? and arrived_at is not null", Integer.class, id);
     }
 
     private void assertNoArrival(UUID id) { assertEquals(0, arrivalCount(id)); }

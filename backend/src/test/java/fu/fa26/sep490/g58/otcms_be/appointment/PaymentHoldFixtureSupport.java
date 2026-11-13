@@ -80,7 +80,7 @@ abstract class PaymentHoldFixtureSupport {
     void cleanUpHoldFixture() {
         if (patientA == null) return;
         new TransactionTemplate(transactionManager).executeWithoutResult(tx -> {
-            jdbc.execute("alter table appointment_audits disable trigger tr_appointment_audits_immutable");
+            jdbc.execute("alter table audit_logs disable trigger tr_audit_logs_immutable");
             try {
                 String creators = "(?, ?, ?)";
                 Object[] args = {patientA, patientB, receptionist};
@@ -91,7 +91,7 @@ abstract class PaymentHoldFixtureSupport {
                 jdbc.update("delete from invoices where appointment_id in " + mine, args);
                 jdbc.update("delete from notifications where related_id in (select id from appointments "
                         + "where created_by_account_id in " + creators + ")", args);
-                jdbc.update("delete from appointment_audits where appointment_id in (select id from appointments "
+                jdbc.update("delete from audit_logs where source = 'appointment_audits' and entity_id in (select id from appointments "
                         + "where created_by_account_id in " + creators + ")", args);
                 jdbc.update("delete from appointments where created_by_account_id in " + creators, args);
                 jdbc.update("delete from doctor_services where doctor_profile_id = ?", doctorProfile);
@@ -101,7 +101,7 @@ abstract class PaymentHoldFixtureSupport {
                 jdbc.update("delete from patient_profiles where id in (?, ?)", profileA, profileB);
                 jdbc.update("delete from accounts where id in (?, ?, ?, ?)", patientA, patientB, receptionist, doctorAccount);
             } finally {
-                jdbc.execute("alter table appointment_audits enable trigger tr_appointment_audits_immutable");
+                jdbc.execute("alter table audit_logs enable trigger tr_audit_logs_immutable");
             }
         });
     }

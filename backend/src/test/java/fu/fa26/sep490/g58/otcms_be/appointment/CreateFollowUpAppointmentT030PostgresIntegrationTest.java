@@ -82,10 +82,10 @@ class CreateFollowUpAppointmentT030PostgresIntegrationTest {
     void cleanUp() {
         if (account == null) return;
         new TransactionTemplate(transactionManager).executeWithoutResult(transaction -> {
-            String triggerMode = jdbc.queryForObject("select tgenabled::text from pg_trigger where tgrelid = 'appointment_audits'::regclass and tgname = 'tr_appointment_audits_immutable'", String.class);
-            jdbc.execute("alter table appointment_audits disable trigger tr_appointment_audits_immutable");
+            String triggerMode = jdbc.queryForObject("select tgenabled::text from pg_trigger where tgrelid = 'audit_logs'::regclass and tgname = 'tr_audit_logs_immutable'", String.class);
+            jdbc.execute("alter table audit_logs disable trigger tr_audit_logs_immutable");
             if (service != null) {
-                jdbc.update("delete from appointment_audits where appointment_id in (select id from appointments where service_id = ?)", service);
+                jdbc.update("delete from audit_logs where source = 'appointment_audits' and entity_id in (select id from appointments where service_id = ?)", service);
                 jdbc.update("delete from appointments where service_id = ?", service);
                 jdbc.update("delete from clinical_examinations where visit_id = ?", visit);
                 jdbc.update("delete from visit_examinations where visit_id = ?", visit);
@@ -99,10 +99,10 @@ class CreateFollowUpAppointmentT030PostgresIntegrationTest {
             if (patient != null) jdbc.update("delete from patient_profiles where id = ?", patient);
             if (account != null) jdbc.update("delete from accounts where id = ?", account);
             switch (triggerMode) {
-                case "D" -> jdbc.execute("alter table appointment_audits disable trigger tr_appointment_audits_immutable");
-                case "R" -> jdbc.execute("alter table appointment_audits enable replica trigger tr_appointment_audits_immutable");
-                case "A" -> jdbc.execute("alter table appointment_audits enable always trigger tr_appointment_audits_immutable");
-                default -> jdbc.execute("alter table appointment_audits enable trigger tr_appointment_audits_immutable");
+                case "D" -> jdbc.execute("alter table audit_logs disable trigger tr_audit_logs_immutable");
+                case "R" -> jdbc.execute("alter table audit_logs enable replica trigger tr_audit_logs_immutable");
+                case "A" -> jdbc.execute("alter table audit_logs enable always trigger tr_audit_logs_immutable");
+                default -> jdbc.execute("alter table audit_logs enable trigger tr_audit_logs_immutable");
             }
         });
     }
@@ -124,7 +124,7 @@ class CreateFollowUpAppointmentT030PostgresIntegrationTest {
                 "select count(*) from appointments where source_visit_id = ? and patient_profile_id = ? and ordering_doctor_profile_id = ? and booking_source = 'DOCTOR_FOLLOW_UP'",
                 Integer.class, visit, patient, doctor));
         org.junit.jupiter.api.Assertions.assertEquals(1, jdbc.queryForObject(
-                "select count(*) from appointment_audits where source_visit_id = ? and actor_account_id = ? and actor_type = 'DOCTOR' and action = 'CREATED' and reason = 'Review symptoms' and correlation_id = ?",
+                "select count(*) from audit_logs where source = 'appointment_audits' and (after_state->>'sourceVisitId')::uuid = ? and actor_account_id = ? and actor_type = 'DOCTOR' and action = 'CREATED' and metadata->>'reason' = 'Review symptoms' and correlation_id = ?",
                 Integer.class, visit, account, correlation));
         org.junit.jupiter.api.Assertions.assertEquals(1, jdbc.queryForObject(
                 "select count(*) from visits where id = ? and status = 'OPEN'", Integer.class, visit));

@@ -88,11 +88,11 @@ class AppointmentBookingT022PostgresIntegrationTest {
                 && otherPatientAccount == null && doctorAccount == null) return;
         new TransactionTemplate(transactionManager).executeWithoutResult(transaction -> {
             String originalAuditTriggerMode = jdbc.queryForObject("select tgenabled::text from pg_trigger "
-                            + "where tgrelid = 'appointment_audits'::regclass and tgname = 'tr_appointment_audits_immutable'",
+                            + "where tgrelid = 'audit_logs'::regclass and tgname = 'tr_audit_logs_immutable'",
                     String.class);
-            jdbc.execute("alter table appointment_audits disable trigger tr_appointment_audits_immutable");
+            jdbc.execute("alter table audit_logs disable trigger tr_audit_logs_immutable");
             if (service != null) {
-                jdbc.update("delete from appointment_audits where appointment_id in "
+                jdbc.update("delete from audit_logs where source = 'appointment_audits' and entity_id in "
                                 + "(select id from appointments where service_id = ? and created_by_account_id in (?, ?, ?))",
                         service, patientAccount, otherPatientAccount, receptionistAccount);
                 jdbc.update("delete from appointments where service_id = ? and created_by_account_id in (?, ?, ?)",
@@ -112,10 +112,10 @@ class AppointmentBookingT022PostgresIntegrationTest {
             if (otherPatientAccount != null) jdbc.update("delete from accounts where id = ?", otherPatientAccount);
             if (doctorAccount != null) jdbc.update("delete from accounts where id = ?", doctorAccount);
             switch (originalAuditTriggerMode) {
-                case "D" -> jdbc.execute("alter table appointment_audits disable trigger tr_appointment_audits_immutable");
-                case "R" -> jdbc.execute("alter table appointment_audits enable replica trigger tr_appointment_audits_immutable");
-                case "A" -> jdbc.execute("alter table appointment_audits enable always trigger tr_appointment_audits_immutable");
-                default -> jdbc.execute("alter table appointment_audits enable trigger tr_appointment_audits_immutable");
+                case "D" -> jdbc.execute("alter table audit_logs disable trigger tr_audit_logs_immutable");
+                case "R" -> jdbc.execute("alter table audit_logs enable replica trigger tr_audit_logs_immutable");
+                case "A" -> jdbc.execute("alter table audit_logs enable always trigger tr_audit_logs_immutable");
+                default -> jdbc.execute("alter table audit_logs enable trigger tr_audit_logs_immutable");
             }
         });
     }
@@ -135,8 +135,8 @@ class AppointmentBookingT022PostgresIntegrationTest {
                 .andExpect(jsonPath("$.bufferMinutes").value(0))
                 .andExpect(jsonPath("$.occupiedUntil").exists());
         org.junit.jupiter.api.Assertions.assertEquals(1, jdbc.queryForObject(
-                "select count(*) from appointment_audits where correlation_id = ? and action = 'CREATED' "
-                        + "and actor_type = 'PATIENT' and new_status = 'CONFIRMED'", Integer.class,
+                "select count(*) from audit_logs where source = 'appointment_audits' and correlation_id = ? and action = 'CREATED' "
+                        + "and actor_type = 'PATIENT' and after_state->>'status' = 'CONFIRMED'", Integer.class,
                 "d2b57a06-4b72-445b-a293-7b3d8c039e55"));
     }
 
@@ -189,7 +189,7 @@ class AppointmentBookingT022PostgresIntegrationTest {
                     "select count(*) from appointments where service_id = ? and start_time = ? and status = 'CONFIRMED'",
                     Integer.class, service, Timestamp.from(SLOT)));
             org.junit.jupiter.api.Assertions.assertEquals(1, jdbc.queryForObject(
-                    "select count(*) from appointment_audits aa join appointments a on a.id = aa.appointment_id "
+                    "select count(*) from audit_logs aa join appointments a on a.id = aa.entity_id and aa.source = 'appointment_audits' "
                             + "where a.service_id = ? and a.start_time = ? and aa.action = 'CREATED'",
                     Integer.class, service, Timestamp.from(SLOT)));
         } finally {
@@ -208,8 +208,8 @@ class AppointmentBookingT022PostgresIntegrationTest {
     void auditInsertFailureRollsBackAppointmentInsert() throws Exception {
         jdbc.execute("create function t022_reject_audit_insert() returns trigger language plpgsql as $$ "
                 + "begin raise exception 'T022 forced audit insert failure'; end; $$");
-        jdbc.execute("create trigger t022_reject_audit_insert before insert on appointment_audits "
-                + "for each row execute function t022_reject_audit_insert()");
+        jdbc.execute("create trigger t022_reject_audit_insert before insert on audit_logs "
+                + "for each row when (new.source = 'appointment_audits') execute function t022_reject_audit_insert()");
         MvcResult failure = null;
         jakarta.servlet.ServletException propagatedFailure = null;
         try {
@@ -222,7 +222,7 @@ class AppointmentBookingT022PostgresIntegrationTest {
                 propagatedFailure = expected;
             }
         } finally {
-            jdbc.execute("drop trigger t022_reject_audit_insert on appointment_audits");
+            jdbc.execute("drop trigger t022_reject_audit_insert on audit_logs");
             jdbc.execute("drop function t022_reject_audit_insert()");
         }
         if (failure != null) {
@@ -237,7 +237,7 @@ class AppointmentBookingT022PostgresIntegrationTest {
                 "select count(*) from appointments where service_id = ? and created_by_account_id = ?",
                 Integer.class, service, patientAccount));
         org.junit.jupiter.api.Assertions.assertEquals(0, jdbc.queryForObject(
-                "select count(*) from appointment_audits where actor_account_id = ? and action = 'CREATED'",
+                "select count(*) from audit_logs where source = 'appointment_audits' and actor_account_id = ? and action = 'CREATED'",
                 Integer.class, patientAccount));
     }
 

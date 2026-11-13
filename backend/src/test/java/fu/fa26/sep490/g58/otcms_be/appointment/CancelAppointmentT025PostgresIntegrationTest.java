@@ -80,12 +80,12 @@ class CancelAppointmentT025PostgresIntegrationTest {
     @AfterEach
     void cleanUp() {
         String triggerMode = jdbc.queryForObject("select tgenabled::text from pg_trigger "
-                        + "where tgrelid = 'appointment_audits'::regclass and tgname = 'tr_appointment_audits_immutable'",
+                        + "where tgrelid = 'audit_logs'::regclass and tgname = 'tr_audit_logs_immutable'",
                 String.class);
-        jdbc.execute("alter table appointment_audits disable trigger tr_appointment_audits_immutable");
+        jdbc.execute("alter table audit_logs disable trigger tr_audit_logs_immutable");
         try {
             if (service != null) {
-                jdbc.update("delete from appointment_audits where appointment_id in (select id from appointments where service_id = ?)", service);
+                jdbc.update("delete from audit_logs where source = 'appointment_audits' and entity_id in (select id from appointments where service_id = ?)", service);
                 jdbc.update("delete from appointments where service_id = ?", service);
                 jdbc.update("delete from doctor_services where service_id = ?", service);
                 jdbc.update("delete from clinic_services where id = ?", service);
@@ -98,10 +98,10 @@ class CancelAppointmentT025PostgresIntegrationTest {
             }
         } finally {
             switch (triggerMode) {
-                case "D" -> jdbc.execute("alter table appointment_audits disable trigger tr_appointment_audits_immutable");
-                case "R" -> jdbc.execute("alter table appointment_audits enable replica trigger tr_appointment_audits_immutable");
-                case "A" -> jdbc.execute("alter table appointment_audits enable always trigger tr_appointment_audits_immutable");
-                default -> jdbc.execute("alter table appointment_audits enable trigger tr_appointment_audits_immutable");
+                case "D" -> jdbc.execute("alter table audit_logs disable trigger tr_audit_logs_immutable");
+                case "R" -> jdbc.execute("alter table audit_logs enable replica trigger tr_audit_logs_immutable");
+                case "A" -> jdbc.execute("alter table audit_logs enable always trigger tr_audit_logs_immutable");
+                default -> jdbc.execute("alter table audit_logs enable trigger tr_audit_logs_immutable");
             }
         }
     }
@@ -117,10 +117,10 @@ class CancelAppointmentT025PostgresIntegrationTest {
                 .andExpect(jsonPath("$.status").value("CANCELLED"))
                 .andExpect(jsonPath("$.startTime").value(START.toString()))
                 .andExpect(jsonPath("$.purpose").value("T025 private purpose"));
-        assertEquals(1, jdbc.queryForObject("select count(*) from appointment_audits where appointment_id = ? "
+        assertEquals(1, jdbc.queryForObject("select count(*) from audit_logs where source = 'appointment_audits' and entity_id = ? "
                 + "and actor_account_id = ? and actor_type = 'PATIENT' and action = 'CANCELLED' "
-                + "and old_status = 'CONFIRMED' and new_status = 'CANCELLED' and old_start_time = new_start_time "
-                + "and old_end_time = new_end_time and reason is null and correlation_id = ?", Integer.class,
+                + "and before_state->>'status' = 'CONFIRMED' and after_state->>'status' = 'CANCELLED' and before_state->>'startTime' = after_state->>'startTime' "
+                + "and before_state->>'endTime' = after_state->>'endTime' and metadata->>'reason' is null and correlation_id = ?", Integer.class,
                 appointment, patientAccount, CORRELATION));
         UUID releasedSlotBooking = insertAppointment(otherPatientProfile, otherPatientAccount, START, "Released slot");
         assertEquals(1, jdbc.queryForObject("select count(*) from appointments where id = ? and status = 'CONFIRMED'",
@@ -145,8 +145,8 @@ class CancelAppointmentT025PostgresIntegrationTest {
                         .with(actor(receptionistAccount, AccountType.RECEPTIONIST)).with(csrf())
                         .contentType("application/json").content("{\"reason\":\"Clinic requested cancellation\"}"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("CANCELLED"));
-        assertEquals(1, jdbc.queryForObject("select count(*) from appointment_audits where appointment_id = ? "
-                + "and actor_type = 'RECEPTIONIST' and reason = 'Clinic requested cancellation'", Integer.class, appointment));
+        assertEquals(1, jdbc.queryForObject("select count(*) from audit_logs where source = 'appointment_audits' and entity_id = ? "
+                + "and actor_type = 'RECEPTIONIST' and metadata->>'reason' = 'Clinic requested cancellation'", Integer.class, appointment));
     }
 
     @Test
@@ -180,10 +180,10 @@ class CancelAppointmentT025PostgresIntegrationTest {
                         .header("X-Correlation-ID", CORRELATION).contentType("application/json")
                         .content("{\"reason\":\"Clinic closed for maintenance\"}"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("CANCELLED"));
-        assertEquals(1, jdbc.queryForObject("select count(*) from appointment_audits where appointment_id = ? "
+        assertEquals(1, jdbc.queryForObject("select count(*) from audit_logs where source = 'appointment_audits' and entity_id = ? "
                 + "and actor_account_id = ? and actor_type = 'ADMIN' and action = 'CANCELLED' "
-                + "and old_status = 'CONFIRMED' and new_status = 'CANCELLED' "
-                + "and reason = 'Clinic closed for maintenance' and correlation_id = ?", Integer.class,
+                + "and before_state->>'status' = 'CONFIRMED' and after_state->>'status' = 'CANCELLED' "
+                + "and metadata->>'reason' = 'Clinic closed for maintenance' and correlation_id = ?", Integer.class,
                 appointment, adminAccount, CORRELATION));
     }
 
@@ -203,9 +203,9 @@ class CancelAppointmentT025PostgresIntegrationTest {
                         + "booking_source, purpose, start_time, end_time, duration_minutes, buffer_minutes, created_by_account_id) "
                         + "values (?, ?, ?, ?, 'CONFIRMED', 'PATIENT_ONLINE', ?, ?, ?, 30, 0, ?)",
                 id, profileId, service, doctorProfile, purpose, Timestamp.from(start), Timestamp.from(end), creator);
-        jdbc.update("insert into appointment_audits (appointment_id, actor_account_id, actor_type, action, old_status, "
-                        + "new_status, old_doctor_profile_id, new_doctor_profile_id, new_start_time, new_end_time, occurred_at, correlation_id) "
-                        + "values (?, ?, 'PATIENT', 'CREATED', null, 'CONFIRMED', null, ?, ?, ?, ?, ?)",
+        jdbc.update("insert into audit_logs (entity_id, actor_account_id, actor_type, source, category, action, record_type, after_state, occurred_at, correlation_id) "
+                        + "values (?, ?, 'PATIENT', 'appointment_audits', 'APPOINTMENT', 'CREATED', 'APPOINTMENT', "
+                        + "jsonb_build_object('status', 'CONFIRMED', 'doctorProfileId', cast(? as uuid), 'startTime', cast(? as timestamptz), 'endTime', cast(? as timestamptz)), ?, ?)",
                 id, creator, doctorProfile, Timestamp.from(start), Timestamp.from(end), Timestamp.from(NOW), UUID.randomUUID().toString());
         return id;
     }
