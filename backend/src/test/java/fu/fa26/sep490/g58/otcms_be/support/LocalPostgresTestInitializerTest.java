@@ -18,6 +18,24 @@ class LocalPostgresTestInitializerTest {
     }
 
     @Test
+    void acceptsSuffixedTestDatabaseForParallelWorktrees() {
+        MockEnvironment environment = new MockEnvironment()
+                .withProperty("spring.datasource.url", "jdbc:postgresql://127.0.0.1:5433/otcms_test_db_p07");
+        environment.setActiveProfiles("test");
+
+        assertDoesNotThrow(() -> LocalPostgresTestInitializer.validate(environment));
+    }
+
+    @Test
+    void rejectsDatabaseThatOnlyStartsWithTestDatabaseName() {
+        MockEnvironment environment = new MockEnvironment()
+                .withProperty("spring.datasource.url", "jdbc:postgresql://127.0.0.1:5433/otcms_test_dbx");
+        environment.setActiveProfiles("test");
+
+        assertThrows(IllegalStateException.class, () -> LocalPostgresTestInitializer.validate(environment));
+    }
+
+    @Test
     void rejectsRemoteDatasourceEvenWhenTestProfileIsActive() {
         MockEnvironment environment = new MockEnvironment()
                 .withProperty("spring.datasource.url", "jdbc:postgresql://db.example.test:5432/otcms_test_db");

@@ -33,6 +33,10 @@ Không đọc thêm: `old/`, `docs/requirements/`, các plan cũ trong `otcms/pl
 - **CẤM** trỏ app nhánh refactor vào Supabase (`SUPABASE_DB_URL`). Chạy app dùng profile `final-db` (`SPRING_PROFILES_ACTIVE=final-db`), profile này trỏ vào Docker.
 - Sau mỗi lần pull/rebase có migration mới của người khác: reset DB rồi chạy lại: `docker compose -f docker-compose.final-db.yml down -v && docker compose -f docker-compose.final-db.yml up -d`. Lý do: các phase merge không theo thứ tự số migration; Flyway không cho chạy migration số nhỏ hơn số đã chạy.
 - Không sửa file `.env*`. Không in mật khẩu ra log hay vào PR.
+- **Nhiều phase chạy song song trên cùng một máy** (nhiều agent hoặc người): mỗi phase một git worktree riêng và một DB test riêng trong cùng container. KHÔNG dùng chung thư mục hay DB test với phase khác, và KHÔNG `down -v` container khi người khác đang chạy.
+  - Worktree: từ `otcms/` chạy `git worktree add ../otcms-pNN -b final-db-pNN-<tên-ngắn> final-db`, rồi làm mọi việc trong `../otcms-pNN`.
+  - DB test riêng: `docker exec otcms-final-db psql -U postgres -c "CREATE DATABASE otcms_test_db_pNN"`. Khi chạy test đặt `OTCMS_TEST_DB_NAME=otcms_test_db_pNN` (tên chỉ được là `otcms_test_db` hoặc `otcms_test_db_<chữ thường/số>`). Cần làm sạch thì `DROP DATABASE otcms_test_db_pNN WITH (FORCE)` rồi tạo lại, không đụng DB của phase khác.
+  - Chạy app kiểm OpenAPI trực tiếp thì dùng cổng HTTP riêng (`SERVER_PORT=180NN`); ưu tiên `OpenApiContractSnapshotTest` (không cần chạy app). File snapshot ghi trong worktree của mình.
 
 ## 5. Migration
 

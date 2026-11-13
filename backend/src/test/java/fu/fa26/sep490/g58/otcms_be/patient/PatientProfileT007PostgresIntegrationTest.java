@@ -30,7 +30,7 @@ class PatientProfileT007PostgresIntegrationTest {
     static final String SCHEMA = "kan24_it_" + UUID.randomUUID().toString().replace("-", "");
     @DynamicPropertySource static void schema(DynamicPropertyRegistry registry) {
         String base = System.getProperty("spring.datasource.url", System.getenv().getOrDefault(
-                "SPRING_DATASOURCE_URL", "jdbc:postgresql://127.0.0.1:" + System.getenv().getOrDefault("OTCMS_TEST_DB_PORT", "5432") + "/otcms_test_db"));
+                "SPRING_DATASOURCE_URL", "jdbc:postgresql://127.0.0.1:" + System.getenv().getOrDefault("OTCMS_TEST_DB_PORT", "5432") + "/" + System.getenv().getOrDefault("OTCMS_TEST_DB_NAME", "otcms_test_db")));
         String url = base.contains("currentSchema=") ? base.replaceAll("currentSchema=[^&]*", "currentSchema=" + SCHEMA + ",public")
                 : base + (base.contains("?") ? "&" : "?") + "currentSchema=" + SCHEMA + ",public";
         registry.add("spring.datasource.url", () -> url);

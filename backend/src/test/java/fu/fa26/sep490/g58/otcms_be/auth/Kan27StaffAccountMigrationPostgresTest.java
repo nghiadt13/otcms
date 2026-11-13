@@ -14,7 +14,7 @@ import static org.junit.jupiter.api.Assertions.*;
 @Disabled("final-db: account_management_audits merged into audit_logs (also failing before final-db)")
 class Kan27StaffAccountMigrationPostgresTest {
     @TempDir Path directory;
-    private static final String URL = "jdbc:postgresql://127.0.0.1:" + System.getenv().getOrDefault("OTCMS_TEST_DB_PORT", "5432") + "/otcms_test_db";
+    private static final String URL = "jdbc:postgresql://127.0.0.1:" + System.getenv().getOrDefault("OTCMS_TEST_DB_PORT", "5432") + "/" + System.getenv().getOrDefault("OTCMS_TEST_DB_NAME", "otcms_test_db");
     private static final String V050 = "V050__staff_account_management_r3.sql";
 
     @Test void freshMigrationWithoutV049V051OrV052EnforcesR3Constraints() throws Exception { verify(false); }

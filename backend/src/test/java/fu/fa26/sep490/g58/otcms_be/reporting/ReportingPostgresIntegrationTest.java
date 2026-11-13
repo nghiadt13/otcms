@@ -42,7 +42,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 class ReportingPostgresIntegrationTest {
     private static final String TEST_SCHEMA="kan43_"+UUID.randomUUID().toString().replace("-", "");
-    private static final String TEST_DATABASE_URL="jdbc:postgresql://127.0.0.1:" + System.getenv().getOrDefault("OTCMS_TEST_DB_PORT", "5432") + "/otcms_test_db";
+    private static final String TEST_DATABASE_URL="jdbc:postgresql://127.0.0.1:" + System.getenv().getOrDefault("OTCMS_TEST_DB_PORT", "5432") + "/" + System.getenv().getOrDefault("OTCMS_TEST_DB_NAME", "otcms_test_db");
     @Autowired MockMvc mvc;
     @Autowired JdbcTemplate jdbc;
     @Autowired tools.jackson.databind.ObjectMapper json;

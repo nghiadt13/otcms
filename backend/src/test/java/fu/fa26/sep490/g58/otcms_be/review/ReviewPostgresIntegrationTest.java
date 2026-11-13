@@ -34,7 +34,7 @@ class ReviewPostgresIntegrationTest {
     private static final String TEST_SCHEMA = "review_it_" + UUID.randomUUID().toString().replace("-", "");
     @DynamicPropertySource static void isolatedSchema(DynamicPropertyRegistry registry) {
         String baseUrl = System.getProperty("spring.datasource.url", System.getenv().getOrDefault(
-                "SPRING_DATASOURCE_URL", "jdbc:postgresql://127.0.0.1:" + System.getenv().getOrDefault("OTCMS_TEST_DB_PORT", "5432") + "/otcms_test_db"));
+                "SPRING_DATASOURCE_URL", "jdbc:postgresql://127.0.0.1:" + System.getenv().getOrDefault("OTCMS_TEST_DB_PORT", "5432") + "/" + System.getenv().getOrDefault("OTCMS_TEST_DB_NAME", "otcms_test_db")));
         String url = baseUrl.contains("currentSchema=")
                 ? baseUrl.replaceAll("currentSchema=[^&]*", "currentSchema=" + TEST_SCHEMA + ",public")
                 : baseUrl + (baseUrl.contains("?") ? "&" : "?") + "currentSchema=" + TEST_SCHEMA + ",public";
