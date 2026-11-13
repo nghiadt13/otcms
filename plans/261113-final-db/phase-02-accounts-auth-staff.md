@@ -323,9 +323,14 @@ String photoUrl = profile.photoContent() == null ? (doctor ? profile.photoUrl() 
 - **Hàm đếm IP cũ của phase 01:** nếu bỏ bước thay hàm đếm, đăng nhập bị giới hạn sai. Đã nêu ở G.2.
 
 ## Câu hỏi còn mở
+> **ĐÃ CHỐT 13/11 (NghiaDT, sau khi rà V110 staged):**
+> 1. Mỗi tài khoản chỉ có 1 mã OTP đang mở cho mỗi mục đích, GỒM CẢ `DEPENDENT_ADD`. V110 đã làm đúng: `uk_verification_codes_account_current (account_id, purpose) WHERE consumed_at IS NULL AND superseded_at IS NULL AND purpose <> 'CARE_LINK'`. Người dùng bỏ dở rồi xin mã mới thì mã cũ bị thay (`superseded_at`); service phải supersede mã cũ TRƯỚC khi insert mã mới trong cùng transaction. Không thêm job hủy mã khi rời trang.
+> 2. Hồ sơ bác sĩ chỉ là một `staff_profiles` như nhân viên khác. Nhãn nhật ký lấy tên hiển thị của staff profile (V110 copy `doctor_profiles.full_name` vào `display_name`, nên kết quả như nhau). Việc chọn bác sĩ nào hiện trên website (mục dịch vụ, bác sĩ) do admin tự chỉnh trong content, không phải logic của phase này.
+> 3. Khi gộp hồ sơ bác sĩ vào staff profile đã có, giá trị của bác sĩ thắng (`display_name`, `work_contact`).
+>
 > **Bổ sung 13/11 (từ phase 06/07):** giữ nguyên `DoctorProfileIdentityQueryService.findDoctorNames` (phase 07 dùng để lấy nhãn nhật ký ca bác sĩ). `verification_codes` phải có UNIQUE partial theo `link_id` cho `CARE_LINK` (đã ghi ở mục Architecture) và chừa purpose `DEPENDENT_ADD` cho phase 06.
 1. **(Chặn)** Chốt D-a đến D-e. Mặc định là cột giữ trong bảng Architecture. Nếu NghiaDT chọn schema-33 cho D-c, cần thêm: hàm mới trong auth public API (`StaffAccountDirectory`) để đặt `fullName` và ghi/đọc avatar; staff đọc tên qua auth; và chấp nhận ảnh nhân viên trùng ảnh tài khoản (nhân viên tự đổi được).
 2. Nếu chọn schema-33 cho tên: `accounts.full_name` đang `varchar(100)`, tên bác sĩ tới 160 ký tự. Cần nới cột này lên 160.
-3. `frontend/src/features/admin-shell/adminNavigation.ts` còn mục "Ca trực và ngày nghỉ" và mô tả có chữ "ngày nghỉ". Giữ hay đổi? Ngoài phạm vi phase này.
+3. **(ĐÃ CHỐT 13/11)** `frontend/src/features/admin-shell/adminNavigation.ts`: giữ mục `/admin/staff-shifts` (ca trực của bác sĩ và nhân viên, UC25–UC28), đổi tiêu đề thành "Ca trực" và mô tả thành "Quản lý ca trực của bác sĩ và nhân viên." Bỏ hẳn chữ "ngày nghỉ"; không còn quản lý ngày nghỉ. Làm trong phase 02 cùng lúc xoá API time-off; nếu màn `/admin/staff-shifts` còn tab/nút ngày nghỉ thì gỡ luôn.
 4. `visit_examinations` (phase 05 bỏ bảng) vẫn có FK tới `doctor_profiles` ở V108. Phase 02 repoint FK này để V110 chạy. Phase 05 xác nhận bảng này bị bỏ hẳn.
 5. (Đã chốt) `staff_resource_audits` do phase 10 drop ở V120; phase 02 không drop.

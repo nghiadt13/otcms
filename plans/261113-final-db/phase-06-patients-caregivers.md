@@ -249,6 +249,8 @@ public record DependentAddPayload(String fullName, LocalDate dateOfBirth, String
 ## Câu hỏi còn mở
 
 > **ĐÃ CHỐT 13/11 (tiêu chí: giữ API + tính năng đang chạy):** Q1 dùng cột riêng `medical_history_version`. Q2 `payload` chỉ set NULL khi mã được dùng hoặc bị thay bằng mã mới, KHÔNG xoá lúc hết hạn, để "Gửi lại mã" của FE vẫn chạy; dọn payload hết hạn khi có yêu cầu mới như đề xuất, không thêm job. Q3 GIỮ luồng `DEPENDENT_ADD` vì đang chạy; lệch R3 UC-13 đã báo NghiaDT để xem lại R3, không sửa trong đợt này. Q4 entity `VerificationCodeJpaEntity` nằm ở package `auth` (phase 02); phase 06 có repository riêng trong `patient` trên cùng entity, được phép. Q5 không thêm job.
+>
+> **Bổ sung 13/11:** `DEPENDENT_ADD` nằm trong UNIQUE "1 mã đang mở mỗi tài khoản mỗi mục đích" (xem phase 02, mục ĐÃ CHỐT). `DependentAddOtpServiceImpl.issue` giữ thứ tự: supersede mã cũ rồi mới insert, cùng transaction.
 
 Các câu bên dưới giữ lại để tra lý do.
 1. **(Chặn)** Version tiền sử: dùng cột riêng `medical_history_version` (đề xuất, giữ đúng `STALE_VERSION`) hay dùng chung `patient_profiles.version` như schema-33 mục 2.2? Hệ quả của phương án dùng chung đã ghi ở Risk.
