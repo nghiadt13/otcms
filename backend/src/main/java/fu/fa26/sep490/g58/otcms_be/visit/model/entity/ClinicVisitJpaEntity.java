@@ -50,6 +50,12 @@ public class ClinicVisitJpaEntity {
     @Column(name = "walk_in_request_fingerprint", length = 64, updatable = false)
     private String walkInRequestFingerprint;
 
+    @Column(name = "imaging_result_ready_at", insertable = false, updatable = false)
+    private Instant imagingResultReadyAt;
+
+    @Column(name = "findings_released_at", insertable = false, updatable = false)
+    private Instant findingsReleasedAt;
+
     protected ClinicVisitJpaEntity() { }
 
     public static ClinicVisitJpaEntity walkIn(UUID id, UUID patientProfileId, UUID priorAppointmentId,
@@ -68,6 +74,8 @@ public class ClinicVisitJpaEntity {
         return entity;
     }
 
+    public Instant getImagingResultReadyAt() { return imagingResultReadyAt; }
+    public Instant getFindingsReleasedAt() { return findingsReleasedAt; }
     public UUID getId() { return id; }
     public UUID getPatientProfileId() { return patientProfileId; }
     public String getSource() { return source; }

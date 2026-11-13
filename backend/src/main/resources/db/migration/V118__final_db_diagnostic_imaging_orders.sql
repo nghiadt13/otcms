@@ -5,9 +5,9 @@
 --   a) the two immutability triggers of diagnostic_reports are dropped before the copy: they block it;
 --   b) constraints that check copied rows are added after the copy (section 4);
 --   c) the diagnostic_requests -> diagnostic_attempts foreign key is dropped before the two tables (section 5).
--- Open (decision 13/11): the phase is also to be split into 03a (sections 1-4) and 03b (section 5).
---   This file keeps both because the brief asks for the drops. If the split is kept, move section 5
---   to its own migration number.
+-- Split (decision 13/11, phase 03a/03b): this file is sections 1-4 (expand + copy); section 5 (drops)
+--   is V118_1__final_db_diagnostic_imaging_drop_old.sql, applied with phase 03b after the code stops
+--   reading the old tables.
 
 -- =====================================================================
 -- 1. Preflight: abort before any change if a row cannot be represented.
@@ -84,7 +84,10 @@ ALTER TABLE clinical_service_orders
     ADD COLUMN cancel_idempotency_key     varchar(255),
     ADD COLUMN cancel_fingerprint         char(64),
     ADD COLUMN transfer_idempotency_key   varchar(255),
-    ADD COLUMN transfer_fingerprint       char(64);
+    ADD COLUMN transfer_fingerprint       char(64),
+    -- Optimistic-lock version of the imaging execution (the diagnostic API's version / expectedVersion, was
+    -- diagnostic_requests.version). Separate from clinical's own version column so the two never collide.
+    ADD COLUMN execution_version          bigint NOT NULL DEFAULT 0;
 
 ALTER TABLE clinical_service_orders
     ADD CONSTRAINT ck_clinical_orders_round_number CHECK (round_number > 0),
@@ -96,6 +99,7 @@ ALTER TABLE clinical_service_orders
     ADD CONSTRAINT ck_clinical_orders_in_progress_no_study CHECK (execution_status IS DISTINCT FROM 'IN_PROGRESS' OR study_ref IS NULL),
     ADD CONSTRAINT ck_clinical_orders_result_has_study CHECK (execution_status NOT IN ('RESULT_AVAILABLE', 'REVIEWED') OR study_ref IS NOT NULL),
     ADD CONSTRAINT ck_clinical_orders_cancellation CHECK (CASE WHEN execution_status = 'CANCELLED' THEN cancellation_cause IN ('PATIENT_DECLINED', 'CLINIC_UNABLE') AND cancellation_reason IS NOT NULL ELSE cancellation_cause IS NULL AND cancellation_reason IS NULL END),
+    ADD CONSTRAINT ck_clinical_orders_execution_version CHECK (execution_version >= 0),
     ADD CONSTRAINT uk_clinical_orders_id_visit UNIQUE (id, visit_id),
     ADD CONSTRAINT uk_clinical_orders_id_study UNIQUE (id, study_ref);
 
@@ -185,6 +189,12 @@ ALTER TABLE imaging_studies
     ADD CONSTRAINT imaging_studies_pkey PRIMARY KEY (id),
     ADD CONSTRAINT imaging_studies_study_ref_key UNIQUE (study_ref);
 
+-- New uploads are written only here (id = operation id), so the old link to imaging_ingest_operations must not
+-- block them. The column and its copied values stay until V118_1 drops it with the old table.
+ALTER TABLE imaging_studies
+    DROP CONSTRAINT imaging_studies_ingest_operation_id_fkey,
+    ALTER COLUMN ingest_operation_id DROP NOT NULL;
+
 ALTER TABLE imaging_viewer_grants
     ADD CONSTRAINT imaging_viewer_grants_study_ref_fkey FOREIGN KEY (study_ref)
         REFERENCES imaging_studies (study_ref) ON DELETE RESTRICT;
@@ -271,7 +281,8 @@ SET room_id = dr.room_id,
     first_use_event_id = da.first_use_event_id,
     first_use_at = da.occurred_at,
     first_use_source_id = da.source_id,
-    study_ref = da.study_ref
+    study_ref = da.study_ref,
+    execution_version = dr.version
 FROM diagnostic_requests dr
 LEFT JOIN diagnostic_attempts da ON da.id = dr.current_attempt_id
 WHERE dr.service_order_id = o.id;
@@ -596,45 +607,3 @@ BEGIN NEW.updated_at = clock_timestamp(); RETURN NEW; END $$;
 CREATE TRIGGER tr_clinical_orders_updated_at BEFORE UPDATE ON clinical_service_orders
   FOR EACH ROW EXECUTE FUNCTION touch_service_order_updated_at();
 
--- =====================================================================
--- 5. Drop old objects (order follows the foreign keys).
--- =====================================================================
-
--- 5.1 Tables whose rows were copied above, or that the phase drops (outbox, idempotency, receipts).
-DROP TABLE diagnostic_outbox;
-DROP TABLE diagnostic_idempotency_records;
-DROP TABLE diagnostic_audit_events;
-DROP TABLE diagnostic_history_access_audits;
-DROP TABLE diagnostic_findings_versions;
-DROP TABLE visit_imaging_result_receipts;
-DROP TABLE imaging_study_instances;
-DROP TABLE imaging_study_series;
-DROP TABLE imaging_uid_claims;
-DROP TABLE imaging_idempotency_records;
-DROP TABLE imaging_confirmation_outbox;
-DROP TABLE imaging_release_inbox;
-DROP TABLE imaging_audit_events;
-
--- Operation id is the study id now; the operation table goes.
-ALTER TABLE imaging_studies DROP COLUMN ingest_operation_id;
-DROP TABLE imaging_ingest_operations;
-
--- The report's old (request_id, id) key was for the findings foreign key, which is gone.
-ALTER TABLE diagnostic_reports DROP CONSTRAINT uq_diagnostic_reports_request_id;
-
--- DEVIATION c): diagnostic_requests and diagnostic_attempts reference each other. The spec order
--- (attempts before requests) fails, so the request side of the cycle is dropped first.
-ALTER TABLE diagnostic_requests DROP CONSTRAINT fk_diagnostic_requests_current_attempt;
-DROP TABLE diagnostic_attempts;
-DROP TABLE diagnostic_requests;
-DROP TABLE clinical_imaging_request_replays;
-DROP TABLE clinical_ordering_rounds;
-
--- 5.2 Trigger functions of the dropped rules (their triggers left with the tables above).
-DROP FUNCTION enforce_diagnostic_findings_scope();
-DROP FUNCTION enforce_diagnostic_report_scope();
-DROP FUNCTION enforce_diagnostic_request_study_state();
-DROP FUNCTION prevent_completed_diagnostic_findings_mutation();
-DROP FUNCTION prevent_used_diagnostic_report_mutation();
-DROP FUNCTION touch_diagnostic_request_updated_at();
-DROP FUNCTION reject_visit_imaging_result_receipt_mutation();
