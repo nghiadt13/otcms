@@ -1,5 +1,7 @@
 package fu.fa26.sep490.g58.otcms_be.review;
 
+import fu.fa26.sep490.g58.otcms_be.common.audit.AuditLogWriter;
+
 import fu.fa26.sep490.g58.otcms_be.appointment.config.AppointmentWebConfiguration;
 import fu.fa26.sep490.g58.otcms_be.appointment.web.PublicRequestRateLimitInterceptor;
 import fu.fa26.sep490.g58.otcms_be.auth.security.JwtTokenService;
@@ -50,7 +52,7 @@ class ReviewTextValidationHttpTest {
     @MockitoBean PublicRequestRateLimitInterceptor publicRequestRateLimitInterceptor;
     @MockitoBean ProductionReadinessGateInterceptor productionReadinessGateInterceptor;
     final PatientReviewRepository reviews = mock(PatientReviewRepository.class);
-    final PatientReviewHistoryRepository history = mock(PatientReviewHistoryRepository.class);
+    final AuditLogWriter history = mock(AuditLogWriter.class);
     final OwnPatientProfileService own = mock(OwnPatientProfileService.class);
     final PatientProfileDirectory profiles = mock(PatientProfileDirectory.class);
     final VisitReviewSourceService visits = mock(VisitReviewSourceService.class);

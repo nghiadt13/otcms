@@ -1,5 +1,7 @@
 package fu.fa26.sep490.g58.otcms_be.content.repository;
 
+import fu.fa26.sep490.g58.otcms_be.common.audit.AuditEntry;
+import fu.fa26.sep490.g58.otcms_be.common.audit.AuditLogWriter;
 import fu.fa26.sep490.g58.otcms_be.content.exception.ContentOperationException;
 import fu.fa26.sep490.g58.otcms_be.content.mapper.ClinicContentEntityMapper;
 import fu.fa26.sep490.g58.otcms_be.content.model.ClinicAnnouncement;
@@ -7,8 +9,6 @@ import fu.fa26.sep490.g58.otcms_be.content.model.ContentPage;
 import fu.fa26.sep490.g58.otcms_be.content.model.ContentType;
 import fu.fa26.sep490.g58.otcms_be.content.model.WebsiteContent;
 import fu.fa26.sep490.g58.otcms_be.content.model.WebsiteImage;
-import fu.fa26.sep490.g58.otcms_be.content.model.entity.ClinicAnnouncementJpaEntity;
-import fu.fa26.sep490.g58.otcms_be.content.model.entity.ContentAuditJpaEntity;
 import fu.fa26.sep490.g58.otcms_be.content.model.entity.WebsiteContentJpaEntity;
 import fu.fa26.sep490.g58.otcms_be.content.model.entity.WebsiteImageJpaEntity;
 import java.time.Instant;
@@ -24,17 +24,15 @@ import org.springframework.stereotype.Repository;
 public class JpaClinicContentRepository implements ClinicContentRepository {
     private final WebsiteContentRepository contents;
     private final WebsiteImageRepository images;
-    private final ClinicAnnouncementRepository announcements;
-    private final ContentAuditRepository audits;
+    private final AuditLogWriter auditLog;
     private final ContentAuthorRepository authors;
     private final ClinicContentEntityMapper mapper;
     public JpaClinicContentRepository(WebsiteContentRepository contents, WebsiteImageRepository images,
-        ClinicAnnouncementRepository announcements, ContentAuditRepository audits,
+        AuditLogWriter auditLog,
         ContentAuthorRepository authors, ClinicContentEntityMapper mapper) {
         this.contents = contents;
         this.images = images;
-        this.announcements = announcements;
-        this.audits = audits;
+        this.auditLog = auditLog;
         this.authors = authors;
         this.mapper = mapper;
     }
@@ -44,6 +42,7 @@ public class JpaClinicContentRepository implements ClinicContentRepository {
             var predicates = new java.util.ArrayList<jakarta.persistence.criteria.Predicate>();
             predicates.add(builder.gt(builder.function("strpos", Integer.class, builder.lower(root.get("title")),
                 builder.lower(builder.literal(filters.q()))), 0));
+            predicates.add(builder.notEqual(root.get("type"), ContentType.ANNOUNCEMENT));
             if (publishedOnly) {
                 predicates.add(builder.equal(root.get("status"), "PUBLISHED"));
             }
@@ -60,7 +59,7 @@ public class JpaClinicContentRepository implements ClinicContentRepository {
     }
     @Override
     public Optional<WebsiteContent> content(UUID id, boolean publishedOnly) {
-        return contents.findById(id).filter(entity -> !publishedOnly || entity.getStatus().equals("PUBLISHED"))
+        return contents.findById(id).filter(entity -> entity.getType() != ContentType.ANNOUNCEMENT && (!publishedOnly || entity.getStatus().equals("PUBLISHED")))
         .map(this::content);
     }
     @Override
@@ -73,7 +72,7 @@ public class JpaClinicContentRepository implements ClinicContentRepository {
     @Override
     public WebsiteContent insert(WebsiteContent value) {
         var entity = new WebsiteContentJpaEntity(value.id(), value.type(), value.title(), value.summary(), mapper.body(value.body()),
-            value.status(), value.imageId(), value.publishedAt(), value.updatedAt(), value.createdBy(), value.updatedBy(), null);
+            value.status(), value.imageId(), value.publishedAt(), value.updatedAt(), value.createdBy(), value.updatedBy(), null, null, null);
         return content(contents.saveAndFlush(entity));
     }
     @Override
@@ -101,10 +100,11 @@ public class JpaClinicContentRepository implements ClinicContentRepository {
     }
     @Override
     public ContentPage<ClinicAnnouncement> announcements(Filters filters, boolean publicOnly) {
-        Specification<ClinicAnnouncementJpaEntity> specification = (root, query, builder) -> {
+        Specification<WebsiteContentJpaEntity> specification = (root, query, builder) -> {
             var predicates = new java.util.ArrayList<jakarta.persistence.criteria.Predicate>();
             predicates.add(builder.gt(builder.function("strpos", Integer.class, builder.lower(root.get("title")),
                 builder.lower(builder.literal(filters.q()))), 0));
+            predicates.add(builder.equal(root.get("type"), ContentType.ANNOUNCEMENT));
             if (publicOnly) {
                 predicates.add(builder.equal(root.get("audience"), "PUBLIC"));
             }
@@ -119,25 +119,28 @@ public class JpaClinicContentRepository implements ClinicContentRepository {
             }
             return builder.and(predicates.toArray(jakarta.persistence.criteria.Predicate[]::new));
         };
-        var page = announcements.findAll(specification, PageRequest.of(filters.page(), filters.size(),
+        var page = contents.findAll(specification, PageRequest.of(filters.page(), filters.size(),
             Sort.by(Sort.Order.desc("publishedAt"), Sort.Order.desc("id"))));
-        var names = authors.names(page.getContent().stream().map(ClinicAnnouncementJpaEntity::getCreatedBy).distinct().toList());
+        var names = authors.names(page.getContent().stream().map(WebsiteContentJpaEntity::getCreatedBy).distinct().toList());
         return new ContentPage<>(page.stream().map(entity -> mapper.announcement(entity, names.get(entity.getCreatedBy()))).toList(),
             filters.page(), filters.size(), page.getTotalElements(), page.getTotalPages());
     }
     @Override
     public Optional<ClinicAnnouncement> announcement(UUID id, boolean publicOnly) {
-        return announcements.findById(id).filter(entity -> !publicOnly || entity.getAudience().equals("PUBLIC"))
+        return contents.findById(id).filter(entity -> entity.getType() == ContentType.ANNOUNCEMENT && (!publicOnly || "PUBLIC".equals(entity.getAudience())))
         .map(entity -> mapper.announcement(entity, authors.names(List.of(entity.getCreatedBy())).get(entity.getCreatedBy())));
     }
     @Override
     public ClinicAnnouncement insert(ClinicAnnouncement value) {
-        var entity = announcements.saveAndFlush(new ClinicAnnouncementJpaEntity(value.id(), value.title(), value.body(),
-            value.audience(), value.recipientRole(), value.publishedAt(), value.createdBy(), null));
+        var entity = contents.saveAndFlush(new WebsiteContentJpaEntity(value.id(), ContentType.ANNOUNCEMENT, value.title(), "", value.body(),
+            "PUBLISHED", null, value.publishedAt(), value.publishedAt(), value.createdBy(), value.createdBy(), null,
+            value.audience(), value.recipientRole()));
         return mapper.announcement(entity, authors.names(List.of(entity.getCreatedBy())).get(entity.getCreatedBy()));
     }
     @Override
     public void audit(UUID actor, String category, String action, UUID recordId, String recordLabel, Instant at) {
-        audits.saveAndFlush(new ContentAuditJpaEntity(UUID.randomUUID(), actor, category, action, recordId, recordLabel, at));
+        auditLog.record(AuditEntry.builder("content_audits", category, action, category)
+            .entityId(recordId).recordLabel(recordLabel).actorAccountId(actor).actorType("ACCOUNT")
+            .visibleInActivityLog(true).occurredAt(at).build());
     }
 }

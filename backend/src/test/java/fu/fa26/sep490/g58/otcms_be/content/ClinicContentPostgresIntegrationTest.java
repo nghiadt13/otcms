@@ -99,7 +99,7 @@ class ClinicContentPostgresIntegrationTest {
                 {"title":"Nội dung đã sửa","body":"Cập nhật","imageUrl":null}
                 """)).andExpect(status().isOk()).andExpect(jsonPath("$.publishedAt").value(publishedAt));
         assertEquals(1L,jdbc.queryForObject("select version from website_contents where id=?",Long.class,UUID.fromString(id)));
-        assertEquals(2,jdbc.queryForObject("select count(*) from content_audits where record_id=?",Integer.class,UUID.fromString(id)));
+        assertEquals(2,jdbc.queryForObject("select count(*) from audit_logs where source = 'content_audits' and entity_id=?",Integer.class,UUID.fromString(id)));
         jdbc.update("update website_contents set status='DRAFT' where id=?",UUID.fromString(id));
         mvc.perform(get("/api/v1/public/articles/"+id)).andExpect(status().isNotFound());
     }
@@ -114,24 +114,40 @@ class ClinicContentPostgresIntegrationTest {
     }
     @Test void publicNoticePersistsButStaffNoticeCannotBeReadPubliclyAndUnavailableDeliveryDoesNotWrite() throws Exception {
         var auth=actor();
-        mvc.perform(post("/api/v1/admin/announcements").with(auth).with(csrf()).contentType("application/json")
+        var publicNotice = mvc.perform(post("/api/v1/admin/announcements").with(auth).with(csrf()).contentType("application/json")
         .content("""
                 {"title":"Public notice","body":"Open Monday","audience":"PUBLIC","channels":["IN_APP"]}
-                """)).andExpect(status().isCreated());
+                """)).andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+        String publicNoticeId = json.readTree(publicNotice).get("id").asText();
+        mvc.perform(get("/api/v1/admin/website-contents").with(auth)).andExpect(status().isOk())
+        .andExpect(jsonPath("$.items[?(@.id == '"+publicNoticeId+"')]").doesNotExist());
+        mvc.perform(get("/api/v1/public/website-content")).andExpect(status().isOk())
+        .andExpect(jsonPath("$.articles[?(@.id == '"+publicNoticeId+"')]").doesNotExist());
+        mvc.perform(get("/api/v1/public/articles/"+publicNoticeId)).andExpect(status().isNotFound());
         UUID id=UUID.randomUUID();
-        jdbc.update("insert into announcements(id,title,body,audience,recipient_role,published_at,created_by,version) values(?,?,?,'STAFF','RECEPTIONIST',now(),?,0)",
-        id,"Staff only","Private body",lastActor);
+        jdbc.update("insert into website_contents(id,title,body,type,summary,status,audience,recipient_role,published_at,updated_at,created_by,updated_by,version) values(?,?,?,'ANNOUNCEMENT','','PUBLISHED','STAFF','RECEPTIONIST',now(),now(),?,?,0)",
+        id,"Staff only","Private body",lastActor,lastActor);
         mvc.perform(get("/api/v1/public/announcements")).andExpect(status().isOk())
         .andExpect(jsonPath("$.items[?(@.id == '"+id+"')]").doesNotExist());
         mvc.perform(get("/api/v1/public/announcements/"+id)).andExpect(status().isNotFound());
-        int before = jdbc.queryForObject("select count(*) from announcements", Integer.class);
+        mvc.perform(get("/api/v1/admin/website-contents/"+id).with(auth)).andExpect(status().isNotFound());
+        mvc.perform(get("/api/v1/admin/website-contents").with(auth)).andExpect(status().isOk())
+        .andExpect(jsonPath("$.items[?(@.id == '"+id+"')]").doesNotExist());
+        var invalid = mvc.perform(post("/api/v1/admin/website-contents").with(auth).with(csrf()).contentType("application/json")
+        .content("{\"type\":\"UNKNOWN\",\"title\":\"Notice\",\"body\":\"Body\"}"))
+        .andExpect(status().isBadRequest()).andReturn().getResponse().getContentAsString();
+        var announcementType = mvc.perform(post("/api/v1/admin/website-contents").with(auth).with(csrf()).contentType("application/json")
+        .content("{\"type\":\"ANNOUNCEMENT\",\"title\":\"Notice\",\"body\":\"Body\"}"))
+        .andExpect(status().isBadRequest()).andReturn().getResponse().getContentAsString();
+        assertEquals(json.readTree(invalid).path("error").path("code"), json.readTree(announcementType).path("error").path("code"));
+        int before = jdbc.queryForObject("select count(*) from website_contents where type = 'ANNOUNCEMENT'", Integer.class);
         UUID recipient = UUID.randomUUID();
         jdbc.update("insert into accounts(id,normalized_email,account_type,status,created_at,updated_at) values(?,?,'PATIENT','ACTIVE',now(),now())",
         recipient, recipient + "@private-contract.test");
         mvc.perform(post("/api/v1/admin/announcements").with(auth).with(csrf()).contentType("application/json")
         .content("{\"title\":\"Private request\",\"body\":\"Body\",\"audience\":\"PATIENT\",\"channels\":[\"IN_APP\"]}"))
         .andExpect(status().isCreated()).andExpect(jsonPath("$.audience").value("PATIENT"));
-        assertEquals(before + 1, jdbc.queryForObject("select count(*) from announcements", Integer.class));
+        assertEquals(before + 1, jdbc.queryForObject("select count(*) from website_contents where type = 'ANNOUNCEMENT'", Integer.class));
         assertEquals(1, jdbc.queryForObject("select count(*) from notifications where recipient_account_id=? and title='Private request'", Integer.class, recipient));
         mvc.perform(get("/api/v1/public/announcements")).andExpect(status().isOk())
         .andExpect(jsonPath("$.items[?(@.title == 'Private request')]").doesNotExist());
@@ -171,14 +187,14 @@ class ClinicContentPostgresIntegrationTest {
     @Autowired jakarta.persistence.EntityManagerFactory entityManagers;
     @Test void failedPrivateDeliveryRollsBackAnnouncementAndAuditAtomically() throws Exception {
         var auth = actor();
-        int announcementsBefore = jdbc.queryForObject("select count(*) from announcements", Integer.class);
-        int auditsBefore = jdbc.queryForObject("select count(*) from content_audits", Integer.class);
+        int announcementsBefore = jdbc.queryForObject("select count(*) from website_contents where type = 'ANNOUNCEMENT'", Integer.class);
+        int auditsBefore = jdbc.queryForObject("select count(*) from audit_logs where source = 'content_audits'", Integer.class);
         publisher.failNext = true;
         mvc.perform(post("/api/v1/admin/announcements").with(auth).with(csrf()).contentType("application/json")
         .content("{\"title\":\"Rollback notice\",\"body\":\"Synthetic body\",\"audience\":\"PATIENT\",\"channels\":[\"IN_APP\"]}"))
         .andExpect(status().isServiceUnavailable()).andExpect(jsonPath("$.error.code").value("MSG-04"));
-        assertEquals(announcementsBefore, jdbc.queryForObject("select count(*) from announcements", Integer.class));
-        assertEquals(auditsBefore, jdbc.queryForObject("select count(*) from content_audits", Integer.class));
+        assertEquals(announcementsBefore, jdbc.queryForObject("select count(*) from website_contents where type = 'ANNOUNCEMENT'", Integer.class));
+        assertEquals(auditsBefore, jdbc.queryForObject("select count(*) from audit_logs where source = 'content_audits'", Integer.class));
     }
     @Test void jpaVersionRejectsConcurrentContentUpdatesWithoutLosingTheFirstWrite() throws Exception {
         var created = mvc.perform(post("/api/v1/admin/website-contents").with(actor()).with(csrf()).contentType("application/json")

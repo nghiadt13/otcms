@@ -1,5 +1,7 @@
 package fu.fa26.sep490.g58.otcms_be.review;
 
+import fu.fa26.sep490.g58.otcms_be.common.audit.AuditLogWriter;
+import fu.fa26.sep490.g58.otcms_be.common.audit.AuditEntry;
 import fu.fa26.sep490.g58.otcms_be.auth.service.PatientProfileDirectory;
 import fu.fa26.sep490.g58.otcms_be.review.exception.ReviewOperationException;
 import fu.fa26.sep490.g58.otcms_be.review.model.ReviewStatus;
@@ -24,7 +26,7 @@ import static org.mockito.ArgumentMatchers.*;
 
 class ReviewServiceTest {
     final PatientReviewRepository reviews = mock(PatientReviewRepository.class);
-    final PatientReviewHistoryRepository history = mock(PatientReviewHistoryRepository.class);
+    final AuditLogWriter history = mock(AuditLogWriter.class);
     final OwnPatientProfileService own = mock(OwnPatientProfileService.class);
     final PatientProfileDirectory profiles = mock(PatientProfileDirectory.class);
     final VisitReviewSourceService visits = mock(VisitReviewSourceService.class);
@@ -73,9 +75,9 @@ class ReviewServiceTest {
     @Test void submitPendingTrimmedAndHistory() {
         var result = service.submit(account, new SubmitReviewRequest(visitId, 5, "  A valid review  "));
         assertEquals(ReviewStatus.PENDING, result.status()); assertEquals("A valid review", result.text());
-        var event = ArgumentCaptor.forClass(PatientReviewHistoryJpaEntity.class);
-        verify(history).save(event.capture()); assertEquals("SUBMIT", event.getValue().getAction());
-        assertNull(event.getValue().getFromStatus()); assertEquals(ReviewStatus.PENDING, event.getValue().getToStatus());
+        var event = ArgumentCaptor.forClass(AuditEntry.class);
+        verify(history).record(event.capture()); assertEquals("SUBMIT", event.getValue().action());
+        assertNull(((ReviewServiceImpl.ModerationState) event.getValue().beforeState()).status()); assertEquals("PENDING", ((ReviewServiceImpl.ModerationState) event.getValue().afterState()).status());
     }
     @ParameterizedTest @ValueSource(ints = {-1, 0, 6, 100})
     void invalidRating(int rating) {
@@ -114,7 +116,7 @@ class ReviewServiceTest {
         r.changeStatus(ReviewStatus.PENDING, now);
         assertEquals(ReviewStatus.HIDDEN, service.decide(r.getId(), account, "HIDE").status());
         assertThrows(ReviewOperationException.class, () -> service.decide(r.getId(), account, "HIDE"));
-        verify(history, times(4)).save(any());
+        verify(history, times(4)).record(any());
     }
     @ParameterizedTest
     @CsvSource({"PENDING,APPROVE,PUBLISHED", "PENDING,HIDE,HIDDEN", "PUBLISHED,HIDE,HIDDEN",
@@ -127,10 +129,10 @@ class ReviewServiceTest {
             verifyNoInteractions(history);
         } else {
             assertEquals(target, service.decide(r.getId(), account, action).status().name());
-            var event = ArgumentCaptor.forClass(PatientReviewHistoryJpaEntity.class);
-            verify(history).save(event.capture());
-            assertEquals(from, event.getValue().getFromStatus().name());
-            assertEquals(target, event.getValue().getToStatus().name()); assertEquals(action, event.getValue().getAction());
+            var event = ArgumentCaptor.forClass(AuditEntry.class);
+            verify(history).record(event.capture());
+            assertEquals(from, ((ReviewServiceImpl.ModerationState) event.getValue().beforeState()).status());
+            assertEquals(target, ((ReviewServiceImpl.ModerationState) event.getValue().afterState()).status()); assertEquals(action, event.getValue().action());
         }
     }
     @ParameterizedTest
@@ -153,9 +155,9 @@ class ReviewServiceTest {
         assertEquals("First", service.reply(r.getId(), account, new ReplyRequest(" First ")).reply().text());
         assertEquals("Second", service.reply(r.getId(), account, new ReplyRequest("Second")).reply().text());
         assertTrue(service.detail(r.getId()).allowedActions().contains("editReply"));
-        var events = ArgumentCaptor.forClass(PatientReviewHistoryJpaEntity.class);
-        verify(history, times(2)).save(events.capture());
-        assertEquals(List.of("REPLY", "EDIT_REPLY"), events.getAllValues().stream().map(PatientReviewHistoryJpaEntity::getAction).toList());
+        var events = ArgumentCaptor.forClass(AuditEntry.class);
+        verify(history, times(2)).record(events.capture());
+        assertEquals(List.of("REPLY", "EDIT_REPLY"), events.getAllValues().stream().map(AuditEntry::action).toList());
         for (String text : List.of("  ", "x".repeat(1001)))
             assertEquals(400, assertThrows(ReviewOperationException.class,
                     () -> service.reply(r.getId(), account, new ReplyRequest(text))).status());

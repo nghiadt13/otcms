@@ -2,6 +2,7 @@ package fu.fa26.sep490.g58.otcms_be.content.model.dto;
 
 import com.fasterxml.jackson.annotation.JsonValue;
 import jakarta.validation.constraints.NotNull;
+import io.swagger.v3.oas.annotations.media.Schema;
 import fu.fa26.sep490.g58.otcms_be.content.model.ContentType;
 import java.time.Instant;
 import java.util.List;
@@ -28,13 +29,13 @@ public final class ClinicContentDtos {
     }
     public sealed interface WebsiteContentResponse permits WebsiteSummaryResponse, WebsiteDetailResponse, ArticleContentResponse {
     }
-    public record WebsiteSummaryResponse(UUID id, ContentType type, String title, Instant publishedAt,
+    public record WebsiteSummaryResponse(UUID id, @Schema(implementation = String.class, allowableValues = {"ABOUT_PAGE", "HEALTH_ARTICLE", "CLINIC_INFO"}) ContentType type, String title, Instant publishedAt,
         Instant updatedAt, String publishedBy, List<String> allowedActions) implements WebsiteContentResponse {
     }
-    public record WebsiteDetailResponse(UUID id, ContentType type, String title, Instant publishedAt,
+    public record WebsiteDetailResponse(UUID id, @Schema(implementation = String.class, allowableValues = {"ABOUT_PAGE", "HEALTH_ARTICLE", "CLINIC_INFO"}) ContentType type, String title, Instant publishedAt,
         Instant updatedAt, String publishedBy, List<String> allowedActions, BodyResponse body) implements WebsiteContentResponse {
     }
-    public record ArticleContentResponse(UUID id, ContentType type, String title, Instant publishedAt,
+    public record ArticleContentResponse(UUID id, @Schema(implementation = String.class, allowableValues = {"ABOUT_PAGE", "HEALTH_ARTICLE", "CLINIC_INFO"}) ContentType type, String title, Instant publishedAt,
         Instant updatedAt, String publishedBy, List<String> allowedActions, BodyResponse body, String imageUrl) implements WebsiteContentResponse {
     }
     public record ImageUploadResponse(String url) {

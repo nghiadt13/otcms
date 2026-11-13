@@ -98,9 +98,9 @@ class ReviewPostgresIntegrationTest {
             assertEquals("HIDDEN", jdbc.queryForObject("select status from patient_reviews where id = ?", String.class, id));
             assertEquals(initialVersion + 1, version(id));
             assertEquals(List.of("SUBMIT", "HIDE"), jdbc.queryForList(
-                    "select action from patient_review_moderation_history where review_id = ? order by occurred_at, id", String.class, id));
-            assertEquals(admin, jdbc.queryForObject("select actor_account_id from patient_review_moderation_history where review_id = ? and action = 'HIDE'", UUID.class, id));
-            assertEquals(0, jdbc.queryForObject("select count(*) from patient_review_moderation_history where review_id = ? and actor_account_id = ?", Integer.class, id, losingAdmin));
+                    "select action from audit_logs where source = 'patient_review_moderation_history' and entity_id = ? order by occurred_at, id", String.class, id));
+            assertEquals(admin, jdbc.queryForObject("select actor_account_id from audit_logs where source = 'patient_review_moderation_history' and entity_id = ? and action = 'HIDE'", UUID.class, id));
+            assertEquals(0, jdbc.queryForObject("select count(*) from audit_logs where source = 'patient_review_moderation_history' and entity_id = ? and actor_account_id = ?", Integer.class, id, losingAdmin));
         } finally {
             executor.shutdownNow();
             assertTrue(executor.awaitTermination(30, TimeUnit.SECONDS));
@@ -133,20 +133,20 @@ class ReviewPostgresIntegrationTest {
                 .andExpect(status().isOk()).andExpect(jsonPath("$.status").value(state))
                 .andExpect(jsonPath("$.reply.text").value("First reply"));
         entityManager.flush();
-        var original = jdbc.queryForMap("select * from patient_review_moderation_history where review_id = ? and action = 'REPLY'", id);
+        var original = jdbc.queryForMap("select *, before_state->>'status' as from_status, after_state->>'status' as to_status, after_state->>'replyText' as reply_text from audit_logs where source = 'patient_review_moderation_history' and entity_id = ? and action = 'REPLY'", id);
         var firstReplyTime = jdbc.queryForObject("select replied_at from patient_reviews where id = ?", java.sql.Timestamp.class, id);
         mvc.perform(put("/api/v1/admin/reviews/" + id + "/reply").with(adminActor(editingAdmin)).with(csrf())
                         .contentType("application/json").content("{\"text\":\" Updated reply \"}"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.status").value(state))
                 .andExpect(jsonPath("$.reply.text").value("Updated reply"));
         entityManager.flush();
-        assertEquals(original, jdbc.queryForMap("select * from patient_review_moderation_history where review_id = ? and action = 'REPLY'", id));
+        assertEquals(original, jdbc.queryForMap("select *, before_state->>'status' as from_status, after_state->>'status' as to_status, after_state->>'replyText' as reply_text from audit_logs where source = 'patient_review_moderation_history' and entity_id = ? and action = 'REPLY'", id));
         assertEquals("First reply", original.get("reply_text")); assertEquals(admin, original.get("actor_account_id"));
         assertEquals(state, original.get("from_status")); assertEquals(state, original.get("to_status"));
-        var edited = jdbc.queryForMap("select * from patient_review_moderation_history where review_id = ? and action = 'EDIT_REPLY'", id);
+        var edited = jdbc.queryForMap("select *, before_state->>'status' as from_status, after_state->>'status' as to_status, after_state->>'replyText' as reply_text from audit_logs where source = 'patient_review_moderation_history' and entity_id = ? and action = 'EDIT_REPLY'", id);
         assertEquals("Updated reply", edited.get("reply_text")); assertEquals(editingAdmin, edited.get("actor_account_id"));
         assertEquals(state, edited.get("from_status")); assertEquals(state, edited.get("to_status"));
-        assertEquals(2, jdbc.queryForObject("select count(*) from patient_review_moderation_history where review_id = ? and action in ('REPLY', 'EDIT_REPLY')", Integer.class, id));
+        assertEquals(2, jdbc.queryForObject("select count(*) from audit_logs where source = 'patient_review_moderation_history' and entity_id = ? and action in ('REPLY', 'EDIT_REPLY')", Integer.class, id));
         assertEquals("Updated reply", jdbc.queryForObject("select reply_text from patient_reviews where id = ?", String.class, id));
         assertEquals(editingAdmin, jdbc.queryForObject("select replied_by_account_id from patient_reviews where id = ?", UUID.class, id));
         var currentTime = jdbc.queryForObject("select replied_at from patient_reviews where id = ?", java.sql.Timestamp.class, id);
@@ -244,7 +244,7 @@ class ReviewPostgresIntegrationTest {
         UUID id = created.id();
         assertEquals("PENDING", created.status().name());
         entityManager.flush();
-        assertEquals("SUBMIT", jdbc.queryForObject("select action from patient_review_moderation_history where review_id = ?", String.class, id));
+        assertEquals("SUBMIT", jdbc.queryForObject("select action from audit_logs where source = 'patient_review_moderation_history' and entity_id = ?", String.class, id));
         assertEquals(baseline, reviews.published(0, 20, null).summary().count());
         reviews.reply(id, admin, new ReplyRequest(" First "));
         reviews.reply(id, admin, new ReplyRequest("Second"));
@@ -260,10 +260,10 @@ class ReviewPostgresIntegrationTest {
         assertEquals(baseline, reviews.published(0, 20, null).summary().count());
         reviews.decide(id, admin, "UNHIDE");
         entityManager.flush();
-        assertEquals(6, jdbc.queryForObject("select count(*) from patient_review_moderation_history where review_id = ?", Integer.class, id));
-        assertEquals(1, jdbc.queryForObject("select count(*) from patient_review_moderation_history where review_id = ? and action = 'EDIT_REPLY'", Integer.class, id));
+        assertEquals(6, jdbc.queryForObject("select count(*) from audit_logs where source = 'patient_review_moderation_history' and entity_id = ?", Integer.class, id));
+        assertEquals(1, jdbc.queryForObject("select count(*) from audit_logs where source = 'patient_review_moderation_history' and entity_id = ? and action = 'EDIT_REPLY'", Integer.class, id));
         assertEquals(List.of("SUBMIT", "REPLY", "EDIT_REPLY", "APPROVE", "HIDE", "UNHIDE"),
-                jdbc.queryForList("select action from patient_review_moderation_history where review_id = ? order by occurred_at", String.class, id));
+                jdbc.queryForList("select action from audit_logs where source = 'patient_review_moderation_history' and entity_id = ? order by occurred_at", String.class, id));
         assertEquals("Second", reviews.detail(id).reply().text());
     }
     @Test void submittingSameVisitTwiceLeavesOneReviewAndOneSubmitHistory() {
@@ -271,7 +271,7 @@ class ReviewPostgresIntegrationTest {
         entityManager.flush();
         assertEquals("PENDING", created.status().name());
         assertEquals(1, jdbc.queryForObject("select count(*) from patient_reviews where visit_id = ?", Integer.class, visit));
-        assertEquals(1, jdbc.queryForObject("select count(*) from patient_review_moderation_history where review_id = ?", Integer.class, created.id()));
+        assertEquals(1, jdbc.queryForObject("select count(*) from audit_logs where source = 'patient_review_moderation_history' and entity_id = ?", Integer.class, created.id()));
 
         var failure = assertThrows(fu.fa26.sep490.g58.otcms_be.review.exception.ReviewOperationException.class,
                 () -> reviews.submit(account, new SubmitReviewRequest(visit, 1, "Second valid review")));
@@ -282,7 +282,7 @@ class ReviewPostgresIntegrationTest {
         assertEquals("First valid review", jdbc.queryForObject("select content from patient_reviews where visit_id = ?", String.class, visit));
         assertEquals("PENDING", jdbc.queryForObject("select status from patient_reviews where visit_id = ?", String.class, visit));
         assertEquals(List.of("SUBMIT"), jdbc.queryForList(
-                "select h.action from patient_review_moderation_history h join patient_reviews r on r.id = h.review_id where r.visit_id = ?",
+                "select h.action from audit_logs h join patient_reviews r on r.id = h.entity_id where h.source = 'patient_review_moderation_history' and r.visit_id = ?",
                 String.class, visit));
     }
     @Test void uniqueVisitConstraintRejectsCompetingInsert() throws Exception {
@@ -311,13 +311,13 @@ class ReviewPostgresIntegrationTest {
         var created = reviews.submit(account, new SubmitReviewRequest(visit, 4, "A valid review"));
         entityManager.flush();
         assertThrows(org.springframework.dao.DataAccessException.class,
-                () -> jdbc.update("update patient_review_moderation_history set action = 'HIDE' where review_id = ?", created.id()));
+                () -> jdbc.update("update audit_logs set action = 'HIDE' where source = 'patient_review_moderation_history' and entity_id = ?", created.id()));
     }
     @Test void historyCannotBeDeleted() {
         var created = reviews.submit(account, new SubmitReviewRequest(visit, 4, "A valid review"));
         entityManager.flush();
         assertThrows(org.springframework.dao.DataAccessException.class,
-                () -> jdbc.update("delete from patient_review_moderation_history where review_id = ?", created.id()));
+                () -> jdbc.update("delete from audit_logs where source = 'patient_review_moderation_history' and entity_id = ?", created.id()));
     }
     @ParameterizedTest @CsvSource({"5,false", "10,true", "1000,true", "1001,false"})
     void reviewCodePointBoundariesMatchPostgres(int count, boolean valid) {
@@ -352,11 +352,11 @@ class ReviewPostgresIntegrationTest {
     }
     @Test void migrationTablesForeignKeysAndIndexesExist() {
         assertEquals(1, jdbc.queryForObject("select count(*) from flyway_schema_history where version in ('044','44') and success", Integer.class));
-        assertEquals(2, jdbc.queryForObject("select count(*) from information_schema.tables where table_schema = current_schema() "
-                + "and table_name in ('patient_reviews','patient_review_moderation_history')", Integer.class));
-        assertEquals(6, jdbc.queryForObject("select count(*) from pg_constraint where contype = 'f' "
-                + "and conrelid in ('patient_reviews'::regclass,'patient_review_moderation_history'::regclass)", Integer.class));
-        assertEquals(7, jdbc.queryForObject("select count(*) from pg_indexes where schemaname = current_schema() and indexname in "
+        assertEquals(1, jdbc.queryForObject("select count(*) from information_schema.tables where table_schema = current_schema() "
+                + "and table_name in ('patient_reviews')", Integer.class));
+        assertEquals(4, jdbc.queryForObject("select count(*) from pg_constraint where contype = 'f' "
+                + "and conrelid in ('patient_reviews'::regclass)", Integer.class));
+        assertEquals(5, jdbc.queryForObject("select count(*) from pg_indexes where schemaname = current_schema() and indexname in "
                 + "('uk_patient_reviews_visit','ix_patient_reviews_patient_submitted','ix_patient_reviews_status_submitted',"
                 + "'ix_patient_reviews_author','ix_patient_reviews_replier','ix_patient_review_history_review_time','ix_patient_review_history_actor')", Integer.class));
     }
@@ -383,23 +383,28 @@ class ReviewPostgresIntegrationTest {
             fixtures();
             var created = reviews.submit(account, new SubmitReviewRequest(visit, 4, "A valid review")); id.set(created.id());
             reviews.decide(created.id(), admin, "APPROVE"); entityManager.flush();
-            assertEquals(2, jdbc.queryForObject("select count(*) from patient_review_moderation_history where review_id = ?", Integer.class, id.get()));
+            assertEquals(2, jdbc.queryForObject("select count(*) from audit_logs where source = 'patient_review_moderation_history' and entity_id = ?", Integer.class, id.get()));
             throw new RollbackProbe();
         }));
         assertAbsentAfterRollback(id.get());
     }
-    @Test void historyForeignKeyFailureRollsBackReviewMutation() {
+    @Test void laterFailureRollsBackReviewMutationAndHistory() {
         endFixtureTransaction();
         var id = new java.util.concurrent.atomic.AtomicReference<UUID>();
         var transaction = new org.springframework.transaction.support.TransactionTemplate(transactionManager);
         var failure = assertThrows(RuntimeException.class, () -> transaction.execute(status -> {
             fixtures();
             var created = reviews.submit(account, new SubmitReviewRequest(visit, 4, "A valid review")); id.set(created.id());
-            reviews.decide(created.id(), UUID.randomUUID(), "APPROVE");
+            reviews.decide(created.id(), admin, "APPROVE");
             entityManager.flush();
+            // A second review for the same visit breaks uk_patient_reviews_visit after the history row was written.
+            jdbc.update("""
+                    insert into patient_reviews(id, visit_id, patient_profile_id, author_account_id, rating, content, status)
+                    values (?, ?, ?, ?, 5, 'A duplicate review', 'PENDING')
+                    """, UUID.randomUUID(), visit, profile, account);
             return null;
         }));
-        assertEquals("23503", sqlState(failure));
+        assertEquals("23505", sqlState(failure));
         assertAbsentAfterRollback(id.get());
     }
     private long version(UUID id) {
@@ -412,7 +417,7 @@ class ReviewPostgresIntegrationTest {
     private void assertAbsentAfterRollback(UUID id) {
         assertNotNull(id);
         assertEquals(0, jdbc.queryForObject("select count(*) from patient_reviews where id = ?", Integer.class, id));
-        assertEquals(0, jdbc.queryForObject("select count(*) from patient_review_moderation_history where review_id = ?", Integer.class, id));
+        assertEquals(0, jdbc.queryForObject("select count(*) from audit_logs where source = 'patient_review_moderation_history' and entity_id = ?", Integer.class, id));
     }
     private String sqlState(Throwable error) {
         for (Throwable cause = error; cause != null; cause = cause.getCause())

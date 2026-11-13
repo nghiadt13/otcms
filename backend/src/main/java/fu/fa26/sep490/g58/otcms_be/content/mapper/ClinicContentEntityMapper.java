@@ -6,7 +6,6 @@ import fu.fa26.sep490.g58.otcms_be.content.model.ContentType;
 import fu.fa26.sep490.g58.otcms_be.content.model.MarkdownBody;
 import fu.fa26.sep490.g58.otcms_be.content.model.WebsiteBody;
 import fu.fa26.sep490.g58.otcms_be.content.model.WebsiteContent;
-import fu.fa26.sep490.g58.otcms_be.content.model.entity.ClinicAnnouncementJpaEntity;
 import fu.fa26.sep490.g58.otcms_be.content.model.entity.WebsiteContentJpaEntity;
 import org.springframework.stereotype.Component;
 import tools.jackson.databind.ObjectMapper;
@@ -24,7 +23,7 @@ public class ClinicContentEntityMapper {
             entity.getCoverImageId(), entity.getStatus(), persistedTime(entity.getPublishedAt()), persistedTime(entity.getUpdatedAt()),
             entity.getCreatedBy(), entity.getUpdatedBy(), author, entity.getVersion());
     }
-    public ClinicAnnouncement announcement(ClinicAnnouncementJpaEntity entity, String author) {
+    public ClinicAnnouncement announcement(WebsiteContentJpaEntity entity, String author) {
         return new ClinicAnnouncement(entity.getId(), entity.getTitle(), entity.getBody(), entity.getAudience(),
             entity.getRecipientRole(), persistedTime(entity.getPublishedAt()), entity.getCreatedBy(), author, entity.getVersion());
     }

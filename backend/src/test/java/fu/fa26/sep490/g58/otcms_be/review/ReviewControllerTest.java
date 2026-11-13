@@ -122,7 +122,7 @@ class ReviewControllerTest {
     void invalidAdminFiltersReturnMsg54(String query) throws Exception {
         var real = new fu.fa26.sep490.g58.otcms_be.review.service.impl.ReviewServiceImpl(
                 mock(fu.fa26.sep490.g58.otcms_be.review.repository.PatientReviewRepository.class),
-                mock(fu.fa26.sep490.g58.otcms_be.review.repository.PatientReviewHistoryRepository.class),
+                mock(fu.fa26.sep490.g58.otcms_be.common.audit.AuditLogWriter.class),
                 mock(fu.fa26.sep490.g58.otcms_be.review.service.OwnPatientProfileService.class),
                 mock(fu.fa26.sep490.g58.otcms_be.auth.service.PatientProfileDirectory.class),
                 mock(fu.fa26.sep490.g58.otcms_be.visit.service.VisitReviewSourceService.class),

@@ -30,7 +30,11 @@ final class ContentInputValidator {
     }
     public static ContentType contentType(String type) {
         try {
-            return ContentType.valueOf(type);
+            ContentType result = ContentType.valueOf(type);
+            if (result == ContentType.ANNOUNCEMENT) {
+                throw new ContentOperationException(ContentOperationException.Reason.INVALID_CONTENT);
+            }
+            return result;
         }
         catch (RuntimeException ex) {
             throw new ContentOperationException(ContentOperationException.Reason.INVALID_CONTENT);

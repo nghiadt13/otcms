@@ -40,4 +40,8 @@ public class WebsiteContentJpaEntity {
     private UUID updatedBy;
     @Version
     private Long version;
+    @Column(length = 16)
+    private String audience;
+    @Column(length = 32)
+    private String recipientRole;
 }

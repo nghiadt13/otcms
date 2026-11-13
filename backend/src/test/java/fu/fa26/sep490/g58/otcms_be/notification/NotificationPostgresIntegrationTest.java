@@ -377,7 +377,7 @@ class NotificationPostgresIntegrationTest {
         }));
         assertTrue(causeContains(failure, "notification test failure"));
         assertEquals(0, jdbc.queryForObject("select count(*) from patient_reviews where author_account_id=?", Integer.class, a));
-        assertEquals(0, jdbc.queryForObject("select count(*) from patient_review_moderation_history where actor_account_id=?", Integer.class, a));
+        assertEquals(0, jdbc.queryForObject("select count(*) from audit_logs where source = 'patient_review_moderation_history' and actor_account_id=?", Integer.class, a));
         assertEquals(0, jdbc.queryForObject("select count(*) from notifications where recipient_account_id=?", Integer.class, admin));
     }
     @Test void publisherRequiresAnExistingBusinessTransaction() {
