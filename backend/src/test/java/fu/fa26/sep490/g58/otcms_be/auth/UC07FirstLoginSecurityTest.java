@@ -7,7 +7,7 @@ import fu.fa26.sep490.g58.otcms_be.auth.model.entity.enums.AccountStatus;
 import fu.fa26.sep490.g58.otcms_be.auth.model.entity.enums.AccountType;
 import fu.fa26.sep490.g58.otcms_be.auth.repository.AccountRepository;
 import fu.fa26.sep490.g58.otcms_be.auth.repository.AuthSessionRepository;
-import fu.fa26.sep490.g58.otcms_be.auth.repository.PasswordResetChallengeRepository;
+import fu.fa26.sep490.g58.otcms_be.auth.repository.VerificationCodeRepository;
 import fu.fa26.sep490.g58.otcms_be.auth.security.JwtAuthenticationFilter;
 import fu.fa26.sep490.g58.otcms_be.auth.security.JwtTokenService;
 import fu.fa26.sep490.g58.otcms_be.auth.service.AuthSessionService;
@@ -101,7 +101,7 @@ class UC07FirstLoginSecurityTest {
             session.setRevokedAt(Instant.now());
             return null;
         }).when(authSessions).revokeAll(account.getId());
-        var recovery = new PasswordRecoveryServiceImpl(accounts, mock(PasswordResetChallengeRepository.class),
+        var recovery = new PasswordRecoveryServiceImpl(accounts, mock(VerificationCodeRepository.class),
                 mock(EmailDeliveryService.class), encoder, authSessions, mock(AuthProperties.class));
         recovery.change(account.getId(), new ChangePasswordRequest(issued, replacement));
         assertFalse(account.isMustChangePassword());
@@ -120,7 +120,7 @@ class UC07FirstLoginSecurityTest {
         account.setPasswordHash(encoder.encode(new TemporaryPasswordGenerator().generate()));
         String oldHash = account.getPasswordHash();
         var authSessions = mock(AuthSessionService.class);
-        var recovery = new PasswordRecoveryServiceImpl(accounts, mock(PasswordResetChallengeRepository.class),
+        var recovery = new PasswordRecoveryServiceImpl(accounts, mock(VerificationCodeRepository.class),
                 mock(EmailDeliveryService.class), encoder, authSessions, mock(AuthProperties.class));
         assertThrows(RuntimeException.class, () -> recovery.change(account.getId(),
                 new ChangePasswordRequest("incorrect", new TemporaryPasswordGenerator().generate())));

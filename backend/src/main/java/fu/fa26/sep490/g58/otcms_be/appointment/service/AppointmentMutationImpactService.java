@@ -7,7 +7,6 @@ import java.util.UUID;
 /** Public Appointment queries used by guarded Admin mutations. */
 public interface AppointmentMutationImpactService {
     List<OccupiedBookingInterval> findProtectedBookingIntervals(UUID doctorId);
-    long countBookingsOverlappingTimeOff(UUID doctorId, Instant fromInclusive, Instant toExclusive);
     long countBookingsForAssignment(UUID doctorId, UUID serviceId);
 
     class OccupiedBookingInterval {

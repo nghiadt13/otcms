@@ -251,12 +251,10 @@ class AppointmentPaymentHoldLifecyclePostgresIntegrationTest extends PaymentHold
         Instant to = SLOT.plusSeconds(60);
 
         assertEquals(1, impact.countBookingsForAssignment(doctorProfile, paidService));
-        assertEquals(1, impact.countBookingsOverlappingTimeOff(doctorProfile, from, to));
         assertEquals(1, impact.findProtectedBookingIntervals(doctorProfile).size());
 
         clock.set(deadline.plusSeconds(1));
         assertEquals(0, impact.countBookingsForAssignment(doctorProfile, paidService));
-        assertEquals(0, impact.countBookingsOverlappingTimeOff(doctorProfile, from, to));
         assertTrue(impact.findProtectedBookingIntervals(doctorProfile).isEmpty());
 
         clock.set(NOW);

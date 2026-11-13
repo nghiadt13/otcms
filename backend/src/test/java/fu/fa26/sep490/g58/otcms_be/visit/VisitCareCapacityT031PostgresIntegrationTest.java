@@ -82,7 +82,7 @@ class VisitCareCapacityT031PostgresIntegrationTest {
         visit = UUID.randomUUID();
         jdbc.update("insert into patient_profiles (id, account_id, full_name, phone_canonical, phone_owner_type, date_of_birth, gender) values (?, ?, 'T031 Patient', ?, 'PATIENT', '1990-01-01', 'OTHER')",
                 patient, patientAccount, "+849" + UUID.randomUUID().toString().replace("-", "").substring(0, 9));
-        jdbc.update("insert into doctor_profiles (id, account_id, full_name, photo_url, work_contact, specialties, qualifications, biography, consultation_information, publicly_visible, accepting_new_bookings, in_active_directory) values (?, ?, 'T031 Doctor', '', 'private', '', '', '', '', true, true, true)",
+        jdbc.update("insert into staff_profiles (is_doctor, id, account_id, display_name, photo_url, work_contact, specialties, qualifications, biography, consultation_information, publicly_visible, accepting_new_bookings, in_active_directory) values (true, ?, ?, 'T031 Doctor', '', 'private', '', '', '', '', true, true, true)",
                 doctor, doctorAccount);
         bookingService = UUID.randomUUID();
         // Price 0: a free service, so the walk-in fixture below is cancellable like a free walk-in.
@@ -113,7 +113,7 @@ class VisitCareCapacityT031PostgresIntegrationTest {
         jdbc.update("insert into room_capabilities (room_id, capability_code) values (?, 'EXAM_ROOM')", room);
         otherDoctorAccount = account(AccountType.DOCTOR, "other-doctor");
         otherDoctor = UUID.randomUUID();
-        jdbc.update("insert into doctor_profiles (id, account_id, full_name, photo_url, work_contact, specialties, qualifications, biography, consultation_information, publicly_visible, accepting_new_bookings, in_active_directory) values (?, ?, 'T031 Other Doctor', '', 'private', '', '', '', '', true, true, true)", otherDoctor, otherDoctorAccount);
+        jdbc.update("insert into staff_profiles (is_doctor, id, account_id, display_name, photo_url, work_contact, specialties, qualifications, biography, consultation_information, publicly_visible, accepting_new_bookings, in_active_directory) values (true, ?, ?, 'T031 Other Doctor', '', 'private', '', '', '', '', true, true, true)", otherDoctor, otherDoctorAccount);
     }
 
     @AfterEach
@@ -157,8 +157,8 @@ class VisitCareCapacityT031PostgresIntegrationTest {
             if (doctor != null) jdbc.update("delete from doctor_shifts where doctor_profile_id = ?", doctor);
             if (doctor != null) jdbc.update("delete from visit_exam_queue where doctor_profile_id = ?", doctor);
             if (room != null) jdbc.update("delete from room_management_audits where room_id = ?", room);
-            if (doctor != null) jdbc.update("delete from doctor_profiles where id = ?", doctor);
-            if (otherDoctor != null) jdbc.update("delete from doctor_profiles where id = ?", otherDoctor);
+            if (doctor != null) jdbc.update("delete from staff_profiles where id = ?", doctor);
+            if (otherDoctor != null) jdbc.update("delete from staff_profiles where id = ?", otherDoctor);
             if (room != null) {
                 jdbc.update("delete from room_capabilities where room_id = ?", room);
                 jdbc.update("delete from rooms where id = ?", room);

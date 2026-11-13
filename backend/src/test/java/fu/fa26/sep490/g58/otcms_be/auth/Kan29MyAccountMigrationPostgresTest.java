@@ -4,10 +4,12 @@ import java.nio.file.*;
 import java.sql.*;
 import java.util.*;
 import org.flywaydb.core.Flyway;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import static org.junit.jupiter.api.Assertions.*;
 
+@Disabled("final-db: account_avatars and email_change_challenges merged into accounts and verification_codes")
 class Kan29MyAccountMigrationPostgresTest {
     @TempDir Path directory;
     static final String URL = "jdbc:postgresql://127.0.0.1:" + System.getenv().getOrDefault("OTCMS_TEST_DB_PORT", "5432") + "/otcms_test_db";

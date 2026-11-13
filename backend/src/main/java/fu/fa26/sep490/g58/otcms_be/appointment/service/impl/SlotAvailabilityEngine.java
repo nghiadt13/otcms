@@ -64,7 +64,6 @@ public final class SlotAvailabilityEngine {
                         Instant occupiedUntil = consultationEnd.plus(request.serviceContext().bufferDuration());
                         AvailabilityInterval occupiedInterval = new AvailabilityInterval(start, occupiedUntil);
                         if (!fitsShift(occupiedInterval, schedule.shifts())
-                                || intersects(occupiedInterval, schedule.timeOff())
                                 || conflictsAppointment(request.serviceContext(), doctorAppointments, occupiedInterval)
                                 || conflictsCare(request.serviceContext(), doctorCare, occupiedInterval)) {
                             continue;
@@ -91,10 +90,6 @@ public final class SlotAvailabilityEngine {
 
     private boolean fitsShift(AvailabilityInterval slot, List<AvailabilityInterval> shifts) {
         return shifts.stream().anyMatch(shift -> shift.contains(slot));
-    }
-
-    private boolean intersects(AvailabilityInterval slot, List<AvailabilityInterval> intervals) {
-        return intervals.stream().anyMatch(slot::overlaps);
     }
 
     private boolean conflictsAppointment(SlotServiceContext context, List<AppointmentOccupancy> appointments,

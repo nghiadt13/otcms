@@ -4,7 +4,6 @@ import fu.fa26.sep490.g58.otcms_be.auth.model.entity.AccountJpaEntity;
 import fu.fa26.sep490.g58.otcms_be.auth.model.entity.PatientProfileJpaEntity;
 import fu.fa26.sep490.g58.otcms_be.auth.repository.AccountRepository;
 import fu.fa26.sep490.g58.otcms_be.auth.repository.PatientProfileRepository;
-import fu.fa26.sep490.g58.otcms_be.auth.repository.AccountAvatarRepository;
 import fu.fa26.sep490.g58.otcms_be.auth.model.entity.enums.AccountType;
 import fu.fa26.sep490.g58.otcms_be.auth.model.entity.enums.AccountStatus;
 import fu.fa26.sep490.g58.otcms_be.auth.service.MyAccountQueryService;
@@ -18,13 +17,10 @@ import java.util.UUID;
 public class MyAccountQueryServiceImpl implements MyAccountQueryService {
     private final AccountRepository accounts;
     private final PatientProfileRepository profiles;
-    private final AccountAvatarRepository avatars;
 
-    public MyAccountQueryServiceImpl(AccountRepository accounts, PatientProfileRepository profiles,
-            AccountAvatarRepository avatars) {
+    public MyAccountQueryServiceImpl(AccountRepository accounts, PatientProfileRepository profiles) {
         this.accounts = accounts;
         this.profiles = profiles;
-        this.avatars = avatars;
     }
 
     @Override
@@ -42,7 +38,7 @@ public class MyAccountQueryServiceImpl implements MyAccountQueryService {
                 .or(() -> Optional.ofNullable(account.getFullName()).filter(name -> !name.isBlank()))
                 .or(() -> Optional.ofNullable(account.getUsername()).filter(name -> !name.isBlank()))
                 .orElseGet(() -> email.contains("@") ? email.substring(0, email.indexOf('@')) : email);
-        boolean hasAvatar = avatars.existsById(account.getId());
+        boolean hasAvatar = account.getAvatarContentType() != null;
         var actions = new java.util.ArrayList<String>();
         boolean passwordSupported = account.getPasswordHash() != null && account.getStatus() == AccountStatus.ACTIVE;
         if (passwordSupported) actions.add("changePassword");

@@ -12,7 +12,7 @@ import java.time.Clock;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.HashSet;
-import fu.fa26.sep490.g58.otcms_be.staff.repository.DoctorProfileRepository;
+import fu.fa26.sep490.g58.otcms_be.staff.repository.StaffProfileRepository;
 import fu.fa26.sep490.g58.otcms_be.staff.service.DoctorDirectoryService;
 import java.util.List;
 import java.util.Optional;
@@ -22,14 +22,14 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class DoctorDirectoryServiceImpl implements DoctorDirectoryService {
-    private final DoctorProfileRepository profiles;
+    private final StaffProfileRepository profiles;
     private static final ZoneId CLINIC_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
     private final GetClinicServiceCatalogService catalog;
     private final ClinicServiceBookingQueryService booking;
     private final GetAppointmentAvailabilityService availability;
     private final Clock clock;
 
-    public DoctorDirectoryServiceImpl(DoctorProfileRepository profiles, GetClinicServiceCatalogService catalog,
+    public DoctorDirectoryServiceImpl(StaffProfileRepository profiles, GetClinicServiceCatalogService catalog,
             ClinicServiceBookingQueryService booking, GetAppointmentAvailabilityService availability, Clock clock) {
         this.profiles = profiles;
         this.catalog = catalog;
@@ -40,12 +40,12 @@ public class DoctorDirectoryServiceImpl implements DoctorDirectoryService {
 
     @Transactional(readOnly = true)
     public List<DoctorProfile> listPublic() {
-        return profiles.findPublicDirectory().stream().map(DoctorProfileMapper::toModel).toList();
+        return profiles.findPublicDoctors().stream().map(DoctorProfileMapper::toModel).toList();
     }
 
     @Transactional(readOnly = true)
     public Optional<DoctorProfile> findPublic(UUID id) {
-        return profiles.findById(id).filter(profile -> profile.publiclyVisible() && profile.inActiveDirectory())
+        return profiles.findByIdAndDoctorTrue(id).filter(profile -> profile.publiclyVisible() && profile.inActiveDirectory())
                 .map(DoctorProfileMapper::toModel);
     }
 

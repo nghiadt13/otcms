@@ -5,7 +5,6 @@ import fu.fa26.sep490.g58.otcms_be.auth.model.entity.PatientProfileJpaEntity;
 import fu.fa26.sep490.g58.otcms_be.auth.model.entity.enums.AccountType;
 import fu.fa26.sep490.g58.otcms_be.auth.repository.AccountRepository;
 import fu.fa26.sep490.g58.otcms_be.auth.repository.PatientProfileRepository;
-import fu.fa26.sep490.g58.otcms_be.auth.repository.AccountAvatarRepository;
 import fu.fa26.sep490.g58.otcms_be.auth.service.impl.MyAccountQueryServiceImpl;
 import org.junit.jupiter.api.Test;
 
@@ -20,8 +19,7 @@ import static org.mockito.Mockito.when;
 class MyAccountQueryServiceImplTest {
     private final AccountRepository accounts = mock(AccountRepository.class);
     private final PatientProfileRepository profiles = mock(PatientProfileRepository.class);
-    private final AccountAvatarRepository avatars = mock(AccountAvatarRepository.class);
-    private final MyAccountQueryServiceImpl service = new MyAccountQueryServiceImpl(accounts, profiles, avatars);
+    private final MyAccountQueryServiceImpl service = new MyAccountQueryServiceImpl(accounts, profiles);
 
     private AccountJpaEntity account(UUID id, String email, AccountType type) {
         AccountJpaEntity account = new AccountJpaEntity();
@@ -124,7 +122,7 @@ class MyAccountQueryServiceImplTest {
         a.setDisplayName("Doctor"); a.setPasswordHash("hash"); a.setMustChangePassword(true);
         a.setStatus(fu.fa26.sep490.g58.otcms_be.auth.model.entity.enums.AccountStatus.ACTIVE);
         when(accounts.findById(id)).thenReturn(Optional.of(a));
-        when(avatars.existsById(id)).thenReturn(true);
+        a.setAvatarContentType("image/png");
         var view = service.find(id).orElseThrow();
         assertEquals(java.util.List.of("changePassword"), view.allowedActions());
         assertEquals("ORTHOPEDIC_DOCTOR", view.role());

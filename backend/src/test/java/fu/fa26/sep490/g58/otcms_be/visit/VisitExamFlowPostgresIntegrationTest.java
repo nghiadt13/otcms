@@ -285,9 +285,9 @@ class VisitExamFlowPostgresIntegrationTest {
 
     private UUID doctorProfile(UUID account, String name) {
         UUID id = UUID.randomUUID();
-        jdbc.update("insert into doctor_profiles (id, account_id, full_name, photo_url, work_contact, specialties, "
+        jdbc.update("insert into staff_profiles (is_doctor, id, account_id, display_name, photo_url, work_contact, specialties, "
                 + "qualifications, biography, consultation_information, publicly_visible, "
-                + "accepting_new_bookings, in_active_directory) values (?, ?, ?, '', '', '', '', '', '', true, true, true)",
+                + "accepting_new_bookings, in_active_directory) values (true, ?, ?, ?, '', '', '', '', '', '', true, true, true)",
                 id, account, name);
         return id;
     }

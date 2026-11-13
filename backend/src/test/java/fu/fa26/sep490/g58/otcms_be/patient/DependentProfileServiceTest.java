@@ -37,7 +37,7 @@ class DependentProfileServiceTest {
     final EmailOtpService otp = new EmailOtpServiceImpl();
     final DependentProfileServiceImpl service = new DependentProfileServiceImpl(profiles, patients, receptionists,
             accounts, links, challenges, mock(CoordinationGuardService.class), otp, email,
-            new AuthProperties(null, null, null, null, null, null, "v1", "v1"), Clock.fixed(now, ZoneOffset.UTC),
+            new AuthProperties(null, null, null, null, null, "v1", "v1"), Clock.fixed(now, ZoneOffset.UTC),
             mock(PlatformTransactionManager.class));
 
     @BeforeEach void setup() {

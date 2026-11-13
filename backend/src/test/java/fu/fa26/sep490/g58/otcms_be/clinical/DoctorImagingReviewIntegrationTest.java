@@ -15,8 +15,8 @@ import fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.*;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.enums.*;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.repository.*;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.service.*;
-import fu.fa26.sep490.g58.otcms_be.staff.model.entity.DoctorProfileJpaEntity;
-import fu.fa26.sep490.g58.otcms_be.staff.repository.DoctorProfileRepository;
+import fu.fa26.sep490.g58.otcms_be.staff.model.entity.StaffProfileJpaEntity;
+import fu.fa26.sep490.g58.otcms_be.staff.repository.StaffProfileRepository;
 import fu.fa26.sep490.g58.otcms_be.visit.model.entity.*;
 import fu.fa26.sep490.g58.otcms_be.visit.repository.*;
 import java.io.*;
@@ -51,8 +51,8 @@ class DoctorImagingReviewIntegrationTest {
     @BeforeEach void start() throws Exception {
         context = new AnnotationConfigWebApplicationContext(); context.setServletContext(new MockServletContext());
         context.register(DoctorCoreProductionWiringTest.ProductionConfiguration.class); context.refresh();
-        var profile = mock(DoctorProfileJpaEntity.class); when(profile.id()).thenReturn(doctor);
-        when(bean(DoctorProfileRepository.class).findByAccountId(account)).thenReturn(Optional.of(profile));
+        var profile = mock(StaffProfileJpaEntity.class); when(profile.id()).thenReturn(doctor);
+        when(bean(StaffProfileRepository.class).findByAccountIdAndDoctorTrue(account)).thenReturn(Optional.of(profile));
         when(bean(AccountRepository.class).existsByIdAndAccountTypeAndStatus(eq(account), eq(AccountType.DOCTOR), any())).thenReturn(true);
         when(bean(ClinicVisitJpaRepository.class).findById(visit)).thenReturn(Optional.of(
                 ClinicVisitJpaEntity.walkIn(visit, patient, null, account, Instant.EPOCH)));

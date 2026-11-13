@@ -111,7 +111,7 @@ class CheckInAppointmentT027PostgresIntegrationTest {
             if (doctorProfile != null) jdbc.update("delete from doctor_services where doctor_profile_id = ?", doctorProfile);
             if (service != null) jdbc.update("delete from clinic_services where id = ?", service);
             if (doctorProfile != null) jdbc.update("delete from visit_exam_queue where doctor_profile_id = ?", doctorProfile);
-            if (doctorProfile != null) jdbc.update("delete from doctor_profiles where id = ?", doctorProfile);
+            if (doctorProfile != null) jdbc.update("delete from staff_profiles where id = ?", doctorProfile);
             if (patientProfile != null) jdbc.update("delete from patient_profiles where id = ?", patientProfile);
             for (UUID id : new UUID[]{patientAccount, receptionistAccount, doctorAccount}) {
                 if (id != null) jdbc.update("delete from accounts where id = ?", id);
@@ -386,9 +386,9 @@ class CheckInAppointmentT027PostgresIntegrationTest {
 
     private UUID doctor(UUID account) {
         UUID id = UUID.randomUUID();
-        jdbc.update("insert into doctor_profiles (id, account_id, full_name, photo_url, work_contact, specialties, "
+        jdbc.update("insert into staff_profiles (is_doctor, id, account_id, display_name, photo_url, work_contact, specialties, "
                         + "qualifications, biography, consultation_information, publicly_visible, accepting_new_bookings, in_active_directory) "
-                        + "values (?, ?, 'T027 Doctor', '', 'private', '', '', '', '', true, true, true)", id, account);
+                        + "values (true, ?, ?, 'T027 Doctor', '', 'private', '', '', '', '', true, true, true)", id, account);
         return id;
     }
 

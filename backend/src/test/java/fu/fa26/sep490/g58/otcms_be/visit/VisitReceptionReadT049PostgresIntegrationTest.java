@@ -88,7 +88,7 @@ class VisitReceptionReadT049PostgresIntegrationTest {
         if (roomId != null) jdbc.update("delete from room_reservations where room_id = ?", roomId);
         if (assignmentId != null) jdbc.update("delete from visit_assignments where id = ?", assignmentId);
         if (roomId != null) jdbc.update("delete from rooms where id = ?", roomId);
-        if (doctorProfileId != null) jdbc.update("delete from doctor_profiles where id = ?", doctorProfileId);
+        if (doctorProfileId != null) jdbc.update("delete from staff_profiles where id = ?", doctorProfileId);
         List<UUID> visitIds = List.of(firstVisitId, secondVisitId, accountlessVisitId);
         for (UUID visitId : visitIds) {
             jdbc.update("delete from walk_in_reception_queue_history where queue_entry_id in "
@@ -182,11 +182,11 @@ class VisitReceptionReadT049PostgresIntegrationTest {
     }
 
     private void removeAbandonedT049DoctorFixtures() {
-        List<UUID> staleAccountIds = jdbc.queryForList("select account_id from doctor_profiles "
-                + "where full_name = 'T049 Doctor' and account_id in "
+        List<UUID> staleAccountIds = jdbc.queryForList("select account_id from staff_profiles "
+                + "where display_name = 'T049 Doctor' and account_id in "
                 + "(select id from accounts where normalized_email like 't049-%@example.test' and account_type = 'DOCTOR')",
                 UUID.class);
-        jdbc.update("delete from doctor_profiles where full_name = 'T049 Doctor' and account_id in "
+        jdbc.update("delete from staff_profiles where display_name = 'T049 Doctor' and account_id in "
                 + "(select id from accounts where normalized_email like 't049-%@example.test' and account_type = 'DOCTOR')");
         for (UUID staleAccountId : staleAccountIds) {
             jdbc.update("delete from accounts where id = ? and normalized_email like 't049-%@example.test' "
@@ -224,9 +224,9 @@ class VisitReceptionReadT049PostgresIntegrationTest {
         roomId = UUID.randomUUID();
         assignmentId = UUID.randomUUID();
         Instant startsAt = atClinicTime(8, 0);
-        jdbc.update("insert into doctor_profiles (id, account_id, full_name, photo_url, work_contact, specialties, "
+        jdbc.update("insert into staff_profiles (is_doctor, id, account_id, display_name, photo_url, work_contact, specialties, "
                         + "qualifications, biography, consultation_information, publicly_visible, "
-                        + "accepting_new_bookings, in_active_directory) values (?, ?, 'T049 Doctor', '', '', '', '', '', '', false, false, false)",
+                        + "accepting_new_bookings, in_active_directory) values (true, ?, ?, 'T049 Doctor', '', '', '', '', '', '', false, false, false)",
                 doctorProfileId, doctorAccountId);
         jdbc.update("insert into rooms (id, room_code, display_label, active) values (?, 'T049-R1', 'T049 Room', true)", roomId);
         jdbc.update("insert into visit_assignments (id, visit_id, doctor_profile_id, starts_at, ends_at, status, "

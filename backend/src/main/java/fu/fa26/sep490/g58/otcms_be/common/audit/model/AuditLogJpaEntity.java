@@ -35,8 +35,8 @@ public class AuditLogJpaEntity {
     @Column(length = 128) private String correlationId;
     @Column(length = 64) private String clientIp;
     @Column(columnDefinition = "text") private String userAgent;
-    @Column(length = 128) private String identifierHmac;
-    @Column(length = 32) private String outcome;
+    @Column(length = 255) private String identifierHmac;
+    @Column(length = 64) private String outcome;
     @Column(length = 200) private String dedupKey;
 
     protected AuditLogJpaEntity() { }

@@ -7,9 +7,8 @@ import fu.fa26.sep490.g58.otcms_be.staff.service.StaffDirectoryQueryService;
 import fu.fa26.sep490.g58.otcms_be.staff.service.StaffScheduleAvailabilityService.DoctorSchedule;
 import fu.fa26.sep490.g58.otcms_be.staff.service.StaffScheduleAvailabilityService.Interval;
 import fu.fa26.sep490.g58.otcms_be.staff.service.StaffScheduleAvailabilityService;
-import fu.fa26.sep490.g58.otcms_be.staff.model.entity.DoctorProfileJpaEntity;
-import fu.fa26.sep490.g58.otcms_be.staff.repository.DoctorOperationalTimeOffRepository;
-import fu.fa26.sep490.g58.otcms_be.staff.repository.DoctorProfileRepository;
+import fu.fa26.sep490.g58.otcms_be.staff.model.entity.StaffProfileJpaEntity;
+import fu.fa26.sep490.g58.otcms_be.staff.repository.StaffProfileRepository;
 import fu.fa26.sep490.g58.otcms_be.staff.repository.DoctorWorkShiftRepository;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -25,28 +24,25 @@ import org.springframework.stereotype.Service;
 @Service
 public class StaffAvailabilityQueryServiceImpl implements StaffDirectoryQueryService, StaffScheduleAvailabilityService,
         StaffAvailabilityProviderQueryService {
-    private final DoctorProfileRepository profiles;
+    private final StaffProfileRepository profiles;
     private final DoctorWorkShiftRepository shifts;
-    private final DoctorOperationalTimeOffRepository timeOff;
 
-    public StaffAvailabilityQueryServiceImpl(DoctorProfileRepository profiles, DoctorWorkShiftRepository shifts,
-                                   DoctorOperationalTimeOffRepository timeOff) {
+    public StaffAvailabilityQueryServiceImpl(StaffProfileRepository profiles, DoctorWorkShiftRepository shifts) {
         this.profiles = profiles;
         this.shifts = shifts;
-        this.timeOff = timeOff;
     }
 
     @Override
     public List<StaffAvailabilityProviderQueryService.AvailabilityProvider> findAcceptingDoctorsInActiveDirectory() {
-        return profiles.findAcceptingInActiveDirectory().stream()
+        return profiles.findAcceptingDoctors().stream()
                 .map(profile -> new StaffAvailabilityProviderQueryService.AvailabilityProvider(
-                        profile.id(), profile.fullName(), profile.publiclyVisible()))
+                        profile.id(), profile.displayName(), profile.publiclyVisible()))
                 .toList();
     }
 
     @Override
     public Optional<String> findDoctorDisplayName(UUID doctorProfileId) {
-        return profiles.findById(doctorProfileId).map(DoctorProfileJpaEntity::fullName);
+        return profiles.findByIdAndDoctorTrue(doctorProfileId).map(StaffProfileJpaEntity::displayName);
     }
 
     @Override
@@ -54,18 +50,16 @@ public class StaffAvailabilityQueryServiceImpl implements StaffDirectoryQuerySer
         if (requestedStart == null || requestedEnd == null || !requestedStart.isBefore(requestedEnd)) {
             throw new IllegalArgumentException("Requested interval must have positive duration");
         }
-        Optional<DoctorProfileJpaEntity> found = profiles.findByAccountId(accountId);
+        Optional<StaffProfileJpaEntity> found = profiles.findByAccountIdAndDoctorTrue(accountId);
         if (found.isEmpty()) {
             return null;
         }
-        DoctorProfileJpaEntity profile = found.get();
+        StaffProfileJpaEntity profile = found.get();
         UUID doctorId = profile.id();
         boolean shiftCovered = shifts.existsByDoctorProfileIdAndStartsAtLessThanEqualAndEndsAtGreaterThanEqual(
                 doctorId, requestedStart, requestedEnd);
-        boolean timeOffOverlap = timeOff.existsByDoctorProfileIdAndStartsAtLessThanAndEndsAtGreaterThan(
-                doctorId, requestedEnd, requestedStart);
         return new DoctorBookingProfile(doctorId, profile.publiclyVisible(), profile.acceptingNewBookings(),
-                profile.inActiveDirectory(), shiftCovered, timeOffOverlap);
+                profile.inActiveDirectory(), shiftCovered);
     }
 
     @Override
@@ -78,19 +72,12 @@ public class StaffAvailabilityQueryServiceImpl implements StaffDirectoryQuerySer
         }
         List<UUID> doctorIds = doctorProfileIds.stream().distinct().sorted().toList();
         Map<UUID, List<StaffScheduleAvailabilityService.Interval>> shiftsByDoctor = new HashMap<>();
-        Map<UUID, List<StaffScheduleAvailabilityService.Interval>> timeOffByDoctor = new HashMap<>();
-        doctorIds.forEach(id -> {
-            shiftsByDoctor.put(id, new ArrayList<>());
-            timeOffByDoctor.put(id, new ArrayList<>());
-        });
+        doctorIds.forEach(id -> shiftsByDoctor.put(id, new ArrayList<>()));
         shifts.findOverlapping(doctorIds, fromInclusive, toExclusive).forEach(shift ->
                 shiftsByDoctor.get(shift.doctorProfileId()).add(
                         new StaffScheduleAvailabilityService.Interval(shift.startsAt(), shift.endsAt())));
-        timeOff.findOverlapping(doctorIds, fromInclusive, toExclusive).forEach(row ->
-                timeOffByDoctor.get(row.doctorProfileId()).add(
-                        new StaffScheduleAvailabilityService.Interval(row.startsAt(), row.endsAt())));
         return doctorIds.stream().map(id -> new StaffScheduleAvailabilityService.DoctorSchedule(id,
-                        shiftsByDoctor.get(id), timeOffByDoctor.get(id)))
+                        shiftsByDoctor.get(id)))
                 .sorted(Comparator.comparing(StaffScheduleAvailabilityService.DoctorSchedule::doctorProfileId))
                 .toList();
     }

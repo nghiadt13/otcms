@@ -4,7 +4,7 @@ import fu.fa26.sep490.g58.otcms_be.staff.exception.DoctorProfileException;
 import fu.fa26.sep490.g58.otcms_be.staff.mapper.DoctorProfileMapper;
 import fu.fa26.sep490.g58.otcms_be.staff.model.DoctorProfile;
 import fu.fa26.sep490.g58.otcms_be.staff.model.DoctorWorkShift;
-import fu.fa26.sep490.g58.otcms_be.staff.repository.DoctorProfileRepository;
+import fu.fa26.sep490.g58.otcms_be.staff.repository.StaffProfileRepository;
 import fu.fa26.sep490.g58.otcms_be.staff.repository.DoctorWorkShiftRepository;
 import fu.fa26.sep490.g58.otcms_be.staff.service.DoctorScheduleService;
 import java.time.Duration;
@@ -17,17 +17,17 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class DoctorScheduleServiceImpl implements DoctorScheduleService {
     private static final Duration MAX_RANGE = Duration.ofDays(90);
-    private final DoctorProfileRepository profiles;
+    private final StaffProfileRepository profiles;
     private final DoctorWorkShiftRepository shifts;
 
-    public DoctorScheduleServiceImpl(DoctorProfileRepository profiles, DoctorWorkShiftRepository shifts) {
+    public DoctorScheduleServiceImpl(StaffProfileRepository profiles, DoctorWorkShiftRepository shifts) {
         this.profiles = profiles;
         this.shifts = shifts;
     }
 
     @Transactional(readOnly = true)
     public List<DoctorWorkShift> forAccount(UUID accountId, Instant from, Instant to) {
-        DoctorProfile profile = profiles.findByAccountId(accountId).map(DoctorProfileMapper::toModel)
+        DoctorProfile profile = profiles.findByAccountIdAndDoctorTrue(accountId).map(DoctorProfileMapper::toModel)
                 .orElseThrow(() -> new DoctorProfileException("DOCTOR_PROFILE_NOT_FOUND"));
         return forProfile(profile.id(), from, to);
     }
@@ -35,7 +35,7 @@ public class DoctorScheduleServiceImpl implements DoctorScheduleService {
     @Transactional(readOnly = true)
     public List<DoctorWorkShift> forProfile(UUID doctorProfileId, Instant from, Instant to) {
         validateRange(from, to);
-        if (profiles.findById(doctorProfileId).isEmpty()) {
+        if (!profiles.existsByIdAndDoctorTrue(doctorProfileId)) {
             throw new DoctorProfileException("DOCTOR_PROFILE_NOT_FOUND");
         }
         return shifts.findInRange(doctorProfileId, from, to).stream()

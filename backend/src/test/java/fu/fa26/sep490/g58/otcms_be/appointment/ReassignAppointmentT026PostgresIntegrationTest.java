@@ -96,7 +96,7 @@ class ReassignAppointmentT026PostgresIntegrationTest {
                 jdbc.update("delete from clinic_services where id = ?", service);
             }
             for (UUID id : new UUID[]{currentDoctor, replacementDoctor, unassignedDoctor}) {
-                if (id != null) jdbc.update("delete from doctor_profiles where id = ?", id);
+                if (id != null) jdbc.update("delete from staff_profiles where id = ?", id);
             }
             if (patientProfile != null) jdbc.update("delete from patient_profiles where id = ?", patientProfile);
             for (UUID id : new UUID[]{patientAccount, receptionistAccount, adminAccount, currentDoctorAccount, replacementDoctorAccount, unassignedDoctorAccount}) {
@@ -223,9 +223,9 @@ class ReassignAppointmentT026PostgresIntegrationTest {
 
     private UUID doctor(UUID account, String name) {
         UUID id = UUID.randomUUID();
-        jdbc.update("insert into doctor_profiles (id, account_id, full_name, photo_url, work_contact, specialties, "
+        jdbc.update("insert into staff_profiles (is_doctor, id, account_id, display_name, photo_url, work_contact, specialties, "
                         + "qualifications, biography, consultation_information, publicly_visible, accepting_new_bookings, in_active_directory) "
-                        + "values (?, ?, ?, '', 'private', '', '', '', '', false, true, true)", id, account, name);
+                        + "values (true, ?, ?, ?, '', 'private', '', '', '', '', false, true, true)", id, account, name);
         return id;
     }
 

@@ -13,14 +13,12 @@ import java.util.UUID;
     private final boolean acceptingNewBookings;
     private final boolean inActiveDirectory;
     private final boolean coveredByWorkShift;
-    private final boolean coveredByOperationalTimeOff;
-    public DoctorBookingProfile(UUID doctorProfileId, boolean publiclyVisible, boolean acceptingNewBookings, boolean inActiveDirectory, boolean coveredByWorkShift, boolean coveredByOperationalTimeOff) {
+    public DoctorBookingProfile(UUID doctorProfileId, boolean publiclyVisible, boolean acceptingNewBookings, boolean inActiveDirectory, boolean coveredByWorkShift) {
         this.doctorProfileId = doctorProfileId;
         this.publiclyVisible = publiclyVisible;
         this.acceptingNewBookings = acceptingNewBookings;
         this.inActiveDirectory = inActiveDirectory;
         this.coveredByWorkShift = coveredByWorkShift;
-        this.coveredByOperationalTimeOff = coveredByOperationalTimeOff;
     }
     public UUID getDoctorProfileId() { return doctorProfileId; }
     public UUID doctorProfileId() { return doctorProfileId; }
@@ -36,8 +34,5 @@ import java.util.UUID;
     public boolean getCoveredByWorkShift() { return coveredByWorkShift; }
     public boolean isCoveredByWorkShift() { return coveredByWorkShift; }
     public boolean coveredByWorkShift() { return coveredByWorkShift; }
-    public boolean getCoveredByOperationalTimeOff() { return coveredByOperationalTimeOff; }
-    public boolean isCoveredByOperationalTimeOff() { return coveredByOperationalTimeOff; }
-    public boolean coveredByOperationalTimeOff() { return coveredByOperationalTimeOff; }
 }
 }

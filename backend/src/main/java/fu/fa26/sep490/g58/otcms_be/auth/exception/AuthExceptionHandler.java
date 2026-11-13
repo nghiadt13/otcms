@@ -2,7 +2,6 @@ package fu.fa26.sep490.g58.otcms_be.auth.exception;
 
 import fu.fa26.sep490.g58.otcms_be.auth.exception.CredentialLoginException;
 import fu.fa26.sep490.g58.otcms_be.auth.exception.SessionException;
-import fu.fa26.sep490.g58.otcms_be.auth.exception.GoogleAuthenticationException;
 import fu.fa26.sep490.g58.otcms_be.auth.exception.PasswordRecoveryException;
 import fu.fa26.sep490.g58.otcms_be.common.api.ErrorResponse;
 import org.springframework.http.HttpStatus;
@@ -36,14 +35,6 @@ public class AuthExceptionHandler {
     public ResponseEntity<ErrorResponse> password(PasswordRecoveryException ex) {
         HttpStatus status = "AUTHENTICATION_FAILED".equals(ex.getMessage()) ? HttpStatus.UNAUTHORIZED : HttpStatus.BAD_REQUEST;
         return ResponseEntity.status(status).body(ErrorResponse.of(ex.getMessage(), "Password recovery request failed", UUID.randomUUID().toString()));
-    }
-    @ExceptionHandler(GoogleAuthenticationException.class)
-    public ResponseEntity<ErrorResponse> google(GoogleAuthenticationException ex) {
-        HttpStatus status = "IDENTITY_LINK_CONFLICT".equals(ex.getMessage()) ? HttpStatus.CONFLICT
-                : "GOOGLE_ONBOARDING_REQUIRED".equals(ex.getMessage()) ? HttpStatus.CONFLICT : HttpStatus.UNAUTHORIZED;
-        return ResponseEntity.status(status).body(ErrorResponse.of(ex.getMessage(),
-                "GOOGLE_ONBOARDING_REQUIRED".equals(ex.getMessage()) ? "Google onboarding required" : "Authentication failed",
-                UUID.randomUUID().toString()));
     }
     @ExceptionHandler(SessionException.class)
     public ResponseEntity<ErrorResponse> session(SessionException ex) {

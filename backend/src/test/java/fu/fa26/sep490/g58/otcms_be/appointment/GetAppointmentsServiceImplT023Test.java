@@ -122,7 +122,7 @@ class GetAppointmentsServiceImplT023Test {
 
     @Test void doctorDetailRequiresCurrentAssignedDoctorProfile() {
         when(doctorAccess.isActiveDoctorAccount(account)).thenReturn(true);
-        when(staff.findDoctorByAccount(eq(account), any(), any())).thenReturn(new StaffDirectoryQueryService.DoctorBookingProfile(doctor, false, false, false, false, false));
+        when(staff.findDoctorByAccount(eq(account), any(), any())).thenReturn(new StaffDirectoryQueryService.DoctorBookingProfile(doctor, false, false, false, false));
         when(queries.findScoped(any(), eq(appointment))).thenReturn(Optional.empty());
         assertEquals("APPOINTMENT_NOT_FOUND", assertThrows(AppointmentQueryException.class,
                 () -> handler.detail(account, AccountRole.DOCTOR, appointment)).code());

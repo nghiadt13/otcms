@@ -1,6 +1,8 @@
 package fu.fa26.sep490.g58.otcms_be.staff.service.impl;
 
 import fu.fa26.sep490.g58.otcms_be.appointment.service.AppointmentMutationImpactService;
+import fu.fa26.sep490.g58.otcms_be.common.audit.AuditEntry;
+import fu.fa26.sep490.g58.otcms_be.common.audit.AuditLogWriter;
 import fu.fa26.sep490.g58.otcms_be.common.model.AdminMutationImpact;
 import fu.fa26.sep490.g58.otcms_be.common.exception.ResourceMutationBlockedException;
 import fu.fa26.sep490.g58.otcms_be.common.service.CoordinationGuardService;
@@ -12,16 +14,15 @@ import fu.fa26.sep490.g58.otcms_be.staff.exception.DoctorProfileException;
 import fu.fa26.sep490.g58.otcms_be.staff.model.dto.response.DoctorIntervalResponse;
 import fu.fa26.sep490.g58.otcms_be.staff.model.DoctorProfile;
 import fu.fa26.sep490.g58.otcms_be.staff.mapper.DoctorProfileMapper;
-import fu.fa26.sep490.g58.otcms_be.staff.model.entity.DoctorOperationalTimeOffJpaEntity;
 import fu.fa26.sep490.g58.otcms_be.staff.model.entity.DoctorWorkShiftJpaEntity;
-import fu.fa26.sep490.g58.otcms_be.staff.repository.DoctorOperationalTimeOffRepository;
-import fu.fa26.sep490.g58.otcms_be.staff.repository.DoctorProfileRepository;
+import fu.fa26.sep490.g58.otcms_be.staff.repository.StaffProfileRepository;
 import fu.fa26.sep490.g58.otcms_be.staff.repository.DoctorWorkShiftRepository;
 import fu.fa26.sep490.g58.otcms_be.staff.repository.StaffResourceManagementAuditRepository;
 import fu.fa26.sep490.g58.otcms_be.staff.service.ManageDoctorResourcesService;
 import java.time.Clock;
 import java.time.Instant;
 import java.sql.Timestamp;
+import java.util.Map;
 import java.util.UUID;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -30,10 +31,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class ManageDoctorResourcesServiceImpl implements ManageDoctorResourcesService {
-    private final DoctorProfileRepository profiles;
+    private final StaffProfileRepository profiles;
     private final DoctorWorkShiftRepository shifts;
-    private final DoctorOperationalTimeOffRepository timeOffs;
     private final StaffResourceManagementAuditRepository audits;
+    private final AuditLogWriter auditLogs;
     private final AppointmentMutationImpactService appointments;
     private final VisitMutationImpactService visits;
     private final CoordinationGuardService guard;
@@ -42,19 +43,19 @@ public class ManageDoctorResourcesServiceImpl implements ManageDoctorResourcesSe
     private final JdbcTemplate jdbc;
 
     @Autowired
-    public ManageDoctorResourcesServiceImpl(DoctorProfileRepository profiles, DoctorWorkShiftRepository shifts,
-            DoctorOperationalTimeOffRepository timeOffs, StaffResourceManagementAuditRepository audits,
+    public ManageDoctorResourcesServiceImpl(StaffProfileRepository profiles, DoctorWorkShiftRepository shifts,
+            StaffResourceManagementAuditRepository audits, AuditLogWriter auditLogs,
             AppointmentMutationImpactService appointments, VisitMutationImpactService visits,
             CoordinationGuardService guard, Clock clock, ManageVisitRoomService rooms, JdbcTemplate jdbc) {
-        this.profiles=profiles; this.shifts=shifts; this.timeOffs=timeOffs; this.audits=audits;
+        this.profiles=profiles; this.shifts=shifts; this.audits=audits; this.auditLogs=auditLogs;
         this.appointments=appointments; this.visits=visits; this.guard=guard; this.clock=clock; this.rooms=rooms; this.jdbc=jdbc;
     }
 
-    public ManageDoctorResourcesServiceImpl(DoctorProfileRepository profiles, DoctorWorkShiftRepository shifts,
-            DoctorOperationalTimeOffRepository timeOffs, StaffResourceManagementAuditRepository audits,
+    public ManageDoctorResourcesServiceImpl(StaffProfileRepository profiles, DoctorWorkShiftRepository shifts,
+            StaffResourceManagementAuditRepository audits, AuditLogWriter auditLogs,
             AppointmentMutationImpactService appointments, VisitMutationImpactService visits,
             CoordinationGuardService guard, Clock clock) {
-        this(profiles, shifts, timeOffs, audits, appointments, visits, guard, clock, null, null);
+        this(profiles, shifts, audits, auditLogs, appointments, visits, guard, clock, null, null);
     }
 
     public DoctorIntervalResponse createShift(UUID doctorId, Instant startsAt, Instant endsAt,
@@ -115,58 +116,22 @@ public class ManageDoctorResourcesServiceImpl implements ManageDoctorResourcesSe
         return new DoctorIntervalResponse(saved.id(), saved.doctorProfileId(), saved.startsAt(), saved.endsAt(), saved.roomId());
     }
 
-    @Override @Transactional
-    public DoctorIntervalResponse createTimeOff(UUID doctorId, Instant startsAt, Instant endsAt, AuthenticatedAccount actor, String correlationId) {
-        validate(doctorId, startsAt, endsAt, actor, correlationId);
-        guard.acquire(); requireDoctor(doctorId);
-        requireNoTimeOffOverlap(doctorId, null, startsAt, endsAt);
-        AdminMutationImpact impact = timeOffImpact(doctorId, null, startsAt, endsAt);
-        if (impact.isBlocked()) throw new ResourceMutationBlockedException(impact);
-        UUID id = UUID.randomUUID();
-        var saved = timeOffs.save(new DoctorOperationalTimeOffJpaEntity(id, doctorId, startsAt, endsAt));
-        audit(doctorId, actor.accountId(), "TIME_OFF", id, "CREATED", null, intervalJson(startsAt, endsAt), correlationId);
-        return new DoctorIntervalResponse(saved.id(), saved.doctorProfileId(), saved.startsAt(), saved.endsAt());
-    }
-
-    @Override @Transactional
-    public void deleteTimeOff(UUID doctorId, UUID timeOffId, AuthenticatedAccount actor, String correlationId) {
-        validateIds(doctorId, actor, correlationId); if (timeOffId == null) throw invalid();
-        guard.acquire(); requireDoctor(doctorId);
-        var item = timeOffs.findByIdAndDoctorProfileId(timeOffId, doctorId)
-                .orElseThrow(() -> new DoctorProfileException("DOCTOR_TIME_OFF_NOT_FOUND"));
-        requireFuture(item.startsAt());
-        timeOffs.delete(item);
-        audit(doctorId, actor.accountId(), "TIME_OFF", timeOffId, "DELETED", intervalJson(item.startsAt(), item.endsAt()), "{}", correlationId);
-    }
-
-    @Override @Transactional
-    public DoctorIntervalResponse updateTimeOff(UUID doctorId, UUID timeOffId, Instant startsAt, Instant endsAt,
-            AuthenticatedAccount actor, String correlationId) {
-        validate(doctorId, startsAt, endsAt, actor, correlationId); if (timeOffId == null) throw invalid();
-        guard.acquire(); requireDoctor(doctorId);
-        var item=timeOffs.findByIdAndDoctorProfileId(timeOffId, doctorId)
-                .orElseThrow(() -> new DoctorProfileException("DOCTOR_TIME_OFF_NOT_FOUND"));
-        requireFuture(item.startsAt());
-        requireNoTimeOffOverlap(doctorId, timeOffId, startsAt, endsAt);
-        AdminMutationImpact impact = timeOffImpact(doctorId, timeOffId, startsAt, endsAt);
-        if (impact.isBlocked()) throw new ResourceMutationBlockedException(impact);
-        String before=intervalJson(item.startsAt(), item.endsAt()); item.updateInterval(startsAt, endsAt);
-        var saved=timeOffs.save(item);
-        audit(doctorId, actor.accountId(), "TIME_OFF", timeOffId, "UPDATED", before, intervalJson(startsAt, endsAt), correlationId);
-        return new DoctorIntervalResponse(saved.id(), saved.doctorProfileId(), saved.startsAt(), saved.endsAt());
-    }
 
     @Override @Transactional
     public DoctorProfile updateDirectoryState(UUID doctorId, boolean publiclyVisible, boolean acceptingNewBookings,
             boolean inActiveDirectory, AuthenticatedAccount actor, String correlationId) {
         validateIds(doctorId, actor, correlationId); guard.acquire();
-        var profile = profiles.findById(doctorId).orElseThrow(() -> new DoctorProfileException("DOCTOR_PROFILE_NOT_FOUND"));
-        String before = "{\"publiclyVisible\":"+profile.publiclyVisible()+",\"acceptingNewBookings\":"
-                +profile.acceptingNewBookings()+",\"inActiveDirectory\":"+profile.inActiveDirectory()+"}";
+        var profile = profiles.findByIdAndDoctorTrue(doctorId)
+                .orElseThrow(() -> new DoctorProfileException("DOCTOR_PROFILE_NOT_FOUND"));
+        var before = directoryState(profile.publiclyVisible(), profile.acceptingNewBookings(), profile.inActiveDirectory());
         profile.updateDirectoryState(publiclyVisible, acceptingNewBookings, inActiveDirectory);
-        String after = "{\"publiclyVisible\":"+publiclyVisible+",\"acceptingNewBookings\":"
-                +acceptingNewBookings+",\"inActiveDirectory\":"+inActiveDirectory+"}";
-        audit(doctorId, actor.accountId(), "DOCTOR_PROFILE", doctorId, "UPDATED", before, after, correlationId);
+        var after = directoryState(publiclyVisible, acceptingNewBookings, inActiveDirectory);
+        // before/after are Maps so audit_logs stores jsonb objects, as the old staff_resource_audits rows did.
+        // The correlation id comes from the request MDC (CorrelationIdFilter), which AuditLogWriter records.
+        auditLogs.record(AuditEntry.builder("staff_resource_audits", "STAFF_PROFILE", "UPDATE_STAFF_PROFILE",
+                        "DOCTOR_PROFILE")
+                .entityId(doctorId).recordLabel(profile.displayName()).actorAccountId(actor.accountId())
+                .beforeState(before).afterState(after).build());
         return DoctorProfileMapper.toModel(profiles.save(profile));
     }
 
@@ -176,33 +141,11 @@ public class ManageDoctorResourcesServiceImpl implements ManageDoctorResourcesSe
         if (actor == null || actor.accountRole() != AccountRole.ADMIN || actor.accountId() == null)
             throw new DoctorProfileException("ACCESS_DENIED");
         if (doctorId == null || startsAt == null || endsAt == null || !startsAt.isBefore(endsAt)
-                || !("SHIFT".equals(resourceType) || "TIME_OFF".equals(resourceType))) throw invalid();
+                || !"SHIFT".equals(resourceType)) throw invalid();
         guard.acquire(); requireDoctor(doctorId);
-        if ("TIME_OFF".equals(resourceType)) return timeOffImpact(doctorId, resourceId, startsAt, endsAt);
         var other=shifts.findAllByDoctorProfileIdOrderByStartsAtAscIdAsc(doctorId).stream()
                 .filter(s -> resourceId == null || !s.id().equals(resourceId)).toList();
         return shiftImpact(doctorId, resourceId, startsAt, endsAt, other);
-    }
-
-    @Override @Transactional
-    public AdminMutationImpact assessTimeOffRemovalImpact(UUID doctorId, UUID timeOffId, AuthenticatedAccount actor) {
-        if (actor == null || actor.accountRole() != AccountRole.ADMIN || actor.accountId() == null)
-            throw new DoctorProfileException("ACCESS_DENIED");
-        if (doctorId == null || timeOffId == null) throw invalid();
-        guard.acquire(); requireDoctor(doctorId);
-        timeOffs.findByIdAndDoctorProfileId(timeOffId, doctorId)
-                .orElseThrow(() -> new DoctorProfileException("DOCTOR_TIME_OFF_NOT_FOUND"));
-        return new AdminMutationImpact("TIME_OFF", timeOffId, false, 0, false);
-    }
-
-    private AdminMutationImpact timeOffImpact(UUID doctorId, UUID resourceId, Instant startsAt, Instant endsAt) {
-        try {
-            long bookings = appointments.countBookingsOverlappingTimeOff(doctorId, startsAt, endsAt);
-            boolean care = visits.countActiveCareOverlapping(doctorId, startsAt, endsAt) > 0;
-            return new AdminMutationImpact("TIME_OFF", resourceId, bookings > 0 || care, bookings, care);
-        } catch (RuntimeException failure) {
-            throw new DoctorProfileException("DEPENDENCY_UNAVAILABLE", failure);
-        }
     }
 
     private AdminMutationImpact shiftImpact(UUID doctorId, UUID resourceId, Instant startsAt, Instant endsAt,
@@ -222,7 +165,12 @@ public class ManageDoctorResourcesServiceImpl implements ManageDoctorResourcesSe
     }
 
     private void requireDoctor(UUID doctorId) {
-        if (!profiles.existsById(doctorId)) throw new DoctorProfileException("DOCTOR_PROFILE_NOT_FOUND");
+        if (!profiles.existsByIdAndDoctorTrue(doctorId)) throw new DoctorProfileException("DOCTOR_PROFILE_NOT_FOUND");
+    }
+    private static Map<String, Object> directoryState(boolean publiclyVisible, boolean acceptingNewBookings,
+            boolean inActiveDirectory) {
+        return Map.of("publiclyVisible", publiclyVisible, "acceptingNewBookings", acceptingNewBookings,
+                "inActiveDirectory", inActiveDirectory);
     }
     private void validateDoctorRoom(UUID roomId) {
         if (roomId == null) return; // Keep older doctor-schedule callers compatible.
@@ -265,10 +213,6 @@ public class ManageDoctorResourcesServiceImpl implements ManageDoctorResourcesSe
     }
     private void requireFuture(Instant startsAt) {
         if (startsAt.isBefore(clock.instant())) throw new DoctorProfileException("DOCTOR_RESOURCE_IN_PAST");
-    }
-    private void requireNoTimeOffOverlap(UUID doctorId, UUID ignoreId, Instant startsAt, Instant endsAt) {
-        if (timeOffs.findOverlapping(java.util.List.of(doctorId), startsAt, endsAt).stream()
-                .anyMatch(t -> !t.id().equals(ignoreId))) throw new DoctorProfileException("DOCTOR_TIME_OFF_OVERLAP");
     }
     private DoctorProfileException invalid() { return new DoctorProfileException("DOCTOR_RESOURCE_REQUEST_INVALID"); }
 }

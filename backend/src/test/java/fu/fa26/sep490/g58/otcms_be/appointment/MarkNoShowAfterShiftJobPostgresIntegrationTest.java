@@ -135,7 +135,7 @@ class MarkNoShowAfterShiftJobPostgresIntegrationTest {
                 jdbc.update("delete from visit_exam_queue where doctor_profile_id = ?", profile);
                 jdbc.update("delete from doctor_shifts where doctor_profile_id = ?", profile);
                 jdbc.update("delete from doctor_services where doctor_profile_id = ?", profile);
-                jdbc.update("delete from doctor_profiles where id = ?", profile);
+                jdbc.update("delete from staff_profiles where id = ?", profile);
             }
             jdbc.update("delete from patient_profiles where id = ?", patientProfile);
             jdbc.update("delete from clinic_services where id = ?", service);
@@ -233,9 +233,9 @@ class MarkNoShowAfterShiftJobPostgresIntegrationTest {
     private UUID doctor(String name) {
         UUID account = account("DOCTOR");
         UUID profile = UUID.randomUUID();
-        jdbc.update("insert into doctor_profiles (id, account_id, full_name, photo_url, work_contact, specialties, "
+        jdbc.update("insert into staff_profiles (is_doctor, id, account_id, display_name, photo_url, work_contact, specialties, "
                         + "qualifications, biography, consultation_information, publicly_visible, accepting_new_bookings, "
-                        + "in_active_directory) values (?, ?, ?, '', 'private', '', '', '', '', true, true, true)",
+                        + "in_active_directory) values (true, ?, ?, ?, '', 'private', '', '', '', '', true, true, true)",
                 profile, account, name);
         jdbc.update("insert into doctor_services (doctor_profile_id, service_id, active) values (?, ?, true)", profile, service);
         doctorProfiles.add(profile);

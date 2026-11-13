@@ -8,9 +8,10 @@ import fu.fa26.sep490.g58.otcms_be.auth.model.dto.response.ReissueAdministratorP
 import fu.fa26.sep490.g58.otcms_be.auth.model.entity.AccountJpaEntity;
 import fu.fa26.sep490.g58.otcms_be.auth.model.entity.enums.AccountStatus;
 import fu.fa26.sep490.g58.otcms_be.auth.model.entity.enums.AccountType;
+import fu.fa26.sep490.g58.otcms_be.auth.model.entity.enums.VerificationPurpose;
 import fu.fa26.sep490.g58.otcms_be.auth.repository.AccountRepository;
 import fu.fa26.sep490.g58.otcms_be.auth.repository.AuthConcurrencyRepository;
-import fu.fa26.sep490.g58.otcms_be.auth.repository.PasswordResetChallengeRepository;
+import fu.fa26.sep490.g58.otcms_be.auth.repository.VerificationCodeRepository;
 import fu.fa26.sep490.g58.otcms_be.auth.service.impl.AdministratorPasswordIssuer;
 import fu.fa26.sep490.g58.otcms_be.auth.validation.AdministratorUsernamePolicy;
 import fu.fa26.sep490.g58.otcms_be.common.security.AccountRole;
@@ -32,12 +33,12 @@ public class OwnerAdministratorService {
     private final AccountRepository accounts;
     private final AuthConcurrencyRepository concurrency;
     private final AuthSessionService sessions;
-    private final PasswordResetChallengeRepository resetChallenges;
+    private final VerificationCodeRepository resetChallenges;
     private final AdministratorPasswordIssuer passwords;
     private final AdministratorAccountMapper mapper;
 
     public OwnerAdministratorService(AccountRepository accounts, AuthConcurrencyRepository concurrency,
-            AuthSessionService sessions, PasswordResetChallengeRepository resetChallenges,
+            AuthSessionService sessions, VerificationCodeRepository resetChallenges,
             AdministratorPasswordIssuer passwords, AdministratorAccountMapper mapper) {
         this.accounts = accounts;
         this.concurrency = concurrency;
@@ -94,7 +95,7 @@ public class OwnerAdministratorService {
         String issued = passwords.issue(account);
         account.setUpdatedAt(Instant.now());
         accounts.saveAndFlush(account);
-        resetChallenges.supersedeCurrent(accountId, Instant.now());
+        resetChallenges.supersedeCurrent(accountId, VerificationPurpose.PASSWORD_RESET, Instant.now());
         sessions.revokeAll(accountId);
         return new ReissueAdministratorPasswordResponse(accountId, issued);
     }

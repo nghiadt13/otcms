@@ -4,12 +4,13 @@ import fu.fa26.sep490.g58.otcms_be.auth.exception.PasswordRecoveryException;
 import fu.fa26.sep490.g58.otcms_be.auth.model.dto.request.ChangePasswordRequest;
 import fu.fa26.sep490.g58.otcms_be.auth.model.dto.request.ResetPasswordRequest;
 import fu.fa26.sep490.g58.otcms_be.auth.model.entity.AccountJpaEntity;
-import fu.fa26.sep490.g58.otcms_be.auth.model.entity.PasswordResetChallengeJpaEntity;
+import fu.fa26.sep490.g58.otcms_be.auth.model.entity.VerificationCodeJpaEntity;
 import fu.fa26.sep490.g58.otcms_be.auth.model.entity.enums.AccountStatus;
 import fu.fa26.sep490.g58.otcms_be.auth.model.entity.enums.AccountType;
+import fu.fa26.sep490.g58.otcms_be.auth.model.entity.enums.VerificationPurpose;
 import fu.fa26.sep490.g58.otcms_be.auth.service.EmailDeliveryService;
 import fu.fa26.sep490.g58.otcms_be.auth.repository.AccountRepository;
-import fu.fa26.sep490.g58.otcms_be.auth.repository.PasswordResetChallengeRepository;
+import fu.fa26.sep490.g58.otcms_be.auth.repository.VerificationCodeRepository;
 import fu.fa26.sep490.g58.otcms_be.auth.service.AuthSessionService;
 import fu.fa26.sep490.g58.otcms_be.auth.service.PasswordRecoveryService;
 import fu.fa26.sep490.g58.otcms_be.config.AuthProperties;
@@ -31,7 +32,7 @@ import java.util.UUID;
 @Service
 public class PasswordRecoveryServiceImpl implements PasswordRecoveryService {
     private final AccountRepository accounts;
-    private final PasswordResetChallengeRepository challenges;
+    private final VerificationCodeRepository challenges;
     private final EmailDeliveryService email;
     private final PasswordEncoder encoder;
     private final AuthSessionService sessions;
@@ -40,13 +41,13 @@ public class PasswordRecoveryServiceImpl implements PasswordRecoveryService {
     private final Clock clock;
 
     @Autowired
-    public PasswordRecoveryServiceImpl(AccountRepository accounts, PasswordResetChallengeRepository challenges,
+    public PasswordRecoveryServiceImpl(AccountRepository accounts, VerificationCodeRepository challenges,
                                        EmailDeliveryService email, PasswordEncoder encoder,
                                        AuthSessionService sessions, AuthProperties properties) {
         this(accounts, challenges, email, encoder, sessions, properties, Clock.systemUTC());
     }
 
-    public PasswordRecoveryServiceImpl(AccountRepository accounts, PasswordResetChallengeRepository challenges,
+    public PasswordRecoveryServiceImpl(AccountRepository accounts, VerificationCodeRepository challenges,
                                        EmailDeliveryService email, PasswordEncoder encoder,
                                        AuthSessionService sessions, AuthProperties properties, Clock clock) {
         this.accounts = accounts;
@@ -70,14 +71,13 @@ public class PasswordRecoveryServiceImpl implements PasswordRecoveryService {
             return GENERIC_MESSAGE;
         }
 
-        challenges.findCurrentByAccountIdForUpdate(account.getId()).ifPresent(existing -> {
-            existing.setSupersededAt(Instant.now(clock));
-            challenges.save(existing);
-        });
+        // Supersede the open code first: uk_verification_codes_account_current allows one open code per purpose.
+        challenges.supersedeCurrent(account.getId(), VerificationPurpose.PASSWORD_RESET, Instant.now(clock));
         String resetToken = token();
-        PasswordResetChallengeJpaEntity challenge = new PasswordResetChallengeJpaEntity();
-        challenge.setAccount(account);
-        challenge.setTokenHash(hash(resetToken));
+        VerificationCodeJpaEntity challenge = new VerificationCodeJpaEntity();
+        challenge.setAccountId(account.getId());
+        challenge.setPurpose(VerificationPurpose.PASSWORD_RESET);
+        challenge.setCodeHash(hash(resetToken));
         challenge.setFailedAttempts(0);
         challenge.setCreatedAt(Instant.now(clock));
         challenge.setExpiresAt(Instant.now(clock).plusSeconds(900));
@@ -102,11 +102,11 @@ public class PasswordRecoveryServiceImpl implements PasswordRecoveryService {
         }
         String tokenHash = hash(request.token());
         // Match reissue's account -> challenge order and read supersession after acquiring the account lock.
-        UUID accountId = challenges.findAccountIdByTokenHash(tokenHash)
+        UUID accountId = challenges.findAccountIdByCodeHash(tokenHash, VerificationPurpose.PASSWORD_RESET)
                 .orElseThrow(() -> new PasswordRecoveryException("PASSWORD_RESET_TOKEN_INVALID"));
         AccountJpaEntity account = accounts.findByIdForUpdate(accountId)
                 .orElseThrow(() -> new PasswordRecoveryException("PASSWORD_RESET_TOKEN_INVALID"));
-        PasswordResetChallengeJpaEntity challenge = challenges.findByTokenHashForUpdate(tokenHash)
+        VerificationCodeJpaEntity challenge = challenges.findByCodeHashForUpdate(tokenHash, VerificationPurpose.PASSWORD_RESET)
                 .orElseThrow(() -> new PasswordRecoveryException("PASSWORD_RESET_TOKEN_INVALID"));
         Instant now = Instant.now(clock);
         if (challenge.getConsumedAt() != null || challenge.getSupersededAt() != null
@@ -153,7 +153,7 @@ public class PasswordRecoveryServiceImpl implements PasswordRecoveryService {
         account.setUpdatedAt(Instant.now(clock));
         account.setMustChangePassword(false);
         accounts.save(account);
-        challenges.supersedeCurrent(accountId, Instant.now(clock));
+        challenges.supersedeCurrent(accountId, VerificationPurpose.PASSWORD_RESET, Instant.now(clock));
         sessions.revokeAll(account.getId());
     }
 

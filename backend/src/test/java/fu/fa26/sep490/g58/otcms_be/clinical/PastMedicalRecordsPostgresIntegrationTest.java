@@ -28,8 +28,8 @@ class PastMedicalRecordsPostgresIntegrationTest {
     @BeforeEach void setup() {
         account(account, "DOCTOR"); account(oldAccount, "DOCTOR"); UUID patientAccount = UUID.randomUUID(); account(patientAccount, "PATIENT");
         jdbc.update("insert into patient_profiles (id,account_id,full_name,phone_canonical,phone_owner_type,date_of_birth,gender) values (?,?,'UC33 fixture','+84977773333','PATIENT','1990-01-01','OTHER')", patient, patientAccount);
-        jdbc.update("insert into doctor_profiles (id,account_id,full_name,work_contact) values (?,?,'UC33 current',?)", doctor, account, "uc33-" + doctor);
-        jdbc.update("insert into doctor_profiles (id,account_id,full_name,work_contact) values (?,?,'UC33 previous',?)", oldDoctor, oldAccount, "uc33-" + oldDoctor);
+        jdbc.update("insert into staff_profiles (is_doctor, id,account_id,display_name,work_contact) values (true, ?,?,'UC33 current',?)", doctor, account, "uc33-" + doctor);
+        jdbc.update("insert into staff_profiles (is_doctor, id,account_id,display_name,work_contact) values (true, ?,?,'UC33 previous',?)", oldDoctor, oldAccount, "uc33-" + oldDoctor);
         visit(current, "OPEN", now, "IN_PROGRESS", doctor);
     }
     void account(UUID id, String role) {

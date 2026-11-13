@@ -34,8 +34,8 @@ import fu.fa26.sep490.g58.otcms_be.servicecatalog.model.ClinicServiceType;
 import fu.fa26.sep490.g58.otcms_be.servicecatalog.model.entity.ClinicServiceJpaEntity;
 import fu.fa26.sep490.g58.otcms_be.servicecatalog.repository.ClinicServiceRepository;
 import fu.fa26.sep490.g58.otcms_be.servicecatalog.service.impl.GetClinicServiceCatalogServiceImpl;
-import fu.fa26.sep490.g58.otcms_be.staff.model.entity.DoctorProfileJpaEntity;
-import fu.fa26.sep490.g58.otcms_be.staff.repository.DoctorProfileRepository;
+import fu.fa26.sep490.g58.otcms_be.staff.model.entity.StaffProfileJpaEntity;
+import fu.fa26.sep490.g58.otcms_be.staff.repository.StaffProfileRepository;
 import fu.fa26.sep490.g58.otcms_be.staff.service.impl.DoctorProfileIdentityQueryServiceImpl;
 import fu.fa26.sep490.g58.otcms_be.visit.integration.diagnostic.VisitDiagnosticReadAdapter;
 import fu.fa26.sep490.g58.otcms_be.visit.model.entity.*;
@@ -70,10 +70,10 @@ class DoctorCoreProductionWiringTest {
     @BeforeEach void startRealApplicationWiring() {
         context = new AnnotationConfigWebApplicationContext();
         context.setServletContext(new MockServletContext()); context.register(ProductionConfiguration.class); context.refresh();
-        var profile = mock(DoctorProfileJpaEntity.class);
+        var profile = mock(StaffProfileJpaEntity.class);
         when(profile.id()).thenReturn(doctorId); when(profile.accountId()).thenReturn(accountId);
-        when(bean(DoctorProfileRepository.class).findByAccountId(accountId)).thenReturn(Optional.of(profile));
-        when(bean(DoctorProfileRepository.class).findById(doctorId)).thenReturn(Optional.of(profile));
+        when(bean(StaffProfileRepository.class).findByAccountIdAndDoctorTrue(accountId)).thenReturn(Optional.of(profile));
+        when(bean(StaffProfileRepository.class).findByIdAndDoctorTrue(doctorId)).thenReturn(Optional.of(profile));
         when(bean(AccountRepository.class).existsByIdAndAccountTypeAndStatus(eq(accountId), any(), any())).thenReturn(true);
         when(bean(ClinicVisitJpaRepository.class).findById(visitId)).thenReturn(Optional.of(
                 ClinicVisitJpaEntity.walkIn(visitId, patientId, null, UUID.randomUUID(), Instant.EPOCH)));
@@ -348,7 +348,7 @@ class DoctorCoreProductionWiringTest {
         @Bean RecordingTransactions transactionManager() { return new RecordingTransactions(); }
         @Bean static BeanFactoryPostProcessor persistenceOnlyDoubles() {
             return factory -> {
-                Class<?>[] repositories = {AccountRepository.class, DoctorProfileRepository.class, ClinicServiceRepository.class,
+                Class<?>[] repositories = {AccountRepository.class, StaffProfileRepository.class, ClinicServiceRepository.class,
                         ClinicVisitJpaRepository.class, VisitCareAssignmentRepository.class, VisitImagingResultReceiptRepository.class, ClinicalExaminationRepository.class,
                         ClinicalDiagnosisRepository.class, OrderingRoundRepository.class, ServiceOrderRepository.class,
                         ClinicalImagingRequestReplayRepository.class, ClinicalMedicalDocumentRepository.class, ClinicalMedicalDocumentPayloadRepository.class,

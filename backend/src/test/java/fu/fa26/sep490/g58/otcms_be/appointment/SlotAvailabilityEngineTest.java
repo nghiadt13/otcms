@@ -29,14 +29,13 @@ class SlotAvailabilityEngineTest {
     private final SlotAvailabilityEngine engine = new SlotAvailabilityEngine();
 
     @Test
-    void generatesGridSlotsThatFitShiftAndAvoidTimeOffAppointmentsAndCare() {
+    void generatesGridSlotsThatFitShiftAndAvoidAppointmentsAndCare() {
         var context = SlotServiceContext.current(SERVICE_ID, Duration.ofMinutes(60), Duration.ofMinutes(15));
         var request = new SlotAvailabilityRequest(Set.of(DOCTOR_ID), LocalDate.of(2026, 10, 15),
                 LocalDate.of(2026, 10, 15), context);
         var window = engine.resolveWindow(request, CLINIC_ZONE, 15, 31);
         var schedule = new DoctorSchedule(DOCTOR_ID,
-                List.of(interval("2026-10-15T01:00:00Z", "2026-10-15T05:00:00Z")),
-                List.of(interval("2026-10-15T02:15:00Z", "2026-10-15T02:30:00Z")));
+                List.of(interval("2026-10-15T01:00:00Z", "2026-10-15T05:00:00Z")));
         var appointment = new AppointmentOccupancy(UUID.randomUUID(), DOCTOR_ID,
                 interval("2026-10-15T03:00:00Z", "2026-10-15T04:15:00Z"));
         var care = new CareOccupancy(UUID.randomUUID(), DOCTOR_ID, UUID.randomUUID(), null,
@@ -45,7 +44,9 @@ class SlotAvailabilityEngineTest {
         List<AvailableSlot> slots = engine.generate(request, window, CLINIC_ZONE, 15,
                 List.of(schedule), List.of(appointment), List.of(care));
 
-        assertEquals(List.of(Instant.parse("2026-10-15T01:00:00Z")),
+        // Starts after 01:45 overlap the appointment (03:00); starts from 04:15 on overlap the care or run past the shift.
+        assertEquals(List.of(Instant.parse("2026-10-15T01:00:00Z"), Instant.parse("2026-10-15T01:15:00Z"),
+                        Instant.parse("2026-10-15T01:30:00Z"), Instant.parse("2026-10-15T01:45:00Z")),
                 slots.stream().map(AvailableSlot::startTime).toList());
         assertEquals(Instant.parse("2026-10-15T02:15:00Z"), slots.getFirst().occupiedUntil());
     }
@@ -59,7 +60,7 @@ class SlotAvailabilityEngineTest {
                 LocalDate.of(2026, 10, 15), context);
         var window = engine.resolveWindow(request, CLINIC_ZONE, 15, 31);
         var schedule = new DoctorSchedule(DOCTOR_ID,
-                List.of(interval("2026-10-15T01:00:00Z", "2026-10-15T02:15:00Z")), List.of());
+                List.of(interval("2026-10-15T01:00:00Z", "2026-10-15T02:15:00Z")));
         var ownAppointment = new AppointmentOccupancy(appointmentId, DOCTOR_ID,
                 interval("2026-10-15T01:00:00Z", "2026-10-15T02:15:00Z"));
         var ownCare = new CareOccupancy(UUID.randomUUID(), DOCTOR_ID, patientId, appointmentId,
@@ -127,7 +128,7 @@ class SlotAvailabilityEngineTest {
                 SlotServiceContext.current(SERVICE_ID, Duration.ofMinutes(15), Duration.ZERO));
         var springSlots = engine.generate(springRequest, springWindow, newYork, 15,
                 List.of(new DoctorSchedule(DOCTOR_ID, List.of(new AvailabilityInterval(
-                        springWindow.startInclusive(), springWindow.endExclusive())), List.of())), List.of(), List.of());
+                        springWindow.startInclusive(), springWindow.endExclusive())))), List.of(), List.of());
         assertEquals(92, springSlots.size());
 
         var fallDay = LocalDate.of(2026, 11, 1);
@@ -137,7 +138,7 @@ class SlotAvailabilityEngineTest {
                 SlotServiceContext.current(SERVICE_ID, Duration.ofMinutes(15), Duration.ZERO));
         var fallSlots = engine.generate(fallRequest, fallWindow, newYork, 15,
                 List.of(new DoctorSchedule(DOCTOR_ID, List.of(new AvailabilityInterval(
-                        fallWindow.startInclusive(), fallWindow.endExclusive())), List.of())), List.of(), List.of());
+                        fallWindow.startInclusive(), fallWindow.endExclusive())))), List.of(), List.of());
         assertEquals(100, fallSlots.size());
     }
 

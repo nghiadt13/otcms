@@ -86,7 +86,7 @@ class AppointmentLifecycleT029PostgresIntegrationTest {
         List<UUID> staleProfiles = new ArrayList<>();
         staleProfiles.addAll(jdbc.query("select p.id from patient_profiles p join accounts a on a.id = p.account_id where a.normalized_email like 't029-%@example.test'",
                 (rs, row) -> rs.getObject("id", UUID.class)));
-        staleProfiles.addAll(jdbc.query("select p.id from doctor_profiles p join accounts a on a.id = p.account_id where a.normalized_email like 't029-%@example.test'",
+        staleProfiles.addAll(jdbc.query("select p.id from staff_profiles p join accounts a on a.id = p.account_id where a.normalized_email like 't029-%@example.test'",
                 (rs, row) -> rs.getObject("id", UUID.class)));
         cleanT029Fixtures(staleAppointments, staleVisits, staleAccounts, staleProfiles, staleServices);
     }
@@ -136,7 +136,7 @@ class AppointmentLifecycleT029PostgresIntegrationTest {
             for (UUID profile : fixtureProfiles) {
                 jdbc.update("delete from visit_exam_queue where doctor_profile_id = ?", profile);
                 jdbc.update("delete from doctor_services where doctor_profile_id = ?", profile);
-                jdbc.update("delete from doctor_profiles where id = ?", profile);
+                jdbc.update("delete from staff_profiles where id = ?", profile);
                 jdbc.update("delete from patient_profiles where id = ?", profile);
             }
             for (UUID id : fixtureServices) jdbc.update("delete from clinic_services where id = ?", id);
@@ -357,7 +357,7 @@ class AppointmentLifecycleT029PostgresIntegrationTest {
         UUID id = UUID.randomUUID(); jdbc.update("insert into patient_profiles (id, account_id, full_name, phone_canonical, phone_owner_type, date_of_birth, gender) values (?, ?, 'T029 Patient', ?, 'PATIENT', '1990-01-01', 'OTHER')", id, account, "+848" + UUID.randomUUID().toString().replace("-", "").substring(0, 9)); return id;
     }
     private UUID doctor(UUID account) {
-        UUID id = UUID.randomUUID(); jdbc.update("insert into doctor_profiles (id, account_id, full_name, photo_url, work_contact, specialties, qualifications, biography, consultation_information, publicly_visible, accepting_new_bookings, in_active_directory) values (?, ?, 'T029 Doctor', '', 'private', '', '', '', '', true, true, true)", id, account); return id;
+        UUID id = UUID.randomUUID(); jdbc.update("insert into staff_profiles (is_doctor, id, account_id, display_name, photo_url, work_contact, specialties, qualifications, biography, consultation_information, publicly_visible, accepting_new_bookings, in_active_directory) values (true, ?, ?, 'T029 Doctor', '', 'private', '', '', '', '', true, true, true)", id, account); return id;
     }
     private void restoreTrigger(String table, String name, String mode) {
         if ("D".equals(mode)) jdbc.execute("alter table " + table + " disable trigger " + name);

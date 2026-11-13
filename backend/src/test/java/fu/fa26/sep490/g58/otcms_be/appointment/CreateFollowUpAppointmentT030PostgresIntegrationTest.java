@@ -62,7 +62,7 @@ class CreateFollowUpAppointmentT030PostgresIntegrationTest {
         correlation = UUID.randomUUID().toString();
         jdbc.update("insert into patient_profiles (id, account_id, full_name, phone_canonical, phone_owner_type, date_of_birth, gender) values (?, null, 'T030 Patient', ?, 'PATIENT', '1990-01-01', 'OTHER')",
                 patient, "+849" + UUID.randomUUID().toString().replace("-", "").substring(0, 9));
-        jdbc.update("insert into doctor_profiles (id, account_id, full_name, photo_url, work_contact, specialties, qualifications, biography, consultation_information, publicly_visible, accepting_new_bookings, in_active_directory) values (?, ?, 'T030 Doctor', '', 'private', '', '', '', '', true, true, true)",
+        jdbc.update("insert into staff_profiles (is_doctor, id, account_id, display_name, photo_url, work_contact, specialties, qualifications, biography, consultation_information, publicly_visible, accepting_new_bookings, in_active_directory) values (true, ?, ?, 'T030 Doctor', '', 'private', '', '', '', '', true, true, true)",
                 doctor, account);
         jdbc.update("insert into clinic_services (id, name, duration_minutes, buffer_minutes, online_bookable, active) values (?, 'T030 Follow-up', 30, 5, false, true)", service);
         jdbc.update("insert into doctor_services (doctor_profile_id, service_id, active) values (?, ?, true)", doctor, service);
@@ -95,7 +95,7 @@ class CreateFollowUpAppointmentT030PostgresIntegrationTest {
                 jdbc.update("delete from doctor_services where service_id = ?", service);
                 jdbc.update("delete from clinic_services where id = ?", service);
             }
-            if (doctor != null) jdbc.update("delete from doctor_profiles where id = ?", doctor);
+            if (doctor != null) jdbc.update("delete from staff_profiles where id = ?", doctor);
             if (patient != null) jdbc.update("delete from patient_profiles where id = ?", patient);
             if (account != null) jdbc.update("delete from accounts where id = ?", account);
             switch (triggerMode) {

@@ -101,14 +101,6 @@ app:
     staff-network:
       allowed-cidrs: ${APP_AUTH_STAFF_ALLOWED_CIDRS:127.0.0.1/32,::1/128}
       trusted-proxy-cidrs: ${APP_AUTH_STAFF_TRUSTED_PROXY_CIDRS:}
-    google:
-      issuer: ${GOOGLE_OIDC_ISSUER:https://accounts.google.com}
-      audience: ${GOOGLE_OIDC_CLIENT_ID:}
-      client-secret: ${GOOGLE_OIDC_CLIENT_SECRET:}
-      token-uri: ${GOOGLE_OIDC_TOKEN_URI:https://oauth2.googleapis.com/token}
-      jwk-set-uri: ${GOOGLE_OIDC_JWK_SET_URI:https://www.googleapis.com/oauth2/v3/certs}
-      connect-timeout-ms: ${GOOGLE_OIDC_CONNECT_TIMEOUT_MS:5000}
-      read-timeout-ms: ${GOOGLE_OIDC_READ_TIMEOUT_MS:10000}
     session-security:
       jwt-secret: ${APP_AUTH_JWT_SECRET:}
       access-token-seconds: ${APP_AUTH_ACCESS_TOKEN_SECONDS:900}

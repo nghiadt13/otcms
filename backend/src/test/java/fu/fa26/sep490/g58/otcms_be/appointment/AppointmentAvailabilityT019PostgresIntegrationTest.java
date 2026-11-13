@@ -74,9 +74,9 @@ class AppointmentAvailabilityT019PostgresIntegrationTest {
                     "t019-" + accountId + "@example.test", Timestamp.from(createdAt), Timestamp.from(createdAt));
             boolean visible = index != 1;
             boolean accepting = index != 2;
-            jdbc.update("insert into doctor_profiles (id, account_id, full_name, photo_url, work_contact, specialties, "
+            jdbc.update("insert into staff_profiles (is_doctor, id, account_id, display_name, photo_url, work_contact, specialties, "
                             + "qualifications, biography, consultation_information, publicly_visible, accepting_new_bookings, in_active_directory) "
-                            + "values (?, ?, ?, '', 'private-contact', '', '', '', '', ?, ?, true)",
+                            + "values (true, ?, ?, ?, '', 'private-contact', '', '', '', '', ?, ?, true)",
                     doctorId, accountId, "T019 Doctor " + index, visible, accepting);
             jdbc.update("insert into doctor_shifts (id, doctor_profile_id, starts_at, ends_at) values (?, ?, ?, ?)",
                     UUID.randomUUID(), doctorId, Timestamp.from(shiftStart()), Timestamp.from(shiftEnd()));
@@ -96,7 +96,7 @@ class AppointmentAvailabilityT019PostgresIntegrationTest {
                 serviceId, unassignedServiceId, inactiveServiceId, staffOnlyServiceId);
         jdbc.update("delete from doctor_shifts where doctor_profile_id in (?, ?, ?, ?)",
                 doctorIds.get(0), doctorIds.get(1), doctorIds.get(2), doctorIds.get(3));
-        jdbc.update("delete from doctor_profiles where id in (?, ?, ?, ?)",
+        jdbc.update("delete from staff_profiles where id in (?, ?, ?, ?)",
                 doctorIds.get(0), doctorIds.get(1), doctorIds.get(2), doctorIds.get(3));
         jdbc.update("delete from accounts where id in (?, ?, ?, ?)",
                 accountIds.get(0), accountIds.get(1), accountIds.get(2), accountIds.get(3));

@@ -4,17 +4,17 @@ import fu.fa26.sep490.g58.otcms_be.auth.exception.RegistrationException;
 import fu.fa26.sep490.g58.otcms_be.auth.model.dto.request.RegistrationRequest;
 import fu.fa26.sep490.g58.otcms_be.auth.model.dto.response.RegistrationResponse;
 import fu.fa26.sep490.g58.otcms_be.auth.model.entity.AccountJpaEntity;
-import fu.fa26.sep490.g58.otcms_be.auth.model.entity.AuthenticationAuditJpaEntity;
-import fu.fa26.sep490.g58.otcms_be.auth.model.entity.ConsentEvidenceJpaEntity;
-import fu.fa26.sep490.g58.otcms_be.auth.model.entity.EmailVerificationChallengeJpaEntity;
+import fu.fa26.sep490.g58.otcms_be.auth.model.entity.VerificationCodeJpaEntity;
+import fu.fa26.sep490.g58.otcms_be.auth.model.entity.enums.VerificationPurpose;
 import fu.fa26.sep490.g58.otcms_be.auth.model.entity.enums.AccountStatus;
 import fu.fa26.sep490.g58.otcms_be.auth.model.entity.enums.AccountType;
 import fu.fa26.sep490.g58.otcms_be.auth.model.entity.enums.ConsentActorType;
 import fu.fa26.sep490.g58.otcms_be.auth.repository.AccountRepository;
 import fu.fa26.sep490.g58.otcms_be.auth.repository.AuthConcurrencyRepository;
-import fu.fa26.sep490.g58.otcms_be.auth.repository.AuthenticationAuditRepository;
-import fu.fa26.sep490.g58.otcms_be.auth.repository.ConsentEvidenceRepository;
-import fu.fa26.sep490.g58.otcms_be.auth.repository.EmailVerificationChallengeRepository;
+import fu.fa26.sep490.g58.otcms_be.auth.repository.VerificationCodeRepository;
+import fu.fa26.sep490.g58.otcms_be.common.audit.AuditEntry;
+import fu.fa26.sep490.g58.otcms_be.common.audit.AuditLogWriter;
+import fu.fa26.sep490.g58.otcms_be.common.audit.repository.AuditLogRepository;
 import fu.fa26.sep490.g58.otcms_be.auth.service.EmailDeliveryService;
 import fu.fa26.sep490.g58.otcms_be.auth.service.RegistrationService;
 import fu.fa26.sep490.g58.otcms_be.config.AuthProperties;
@@ -32,6 +32,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.HexFormat;
 import java.util.Locale;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -40,32 +41,33 @@ public class RegistrationServiceImpl implements RegistrationService {
             "If registration can be completed, a verification code will be sent.";
 
     private final AccountRepository accounts;
-    private final ConsentEvidenceRepository consents;
-    private final EmailVerificationChallengeRepository challenges;
-    private final AuthenticationAuditRepository audits;
+    private final VerificationCodeRepository challenges;
+    private final AuditLogWriter auditWriter;
+    private final AuditLogRepository auditLogs;
     private final EmailDeliveryService emailDelivery;
     private final AuthProperties properties;
     private final PasswordEncoder passwordEncoder = PasswordEncoderFactories.createDelegatingPasswordEncoder();
     private final EmailOtpService otp;
     private final AuthConcurrencyRepository concurrency;
 
-    public RegistrationServiceImpl(AccountRepository accounts, ConsentEvidenceRepository consents,
-                                   EmailVerificationChallengeRepository challenges,
-                                   AuthenticationAuditRepository audits, EmailDeliveryService emailDelivery,
+    public RegistrationServiceImpl(AccountRepository accounts, VerificationCodeRepository challenges,
+                                   AuditLogWriter auditWriter, AuditLogRepository auditLogs,
+                                   EmailDeliveryService emailDelivery,
                                    AuthProperties properties, AuthConcurrencyRepository concurrency) {
-        this(accounts, consents, challenges, audits, emailDelivery, properties, concurrency, new EmailOtpServiceImpl());
+        this(accounts, challenges, auditWriter, auditLogs, emailDelivery, properties, concurrency,
+                new EmailOtpServiceImpl());
     }
 
     @Autowired
-    public RegistrationServiceImpl(AccountRepository accounts, ConsentEvidenceRepository consents,
-            EmailVerificationChallengeRepository challenges, AuthenticationAuditRepository audits,
+    public RegistrationServiceImpl(AccountRepository accounts, VerificationCodeRepository challenges,
+            AuditLogWriter auditWriter, AuditLogRepository auditLogs,
             EmailDeliveryService emailDelivery, AuthProperties properties, AuthConcurrencyRepository concurrency,
             EmailOtpService otp) {
         this.otp = otp;
         this.accounts = accounts;
-        this.consents = consents;
         this.challenges = challenges;
-        this.audits = audits;
+        this.auditWriter = auditWriter;
+        this.auditLogs = auditLogs;
         this.emailDelivery = emailDelivery;
         this.properties = properties;
         this.concurrency = concurrency;
@@ -103,13 +105,16 @@ public class RegistrationServiceImpl implements RegistrationService {
         AccountJpaEntity account = accounts.findById(accountId)
                 .orElseThrow(() -> new IllegalStateException("Newly registered account was not persisted"));
 
-        ConsentEvidenceJpaEntity consent = new ConsentEvidenceJpaEntity();
-        consent.setAccount(account);
-        consent.setActorType(ConsentActorType.PATIENT);
-        consent.setTermsVersion(properties.termsVersion());
-        consent.setPrivacyVersion(properties.privacyVersion());
-        consent.setAcceptedAt(now);
-        consents.save(consent);
+        account.setConsentActorType(ConsentActorType.PATIENT);
+        account.setTermsVersion(properties.termsVersion());
+        account.setPrivacyVersion(properties.privacyVersion());
+        account.setConsentAcceptedAt(now);
+        auditWriter.record(AuditEntry.builder("account_consents", "CONSENT", "ACCEPT_CONSENT", "ACCOUNT")
+                .entityId(account.getId()).visibleInActivityLog(false).occurredAt(now)
+                .metadata(Map.of("termsVersion", properties.termsVersion(),
+                        "privacyVersion", properties.privacyVersion(),
+                        "actorType", ConsentActorType.PATIENT.name()))
+                .build());
 
         sendNewOtp(account, email, now, "REGISTRATION_EMAIL_DELIVERY_UNAVAILABLE");
         return genericResponse();
@@ -124,20 +129,22 @@ public class RegistrationServiceImpl implements RegistrationService {
                 .orElseThrow(() -> new RegistrationException("OTP_INVALID_OR_EXPIRED"));
         account = accounts.findByIdForUpdate(account.getId())
                 .orElseThrow(() -> new RegistrationException("OTP_INVALID_OR_EXPIRED"));
-        EmailVerificationChallengeJpaEntity challenge = challenges.findCurrentForUpdate(account.getId())
+        VerificationCodeJpaEntity challenge = challenges
+                .findCurrentForUpdate(account.getId(), VerificationPurpose.EMAIL_VERIFY)
                 .orElseThrow(() -> new RegistrationException("OTP_INVALID_OR_EXPIRED"));
         Instant now = Instant.now();
         if (challenge.getExpiresAt().isBefore(now) || challenge.getFailedAttempts() >= 5
-                || !this.otp.matches(otp, challenge.getOtpHash())) {
+                || !this.otp.matches(otp, challenge.getCodeHash())) {
             if (challenge.getExpiresAt().isAfter(now) && challenge.getFailedAttempts() < 5)
                 challenge.setFailedAttempts(challenge.getFailedAttempts() + 1);
             if (challenge.getFailedAttempts() >= 5) challenge.setSupersededAt(now);
             throw new RegistrationException("OTP_INVALID_OR_EXPIRED");
         }
 
-        boolean consentExists = consents.existsByAccountIdAndActorTypeAndTermsVersionAndPrivacyVersion(
-                account.getId(), ConsentActorType.PATIENT, properties.termsVersion(), properties.privacyVersion());
-        if (!consentExists) throw new RegistrationException("CONSENT_REQUIRED");
+        boolean consentOk = account.getConsentActorType() == ConsentActorType.PATIENT
+                && properties.termsVersion().equals(account.getTermsVersion())
+                && properties.privacyVersion().equals(account.getPrivacyVersion());
+        if (!consentOk) throw new RegistrationException("CONSENT_REQUIRED");
         challenge.setConsumedAt(now);
         account.setStatus(AccountStatus.ACTIVE);
         account.setEmailVerifiedAt(now);
@@ -180,20 +187,21 @@ public class RegistrationServiceImpl implements RegistrationService {
     }
 
     private boolean canResend(AccountJpaEntity account, Instant now) {
-        return challenges.countByAccountIdAndCreatedAtAfter(account.getId(),
+        return challenges.countByAccountIdAndPurposeAndCreatedAtAfter(account.getId(), VerificationPurpose.EMAIL_VERIFY,
                 now.minus(Duration.ofSeconds(properties.resend().windowSeconds()))) < properties.resend().requests();
     }
 
     private void issueReplacementOtp(AccountJpaEntity account, String email, Instant now, String failureOutcome) {
-        challenges.supersedeCurrent(account.getId(), now);
+        challenges.supersedeCurrent(account.getId(), VerificationPurpose.EMAIL_VERIFY, now);
         sendNewOtp(account, email, now, failureOutcome);
     }
 
     private void sendNewOtp(AccountJpaEntity account, String email, Instant now, String failureOutcome) {
         String code = otp.generate();
-        EmailVerificationChallengeJpaEntity challenge = new EmailVerificationChallengeJpaEntity();
-        challenge.setAccount(account);
-        challenge.setOtpHash(otp.hash(code));
+        VerificationCodeJpaEntity challenge = new VerificationCodeJpaEntity();
+        challenge.setAccountId(account.getId());
+        challenge.setPurpose(VerificationPurpose.EMAIL_VERIFY);
+        challenge.setCodeHash(otp.hash(code));
         challenge.setExpiresAt(otp.expiresAt(now));
         challenge.setCreatedAt(now);
         challenge.setFailedAttempts(0);
@@ -214,18 +222,10 @@ public class RegistrationServiceImpl implements RegistrationService {
         concurrency.lock("register:" + key);
         Instant since = Instant.now().minusSeconds(limit.windowSeconds());
         String identifier = hmacIdentifier(key);
-        if (audits.countByMethodAndOutcomeAndIdentifierHmacAndOccurredAtAfter(
-                "REGISTRATION", "RATE_LIMIT_ATTEMPT", identifier, since) >= limit.requests())
+        if (auditLogs.countBySourceAndActionAndOutcomeAndIdentifierHmacAndOccurredAtAfter(
+                "auth_audits", "REGISTRATION", "RATE_LIMIT_ATTEMPT", identifier, since) >= limit.requests())
             throw new RegistrationException("RATE_LIMIT_EXCEEDED");
-        AuthenticationAuditJpaEntity audit = new AuthenticationAuditJpaEntity();
-        audit.setOccurredAt(Instant.now());
-        audit.setMethod("REGISTRATION");
-        audit.setOutcome("RATE_LIMIT_ATTEMPT");
-        audit.setIdentifierHmac(identifier);
-        audit.setCorrelationId("registration-rate-limit");
-        audit.setClientIp(null);
-        audit.setDurationMs(0);
-        audits.save(audit);
+        audit("REGISTRATION", "RATE_LIMIT_ATTEMPT", null, identifier);
     }
 
     private String hmacIdentifier(String value) {
@@ -241,26 +241,18 @@ public class RegistrationServiceImpl implements RegistrationService {
     }
 
     private void recordOutcome(AccountJpaEntity account, String outcome) {
-        AuthenticationAuditJpaEntity audit = new AuthenticationAuditJpaEntity();
-        audit.setOccurredAt(Instant.now());
-        audit.setMethod("REGISTRATION");
-        audit.setOutcome(outcome);
-        audit.setAccount(account);
-        audit.setCorrelationId(UUID.randomUUID().toString());
-        audit.setClientIp(null);
-        audit.setDurationMs(0);
-        audits.save(audit);
+        audit("REGISTRATION", outcome, account.getId(), null);
     }
 
     private void recordDeliveryOutcome(AccountJpaEntity account, String outcome) {
-        AuthenticationAuditJpaEntity audit = new AuthenticationAuditJpaEntity();
-        audit.setOccurredAt(Instant.now());
-        audit.setMethod("EMAIL_VERIFICATION");
-        audit.setOutcome(outcome);
-        audit.setAccount(account);
-        audit.setCorrelationId("registration-otp");
-        audit.setDurationMs(0);
-        audits.save(audit);
+        audit("EMAIL_VERIFICATION", outcome, account.getId(), null);
+    }
+
+    /** Auth evidence is never shown in the activity log; written in the caller's transaction. */
+    private void audit(String action, String outcome, UUID accountId, String identifierHmac) {
+        auditWriter.record(AuditEntry.builder("auth_audits", "AUTH", action, "AUTH")
+                .entityId(accountId).visibleInActivityLog(false).identifierHmac(identifierHmac)
+                .outcome(outcome).metadata(Map.of("durationMs", 0)).build());
     }
 
     private String normalizeEmail(String raw) {

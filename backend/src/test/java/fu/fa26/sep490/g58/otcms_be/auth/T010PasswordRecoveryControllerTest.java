@@ -15,7 +15,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class T010PasswordRecoveryControllerTest {
     @Test void unicodeResetPasswordOver72BytesReturnsValidation400() throws Exception {
         var accounts = mock(fu.fa26.sep490.g58.otcms_be.auth.repository.AccountRepository.class);
-        var challenges = mock(fu.fa26.sep490.g58.otcms_be.auth.repository.PasswordResetChallengeRepository.class);
+        var challenges = mock(fu.fa26.sep490.g58.otcms_be.auth.repository.VerificationCodeRepository.class);
         var encoder = mock(org.springframework.security.crypto.password.PasswordEncoder.class);
         var sessions = mock(fu.fa26.sep490.g58.otcms_be.auth.service.AuthSessionService.class);
         var service = new fu.fa26.sep490.g58.otcms_be.auth.service.impl.PasswordRecoveryServiceImpl(

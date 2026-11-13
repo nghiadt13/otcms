@@ -119,7 +119,7 @@ class AppointmentT015PostgresIntegrationTest {
         UUID serviceId = UUID.randomUUID();
         jdbc.update("insert into " + schema + ".patient_profiles (id, account_id, full_name, phone_canonical, phone_owner_type, date_of_birth, gender) values (?, ?, 'T015 Patient', ?, 'PATIENT', '1990-01-01', 'OTHER')",
                 patientId, patientAccount, "+849" + UUID.randomUUID().toString().replace("-", "").substring(0, 9));
-        jdbc.update("insert into " + schema + ".doctor_profiles (id, account_id, full_name, work_contact) values (?, ?, 'T015 Doctor', ?)",
+        jdbc.update("insert into " + schema + ".staff_profiles (is_doctor, id, account_id, display_name, work_contact) values (true, ?, ?, 'T015 Doctor', ?)",
                 doctorId, doctorAccount, "t015-" + doctorId);
         jdbc.update("insert into " + schema + ".clinic_services (id, name, duration_minutes, buffer_minutes) values (?, 'T015 service', 30, 10)", serviceId);
         jdbc.update("insert into " + schema + ".doctor_services (doctor_profile_id, service_id) values (?, ?)", doctorId, serviceId);

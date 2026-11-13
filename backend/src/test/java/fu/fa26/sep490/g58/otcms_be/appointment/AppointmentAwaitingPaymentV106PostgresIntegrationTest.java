@@ -34,7 +34,7 @@ class AppointmentAwaitingPaymentV106PostgresIntegrationTest {
         String schema = newSchema("t106_up_");
         try {
             assertTrue(flyway(schema, "105").migrate().migrationsExecuted > 0);
-            Fixture f = fixture(schema, "up");
+            Fixture f = fixture(schema, "up", true);
             UUID freeService = service(schema, "free", 0);
             assign(schema, f.doctorId, freeService);
             Instant day = Instant.now().plus(2, ChronoUnit.DAYS).truncatedTo(ChronoUnit.HOURS);
@@ -83,7 +83,7 @@ class AppointmentAwaitingPaymentV106PostgresIntegrationTest {
         String schema = newSchema("t106_rules_");
         try {
             flyway(schema, null).migrate();
-            Fixture f = fixture(schema, "rules");
+            Fixture f = fixture(schema, "rules", false);
             Instant start = Instant.now().plus(3, ChronoUnit.DAYS).truncatedTo(ChronoUnit.HOURS);
 
             assertThrows(DataAccessException.class, () -> appointment(schema, f, f.serviceId, "PATIENT_ONLINE",
@@ -119,7 +119,7 @@ class AppointmentAwaitingPaymentV106PostgresIntegrationTest {
         String schema = newSchema("t106_visit_");
         try {
             flyway(schema, null).migrate();
-            Fixture f = fixture(schema, "visit");
+            Fixture f = fixture(schema, "visit", false);
             Instant start = Instant.now().plus(4, ChronoUnit.DAYS).truncatedTo(ChronoUnit.HOURS);
             UUID hold = appointment(schema, f, f.serviceId, "PATIENT_ONLINE", "AWAITING_PAYMENT", start,
                     Instant.now().plus(15, ChronoUnit.MINUTES));
@@ -134,15 +134,21 @@ class AppointmentAwaitingPaymentV106PostgresIntegrationTest {
 
     private record Fixture(UUID patientAccount, UUID patientId, UUID doctorId, UUID serviceId) {}
 
-    private Fixture fixture(String schema, String tag) {
+    private Fixture fixture(String schema, String tag, boolean legacyDoctorTable) {
         UUID patientAccount = account(schema, "PATIENT", tag);
         UUID doctorAccount = account(schema, "DOCTOR", tag);
         UUID patientId = UUID.randomUUID();
         UUID doctorId = UUID.randomUUID();
         jdbc.update("insert into " + schema + ".patient_profiles (id, account_id, full_name, phone_canonical, phone_owner_type, date_of_birth, gender) values (?, ?, 'T106 Patient', ?, 'PATIENT', '1990-01-01', 'OTHER')",
                 patientId, patientAccount, "+8491" + String.format("%07d", Math.abs(tag.hashCode()) % 10_000_000));
-        jdbc.update("insert into " + schema + ".doctor_profiles (id, account_id, full_name, work_contact) values (?, ?, 'T106 Doctor', ?)",
-                doctorId, doctorAccount, "t106-" + tag);
+        if (legacyDoctorTable) {
+            // Schema still at V105: doctor_profiles exists; V110 copies it into staff_profiles during the upgrade.
+            jdbc.update("insert into " + schema + ".doctor_profiles (id, account_id, full_name, work_contact) values (?, ?, 'T106 Doctor', ?)",
+                    doctorId, doctorAccount, "t106-" + tag);
+        } else {
+            jdbc.update("insert into " + schema + ".staff_profiles (is_doctor, id, account_id, display_name, work_contact) values (true, ?, ?, 'T106 Doctor', ?)",
+                    doctorId, doctorAccount, "t106-" + tag);
+        }
         UUID serviceId = service(schema, "paid", 200000);
         assign(schema, doctorId, serviceId);
         return new Fixture(patientAccount, patientId, doctorId, serviceId);

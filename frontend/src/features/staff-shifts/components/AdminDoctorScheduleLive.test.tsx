@@ -15,9 +15,21 @@ const doctor = {
 };
 afterEach(() => request.mockReset());
 
-it("does not save a time-off that would affect booked patients", async () => {
+it("does not save a shift that would affect booked patients", async () => {
   request.mockImplementation(async (path) => {
     if (path === "/api/v1/admin/doctor-profiles") return { items: [doctor] };
+    if (path === "/api/v1/admin/visit-rooms")
+      return {
+        items: [
+          {
+            id: "room",
+            roomCode: "P1",
+            displayLabel: "Phòng 1",
+            type: "EXAMINATION",
+            active: true,
+          },
+        ],
+      };
     if (path.endsWith("/mutation-impact"))
       return { blocked: true, affectedBookingCount: 2, activeCareBlocks: true };
     return { items: [] };
@@ -25,15 +37,16 @@ it("does not save a time-off that would affect booked patients", async () => {
   const user = userEvent.setup();
   render(<AdminDoctorScheduleLive />);
   await screen.findByRole("option", { name: doctor.fullName });
-  await user.selectOptions(screen.getByLabelText("Loại lịch"), "time-offs");
-  await user.click(screen.getByRole("button", { name: "Thêm khoảng nghỉ" }));
-  await user.click(screen.getByRole("button", { name: "Lưu khoảng nghỉ" }));
+  await user.click(screen.getByRole("button", { name: "Thêm ca trực" }));
+  await screen.findByRole("option", { name: "Phòng 1" });
+  await user.selectOptions(screen.getByLabelText("Phòng khám *"), "room");
+  await user.click(screen.getByRole("button", { name: "Lưu ca trực" }));
   expect(await screen.findByRole("alert")).toHaveTextContent(
     "2 lịch hẹn bị ảnh hưởng",
   );
   expect(
     request.mock.calls.some(
-      ([path, init]) => path.endsWith("/time-offs") && init?.method === "POST",
+      ([path, init]) => path.endsWith("/shifts") && init?.method === "POST",
     ),
   ).toBe(false);
   expect(screen.getByLabelText("Bắt đầu *")).toHaveValue(

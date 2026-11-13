@@ -69,7 +69,6 @@ class T032AdminResourceMutationPostgresIntegrationTest {
     private UUID serviceId;
     private UUID assignmentId;
     private UUID shiftId;
-    private UUID timeOffId;
     private final List<UUID> patientIds = new java.util.ArrayList<>();
     private final List<UUID> patientAccountIds = new java.util.ArrayList<>();
     private final List<UUID> appointmentIds = new java.util.ArrayList<>();
@@ -98,10 +97,9 @@ class T032AdminResourceMutationPostgresIntegrationTest {
             if (doctorId != null) {
                 jdbc.update("delete from staff_resource_audits where doctor_profile_id = ?", doctorId);
                 if (serviceId != null) jdbc.update("delete from service_audits where service_id = ?", serviceId);
-                jdbc.update("delete from doctor_time_off where doctor_profile_id = ?", doctorId);
                 jdbc.update("delete from doctor_shifts where doctor_profile_id = ?", doctorId);
                 jdbc.update("delete from doctor_services where doctor_profile_id = ?", doctorId);
-                jdbc.update("delete from doctor_profiles where id = ?", doctorId);
+                jdbc.update("delete from staff_profiles where id = ?", doctorId);
             }
             if (serviceId != null) jdbc.update("delete from clinic_services where id = ?", serviceId);
             for (UUID patient : patientIds) jdbc.update("delete from patient_profiles where id=?", patient);
@@ -178,31 +176,6 @@ class T032AdminResourceMutationPostgresIntegrationTest {
         assertEquals(1, jdbc.queryForObject("select count(*) from doctor_shifts where id=?", Integer.class, shiftId));
         assertEquals(0, jdbc.queryForObject("select count(*) from staff_resource_audits where resource_id=?", Integer.class, shiftId));
 
-        mvc.perform(post("/api/v1/admin/doctors/{doctorId}/time-offs", doctorId)
-                        .with(actor(AccountRole.ADMIN, adminId)).with(csrf()).contentType("application/json")
-                        .content(intervalJson(Duration.ofMinutes(20), Duration.ofMinutes(70))))
-                .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.error.code").value("RESOURCE_MUTATION_BLOCKED"))
-                .andExpect(jsonPath("$.error.impact.resourceType").value("TIME_OFF"))
-                .andExpect(jsonPath("$.error.impact.affectedBookingCount").value(1));
-        assertEquals(0, jdbc.queryForObject("select count(*) from doctor_time_off where doctor_profile_id=?", Integer.class, doctorId));
-        assertEquals(0, jdbc.queryForObject("select count(*) from staff_resource_audits where doctor_profile_id=? and resource_type='TIME_OFF'", Integer.class, doctorId));
-
-        timeOffId = UUID.randomUUID();
-        jdbc.update("insert into doctor_time_off (id,doctor_profile_id,starts_at,ends_at) values (?,?,?,?)",
-                timeOffId, doctorId, timestamp(resourceStart.plus(Duration.ofMinutes(20))), timestamp(resourceStart.plus(Duration.ofMinutes(70))));
-        mvc.perform(get("/api/v1/admin/doctors/{doctorId}/time-offs/{timeOffId}/mutation-impact", doctorId, timeOffId)
-                        .with(actor(AccountRole.ADMIN, adminId)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.blocked").value(false))
-                .andExpect(jsonPath("$.affectedBookingCount").value(0))
-                .andExpect(jsonPath("$.activeCareBlocks").value(false));
-        mvc.perform(delete("/api/v1/admin/doctors/{doctorId}/time-offs/{timeOffId}", doctorId, timeOffId)
-                        .with(actor(AccountRole.ADMIN, adminId)).with(csrf()))
-                .andExpect(status().isNoContent());
-        assertEquals(0, jdbc.queryForObject("select count(*) from doctor_time_off where id=?", Integer.class, timeOffId));
-        assertEquals(1, jdbc.queryForObject("select count(*) from staff_resource_audits where resource_id=? and resource_type='TIME_OFF' and action='DELETED'", Integer.class, timeOffId));
-
         mvc.perform(post("/api/v1/admin/doctors/{doctorId}/shifts", doctorId).with(actor(AccountRole.ADMIN, adminId)).with(csrf())
                         .contentType("application/json").content(intervalJson(Duration.ofHours(3), Duration.ofHours(4))))
                 .andExpect(status().isCreated()).andExpect(jsonPath("$.id").exists());
@@ -211,7 +184,10 @@ class T032AdminResourceMutationPostgresIntegrationTest {
                         .with(actor(AccountRole.ADMIN, adminId)).with(csrf()).contentType("application/json")
                         .content("{\"publiclyVisible\":false,\"acceptingNewBookings\":false,\"inActiveDirectory\":false}"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.publiclyVisible").value(false));
-        assertEquals(1, jdbc.queryForObject("select count(*) from staff_resource_audits where doctor_profile_id=? and resource_type='DOCTOR_PROFILE' and action='UPDATED'", Integer.class, doctorId));
+        assertEquals(1, jdbc.queryForObject("select count(*) from audit_logs where entity_id=? and source='staff_resource_audits' "
+                + "and category='STAFF_PROFILE' and record_type='DOCTOR_PROFILE' and action='UPDATE_STAFF_PROFILE' "
+                + "and visible_in_activity_log and jsonb_typeof(after_state)='object' and (after_state->>'inActiveDirectory')::boolean = false",
+                Integer.class, doctorId));
         UUID auditId = jdbc.queryForObject("select id from staff_resource_audits where doctor_profile_id=? and resource_type='WORK_SHIFT' and action='CREATED'", UUID.class, doctorId);
         assertThrows(DataAccessException.class, () -> jdbc.update("update staff_resource_audits set correlation_id='tampered' where id=?", auditId));
 
@@ -252,7 +228,7 @@ class T032AdminResourceMutationPostgresIntegrationTest {
     }
 
     @Test
-    void checkedInAppointmentAlsoBlocksTimeOffCreation() throws Exception {
+    void checkedInAppointmentAlsoBlocksShiftRemoval() throws Exception {
         createFixtures();
         UUID patient = patientId();
         UUID appointmentId = newBookingId();
@@ -273,16 +249,28 @@ class T032AdminResourceMutationPostgresIntegrationTest {
                     visitId, receptionistId, timestamp(resourceStart), timestamp(resourceStart));
         });
 
-        mvc.perform(post("/api/v1/admin/doctors/{doctorId}/time-offs", doctorId)
-                        .with(actor(AccountRole.ADMIN, adminId)).with(csrf()).contentType("application/json")
-                        .content(intervalJson(Duration.ofMinutes(20), Duration.ofMinutes(70))))
+        jdbc.update("insert into doctor_shifts (id,doctor_profile_id,starts_at,ends_at) values (?,?,?,?)",
+                shiftId, doctorId, timestamp(resourceStart), timestamp(resourceStart.plus(Duration.ofHours(2))));
+        mvc.perform(delete("/api/v1/admin/doctors/{doctorId}/shifts/{shiftId}", doctorId, shiftId)
+                        .with(actor(AccountRole.ADMIN, adminId)).with(csrf()))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.error.code").value("RESOURCE_MUTATION_BLOCKED"))
-                .andExpect(jsonPath("$.error.impact.resourceType").value("TIME_OFF"))
+                .andExpect(jsonPath("$.error.impact.resourceType").value("WORK_SHIFT"))
                 .andExpect(jsonPath("$.error.impact.affectedBookingCount").value(1));
         assertEquals("CHECKED_IN", jdbc.queryForObject("select status from appointments where id=?", String.class, appointmentId));
-        assertEquals(0, jdbc.queryForObject("select count(*) from doctor_time_off where doctor_profile_id=?", Integer.class, doctorId));
-        assertEquals(0, jdbc.queryForObject("select count(*) from staff_resource_audits where doctor_profile_id=? and resource_type='TIME_OFF'", Integer.class, doctorId));
+        assertEquals(1, jdbc.queryForObject("select count(*) from doctor_shifts where id=?", Integer.class, shiftId));
+        assertEquals(0, jdbc.queryForObject("select count(*) from staff_resource_audits where resource_id=?", Integer.class, shiftId));
+    }
+
+    @Test
+    void timeOffIsNoLongerAMutationImpactResourceType() throws Exception {
+        createFixtures();
+        mvc.perform(post("/api/v1/admin/doctors/{doctorId}/mutation-impact", doctorId)
+                        .with(actor(AccountRole.ADMIN, adminId)).with(csrf()).contentType("application/json")
+                        .content("{\"resourceType\":\"TIME_OFF\",\"startsAt\":\"" + resourceStart + "\",\"endsAt\":\""
+                                + resourceStart.plus(Duration.ofHours(1)) + "\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.code").value("DOCTOR_RESOURCE_REQUEST_INVALID"));
     }
 
     @Test
@@ -402,7 +390,7 @@ class T032AdminResourceMutationPostgresIntegrationTest {
         receptionistId = createAccount(AccountType.RECEPTIONIST, "receptionist");
         doctorId = UUID.randomUUID(); serviceId = UUID.randomUUID(); assignmentId = UUID.randomUUID();
         shiftId = UUID.randomUUID();
-        jdbc.update("insert into doctor_profiles (id,account_id,full_name,work_contact,specialties,qualifications,biography,consultation_information,publicly_visible,accepting_new_bookings,in_active_directory) values (?,?,?,'t032-contact','test','','','',true,true,true)",
+        jdbc.update("insert into staff_profiles (is_doctor, id,account_id,display_name,work_contact,specialties,qualifications,biography,consultation_information,publicly_visible,accepting_new_bookings,in_active_directory) values (true, ?,?,?,'t032-contact','test','','','',true,true,true)",
                 doctorId, doctorAccountId, "Dr T032 " + doctorId);
         jdbc.update("insert into clinic_services (id,name,duration_minutes,buffer_minutes,online_bookable,active) values (?,? ,30,10,true,true)",
                 serviceId, "T032 service " + serviceId);

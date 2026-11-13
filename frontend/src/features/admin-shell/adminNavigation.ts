@@ -69,12 +69,11 @@ export const adminNavGroups: AdminNavGroup[] = [
           "Thông tin chuyên môn, hiển thị công khai và nhận lịch của bác sĩ.",
       },
       {
-        title: "Ca trực và ngày nghỉ",
+        title: "Ca trực",
         href: "/admin/staff-shifts",
         icon: CalendarClock,
         ucs: "UC25–UC28",
-        description:
-          "Quản lý ca trực và khoảng nghỉ của bác sĩ theo backend hiện tại.",
+        description: "Quản lý ca trực của bác sĩ và nhân viên.",
       },
     ],
   },

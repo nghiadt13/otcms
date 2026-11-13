@@ -68,9 +68,9 @@ class MedicalHistoryR3PostgresIntegrationTest {
         return id;
     }
     UUID doctorProfile(UUID accountId) {
-        jdbc.update("insert into doctor_profiles(id,account_id,full_name) values (?,?,?) on conflict (account_id) do nothing",
+        jdbc.update("insert into staff_profiles(is_doctor, id,account_id,display_name) values (true, ?,?,?) on conflict (account_id) do nothing",
                 UUID.randomUUID(), accountId, "Doctor " + accountId);
-        UUID id = jdbc.queryForObject("select id from doctor_profiles where account_id=?", UUID.class, accountId);
+        UUID id = jdbc.queryForObject("select id from staff_profiles where account_id=?", UUID.class, accountId);
         assertNotEquals(accountId, id); // Authorization must resolve account -> Doctor profile.
         return id;
     }
@@ -132,7 +132,7 @@ class MedicalHistoryR3PostgresIntegrationTest {
         if (scope.equals("DEPENDENT")) { target = profile(null); link(target, null); assertTrue(access.canAccess(patient, target)); }
         if (scope.equals("DOCTOR")) { caller = doctor; role = AccountRole.DOCTOR; }
         empty(fetch(caller, role, target)); assertEquals(0, count(target));
-        assertEquals(1, jdbc.queryForObject("select count(*) from doctor_profiles where account_id=?", Integer.class, doctor));
+        assertEquals(1, jdbc.queryForObject("select count(*) from staff_profiles where account_id=?", Integer.class, doctor));
     }
     @Test void firstPutTrimsPersistsActorAndClockThenGetReturnsExactFields() throws Exception {
         var body = body(0); FIELDS.forEach(field -> body.put(field, "  Đau  khớp\nDòng hai e\u0301  "));

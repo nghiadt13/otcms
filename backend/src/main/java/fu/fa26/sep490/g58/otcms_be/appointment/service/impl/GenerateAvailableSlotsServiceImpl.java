@@ -62,8 +62,6 @@ public class GenerateAvailableSlotsServiceImpl implements GenerateAvailableSlots
                         window.startInclusive(), window.endExclusive()).stream()
                 .map(schedule -> new DoctorSchedule(schedule.doctorProfileId(),
                         schedule.shifts().stream().map(interval -> new AvailabilityInterval(
-                                interval.startsAt(), interval.endsAt())).toList(),
-                        schedule.timeOff().stream().map(interval -> new AvailabilityInterval(
                                 interval.startsAt(), interval.endsAt())).toList()))
                 .toList();
         var occupiedAppointments = appointments.findOccupiedIntervals(doctorIds,

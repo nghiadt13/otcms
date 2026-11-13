@@ -68,11 +68,11 @@ class BillingFixtureCleanupTest {
         assertTrue(position(deletes, "visits", id("visitId")) < position(deletes, "appointments", id("appointmentId")));
         assertTrue(position(deletes, "appointments", id("appointmentId")) < service);
         assertTrue(position(deletes, "doctor_services", id("serviceId")) < service);
-        assertTrue(service < position(deletes, "doctor_profiles", id("doctorProfileId")));
+        assertTrue(service < position(deletes, "staff_profiles", id("doctorProfileId")));
         assertTrue(position(deletes, "patient_profiles", id("patientProfileId")) < position(deletes, "accounts", id("patientAccountId")));
-        assertTrue(position(deletes, "doctor_profiles", id("doctorProfileId")) < position(deletes, "accounts", id("doctorAccountId")));
+        assertTrue(position(deletes, "staff_profiles", id("doctorProfileId")) < position(deletes, "accounts", id("doctorAccountId")));
         assertEquals(Set.of("payment_attempts", "invoice_items", "invoices", "clinical_service_orders", "clinical_ordering_rounds",
-                "visits", "appointments", "doctor_services", "clinic_services", "doctor_profiles", "patient_profiles", "accounts"),
+                "visits", "appointments", "doctor_services", "clinic_services", "staff_profiles", "patient_profiles", "accounts"),
                 deletes.stream().map(Deletion::table).collect(java.util.stream.Collectors.toSet()));
     }
 

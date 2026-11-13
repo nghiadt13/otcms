@@ -12,6 +12,12 @@ BEGIN
 END
 $$;
 
+-- 0. audit_logs widths must hold every auth_audits value copied in step 5 and written by the auth services:
+--    V001 had outcome varchar(64) and identifier_hmac varchar(255); V109 created them narrower.
+ALTER TABLE audit_logs
+    ALTER COLUMN outcome TYPE varchar(64),
+    ALTER COLUMN identifier_hmac TYPE varchar(255);
+
 -- 1. accounts: avatar (1-1 from account_avatars) and the newest consent acceptance.
 ALTER TABLE accounts
     ADD COLUMN avatar_content bytea,

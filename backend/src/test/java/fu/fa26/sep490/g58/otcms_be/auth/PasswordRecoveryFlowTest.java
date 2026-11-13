@@ -3,11 +3,12 @@ package fu.fa26.sep490.g58.otcms_be.auth;
 import fu.fa26.sep490.g58.otcms_be.auth.controller.PasswordRecoveryController;
 import fu.fa26.sep490.g58.otcms_be.auth.exception.AuthExceptionHandler;
 import fu.fa26.sep490.g58.otcms_be.auth.model.entity.AccountJpaEntity;
-import fu.fa26.sep490.g58.otcms_be.auth.model.entity.PasswordResetChallengeJpaEntity;
+import fu.fa26.sep490.g58.otcms_be.auth.model.entity.VerificationCodeJpaEntity;
 import fu.fa26.sep490.g58.otcms_be.auth.model.entity.enums.AccountStatus;
 import fu.fa26.sep490.g58.otcms_be.auth.model.entity.enums.AccountType;
+import fu.fa26.sep490.g58.otcms_be.auth.model.entity.enums.VerificationPurpose;
 import fu.fa26.sep490.g58.otcms_be.auth.repository.AccountRepository;
-import fu.fa26.sep490.g58.otcms_be.auth.repository.PasswordResetChallengeRepository;
+import fu.fa26.sep490.g58.otcms_be.auth.repository.VerificationCodeRepository;
 import fu.fa26.sep490.g58.otcms_be.auth.security.StaffNetworkPolicy;
 import fu.fa26.sep490.g58.otcms_be.auth.service.AuthSessionService;
 import fu.fa26.sep490.g58.otcms_be.auth.service.EmailDeliveryService;
@@ -27,7 +28,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class PasswordRecoveryFlowTest {
     @Test void requestResetAndReplayUseTheSameChallengeAndUpdateTheActualPasswordHash() throws Exception {
         var accounts = mock(AccountRepository.class);
-        var challenges = mock(PasswordResetChallengeRepository.class);
+        var challenges = mock(VerificationCodeRepository.class);
         var email = mock(EmailDeliveryService.class);
         var sessions = mock(AuthSessionService.class);
         var encoder = new BCryptPasswordEncoder(4);
@@ -40,7 +41,7 @@ class PasswordRecoveryFlowTest {
         when(accounts.findByNormalizedEmail(account.getNormalizedEmail())).thenReturn(Optional.of(account));
         when(accounts.findByIdForUpdate(account.getId())).thenReturn(Optional.of(account));
         var service = new PasswordRecoveryServiceImpl(accounts, challenges, email, encoder, sessions,
-                new AuthProperties(null, null, null, null, null, null, "v1", "v1"));
+                new AuthProperties(null, null, null, null, null, "v1", "v1"));
         var mvc = MockMvcBuilders.standaloneSetup(new PasswordRecoveryController(service, new StaffNetworkPolicy()))
                 .setControllerAdvice(new AuthExceptionHandler()).build();
         mvc.perform(post("/api/auth/patient/forgot-password").contentType("application/json")
@@ -48,12 +49,12 @@ class PasswordRecoveryFlowTest {
                 .andExpect(status().isAccepted());
         var token = ArgumentCaptor.forClass(String.class);
         verify(email).sendPasswordReset(eq(account.getNormalizedEmail()), token.capture(), eq(account.getId()));
-        var saved = ArgumentCaptor.forClass(PasswordResetChallengeJpaEntity.class);
+        var saved = ArgumentCaptor.forClass(VerificationCodeJpaEntity.class);
         verify(challenges).saveAndFlush(saved.capture());
         var challenge = saved.getValue();
-        assertNotEquals(token.getValue(), challenge.getTokenHash());
-        when(challenges.findAccountIdByTokenHash(challenge.getTokenHash())).thenReturn(Optional.of(account.getId()));
-        when(challenges.findByTokenHashForUpdate(challenge.getTokenHash())).thenReturn(Optional.of(challenge));
+        assertNotEquals(token.getValue(), challenge.getCodeHash());
+        when(challenges.findAccountIdByCodeHash(challenge.getCodeHash(), VerificationPurpose.PASSWORD_RESET)).thenReturn(Optional.of(account.getId()));
+        when(challenges.findByCodeHashForUpdate(challenge.getCodeHash(), VerificationPurpose.PASSWORD_RESET)).thenReturn(Optional.of(challenge));
         String request = "{\"token\":\"" + token.getValue() + "\",\"newPassword\":\"new-password-123\"}";
         mvc.perform(post("/api/auth/patient/reset-password").contentType("application/json").content(request))
                 .andExpect(status().isNoContent());

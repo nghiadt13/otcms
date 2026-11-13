@@ -54,7 +54,7 @@ class BillingInvoicePostgresIntegrationTest {
                         + "phone_owner_type, date_of_birth, gender) values (?, ?, ?, ?, 'PATIENT', date '1990-01-01', 'OTHER')",
                 patientProfileId, patientAccountId, "Billing Test Patient",
                 "+849" + String.format("%09d", Math.floorMod(patientProfileId.getLeastSignificantBits(), 1_000_000_000L)));
-        jdbc.update("insert into doctor_profiles (id, account_id, full_name) values (?, ?, ?)",
+        jdbc.update("insert into staff_profiles (is_doctor, id, account_id, display_name) values (true, ?, ?, ?)",
                 doctorProfileId, doctorAccountId, "Billing Test Doctor");
         jdbc.update("insert into clinic_services (id, name, service_type, price, duration_minutes, "
                         + "buffer_minutes, online_bookable, active) values (?, ?, 'EXAMINATION', ?, 30, 0, true, true)",
@@ -156,7 +156,7 @@ class BillingInvoicePostgresIntegrationTest {
         jdbc.update("delete from doctor_services where doctor_profile_id = ? and service_id = ?",
                 doctorProfileId, serviceId);
         jdbc.update("delete from clinic_services where id = ?", serviceId);
-        jdbc.update("delete from doctor_profiles where id = ?", doctorProfileId);
+        jdbc.update("delete from staff_profiles where id = ?", doctorProfileId);
         jdbc.update("delete from patient_profiles where id = ?", patientProfileId);
         jdbc.update("delete from accounts where id in (?, ?, ?)",
                 patientAccountId, receptionistAccountId, doctorAccountId);

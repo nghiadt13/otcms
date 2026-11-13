@@ -90,4 +90,21 @@ public interface AccountRepository extends JpaRepository<AccountJpaEntity, UUID>
     Optional<AccountJpaEntity> findByIdForUpdate(@Param("id") UUID id);
 
     Page<AccountJpaEntity> findByStatusAndCreatedAtBefore(AccountStatus status, Instant cutoff, Pageable pageable);
+
+    // Avatar columns (final-db V110). avatar_content is bytea and not mapped on the entity; the three columns
+    // are always written together to satisfy ck_accounts_avatar_complete.
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query(value = "update accounts set avatar_content = :content, avatar_content_type = :type, "
+            + "avatar_updated_at = :at where id = :id", nativeQuery = true)
+    int updateAvatar(@Param("id") UUID id, @Param("content") byte[] content, @Param("type") String type,
+            @Param("at") Instant at);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query(value = "update accounts set avatar_content = null, avatar_content_type = null, "
+            + "avatar_updated_at = null where id = :id", nativeQuery = true)
+    int clearAvatar(@Param("id") UUID id);
+
+    @Query(value = "select avatar_content from accounts where id = :id and avatar_content is not null",
+            nativeQuery = true)
+    Optional<byte[]> findAvatarContent(@Param("id") UUID id);
 }

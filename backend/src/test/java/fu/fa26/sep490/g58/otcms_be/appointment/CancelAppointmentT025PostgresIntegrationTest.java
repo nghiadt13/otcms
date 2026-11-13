@@ -69,9 +69,9 @@ class CancelAppointmentT025PostgresIntegrationTest {
         service = UUID.randomUUID();
         jdbc.update("insert into clinic_services (id, name, duration_minutes, buffer_minutes, online_bookable, active) "
                 + "values (?, 'T025 Cancellation', 30, 0, true, true)", service);
-        jdbc.update("insert into doctor_profiles (id, account_id, full_name, photo_url, work_contact, specialties, "
+        jdbc.update("insert into staff_profiles (is_doctor, id, account_id, display_name, photo_url, work_contact, specialties, "
                         + "qualifications, biography, consultation_information, publicly_visible, accepting_new_bookings, in_active_directory) "
-                        + "values (?, ?, 'T025 Doctor', '', 'private', '', '', '', '', true, true, true)", doctorProfile, doctorAccount);
+                        + "values (true, ?, ?, 'T025 Doctor', '', 'private', '', '', '', '', true, true, true)", doctorProfile, doctorAccount);
         jdbc.update("insert into doctor_services (doctor_profile_id, service_id, active) values (?, ?, true)",
                 doctorProfile, service);
         appointment = insertAppointment(patientProfile, patientAccount, START, "T025 private purpose");
@@ -90,7 +90,7 @@ class CancelAppointmentT025PostgresIntegrationTest {
                 jdbc.update("delete from doctor_services where service_id = ?", service);
                 jdbc.update("delete from clinic_services where id = ?", service);
             }
-            if (doctorProfile != null) jdbc.update("delete from doctor_profiles where id = ?", doctorProfile);
+            if (doctorProfile != null) jdbc.update("delete from staff_profiles where id = ?", doctorProfile);
             if (patientProfile != null) jdbc.update("delete from patient_profiles where id = ?", patientProfile);
             if (otherPatientProfile != null) jdbc.update("delete from patient_profiles where id = ?", otherPatientProfile);
             for (UUID id : new UUID[]{patientAccount, otherPatientAccount, receptionistAccount, doctorAccount, adminAccount}) {

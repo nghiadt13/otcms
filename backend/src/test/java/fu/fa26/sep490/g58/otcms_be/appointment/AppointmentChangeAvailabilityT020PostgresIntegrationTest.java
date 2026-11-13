@@ -115,7 +115,7 @@ class AppointmentChangeAvailabilityT020PostgresIntegrationTest {
         jdbc.update("delete from doctor_services where service_id = ?", serviceId);
         jdbc.update("delete from doctor_shifts where doctor_profile_id in (?, ?)",
                 currentDoctorId, replacementDoctorId);
-        jdbc.update("delete from doctor_profiles where id in (?, ?)", currentDoctorId, replacementDoctorId);
+        jdbc.update("delete from staff_profiles where id in (?, ?)", currentDoctorId, replacementDoctorId);
         jdbc.update("delete from patient_profiles where id in (?, ?)", patientProfileId, otherPatientProfileId);
         jdbc.update("delete from accounts where id in (?, ?, ?, ?, ?)", patientAccountId, otherPatientAccountId,
                 receptionistAccountId, currentDoctorAccountId, replacementDoctorAccountId);
@@ -220,9 +220,9 @@ class AppointmentChangeAvailabilityT020PostgresIntegrationTest {
     }
 
     private void insertDoctor(UUID doctorId, UUID accountId, String name, boolean accepting, boolean inDirectory) {
-        jdbc.update("insert into doctor_profiles (id, account_id, full_name, photo_url, work_contact, specialties, "
+        jdbc.update("insert into staff_profiles (is_doctor, id, account_id, display_name, photo_url, work_contact, specialties, "
                         + "qualifications, biography, consultation_information, publicly_visible, accepting_new_bookings, in_active_directory) "
-                        + "values (?, ?, ?, '', 'private-contact', '', '', '', '', false, ?, ?)",
+                        + "values (true, ?, ?, ?, '', 'private-contact', '', '', '', '', false, ?, ?)",
                 doctorId, accountId, name, accepting, inDirectory);
     }
 

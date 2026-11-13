@@ -238,7 +238,7 @@ class WalkInReceptionQueueT045PostgresIntegrationTest {
         UUID appointmentId = UUID.randomUUID();
         UUID scheduledVisitId = UUID.randomUUID();
         Instant checkInAt = Instant.now();
-        jdbc.update("insert into doctor_profiles (id, account_id, full_name) values (?, ?, 'T045 Doctor')",
+        jdbc.update("insert into staff_profiles (is_doctor, id, account_id, display_name) values (true, ?, ?, 'T045 Doctor')",
                 doctorProfileId, doctorAccountId);
         jdbc.update("insert into clinic_services (id, name, duration_minutes, buffer_minutes) "
                 + "values (?, 'T045 Service', 30, 0)", serviceId);

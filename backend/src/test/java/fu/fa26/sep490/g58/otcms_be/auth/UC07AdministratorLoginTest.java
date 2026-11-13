@@ -9,7 +9,8 @@ import fu.fa26.sep490.g58.otcms_be.auth.model.entity.enums.AccountType;
 import fu.fa26.sep490.g58.otcms_be.auth.repository.AccountRepository;
 import fu.fa26.sep490.g58.otcms_be.auth.repository.AuthConcurrencyRepository;
 import fu.fa26.sep490.g58.otcms_be.auth.repository.AuthSessionRepository;
-import fu.fa26.sep490.g58.otcms_be.auth.repository.AuthenticationAuditRepository;
+import fu.fa26.sep490.g58.otcms_be.common.audit.AuditLogWriter;
+import fu.fa26.sep490.g58.otcms_be.common.audit.repository.AuditLogRepository;
 import fu.fa26.sep490.g58.otcms_be.auth.security.JwtTokenService;
 import fu.fa26.sep490.g58.otcms_be.auth.service.impl.AuthSessionServiceImpl;
 import fu.fa26.sep490.g58.otcms_be.auth.service.impl.CredentialLoginServiceImpl;
@@ -42,8 +43,8 @@ class UC07AdministratorLoginTest {
         owner.setUsername("owner.clinic");
         owner.setPasswordHash(encoder.encode(password));
         when(accounts.findByUsername("owner.clinic")).thenReturn(Optional.of(owner));
-        var properties = new AuthProperties(null, null, null, null, null, null, "v1", "v1", generator.generate());
-        var login = new CredentialLoginServiceImpl(accounts, mock(AuthenticationAuditRepository.class),
+        var properties = new AuthProperties(null, null, null, null, null, "v1", "v1", generator.generate());
+        var login = new CredentialLoginServiceImpl(accounts, mock(AuditLogWriter.class), mock(AuditLogRepository.class),
                 encoder, properties, mock(AuthConcurrencyRepository.class));
         assertEquals("OWNER", login.loginAdministrator("owner.clinic", password, "127.0.0.1").accountType());
         verify(accounts, never()).findByNormalizedEmail(anyString());
@@ -61,8 +62,8 @@ class UC07AdministratorLoginTest {
         admin.setStatus(AccountStatus.ACTIVE);
         admin.setPasswordHash(encoder.encode(password));
         when(accounts.findByNormalizedEmail("admin@otcms.local")).thenReturn(Optional.of(admin));
-        var properties = new AuthProperties(null, null, null, null, null, null, "v1", "v1", generator.generate());
-        var login = new CredentialLoginServiceImpl(accounts, mock(AuthenticationAuditRepository.class),
+        var properties = new AuthProperties(null, null, null, null, null, "v1", "v1", generator.generate());
+        var login = new CredentialLoginServiceImpl(accounts, mock(AuditLogWriter.class), mock(AuditLogRepository.class),
                 encoder, properties, mock(AuthConcurrencyRepository.class));
         assertEquals("ADMIN", login.loginAdministrator(" Admin@otcms.local ", password, "127.0.0.1").accountType());
         verify(accounts, never()).findByUsername(anyString());
@@ -81,8 +82,8 @@ class UC07AdministratorLoginTest {
         receptionist.setUsername("reception.one");
         receptionist.setPasswordHash(encoder.encode(password));
         when(accounts.findByUsername("reception.one")).thenReturn(Optional.of(receptionist));
-        var properties = new AuthProperties(null, null, null, null, null, null, "v1", "v1", generator.generate());
-        var login = new CredentialLoginServiceImpl(accounts, mock(AuthenticationAuditRepository.class),
+        var properties = new AuthProperties(null, null, null, null, null, "v1", "v1", generator.generate());
+        var login = new CredentialLoginServiceImpl(accounts, mock(AuditLogWriter.class), mock(AuditLogRepository.class),
                 encoder, properties, mock(AuthConcurrencyRepository.class));
         assertEquals("RECEPTIONIST", login.loginStaff("reception.one", password, "127.0.0.1").accountType());
         verify(accounts, never()).findByNormalizedEmail(anyString());
@@ -103,8 +104,8 @@ class UC07AdministratorLoginTest {
         when(accounts.findByUsername("Admin.Name")).thenReturn(Optional.of(account));
         when(accounts.findByIdForUpdate(account.getId())).thenReturn(Optional.of(account));
         var concurrency = mock(AuthConcurrencyRepository.class);
-        var properties = new AuthProperties(null, null, null, null, null, null, "v1", "v1", generator.generate());
-        var login = new CredentialLoginServiceImpl(accounts, mock(AuthenticationAuditRepository.class),
+        var properties = new AuthProperties(null, null, null, null, null, "v1", "v1", generator.generate());
+        var login = new CredentialLoginServiceImpl(accounts, mock(AuditLogWriter.class), mock(AuditLogRepository.class),
                 encoder, properties, concurrency);
         assertEquals("ADMIN", login.loginAdministrator("Admin.Name", issued, "127.0.0.1").accountType());
         verify(accounts, never()).findByNormalizedEmail(anyString());

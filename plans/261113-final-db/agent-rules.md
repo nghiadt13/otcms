@@ -78,7 +78,9 @@ Trong `otcms/backend`, đặt env theo `otcms/AGENTS.md` mục test (`APP_AUTH_L
 
 1. Reset DB Docker (mục 4).
 2. `./mvnw test` — báo số test chạy / lỗi. Lỗi có sẵn được phép: `AdministratorAccountDatabaseVerificationTest.upgradeFromV019…`, `T005RealLoginIntegrationTest.wrongPasswords…`, `Kan27StaffAccountMigrationPostgresTest`, `ContentAuditMigrationOrderTest` (và các test migration đã `@Disabled` theo 6.5). Lỗi khác = phải sửa.
-3. So hợp đồng API: `./mvnw test -Dtest=OpenApiContractSnapshotTest` (ghi `plans/261113-final-db/.snapshots/openapi-current.json`), rồi từ thư mục `otcms/`: `node plans/261113-final-db/tools/compare-openapi.mjs plans/261113-final-db/api-baseline.json plans/261113-final-db/.snapshots/openapi-current.json`. Kết quả phải là "no differences". Chỉ phase được phép xoá endpoint mới thêm `--allow <regex đường dẫn>` và `--allow-schema <regex tên DTO>`, đúng như phase ghi.
+3. So hợp đồng API: `./mvnw test -Dtest=OpenApiContractSnapshotTest` (ghi `plans/261113-final-db/.snapshots/openapi-current.json`), rồi từ thư mục `otcms/`: `node plans/261113-final-db/tools/compare-openapi.mjs plans/261113-final-db/api-baseline.json plans/261113-final-db/.snapshots/openapi-current.json`. Kết quả phải là "no differences". Chỉ phase được phép xoá endpoint mới thêm `--allow <regex đường dẫn>` và `--allow-schema <regex tên DTO>`, đúng như phase ghi. Từ sau phase 02 luôn dùng `--allow "/time-offs|/api/auth/patient/google" --allow-schema "GoogleExchangeRequest|TimeOff|ItemsDoctorIntervalResponse"`. Trong Git Bash phải đặt `MSYS_NO_PATHCONV=1` trước lệnh `node`, nếu không regex `/time-offs` bị đổi thành đường dẫn Windows.
+   - Đồng hồ của Docker VM có thể lệch 1–3 giây so với máy. Fixture test đặt mốc "vừa hết hạn" phải lệch ít nhất vài phút (ví dụ `now() - interval '10 minutes'`), không dùng 1 giây.
+   - Một số integration test tự mở JDBC cần `OTCMS_TEST_DB_PASSWORD` là biến môi trường thật (file `.env` không đủ). Đặt biến này trong shell, không in ra, không đọc `.env`.
 4. Các lệnh grep "phải rỗng" ghi trong phase.
 5. Không chạy 2 lệnh `mvnw` cùng lúc.
 

@@ -230,8 +230,8 @@ class NotificationPostgresIntegrationTest {
         assertTrue(inbox.list(patient, false, 0, 20).items().stream().noneMatch(i -> i.relatedRecord().available()));
     }
     @Test void bookingAndReassignmentPublishAppointmentNotifications() {
-        jdbc.update("update doctor_profiles set full_name='Bác sĩ ban đầu' where id=?", doctor);
-        jdbc.update("update doctor_profiles set full_name='Bác sĩ thay thế' where id=?", replacement);
+        jdbc.update("update staff_profiles set display_name='Bác sĩ ban đầu' where id=?", doctor);
+        jdbc.update("update staff_profiles set display_name='Bác sĩ thay thế' where id=?", replacement);
         var created = book(profile, CreateAppointmentCommand.Actor.PATIENT);
         assertMessage(NotificationMessages.APPOINTMENT_BOOKED, a, created.id(), "APPOINTMENT", "03/11/2026 lúc 10:00", "Bác sĩ ban đầu");
         assertTrue(inbox.list(patient, false, 0, 20).items().getFirst().relatedRecord().available());
@@ -565,7 +565,7 @@ class NotificationPostgresIntegrationTest {
                 "+849" + String.format("%09d", Math.floorMod(id.getLeastSignificantBits(), 1_000_000_000L)));
     }
     private void doctor(UUID id, UUID account) {
-        jdbc.update("insert into doctor_profiles(id,account_id,full_name,publicly_visible,accepting_new_bookings,in_active_directory) values (?,?,'Notification test doctor',true,true,true)", id, account);
+        jdbc.update("insert into staff_profiles(is_doctor, id,account_id,display_name,publicly_visible,accepting_new_bookings,in_active_directory) values (true, ?,?,'Notification test doctor',true,true,true)", id, account);
         jdbc.update("insert into doctor_services(doctor_profile_id,service_id,active) values (?,?,true)", id, serviceId);
         jdbc.update("insert into doctor_shifts(id,doctor_profile_id,starts_at,ends_at) values (?,?,?,?)", UUID.randomUUID(), id,
                 Timestamp.from(Instant.parse("2026-11-03T02:00:00Z")), Timestamp.from(Instant.parse("2026-11-03T05:00:00Z")));

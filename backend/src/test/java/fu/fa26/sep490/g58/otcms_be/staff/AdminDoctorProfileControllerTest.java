@@ -40,8 +40,8 @@ class AdminDoctorProfileControllerTest {
     private final String base = "/api/v1/admin/doctor-profiles";
     private final UUID id = UUID.randomUUID();
 
-    @Test void nonAdminsCannotReadInternalDirectoryAccountsOrTimeOffs() throws Exception {
-        for (String path : List.of(base, base + "/eligible-accounts", base + "/" + id + "/time-offs?from=2026-10-28T00:00:00Z&to=2026-10-30T00:00:00Z")) {
+    @Test void nonAdminsCannotReadInternalDirectoryOrAccounts() throws Exception {
+        for (String path : List.of(base, base + "/eligible-accounts")) {
             mvc.perform(get(path)).andExpect(status().isUnauthorized());
             for (String role : List.of("OWNER", "DOCTOR", "PATIENT", "RECEPTIONIST"))
                 mvc.perform(get(path).with(user("other").roles(role))).andExpect(status().isForbidden());

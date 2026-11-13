@@ -49,7 +49,7 @@ class Kan27StaffAccountPostgresIntegrationTest {
     @Autowired StaffAccountAdminService staff;
     @Autowired AuthSessionService sessions;
     @Autowired PasswordEncoder encoder;
-    @Autowired PasswordResetChallengeRepository resets;
+    @Autowired VerificationCodeRepository resets;
     @Autowired fu.fa26.sep490.g58.otcms_be.auth.security.JwtTokenService tokens;
     @Autowired JdbcTemplate jdbc;
     @Autowired PlatformTransactionManager transactions;
@@ -87,7 +87,7 @@ class Kan27StaffAccountPostgresIntegrationTest {
         assertAudit(id, "CREATE", correlation);
         assertFalse(result.getResponse().getContentAsString().contains(password));
         create(role, prefix, password).andExpect(status().isConflict()).andExpect(jsonPath("$.error.code").value("USERNAME_TAKEN"));
-        assertEquals(1, count("select count(*) from account_management_audits where account_id = ?", id));
+        assertEquals(1, count("select count(*) from audit_logs where source = 'account_management_audits' and entity_id = ?", id));
     }
 
     @Test void forbiddenActorsAndTargetCategoriesAreHidden() throws Exception {
@@ -189,15 +189,16 @@ class Kan27StaffAccountPostgresIntegrationTest {
         jdbc.update("update accounts set status = 'TEMPORARILY_LOCKED',failed_credential_count = 4,locked_until = now() + interval '10 minutes' where id = ?", fixture.id());
         mutation(fixture.id(), "activation").andExpect(status().isConflict());
         assertEquals(1, count("select count(*) from staff_profiles where id = ?", profileId));
-        assertEquals(3, count("select count(*) from account_management_audits where account_id = ?", fixture.id()));
+        assertEquals(3, count("select count(*) from audit_logs where source = 'account_management_audits' and entity_id = ?", fixture.id()));
     }
 
     @Test void reissueRevokesSessionsSupersedesResetAndDoesNotActivateDisabledStaff() throws Exception {
         var fixture = usableStaff();
         String token = body(login(fixture.username(), fixture.password()).andExpect(status().isOk()).andReturn()).path("accessToken").asString();
-        var reset = new PasswordResetChallengeJpaEntity();
-        reset.setAccount(accounts.findById(fixture.id()).orElseThrow());
-        reset.setTokenHash(UUID.randomUUID().toString());
+        var reset = new VerificationCodeJpaEntity();
+        reset.setAccountId(fixture.id());
+        reset.setPurpose(VerificationPurpose.PASSWORD_RESET);
+        reset.setCodeHash(UUID.randomUUID().toString());
         reset.setCreatedAt(Instant.now());
         reset.setExpiresAt(Instant.now().plusSeconds(600));
         resets.saveAndFlush(reset);
@@ -216,7 +217,7 @@ class Kan27StaffAccountPostgresIntegrationTest {
         assertEquals(AccountStatus.DISABLED, saved.getStatus());
         assertEquals(4, saved.getFailedCredentialCount());
         assertNotNull(saved.getLockedUntil());
-        var auditJson = jdbc.queryForList("select row_to_json(a)::text from account_management_audits a where account_id = ?", String.class, fixture.id());
+        var auditJson = jdbc.queryForList("select row_to_json(a)::text from audit_logs a where source = 'account_management_audits' and entity_id = ?", String.class, fixture.id());
         assertTrue(auditJson.stream().noneMatch(a -> a.contains(temporary) || a.contains("password_hash") || a.contains("token")));
     }
 
@@ -238,17 +239,26 @@ class Kan27StaffAccountPostgresIntegrationTest {
         assertAudit(patient.getId(), "DEACTIVATE", correlation);
         mvc.perform(post("/api/v1/admin/accounts/" + patient.getId() + "/activation").with(csrf())
                 .header("Authorization", "Bearer " + adminToken)).andExpect(status().isConflict());
-        assertEquals(2, count("select count(*) from account_management_audits where account_id = ?", patient.getId()));
+        assertEquals(2, count("select count(*) from audit_logs where source = 'account_management_audits' and entity_id = ?", patient.getId()));
         String rollbackUsername = prefix + "rb";
         assertThrows(ForcedRollback.class, () -> new TransactionTemplate(transactions).execute(status -> {
             staff.create(actor, "RECEPTIONIST", rollbackUsername, passwords.generate(), "audit-rollback");
             throw new ForcedRollback();
         }));
         assertEquals(0, count("select count(*) from accounts where username = ?", rollbackUsername));
-        assertEquals(0, count("select count(*) from account_management_audits where correlation_id = ?", "audit-rollback"));
+        assertEquals(0, count("select count(*) from audit_logs where source = 'account_management_audits' "
+                + "and action = 'CREATE' and actor_account_id = ?", actor.accountId()));
         String auditFailUsername = prefix + "af";
-        assertThrows(org.springframework.dao.DataIntegrityViolationException.class,
-                () -> staff.create(actor, "RECEPTIONIST", auditFailUsername, passwords.generate(), null));
+        // An audit write that fails must roll back the business change made in the same transaction. The failure is
+        // forced by the database: a constraint that only rejects audit rows written by this test's admin.
+        jdbc.execute("alter table audit_logs add constraint ck_k27_audit_failure check "
+                + "(actor_account_id is distinct from '" + actor.accountId() + "'::uuid) not valid");
+        try {
+            assertThrows(org.springframework.dao.DataIntegrityViolationException.class,
+                    () -> staff.create(actor, "RECEPTIONIST", auditFailUsername, passwords.generate(), "audit-failure"));
+        } finally {
+            jdbc.execute("alter table audit_logs drop constraint ck_k27_audit_failure");
+        }
         assertEquals(0, count("select count(*) from accounts where username = ?", auditFailUsername));
     }
 
@@ -260,7 +270,7 @@ class Kan27StaffAccountPostgresIntegrationTest {
         var loser = results.stream().filter(r -> r.getResponse().getStatus() == 409).findFirst().orElseThrow();
         assertEquals("USERNAME_TAKEN", body(loser).path("error").path("code").asString());
         assertEquals(1, count("select count(*) from accounts where username = ?", prefix));
-        assertEquals(1, count("select count(*) from account_management_audits a join accounts x on x.id=a.account_id where x.username=? and a.action='CREATE'", prefix));
+        assertEquals(1, count("select count(*) from audit_logs a join accounts x on x.id=a.entity_id where a.source='account_management_audits' and x.username=? and a.action='CREATE'", prefix));
     }
 
     @RepeatedTest(3) void loginVersusReissueCannotLeaveOldCredentialSessionUsable() throws Exception { loginRace("password-reissues"); }
@@ -331,7 +341,7 @@ class Kan27StaffAccountPostgresIntegrationTest {
     private JsonNode body(MvcResult result) { return json.readTree(result.getResponse().getContentAsByteArray()); }
     private int count(String sql, Object... arguments) { return jdbc.queryForObject(sql, Integer.class, arguments); }
     private void assertAudit(UUID id, String action, String requestCorrelation) {
-        assertEquals(1, count("select count(*) from account_management_audits where account_id=? and actor_account_id=? and action=? and correlation_id=? and occurred_at is not null",
+        assertEquals(1, count("select count(*) from audit_logs where source='account_management_audits' and entity_id=? and actor_account_id=? and action=? and correlation_id=? and occurred_at is not null",
                 id, actor.accountId(), action, requestCorrelation));
     }
     private static class ForcedRollback extends RuntimeException { }

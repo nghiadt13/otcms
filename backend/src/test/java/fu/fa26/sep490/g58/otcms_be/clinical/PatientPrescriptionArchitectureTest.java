@@ -6,8 +6,8 @@ import fu.fa26.sep490.g58.otcms_be.clinical.service.impl.PatientPrescriptionQuer
 import fu.fa26.sep490.g58.otcms_be.auth.service.impl.PatientProfileDirectoryServiceImpl;
 import fu.fa26.sep490.g58.otcms_be.auth.repository.PatientProfileRepository;
 import fu.fa26.sep490.g58.otcms_be.staff.service.impl.DoctorProfileIdentityQueryServiceImpl;
-import fu.fa26.sep490.g58.otcms_be.staff.repository.DoctorProfileRepository;
-import fu.fa26.sep490.g58.otcms_be.staff.model.entity.DoctorProfileJpaEntity;
+import fu.fa26.sep490.g58.otcms_be.staff.repository.StaffProfileRepository;
+import fu.fa26.sep490.g58.otcms_be.staff.model.entity.StaffProfileJpaEntity;
 import java.util.*;
 import org.junit.jupiter.api.Test;
 import static org.mockito.Mockito.*;
@@ -23,12 +23,14 @@ class PatientPrescriptionArchitectureTest {
         }
     }
     @Test void staffBatchProjectionRetainsHistoricalNonPublicDoctor() {
-        var repository = mock(DoctorProfileRepository.class);
+        var repository = mock(StaffProfileRepository.class);
         UUID id = UUID.randomUUID();
-        when(repository.findAllById(List.of(id))).thenReturn(List.of(new DoctorProfileJpaEntity(id, UUID.randomUUID(),
-                "Doctor", null, null, "", "", "", "", false, false, false)));
+        var historical = new StaffProfileJpaEntity(id, UUID.randomUUID(), "Doctor", null);
+        historical.becomeDoctor("", "", "", "", false);
+        historical.updateDirectoryState(false, false, false);
+        when(repository.findAllByIdInAndDoctorTrue(List.of(id))).thenReturn(List.of(historical));
         assertEquals(Map.of(id, "Doctor"), new DoctorProfileIdentityQueryServiceImpl(repository).findDoctorNames(List.of(id)));
-        verify(repository).findAllById(List.of(id));
+        verify(repository).findAllByIdInAndDoctorTrue(List.of(id));
         verifyNoMoreInteractions(repository);
     }
     @Test void patientDirectoryEmptyBatchDoesNotFallBackToPerProfileLookup() {

@@ -38,9 +38,8 @@ class DoctorProfileT011PostgresIntegrationTest {
     @Autowired java.time.Clock clock;
 
     @AfterEach void cleanup() {
-        jdbc.update("delete from doctor_time_off where doctor_profile_id in (select id from doctor_profiles where work_contact like 't011-%')");
-        jdbc.update("delete from doctor_shifts where doctor_profile_id in (select id from doctor_profiles where work_contact like 't011-%')");
-        jdbc.update("delete from doctor_profiles where work_contact like 't011-%'");
+        jdbc.update("delete from doctor_shifts where doctor_profile_id in (select id from staff_profiles where work_contact like 't011-%')");
+        jdbc.update("delete from staff_profiles where work_contact like 't011-%'");
         jdbc.update("delete from accounts where normalized_email like 't011-%'");
     }
 
@@ -70,7 +69,7 @@ class DoctorProfileT011PostgresIntegrationTest {
                 .andExpect(status().isCreated()).andExpect(jsonPath("$.publiclyVisible").value(false))
                 .andExpect(jsonPath("$.acceptingNewBookings").value(false)).andReturn().getResponse().getContentAsString();
         UUID profileId = UUID.fromString(response.replaceAll(".*\\\"doctorProfileId\\\":\\\"([^\\\"]+)\\\".*", "$1"));
-        jdbc.update("update doctor_profiles set accepting_new_bookings = true where id = ?", profileId);
+        jdbc.update("update staff_profiles set accepting_new_bookings = true where id = ?", profileId);
 
         mvc.perform(get("/api/v1/doctors")).andExpect(status().isOk())
                 .andExpect(jsonPath("$.items[?(@.doctorProfileId == '" + profileId + "')]").doesNotExist());
@@ -82,7 +81,6 @@ class DoctorProfileT011PostgresIntegrationTest {
         assertFalse(eligibility.publiclyVisible());
         assertTrue(eligibility.acceptingNewBookings());
         assertFalse(eligibility.coveredByWorkShift());
-        assertFalse(eligibility.coveredByOperationalTimeOff());
     }
 
     @Test
@@ -100,13 +98,13 @@ class DoctorProfileT011PostgresIntegrationTest {
                 .contentType("application/json").content("{\"accountId\":\"" + accountId
                         + "\",\"fullName\":\"KAN25 Doctor\",\"workContact\":\"t011-kan25\"}"))
                 .andExpect(status().isCreated());
-        UUID profileId = jdbc.queryForObject("select id from doctor_profiles where account_id=?", UUID.class, accountId);
+        UUID profileId = jdbc.queryForObject("select id from staff_profiles where account_id=?", UUID.class, accountId);
         UUID serviceId = UUID.randomUUID();
         var zone = java.time.ZoneId.of("Asia/Ho_Chi_Minh");
         var today = java.time.LocalDate.now(clock.withZone(zone));
         var starts = today.plusDays(1).atTime(9, 0).atZone(zone).toInstant();
         try {
-            jdbc.update("update doctor_profiles set publicly_visible=true,accepting_new_bookings=true where id=?", profileId);
+            jdbc.update("update staff_profiles set publicly_visible=true,accepting_new_bookings=true where id=?", profileId);
             jdbc.update("insert into clinic_services(id,name,duration_minutes,buffer_minutes,online_bookable,active) "
                     + "values (?,'KAN25 Public Availability',30,5,true,true)", serviceId);
             jdbc.update("insert into doctor_services(doctor_profile_id,service_id,active) values (?,?,true)", profileId, serviceId);
@@ -118,10 +116,10 @@ class DoctorProfileT011PostgresIntegrationTest {
                     .andExpect(jsonPath("$.availability[1].hasOpenTime").value(true));
             mvc.perform(get("/api/v1/doctors")).andExpect(status().isOk())
                     .andExpect(jsonPath("$.items[?(@.doctorProfileId == '" + profileId + "')].availability").doesNotExist());
-            jdbc.update("update doctor_profiles set accepting_new_bookings=false where id=?", profileId);
+            jdbc.update("update staff_profiles set accepting_new_bookings=false where id=?", profileId);
             mvc.perform(get("/api/v1/doctors/{id}", profileId)).andExpect(status().isOk())
                     .andExpect(jsonPath("$.availability[?(@.hasOpenTime == true)]").isEmpty());
-            jdbc.update("update doctor_profiles set in_active_directory=false where id=?", profileId);
+            jdbc.update("update staff_profiles set in_active_directory=false where id=?", profileId);
             mvc.perform(get("/api/v1/doctors/{id}", profileId)).andExpect(status().isNotFound());
         } finally {
             jdbc.update("delete from doctor_services where service_id=?", serviceId);

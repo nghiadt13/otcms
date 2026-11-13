@@ -86,9 +86,9 @@ class CreateWalkInVisitT043PostgresIntegrationTest {
         jdbc.update("insert into clinic_services (id, name, duration_minutes, buffer_minutes, online_bookable, active) "
                 + "values (?, 'T043 Service', 30, 5, true, true)", serviceId);
         doctorProfile = UUID.randomUUID();
-        jdbc.update("insert into doctor_profiles (id, account_id, full_name, photo_url, work_contact, specialties, "
+        jdbc.update("insert into staff_profiles (is_doctor, id, account_id, display_name, photo_url, work_contact, specialties, "
                         + "qualifications, biography, consultation_information, publicly_visible, accepting_new_bookings, in_active_directory) "
-                        + "values (?, ?, 'T043 Doctor', '', 'private', '', '', '', '', true, true, true)",
+                        + "values (true, ?, ?, 'T043 Doctor', '', 'private', '', '', '', '', true, true, true)",
                 doctorProfile, doctorAccount);
         jdbc.update("insert into doctor_services (doctor_profile_id, service_id, active) values (?, ?, true)",
                 doctorProfile, serviceId);
@@ -180,7 +180,7 @@ class CreateWalkInVisitT043PostgresIntegrationTest {
             if (doctorProfile != null) jdbc.update("delete from doctor_shifts where doctor_profile_id = ?", doctorProfile);
             if (doctorProfile != null) jdbc.update("delete from doctor_services where doctor_profile_id = ?", doctorProfile);
             if (serviceId != null) jdbc.update("delete from clinic_services where id = ?", serviceId);
-            if (doctorProfile != null) jdbc.update("delete from doctor_profiles where id = ?", doctorProfile);
+            if (doctorProfile != null) jdbc.update("delete from staff_profiles where id = ?", doctorProfile);
             if (patientProfile != null) jdbc.update("delete from patient_profiles where id = ?", patientProfile);
             if (otherPatientProfile != null) jdbc.update("delete from patient_profiles where id = ?", otherPatientProfile);
             if (accountlessPatientProfile != null) jdbc.update("delete from patient_profiles where id = ?", accountlessPatientProfile);
@@ -459,16 +459,16 @@ class CreateWalkInVisitT043PostgresIntegrationTest {
             jdbc.update("delete from visit_check_ins where visit_id in (" + oldVisits + ")");
             jdbc.update("delete from visit_audits where visit_id in (" + oldVisits + ")");
             jdbc.update("delete from visit_exam_queue where visit_id in (" + oldVisits
-                    + ") or doctor_profile_id in (select id from doctor_profiles where account_id in (" + oldAccounts + "))");
+                    + ") or doctor_profile_id in (select id from staff_profiles where account_id in (" + oldAccounts + "))");
             jdbc.update("delete from visits where id in (" + oldVisits + ")");
             jdbc.update("delete from appointment_audits where appointment_id in (" + oldAppointments + ")");
             jdbc.update("delete from appointments where id in (" + oldAppointments + ")");
             jdbc.update("delete from doctor_shifts where doctor_profile_id in "
-                    + "(select id from doctor_profiles where account_id in (" + oldAccounts + "))");
+                    + "(select id from staff_profiles where account_id in (" + oldAccounts + "))");
             jdbc.update("delete from doctor_services where doctor_profile_id in "
-                    + "(select id from doctor_profiles where account_id in (" + oldAccounts + "))");
+                    + "(select id from staff_profiles where account_id in (" + oldAccounts + "))");
             jdbc.update("delete from clinic_services where name = 'T043 Service'");
-            jdbc.update("delete from doctor_profiles where account_id in (" + oldAccounts + ")");
+            jdbc.update("delete from staff_profiles where account_id in (" + oldAccounts + ")");
             jdbc.update("delete from patient_profiles where account_id in (" + oldAccounts + ")");
             jdbc.update("delete from accounts where id in (" + oldAccounts + ")");
         } finally {

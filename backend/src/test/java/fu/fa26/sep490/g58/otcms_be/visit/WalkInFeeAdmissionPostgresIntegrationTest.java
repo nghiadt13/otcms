@@ -60,9 +60,9 @@ class WalkInFeeAdmissionPostgresIntegrationTest {
         doctorAccount = account(AccountType.DOCTOR, "doctor");
         patientProfile = patient(patientAccount);
         doctorProfile = UUID.randomUUID();
-        jdbc.update("insert into doctor_profiles (id, account_id, full_name, photo_url, work_contact, specialties, "
+        jdbc.update("insert into staff_profiles (is_doctor, id, account_id, display_name, photo_url, work_contact, specialties, "
                 + "qualifications, biography, consultation_information, publicly_visible, accepting_new_bookings, "
-                + "in_active_directory) values (?, ?, 'WF Doctor', '', 'private', '', '', '', '', true, true, true)",
+                + "in_active_directory) values (true, ?, ?, 'WF Doctor', '', 'private', '', '', '', '', true, true, true)",
                 doctorProfile, doctorAccount);
         feeService = service("WF Examination", new BigDecimal("250000.00"));
         otherFeeService = service("WF Other Examination", new BigDecimal("100000.00"));
@@ -299,7 +299,7 @@ class WalkInFeeAdmissionPostgresIntegrationTest {
             jdbc.update("delete from doctor_shifts where doctor_profile_id = ?", doctorProfile);
             jdbc.update("delete from doctor_services where doctor_profile_id = ?", doctorProfile);
             jdbc.update("delete from clinic_services where id in (?, ?, ?)", feeService, otherFeeService, freeService);
-            jdbc.update("delete from doctor_profiles where id = ?", doctorProfile);
+            jdbc.update("delete from staff_profiles where id = ?", doctorProfile);
             jdbc.update("delete from patient_profiles where id = ?", patientProfile);
             jdbc.update("delete from accounts where id in (?, ?, ?)", receptionist, patientAccount, doctorAccount);
         } finally {

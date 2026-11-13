@@ -4,7 +4,9 @@ import fu.fa26.sep490.g58.otcms_be.auth.exception.StaffAccountAdminException;
 import fu.fa26.sep490.g58.otcms_be.auth.exception.StaffAccountAdminException.Reason;
 import fu.fa26.sep490.g58.otcms_be.auth.model.dto.StaffAccountDtos;
 import fu.fa26.sep490.g58.otcms_be.auth.model.entity.AccountJpaEntity;
-import fu.fa26.sep490.g58.otcms_be.auth.model.entity.AccountManagementAuditJpaEntity;
+import fu.fa26.sep490.g58.otcms_be.auth.model.entity.enums.VerificationPurpose;
+import fu.fa26.sep490.g58.otcms_be.common.audit.AuditEntry;
+import fu.fa26.sep490.g58.otcms_be.common.audit.AuditLogWriter;
 import fu.fa26.sep490.g58.otcms_be.auth.model.entity.enums.AccountStatus;
 import fu.fa26.sep490.g58.otcms_be.auth.model.entity.enums.AccountType;
 import fu.fa26.sep490.g58.otcms_be.auth.repository.*;
@@ -34,16 +36,16 @@ public class StaffAccountAdminServiceImpl implements StaffAccountAdminService {
             AccountType.IMAGING_TECHNICIAN, AccountType.LAB_TECHNICIAN);
     private final AccountRepository accounts;
     private final AuthConcurrencyRepository concurrency;
-    private final AccountManagementAuditRepository audits;
+    private final AuditLogWriter audits;
     private final PasswordEncoder encoder;
     private final AdministratorPasswordIssuer passwords;
-    private final PasswordResetChallengeRepository challenges;
+    private final VerificationCodeRepository challenges;
     private final AuthSessionService sessions;
     private final StaffProfileAccountQueryService profiles;
 
     public StaffAccountAdminServiceImpl(AccountRepository accounts, AuthConcurrencyRepository concurrency,
-            AccountManagementAuditRepository audits, PasswordEncoder encoder, AdministratorPasswordIssuer passwords,
-            PasswordResetChallengeRepository challenges, AuthSessionService sessions,
+            AuditLogWriter audits, PasswordEncoder encoder, AdministratorPasswordIssuer passwords,
+            VerificationCodeRepository challenges, AuthSessionService sessions,
             StaffProfileAccountQueryService profiles) {
         this.accounts = accounts;
         this.concurrency = concurrency;
@@ -157,7 +159,7 @@ public class StaffAccountAdminServiceImpl implements StaffAccountAdminService {
         String issued = passwords.issue(account);
         account.setUpdatedAt(Instant.now());
         accounts.saveAndFlush(account);
-        challenges.supersedeCurrent(accountId, Instant.now());
+        challenges.supersedeCurrent(accountId, VerificationPurpose.PASSWORD_RESET, Instant.now());
         sessions.revokeAll(accountId);
         audit(actor, account, "REISSUE_PASSWORD", correlationId);
         return new StaffAccountDtos.Reissued(accountId, issued, true);
@@ -203,8 +205,10 @@ public class StaffAccountAdminServiceImpl implements StaffAccountAdminService {
     }
 
     private void audit(AuthenticatedAccount actor, AccountJpaEntity account, String action, String correlationId) {
-        audits.saveAndFlush(new AccountManagementAuditJpaEntity(account.getId(), actor.accountId(), action,
-                Instant.now(), correlationId));
+        // The correlation id comes from the request MDC (CorrelationIdFilter), which AuditLogWriter records.
+        audits.record(AuditEntry.builder("account_management_audits", "ACCOUNT", action, "ACCOUNT")
+                .entityId(account.getId()).recordLabel(account.getId().toString())
+                .actorAccountId(actor.accountId()).build());
     }
 
     private StaffAccountAdminException failure(Reason reason) { return new StaffAccountAdminException(reason); }

@@ -31,16 +31,6 @@ public interface AppointmentOccupancyRepository extends JpaRepository<Appointmen
 
     @Query(value = """
             select count(*) from appointments a where a.doctor_profile_id = :doctorId
-              and (a.status in ('CONFIRMED', 'CHECKED_IN')
-                   or (a.status = 'AWAITING_PAYMENT' and a.payment_deadline > :now))
-              and a.start_time < :toExclusive and a.occupied_until > :fromInclusive
-            """, nativeQuery = true)
-    long countBookingsOverlappingTimeOff(@Param("doctorId") UUID doctorId,
-            @Param("fromInclusive") Instant fromInclusive, @Param("toExclusive") Instant toExclusive,
-            @Param("now") Instant now);
-
-    @Query(value = """
-            select count(*) from appointments a where a.doctor_profile_id = :doctorId
               and a.service_id = :serviceId and (a.status in ('CONFIRMED', 'CHECKED_IN')
                    or (a.status = 'AWAITING_PAYMENT' and a.payment_deadline > :now))
             """, nativeQuery = true)

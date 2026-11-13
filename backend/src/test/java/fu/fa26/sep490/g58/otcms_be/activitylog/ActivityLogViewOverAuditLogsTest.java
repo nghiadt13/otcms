@@ -97,9 +97,9 @@ class ActivityLogViewOverAuditLogsTest {
         jdbc.update("insert into patient_profiles(id,account_id,full_name,phone_canonical,phone_owner_type,date_of_birth,gender) "
                 + "values(?,?,'Synthetic patient',?,'PATIENT','1990-01-01','OTHER')", patient, patientAccount,
                 "+848" + patient.toString().replace("-", "").substring(0, 9));
-        jdbc.update("insert into doctor_profiles(id,account_id,full_name,photo_url,work_contact,specialties,qualifications,"
+        jdbc.update("insert into staff_profiles(is_doctor, id,account_id,display_name,photo_url,work_contact,specialties,qualifications,"
                 + "biography,consultation_information,publicly_visible,accepting_new_bookings,in_active_directory) "
-                + "values(?,?,'Synthetic doctor','','','','','','',true,true,true)", doctor, doctorAccount);
+                + "values(true, ?,?,'Synthetic doctor','','','','','','',true,true,true)", doctor, doctorAccount);
         jdbc.update("insert into clinic_services(id,name,duration_minutes,buffer_minutes,online_bookable,active) "
                 + "values(?,'Synthetic service',30,5,true,true)", service);
         jdbc.update("insert into doctor_services(doctor_profile_id,service_id,active) values(?,?,true)", doctor, service);

@@ -70,7 +70,7 @@ export function AdminDoctorScheduleLive() {
   const doctor = doctors.data?.find((d) => d.doctorProfileId === doctorId);
   const [from, setFrom] = useState(todayIsoDate);
   const [to, setTo] = useState(() => addDays(todayIsoDate(), 6));
-  const [kind, setKind] = useState<ScheduleKind>("shifts");
+  const kind: ScheduleKind = "shifts";
   const [page, setPage] = useState(0);
   const [editing, setEditing] = useState<DoctorInterval | "new" | null>(null);
   const [confirm, setConfirm] = useState<DoctorInterval | null>(null);
@@ -91,11 +91,11 @@ export function AdminDoctorScheduleLive() {
     setEditing(null);
     remote.refresh();
   };
-  const noun = kind === "shifts" ? "ca trực" : "khoảng nghỉ";
+  const noun = "ca trực";
   return (
     <>
       <PageHeader
-        title="Ca trực và ngày nghỉ bác sĩ"
+        title="Ca trực bác sĩ"
         description="Xem lịch theo giờ Việt Nam; kiểm tra ảnh hưởng lịch hẹn trước khi thay đổi."
         actions={
           <Button
@@ -103,7 +103,7 @@ export function AdminDoctorScheduleLive() {
             onClick={() => setEditing("new")}
           >
             <Plus />
-            {kind === "shifts" ? "Thêm ca trực" : "Thêm khoảng nghỉ"}
+            Thêm ca trực
           </Button>
         }
       />
@@ -114,7 +114,7 @@ export function AdminDoctorScheduleLive() {
       />
       {doctors.data && (
         <>
-          <div className="mb-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="mb-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             <Field id="schedule-doctor" label="Bác sĩ">
               <NativeSelect
                 id="schedule-doctor"
@@ -134,20 +134,6 @@ export function AdminDoctorScheduleLive() {
                     {!d.inActiveDirectory ? " (đã gỡ)" : ""}
                   </option>
                 ))}
-              </NativeSelect>
-            </Field>
-            <Field id="schedule-kind" label="Loại lịch">
-              <NativeSelect
-                id="schedule-kind"
-                className="w-full"
-                value={kind}
-                onChange={(e) => {
-                  setKind(e.target.value as ScheduleKind);
-                  setPage(0);
-                }}
-              >
-                <option value="shifts">Ca trực</option>
-                <option value="time-offs">Khoảng nghỉ / vắng mặt</option>
               </NativeSelect>
             </Field>
             <Field id="schedule-from" label="Từ ngày">
@@ -278,10 +264,6 @@ export function AdminDoctorScheduleLive() {
               )}
             </>
           )}
-          <p className="mt-4 text-sm text-muted-foreground">
-            Khoảng nghỉ làm bác sĩ không nhận lịch trong thời gian đó. Những
-            lịch hẹn đã có cần được xử lý trước khi ghi nhận nghỉ.
-          </p>
         </>
       )}
       {editing && doctor && (
@@ -307,9 +289,8 @@ export function AdminDoctorScheduleLive() {
             {confirm &&
               `${formatDateTime(confirm.startsAt)} – ${formatTime(confirm.endsAt)}`}
             .{" "}
-            {kind === "shifts"
-              ? "Giờ nhận lịch trong ca này sẽ được tính lại. Backend sẽ chặn nếu có lịch hẹn hoặc lượt khám bị ảnh hưởng."
-              : "Bác sĩ có thể nhận lịch trở lại trong thời gian này nếu có ca trực phù hợp."}
+            Giờ nhận lịch trong ca này sẽ được tính lại. Backend sẽ chặn nếu có
+            lịch hẹn hoặc lượt khám bị ảnh hưởng.
             {error && (
               <span role="alert" className="mt-2 block text-destructive">
                 {error}
@@ -372,7 +353,7 @@ function IntervalEditor({
   );
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
-  const noun = kind === "shifts" ? "ca trực" : "khoảng nghỉ";
+  const noun = "ca trực";
   return (
     <Dialog
       open

@@ -48,7 +48,7 @@ Khi PR 01–09 đã vào `final-db`, phase này làm 4 việc:
 4. Backend: chạy `./mvnw test`. Chỉ được còn 4 lỗi có sẵn và các test migration cũ đã `@Disabled` (gom danh sách từ các PR).
 5. API: so OpenAPI với baseline. Chỉ được lệch ở endpoint đã bỏ:
    ```
-   --allow "/time-offs|/api/auth/patient/google" --allow-schema "GoogleExchangeRequest|TimeOff"
+   --allow "/time-offs|/api/auth/patient/google" --allow-schema "GoogleExchangeRequest|TimeOff|ItemsDoctorIntervalResponse"
    ```
 6. Frontend (`otcms/frontend`): `npm run lint`, `npm test` (7 test `ReceptionScreen` lỗi có sẵn), `npx next build`.
 7. Đi tay trên giao diện (app profile `final-db` + FE). Mỗi người một nhóm, ghi đạt/lỗi vào PR:

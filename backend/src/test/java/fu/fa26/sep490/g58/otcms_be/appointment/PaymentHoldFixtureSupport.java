@@ -63,9 +63,9 @@ abstract class PaymentHoldFixtureSupport {
         doctorProfile = UUID.randomUUID();
         paidService = service("Paid visit", 150000);
         freeService = service("Free visit", 0);
-        jdbc.update("insert into doctor_profiles (id, account_id, full_name, photo_url, work_contact, specialties, "
+        jdbc.update("insert into staff_profiles (is_doctor, id, account_id, display_name, photo_url, work_contact, specialties, "
                 + "qualifications, biography, consultation_information, publicly_visible, accepting_new_bookings, "
-                + "in_active_directory) values (?, ?, 'Hold Doctor', '', 'private', '', '', '', '', true, true, true)",
+                + "in_active_directory) values (true, ?, ?, 'Hold Doctor', '', 'private', '', '', '', '', true, true, true)",
                 doctorProfile, doctorAccount);
         for (UUID service : List.of(paidService, freeService)) {
             jdbc.update("insert into doctor_services (doctor_profile_id, service_id, active) values (?, ?, true)",
@@ -99,7 +99,7 @@ abstract class PaymentHoldFixtureSupport {
                 jdbc.update("delete from doctor_services where doctor_profile_id = ?", doctorProfile);
                 jdbc.update("delete from clinic_services where id in (?, ?)", paidService, freeService);
                 jdbc.update("delete from doctor_shifts where doctor_profile_id = ?", doctorProfile);
-                jdbc.update("delete from doctor_profiles where id = ?", doctorProfile);
+                jdbc.update("delete from staff_profiles where id = ?", doctorProfile);
                 jdbc.update("delete from patient_profiles where id in (?, ?)", profileA, profileB);
                 jdbc.update("delete from accounts where id in (?, ?, ?, ?)", patientA, patientB, receptionist, doctorAccount);
             } finally {

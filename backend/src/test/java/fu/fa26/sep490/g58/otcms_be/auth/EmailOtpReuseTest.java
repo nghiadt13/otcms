@@ -6,6 +6,8 @@ import fu.fa26.sep490.g58.otcms_be.auth.model.entity.enums.*;
 import fu.fa26.sep490.g58.otcms_be.auth.repository.*;
 import fu.fa26.sep490.g58.otcms_be.auth.service.*;
 import fu.fa26.sep490.g58.otcms_be.auth.service.impl.*;
+import fu.fa26.sep490.g58.otcms_be.common.audit.AuditLogWriter;
+import fu.fa26.sep490.g58.otcms_be.common.audit.repository.AuditLogRepository;
 import fu.fa26.sep490.g58.otcms_be.config.AuthProperties;
 import java.time.*;
 import java.util.*;
@@ -18,21 +20,20 @@ import static org.mockito.Mockito.*;
 class EmailOtpReuseTest {
     final EmailOtpService otp = new EmailOtpServiceImpl();
     final AccountRepository accounts = mock(AccountRepository.class);
-    final ConsentEvidenceRepository consents = mock(ConsentEvidenceRepository.class);
-    final EmailVerificationChallengeRepository challenges = mock(EmailVerificationChallengeRepository.class);
+    final VerificationCodeRepository challenges = mock(VerificationCodeRepository.class);
     final AccountJpaEntity account = new AccountJpaEntity();
-    final EmailVerificationChallengeJpaEntity challenge = new EmailVerificationChallengeJpaEntity();
-    final RegistrationServiceImpl registration = new RegistrationServiceImpl(accounts, consents, challenges,
-            mock(AuthenticationAuditRepository.class), mock(EmailDeliveryService.class),
-            new AuthProperties(null, null, null, null, null, null, "v1", "v1"), mock(AuthConcurrencyRepository.class), otp);
+    final VerificationCodeJpaEntity challenge = new VerificationCodeJpaEntity();
+    final RegistrationServiceImpl registration = new RegistrationServiceImpl(accounts, challenges,
+            mock(AuditLogWriter.class), mock(AuditLogRepository.class), mock(EmailDeliveryService.class),
+            new AuthProperties(null, null, null, null, null, "v1", "v1"), mock(AuthConcurrencyRepository.class), otp);
 
     @BeforeEach void setup() {
         account.setId(UUID.randomUUID()); account.setAccountType(AccountType.PATIENT); account.setStatus(AccountStatus.PENDING_VERIFICATION);
+        account.setConsentActorType(ConsentActorType.PATIENT); account.setTermsVersion("v1"); account.setPrivacyVersion("v1");
         when(accounts.findByNormalizedEmail("patient@example.test")).thenReturn(Optional.of(account));
         when(accounts.findByIdForUpdate(account.getId())).thenReturn(Optional.of(account));
-        when(challenges.findCurrentForUpdate(account.getId())).thenReturn(Optional.of(challenge));
-        when(consents.existsByAccountIdAndActorTypeAndTermsVersionAndPrivacyVersion(any(), any(), any(), any())).thenReturn(true);
-        challenge.setOtpHash(otp.hash("123456")); challenge.setExpiresAt(Instant.now().plusSeconds(600));
+        when(challenges.findCurrentForUpdate(account.getId(), VerificationPurpose.EMAIL_VERIFY)).thenReturn(Optional.of(challenge));
+        challenge.setCodeHash(otp.hash("123456")); challenge.setExpiresAt(Instant.now().plusSeconds(600));
     }
     @Test void reusablePrimitivesKeepUc06FormatHashAndTtl() {
         for (int i = 0; i < 50; i++) assertTrue(otp.generate().matches("[0-9]{6}"));
@@ -46,6 +47,12 @@ class EmailOtpReuseTest {
         assertEquals(AccountStatus.ACTIVE, account.getStatus()); assertNotNull(challenge.getConsumedAt());
         verify(accounts).save(account); verify(challenges).save(challenge);
     }
+    @Test void registrationVerifyWithoutRecordedConsentIsRejected() {
+        account.setConsentActorType(null); account.setTermsVersion(null); account.setPrivacyVersion(null);
+        assertEquals("CONSENT_REQUIRED", assertThrows(RegistrationException.class,
+                () -> registration.verifyEmail("patient@example.test", "123456")).getMessage());
+        assertEquals(AccountStatus.PENDING_VERIFICATION, account.getStatus());
+    }
     @Test void registrationFifthFailureStillSupersedesWithoutActivating() {
         challenge.setFailedAttempts(4);
         assertEquals("OTP_INVALID_OR_EXPIRED", assertThrows(RegistrationException.class,
@@ -57,14 +64,14 @@ class EmailOtpReuseTest {
         challenge.setExpiresAt(Instant.now().minusSeconds(1));
         assertThrows(RegistrationException.class, () -> registration.verifyEmail("patient@example.test", "123456"));
         assertEquals(0, challenge.getFailedAttempts());
-        when(challenges.findCurrentForUpdate(account.getId())).thenReturn(Optional.empty());
+        when(challenges.findCurrentForUpdate(account.getId(), VerificationPurpose.EMAIL_VERIFY)).thenReturn(Optional.empty());
         assertThrows(RegistrationException.class, () -> registration.verifyEmail("patient@example.test", "123456"));
     }
     @ParameterizedTest @ValueSource(longs = {3, 4})
     void registrationResendRateBehaviorUnchanged(long count) {
-        when(challenges.countByAccountIdAndCreatedAtAfter(eq(account.getId()), any())).thenReturn(count);
+        when(challenges.countByAccountIdAndPurposeAndCreatedAtAfter(eq(account.getId()), eq(VerificationPurpose.EMAIL_VERIFY), any())).thenReturn(count);
         assertEquals("RATE_LIMIT_EXCEEDED", assertThrows(RegistrationException.class,
                 () -> registration.resendOtp("patient@example.test")).getMessage());
-        verify(challenges, never()).supersedeCurrent(any(), any());
+        verify(challenges, never()).supersedeCurrent(any(), any(), any());
     }
 }

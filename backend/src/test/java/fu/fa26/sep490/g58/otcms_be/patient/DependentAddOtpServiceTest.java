@@ -32,7 +32,7 @@ class DependentAddOtpServiceTest {
     final DependentProfileService dependents = mock(DependentProfileService.class);
     final DependentAddOtpServiceImpl service = new DependentAddOtpServiceImpl(patients, accounts, requests,
             mock(CoordinationGuardService.class), otp, email,
-            new AuthProperties(null, null, null, null, null, null, "v1", "v1", "test-secret"),
+            new AuthProperties(null, null, null, null, null, "v1", "v1", "test-secret"),
             Clock.fixed(now, ZoneOffset.UTC), dependents, mock(PlatformTransactionManager.class));
     final Map<UUID, DependentAddRequestJpaEntity> saved = new HashMap<>();
 

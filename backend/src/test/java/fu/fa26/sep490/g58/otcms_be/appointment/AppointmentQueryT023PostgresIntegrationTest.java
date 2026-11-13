@@ -37,7 +37,7 @@ class AppointmentQueryT023PostgresIntegrationTest {
         preexistingAppointmentCount = jdbc.queryForObject("select count(*) from appointments", Integer.class);
         jdbc.update("insert into clinic_services(id,name,duration_minutes,buffer_minutes,online_bookable,active) values (?, 'T023',30,0,true,true)", service);
         doctor = UUID.randomUUID();
-        jdbc.update("insert into doctor_profiles(id,account_id,full_name,photo_url,work_contact,specialties,qualifications,biography,consultation_information,publicly_visible,accepting_new_bookings,in_active_directory) values (?,?,'T023 Doctor','','private','','','','',false,false,false)", doctor, doctorAccount);
+        jdbc.update("insert into staff_profiles(is_doctor, id,account_id,display_name,photo_url,work_contact,specialties,qualifications,biography,consultation_information,publicly_visible,accepting_new_bookings,in_active_directory) values (true, ?,?,'T023 Doctor','','private','','','','',false,false,false)", doctor, doctorAccount);
         jdbc.update("insert into doctor_services(doctor_profile_id,service_id,active) values (?, ?, true)", doctor, service);
         appointment(patient, Instant.parse("2026-10-12T17:00:00Z"));
         appointment(patient, Instant.parse("2026-10-13T17:00:00Z"));
@@ -50,7 +50,7 @@ class AppointmentQueryT023PostgresIntegrationTest {
             jdbc.update("delete from doctor_services where service_id=?", service);
             jdbc.update("delete from clinic_services where id=?", service);
         }
-        if (doctor != null) jdbc.update("delete from doctor_profiles where id=?", doctor);
+        if (doctor != null) jdbc.update("delete from staff_profiles where id=?", doctor);
         if (patient != null) jdbc.update("delete from patient_profiles where id=?", patient);
         if (otherPatient != null) jdbc.update("delete from patient_profiles where id=?", otherPatient);
         for (UUID id : new UUID[]{patientAccount, otherAccount, receptionist, doctorAccount}) if (id != null) jdbc.update("delete from accounts where id=?", id);

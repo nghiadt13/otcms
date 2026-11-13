@@ -8,8 +8,8 @@ VALUES(admin_id,admin_id||'@qa43.test','ADMIN','ACTIVE',now(),now()),
 (patient_account,patient_account||'@qa43.test','PATIENT','ACTIVE',now(),now());
 INSERT INTO patient_profiles(id,account_id,full_name,phone_canonical,phone_owner_type,date_of_birth,gender)
 VALUES(patient_id,patient_account,'QA43 Patient','+84901234567','PATIENT','1990-01-01','OTHER');
-INSERT INTO doctor_profiles(id,account_id,full_name,work_contact,specialties,qualifications,biography,consultation_information,publicly_visible,accepting_new_bookings,in_active_directory)
-VALUES(doctor_id,doctor_account,'QA43 Doctor','','','','','',false,false,false);
+INSERT INTO staff_profiles(is_doctor, id,account_id,display_name,work_contact,specialties,qualifications,biography,consultation_information,publicly_visible,accepting_new_bookings,in_active_directory)
+VALUES(true, doctor_id,doctor_account,'QA43 Doctor','','','','','',false,false,false);
 INSERT INTO clinic_services(id,name,duration_minutes,buffer_minutes,online_bookable,active)
 VALUES(service_id,'QA43 Service '||service_id,30,0,false,true);
 INSERT INTO doctor_services(id,doctor_profile_id,service_id,active) VALUES(gen_random_uuid(),doctor_id,service_id,true);
