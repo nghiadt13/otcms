@@ -439,7 +439,7 @@ class DependentsR3PostgresIntegrationTest {
         var migrated = Flyway.configure().dataSource(dataSource).schemas(schema).defaultSchema(schema)
                 .outOfOrder(true).target("49").load().migrate();
         assertEquals(1, migrated.migrationsExecuted);
-        assertEquals(1, Flyway.configure().dataSource(dataSource).schemas(schema).defaultSchema(schema).load().migrate().migrationsExecuted);
+        assertEquals(1, Flyway.configure().dataSource(dataSource).schemas(schema).defaultSchema(schema).outOfOrder(true).load().migrate().migrationsExecuted);
         assertNull(jdbc.queryForObject("select relationship from " + schema + ".patient_caregivers where id=?", String.class, link));
         assertNull(jdbc.queryForObject("select verified_at from " + schema + ".patient_caregivers where id=?", Timestamp.class, link));
         assertThrows(Exception.class, () -> jdbc.update("delete from " + schema + ".patient_caregivers where id=?", link));
