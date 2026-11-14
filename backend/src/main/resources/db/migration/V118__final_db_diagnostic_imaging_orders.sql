@@ -87,7 +87,11 @@ ALTER TABLE clinical_service_orders
     ADD COLUMN transfer_fingerprint       char(64),
     -- Optimistic-lock version of the imaging execution (the diagnostic API's version / expectedVersion, was
     -- diagnostic_requests.version). Separate from clinical's own version column so the two never collide.
-    ADD COLUMN execution_version          bigint NOT NULL DEFAULT 0;
+    ADD COLUMN execution_version          bigint NOT NULL DEFAULT 0,
+    -- Imaging request timestamps (the diagnostic API's createdAt / updatedAt, ordering and PENDING timeout;
+    -- were diagnostic_requests.created_at / updated_at). Not the order's own created_at / updated_at.
+    ADD COLUMN execution_created_at       timestamptz,
+    ADD COLUMN execution_updated_at       timestamptz;
 
 ALTER TABLE clinical_service_orders
     ADD CONSTRAINT ck_clinical_orders_round_number CHECK (round_number > 0),
@@ -100,6 +104,7 @@ ALTER TABLE clinical_service_orders
     ADD CONSTRAINT ck_clinical_orders_result_has_study CHECK (execution_status NOT IN ('RESULT_AVAILABLE', 'REVIEWED') OR study_ref IS NOT NULL),
     ADD CONSTRAINT ck_clinical_orders_cancellation CHECK (CASE WHEN execution_status = 'CANCELLED' THEN cancellation_cause IN ('PATIENT_DECLINED', 'CLINIC_UNABLE') AND cancellation_reason IS NOT NULL ELSE cancellation_cause IS NULL AND cancellation_reason IS NULL END),
     ADD CONSTRAINT ck_clinical_orders_execution_version CHECK (execution_version >= 0),
+    ADD CONSTRAINT ck_clinical_orders_execution_times CHECK ((execution_status IS NULL) = (execution_created_at IS NULL) AND (execution_status IS NULL) = (execution_updated_at IS NULL)),
     ADD CONSTRAINT uk_clinical_orders_id_visit UNIQUE (id, visit_id),
     ADD CONSTRAINT uk_clinical_orders_id_study UNIQUE (id, study_ref);
 
@@ -282,7 +287,9 @@ SET room_id = dr.room_id,
     first_use_at = da.occurred_at,
     first_use_source_id = da.source_id,
     study_ref = da.study_ref,
-    execution_version = dr.version
+    execution_version = dr.version,
+    execution_created_at = dr.created_at,
+    execution_updated_at = dr.updated_at
 FROM diagnostic_requests dr
 LEFT JOIN diagnostic_attempts da ON da.id = dr.current_attempt_id
 WHERE dr.service_order_id = o.id;
@@ -601,9 +608,7 @@ ALTER TABLE imaging_reconciliation_cases
     ADD CONSTRAINT imaging_reconciliation_cases_operation_id_fkey FOREIGN KEY (operation_id)
         REFERENCES imaging_studies (id) ON DELETE RESTRICT;
 
--- 4.4 Clinical order updated_at is maintained by the database, as the diagnostic request was.
-CREATE FUNCTION touch_service_order_updated_at() RETURNS trigger LANGUAGE plpgsql AS $$
-BEGIN NEW.updated_at = clock_timestamp(); RETURN NEW; END $$;
-CREATE TRIGGER tr_clinical_orders_updated_at BEFORE UPDATE ON clinical_service_orders
-  FOR EACH ROW EXECUTE FUNCTION touch_service_order_updated_at();
+-- 4.4 PENDING timeout scan (was on diagnostic_requests.created_at).
+CREATE INDEX ix_clinical_orders_pending_created ON clinical_service_orders (execution_created_at)
+  WHERE execution_status = 'PENDING';
 

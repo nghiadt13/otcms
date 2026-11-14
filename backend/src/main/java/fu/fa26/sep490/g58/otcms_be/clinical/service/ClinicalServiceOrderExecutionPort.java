@@ -25,6 +25,11 @@ import org.springframework.data.domain.Pageable;
  * diagnostic_requests @Version: 0 after dispatch, +1 on every later write below. Callers compare the request's
  * expectedVersion with it (VERSION_CONFLICT as before) and pass the version they read to the write, which matches
  * only that version.
+ *
+ * <p>{@link ImagingExecution#createdAt()} / {@link ImagingExecution#updatedAt()} come from
+ * {@code execution_created_at} / {@code execution_updated_at} (copied from diagnostic_requests.created_at /
+ * updated_at; set when the order is assigned to an imaging room, touched by every write below), not from the
+ * order's own timestamps. Ordering and the PENDING timeout use {@code execution_created_at}, as before.
  */
 public interface ClinicalServiceOrderExecutionPort {
     /** Execution status values, as stored in {@code execution_status}. */

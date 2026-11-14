@@ -33,12 +33,12 @@ public class ClinicalServiceOrderExecutionPortImpl implements ClinicalServiceOrd
                    o.cancellation_reason, o.attempt_id, o.technician_account_id, o.first_use_type,
                    o.first_use_event_id, o.first_use_at, o.first_use_source_id, o.study_ref,
                    o.review_idempotency_key, o.review_fingerprint, o.cancel_idempotency_key, o.cancel_fingerprint,
-                   o.transfer_idempotency_key, o.transfer_fingerprint, o.execution_version, o.created_at,
-                   o.updated_at
+                   o.transfer_idempotency_key, o.transfer_fingerprint, o.execution_version, o.execution_created_at,
+                   o.execution_updated_at
             from clinical_service_orders o
             where o.execution_status is not null
             """;
-    private static final String NEWEST_FIRST = " order by o.created_at desc, o.id desc";
+    private static final String NEWEST_FIRST = " order by o.execution_created_at desc, o.id desc";
 
     private final EntityManager entityManager;
 
@@ -90,7 +90,7 @@ public class ClinicalServiceOrderExecutionPortImpl implements ClinicalServiceOrd
         if (orderingDoctorAccountId != null) where.append(" and o.ordering_doctor_account_id = :doctorId");
         if (roomId != null) where.append(" and o.room_id = :roomId");
         if (statuses != null && !statuses.isEmpty()) where.append(" and o.execution_status in (:statuses)");
-        String order = oldestFirst ? " order by o.created_at asc, o.id asc" : NEWEST_FIRST;
+        String order = oldestFirst ? " order by o.execution_created_at asc, o.id asc" : NEWEST_FIRST;
         Query rows = query(COLUMNS + where + order);
         Query count = entityManager.createNativeQuery(
                 "select count(*) from clinical_service_orders o where o.execution_status is not null" + where);
@@ -112,8 +112,8 @@ public class ClinicalServiceOrderExecutionPortImpl implements ClinicalServiceOrd
 
     @Override
     public List<ImagingExecution> findPendingCreatedBefore(Instant createdBefore) {
-        return list(query(COLUMNS + " and o.execution_status = 'PENDING' and o.created_at < :before"
-                + " order by o.created_at asc").setParameter("before", Timestamp.from(createdBefore)));
+        return list(query(COLUMNS + " and o.execution_status = 'PENDING' and o.execution_created_at < :before"
+                + " order by o.execution_created_at asc").setParameter("before", Timestamp.from(createdBefore)));
     }
 
     // ---- guarded writes --------------------------------------------------------------------------------------
@@ -123,7 +123,8 @@ public class ClinicalServiceOrderExecutionPortImpl implements ClinicalServiceOrd
             String imagingType, UUID orderingDoctorAccountId) {
         return update("""
                 update clinical_service_orders
-                   set execution_status = 'PENDING', room_id = :roomId, imaging_type = :imagingType,
+                   set execution_status = 'PENDING', execution_created_at = clock_timestamp(),
+                       execution_updated_at = clock_timestamp(), room_id = :roomId, imaging_type = :imagingType,
                        ordering_doctor_account_id = :doctorId
                  where id = :id and execution_status is null and service_type = 'IMAGING'
                    and order_status = 'ORDERED' and payment_status = 'PAID'
@@ -141,7 +142,7 @@ public class ClinicalServiceOrderExecutionPortImpl implements ClinicalServiceOrd
                    set execution_status = 'IN_PROGRESS', attempt_id = :attemptId,
                        technician_account_id = :technicianId, first_use_type = :type,
                        first_use_event_id = :eventId, first_use_at = :at, first_use_source_id = :sourceId,
-                       execution_version = execution_version + 1
+                       execution_version = execution_version + 1, execution_updated_at = clock_timestamp()
                  where id = :id and execution_version = :expectedVersion
                    and execution_status = 'PENDING' and attempt_id is null
                 """, orderId, expectedVersion, q -> q.setParameter("attemptId", attemptId)
@@ -155,7 +156,7 @@ public class ClinicalServiceOrderExecutionPortImpl implements ClinicalServiceOrd
         return versioned("""
                 update clinical_service_orders
                    set execution_status = 'RESULT_AVAILABLE', study_ref = :studyRef,
-                       execution_version = execution_version + 1
+                       execution_version = execution_version + 1, execution_updated_at = clock_timestamp()
                  where id = :id and execution_version = :expectedVersion
                    and execution_status = 'IN_PROGRESS' and attempt_id = :attemptId and study_ref is null
                 """, orderId, expectedVersion,
@@ -167,7 +168,7 @@ public class ClinicalServiceOrderExecutionPortImpl implements ClinicalServiceOrd
         return versioned("""
                 update clinical_service_orders
                    set execution_status = 'REVIEWED', review_idempotency_key = :key, review_fingerprint = :fp,
-                       execution_version = execution_version + 1
+                       execution_version = execution_version + 1, execution_updated_at = clock_timestamp()
                  where id = :id and execution_version = :expectedVersion
                    and execution_status = 'RESULT_AVAILABLE'
                 """, orderId, expectedVersion,
@@ -181,7 +182,7 @@ public class ClinicalServiceOrderExecutionPortImpl implements ClinicalServiceOrd
                 update clinical_service_orders
                    set execution_status = 'CANCELLED', cancellation_cause = :cause, cancellation_reason = :reason,
                        cancel_idempotency_key = :key, cancel_fingerprint = :fp,
-                       execution_version = execution_version + 1
+                       execution_version = execution_version + 1, execution_updated_at = clock_timestamp()
                  where id = :id and execution_version = :expectedVersion and execution_status = 'PENDING'
                 """, orderId, expectedVersion, q -> q.setParameter("cause", cause).setParameter("reason", reason)
                 .setParameter("key", idempotencyKey).setParameter("fp", fingerprint));
@@ -193,7 +194,7 @@ public class ClinicalServiceOrderExecutionPortImpl implements ClinicalServiceOrd
         return versioned("""
                 update clinical_service_orders
                    set room_id = :roomId, transfer_idempotency_key = :key, transfer_fingerprint = :fp,
-                       execution_version = execution_version + 1
+                       execution_version = execution_version + 1, execution_updated_at = clock_timestamp()
                  where id = :id and execution_version = :expectedVersion and execution_status = 'PENDING'
                 """, orderId, expectedVersion, q -> q.setParameter("roomId", roomId)
                 .setParameter("key", idempotencyKey).setParameter("fp", fingerprint));
@@ -237,7 +238,7 @@ public class ClinicalServiceOrderExecutionPortImpl implements ClinicalServiceOrd
                     text(t, "cancel_idempotency_key"), trimmed(t, "cancel_fingerprint"),
                     text(t, "transfer_idempotency_key"), trimmed(t, "transfer_fingerprint"),
                     ((Number) t.get("execution_version")).longValue(),
-                    instant(t, "created_at"), instant(t, "updated_at")));
+                    instant(t, "execution_created_at"), instant(t, "execution_updated_at")));
         }
         return result;
     }
