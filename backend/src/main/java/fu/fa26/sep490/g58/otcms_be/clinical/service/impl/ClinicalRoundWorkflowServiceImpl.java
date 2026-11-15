@@ -21,7 +21,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class ClinicalRoundWorkflowServiceImpl implements ClinicalRoundWorkflowService {
-    private final OrderingRoundRepository rounds;
     private final ServiceOrderRepository orders;
     private final ClinicalOrderPreparationService preparation;
     private final PatientClinicalIdentityQueryService patients;
@@ -30,25 +29,23 @@ public class ClinicalRoundWorkflowServiceImpl implements ClinicalRoundWorkflowSe
     private final CoordinationGuardService guard;
     private final fu.fa26.sep490.g58.otcms_be.visit.service.ImagingRoomQueueService rooms;
     private final fu.fa26.sep490.g58.otcms_be.clinical.service.VisitClinicalContextPort visits;
-    public ClinicalRoundWorkflowServiceImpl(OrderingRoundRepository rounds, ServiceOrderRepository orders,
+    public ClinicalRoundWorkflowServiceImpl(ServiceOrderRepository orders,
             ClinicalOrderPreparationService preparation, PatientClinicalIdentityQueryService patients,
             DiagnosticOrderStatusQueryService statuses, DiagnosticImagingRequestRegistration registration,
             CoordinationGuardService guard,
             fu.fa26.sep490.g58.otcms_be.visit.service.ImagingRoomQueueService rooms,
             fu.fa26.sep490.g58.otcms_be.clinical.service.VisitClinicalContextPort visits) {
-        this.rounds = rounds; this.orders = orders; this.preparation = preparation; this.patients = patients;
+        this.orders = orders; this.preparation = preparation; this.patients = patients;
         this.statuses = statuses; this.registration = registration; this.guard = guard; this.rooms = rooms; this.visits = visits;
     }
     @Override
     @Transactional(readOnly = true)
     public List<Order> listDoctorOrders(UUID visitId, UUID doctorProfileId) {
         preparation.requireCurrentCare(visitId, doctorProfileId);
-        var roundNumbers = rounds.findByVisitId(visitId).stream()
-                .collect(Collectors.toMap(OrderingRoundJpaEntity::getId, OrderingRoundJpaEntity::getRoundNumber));
         var rows = orders.findByVisitId(visitId).stream()
                 .filter(order -> order.getServiceType() == ClinicalServiceType.IMAGING).toList();
         var diagnostic = statuses.findByServiceOrders(rows.stream().map(ServiceOrderJpaEntity::getId).toList());
-        return rows.stream().map(order -> view(order, roundNumbers.getOrDefault(order.getOrderingRoundId(), 0), diagnostic))
+        return rows.stream().map(order -> view(order, order.getRoundNumber(), diagnostic))
                 .sorted(Comparator.comparingInt(Order::roundNumber).thenComparing(Order::orderCode)).toList();
     }
     @Override
@@ -56,15 +53,16 @@ public class ClinicalRoundWorkflowServiceImpl implements ClinicalRoundWorkflowSe
     public RoundPage listReceptionRounds(AuthenticatedAccount actor, int page, int size) {
         requireReceptionist(actor);
         if (page < 0 || size < 1 || size > 100) throw new ClinicalOperationException("MSG-39");
-        var result = rounds.findAll(PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "orderedAt").and(Sort.by("id"))));
-        var ids = result.getContent().stream().map(OrderingRoundJpaEntity::getId).toList();
+        var result = orders.findAllByRoundHeadTrue(PageRequest.of(page, size,
+                Sort.by(Sort.Direction.DESC, "orderedAt").and(Sort.by("orderingRoundId"))));
+        var ids = result.getContent().stream().map(ServiceOrderJpaEntity::getOrderingRoundId).toList();
         var rows = ids.isEmpty() ? List.<ServiceOrderJpaEntity>of() : orders.findByOrderingRoundIdIn(ids);
         var grouped = rows.stream().collect(Collectors.groupingBy(ServiceOrderJpaEntity::getOrderingRoundId));
-        var identity = patients.findClinicalIdentities(result.getContent().stream().map(OrderingRoundJpaEntity::getPatientId).distinct().toList());
+        var identity = patients.findClinicalIdentities(result.getContent().stream().map(ServiceOrderJpaEntity::getPatientId).distinct().toList());
         var diagnostic = statuses.findByServiceOrders(rows.stream().map(ServiceOrderJpaEntity::getId).toList());
-        var items = result.getContent().stream().map(round -> new Round(round.getId(), round.getVisitId(),
+        var items = result.getContent().stream().map(round -> new Round(round.getOrderingRoundId(), round.getVisitId(),
                 round.getPatientId(), identity.containsKey(round.getPatientId()) ? identity.get(round.getPatientId()).fullName() : null,
-                round.getRoundNumber(), round.getOrderedAt(), grouped.getOrDefault(round.getId(), List.of()).stream()
+                round.getRoundNumber(), round.getOrderedAt(), grouped.getOrDefault(round.getOrderingRoundId(), List.of()).stream()
                         .map(order -> view(order, round.getRoundNumber(), diagnostic)).sorted(Comparator.comparing(Order::orderCode)).toList())).toList();
         return new RoundPage(page, size, result.hasNext(), items);
     }
@@ -109,7 +107,8 @@ public class ClinicalRoundWorkflowServiceImpl implements ClinicalRoundWorkflowSe
             if (selected.putIfAbsent(assignment.serviceOrderId(), assignment.roomId()) != null) throw new ClinicalOperationException("MSG-39");
         }
         guard.acquire();
-        var round = rounds.findById(roundId).orElseThrow(() -> new ClinicalOperationException("MSG-41"));
+        var round = orders.findFirstByOrderingRoundIdAndRoundHeadTrue(roundId)
+                .orElseThrow(() -> new ClinicalOperationException("MSG-41"));
         var effective = orders.findByOrderingRoundId(roundId).stream()
                 .filter(order -> order.getServiceType() == ClinicalServiceType.IMAGING && order.getOrderStatus() != ServiceOrderStatus.CANCELLED).toList();
         if (effective.isEmpty()) throw new ClinicalOperationException("MSG-42");
@@ -126,7 +125,7 @@ public class ClinicalRoundWorkflowServiceImpl implements ClinicalRoundWorkflowSe
                     || (order.getOrderStatus() != ServiceOrderStatus.ORDERED && !existing.containsKey(order.getId()))
                     || !roundId.equals(order.getOrderingRoundId()) || !round.getVisitId().equals(order.getVisitId())
                     || !round.getPatientId().equals(order.getPatientId())
-                    || !round.getOrderedByDoctorId().equals(order.getRequestingDoctorId())) throw new ClinicalOperationException("MSG-42");
+                    || !round.getRequestingDoctorId().equals(order.getRequestingDoctorId())) throw new ClinicalOperationException("MSG-42");
         }
         return effective.stream().filter(order -> selected.containsKey(order.getId())).map(order -> registration.register(
                 new DiagnosticImagingRequestRegistration.RegisterImagingOrder(order.getId(), order.getVisitId(), order.getPatientId(),

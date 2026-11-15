@@ -10,6 +10,11 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import fu.fa26.sep490.g58.otcms_be.common.security.AccountRole;
+import fu.fa26.sep490.g58.otcms_be.common.audit.AuditEntry;
+import fu.fa26.sep490.g58.otcms_be.common.audit.AuditLogWriter;
+import fu.fa26.sep490.g58.otcms_be.clinical.service.ClinicalServiceOrderExecutionPort;
+import fu.fa26.sep490.g58.otcms_be.clinical.service.ClinicalServiceOrderExecutionPort.ImagingExecution;
+import fu.fa26.sep490.g58.otcms_be.clinical.service.ClinicalServiceOrderExecutionPort.ExecutionStatus;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.exception.DiagnosticOperationException;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.integration.DiagnosticPortModels.VisitHistoryAuthorization;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.integration.DiagnosticPortModels.PatientHistoryAuthorization;
@@ -17,17 +22,11 @@ import fu.fa26.sep490.g58.otcms_be.diagnostic.integration.PatientDiagnosticHisto
 import fu.fa26.sep490.g58.otcms_be.diagnostic.integration.VisitDiagnosticPort;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.model.DiagnosticActor;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.model.DiagnosticHistoryPage;
-import fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.DiagnosticHistoryAccessAuditJpaEntity;
-import fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.DiagnosticFindingsVersionJpaEntity;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.DiagnosticReportJpaEntity;
-import fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.DiagnosticRequestJpaEntity;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.enums.DiagnosticOperationOutcome;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.enums.DiagnosticHistoryScope;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.enums.DiagnosticRequestStatus;
-import fu.fa26.sep490.g58.otcms_be.diagnostic.repository.DiagnosticFindingsVersionJpaRepository;
-import fu.fa26.sep490.g58.otcms_be.diagnostic.repository.DiagnosticHistoryAccessAuditJpaRepository;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.repository.DiagnosticReportJpaRepository;
-import fu.fa26.sep490.g58.otcms_be.diagnostic.repository.DiagnosticRequestJpaRepository;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.service.impl.DiagnosticHistoryServiceImpl;
 import java.time.Instant;
 import java.util.List;
@@ -41,17 +40,15 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 
 class DiagnosticHistoryT015Test {
-    private final DiagnosticRequestJpaRepository requests = mock(DiagnosticRequestJpaRepository.class);
-    private final DiagnosticFindingsVersionJpaRepository findings = mock(DiagnosticFindingsVersionJpaRepository.class);
+    private final ClinicalServiceOrderExecutionPort requests = mock(ClinicalServiceOrderExecutionPort.class);
     private final DiagnosticReportJpaRepository reports = mock(DiagnosticReportJpaRepository.class);
-    private final DiagnosticHistoryAccessAuditJpaRepository historyAudits =
-            mock(DiagnosticHistoryAccessAuditJpaRepository.class);
+    private final AuditLogWriter historyAudits = mock(AuditLogWriter.class);
     private final ObjectProvider<VisitDiagnosticPort> visitPorts = mock(ObjectProvider.class);
     private final ObjectProvider<PatientDiagnosticHistoryPort> patientPorts = mock(ObjectProvider.class);
     private final VisitDiagnosticPort visitPort = mock(VisitDiagnosticPort.class);
     private final PatientDiagnosticHistoryPort patientPort = mock(PatientDiagnosticHistoryPort.class);
     private final DiagnosticHistoryServiceImpl service = new DiagnosticHistoryServiceImpl(
-            requests, findings, reports, historyAudits, visitPorts, patientPorts);
+            requests, reports, historyAudits, visitPorts, patientPorts);
 
     @BeforeEach
     void configurePorts() {
@@ -68,20 +65,19 @@ class DiagnosticHistoryT015Test {
         DiagnosticActor actor = DiagnosticActor.user(actorId, AccountRole.DOCTOR);
         when(visitPort.authorizeImagingHistory(visitId, actorId)).thenReturn(
                 new VisitHistoryAuthorization(visitId, patientId, actorId, evidenceId, "CLOSED", true));
-        when(requests.findAllByVisitIdAndPatientIdOrderByCreatedAtDescIdDesc(eq(visitId), eq(patientId), any()))
+        when(requests.page(eq(visitId), eq(patientId), eq(null), eq(null), eq(null), eq(false), any()))
                 .thenReturn(new PageImpl<>(List.of(), PageRequest.of(0, 20), 0));
 
         DiagnosticHistoryPage result = service.getImagingHistory(actor, null, visitId, 0, 20);
 
         assertEquals(0, result.totalItems());
-        verify(requests).findAllByVisitIdAndPatientIdOrderByCreatedAtDescIdDesc(eq(visitId), eq(patientId), any());
-        ArgumentCaptor<DiagnosticHistoryAccessAuditJpaEntity> audit =
-                ArgumentCaptor.forClass(DiagnosticHistoryAccessAuditJpaEntity.class);
-        verify(historyAudits).save(audit.capture());
-        assertEquals(actorId, audit.getValue().getActorAccountId());
-        assertEquals(DiagnosticHistoryScope.VISIT, audit.getValue().getScopeType());
-        assertEquals(visitId, audit.getValue().getScopeId());
-        assertEquals(0, audit.getValue().getReturnedCount());
+        verify(requests).page(eq(visitId), eq(patientId), eq(null), eq(null), eq(null), eq(false), any());
+        ArgumentCaptor<AuditEntry> audit = ArgumentCaptor.forClass(AuditEntry.class);
+        verify(historyAudits).record(audit.capture());
+        assertEquals(actorId, audit.getValue().actorAccountId());
+        assertEquals("VISIT", audit.getValue().recordType());
+        assertEquals(visitId, audit.getValue().entityId());
+        assertEquals(0, audit.getValue().metadata().get("returnedCount"));
     }
 
     @Test
@@ -115,18 +111,17 @@ class DiagnosticHistoryT015Test {
         DiagnosticActor actor = DiagnosticActor.user(actorId, AccountRole.PATIENT);
         when(patientPort.authorizePatientHistory(actorId, patientId))
                 .thenReturn(new PatientHistoryAuthorization(patientId, "APPROVED_DEPENDENT", true));
-        when(requests.findAllByPatientIdOrderByCreatedAtDescIdDesc(eq(patientId), any()))
+        when(requests.page(eq(null), eq(patientId), eq(null), eq(null), eq(null), eq(false), any()))
                 .thenReturn(new PageImpl<>(List.of(), PageRequest.of(0, 20), 0));
 
         DiagnosticHistoryPage result = service.getImagingHistory(actor, patientId, null, 0, 20);
 
         assertEquals(0, result.totalItems());
         verify(patientPort).authorizePatientHistory(actorId, patientId);
-        ArgumentCaptor<DiagnosticHistoryAccessAuditJpaEntity> audit =
-                ArgumentCaptor.forClass(DiagnosticHistoryAccessAuditJpaEntity.class);
-        verify(historyAudits).save(audit.capture());
-        assertEquals(DiagnosticHistoryScope.PATIENT, audit.getValue().getScopeType());
-        assertEquals(patientId, audit.getValue().getScopeId());
+        ArgumentCaptor<AuditEntry> audit = ArgumentCaptor.forClass(AuditEntry.class);
+        verify(historyAudits).record(audit.capture());
+        assertEquals("PATIENT", audit.getValue().recordType());
+        assertEquals(patientId, audit.getValue().entityId());
     }
 
     @Test
@@ -139,12 +134,12 @@ class DiagnosticHistoryT015Test {
                 new VisitHistoryAuthorization(visitId, patientId, UUID.randomUUID(), null, "CLOSED", true));
         when(patientPort.authorizePatientHistory(actorId, patientId))
                 .thenReturn(new PatientHistoryAuthorization(patientId, "SELF", true));
-        when(requests.findAllByVisitIdAndPatientIdOrderByCreatedAtDescIdDesc(eq(visitId), eq(patientId), any()))
+        when(requests.page(eq(visitId), eq(patientId), eq(null), eq(null), eq(null), eq(false), any()))
                 .thenReturn(new PageImpl<>(List.of(), PageRequest.of(0, 20), 0));
 
         service.getImagingHistory(actor, null, visitId, 0, 20);
 
-        verify(requests).findAllByVisitIdAndPatientIdOrderByCreatedAtDescIdDesc(eq(visitId), eq(patientId), any());
+        verify(requests).page(eq(visitId), eq(patientId), eq(null), eq(null), eq(null), eq(false), any());
     }
 
     @Test
@@ -171,25 +166,20 @@ class DiagnosticHistoryT015Test {
         UUID roomId = UUID.randomUUID();
         Instant createdAt = Instant.parse("2026-10-01T10:00:00Z");
         DiagnosticActor actor = DiagnosticActor.user(actorId, AccountRole.DOCTOR);
-        DiagnosticRequestJpaEntity request = new DiagnosticRequestJpaEntity(requestId, visitId, patientId, actorId,
-                serviceId, roomId, "MRI", "BRAIN", "Headache", DiagnosticRequestStatus.REVIEWED,
-                null, null, UUID.randomUUID());
-        request.setCreatedAt(createdAt);
-        DiagnosticFindingsVersionJpaEntity version = new DiagnosticFindingsVersionJpaEntity(UUID.randomUUID(),
-                requestId, visitId, "study-123", 2, "No acute findings", actorId, createdAt,
-                fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.enums.DiagnosticFindingsVersionState.COMPLETED,
-                reportId, createdAt);
-        DiagnosticReportJpaEntity report = new DiagnosticReportJpaEntity(reportId, requestId, visitId,
-                "study-123", 2, "private/object/key", "a".repeat(64),
-                fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.enums.DiagnosticReportValidationStatus.VALIDATED,
-                actorId, createdAt, createdAt);
+        ImagingExecution request = mock(ImagingExecution.class);
+        when(request.orderId()).thenReturn(requestId); when(request.visitId()).thenReturn(visitId);
+        when(request.status()).thenReturn(ExecutionStatus.REVIEWED); when(request.studyRef()).thenReturn("study-123");
+        DiagnosticReportJpaEntity report = mock(DiagnosticReportJpaEntity.class);
+        when(report.getRequestId()).thenReturn(requestId); when(report.getVisitId()).thenReturn(visitId);
+        when(report.getStudyRef()).thenReturn("study-123"); when(report.getVersionNumber()).thenReturn(2);
+        when(report.getFindingsText()).thenReturn("No acute findings"); when(report.getReportId()).thenReturn(reportId);
+        when(report.getCompletedAt()).thenReturn(createdAt); when(report.getReleasedAt()).thenReturn(createdAt);
+        when(report.getValidationStatus()).thenReturn(fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.enums.DiagnosticReportValidationStatus.VALIDATED);
         when(visitPort.authorizeImagingHistory(visitId, actorId)).thenReturn(
                 new VisitHistoryAuthorization(visitId, patientId, actorId, UUID.randomUUID(), "CLOSED", true));
-        when(requests.findAllByVisitIdAndPatientIdOrderByCreatedAtDescIdDesc(eq(visitId), eq(patientId), any()))
+        when(requests.page(eq(visitId), eq(patientId), eq(null), eq(null), eq(null), eq(false), any()))
                 .thenReturn(new PageImpl<>(List.of(request), PageRequest.of(0, 20), 1));
-        when(findings.findFirstByRequestIdAndStateOrderByVersionNumberDesc(eq(requestId), any()))
-                .thenReturn(Optional.of(version));
-        when(reports.findFirstByRequestIdAndReleasedAtIsNotNullOrderByReportVersionDesc(requestId))
+        when(reports.findFirstByRequestIdAndStateOrderByReportVersionDesc(eq(requestId), any()))
                 .thenReturn(Optional.of(report));
 
         DiagnosticHistoryPage result = service.getImagingHistory(actor, null, visitId, 0, 20);
@@ -199,13 +189,13 @@ class DiagnosticHistoryT015Test {
         assertEquals(reportId, result.items().getFirst().reportId());
         assertEquals(2, result.items().getFirst().findingsVersion());
 
-        report.setValidationStatus(fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.enums.DiagnosticReportValidationStatus.INVALID);
+        when(report.getValidationStatus()).thenReturn(fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.enums.DiagnosticReportValidationStatus.INVALID);
         org.junit.jupiter.api.Assertions.assertNull(service.getImagingHistory(actor, null, visitId, 0, 20).items().getFirst().studyRef());
-        report.setValidationStatus(fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.enums.DiagnosticReportValidationStatus.VALIDATED);
-        report.setReleasedAt(null);
+        when(report.getValidationStatus()).thenReturn(fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.enums.DiagnosticReportValidationStatus.VALIDATED);
+        when(report.getReleasedAt()).thenReturn(null);
         org.junit.jupiter.api.Assertions.assertNull(service.getImagingHistory(actor, null, visitId, 0, 20).items().getFirst().findingsText());
-        report.setReleasedAt(createdAt);
-        request.setStatus(DiagnosticRequestStatus.CANCELLED);
+        when(report.getReleasedAt()).thenReturn(createdAt);
+        when(request.status()).thenReturn(ExecutionStatus.CANCELLED);
         org.junit.jupiter.api.Assertions.assertNull(service.getImagingHistory(actor, null, visitId, 0, 20).items().getFirst().reportId());
     }
 }

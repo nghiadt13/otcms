@@ -137,6 +137,7 @@ class VisitExamFlowPostgresIntegrationTest {
         var validated = ClinicalImagingRequestFingerprint.validated(command);
         imagingTransactions.submit(validated, ClinicalImagingRequestFingerprint.fingerprint(validated));
 
+        entityManager.flush();
         assertEquals("AWAITING_CONCLUSION", queueStatus(visitA));
         assertEquals(1, count("select count(*) from visit_assignments where visit_id = ? and status = 'IN_PROGRESS'", visitA));
         assertTrue(clinicalCare.findClinicalCareContext(visitA).orElseThrow().clinicalWorkAllowed());

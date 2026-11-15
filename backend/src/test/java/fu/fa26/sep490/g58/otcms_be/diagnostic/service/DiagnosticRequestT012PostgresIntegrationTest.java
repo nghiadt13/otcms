@@ -20,7 +20,6 @@ import fu.fa26.sep490.g58.otcms_be.diagnostic.integration.DiagnosticPortModels.V
 import fu.fa26.sep490.g58.otcms_be.diagnostic.integration.DiagnosticPortModels.FindingsReleaseEvent;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.integration.DiagnosticPortModels.ReleaseAcknowledgement;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.integration.FirstUseEvidencePort;
-import fu.fa26.sep490.g58.otcms_be.diagnostic.integration.ImagingBillingPort;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.integration.ImagingStudyPort;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.integration.ImagingServiceCatalogPort;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.integration.RoomReservationPort;
@@ -33,7 +32,9 @@ import fu.fa26.sep490.g58.otcms_be.diagnostic.mapper.DiagnosticDtoMapper;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.enums.DiagnosticOperationOutcome;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.enums.DiagnosticRequestStatus;
 import fu.fa26.sep490.g58.otcms_be.support.LocalPostgresTest;
+import fu.fa26.sep490.g58.otcms_be.clinical.service.ClinicalServiceOrderExecutionPort;
 import java.time.Instant;
+import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -71,6 +72,7 @@ class DiagnosticRequestT012PostgresIntegrationTest {
     @Autowired org.springframework.transaction.PlatformTransactionManager transactions;
     private final Map<String, UUID> fixtureOrders = new HashMap<>();
     @Autowired DiagnosticDtoMapper mapper;
+    @Autowired ClinicalServiceOrderExecutionPort executions;
     @Autowired JdbcTemplate jdbc;
     @Autowired PortFakes ports;
 
@@ -94,10 +96,7 @@ class DiagnosticRequestT012PostgresIntegrationTest {
     @AfterEach
     void cleanRows() {
         for (UUID id : visitIds) {
-            jdbc.update("delete from diagnostic_audit_events where visit_id = ?", id);
-            jdbc.update("delete from diagnostic_outbox where visit_id = ?", id);
-            jdbc.update("delete from diagnostic_idempotency_records where visit_id = ?", id);
-            jdbc.update("delete from diagnostic_requests where visit_id = ?", id);
+            jdbc.update("delete from clinical_service_orders where visit_id = ?", id);
         }
     }
 
@@ -111,10 +110,8 @@ class DiagnosticRequestT012PostgresIntegrationTest {
         assertEquals(0, replay.version());
         assertEquals("Pain and shortness of breath", replay.clinicalReason());
         assertEquals(1, ports.reservationCalls);
-        assertEquals(1, jdbc.queryForObject("select count(*) from diagnostic_requests where visit_id = ?",
-                Integer.class, visitId));
-        assertEquals(0, jdbc.queryForObject("select count(*) from diagnostic_idempotency_records "
-                + "where visit_id = ? and operation = 'CREATE_REQUEST'", Integer.class, visitId));
+        assertEquals(1, jdbc.queryForObject("select count(*) from clinical_service_orders "
+                + "where visit_id = ? and execution_status = 'PENDING'", Integer.class, visitId));
 
         DiagnosticOperationException conflict = assertThrows(DiagnosticOperationException.class,
                 () -> create("create-1", "Chest", "Different reason"));
@@ -129,8 +126,8 @@ class DiagnosticRequestT012PostgresIntegrationTest {
                     "retired", serviceId, "MRI", "Chest", "Pain", roomId, null, "corr"));
             assertEquals(DiagnosticOperationOutcome.UNAUTHORIZED_RECORD, error.outcome());
         }
-        assertEquals(0, jdbc.queryForObject("select count(*) from diagnostic_requests where visit_id = ?", Integer.class, visitId));
-        assertEquals(0, jdbc.queryForObject("select count(*) from diagnostic_idempotency_records where visit_id = ?", Integer.class, visitId));
+        assertEquals(0, jdbc.queryForObject("select count(*) from clinical_service_orders "
+                + "where visit_id = ? and execution_status is not null", Integer.class, visitId));
     }
 
     @Test
@@ -146,8 +143,22 @@ class DiagnosticRequestT012PostgresIntegrationTest {
         assertEquals(cancelled, replay);
         assertEquals(1, ports.releaseCalls);
         assertEquals("PATIENT_DECLINED", cancelled.cancellationCause());
-        assertEquals(1, jdbc.queryForObject("select count(*) from diagnostic_audit_events "
-                + "where request_id = ? and action = 'MANUAL_CANCEL'", Integer.class, created.requestId()));
+        assertEquals(1, jdbc.queryForObject("select count(*) from audit_logs "
+                + "where source = 'diagnostic_audit_events' and entity_id = ? and action = 'MANUAL_CANCEL:ALLOWED'",
+                Integer.class, created.requestId()));
+    }
+
+    @Test
+    void cancelSameKeyWithDifferentPayloadConflicts() {
+        DiagnosticRequestView created = create("create-cancel-conflict", "Chest", "Pain");
+        service.cancel(doctor(), created.requestId(), "cancel-conflict", 0,
+                CancellationCause.PATIENT_DECLINED, "Patient declined", "corr-cancel-conflict");
+
+        DiagnosticOperationException conflict = assertThrows(DiagnosticOperationException.class,
+                () -> service.cancel(doctor(), created.requestId(), "cancel-conflict", 0,
+                        CancellationCause.CLINIC_UNABLE, "Different reason", "corr-cancel-conflict-replay"));
+
+        assertEquals(DiagnosticOperationOutcome.IDEMPOTENCY_CONFLICT, conflict.outcome());
     }
 
     @Test
@@ -164,13 +175,31 @@ class DiagnosticRequestT012PostgresIntegrationTest {
         assertEquals(2, ports.reservationCalls);
         assertEquals(1, ports.releaseCalls);
         assertEquals(alternateRoomId, ports.reservations.get(created.requestId()));
-        assertEquals(1, jdbc.queryForObject("select count(*) from diagnostic_audit_events "
-                + "where request_id = ? and action = 'TRANSFER_ROOM'", Integer.class, created.requestId()));
+        assertEquals(1, jdbc.queryForObject("select count(*) from audit_logs "
+                + "where source = 'diagnostic_audit_events' and entity_id = ? and action = 'TRANSFER_ROOM:ALLOWED'",
+                Integer.class, created.requestId()));
 
         DiagnosticOperationException stale = assertThrows(DiagnosticOperationException.class,
                 () -> service.transferRoom(doctor(), created.requestId(), "transfer-stale", 0,
                         roomId, "Stale update", "corr-stale"));
         assertEquals(DiagnosticOperationOutcome.VERSION_CONFLICT, stale.outcome());
+    }
+
+    @Test
+    void transferSameKeyWithDifferentPayloadConflicts() {
+        DiagnosticRequestView created = create("create-transfer-conflict", "Chest", "Pain");
+        UUID alternateRoomId = UUID.randomUUID();
+        ports.addRoom(alternateRoomId, "MRI", UUID.randomUUID(), 7);
+        service.transferRoom(doctor(), created.requestId(), "transfer-conflict", 0,
+                alternateRoomId, "Machine service", "corr-transfer-conflict");
+        UUID differentRoomId = UUID.randomUUID();
+        ports.addRoom(differentRoomId, "MRI", UUID.randomUUID(), 8);
+
+        DiagnosticOperationException conflict = assertThrows(DiagnosticOperationException.class,
+                () -> service.transferRoom(doctor(), created.requestId(), "transfer-conflict", 0,
+                        differentRoomId, "Different destination", "corr-transfer-conflict-replay"));
+
+        assertEquals(DiagnosticOperationOutcome.IDEMPOTENCY_CONFLICT, conflict.outcome());
     }
 
     @Test
@@ -195,8 +224,8 @@ class DiagnosticRequestT012PostgresIntegrationTest {
                 () -> service.create(wrongDoctor, visitId, "wrong-doctor-create", serviceId, "MRI", "Chest",
                         "Pain", roomId, null, "corr-wrong"));
         assertEquals(DiagnosticOperationOutcome.UNAUTHORIZED_RECORD, deniedCreate.outcome());
-        assertEquals(0, jdbc.queryForObject("select count(*) from diagnostic_requests where visit_id = ?",
-                Integer.class, visitId));
+        assertEquals(0, jdbc.queryForObject("select count(*) from clinical_service_orders "
+                + "where visit_id = ? and execution_status is not null", Integer.class, visitId));
     }
 
     @Test
@@ -206,8 +235,47 @@ class DiagnosticRequestT012PostgresIntegrationTest {
 
         DiagnosticRequestView created = createLinked("link-ok", orderId);
 
-        assertEquals(orderId, jdbc.queryForObject("select service_order_id from diagnostic_requests where id = ?",
+        assertEquals(orderId, jdbc.queryForObject("select id from clinical_service_orders where id = ? and execution_status is not null",
                 UUID.class, created.requestId()));
+    }
+
+    @Test
+    void executionTimestampAndPendingTimeoutStartWhenTheRoomIsAssigned() {
+        UUID orderId = UUID.randomUUID();
+        ports.orders.put(orderId, new ClinicalImagingOrder(orderId, visitId, serviceId, true, true));
+        Instant orderCreatedAt = Instant.now().minusSeconds(24 * 60 * 60);
+
+        DiagnosticRequestView request = registerAssigned(jdbc, transactions, registration, ports,
+                visitId, roomId, orderId, "Chest", "Pain", orderCreatedAt);
+
+        Instant storedOrderCreatedAt = jdbc.queryForObject(
+                "select created_at from clinical_service_orders where id = ?", Timestamp.class, orderId).toInstant();
+        Instant executionCreatedAt = jdbc.queryForObject(
+                "select execution_created_at from clinical_service_orders where id = ?", Timestamp.class, orderId).toInstant();
+        assertTrue(Math.abs(java.time.Duration.between(orderCreatedAt, storedOrderCreatedAt).toNanos()) <= 1000);
+        assertEquals(executionCreatedAt, request.createdAt());
+        assertTrue(executionCreatedAt.isAfter(storedOrderCreatedAt));
+        assertTrue(pendingBefore(executionCreatedAt.plusMillis(1)).stream()
+                .anyMatch(row -> row.orderId().equals(orderId)));
+        assertFalse(pendingBefore(executionCreatedAt.minusMillis(1)).stream()
+                .anyMatch(row -> row.orderId().equals(orderId)));
+    }
+
+    @Test
+    void requestListOrdersByExecutionCreationTimeInsteadOfClinicalOrderCreationTime() {
+        UUID assignedFirst = UUID.randomUUID();
+        UUID assignedSecond = UUID.randomUUID();
+        ports.orders.put(assignedFirst, new ClinicalImagingOrder(assignedFirst, visitId, serviceId, true, true));
+        ports.orders.put(assignedSecond, new ClinicalImagingOrder(assignedSecond, visitId, serviceId, true, true));
+
+        registerAssigned(jdbc, transactions, registration, ports, visitId, roomId, assignedFirst,
+                "Chest", "First assignment", Instant.now().minusSeconds(60));
+        registerAssigned(jdbc, transactions, registration, ports, visitId, roomId, assignedSecond,
+                "Chest", "Second assignment", Instant.now().minusSeconds(3600));
+
+        DiagnosticRequestPage page = service.listVisitRequests(doctor(), visitId, 0, 20);
+        assertEquals(List.of(assignedSecond, assignedFirst),
+                page.items().stream().map(DiagnosticRequestView::requestId).toList());
     }
 
     @Test
@@ -226,8 +294,8 @@ class DiagnosticRequestT012PostgresIntegrationTest {
             assertEquals(DiagnosticOperationOutcome.EVIDENCE_MISMATCH,
                     assertThrows(DiagnosticOperationException.class, () -> createLinked("link-bad-" + bad, bad)).outcome());
         }
-        assertEquals(0, jdbc.queryForObject("select count(*) from diagnostic_requests where visit_id = ?",
-                Integer.class, visitId));
+        assertEquals(0, jdbc.queryForObject("select count(*) from clinical_service_orders "
+                + "where visit_id = ? and execution_status is not null", Integer.class, visitId));
     }
 
     @Test
@@ -242,7 +310,8 @@ class DiagnosticRequestT012PostgresIntegrationTest {
                 CancellationCause.PATIENT_DECLINED, "Patient declined", "corr-cancel");
         assertEquals(List.of(orderId), ports.orderCancelCalls);
         assertThrows(DiagnosticOperationException.class, () -> createLinked("link-third", orderId));
-        assertEquals(0, jdbc.queryForObject("select count(*) from diagnostic_requests where service_order_id=? and status <> 'CANCELLED'", Integer.class, orderId));
+        assertEquals(0, jdbc.queryForObject("select count(*) from clinical_service_orders where id=? "
+                + "and execution_status <> 'CANCELLED'", Integer.class, orderId));
     }
 
     @Test
@@ -265,20 +334,52 @@ class DiagnosticRequestT012PostgresIntegrationTest {
     static DiagnosticRequestView registerAssigned(JdbcTemplate jdbc, org.springframework.transaction.PlatformTransactionManager transactions,
             DiagnosticImagingRequestRegistration registration, PortFakes ports, UUID visitId, UUID roomId,
             UUID orderId, String area, String reason) {
+        return registerAssigned(jdbc, transactions, registration, ports, visitId, roomId, orderId, area, reason,
+                Instant.now().minusSeconds(3600));
+    }
+
+    static DiagnosticRequestView registerAssigned(JdbcTemplate jdbc, org.springframework.transaction.PlatformTransactionManager transactions,
+            DiagnosticImagingRequestRegistration registration, PortFakes ports, UUID visitId, UUID roomId,
+            UUID orderId, String area, String reason, Instant clinicalOrderCreatedAt) {
         var visit = ports.visits.get(visitId);
+        ensureClinicalOrder(jdbc, ports, visitId, orderId, area, reason, clinicalOrderCreatedAt);
         UUID id = new org.springframework.transaction.support.TransactionTemplate(transactions).execute(status ->
                 registration.register(new DiagnosticImagingRequestRegistration.RegisterImagingOrder(orderId, visitId,
                         visit.patientId(), visit.treatingDoctorId(), ports.service.serviceId(), roomId, area, reason)).requestId());
         // Explicit physical-reservation fixture for legacy lifecycle assertions only; dispatch never calls this.
         if (!ports.reservations.containsKey(id)) { ports.reservationCalls++; ports.reservations.put(id, roomId); }
-        return jdbc.queryForObject("select * from diagnostic_requests where id = ?", (row, number) -> new DiagnosticRequestView(
+        return jdbc.queryForObject("select * from clinical_service_orders where id = ?", (row, number) -> new DiagnosticRequestView(
                 id, visitId, visit.patientId(), visit.treatingDoctorId(), ports.service.serviceId(), roomId,
                 ports.service.imagingType(), row.getString("body_area"), row.getString("clinical_reason"),
-                DiagnosticRequestStatus.valueOf(row.getString("status")), row.getString("cancellation_cause"),
-                row.getString("cancellation_reason"), null, row.getLong("version"), row.getTimestamp("created_at").toInstant()), id);
+                DiagnosticRequestStatus.valueOf(row.getString("execution_status")), row.getString("cancellation_cause"),
+                row.getString("cancellation_reason"), row.getString("study_ref"), row.getLong("execution_version"),
+                row.getTimestamp("execution_created_at").toInstant()), id);
+    }
+
+    private static void ensureClinicalOrder(JdbcTemplate jdbc, PortFakes ports, UUID visitId, UUID orderId,
+            String area, String reason, Instant createdAt) {
+        Integer exists = jdbc.queryForObject("select count(*) from clinical_service_orders where id = ?", Integer.class, orderId);
+        if (exists != null && exists > 0) return;
+        VisitEvidence visit = ports.visits.get(visitId);
+        UUID roundId = UUID.randomUUID();
+        int roundNumber = jdbc.queryForObject("select coalesce(max(round_number), 0) + 1 "
+                + "from clinical_service_orders where visit_id = ? and round_head", Integer.class, visitId);
+        Instant now = Instant.now();
+        jdbc.update("insert into clinical_service_orders (id, order_code, ordering_round_id, round_number, ordered_at, "
+                        + "round_head, visit_id, patient_id, service_id, service_name_snapshot, service_type, "
+                        + "requesting_doctor_id, clinical_reason, body_area, price_snapshot, order_status, payment_status, "
+                        + "created_at, updated_at) values (?, ?, ?, ?, ?, true, ?, ?, ?, ?, 'IMAGING', ?, ?, ?, 1, 'ORDERED', 'PAID', ?, ?)",
+                orderId, orderId.toString().replace("-", ""), roundId, roundNumber, Timestamp.from(now), visitId,
+                visit.patientId(), ports.service.serviceId(), "Test MRI", visit.treatingDoctorId(), reason, area,
+                Timestamp.from(createdAt), Timestamp.from(createdAt));
     }
 
     private DiagnosticActor doctor() { return DiagnosticActor.user(doctorId, AccountRole.DOCTOR); }
+
+    private List<ClinicalServiceOrderExecutionPort.ImagingExecution> pendingBefore(Instant before) {
+        return new org.springframework.transaction.support.TransactionTemplate(transactions)
+                .execute(status -> executions.findPendingCreatedBefore(before));
+    }
 
     @TestConfiguration(proxyBeanMethods = false)
     static class PortConfiguration {
@@ -302,7 +403,6 @@ class DiagnosticRequestT012PostgresIntegrationTest {
         @Bean @Primary ImagingServiceCatalogPort imagingServiceCatalogPort(PortFakes fakes) { return new FakeCatalogPort(fakes); }
         @Bean FirstUseEvidencePort firstUseEvidencePort(PortFakes fakes) { return new FakeFirstUsePort(fakes); }
         @Bean ImagingStudyPort imagingStudyPort(PortFakes fakes) { return new FakeStudyPort(fakes); }
-        @Bean ImagingBillingPort imagingBillingPort(PortFakes fakes) { return new FakeBillingPort(fakes); }
         /** Replaces the production adapter so link tests do not need real clinical orders. */
         @Bean @Primary ClinicalImagingOrderPort clinicalImagingOrderPort(PortFakes fakes) {
             return new FakeOrderPort(fakes);
@@ -334,17 +434,14 @@ class DiagnosticRequestT012PostgresIntegrationTest {
         int releaseCalls;
         int firstUseCalls;
         int studyCalls;
-        int billingCalls;
         int resultReadyCalls;
         boolean firstUseAccepted = true;
-        boolean billingFails;
         boolean resultReadyFails;
         boolean findingsReleaseFails;
         java.util.function.Consumer<FindingsReleaseEvent> beforeStudyReleaseAck = event -> {};
         int findingsReleaseCalls;
         int studyReleaseCalls;
         StudyEvidence studyConfirmation;
-        final List<UUID> billedRequestIds = new ArrayList<>();
 
         void addRoom(UUID id, String type, UUID technicianId, long version) {
             rooms.put(id, new MutableRoom(new RoomEvidence(id, type, true, true, true, technicianId, version)));
@@ -353,11 +450,11 @@ class DiagnosticRequestT012PostgresIntegrationTest {
         void reset() {
             visits.clear(); rooms.clear(); reservations.clear(); service = null;
             reservationAllowed = true; reservationCalls = 0; releaseCalls = 0;
-            firstUseCalls = 0; studyCalls = 0; billingCalls = 0; resultReadyCalls = 0;
-            firstUseAccepted = true; billingFails = false; resultReadyFails = false;
+            firstUseCalls = 0; studyCalls = 0; resultReadyCalls = 0;
+            firstUseAccepted = true; resultReadyFails = false;
             findingsReleaseFails = false; findingsReleaseCalls = 0; studyReleaseCalls = 0;
             beforeStudyReleaseAck = event -> {};
-            studyConfirmation = null; billedRequestIds.clear();
+            studyConfirmation = null;
             orders.clear(); orderResultCalls.clear(); orderCancelCalls.clear();
         }
 
@@ -465,19 +562,6 @@ class DiagnosticRequestT012PostgresIntegrationTest {
                     .digest(canonical.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
         } catch (java.security.NoSuchAlgorithmException exception) {
             throw new IllegalStateException(exception);
-        }
-    }
-
-    static class FakeBillingPort implements ImagingBillingPort {
-        private final PortFakes state;
-        FakeBillingPort(PortFakes state) { this.state = state; }
-        @Override public UUID registerFirstUseObligation(UUID eventId, UUID requestId, UUID serviceId,
-                Instant occurredAt) {
-            state.billingCalls++;
-            if (state.billingFails) throw new IllegalStateException("Billing unavailable");
-            state.billedRequestIds.add(requestId);
-            return UUID.nameUUIDFromBytes(("billing:" + requestId)
-                    .getBytes(java.nio.charset.StandardCharsets.UTF_8));
         }
     }
 

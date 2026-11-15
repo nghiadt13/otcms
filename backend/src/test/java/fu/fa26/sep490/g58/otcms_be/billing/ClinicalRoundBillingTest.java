@@ -29,7 +29,6 @@ import fu.fa26.sep490.g58.otcms_be.clinical.integration.billing.ClinicalRoundBil
 import fu.fa26.sep490.g58.otcms_be.clinical.model.ClinicalServiceType;
 import fu.fa26.sep490.g58.otcms_be.clinical.model.ServiceOrderPaymentStatus;
 import fu.fa26.sep490.g58.otcms_be.clinical.model.entity.ServiceOrderJpaEntity;
-import fu.fa26.sep490.g58.otcms_be.clinical.repository.OrderingRoundRepository;
 import fu.fa26.sep490.g58.otcms_be.clinical.repository.ServiceOrderRepository;
 import fu.fa26.sep490.g58.otcms_be.common.service.CoordinationGuardService;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -133,7 +132,6 @@ class ClinicalRoundBillingTest {
     }
     /** Persistence probe distinguishes managed mutations from writes flushed by the owning service. */
     private final class ClinicalSettlementOwner {
-        final OrderingRoundRepository rounds = mock(OrderingRoundRepository.class);
         final ServiceOrderRepository orders = mock(ServiceOrderRepository.class);
         final CoordinationGuardService guard = mock(CoordinationGuardService.class);
         final ServiceOrderJpaEntity first = order("FIRST", "150000");
@@ -141,12 +139,12 @@ class ClinicalRoundBillingTest {
         final ServiceOrderJpaEntity cancelled = order("CANCELLED", "990000");
         final List<ServiceOrderJpaEntity> rows = List.of(first, second, cancelled);
         final Map<UUID, ServiceOrderPaymentStatus> flushedPayments = new HashMap<>();
-        final ClinicalRoundBillingAdapter adapter = new ClinicalRoundBillingAdapter(rounds, orders, guard, clock);
+        final ClinicalRoundBillingAdapter adapter = new ClinicalRoundBillingAdapter(orders, guard, clock);
 
         ClinicalSettlementOwner() {
             cancelled.cancel("Declined", clock.instant());
             rows.forEach(row -> flushedPayments.put(row.getId(), row.getPaymentStatus()));
-            when(rounds.existsById(roundId)).thenReturn(true);
+            when(orders.findFirstByOrderingRoundIdAndRoundHeadTrue(roundId)).thenReturn(Optional.of(first));
             when(orders.findByOrderingRoundId(roundId)).thenReturn(rows);
             when(orders.saveAllAndFlush(anyList())).thenAnswer(call -> {
                 List<ServiceOrderJpaEntity> submitted = call.getArgument(0);
@@ -179,7 +177,7 @@ class ClinicalRoundBillingTest {
         assertEquals(roundId, invoiceRows.get(id).getClinicalOrderingRoundId());
         paymentService.recordCounterPayment(id, new CounterPaymentRequest(200000L, "CASH"), receptionist, "partial-owner");
         assertEquals(InvoiceStatus.OPEN, invoiceRows.get(id).getStatus());
-        verifyNoInteractions(owner.rounds, owner.orders, owner.guard);
+        verifyNoInteractions(owner.orders, owner.guard);
         assertTrue(owner.flushedPayments.values().stream().allMatch(status -> status == ServiceOrderPaymentStatus.PENDING_PAYMENT));
         paymentService.recordCounterPayment(id, new CounterPaymentRequest(300000L, "CASH"), receptionist, "full-owner");
         assertEquals(InvoiceStatus.PAID, invoiceRows.get(id).getStatus());
@@ -211,7 +209,7 @@ class ClinicalRoundBillingTest {
         owner.adapter.markRoundPaid(roundId);
         Instant updated = owner.first.getUpdatedAt();
         Instant cancelledUpdated = owner.cancelled.getUpdatedAt();
-        new ClinicalRoundBillingAdapter(owner.rounds, owner.orders, owner.guard, Clock.offset(clock, Duration.ofMinutes(1)))
+        new ClinicalRoundBillingAdapter(owner.orders, owner.guard, Clock.offset(clock, Duration.ofMinutes(1)))
                 .markRoundPaid(roundId);
         assertEquals(updated, owner.first.getUpdatedAt());
         assertEquals(cancelledUpdated, owner.cancelled.getUpdatedAt());

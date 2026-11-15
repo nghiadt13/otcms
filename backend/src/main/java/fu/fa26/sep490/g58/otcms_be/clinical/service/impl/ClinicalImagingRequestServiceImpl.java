@@ -12,8 +12,8 @@ import org.springframework.transaction.annotation.Transactional;
 /** Coordinates retries only after the transactional attempt proxy has rolled back. */
 @Service
 public class ClinicalImagingRequestServiceImpl implements ClinicalImagingRequestService {
-    static final String REPLAY_KEY = "uk_clinical_imaging_replay_doctor_key";
-    static final String ROUND_NUMBER = "uk_clinical_round_visit_number";
+    static final String REPLAY_KEY = "uk_clinical_orders_submit_key";
+    static final String ROUND_NUMBER = "uk_clinical_orders_round_number";
     private static final int MAX_ATTEMPTS = 3;
     private final ClinicalImagingRequestTransactionService transactions;
 

@@ -183,6 +183,14 @@ public class ImagingStudyJpaEntity {
         updatedAt = Instant.now();
     }
 
+    public void persistConfirmedStudy(String studyRef, String archiveStudyRef, DicomIndex index,
+            Instant now) {
+        this.studyRef = studyRef;
+        this.archiveStudyRef = archiveStudyRef;
+        this.dicomIndex = index;
+        updatedAt = now;
+    }
+
     public void setArchiveStudyRef(String archiveStudyRef) {
         this.archiveStudyRef = archiveStudyRef;
         updatedAt = Instant.now();
@@ -236,28 +244,55 @@ public class ImagingStudyJpaEntity {
     public String getReleasedReportSha256() { return releasedReportSha256; }
     public Instant getFindingsReleasedAt() { return findingsReleasedAt; }
 
+    public void updateConfirmationOutcome(ImagingOperationState nextState, String safeCode, Instant now) {
+        state = nextState;
+        safeOutcomeCode = safeCode;
+        updatedAt = now;
+    }
+
+    public void recordConfirmationRetry(Instant nextAt, String safeCode, Instant now) {
+        confirmationAttemptCount = Math.min(8, confirmationAttemptCount + 1);
+        nextConfirmationAttemptAt = nextAt;
+        lastSafeErrorCode = safeCode;
+        safeOutcomeCode = safeCode;
+        version++;
+        updatedAt = now;
+    }
+
+    public void recordConfirmationReconciliation(String safeCode, Instant now) {
+        state = ImagingOperationState.RECONCILIATION_REQUIRED;
+        confirmationAttemptCount = Math.min(8, confirmationAttemptCount + 1);
+        lastSafeErrorCode = safeCode;
+        safeOutcomeCode = safeCode;
+        version++;
+        updatedAt = now;
+    }
+
     public void setDicomIndex(DicomIndex index) { dicomIndex = index; }
     public void prepareConfirmation(UUID eventId, String key, String fingerprint, Instant now) {
         state = ImagingOperationState.CONFIRMATION_PENDING; confirmationEventId = eventId;
-        sendIdempotencyKey = key; sendFingerprint = fingerprint; nextConfirmationAttemptAt = now; updatedAt = now;
+        sendIdempotencyKey = key; sendFingerprint = fingerprint; nextConfirmationAttemptAt = now;
+        safeOutcomeCode = null; version++; updatedAt = now;
     }
     public void markAcknowledged(Instant now) {
         state = ImagingOperationState.LINKED; confirmationAttemptCount = Math.min(8, confirmationAttemptCount + 1);
-        acknowledgedAt = now; lastSafeErrorCode = null; updatedAt = now;
+        acknowledgedAt = now; lastSafeErrorCode = null; safeOutcomeCode = null; version++; updatedAt = now;
     }
     public void scheduleRetry(Instant nextAt, String safeCode) {
         confirmationAttemptCount = Math.min(8, confirmationAttemptCount + 1);
-        nextConfirmationAttemptAt = nextAt; lastSafeErrorCode = safeCode; updatedAt = Instant.now();
+        nextConfirmationAttemptAt = nextAt; lastSafeErrorCode = safeCode; safeOutcomeCode = safeCode;
+        version++; updatedAt = Instant.now();
     }
     public void markReconciliationRequired(String safeCode) {
         state = ImagingOperationState.RECONCILIATION_REQUIRED;
         confirmationAttemptCount = Math.min(8, confirmationAttemptCount + 1);
-        lastSafeErrorCode = safeCode; updatedAt = Instant.now();
+        lastSafeErrorCode = safeCode; safeOutcomeCode = safeCode; version++; updatedAt = Instant.now();
     }
     public void acceptFindingsRelease(UUID eventId, String payloadSha256, UUID findingsId,
             UUID reportId, String reportSha256, Instant now) {
         releaseEventId = eventId; releasePayloadSha256 = payloadSha256; releasedFindingsId = findingsId;
-        releasedReportId = reportId; releasedReportSha256 = reportSha256; findingsReleasedAt = now; updatedAt = now;
+        releasedReportId = reportId; releasedReportSha256 = reportSha256; findingsReleasedAt = now;
+        version++; updatedAt = now;
     }
     public record DicomIndex(List<DicomSeries> series) { }
     public record DicomSeries(String uid, @com.fasterxml.jackson.annotation.JsonProperty("orthanc_ref") String orthancRef,

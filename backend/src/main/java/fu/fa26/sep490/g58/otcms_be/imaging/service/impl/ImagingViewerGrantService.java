@@ -37,7 +37,7 @@ public class ImagingViewerGrantService {
 
     @Transactional(noRollbackFor = ImagingOperationException.class)
     public IssuedGrant issue(UUID actorId, String studyRef, String purpose, String correlationId) {
-        var study = studies.findById(studyRef).orElse(null);
+        var study = studies.findByStudyRef(studyRef).orElse(null);
         if (study == null) {
             audit.recordActor(actorId, "IMAGING_VIEWER_GRANT", "DENIED", null, studyRef,
                     null, null, null, null, correlationId,

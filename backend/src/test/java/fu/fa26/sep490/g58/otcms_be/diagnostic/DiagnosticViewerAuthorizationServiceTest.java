@@ -4,6 +4,9 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 import fu.fa26.sep490.g58.otcms_be.common.security.AccountRole;
+import fu.fa26.sep490.g58.otcms_be.clinical.service.ClinicalServiceOrderExecutionPort;
+import fu.fa26.sep490.g58.otcms_be.clinical.service.ClinicalServiceOrderExecutionPort.ImagingExecution;
+import fu.fa26.sep490.g58.otcms_be.clinical.service.ClinicalServiceOrderExecutionPort.ExecutionStatus;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.integration.*;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.integration.DiagnosticPortModels.*;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.*;
@@ -18,12 +21,11 @@ import org.springframework.beans.factory.ObjectProvider;
 class DiagnosticViewerAuthorizationServiceTest {
     final UUID actor = UUID.randomUUID(), visit = UUID.randomUUID(), patient = UUID.randomUUID();
     final UUID requestId = UUID.randomUUID(), attemptId = UUID.randomUUID(), reportId = UUID.randomUUID();
-    final DiagnosticRequestJpaRepository requests = mock(DiagnosticRequestJpaRepository.class);
+    final ClinicalServiceOrderExecutionPort requests = mock(ClinicalServiceOrderExecutionPort.class);
     final DiagnosticReportJpaRepository reports = mock(DiagnosticReportJpaRepository.class);
-    final DiagnosticFindingsVersionJpaRepository findings = mock(DiagnosticFindingsVersionJpaRepository.class);
     final VisitDiagnosticPort visits = mock(VisitDiagnosticPort.class);
     final PatientDiagnosticHistoryPort patients = mock(PatientDiagnosticHistoryPort.class);
-    final DiagnosticRequestJpaEntity request = mock(DiagnosticRequestJpaEntity.class);
+    final ImagingExecution request = mock(ImagingExecution.class);
     final DiagnosticViewerAuthorizationServiceImpl service;
 
     @SuppressWarnings("unchecked")
@@ -32,13 +34,13 @@ class DiagnosticViewerAuthorizationServiceTest {
         ObjectProvider<PatientDiagnosticHistoryPort> pp = mock(ObjectProvider.class);
         when(vp.getIfAvailable()).thenReturn(visits);
         when(pp.getIfAvailable()).thenReturn(patients);
-        service = new DiagnosticViewerAuthorizationServiceImpl(requests, reports, findings, vp, pp, mock(ObjectProvider.class));
-        when(requests.findByCurrentStudyRef("study")).thenReturn(Optional.of(request));
-        when(request.getId()).thenReturn(requestId);
-        when(request.getVisitId()).thenReturn(visit);
-        when(request.getPatientId()).thenReturn(patient);
-        when(request.getCurrentAttemptId()).thenReturn(attemptId);
-        when(request.getStatus()).thenReturn(DiagnosticRequestStatus.REVIEWED);
+        service = new DiagnosticViewerAuthorizationServiceImpl(requests, reports, vp, pp, mock(ObjectProvider.class));
+        when(requests.findByStudyRef("study")).thenReturn(Optional.of(request));
+        when(request.orderId()).thenReturn(requestId);
+        when(request.visitId()).thenReturn(visit);
+        when(request.patientId()).thenReturn(patient);
+        when(request.attemptId()).thenReturn(attemptId);
+        when(request.status()).thenReturn(ExecutionStatus.REVIEWED);
     }
 
     void history(UUID doctor, UUID examination, UUID linkedPatient) {
@@ -47,9 +49,9 @@ class DiagnosticViewerAuthorizationServiceTest {
     }
 
     @Test void supersededStudyCannotAuthorizeOrReachHistory() {
-        when(requests.findByCurrentStudyRef("study")).thenReturn(Optional.empty());
+        when(requests.findByStudyRef("study")).thenReturn(Optional.empty());
         assertFalse(service.authorize(actor, AccountRole.DOCTOR, "study", "DOCTOR_REVIEW").allowed());
-        verifyNoInteractions(visits, patients, reports, findings);
+        verifyNoInteractions(visits, patients, reports);
     }
 
     @Test void doctorRequiresTheirOwnExaminationAndCanonicalPatient() {
@@ -68,20 +70,18 @@ class DiagnosticViewerAuthorizationServiceTest {
         when(patients.authorizePatientHistory(actor, patient)).thenReturn(new PatientHistoryAuthorization(patient, "DEPENDENT", true));
         var report = mock(DiagnosticReportJpaEntity.class);
         when(report.getId()).thenReturn(reportId);
+        when(report.getReportId()).thenReturn(reportId);
+        when(report.getFindingsText()).thenReturn("finding");
+        when(report.getValidationStatus()).thenReturn(DiagnosticReportValidationStatus.VALIDATED);
+        when(report.getState()).thenReturn(DiagnosticFindingsVersionState.COMPLETED);
         when(report.getStudyRef()).thenReturn("study");
         when(report.getVisitId()).thenReturn(visit);
         when(reports.findFirstByRequestIdAndReleasedAtIsNotNullOrderByReportVersionDesc(requestId)).thenReturn(Optional.of(report));
-        var version = mock(DiagnosticFindingsVersionJpaEntity.class);
-        when(version.getId()).thenReturn(UUID.randomUUID());
-        when(version.getState()).thenReturn(DiagnosticFindingsVersionState.COMPLETED);
-        when(version.getStudyRef()).thenReturn("study");
-        when(version.getRequiredPdfReportId()).thenReturn(reportId);
-        when(findings.findByRequestIdAndRequiredPdfReportId(requestId, reportId)).thenReturn(Optional.of(version));
         assertTrue(service.authorize(actor, AccountRole.PATIENT, "study", "PATIENT_VIEW").allowed());
-        verify(findings).findByRequestIdAndRequiredPdfReportId(requestId, reportId);
-        when(version.getState()).thenReturn(DiagnosticFindingsVersionState.DRAFT);
+        verify(reports).findFirstByRequestIdAndReleasedAtIsNotNullOrderByReportVersionDesc(requestId);
+        when(report.getState()).thenReturn(DiagnosticFindingsVersionState.DRAFT);
         assertFalse(service.authorize(actor, AccountRole.PATIENT, "study", "PATIENT_VIEW").allowed());
-        when(version.getState()).thenReturn(DiagnosticFindingsVersionState.COMPLETED);
+        when(report.getState()).thenReturn(DiagnosticFindingsVersionState.COMPLETED);
         when(patients.authorizePatientHistory(actor, patient)).thenReturn(new PatientHistoryAuthorization(patient, "DEPENDENT", false));
         assertFalse(service.authorize(actor, AccountRole.PATIENT, "study", "PATIENT_VIEW").allowed());
     }
@@ -93,6 +93,5 @@ class DiagnosticViewerAuthorizationServiceTest {
         assertFalse(service.authorize(actor, AccountRole.PATIENT, "study", "PATIENT_VIEW").allowed());
         assertFalse(service.authorize(actor, AccountRole.RECEPTIONIST, "study", "PATIENT_VIEW").allowed());
         assertFalse(service.authorize(actor, AccountRole.DOCTOR, "study", "PATIENT_VIEW").allowed());
-        verifyNoInteractions(findings);
     }
 }

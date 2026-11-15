@@ -8,12 +8,10 @@ import static org.mockito.Mockito.*;
 import fu.fa26.sep490.g58.otcms_be.imaging.model.ImagingReconciliationDecision;
 import fu.fa26.sep490.g58.otcms_be.imaging.model.ImagingReconciliationDecisionCommand;
 import fu.fa26.sep490.g58.otcms_be.imaging.model.entity.ImagingReconciliationCaseJpaEntity;
-import fu.fa26.sep490.g58.otcms_be.imaging.model.entity.ImagingIngestOperationJpaEntity;
-import fu.fa26.sep490.g58.otcms_be.imaging.model.entity.ImagingReleaseInboxJpaEntity;
+import fu.fa26.sep490.g58.otcms_be.imaging.model.entity.ImagingStudyJpaEntity;
 import fu.fa26.sep490.g58.otcms_be.imaging.model.entity.enums.ImagingReconciliationClassification;
-import fu.fa26.sep490.g58.otcms_be.imaging.repository.ImagingIngestOperationRepository;
 import fu.fa26.sep490.g58.otcms_be.imaging.repository.ImagingReconciliationCaseRepository;
-import fu.fa26.sep490.g58.otcms_be.imaging.repository.ImagingReleaseInboxRepository;
+import fu.fa26.sep490.g58.otcms_be.imaging.repository.ImagingStudyRepository;
 import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
@@ -25,8 +23,7 @@ class ImagingReconciliationServiceTest {
     void recordsCaseAndEventReferencesInSafeDecisionAuditMetadata() {
         var repository = mock(ImagingReconciliationCaseRepository.class);
         var audit = mock(ImagingAuditPersistenceService.class);
-        var service = service(repository, audit, mock(ImagingIngestOperationRepository.class),
-                mock(ImagingReleaseInboxRepository.class));
+        var service = service(repository, audit, mock(ImagingStudyRepository.class));
         UUID caseId = UUID.randomUUID();
         UUID eventId = UUID.randomUUID();
         UUID actorId = UUID.randomUUID();
@@ -51,21 +48,20 @@ class ImagingReconciliationServiceTest {
     void autoResolvesRetryableReleaseOnlyWithMatchingAcceptedPayloadEvidence() {
         var repository = mock(ImagingReconciliationCaseRepository.class);
         var audit = mock(ImagingAuditPersistenceService.class);
-        var releases = mock(ImagingReleaseInboxRepository.class);
+        var studies = mock(ImagingStudyRepository.class);
         UUID caseId = UUID.randomUUID();
         UUID eventId = UUID.randomUUID();
         Instant updatedAt = Instant.parse("2026-11-05T00:00:00Z");
         var item = new ImagingReconciliationCaseJpaEntity(caseId, null, eventId, "RELEASE", "RETRYABLE", "OPEN",
                 "RELEASE_BEFORE_LINKED", "a".repeat(64), "IMAGING_OPERATIONS", updatedAt, null, null);
-        var receipt = mock(ImagingReleaseInboxJpaEntity.class);
+        var study = mock(ImagingStudyJpaEntity.class);
         when(repository.findAllByStateAndAssignedOwnerQueueAndIdGreaterThanOrderByIdAsc(
                 eq("OPEN"), eq("IMAGING_OPERATIONS"), any(), any())).thenReturn(java.util.List.of(item));
-        when(releases.findByEventId(eventId)).thenReturn(Optional.of(receipt));
-        when(receipt.getOutcome()).thenReturn("ACCEPTED");
-        when(receipt.getPayloadSha256()).thenReturn("a".repeat(64));
+        when(studies.findByReleaseEventId(eventId)).thenReturn(Optional.of(study));
+        when(study.getReleasePayloadSha256()).thenReturn("a".repeat(64));
         when(repository.resolveRetryableWithLinkedEvidence(eq(caseId), eq(updatedAt), any())).thenReturn(1);
 
-        assertEquals(caseId, service(repository, audit, mock(ImagingIngestOperationRepository.class), releases)
+        assertEquals(caseId, service(repository, audit, studies)
                 .reconcileOpenBatch(null));
 
         verify(repository).resolveRetryableWithLinkedEvidence(eq(caseId), eq(updatedAt), any());
@@ -77,7 +73,7 @@ class ImagingReconciliationServiceTest {
     void keepsChangedPayloadAndConflictCasesForAdmin() {
         var repository = mock(ImagingReconciliationCaseRepository.class);
         var audit = mock(ImagingAuditPersistenceService.class);
-        var releases = mock(ImagingReleaseInboxRepository.class);
+        var studies = mock(ImagingStudyRepository.class);
         UUID eventId = UUID.randomUUID();
         var changedPayload = new ImagingReconciliationCaseJpaEntity(UUID.randomUUID(), null, eventId, "RELEASE",
                 "RETRYABLE", "OPEN", "RELEASE_BEFORE_LINKED", "a".repeat(64), "IMAGING_OPERATIONS",
@@ -85,14 +81,13 @@ class ImagingReconciliationServiceTest {
         var conflict = new ImagingReconciliationCaseJpaEntity(UUID.randomUUID(), null, UUID.randomUUID(), "RELEASE",
                 "CONFLICT", "OPEN", "RELEASE_EVENT_CONFLICT", "b".repeat(64), "IMAGING_OPERATIONS",
                 Instant.now(), null, null);
-        var receipt = mock(ImagingReleaseInboxJpaEntity.class);
+        var study = mock(ImagingStudyJpaEntity.class);
         when(repository.findAllByStateAndAssignedOwnerQueueAndIdGreaterThanOrderByIdAsc(
                 eq("OPEN"), eq("IMAGING_OPERATIONS"), any(), any())).thenReturn(java.util.List.of(changedPayload, conflict));
-        when(releases.findByEventId(eventId)).thenReturn(Optional.of(receipt));
-        when(receipt.getOutcome()).thenReturn("ACCEPTED");
-        when(receipt.getPayloadSha256()).thenReturn("c".repeat(64));
+        when(studies.findByReleaseEventId(eventId)).thenReturn(Optional.of(study));
+        when(study.getReleasePayloadSha256()).thenReturn("c".repeat(64));
 
-        service(repository, audit, mock(ImagingIngestOperationRepository.class), releases).reconcileOpenBatch(null);
+        service(repository, audit, studies).reconcileOpenBatch(null);
 
         verify(repository, never()).resolveRetryableWithLinkedEvidence(any(), any(), any());
         verifyNoInteractions(audit);
@@ -102,20 +97,20 @@ class ImagingReconciliationServiceTest {
     void autoResolvesRetryableOperationCaseOnlyAfterOperationIsAlreadyLinked() {
         var repository = mock(ImagingReconciliationCaseRepository.class);
         var audit = mock(ImagingAuditPersistenceService.class);
-        var operations = mock(ImagingIngestOperationRepository.class);
+        var studies = mock(ImagingStudyRepository.class);
         UUID caseId = UUID.randomUUID();
         UUID operationId = UUID.randomUUID();
         Instant updatedAt = Instant.parse("2026-11-05T00:00:00Z");
         var item = new ImagingReconciliationCaseJpaEntity(caseId, operationId, null, "CONFIRMATION", "RETRYABLE",
                 "OPEN", "CONFIRMATION_UNAVAILABLE", "IMAGING_OPERATIONS", updatedAt, null, null);
-        var operation = mock(ImagingIngestOperationJpaEntity.class);
+        var operation = mock(ImagingStudyJpaEntity.class);
         when(repository.findAllByStateAndAssignedOwnerQueueAndIdGreaterThanOrderByIdAsc(
                 eq("OPEN"), eq("IMAGING_OPERATIONS"), any(), any())).thenReturn(java.util.List.of(item));
-        when(operations.findById(operationId)).thenReturn(Optional.of(operation));
+        when(studies.findById(operationId)).thenReturn(Optional.of(operation));
         when(operation.getState()).thenReturn(fu.fa26.sep490.g58.otcms_be.imaging.model.entity.enums.ImagingOperationState.LINKED);
         when(repository.resolveRetryableWithLinkedEvidence(eq(caseId), eq(updatedAt), any())).thenReturn(1);
 
-        service(repository, audit, operations, mock(ImagingReleaseInboxRepository.class)).reconcileOpenBatch(null);
+        service(repository, audit, studies).reconcileOpenBatch(null);
 
         verify(repository).resolveRetryableWithLinkedEvidence(eq(caseId), eq(updatedAt), any());
         verify(audit).recordService(eq("FEAT_004"), eq("IMAGING_RECONCILIATION_AUTO_CLOSE"), eq("LINKED"),
@@ -123,9 +118,8 @@ class ImagingReconciliationServiceTest {
     }
 
     private static ImagingReconciliationServiceImpl service(ImagingReconciliationCaseRepository cases,
-            ImagingAuditPersistenceService audit, ImagingIngestOperationRepository operations,
-            ImagingReleaseInboxRepository releases) {
-        return new ImagingReconciliationServiceImpl(cases, audit, operations, releases);
+            ImagingAuditPersistenceService audit, ImagingStudyRepository studies) {
+        return new ImagingReconciliationServiceImpl(cases, audit, studies);
     }
 
     @Test

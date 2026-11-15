@@ -2,8 +2,7 @@ package fu.fa26.sep490.g58.otcms_be.clinical;
 
 import static org.junit.jupiter.api.Assertions.*;
 import fu.fa26.sep490.g58.otcms_be.clinical.service.ClinicalPastMedicalRecordsService;
-import fu.fa26.sep490.g58.otcms_be.diagnostic.repository.DiagnosticRequestJpaRepository;
-import fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.enums.DiagnosticRequestStatus;
+import fu.fa26.sep490.g58.otcms_be.diagnostic.service.DiagnosticPatientHistoryQueryService;
 import fu.fa26.sep490.g58.otcms_be.support.LocalPostgresTest;
 import fu.fa26.sep490.g58.otcms_be.visit.service.VisitPatientHistoryQueryService;
 import java.sql.Timestamp;
@@ -21,7 +20,7 @@ class PastMedicalRecordsPostgresIntegrationTest {
     @Autowired JdbcTemplate jdbc;
     @Autowired VisitPatientHistoryQueryService visits;
     @Autowired ClinicalPastMedicalRecordsService history;
-    @Autowired DiagnosticRequestJpaRepository diagnostic;
+    @Autowired DiagnosticPatientHistoryQueryService diagnostic;
     UUID patient = UUID.randomUUID(), current = UUID.randomUUID(), doctor = UUID.randomUUID(), account = UUID.randomUUID();
     UUID oldDoctor = UUID.randomUUID(), oldAccount = UUID.randomUUID();
     Instant now = Instant.parse("2026-11-05T12:00:00Z");
@@ -55,22 +54,26 @@ class PastMedicalRecordsPostgresIntegrationTest {
     }
     UUID request(UUID visit, UUID requestPatient) {
         UUID id = UUID.randomUUID(), attempt = UUID.randomUUID();
-        jdbc.update("insert into diagnostic_requests (id,visit_id,patient_id,ordering_doctor_id,service_id,room_id,imaging_type,body_area,clinical_reason,status) values (?,?,?,?,?,?,'MRI','KNEE','UC33 fixture','PENDING')",
-                id, visit, requestPatient, oldAccount, UUID.randomUUID(), UUID.randomUUID());
-        jdbc.update("insert into diagnostic_attempts (id,request_id,attempt_number,first_use_event_id,first_use_type,source_id,occurred_at) values (?,?,1,?,'ACQUISITION_STARTED','UC33',now())", attempt, id, UUID.randomUUID());
-        jdbc.update("update diagnostic_requests set status='IN_PROGRESS',current_attempt_id=? where id=?", attempt, id);
-        jdbc.update("update diagnostic_attempts set study_ref=? where id=? and request_id=?", studyRef(id), attempt, id);
-        jdbc.update("update diagnostic_requests set status='RESULT_AVAILABLE' where id=?", id);
-        jdbc.update("update diagnostic_requests set status='REVIEWED' where id=?", id);
+        jdbc.update("insert into clinical_service_orders (id,order_code,ordering_round_id,round_number,ordered_at,"
+                + "visit_id,patient_id,service_id,service_name_snapshot,service_type,requesting_doctor_id,clinical_reason,body_area,"
+                + "price_snapshot,order_status,payment_status,created_at,updated_at,ordering_doctor_account_id,room_id,imaging_type,"
+                + "execution_status,attempt_id,first_use_event_id,first_use_type,first_use_source_id,first_use_at,study_ref,"
+                + "execution_created_at,execution_updated_at) "
+                + "values (?,?,?,1,now(),?,?,?,'UC33 MRI','IMAGING',?,'UC33 fixture','KNEE',1,'ORDERED','PAID',now(),now(),"
+                + "?,?,'MRI','REVIEWED',?,?,'ACQUISITION_STARTED','UC33',now(),?,now(),now())",
+                id, id.toString().replace("-", ""), UUID.randomUUID(), visit, requestPatient, UUID.randomUUID(), oldDoctor,
+                oldAccount, UUID.randomUUID(), attempt, UUID.randomUUID(), studyRef(id));
         return id;
     }
     private String studyRef(UUID requestId) { return "uc33-study-" + requestId; }
     void finding(UUID request, UUID visit, int version, boolean completed, boolean released) {
         UUID report = UUID.randomUUID(); String study = studyRef(request);
-        if (completed) jdbc.update("insert into diagnostic_reports (id,request_id,visit_id,study_ref,report_version,storage_ref,content_sha256,validation_status,uploaded_by_doctor_id,validated_at,released_at) values (?,?,?,?,?,?,?,'VALIDATED',?,now(),?)",
-                report, request, visit, study, version, "uc33-private-" + report, "a".repeat(64), oldAccount, released ? Timestamp.from(now) : null);
-        jdbc.update("insert into diagnostic_findings_versions (id,request_id,visit_id,study_ref,version_number,findings_text,recorded_by_doctor_id,state,required_pdf_report_id,completed_at) values (?,?,?,?,?,'UC33 finding',?,?,?,?)",
-                UUID.randomUUID(), request, visit, study, version, oldAccount, completed ? "COMPLETED" : "DRAFT", completed ? report : null, completed ? Timestamp.from(now) : null);
+        jdbc.update("insert into diagnostic_reports (id,service_order_id,visit_id,study_ref,version_number,findings_text,"
+                + "recorded_by_doctor_id,state,completed_at,report_id,report_storage_ref,report_sha256,validation_status,validated_at,released_at) "
+                + "values (?,?,?,?,?,'UC33 finding',?,?,?,?,?,?,?,?,?)", UUID.randomUUID(), request, visit, study, version,
+                oldAccount, completed ? "COMPLETED" : "DRAFT", completed ? Timestamp.from(now) : null,
+                completed ? report : null, completed ? "uc33-private-" + report : null, completed ? "a".repeat(64) : null,
+                completed ? "VALIDATED" : null, completed ? Timestamp.from(now) : null, released ? Timestamp.from(now) : null);
     }
     @Test void completedReleasedImagingOfDifferentDoctorIsIncludedButDraftUnreleasedAndOtherPatientAreNot() {
         UUID old = UUID.randomUUID(); visit(old, "CLOSED", now.minusSeconds(5000), "COMPLETED", oldDoctor);
@@ -80,6 +83,6 @@ class PastMedicalRecordsPostgresIntegrationTest {
         UUID otherPatient = request(old, UUID.randomUUID()); finding(otherPatient, old, 1, true, true);
         var result = history.getPastMedicalRecords(current, doctor, account, 0, 20);
         assertEquals(List.of(allowed), result.items().getFirst().imagingResults().stream().map(i -> i.requestId()).toList());
-        assertEquals(1, diagnostic.findReleasedPatientHistory(patient, List.of(old), List.of(DiagnosticRequestStatus.REVIEWED)).size());
+        assertEquals(1, diagnostic.findReleased(patient, List.of(old), account, 0, 20).size());
     }
 }

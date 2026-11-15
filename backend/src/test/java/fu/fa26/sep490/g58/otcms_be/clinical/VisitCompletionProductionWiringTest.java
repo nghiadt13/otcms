@@ -11,6 +11,7 @@ import fu.fa26.sep490.g58.otcms_be.clinical.model.*;
 import fu.fa26.sep490.g58.otcms_be.clinical.model.entity.*;
 import fu.fa26.sep490.g58.otcms_be.clinical.repository.*;
 import fu.fa26.sep490.g58.otcms_be.clinical.service.impl.ClinicalVisitCompletionEvidenceServiceImpl;
+import fu.fa26.sep490.g58.otcms_be.clinical.service.ClinicalServiceOrderExecutionPort;
 import fu.fa26.sep490.g58.otcms_be.common.security.AccountRole;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.*;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.enums.*;
@@ -54,18 +55,29 @@ class VisitCompletionProductionWiringTest {
                 ClinicalExaminationJpaEntity.create(visit, "Reason", "Symptoms", "Findings", null, null, null, ClinicalExaminationStatus.COMPLETED, now)));
         order = orderedImaging(); order.markPaid(now); order.markResult(now);
         when(bean(ServiceOrderRepository.class).findByVisitId(visit)).thenReturn(List.of(order));
-        diagnostic = new DiagnosticRequestJpaEntity(request, visit, patient, UUID.randomUUID(), order.getServiceId(), UUID.randomUUID(), "MRI", DiagnosticRequestStatus.REVIEWED, null, null, attempt);
-        diagnostic.setServiceOrderId(order.getId());
-        when(bean(DiagnosticRequestJpaRepository.class).findAllByServiceOrderIdInAndStatusNot(anyCollection(), eq(DiagnosticRequestStatus.CANCELLED)))
+        diagnostic = mock(ClinicalServiceOrderExecutionPort.ImagingExecution.class);
+        when(diagnostic.orderId()).thenReturn(order.getId());
+        when(diagnostic.visitId()).thenReturn(visit);
+        when(diagnostic.patientId()).thenReturn(patient);
+        when(diagnostic.roomId()).thenReturn(UUID.randomUUID());
+        when(diagnostic.attemptId()).thenReturn(attempt);
+        when(diagnostic.studyRef()).thenReturn("study");
+        when(diagnostic.status()).thenReturn(ClinicalServiceOrderExecutionPort.ExecutionStatus.REVIEWED);
+        when(bean(ClinicalServiceOrderExecutionPort.class).findAllByOrderIds(anyCollection()))
                 .thenAnswer(c -> { assertTrue(TransactionSynchronizationManager.isActualTransactionActive()); return List.of(diagnostic); });
-        when(bean(DiagnosticAttemptJpaRepository.class).findAllById(any())).thenReturn(List.of(new DiagnosticAttemptJpaEntity(attempt, request, 1,
-                UUID.randomUUID(), "ACQUISITION_STARTED", "IMAGING", null, now, "study")));
-        when(bean(DiagnosticFindingsVersionJpaRepository.class).findAllByRequestIdInAndState(anyCollection(), eq(DiagnosticFindingsVersionState.COMPLETED)))
-                .thenReturn(List.of(new DiagnosticFindingsVersionJpaEntity(UUID.randomUUID(), request, visit, "study", 1, "Findings", UUID.randomUUID(), now, DiagnosticFindingsVersionState.COMPLETED, report, now)));
-        pdf = new DiagnosticReportJpaEntity(report, request, visit, "study", 1, "private", "a".repeat(64), DiagnosticReportValidationStatus.VALIDATED, UUID.randomUUID(), now, now);
-        when(bean(DiagnosticReportJpaRepository.class).findAllById(any())).thenReturn(List.of(pdf));
+        pdf = mock(DiagnosticReportJpaEntity.class);
+        when(pdf.getRequestId()).thenReturn(order.getId());
+        when(pdf.getVisitId()).thenReturn(visit);
+        when(pdf.getStudyRef()).thenReturn("study");
+        when(pdf.getCompletedAt()).thenReturn(now);
+        when(pdf.getReportId()).thenReturn(report);
+        when(pdf.getValidationStatus()).thenReturn(DiagnosticReportValidationStatus.VALIDATED);
+        when(pdf.getValidatedAt()).thenReturn(now);
+        when(pdf.getReleasedAt()).thenReturn(now);
+        when(bean(DiagnosticReportJpaRepository.class).findAllByRequestIdInAndState(anyCollection(), eq(DiagnosticFindingsVersionState.COMPLETED)))
+                .thenReturn(List.of(pdf));
     }
-    DiagnosticRequestJpaEntity diagnostic;
+    ClinicalServiceOrderExecutionPort.ImagingExecution diagnostic;
     ServiceOrderJpaEntity orderedImaging() {
         return new ServiceOrderJpaEntity("SO-COMPLETE", UUID.randomUUID(), visit, patient, UUID.randomUUID(), "MRI", ClinicalServiceType.IMAGING,
                 UUID.randomUUID(), "Reason", "Knee", "Instructions", BigDecimal.ONE, now);
@@ -89,7 +101,7 @@ class VisitCompletionProductionWiringTest {
         assertEquals(1, bean(DoctorCoreProductionWiringTest.RecordingTransactions.class).commits);
     }
     @Test void actualOwnerQueryRejectsUnreleasedReportBeforeAnyClosureEffects() {
-        pdf.setReleasedAt(null); assertThrows(VisitOperationException.class, this::close);
+        when(pdf.getReleasedAt()).thenReturn(null); assertThrows(VisitOperationException.class, this::close);
         verify(bean(WalkInVisitLifecycleRepository.class), never()).closeOpenVisit(any(), any());
         verifyNoInteractions(bean(VisitAuditRecorder.class), bean(NotificationPublisher.class), bean(ExitWalkInReceptionQueueService.class));
         assertEquals(1, bean(DoctorCoreProductionWiringTest.RecordingTransactions.class).rollbacks);
@@ -98,15 +110,15 @@ class VisitCompletionProductionWiringTest {
         order = orderedImaging(); order.cancel("No longer required", now);
         when(bean(ServiceOrderRepository.class).findByVisitId(visit)).thenReturn(List.of(order));
         close();
-        verify(bean(DiagnosticRequestJpaRepository.class), never()).findAllByServiceOrderIdInAndStatusNot(anyCollection(), any());
+        verify(bean(ClinicalServiceOrderExecutionPort.class), never()).findAllByOrderIds(anyCollection());
         verify(bean(WalkInVisitLifecycleRepository.class)).closeOpenVisit(eq(visit), any());
     }
     @Test void assignedPendingInProgressAndUncompletedResultAllBlockActualVisitClosure() {
-        assertNotNull(diagnostic.getRoomId());
-        for (var state : List.of(DiagnosticRequestStatus.PENDING, DiagnosticRequestStatus.IN_PROGRESS, DiagnosticRequestStatus.RESULT_AVAILABLE)) {
-            diagnostic.setStatus(state);
-            if (state == DiagnosticRequestStatus.RESULT_AVAILABLE) {
-                when(bean(DiagnosticFindingsVersionJpaRepository.class).findAllByRequestIdInAndState(anyCollection(), eq(DiagnosticFindingsVersionState.COMPLETED)))
+        assertNotNull(diagnostic.roomId());
+        for (var state : List.of(ClinicalServiceOrderExecutionPort.ExecutionStatus.PENDING, ClinicalServiceOrderExecutionPort.ExecutionStatus.IN_PROGRESS, ClinicalServiceOrderExecutionPort.ExecutionStatus.RESULT_AVAILABLE)) {
+            when(diagnostic.status()).thenReturn(state);
+            if (state == ClinicalServiceOrderExecutionPort.ExecutionStatus.RESULT_AVAILABLE) {
+                when(bean(DiagnosticReportJpaRepository.class).findAllByRequestIdInAndState(anyCollection(), eq(DiagnosticFindingsVersionState.COMPLETED)))
                         .thenReturn(List.of());
             }
             assertThrows(VisitOperationException.class, this::close, state.name());

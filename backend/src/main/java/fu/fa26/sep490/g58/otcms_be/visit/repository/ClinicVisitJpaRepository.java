@@ -8,6 +8,8 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.transaction.annotation.Propagation;
 
 public interface ClinicVisitJpaRepository extends JpaRepository<ClinicVisitJpaEntity, UUID> {
     @Query("""
@@ -27,4 +29,16 @@ public interface ClinicVisitJpaRepository extends JpaRepository<ClinicVisitJpaEn
     /** Walk-in replay lookup; same scope as uk_clinic_visits_walk_in_idempotency (creator, key). */
     Optional<ClinicVisitJpaEntity> findByCreatedByAccountIdAndWalkInIdempotencyKey(UUID createdByAccountId,
             String walkInIdempotencyKey);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("update ClinicVisitJpaEntity v set v.imagingResultReadyAt = coalesce(v.imagingResultReadyAt, :at) "
+            + "where v.id = :visitId and v.patientProfileId = :patientId")
+    int markImagingResultReady(@Param("visitId") UUID visitId, @Param("patientId") UUID patientId,
+            @Param("at") java.time.Instant at);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("update ClinicVisitJpaEntity v set v.findingsReleasedAt = coalesce(v.findingsReleasedAt, :at) "
+            + "where v.id = :visitId and v.patientProfileId = :patientId")
+    int markFindingsReleased(@Param("visitId") UUID visitId, @Param("patientId") UUID patientId,
+            @Param("at") java.time.Instant at);
 }

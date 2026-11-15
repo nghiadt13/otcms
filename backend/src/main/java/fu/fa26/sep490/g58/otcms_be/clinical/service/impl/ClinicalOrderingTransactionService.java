@@ -1,8 +1,6 @@
 package fu.fa26.sep490.g58.otcms_be.clinical.service.impl;
 
-import fu.fa26.sep490.g58.otcms_be.clinical.model.entity.OrderingRoundJpaEntity;
 import fu.fa26.sep490.g58.otcms_be.clinical.model.entity.ServiceOrderJpaEntity;
-import fu.fa26.sep490.g58.otcms_be.clinical.repository.OrderingRoundRepository;
 import fu.fa26.sep490.g58.otcms_be.clinical.repository.ServiceOrderRepository;
 import fu.fa26.sep490.g58.otcms_be.clinical.service.ClinicServiceCatalogPort;
 import fu.fa26.sep490.g58.otcms_be.clinical.service.ClinicalOrderingService;
@@ -20,17 +18,14 @@ public class ClinicalOrderingTransactionService {
     public record OrderSnapshot(ClinicalOrderingService.OrderRequest request,
             ClinicServiceCatalogPort.ClinicalServiceSnapshot service) { }
 
-    private final OrderingRoundRepository rounds;
     private final ServiceOrderRepository orders;
     private final Clock clock;
     private final fu.fa26.sep490.g58.otcms_be.common.service.CoordinationGuardService guard;
     private final ClinicalOrderPreparationService preparation;
 
-    public ClinicalOrderingTransactionService(OrderingRoundRepository rounds,
-            ServiceOrderRepository orders, Clock clock,
+    public ClinicalOrderingTransactionService(ServiceOrderRepository orders, Clock clock,
             fu.fa26.sep490.g58.otcms_be.common.service.CoordinationGuardService guard,
             ClinicalOrderPreparationService preparation) {
-        this.rounds = rounds;
         this.orders = orders;
         this.clock = clock;
         this.guard = guard;
@@ -40,24 +35,33 @@ public class ClinicalOrderingTransactionService {
     @Transactional
     public ClinicalOrderingService.RoundView createRound(UUID visitId, UUID patientId, UUID doctorId,
             List<OrderSnapshot> snapshots) {
+        return createRound(visitId, patientId, doctorId, snapshots, null, null);
+    }
+
+    @Transactional
+    public ClinicalOrderingService.RoundView createRound(UUID visitId, UUID patientId, UUID doctorId,
+            List<OrderSnapshot> snapshots, String submitKey, String submitFingerprint) {
         guard.acquire();
         // Preparation outside this transaction may have raced with UC28. Re-read after the guard.
         var context = preparation.requireCurrentCare(visitId, doctorId);
         if (!patientId.equals(context.patientId())) {
             throw new fu.fa26.sep490.g58.otcms_be.clinical.exception.ClinicalOperationException("MSG-39");
         }
-        int roundNumber = rounds.findTopByVisitIdOrderByRoundNumberDesc(visitId)
+        int roundNumber = orders.findTopByVisitIdAndRoundHeadTrueOrderByRoundNumberDesc(visitId)
                 .map(previous -> previous.getRoundNumber() + 1).orElse(1);
         Instant now = clock.instant().truncatedTo(java.time.temporal.ChronoUnit.MICROS);
-        var round = rounds.save(new OrderingRoundJpaEntity(visitId, patientId, roundNumber, doctorId, now));
+        UUID roundId = UUID.randomUUID();
         var savedOrders = new ArrayList<ServiceOrderJpaEntity>();
+        boolean head = true;
         for (var snapshot : snapshots) {
             var request = snapshot.request();
             var service = snapshot.service();
-            savedOrders.add(orders.save(new ServiceOrderJpaEntity(newOrderCode(), round.getId(), visitId,
+            savedOrders.add(orders.save(new ServiceOrderJpaEntity(newOrderCode(), roundId, roundNumber, head,
+                    head ? submitKey : null, head ? submitFingerprint : null, visitId,
                     patientId, service.serviceId(), service.name(), service.type(), doctorId,
                     request.clinicalReason(), request.bodyArea(), request.instructions(),
                     service.currentPrice(), now)));
+            head = false;
         }
         var views = savedOrders.stream().map(order -> new ClinicalOrderingService.OrderView(
                 order.getId(), order.getOrderCode(), order.getVisitId(), order.getPatientId(),
@@ -65,8 +69,7 @@ public class ClinicalOrderingTransactionService {
                 order.getServiceType(), order.getRequestingDoctorId(), order.getClinicalReason(),
                 order.getBodyArea(), order.getInstructions(), order.getPriceSnapshot(),
                 order.getOrderStatus(), order.getPaymentStatus())).toList();
-        return new ClinicalOrderingService.RoundView(round.getId(), round.getVisitId(), roundNumber,
-                doctorId, now, views);
+        return new ClinicalOrderingService.RoundView(roundId, visitId, roundNumber, doctorId, now, views);
     }
 
     private static String newOrderCode() {

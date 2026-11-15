@@ -1,19 +1,13 @@
 package fu.fa26.sep490.g58.otcms_be.diagnostic.service.impl;
 
-import fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.DiagnosticAttemptJpaEntity;
-import fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.DiagnosticFindingsVersionJpaEntity;
+import fu.fa26.sep490.g58.otcms_be.clinical.service.ClinicalServiceOrderExecutionPort;
+import fu.fa26.sep490.g58.otcms_be.clinical.service.ClinicalServiceOrderExecutionPort.ImagingExecution;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.DiagnosticReportJpaEntity;
-import fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.DiagnosticRequestJpaEntity;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.enums.DiagnosticFindingsVersionState;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.enums.DiagnosticReportValidationStatus;
-import fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.enums.DiagnosticRequestStatus;
-import fu.fa26.sep490.g58.otcms_be.diagnostic.repository.DiagnosticAttemptJpaRepository;
-import fu.fa26.sep490.g58.otcms_be.diagnostic.repository.DiagnosticFindingsVersionJpaRepository;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.repository.DiagnosticReportJpaRepository;
-import fu.fa26.sep490.g58.otcms_be.diagnostic.repository.DiagnosticRequestJpaRepository;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.service.DiagnosticVisitCompletionEvidenceService;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -28,15 +22,12 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @Transactional(readOnly = true)
 public class DiagnosticVisitCompletionEvidenceServiceImpl implements DiagnosticVisitCompletionEvidenceService {
-    private final DiagnosticRequestJpaRepository requests;
-    private final DiagnosticAttemptJpaRepository attempts;
-    private final DiagnosticFindingsVersionJpaRepository findings;
+    private final ClinicalServiceOrderExecutionPort requests;
     private final DiagnosticReportJpaRepository reports;
 
-    public DiagnosticVisitCompletionEvidenceServiceImpl(DiagnosticRequestJpaRepository requests,
-            DiagnosticAttemptJpaRepository attempts, DiagnosticFindingsVersionJpaRepository findings,
+    public DiagnosticVisitCompletionEvidenceServiceImpl(ClinicalServiceOrderExecutionPort requests,
             DiagnosticReportJpaRepository reports) {
-        this.requests = requests; this.attempts = attempts; this.findings = findings; this.reports = reports;
+        this.requests = requests; this.reports = reports;
     }
 
     @Override
@@ -45,73 +36,40 @@ public class DiagnosticVisitCompletionEvidenceServiceImpl implements DiagnosticV
         Objects.requireNonNull(patientId, "patientId");
         Set<UUID> required = Set.copyOf(serviceOrderIds);
         if (required.isEmpty()) return new ImagingCompletionEvidence(visitId, patientId, required, Set.of());
-        var byOrder = requests.findAllByServiceOrderIdInAndStatusNot(required, DiagnosticRequestStatus.CANCELLED)
-                .stream().filter(r -> required.contains(r.getServiceOrderId()) && r.getStatus() != DiagnosticRequestStatus.CANCELLED)
-                .collect(Collectors.groupingBy(DiagnosticRequestJpaEntity::getServiceOrderId));
-        // V097 enforces one live request. Reject legacy ambiguity rather than choosing a timestamp winner.
-        var canonical = byOrder.values().stream().filter(rows -> rows.size() == 1).map(List::getFirst)
-                .filter(r -> visitId.equals(r.getVisitId()) && patientId.equals(r.getPatientId())).toList();
-        Set<UUID> completeRequests = completedRequests(canonical);
-        Set<UUID> completeOrders = canonical.stream().filter(r -> completeRequests.contains(r.getId()))
-                .map(DiagnosticRequestJpaEntity::getServiceOrderId).collect(Collectors.toSet());
-        return new ImagingCompletionEvidence(visitId, patientId, required, completeOrders);
+        List<ImagingExecution> candidates = uniqueExecutions(requests.findAllByOrderIds(required), required).stream()
+                .filter(r -> visitId.equals(r.visitId()) && patientId.equals(r.patientId())).toList();
+        return new ImagingCompletionEvidence(visitId, patientId, required, completedRequests(candidates));
     }
 
     @Override
     public Set<UUID> findCompletedRequestIds(Collection<UUID> requestIds) {
         Set<UUID> ids = Set.copyOf(requestIds);
-        if (ids.isEmpty()) return Set.of();
-        return completedRequests(requests.findAllById(ids).stream().filter(r -> ids.contains(r.getId())).toList());
+        return ids.isEmpty() ? Set.of() : completedRequests(uniqueExecutions(requests.findAllByOrderIds(ids), ids));
     }
 
-    /** Four batch reads total: requests, current attempts, completed versions, required reports. */
-    private Set<UUID> completedRequests(List<DiagnosticRequestJpaEntity> candidates) {
-        var eligible = candidates.stream().filter(r -> r.getStatus() == DiagnosticRequestStatus.REVIEWED
-                && r.getCurrentAttemptId() != null && r.getVisitId() != null && r.getPatientId() != null).toList();
+    /** A duplicate order row is impossible under the new primary key, but malformed port results fail closed. */
+    private List<ImagingExecution> uniqueExecutions(List<ImagingExecution> rows, Set<UUID> requestedIds) {
+        Map<UUID, List<ImagingExecution>> byOrder = rows.stream().filter(r -> requestedIds.contains(r.orderId()))
+                .collect(Collectors.groupingBy(ImagingExecution::orderId));
+        Set<UUID> seen = new HashSet<>();
+        return byOrder.values().stream().filter(group -> group.size() == 1).map(group -> group.getFirst())
+                .filter(row -> seen.add(row.orderId())).toList();
+    }
+
+    private Set<UUID> completedRequests(List<ImagingExecution> candidates) {
+        var eligible = candidates.stream().filter(r -> r.status() == ClinicalServiceOrderExecutionPort.ExecutionStatus.REVIEWED
+                && r.attemptId() != null && r.studyRef() != null && !r.studyRef().isBlank()).toList();
         if (eligible.isEmpty()) return Set.of();
-        Set<UUID> requestIds = eligible.stream().map(DiagnosticRequestJpaEntity::getId).collect(Collectors.toSet());
-        Set<UUID> attemptIds = eligible.stream().map(DiagnosticRequestJpaEntity::getCurrentAttemptId).collect(Collectors.toSet());
-        Map<UUID, List<DiagnosticAttemptJpaEntity>> currentAttempts = group(attempts.findAllById(attemptIds), DiagnosticAttemptJpaEntity::getId);
-        var versions = group(findings.findAllByRequestIdInAndState(requestIds, DiagnosticFindingsVersionState.COMPLETED)
-                .stream().filter(f -> f.getState() == DiagnosticFindingsVersionState.COMPLETED).toList(),
-                DiagnosticFindingsVersionJpaEntity::getRequestId);
-        Map<UUID, DiagnosticFindingsVersionJpaEntity> effective = new HashMap<>();
-        versions.forEach((requestId, rows) -> {
-            int latest = rows.stream().mapToInt(DiagnosticFindingsVersionJpaEntity::getVersionNumber).max().orElse(0);
-            var latestRows = rows.stream().filter(f -> f.getVersionNumber() == latest).toList();
-            if (latest > 0 && latestRows.size() == 1) effective.put(requestId, latestRows.getFirst());
-        });
-        Set<UUID> reportIds = effective.values().stream().map(DiagnosticFindingsVersionJpaEntity::getRequiredPdfReportId)
-                .filter(Objects::nonNull).collect(Collectors.toSet());
-        Map<UUID, List<DiagnosticReportJpaEntity>> requiredReports = reportIds.isEmpty() ? Map.of()
-                : group(reports.findAllById(reportIds), DiagnosticReportJpaEntity::getId);
-        Set<UUID> completed = new HashSet<>();
-        for (var request : eligible) {
-            var attemptRows = currentAttempts.getOrDefault(request.getCurrentAttemptId(), List.of());
-            var version = effective.get(request.getId());
-            if (attemptRows.size() != 1 || version == null || version.getRequiredPdfReportId() == null) continue;
-            var reportRows = requiredReports.getOrDefault(version.getRequiredPdfReportId(), List.of());
-            if (reportRows.size() != 1) continue;
-            var attempt = attemptRows.getFirst();
-            var report = reportRows.getFirst();
-            String study = attempt.getStudyRef();
-            if (request.getId().equals(attempt.getRequestId()) && study != null && !study.isBlank()
-                    && request.getId().equals(version.getRequestId()) && request.getVisitId().equals(version.getVisitId())
-                    && study.equals(version.getStudyRef()) && version.getCompletedAt() != null
-                    && version.getRequiredPdfReportId().equals(report.getId())
-                    && request.getId().equals(report.getRequestId()) && request.getVisitId().equals(report.getVisitId())
-                    && study.equals(report.getStudyRef()) && report.getReportVersion() == version.getVersionNumber()
+        Map<UUID, DiagnosticReportJpaEntity> latest = reports.findAllByRequestIdInAndState(
+                eligible.stream().map(ImagingExecution::orderId).toList(), DiagnosticFindingsVersionState.COMPLETED)
+                .stream().collect(Collectors.toMap(DiagnosticReportJpaEntity::getRequestId, Function.identity(),
+                        (a, b) -> a.getVersionNumber() >= b.getVersionNumber() ? a : b));
+        return eligible.stream().filter(r -> {
+            var report = latest.get(r.orderId());
+            return report != null && r.visitId().equals(report.getVisitId()) && r.studyRef().equals(report.getStudyRef())
+                    && report.getCompletedAt() != null && report.getReportId() != null
                     && report.getValidationStatus() == DiagnosticReportValidationStatus.VALIDATED
-                    && report.getValidatedAt() != null && report.getReleasedAt() != null) {
-                completed.add(request.getId());
-            }
-        }
-        // A newer private DRAFT does not revoke the published version (existing history semantics).
-        // A newer COMPLETED version always supersedes the older one, including when corrupt/unreleased.
-        return Set.copyOf(completed);
-    }
-
-    private static <T> Map<UUID, List<T>> group(List<T> rows, Function<T, UUID> key) {
-        return rows.stream().collect(Collectors.groupingBy(key));
+                    && report.getValidatedAt() != null && report.getReleasedAt() != null;
+        }).map(ImagingExecution::orderId).collect(Collectors.toUnmodifiableSet());
     }
 }

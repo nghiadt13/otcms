@@ -16,6 +16,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
@@ -95,14 +96,49 @@ class ClinicalImagingRequestPostgresIntegrationTest {
 
     @Test void migrationProvidesNamedUniqueConstraintsFingerprintLengthAndForeignKey() {
         assertEquals(3, jdbc.queryForObject("""
-                select count(*) from pg_constraint where conrelid = 'clinical_imaging_request_replays'::regclass
-                and conname in ('uk_clinical_imaging_replay_doctor_key', 'uk_clinical_imaging_replay_round',
-                                'fk_clinical_imaging_replay_round')
+                select count(*) from pg_indexes where schemaname = current_schema()
+                and tablename = 'clinical_service_orders'
+                and indexname in ('uk_clinical_orders_round_head', 'uk_clinical_orders_round_number',
+                                  'uk_clinical_orders_submit_key')
                 """, Integer.class));
         assertEquals(64, jdbc.queryForObject("""
                 select character_maximum_length from information_schema.columns where table_schema = current_schema()
-                and table_name = 'clinical_imaging_request_replays' and column_name = 'request_fingerprint'
+                and table_name = 'clinical_service_orders' and column_name = 'submit_request_fingerprint'
                 """, Integer.class));
+    }
+
+    @Test void duplicateSubmitKeyIsRejectedByNamedDatabaseConstraint() {
+        var submitted = service.submit(command(visitId, key));
+        UUID originalOrder = submitted.round().orders().getFirst().orderId();
+        UUID duplicateOrder = UUID.randomUUID();
+        String duplicateCode = "S-" + UUID.randomUUID().toString().replace("-", "").substring(0, 30);
+
+        DataIntegrityViolationException failure = assertThrows(DataIntegrityViolationException.class, () -> jdbc.update("""
+                insert into clinical_service_orders
+                    (id, order_code, ordering_round_id, round_number, ordered_at, round_head,
+                     submit_idempotency_key, submit_request_fingerprint, visit_id, patient_id, service_id,
+                     service_name_snapshot, service_type, requesting_doctor_id, clinical_reason, body_area,
+                     instructions, price_snapshot, order_status, payment_status, created_at, updated_at)
+                select ?, ?, gen_random_uuid(), round_number + 1, ordered_at, true,
+                       submit_idempotency_key, submit_request_fingerprint, visit_id, patient_id, service_id,
+                       service_name_snapshot, service_type, requesting_doctor_id, clinical_reason, body_area,
+                       instructions, price_snapshot, order_status, payment_status, now(), now()
+                  from clinical_service_orders where id = ?
+                """, duplicateOrder, duplicateCode, originalOrder));
+
+        org.postgresql.util.PSQLException postgresFailure = findCause(failure,
+                org.postgresql.util.PSQLException.class);
+        assertNotNull(postgresFailure);
+        assertEquals("23505", postgresFailure.getSQLState());
+        assertEquals("uk_clinical_orders_submit_key",
+                postgresFailure.getServerErrorMessage().getConstraint());
+    }
+
+    private static <T extends Throwable> T findCause(Throwable failure, Class<T> type) {
+        for (Throwable cause = failure; cause != null; cause = cause.getCause()) {
+            if (type.isInstance(cause)) return type.cast(cause);
+        }
+        return null;
     }
 
     private Object outcome(ImagingRequestCommand command) {
@@ -132,13 +168,11 @@ class ClinicalImagingRequestPostgresIntegrationTest {
                 List.of(new ImagingOrderRequest(serviceId, "Reason", "RIGHT_KNEE", null)), true);
     }
     private void assertCounts(int count) {
-        assertEquals(0, jdbc.queryForObject("select count(*) from diagnostic_requests where ordering_doctor_id = ? and service_order_id is not null",
-                Integer.class, doctorAccountId));
-        assertEquals(0, jdbc.queryForObject("select count(*) from diagnostic_requests where ordering_doctor_id = ? and room_id is not null",
-                Integer.class, doctorAccountId));
-        assertEquals(count, jdbc.queryForObject("select count(*) from clinical_imaging_request_replays where doctor_profile_id = ?",
+        assertEquals(0, jdbc.queryForObject("select count(*) from clinical_service_orders where requesting_doctor_id = ? and execution_status is not null",
                 Integer.class, doctorId));
-        assertEquals(count, jdbc.queryForObject("select count(*) from clinical_ordering_rounds where ordered_by_doctor_id = ?",
+        assertEquals(count, jdbc.queryForObject("select count(*) from clinical_service_orders where requesting_doctor_id = ? and round_head and submit_idempotency_key is not null",
+                Integer.class, doctorId));
+        assertEquals(count, jdbc.queryForObject("select count(*) from clinical_service_orders where requesting_doctor_id = ? and round_head",
                 Integer.class, doctorId));
         assertEquals(count, jdbc.queryForObject("select count(*) from clinical_service_orders where requesting_doctor_id = ?",
                 Integer.class, doctorId));

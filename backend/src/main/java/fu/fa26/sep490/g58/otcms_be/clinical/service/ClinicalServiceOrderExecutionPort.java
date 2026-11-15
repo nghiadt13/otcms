@@ -51,7 +51,10 @@ public interface ClinicalServiceOrderExecutionPort {
     /** The request whose current attempt produced {@code studyRef} (uk_clinical_orders_study_ref). */
     Optional<ImagingExecution> findByStudyRef(String studyRef);
 
-    /** Newest first (created_at desc, id desc). */
+    /** The execution that recorded {@code firstUseEventId}; used to resolve first-use replay safely. */
+    Optional<ImagingExecution> findByFirstUseEventId(UUID firstUseEventId);
+
+    /** Newest first by request creation time (execution_created_at desc, id desc). */
     List<ImagingExecution> findAllByOrderIds(Collection<UUID> orderIds);
 
     /** Newest first. */
@@ -64,7 +67,7 @@ public interface ClinicalServiceOrderExecutionPort {
     Page<ImagingExecution> page(UUID visitId, UUID patientId, UUID orderingDoctorAccountId, UUID roomId,
             Collection<ExecutionStatus> statuses, boolean oldestFirst, Pageable pageable);
 
-    /** PENDING requests created before {@code createdBefore}, oldest first. */
+    /** PENDING requests created before {@code createdBefore}, oldest first by execution_created_at. */
     List<ImagingExecution> findPendingCreatedBefore(Instant createdBefore);
 
     // ---- guarded writes ----------------------------------------------------------------------------------------

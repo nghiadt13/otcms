@@ -4,4 +4,9 @@ public interface ServiceOrderRepository extends JpaRepository<ServiceOrderJpaEnt
     List<ServiceOrderJpaEntity> findByOrderingRoundId(UUID roundId);
     List<ServiceOrderJpaEntity> findByOrderingRoundIdIn(java.util.Collection<UUID> roundIds);
     List<ServiceOrderJpaEntity> findByVisitId(UUID visitId);
+    java.util.Optional<ServiceOrderJpaEntity> findFirstByOrderingRoundIdAndRoundHeadTrue(UUID roundId);
+    java.util.Optional<ServiceOrderJpaEntity> findByRequestingDoctorIdAndSubmitIdempotencyKeyAndRoundHeadTrue(UUID doctorId, String submitIdempotencyKey);
+    java.util.Optional<ServiceOrderJpaEntity> findTopByVisitIdAndRoundHeadTrueOrderByRoundNumberDesc(UUID visitId);
+    org.springframework.data.domain.Page<ServiceOrderJpaEntity> findAllByRoundHeadTrue(org.springframework.data.domain.Pageable pageable);
+    List<ServiceOrderJpaEntity> findByVisitIdAndRoundHeadTrueOrderByRoundNumberAsc(UUID visitId);
 }

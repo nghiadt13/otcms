@@ -9,6 +9,8 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import fu.fa26.sep490.g58.otcms_be.common.security.AccountRole;
+import fu.fa26.sep490.g58.otcms_be.clinical.service.ClinicalServiceOrderExecutionPort;
+import fu.fa26.sep490.g58.otcms_be.diagnostic.ImagingExecutionTestFixtures;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.exception.DiagnosticOperationException;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.integration.DiagnosticPortModels.TechnicianRoomAssignment;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.integration.DiagnosticPortModels.VisitStatusAuthorization;
@@ -16,10 +18,8 @@ import fu.fa26.sep490.g58.otcms_be.diagnostic.integration.DiagnosticPortModels.V
 import fu.fa26.sep490.g58.otcms_be.diagnostic.integration.RoomStatusAccessPort;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.integration.VisitDiagnosticPort;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.model.DiagnosticActor;
-import fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.DiagnosticRequestJpaEntity;
+import fu.fa26.sep490.g58.otcms_be.diagnostic.ImagingExecutionTestFixtures.Row;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.enums.DiagnosticRequestStatus;
-import fu.fa26.sep490.g58.otcms_be.diagnostic.repository.DiagnosticRequestJpaRepository;
-import fu.fa26.sep490.g58.otcms_be.diagnostic.repository.DiagnosticAttemptJpaRepository;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.service.impl.DiagnosticStatusServiceImpl;
 import fu.fa26.sep490.g58.otcms_be.patient.service.PatientClinicalIdentityQueryService;
 import java.time.LocalDate;
@@ -35,15 +35,14 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 
 class DiagnosticStatusT015Test {
-    private final DiagnosticRequestJpaRepository requests = mock(DiagnosticRequestJpaRepository.class);
-    private final DiagnosticAttemptJpaRepository attempts = mock(DiagnosticAttemptJpaRepository.class);
+    private final ClinicalServiceOrderExecutionPort requests = mock(ClinicalServiceOrderExecutionPort.class);
     private final ObjectProvider<VisitDiagnosticPort> visitPorts = mock(ObjectProvider.class);
     private final ObjectProvider<RoomStatusAccessPort> roomPorts = mock(ObjectProvider.class);
     private final VisitDiagnosticPort visitPort = mock(VisitDiagnosticPort.class);
     private final RoomStatusAccessPort roomPort = mock(RoomStatusAccessPort.class);
     private final PatientClinicalIdentityQueryService patientIdentities = mock(PatientClinicalIdentityQueryService.class);
     private final DiagnosticStatusServiceImpl service = new DiagnosticStatusServiceImpl(
-            requests, attempts, visitPorts, roomPorts, patientIdentities);
+            requests, visitPorts, roomPorts, patientIdentities);
 
     @BeforeEach
     void configurePorts() {
@@ -62,12 +61,12 @@ class DiagnosticStatusT015Test {
         UUID actorId = UUID.randomUUID();
         UUID visitId = UUID.randomUUID();
         DiagnosticActor actor = DiagnosticActor.user(actorId, AccountRole.RECEPTIONIST);
-        DiagnosticRequestJpaEntity request = request(visitId, UUID.randomUUID());
+        Row request = request(visitId, UUID.randomUUID());
         when(visitPort.authorizeImagingStatus(visitId, actorId, VisitStatusResponsibility.RECEPTIONIST))
                 .thenReturn(new VisitStatusAuthorization(visitId, actorId,
                         VisitStatusResponsibility.RECEPTIONIST, true));
-        when(requests.findAllByVisitIdOrderByCreatedAtDescIdDesc(eq(visitId), any()))
-                .thenReturn(new PageImpl<>(List.of(request), PageRequest.of(0, 20), 1));
+        when(requests.page(eq(visitId), eq(null), eq(null), eq(null), eq(null), eq(false), any()))
+                .thenReturn(new PageImpl<>(List.of(ImagingExecutionTestFixtures.execution(request)), PageRequest.of(0, 20), 1));
 
         var result = service.listVisitStatus(actor, visitId, 0, 20);
 
@@ -98,11 +97,11 @@ class DiagnosticStatusT015Test {
         UUID visitId = UUID.randomUUID();
         UUID roomId = UUID.randomUUID();
         DiagnosticActor actor = DiagnosticActor.user(actorId, AccountRole.IMAGING_TECHNICIAN);
-        DiagnosticRequestJpaEntity request = request(visitId, roomId);
+        Row request = request(visitId, roomId);
         when(roomPort.authorizeAssignedTechnician(roomId, actorId))
                 .thenReturn(new TechnicianRoomAssignment(roomId, actorId, true));
-        when(requests.findAllByRoomIdAndStatusInOrderByCreatedAtDescIdDesc(eq(roomId), any(), any()))
-                .thenReturn(new PageImpl<>(List.of(request), PageRequest.of(0, 100), 1));
+        when(requests.page(eq(null), eq(null), eq(null), eq(roomId), any(), eq(false), any()))
+                .thenReturn(new PageImpl<>(List.of(ImagingExecutionTestFixtures.execution(request)), PageRequest.of(0, 100), 1));
 
         var result = service.listTechnicianUploadWork(actor, roomId, 0, 20);
 
@@ -119,14 +118,14 @@ class DiagnosticStatusT015Test {
         UUID roomId = UUID.randomUUID();
         UUID attemptId = UUID.randomUUID();
         DiagnosticActor actor = DiagnosticActor.user(actorId, AccountRole.IMAGING_TECHNICIAN);
-        DiagnosticRequestJpaEntity request = new DiagnosticRequestJpaEntity(UUID.randomUUID(), visitId,
+        Row request = new Row(UUID.randomUUID(), visitId,
                 UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), roomId, "MRI", "KNEE", "reason",
                 DiagnosticRequestStatus.IN_PROGRESS, null, null, attemptId);
         request.setCreatedAt(Instant.parse("2026-11-01T10:00:00Z"));
         when(roomPort.authorizeAssignedTechnician(roomId, actorId))
                 .thenReturn(new TechnicianRoomAssignment(roomId, actorId, true));
-        when(requests.findAllByRoomIdAndStatusInOrderByCreatedAtDescIdDesc(eq(roomId), any(), any()))
-                .thenReturn(new PageImpl<>(List.of(request), PageRequest.of(0, 100), 1));
+        when(requests.page(eq(null), eq(null), eq(null), eq(roomId), any(), eq(false), any()))
+                .thenReturn(new PageImpl<>(List.of(ImagingExecutionTestFixtures.execution(request)), PageRequest.of(0, 100), 1));
 
         var result = service.listTechnicianUploadWork(actor, roomId, 0, 20);
 
@@ -141,13 +140,13 @@ class DiagnosticStatusT015Test {
         UUID actorId = UUID.randomUUID();
         DiagnosticActor actor = DiagnosticActor.user(actorId, AccountRole.DOCTOR);
         UUID visitId = UUID.randomUUID();
-        DiagnosticRequestJpaEntity request = request(visitId, UUID.randomUUID());
+        Row request = request(visitId, UUID.randomUUID());
         UUID requestId = request.getId();
-        when(requests.findById(requestId)).thenReturn(java.util.Optional.empty());
+        when(requests.find(requestId)).thenReturn(java.util.Optional.empty());
         DiagnosticOperationException missing = assertThrows(DiagnosticOperationException.class,
                 () -> service.getStatus(actor, requestId));
 
-        when(requests.findById(requestId)).thenReturn(java.util.Optional.of(request));
+        when(requests.find(requestId)).thenReturn(java.util.Optional.of(ImagingExecutionTestFixtures.execution(request)));
         when(visitPort.authorizeImagingStatus(eq(visitId), eq(actorId), eq(VisitStatusResponsibility.DOCTOR)))
                 .thenReturn(new VisitStatusAuthorization(visitId, actorId, VisitStatusResponsibility.DOCTOR, false));
         DiagnosticOperationException denied = assertThrows(DiagnosticOperationException.class,
@@ -158,8 +157,8 @@ class DiagnosticStatusT015Test {
                 denied.outcome());
     }
 
-    private DiagnosticRequestJpaEntity request(UUID visitId, UUID roomId) {
-        DiagnosticRequestJpaEntity request = new DiagnosticRequestJpaEntity(UUID.randomUUID(), visitId,
+    private Row request(UUID visitId, UUID roomId) {
+        Row request = new Row(UUID.randomUUID(), visitId,
                 UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), roomId, "MRI", "BRAIN", "Clinical reason",
                 DiagnosticRequestStatus.PENDING, null, null, null);
         request.setCreatedAt(Instant.parse("2026-11-01T10:00:00Z"));

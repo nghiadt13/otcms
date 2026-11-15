@@ -54,24 +54,22 @@ class BillingFixtureCleanupTest {
         // Returned IDs represent the Visit, Appointment and Clinical Round invoices of this fixture.
         var invoices = List.of(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID());
         var deletes = cleanup(invoices);
-        int round = position(deletes, "clinical_ordering_rounds", id("clinicalRoundId"));
         int service = position(deletes, "clinic_services", id("serviceId"));
         for (UUID invoice : invoices) {
             int parent = position(deletes, "invoices", invoice);
             assertTrue(position(deletes, "payment_attempts", invoice) < parent);
             assertTrue(position(deletes, "invoice_items", invoice) < parent);
-            assertTrue(parent < round);
             assertTrue(parent < service);
         }
-        assertTrue(position(deletes, "clinical_service_orders", id("clinicalRoundId")) < round);
-        assertTrue(round < position(deletes, "visits", id("visitId")));
+        assertTrue(position(deletes, "clinical_service_orders", id("clinicalRoundId"))
+                < position(deletes, "visits", id("visitId")));
         assertTrue(position(deletes, "visits", id("visitId")) < position(deletes, "appointments", id("appointmentId")));
         assertTrue(position(deletes, "appointments", id("appointmentId")) < service);
         assertTrue(position(deletes, "doctor_services", id("serviceId")) < service);
         assertTrue(service < position(deletes, "staff_profiles", id("doctorProfileId")));
         assertTrue(position(deletes, "patient_profiles", id("patientProfileId")) < position(deletes, "accounts", id("patientAccountId")));
         assertTrue(position(deletes, "staff_profiles", id("doctorProfileId")) < position(deletes, "accounts", id("doctorAccountId")));
-        assertEquals(Set.of("payment_attempts", "invoice_items", "invoices", "clinical_service_orders", "clinical_ordering_rounds",
+        assertEquals(Set.of("payment_attempts", "invoice_items", "invoices", "clinical_service_orders",
                 "visits", "appointments", "doctor_services", "clinic_services", "staff_profiles", "patient_profiles", "accounts"),
                 deletes.stream().map(Deletion::table).collect(java.util.stream.Collectors.toSet()));
     }
@@ -80,7 +78,7 @@ class BillingFixtureCleanupTest {
         var deletes = cleanup(List.of());
         assertTrue(deletes.stream().noneMatch(row -> Set.of("payment_attempts", "invoice_items", "invoices").contains(row.table())));
         assertTrue(position(deletes, "clinical_service_orders", id("clinicalRoundId"))
-                < position(deletes, "clinical_ordering_rounds", id("clinicalRoundId")));
+                < position(deletes, "visits", id("visitId")));
         assertTrue(position(deletes, "doctor_services", id("serviceId")) < position(deletes, "clinic_services", id("serviceId")));
     }
 }

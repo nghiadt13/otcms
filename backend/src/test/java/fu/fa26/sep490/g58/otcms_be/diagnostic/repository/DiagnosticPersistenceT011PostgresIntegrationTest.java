@@ -1,19 +1,15 @@
 package fu.fa26.sep490.g58.otcms_be.diagnostic.repository;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 import fu.fa26.sep490.g58.otcms_be.support.LocalPostgresTest;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
 import javax.sql.DataSource;
 import org.flywaydb.core.Flyway;
 import org.flywaydb.core.api.MigrationVersion;
@@ -29,7 +25,6 @@ import org.springframework.transaction.support.TransactionTemplate;
 @LocalPostgresTest
 class DiagnosticPersistenceT011PostgresIntegrationTest {
     private static final Instant NOW = Instant.parse("2026-11-04T08:00:00Z");
-
     @Autowired DataSource dataSource;
     @Autowired JdbcTemplate jdbc;
     @Autowired PlatformTransactionManager transactionManager;
@@ -39,245 +34,135 @@ class DiagnosticPersistenceT011PostgresIntegrationTest {
         String schema = "t011_diagnostic_" + UUID.randomUUID().toString().replace("-", "");
         jdbc.execute("create schema " + schema);
         try {
-            flyway(schema).migrate();
+            Flyway.configure().dataSource(dataSource).schemas(schema).defaultSchema(schema)
+                    .locations("classpath:db/migration").target(MigrationVersion.LATEST).load().migrate();
+            UUID order = UUID.randomUUID(), visit = UUID.randomUUID(), patient = UUID.randomUUID();
+            UUID doctor = UUID.randomUUID(), attempt = UUID.randomUUID(), firstUse = UUID.randomUUID();
+            createOrder(schema, order, visit, patient, doctor, "idem-1");
+            assertThrows(DataAccessException.class, () -> createOrder(schema, UUID.randomUUID(), UUID.randomUUID(),
+                    UUID.randomUUID(), doctor, "idem-1"));
 
-            UUID requestId = UUID.randomUUID();
-            UUID visitId = UUID.randomUUID();
-            UUID patientId = UUID.randomUUID();
-            UUID doctorId = UUID.randomUUID();
-            createRequest(schema, requestId, visitId, patientId, doctorId);
-
-            insertIdempotency(schema, UUID.randomUUID(), doctorId, visitId, "CREATE_REQUEST", "idem-1");
-            assertThrows(DataAccessException.class, () -> insertIdempotency(
-                    schema, UUID.randomUUID(), doctorId, visitId, "CREATE_REQUEST", "idem-1"));
-            insertFirstUseOutbox(schema, UUID.randomUUID(), UUID.randomUUID(), requestId, visitId);
-            assertThrows(DataAccessException.class, () -> insertFirstUseOutbox(
-                    schema, UUID.randomUUID(), UUID.randomUUID(), requestId, visitId));
-
-            insertAttempt(schema, UUID.randomUUID(), requestId, 1, UUID.randomUUID(), null);
-            UUID savedAttemptId = jdbc.queryForObject("select id from " + schema
-                    + ".diagnostic_attempts where request_id = ?", UUID.class, requestId);
-            int activated = jdbc.update("update " + schema + ".diagnostic_requests "
-                    + "set status = 'IN_PROGRESS', current_attempt_id = ?, version = version + 1 where id = ?",
-                    savedAttemptId, requestId);
-            assertEquals(1, activated);
             assertThrows(DataAccessException.class, () -> jdbc.update("update " + schema
-                    + ".diagnostic_requests set status = 'RESULT_AVAILABLE' where id = ?", requestId));
-            UUID firstUseEventId = jdbc.queryForObject("select first_use_event_id from " + schema
-                    + ".diagnostic_attempts where request_id = ?", UUID.class, requestId);
+                    + ".clinical_service_orders set execution_status='RESULT_AVAILABLE' where id=?", order));
+            assertEquals(1, jdbc.update("update " + schema + ".clinical_service_orders set "
+                    + "execution_status='IN_PROGRESS', attempt_id=?, first_use_event_id=?, first_use_type='ACQUISITION_STARTED', "
+                    + "first_use_source_id='t011', first_use_at=?, execution_version=execution_version+1 where id=?",
+                    attempt, firstUse, Timestamp.from(NOW), order));
+            UUID competing = UUID.randomUUID();
+            createOrder(schema, competing, UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), null);
+            assertThrows(DataAccessException.class, () -> jdbc.update("update " + schema + ".clinical_service_orders "
+                    + "set execution_status='IN_PROGRESS', attempt_id=?, first_use_event_id=? where id=?",
+                    attempt, UUID.randomUUID(), competing));
+            assertThrows(DataAccessException.class, () -> jdbc.update("update " + schema + ".clinical_service_orders "
+                    + "set execution_status='IN_PROGRESS', attempt_id=?, first_use_event_id=? where id=?",
+                    UUID.randomUUID(), firstUse, competing));
 
-            UUID competingRequest = UUID.randomUUID();
-            createRequest(schema, competingRequest, UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID());
-            UUID competingAttempt = UUID.randomUUID();
-            insertAttempt(schema, competingAttempt, competingRequest, 1, UUID.randomUUID(), null);
+            int[] results = raceStudyLink(schema, order, attempt);
+            assertEquals(1, results[0] + results[1]);
+            assertEquals(0, Math.min(results[0], results[1]));
             assertThrows(DataAccessException.class, () -> jdbc.update("update " + schema
-                    + ".diagnostic_requests set status = 'IN_PROGRESS', current_attempt_id = ? where id = ?",
-                    competingAttempt, requestId));
+                    + ".clinical_service_orders set execution_status='IN_PROGRESS' where id=?", order));
+            String study = jdbc.queryForObject("select study_ref from " + schema + ".clinical_service_orders where id=?",
+                    String.class, order);
+            assertEquals(firstUse, jdbc.queryForObject("select first_use_event_id from " + schema
+                    + ".clinical_service_orders where id=?", UUID.class, order));
 
-            int[] concurrentResults = raceStudyLink(schema, requestId, savedAttemptId);
-            assertEquals(1, concurrentResults[0] + concurrentResults[1]);
-            assertEquals(0, Math.min(concurrentResults[0], concurrentResults[1]));
-            assertThrows(DataAccessException.class, () -> jdbc.update("update " + schema
-                    + ".diagnostic_requests set status = 'IN_PROGRESS' where id = ?", requestId));
-
-            assertThrows(DataAccessException.class, () -> insertAttempt(
-                    schema, UUID.randomUUID(), requestId, 2, UUID.randomUUID(), "another-study"));
-            assertEquals(1, jdbc.queryForObject("select count(*) from " + schema
-                    + ".diagnostic_attempts where request_id = ? and study_ref is not null", Integer.class, requestId));
-
-            String studyRef = jdbc.queryForObject("select study_ref from " + schema
-                    + ".diagnostic_attempts where id = ?", String.class, savedAttemptId);
-            assertThrows(DataAccessException.class, () -> insertValidatedReport(
-                    schema, UUID.randomUUID(), requestId, UUID.randomUUID(), studyRef, doctorId));
-            assertThrows(DataAccessException.class, () -> insertValidatedReport(
-                    schema, UUID.randomUUID(), requestId, visitId, "wrong-study", doctorId));
-            UUID reportId = UUID.randomUUID();
-            insertPendingReport(schema, reportId, requestId, visitId, studyRef, doctorId);
-            assertThrows(DataAccessException.class, () -> insertCompletedFindings(
-                    schema, UUID.randomUUID(), requestId, visitId, studyRef, reportId, doctorId));
-            jdbc.update("update " + schema + ".diagnostic_reports set validation_status = 'VALIDATED', "
-                    + "validated_at = ? where id = ?", Timestamp.from(NOW), reportId);
-            assertReportInvalidationSerializesWithFindingsCompletion(schema, reportId, requestId, visitId,
-                    studyRef, doctorId);
+            assertThrows(DataAccessException.class, () -> insertPendingReport(schema, UUID.randomUUID(), order,
+                    UUID.randomUUID(), study, doctor));
+            assertThrows(DataAccessException.class, () -> insertPendingReport(schema, UUID.randomUUID(), order,
+                    visit, "wrong-study", doctor));
+            UUID report = UUID.randomUUID();
+            insertPendingReport(schema, report, order, visit, study, doctor);
+            assertThrows(DataAccessException.class, () -> complete(schema, report));
+            jdbc.update("update " + schema + ".diagnostic_reports set validation_status='VALIDATED', validated_at=? where id=?",
+                    Timestamp.from(NOW), report);
+            assertReportInvalidationSerializesWithFindingsCompletion(schema, report);
             assertEquals("INVALID", jdbc.queryForObject("select validation_status from " + schema
-                    + ".diagnostic_reports where id = ?", String.class, reportId));
-            jdbc.update("update " + schema + ".diagnostic_reports set validation_status = 'VALIDATED', "
-                    + "validated_at = ? where id = ?", Timestamp.from(NOW), reportId);
-            insertCompletedFindings(schema, UUID.randomUUID(), requestId, visitId, studyRef, reportId, doctorId);
+                    + ".diagnostic_reports where id=?", String.class, report));
+            jdbc.update("update " + schema + ".diagnostic_reports set validation_status='VALIDATED', validated_at=? where id=?",
+                    Timestamp.from(NOW), report);
+            assertEquals(1, complete(schema, report));
             assertThrows(DataAccessException.class, () -> jdbc.update("update " + schema
-                    + ".diagnostic_findings_versions set findings_text = 'changed' where request_id = ?",
-                    requestId));
+                    + ".diagnostic_reports set findings_text='changed' where id=?", report));
             assertThrows(DataAccessException.class, () -> jdbc.update("update " + schema
-                    + ".diagnostic_reports set validation_status = 'INVALID' where id = ?", reportId));
-
-            assertEquals(1, jdbc.queryForObject("select count(*) from " + schema
-                    + ".diagnostic_attempts where request_id = ? and first_use_event_id = ?",
-                    Integer.class, requestId, firstUseEventId));
+                    + ".diagnostic_reports set validation_status='INVALID' where id=?", report));
         } finally {
             jdbc.execute("drop schema if exists " + schema + " cascade");
         }
     }
 
-    private void assertReportInvalidationSerializesWithFindingsCompletion(String schema, UUID reportId,
-            UUID requestId, UUID visitId, String studyRef, UUID doctorId) throws Exception {
-        CountDownLatch reportLocked = new CountDownLatch(1);
-        CountDownLatch releaseInvalidation = new CountDownLatch(1);
-        CountDownLatch completionStarted = new CountDownLatch(1);
-        AtomicInteger completionBackendPid = new AtomicInteger();
-        ExecutorService executor = Executors.newFixedThreadPool(2);
+    private void createOrder(String schema, UUID id, UUID visit, UUID patient, UUID doctor, String key) {
+        jdbc.update("insert into " + schema + ".clinical_service_orders (id,order_code,ordering_round_id,round_number,"
+                + "ordered_at,round_head,submit_idempotency_key,visit_id,patient_id,service_id,service_name_snapshot,service_type,"
+                + "requesting_doctor_id,clinical_reason,body_area,price_snapshot,order_status,payment_status,created_at,updated_at,"
+                + "ordering_doctor_account_id,room_id,imaging_type,execution_status,execution_created_at,execution_updated_at) "
+                + "values (?,?,?,1,?,true,?,?,?,?,'MRI','IMAGING',?,'clinical reason','KNEE',1,'ORDERED','PAID',?,?,"
+                + "?,?,'MRI','PENDING',?,?)", id, id.toString().replace("-", ""), UUID.randomUUID(), Timestamp.from(NOW), key,
+                visit, patient, UUID.randomUUID(), doctor, Timestamp.from(NOW), Timestamp.from(NOW), doctor, UUID.randomUUID(),
+                Timestamp.from(NOW), Timestamp.from(NOW));
+    }
+
+    private int[] raceStudyLink(String schema, UUID order, UUID attempt) throws Exception {
+        var ready = new CountDownLatch(2); var start = new CountDownLatch(1);
+        var executor = Executors.newFixedThreadPool(2);
         try {
-            Future<?> invalidation = executor.submit(() -> new TransactionTemplate(transactionManager).execute(status -> {
-                jdbc.queryForObject("select id from " + schema + ".diagnostic_reports where id = ? for update",
-                        UUID.class, reportId);
-                reportLocked.countDown();
-                await(releaseInvalidation);
-                jdbc.update("update " + schema
-                        + ".diagnostic_reports set validation_status = 'INVALID' where id = ?", reportId);
-                return null;
-            }));
-            assertTrue(reportLocked.await(10, TimeUnit.SECONDS), "report row should be locked before completion starts");
-
-            Future<?> completion = executor.submit(() -> new TransactionTemplate(transactionManager).execute(status -> {
-                completionBackendPid.set(jdbc.queryForObject("select pg_backend_pid()", Integer.class));
-                completionStarted.countDown();
-                insertCompletedFindings(schema, UUID.randomUUID(), requestId, visitId, studyRef, reportId, doctorId);
-                return null;
-            }));
-            assertTrue(completionStarted.await(10, TimeUnit.SECONDS), "completion transaction should start");
-            awaitDatabaseLockWait(completionBackendPid.get());
-            releaseInvalidation.countDown();
-            invalidation.get(10, TimeUnit.SECONDS);
-            assertThrows(java.util.concurrent.ExecutionException.class,
-                    () -> completion.get(10, TimeUnit.SECONDS));
-            assertEquals(0, jdbc.queryForObject("select count(*) from " + schema
-                    + ".diagnostic_findings_versions where request_id = ? and state = 'COMPLETED'",
-                    Integer.class, requestId));
-        } finally {
-            releaseInvalidation.countDown();
-            executor.shutdownNow();
-        }
+            Future<Integer> a = executor.submit(() -> tryLink(schema, order, attempt, "study-one", ready, start));
+            Future<Integer> b = executor.submit(() -> tryLink(schema, order, attempt, "study-two", ready, start));
+            assertTrue(ready.await(10, TimeUnit.SECONDS)); start.countDown();
+            return new int[] {a.get(10, TimeUnit.SECONDS), b.get(10, TimeUnit.SECONDS)};
+        } finally { start.countDown(); executor.shutdownNow(); }
     }
 
-    private void awaitDatabaseLockWait(int backendPid) throws Exception {
-        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
-        while (System.nanoTime() < deadline) {
-            Boolean waiting = jdbc.queryForObject("select exists (select 1 from pg_stat_activity "
-                    + "where pid = ? and wait_event_type = 'Lock')", Boolean.class, backendPid);
-            if (Boolean.TRUE.equals(waiting)) return;
-            Thread.sleep(10);
-        }
-        throw new AssertionError("findings completion did not wait for the report row lock");
-    }
-
-    private void await(CountDownLatch latch) {
-        try {
-            if (!latch.await(10, TimeUnit.SECONDS)) {
-                throw new AssertionError("concurrent report operation did not receive its release signal");
-            }
-        } catch (InterruptedException exception) {
-            Thread.currentThread().interrupt();
-            throw new IllegalStateException("concurrent report operation was interrupted", exception);
-        }
-    }
-
-    private Flyway flyway(String schema) {
-        return Flyway.configure().dataSource(dataSource).schemas(schema).defaultSchema(schema)
-                .locations("classpath:db/migration").target(MigrationVersion.LATEST).load();
-    }
-
-    private void createRequest(String schema, UUID requestId, UUID visitId, UUID patientId, UUID doctorId) {
-        jdbc.update("insert into " + schema + ".diagnostic_requests "
-                        + "(id, visit_id, patient_id, ordering_doctor_id, service_id, room_id, imaging_type, status) "
-                        + "values (?, ?, ?, ?, ?, ?, 'MRI', 'PENDING')",
-                requestId, visitId, patientId, doctorId, UUID.randomUUID(), UUID.randomUUID());
-    }
-
-    private void insertAttempt(String schema, UUID attemptId, UUID requestId, int attemptNumber,
-            UUID firstUseEventId, String studyRef) {
-        jdbc.update("insert into " + schema + ".diagnostic_attempts "
-                        + "(id, request_id, attempt_number, first_use_event_id, first_use_type, source_id, "
-                        + "actor_account_id, occurred_at, study_ref) "
-                        + "values (?, ?, ?, ?, 'ACQUISITION_STARTED', 't011-test-source', ?, ?, ?)",
-                attemptId, requestId, attemptNumber, firstUseEventId, UUID.randomUUID(),
-                Timestamp.from(NOW), studyRef);
-    }
-
-    private void insertIdempotency(String schema, UUID id, UUID actorId, UUID visitId,
-            String operation, String key) {
-        jdbc.update("insert into " + schema + ".diagnostic_idempotency_records "
-                        + "(id, actor_account_id, visit_id, operation, idempotency_key, payload_fingerprint, "
-                        + "result_outcome, result_payload) values (?, ?, ?, ?, ?, ?, 'ALLOWED', '{}'::jsonb)",
-                id, actorId, visitId, operation, key, "a".repeat(64));
-    }
-
-    private void insertFirstUseOutbox(String schema, UUID id, UUID eventId, UUID requestId, UUID visitId) {
-        jdbc.update("insert into " + schema + ".diagnostic_outbox "
-                        + "(id, event_id, request_id, visit_id, event_type, payload) "
-                        + "values (?, ?, ?, ?, 'FIRST_USE_BILLING_OBLIGATION', '{}'::jsonb)",
-                id, eventId, requestId, visitId);
-    }
-
-    private int[] raceStudyLink(String schema, UUID requestId, UUID attemptId) throws Exception {
-        CountDownLatch ready = new CountDownLatch(2);
-        CountDownLatch start = new CountDownLatch(1);
-        ExecutorService executor = Executors.newFixedThreadPool(2);
-        try {
-            Future<Integer> first = executor.submit(() -> tryLink(schema, requestId, attemptId,
-                    "study-one", ready, start));
-            Future<Integer> second = executor.submit(() -> tryLink(schema, requestId, attemptId,
-                    "study-two", ready, start));
-            assertTrue(ready.await(10, TimeUnit.SECONDS), "both study-link workers should be ready");
-            start.countDown();
-            return new int[] {first.get(10, TimeUnit.SECONDS), second.get(10, TimeUnit.SECONDS)};
-        } finally {
-            executor.shutdownNow();
-        }
-    }
-
-    private int tryLink(String schema, UUID requestId, UUID attemptId, String studyRef,
-            CountDownLatch ready, CountDownLatch start) {
+    private int tryLink(String schema, UUID order, UUID attempt, String study, CountDownLatch ready, CountDownLatch start) {
         return new TransactionTemplate(transactionManager).execute(status -> {
-            ready.countDown();
-            try {
-                start.await();
-            } catch (InterruptedException exception) {
-                Thread.currentThread().interrupt();
-                throw new IllegalStateException("study-link race was interrupted", exception);
-            }
-            int claimed = jdbc.update("update " + schema + ".diagnostic_attempts set study_ref = ? "
-                    + "where id = ? and study_ref is null", studyRef, attemptId);
-            if (claimed != 1) return 0;
-            int transitioned = jdbc.update("update " + schema + ".diagnostic_requests "
-                            + "set status = 'RESULT_AVAILABLE', version = version + 1 "
-                            + "where id = ? and status = 'IN_PROGRESS' and version = 1",
-                    requestId);
-            if (transitioned != 1) throw new IllegalStateException("study link lost optimistic concurrency race");
-            return transitioned;
+            ready.countDown(); await(start);
+            return jdbc.update("update " + schema + ".clinical_service_orders set study_ref=?, "
+                    + "execution_status='RESULT_AVAILABLE', execution_version=execution_version+1 "
+                    + "where id=? and attempt_id=? and study_ref is null and execution_status='IN_PROGRESS' "
+                    + "and execution_version=1", study, order, attempt);
         });
     }
 
-    private void insertPendingReport(String schema, UUID reportId, UUID requestId, UUID visitId,
-            String studyRef, UUID doctorId) {
-        jdbc.update("insert into " + schema + ".diagnostic_reports "
-                        + "(id, request_id, visit_id, study_ref, report_version, storage_ref, content_sha256, "
-                        + "uploaded_by_doctor_id) values (?, ?, ?, ?, 1, ?, ?, ?)",
-                reportId, requestId, visitId, studyRef, "private/t011/" + reportId,
-                "b".repeat(64), doctorId);
+    private void insertPendingReport(String schema, UUID report, UUID order, UUID visit, String study, UUID doctor) {
+        jdbc.update("insert into " + schema + ".diagnostic_reports (id,report_id,service_order_id,visit_id,study_ref,"
+                + "version_number,report_storage_ref,report_sha256,validation_status,uploaded_by_doctor_id,uploaded_at) "
+                + "values (?,?,?,?,?,1,?,?,'PENDING',?,?)", report, report, order, visit, study,
+                "private/t011/" + report, "b".repeat(64), doctor, Timestamp.from(NOW));
     }
 
-    private void insertValidatedReport(String schema, UUID reportId, UUID requestId, UUID visitId,
-            String studyRef, UUID doctorId) {
-        insertPendingReport(schema, reportId, requestId, visitId, studyRef, doctorId);
-        jdbc.update("update " + schema + ".diagnostic_reports set validation_status = 'VALIDATED', "
-                + "validated_at = ? where id = ?", Timestamp.from(NOW), reportId);
+    private int complete(String schema, UUID report) {
+        return jdbc.update("update " + schema + ".diagnostic_reports set state='COMPLETED', "
+                + "findings_text='T011 completed fixture', completed_at=? where id=?", Timestamp.from(NOW), report);
     }
 
-    private void insertCompletedFindings(String schema, UUID findingsId, UUID requestId, UUID visitId,
-            String studyRef, UUID reportId, UUID doctorId) {
-        jdbc.update("insert into " + schema + ".diagnostic_findings_versions "
-                        + "(id, request_id, visit_id, study_ref, version_number, findings_text, "
-                        + "recorded_by_doctor_id, state, required_pdf_report_id, completed_at) "
-                        + "values (?, ?, ?, ?, 1, 'T011 completed fixture', ?, 'COMPLETED', ?, ?)",
-                findingsId, requestId, visitId, studyRef, doctorId, reportId, Timestamp.from(NOW));
+    private void assertReportInvalidationSerializesWithFindingsCompletion(String schema, UUID report) throws Exception {
+        var locked = new CountDownLatch(1); var release = new CountDownLatch(1); var started = new CountDownLatch(1);
+        var pid = new java.util.concurrent.atomic.AtomicInteger(); var executor = Executors.newFixedThreadPool(2);
+        try {
+            Future<?> invalidation = executor.submit(() -> new TransactionTemplate(transactionManager).execute(status -> {
+                jdbc.queryForObject("select id from " + schema + ".diagnostic_reports where id=? for update", UUID.class, report);
+                locked.countDown(); await(release);
+                jdbc.update("update " + schema + ".diagnostic_reports set validation_status='INVALID' where id=?", report);
+                return null;
+            }));
+            assertTrue(locked.await(10, TimeUnit.SECONDS));
+            Future<?> completion = executor.submit(() -> new TransactionTemplate(transactionManager).execute(status -> {
+                pid.set(jdbc.queryForObject("select pg_backend_pid()", Integer.class)); started.countDown(); complete(schema, report); return null;
+            }));
+            assertTrue(started.await(10, TimeUnit.SECONDS));
+            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+            while (System.nanoTime() < deadline && !Boolean.TRUE.equals(jdbc.queryForObject(
+                    "select exists (select 1 from pg_stat_activity where pid=? and wait_event_type='Lock')", Boolean.class, pid.get()))) Thread.sleep(10);
+            assertTrue(System.nanoTime() < deadline, "completion must wait for the report row lock");
+            release.countDown(); invalidation.get(10, TimeUnit.SECONDS);
+            assertThrows(java.util.concurrent.ExecutionException.class, () -> completion.get(10, TimeUnit.SECONDS));
+            assertEquals(0, jdbc.queryForObject("select count(*) from " + schema
+                    + ".diagnostic_reports where id=? and state='COMPLETED'", Integer.class, report));
+        } finally { release.countDown(); executor.shutdownNow(); }
+    }
+
+    private void await(CountDownLatch latch) {
+        try { if (!latch.await(10, TimeUnit.SECONDS)) throw new AssertionError("timed out waiting for concurrent operation"); }
+        catch (InterruptedException ex) { Thread.currentThread().interrupt(); throw new IllegalStateException(ex); }
     }
 }

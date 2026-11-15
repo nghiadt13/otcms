@@ -1,6 +1,7 @@
 package fu.fa26.sep490.g58.otcms_be.diagnostic.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import fu.fa26.sep490.g58.otcms_be.common.security.AccountRole;
@@ -10,7 +11,6 @@ import fu.fa26.sep490.g58.otcms_be.diagnostic.integration.DiagnosticPortModels.R
 import fu.fa26.sep490.g58.otcms_be.diagnostic.integration.DiagnosticPortModels.StudyEvidence;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.integration.DiagnosticPortModels.StudyVerificationStatus;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.integration.DiagnosticPortModels.UseEvidence;
-import fu.fa26.sep490.g58.otcms_be.diagnostic.integration.DiagnosticPortModels.UseEvidenceType;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.integration.DiagnosticPortModels.UseEvidenceType;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.integration.DiagnosticPortModels.ClinicalImagingOrder;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.integration.DiagnosticPortModels.VisitEvidence;
@@ -66,54 +66,29 @@ class DiagnosticEvidenceT013PostgresIntegrationTest {
 
     @AfterEach
     void cleanRows() {
-        jdbc.update("delete from diagnostic_audit_events where visit_id = ?", visitId);
-        jdbc.update("delete from diagnostic_outbox where visit_id = ?", visitId);
-        jdbc.update("delete from diagnostic_idempotency_records where visit_id = ?", visitId);
-        jdbc.update("update diagnostic_requests set status = 'CANCELLED', cancellation_cause = 'PATIENT_DECLINED', "
-                + "cancellation_reason = 'Test cleanup', current_attempt_id = null where visit_id = ?", visitId);
-        jdbc.update("delete from diagnostic_attempts where request_id in "
-                + "(select id from diagnostic_requests where visit_id = ?)", visitId);
-        jdbc.update("delete from diagnostic_requests where visit_id = ?", visitId);
+        jdbc.update("delete from clinical_service_orders where visit_id = ?", visitId);
     }
 
     @Test
-    void firstUseCreatesOneAttemptAndBillingObligationAndRetriesDelivery() {
+    void firstUseWritesExecutionOnceAndReplays() {
         DiagnosticRequestView created = createRequest();
         UseEvidence use = useEvidence(created.requestId());
-
-        ports.billingFails = true;
         DiagnosticRequestView first = evidenceService.recordFirstUse(
                 DiagnosticActor.trustedIntegration(), use, "corr-first-use");
         assertEquals(DiagnosticRequestStatus.IN_PROGRESS, first.status());
         assertEquals(1, first.version());
-        assertEquals(1, jdbc.queryForObject("select count(*) from diagnostic_attempts where request_id = ?",
-                Integer.class, created.requestId()));
-        assertEquals(1, jdbc.queryForObject("select count(*) from diagnostic_outbox "
-                + "where request_id = ? and event_type = 'FIRST_USE_BILLING_OBLIGATION'",
-                Integer.class, created.requestId()));
-
-        var retryPolicy = new DiagnosticEvidenceService.RetryPolicy(3, 30, 3600);
-        var failedDelivery = evidenceService.dispatchDueOutbox(10, retryPolicy);
-        assertEquals(1, failedDelivery.retryScheduled());
-        assertEquals("PENDING", jdbc.queryForObject("select status from diagnostic_outbox where request_id = ?",
-                String.class, created.requestId()));
-
-        ports.billingFails = false;
-        jdbc.update("update diagnostic_outbox set next_attempt_at = now() - interval '1 second' where request_id = ?",
-                created.requestId());
-        var successfulDelivery = evidenceService.dispatchDueOutbox(10, retryPolicy);
-        assertEquals(1, successfulDelivery.delivered());
+        assertEquals(use.attemptId(), UUID.fromString(jdbc.queryForObject(
+                "select attempt_id from clinical_service_orders where id = ?", String.class, created.requestId())));
 
         DiagnosticRequestView replay = evidenceService.recordFirstUse(
-                DiagnosticActor.trustedIntegration(), use, "corr-first-use-retry");
+                DiagnosticActor.trustedIntegration(), use, "corr-first-use-replay");
         assertEquals(first, replay);
-        assertEquals(1, jdbc.queryForObject("select count(*) from diagnostic_attempts where first_use_event_id = ?",
-                Integer.class, use.eventId()));
-        assertEquals(1, ports.billedRequestIds.size());
+        assertEquals(1, jdbc.queryForObject("select count(*) from clinical_service_orders "
+                + "where id = ? and first_use_event_id = ?", Integer.class, created.requestId(), use.eventId()));
     }
 
     @Test
-    void unverifiedFirstUseDoesNotAdvanceRequestOrCreateBillingEvent() {
+    void unverifiedFirstUseDoesNotAdvanceExecution() {
         DiagnosticRequestView created = createRequest();
         UseEvidence use = useEvidence(created.requestId());
         ports.firstUseAccepted = false;
@@ -123,19 +98,19 @@ class DiagnosticEvidenceT013PostgresIntegrationTest {
 
         assertEquals(DiagnosticOperationOutcome.EVIDENCE_MISMATCH, rejected.outcome());
         assertEquals(DiagnosticRequestStatus.PENDING, requests.get(doctor(), created.requestId()).status());
-        assertEquals(0, jdbc.queryForObject("select count(*) from diagnostic_attempts where request_id = ?",
-                Integer.class, created.requestId()));
-        assertEquals(0, jdbc.queryForObject("select count(*) from diagnostic_outbox where request_id = ?",
-                Integer.class, created.requestId()));
+        assertEquals(0L, jdbc.queryForObject("select execution_version from clinical_service_orders where id = ?",
+                Long.class, created.requestId()));
+        assertNull(jdbc.queryForObject("select attempt_id from clinical_service_orders where id = ?",
+                String.class, created.requestId()));
     }
 
     @Test
-    void laterVerifiedUseEvidenceIsAuditedWithoutAnotherAttemptOrFee() {
+    void laterVerifiedUseEvidenceIsAuditedWithoutAnotherAttempt() {
         DiagnosticRequestView created = createRequest();
         DiagnosticRequestView started = evidenceService.recordFirstUse(DiagnosticActor.trustedIntegration(),
                 useEvidence(created.requestId()), "corr-initial-use");
         UUID attemptId = UUID.fromString(jdbc.queryForObject(
-                "select current_attempt_id from diagnostic_requests where id = ?", String.class, created.requestId()));
+                "select attempt_id from clinical_service_orders where id = ?", String.class, created.requestId()));
         UseEvidence laterUse = new UseEvidence(UUID.randomUUID(), created.requestId(), attemptId,
                 UseEvidenceType.CONTRAST_ADMINISTERED, "trusted-imaging-source", null,
                 Instant.now().minusSeconds(1), Instant.now(), true);
@@ -145,14 +120,11 @@ class DiagnosticEvidenceT013PostgresIntegrationTest {
 
         assertEquals(DiagnosticRequestStatus.IN_PROGRESS, afterLaterUse.status());
         assertEquals(started, afterLaterUse);
-        assertEquals(1, jdbc.queryForObject("select count(*) from diagnostic_attempts where request_id = ?",
-                Integer.class, created.requestId()));
-        assertEquals(1, jdbc.queryForObject("select count(*) from diagnostic_outbox "
-                + "where request_id = ? and event_type = 'FIRST_USE_BILLING_OBLIGATION'",
-                Integer.class, created.requestId()));
-        assertEquals(1, jdbc.queryForObject("select count(*) from diagnostic_audit_events "
-                + "where event_id = ? and action = 'RECORD_SUBSEQUENT_USE_EVIDENCE'",
-                Integer.class, laterUse.eventId()));
+        assertEquals(1L, jdbc.queryForObject("select execution_version from clinical_service_orders where id = ?",
+                Long.class, created.requestId()));
+        assertEquals(1, jdbc.queryForObject("select count(*) from audit_logs "
+                + "where source = 'diagnostic_audit_events' and entity_id = ? "
+                + "and action = 'RECORD_SUBSEQUENT_USE_EVIDENCE:ALLOWED'", Integer.class, created.requestId()));
     }
 
     @Test
@@ -166,12 +138,13 @@ class DiagnosticEvidenceT013PostgresIntegrationTest {
                 lateEvidence, "corr-late-use");
 
         assertEquals(DiagnosticRequestStatus.CANCELLED, cancelled.status());
-        assertEquals(0, jdbc.queryForObject("select count(*) from diagnostic_attempts where request_id = ?",
-                Integer.class, created.requestId()));
-        assertEquals(0, jdbc.queryForObject("select count(*) from diagnostic_outbox where request_id = ? "
-                + "and event_type = 'FIRST_USE_BILLING_OBLIGATION'", Integer.class, created.requestId()));
-        assertEquals("STATE_CONFLICT", jdbc.queryForObject("select outcome from diagnostic_audit_events "
-                + "where event_id = ?", String.class, lateEvidence.eventId()));
+        assertEquals(1L, jdbc.queryForObject("select execution_version from clinical_service_orders where id = ?",
+                Long.class, created.requestId()));
+        assertEquals("CANCELLED", jdbc.queryForObject("select execution_status from clinical_service_orders where id = ?",
+                String.class, created.requestId()));
+        assertEquals(1, jdbc.queryForObject("select count(*) from audit_logs "
+                + "where source = 'diagnostic_audit_events' and entity_id = ? "
+                + "and action = 'LATE_FIRST_USE_RECONCILIATION:STATE_CONFLICT'", Integer.class, created.requestId()));
     }
 
     @Test
@@ -181,7 +154,7 @@ class DiagnosticEvidenceT013PostgresIntegrationTest {
                 "corr-first-use-study");
         UUID studyEventId = UUID.randomUUID();
         UUID attemptId = UUID.fromString(jdbc.queryForObject(
-                "select current_attempt_id from diagnostic_requests where id = ?", String.class, created.requestId()));
+                "select attempt_id from clinical_service_orders where id = ?", String.class, created.requestId()));
         StudyEvidence incoming = new StudyEvidence(studyEventId, "study:opaque:123", created.requestId(),
                 visitId, patientId, attemptId, StudyVerificationStatus.CONFIRMED_MATCH, true);
         ports.studyConfirmation = new StudyEvidence(studyEventId, incoming.studyRef(), created.requestId(),
@@ -192,8 +165,8 @@ class DiagnosticEvidenceT013PostgresIntegrationTest {
                         "corr-mismatched-study"));
         assertEquals(DiagnosticOperationOutcome.EVIDENCE_MISMATCH, rejected.outcome());
         assertEquals(DiagnosticRequestStatus.IN_PROGRESS, requests.get(doctor(), created.requestId()).status());
-        assertEquals(0, jdbc.queryForObject("select count(*) from diagnostic_outbox "
-                + "where request_id = ? and event_type = 'IMAGING_RESULT_READY'", Integer.class, created.requestId()));
+        assertEquals(1L, jdbc.queryForObject("select execution_version from clinical_service_orders where id = ?",
+                Long.class, created.requestId()));
 
         ports.studyConfirmation = null;
         DiagnosticRequestView linked = evidenceService.linkConfirmedStudy(DiagnosticActor.trustedIntegration(),
@@ -203,11 +176,6 @@ class DiagnosticEvidenceT013PostgresIntegrationTest {
         assertEquals(DiagnosticRequestStatus.RESULT_AVAILABLE, linked.status());
         assertEquals(incoming.studyRef(), linked.currentStudyRef());
         assertEquals(linked, replay);
-        assertEquals(1, jdbc.queryForObject("select count(*) from diagnostic_outbox "
-                + "where request_id = ? and event_type = 'IMAGING_RESULT_READY'", Integer.class, created.requestId()));
-        var delivered = evidenceService.dispatchDueOutbox(10,
-                new DiagnosticEvidenceService.RetryPolicy(3, 30, 3600));
-        assertEquals(2, delivered.delivered());
         assertEquals(1, ports.resultReadyCalls);
     }
 
@@ -220,7 +188,7 @@ class DiagnosticEvidenceT013PostgresIntegrationTest {
         evidenceService.recordFirstUse(DiagnosticActor.trustedIntegration(), useEvidence(created.requestId()),
                 "corr-first-use-linked");
         UUID attemptId = UUID.fromString(jdbc.queryForObject(
-                "select current_attempt_id from diagnostic_requests where id = ?", String.class, created.requestId()));
+                "select attempt_id from clinical_service_orders where id = ?", String.class, created.requestId()));
         StudyEvidence incoming = new StudyEvidence(UUID.randomUUID(), "study:opaque:linked", created.requestId(),
                 visitId, patientId, attemptId, StudyVerificationStatus.CONFIRMED_MATCH, true);
 
@@ -242,7 +210,7 @@ class DiagnosticEvidenceT013PostgresIntegrationTest {
         UseEvidence use = useEvidence(created.requestId());
         evidenceService.recordFirstUse(DiagnosticActor.trustedIntegration(), use, "corr-first-use-pending");
         UUID attemptId = UUID.fromString(jdbc.queryForObject(
-                "select current_attempt_id from diagnostic_requests where id = ?", String.class, created.requestId()));
+                "select attempt_id from clinical_service_orders where id = ?", String.class, created.requestId()));
         StudyEvidence unverified = new StudyEvidence(UUID.randomUUID(), "study:pending", created.requestId(), visitId,
                 patientId, attemptId, StudyVerificationStatus.PENDING, false);
         DiagnosticOperationException rejected = assertThrows(DiagnosticOperationException.class,
@@ -261,15 +229,7 @@ class DiagnosticEvidenceT013PostgresIntegrationTest {
     }
 
     private void cleanAbandonedT013Rows() {
-        String testRequests = "select request_id from diagnostic_attempts where source_id = 'trusted-imaging-source'";
-        jdbc.update("delete from diagnostic_audit_events where request_id in (" + testRequests + ")");
-        jdbc.update("delete from diagnostic_outbox where request_id in (" + testRequests + ")");
-        jdbc.update("delete from diagnostic_idempotency_records where request_id in (" + testRequests + ")");
-        jdbc.update("update diagnostic_requests set status = 'CANCELLED', cancellation_cause = 'PATIENT_DECLINED', "
-                + "cancellation_reason = 'Test cleanup', current_attempt_id = null where id in ("
-                + testRequests + ")");
-        jdbc.update("delete from diagnostic_attempts where request_id in (" + testRequests + ")");
-        jdbc.update("delete from diagnostic_requests where id in (" + testRequests + ")");
+        // The execution and evidence live on clinical_service_orders; each test also cleans its visit in @AfterEach.
     }
 
     private UseEvidence useEvidence(UUID requestId) {
