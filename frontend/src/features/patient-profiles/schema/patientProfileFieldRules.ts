@@ -8,6 +8,7 @@ import {
   checkFullName,
   checkPhone,
   checkRelationship,
+  checkRequiredCitizenId,
   checkSex,
 } from "./patientProfileFieldChecks";
 
@@ -95,6 +96,15 @@ function checkField(
     case "email":
       return checkEmail(values.email);
   }
+}
+
+/** Hồ sơ "Bản thân": CCCD bắt buộc, gộp vào lỗi đã có (ghi đè lỗi CCCD cũ nếu có). */
+export function withRequiredCitizenId(
+  errors: ProfileFieldErrors,
+  values: ProfileFieldValues,
+): ProfileFieldErrors {
+  const message = checkRequiredCitizenId(values.citizenId);
+  return message ? { ...errors, citizenId: message } : errors;
 }
 
 /** Kiểm tra các trường được liệt kê; trả về lỗi theo trường, rỗng nghĩa là hợp lệ. */

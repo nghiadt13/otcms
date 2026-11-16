@@ -7,6 +7,7 @@ import { updatePatientProfile } from "../api/patientProfileApi";
 import { fieldErrorsFromResponse } from "../api/patientProfileErrors";
 import {
   validateProfileFields,
+  withRequiredCitizenId,
   type ProfileFieldErrors,
   type ProfileFieldValues,
 } from "../schema/patientProfileFieldRules";
@@ -44,7 +45,12 @@ export function ProfileEditForm({
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const local = validateProfileFields(values, editable);
+    const checked = validateProfileFields(values, editable);
+    // Hồ sơ "Bản thân" bắt buộc CCCD; người thân vẫn tùy chọn.
+    const local =
+      detail.relationship === "SELF"
+        ? withRequiredCitizenId(checked, values)
+        : checked;
     setErrors(local);
     if (Object.keys(local).length > 0) return;
 

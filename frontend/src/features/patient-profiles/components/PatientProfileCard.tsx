@@ -3,9 +3,11 @@
 import { Pencil, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { publicButtonClass } from "@/components/brand/publicButtonStyles";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useAccountAvatarUrl } from "@/hooks/useAccountAvatarUrl";
+import { useCurrentAccount } from "@/hooks/useCurrentAccount";
 import { CARE_RELATIONSHIP_LABELS } from "@/lib/domain/careRelationship";
 import { formatDate } from "@/lib/format/formatDate";
 import type { LinkedProfile } from "@/lib/patient-scope/types";
@@ -38,6 +40,7 @@ export function PatientProfileCard({
     <article className="flex flex-col gap-5 rounded-xl border bg-card p-5 sm:p-6">
       <header className="flex flex-wrap items-center gap-x-4 gap-y-3">
         <Avatar className="size-14">
+          {profile.relationship === "SELF" ? <AccountAvatarImage /> : null}
           <AvatarFallback aria-hidden className="text-lg">
             {initialsOf(profile.fullName)}
           </AvatarFallback>
@@ -125,6 +128,15 @@ export function PatientProfileCard({
   );
 }
 
+/** Ảnh đại diện của tài khoản, chỉ gắn cho thẻ "Bản thân" (người thân không có ảnh); chưa có ảnh thì giữ chữ cái. */
+function AccountAvatarImage() {
+  const current = useCurrentAccount();
+  const avatarUrl = useAccountAvatarUrl(
+    current.status === "signedIn" ? current.account : null,
+  );
+  return avatarUrl ? <AvatarImage alt="" src={avatarUrl} /> : null;
+}
+
 /** Lưới thông tin: ngày sinh và giới tính có sẵn từ danh sách, phần còn lại chờ chi tiết. */
 function InfoBody({
   profile,
@@ -146,7 +158,6 @@ function InfoBody({
       ? [
           { label: "Số điện thoại", value: detail.phone },
           { label: "CCCD/Mã định danh", value: detail.citizenId },
-          { label: "Email", value: detail.email, wide: true },
           { label: "Địa chỉ", value: detail.address, wide: true },
         ]
       : []),
@@ -154,7 +165,7 @@ function InfoBody({
 
   return (
     <div className="space-y-3">
-      <dl className="grid grid-cols-2 gap-x-6 gap-y-4 rounded-lg bg-muted/60 px-5 py-4 text-sm md:grid-cols-4">
+      <dl className="grid grid-cols-2 gap-x-6 gap-y-4 rounded-lg bg-muted/60 px-5 py-4 text-sm md:grid-cols-3">
         {rows.map(({ label, value, wide }) => (
           <div className={cn("min-w-0", wide && "col-span-2")} key={label}>
             <dt className="text-muted-foreground">{label}</dt>
@@ -166,7 +177,7 @@ function InfoBody({
         {loading ? (
           <div
             aria-busy="true"
-            className="col-span-2 md:col-span-4"
+            className="col-span-2 md:col-span-3"
             role="status"
           >
             <span className="sr-only">Đang tải thông tin hồ sơ</span>

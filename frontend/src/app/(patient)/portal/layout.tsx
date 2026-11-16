@@ -5,6 +5,7 @@ import { SiteTopBar } from "@/features/clinic-website/components/SiteTopBar";
 import { siteNavItems } from "@/features/clinic-website/siteNavigation";
 import { PatientNotificationBell } from "@/features/notifications/components/PatientNotificationBell";
 import { PatientNotificationMockBootstrap } from "@/features/notifications/components/PatientNotificationMockBootstrap";
+import { OwnProfileCompleteGate } from "@/features/patient-profiles/components/OwnProfileCompleteGate";
 import { PatientAuthGate } from "@/features/patient-shell/components/PatientAuthGate";
 import { PatientPortalHeader } from "@/features/patient-shell/components/PatientPortalHeader";
 import { PATIENT_ROUTES } from "@/lib/routes/patientRoutes";
@@ -33,6 +34,7 @@ export default async function PatientPortalLayout({
     <PatientAuthGate
       anonymousPaths={[PATIENT_ROUTES.newAppointment]}
       profileRequiredPaths={[PATIENT_ROUTES.newAppointment]}
+      ProfileGate={OwnProfileCompleteGate}
     >
       <SiteTopBar bookHref={PATIENT_ROUTES.newAppointment} />
       <PatientPortalHeader

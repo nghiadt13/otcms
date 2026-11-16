@@ -1,22 +1,46 @@
+import type { LucideIcon } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { publicButtonClass } from "@/components/brand/publicButtonStyles";
 import { PATIENT_ROUTES } from "@/lib/routes/patientRoutes";
 
-// Khối trống chung của khu bệnh nhân: một câu dạy cách dùng và, nếu có, một nút gợi ý
-// việc tiếp theo. Không viết "Không có dữ liệu" trơ trọi.
+// Khối trống chung của khu bệnh nhân. Hai dạng:
+// - Có `icon` + `title`: khung nét đứt, biểu tượng trong ô tròn, tiêu đề, một câu dạy cách dùng
+//   (`children`) và nút gợi ý việc tiếp theo (`action`). Dùng cho màn danh sách chưa có dữ liệu.
+// - Chỉ `children`: một câu ngắn (kết quả lọc rỗng, mục phụ trong màn).
+// Không viết "Không có dữ liệu" trơ trọi. Biểu tượng chỉ trang trí nên ẩn với trình đọc màn hình.
 export function PortalEmptyState({
   children,
   action,
+  icon: Icon,
+  title,
 }: {
   children: ReactNode;
   action?: ReactNode;
+  icon?: LucideIcon;
+  title?: string;
 }) {
+  if (!Icon || !title) {
+    return (
+      <div className="rounded-lg border bg-card px-6 py-10 text-center">
+        <p className="text-base">{children}</p>
+        {action ? (
+          <div className="mt-6 flex justify-center">{action}</div>
+        ) : null}
+      </div>
+    );
+  }
   return (
-    <div className="rounded-lg border bg-card px-6 py-10 text-center">
-      <p className="text-base">{children}</p>
+    <section className="flex flex-col items-center rounded-xl border border-dashed border-muted-foreground/55 bg-card px-6 py-12 text-center">
+      <span className="flex size-14 items-center justify-center rounded-2xl bg-secondary text-primary">
+        <Icon aria-hidden className="size-7" />
+      </span>
+      <h3 className="mt-5 text-lg font-semibold">{title}</h3>
+      <p className="mt-1.5 max-w-sm text-base text-muted-foreground">
+        {children}
+      </p>
       {action ? <div className="mt-6 flex justify-center">{action}</div> : null}
-    </div>
+    </section>
   );
 }
 

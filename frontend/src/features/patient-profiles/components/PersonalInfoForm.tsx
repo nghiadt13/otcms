@@ -10,6 +10,7 @@ import { fieldErrorsFromResponse } from "../api/patientProfileErrors";
 import { formatDateOfBirthText } from "../schema/dateOfBirthText";
 import {
   validateProfileFields,
+  withRequiredCitizenId,
   type ProfileFieldErrors,
   type ProfileFieldValues,
 } from "../schema/patientProfileFieldRules";
@@ -92,7 +93,10 @@ export function PersonalInfoForm({
   // Kiểm tra ô số (CCCD, SĐT) ngay khi rời ô để lỗi hiện sớm; ô BE khóa thì bỏ qua.
   function checkOnBlur(field: "citizenId" | "phone") {
     if (locked(field)) return;
-    const message = validateProfileFields(values, [field])[field];
+    const checked = validateProfileFields(values, [field]);
+    const message = (
+      field === "citizenId" ? withRequiredCitizenId(checked, values) : checked
+    )[field];
     setErrors((current) => ({ ...current, [field]: message }));
   }
 
@@ -104,7 +108,11 @@ export function PersonalInfoForm({
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!dirty) return;
-    const local = validateProfileFields(values, changed);
+    // CCCD bắt buộc kể cả khi không sửa ô này: hồ sơ thiếu CCCD không lưu được thay đổi khác.
+    const local = withRequiredCitizenId(
+      validateProfileFields(values, changed),
+      values,
+    );
     setErrors(local);
     const firstInvalid = SHOWN_FIELDS.find((field) => local[field]);
     if (firstInvalid) {
@@ -200,6 +208,7 @@ export function PersonalInfoForm({
               update("citizenId", digitsOnly(next, CITIZEN_ID_LENGTH))
             }
             readOnly={locked("citizenId")}
+            required
             value={values.citizenId}
           />
         </div>
