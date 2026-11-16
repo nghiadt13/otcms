@@ -3,10 +3,11 @@
 import { useState, type FormEvent, type ReactNode } from "react";
 import { publicButtonClass } from "@/components/brand/publicButtonStyles";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Label } from "@/components/ui/label";
+import { OtpInput } from "@/components/ui/otp-input";
 import { isApiError } from "@/lib/api/apiError";
 import { formatAppMessage } from "@/lib/messages/appMessages";
 import { notifyError, notifySuccess } from "@/lib/messages/notify";
-import { ProfileTextField } from "./ProfileTextField";
 
 /** Mã sai/hết hạn: BE trả OTP_INVALID (400); kho giả trả MSG-82. */
 function isInvalidOtp(error: unknown): boolean {
@@ -75,17 +76,32 @@ export function DependentOtpStep({
       <Alert>
         <AlertDescription className="text-base">{intro}</AlertDescription>
       </Alert>
-      <ProfileTextField
-        autoComplete="one-time-code"
-        disabled={pending}
-        error={error}
-        id="dependent-otp"
-        inputMode="numeric"
-        label="Mã OTP"
-        onChange={(next) => setCode(next.replace(/\D/g, "").slice(0, 6))}
-        required
-        value={code}
-      />
+      <div className="grid gap-2">
+        <Label className="text-base" htmlFor="dependent-otp">
+          Mã OTP
+          <span aria-hidden className="text-destructive">
+            {" "}
+            *
+          </span>
+        </Label>
+        <OtpInput
+          describedBy={error ? "dependent-otp-error" : undefined}
+          disabled={pending}
+          id="dependent-otp"
+          invalid={Boolean(error)}
+          onChange={setCode}
+          value={code}
+        />
+        {error ? (
+          <p
+            className="text-sm text-destructive"
+            id="dependent-otp-error"
+            role="alert"
+          >
+            {error}
+          </p>
+        ) : null}
+      </div>
       <div className="flex flex-wrap gap-3">
         <button
           className={publicButtonClass("primary")}

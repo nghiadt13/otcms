@@ -91,6 +91,11 @@ export function checkCitizenId(value: string): string | undefined {
     : "CCCD gồm đúng 12 chữ số.";
 }
 
+/** CCCD bắt buộc cho hồ sơ "Bản thân" (đặt lịch cần đủ thông tin); hồ sơ người thân / khách quầy vẫn tùy chọn. */
+export function checkRequiredCitizenId(value: string): string | undefined {
+  return value.trim() ? checkCitizenId(value) : "Nhập số CCCD.";
+}
+
 export function checkEmail(value: string): string | undefined {
   const email = value.trim();
   if (!email) return undefined;

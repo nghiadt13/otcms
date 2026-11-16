@@ -1,7 +1,7 @@
 "use client";
 
 import { MailCheck } from "lucide-react";
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 import {
   resendRegistrationCode,
   verifyRegistrationEmail,
@@ -14,7 +14,8 @@ import { AuthAlert } from "./AuthAlert";
 import { Button } from "@/components/ui/button";
 import { authLinkButtonClass } from "./AuthCard";
 import { AuthSubmitButton } from "./AuthSubmitButton";
-import { AuthTextField } from "./AuthTextField";
+import { AuthFieldLabel, AuthFieldMessage } from "./AuthTextField";
+import { OtpInput } from "@/components/ui/otp-input";
 
 const RESEND_SECONDS = 60;
 
@@ -30,6 +31,7 @@ export function EmailVerificationStep({
   onChangeEmail: () => void;
 }) {
   const formRef = useRef<HTMLFormElement>(null);
+  const codeId = useId();
   const [code, setCode] = useState("");
   const [codeError, setCodeError] = useState<string>();
   const [message, setMessage] = useState<AuthMessageCode | null>(null);
@@ -99,22 +101,25 @@ export function EmailVerificationStep({
         <AuthAlert code={notice} tone="success" />
       )}
 
-      <AuthTextField
-        autoComplete="one-time-code"
-        className="[&_input]:text-center [&_input]:text-xl [&_input]:tracking-[0.5em]"
-        error={codeError}
-        hint="Mã gồm 6 chữ số, có hiệu lực trong 10 phút."
-        inputMode="numeric"
-        label="Mã xác minh"
-        maxLength={6}
-        onChange={(event) => {
-          setCode(event.target.value.replace(/\D/g, ""));
-          setCodeError(undefined);
-        }}
-        placeholder="••••••"
-        required
-        value={code}
-      />
+      <div>
+        <AuthFieldLabel htmlFor={codeId} required>
+          Mã xác minh
+        </AuthFieldLabel>
+        <OtpInput
+          className="mt-3"
+          describedBy={`${codeId}-message`}
+          id={codeId}
+          invalid={Boolean(codeError)}
+          onChange={(next) => {
+            setCode(next);
+            setCodeError(undefined);
+          }}
+          value={code}
+        />
+        <AuthFieldMessage error={Boolean(codeError)} id={`${codeId}-message`}>
+          {codeError ?? "Mã gồm 6 chữ số, có hiệu lực trong 10 phút."}
+        </AuthFieldMessage>
+      </div>
 
       <AuthSubmitButton
         submitting={submitting}

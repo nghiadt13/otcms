@@ -136,8 +136,15 @@ describe("ResultListScreen", () => {
     nav.search = `profileId=${HUY_ID}`;
     render(<ResultListScreen />);
     expect(
-      await screen.findByText(/Chưa có kết quả khám nào\. Kết quả hiện ở đây/),
+      await screen.findByRole("heading", { name: "Chưa có kết quả khám" }),
     ).toBeInTheDocument();
+    expect(
+      screen.getByText(/Kết quả sẽ hiện ở đây khi bác sĩ kết luận/),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Đặt lịch khám" })).toHaveAttribute(
+      "href",
+      "/portal/appointments/new",
+    );
   });
 
   it("lỗi tải danh sách hiện thông báo kèm nút thử lại", async () => {
@@ -153,7 +160,7 @@ describe("ResultListScreen", () => {
     resetLinkedProfilesMock({ variant: "empty" });
     render(<ResultListScreen />);
     expect(
-      await screen.findByText(/Chưa có kết quả khám nào/),
+      await screen.findByRole("heading", { name: "Chưa có kết quả khám" }),
     ).toBeInTheDocument();
     expect(
       screen.queryByRole("link", { name: /Khám chỉnh hình tổng quát/ }),

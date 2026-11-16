@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, type ReactNode } from "react";
+import { useEffect, type ComponentType, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useCurrentAccount } from "@/hooks/useCurrentAccount";
@@ -20,10 +20,13 @@ export function PatientAuthGate({
   children,
   anonymousPaths = [],
   profileRequiredPaths = [],
+  ProfileGate = ProfileRequiredGate,
 }: {
   children: ReactNode;
   anonymousPaths?: readonly string[];
   profileRequiredPaths?: readonly string[];
+  /** Cổng riêng cho `profileRequiredPaths` (shell không import feature hồ sơ nên layout truyền vào); mặc định chỉ kiểm có hồ sơ "Bản thân". */
+  ProfileGate?: ComponentType<{ children: ReactNode }>;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -44,7 +47,7 @@ export function PatientAuthGate({
   }, [state.status, isPatient, guestAllowed, pathname, router]);
 
   if (isPatient && profileRequiredPaths.includes(pathname))
-    return <ProfileRequiredGate>{children}</ProfileRequiredGate>;
+    return <ProfileGate>{children}</ProfileGate>;
   if (isPatient) return <>{children}</>;
   if (guestAllowed) return <>{children}</>;
 

@@ -1,13 +1,17 @@
 "use client";
 
+import { FileText } from "lucide-react";
+import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useState, type ReactNode } from "react";
+import { publicButtonClass } from "@/components/brand/publicButtonStyles";
 import { PortalEmptyState } from "@/components/patient/PortalEmptyState";
 import { PortalPageHeader } from "@/components/patient/PortalPageHeader";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useLinkedProfiles } from "@/hooks/useLinkedProfiles";
+import { PATIENT_ROUTES } from "@/lib/routes/patientRoutes";
 import { useResultList } from "../hooks/useResultList";
 import { ResultFilters } from "./ResultFilters";
 import { ResultSummaryCards } from "./ResultSummaryCards";
@@ -46,9 +50,20 @@ export function ResultListScreen() {
   const tabLabel = (text: string, count: number) => `${text} (${count})`;
 
   const emptyList = (
-    <PortalEmptyState>
-      Chưa có kết quả khám nào. Kết quả hiện ở đây khi bác sĩ kết luận lượt
-      khám.
+    <PortalEmptyState
+      action={
+        <Link
+          className={publicButtonClass("primary")}
+          href={PATIENT_ROUTES.newAppointment}
+        >
+          Đặt lịch khám
+        </Link>
+      }
+      icon={FileText}
+      title="Chưa có kết quả khám"
+    >
+      Kết quả sẽ hiện ở đây khi bác sĩ kết luận lượt khám của bạn hoặc người
+      thân.
     </PortalEmptyState>
   );
 

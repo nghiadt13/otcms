@@ -34,6 +34,7 @@ public class MyPatientProfileServiceImpl implements MyPatientProfileService {
         if (actor == null || actor.accountRole() != AccountRole.PATIENT || !identities.isActivePatient(actor.accountId()))
             throw new MyPatientProfileException(ACCESS_DENIED);
         if (r == null) throw new MyPatientProfileException(INVALID_INPUT);
+        requireNationalId(r.nationalId());
         ProfileRecord validated;
         try {
             // Số điện thoại là của chính bệnh nhân; creating=true bắt buộc địa chỉ.
@@ -57,6 +58,7 @@ public class MyPatientProfileServiceImpl implements MyPatientProfileService {
         var existing = own(actor);
         if (r == null || r.version() == null || r.version() < 0) throw new MyPatientProfileException(INVALID_INPUT);
         if (r.version() != existing.version()) throw new MyPatientProfileException(STALE_VERSION);
+        requireNationalId(r.nationalId());
         ProfileRecord validated;
         try {
             validated = AdministrativeProfileFields.record(existing.id(), existing.accountId(), r.fullName(), r.phone(),
@@ -67,6 +69,12 @@ public class MyPatientProfileServiceImpl implements MyPatientProfileService {
                     .map(f -> new FieldError(f.field(), "MSG-08")).toList());
         }
         return model(profiles.update(validated, r.version()));
+    }
+
+    /** Hồ sơ "Bản thân" bắt buộc có CCCD/số định danh để đặt lịch (hồ sơ tạo tại quầy vẫn để trống được, BR-14). */
+    private static void requireNationalId(String nationalId) {
+        if (nationalId == null || nationalId.isBlank())
+            throw new MyPatientProfileException(INVALID_INPUT, java.util.List.of(new FieldError("nationalId", "MSG-08")));
     }
 
     private ProfileRecord own(AuthenticatedAccount actor) {

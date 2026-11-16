@@ -33,6 +33,13 @@ beforeEach(() => {
   resetPatientProfileMock();
 });
 
+// CCCD bắt buộc với hồ sơ Bản thân: hồ sơ mẫu An chưa có nên các ca sửa khác cần điền sẵn.
+function giveAnCitizenId() {
+  const an = findClinicRecord(PROFILE_MOCK_IDS.an);
+  if (!an) throw new Error("Thiếu hồ sơ mẫu An.");
+  saveClinicRecord({ ...an, citizenId: "079090001234" });
+}
+
 describe("PersonalInfoScreen", () => {
   it("các trường theo đặc tả", async () => {
     render(<PersonalInfoScreen />);
@@ -85,6 +92,7 @@ describe("PersonalInfoScreen", () => {
   });
 
   it("sửa số điện thoại: nút Lưu chỉ bật khi có thay đổi, lưu xong báo MSG-05", async () => {
+    giveAnCitizenId();
     const user = userEvent.setup();
     render(<PersonalInfoScreen />);
     const save = await screen.findByRole("button", { name: "Lưu thay đổi" });
@@ -104,7 +112,21 @@ describe("PersonalInfoScreen", () => {
     expect(save).toBeDisabled();
   });
 
+  it("hồ sơ Bản thân thiếu CCCD: sửa ô khác vẫn không lưu được, báo nhập CCCD", async () => {
+    const user = userEvent.setup();
+    render(<PersonalInfoScreen />);
+    const phone = await screen.findByLabelText(/Số điện thoại/);
+    await user.clear(phone);
+    await user.type(phone, "900111222");
+    await user.click(screen.getByRole("button", { name: "Lưu thay đổi" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Nhập số CCCD.");
+    expect(screen.getByLabelText(/CCCD/)).toHaveFocus();
+    expect(toast.success).not.toHaveBeenCalled();
+  });
+
   it("số điện thoại sai: báo lỗi dưới ô, đưa focus về ô đó và không lưu", async () => {
+    giveAnCitizenId();
     const user = userEvent.setup();
     render(<PersonalInfoScreen />);
     const phone = await screen.findByLabelText(/Số điện thoại/);
@@ -208,6 +230,7 @@ describe("PersonalInfoScreen", () => {
     expect(screen.getByText("Chọn giới tính.")).toBeInTheDocument();
     expect(screen.getByText("Nhập số điện thoại.")).toBeInTheDocument();
     expect(screen.getByText("Nhập địa chỉ.")).toBeInTheDocument();
+    expect(screen.getByText("Nhập số CCCD.")).toBeInTheDocument();
     expect(replace).not.toHaveBeenCalled();
   });
 
@@ -219,8 +242,24 @@ describe("PersonalInfoScreen", () => {
     await user.type(await screen.findByLabelText(/Ngày sinh/), "01011990");
     await user.click(screen.getByRole("radio", { name: "Nam" }));
     await user.type(screen.getByLabelText(/Số điện thoại/), "912345678");
+    await user.type(screen.getByLabelText(/CCCD/), "079090001234");
     await user.type(screen.getByLabelText(/Địa chỉ/), "12 Lê Lợi, Quận 1");
     await user.click(screen.getByRole("button", { name: "Lưu và tiếp tục" }));
+
+    await waitFor(() =>
+      expect(replace).toHaveBeenCalledWith("/portal/appointments/new"),
+    );
+  });
+
+  it("bị đưa về từ trang đặt lịch (?next=) vì thiếu CCCD: nhắc MSG-06; điền CCCD rồi quay về", async () => {
+    const user = userEvent.setup();
+    render(<PersonalInfoScreen next="/portal/appointments/new" />);
+
+    expect(
+      await screen.findByText(/Vui lòng điền đầy đủ thông tin cá nhân để tiếp tục/),
+    ).toBeInTheDocument();
+    await user.type(screen.getByLabelText(/CCCD/), "079090001234");
+    await user.click(screen.getByRole("button", { name: "Lưu thay đổi" }));
 
     await waitFor(() =>
       expect(replace).toHaveBeenCalledWith("/portal/appointments/new"),

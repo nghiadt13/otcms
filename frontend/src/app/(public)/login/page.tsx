@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { AuthAlert } from "@/features/auth/components/AuthAlert";
+import { Suspense } from "react";
 import { AuthCard, authLinkClass } from "@/features/auth/components/AuthCard";
+import { RegisteredToast } from "@/features/auth/components/RegisteredToast";
 import { SignInForm } from "@/features/auth/components/SignInForm";
 
 export const metadata: Metadata = { title: "Đăng nhập | OTCMS" };
@@ -11,16 +12,12 @@ export const metadata: Metadata = { title: "Đăng nhập | OTCMS" };
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{
-    next?: string | string[];
-    registered?: string | string[];
-  }>;
+  searchParams: Promise<{ next?: string | string[] }>;
 }) {
-  const { next, registered } = await searchParams;
+  const { next } = await searchParams;
   const nextValue = Array.isArray(next) ? next[0] : next;
-  // Vừa xác minh email xong ở /register (UC06): báo MSG-10 rồi để người dùng đăng nhập.
-  const justRegistered =
-    (Array.isArray(registered) ? registered[0] : registered) === "1";
+  // Vừa xác minh email xong ở /register (UC06): RegisteredToast hiện toast MSG-10
+  // khi URL có `?registered=1`.
   return (
     <AuthCard
       description="Dành cho bệnh nhân. Dùng email và mật khẩu bạn đã đăng ký."
@@ -41,9 +38,9 @@ export default async function LoginPage({
       }
       title="Đăng nhập"
     >
-      {justRegistered && (
-        <AuthAlert className="mt-6" code="MSG-10" tone="success" />
-      )}
+      <Suspense fallback={null}>
+        <RegisteredToast />
+      </Suspense>
       <SignInForm next={nextValue} />
     </AuthCard>
   );

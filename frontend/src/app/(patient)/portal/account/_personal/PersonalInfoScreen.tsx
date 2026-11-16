@@ -110,11 +110,24 @@ export function PersonalInfoScreen({ next }: { next?: string }) {
                 />
               </div>
             ) : (
-              <PersonalInfoForm
-                detail={own.state.detail}
-                emailSlot={<AccountEmailField email={account.email} />}
-                onSaved={own.apply}
-              />
+              <div className="grid gap-6">
+                {next && !own.state.detail.citizenId ? (
+                  <Alert role="status">
+                    <AlertDescription className="text-base text-current">
+                      {formatAppMessage("MSG-06")}
+                    </AlertDescription>
+                  </Alert>
+                ) : null}
+                <PersonalInfoForm
+                  detail={own.state.detail}
+                  emailSlot={<AccountEmailField email={account.email} />}
+                  onSaved={(saved) => {
+                    own.apply(saved);
+                    // Đang bị đưa về đây từ trang cần đủ thông tin: điền xong CCCD thì quay lại.
+                    if (next && saved.citizenId) setCreated(true);
+                  }}
+                />
+              </div>
             )}
           </div>
         </div>

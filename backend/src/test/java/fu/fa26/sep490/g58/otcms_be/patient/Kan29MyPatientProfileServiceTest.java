@@ -27,10 +27,10 @@ class Kan29MyPatientProfileServiceTest {
                 LocalDate.of(2000,1,2),"OTHER",null,null,null,version)));
     }
     UpdatePatientProfileRequest input(String name,Long version) {
-        return new UpdatePatientProfileRequest(name,"0912345678","PATIENT",LocalDate.of(2000,1,2),"OTHER",null,null,null,version);
+        return new UpdatePatientProfileRequest(name,"0912345678","PATIENT",LocalDate.of(2000,1,2),"OTHER",null,"079090001234","CCCD",version);
     }
     CreateMyPatientProfileRequest create(String name,String address) {
-        return new CreateMyPatientProfileRequest(name,"0912345678",LocalDate.of(2000,1,2),"MALE",address,null,null);
+        return new CreateMyPatientProfileRequest(name,"0912345678",LocalDate.of(2000,1,2),"MALE",address,"079090001234","CCCD");
     }
     @Test void firstProfileIsCreatedForTheSignedInAccountWithPatientOwnedPhone() {
         when(identities.isActivePatient(account)).thenReturn(true);
@@ -49,6 +49,22 @@ class Kan29MyPatientProfileServiceTest {
         assertEquals(MyPatientProfileException.Reason.INVALID_INPUT,failure.reason());
         assertEquals("address",failure.fields().getFirst().field());
         verify(profiles,never()).create(any(),any());
+    }
+    @Test void createWithoutNationalIdIsRejectedBecauseOwnProfileNeedsCitizenId() {
+        when(identities.isActivePatient(account)).thenReturn(true);
+        var noId=new CreateMyPatientProfileRequest("Nguyen Van An","0912345678",LocalDate.of(2000,1,2),"MALE","12 Nguyen Hue"," ",null);
+        var failure=assertThrows(MyPatientProfileException.class,()->service.create(actor,noId));
+        assertEquals(MyPatientProfileException.Reason.INVALID_INPUT,failure.reason());
+        assertEquals("nationalId",failure.fields().getFirst().field());
+        verify(profiles,never()).create(any(),any());
+    }
+    @Test void updateWithoutNationalIdIsRejected() {
+        own(account,0);
+        var noId=new UpdatePatientProfileRequest("Valid Name","0912345678","PATIENT",LocalDate.of(2000,1,2),"OTHER",null,null,null,0L);
+        var failure=assertThrows(MyPatientProfileException.class,()->service.update(actor,noId));
+        assertEquals(MyPatientProfileException.Reason.INVALID_INPUT,failure.reason());
+        assertEquals("nationalId",failure.fields().getFirst().field());
+        verify(profiles,never()).update(any(),anyLong());
     }
     @Test void secondProfileForSameAccountIsRejected() {
         when(identities.isActivePatient(account)).thenReturn(true);
