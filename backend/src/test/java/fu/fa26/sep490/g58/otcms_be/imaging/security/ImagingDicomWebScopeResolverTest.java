@@ -77,12 +77,14 @@ class ImagingDicomWebScopeResolverTest {
                 studyPath + "/rendered", studyPath + "/series/" + SERIES_UID,
                 studyPath + "/series/" + SERIES_UID + "/metadata", instancePath,
                 instancePath + "/metadata", instancePath + "/rendered", instancePath + "/thumbnail",
-                instancePath + "/frames/1,2", instancePath + "/bulkdata/7fe00010"}) {
+                instancePath + "/frames/1,2", instancePath + "/bulkdata/7fe00010",
+                instancePath + "/bulk/7fe00010"}) {
             assertTrue(resolver.resolve(path, Map.of()).isPresent(), path);
         }
 
         assertTrue(resolver.resolve(instancePath + "/frames/0", Map.of()).isEmpty());
         assertTrue(resolver.resolve(instancePath + "/bulkdata/../other", Map.of()).isEmpty());
+        assertTrue(resolver.resolve(instancePath + "/bulk/../other", Map.of()).isEmpty());
         assertTrue(resolver.resolve(instancePath, Map.of("SOPInstanceUID", new String[] {"1.2.3.4"})).isEmpty());
         assertTrue(resolver.resolve(studyPath + "/thumbnail", Map.of("StudyInstanceUID",
                 new String[] {"1.2.840.10008.2"})).isEmpty());

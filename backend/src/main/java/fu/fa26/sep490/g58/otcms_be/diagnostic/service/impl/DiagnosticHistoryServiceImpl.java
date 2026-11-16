@@ -93,7 +93,7 @@ public class DiagnosticHistoryServiceImpl implements DiagnosticHistoryService {
         PageRequest pageable = PageRequest.of(page, size, Sort.by(Sort.Order.desc("createdAt"), Sort.Order.desc("id")));
         Page<ImagingExecution> result = requests.page(visitId, authorizedPatientId, null, null, null, false, pageable);
         List<DiagnosticHistoryItem> items = new ArrayList<>(result.getNumberOfElements());
-        for (ImagingExecution request : result.getContent()) items.add(toHistoryItem(request));
+        for (ImagingExecution request : result.getContent()) items.add(toHistoryItem(request, actor.role()));
         DiagnosticHistoryScope scope = visitId == null ? DiagnosticHistoryScope.PATIENT : DiagnosticHistoryScope.VISIT;
         UUID scopeId = visitId == null ? authorizedPatientId : visitId;
         historyAudits.record(AuditEntry.builder("diagnostic_history_access_audits", "DIAGNOSTIC", "VIEW_HISTORY", scope.name())
@@ -102,8 +102,14 @@ public class DiagnosticHistoryServiceImpl implements DiagnosticHistoryService {
         return new DiagnosticHistoryPage(items, page, size, result.getTotalElements());
     }
 
-    private DiagnosticHistoryItem toHistoryItem(ImagingExecution request) {
+    private DiagnosticHistoryItem toHistoryItem(ImagingExecution request, AccountRole actorRole) {
         var status = fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.enums.DiagnosticRequestStatus.valueOf(request.status().name());
+        // A treating doctor must receive the linked study ref to open images before writing findings.
+        // The viewer grant independently rechecks treating-doctor authorization and execution status.
+        String doctorStudyRef = actorRole == AccountRole.DOCTOR
+                && (request.status() == ClinicalServiceOrderExecutionPort.ExecutionStatus.RESULT_AVAILABLE
+                        || request.status() == ClinicalServiceOrderExecutionPort.ExecutionStatus.REVIEWED)
+                ? request.studyRef() : null;
         DiagnosticReportJpaEntity report = reports.findFirstByRequestIdAndStateOrderByReportVersionDesc(
                 request.orderId(), DiagnosticFindingsVersionState.COMPLETED).orElse(null);
         if (request.status() == ClinicalServiceOrderExecutionPort.ExecutionStatus.CANCELLED
@@ -112,7 +118,8 @@ public class DiagnosticHistoryServiceImpl implements DiagnosticHistoryService {
                 || report.getValidationStatus() != fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.enums.DiagnosticReportValidationStatus.VALIDATED
                 || !request.orderId().equals(report.getRequestId()) || !request.visitId().equals(report.getVisitId())
                 || !Objects.equals(request.studyRef(), report.getStudyRef())) {
-            return new DiagnosticHistoryItem(request.orderId(), request.visitId(), request.imagingType(), status, null, null, null, null);
+            return new DiagnosticHistoryItem(request.orderId(), request.visitId(), request.imagingType(), status,
+                    doctorStudyRef, null, null, null);
         }
         return new DiagnosticHistoryItem(request.orderId(), request.visitId(), request.imagingType(), status,
                 report.getStudyRef(), report.getVersionNumber(), report.getFindingsText(), report.getReportId());

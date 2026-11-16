@@ -244,7 +244,7 @@ public class ImagingDicomWebGatewayController {
             URI archive = settings.getOrthancBaseUri();
             if (uri.getRawQuery() != null || uri.getRawFragment() != null || uri.getUserInfo() != null) return null;
             if (uri.isAbsolute() && (!uri.getScheme().equalsIgnoreCase(archive.getScheme())
-                    || !uri.getHost().equalsIgnoreCase(archive.getHost()) || effectivePort(uri) != effectivePort(archive))) {
+                    || !sameArchiveHost(uri.getHost(), archive.getHost()) || effectivePort(uri) != effectivePort(archive))) {
                 return null;
             }
             String path = uri.getRawPath();
@@ -279,6 +279,17 @@ public class ImagingDicomWebGatewayController {
     private static int effectivePort(URI uri) {
         if (uri.getPort() >= 0) return uri.getPort();
         return "https".equalsIgnoreCase(uri.getScheme()) ? 443 : 80;
+    }
+
+    private static boolean sameArchiveHost(String left, String right) {
+        if (left == null || right == null) return false;
+        if (left.equalsIgnoreCase(right)) return true;
+        return isLoopbackHost(left) && isLoopbackHost(right);
+    }
+
+    private static boolean isLoopbackHost(String host) {
+        return "localhost".equalsIgnoreCase(host) || "127.0.0.1".equals(host)
+                || "::1".equals(host) || "[::1]".equals(host);
     }
 
     private static URI upstreamUri(URI base, String relativePath, String query) {

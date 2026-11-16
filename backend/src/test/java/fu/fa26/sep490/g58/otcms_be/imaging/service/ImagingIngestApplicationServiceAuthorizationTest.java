@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.doThrow;
 
 import fu.fa26.sep490.g58.otcms_be.imaging.exception.ImagingOperationException;
 import fu.fa26.sep490.g58.otcms_be.imaging.exception.ImagingOperationOutcome;
@@ -83,6 +84,33 @@ class ImagingIngestApplicationServiceAuthorizationTest {
                 () -> service.getOperationStatus(operation.actorAccountId(), operation.id()));
 
         assertEquals(ImagingOperationOutcome.UNAUTHORIZED_RECORD, denied.outcome());
+    }
+
+    @Test
+    void listReturnsPersistedCountOnlyAfterStatusAuthorization() {
+        var original = operation(ImagingOperationState.LINKED);
+        var record = new ImagingOperationRecord(original.id(), original.studyRef(), original.requestId(),
+                original.attemptId(), original.visitId(), original.patientId(), original.actorAccountId(),
+                original.operationType(), original.state(), original.payloadSha256(), original.payloadSizeBytes(),
+                original.studyInstanceUid(), original.modality(), 6, 123, original.verificationStatus(),
+                original.verificationEvidence(), original.archiveStudyRef(), original.safeOutcomeCode(),
+                original.version(), original.createdAt(), original.updatedAt());
+        when(operations.findAllByRequestAndAttempt(record.requestId(), record.attemptId()))
+                .thenReturn(java.util.List.of(record));
+        var result = service().getOperationsForAttempt(record.actorAccountId(), record.requestId(), record.attemptId());
+        assertEquals(123, result.getFirst().instanceCount());
+        verify(workAuthorization).requireStatusRead(record.actorAccountId(), record.requestId());
+    }
+
+    @Test
+    void listDoesNotReadOperationsWhenTechnicianIsNotAssigned() {
+        var actor = UUID.randomUUID();
+        var request = UUID.randomUUID();
+        doThrow(new ImagingOperationException(ImagingOperationOutcome.UNAUTHORIZED_RECORD))
+                .when(workAuthorization).requireStatusRead(actor, request);
+        assertThrows(ImagingOperationException.class,
+                () -> service().getOperationsForAttempt(actor, request, UUID.randomUUID()));
+        verifyNoInteractions(operations);
     }
 
     private ImagingIngestApplicationService service() {

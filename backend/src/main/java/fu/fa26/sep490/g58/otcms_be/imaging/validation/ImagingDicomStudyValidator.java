@@ -34,10 +34,13 @@ import org.dcm4che3.data.Tag;
 import org.dcm4che3.io.DicomInputStream;
 import org.dcm4che3.io.DicomInputStream.IncludeBulkData;
 import org.springframework.stereotype.Component;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** Bounded parser for one DICOM file or one ZIP containing exactly one DICOM study. */
 @Component
 public class ImagingDicomStudyValidator {
+    private static final Logger log = LoggerFactory.getLogger(ImagingDicomStudyValidator.class);
     private static final Set<String> SUPPORTED_MODALITIES = Set.of("CT", "MR", "DX", "CR");
     private static final String ZIP_TYPE = "application/zip";
     private static final String DICOM_TYPE = "application/dicom";
@@ -102,8 +105,11 @@ public class ImagingDicomStudyValidator {
         } catch (ImagingOperationException exception) {
             throw exception;
         } catch (ValidationException exception) {
+            log.warn("DICOM upload validation rejected: {}", exception.getMessage());
             throw new ImagingOperationException(ImagingOperationOutcome.FILE_INVALID, exception);
         } catch (IOException | RuntimeException exception) {
+            log.warn("DICOM upload validation failed while reading archive or temporary files ({}).",
+                    exception.getClass().getSimpleName());
             throw new ImagingOperationException(ImagingOperationOutcome.FILE_INVALID,
                     new ValidationException("VALIDATION_RUNTIME_ERROR"));
         } finally {

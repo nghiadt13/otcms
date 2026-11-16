@@ -47,8 +47,8 @@ function ResultVisitCard({ item }: { item: ResultVisitSummary }) {
   const done = item.status === "COMPLETED";
   return (
     <li>
-      <article className="relative flex flex-col gap-4 rounded-xl border bg-card p-5 transition-colors focus-within:ring-2 focus-within:ring-ring hover:bg-muted/30 motion-reduce:transition-none sm:p-6">
-        <div className="flex items-start gap-4">
+      <article className="relative flex min-w-0 flex-col gap-4 rounded-xl border bg-card p-4 transition-colors focus-within:ring-2 focus-within:ring-ring hover:bg-muted/30 motion-reduce:transition-none sm:p-6">
+        <div className="grid min-w-0 grid-cols-[4rem_minmax(0,1fr)] items-start gap-3 sm:grid-cols-[4rem_minmax(0,1fr)_auto] sm:gap-4">
           <div
             aria-hidden
             className={cn(
@@ -64,7 +64,7 @@ function ResultVisitCard({ item }: { item: ResultVisitSummary }) {
             </span>
             <span className="text-xs opacity-80">{date.weekday}</span>
           </div>
-          <div className="min-w-0 flex-1">
+          <div className="min-w-0">
             <h4 className="text-lg font-semibold break-words">
               {item.serviceName}
             </h4>
@@ -77,22 +77,22 @@ function ResultVisitCard({ item }: { item: ResultVisitSummary }) {
             </p>
           </div>
           <StatusBadge
-            className="h-6 shrink-0 text-sm"
+            className="col-start-2 h-6 w-fit max-w-full text-sm sm:col-start-auto"
             tone={VISIT_STATUS_TONE[item.status]}
           >
             {RESULT_STATUS_LABELS[item.status]}
           </StatusBadge>
         </div>
 
-        <div className="flex items-center justify-between gap-3 border-t pt-4 text-sm">
-          <p className="flex min-w-0 items-center gap-2 text-muted-foreground">
+        <div className="flex flex-col items-start gap-3 border-t pt-4 text-sm sm:flex-row sm:items-center sm:justify-between">
+          <p className="flex min-w-0 items-start gap-2 text-muted-foreground sm:items-center">
             {done ? (
               <FileCheck aria-hidden className="size-4 shrink-0 text-success" />
             ) : null}
             {done ? "Kết luận đã được công bố" : "Kết quả chưa được hoàn tất"}
           </p>
           <Link
-            className="inline-flex shrink-0 items-center gap-1 font-medium text-primary after:absolute after:inset-0 after:rounded-xl focus-visible:outline-none"
+            className="inline-flex min-h-11 items-center gap-1 font-medium text-primary after:absolute after:inset-0 after:rounded-xl focus-visible:outline-none"
             href={PATIENT_ROUTES.resultDetail(item.visitId)}
           >
             {done ? "Xem kết quả" : "Chi tiết"}

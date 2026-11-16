@@ -7,4 +7,9 @@ import java.util.UUID;
 @FunctionalInterface
 public interface ImagingWorkAuthorizationPort {
     ImagingAssignedWork requireAssignedImagingWork(UUID actorAccountId, UUID requestId, UUID attemptId);
+
+    default void requireStatusRead(UUID actorAccountId, UUID requestId) {
+        throw new fu.fa26.sep490.g58.otcms_be.imaging.exception.ImagingOperationException(
+                fu.fa26.sep490.g58.otcms_be.imaging.exception.ImagingOperationOutcome.DEPENDENCY_UNAVAILABLE);
+    }
 }

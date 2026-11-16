@@ -8,6 +8,7 @@ import fu.fa26.sep490.g58.otcms_be.imaging.model.entity.ImagingStudyJpaEntity;
 import fu.fa26.sep490.g58.otcms_be.imaging.model.entity.enums.ImagingOperationState;
 import fu.fa26.sep490.g58.otcms_be.imaging.repository.ImagingStudyRepository;
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
@@ -25,6 +26,13 @@ public class ImagingIngestOperationPersistenceService {
     @Transactional(readOnly = true)
     public Optional<ImagingOperationRecord> findById(UUID id) {
         return studies.findById(id).map(ImagingStudyJpaEntity::toModel);
+    }
+
+    @Transactional(readOnly = true)
+    public List<ImagingOperationRecord> findAllByRequestAndAttempt(UUID requestId, UUID attemptId) {
+        return studies.findAllByRequestIdAndAttemptIdOrderByCreatedAtDesc(requestId, attemptId).stream()
+                .map(ImagingStudyJpaEntity::toModel)
+                .toList();
     }
 
     @Transactional

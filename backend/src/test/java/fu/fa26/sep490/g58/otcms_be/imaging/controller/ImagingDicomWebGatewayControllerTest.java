@@ -134,7 +134,7 @@ class ImagingDicomWebGatewayControllerTest {
     @Test
     void rewritesMetadataBulkDataReferencesToTheAuthorizedGatewayScope() throws Exception {
         String studyRef = "opaque-study";
-        String internalBulkUri = "http://127.0.0.1:%d/dicom-web/studies/1.2.3/series/1.2.4/instances/1.2.5/bulkdata/7fe00010";
+        String internalBulkUri = "http://127.0.0.1:%d/dicom-web/studies/1.2.3/series/1.2.4/instances/1.2.5/bulk/7fe00010";
         AtomicReference<String> sourceJson = new AtomicReference<>();
         HttpServer upstream = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         sourceJson.set("[{\"7fe00010\":{\"vr\":\"OB\",\"BulkDataURI\":\""
@@ -150,11 +150,11 @@ class ImagingDicomWebGatewayControllerTest {
         try {
             when(scopes.resolve(eq("/studies/1.2.3/metadata"), anyMap()))
                     .thenReturn(Optional.of(new ImagingDicomWebScopeResolver.StudyScope(studyRef, "1.2.3")));
-            when(scopes.resolve(eq("/studies/1.2.3/series/1.2.4/instances/1.2.5/bulkdata/7fe00010"), anyMap()))
+            when(scopes.resolve(eq("/studies/1.2.3/series/1.2.4/instances/1.2.5/bulk/7fe00010"), anyMap()))
                     .thenReturn(Optional.of(new ImagingDicomWebScopeResolver.StudyScope(studyRef, "1.2.3")));
             when(grants.isAuthorized(studyRef, "opaque-token")).thenReturn(true);
             ImagingProperties properties = new ImagingProperties();
-            properties.setOrthancBaseUri(URI.create("http://127.0.0.1:" + upstream.getAddress().getPort()));
+            properties.setOrthancBaseUri(URI.create("http://localhost:" + upstream.getAddress().getPort()));
             var controller = new ImagingDicomWebGatewayController(properties, scopes, grants, audit);
             var request = new MockHttpServletRequest("GET", "/dicom-web/studies/1.2.3/metadata");
             request.setCookies(new jakarta.servlet.http.Cookie(
@@ -165,7 +165,7 @@ class ImagingDicomWebGatewayControllerTest {
 
             assertEquals(200, response.getStatus());
             String sanitized = response.getContentAsString();
-            assertTrue(sanitized.contains("/dicom-web/studies/1.2.3/series/1.2.4/instances/1.2.5/bulkdata/7fe00010"));
+            assertTrue(sanitized.contains("/dicom-web/studies/1.2.3/series/1.2.4/instances/1.2.5/bulk/7fe00010"));
             assertTrue(!sanitized.contains("http://127.0.0.1"));
         } finally {
             upstream.stop(0);

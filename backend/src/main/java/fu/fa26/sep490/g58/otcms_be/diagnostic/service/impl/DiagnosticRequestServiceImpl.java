@@ -131,6 +131,12 @@ public class DiagnosticRequestServiceImpl implements DiagnosticRequestService {
             for (ImagingExecution request : batch.getContent()) {
                 if (request.roomId() == null) continue;
                 if (roomId != null && !roomId.equals(request.roomId())) continue;
+                if (roomPorts.getIfAvailable() == null) {
+                    if (!isAssignedQueueTechnician(actor, request)) continue;
+                    if (visible >= start && visible < end) selected.add(toView(request));
+                    visible++;
+                    continue;
+                }
                 String cacheKey = request.roomId() + "|" + request.imagingType();
                 RoomEvidence room = roomCache.computeIfAbsent(cacheKey,
                         ignored -> requireRoomEvidence(request.roomId(), request.imagingType()));
@@ -157,6 +163,13 @@ public class DiagnosticRequestServiceImpl implements DiagnosticRequestService {
                 .orElseThrow(() -> new DiagnosticOperationException(DiagnosticOperationOutcome.UNAUTHORIZED_RECORD));
         if (!UPLOAD_STATUSES.contains(DiagnosticRequestStatus.valueOf(request.status().name())) || !attemptId.equals(request.attemptId())) {
             throw new DiagnosticOperationException(DiagnosticOperationOutcome.UNAUTHORIZED_RECORD);
+        }
+        if (roomPorts.getIfAvailable() == null) {
+            if (!isAssignedQueueTechnician(actor, request)) {
+                throw new DiagnosticOperationException(DiagnosticOperationOutcome.UNAUTHORIZED_RECORD);
+            }
+            return new DiagnosticAssignedImagingWork(requestId, attemptId, request.visitId(),
+                    request.patientId(), Long.toString(request.executionVersion()), true);
         }
         RoomEvidence room = requireRoomEvidence(request.roomId(), request.imagingType());
         if (room.roomId() == null || !request.roomId().equals(room.roomId())) {
@@ -324,6 +337,18 @@ public class DiagnosticRequestServiceImpl implements DiagnosticRequestService {
             throw new DiagnosticOperationException(DiagnosticOperationOutcome.EVIDENCE_MISMATCH);
         }
         return evidence;
+    }
+
+    private boolean isAssignedQueueTechnician(DiagnosticActor actor, ImagingExecution request) {
+        var rooms = queueRooms.getIfAvailable();
+        if (rooms == null) throw dependencyUnavailable();
+        if (request.roomId() == null || request.serviceId() == null || request.imagingType() == null) return false;
+        try {
+            rooms.requireEligibleRoom(request.roomId(), request.serviceId(), request.imagingType());
+        } catch (fu.fa26.sep490.g58.otcms_be.visit.exception.VisitOperationException exception) {
+            return false;
+        }
+        return rooms.isAssignedTechnician(actor.accountId(), request.roomId());
     }
 
     private VisitDiagnosticReadPort requiredVisitPort() {

@@ -36,5 +36,6 @@ public class PatientProfileJpaEntity {
     @Column(name = "medical_history_updated_at", insertable = false, updatable = false) private Instant medicalHistoryUpdatedAt;
     @Column(name = "medical_history_updated_by", insertable = false, updatable = false) private UUID medicalHistoryUpdatedBy;
     @Column(name = "medical_history_version", nullable = false, insertable = false, updatable = false) private long medicalHistoryVersion;
-    @Version @Column(nullable = false) private long version;
+    // Null marks the unsaved @Version state for Spring Data; Hibernate initializes it on insert.
+    @Version @Column(nullable = false) private Long version;
 }

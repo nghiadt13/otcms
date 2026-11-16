@@ -106,7 +106,7 @@ public class ImagingDicomWebScopeResolver {
             return cursor < segments.length && cursor + 1 == segments.length
                     && FRAME_LIST.matcher(segments[cursor]).matches();
         }
-        if ("bulkdata".equals(suffix)) {
+        if ("bulkdata".equals(suffix) || "bulk".equals(suffix)) {
             return cursor < segments.length && Arrays.stream(segments, cursor, segments.length)
                     .allMatch(segment -> BULK_DATA_SEGMENT.matcher(segment).matches());
         }

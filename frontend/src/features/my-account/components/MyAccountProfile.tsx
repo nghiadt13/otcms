@@ -53,6 +53,7 @@ export function MyAccountProfile() {
             <>
               <DetailList
                 items={[
+                  { label: "Tên hiển thị", value: account.displayName },
                   { label: "Tên đăng nhập", value: account.username },
                   { label: "Vai trò", value: ROLE_LABELS[account.role] },
                   {

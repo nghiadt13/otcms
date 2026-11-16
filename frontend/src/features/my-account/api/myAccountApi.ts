@@ -15,7 +15,9 @@ import { isPasswordValid } from "@/lib/domain/passwordPolicy";
 import type {
   ChangePasswordInput,
   MyAccount,
+  MyAccountAction,
   PasswordChangeResult,
+  StaffAccount,
 } from "../types/myAccount";
 import {
   AVATAR_ACCEPTED_TYPES,
@@ -41,6 +43,24 @@ async function isLivePatientSession(): Promise<boolean> {
   if (process.env.NODE_ENV === "test") return false;
   return (await getSession())?.accountType === "PATIENT";
 }
+
+async function isLiveStaffSession(): Promise<boolean> {
+  if (process.env.NODE_ENV === "test") return false;
+  const accountType = (await getSession())?.accountType;
+  return Boolean(accountType && accountType !== "PATIENT");
+}
+
+type StaffAccountResponse = {
+  id: string;
+  kind: "STAFF";
+  displayName: string;
+  username: string;
+  role: StaffAccount["role"];
+  status: StaffAccount["status"];
+  avatarUrl: string | null;
+  mustChangePassword: boolean;
+  allowedActions: MyAccountAction[];
+};
 
 /** Chỉ dùng trong test: đặt lại kho dữ liệu giả của loại tài khoản đã cho (mặc định: quản trị). */
 export function resetMyAccountMockStore(account: MyAccount = MOCK_MY_ACCOUNT) {
@@ -77,6 +97,16 @@ export async function getMyAccount(signal?: AbortSignal): Promise<MyAccount> {
         ],
       };
     }
+    if (await isLiveStaffSession()) {
+      const current = await apiRequest<StaffAccountResponse>("/api/v1/me", {
+        signal,
+      });
+      const avatarUrl = current.avatarUrl
+        ? await loadAccountAvatarUrl(current.id)
+        : null;
+      return { ...current, avatarUrl };
+    }
+    throw new ApiError(401, { code: "MSG-14" });
   }
   await mockDelay(LATENCY_MS, signal);
   return accountSnapshot(currentMockAccountState().account);
@@ -84,7 +114,7 @@ export async function getMyAccount(signal?: AbortSignal): Promise<MyAccount> {
 
 /** PUT /api/v1/me/avatar (multipart, part `photo`) */
 export async function updateMyAvatar(file: File): Promise<MyAccount> {
-  if (await isLivePatientSession()) {
+  if (await isLivePatientSession() || await isLiveStaffSession()) {
     const form = new FormData();
     form.append("photo", file);
     await apiRequest("/api/v1/me/avatar", { method: "PUT", body: form });
@@ -111,7 +141,7 @@ export async function updateMyAvatar(file: File): Promise<MyAccount> {
 
 /** DELETE /api/v1/me/avatar */
 export async function removeMyAvatar(): Promise<void> {
-  if (await isLivePatientSession()) {
+  if (await isLivePatientSession() || await isLiveStaffSession()) {
     await apiRequest("/api/v1/me/avatar", { method: "DELETE" });
     notifyAccountAvatarChanged();
     return;
@@ -153,7 +183,7 @@ export function toPasswordApiError(error: unknown): unknown {
 export async function changeMyPassword(
   input: ChangePasswordInput,
 ): Promise<PasswordChangeResult> {
-  if (await isLivePatientSession()) {
+  if (await isLivePatientSession() || await isLiveStaffSession()) {
     try {
       await changeFirstLoginPassword(input.currentPassword, input.newPassword);
     } catch (error) {

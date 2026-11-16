@@ -11,6 +11,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.constraints.Pattern;
 import java.io.IOException;
 import java.net.URI;
+import java.util.List;
 import java.util.UUID;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -53,6 +54,21 @@ public class ImagingIngestController {
                     request.getContentLengthLong(), body)));
             return ResponseEntity.accepted().location(URI.create(response.statusUrl())).body(response);
         }
+    }
+
+    @GetMapping("/requests/{requestId}/attempts/{attemptId}/ingest-operations")
+    @PreAuthorize("hasAuthority('ROLE_IMAGING_TECHNICIAN')")
+    public ResponseEntity<List<ImagingOperationResponse>> getOperationsForAttempt(
+            @PathVariable UUID requestId, @PathVariable UUID attemptId,
+            @AuthenticationPrincipal AuthenticatedAccount account) {
+        if (account == null || account.accountRole() != AccountRole.IMAGING_TECHNICIAN) {
+            throw new ImagingOperationException(ImagingOperationOutcome.UNAUTHORIZED_RECORD);
+        }
+        List<ImagingOperationResponse> operations = ingest.getOperationsForAttempt(
+                account.accountId(), requestId, attemptId).stream()
+                .map(ImagingOperationResponse::from)
+                .toList();
+        return ResponseEntity.ok(operations);
     }
 
     @GetMapping("/ingest-operations/{operationId}")

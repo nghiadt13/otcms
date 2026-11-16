@@ -67,4 +67,9 @@ public class ImagingRoomQueueServiceImpl implements ImagingRoomQueueService {
         if (findEligibleRooms(List.of(serviceId)).getOrDefault(serviceId, List.of()).stream()
                 .noneMatch(room -> room.roomId().equals(roomId))) throw new VisitOperationException("ROOM_NOT_FOUND");
     }
+
+    @Override
+    public boolean isAssignedTechnician(UUID accountId, UUID roomId) {
+        return staff.isImagingTechnicianAssigned(accountId, roomId, clock.instant());
+    }
 }

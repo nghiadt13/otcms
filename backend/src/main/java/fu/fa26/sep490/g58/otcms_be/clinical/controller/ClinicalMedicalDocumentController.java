@@ -62,6 +62,21 @@ public class ClinicalMedicalDocumentController {
                 .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.attachment().filename(result.document().originalFilename(), StandardCharsets.UTF_8).build().toString())
                 .contentType(MediaType.parseMediaType(result.document().mediaType())).contentLength(result.bytes().length).body(result.bytes());
     }
+    @GetMapping("/api/v1/medical-documents/{documentId}/view")
+    @PreAuthorize("hasAuthority('ROLE_PATIENT')")
+    public ResponseEntity<byte[]> viewReleasedPdf(@PathVariable UUID documentId,
+            @AuthenticationPrincipal AuthenticatedAccount account, HttpServletRequest request) {
+        var result = documents.content(account, documentId);
+        if (!MediaType.APPLICATION_PDF_VALUE.equalsIgnoreCase(result.document().mediaType())) {
+            throw new ClinicalOperationException("MSG-41");
+        }
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore())
+                .header(CorrelationIdFilter.HEADER, CorrelationIdFilter.current(request))
+                .header("X-Content-Type-Options", "nosniff")
+                .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.inline()
+                        .filename(result.document().originalFilename(), StandardCharsets.UTF_8).build().toString())
+                .contentType(MediaType.APPLICATION_PDF).contentLength(result.bytes().length).body(result.bytes());
+    }
     private static DocumentFile file(MultipartFile file) {
         if (file == null) return null;
         if (file.isEmpty() || file.getSize() > ClinicalMedicalDocumentFileValidator.MAX_BYTES) throw new ClinicalOperationException("MSG-47");

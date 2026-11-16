@@ -33,14 +33,14 @@ export interface PatientImagingStudySummary {
   modality: ImagingModality;
   /** YYYY-MM-DD */
   studyDate: string;
-  seriesCount: number;
+  seriesCount?: number;
   patient: ImagingPatientRef;
   finding: string | null;
 }
 
-/** Chi tiết study. UID chỉ dùng làm khóa DICOMweb của OHIF; grant do BE giữ trong cookie HttpOnly. */
+/** Chi tiết study. UID có thể chỉ xuất hiện trong dữ liệu mẫu cũ; viewer grant cấp UID thật. */
 export interface PatientImagingStudy extends PatientImagingStudySummary {
-  studyInstanceUid: string;
+  studyInstanceUid?: string;
 }
 
 export interface ImagingStudyListQuery {
