@@ -353,7 +353,8 @@ class DoctorCoreProductionWiringTest {
             DoctorProfileIdentityQueryServiceImpl.class, DoctorAccountAccessServiceImpl.class, ServiceCatalogClinicalAdapter.class,
             GetClinicServiceCatalogServiceImpl.class, ImagingServiceCatalogAdapter.class, ClinicalImagingOrderAdapter.class,
             DiagnosticImagingRequestRegistrationImpl.class, DiagnosticStatusServiceImpl.class, DiagnosticRequestServiceImpl.class,
-            DiagnosticAuthorizationPolicyImpl.class, DiagnosticTransitionPolicyImpl.class, DiagnosticFindingsServiceImpl.class, DiagnosticHistoryServiceImpl.class})
+            DiagnosticAuthorizationPolicyImpl.class, DiagnosticTransitionPolicyImpl.class, DiagnosticFindingsServiceImpl.class, DiagnosticHistoryServiceImpl.class,
+            DiagnosticReleasedReportServiceImpl.class})
     static class ProductionConfiguration {
         /** Visit-owned exam queue move is a side-effect boundary here; the real adapter needs the queue repositories. */
         @Bean VisitConclusionPort visitConclusions() { return mock(VisitConclusionPort.class); }

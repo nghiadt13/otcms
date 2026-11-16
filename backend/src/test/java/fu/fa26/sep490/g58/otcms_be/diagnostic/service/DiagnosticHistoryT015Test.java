@@ -190,7 +190,12 @@ class DiagnosticHistoryT015Test {
         assertEquals(2, result.items().getFirst().findingsVersion());
 
         when(report.getValidationStatus()).thenReturn(fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.enums.DiagnosticReportValidationStatus.INVALID);
-        org.junit.jupiter.api.Assertions.assertNull(service.getImagingHistory(actor, null, visitId, 0, 20).items().getFirst().studyRef());
+        // A treating doctor keeps the linked study ref (to open images) of a REVIEWED request, but an invalid report
+        // exposes neither findings nor report id.
+        var invalidReportItem = service.getImagingHistory(actor, null, visitId, 0, 20).items().getFirst();
+        assertEquals("study-123", invalidReportItem.studyRef());
+        org.junit.jupiter.api.Assertions.assertNull(invalidReportItem.findingsText());
+        org.junit.jupiter.api.Assertions.assertNull(invalidReportItem.reportId());
         when(report.getValidationStatus()).thenReturn(fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.enums.DiagnosticReportValidationStatus.VALIDATED);
         when(report.getReleasedAt()).thenReturn(null);
         org.junit.jupiter.api.Assertions.assertNull(service.getImagingHistory(actor, null, visitId, 0, 20).items().getFirst().findingsText());
