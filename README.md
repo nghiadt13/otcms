@@ -26,7 +26,50 @@ otcms/
 └── compose.yaml             Orthanc + OHIF local
 ```
 
+## Chạy các container trên nhánh final-db
+
+Mở Docker Desktop, sau đó chạy PowerShell tại thư mục gốc repository. Cần Java 21 và Node.js 24 để chạy backend và frontend trên máy.
+
+1. Nếu chưa có cấu hình, tạo file từ mẫu:
+
+   ```powershell
+   Copy-Item backend/.env.example backend/.env
+   ```
+
+   Điền secret ứng dụng, `MINIO_ROOT_USER` và `MINIO_ROOT_PASSWORD` trong `backend/.env`. Để lưu PDF vào MinIO, đặt `APP_DIAGNOSTIC_REPORT_STORAGE_PROVIDER=minio` (file mẫu mặc định là `local`). Mật khẩu PostgreSQL trong cấu hình ứng dụng phải khớp mật khẩu đã dùng khi tạo database. Không commit file `.env`.
+
+2. Bật PostgreSQL, MinIO, ClamAV, Orthanc, OHIF và imaging gateway cùng lúc:
+
+   ```powershell
+   docker compose --env-file backend/.env -f compose.yaml -f docker-compose.final-db.yml up -d
+   docker compose --env-file backend/.env -f compose.yaml -f docker-compose.final-db.yml ps
+   ```
+
+   File mẫu dùng cổng PostgreSQL 5433; các dịch vụ còn lại dùng MinIO 9000/9001, ClamAV 3310, Orthanc 8042/4242 và gateway OHIF 3001. Nếu cổng đang được container khác sử dụng, dừng container cũ hoặc cấu hình lại cổng. ClamAV có thể cần thời gian khởi tạo trước khi sẵn sàng.
+
+3. Chạy backend trong một PowerShell khác:
+
+   ```powershell
+   cd backend
+   $env:SPRING_PROFILES_ACTIVE = "final-db"
+   .\mvnw.cmd spring-boot:run
+   ```
+
+4. Chạy frontend trong một PowerShell khác:
+
+   ```powershell
+   cd frontend
+   npm ci
+   npm run dev
+   ```
+
+   Mở `http://localhost:3000`. Cấu hình `frontend/.env.local` theo môi trường của nhóm. Nếu dùng proxy local với `NEXT_BASE_PATH=/otcms`, đặt `OTCMS_DEV_API_PROXY=true`, `NEXT_PUBLIC_API_BASE_URL=` và `NEXT_PUBLIC_OHIF_VIEWER_PATH=/viewer`, rồi khởi động lại frontend.
+
+Docker Compose ở đây dùng cho thử nghiệm local với dữ liệu DICOM mẫu. Không dùng `down -v` nếu cần giữ dữ liệu trong các volume.
+
 ## Chuẩn bị Supabase
+
+Mục này mô tả cấu hình Supabase của môi trường cũ. Nhánh `final-db` chạy local theo hướng dẫn Docker ở trên.
 
 1. Tạo Supabase project và lấy Project URL cùng publishable key cho frontend. Không dùng secret/service-role key ở frontend.
 2. Dùng chuỗi kết nối PostgreSQL dạng JDBC cho backend (`jdbc:postgresql://.../postgres?sslmode=require`). Nếu máy chỉ có IPv4, dùng **session pooler**, không dùng transaction pooler cho kết nối JPA dài hạn.
@@ -38,8 +81,7 @@ Chưa có migration nghiệp vụ vì thiết kế bảng bệnh nhân, lượt 
 ## Chạy local
 
 - Frontend: trong `frontend`, chạy `npm ci` rồi `npm run dev`; mở `http://localhost:3000`.
-- Backend: tại gốc repository, chạy `./scripts/start-backend.ps1` trong PowerShell. Script nạp `backend/.env` cho tiến trình rồi gọi Maven Wrapper. API chạy ở `http://localhost:8080`, trạng thái ở `/api/v1/system/status`, OpenAPI ở `/swagger-ui/index.html`.
-- DICOM local: bật Docker Desktop rồi chạy `docker compose up -d`; mở OHIF tại `http://localhost:3001` và Orthanc Explorer tại `http://localhost:8042`.
+- Backend và các dịch vụ Docker: làm theo mục **Chạy các container trên nhánh final-db** ở trên. API chạy ở `http://localhost:8080`, trạng thái ở `/api/v1/system/status`, OpenAPI ở `/swagger-ui/index.html`.
 
 Node 24.21.0 là chuẩn cho nhóm; Node 22.11.0 có thể khiến dependency ESLint báo không tương thích. Máy không cần cài Maven toàn cục vì repository có Maven Wrapper.
 
