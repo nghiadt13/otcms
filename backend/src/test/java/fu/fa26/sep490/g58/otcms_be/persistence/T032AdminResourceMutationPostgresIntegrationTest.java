@@ -82,7 +82,6 @@ class T032AdminResourceMutationPostgresIntegrationTest {
 
     @AfterEach
     void cleanup() {
-        jdbc.execute("alter table staff_resource_audits disable trigger tr_staff_resource_audits_immutable");
         jdbc.execute("alter table audit_logs disable trigger tr_audit_logs_immutable");
         try {
             for (UUID appointment : appointmentIds) {
@@ -95,7 +94,6 @@ class T032AdminResourceMutationPostgresIntegrationTest {
             for (UUID visit : visitIds) jdbc.update("delete from visits where id=?", visit);
             for (UUID appointment : appointmentIds) jdbc.update("delete from appointments where id=?", appointment);
             if (doctorId != null) {
-                jdbc.update("delete from staff_resource_audits where doctor_profile_id = ?", doctorId);
                 if (adminId != null) jdbc.update("delete from audit_logs where actor_account_id = ?", adminId);
                 jdbc.update("delete from work_shifts where staff_profile_id = ?", doctorId);
                 jdbc.update("delete from doctor_services where doctor_profile_id = ?", doctorId);
@@ -109,7 +107,6 @@ class T032AdminResourceMutationPostgresIntegrationTest {
             for (UUID account : patientAccountIds) jdbc.update("delete from accounts where id=?", account);
             patientIds.clear(); patientAccountIds.clear(); appointmentIds.clear(); visitIds.clear();
         } finally {
-            jdbc.execute("alter table staff_resource_audits enable trigger tr_staff_resource_audits_immutable");
             jdbc.execute("alter table audit_logs enable trigger tr_audit_logs_immutable");
         }
     }
