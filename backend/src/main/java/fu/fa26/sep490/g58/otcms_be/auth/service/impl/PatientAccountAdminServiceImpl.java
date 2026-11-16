@@ -5,8 +5,8 @@ import fu.fa26.sep490.g58.otcms_be.auth.model.dto.PatientAccountAdminRow;
 import fu.fa26.sep490.g58.otcms_be.auth.model.dto.response.PatientAccountAdminResponse;
 import fu.fa26.sep490.g58.otcms_be.auth.model.dto.response.PatientAccountsPageResponse;
 import fu.fa26.sep490.g58.otcms_be.auth.model.entity.AccountJpaEntity;
-import fu.fa26.sep490.g58.otcms_be.auth.model.entity.AccountManagementAuditJpaEntity;
-import fu.fa26.sep490.g58.otcms_be.auth.repository.AccountManagementAuditRepository;
+import fu.fa26.sep490.g58.otcms_be.common.audit.AuditEntry;
+import fu.fa26.sep490.g58.otcms_be.common.audit.AuditLogWriter;
 import fu.fa26.sep490.g58.otcms_be.auth.model.entity.enums.AccountStatus;
 import fu.fa26.sep490.g58.otcms_be.auth.model.entity.enums.AccountType;
 import fu.fa26.sep490.g58.otcms_be.auth.repository.AccountRepository;
@@ -31,10 +31,10 @@ public class PatientAccountAdminServiceImpl implements PatientAccountAdminServic
     private final AccountRepository accounts;
     private final PatientProfileRepository profiles;
     private final AuthSessionService sessions;
-    private final AccountManagementAuditRepository audits;
+    private final AuditLogWriter audits;
 
     public PatientAccountAdminServiceImpl(AccountRepository accounts, PatientProfileRepository profiles,
-            AuthSessionService sessions, AccountManagementAuditRepository audits) {
+            AuthSessionService sessions, AuditLogWriter audits) {
         this.accounts = accounts;
         this.profiles = profiles;
         this.sessions = sessions;
@@ -83,8 +83,7 @@ public class PatientAccountAdminServiceImpl implements PatientAccountAdminServic
         account.setLockedUntil(null);
         account.setUpdatedAt(Instant.now());
         accounts.saveAndFlush(account);
-        audits.saveAndFlush(new AccountManagementAuditJpaEntity(accountId, actor.accountId(), "ACTIVATE",
-                Instant.now(), correlationId));
+        audit(accountId, actor, "ACTIVATE");
         return response(account, patientName(account));
     }
 
@@ -99,9 +98,14 @@ public class PatientAccountAdminServiceImpl implements PatientAccountAdminServic
         account.setUpdatedAt(Instant.now());
         accounts.saveAndFlush(account);
         sessions.revokeAll(accountId, "ACCOUNT_DEACTIVATED");
-        audits.saveAndFlush(new AccountManagementAuditJpaEntity(accountId, actor.accountId(), "DEACTIVATE",
-                Instant.now(), correlationId));
+        audit(accountId, actor, "DEACTIVATE");
         return response(account, patientName(account));
+    }
+
+    // The correlation id comes from the request MDC (CorrelationIdFilter), which AuditLogWriter records.
+    private void audit(UUID accountId, AuthenticatedAccount actor, String action) {
+        audits.record(AuditEntry.builder("account_management_audits", "ACCOUNT", action, "ACCOUNT")
+                .entityId(accountId).recordLabel(accountId.toString()).actorAccountId(actor.accountId()).build());
     }
 
     private String patientName(AccountJpaEntity account) {

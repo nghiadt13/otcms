@@ -1,0 +1,31 @@
+# Local Postgres for the final-db refactor (database consolidation).
+# Creates two databases: otcms_dev (run the app with profile final-db) and otcms_test_db (mvnw test).
+# Never point the refactor branch at the shared Supabase database.
+#
+#   docker compose -f docker-compose.final-db.yml up -d        # start
+#   docker compose -f docker-compose.final-db.yml down -v      # wipe data (do this after pulling new migrations)
+#
+# If port 5432 is already used by a local Postgres, set OTCMS_DB_PORT (and OTCMS_TEST_DB_PORT for tests) to e.g. 5433.
+services:
+  postgres:
+    # bookworm: its tzdata still accepts "Asia/Saigon", the JVM default zone on Vietnamese machines
+    # (the newer Debian-based postgres:17 image rejects it at connect time).
+    image: postgres:17-bookworm
+    container_name: otcms-final-db
+    environment:
+      POSTGRES_USER: postgres
+      # Local throwaway container only; not a real credential.
+      POSTGRES_PASSWORD: ${OTCMS_DB_PASSWORD:-otcms_local}
+    ports:
+      - "127.0.0.1:${OTCMS_DB_PORT:-5432}:5432"
+    volumes:
+      - otcms-final-db-data:/var/lib/postgresql/data
+      - ./docker/final-db-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  otcms-final-db-data:

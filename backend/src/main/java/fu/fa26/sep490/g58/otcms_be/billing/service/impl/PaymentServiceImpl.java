@@ -10,13 +10,13 @@ import fu.fa26.sep490.g58.otcms_be.billing.model.dto.request.CounterPaymentReque
 import fu.fa26.sep490.g58.otcms_be.billing.model.dto.response.PaymentAttemptResponse;
 import fu.fa26.sep490.g58.otcms_be.billing.model.entity.InvoiceJpaEntity;
 import fu.fa26.sep490.g58.otcms_be.billing.model.entity.PaymentAttemptJpaEntity;
-import fu.fa26.sep490.g58.otcms_be.billing.model.entity.PaymentGatewayEventJpaEntity;
 import fu.fa26.sep490.g58.otcms_be.billing.repository.InvoiceRepository;
 import fu.fa26.sep490.g58.otcms_be.billing.repository.PaymentAttemptRepository;
-import fu.fa26.sep490.g58.otcms_be.billing.repository.PaymentGatewayEventRepository;
 import fu.fa26.sep490.g58.otcms_be.billing.service.PaymentGateway;
 import fu.fa26.sep490.g58.otcms_be.billing.service.PaymentGatewayRegistry;
 import fu.fa26.sep490.g58.otcms_be.billing.service.PaymentService;
+import fu.fa26.sep490.g58.otcms_be.common.audit.AuditEntry;
+import fu.fa26.sep490.g58.otcms_be.common.audit.AuditLogWriter;
 import fu.fa26.sep490.g58.otcms_be.common.security.AccountRole;
 import fu.fa26.sep490.g58.otcms_be.common.security.AuthenticatedAccount;
 import fu.fa26.sep490.g58.otcms_be.patient.exception.PatientAuthorizationDeniedException;
@@ -27,12 +27,13 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Clock;
 import java.time.Instant;
+import java.util.HashMap;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -45,7 +46,7 @@ public class PaymentServiceImpl implements PaymentService {
     private final AppointmentPaymentPort appointments;
     private final InvoiceRepository invoices;
     private final PaymentAttemptRepository attempts;
-    private final PaymentGatewayEventRepository events;
+    private final AuditLogWriter audit;
     private final PaymentGatewayRegistry gateways;
     private final AuthorizePatientBillingProfileService patientAuthorization;
     private final BillingMapper mapper;
@@ -53,7 +54,7 @@ public class PaymentServiceImpl implements PaymentService {
     private final Clock clock;
 
     public PaymentServiceImpl(InvoiceRepository invoices, PaymentAttemptRepository attempts,
-            PaymentGatewayEventRepository events, PaymentGatewayRegistry gateways,
+            AuditLogWriter audit, PaymentGatewayRegistry gateways,
             AuthorizePatientBillingProfileService patientAuthorization, BillingMapper mapper,
             PlatformTransactionManager transactionManager, Clock clock, InvoiceSettlementSupport settlement,
             AppointmentPaymentPort appointments) {
@@ -61,7 +62,7 @@ public class PaymentServiceImpl implements PaymentService {
         this.appointments = appointments;
         this.invoices = invoices;
         this.attempts = attempts;
-        this.events = events;
+        this.audit = audit;
         this.gateways = gateways;
         this.patientAuthorization = patientAuthorization;
         this.mapper = mapper;
@@ -194,12 +195,7 @@ public class PaymentServiceImpl implements PaymentService {
         String fingerprint = hash(event.provider() + "|" + event.orderCode() + "|" + event.amount() + "|"
                 + event.currency() + "|" + event.paymentLinkId() + "|" + event.transactionReference() + "|"
                 + event.code() + "|" + event.successful());
-        try {
-            transactions.executeWithoutResult(status -> applyGatewayEvent(event, fingerprint));
-        } catch (DataIntegrityViolationException conflict) {
-            // The same event delivered twice at once: the other transaction recorded it, so answer 2xx (no retry loop).
-            if (!events.existsByProviderAndEventFingerprint(event.provider(), fingerprint)) throw conflict;
-        }
+        transactions.executeWithoutResult(status -> applyGatewayEvent(event, fingerprint));
     }
 
     /**
@@ -207,12 +203,19 @@ public class PaymentServiceImpl implements PaymentService {
      * the webhook must answer 2xx so PayOS does not retry forever. Such money is flagged RECONCILIATION_REQUIRED.
      */
     private void applyGatewayEvent(PaymentGateway.VerifiedGatewayEvent event, String fingerprint) {
-        if (events.existsByProviderAndEventFingerprint(event.provider(), fingerprint)) return;
         PaymentAttemptJpaEntity payment = attempts.findFirstByProviderOrderCode(event.orderCode()).orElse(null);
+        if (payment == null) {
+            writeWebhookAudit(event.provider(), fingerprint, event.orderCode(), event.transactionReference(),
+                    true, null, "REJECTED", "UNKNOWN_ORDER_CODE");
+            return;
+        }
+        // Lock the invoice and re-read the attempt BEFORE the replay check: an identical delivery running in
+        // parallel waits here and then sees the fingerprint the first delivery committed.
+        InvoiceJpaEntity invoice = settlement.lockInvoiceFresh(payment.getInvoiceId(), payment).orElse(null);
+        if (fingerprint.equals(payment.getLastEventFingerprint())) return; // replay: no state change, no audit row
         String outcome = "REJECTED";
-        String detail = payment == null ? "UNKNOWN_ORDER_CODE" : "ATTEMPT_OR_AMOUNT_MISMATCH";
-        if (payment != null && event.successful() && matches(payment, event)) {
-            InvoiceJpaEntity invoice = settlement.lockInvoiceFresh(payment.getInvoiceId(), payment).orElse(null);
+        String detail = "ATTEMPT_OR_AMOUNT_MISMATCH";
+        if (event.successful() && matches(payment, event)) {
             if (invoice == null) {
                 detail = "INVOICE_NOT_FOUND";
             } else if (payment.getStatus() == PaymentAttemptStatus.CONFIRMED) {
@@ -232,25 +235,36 @@ public class PaymentServiceImpl implements PaymentService {
                 outcome = applied ? "APPLIED" : "RECONCILIATION_REQUIRED";
                 detail = applied ? null : "APPOINTMENT_HOLD_RELEASED";
             }
-        } else if (payment != null && !event.successful()
-                && payment.getStatus() == PaymentAttemptStatus.PENDING) {
+        } else if (!event.successful() && payment.getStatus() == PaymentAttemptStatus.PENDING) {
             payment.fail(PaymentAttemptStatus.FAILED, "PayOS reported an unsuccessful payment");
             outcome = "APPLIED";
             detail = "UNSUCCESSFUL_PROVIDER_PAYMENT";
         }
-        events.save(new PaymentGatewayEventJpaEntity(UUID.randomUUID(), event.provider(), fingerprint,
-                event.orderCode(), event.transactionReference(), true, outcome, detail));
+        if (!"DUPLICATE".equals(outcome)) payment.recordVerifiedEvent(fingerprint);
+        writeWebhookAudit(event.provider(), fingerprint, event.orderCode(), event.transactionReference(),
+                true, payment.getId(), outcome, detail);
     }
 
     @Override
     public void recordRejectedGatewayEvent(String provider, Object payload) {
         String fingerprint = hash(provider + "|UNVERIFIED|" + String.valueOf(payload));
-        transactions.executeWithoutResult(status -> {
-            if (!events.existsByProviderAndEventFingerprint(provider, fingerprint)) {
-                events.save(new PaymentGatewayEventJpaEntity(UUID.randomUUID(), provider, fingerprint,
-                        null, null, false, "REJECTED", "INVALID_SIGNATURE_OR_PAYLOAD"));
-            }
-        });
+        transactions.executeWithoutResult(status -> writeWebhookAudit(provider, fingerprint, null, null,
+                false, null, "REJECTED", "INVALID_SIGNATURE_OR_PAYLOAD"));
+    }
+
+    /** Webhook history lives in audit_logs (hidden from the activity log); the payload itself is never stored. */
+    private void writeWebhookAudit(String provider, String fingerprint, Long orderCode, String reference,
+            boolean signatureVerified, UUID attemptId, String outcome, String detail) {
+        Map<String, Object> metadata = new HashMap<>(); // HashMap: values may be null, Map.of rejects null
+        metadata.put("provider", provider);
+        metadata.put("fingerprint", fingerprint);
+        metadata.put("orderCode", orderCode);
+        metadata.put("transactionReference", reference);
+        metadata.put("signatureVerified", signatureVerified);
+        metadata.put("detail", detail);
+        audit.record(AuditEntry.builder("payment_gateway_events", "PAYMENT_GATEWAY", outcome, "PAYMENT_WEBHOOK")
+                .entityId(attemptId).actorType("PAYOS").outcome(outcome).visibleInActivityLog(false)
+                .metadata(metadata).build());
     }
 
     @Override

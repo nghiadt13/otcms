@@ -1,5 +1,24 @@
 # Local imaging laboratory only. Never load identifiable patient studies here.
 services:
+  clamav:
+    image: clamav/clamav:1.5.4-debian13-slim
+    ports:
+      - "127.0.0.1:3310:3310"
+    restart: unless-stopped
+
+  minio:
+    image: dappros/minio:RELEASE.2025-09-07T16-13-09Z
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?MINIO_ROOT_USER must be set from backend/.env}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD must be set from backend/.env}
+    ports:
+      - "127.0.0.1:9000:9000"
+      - "127.0.0.1:9001:9001"
+    volumes:
+      - minio-data:/data
+    restart: unless-stopped
+
   orthanc:
     image: orthancteam/orthanc:26.7.0
     environment:
@@ -32,4 +51,6 @@ services:
       - ./infra/imaging/nginx.conf:/etc/nginx/conf.d/default.conf:ro
 
 volumes:
+  minio-data:
+    name: otcms_minio-data
   orthanc-data:

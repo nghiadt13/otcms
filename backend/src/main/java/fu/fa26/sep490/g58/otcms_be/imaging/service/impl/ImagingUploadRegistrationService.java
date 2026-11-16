@@ -2,65 +2,73 @@ package fu.fa26.sep490.g58.otcms_be.imaging.service.impl;
 
 import fu.fa26.sep490.g58.otcms_be.imaging.exception.ImagingOperationException;
 import fu.fa26.sep490.g58.otcms_be.imaging.exception.ImagingOperationOutcome;
-import fu.fa26.sep490.g58.otcms_be.imaging.model.ImagingIdempotencyRecord;
-import fu.fa26.sep490.g58.otcms_be.imaging.model.ImagingOperationRecord;
 import fu.fa26.sep490.g58.otcms_be.imaging.model.ImagingAssignedWork;
-import fu.fa26.sep490.g58.otcms_be.imaging.model.entity.ImagingIdempotencyRecordJpaEntity;
-import fu.fa26.sep490.g58.otcms_be.imaging.model.entity.ImagingIngestOperationJpaEntity;
+import fu.fa26.sep490.g58.otcms_be.imaging.model.ImagingOperationRecord;
+import fu.fa26.sep490.g58.otcms_be.imaging.model.ImagingOperationStatus;
+import fu.fa26.sep490.g58.otcms_be.imaging.model.entity.ImagingStudyJpaEntity;
 import fu.fa26.sep490.g58.otcms_be.imaging.model.entity.enums.ImagingOperationState;
 import fu.fa26.sep490.g58.otcms_be.imaging.model.entity.enums.ImagingOperationType;
 import fu.fa26.sep490.g58.otcms_be.imaging.model.entity.enums.ImagingVerificationStatus;
-import fu.fa26.sep490.g58.otcms_be.imaging.repository.ImagingIdempotencyRepository;
-import fu.fa26.sep490.g58.otcms_be.imaging.repository.ImagingIngestOperationRepository;
+import fu.fa26.sep490.g58.otcms_be.imaging.repository.ImagingStudyRepository;
+import java.sql.SQLException;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
+import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
-/** Atomically reserves an upload operation and its scoped content idempotency fingerprint. */
+/** Atomically reserves an imaging_studies row and its scoped upload fingerprint. */
 @Service
 public class ImagingUploadRegistrationService {
-    private final ImagingIngestOperationRepository operations;
-    private final ImagingIdempotencyRepository idempotency;
+    private static final String UPLOAD_SCOPE = "uk_imaging_studies_upload_scope";
+    private final ImagingStudyRepository studies;
 
-    public ImagingUploadRegistrationService(ImagingIngestOperationRepository operations,
-            ImagingIdempotencyRepository idempotency) {
-        this.operations = operations;
-        this.idempotency = idempotency;
+    public ImagingUploadRegistrationService(ImagingStudyRepository studies) {
+        this.studies = studies;
     }
 
-    @Transactional
     public Registration register(UUID actorId, UUID requestId, UUID attemptId, String key,
             String sha256, long bodySize, ImagingAssignedWork work) {
-        var previous = idempotency.findByActorAccountIdAndRequestIdAndAttemptIdAndOperationTypeAndIdempotencyKey(
-                actorId, requestId, attemptId, ImagingOperationType.UPLOAD, key);
-        if (previous.isPresent()) {
-            var entry = previous.get();
-            if (!entry.toModel().payloadSha256().equals(sha256)) {
-                throw new ImagingOperationException(ImagingOperationOutcome.IDEMPOTENCY_CONFLICT);
-            }
-            var current = operations.findById(entry.toModel().targetOperationId())
-                    .orElseThrow(() -> new ImagingOperationException(ImagingOperationOutcome.RECONCILIATION_REQUIRED));
-            return new Registration(current.toModel(), false);
-        }
-
         Instant now = Instant.now();
-        UUID operationId = UUID.randomUUID();
-        ImagingOperationRecord operation = new ImagingOperationRecord(operationId, null, requestId,
+        UUID studyId = UUID.randomUUID();
+        ImagingOperationRecord operation = new ImagingOperationRecord(studyId, null, requestId,
                 attemptId, work.visitId(), work.patientId(), actorId, ImagingOperationType.UPLOAD,
                 ImagingOperationState.PROCESSING, sha256, bodySize, null, null, 0, 0,
                 ImagingVerificationStatus.NOT_EVALUATED, List.of(), null, null, 0, now, now);
         try {
-            operations.saveAndFlush(new ImagingIngestOperationJpaEntity(operation));
-            idempotency.saveAndFlush(new ImagingIdempotencyRecordJpaEntity(new ImagingIdempotencyRecord(
-                    UUID.randomUUID(), actorId, requestId, attemptId, ImagingOperationType.UPLOAD,
-                    key, sha256, operationId, null, now)));
-        } catch (DataIntegrityViolationException exception) {
+            ImagingStudyJpaEntity inserted = studies.saveAndFlush(new ImagingStudyJpaEntity(operation, key));
+            return new Registration(inserted.toModel(), true);
+        } catch (DataIntegrityViolationException failure) {
+            if (!hasConstraint(failure, UPLOAD_SCOPE)) throw failure;
+            ImagingStudyJpaEntity winner = studies
+                    .findByActorAccountIdAndRequestIdAndAttemptIdAndUploadIdempotencyKey(
+                            actorId, requestId, attemptId, key)
+                    .orElseThrow(() -> failure);
+            return replay(winner, sha256);
+        }
+    }
+
+    private Registration replay(ImagingStudyJpaEntity study, String sha256) {
+        ImagingOperationRecord record = study.toModel();
+        if (!record.payloadSha256().equals(sha256)) {
             throw new ImagingOperationException(ImagingOperationOutcome.IDEMPOTENCY_CONFLICT);
         }
-        return new Registration(operation, true);
+        return new Registration(record, false);
+    }
+
+    private static boolean hasConstraint(Throwable failure, String expected) {
+        for (Throwable cause = failure; cause != null; cause = cause.getCause()) {
+            if (cause instanceof ConstraintViolationException violation
+                    && expected.equals(violation.getConstraintName())) return true;
+            if (cause instanceof SQLException sql) {
+                for (SQLException next = sql; next != null; next = next.getNextException()) {
+                    if ("23505".equals(next.getSQLState()) && next.getMessage() != null
+                            && next.getMessage().contains(expected)) return true;
+                }
+            }
+        }
+        return false;
     }
 
     public record Registration(ImagingOperationRecord operation, boolean created) { }

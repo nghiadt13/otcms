@@ -1,8 +1,6 @@
 package fu.fa26.sep490.g58.otcms_be.visit.repository;
 
-import fu.fa26.sep490.g58.otcms_be.visit.model.VisitExamStatus;
 import fu.fa26.sep490.g58.otcms_be.visit.model.entity.VisitCareAssignmentJpaEntity;
-import fu.fa26.sep490.g58.otcms_be.visit.model.entity.VisitExamQueueJpaEntity;
 import java.sql.Timestamp;
 import java.util.List;
 import java.util.Optional;
@@ -32,7 +30,8 @@ public interface VisitCareAssignmentRepository extends JpaRepository<VisitCareAs
         String getStepCode();
         Instant getStartedAt();
         Instant getExpectedEnd();
-        VisitExamStatus getExamStatus();
+        /** VisitExamStatus name, null without an exam-queue row (queue_entries.status is a plain string). */
+        String getExamStatus();
         Integer getQueueNumber();
     }
 
@@ -41,9 +40,9 @@ public interface VisitCareAssignmentRepository extends JpaRepository<VisitCareAs
             select v.id as visitId, v.patientProfileId as patientProfileId, v.source as visitSource,
                    v.originatingAppointmentId as linkedAppointmentId, a.id as assignmentId,
                    a.stepCode as stepCode, a.startsAt as startedAt, a.expectedEnd as expectedEnd,
-                   q.examStatus as examStatus, q.queueNumber as queueNumber
+                   q.status as examStatus, q.queueNumber as queueNumber
             from VisitCareAssignmentJpaEntity a join ClinicVisitJpaEntity v on v.id = a.visitId
-                left join VisitExamQueueJpaEntity q on q.visitId = v.id
+                left join QueueEntryJpaEntity q on q.visitId = v.id and q.stage = 'EXAM'
             where a.doctorProfileId = :doctorProfileId and a.status = 'IN_PROGRESS' and v.status = 'OPEN'
             order by a.startsAt asc, a.id asc
             """)

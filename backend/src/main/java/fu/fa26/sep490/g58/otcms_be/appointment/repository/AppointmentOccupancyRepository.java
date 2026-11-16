@@ -31,16 +31,6 @@ public interface AppointmentOccupancyRepository extends JpaRepository<Appointmen
 
     @Query(value = """
             select count(*) from appointments a where a.doctor_profile_id = :doctorId
-              and (a.status in ('CONFIRMED', 'CHECKED_IN')
-                   or (a.status = 'AWAITING_PAYMENT' and a.payment_deadline > :now))
-              and a.start_time < :toExclusive and a.occupied_until > :fromInclusive
-            """, nativeQuery = true)
-    long countBookingsOverlappingTimeOff(@Param("doctorId") UUID doctorId,
-            @Param("fromInclusive") Instant fromInclusive, @Param("toExclusive") Instant toExclusive,
-            @Param("now") Instant now);
-
-    @Query(value = """
-            select count(*) from appointments a where a.doctor_profile_id = :doctorId
               and a.service_id = :serviceId and (a.status in ('CONFIRMED', 'CHECKED_IN')
                    or (a.status = 'AWAITING_PAYMENT' and a.payment_deadline > :now))
             """, nativeQuery = true)
@@ -50,9 +40,9 @@ public interface AppointmentOccupancyRepository extends JpaRepository<Appointmen
     @Query(value = """
             select a.patient_profile_id, a.visit_id, a.doctor_profile_id, a.status,
                    a.start_time, a.end_time, a.occupied_until,
-                   (select max(aa.occurred_at) from appointment_audits aa
-                    where aa.appointment_id = a.id and aa.action = 'STATUS_CHANGED'
-                      and aa.new_status = 'COMPLETED') as completed_at
+                   (select max(al.occurred_at) from audit_logs al
+                     where al.source = 'appointment_audits' and al.entity_id = a.id and al.action = 'STATUS_CHANGED'
+                       and al.after_state->>'status' = 'COMPLETED') as completed_at
             from appointments a where a.id = :appointmentId
             """, nativeQuery = true)
     List<Object[]> findVisitLinkEvidence(@Param("appointmentId") UUID appointmentId);

@@ -8,7 +8,7 @@ import fu.fa26.sep490.g58.otcms_be.visit.exception.VisitOperationException;
 import fu.fa26.sep490.g58.otcms_be.visit.model.ExamQueueEntry;
 import fu.fa26.sep490.g58.otcms_be.visit.model.ExamQueueTicket;
 import fu.fa26.sep490.g58.otcms_be.visit.model.VisitExamStatus;
-import fu.fa26.sep490.g58.otcms_be.visit.model.entity.VisitExamQueueJpaEntity;
+import fu.fa26.sep490.g58.otcms_be.visit.model.entity.QueueEntryJpaEntity;
 import fu.fa26.sep490.g58.otcms_be.visit.model.entity.VisitRoomJpaEntity;
 import fu.fa26.sep490.g58.otcms_be.visit.repository.VisitExamQueueJpaRepository;
 import fu.fa26.sep490.g58.otcms_be.visit.repository.VisitRoomJpaRepository;
@@ -49,7 +49,7 @@ public class VisitExamQueueServiceImpl implements VisitExamQueueService {
     @Override
     @Transactional(propagation = Propagation.MANDATORY)
     public ExamQueueTicket enqueueWaiting(UUID visitId, UUID doctorProfileId, UUID serviceIdOrNull, Instant now) {
-        VisitExamQueueJpaEntity existing = queue.findById(visitId).orElse(null);
+        QueueEntryJpaEntity existing = queue.findExamByVisitId(visitId).orElse(null);
         if (existing != null) {
             // Replay of the same check-in returns the existing number; any other state is a conflict.
             if (existing.getExamStatus() != VisitExamStatus.WAITING
@@ -59,7 +59,7 @@ public class VisitExamQueueServiceImpl implements VisitExamQueueService {
             return ticket(existing);
         }
         LocalDate clinicDate = clinicDate(now);
-        VisitExamQueueJpaEntity row = VisitExamQueueJpaEntity.waiting(visitId, doctorProfileId,
+        QueueEntryJpaEntity row = QueueEntryJpaEntity.waiting(visitId, doctorProfileId,
                 currentRoomId(doctorProfileId, now), serviceIdOrNull, clinicDate,
                 nextQueueNumber(doctorProfileId, clinicDate), now);
         queue.save(row);
@@ -69,16 +69,16 @@ public class VisitExamQueueServiceImpl implements VisitExamQueueService {
     @Override
     @Transactional(propagation = Propagation.MANDATORY)
     public void createPendingPayment(UUID visitId, UUID doctorProfileId, UUID serviceId, Instant now) {
-        if (queue.existsById(visitId)) {
+        if (queue.existsExamByVisitId(visitId)) {
             throw conflict();
         }
-        queue.save(VisitExamQueueJpaEntity.pendingPayment(visitId, doctorProfileId, serviceId, clinicDate(now), now));
+        queue.save(QueueEntryJpaEntity.pendingPayment(visitId, doctorProfileId, serviceId, clinicDate(now), now));
     }
 
     @Override
     @Transactional(propagation = Propagation.MANDATORY)
     public ExamQueueTicket admitAfterPayment(UUID visitId, Instant now) {
-        VisitExamQueueJpaEntity row = requireRow(visitId);
+        QueueEntryJpaEntity row = requireRow(visitId);
         if (row.getExamStatus() == VisitExamStatus.WAITING) {
             return ticket(row);
         }
@@ -92,13 +92,13 @@ public class VisitExamQueueServiceImpl implements VisitExamQueueService {
     @Override
     @Transactional(propagation = Propagation.MANDATORY)
     public void startExamination(UUID visitId, UUID doctorProfileId, Instant now) {
-        VisitExamQueueJpaEntity row = requireRow(visitId);
+        QueueEntryJpaEntity row = requireRow(visitId);
         if (!row.getDoctorProfileId().equals(doctorProfileId)) {
             throw conflict();
         }
         requireMove(row, VisitExamStatus.IN_EXAMINATION);
-        if (queue.existsByDoctorProfileIdAndExamStatusAndVisitIdNot(doctorProfileId,
-                VisitExamStatus.IN_EXAMINATION, visitId)) {
+        if (queue.existsOtherExamRow(doctorProfileId,
+                VisitExamStatus.IN_EXAMINATION.name(), visitId)) {
             throw conflict();
         }
         row.startExamination(now);
@@ -107,7 +107,7 @@ public class VisitExamQueueServiceImpl implements VisitExamQueueService {
     @Override
     @Transactional(propagation = Propagation.MANDATORY)
     public void markAwaitingConclusion(UUID visitId, Instant now) {
-        VisitExamQueueJpaEntity row = queue.findById(visitId).orElse(null);
+        QueueEntryJpaEntity row = queue.findExamByVisitId(visitId).orElse(null);
         if (row == null || row.getExamStatus() == VisitExamStatus.AWAITING_CONCLUSION) {
             return;
         }
@@ -118,7 +118,7 @@ public class VisitExamQueueServiceImpl implements VisitExamQueueService {
     @Override
     @Transactional(propagation = Propagation.MANDATORY)
     public void complete(UUID visitId, UUID doctorProfileId, Instant now) {
-        VisitExamQueueJpaEntity row = requireRow(visitId);
+        QueueEntryJpaEntity row = requireRow(visitId);
         if (!row.getDoctorProfileId().equals(doctorProfileId)) {
             throw conflict();
         }
@@ -129,7 +129,7 @@ public class VisitExamQueueServiceImpl implements VisitExamQueueService {
     @Override
     @Transactional(propagation = Propagation.MANDATORY)
     public void cancel(UUID visitId, Instant now) {
-        VisitExamQueueJpaEntity row = queue.findById(visitId).orElse(null);
+        QueueEntryJpaEntity row = queue.findExamByVisitId(visitId).orElse(null);
         if (row == null) {
             return;
         }
@@ -140,22 +140,22 @@ public class VisitExamQueueServiceImpl implements VisitExamQueueService {
     @Override
     @Transactional(readOnly = true)
     public Optional<ExamQueueEntry> find(UUID visitId) {
-        return queue.findById(visitId).map(VisitExamQueueServiceImpl::entry);
+        return queue.findExamByVisitId(visitId).map(VisitExamQueueServiceImpl::entry);
     }
 
     @Override
     @Transactional(readOnly = true)
     public Optional<UUID> requiredFeeServiceId(UUID visitId) {
-        return queue.findById(visitId)
+        return queue.findExamByVisitId(visitId)
                 .filter(row -> row.getExamStatus() == VisitExamStatus.PENDING_PAYMENT)
-                .map(VisitExamQueueJpaEntity::getServiceId);
+                .map(QueueEntryJpaEntity::getServiceId);
     }
 
-    private VisitExamQueueJpaEntity requireRow(UUID visitId) {
-        return queue.findById(visitId).orElseThrow(VisitExamQueueServiceImpl::conflict);
+    private QueueEntryJpaEntity requireRow(UUID visitId) {
+        return queue.findExamByVisitId(visitId).orElseThrow(VisitExamQueueServiceImpl::conflict);
     }
 
-    private static void requireMove(VisitExamQueueJpaEntity row, VisitExamStatus next) {
+    private static void requireMove(QueueEntryJpaEntity row, VisitExamStatus next) {
         if (!row.getExamStatus().canMoveTo(next)) {
             throw conflict();
         }
@@ -181,7 +181,7 @@ public class VisitExamQueueServiceImpl implements VisitExamQueueService {
                 .orElse(null);
     }
 
-    private ExamQueueTicket ticket(VisitExamQueueJpaEntity row) {
+    private ExamQueueTicket ticket(QueueEntryJpaEntity row) {
         String doctorName = doctorProfiles.findDoctorNames(List.of(row.getDoctorProfileId()))
                 .get(row.getDoctorProfileId());
         String roomLabel = row.getRoomId() == null ? null
@@ -190,7 +190,7 @@ public class VisitExamQueueServiceImpl implements VisitExamQueueService {
                 roomLabel);
     }
 
-    private static ExamQueueEntry entry(VisitExamQueueJpaEntity row) {
+    private static ExamQueueEntry entry(QueueEntryJpaEntity row) {
         return new ExamQueueEntry(row.getVisitId(), row.getDoctorProfileId(), row.getRoomId(), row.getServiceId(),
                 row.getQueueNumber(), row.getExamStatus(), row.getClinicDate(), row.getQueuedAt(),
                 row.getStartedAt(), row.getAwaitingAt(), row.getFinishedAt());

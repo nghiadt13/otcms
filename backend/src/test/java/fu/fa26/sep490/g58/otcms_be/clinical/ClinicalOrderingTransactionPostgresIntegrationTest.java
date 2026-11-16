@@ -44,7 +44,7 @@ class ClinicalOrderingTransactionPostgresIntegrationTest {
 
         assertThrows(RuntimeException.class, () -> ordering.submit(command));
         assertEquals(0, jdbc.queryForObject(
-                "select count(*) from clinical_ordering_rounds where visit_id = ?", Integer.class, visitId));
+                "select count(*) from clinical_service_orders where visit_id = ? and round_head", Integer.class, visitId));
         assertEquals(0, jdbc.queryForObject(
                 "select count(*) from clinical_service_orders where visit_id = ?", Integer.class, visitId));
     }

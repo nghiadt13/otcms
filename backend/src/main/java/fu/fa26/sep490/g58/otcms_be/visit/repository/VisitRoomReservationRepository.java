@@ -1,6 +1,8 @@
 package fu.fa26.sep490.g58.otcms_be.visit.repository;
 
 import fu.fa26.sep490.g58.otcms_be.visit.model.RoomReservationPlan;
+import fu.fa26.sep490.g58.otcms_be.common.audit.AuditEntry;
+import fu.fa26.sep490.g58.otcms_be.common.audit.AuditLogWriter;
 import jakarta.persistence.EntityManager;
 import java.sql.Timestamp;
 import java.time.Instant;
@@ -11,9 +13,11 @@ import org.springframework.stereotype.Repository;
 @Repository
 public class VisitRoomReservationRepository {
     private final EntityManager entityManager;
+    private final AuditLogWriter auditLog;
 
-    public VisitRoomReservationRepository(EntityManager entityManager) {
+    public VisitRoomReservationRepository(EntityManager entityManager, AuditLogWriter auditLog) {
         this.entityManager = entityManager;
+        this.auditLog = auditLog;
     }
 
     public RoomReservationPlan findAvailableRoom(String stepCode, String capabilityCode, Instant startsAt,
@@ -23,8 +27,7 @@ public class VisitRoomReservationRepository {
         var query = entityManager.createNativeQuery(("""
                 select r.id, r.room_code
                 from rooms r
-                join room_capabilities c on c.room_id = r.id
-                where r.active = true and c.capability_code = :capability
+                where r.active = true and r.capabilities @> ARRAY[cast(:capability as text)]
                   and not exists (
                     select 1 from room_reservations x
                     where x.room_id = r.id
@@ -165,19 +168,36 @@ public class VisitRoomReservationRepository {
 
     private void appendAudit(UUID visitId, UUID assignmentId, UUID reservationId, UUID roomId,
             UUID actorAccountId, String action, String stepCode, String correlationId, Instant occurredAt) {
-        entityManager.createNativeQuery("""
-                insert into room_reservation_audits
-                    (id, visit_id, assignment_id, reservation_id, room_id, actor_account_id,
-                     action, step_code, occurred_at, correlation_id)
-                values (:id, :visitId, :assignmentId, :reservationId, :roomId, :actorId,
-                        :action, :stepCode, :occurredAt, :correlationId)
-                on conflict do nothing
-                """)
-                .setParameter("id", UUID.randomUUID()).setParameter("visitId", visitId)
-                .setParameter("assignmentId", assignmentId).setParameter("reservationId", reservationId)
-                .setParameter("roomId", roomId).setParameter("actorId", actorAccountId)
-                .setParameter("action", action).setParameter("stepCode", stepCode)
-                .setParameter("occurredAt", Timestamp.from(occurredAt)).setParameter("correlationId", correlationId)
-                .executeUpdate();
+        // The legacy audit table required both fields for every reservation event.
+        java.util.Objects.requireNonNull(actorAccountId, "actorAccountId");
+        java.util.Objects.requireNonNull(correlationId, "correlationId");
+        var metadata = new java.util.LinkedHashMap<String, Object>();
+        metadata.put("visitId", visitId); metadata.put("assignmentId", assignmentId);
+        metadata.put("roomId", roomId); metadata.put("stepCode", stepCode);
+        var entry = AuditEntry.builder("room_reservation_audits", "ROOM", action, "ROOM_RESERVATION")
+                .entityId(reservationId != null ? reservationId : visitId).recordLabel(visitId.toString())
+                .actorAccountId(actorAccountId).metadata(metadata).occurredAt(occurredAt);
+        boolean deduplicate = "CAPACITY_CONFLICT".equals(action);
+        if (deduplicate) entry.dedupKey(capacityConflictKey(visitId, actorAccountId, correlationId));
+        String mdcKey = fu.fa26.sep490.g58.otcms_be.common.web.CorrelationIdFilter.MDC_KEY;
+        String previous = org.slf4j.MDC.get(mdcKey);
+        try {
+            if (correlationId == null) org.slf4j.MDC.remove(mdcKey);
+            else org.slf4j.MDC.put(mdcKey, correlationId);
+            if (deduplicate) auditLog.recordIfAbsent(entry.build());
+            else auditLog.record(entry.build());
+        } finally {
+            if (previous == null) org.slf4j.MDC.remove(mdcKey);
+            else org.slf4j.MDC.put(mdcKey, previous);
+        }
+    }
+
+    private static String capacityConflictKey(UUID visitId, UUID actorId, String correlationId) {
+        try {
+            byte[] input = (visitId + ":" + actorId + ":" + correlationId).getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            return "room-capacity:" + java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256").digest(input));
+        } catch (java.security.NoSuchAlgorithmException impossible) {
+            throw new IllegalStateException(impossible);
+        }
     }
 }

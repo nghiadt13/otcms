@@ -3,12 +3,13 @@ package fu.fa26.sep490.g58.otcms_be.auth.service.impl;
 import fu.fa26.sep490.g58.otcms_be.auth.exception.CredentialLoginException;
 import fu.fa26.sep490.g58.otcms_be.auth.model.dto.response.CredentialLoginResponse;
 import fu.fa26.sep490.g58.otcms_be.auth.model.entity.AccountJpaEntity;
-import fu.fa26.sep490.g58.otcms_be.auth.model.entity.AuthenticationAuditJpaEntity;
 import fu.fa26.sep490.g58.otcms_be.auth.model.entity.enums.AccountStatus;
 import fu.fa26.sep490.g58.otcms_be.auth.model.entity.enums.AccountType;
 import fu.fa26.sep490.g58.otcms_be.auth.repository.AccountRepository;
 import fu.fa26.sep490.g58.otcms_be.auth.repository.AuthConcurrencyRepository;
-import fu.fa26.sep490.g58.otcms_be.auth.repository.AuthenticationAuditRepository;
+import fu.fa26.sep490.g58.otcms_be.common.audit.AuditEntry;
+import fu.fa26.sep490.g58.otcms_be.common.audit.AuditLogWriter;
+import fu.fa26.sep490.g58.otcms_be.common.audit.repository.AuditLogRepository;
 import fu.fa26.sep490.g58.otcms_be.auth.service.CredentialLoginService;
 import fu.fa26.sep490.g58.otcms_be.config.AuthProperties;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -23,6 +24,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.util.HexFormat;
 import java.util.Locale;
+import java.util.Map;
 import java.util.UUID;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -30,24 +32,27 @@ import java.util.function.Supplier;
 @Service
 public class CredentialLoginServiceImpl implements CredentialLoginService {
     private final AccountRepository accounts;
-    private final AuthenticationAuditRepository audits;
+    private final AuditLogWriter auditWriter;
+    private final AuditLogRepository auditLogs;
     private final PasswordEncoder encoder;
     private final AuthProperties properties;
     private final AuthConcurrencyRepository concurrency;
     private final Clock clock;
 
     @Autowired
-    public CredentialLoginServiceImpl(AccountRepository accounts, AuthenticationAuditRepository audits,
-                                      PasswordEncoder encoder, AuthProperties properties,
-                                      AuthConcurrencyRepository concurrency) {
-        this(accounts, audits, encoder, properties, concurrency, Clock.systemUTC());
+    public CredentialLoginServiceImpl(AccountRepository accounts, AuditLogWriter auditWriter,
+                                      AuditLogRepository auditLogs, PasswordEncoder encoder,
+                                      AuthProperties properties, AuthConcurrencyRepository concurrency) {
+        this(accounts, auditWriter, auditLogs, encoder, properties, concurrency, Clock.systemUTC());
     }
 
-    public CredentialLoginServiceImpl(AccountRepository accounts, AuthenticationAuditRepository audits,
-                                      PasswordEncoder encoder, AuthProperties properties,
-                                      AuthConcurrencyRepository concurrency, Clock clock) {
+    public CredentialLoginServiceImpl(AccountRepository accounts, AuditLogWriter auditWriter,
+                                      AuditLogRepository auditLogs, PasswordEncoder encoder,
+                                      AuthProperties properties, AuthConcurrencyRepository concurrency,
+                                      Clock clock) {
         this.accounts = accounts;
-        this.audits = audits;
+        this.auditWriter = auditWriter;
+        this.auditLogs = auditLogs;
         this.encoder = encoder;
         this.properties = properties;
         this.concurrency = concurrency;
@@ -150,16 +155,15 @@ public class CredentialLoginServiceImpl implements CredentialLoginService {
     }
 
     private void audit(AccountJpaEntity account, String identifier, String method, String outcome) {
-        AuthenticationAuditJpaEntity audit = new AuthenticationAuditJpaEntity();
-        audit.setOccurredAt(Instant.now(clock));
-        audit.setMethod(method);
-        audit.setOutcome(outcome);
-        audit.setAccount(account);
-        audit.setIdentifierHmac(account == null ? hmac(identifier) : null);
-        audit.setCorrelationId(UUID.randomUUID().toString());
-        audit.setClientIp(null);
-        audit.setDurationMs(0);
-        audits.save(audit);
+        write(method, outcome, account == null ? null : account.getId(),
+                account == null ? hmac(identifier) : null);
+    }
+
+    /** Auth evidence is never shown in the activity log; written in the login transaction. */
+    private void write(String action, String outcome, UUID accountId, String identifierHmac) {
+        auditWriter.record(AuditEntry.builder("auth_audits", "AUTH", action, "AUTH")
+                .entityId(accountId).visibleInActivityLog(false).identifierHmac(identifierHmac)
+                .outcome(outcome).occurredAt(Instant.now(clock)).metadata(Map.of("durationMs", 0)).build());
     }
 
     private void enforceIpRate(String ip) {
@@ -167,20 +171,12 @@ public class CredentialLoginServiceImpl implements CredentialLoginService {
         String identifierHash = hmac(key);
         concurrency.lock("login-ip:" + identifierHash);
         Instant since = Instant.now(clock).minusSeconds(properties.login().windowSeconds());
-        if (audits.countByMethodAndOutcomeAndIdentifierHmacAndOccurredAtAfter(
-                "LOGIN_IP", "ATTEMPT", identifierHash, since) >= properties.login().requests()) {
+        if (auditLogs.countBySourceAndActionAndOutcomeAndIdentifierHmacAndOccurredAtAfter(
+                "auth_audits", "LOGIN_IP", "ATTEMPT", identifierHash, since) >= properties.login().requests()) {
             throw new CredentialLoginException("RATE_LIMIT_EXCEEDED");
         }
 
-        AuthenticationAuditJpaEntity audit = new AuthenticationAuditJpaEntity();
-        audit.setOccurredAt(Instant.now(clock));
-        audit.setMethod("LOGIN_IP");
-        audit.setOutcome("ATTEMPT");
-        audit.setIdentifierHmac(identifierHash);
-        audit.setCorrelationId(UUID.randomUUID().toString());
-        audit.setClientIp(null);
-        audit.setDurationMs(0);
-        audits.save(audit);
+        write("LOGIN_IP", "ATTEMPT", null, identifierHash);
     }
 
     private String hmac(String value) {

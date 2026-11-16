@@ -11,6 +11,9 @@ export type CurrentAccount = {
   email: string;
   /** Họ tên hồ sơ bệnh nhân; chưa có hồ sơ thì là phần trước @ của email. */
   displayName: string;
+  /** Tên đăng nhập và vai trò của nhân viên, có trong GET /api/v1/me. */
+  username?: string | null;
+  role?: string | null;
   /** Có giá trị khi tài khoản đã có ảnh đại diện; ảnh thật tải qua `accountAvatarCache`. */
   avatarUrl?: string | null;
 };

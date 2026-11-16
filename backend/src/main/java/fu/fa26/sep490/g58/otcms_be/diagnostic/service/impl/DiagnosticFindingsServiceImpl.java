@@ -1,12 +1,19 @@
 package fu.fa26.sep490.g58.otcms_be.diagnostic.service.impl;
 
+import fu.fa26.sep490.g58.otcms_be.clinical.service.ClinicalServiceOrderExecutionPort;
+import fu.fa26.sep490.g58.otcms_be.clinical.service.ClinicalServiceOrderExecutionPort.ExecutionStatus;
+import fu.fa26.sep490.g58.otcms_be.clinical.service.ClinicalServiceOrderExecutionPort.ImagingExecution;
+import fu.fa26.sep490.g58.otcms_be.common.audit.AuditEntry;
+import fu.fa26.sep490.g58.otcms_be.common.audit.AuditLogWriter;
 import fu.fa26.sep490.g58.otcms_be.common.security.AccountRole;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.exception.DiagnosticOperationException;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.integration.DiagnosticPortModels.FindingsReleaseEvent;
+import fu.fa26.sep490.g58.otcms_be.diagnostic.integration.DiagnosticPortModels.ReleaseAcknowledgement;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.integration.DiagnosticPortModels.ReportValidationStatus;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.integration.DiagnosticPortModels.StoredReport;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.integration.DiagnosticPortModels.VisitEvidence;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.integration.ReportStoragePort;
+import fu.fa26.sep490.g58.otcms_be.diagnostic.integration.ImagingStudyPort;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.integration.VisitDiagnosticPort;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.model.DiagnosticActor;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.model.DiagnosticAttempt;
@@ -17,25 +24,13 @@ import fu.fa26.sep490.g58.otcms_be.diagnostic.model.DiagnosticReportUpload;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.model.DiagnosticReportView;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.model.DiagnosticRequest;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.model.DiagnosticRequestView;
-import fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.DiagnosticAuditEventJpaEntity;
-import fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.DiagnosticAttemptJpaEntity;
-import fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.DiagnosticFindingsVersionJpaEntity;
-import fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.DiagnosticIdempotencyRecordJpaEntity;
-import fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.DiagnosticOutboxJpaEntity;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.DiagnosticReportJpaEntity;
-import fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.DiagnosticRequestJpaEntity;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.enums.DiagnosticAction;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.enums.DiagnosticFindingsVersionState;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.enums.DiagnosticOperationOutcome;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.enums.DiagnosticReportValidationStatus;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.enums.DiagnosticRequestStatus;
-import fu.fa26.sep490.g58.otcms_be.diagnostic.repository.DiagnosticAttemptJpaRepository;
-import fu.fa26.sep490.g58.otcms_be.diagnostic.repository.DiagnosticAuditEventJpaRepository;
-import fu.fa26.sep490.g58.otcms_be.diagnostic.repository.DiagnosticFindingsVersionJpaRepository;
-import fu.fa26.sep490.g58.otcms_be.diagnostic.repository.DiagnosticIdempotencyRecordJpaRepository;
-import fu.fa26.sep490.g58.otcms_be.diagnostic.repository.DiagnosticOutboxJpaRepository;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.repository.DiagnosticReportJpaRepository;
-import fu.fa26.sep490.g58.otcms_be.diagnostic.repository.DiagnosticRequestJpaRepository;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.service.DiagnosticAuthorizationPolicy;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.service.DiagnosticFindingsService;
 import java.io.FilterInputStream;
@@ -64,126 +59,158 @@ public class DiagnosticFindingsServiceImpl implements DiagnosticFindingsService 
     private static final String CORRECTION = "CREATE_FINDINGS_CORRECTION";
     private static final String UPLOAD_REPORT = "UPLOAD_CLINIC_REPORT";
     private static final String COMPLETE = "COMPLETE_FINDINGS";
-    private static final String RELEASE_EVENT = "FINDINGS_RELEASE";
-
-    private final DiagnosticRequestJpaRepository requests;
-    private final DiagnosticAttemptJpaRepository attempts;
-    private final DiagnosticFindingsVersionJpaRepository findings;
     private final DiagnosticReportJpaRepository reports;
-    private final DiagnosticIdempotencyRecordJpaRepository idempotency;
-    private final DiagnosticAuditEventJpaRepository auditEvents;
-    private final DiagnosticOutboxJpaRepository outbox;
     private final DiagnosticAuthorizationPolicy authorization;
     private final ObjectProvider<VisitDiagnosticPort> visitPorts;
     private final ObjectProvider<ReportStoragePort> reportPorts;
+    private final ObjectProvider<ImagingStudyPort> studyPorts;
+    private final ClinicalServiceOrderExecutionPort executions;
+    private final AuditLogWriter auditWriter;
 
-    public DiagnosticFindingsServiceImpl(DiagnosticRequestJpaRepository requests,
-            DiagnosticAttemptJpaRepository attempts, DiagnosticFindingsVersionJpaRepository findings,
-            DiagnosticReportJpaRepository reports, DiagnosticIdempotencyRecordJpaRepository idempotency,
-            DiagnosticAuditEventJpaRepository auditEvents, DiagnosticOutboxJpaRepository outbox,
+    public DiagnosticFindingsServiceImpl(DiagnosticReportJpaRepository reports,
             DiagnosticAuthorizationPolicy authorization, ObjectProvider<VisitDiagnosticPort> visitPorts,
-            ObjectProvider<ReportStoragePort> reportPorts) {
-        this.requests = Objects.requireNonNull(requests, "requests");
-        this.attempts = Objects.requireNonNull(attempts, "attempts");
-        this.findings = Objects.requireNonNull(findings, "findings");
+            ObjectProvider<ReportStoragePort> reportPorts, ObjectProvider<ImagingStudyPort> studyPorts,
+            ClinicalServiceOrderExecutionPort executions, AuditLogWriter auditWriter) {
         this.reports = Objects.requireNonNull(reports, "reports");
-        this.idempotency = Objects.requireNonNull(idempotency, "idempotency");
-        this.auditEvents = Objects.requireNonNull(auditEvents, "auditEvents");
-        this.outbox = Objects.requireNonNull(outbox, "outbox");
         this.authorization = Objects.requireNonNull(authorization, "authorization");
         this.visitPorts = Objects.requireNonNull(visitPorts, "visitPorts");
         this.reportPorts = Objects.requireNonNull(reportPorts, "reportPorts");
+        this.studyPorts = Objects.requireNonNull(studyPorts, "studyPorts");
+        this.executions = Objects.requireNonNull(executions, "executions");
+        this.auditWriter = Objects.requireNonNull(auditWriter, "auditWriter");
     }
 
     @Override
     @Transactional
     public DiagnosticRequestView review(DiagnosticActor actor, UUID requestId, String idempotencyKey,
             long expectedVersion, String studyRef, String correlationId) {
-        DiagnosticRequestJpaEntity request = lockRequest(requestId);
-        requireDoctorAccess(actor, request);
-        String fingerprint = fingerprint(studyRef + "\n" + expectedVersion);
-        DiagnosticIdempotencyRecordJpaEntity replay = claim(actor, request, REVIEW, idempotencyKey, fingerprint);
-        if (replay != null) return requestView(request);
-        requireVersion(request, expectedVersion);
-        DiagnosticAttemptJpaEntity attempt = requireCurrentStudy(request, studyRef);
-        authorization.requireAllowed(toDomain(request, attempt), DiagnosticAction.REVIEW_RESULT, actor,
-                evidence(request, attempt), expectedVersion);
-        VisitEvidence visit = requireVisitEvidence(actor, request);
+        ImagingExecution request = executions.findForUpdate(requestId)
+                .orElseThrow(() -> new DiagnosticOperationException(DiagnosticOperationOutcome.RECORD_NOT_FOUND));
+        if (actor == null || actor.kind() != DiagnosticActor.Kind.USER || actor.role() != AccountRole.DOCTOR
+                || !actor.accountId().equals(request.orderingDoctorAccountId())) throw unauthorized();
+        VisitDiagnosticPort visitPort = visitPorts.getIfAvailable();
+        if (visitPort == null) throw dependencyUnavailable();
+        VisitEvidence visit;
+        try {
+            visit = visitPort.requireImagingOrderEligibility(request.visitId(), actor.accountId());
+        } catch (DiagnosticOperationException exception) {
+            throw exception;
+        } catch (RuntimeException exception) {
+            throw dependencyUnavailable();
+        }
+        if (visit == null || !request.visitId().equals(visit.visitId())
+                || !request.patientId().equals(visit.patientId()) || !visit.examinationStarted()) throw evidenceMismatch();
         if (!actor.accountId().equals(visit.treatingDoctorId())) throw unauthorized();
-        request.setStatus(DiagnosticRequestStatus.REVIEWED);
-        requests.saveAndFlush(request);
-        saveResult(actor, request, REVIEW, idempotencyKey,
-                Map.of("requestId", requestId.toString(), "version", request.getVersion()));
-        audit(request, actor, "REVIEW_RESULT", correlationId, Map.of("studyRef", studyRef));
-        return requestView(request);
+        if (!visit.open() || !visit.eligible()) throw new DiagnosticOperationException(DiagnosticOperationOutcome.VISIT_NOT_ELIGIBLE);
+        String key = requiredText(idempotencyKey, 255, "Idempotency-Key");
+        String fingerprint = fingerprint(studyRef + "\n" + expectedVersion);
+        if (key.equals(request.reviewIdempotencyKey())) {
+            if (!fingerprint.equals(request.reviewFingerprint())) {
+                throw new DiagnosticOperationException(DiagnosticOperationOutcome.IDEMPOTENCY_CONFLICT);
+            }
+            return executionView(request);
+        }
+        if (request.executionVersion() != expectedVersion) throw new DiagnosticOperationException(DiagnosticOperationOutcome.VERSION_CONFLICT);
+        if (request.attemptId() == null || request.studyRef() == null || request.studyRef().isBlank()) throw stateConflict();
+        if (studyRef == null || !studyRef.equals(request.studyRef())) throw evidenceMismatch();
+        DiagnosticAttempt attempt = new DiagnosticAttempt(request.attemptId(), request.orderId(), 1,
+                request.firstUseEventId(), request.firstUseAt(), request.studyRef());
+        DiagnosticRequest domain = new DiagnosticRequest(request.orderId(), request.visitId(), request.patientId(),
+                request.orderingDoctorAccountId(), request.serviceId(), request.imagingType(),
+                DiagnosticRequestStatus.valueOf(request.status().name()), attempt, request.executionVersion(), request.createdAt());
+        authorization.requireAllowed(domain, DiagnosticAction.REVIEW_RESULT, actor,
+                new DiagnosticEvidenceContext(request.orderId(), request.visitId(), request.patientId(),
+                        request.orderingDoctorAccountId(), null, request.attemptId(), false, true, false, false, false), expectedVersion);
+        if (executions.markReviewed(requestId, expectedVersion, key, fingerprint) != 1) {
+            ImagingExecution current = executions.find(requestId).orElseThrow(this::dependencyUnavailable);
+            if (key.equals(current.reviewIdempotencyKey())) {
+                if (!fingerprint.equals(current.reviewFingerprint())) throw new DiagnosticOperationException(DiagnosticOperationOutcome.IDEMPOTENCY_CONFLICT);
+                return executionView(current);
+            }
+            if (current.executionVersion() != expectedVersion) throw new DiagnosticOperationException(DiagnosticOperationOutcome.VERSION_CONFLICT);
+            throw stateConflict();
+        }
+        ImagingExecution updated = executions.find(requestId).orElseThrow(this::dependencyUnavailable);
+        auditWriter.record(AuditEntry.builder("diagnostic_audit_events", "DIAGNOSTIC", "REVIEW_RESULT:ALLOWED", "DIAGNOSTIC_REQUEST")
+                .entityId(requestId).recordLabel(requestId.toString()).actorAccountId(actor.accountId()).actorType("ACCOUNT")
+                .metadata(Map.of("studyRef", studyRef, "correlationId", requiredText(correlationId, 128, "correlationId")))
+                .outcome("ALLOWED").occurredAt(Instant.now()).build());
+        return executionView(updated);
+    }
+
+    private DiagnosticRequestView executionView(ImagingExecution execution) {
+        return new DiagnosticRequestView(execution.orderId(), execution.visitId(), execution.patientId(),
+                execution.orderingDoctorAccountId(), execution.serviceId(), execution.roomId(), execution.imagingType(),
+                execution.bodyArea(), execution.clinicalReason(), DiagnosticRequestStatus.valueOf(execution.status().name()),
+                execution.cancellationCause(), execution.cancellationReason(), execution.studyRef(), execution.executionVersion(),
+                execution.createdAt());
     }
 
     @Override
     @Transactional
     public DiagnosticFindingsView saveDraft(DiagnosticActor actor, UUID requestId, String idempotencyKey,
             long expectedVersion, String content, String correlationId) {
-        DiagnosticRequestJpaEntity request = lockRequest(requestId);
+        ImagingExecution request = lockRequest(requestId);
         requireDoctorAccess(actor, request);
         String body = requiredText(content, 20000, "content");
-        String studyRef = currentStudy(request).getStudyRef();
+        String studyRef = requireCurrentStudy(request, request.studyRef());
         String fingerprint = fingerprint(body + "\n" + expectedVersion + "\n" + studyRef);
-        DiagnosticIdempotencyRecordJpaEntity replay = claim(actor, request, DRAFT, idempotencyKey, fingerprint);
-        if (replay != null) return findingsReplay(requestId, replay);
+        String key = requiredText(idempotencyKey, 255, "Idempotency-Key");
+        DiagnosticReportJpaEntity replay = reports.findByRequestIdAndDraftIdempotencyKey(requestId, key).orElse(null);
+        if (replay != null) return replayFindings(replay, replay.getDraftFingerprint(), fingerprint);
         requireVersion(request, expectedVersion);
         VisitEvidence visit = requireVisitEvidence(actor, request);
         if (!actor.accountId().equals(visit.treatingDoctorId())) throw unauthorized();
         requireReviewed(request);
-        DiagnosticFindingsVersionJpaEntity latest = latestFindings(requestId);
+        DiagnosticReportJpaEntity latest = latestFindings(requestId);
         if (latest != null && latest.getState() == DiagnosticFindingsVersionState.COMPLETED) {
             throw stateConflict();
         }
         if (latest == null) {
-            latest = new DiagnosticFindingsVersionJpaEntity(UUID.randomUUID(), requestId, request.getVisitId(),
-                    studyRef, 1, body, actor.accountId(), Instant.now(), DiagnosticFindingsVersionState.DRAFT,
-                    null, null);
+            latest = new DiagnosticReportJpaEntity(UUID.randomUUID(), requestId, request.visitId(),
+                    studyRef, 1, body, actor.accountId(), Instant.now());
         } else {
             if (!studyRef.equals(latest.getStudyRef())) throw evidenceMismatch();
             latest.reviseDraft(body, Instant.now());
         }
-        findings.saveAndFlush(latest);
-        saveResult(actor, request, DRAFT, idempotencyKey,
-                Map.of("findingsVersionId", latest.getId().toString(), "fingerprint", fingerprint));
+        latest.recordDraftKey(key, fingerprint);
+        reports.saveAndFlush(latest);
         audit(request, actor, "SAVE_FINDINGS_DRAFT", correlationId,
                 Map.of("findingsVersionId", latest.getId().toString(), "version", latest.getVersionNumber()));
-        return findingsView(latest, "PRIVATE");
+        return findingsView(latest);
     }
 
     @Override
     @Transactional
     public DiagnosticFindingsView createCorrection(DiagnosticActor actor, UUID requestId, String idempotencyKey,
             long expectedVersion, String content, String correctionReason, String correlationId) {
-        DiagnosticRequestJpaEntity request = lockRequest(requestId);
+        ImagingExecution request = lockRequest(requestId);
         requireDoctorAccess(actor, request);
         String body = requiredText(content, 20000, "content");
         String reason = requiredText(correctionReason, 2000, "correctionReason");
-        String studyRef = currentStudy(request).getStudyRef();
+        String studyRef = requireCurrentStudy(request, request.studyRef());
         String fingerprint = fingerprint(body + "\n" + reason + "\n" + expectedVersion + "\n" + studyRef);
-        DiagnosticIdempotencyRecordJpaEntity replay = claim(actor, request, CORRECTION, idempotencyKey, fingerprint);
-        if (replay != null) return findingsReplay(requestId, replay);
+        String key = requiredText(idempotencyKey, 255, "Idempotency-Key");
+        DiagnosticReportJpaEntity replay = reports.findByRequestIdAndCorrectionIdempotencyKey(requestId, key).orElse(null);
+        if (replay != null) return replayFindings(replay, replay.getCorrectionFingerprint(), fingerprint);
         requireVersion(request, expectedVersion);
         VisitEvidence visit = requireVisitEvidence(actor, request);
         if (!actor.accountId().equals(visit.treatingDoctorId())) throw unauthorized();
         requireReviewed(request);
-        DiagnosticFindingsVersionJpaEntity latest = latestFindings(requestId);
+        DiagnosticReportJpaEntity latest = latestFindings(requestId);
         if (latest == null || latest.getState() != DiagnosticFindingsVersionState.COMPLETED) {
             throw stateConflict();
         }
-        DiagnosticFindingsVersionJpaEntity correction = new DiagnosticFindingsVersionJpaEntity(UUID.randomUUID(),
-                requestId, request.getVisitId(), studyRef, latest.getVersionNumber() + 1, body, actor.accountId(),
-                Instant.now(), DiagnosticFindingsVersionState.DRAFT, null, null);
+        DiagnosticReportJpaEntity correction = new DiagnosticReportJpaEntity(UUID.randomUUID(),
+                requestId, request.visitId(), studyRef, latest.getVersionNumber() + 1, body, actor.accountId(),
+                Instant.now());
         correction.setCorrectionReason(reason);
-        findings.saveAndFlush(correction);
-        saveResult(actor, request, CORRECTION, idempotencyKey,
-                Map.of("findingsVersionId", correction.getId().toString(), "fingerprint", fingerprint));
+        correction.recordCorrectionKey(key, fingerprint);
+        reports.saveAndFlush(correction);
         audit(request, actor, "CREATE_FINDINGS_CORRECTION", correlationId, Map.of(
                 "findingsVersionId", correction.getId().toString(), "version", correction.getVersionNumber(),
                 "correctionReason", reason));
-        return findingsView(correction, "PRIVATE");
+        return findingsView(correction);
     }
 
     @Override
@@ -191,17 +218,17 @@ public class DiagnosticFindingsServiceImpl implements DiagnosticFindingsService 
     public DiagnosticReportView uploadReport(DiagnosticActor actor, UUID requestId, String idempotencyKey,
             long expectedVersion, DiagnosticReportUpload upload,
             String correlationId) {
-        DiagnosticRequestJpaEntity request = lockRequest(requestId);
+        ImagingExecution request = lockRequest(requestId);
         requireDoctorAccess(actor, request);
         if (upload == null || upload.content() == null || upload.contentLength() <= 0
                 || !"application/pdf".equalsIgnoreCase(upload.contentType())) {
             throw reportInvalid();
         }
-        String studyRef = currentStudy(request).getStudyRef();
+        String studyRef = requireCurrentStudy(request, request.studyRef());
         VisitEvidence visit = requireVisitEvidence(actor, request);
         if (!actor.accountId().equals(visit.treatingDoctorId())) throw unauthorized();
         requireReviewed(request);
-        DiagnosticFindingsVersionJpaEntity latest = latestFindings(requestId);
+        DiagnosticReportJpaEntity latest = latestFindings(requestId);
         int version = latest == null ? 1 : latest.getVersionNumber();
         if (latest != null && latest.getState() == DiagnosticFindingsVersionState.COMPLETED) {
             throw stateConflict();
@@ -209,8 +236,9 @@ public class DiagnosticFindingsServiceImpl implements DiagnosticFindingsService 
         String contentSha256 = hashUpload(upload);
         String fingerprint = fingerprint(studyRef + "\n" + expectedVersion + "\n" + upload.contentLength()
                 + "\n" + version + "\n" + contentSha256);
-        DiagnosticIdempotencyRecordJpaEntity replay = claim(actor, request, UPLOAD_REPORT, idempotencyKey, fingerprint);
-        if (replay != null) return reportReplay(requestId, replay);
+        String key = requiredText(idempotencyKey, 255, "Idempotency-Key");
+        DiagnosticReportJpaEntity replay = reports.findByRequestIdAndUploadIdempotencyKey(requestId, key).orElse(null);
+        if (replay != null) return replayReport(replay, replay.getUploadFingerprint(), fingerprint);
         requireVersion(request, expectedVersion);
         ReportStoragePort storage = reportPorts.getIfAvailable();
         if (storage == null) throw dependencyUnavailable();
@@ -229,7 +257,7 @@ public class DiagnosticFindingsServiceImpl implements DiagnosticFindingsService 
             countedContent = new CountingInputStream(checkedContent);
             InputStream digestStream = new DigestInputStream(countedContent, digest);
             try {
-                stored = storage.storePrivateReport(requestId, request.getVisitId(), studyRef, version,
+                stored = storage.storePrivateReport(requestId, request.visitId(), studyRef, version,
                         digestStream, upload.contentLength());
             } catch (RuntimeException exception) {
                 throw dependencyUnavailable();
@@ -250,103 +278,121 @@ public class DiagnosticFindingsServiceImpl implements DiagnosticFindingsService 
         }
         if (validation == null) validation = ReportValidationStatus.PENDING;
         DiagnosticReportValidationStatus persistedStatus = DiagnosticReportValidationStatus.valueOf(validation.name());
-        DiagnosticReportJpaEntity report = new DiagnosticReportJpaEntity(stored.reportId(), requestId,
-                request.getVisitId(), studyRef, version, stored.storageRef(),
-                storedSha256, persistedStatus, actor.accountId(),
-                persistedStatus == DiagnosticReportValidationStatus.PENDING ? null : Instant.now(), null);
-        reports.saveAndFlush(report);
-        saveResult(actor, request, UPLOAD_REPORT, idempotencyKey,
-                Map.of("reportId", report.getId().toString(), "fingerprint", fingerprint));
+        if (latest == null) {
+            latest = new DiagnosticReportJpaEntity(UUID.randomUUID(), requestId, request.visitId(), studyRef,
+                    version, null, actor.accountId(), Instant.now());
+        }
+        latest.attachReport(stored.reportId(), stored.storageRef(), storedSha256, persistedStatus,
+                actor.accountId(), Instant.now(),
+                persistedStatus == DiagnosticReportValidationStatus.PENDING ? null : Instant.now());
+        latest.recordUploadKey(key, fingerprint);
+        reports.saveAndFlush(latest);
         audit(request, actor, "UPLOAD_CLINIC_REPORT", correlationId,
-                Map.of("reportId", report.getId().toString(), "validationStatus", persistedStatus.name()));
-        return new DiagnosticReportView(report.getId(), persistedStatus.name(), version);
+                Map.of("reportId", stored.reportId().toString(), "validationStatus", persistedStatus.name()));
+        return new DiagnosticReportView(stored.reportId(), persistedStatus.name(), version);
     }
 
     @Override
     @Transactional
     public DiagnosticFindingsReleaseView complete(DiagnosticActor actor, UUID requestId, String idempotencyKey,
             long expectedVersion, int findingsVersion, UUID reportId, String studyRef, String correlationId) {
-        DiagnosticRequestJpaEntity request = lockRequest(requestId);
+        ImagingExecution request = lockRequest(requestId);
         requireDoctorAccess(actor, request);
         String fingerprint = fingerprint(findingsVersion + "\n" + reportId + "\n" + studyRef + "\n" + expectedVersion);
-        DiagnosticIdempotencyRecordJpaEntity replay = claim(actor, request, COMPLETE, idempotencyKey, fingerprint);
+        String key = requiredText(idempotencyKey, 255, "Idempotency-Key");
+        DiagnosticReportJpaEntity replay = reports.findByRequestIdAndCompleteIdempotencyKey(requestId, key).orElse(null);
         if (replay != null) {
-            UUID eventId = UUID.fromString(text(replay.getResultPayload(), "eventId"));
-            String state = outbox.findByEventId(eventId)
-                    .map(event -> event.getStatus().name().equals("DELIVERED") ? "RELEASED" : "RELEASE_PENDING")
-                    .orElse("RELEASE_PENDING");
-            return new DiagnosticFindingsReleaseView(requestId,
-                    number(replay.getResultPayload(), "findingsVersion"), state);
+            if (!fingerprint.equals(replay.getCompleteFingerprint())) {
+                throw new DiagnosticOperationException(DiagnosticOperationOutcome.IDEMPOTENCY_CONFLICT);
+            }
+            if (replay.getState() != DiagnosticFindingsVersionState.COMPLETED || replay.getReleasedAt() == null) {
+                throw stateConflict();
+            }
+            return new DiagnosticFindingsReleaseView(requestId, replay.getVersionNumber(), "RELEASED");
         }
         requireVersion(request, expectedVersion);
-        DiagnosticAttemptJpaEntity attempt = requireCurrentStudy(request, studyRef);
+        requireCurrentStudy(request, studyRef);
         VisitEvidence visit = requireVisitEvidence(actor, request);
         if (!actor.accountId().equals(visit.treatingDoctorId())) throw unauthorized();
         requireReviewed(request);
-        DiagnosticFindingsVersionJpaEntity version = findings.findAllByRequestIdOrderByVersionNumberDesc(requestId)
-                .stream().filter(candidate -> candidate.getVersionNumber() == findingsVersion).findFirst()
+        DiagnosticReportJpaEntity version = reports.findByRequestIdAndReportVersion(requestId, findingsVersion)
                 .orElseThrow(() -> new DiagnosticOperationException(DiagnosticOperationOutcome.RECORD_NOT_FOUND));
         if (version.getState() != DiagnosticFindingsVersionState.DRAFT || !studyRef.equals(version.getStudyRef())) {
             throw stateConflict();
         }
-        DiagnosticReportJpaEntity report = reports.findByIdAndRequestId(reportId, requestId)
-                .orElseThrow(this::reportNotReady);
-        if (report.getValidationStatus() == DiagnosticReportValidationStatus.PENDING) {
+        if (!Objects.equals(version.getReportId(), reportId)) throw reportNotReady();
+        if (version.getValidationStatus() == DiagnosticReportValidationStatus.PENDING) {
             ReportStoragePort storage = reportPorts.getIfAvailable();
             if (storage == null) throw dependencyUnavailable();
             ReportValidationStatus validation;
             try {
-                validation = storage.validateStoredReport(reportId, report.getStorageRef());
+                validation = storage.validateStoredReport(reportId, version.getStorageRef());
             } catch (RuntimeException exception) {
                 throw reportNotReady();
             }
             if (validation != null && validation != ReportValidationStatus.PENDING) {
-                report.setValidationStatus(DiagnosticReportValidationStatus.valueOf(validation.name()));
-                if (validation == ReportValidationStatus.VALIDATED) report.setValidatedAt(Instant.now());
-                reports.saveAndFlush(report);
+                version.setValidationStatus(DiagnosticReportValidationStatus.valueOf(validation.name()));
+                if (validation == ReportValidationStatus.VALIDATED) version.setValidatedAt(Instant.now());
             }
         }
-        if (report.getValidationStatus() != DiagnosticReportValidationStatus.VALIDATED
-                || !report.getVisitId().equals(request.getVisitId()) || !studyRef.equals(report.getStudyRef())
-                || report.getReportVersion() != findingsVersion) throw reportNotReady();
-        UUID eventId = UUID.randomUUID();
-        Map<String, Object> payload = releasePayload(eventId, request, version, report);
-        outbox.save(new DiagnosticOutboxJpaEntity(UUID.randomUUID(), eventId, requestId, request.getVisitId(),
-                RELEASE_EVENT, payload, fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.enums.DiagnosticOutboxStatus.PENDING,
-                0, Instant.now(), null, null));
-        saveResult(actor, request, COMPLETE, idempotencyKey, Map.of(
-                "eventId", eventId.toString(), "findingsVersion", findingsVersion, "releaseState", "RELEASE_PENDING"));
-        audit(request, actor, "REQUEST_FINDINGS_RELEASE", correlationId,
-                Map.of("eventId", eventId.toString(), "findingsVersionId", version.getId().toString(),
-                        "reportId", reportId.toString(), "releaseState", "RELEASE_PENDING"));
-        return new DiagnosticFindingsReleaseView(requestId, findingsVersion, "RELEASE_PENDING");
-    }
+        if (version.getValidationStatus() != DiagnosticReportValidationStatus.VALIDATED
+                || !version.getVisitId().equals(request.visitId()) || !studyRef.equals(version.getStudyRef())
+                || version.getReportVersion() != findingsVersion || version.getContentSha256() == null) {
+            throw reportNotReady();
+        }
+        UUID eventId = UUID.nameUUIDFromBytes(("FINDINGS_RELEASE:" + requestId + ":" + key)
+                .getBytes(StandardCharsets.UTF_8));
+        FindingsReleaseEvent event = new FindingsReleaseEvent(eventId, requestId, request.visitId(),
+                request.patientId(), studyRef, version.getId(), reportId, version.getContentSha256());
+        String payloadSha256 = releasePayloadSha256(event);
+        Instant releasedAt = Instant.now();
+        version.recordCompleteKey(key, fingerprint);
+        version.markCompleted(reportId, releasedAt);
+        reports.saveAndFlush(version);
 
-    private DiagnosticRequestJpaEntity lockRequest(UUID requestId) {
-        return requests.findByIdForUpdate(requestId)
-                .orElseThrow(() -> new DiagnosticOperationException(DiagnosticOperationOutcome.RECORD_NOT_FOUND));
-    }
-
-    private void requireDoctorAccess(DiagnosticActor actor, DiagnosticRequestJpaEntity request) {
-        if (actor == null || actor.kind() != DiagnosticActor.Kind.USER || actor.role() != AccountRole.DOCTOR
-                || !actor.accountId().equals(request.getOrderingDoctorId())) throw unauthorized();
-        // Replays also require active current care; knowing an old idempotency key grants no access.
-        requireVisitEvidence(actor, request);
-    }
-
-    private VisitEvidence requireVisitEvidence(DiagnosticActor actor, DiagnosticRequestJpaEntity request) {
-        VisitDiagnosticPort port = visitPorts.getIfAvailable();
-        if (port == null) throw dependencyUnavailable();
-        VisitEvidence evidence;
+        VisitDiagnosticPort visitPort = visitPorts.getIfAvailable();
+        ImagingStudyPort studyPort = studyPorts.getIfAvailable();
+        if (visitPort == null || studyPort == null) throw dependencyUnavailable();
         try {
-            evidence = port.requireImagingOrderEligibility(request.getVisitId(), actor.accountId());
+            requireReleaseAck(visitPort.publishFindingsReleased(event), event, payloadSha256);
+            requireReleaseAck(studyPort.acceptFindingsRelease(event), event, payloadSha256);
         } catch (DiagnosticOperationException exception) {
             throw exception;
         } catch (RuntimeException exception) {
             throw dependencyUnavailable();
         }
-        if (evidence == null || !request.getVisitId().equals(evidence.visitId())
-                || !request.getPatientId().equals(evidence.patientId()) || !evidence.examinationStarted()) {
+
+        audit(request, actor, "COMPLETE_FINDINGS", correlationId,
+                Map.of("eventId", eventId.toString(), "findingsVersionId", version.getId().toString(),
+                        "reportId", reportId.toString(), "releaseState", "RELEASED"));
+        return new DiagnosticFindingsReleaseView(requestId, findingsVersion, "RELEASED");
+    }
+
+    private ImagingExecution lockRequest(UUID requestId) {
+        return executions.findForUpdate(requestId)
+                .orElseThrow(() -> new DiagnosticOperationException(DiagnosticOperationOutcome.RECORD_NOT_FOUND));
+    }
+
+    private void requireDoctorAccess(DiagnosticActor actor, ImagingExecution request) {
+        if (actor == null || actor.kind() != DiagnosticActor.Kind.USER || actor.role() != AccountRole.DOCTOR
+                || !actor.accountId().equals(request.orderingDoctorAccountId())) throw unauthorized();
+        // Replays also require active current care; knowing an old idempotency key grants no access.
+        requireVisitEvidence(actor, request);
+    }
+
+    private VisitEvidence requireVisitEvidence(DiagnosticActor actor, ImagingExecution request) {
+        VisitDiagnosticPort port = visitPorts.getIfAvailable();
+        if (port == null) throw dependencyUnavailable();
+        VisitEvidence evidence;
+        try {
+            evidence = port.requireImagingOrderEligibility(request.visitId(), actor.accountId());
+        } catch (DiagnosticOperationException exception) {
+            throw exception;
+        } catch (RuntimeException exception) {
+            throw dependencyUnavailable();
+        }
+        if (evidence == null || !request.visitId().equals(evidence.visitId())
+                || !request.patientId().equals(evidence.patientId()) || !evidence.examinationStarted()) {
             throw evidenceMismatch();
         }
         if (!actor.accountId().equals(evidence.treatingDoctorId())) throw unauthorized();
@@ -356,121 +402,78 @@ public class DiagnosticFindingsServiceImpl implements DiagnosticFindingsService 
         return evidence;
     }
 
-    private DiagnosticAttemptJpaEntity currentStudy(DiagnosticRequestJpaEntity request) {
-        if (request.getCurrentAttemptId() == null) throw stateConflict();
-        DiagnosticAttemptJpaEntity attempt = attempts.findByRequestIdAndId(request.getId(), request.getCurrentAttemptId())
-                .orElseThrow(this::dependencyUnavailable);
-        if (attempt.getStudyRef() == null || attempt.getStudyRef().isBlank()) throw stateConflict();
-        return attempt;
-    }
-
-    private DiagnosticAttemptJpaEntity requireCurrentStudy(DiagnosticRequestJpaEntity request, String studyRef) {
-        DiagnosticAttemptJpaEntity attempt = currentStudy(request);
-        if (studyRef == null || !studyRef.equals(attempt.getStudyRef())) throw evidenceMismatch();
-        return attempt;
-    }
-
-    private DiagnosticFindingsVersionJpaEntity latestFindings(UUID requestId) {
-        return findings.findFirstByRequestIdOrderByVersionNumberDesc(requestId).orElse(null);
-    }
-
-    private void requireReviewed(DiagnosticRequestJpaEntity request) {
-        if (request.getStatus() != DiagnosticRequestStatus.REVIEWED) throw stateConflict();
-    }
-
-    private DiagnosticFindingsView findingsReplay(UUID requestId, DiagnosticIdempotencyRecordJpaEntity record) {
-        String id = text(record.getResultPayload(), "findingsVersionId");
-        DiagnosticFindingsVersionJpaEntity version = findings.findByIdAndRequestId(UUID.fromString(id), requestId)
-                .orElseThrow(this::dependencyUnavailable);
-        return findingsView(version, version.getState() == DiagnosticFindingsVersionState.COMPLETED ? "RELEASED" : "PRIVATE");
-    }
-
-    private DiagnosticReportView reportReplay(UUID requestId, DiagnosticIdempotencyRecordJpaEntity record) {
-        DiagnosticReportJpaEntity report = reports.findByIdAndRequestId(
-                UUID.fromString(text(record.getResultPayload(), "reportId")), requestId)
-                .orElseThrow(this::dependencyUnavailable);
-        return new DiagnosticReportView(report.getId(), report.getValidationStatus().name(), report.getReportVersion());
-    }
-
-    private DiagnosticFindingsView findingsView(DiagnosticFindingsVersionJpaEntity version, String releaseState) {
-        return new DiagnosticFindingsView(version.getRequestId(), version.getId(), version.getVersionNumber(),
-                version.getState().name(), releaseState, version.getFindingsText(), version.getCorrectionReason(),
-                version.getRequiredPdfReportId(), version.getRecordedAt(), version.getCompletedAt());
-    }
-
-    private DiagnosticRequestView requestView(DiagnosticRequestJpaEntity request) {
-        DiagnosticAttemptJpaEntity attempt = request.getCurrentAttemptId() == null ? null
-                : attempts.findByRequestIdAndId(request.getId(), request.getCurrentAttemptId()).orElse(null);
-        return new DiagnosticRequestView(request.getId(), request.getVisitId(), request.getPatientId(),
-                request.getOrderingDoctorId(), request.getServiceId(), request.getRoomId(), request.getImagingType(),
-                request.getBodyArea(), request.getClinicalReason(), request.getStatus(), request.getCancellationCause(),
-                request.getCancellationReason(), attempt == null ? null : attempt.getStudyRef(), request.getVersion(),
-                request.getCreatedAt());
-    }
-
-    private DiagnosticRequest toDomain(DiagnosticRequestJpaEntity request, DiagnosticAttemptJpaEntity attempt) {
-        DiagnosticAttempt domainAttempt = new DiagnosticAttempt(attempt.getId(), attempt.getRequestId(),
-                attempt.getAttemptNumber(), attempt.getFirstUseEventId(), attempt.getOccurredAt(), attempt.getStudyRef());
-        return new DiagnosticRequest(request.getId(), request.getVisitId(), request.getPatientId(),
-                request.getOrderingDoctorId(), request.getServiceId(), request.getImagingType(), request.getStatus(),
-                domainAttempt, request.getVersion(), request.getCreatedAt());
-    }
-
-    private DiagnosticEvidenceContext evidence(DiagnosticRequestJpaEntity request,
-            DiagnosticAttemptJpaEntity attempt) {
-        return new DiagnosticEvidenceContext(request.getId(), request.getVisitId(), request.getPatientId(),
-                request.getOrderingDoctorId(), null, attempt.getId(), false, true, false, false, false);
-    }
-
-    private DiagnosticIdempotencyRecordJpaEntity claim(DiagnosticActor actor, DiagnosticRequestJpaEntity request,
-            String operation, String key, String fingerprint) {
-        requiredText(key, 255, "Idempotency-Key");
-        if (idempotency.claimActorOperation(UUID.randomUUID(), actor.accountId(), request.getVisitId(),
-                request.getId(), operation, key, fingerprint) != 1) {
-            DiagnosticIdempotencyRecordJpaEntity existing = idempotency.findActorOperation(actor.accountId(),
-                    request.getVisitId(), request.getId(), operation, key).orElseThrow(this::dependencyUnavailable);
-            if (!fingerprint.equals(existing.getPayloadFingerprint())) {
-                throw new DiagnosticOperationException(DiagnosticOperationOutcome.IDEMPOTENCY_CONFLICT);
-            }
-            return existing;
+    private String requireCurrentStudy(ImagingExecution request, String studyRef) {
+        if (request.attemptId() == null || request.studyRef() == null || request.studyRef().isBlank()
+                || (request.status() != ExecutionStatus.RESULT_AVAILABLE && request.status() != ExecutionStatus.REVIEWED)) {
+            throw stateConflict();
         }
-        return null;
+        if (studyRef == null || !studyRef.equals(request.studyRef())) throw evidenceMismatch();
+        return request.studyRef();
     }
 
-    private void saveResult(DiagnosticActor actor, DiagnosticRequestJpaEntity request, String operation,
-            String key, Map<String, Object> payload) {
-        DiagnosticIdempotencyRecordJpaEntity record = idempotency.findActorOperation(actor.accountId(),
-                request.getVisitId(), request.getId(), operation, key).orElseThrow(this::dependencyUnavailable);
-        // Keep the managed record coherent for another call in the same transaction.
-        record.completeResult(payload);
-        idempotency.saveAndFlush(record);
+    private DiagnosticReportJpaEntity latestFindings(UUID requestId) {
+        return reports.findFirstByRequestIdOrderByReportVersionDesc(requestId).orElse(null);
     }
 
-    private void audit(DiagnosticRequestJpaEntity request, DiagnosticActor actor, String action,
+    private void requireReviewed(ImagingExecution request) {
+        if (request.status() != ExecutionStatus.REVIEWED) throw stateConflict();
+    }
+
+    private DiagnosticFindingsView replayFindings(DiagnosticReportJpaEntity row, String storedFingerprint,
+            String fingerprint) {
+        if (!fingerprint.equals(storedFingerprint)) {
+            throw new DiagnosticOperationException(DiagnosticOperationOutcome.IDEMPOTENCY_CONFLICT);
+        }
+        return findingsView(row);
+    }
+
+    private DiagnosticReportView replayReport(DiagnosticReportJpaEntity row, String storedFingerprint,
+            String fingerprint) {
+        if (!fingerprint.equals(storedFingerprint)) {
+            throw new DiagnosticOperationException(DiagnosticOperationOutcome.IDEMPOTENCY_CONFLICT);
+        }
+        return new DiagnosticReportView(row.getReportId(), row.getValidationStatus().name(), row.getReportVersion());
+    }
+
+    private DiagnosticFindingsView findingsView(DiagnosticReportJpaEntity row) {
+        String releaseState = row.getReleasedAt() == null ? "PRIVATE" : "RELEASED";
+        return new DiagnosticFindingsView(row.getRequestId(), row.getId(), row.getVersionNumber(),
+                row.getState().name(), releaseState, row.getFindingsText(), row.getCorrectionReason(),
+                row.getReportId(), row.getRecordedAt() == null ? row.getOccurredAt() : row.getRecordedAt(),
+                row.getCompletedAt());
+    }
+
+    private void audit(ImagingExecution request, DiagnosticActor actor, String action,
             String correlationId, Map<String, Object> metadata) {
-        auditEvents.save(new DiagnosticAuditEventJpaEntity(UUID.randomUUID(), UUID.randomUUID(), actor.accountId(), null,
-                request.getId(), request.getVisitId(), action, DiagnosticOperationOutcome.ALLOWED.name(), Instant.now(),
-                requiredText(correlationId, 128, "correlationId"), metadata));
+        Map<String, Object> auditMetadata = new LinkedHashMap<>(metadata);
+        auditMetadata.put("correlationRef", requiredText(correlationId, 128, "correlationId"));
+        auditWriter.recordIfAbsent(AuditEntry.builder("diagnostic_audit_events", "DIAGNOSTIC",
+                        action + ":ALLOWED", "DIAGNOSTIC_REQUEST")
+                .entityId(request.orderId()).recordLabel(request.orderId().toString())
+                .actorAccountId(actor.accountId()).actorType("ACCOUNT").metadata(auditMetadata)
+                .outcome("ALLOWED").occurredAt(Instant.now())
+                .dedupKey("diagnostic-findings:" + request.orderId() + ":" + action + ":" + correlationId)
+                .build());
     }
 
-    private Map<String, Object> releasePayload(UUID eventId, DiagnosticRequestJpaEntity request,
-            DiagnosticFindingsVersionJpaEntity version, DiagnosticReportJpaEntity report) {
-        Map<String, Object> payload = new LinkedHashMap<>();
-        payload.put("eventId", eventId.toString());
-        payload.put("requestId", request.getId().toString());
-        payload.put("visitId", request.getVisitId().toString());
-        payload.put("patientId", request.getPatientId().toString());
-        payload.put("studyRef", version.getStudyRef());
-        payload.put("findingsVersionId", version.getId().toString());
-        payload.put("reportId", report.getId().toString());
-        payload.put("reportSha256", report.getContentSha256());
-        return payload;
+    private String releasePayloadSha256(FindingsReleaseEvent event) {
+        String canonical = String.join("\n", event.eventId().toString(), event.requestId().toString(),
+                event.visitId().toString(), event.patientId().toString(), event.studyRef(),
+                event.findingsVersionId().toString(), event.reportId().toString(), event.reportSha256());
+        return HexFormat.of().formatHex(sha256().digest(canonical.getBytes(StandardCharsets.UTF_8)));
     }
 
-    private boolean matchesStoredReport(StoredReport stored, DiagnosticRequestJpaEntity request,
+    private void requireReleaseAck(ReleaseAcknowledgement ack, FindingsReleaseEvent event, String payloadSha256) {
+        if (ack == null || !ack.accepted() || !event.eventId().equals(ack.eventId())
+                || !event.requestId().equals(ack.requestId()) || !payloadSha256.equals(ack.payloadSha256())) {
+            throw dependencyUnavailable();
+        }
+    }
+
+    private boolean matchesStoredReport(StoredReport stored, ImagingExecution request,
             String studyRef, int version) {
-        return stored != null && stored.reportId() != null && request.getId().equals(stored.requestId())
-                && request.getVisitId().equals(stored.visitId()) && studyRef.equals(stored.studyRef())
+        return stored != null && stored.reportId() != null && request.orderId().equals(stored.requestId())
+                && request.visitId().equals(stored.visitId()) && studyRef.equals(stored.studyRef())
                 && version == stored.reportVersion() && isPrivateStorageRef(stored.storageRef());
     }
 
@@ -481,8 +484,8 @@ public class DiagnosticFindingsServiceImpl implements DiagnosticFindingsService 
                 && !normalized.startsWith("//");
     }
 
-    private void requireVersion(DiagnosticRequestJpaEntity request, long expectedVersion) {
-        if (request.getVersion() != expectedVersion) {
+    private void requireVersion(ImagingExecution request, long expectedVersion) {
+        if (request.executionVersion() != expectedVersion) {
             throw new DiagnosticOperationException(DiagnosticOperationOutcome.VERSION_CONFLICT);
         }
     }
@@ -522,18 +525,6 @@ public class DiagnosticFindingsServiceImpl implements DiagnosticFindingsService 
             throw new IllegalArgumentException(field + " is required and must be at most " + maxLength + " characters");
         }
         return value.trim();
-    }
-
-    private String text(Map<String, Object> payload, String field) {
-        Object value = payload.get(field);
-        if (!(value instanceof String text)) throw dependencyUnavailable();
-        return text;
-    }
-
-    private int number(Map<String, Object> payload, String field) {
-        Object value = payload.get(field);
-        if (value instanceof Number number) return number.intValue();
-        throw dependencyUnavailable();
     }
 
     private DiagnosticOperationException unauthorized() {

@@ -43,7 +43,8 @@ public class PatientProfileDirectoryServiceImpl implements PatientProfileDirecto
     @Transactional
     public ProfileRecord create(ProfileRecord record, String phoneOwnerType) {
         PatientProfileJpaEntity entity = new PatientProfileJpaEntity();
-        if (record.accountId() != null) entity.setId(record.id());
+        // PatientProfileJpaEntity uses @GeneratedValue(UUID); leave its id unset so
+        // Spring Data persists this as a new row instead of merging a generated id.
         entity.setAccountId(record.accountId());
         entity.setFullName(record.fullName());
         entity.setPhoneCanonical(record.phoneCanonical());

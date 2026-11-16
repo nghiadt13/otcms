@@ -1,4 +1,3 @@
-import { ApiError } from "@/lib/api/apiError";
 import { apiRequest } from "@/lib/api/client";
 import type {
   AdminDoctor,
@@ -7,7 +6,7 @@ import type {
 } from "@/lib/domain/adminDoctor";
 import { addDays } from "@/lib/format/formatDate";
 
-export type ScheduleKind = "shifts" | "time-offs";
+export type ScheduleKind = "shifts";
 export type IntervalInput = Pick<DoctorInterval, "startsAt" | "endsAt"> & {
   roomId?: string;
 };
@@ -36,14 +35,11 @@ export async function listDoctorSchedule(
   signal?: AbortSignal,
 ) {
   const query = new URLSearchParams(scheduleRange(from, to));
-  const path: `/api/v1/${string}` =
-    kind === "shifts"
-      ? `${root(doctorId)}/shifts`
-      : `/api/v1/admin/doctor-profiles/${encodeURIComponent(doctorId)}/time-offs`;
   return (
-    await apiRequest<{ items: DoctorInterval[] }>(`${path}?${query}`, {
-      signal,
-    })
+    await apiRequest<{ items: DoctorInterval[] }>(
+      `${root(doctorId)}/${kind}?${query}`,
+      { signal },
+    )
   ).items;
 }
 export function saveDoctorInterval(
@@ -62,16 +58,6 @@ export async function deleteDoctorInterval(
   kind: ScheduleKind,
   id: string,
 ) {
-  if (kind === "time-offs") {
-    const impact = await apiRequest<MutationImpact>(
-      `${root(doctorId)}/time-offs/${encodeURIComponent(id)}/mutation-impact`,
-    );
-    if (impact.blocked)
-      throw new ApiError(409, {
-        code: "MSG-36",
-        errorCode: "RESOURCE_MUTATION_BLOCKED",
-      });
-  }
   return apiRequest<void>(
     `${root(doctorId)}/${kind}/${encodeURIComponent(id)}`,
     { method: "DELETE" },
@@ -86,7 +72,7 @@ export function assessDoctorInterval(
   return apiRequest<MutationImpact>(`${root(doctorId)}/mutation-impact`, {
     method: "POST",
     body: JSON.stringify({
-      resourceType: kind === "shifts" ? "SHIFT" : "TIME_OFF",
+      resourceType: "SHIFT",
       resourceId: id ?? null,
       ...input,
     }),

@@ -1,112 +1,98 @@
 package fu.fa26.sep490.g58.otcms_be.imaging.service;
 
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import fu.fa26.sep490.g58.otcms_be.diagnostic.service.DiagnosticEvidenceService;
 import fu.fa26.sep490.g58.otcms_be.imaging.config.ImagingProperties;
 import fu.fa26.sep490.g58.otcms_be.imaging.exception.ImagingOperationException;
 import fu.fa26.sep490.g58.otcms_be.imaging.exception.ImagingOperationOutcome;
-import fu.fa26.sep490.g58.otcms_be.imaging.model.entity.ImagingConfirmationOutboxJpaEntity;
-import fu.fa26.sep490.g58.otcms_be.imaging.repository.ImagingConfirmationOutboxRepository;
+import fu.fa26.sep490.g58.otcms_be.imaging.model.ImagingOperationRecord;
+import fu.fa26.sep490.g58.otcms_be.imaging.model.entity.ImagingStudyJpaEntity;
+import fu.fa26.sep490.g58.otcms_be.imaging.model.entity.enums.ImagingOperationState;
+import fu.fa26.sep490.g58.otcms_be.imaging.model.entity.enums.ImagingOperationType;
+import fu.fa26.sep490.g58.otcms_be.imaging.model.entity.enums.ImagingVerificationStatus;
+import fu.fa26.sep490.g58.otcms_be.imaging.repository.ImagingStudyRepository;
+import fu.fa26.sep490.g58.otcms_be.imaging.service.impl.ImagingConfirmationDispatchTransactionService;
 import fu.fa26.sep490.g58.otcms_be.imaging.service.impl.ImagingConfirmationDispatcher;
 import fu.fa26.sep490.g58.otcms_be.imaging.service.impl.ImagingConfirmationOutboxPersistenceService;
 import java.time.Instant;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
-import org.springframework.data.domain.Pageable;
 import org.mockito.junit.jupiter.MockitoExtension;
-import tools.jackson.databind.ObjectMapper;
 
 @ExtendWith(MockitoExtension.class)
 class ImagingConfirmationDispatcherTest {
-    @Mock ImagingConfirmationOutboxRepository outbox;
-    @Mock DiagnosticEvidenceService diagnosticEvidence;
+    @Mock ImagingStudyRepository studies;
+    @Mock ImagingConfirmationDispatchTransactionService dispatchTransaction;
     @Mock ImagingConfirmationOutboxPersistenceService persistence;
 
     @Test
-    void acceptedConfirmationIsDurablyAcknowledged() {
-        ImagingConfirmationOutboxJpaEntity event = event(0);
-        when(outbox.findAllByStatusAndNextAttemptAtLessThanEqualOrderByNextAttemptAtAscCreatedAtAscIdAsc(
-                eq("PENDING"), any(), any(Pageable.class))).thenReturn(List.of(event));
-
+    void acceptedConfirmationRunsTheAtomicDispatchTransaction() {
+        ImagingStudyJpaEntity study = study(0);
+        when(studies.findDueConfirmations(any(), eq(50))).thenReturn(List.of(study));
         dispatcher(3).dispatchDue();
-
-        verify(diagnosticEvidence).linkConfirmedStudy(any(), any(), eq("imaging-confirmation-" + event.getEventId()));
-        verify(persistence).acknowledge(event.getId());
-        var pageable = org.mockito.ArgumentCaptor.forClass(Pageable.class);
-        verify(outbox).findAllByStatusAndNextAttemptAtLessThanEqualOrderByNextAttemptAtAscCreatedAtAscIdAsc(
-                eq("PENDING"), any(), pageable.capture());
-        org.junit.jupiter.api.Assertions.assertEquals(50, pageable.getValue().getPageSize());
+        verify(dispatchTransaction).dispatch(study.getId());
+        ArgumentCaptor<Instant> now = ArgumentCaptor.forClass(Instant.class);
+        verify(studies).findDueConfirmations(now.capture(), eq(50));
     }
 
     @Test
-    void unavailableOwnerSchedulesBoundedRetryWithStableEventIdentity() {
-        ImagingConfirmationOutboxJpaEntity event = event(0);
-        when(outbox.findAllByStatusAndNextAttemptAtLessThanEqualOrderByNextAttemptAtAscCreatedAtAscIdAsc(
-                eq("PENDING"), any(), any(Pageable.class))).thenReturn(List.of(event));
-        doThrow(new IllegalStateException("unavailable"))
-                .when(diagnosticEvidence).linkConfirmedStudy(any(), any(), any());
-
+    void unavailableOwnerSchedulesBoundedRetry() {
+        ImagingStudyJpaEntity study = study(0);
+        when(studies.findDueConfirmations(any(), eq(50))).thenReturn(List.of(study));
+        doThrow(new IllegalStateException("unavailable")).when(dispatchTransaction).dispatch(study.getId());
         Instant before = Instant.now();
         dispatcher(3).dispatchDue();
-
         ArgumentCaptor<Instant> nextAttempt = ArgumentCaptor.forClass(Instant.class);
-        verify(persistence).retry(eq(event.getId()), nextAttempt.capture(), eq("CONFIRMATION_UNAVAILABLE"));
-        assertTrue(!nextAttempt.getValue().isBefore(before.plusSeconds(4))
+        verify(persistence).retry(eq(study.getId()), nextAttempt.capture(), eq("CONFIRMATION_UNAVAILABLE"));
+        org.junit.jupiter.api.Assertions.assertTrue(!nextAttempt.getValue().isBefore(before.plusSeconds(4))
                 && !nextAttempt.getValue().isAfter(Instant.now().plusSeconds(6)));
-        verify(persistence, org.mockito.Mockito.never()).acknowledge(event.getId());
     }
 
     @Test
-    void exhaustedAttemptsEnterReconciliationInsteadOfRetryingForever() {
-        ImagingConfirmationOutboxJpaEntity event = event(2);
-        when(outbox.findAllByStatusAndNextAttemptAtLessThanEqualOrderByNextAttemptAtAscCreatedAtAscIdAsc(
-                eq("PENDING"), any(), any(Pageable.class))).thenReturn(List.of(event));
-        doThrow(new IllegalStateException("rejected"))
-                .when(diagnosticEvidence).linkConfirmedStudy(any(), any(), any());
-
+    void exhaustedAttemptsEnterReconciliation() {
+        ImagingStudyJpaEntity study = study(2);
+        when(studies.findDueConfirmations(any(), eq(50))).thenReturn(List.of(study));
+        doThrow(new IllegalStateException("unavailable")).when(dispatchTransaction).dispatch(study.getId());
         dispatcher(3).dispatchDue();
-
-        verify(persistence).reconcile(event.getId(), "CONFIRMATION_RETRY_EXHAUSTED");
-        verify(persistence, org.mockito.Mockito.never()).retry(any(), any(), any());
+        verify(persistence).reconcile(study.getId(), "CONFIRMATION_RETRY_EXHAUSTED");
     }
 
     @Test
-    void permanentOwnerConflictEntersConflictReconciliationWithoutRetry() {
-        ImagingConfirmationOutboxJpaEntity event = event(0);
-        when(outbox.findAllByStatusAndNextAttemptAtLessThanEqualOrderByNextAttemptAtAscCreatedAtAscIdAsc(
-                eq("PENDING"), any(), any(Pageable.class))).thenReturn(List.of(event));
+    void permanentConflictEntersReconciliationWithoutRetry() {
+        ImagingStudyJpaEntity study = study(0);
+        when(studies.findDueConfirmations(any(), eq(50))).thenReturn(List.of(study));
         doThrow(new ImagingOperationException(ImagingOperationOutcome.EVIDENCE_MISMATCH))
-                .when(diagnosticEvidence).linkConfirmedStudy(any(), any(), any());
-
+                .when(dispatchTransaction).dispatch(study.getId());
         dispatcher(3).dispatchDue();
-
-        verify(persistence).reconcile(event.getId(), "CONFIRMATION_REJECTED");
-        verify(persistence, org.mockito.Mockito.never()).retry(any(), any(), any());
+        verify(persistence).reconcile(study.getId(), "CONFIRMATION_REJECTED");
     }
 
     private ImagingConfirmationDispatcher dispatcher(int maxAttempts) {
         ImagingProperties settings = new ImagingProperties();
         settings.setConfirmationMaxAttempts(maxAttempts);
-        return new ImagingConfirmationDispatcher(outbox, diagnosticEvidence, persistence, settings,
-                new ObjectMapper());
+        return new ImagingConfirmationDispatcher(studies, dispatchTransaction, persistence, settings);
     }
 
-    private static ImagingConfirmationOutboxJpaEntity event(int attemptCount) {
+    private static ImagingStudyJpaEntity study(int attemptCount) {
         Instant now = Instant.now();
-        return new ImagingConfirmationOutboxJpaEntity(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
-                "study-ref", UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
-                "CONFIRMED_MATCH", Map.of("evidenceCodes", List.of("PATIENT_ID_MATCH", "ACCESSION_MATCH")),
-                "a".repeat(64), "PENDING", attemptCount, now, null, null, null);
+        var record = new ImagingOperationRecord(UUID.randomUUID(), "study-ref", UUID.randomUUID(), UUID.randomUUID(),
+                UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), ImagingOperationType.UPLOAD,
+                ImagingOperationState.CONFIRMATION_PENDING, "a".repeat(64), 123, "1.2.3", "CT", 1, 1,
+                ImagingVerificationStatus.CONFIRMED_MATCH, List.of("PATIENT_ID_MATCH"), "archive-study", null,
+                1, now, now);
+        var study = new ImagingStudyJpaEntity(record, "upload-key");
+        study.prepareConfirmation(UUID.randomUUID(), "send-key", "b".repeat(64), now);
+        for (int attempt = 0; attempt < attemptCount; attempt++) {
+            study.recordConfirmationRetry(now, "CONFIRMATION_UNAVAILABLE", now);
+        }
+        return study;
     }
 }

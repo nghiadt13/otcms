@@ -7,9 +7,9 @@ import fu.fa26.sep490.g58.otcms_be.servicecatalog.model.entity.ClinicServiceJpaE
 import fu.fa26.sep490.g58.otcms_be.servicecatalog.model.entity.DoctorServiceAssignmentJpaEntity;
 import fu.fa26.sep490.g58.otcms_be.servicecatalog.repository.ClinicServiceRepository;
 import fu.fa26.sep490.g58.otcms_be.servicecatalog.repository.DoctorServiceAssignmentRepository;
-import fu.fa26.sep490.g58.otcms_be.staff.model.entity.DoctorProfileJpaEntity;
+import fu.fa26.sep490.g58.otcms_be.staff.model.entity.StaffProfileJpaEntity;
 import fu.fa26.sep490.g58.otcms_be.staff.model.entity.DoctorWorkShiftJpaEntity;
-import fu.fa26.sep490.g58.otcms_be.staff.repository.DoctorProfileRepository;
+import fu.fa26.sep490.g58.otcms_be.staff.repository.StaffProfileRepository;
 import fu.fa26.sep490.g58.otcms_be.staff.repository.DoctorWorkShiftRepository;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Bean;
@@ -105,7 +105,7 @@ public class DemoDoctorSeeder {
 
     @Bean
     public CommandLineRunner seedDemoDoctors(AccountRepository accounts, PasswordEncoder encoder,
-            Environment environment, DoctorProfileRepository doctors, DoctorWorkShiftRepository shifts,
+            Environment environment, StaffProfileRepository doctors, DoctorWorkShiftRepository shifts,
             ClinicServiceRepository services, DoctorServiceAssignmentRepository assignments,
             TransactionTemplate transaction) {
         return args -> {
@@ -120,11 +120,15 @@ public class DemoDoctorSeeder {
             for (DoctorSeed seed : DOCTORS) {
                 AccountJpaEntity account = DemoAccountSeeder.seed(accounts, encoder, seed.email(), password,
                         AccountType.DOCTOR);
-                DoctorProfileJpaEntity doctor = doctors.findByAccountId(account.getId())
-                        .orElseGet(() -> doctors.save(new DoctorProfileJpaEntity(UUID.randomUUID(), account.getId(),
-                                seed.fullName(), null, seed.email(), seed.specialties(), seed.qualifications(),
-                                seed.biography(), "Đặt lịch trước để được sắp xếp thời gian phù hợp.",
-                                true, true, true)));
+                StaffProfileJpaEntity doctor = doctors.findByAccountIdAndDoctorTrue(account.getId())
+                        .orElseGet(() -> {
+                            var profile = new StaffProfileJpaEntity(UUID.randomUUID(), account.getId(),
+                                    seed.fullName(), seed.email());
+                            profile.becomeDoctor(seed.specialties(), seed.qualifications(), seed.biography(),
+                                    "Đặt lịch trước để được sắp xếp thời gian phù hợp.", true);
+                            profile.updateDirectoryState(true, true, true);
+                            return doctors.save(profile);
+                        });
                 for (ClinicServiceJpaEntity service : catalog) {
                     if (seed.services().contains(service.name()))
                         ensureAssignment(assignments, doctor.id(), service.id());

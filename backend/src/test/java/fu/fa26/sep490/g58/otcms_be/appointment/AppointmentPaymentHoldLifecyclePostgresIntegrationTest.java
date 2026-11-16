@@ -128,10 +128,10 @@ class AppointmentPaymentHoldLifecyclePostgresIntegrationTest extends PaymentHold
         UUID paid = createHold(patientA, SLOT_2);
         UUID live = createHold(patientB, SLOT_3);
         assertEquals(Result.CONFIRMED, confirmPayment.confirmPaid(paid));
-        UUID releasedAudit = jdbc.queryForObject("select id from appointment_audits where appointment_id = ? limit 1", UUID.class, released);
+        UUID releasedAudit = jdbc.queryForObject("select id from audit_logs where source = 'appointment_audits' and entity_id = ? limit 1", UUID.class, released);
 
         // Released hold: CREATED + STATUS_CHANGED rows exist in the table but none is exposed (rows and total agree).
-        assertEquals(2, count("select count(*) from appointment_audits where appointment_id = ?", released));
+        assertEquals(2, count("select count(*) from audit_logs where source = 'appointment_audits' and entity_id = ?", released));
         var releasedPage = activityLog.list(new ActivityLogRepository.Criteria(null, null, "", released.toString(), "", 0, 50));
         assertEquals(0, releasedPage.items().size());
         assertEquals(0, releasedPage.totalItems());
@@ -153,8 +153,8 @@ class AppointmentPaymentHoldLifecyclePostgresIntegrationTest extends PaymentHold
         assertEquals(Result.CONFIRMED, confirmPayment.confirmPaid(hold));
         assertEquals("CONFIRMED", statusOf(hold));
         assertNull(jdbc.queryForObject("select payment_deadline from appointments where id = ?", java.sql.Timestamp.class, hold));
-        Map<String, Object> audit = jdbc.queryForMap("select actor_type, actor_account_id, action, old_status, new_status "
-                + "from appointment_audits where appointment_id = ? and new_status = 'CONFIRMED'", hold);
+        Map<String, Object> audit = jdbc.queryForMap("select actor_type, actor_account_id, action, before_state->>'status' as old_status, after_state->>'status' as new_status "
+                + "from audit_logs where source = 'appointment_audits' and entity_id = ? and after_state->>'status' = 'CONFIRMED'", hold);
         assertEquals("SYSTEM", audit.get("actor_type"));
         assertEquals(patientA, audit.get("actor_account_id"));
         assertEquals("STATUS_CHANGED", audit.get("action"));
@@ -163,7 +163,7 @@ class AppointmentPaymentHoldLifecyclePostgresIntegrationTest extends PaymentHold
 
         assertEquals(Result.ALREADY_CONFIRMED, confirmPayment.confirmPaid(hold));
         assertEquals(1, notificationsFor(hold));
-        assertEquals(1, count("select count(*) from appointment_audits where appointment_id = ? and new_status = 'CONFIRMED'", hold));
+        assertEquals(1, count("select count(*) from audit_logs where source = 'appointment_audits' and entity_id = ? and after_state->>'status' = 'CONFIRMED'", hold));
     }
 
     @Test
@@ -204,8 +204,8 @@ class AppointmentPaymentHoldLifecyclePostgresIntegrationTest extends PaymentHold
         assertEquals("AWAITING_PAYMENT", statusOf(paid)); // billing confirms through the hook, not the sweeper
         assertEquals("PAYMENT_EXPIRED", statusOf(plain));
         assertEquals("AWAITING_PAYMENT", statusOf(alive));
-        Map<String, Object> audit = jdbc.queryForMap("select actor_type, actor_account_id, reason from appointment_audits "
-                + "where appointment_id = ? and new_status = 'PAYMENT_EXPIRED'", plain);
+        Map<String, Object> audit = jdbc.queryForMap("select actor_type, actor_account_id, metadata->>'reason' as reason from audit_logs "
+                + "where source = 'appointment_audits' and entity_id = ? and after_state->>'status' = 'PAYMENT_EXPIRED'", plain);
         assertEquals("SYSTEM", audit.get("actor_type"));
         assertEquals(patientB, audit.get("actor_account_id"));
         assertEquals("Hết thời gian thanh toán", audit.get("reason"));
@@ -246,12 +246,10 @@ class AppointmentPaymentHoldLifecyclePostgresIntegrationTest extends PaymentHold
         Instant to = SLOT.plusSeconds(60);
 
         assertEquals(1, impact.countBookingsForAssignment(doctorProfile, paidService));
-        assertEquals(1, impact.countBookingsOverlappingTimeOff(doctorProfile, from, to));
         assertEquals(1, impact.findProtectedBookingIntervals(doctorProfile).size());
 
         clock.set(deadline.plusSeconds(1));
         assertEquals(0, impact.countBookingsForAssignment(doctorProfile, paidService));
-        assertEquals(0, impact.countBookingsOverlappingTimeOff(doctorProfile, from, to));
         assertTrue(impact.findProtectedBookingIntervals(doctorProfile).isEmpty());
 
         clock.set(NOW);

@@ -22,7 +22,7 @@ import fu.fa26.sep490.g58.otcms_be.diagnostic.integration.*;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.integration.clinical.ClinicalImagingOrderAdapter;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.mapper.DiagnosticDtoMapper;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.model.DiagnosticActor;
-import fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.DiagnosticRequestJpaEntity;
+import fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.DiagnosticReportJpaEntity;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.enums.*;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.repository.*;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.service.*;
@@ -34,8 +34,8 @@ import fu.fa26.sep490.g58.otcms_be.servicecatalog.model.ClinicServiceType;
 import fu.fa26.sep490.g58.otcms_be.servicecatalog.model.entity.ClinicServiceJpaEntity;
 import fu.fa26.sep490.g58.otcms_be.servicecatalog.repository.ClinicServiceRepository;
 import fu.fa26.sep490.g58.otcms_be.servicecatalog.service.impl.GetClinicServiceCatalogServiceImpl;
-import fu.fa26.sep490.g58.otcms_be.staff.model.entity.DoctorProfileJpaEntity;
-import fu.fa26.sep490.g58.otcms_be.staff.repository.DoctorProfileRepository;
+import fu.fa26.sep490.g58.otcms_be.staff.model.entity.StaffProfileJpaEntity;
+import fu.fa26.sep490.g58.otcms_be.staff.repository.StaffProfileRepository;
 import fu.fa26.sep490.g58.otcms_be.staff.service.impl.DoctorProfileIdentityQueryServiceImpl;
 import fu.fa26.sep490.g58.otcms_be.visit.integration.diagnostic.VisitDiagnosticReadAdapter;
 import fu.fa26.sep490.g58.otcms_be.visit.model.entity.*;
@@ -48,6 +48,7 @@ import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.config.BeanFactoryPostProcessor;
 import org.springframework.context.annotation.*;
 import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
 import org.springframework.mock.web.MockServletContext;
 import org.springframework.transaction.*;
 import org.springframework.transaction.annotation.EnableTransactionManagement;
@@ -62,21 +63,19 @@ class DoctorCoreProductionWiringTest {
     private AnnotationConfigWebApplicationContext context;
     private final UUID visitId = UUID.randomUUID(), patientId = UUID.randomUUID(), doctorId = UUID.randomUUID();
     private final UUID accountId = UUID.randomUUID(), serviceId = UUID.randomUUID();
-    private final Map<UUID, OrderingRoundJpaEntity> roundRows = new LinkedHashMap<>();
     private final Map<UUID, ServiceOrderJpaEntity> orderRows = new LinkedHashMap<>();
-    private final Map<String, ClinicalImagingRequestReplayJpaEntity> replayRows = new HashMap<>();
-    private final Map<UUID, DiagnosticRequestJpaEntity> diagnosticRows = new LinkedHashMap<>();
+    private final Map<UUID, ClinicalServiceOrderExecutionPort.ImagingExecution> diagnosticRows = new LinkedHashMap<>();
 
     @BeforeEach void startRealApplicationWiring() {
         context = new AnnotationConfigWebApplicationContext();
         context.setServletContext(new MockServletContext()); context.register(ProductionConfiguration.class); context.refresh();
-        var profile = mock(DoctorProfileJpaEntity.class);
+        var profile = mock(StaffProfileJpaEntity.class);
         when(profile.id()).thenReturn(doctorId); when(profile.accountId()).thenReturn(accountId);
-        when(bean(DoctorProfileRepository.class).findByAccountId(accountId)).thenReturn(Optional.of(profile));
-        when(bean(DoctorProfileRepository.class).findById(doctorId)).thenReturn(Optional.of(profile));
+        when(bean(StaffProfileRepository.class).findByAccountIdAndDoctorTrue(accountId)).thenReturn(Optional.of(profile));
+        when(bean(StaffProfileRepository.class).findByIdAndDoctorTrue(doctorId)).thenReturn(Optional.of(profile));
         when(bean(AccountRepository.class).existsByIdAndAccountTypeAndStatus(eq(accountId), any(), any())).thenReturn(true);
         when(bean(ClinicVisitJpaRepository.class).findById(visitId)).thenReturn(Optional.of(
-                ClinicVisitJpaEntity.walkIn(visitId, patientId, null, UUID.randomUUID(), Instant.EPOCH)));
+                ClinicVisitJpaEntity.walkIn(visitId, patientId, null, UUID.randomUUID(), Instant.EPOCH, null, null)));
         when(bean(VisitCareAssignmentRepository.class).findFirstByVisitIdAndStatusOrderByAssignedAtDescIdDesc(visitId, "IN_PROGRESS"))
                 .thenReturn(Optional.of(VisitCareAssignmentJpaEntity.inProgress(UUID.randomUUID(), visitId, doctorId,
                         "ORTHOPEDIC", 30, Instant.EPOCH, Instant.EPOCH.plusSeconds(1800))));
@@ -84,30 +83,51 @@ class DoctorCoreProductionWiringTest {
                 new BigDecimal("250000"), 30, 0, false, true);
         catalogService.updateCatalogDetails("MRI", null, List.of());
         when(bean(ClinicServiceRepository.class).findById(serviceId)).thenReturn(Optional.of(catalogService));
-        var rounds = bean(OrderingRoundRepository.class);
-        when(rounds.findTopByVisitIdOrderByRoundNumberDesc(any())).thenAnswer(call -> roundRows.values().stream()
-                .filter(row -> row.getVisitId().equals(call.getArgument(0))).max(Comparator.comparingInt(OrderingRoundJpaEntity::getRoundNumber)));
-        when(rounds.save(any())).thenAnswer(call -> { assertInTransaction(); var row = (OrderingRoundJpaEntity) call.getArgument(0); roundRows.put(row.getId(), row); return row; });
-        when(rounds.findById(any())).thenAnswer(call -> Optional.ofNullable(roundRows.get(call.getArgument(0))));
         var orders = bean(ServiceOrderRepository.class);
         when(orders.save(any())).thenAnswer(call -> { assertInTransaction(); var row = (ServiceOrderJpaEntity) call.getArgument(0); orderRows.put(row.getId(), row); return row; });
         when(orders.findById(any())).thenAnswer(call -> Optional.ofNullable(orderRows.get(call.getArgument(0))));
         when(orders.findByOrderingRoundId(any())).thenAnswer(call -> orderRows.values().stream().filter(row -> row.getOrderingRoundId().equals(call.getArgument(0))).toList());
-        var replays = bean(ClinicalImagingRequestReplayRepository.class);
-        when(replays.findByDoctorProfileIdAndIdempotencyKey(any(), any())).thenAnswer(call -> Optional.ofNullable(replayRows.get(call.getArgument(0) + ":" + call.getArgument(1))));
-        when(replays.saveAndFlush(any())).thenAnswer(call -> { assertInTransaction(); var row = (ClinicalImagingRequestReplayJpaEntity) call.getArgument(0); replayRows.put(row.getDoctorProfileId() + ":" + row.getIdempotencyKey(), row); return row; });
-        var requests = bean(DiagnosticRequestJpaRepository.class);
-        when(requests.findFirstByServiceOrderIdAndStatusNotOrderByCreatedAtDescIdDesc(any(), eq(DiagnosticRequestStatus.CANCELLED))).thenAnswer(call -> Optional.ofNullable(diagnosticRows.get(call.getArgument(0))));
-        when(requests.insertAssigned(any(), any(), any(), any(), any(), any(), any(), any(), any(), any())).thenAnswer(call -> {
-            assertInTransaction(); UUID order = call.getArgument(9);
-            if (diagnosticRows.containsKey(order)) return 0;
-            var row = new DiagnosticRequestJpaEntity(call.getArgument(0), call.getArgument(1), call.getArgument(2),
-                    call.getArgument(3), call.getArgument(4), call.getArgument(5), call.getArgument(6), call.getArgument(7), call.getArgument(8),
-                    DiagnosticRequestStatus.PENDING, null, null, null);
-            row.setServiceOrderId(order); row.setCreatedAt(Instant.EPOCH); diagnosticRows.put(order, row); return 1;
+        when(orders.findTopByVisitIdAndRoundHeadTrueOrderByRoundNumberDesc(any())).thenAnswer(call -> orderRows.values().stream()
+                .filter(row -> row.isRoundHead() && row.getVisitId().equals(call.getArgument(0)))
+                .max(Comparator.comparingInt(ServiceOrderJpaEntity::getRoundNumber)));
+        when(orders.findByRequestingDoctorIdAndSubmitIdempotencyKeyAndRoundHeadTrue(any(), any())).thenAnswer(call -> orderRows.values().stream()
+                .filter(row -> row.isRoundHead() && row.getRequestingDoctorId().equals(call.getArgument(0))
+                        && Objects.equals(row.getSubmitIdempotencyKey(), call.getArgument(1))).findFirst());
+        when(orders.findFirstByOrderingRoundIdAndRoundHeadTrue(any())).thenAnswer(call -> orderRows.values().stream()
+                .filter(row -> row.isRoundHead() && row.getOrderingRoundId().equals(call.getArgument(0))).findFirst());
+        var requests = bean(ClinicalServiceOrderExecutionPort.class);
+        when(requests.assignImagingRoom(any(), any(), any(), any(), any(), any(), any())).thenAnswer(call -> {
+            assertInTransaction();
+            UUID orderId = call.getArgument(0);
+            if (diagnosticRows.containsKey(orderId)) return 0;
+            ServiceOrderJpaEntity order = orderRows.get(orderId);
+            var row = new ClinicalServiceOrderExecutionPort.ImagingExecution(orderId, call.getArgument(1), call.getArgument(2),
+                    call.getArgument(6), call.getArgument(3), call.getArgument(4), call.getArgument(5), order.getBodyArea(),
+                    order.getClinicalReason(), ClinicalServiceOrderExecutionPort.ExecutionStatus.PENDING, null, null,
+                    null, null, null, null, null, null, null, null, null, null, null, null, null, 0,
+                    order.getCreatedAt(), order.getUpdatedAt());
+            diagnosticRows.put(orderId, row);
+            return 1;
         });
-        when(requests.findById(any())).thenAnswer(call -> diagnosticRows.values().stream().filter(row -> row.getId().equals(call.getArgument(0))).findFirst());
-        when(requests.findAllByVisitIdOrderByCreatedAtDescIdDesc(eq(visitId), any())).thenAnswer(call -> new PageImpl<>(new ArrayList<>(diagnosticRows.values())));
+        when(requests.find(any())).thenAnswer(call -> Optional.ofNullable(diagnosticRows.get(call.getArgument(0))));
+        when(requests.findAllByPatient(any())).thenAnswer(call -> diagnosticRows.values().stream()
+                .filter(row -> call.getArgument(0).equals(row.patientId())).toList());
+        when(requests.findAllByVisit(any())).thenAnswer(call -> diagnosticRows.values().stream()
+                .filter(row -> call.getArgument(0).equals(row.visitId())).toList());
+        when(requests.page(any(), any(), any(), any(), any(), anyBoolean(), any())).thenAnswer(call -> {
+            var rows = diagnosticRows.values().stream()
+                    .filter(row -> call.getArgument(0) == null || call.getArgument(0).equals(row.visitId()))
+                    .filter(row -> call.getArgument(1) == null || call.getArgument(1).equals(row.patientId()))
+                    .filter(row -> call.getArgument(2) == null || call.getArgument(2).equals(row.orderingDoctorAccountId()))
+                    .filter(row -> call.getArgument(3) == null || call.getArgument(3).equals(row.roomId()))
+                    .filter(row -> call.<Collection<ClinicalServiceOrderExecutionPort.ExecutionStatus>>getArgument(4) == null
+                            || call.<Collection<ClinicalServiceOrderExecutionPort.ExecutionStatus>>getArgument(4).contains(row.status()))
+                    .toList();
+            Pageable pageable = call.getArgument(6);
+            int from = Math.min((int) pageable.getOffset(), rows.size());
+            int to = Math.min(from + pageable.getPageSize(), rows.size());
+            return new PageImpl<>(rows.subList(from, to), pageable, rows.size());
+        });
     }
 
     private static final UUID QUEUE_ROOM = UUID.fromString("00000000-0000-0000-0000-000000000901");
@@ -122,6 +142,8 @@ class DoctorCoreProductionWiringTest {
 
     @AfterEach void close() { context.close(); }
     private <T> T bean(Class<T> type) { return context.getBean(type); }
+    private long roundCount() { return orderRows.values().stream().filter(ServiceOrderJpaEntity::isRoundHead).count(); }
+    private long replayCount() { return orderRows.values().stream().filter(row -> row.isRoundHead() && row.getSubmitIdempotencyKey() != null).count(); }
     private static void assertInTransaction() { assertTrue(TransactionSynchronizationManager.isActualTransactionActive()); }
     private ImagingRequestCommand command(String key, int count) {
         return new ImagingRequestCommand(visitId, doctorId, key, Collections.nCopies(count,
@@ -146,23 +168,23 @@ class DoctorCoreProductionWiringTest {
     @Test void multiOrderSubmissionAndReplayUseSameTransactionAndNoDuplicateOperationalWork() {
         var service = bean(ClinicalImagingRequestService.class);
         var created = service.submit(command("same-key", 2));
-        assertEquals(1, roundRows.size()); assertEquals(0, diagnosticRows.size()); assertEquals(1, replayRows.size());
+        assertEquals(1, roundCount()); assertEquals(0, diagnosticRows.size()); assertEquals(1, replayCount());
         assertEquals(1, bean(RecordingTransactions.class).begins);
-        assertTrue(diagnosticRows.values().stream().allMatch(row -> accountId.equals(row.getOrderingDoctorId()) && row.getRoomId() == null));
-        clearInvocations(bean(ClinicServiceRepository.class), bean(DiagnosticRequestJpaRepository.class));
+        assertTrue(diagnosticRows.isEmpty());
+        clearInvocations(bean(ClinicServiceRepository.class), bean(ClinicalServiceOrderExecutionPort.class));
         var replay = service.submit(command("same-key", 2));
         assertTrue(replay.replayed()); assertEquals(created.round(), replay.round()); assertEquals(0, diagnosticRows.size());
-        verify(bean(DiagnosticRequestJpaRepository.class), never()).insertAssigned(any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
+        verify(bean(ClinicalServiceOrderExecutionPort.class), never()).assignImagingRoom(any(), any(), any(), any(), any(), any(), any());
         verifyNoInteractions(bean(ClinicServiceRepository.class));
-        service.submit(command("different-key", 1)); assertEquals(2, roundRows.size()); assertEquals(0, diagnosticRows.size());
+        service.submit(command("different-key", 1)); assertEquals(2, roundCount()); assertEquals(0, diagnosticRows.size());
     }
 
     @Test void doctorSubmissionDoesNotDependOnDiagnosticAvailability() {
         doThrow(new org.springframework.dao.DataAccessResourceFailureException("Unavailable"))
-                .when(bean(DiagnosticRequestJpaRepository.class)).insertAssigned(any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
+                .when(bean(ClinicalServiceOrderExecutionPort.class)).assignImagingRoom(any(), any(), any(), any(), any(), any(), any());
         bean(ClinicalImagingRequestService.class).submit(command("independent", 1));
-        assertEquals(1, replayRows.size()); assertEquals(1, orderRows.size()); assertTrue(diagnosticRows.isEmpty());
-        verify(bean(DiagnosticRequestJpaRepository.class), never()).insertAssigned(any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
+        assertEquals(1, replayCount()); assertEquals(1, orderRows.size()); assertTrue(diagnosticRows.isEmpty());
+        verify(bean(ClinicalServiceOrderExecutionPort.class), never()).assignImagingRoom(any(), any(), any(), any(), any(), any(), any());
     }
 
 
@@ -193,7 +215,7 @@ class DoctorCoreProductionWiringTest {
     @Test void wrongDoctorIsRejectedBeforeClinicalOrDiagnosticWrites() {
         var bad = new ImagingRequestCommand(visitId, UUID.randomUUID(), "bad", command("", 1).orders(), true);
         assertEquals("MSG-40", assertThrows(ClinicalOperationException.class, () -> bean(ClinicalImagingRequestService.class).submit(bad)).code());
-        verify(bean(OrderingRoundRepository.class), never()).save(any()); assertTrue(diagnosticRows.isEmpty());
+        verify(bean(ServiceOrderRepository.class), never()).save(any()); assertTrue(diagnosticRows.isEmpty());
     }
 
     @Test void statusUsesRealAccountToProfileAndVisitEvidenceForListAndDetail() {
@@ -202,11 +224,11 @@ class DoctorCoreProductionWiringTest {
         var service = bean(DiagnosticStatusService.class);
         var actor = DiagnosticActor.user(accountId, AccountRole.DOCTOR);
         assertEquals(1, service.listVisitStatus(actor, visitId, 0, 20).items().size());
-        assertEquals(QUEUE_ROOM, service.getStatus(actor, diagnosticRows.values().iterator().next().getId()).roomId());
+        assertEquals(QUEUE_ROOM, service.getStatus(actor, diagnosticRows.values().iterator().next().orderId()).roomId());
         assertThrows(fu.fa26.sep490.g58.otcms_be.diagnostic.exception.DiagnosticOperationException.class,
                 () -> service.listVisitStatus(DiagnosticActor.user(UUID.randomUUID(), AccountRole.DOCTOR), visitId, 0, 20));
         assertThrows(fu.fa26.sep490.g58.otcms_be.diagnostic.exception.DiagnosticOperationException.class,
-                () -> service.getStatus(DiagnosticActor.user(UUID.randomUUID(), AccountRole.DOCTOR), diagnosticRows.values().iterator().next().getId()));
+                () -> service.getStatus(DiagnosticActor.user(UUID.randomUUID(), AccountRole.DOCTOR), diagnosticRows.values().iterator().next().orderId()));
     }
 
     @Test void registrationOutsideTransactionIsRejected() {
@@ -218,7 +240,7 @@ class DoctorCoreProductionWiringTest {
         diagnosticRows.clear();
         var replay = bean(ClinicalImagingRequestService.class).submit(command("legacy-round", 1));
         assertTrue(replay.replayed()); assertEquals(first.round(), replay.round());
-        assertEquals(1, roundRows.size()); assertEquals(1, orderRows.size()); assertEquals(0, diagnosticRows.size());
+        assertEquals(1, roundCount()); assertEquals(1, orderRows.size()); assertEquals(0, diagnosticRows.size());
     }
 
     @Test void existingClinicalBodyAreaAndUnboundedReasonContractSurvivesRegistration() {
@@ -227,7 +249,7 @@ class DoctorCoreProductionWiringTest {
         var result = bean(ClinicalImagingRequestService.class).submit(command);
         dispatchPaid(result.round().id());
         var request = diagnosticRows.values().iterator().next();
-        assertEquals(3000, request.getClinicalReason().length()); assertEquals(255, request.getBodyArea().length());
+        assertEquals(3000, request.clinicalReason().length()); assertEquals(255, request.bodyArea().length());
     }
 
     @Test void medicalDocumentProductionBeansAndUniqueUploadMappingAreRegistered() {
@@ -260,12 +282,9 @@ class DoctorCoreProductionWiringTest {
         assertEquals(1, mapping.size());
         when(bean(ClinicVisitJpaRepository.class).findHistoricalVisits(eq(patientId), eq(visitId), any(), any()))
                 .thenReturn(org.springframework.data.domain.Page.empty());
-        when(bean(DiagnosticHistoryAccessAuditJpaRepository.class).save(any())).thenAnswer(call -> {
-            assertInTransaction(); return call.getArgument(0);
-        });
         var response = bean(ClinicalPastMedicalRecordsService.class).getPastMedicalRecords(visitId, doctorId, accountId, 0, 20);
         assertTrue(response.items().isEmpty()); assertEquals(patientId, response.patientProfileId());
-        verify(bean(DiagnosticHistoryAccessAuditJpaRepository.class)).save(any());
+        verify(bean(fu.fa26.sep490.g58.otcms_be.common.audit.AuditLogWriter.class)).record(any());
         assertEquals(1, bean(RecordingTransactions.class).begins);
     }
 
@@ -287,20 +306,26 @@ class DoctorCoreProductionWiringTest {
         when(bean(ClinicalPrescriptionRepository.class).findByPatientProfileIdAndVisitIdInAndStatusOrderByIssuedAtDescIdDesc(
                 eq(patientId), eq(Set.of(historicalVisit)), eq(fu.fa26.sep490.g58.otcms_be.clinical.model.ClinicalPrescriptionStatus.ISSUED)))
                 .thenReturn(List.of(prescription));
-        var image = mock(DiagnosticRequestJpaRepository.ReleasedHistoryRow.class);
-        when(image.getPatientId()).thenReturn(patientId);
-        when(image.getVisitId()).thenReturn(historicalVisit);
-        when(image.getRequestId()).thenReturn(historicalRequest);
-        when(image.getStatus()).thenReturn(DiagnosticRequestStatus.REVIEWED);
-        when(image.getFindingsText()).thenReturn("Released historical finding");
-        when(bean(DiagnosticRequestJpaRepository.class).findReleasedPatientHistory(eq(patientId), eq(Set.of(historicalVisit)), any()))
-                .thenReturn(List.of(image));
+        var image = mock(fu.fa26.sep490.g58.otcms_be.clinical.service.ClinicalServiceOrderExecutionPort.ImagingExecution.class);
+        when(image.patientId()).thenReturn(patientId);
+        when(image.visitId()).thenReturn(historicalVisit);
+        when(image.orderId()).thenReturn(historicalRequest);
+        when(image.status()).thenReturn(fu.fa26.sep490.g58.otcms_be.clinical.service.ClinicalServiceOrderExecutionPort.ExecutionStatus.REVIEWED);
+        when(image.studyRef()).thenReturn("historical-study");
+        when(bean(fu.fa26.sep490.g58.otcms_be.clinical.service.ClinicalServiceOrderExecutionPort.class).findAllByPatient(patientId)).thenReturn(List.of(image));
+        var report = mock(DiagnosticReportJpaEntity.class);
+        when(report.getRequestId()).thenReturn(historicalRequest); when(report.getVisitId()).thenReturn(historicalVisit);
+        when(report.getStudyRef()).thenReturn("historical-study"); when(report.getFindingsText()).thenReturn("Released historical finding");
+        when(report.getReportId()).thenReturn(UUID.randomUUID()); when(report.getCompletedAt()).thenReturn(Instant.EPOCH);
+        when(report.getReleasedAt()).thenReturn(Instant.EPOCH);
+        when(report.getValidationStatus()).thenReturn(fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.enums.DiagnosticReportValidationStatus.VALIDATED);
+        when(bean(DiagnosticReportJpaRepository.class).findAllByRequestIdInAndState(any(), eq(fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.enums.DiagnosticFindingsVersionState.COMPLETED))).thenReturn(List.of(report));
         var result = bean(ClinicalPastMedicalRecordsService.class).getPastMedicalRecords(visitId, doctorId, accountId, 0, 20);
         assertEquals(historicalDoctor, result.items().getFirst().prescription().doctorProfileId());
         assertEquals(historicalRequest, result.items().getFirst().imagingResults().getFirst().requestId());
         verify(bean(VisitCareAssignmentRepository.class), never())
                 .findFirstByVisitIdAndStatusOrderByAssignedAtDescIdDesc(eq(historicalVisit), any());
-        verify(bean(DiagnosticHistoryAccessAuditJpaRepository.class)).save(any());
+        verify(bean(fu.fa26.sep490.g58.otcms_be.common.audit.AuditLogWriter.class)).record(any());
         verifyNoInteractions(bean(ClinicalMedicalDocumentPayloadRepository.class));
     }
 
@@ -328,7 +353,8 @@ class DoctorCoreProductionWiringTest {
             DoctorProfileIdentityQueryServiceImpl.class, DoctorAccountAccessServiceImpl.class, ServiceCatalogClinicalAdapter.class,
             GetClinicServiceCatalogServiceImpl.class, ImagingServiceCatalogAdapter.class, ClinicalImagingOrderAdapter.class,
             DiagnosticImagingRequestRegistrationImpl.class, DiagnosticStatusServiceImpl.class, DiagnosticRequestServiceImpl.class,
-            DiagnosticAuthorizationPolicyImpl.class, DiagnosticTransitionPolicyImpl.class, DiagnosticFindingsServiceImpl.class, DiagnosticHistoryServiceImpl.class})
+            DiagnosticAuthorizationPolicyImpl.class, DiagnosticTransitionPolicyImpl.class, DiagnosticFindingsServiceImpl.class, DiagnosticHistoryServiceImpl.class,
+            DiagnosticReleasedReportServiceImpl.class})
     static class ProductionConfiguration {
         /** Visit-owned exam queue move is a side-effect boundary here; the real adapter needs the queue repositories. */
         @Bean VisitConclusionPort visitConclusions() { return mock(VisitConclusionPort.class); }
@@ -348,17 +374,16 @@ class DoctorCoreProductionWiringTest {
         @Bean RecordingTransactions transactionManager() { return new RecordingTransactions(); }
         @Bean static BeanFactoryPostProcessor persistenceOnlyDoubles() {
             return factory -> {
-                Class<?>[] repositories = {AccountRepository.class, DoctorProfileRepository.class, ClinicServiceRepository.class,
-                        ClinicVisitJpaRepository.class, VisitCareAssignmentRepository.class, VisitImagingResultReceiptRepository.class, ClinicalExaminationRepository.class,
-                        ClinicalDiagnosisRepository.class, OrderingRoundRepository.class, ServiceOrderRepository.class,
-                        ClinicalImagingRequestReplayRepository.class, ClinicalMedicalDocumentRepository.class, ClinicalMedicalDocumentPayloadRepository.class,
+                Class<?>[] repositories = {AccountRepository.class, StaffProfileRepository.class, ClinicServiceRepository.class,
+                        ClinicVisitJpaRepository.class, VisitCareAssignmentRepository.class, ClinicalExaminationRepository.class,
+                        ClinicalDiagnosisRepository.class, ServiceOrderRepository.class,
+                        ClinicalMedicalDocumentRepository.class, ClinicalMedicalDocumentPayloadRepository.class,
                         fu.fa26.sep490.g58.otcms_be.auth.repository.PatientProfileRepository.class,
                         fu.fa26.sep490.g58.otcms_be.patient.repository.CareRelationshipRepository.class,
                         ClinicalPrescriptionRepository.class, ClinicalPrescriptionItemRepository.class,
-                        DiagnosticRequestJpaRepository.class, DiagnosticAttemptJpaRepository.class,
-                        DiagnosticIdempotencyRecordJpaRepository.class, DiagnosticAuditEventJpaRepository.class,
-                        DiagnosticFindingsVersionJpaRepository.class, DiagnosticReportJpaRepository.class,
-                        DiagnosticOutboxJpaRepository.class, DiagnosticHistoryAccessAuditJpaRepository.class};
+                        DiagnosticReportJpaRepository.class,
+                        fu.fa26.sep490.g58.otcms_be.clinical.service.ClinicalServiceOrderExecutionPort.class,
+                        fu.fa26.sep490.g58.otcms_be.common.audit.AuditLogWriter.class};
                 for (Class<?> repository : repositories) factory.registerSingleton(repository.getSimpleName(), mock(repository));
             };
         }

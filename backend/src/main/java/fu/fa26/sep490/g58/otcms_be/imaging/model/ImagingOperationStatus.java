@@ -7,12 +7,17 @@ import java.util.UUID;
 
 /** Safe operation projection; contains no DICOM tags, PHI, or archive URL. */
 public record ImagingOperationStatus(UUID operationId, ImagingOperationState state,
-        Instant createdAt, Instant updatedAt, String safeOutcomeCode) {
+        Instant createdAt, Instant updatedAt, String safeOutcomeCode, Integer instanceCount) {
+    public ImagingOperationStatus(UUID operationId, ImagingOperationState state, Instant createdAt,
+            Instant updatedAt, String safeOutcomeCode) {
+        this(operationId, state, createdAt, updatedAt, safeOutcomeCode, null);
+    }
     public ImagingOperationStatus {
         Objects.requireNonNull(operationId, "operationId");
         Objects.requireNonNull(state, "state");
         Objects.requireNonNull(createdAt, "createdAt");
         Objects.requireNonNull(updatedAt, "updatedAt");
+        if (instanceCount != null && instanceCount < 0) throw new IllegalArgumentException("Invalid instance count");
         if (updatedAt.isBefore(createdAt)) {
             throw new IllegalArgumentException("updatedAt must not precede createdAt");
         }

@@ -62,11 +62,11 @@ class CreateFollowUpAppointmentT030PostgresIntegrationTest {
         correlation = UUID.randomUUID().toString();
         jdbc.update("insert into patient_profiles (id, account_id, full_name, phone_canonical, phone_owner_type, date_of_birth, gender) values (?, null, 'T030 Patient', ?, 'PATIENT', '1990-01-01', 'OTHER')",
                 patient, "+849" + UUID.randomUUID().toString().replace("-", "").substring(0, 9));
-        jdbc.update("insert into doctor_profiles (id, account_id, full_name, photo_url, work_contact, specialties, qualifications, biography, consultation_information, publicly_visible, accepting_new_bookings, in_active_directory) values (?, ?, 'T030 Doctor', '', 'private', '', '', '', '', true, true, true)",
+        jdbc.update("insert into staff_profiles (is_doctor, id, account_id, display_name, photo_url, work_contact, specialties, qualifications, biography, consultation_information, publicly_visible, accepting_new_bookings, in_active_directory) values (true, ?, ?, 'T030 Doctor', '', 'private', '', '', '', '', true, true, true)",
                 doctor, account);
         jdbc.update("insert into clinic_services (id, name, duration_minutes, buffer_minutes, online_bookable, active) values (?, 'T030 Follow-up', 30, 5, false, true)", service);
         jdbc.update("insert into doctor_services (doctor_profile_id, service_id, active) values (?, ?, true)", doctor, service);
-        jdbc.update("insert into doctor_shifts (id, doctor_profile_id, starts_at, ends_at) values (?, ?, ?, ?)",
+        jdbc.update("insert into work_shifts (id, staff_profile_id, starts_at, ends_at) values (?, ?, ?, ?)",
                 UUID.randomUUID(), doctor, Timestamp.from(SLOT.minusSeconds(3600)), Timestamp.from(SLOT.plusSeconds(7200)));
         jdbc.update("insert into visits (id, patient_profile_id, source, arrived_at, checked_in_at, created_by_account_id) values (?, ?, 'WALK_IN', ?, ?, ?)",
                 visit, patient, Timestamp.from(NOW.minusSeconds(3600)), Timestamp.from(NOW.minusSeconds(3600)), account);
@@ -82,27 +82,27 @@ class CreateFollowUpAppointmentT030PostgresIntegrationTest {
     void cleanUp() {
         if (account == null) return;
         new TransactionTemplate(transactionManager).executeWithoutResult(transaction -> {
-            String triggerMode = jdbc.queryForObject("select tgenabled::text from pg_trigger where tgrelid = 'appointment_audits'::regclass and tgname = 'tr_appointment_audits_immutable'", String.class);
-            jdbc.execute("alter table appointment_audits disable trigger tr_appointment_audits_immutable");
+            String triggerMode = jdbc.queryForObject("select tgenabled::text from pg_trigger where tgrelid = 'audit_logs'::regclass and tgname = 'tr_audit_logs_immutable'", String.class);
+            jdbc.execute("alter table audit_logs disable trigger tr_audit_logs_immutable");
             if (service != null) {
-                jdbc.update("delete from appointment_audits where appointment_id in (select id from appointments where service_id = ?)", service);
+                jdbc.update("delete from audit_logs where source = 'appointment_audits' and entity_id in (select id from appointments where service_id = ?)", service);
                 jdbc.update("delete from appointments where service_id = ?", service);
                 jdbc.update("delete from clinical_examinations where visit_id = ?", visit);
-                jdbc.update("delete from visit_examinations where visit_id = ?", visit);
+
                 jdbc.update("delete from visit_assignments where visit_id = ?", visit);
                 jdbc.update("delete from visits where id = ?", visit);
-                jdbc.update("delete from doctor_shifts where doctor_profile_id = ?", doctor);
+                jdbc.update("delete from work_shifts where staff_profile_id = ?", doctor);
                 jdbc.update("delete from doctor_services where service_id = ?", service);
                 jdbc.update("delete from clinic_services where id = ?", service);
             }
-            if (doctor != null) jdbc.update("delete from doctor_profiles where id = ?", doctor);
+            if (doctor != null) jdbc.update("delete from staff_profiles where id = ?", doctor);
             if (patient != null) jdbc.update("delete from patient_profiles where id = ?", patient);
             if (account != null) jdbc.update("delete from accounts where id = ?", account);
             switch (triggerMode) {
-                case "D" -> jdbc.execute("alter table appointment_audits disable trigger tr_appointment_audits_immutable");
-                case "R" -> jdbc.execute("alter table appointment_audits enable replica trigger tr_appointment_audits_immutable");
-                case "A" -> jdbc.execute("alter table appointment_audits enable always trigger tr_appointment_audits_immutable");
-                default -> jdbc.execute("alter table appointment_audits enable trigger tr_appointment_audits_immutable");
+                case "D" -> jdbc.execute("alter table audit_logs disable trigger tr_audit_logs_immutable");
+                case "R" -> jdbc.execute("alter table audit_logs enable replica trigger tr_audit_logs_immutable");
+                case "A" -> jdbc.execute("alter table audit_logs enable always trigger tr_audit_logs_immutable");
+                default -> jdbc.execute("alter table audit_logs enable trigger tr_audit_logs_immutable");
             }
         });
     }
@@ -124,7 +124,7 @@ class CreateFollowUpAppointmentT030PostgresIntegrationTest {
                 "select count(*) from appointments where source_visit_id = ? and patient_profile_id = ? and ordering_doctor_profile_id = ? and booking_source = 'DOCTOR_FOLLOW_UP'",
                 Integer.class, visit, patient, doctor));
         org.junit.jupiter.api.Assertions.assertEquals(1, jdbc.queryForObject(
-                "select count(*) from appointment_audits where source_visit_id = ? and actor_account_id = ? and actor_type = 'DOCTOR' and action = 'CREATED' and reason = 'Review symptoms' and correlation_id = ?",
+                "select count(*) from audit_logs where source = 'appointment_audits' and (after_state->>'sourceVisitId')::uuid = ? and actor_account_id = ? and actor_type = 'DOCTOR' and action = 'CREATED' and metadata->>'reason' = 'Review symptoms' and correlation_id = ?",
                 Integer.class, visit, account, correlation));
         org.junit.jupiter.api.Assertions.assertEquals(1, jdbc.queryForObject(
                 "select count(*) from visits where id = ? and status = 'OPEN'", Integer.class, visit));

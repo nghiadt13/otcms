@@ -24,7 +24,7 @@ public class AppointmentMutationImpactServiceImpl implements AppointmentMutation
 
     /*
      * Invariant: a live payment hold (AWAITING_PAYMENT, deadline in the future) counts as a protected booking, so
-     * shifts, time off and service assignments cannot be changed under a patient who is paying. An Admin may be
+     * shifts and service assignments cannot be changed under a patient who is paying. An Admin may be
      * blocked for at most the hold window by a booking no list shows.
      */
 
@@ -34,12 +34,6 @@ public class AppointmentMutationImpactServiceImpl implements AppointmentMutation
         return occupancy.findProtectedBookingIntervals(doctorId, clock.instant()).stream()
                 .map(row -> new OccupiedBookingInterval(toInstant(row[0]), toInstant(row[1])))
                 .toList();
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public long countBookingsOverlappingTimeOff(UUID doctorId, Instant fromInclusive, Instant toExclusive) {
-        return occupancy.countBookingsOverlappingTimeOff(doctorId, fromInclusive, toExclusive, clock.instant());
     }
 
     @Override

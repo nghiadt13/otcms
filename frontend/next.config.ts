@@ -17,13 +17,38 @@ const nextConfig: NextConfig = {
       {
         source: "/api/:path*",
         destination: "http://localhost:8080/api/:path*",
+        // Auth/API callers use root-relative `/api/...` paths even when the UI is under `/otcms`.
+        basePath: false,
       },
+      {
+        source: "/dicom-web/:path*",
+        destination: "http://localhost:8080/dicom-web/:path*",
+        basePath: false,
+      },
+      // OHIF and its DICOMweb gateway share the browser origin with OTCMS.
+      ...[
+        "/viewer/:path*",
+        "/assets/:path*",
+        "/manifest.json",
+      ].map((source) => ({
+        source,
+        destination: `http://localhost:3001${source}`,
+        basePath: false as const,
+      })),
+      ...["js", "css", "wasm", "woff", "woff2"].map((extension) => ({
+        source: `/:file(.*\\.${extension})`,
+        destination: "http://localhost:3001/:file",
+        basePath: false as const,
+      })),
     ];
   },
   turbopack: {
     root: dirname(fileURLToPath(import.meta.url)),
   },
   experimental: {
+    // The local API rewrite must allow a full DICOM ZIP and time for ingestion.
+    proxyClientMaxBodySize: "82mb",
+    proxyTimeout: 180_000,
     // Dự án có nhiều root layout ((public), (admin)) nên không có layout chung để
     // dựng trang 404 cho URL không khớp route nào; xem `src/app/global-not-found.tsx`.
     globalNotFound: true,

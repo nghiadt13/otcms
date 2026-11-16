@@ -12,12 +12,16 @@ import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.springframework.stereotype.Component;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** Spools and hashes the exact raw HTTP entity before any multipart or DICOM parsing. */
 @Component
 public class ImagingRequestBodySpooler {
+    private static final Logger log = LoggerFactory.getLogger(ImagingRequestBodySpooler.class);
     public Spool spool(InputStream input, long declaredLength, long maximumBytes) {
         if (declaredLength < -1 || maximumBytes < 1 || declaredLength > maximumBytes) {
+            log.warn("Imaging upload rejected: invalid declared length or upload size limit");
             throw new ImagingOperationException(ImagingOperationOutcome.FILE_INVALID);
         }
         Path file = null;
@@ -31,6 +35,7 @@ public class ImagingRequestBodySpooler {
                 while ((read = input.read(buffer)) != -1) {
                     count += read;
                     if (count > maximumBytes) {
+                        log.warn("Imaging upload rejected: upload size limit exceeded");
                         throw new ImagingOperationException(ImagingOperationOutcome.FILE_INVALID);
                     }
                     digest.update(buffer, 0, read);
@@ -38,6 +43,7 @@ public class ImagingRequestBodySpooler {
                 }
             }
             if (declaredLength >= 0 && count != declaredLength) {
+                log.warn("Imaging upload rejected: request length mismatch");
                 throw new ImagingOperationException(ImagingOperationOutcome.FILE_INVALID);
             }
             return new Spool(file, count, HexFormat.of().formatHex(digest.digest()));

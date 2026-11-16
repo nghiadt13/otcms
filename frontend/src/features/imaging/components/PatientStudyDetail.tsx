@@ -34,7 +34,9 @@ export function PatientStudyDetail({ study }: { study: PatientImagingStudy }) {
           value={IMAGING_MODALITY_LABELS[study.modality]}
         />
         <Field label="Ngày chụp" value={formatDate(study.studyDate)} />
-        <Field label="Số series" value={`${study.seriesCount} series`} />
+        {study.seriesCount !== undefined ? (
+          <Field label="Số series" value={`${study.seriesCount} series`} />
+        ) : null}
         <Field
           label="Người bệnh"
           value={`${study.patient.fullName} (${CARE_RELATIONSHIP_LABELS[study.patient.relationship]})`}

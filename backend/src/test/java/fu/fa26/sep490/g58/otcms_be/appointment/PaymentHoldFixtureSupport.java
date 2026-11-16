@@ -63,15 +63,15 @@ abstract class PaymentHoldFixtureSupport {
         doctorProfile = UUID.randomUUID();
         paidService = service("Paid visit", 150000);
         freeService = service("Free visit", 0);
-        jdbc.update("insert into doctor_profiles (id, account_id, full_name, photo_url, work_contact, specialties, "
+        jdbc.update("insert into staff_profiles (is_doctor, id, account_id, display_name, photo_url, work_contact, specialties, "
                 + "qualifications, biography, consultation_information, publicly_visible, accepting_new_bookings, "
-                + "in_active_directory) values (?, ?, 'Hold Doctor', '', 'private', '', '', '', '', true, true, true)",
+                + "in_active_directory) values (true, ?, ?, 'Hold Doctor', '', 'private', '', '', '', '', true, true, true)",
                 doctorProfile, doctorAccount);
         for (UUID service : List.of(paidService, freeService)) {
             jdbc.update("insert into doctor_services (doctor_profile_id, service_id, active) values (?, ?, true)",
                     doctorProfile, service);
         }
-        jdbc.update("insert into doctor_shifts (id, doctor_profile_id, starts_at, ends_at) values (?, ?, ?, ?)",
+        jdbc.update("insert into work_shifts (id, staff_profile_id, starts_at, ends_at) values (?, ?, ?, ?)",
                 UUID.randomUUID(), doctorProfile, Timestamp.from(Instant.parse("2026-10-16T02:00:00Z")),
                 Timestamp.from(Instant.parse("2026-10-16T05:00:00Z")));
     }
@@ -80,30 +80,28 @@ abstract class PaymentHoldFixtureSupport {
     void cleanUpHoldFixture() {
         if (patientA == null) return;
         new TransactionTemplate(transactionManager).executeWithoutResult(tx -> {
-            jdbc.execute("alter table appointment_audits disable trigger tr_appointment_audits_immutable");
+            jdbc.execute("alter table audit_logs disable trigger tr_audit_logs_immutable");
             try {
                 String creators = "(?, ?, ?)";
                 Object[] args = {patientA, patientB, receptionist};
                 String mine = "(select id from appointments where created_by_account_id in " + creators + ")";
                 String myInvoices = "(select id from invoices where appointment_id in " + mine + ")";
-                jdbc.update("delete from payment_gateway_events where provider_order_code in (select provider_order_code "
-                        + "from payment_attempts where invoice_id in " + myInvoices + ")", args);
                 jdbc.update("delete from payment_attempts where invoice_id in " + myInvoices, args);
                 jdbc.update("delete from invoice_items where invoice_id in " + myInvoices, args);
                 jdbc.update("delete from invoices where appointment_id in " + mine, args);
                 jdbc.update("delete from notifications where related_id in (select id from appointments "
                         + "where created_by_account_id in " + creators + ")", args);
-                jdbc.update("delete from appointment_audits where appointment_id in (select id from appointments "
+                jdbc.update("delete from audit_logs where source = 'appointment_audits' and entity_id in (select id from appointments "
                         + "where created_by_account_id in " + creators + ")", args);
                 jdbc.update("delete from appointments where created_by_account_id in " + creators, args);
                 jdbc.update("delete from doctor_services where doctor_profile_id = ?", doctorProfile);
                 jdbc.update("delete from clinic_services where id in (?, ?)", paidService, freeService);
-                jdbc.update("delete from doctor_shifts where doctor_profile_id = ?", doctorProfile);
-                jdbc.update("delete from doctor_profiles where id = ?", doctorProfile);
+                jdbc.update("delete from work_shifts where staff_profile_id = ?", doctorProfile);
+                jdbc.update("delete from staff_profiles where id = ?", doctorProfile);
                 jdbc.update("delete from patient_profiles where id in (?, ?)", profileA, profileB);
                 jdbc.update("delete from accounts where id in (?, ?, ?, ?)", patientA, patientB, receptionist, doctorAccount);
             } finally {
-                jdbc.execute("alter table appointment_audits enable trigger tr_appointment_audits_immutable");
+                jdbc.execute("alter table audit_logs enable trigger tr_audit_logs_immutable");
             }
         });
     }

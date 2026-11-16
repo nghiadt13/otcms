@@ -1,9 +1,6 @@
 package fu.fa26.sep490.g58.otcms_be.clinical.service.impl;
 
 import fu.fa26.sep490.g58.otcms_be.clinical.exception.ClinicalOperationException;
-import fu.fa26.sep490.g58.otcms_be.clinical.model.entity.ClinicalImagingRequestReplayJpaEntity;
-import fu.fa26.sep490.g58.otcms_be.clinical.repository.ClinicalImagingRequestReplayRepository;
-import fu.fa26.sep490.g58.otcms_be.clinical.repository.OrderingRoundRepository;
 import fu.fa26.sep490.g58.otcms_be.clinical.repository.ServiceOrderRepository;
 import fu.fa26.sep490.g58.otcms_be.clinical.service.ClinicalImagingRequestService.*;
 import fu.fa26.sep490.g58.otcms_be.clinical.service.ClinicalOrderingService;
@@ -19,22 +16,17 @@ import org.springframework.transaction.annotation.Transactional;
 public class ClinicalImagingRequestTransactionService {
     private final ClinicalOrderPreparationService preparation;
     private final ClinicalOrderingTransactionService writer;
-    private final ClinicalImagingRequestReplayRepository replays;
-    private final OrderingRoundRepository rounds;
     private final ServiceOrderRepository orders;
     private final Clock clock;
     private final fu.fa26.sep490.g58.otcms_be.common.service.CoordinationGuardService guard;
     private final VisitConclusionPort conclusions;
 
     public ClinicalImagingRequestTransactionService(ClinicalOrderPreparationService preparation,
-            ClinicalOrderingTransactionService writer, ClinicalImagingRequestReplayRepository replays,
-            OrderingRoundRepository rounds, ServiceOrderRepository orders, Clock clock,
+            ClinicalOrderingTransactionService writer, ServiceOrderRepository orders, Clock clock,
             fu.fa26.sep490.g58.otcms_be.common.service.CoordinationGuardService guard,
             VisitConclusionPort conclusions) {
         this.preparation = preparation;
         this.writer = writer;
-        this.replays = replays;
-        this.rounds = rounds;
         this.orders = orders;
         this.clock = clock;
         this.guard = guard;
@@ -44,18 +36,18 @@ public class ClinicalImagingRequestTransactionService {
     @Transactional
     public SubmissionResult submit(ImagingRequestCommand command, String fingerprint) {
         guard.acquire();
-        var existing = replays.findByDoctorProfileIdAndIdempotencyKey(command.doctorProfileId(), command.idempotencyKey());
+        var existing = orders.findByRequestingDoctorIdAndSubmitIdempotencyKeyAndRoundHeadTrue(
+                command.doctorProfileId(), command.idempotencyKey());
         if (existing.isPresent()) return replay(command, fingerprint, existing.get());
         var context = preparation.requireCurrentCare(command.visitId(), command.doctorProfileId());
         var requests = command.orders().stream().map(order -> new ClinicalOrderingService.OrderRequest(
                 order.serviceId(), order.clinicalReason(), order.bodyArea(), order.instructions())).toList();
         var snapshots = preparation.prepare(requests, true);
         // writer uses REQUIRED, joining this transaction; it cannot commit before replay insertion.
-        var round = writer.createRound(command.visitId(), context.patientId(), command.doctorProfileId(), snapshots);
+        var round = writer.createRound(command.visitId(), context.patientId(), command.doctorProfileId(), snapshots,
+                command.idempotencyKey(), fingerprint);
         // The doctor now waits for imaging: the queue hands over to the next patient. Replays do not repeat this.
         conclusions.markAwaitingConclusion(command.visitId(), clock.instant());
-        replays.saveAndFlush(new ClinicalImagingRequestReplayJpaEntity(command.doctorProfileId(), command.idempotencyKey(),
-                fingerprint, round.id(), clock.instant()));
         return new SubmissionResult(sorted(round), false);
     }
 
@@ -63,24 +55,26 @@ public class ClinicalImagingRequestTransactionService {
     @Transactional
     public Optional<SubmissionResult> recoverReplay(ImagingRequestCommand command, String fingerprint) {
         guard.acquire();
-        return replays.findByDoctorProfileIdAndIdempotencyKey(command.doctorProfileId(), command.idempotencyKey())
+        return orders.findByRequestingDoctorIdAndSubmitIdempotencyKeyAndRoundHeadTrue(
+                command.doctorProfileId(), command.idempotencyKey())
                 .map(existing -> replay(command, fingerprint, existing));
     }
 
-    private SubmissionResult replay(ImagingRequestCommand command, String fingerprint, ClinicalImagingRequestReplayJpaEntity replay) {
-        if (!fingerprint.equals(replay.getRequestFingerprint())) throw new ClinicalOperationException("IDEMPOTENCY_CONFLICT");
+    private SubmissionResult replay(ImagingRequestCommand command, String fingerprint,
+            fu.fa26.sep490.g58.otcms_be.clinical.model.entity.ServiceOrderJpaEntity replay) {
+        if (!fingerprint.equals(replay.getSubmitRequestFingerprint())) throw new ClinicalOperationException("IDEMPOTENCY_CONFLICT");
         preparation.requireCurrentCare(command.visitId(), command.doctorProfileId());
-        var round = rounds.findById(replay.getOrderingRoundId()).orElseThrow(() -> new ClinicalOperationException("DEPENDENCY_UNAVAILABLE"));
-        if (!command.visitId().equals(round.getVisitId()) || !command.doctorProfileId().equals(round.getOrderedByDoctorId())) {
+        if (!replay.isRoundHead() || !command.visitId().equals(replay.getVisitId())
+                || !command.doctorProfileId().equals(replay.getRequestingDoctorId())) {
             throw new ClinicalOperationException("DEPENDENCY_UNAVAILABLE");
         }
-        var views = orders.findByOrderingRoundId(round.getId()).stream().map(order -> new ClinicalOrderingService.OrderView(
+        var views = orders.findByOrderingRoundId(replay.getOrderingRoundId()).stream().map(order -> new ClinicalOrderingService.OrderView(
                 order.getId(), order.getOrderCode(), order.getVisitId(), order.getPatientId(), order.getOrderingRoundId(),
                 order.getServiceId(), order.getServiceNameSnapshot(), order.getServiceType(), order.getRequestingDoctorId(),
                 order.getClinicalReason(), order.getBodyArea(), order.getInstructions(), order.getPriceSnapshot(),
                 order.getOrderStatus(), order.getPaymentStatus())).toList();
-        var result = sorted(new ClinicalOrderingService.RoundView(round.getId(), round.getVisitId(),
-                round.getRoundNumber(), round.getOrderedByDoctorId(), round.getOrderedAt(), views));
+        var result = sorted(new ClinicalOrderingService.RoundView(replay.getOrderingRoundId(), replay.getVisitId(),
+                replay.getRoundNumber(), replay.getRequestingDoctorId(), replay.getOrderedAt(), views));
         return new SubmissionResult(result, true);
     }
 

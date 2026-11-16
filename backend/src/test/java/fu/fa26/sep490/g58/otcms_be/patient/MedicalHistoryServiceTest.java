@@ -79,8 +79,8 @@ class MedicalHistoryServiceTest {
         when(access.canAccess(actor, target)).thenReturn(true);
         when(profiles.findProfile(target)).thenReturn(Optional.of(new PatientProfileDirectory.ProfileRecord(
                 target, actor, "Patient", null, null, LocalDate.of(2000, 1, 2), "OTHER")));
-        var row = mock(fu.fa26.sep490.g58.otcms_be.patient.model.entity.PatientMedicalHistoryJpaEntity.class);
-        when(row.getUpdatedByAccountId()).thenReturn(actor); when(row.getUpdatedAt()).thenReturn(Instant.EPOCH);
+        var row = mock(fu.fa26.sep490.g58.otcms_be.auth.model.entity.PatientProfileJpaEntity.class);
+        when(row.getMedicalHistoryUpdatedBy()).thenReturn(actor); when(row.getMedicalHistoryUpdatedAt()).thenReturn(Instant.EPOCH);
         when(histories.findById(target)).thenReturn(Optional.of(row));
         when(accounts.find(actor)).thenReturn(Optional.of(new MyAccountQueryService.MyAccountView(actor, "PATIENT", "private@example.test", "Editor")));
         assertEquals("Editor", service.get(principal(AccountRole.PATIENT), target).updatedBy());

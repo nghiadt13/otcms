@@ -18,33 +18,6 @@ import java.util.List;
 import java.util.UUID;
 
 public interface AppointmentJpaRepository extends JpaRepository<AppointmentJpaEntity, UUID>, AppointmentBookingRepository {
-    @Modifying
-    @Query(value = """
-            insert into appointment_audits (id, appointment_id, actor_account_id, actor_type, action,
-                new_status, new_doctor_profile_id, new_start_time, new_end_time, occurred_at, correlation_id)
-            values (:id, :appointmentId, :actorAccountId, :actorType, 'CREATED', :newStatus,
-                :doctorProfileId, :startTime, :endTime, :occurredAt, :correlationId)
-            """, nativeQuery = true)
-    int insertCreationAudit(@Param("id") UUID id, @Param("appointmentId") UUID appointmentId,
-            @Param("actorAccountId") UUID actorAccountId, @Param("actorType") String actorType,
-            @Param("newStatus") String newStatus, @Param("doctorProfileId") UUID doctorProfileId, @Param("startTime") Instant startTime,
-            @Param("endTime") Instant endTime, @Param("occurredAt") Instant occurredAt,
-            @Param("correlationId") String correlationId);
-
-    @Modifying
-    @Query(value = """
-            insert into appointment_audits (id, appointment_id, actor_account_id, actor_type, action,
-                new_status, new_doctor_profile_id, new_start_time, new_end_time, reason, source_visit_id,
-                occurred_at, correlation_id)
-            values (:id, :appointmentId, :actorAccountId, 'DOCTOR', 'CREATED', 'CONFIRMED',
-                :doctorProfileId, :startTime, :endTime, :reason, :sourceVisitId, :occurredAt, :correlationId)
-            """, nativeQuery = true)
-    int insertFollowUpCreationAudit(@Param("id") UUID id, @Param("appointmentId") UUID appointmentId,
-            @Param("actorAccountId") UUID actorAccountId, @Param("doctorProfileId") UUID doctorProfileId,
-            @Param("startTime") Instant startTime, @Param("endTime") Instant endTime,
-            @Param("reason") String reason, @Param("sourceVisitId") UUID sourceVisitId,
-            @Param("occurredAt") Instant occurredAt, @Param("correlationId") String correlationId);
-
     @Query(value = """
             select id, patient_profile_id, service_id, doctor_profile_id, status, booking_source, purpose,
                    start_time, end_time, duration_minutes, buffer_minutes, occupied_until, visit_id,
@@ -56,9 +29,6 @@ public interface AppointmentJpaRepository extends JpaRepository<AppointmentJpaEn
     default CreatedAppointment save(AppointmentBooking booking) {
         try {
             saveAndFlush(AppointmentJpaEntity.from(booking));
-            insertCreationAudit(UUID.randomUUID(), booking.id(), booking.createdByAccountId(),
-                    booking.actorType().name(), booking.initialStatus(), booking.doctorProfileId(), booking.startTime(),
-                    booking.endTime(), booking.occurredAt(), booking.correlationId());
             return AppointmentRowMapper.createdAppointment(findCreatedRow(booking.id()).getFirst());
         } catch (DataIntegrityViolationException exception) {
             if (hasSqlState(exception, "23P01")) {
@@ -75,9 +45,6 @@ public interface AppointmentJpaRepository extends JpaRepository<AppointmentJpaEn
     default CreatedAppointment saveFollowUp(AppointmentBooking booking) {
         try {
             saveAndFlush(AppointmentJpaEntity.from(booking));
-            insertFollowUpCreationAudit(UUID.randomUUID(), booking.id(), booking.createdByAccountId(),
-                    booking.doctorProfileId(), booking.startTime(), booking.endTime(), booking.reason(),
-                    booking.sourceVisitId(), booking.occurredAt(), booking.correlationId());
             return AppointmentRowMapper.createdAppointment(findCreatedRow(booking.id()).getFirst());
         } catch (DataIntegrityViolationException exception) {
             if (hasSqlState(exception, "23P01")) {

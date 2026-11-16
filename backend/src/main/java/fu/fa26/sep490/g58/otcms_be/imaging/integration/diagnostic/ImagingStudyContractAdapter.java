@@ -1,5 +1,6 @@
 package fu.fa26.sep490.g58.otcms_be.imaging.integration.diagnostic;
 
+import fu.fa26.sep490.g58.otcms_be.common.security.AccountRole;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.integration.DiagnosticPortModels.FindingsReleaseEvent;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.integration.DiagnosticPortModels.ReleaseAcknowledgement;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.integration.DiagnosticPortModels.StudyEvidence;
@@ -7,49 +8,39 @@ import fu.fa26.sep490.g58.otcms_be.diagnostic.integration.DiagnosticPortModels.S
 import fu.fa26.sep490.g58.otcms_be.diagnostic.integration.DiagnosticPortModels.ViewAuthorization;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.integration.ImagingStudyPort;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.service.DiagnosticViewerAuthorizationService;
-import fu.fa26.sep490.g58.otcms_be.common.security.AccountRole;
 import fu.fa26.sep490.g58.otcms_be.imaging.exception.ImagingOperationException;
 import fu.fa26.sep490.g58.otcms_be.imaging.exception.ImagingOperationOutcome;
-import fu.fa26.sep490.g58.otcms_be.imaging.model.entity.ImagingReleaseInboxJpaEntity;
+import fu.fa26.sep490.g58.otcms_be.imaging.model.entity.ImagingStudyJpaEntity;
+import fu.fa26.sep490.g58.otcms_be.imaging.model.entity.enums.ImagingOperationState;
 import fu.fa26.sep490.g58.otcms_be.imaging.model.entity.enums.ImagingReconciliationClassification;
-import fu.fa26.sep490.g58.otcms_be.imaging.repository.ImagingIngestOperationRepository;
-import fu.fa26.sep490.g58.otcms_be.imaging.repository.ImagingConfirmationOutboxRepository;
-import fu.fa26.sep490.g58.otcms_be.imaging.repository.ImagingReleaseInboxRepository;
 import fu.fa26.sep490.g58.otcms_be.imaging.repository.ImagingStudyRepository;
-import fu.fa26.sep490.g58.otcms_be.imaging.service.impl.ImagingAuditPersistenceService;
 import fu.fa26.sep490.g58.otcms_be.imaging.service.ImagingReconciliationService;
+import fu.fa26.sep490.g58.otcms_be.imaging.service.impl.ImagingAuditPersistenceService;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
-import org.springframework.stereotype.Service;
 import org.springframework.context.annotation.Profile;
+import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/** Implements the FEAT-003 public imaging port using FEAT-004-owned persistence only. */
+/** Implements the public imaging contract with imaging_studies as the sole workflow owner. */
 @Service
 @Profile("!test")
 public class ImagingStudyContractAdapter implements ImagingStudyPort {
     private final ImagingStudyRepository studies;
-    private final ImagingIngestOperationRepository operations;
-    private final ImagingReleaseInboxRepository releases;
     private final ImagingAuditPersistenceService audit;
-    private final ImagingConfirmationOutboxRepository confirmations;
     private final DiagnosticViewerAuthorizationService viewerAuthorization;
     private final ImagingReconciliationService reconciliation;
 
-    public ImagingStudyContractAdapter(ImagingStudyRepository studies,
-            ImagingIngestOperationRepository operations, ImagingReleaseInboxRepository releases,
-            ImagingAuditPersistenceService audit, ImagingConfirmationOutboxRepository confirmations,
+    public ImagingStudyContractAdapter(ImagingStudyRepository studies, ImagingAuditPersistenceService audit,
             DiagnosticViewerAuthorizationService viewerAuthorization, ImagingReconciliationService reconciliation) {
         this.studies = studies;
-        this.operations = operations;
-        this.releases = releases;
         this.audit = audit;
-        this.confirmations = confirmations;
         this.viewerAuthorization = viewerAuthorization;
         this.reconciliation = reconciliation;
     }
@@ -58,28 +49,14 @@ public class ImagingStudyContractAdapter implements ImagingStudyPort {
     @Transactional(readOnly = true)
     public StudyEvidence confirmIngestedStudy(UUID eventId, String studyRef, UUID requestId,
             UUID visitId, UUID patientId, UUID attemptId, List<String> verificationEvidence) {
-        var study = studies.findById(studyRef)
+        ImagingStudyJpaEntity study = studies.findByConfirmationEventId(eventId)
                 .orElseThrow(() -> new ImagingOperationException(ImagingOperationOutcome.EVIDENCE_MISMATCH));
-        var outbox = confirmations.findByEventId(eventId)
-                .orElseThrow(() -> new ImagingOperationException(ImagingOperationOutcome.EVIDENCE_MISMATCH));
-        if (!outbox.getStudyRef().equals(studyRef) || !outbox.getRequestId().equals(requestId)
-                || !outbox.getVisitId().equals(visitId) || !outbox.getPatientId().equals(patientId)
-                || !outbox.getAttemptId().equals(attemptId)) {
-            throw new ImagingOperationException(ImagingOperationOutcome.EVIDENCE_MISMATCH);
-        }
-        if (!study.getRequestId().equals(requestId) || !study.getVisitId().equals(visitId)
-                || !study.getPatientId().equals(patientId)
-                || !"CONFIRMED_MATCH".equals(study.getVerificationStatus())) {
-            throw new ImagingOperationException(ImagingOperationOutcome.EVIDENCE_MISMATCH);
-        }
-        var operation = operations.findById(outbox.getOperationId())
-                .orElseThrow(() -> new ImagingOperationException(ImagingOperationOutcome.RECONCILIATION_REQUIRED));
-        var record = operation.toModel();
-        if (!record.id().equals(outbox.getOperationId()) || !record.requestId().equals(requestId)
-                || !record.attemptId().equals(attemptId) || !record.visitId().equals(visitId)
-                || !record.patientId().equals(patientId) || !studyRef.equals(record.studyRef())
-                || !record.verificationEvidence().equals(verificationEvidence)
-                || record.state() == fu.fa26.sep490.g58.otcms_be.imaging.model.entity.enums.ImagingOperationState.QUARANTINED) {
+        if (!studyRef.equals(study.getStudyRef()) || !requestId.equals(study.getRequestId())
+                || !visitId.equals(study.getVisitId()) || !patientId.equals(study.getPatientId())
+                || !attemptId.equals(study.getAttemptId()) || !verificationEvidence.equals(study.getVerificationEvidence())
+                || !"CONFIRMED_MATCH".equals(study.getVerificationStatus())
+                || (study.getState() != ImagingOperationState.CONFIRMATION_PENDING
+                && study.getState() != ImagingOperationState.LINKED)) {
             throw new ImagingOperationException(ImagingOperationOutcome.EVIDENCE_MISMATCH);
         }
         return new StudyEvidence(eventId, studyRef, requestId, visitId, patientId, attemptId,
@@ -99,87 +76,63 @@ public class ImagingStudyContractAdapter implements ImagingStudyPort {
     }
 
     @Override
-    @Transactional(noRollbackFor = ImagingOperationException.class)
+    @Transactional
     public ReleaseAcknowledgement acceptFindingsRelease(FindingsReleaseEvent event) {
-        String payloadHash = hashRelease(event);
         if (event == null || event.eventId() == null || event.requestId() == null || event.visitId() == null
                 || event.patientId() == null || event.studyRef() == null || event.findingsVersionId() == null
                 || event.reportId() == null || event.reportSha256() == null
                 || !event.reportSha256().matches("[0-9a-f]{64}")) {
-            if (event != null && event.eventId() != null) {
-                reconciliation.openEvent(event.eventId(), "RELEASE",
-                        ImagingReconciliationClassification.ORPHANED, payloadHash, "RELEASE_EVENT_INVALID");
-                recordReleaseOutcome(event, "REJECTED", "RELEASE_EVENT_INVALID");
-            }
             throw new ImagingOperationException(ImagingOperationOutcome.EVIDENCE_MISMATCH);
         }
-        var existing = releases.findByEventId(event.eventId());
-        if (existing.isPresent()) {
-            if (!existing.get().getPayloadSha256().equals(payloadHash)
-                    || !"ACCEPTED".equals(existing.get().getOutcome())) {
-                reconciliation.openEvent(event.eventId(), "RELEASE",
-                        ImagingReconciliationClassification.CONFLICT, payloadHash, "RELEASE_EVENT_CONFLICT");
-                recordReleaseOutcome(event, "CONFLICT", "RELEASE_EVENT_CONFLICT");
-                throw new ImagingOperationException(ImagingOperationOutcome.IDEMPOTENCY_CONFLICT);
-            }
-            recordReleaseOutcome(event, "IDEMPOTENT_REPLAY", "RELEASE_EVENT_REPLAY");
-            return new ReleaseAcknowledgement(event.eventId(), event.requestId(), payloadHash, true);
-        }
-        var study = studies.findById(event.studyRef())
-                .orElse(null);
-        if (study == null) {
-            reconciliation.openEvent(event.eventId(), "RELEASE",
-                    ImagingReconciliationClassification.ORPHANED, payloadHash, "RELEASE_STUDY_NOT_FOUND");
-            recordReleaseOutcome(event, "ORPHANED", "RELEASE_STUDY_NOT_FOUND");
+        String payloadHash = hashRelease(event);
+        ImagingStudyJpaEntity study = studies.findByIdForUpdate(findStudyId(event.studyRef()))
+                .orElseThrow(() -> new ImagingOperationException(ImagingOperationOutcome.EVIDENCE_MISMATCH));
+        if (!event.requestId().equals(study.getRequestId()) || !event.visitId().equals(study.getVisitId())
+                || !event.patientId().equals(study.getPatientId())) {
+            reconciliation.openEvent(event.eventId(), "RELEASE", ImagingReconciliationClassification.CONFLICT,
+                    payloadHash, "RELEASE_OWNER_MISMATCH");
             throw new ImagingOperationException(ImagingOperationOutcome.EVIDENCE_MISMATCH);
         }
-        if (!study.getRequestId().equals(event.requestId()) || !study.getVisitId().equals(event.visitId())
-                || !study.getPatientId().equals(event.patientId())) {
-            reconciliation.openEvent(event.eventId(), "RELEASE",
-                    ImagingReconciliationClassification.CONFLICT, payloadHash, "RELEASE_OWNER_MISMATCH");
-            recordReleaseOutcome(event, "CONFLICT", "RELEASE_OWNER_MISMATCH");
-            throw new ImagingOperationException(ImagingOperationOutcome.EVIDENCE_MISMATCH);
-        }
-        var ingest = operations.findById(study.getIngestOperationId()).orElse(null);
-        if (ingest == null) {
-            reconciliation.openEvent(event.eventId(), "RELEASE",
-                    ImagingReconciliationClassification.ORPHANED, payloadHash, "RELEASE_INGEST_OPERATION_MISSING");
-            recordReleaseOutcome(event, "ORPHANED", "RELEASE_INGEST_OPERATION_MISSING");
-            throw new ImagingOperationException(ImagingOperationOutcome.RECONCILIATION_REQUIRED);
-        }
-        if (ingest.getState() != fu.fa26.sep490.g58.otcms_be.imaging.model.entity.enums.ImagingOperationState.LINKED) {
-            reconciliation.openEvent(event.eventId(), "RELEASE",
-                    ImagingReconciliationClassification.RETRYABLE, payloadHash, "RELEASE_BEFORE_LINKED");
-            recordReleaseOutcome(event, "RETRYABLE", "RELEASE_BEFORE_LINKED");
-            throw new ImagingOperationException(ImagingOperationOutcome.EVIDENCE_MISMATCH);
-        }
-        Instant acknowledgedAt = Instant.now();
-        int inserted = releases.insertAcceptedIfAbsent(UUID.randomUUID(), event.eventId(), event.requestId(),
-                event.visitId(), event.patientId(), event.studyRef(), event.findingsVersionId(), event.reportId(),
-                event.reportSha256(), payloadHash, acknowledgedAt);
-        if (inserted == 0) {
-            var raced = releases.findByEventId(event.eventId()).orElse(null);
-            if (raced != null && payloadHash.equals(raced.getPayloadSha256())
-                    && "ACCEPTED".equals(raced.getOutcome())) {
-                recordReleaseOutcome(event, "IDEMPOTENT_REPLAY", "RELEASE_EVENT_REPLAY");
+        if (study.getReleaseEventId() != null) {
+            if (event.eventId().equals(study.getReleaseEventId())
+                    && payloadHash.equals(trim(study.getReleasePayloadSha256()))) {
+                recordReleaseOutcome(event, "IDEMPOTENT_REPLAY", "RELEASE_EVENT_REPLAY", payloadHash);
                 return new ReleaseAcknowledgement(event.eventId(), event.requestId(), payloadHash, true);
             }
-            reconciliation.openEvent(event.eventId(), "RELEASE",
-                    ImagingReconciliationClassification.CONFLICT, payloadHash, "RELEASE_EVENT_CONFLICT");
-            recordReleaseOutcome(event, "CONFLICT", "RELEASE_EVENT_CONFLICT");
+            reconciliation.openEvent(event.eventId(), "RELEASE", ImagingReconciliationClassification.CONFLICT,
+                    payloadHash, "RELEASE_EVENT_CONFLICT");
             throw new ImagingOperationException(ImagingOperationOutcome.IDEMPOTENCY_CONFLICT);
         }
-        audit.recordService("FEAT_003", "FINDINGS_RELEASE", "ACCEPTED", null, event.studyRef(),
-                event.requestId(), null, event.visitId(), event.patientId(), event.eventId().toString(),
-                java.util.Map.of("eventId", event.eventId().toString(), "payloadSha256", payloadHash));
+        if (study.getState() != ImagingOperationState.LINKED) {
+            reconciliation.openEvent(event.eventId(), "RELEASE", ImagingReconciliationClassification.RETRYABLE,
+                    payloadHash, "RELEASE_BEFORE_LINKED");
+            throw new ImagingOperationException(ImagingOperationOutcome.EVIDENCE_MISMATCH);
+        }
+        study.acceptFindingsRelease(event.eventId(), payloadHash, event.findingsVersionId(), event.reportId(),
+                event.reportSha256(), Instant.now());
+        studies.saveAndFlush(study);
+        recordReleaseOutcome(event, "ACCEPTED", null, payloadHash);
         return new ReleaseAcknowledgement(event.eventId(), event.requestId(), payloadHash, true);
     }
 
-    private void recordReleaseOutcome(FindingsReleaseEvent event, String outcome, String reasonCode) {
-        audit.recordService("FEAT_003", "FINDINGS_RELEASE", outcome, null,
-                event.studyRef(), event.requestId(), null, event.visitId(), event.patientId(),
-                event.eventId().toString(), java.util.Map.of("eventId", event.eventId().toString(),
-                        "reasonCode", reasonCode, "payloadSha256", hashRelease(event)));
+    private UUID findStudyId(String studyRef) {
+        return studies.findByStudyRef(studyRef).map(ImagingStudyJpaEntity::getId)
+                .orElseThrow(() -> new ImagingOperationException(ImagingOperationOutcome.EVIDENCE_MISMATCH));
+    }
+
+    private void recordReleaseOutcome(FindingsReleaseEvent event, String outcome, String reasonCode, String payloadHash) {
+        Map<String, Object> metadata = reasonCode == null
+                ? Map.of("eventId", event.eventId().toString(), "payloadSha256", payloadHash)
+                : Map.of("eventId", event.eventId().toString(), "reasonCode", reasonCode,
+                        "payloadSha256", payloadHash);
+        audit.recordService("FEAT_003", "FINDINGS_RELEASE", outcome, null, event.studyRef(),
+                event.requestId(), null, event.visitId(), event.patientId(), event.eventId().toString(), metadata);
+    }
+
+    private static String hashRelease(FindingsReleaseEvent event) {
+        return hash(String.join("\n", safe(event.eventId()), safe(event.requestId()), safe(event.visitId()),
+                safe(event.patientId()), safe(event.studyRef()), safe(event.findingsVersionId()), safe(event.reportId()),
+                safe(event.reportSha256())));
     }
 
     private static String hash(String value) {
@@ -191,12 +144,6 @@ public class ImagingStudyContractAdapter implements ImagingStudyPort {
         }
     }
 
-    private static String hashRelease(FindingsReleaseEvent event) {
-        if (event == null) return hash("null-release-event");
-        return hash(String.join("\n", safe(event.eventId()), safe(event.requestId()), safe(event.visitId()),
-                safe(event.patientId()), safe(event.studyRef()), safe(event.findingsVersionId()),
-                safe(event.reportId()), safe(event.reportSha256())));
-    }
-
+    private static String trim(String value) { return value == null ? null : value.trim(); }
     private static String safe(Object value) { return value == null ? "<null>" : value.toString(); }
 }

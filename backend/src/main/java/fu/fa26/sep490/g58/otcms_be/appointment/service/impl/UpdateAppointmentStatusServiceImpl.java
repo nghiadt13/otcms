@@ -1,5 +1,8 @@
 package fu.fa26.sep490.g58.otcms_be.appointment.service.impl;
 
+import fu.fa26.sep490.g58.otcms_be.appointment.mapper.AppointmentAuditEntries;
+import fu.fa26.sep490.g58.otcms_be.common.audit.AuditLogWriter;
+
 import fu.fa26.sep490.g58.otcms_be.appointment.exception.AppointmentBookingException;
 import fu.fa26.sep490.g58.otcms_be.appointment.exception.AppointmentCapacityConflictException;
 import fu.fa26.sep490.g58.otcms_be.appointment.model.CreatedAppointment;
@@ -21,6 +24,7 @@ import java.util.UUID;
 
 @Service
 public class UpdateAppointmentStatusServiceImpl implements UpdateAppointmentStatusService {
+    private final AuditLogWriter auditLogWriter;
     private final CoordinationGuardService guard;
     private final AppointmentLifecycleRepository appointments;
     private final DoctorProfileIdentityQueryService doctors;
@@ -28,7 +32,8 @@ public class UpdateAppointmentStatusServiceImpl implements UpdateAppointmentStat
     private final Clock clock;
 
     public UpdateAppointmentStatusServiceImpl(CoordinationGuardService guard, AppointmentLifecycleRepository appointments,
-            DoctorProfileIdentityQueryService doctors, VisitScheduledCareService visits, Clock clock) {
+            DoctorProfileIdentityQueryService doctors, VisitScheduledCareService visits, Clock clock, AuditLogWriter auditLogWriter) {
+        this.auditLogWriter = auditLogWriter;
         this.guard = guard; this.appointments = appointments; this.doctors = doctors; this.visits = visits; this.clock = clock;
     }
 
@@ -89,8 +94,13 @@ public class UpdateAppointmentStatusServiceImpl implements UpdateAppointmentStat
             throw new AppointmentBookingException("DEPENDENCY_UNAVAILABLE", failure);
         }
         try {
-            return appointments.transition(current, command.actorAccountId(), command.actorType(),
+            var result = appointments.transition(current, command.actorAccountId(), command.actorType(),
                     command.targetStatus(), now, command.correlationId());
+            AppointmentAuditEntries.record(auditLogWriter, AppointmentAuditEntries.changed(current.id(), command.actorAccountId(), command.actorType(), "CANCELLED".equals(command.targetStatus()) ? "CANCELLED" : "STATUS_CHANGED",
+                current.status(), command.targetStatus(), current.doctorProfileId(), current.doctorProfileId(),
+                current.startTime(), current.startTime(), current.endTime(), current.endTime(),
+                current.visitId(), current.sourceVisitId(), null, null, now), command.correlationId());
+            return result;
         } catch (DataAccessException failure) {
             throw new AppointmentBookingException("DEPENDENCY_UNAVAILABLE", failure);
         }

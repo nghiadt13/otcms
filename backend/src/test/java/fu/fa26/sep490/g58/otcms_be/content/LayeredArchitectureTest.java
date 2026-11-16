@@ -47,11 +47,11 @@ class LayeredArchitectureTest {
     }
     @Test void ownedCrudEntitiesUseJpaAndMutableRecordsHaveVersions() throws Exception {
         for (Class<?> type : types("content", "model/entity")) assertTrue(type.isAnnotationPresent(jakarta.persistence.Entity.class));
-        for (String name : List.of("WebsiteContentJpaEntity", "ClinicAnnouncementJpaEntity")) {
+        for (String name : List.of("WebsiteContentJpaEntity")) {
             Class<?> type = Class.forName(ROOT + "content.model.entity." + name);
             assertTrue(type.getDeclaredField("version").isAnnotationPresent(jakarta.persistence.Version.class));
         }
-        for (String name : List.of("WebsiteContentRepository", "WebsiteImageRepository", "ClinicAnnouncementRepository", "ContentAuditRepository")) {
+        for (String name : List.of("WebsiteContentRepository", "WebsiteImageRepository")) {
             assertTrue(org.springframework.data.jpa.repository.JpaRepository.class.isAssignableFrom(Class.forName(ROOT + "content.repository." + name)));
         }
     }

@@ -91,7 +91,7 @@ abstract class HoldBillingTestSupport {
                         + "phone_owner_type, date_of_birth, gender) values (?, ?, ?, ?, 'PATIENT', date '1990-01-01', 'OTHER')",
                 patientProfileId, patientAccountId, "Hold Billing Patient",
                 "+849" + String.format("%09d", Math.floorMod(patientProfileId.getLeastSignificantBits(), 1_000_000_000L)));
-        jdbc.update("insert into doctor_profiles (id, account_id, full_name) values (?, ?, ?)",
+        jdbc.update("insert into staff_profiles (is_doctor, id, account_id, display_name) values (true, ?, ?, ?)",
                 doctorProfileId, doctorAccountId, "Hold Billing Doctor");
         jdbc.update("insert into clinic_services (id, name, service_type, price, duration_minutes, "
                         + "buffer_minutes, online_bookable, active) values (?, ?, 'EXAMINATION', ?, 30, 0, true, true)",
@@ -104,8 +104,6 @@ abstract class HoldBillingTestSupport {
     void removeFixture() {
         for (UUID invoiceId : jdbc.queryForList("select id from invoices where patient_profile_id = ?",
                 UUID.class, patientProfileId)) {
-            jdbc.update("delete from payment_gateway_events where provider_order_code in "
-                    + "(select provider_order_code from payment_attempts where invoice_id = ?)", invoiceId);
             jdbc.update("delete from payment_attempts where invoice_id = ?", invoiceId);
             jdbc.update("delete from invoice_items where invoice_id = ?", invoiceId);
             jdbc.update("delete from invoices where id = ?", invoiceId);
@@ -113,7 +111,7 @@ abstract class HoldBillingTestSupport {
         for (UUID id : appointmentIds) jdbc.update("delete from appointments where id = ?", id);
         jdbc.update("delete from doctor_services where doctor_profile_id = ? and service_id = ?", doctorProfileId, serviceId);
         jdbc.update("delete from clinic_services where id = ?", serviceId);
-        jdbc.update("delete from doctor_profiles where id = ?", doctorProfileId);
+        jdbc.update("delete from staff_profiles where id = ?", doctorProfileId);
         jdbc.update("delete from patient_profiles where id = ?", patientProfileId);
         jdbc.update("delete from accounts where id in (?, ?, ?)", patientAccountId, receptionistAccountId, doctorAccountId);
     }
@@ -178,8 +176,11 @@ abstract class HoldBillingTestSupport {
     }
 
     List<String> eventOutcomes(long orderCode) {
-        return jdbc.queryForList("select outcome || ':' || coalesce(outcome_detail, '') from payment_gateway_events "
-                + "where provider_order_code = ? order by received_at", String.class, orderCode);
+        // audit_logs is append-only (cannot be cleaned between tests), so callers use a unique order code.
+        // Sorted alphabetically: a frozen test clock can give several rows the same occurred_at.
+        return jdbc.queryForList("select action || ':' || coalesce(metadata->>'detail', '') as line from audit_logs "
+                + "where source = 'payment_gateway_events' and metadata->>'orderCode' = ? order by line",
+                String.class, String.valueOf(orderCode));
     }
 
     PaymentGateway.VerifiedGatewayEvent paidEvent(long orderCode) {
@@ -193,6 +194,12 @@ abstract class HoldBillingTestSupport {
                 + "\",\"reference\":\"" + reference + "\",\"success\":true}";
         return mockMvc.perform(post("/api/v1/payment-webhooks/payos").contentType(MediaType.APPLICATION_JSON)
                 .content(body)).andReturn().getResponse().getStatus();
+    }
+
+    /** Posts a raw body to the PayOS webhook; returns status and body so error codes can be asserted. */
+    org.springframework.mock.web.MockHttpServletResponse postRawWebhook(String body) throws Exception {
+        return mockMvc.perform(post("/api/v1/payment-webhooks/payos").contentType(MediaType.APPLICATION_JSON)
+                .content(body)).andReturn().getResponse();
     }
 
     private void insertAccount(UUID id, String type) {

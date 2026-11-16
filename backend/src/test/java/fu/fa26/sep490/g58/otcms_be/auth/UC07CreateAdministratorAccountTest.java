@@ -6,7 +6,7 @@ import fu.fa26.sep490.g58.otcms_be.auth.model.entity.enums.AccountStatus;
 import fu.fa26.sep490.g58.otcms_be.auth.model.entity.enums.AccountType;
 import fu.fa26.sep490.g58.otcms_be.auth.repository.AccountRepository;
 import fu.fa26.sep490.g58.otcms_be.auth.repository.AuthConcurrencyRepository;
-import fu.fa26.sep490.g58.otcms_be.auth.repository.PasswordResetChallengeRepository;
+import fu.fa26.sep490.g58.otcms_be.auth.repository.VerificationCodeRepository;
 import fu.fa26.sep490.g58.otcms_be.auth.mapper.AdministratorAccountMapper;
 import fu.fa26.sep490.g58.otcms_be.auth.service.AuthSessionService;
 import fu.fa26.sep490.g58.otcms_be.auth.service.OwnerAdministratorService;
@@ -40,7 +40,7 @@ class UC07CreateAdministratorAccountTest {
             spy(new AdministratorPasswordIssuer(new TemporaryPasswordGenerator(), encoder));
     private final OwnerAdministratorService service = new OwnerAdministratorService(
             accounts, concurrency, mock(AuthSessionService.class),
-            mock(PasswordResetChallengeRepository.class),
+            mock(VerificationCodeRepository.class),
             passwords,
             new AdministratorAccountMapper());
 

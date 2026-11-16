@@ -263,8 +263,9 @@ describe("lượt khám và danh sách hôm nay", () => {
       patientName: "Đỗ Thanh Bình",
       allergies: "",
       allergiesLoaded: false,
-      age: null,
     });
+    // Tuổi lấy từ dateOfBirth (1980-05-20) trong chính hàng chờ, không cần lượt "active".
+    expect(context.age).toBeGreaterThan(40);
     expect(context.scheduledAt).toBe("2026-11-04T01:00:00Z");
   });
 

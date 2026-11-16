@@ -8,6 +8,8 @@ import fu.fa26.sep490.g58.otcms_be.auth.repository.*;
 import fu.fa26.sep490.g58.otcms_be.auth.security.*;
 import fu.fa26.sep490.g58.otcms_be.auth.service.AccountAccessService.AccessState;
 import fu.fa26.sep490.g58.otcms_be.auth.service.impl.*;
+import fu.fa26.sep490.g58.otcms_be.common.audit.AuditLogWriter;
+import fu.fa26.sep490.g58.otcms_be.common.audit.repository.AuditLogRepository;
 import fu.fa26.sep490.g58.otcms_be.common.security.*;
 import fu.fa26.sep490.g58.otcms_be.config.AuthProperties;
 import jakarta.servlet.FilterChain;
@@ -24,11 +26,11 @@ import static org.mockito.Mockito.*;
 
 class Kan27StaffLoginAndAccessTest {
     private final AccountRepository accounts = mock(AccountRepository.class);
-    private final AuthenticationAuditRepository audits = mock(AuthenticationAuditRepository.class);
+    private final AuditLogWriter audits = mock(AuditLogWriter.class);
     private final PasswordEncoder encoder = mock(PasswordEncoder.class);
     private final AuthConcurrencyRepository locks = mock(AuthConcurrencyRepository.class);
-    private final CredentialLoginServiceImpl login = new CredentialLoginServiceImpl(accounts, audits, encoder,
-            new AuthProperties(null, null, null, null, null, null, "v1", "v1", "test-only-hmac"), locks);
+    private final CredentialLoginServiceImpl login = new CredentialLoginServiceImpl(accounts, audits, mock(AuditLogRepository.class), encoder,
+            new AuthProperties(null, null, null, null, null, "v1", "v1", "test-only-hmac"), locks);
 
     @AfterEach void clear() { SecurityContextHolder.clearContext(); }
 
@@ -40,7 +42,7 @@ class Kan27StaffLoginAndAccessTest {
         assertThrows(CredentialLoginException.class, () -> login.loginStaff("doctor@clinic", "wrong", "127.0.0.1"));
         assertEquals(1, account.getFailedCredentialCount());
         verify(accounts, never()).findByNormalizedEmail(any());
-        verify(audits, times(4)).save(any()); // one IP attempt and one result per request
+        verify(audits, times(4)).record(any()); // one IP attempt and one result per request
         var order = inOrder(locks, accounts);
         order.verify(locks).lock(startsWith("login-ip:"));
         order.verify(accounts).findByUsername("doctor@clinic");
@@ -53,7 +55,7 @@ class Kan27StaffLoginAndAccessTest {
         assertEquals(account.getId(), login.loginStaff(" Legacy@Example.Test ", "right", "127.0.0.1").accountId());
         verify(accounts).findByUsername(" Legacy@Example.Test ");
         verify(accounts).findByNormalizedEmail("legacy@example.test");
-        verify(audits, times(2)).save(any());
+        verify(audits, times(2)).record(any());
         assertEquals(0, account.getFailedCredentialCount());
     }
 

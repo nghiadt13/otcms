@@ -9,7 +9,7 @@ import java.util.UUID;
 public interface AuthSessionService {
     IssuedSession create(UUID accountId, String clientIp, String userAgent, boolean rememberMe);
 
-    /** Đăng nhập không có lựa chọn ghi nhớ (ví dụ Google) giữ hành vi cũ: ghi nhớ. */
+    /** Đăng nhập không có lựa chọn ghi nhớ giữ hành vi cũ: ghi nhớ. */
     default IssuedSession create(UUID accountId, String clientIp, String userAgent) {
         return create(accountId, clientIp, userAgent, true);
     }

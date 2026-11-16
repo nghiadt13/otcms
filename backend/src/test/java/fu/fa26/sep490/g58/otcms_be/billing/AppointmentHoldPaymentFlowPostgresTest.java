@@ -256,14 +256,34 @@ class AppointmentHoldPaymentFlowPostgresTest extends HoldBillingTestSupport {
 
     @Test
     void webhookForAnUnknownOrderOrWrongAmountIsRejectedWith2xx() throws Exception {
-        assertEquals(200, postWebhook(987_654_321L, PRICE_LONG, "ref-unknown"));
-        assertEquals(List.of("REJECTED:UNKNOWN_ORDER_CODE"), eventOutcomes(987_654_321L));
+        // audit_logs rows cannot be deleted, so use an order code no other run has used.
+        long unknownOrderCode = java.util.concurrent.ThreadLocalRandom.current().nextLong(1L << 40, 1L << 52);
+        assertEquals(200, postWebhook(unknownOrderCode, PRICE_LONG, "ref-unknown"));
+        assertEquals(List.of("REJECTED:UNKNOWN_ORDER_CODE"), eventOutcomes(unknownOrderCode));
 
         Held held = heldWithQr();
         assertEquals(200, postWebhook(held.orderCode(), PRICE_LONG - 1, "ref-short"));
         assertEquals("PENDING", attemptStatus(held.attemptId()));
         assertEquals("AWAITING_PAYMENT", appointmentStatus(held.appointmentId()));
-        jdbc.update("delete from payment_gateway_events where provider_order_code = ?", 987_654_321L);
+    }
+
+    @Test
+    void rejectedWebhookIsAuditedAndNeverApplied() throws Exception {
+        Held held = heldWithQr();
+        String rejectedSql = "select count(*) from audit_logs where source = 'payment_gateway_events' "
+                + "and action = 'REJECTED' and metadata->>'signatureVerified' = 'false'";
+        int before = jdbc.queryForObject(rejectedSql, Integer.class);
+
+        // A body the gateway cannot read: 400 INVALID_WEBHOOK, one REJECTED row, nothing applied.
+        var response = postRawWebhook("{}");
+        assertEquals(400, response.getStatus());
+        assertTrue(response.getContentAsString().contains("INVALID_WEBHOOK"), response.getContentAsString());
+
+        assertEquals(before + 1, jdbc.queryForObject(rejectedSql, Integer.class));
+        assertEquals("PENDING", attemptStatus(held.attemptId()));
+        assertEquals("OPEN", invoiceStatus(held.invoiceId()));
+        assertEquals("AWAITING_PAYMENT", appointmentStatus(held.appointmentId()));
+        assertEquals(0, appointmentPort.confirmCalls.get());
     }
 
     // ---- my invoices -----------------------------------------------------------------------------------------

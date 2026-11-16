@@ -3,7 +3,6 @@ package fu.fa26.sep490.g58.otcms_be.clinical.integration.billing;
 import fu.fa26.sep490.g58.otcms_be.billing.integration.ClinicalRoundBillingPort;
 import fu.fa26.sep490.g58.otcms_be.billing.exception.BillingException;
 import fu.fa26.sep490.g58.otcms_be.clinical.model.ServiceOrderStatus;
-import fu.fa26.sep490.g58.otcms_be.clinical.repository.OrderingRoundRepository;
 import fu.fa26.sep490.g58.otcms_be.clinical.repository.ServiceOrderRepository;
 import fu.fa26.sep490.g58.otcms_be.common.service.CoordinationGuardService;
 import java.time.Clock;
@@ -13,19 +12,19 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Component
 public class ClinicalRoundBillingAdapter implements ClinicalRoundBillingPort {
-    private final OrderingRoundRepository rounds;
     private final ServiceOrderRepository orders;
     private final CoordinationGuardService guard;
     private final Clock clock;
-    public ClinicalRoundBillingAdapter(OrderingRoundRepository rounds, ServiceOrderRepository orders,
+    public ClinicalRoundBillingAdapter(ServiceOrderRepository orders,
             CoordinationGuardService guard, Clock clock) {
-        this.rounds = rounds; this.orders = orders; this.guard = guard; this.clock = clock;
+        this.orders = orders; this.guard = guard; this.clock = clock;
     }
     @Override
     @Transactional
     public ClinicalRoundBillingSource requirePayableRound(UUID roundId) {
         guard.acquire();
-        var round = rounds.findById(roundId).orElseThrow(() -> new BillingException("SOURCE_NOT_BILLABLE"));
+        var round = orders.findFirstByOrderingRoundIdAndRoundHeadTrue(roundId)
+                .orElseThrow(() -> new BillingException("SOURCE_NOT_BILLABLE"));
         var effective = orders.findByOrderingRoundId(roundId).stream()
                 .filter(order -> order.getOrderStatus() != ServiceOrderStatus.CANCELLED)
                 .sorted(java.util.Comparator.comparing(order -> order.getId().toString()))
@@ -38,7 +37,9 @@ public class ClinicalRoundBillingAdapter implements ClinicalRoundBillingPort {
     @Transactional
     public void markRoundPaid(UUID roundId) {
         guard.acquire();
-        if (!rounds.existsById(roundId)) throw new BillingException("SOURCE_NOT_BILLABLE");
+        if (orders.findFirstByOrderingRoundIdAndRoundHeadTrue(roundId).isEmpty()) {
+            throw new BillingException("SOURCE_NOT_BILLABLE");
+        }
         var effective = orders.findByOrderingRoundId(roundId).stream()
                 .filter(order -> order.getOrderStatus() != ServiceOrderStatus.CANCELLED).toList();
         effective.forEach(order -> order.markPaid(clock.instant()));

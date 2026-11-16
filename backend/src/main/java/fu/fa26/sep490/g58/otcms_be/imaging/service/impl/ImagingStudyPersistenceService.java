@@ -1,18 +1,14 @@
 package fu.fa26.sep490.g58.otcms_be.imaging.service.impl;
 
+import fu.fa26.sep490.g58.otcms_be.imaging.exception.ImagingOperationException;
+import fu.fa26.sep490.g58.otcms_be.imaging.exception.ImagingOperationOutcome;
 import fu.fa26.sep490.g58.otcms_be.imaging.integration.orthanc.ArchiveInstanceReceipt;
 import fu.fa26.sep490.g58.otcms_be.imaging.model.ImagingOperationRecord;
-import fu.fa26.sep490.g58.otcms_be.imaging.model.ImagingDicomStudyValidation;
-import fu.fa26.sep490.g58.otcms_be.imaging.model.entity.ImagingStudyInstanceJpaEntity;
 import fu.fa26.sep490.g58.otcms_be.imaging.model.entity.ImagingStudyJpaEntity;
-import fu.fa26.sep490.g58.otcms_be.imaging.model.entity.ImagingStudySeriesJpaEntity;
-import fu.fa26.sep490.g58.otcms_be.imaging.model.entity.ImagingUidClaimId;
-import fu.fa26.sep490.g58.otcms_be.imaging.model.entity.ImagingUidClaimJpaEntity;
-import fu.fa26.sep490.g58.otcms_be.imaging.validation.ValidatedDicomStudy;
-import fu.fa26.sep490.g58.otcms_be.imaging.repository.ImagingStudyInstanceRepository;
 import fu.fa26.sep490.g58.otcms_be.imaging.repository.ImagingStudyRepository;
-import fu.fa26.sep490.g58.otcms_be.imaging.repository.ImagingStudySeriesRepository;
-import fu.fa26.sep490.g58.otcms_be.imaging.repository.ImagingUidClaimRepository;
+import fu.fa26.sep490.g58.otcms_be.imaging.validation.ValidatedDicomStudy;
+import java.time.Instant;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -20,24 +16,18 @@ import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/** Persists approved archive references and the minimum study/series/instance index in one transaction. */
+/** Stores an uploaded study and its DICOM index on one imaging_studies row. */
 @Service
 public class ImagingStudyPersistenceService {
     private final ImagingStudyRepository studies;
-    private final ImagingStudySeriesRepository series;
-    private final ImagingStudyInstanceRepository instances;
-    private final ImagingUidClaimRepository uidClaims;
 
-    public ImagingStudyPersistenceService(ImagingStudyRepository studies, ImagingStudySeriesRepository series,
-            ImagingStudyInstanceRepository instances, ImagingUidClaimRepository uidClaims) {
+    public ImagingStudyPersistenceService(ImagingStudyRepository studies) {
         this.studies = studies;
-        this.series = series;
-        this.instances = instances;
-        this.uidClaims = uidClaims;
     }
 
     @Transactional
-    public StudyReferences persistConfirmedStudy(ImagingOperationRecord operation, ImagingDicomStudyValidation validation,
+    public StudyReferences persistConfirmedStudy(ImagingOperationRecord operation,
+            fu.fa26.sep490.g58.otcms_be.imaging.model.ImagingDicomStudyValidation validation,
             List<ValidatedDicomStudy.DicomObjectReference> objects, List<ArchiveInstanceReceipt> receipts) {
         if (objects.size() != receipts.size() || objects.isEmpty()) {
             throw new IllegalArgumentException("Archive receipt count does not match validated object count");
@@ -47,42 +37,31 @@ public class ImagingStudyPersistenceService {
             throw new IllegalStateException("Orthanc returned multiple study references for one study");
         }
         String studyRef = "img_" + UUID.randomUUID().toString().replace("-", "");
-        studies.saveAndFlush(new ImagingStudyJpaEntity(studyRef, operation.id(), operation.requestId(),
-                operation.attemptId(), operation.visitId(), operation.patientId(), archiveStudyRef,
-                validation.studyInstanceUid(), validation.modality(), validation.seriesCount(),
-                validation.instanceCount(), validation.verificationStatus().name()));
-
         Map<String, List<Integer>> seriesIndexes = new LinkedHashMap<>();
         for (int index = 0; index < objects.size(); index++) {
-            seriesIndexes.computeIfAbsent(objects.get(index).seriesInstanceUid(), ignored -> new java.util.ArrayList<>())
+            seriesIndexes.computeIfAbsent(objects.get(index).seriesInstanceUid(), ignored -> new ArrayList<>())
                     .add(index);
         }
-        Map<String, UUID> seriesIds = new LinkedHashMap<>();
+        List<ImagingStudyJpaEntity.DicomSeries> indexedSeries = new ArrayList<>();
         for (var entry : seriesIndexes.entrySet()) {
-            UUID seriesId = UUID.randomUUID();
-            seriesIds.put(entry.getKey(), seriesId);
             String archiveSeriesRef = receipts.get(entry.getValue().getFirst()).archiveSeriesRef();
-            for (int index : entry.getValue()) {
-                if (!archiveSeriesRef.equals(receipts.get(index).archiveSeriesRef())) {
-                    throw new IllegalStateException("Orthanc returned inconsistent series references");
-                }
+            if (entry.getValue().stream().anyMatch(index ->
+                    !archiveSeriesRef.equals(receipts.get(index).archiveSeriesRef()))) {
+                throw new IllegalStateException("Orthanc returned inconsistent series references");
             }
-            series.save(new ImagingStudySeriesJpaEntity(seriesId, studyRef, entry.getKey(), archiveSeriesRef,
-                    entry.getValue().size()));
+            List<ImagingStudyJpaEntity.DicomInstance> indexedInstances = entry.getValue().stream()
+                    .map(index -> new ImagingStudyJpaEntity.DicomInstance(objects.get(index).sopInstanceUid(),
+                            receipts.get(index).archiveInstanceRef(), null))
+                    .toList();
+            indexedSeries.add(new ImagingStudyJpaEntity.DicomSeries(entry.getKey(), archiveSeriesRef,
+                    indexedInstances));
         }
-        for (int index = 0; index < objects.size(); index++) {
-            var object = objects.get(index);
-            instances.save(new ImagingStudyInstanceJpaEntity(UUID.randomUUID(), seriesIds.get(object.seriesInstanceUid()),
-                    object.sopInstanceUid(), receipts.get(index).archiveInstanceRef(), null));
-        }
-        uidClaims.save(new ImagingUidClaimJpaEntity(new ImagingUidClaimId("STUDY", validation.studyInstanceUid()), studyRef));
-        for (String uid : seriesIds.keySet()) {
-            uidClaims.save(new ImagingUidClaimJpaEntity(new ImagingUidClaimId("SERIES", uid), studyRef));
-        }
-        for (var object : objects) {
-            uidClaims.save(new ImagingUidClaimJpaEntity(new ImagingUidClaimId("SOP", object.sopInstanceUid()), studyRef));
-        }
-        uidClaims.flush();
+        ImagingStudyJpaEntity study = studies.findById(operation.id())
+                .orElseThrow(() -> new ImagingOperationException(ImagingOperationOutcome.RECORD_NOT_FOUND));
+        study.applyValidation(validation);
+        study.persistConfirmedStudy(studyRef, archiveStudyRef,
+                new ImagingStudyJpaEntity.DicomIndex(List.copyOf(indexedSeries)), Instant.now());
+        studies.saveAndFlush(study);
         return new StudyReferences(studyRef, archiveStudyRef);
     }
 

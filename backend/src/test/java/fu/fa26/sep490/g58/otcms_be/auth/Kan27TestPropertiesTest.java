@@ -24,7 +24,7 @@ class Kan27TestPropertiesTest {
         assertEquals(10000, properties.login().requests());
         assertEquals(60, properties.login().windowSeconds());
         for (var rate : List.of(properties.login(), properties.register(), properties.resend(), properties.refresh(),
-                properties.googleExchange(), properties.credentialFailure())) {
+                properties.credentialFailure())) {
             assertTrue(rate.requests() > 0);
             assertTrue(rate.windowSeconds() > 0);
         }

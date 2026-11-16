@@ -10,7 +10,7 @@ import fu.fa26.sep490.g58.otcms_be.staff.service.DoctorScheduleService;
 import fu.fa26.sep490.g58.otcms_be.visit.exception.VisitOperationException;
 import fu.fa26.sep490.g58.otcms_be.visit.model.ExamQueueTicket;
 import fu.fa26.sep490.g58.otcms_be.visit.model.VisitExamStatus;
-import fu.fa26.sep490.g58.otcms_be.visit.model.entity.VisitExamQueueJpaEntity;
+import fu.fa26.sep490.g58.otcms_be.visit.model.entity.QueueEntryJpaEntity;
 import fu.fa26.sep490.g58.otcms_be.visit.model.entity.VisitRoomJpaEntity;
 import fu.fa26.sep490.g58.otcms_be.visit.repository.VisitExamQueueJpaRepository;
 import fu.fa26.sep490.g58.otcms_be.visit.repository.VisitRoomJpaRepository;
@@ -54,7 +54,7 @@ class VisitExamQueueServiceImplTest {
 
     @Test
     void enqueueWaitingTakesTheNextNumberOfTheDoctorsClinicDay() {
-        when(queue.findById(VISIT)).thenReturn(Optional.empty());
+        when(queue.findExamByVisitId(VISIT)).thenReturn(Optional.empty());
         when(queue.findMaxQueueNumber(DOCTOR, CLINIC_DAY)).thenReturn(2);
         doctorRoomAt(ROOM);
         roomLabel(ROOM, "Phong 1");
@@ -64,7 +64,7 @@ class VisitExamQueueServiceImplTest {
         assertEquals(3, ticket.queueNumber());
         assertEquals("Dr An", ticket.doctorName());
         assertEquals("Phong 1", ticket.roomLabel());
-        ArgumentCaptor<VisitExamQueueJpaEntity> saved = ArgumentCaptor.forClass(VisitExamQueueJpaEntity.class);
+        ArgumentCaptor<QueueEntryJpaEntity> saved = ArgumentCaptor.forClass(QueueEntryJpaEntity.class);
         verify(queue).save(saved.capture());
         assertEquals(VisitExamStatus.WAITING, saved.getValue().getExamStatus());
         assertEquals(CLINIC_DAY, saved.getValue().getClinicDate());
@@ -81,7 +81,7 @@ class VisitExamQueueServiceImplTest {
         assertEquals(3, service.enqueueWaiting(VISIT, DOCTOR, null, NOW).queueNumber());
         verify(queue, never()).save(any());
 
-        VisitExamQueueJpaEntity examining = waitingRow(3);
+        QueueEntryJpaEntity examining = waitingRow(3);
         examining.startExamination(NOW);
         existingRow(examining);
         assertConflict(() -> service.enqueueWaiting(VISIT, DOCTOR, null, NOW));
@@ -89,11 +89,11 @@ class VisitExamQueueServiceImplTest {
 
     @Test
     void walkInFeeFlowCreatesPendingThenAdmitsOnceWithANumber() {
-        when(queue.existsById(VISIT)).thenReturn(false);
+        when(queue.existsExamByVisitId(VISIT)).thenReturn(false);
         service.createPendingPayment(VISIT, DOCTOR, SERVICE, NOW);
-        ArgumentCaptor<VisitExamQueueJpaEntity> created = ArgumentCaptor.forClass(VisitExamQueueJpaEntity.class);
+        ArgumentCaptor<QueueEntryJpaEntity> created = ArgumentCaptor.forClass(QueueEntryJpaEntity.class);
         verify(queue).save(created.capture());
-        VisitExamQueueJpaEntity row = created.getValue();
+        QueueEntryJpaEntity row = created.getValue();
         assertEquals(VisitExamStatus.PENDING_PAYMENT, row.getExamStatus());
         assertNull(row.getQueueNumber());
 
@@ -115,15 +115,15 @@ class VisitExamQueueServiceImplTest {
 
     @Test
     void createAndAdmitRejectRowsInTheWrongState() {
-        when(queue.existsById(VISIT)).thenReturn(true);
+        when(queue.existsExamByVisitId(VISIT)).thenReturn(true);
         assertConflict(() -> service.createPendingPayment(VISIT, DOCTOR, SERVICE, NOW));
 
-        VisitExamQueueJpaEntity done = waitingRow(1);
+        QueueEntryJpaEntity done = waitingRow(1);
         done.finish(NOW);
         existingRow(done);
         assertConflict(() -> service.admitAfterPayment(VISIT, NOW));
 
-        when(queue.findById(VISIT)).thenReturn(Optional.empty());
+        when(queue.findExamByVisitId(VISIT)).thenReturn(Optional.empty());
         assertConflict(() -> service.admitAfterPayment(VISIT, NOW));
     }
 
@@ -132,13 +132,13 @@ class VisitExamQueueServiceImplTest {
         existingRow(waitingRow(1));
         assertConflict(() -> service.startExamination(VISIT, OTHER_DOCTOR, NOW));
 
-        when(queue.existsByDoctorProfileIdAndExamStatusAndVisitIdNot(DOCTOR, VisitExamStatus.IN_EXAMINATION, VISIT))
+        when(queue.existsOtherExamRow(DOCTOR, "IN_EXAMINATION", VISIT))
                 .thenReturn(true);
         assertConflict(() -> service.startExamination(VISIT, DOCTOR, NOW));
 
-        when(queue.existsByDoctorProfileIdAndExamStatusAndVisitIdNot(DOCTOR, VisitExamStatus.IN_EXAMINATION, VISIT))
+        when(queue.existsOtherExamRow(DOCTOR, "IN_EXAMINATION", VISIT))
                 .thenReturn(false);
-        VisitExamQueueJpaEntity row = waitingRow(1);
+        QueueEntryJpaEntity row = waitingRow(1);
         existingRow(row);
         service.startExamination(VISIT, DOCTOR, NOW);
         assertEquals(VisitExamStatus.IN_EXAMINATION, row.getExamStatus());
@@ -147,10 +147,10 @@ class VisitExamQueueServiceImplTest {
 
     @Test
     void markAwaitingConclusionSkipsMissingAndRepeatedRows() {
-        when(queue.findById(VISIT)).thenReturn(Optional.empty());
+        when(queue.findExamByVisitId(VISIT)).thenReturn(Optional.empty());
         service.markAwaitingConclusion(VISIT, NOW);
 
-        VisitExamQueueJpaEntity examining = waitingRow(1);
+        QueueEntryJpaEntity examining = waitingRow(1);
         examining.startExamination(NOW);
         existingRow(examining);
         service.markAwaitingConclusion(VISIT, NOW.plusSeconds(60));
@@ -166,7 +166,7 @@ class VisitExamQueueServiceImplTest {
 
     @Test
     void completeFinishesFromBothActiveStatesOnlyForTheResponsibleDoctor() {
-        VisitExamQueueJpaEntity awaiting = waitingRow(1);
+        QueueEntryJpaEntity awaiting = waitingRow(1);
         awaiting.startExamination(NOW);
         awaiting.awaitConclusion(NOW);
         existingRow(awaiting);
@@ -178,32 +178,32 @@ class VisitExamQueueServiceImplTest {
 
         existingRow(waitingRow(2));
         assertConflict(() -> service.complete(VISIT, DOCTOR, NOW));
-        when(queue.findById(VISIT)).thenReturn(Optional.empty());
+        when(queue.findExamByVisitId(VISIT)).thenReturn(Optional.empty());
         assertConflict(() -> service.complete(VISIT, DOCTOR, NOW));
     }
 
     @Test
     void cancelSkipsMissingRowsAndRejectsVisitsAlreadyUnderExam() {
-        when(queue.findById(VISIT)).thenReturn(Optional.empty());
+        when(queue.findExamByVisitId(VISIT)).thenReturn(Optional.empty());
         service.cancel(VISIT, NOW);
 
-        VisitExamQueueJpaEntity waiting = waitingRow(1);
+        QueueEntryJpaEntity waiting = waitingRow(1);
         existingRow(waiting);
         service.cancel(VISIT, NOW);
         assertEquals(VisitExamStatus.CANCELLED, waiting.getExamStatus());
 
-        VisitExamQueueJpaEntity examining = waitingRow(2);
+        QueueEntryJpaEntity examining = waitingRow(2);
         examining.startExamination(NOW);
         existingRow(examining);
         assertConflict(() -> service.cancel(VISIT, NOW));
     }
 
-    private void existingRow(VisitExamQueueJpaEntity row) {
-        when(queue.findById(VISIT)).thenReturn(Optional.of(row));
+    private void existingRow(QueueEntryJpaEntity row) {
+        when(queue.findExamByVisitId(VISIT)).thenReturn(Optional.of(row));
     }
 
-    private static VisitExamQueueJpaEntity waitingRow(int number) {
-        return VisitExamQueueJpaEntity.waiting(VISIT, DOCTOR, ROOM, null, CLINIC_DAY, number, NOW.minusSeconds(600));
+    private static QueueEntryJpaEntity waitingRow(int number) {
+        return QueueEntryJpaEntity.waiting(VISIT, DOCTOR, ROOM, null, CLINIC_DAY, number, NOW.minusSeconds(600));
     }
 
     private void doctorRoomAt(UUID roomId) {

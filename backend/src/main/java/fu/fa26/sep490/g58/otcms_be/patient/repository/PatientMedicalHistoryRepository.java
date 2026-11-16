@@ -1,19 +1,18 @@
 package fu.fa26.sep490.g58.otcms_be.patient.repository;
 
-import fu.fa26.sep490.g58.otcms_be.patient.model.entity.PatientMedicalHistoryJpaEntity;
+import fu.fa26.sep490.g58.otcms_be.auth.model.entity.PatientProfileJpaEntity;
 import java.time.Instant;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.*;
 import org.springframework.data.repository.query.Param;
 
-public interface PatientMedicalHistoryRepository extends JpaRepository<PatientMedicalHistoryJpaEntity, UUID> {
+public interface PatientMedicalHistoryRepository extends JpaRepository<PatientProfileJpaEntity, UUID> {
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query(value = """
-            INSERT INTO patient_medical_histories
-                (patient_profile_id, conditions, allergies, procedures, injuries, orthopedic_history,
-                 updated_at, updated_by_account_id, version)
-            VALUES (:profile, :conditions, :allergies, :procedures, :injuries, :orthopedic, :now, :actor, 1)
-            ON CONFLICT (patient_profile_id) DO NOTHING
+            UPDATE patient_profiles SET conditions=:conditions, allergies=:allergies, procedures=:procedures,
+                injuries=:injuries, orthopedic_history=:orthopedic, medical_history_updated_at=:now,
+                medical_history_updated_by=:actor, medical_history_version=1
+            WHERE id=:profile AND medical_history_updated_at IS NULL
             """, nativeQuery = true)
     int insertInitial(@Param("profile") UUID profile, @Param("conditions") String conditions,
             @Param("allergies") String allergies, @Param("procedures") String procedures,
@@ -22,11 +21,11 @@ public interface PatientMedicalHistoryRepository extends JpaRepository<PatientMe
 
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query(value = """
-            UPDATE patient_medical_histories
+            UPDATE patient_profiles
             SET conditions=:conditions, allergies=:allergies, procedures=:procedures,
                 injuries=:injuries, orthopedic_history=:orthopedic,
-                updated_at=:now, updated_by_account_id=:actor, version=version+1
-            WHERE patient_profile_id=:profile AND version=:expected
+                medical_history_updated_at=:now, medical_history_updated_by=:actor, medical_history_version=medical_history_version+1
+            WHERE id=:profile AND medical_history_version=:expected
             """, nativeQuery = true)
     int updateIfVersion(@Param("profile") UUID profile, @Param("conditions") String conditions,
             @Param("allergies") String allergies, @Param("procedures") String procedures,

@@ -8,10 +8,13 @@ import fu.fa26.sep490.g58.otcms_be.auth.mapper.AdministratorAccountMapper;
 import fu.fa26.sep490.g58.otcms_be.auth.model.dto.request.ResetPasswordRequest;
 import fu.fa26.sep490.g58.otcms_be.auth.model.entity.AccountJpaEntity;
 import fu.fa26.sep490.g58.otcms_be.auth.model.entity.AuthSessionJpaEntity;
-import fu.fa26.sep490.g58.otcms_be.auth.model.entity.PasswordResetChallengeJpaEntity;
+import fu.fa26.sep490.g58.otcms_be.auth.model.entity.VerificationCodeJpaEntity;
+import fu.fa26.sep490.g58.otcms_be.auth.model.entity.enums.VerificationPurpose;
 import fu.fa26.sep490.g58.otcms_be.auth.model.entity.enums.AccountStatus;
 import fu.fa26.sep490.g58.otcms_be.auth.model.entity.enums.AccountType;
 import fu.fa26.sep490.g58.otcms_be.auth.repository.*;
+import fu.fa26.sep490.g58.otcms_be.common.audit.AuditLogWriter;
+import fu.fa26.sep490.g58.otcms_be.common.audit.repository.AuditLogRepository;
 import fu.fa26.sep490.g58.otcms_be.auth.security.JwtTokenService;
 import fu.fa26.sep490.g58.otcms_be.auth.service.AccountAccessService;
 import fu.fa26.sep490.g58.otcms_be.auth.service.AuthSessionService;
@@ -42,7 +45,7 @@ import static org.mockito.Mockito.*;
 class UC08ManageAdministratorAccountTest {
     private final AccountRepository accounts = mock(AccountRepository.class);
     private final AuthSessionService sessions = mock(AuthSessionService.class);
-    private final PasswordResetChallengeRepository resets = mock(PasswordResetChallengeRepository.class);
+    private final VerificationCodeRepository resets = mock(VerificationCodeRepository.class);
     private final org.springframework.security.crypto.password.PasswordEncoder encoder =
             PasswordEncoderFactories.createDelegatingPasswordEncoder();
     private final TemporaryPasswordGenerator generator = new TemporaryPasswordGenerator();
@@ -174,7 +177,7 @@ class UC08ManageAdministratorAccountTest {
         order.verify(accounts).findByIdForUpdate(account.getId());
         order.verify(passwords).issue(account);
         order.verify(accounts).saveAndFlush(account);
-        order.verify(resets).supersedeCurrent(eq(account.getId()), supersededAt.capture());
+        order.verify(resets).supersedeCurrent(eq(account.getId()), eq(VerificationPurpose.PASSWORD_RESET), supersededAt.capture());
         order.verify(sessions).revokeAll(account.getId());
         assertFalse(supersededAt.getValue().isBefore(account.getUpdatedAt()));
         assertFalse(supersededAt.getValue().isAfter(Instant.now()));
@@ -193,7 +196,7 @@ class UC08ManageAdministratorAccountTest {
     void oldPasswordFailsAndNewPasswordAuthenticatesWithFirstLoginRestriction() {
         var account = target(AccountType.ADMIN);
         var issued = service.reissuePassword(actor(AccountRole.OWNER), account.getId());
-        var login = new CredentialLoginServiceImpl(accounts, mock(AuthenticationAuditRepository.class), encoder,
+        var login = new CredentialLoginServiceImpl(accounts, mock(AuditLogWriter.class), mock(AuditLogRepository.class), encoder,
                 properties(), mock(AuthConcurrencyRepository.class));
         when(accounts.findByNormalizedEmail(account.getNormalizedEmail())).thenReturn(Optional.of(account));
         assertThrows(CredentialLoginException.class,
@@ -244,16 +247,16 @@ class UC08ManageAdministratorAccountTest {
         service.deactivate(actor(AccountRole.OWNER), account.getId());
         account.setFailedCredentialCount(4);
         when(accounts.findByNormalizedEmail(account.getNormalizedEmail())).thenReturn(Optional.of(account));
-        var login = new CredentialLoginServiceImpl(accounts, mock(AuthenticationAuditRepository.class), encoder,
+        var login = new CredentialLoginServiceImpl(accounts, mock(AuditLogWriter.class), mock(AuditLogRepository.class), encoder,
                 properties(), mock(AuthConcurrencyRepository.class));
         assertThrows(CredentialLoginException.class,
                 () -> login.loginStaff(account.getNormalizedEmail(), "incorrect", "127.0.0.1"));
         assertEquals(AccountStatus.DISABLED, account.getStatus());
-        var challenge = new PasswordResetChallengeJpaEntity();
-        challenge.setAccount(account);
+        var challenge = new VerificationCodeJpaEntity();
+        challenge.setAccountId(account.getId());
         challenge.setExpiresAt(Instant.now().plusSeconds(600));
-        when(resets.findAccountIdByTokenHash(anyString())).thenReturn(Optional.of(account.getId()));
-        when(resets.findByTokenHashForUpdate(anyString())).thenReturn(Optional.of(challenge));
+        when(resets.findAccountIdByCodeHash(anyString(), eq(VerificationPurpose.PASSWORD_RESET))).thenReturn(Optional.of(account.getId()));
+        when(resets.findByCodeHashForUpdate(anyString(), eq(VerificationPurpose.PASSWORD_RESET))).thenReturn(Optional.of(challenge));
         var recovery = new PasswordRecoveryServiceImpl(accounts, resets, mock(EmailDeliveryService.class),
                 encoder, sessions, properties());
         assertThrows(PasswordRecoveryException.class, () -> recovery.reset(
@@ -312,7 +315,7 @@ class UC08ManageAdministratorAccountTest {
     }
 
     private AuthProperties properties() {
-        return new AuthProperties(null, null, null, null, null, null, "v1", "v1", generator.generate());
+        return new AuthProperties(null, null, null, null, null, "v1", "v1", generator.generate());
     }
 
     private void snapshot(AccountJpaEntity account) {

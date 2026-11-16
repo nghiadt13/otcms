@@ -1,4 +1,7 @@
 package fu.fa26.sep490.g58.otcms_be.appointment.service.impl;
+
+import fu.fa26.sep490.g58.otcms_be.appointment.mapper.AppointmentAuditEntries;
+import fu.fa26.sep490.g58.otcms_be.common.audit.AuditLogWriter;
 import fu.fa26.sep490.g58.otcms_be.notification.model.NotificationMessages;
 import fu.fa26.sep490.g58.otcms_be.notification.service.NotificationPublisher;
 import fu.fa26.sep490.g58.otcms_be.appointment.model.CreatedAppointment;
@@ -26,6 +29,7 @@ import java.util.UUID;
 
 @Service
 public class ReassignAppointmentServiceImpl implements ReassignAppointmentService {
+    private final AuditLogWriter auditLogWriter;
     private final CoordinationGuardService guard;
     private final AppointmentReassignmentRepository appointments;
     private final ServiceDoctorAssignmentQueryService assignments;
@@ -38,7 +42,8 @@ public class ReassignAppointmentServiceImpl implements ReassignAppointmentServic
     public ReassignAppointmentServiceImpl(CoordinationGuardService guard, AppointmentReassignmentRepository appointments,
             ServiceDoctorAssignmentQueryService assignments, StaffAvailabilityProviderQueryService providers,
             GenerateAvailableSlotsService slotEngine, AppointmentBookingProperties properties, Clock clock,
-            NotificationPublisher notifications) {
+            NotificationPublisher notifications, AuditLogWriter auditLogWriter) {
+        this.auditLogWriter = auditLogWriter;
         this.guard = guard;
         this.appointments = appointments;
         this.assignments = assignments;
@@ -82,6 +87,10 @@ public class ReassignAppointmentServiceImpl implements ReassignAppointmentServic
         if (!slotAvailable) throw new AppointmentBookingException("SLOT_UNAVAILABLE");
         var changed = appointments.reassign(current, replacement, command.actorAccountId(), command.reason().trim(), now,
                 command.correlationId());
+        AppointmentAuditEntries.record(auditLogWriter, AppointmentAuditEntries.changed(current.id(), command.actorAccountId(),
+                appointments.findAccountType(command.actorAccountId()), "DOCTOR_REASSIGNED", "CONFIRMED", "CONFIRMED",
+                current.doctorProfileId(), replacement, current.startTime(), current.startTime(), current.endTime(),
+                current.endTime(), current.visitId(), current.sourceVisitId(), command.reason().trim(), null, now), command.correlationId());
         notifications.publishToPatient(current.patientProfileId(), NotificationMessages.appointmentDoctorChanged(
                 current.id(), current.startTime(), providers.findDoctorDisplayName(replacement).orElse("")));
         return changed;

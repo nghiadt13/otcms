@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import fu.fa26.sep490.g58.otcms_be.common.security.AccountRole;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.exception.DiagnosticOperationException;
@@ -23,11 +24,11 @@ import fu.fa26.sep490.g58.otcms_be.diagnostic.model.DiagnosticReportView;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.model.DiagnosticReportUpload;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.model.DiagnosticRequestView;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.enums.DiagnosticOperationOutcome;
+import fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.enums.DiagnosticRequestStatus;
 import fu.fa26.sep490.g58.otcms_be.support.LocalPostgresTest;
 import java.io.InputStream;
 import java.time.Instant;
 import java.util.UUID;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -35,34 +36,33 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
+import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.transaction.annotation.Transactional;
 
 @SpringBootTest
 @LocalPostgresTest
-@Transactional
 @Import({DiagnosticRequestT012PostgresIntegrationTest.PortConfiguration.class,
         DiagnosticFindingsT014PostgresIntegrationTest.ReportStorageConfiguration.class})
 class DiagnosticFindingsT014PostgresIntegrationTest {
-    private UUID visitId;
-    private UUID patientId;
-    private UUID doctorId;
-    private UUID serviceId;
-    private UUID roomId;
-    private UUID serviceOrderId;
-    private final String studyRef = "study-" + UUID.randomUUID();
+    protected UUID visitId;
+    protected UUID patientId;
+    protected UUID doctorId;
+    protected UUID serviceId;
+    protected UUID roomId;
+    protected UUID serviceOrderId;
+    protected final String studyRef = "study-" + UUID.randomUUID();
 
-    @Autowired DiagnosticRequestService requests;
-    @Autowired DiagnosticImagingRequestRegistration registration;
-    @Autowired org.springframework.transaction.PlatformTransactionManager transactions;
-    @Autowired DiagnosticEvidenceService evidence;
-    @Autowired DiagnosticFindingsService findings;
-    @Autowired DiagnosticVisitCompletionEvidenceService completion;
-    @Autowired JdbcTemplate jdbc;
-    @Autowired DiagnosticRequestT012PostgresIntegrationTest.PortFakes ports;
+    @Autowired protected DiagnosticRequestService requests;
+    @Autowired protected DiagnosticImagingRequestRegistration registration;
+    @Autowired protected org.springframework.transaction.PlatformTransactionManager transactions;
+    @Autowired protected DiagnosticEvidenceService evidence;
+    @Autowired protected DiagnosticFindingsService findings;
+    @Autowired protected DiagnosticVisitCompletionEvidenceService completion;
+    @Autowired protected JdbcTemplate jdbc;
+    @Autowired protected DiagnosticRequestT012PostgresIntegrationTest.PortFakes ports;
 
     @BeforeEach
-    void setUp() {
+    protected void setUp() {
         ports.reset();
         visitId = UUID.randomUUID();
         patientId = UUID.randomUUID();
@@ -87,22 +87,17 @@ class DiagnosticFindingsT014PostgresIntegrationTest {
         DiagnosticReportView firstReport = upload(request.requestId(), reviewedVersion, "report-1");
         DiagnosticFindingsReleaseView firstRelease = findings.complete(doctor(), request.requestId(), "complete-1",
                 reviewedVersion, firstDraft.version(), firstReport.reportId(), studyRef, "corr-complete-1");
-        assertEquals("RELEASE_PENDING", firstRelease.releaseState());
-
-        DiagnosticEvidenceService.DispatchSummary firstDispatch = evidence.dispatchDueOutbox(100,
-                new DiagnosticEvidenceService.RetryPolicy(3, 1, 8));
-        assertEquals(3, firstDispatch.delivered());
+        assertEquals("RELEASED", firstRelease.releaseState());
         // Preserve the registration link: JDBC reassignment would stale the managed JPA request.
         UUID clinicalOrder = serviceOrderId;
         org.junit.jupiter.api.Assertions.assertTrue(completion.getCompletionEvidence(visitId, patientId, java.util.List.of(clinicalOrder)).allComplete());
         org.junit.jupiter.api.Assertions.assertFalse(completion.getCompletionEvidence(UUID.randomUUID(), patientId, java.util.List.of(clinicalOrder)).allComplete());
-        assertEquals(1, jdbc.queryForObject("select count(*) from diagnostic_findings_versions "
-                + "where request_id = ? and version_number = 1 and state = 'COMPLETED'", Integer.class,
+        assertEquals(1, jdbc.queryForObject("select count(*) from diagnostic_reports "
+                + "where service_order_id = ? and version_number = 1 and state = 'COMPLETED'", Integer.class,
                 request.requestId()));
 
-        var originalFindings = jdbc.queryForMap("select * from diagnostic_findings_versions where id = ?",
+        var originalFindings = jdbc.queryForMap("select * from diagnostic_reports where id = ?",
                 firstDraft.findingsVersionId());
-        var originalReport = jdbc.queryForMap("select * from diagnostic_reports where id = ?", firstReport.reportId());
         DiagnosticFindingsView correction = findings.createCorrection(doctor(), request.requestId(), "correct-1",
                 reviewedVersion, "Small left effusion", "Added after image re-review", "corr-correction");
         assertEquals(2, correction.version());
@@ -112,52 +107,50 @@ class DiagnosticFindingsT014PostgresIntegrationTest {
                 "corr-correction-replay").findingsVersionId());
         org.junit.jupiter.api.Assertions.assertTrue(completion.getCompletionEvidence(visitId, patientId, java.util.List.of(clinicalOrder)).allComplete());
         assertEquals("Added after image re-review", correction.correctionReason());
-        assertEquals("COMPLETED", jdbc.queryForObject("select state from diagnostic_findings_versions "
-                + "where request_id = ? and version_number = 1", String.class, request.requestId()));
-        assertNull(jdbc.queryForObject("select completed_at from diagnostic_findings_versions "
-                + "where request_id = ? and version_number = 2", java.sql.Timestamp.class, request.requestId()));
+        assertEquals("COMPLETED", jdbc.queryForObject("select state from diagnostic_reports "
+                + "where service_order_id = ? and version_number = 1", String.class, request.requestId()));
+        assertNull(jdbc.queryForObject("select completed_at from diagnostic_reports "
+                + "where service_order_id = ? and version_number = 2", java.sql.Timestamp.class, request.requestId()));
 
         DiagnosticReportView correctionReport = upload(request.requestId(), reviewedVersion, "report-2");
-        DiagnosticFindingsReleaseView correctionRelease = findings.complete(doctor(), request.requestId(),
-                "complete-2", reviewedVersion, correction.version(), correctionReport.reportId(), studyRef,
-                "corr-complete-2");
-        assertEquals("RELEASE_PENDING", correctionRelease.releaseState());
-        assertReleasedVersion(request.requestId(), firstDraft.findingsVersionId(), firstReport.reportId());
         int ownerAcksBefore = ports.findingsReleaseCalls;
         java.util.concurrent.atomic.AtomicBoolean observedFirstAck = new java.util.concurrent.atomic.AtomicBoolean();
         ports.beforeStudyReleaseAck = event -> {
-            // Production has validated the owner ACK, but the study ACK has not returned yet.
             assertEquals(ownerAcksBefore + 1, ports.findingsReleaseCalls);
             assertEquals(correction.findingsVersionId(), event.findingsVersionId());
             assertEquals(correctionReport.reportId(), event.reportId());
-            assertEquals("DRAFT", jdbc.queryForObject(
-                    "select state from diagnostic_findings_versions where id = ?",
-                    String.class, correction.findingsVersionId()));
-            assertNull(jdbc.queryForObject("select released_at from diagnostic_reports where id = ?",
-                    java.sql.Timestamp.class, correctionReport.reportId()));
-            assertReleasedVersion(request.requestId(), firstDraft.findingsVersionId(), firstReport.reportId());
+            assertEquals("COMPLETED", jdbc.queryForObject(
+                    "select state from diagnostic_reports where id = ?", String.class, correction.findingsVersionId()));
+            assertNotNull(jdbc.queryForObject("select released_at from diagnostic_reports where id = ?",
+                    java.sql.Timestamp.class, correction.findingsVersionId()));
+            assertEquals("COMPLETED", jdbc.queryForObject("select state from diagnostic_reports where id = ?",
+                    String.class, firstDraft.findingsVersionId()));
+            assertEquals(firstReport.reportId(), jdbc.queryForObject("select report_id from diagnostic_reports where id = ?",
+                    UUID.class, firstDraft.findingsVersionId()));
+            assertNotNull(jdbc.queryForObject("select released_at from diagnostic_reports where id = ?",
+                    java.sql.Timestamp.class, firstDraft.findingsVersionId()));
             observedFirstAck.set(true);
         };
-        var correctionDispatch = evidence.dispatchDueOutbox(100, new DiagnosticEvidenceService.RetryPolicy(3, 1, 8));
+        DiagnosticFindingsReleaseView correctionRelease = findings.complete(doctor(), request.requestId(),
+                "complete-2", reviewedVersion, correction.version(), correctionReport.reportId(), studyRef,
+                "corr-complete-2");
+        assertEquals("RELEASED", correctionRelease.releaseState());
         org.junit.jupiter.api.Assertions.assertTrue(observedFirstAck.get());
-        assertEquals(1, correctionDispatch.delivered());
+        assertReleasedVersion(request.requestId(), firstDraft.findingsVersionId(), firstReport.reportId());
         assertReleasedVersion(request.requestId(), correction.findingsVersionId(), correctionReport.reportId());
         assertEquals(originalFindings, jdbc.queryForMap(
-                "select * from diagnostic_findings_versions where id = ?", firstDraft.findingsVersionId()));
-        assertEquals(originalReport, jdbc.queryForMap(
-                "select * from diagnostic_reports where id = ?", firstReport.reportId()));
+                "select * from diagnostic_reports where id = ?", firstDraft.findingsVersionId()));
         assertEquals("RELEASED", findings.complete(doctor(), request.requestId(), "complete-2", reviewedVersion,
                 correction.version(), correctionReport.reportId(), studyRef, "corr-complete-replay").releaseState());
         int ownerAcksAfter = ports.findingsReleaseCalls;
         int studyAcksAfter = ports.studyReleaseCalls;
-        assertEquals(0, evidence.dispatchDueOutbox(100, new DiagnosticEvidenceService.RetryPolicy(3, 1, 8)).delivered());
         assertEquals(ownerAcksAfter, ports.findingsReleaseCalls);
         assertEquals(studyAcksAfter, ports.studyReleaseCalls);
 
-        assertEquals(2, jdbc.queryForObject("select count(*) from diagnostic_findings_versions "
-                + "where request_id = ? and state = 'COMPLETED'", Integer.class, request.requestId()));
+        assertEquals(2, jdbc.queryForObject("select count(*) from diagnostic_reports "
+                + "where service_order_id = ? and state = 'COMPLETED'", Integer.class, request.requestId()));
         assertNotNull(jdbc.queryForObject("select released_at from diagnostic_reports where id = ?",
-                java.sql.Timestamp.class, correctionReport.reportId()));
+                java.sql.Timestamp.class, correction.findingsVersionId()));
     }
 
     @Test
@@ -168,57 +161,101 @@ class DiagnosticFindingsT014PostgresIntegrationTest {
         DiagnosticFindingsView draft = findings.saveDraft(doctor(), request.requestId(), "draft-fail", version,
                 "Preliminary findings", "corr-draft-fail");
         DiagnosticReportView report = upload(request.requestId(), version, "report-fail");
-        findings.complete(doctor(), request.requestId(), "complete-fail", version, draft.version(), report.reportId(),
-                studyRef, "corr-complete-fail");
-
         ports.findingsReleaseFails = true;
-        DiagnosticEvidenceService.DispatchSummary dispatch = evidence.dispatchDueOutbox(100,
-                new DiagnosticEvidenceService.RetryPolicy(3, 1, 8));
-
-        assertEquals(1, dispatch.retryScheduled());
-        assertEquals("DRAFT", jdbc.queryForObject("select state from diagnostic_findings_versions where id = ?",
+        DiagnosticOperationException failure = assertThrows(DiagnosticOperationException.class,
+                () -> findings.complete(doctor(), request.requestId(), "complete-fail", version, draft.version(),
+                        report.reportId(), studyRef, "corr-complete-fail"));
+        assertEquals(DiagnosticOperationOutcome.DEPENDENCY_UNAVAILABLE, failure.outcome());
+        assertEquals("DRAFT", jdbc.queryForObject("select state from diagnostic_reports where id = ?",
                 String.class, draft.findingsVersionId()));
         assertNull(jdbc.queryForObject("select released_at from diagnostic_reports where id = ?",
-                java.sql.Timestamp.class, report.reportId()));
-        assertEquals("PENDING", jdbc.queryForObject("select status from diagnostic_outbox "
-                + "where event_type = 'FINDINGS_RELEASE' and request_id = ?", String.class, request.requestId()));
+                java.sql.Timestamp.class, draft.findingsVersionId()));
+    }
+
+    @Test
+    void completedResultTriggerAllowsReleaseTransitionAndRejectsContentMutation() {
+        DiagnosticRequestView request = resultAvailable();
+        findings.review(doctor(), request.requestId(), "review-trigger", request.version(), studyRef,
+                "corr-review-trigger");
+        long executionVersion = request.version() + 1;
+        DiagnosticFindingsView draft = findings.saveDraft(doctor(), request.requestId(), "draft-trigger",
+                executionVersion, "Original completed findings", "corr-draft-trigger");
+        upload(request.requestId(), executionVersion, "report-trigger");
+
+        java.time.Instant releasedAt = java.time.Instant.now()
+                .truncatedTo(java.time.temporal.ChronoUnit.MICROS);
+        assertEquals(1, jdbc.update("""
+                update diagnostic_reports
+                   set state = 'COMPLETED', completed_at = ?, released_at = ?
+                 where id = ? and state = 'DRAFT'
+                """, java.sql.Timestamp.from(releasedAt), java.sql.Timestamp.from(releasedAt),
+                draft.findingsVersionId()));
+        assertEquals("COMPLETED", jdbc.queryForObject("select state from diagnostic_reports where id = ?",
+                String.class, draft.findingsVersionId()));
+        assertNotNull(jdbc.queryForObject("select released_at from diagnostic_reports where id = ?",
+                java.sql.Timestamp.class, draft.findingsVersionId()));
+
+        DataAccessException mutationFailure = assertThrows(DataAccessException.class, () -> jdbc.update(
+                "update diagnostic_reports set findings_text = 'tampered' where id = ?",
+                draft.findingsVersionId()));
+        assertTrue(mutationFailure.getMostSpecificCause().getMessage()
+                .contains("released or completed results are immutable"));
+        assertEquals("Original completed findings", jdbc.queryForObject(
+                "select findings_text from diagnostic_reports where id = ?", String.class,
+                draft.findingsVersionId()));
     }
 
     private void assertReleasedVersion(UUID requestId, UUID findingsId, UUID reportId) {
-        assertEquals(findingsId, jdbc.queryForObject("select id from diagnostic_findings_versions "
-                + "where request_id = ? and state = 'COMPLETED' order by version_number desc limit 1",
-                UUID.class, requestId));
-        assertEquals(reportId, jdbc.queryForObject("select id from diagnostic_reports "
-                + "where request_id = ? and released_at is not null order by report_version desc limit 1",
-                UUID.class, requestId));
-        assertEquals(reportId, jdbc.queryForObject("select required_pdf_report_id from diagnostic_findings_versions "
+        assertEquals(findingsId, jdbc.queryForObject("select id from diagnostic_reports "
+                + "where service_order_id = ? and id = ? and state = 'COMPLETED'",
+                UUID.class, requestId, findingsId));
+        assertEquals(reportId, jdbc.queryForObject("select report_id from diagnostic_reports "
+                + "where service_order_id = ? and id = ? and released_at is not null",
+                UUID.class, requestId, findingsId));
+        assertEquals(reportId, jdbc.queryForObject("select report_id from diagnostic_reports "
                 + "where id = ?", UUID.class, findingsId));
     }
 
-    private DiagnosticRequestView resultAvailable() {
-        UUID orderId = serviceOrderId;
+    protected DiagnosticRequestView createRequest() {
+        UUID orderId = UUID.randomUUID();
+        serviceOrderId = orderId;
         ports.orders.put(orderId, new fu.fa26.sep490.g58.otcms_be.diagnostic.integration.DiagnosticPortModels.ClinicalImagingOrder(orderId, visitId, serviceId, true, true));
-        DiagnosticRequestView created = DiagnosticRequestT012PostgresIntegrationTest.registerAssigned(jdbc, transactions, registration, ports,
+        return DiagnosticRequestT012PostgresIntegrationTest.registerAssigned(jdbc, transactions, registration, ports,
                 visitId, roomId, orderId, "Chest", "Persistent cough");
+    }
+
+    protected DiagnosticRequestView resultAvailable() {
+        DiagnosticRequestView created = createRequest();
         UUID attemptId = UUID.randomUUID();
         Instant now = Instant.now();
         UseEvidence use = new UseEvidence(UUID.randomUUID(), created.requestId(), attemptId,
                 UseEvidenceType.ACQUISITION_STARTED, "approved-imaging-source", doctorId,
                 now, now, true);
-        evidence.recordFirstUse(DiagnosticActor.trustedIntegration(), use, "corr-use");
+        DiagnosticRequestView inProgress = evidence.recordFirstUse(DiagnosticActor.trustedIntegration(), use, "corr-use");
+        assertEquals(DiagnosticRequestStatus.IN_PROGRESS, inProgress.status());
+        assertEquals(1L, jdbc.queryForObject("select execution_version from clinical_service_orders where id = ?",
+                Long.class, created.requestId()));
+        assertEquals("IN_PROGRESS", jdbc.queryForObject("select execution_status from clinical_service_orders where id = ?",
+                String.class, created.requestId()));
         StudyEvidence study = new StudyEvidence(UUID.randomUUID(), studyRef, created.requestId(), visitId,
                 patientId, attemptId, StudyVerificationStatus.CONFIRMED_MATCH, true);
-        return evidence.linkConfirmedStudy(DiagnosticActor.trustedIntegration(), study, "corr-study");
+        DiagnosticRequestView resultAvailable = evidence.linkConfirmedStudy(DiagnosticActor.trustedIntegration(), study, "corr-study");
+        assertEquals(DiagnosticRequestStatus.RESULT_AVAILABLE, resultAvailable.status());
+        assertEquals(2L, jdbc.queryForObject("select execution_version from clinical_service_orders where id = ?",
+                Long.class, created.requestId()));
+        assertEquals(studyRef, jdbc.queryForObject("select study_ref from clinical_service_orders where id = ?",
+                String.class, created.requestId()));
+        return resultAvailable;
     }
 
-    private DiagnosticReportView upload(UUID requestId, long expectedVersion, String key) {
+    protected DiagnosticReportView upload(UUID requestId, long expectedVersion, String key) {
         return findings.uploadReport(doctor(), requestId, key, expectedVersion,
                 new DiagnosticReportUpload(() -> new java.io.ByteArrayInputStream(
                         "%PDF-1.7 sample".getBytes(java.nio.charset.StandardCharsets.US_ASCII)),
                         15, "application/pdf"), "corr-" + key);
     }
 
-    private DiagnosticActor doctor() { return DiagnosticActor.user(doctorId, AccountRole.DOCTOR); }
+    protected DiagnosticActor doctor() { return DiagnosticActor.user(doctorId, AccountRole.DOCTOR); }
 
     @TestConfiguration(proxyBeanMethods = false)
     static class ReportStorageConfiguration {

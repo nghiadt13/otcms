@@ -1,4 +1,7 @@
 package fu.fa26.sep490.g58.otcms_be.appointment.service.impl;
+
+import fu.fa26.sep490.g58.otcms_be.appointment.mapper.AppointmentAuditEntries;
+import fu.fa26.sep490.g58.otcms_be.common.audit.AuditLogWriter;
 import fu.fa26.sep490.g58.otcms_be.notification.model.NotificationMessages;
 import fu.fa26.sep490.g58.otcms_be.notification.service.NotificationPublisher;
 import fu.fa26.sep490.g58.otcms_be.auth.service.PatientProfileDirectory;
@@ -42,6 +45,7 @@ import java.util.function.Supplier;
 /** @ears REQ-BOOK-003 REQ-BOOK-005 REQ-BOOK-006 REQ-BOOK-010–018 */
 @Service
 public class CreateAppointmentServiceImpl implements CreateAppointmentService {
+    private final AuditLogWriter auditLogWriter;
     private static final String REPLACED_HOLD_REASON = "Đặt lịch mới thay thế giữ chỗ cũ";
     private final CoordinationGuardService coordinationGuard;
     private final PatientProfileDirectory currentPatientProfile;
@@ -65,9 +69,9 @@ public class CreateAppointmentServiceImpl implements CreateAppointmentService {
             ServiceDoctorAssignmentQueryService assignments, GenerateAvailableSlotsService slotEngine,
             AppointmentJpaRepository appointments, AppointmentBookingProperties properties, Clock clock,
             NotificationPublisher notifications, AppointmentPaymentHoldRepository holds,
-            ReleaseAppointmentPaymentHoldService releaseHolds) {
+            ReleaseAppointmentPaymentHoldService releaseHolds, AuditLogWriter auditLogWriter) {
         this(coordinationGuard, currentPatientProfile, patientAuthorization, services, providers, assignments,
-                slotEngine, appointments, properties, clock, notifications, holds, releaseHolds, null);
+                slotEngine, appointments, properties, clock, notifications, holds, releaseHolds, null, auditLogWriter);
     }
 
     @Autowired
@@ -77,7 +81,8 @@ public class CreateAppointmentServiceImpl implements CreateAppointmentService {
             ServiceDoctorAssignmentQueryService assignments, GenerateAvailableSlotsService slotEngine,
             AppointmentJpaRepository appointments, AppointmentBookingProperties properties, Clock clock,
             NotificationPublisher notifications, AppointmentPaymentHoldRepository holds,
-            ReleaseAppointmentPaymentHoldService releaseHolds, PlatformTransactionManager transactionManager) {
+            ReleaseAppointmentPaymentHoldService releaseHolds, PlatformTransactionManager transactionManager, AuditLogWriter auditLogWriter) {
+        this.auditLogWriter = auditLogWriter;
         this.transaction = transactionManager == null ? null : new TransactionTemplate(transactionManager);
         this.holds = holds;
         this.releaseHolds = releaseHolds;
@@ -180,6 +185,7 @@ public class CreateAppointmentServiceImpl implements CreateAppointmentService {
                         ? AppointmentBooking.ActorType.PATIENT : AppointmentBooking.ActorType.RECEPTIONIST,
                 holdNow, command.correlationId(), null, null, null, null, paymentDeadline);
         var created = appointments.save(booking);
+        AppointmentAuditEntries.record(auditLogWriter, AppointmentAuditEntries.created(booking), booking.correlationId());
         // A held slot is not a booking yet: the notification is sent when payment confirms it.
         if (paymentDeadline == null) {
             notifications.publishToPatient(patientProfileId, NotificationMessages.appointmentBooked(booking.id(),

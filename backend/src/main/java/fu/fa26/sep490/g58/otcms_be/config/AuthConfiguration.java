@@ -9,7 +9,7 @@ import org.springframework.security.crypto.factory.PasswordEncoderFactories;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 @Configuration
-@EnableConfigurationProperties({AuthProperties.class, SessionSecurityProperties.class, GoogleOidcProperties.class, EmailProperties.class})
+@EnableConfigurationProperties({AuthProperties.class, SessionSecurityProperties.class, EmailProperties.class})
 public class AuthConfiguration {
     @Bean PasswordEncoder passwordEncoder() { return PasswordEncoderFactories.createDelegatingPasswordEncoder(); }
     @Bean

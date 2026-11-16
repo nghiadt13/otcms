@@ -1,5 +1,9 @@
 package fu.fa26.sep490.g58.otcms_be.diagnostic.service.impl;
 
+import fu.fa26.sep490.g58.otcms_be.clinical.service.ClinicalServiceOrderExecutionPort;
+import fu.fa26.sep490.g58.otcms_be.clinical.service.ClinicalServiceOrderExecutionPort.ImagingExecution;
+import fu.fa26.sep490.g58.otcms_be.common.audit.AuditEntry;
+import fu.fa26.sep490.g58.otcms_be.common.audit.AuditLogWriter;
 import fu.fa26.sep490.g58.otcms_be.common.security.AccountRole;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.exception.DiagnosticOperationException;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.integration.DiagnosticPortModels.PatientHistoryAuthorization;
@@ -9,17 +13,11 @@ import fu.fa26.sep490.g58.otcms_be.diagnostic.integration.VisitDiagnosticPort;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.model.DiagnosticActor;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.model.DiagnosticHistoryItem;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.model.DiagnosticHistoryPage;
-import fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.DiagnosticHistoryAccessAuditJpaEntity;
-import fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.DiagnosticFindingsVersionJpaEntity;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.DiagnosticReportJpaEntity;
-import fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.DiagnosticRequestJpaEntity;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.enums.DiagnosticFindingsVersionState;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.enums.DiagnosticHistoryScope;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.enums.DiagnosticOperationOutcome;
-import fu.fa26.sep490.g58.otcms_be.diagnostic.repository.DiagnosticFindingsVersionJpaRepository;
-import fu.fa26.sep490.g58.otcms_be.diagnostic.repository.DiagnosticHistoryAccessAuditJpaRepository;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.repository.DiagnosticReportJpaRepository;
-import fu.fa26.sep490.g58.otcms_be.diagnostic.repository.DiagnosticRequestJpaRepository;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.service.DiagnosticHistoryService;
 import java.util.ArrayList;
 import java.util.List;
@@ -36,21 +34,18 @@ import org.springframework.transaction.annotation.Transactional;
 public class DiagnosticHistoryServiceImpl implements DiagnosticHistoryService {
     private static final int MAX_SIZE = 100;
 
-    private final DiagnosticRequestJpaRepository requests;
-    private final DiagnosticFindingsVersionJpaRepository findings;
+    private final ClinicalServiceOrderExecutionPort requests;
     private final DiagnosticReportJpaRepository reports;
-    private final DiagnosticHistoryAccessAuditJpaRepository historyAudits;
+    private final AuditLogWriter historyAudits;
     private final ObjectProvider<VisitDiagnosticPort> visitPorts;
     private final ObjectProvider<PatientDiagnosticHistoryPort> patientPorts;
 
-    public DiagnosticHistoryServiceImpl(DiagnosticRequestJpaRepository requests,
-            DiagnosticFindingsVersionJpaRepository findings,
+    public DiagnosticHistoryServiceImpl(ClinicalServiceOrderExecutionPort requests,
             DiagnosticReportJpaRepository reports,
-            DiagnosticHistoryAccessAuditJpaRepository historyAudits,
+            AuditLogWriter historyAudits,
             ObjectProvider<VisitDiagnosticPort> visitPorts,
             ObjectProvider<PatientDiagnosticHistoryPort> patientPorts) {
         this.requests = Objects.requireNonNull(requests, "requests");
-        this.findings = Objects.requireNonNull(findings, "findings");
         this.reports = Objects.requireNonNull(reports, "reports");
         this.historyAudits = Objects.requireNonNull(historyAudits, "historyAudits");
         this.visitPorts = Objects.requireNonNull(visitPorts, "visitPorts");
@@ -96,42 +91,38 @@ public class DiagnosticHistoryServiceImpl implements DiagnosticHistoryService {
         }
 
         PageRequest pageable = PageRequest.of(page, size, Sort.by(Sort.Order.desc("createdAt"), Sort.Order.desc("id")));
-        Page<DiagnosticRequestJpaEntity> result = visitId == null
-                ? requests.findAllByPatientIdOrderByCreatedAtDescIdDesc(authorizedPatientId, pageable)
-                : requests.findAllByVisitIdAndPatientIdOrderByCreatedAtDescIdDesc(visitId, authorizedPatientId, pageable);
+        Page<ImagingExecution> result = requests.page(visitId, authorizedPatientId, null, null, null, false, pageable);
         List<DiagnosticHistoryItem> items = new ArrayList<>(result.getNumberOfElements());
-        for (DiagnosticRequestJpaEntity request : result.getContent()) items.add(toHistoryItem(request));
+        for (ImagingExecution request : result.getContent()) items.add(toHistoryItem(request, actor.role()));
         DiagnosticHistoryScope scope = visitId == null ? DiagnosticHistoryScope.PATIENT : DiagnosticHistoryScope.VISIT;
         UUID scopeId = visitId == null ? authorizedPatientId : visitId;
-        historyAudits.save(new DiagnosticHistoryAccessAuditJpaEntity(UUID.randomUUID(), actor.accountId(), scope,
-                scopeId, page, size, result.getNumberOfElements()));
+        historyAudits.record(AuditEntry.builder("diagnostic_history_access_audits", "DIAGNOSTIC", "VIEW_HISTORY", scope.name())
+                .entityId(scopeId).recordLabel(scopeId.toString()).actorAccountId(actor.accountId()).actorType("ACCOUNT")
+                .metadata(java.util.Map.of("pageNumber", page, "pageSize", size, "returnedCount", result.getNumberOfElements())).build());
         return new DiagnosticHistoryPage(items, page, size, result.getTotalElements());
     }
 
-    private DiagnosticHistoryItem toHistoryItem(DiagnosticRequestJpaEntity request) {
-        DiagnosticFindingsVersionJpaEntity version = findings.findFirstByRequestIdAndStateOrderByVersionNumberDesc(
-                request.getId(), DiagnosticFindingsVersionState.COMPLETED).orElse(null);
-        if (request.getStatus() == fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.enums.DiagnosticRequestStatus.CANCELLED
-                || version == null || version.getState() != DiagnosticFindingsVersionState.COMPLETED
-                || version.getCompletedAt() == null || !request.getId().equals(version.getRequestId())
-                || !request.getVisitId().equals(version.getVisitId())) {
-            return new DiagnosticHistoryItem(request.getId(), request.getVisitId(), request.getImagingType(),
-                    request.getStatus(), null, null, null, null);
-        }
-        DiagnosticReportJpaEntity report = reports.findFirstByRequestIdAndReleasedAtIsNotNullOrderByReportVersionDesc(
-                request.getId()).orElse(null);
-        if (report == null || report.getReleasedAt() == null
+    private DiagnosticHistoryItem toHistoryItem(ImagingExecution request, AccountRole actorRole) {
+        var status = fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.enums.DiagnosticRequestStatus.valueOf(request.status().name());
+        // A treating doctor must receive the linked study ref to open images before writing findings.
+        // The viewer grant independently rechecks treating-doctor authorization and execution status.
+        String doctorStudyRef = actorRole == AccountRole.DOCTOR
+                && (request.status() == ClinicalServiceOrderExecutionPort.ExecutionStatus.RESULT_AVAILABLE
+                        || request.status() == ClinicalServiceOrderExecutionPort.ExecutionStatus.REVIEWED)
+                ? request.studyRef() : null;
+        DiagnosticReportJpaEntity report = reports.findFirstByRequestIdAndStateOrderByReportVersionDesc(
+                request.orderId(), DiagnosticFindingsVersionState.COMPLETED).orElse(null);
+        if (request.status() == ClinicalServiceOrderExecutionPort.ExecutionStatus.CANCELLED
+                || report == null || report.getCompletedAt() == null || report.getReleasedAt() == null
+                || report.getReportId() == null
                 || report.getValidationStatus() != fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.enums.DiagnosticReportValidationStatus.VALIDATED
-                || !request.getId().equals(report.getRequestId())
-                || !Objects.equals(version.getRequiredPdfReportId(), report.getId())
-                || !request.getVisitId().equals(report.getVisitId())
-                || !Objects.equals(version.getStudyRef(), report.getStudyRef())) {
-            return new DiagnosticHistoryItem(request.getId(), request.getVisitId(), request.getImagingType(),
-                    request.getStatus(), null, null, null, null);
+                || !request.orderId().equals(report.getRequestId()) || !request.visitId().equals(report.getVisitId())
+                || !Objects.equals(request.studyRef(), report.getStudyRef())) {
+            return new DiagnosticHistoryItem(request.orderId(), request.visitId(), request.imagingType(), status,
+                    doctorStudyRef, null, null, null);
         }
-        return new DiagnosticHistoryItem(request.getId(), request.getVisitId(), request.getImagingType(),
-                request.getStatus(), version.getStudyRef(), version.getVersionNumber(), version.getFindingsText(),
-                report.getId());
+        return new DiagnosticHistoryItem(request.orderId(), request.visitId(), request.imagingType(), status,
+                report.getStudyRef(), report.getVersionNumber(), report.getFindingsText(), report.getReportId());
     }
 
     private VisitHistoryAuthorization authorizeVisitHistory(UUID visitId, UUID actorId) {

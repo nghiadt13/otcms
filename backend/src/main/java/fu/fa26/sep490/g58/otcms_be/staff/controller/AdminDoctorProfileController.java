@@ -4,10 +4,8 @@ import fu.fa26.sep490.g58.otcms_be.staff.service.AdminDoctorProfileService;
 import fu.fa26.sep490.g58.otcms_be.staff.mapper.DoctorProfileMapper;
 import fu.fa26.sep490.g58.otcms_be.staff.model.dto.request.DoctorProfileEditRequest;
 import fu.fa26.sep490.g58.otcms_be.staff.model.dto.response.DoctorAdminResponse;
-import fu.fa26.sep490.g58.otcms_be.staff.model.dto.response.DoctorIntervalResponse;
 import fu.fa26.sep490.g58.otcms_be.auth.service.DoctorAccountTypeQueryService.DoctorAccountOption;
 import jakarta.validation.Valid;
-import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -36,9 +34,5 @@ public class AdminDoctorProfileController {
         return mapper.toAdminResponse(service.update(doctorId, new AdminDoctorProfileService.ProfileEdit(request.fullName(),
                 request.photoUrl(), request.workContact(), request.specialties(), request.qualifications(),
                 request.biography(), request.consultationInformation())));
-    }
-    @GetMapping("/{doctorId}/time-offs")
-    public Items<DoctorIntervalResponse> timeOffs(@PathVariable UUID doctorId, @RequestParam Instant from, @RequestParam Instant to) {
-        return new Items<>(service.timeOffs(doctorId, from, to));
     }
 }

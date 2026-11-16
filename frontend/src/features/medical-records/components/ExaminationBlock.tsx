@@ -9,7 +9,7 @@ function DiagnosisList({ items, empty }: { items: Icd10Ref[]; empty: string }) {
     <ul className="space-y-1">
       {items.map((item) => (
         <li key={item.code}>
-          {item.code} – {item.title}
+          {item.title ? `${item.code} – ${item.title}` : item.code}
         </li>
       ))}
     </ul>
@@ -52,7 +52,7 @@ export function ExaminationBlock({
           label: "Tái khám",
           value: examination.followUpDate
             ? formatDate(examination.followUpDate)
-            : "Không hẹn tái khám",
+            : examination.followUpNote || "Không hẹn tái khám",
         },
       ]}
     />

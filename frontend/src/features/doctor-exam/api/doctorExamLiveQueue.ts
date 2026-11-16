@@ -3,7 +3,7 @@ import {
   completeWalkInVisit,
   getExamQueueEntry,
   listDoctorExamQueue,
-  type ExamQueueItem,
+  type DoctorExamQueueEntry,
 } from "@/lib/api/examQueueApi";
 import { isApiError } from "@/lib/api/apiError";
 import type { ExamQueueStatus, VisitStatus } from "@/lib/domain/clinicVisit";
@@ -11,10 +11,8 @@ import { todayIsoDate } from "@/lib/format/formatDate";
 import type { TodayPatient, VisitContext } from "../types/doctorExam";
 import {
   ageFromBirthDate,
-  fetchActiveVisits,
   sexFromGender,
   sourceOfVisit,
-  type ActiveVisitDto,
 } from "./doctorExamLiveActive";
 import {
   getMedicalHistory,
@@ -130,7 +128,7 @@ export async function listTodayPatients(
  */
 async function fetchExamQueueEntry(
   visitId: string,
-): Promise<ExamQueueItem | null> {
+): Promise<DoctorExamQueueEntry | null> {
   try {
     return await getExamQueueEntry(visitId);
   } catch (error) {
@@ -162,8 +160,7 @@ const EMPTY_CONTEXT = {
 /** Ngữ cảnh lượt theo hàng chờ; `entry` null khi lượt không có trong hàng chờ. */
 async function contextOf(
   visitId: string,
-  entry: ExamQueueItem | null,
-  current: ActiveVisitDto | undefined,
+  entry: DoctorExamQueueEntry | null,
   signal?: AbortSignal,
 ): Promise<VisitContext> {
   const appointment = entry?.appointmentId
@@ -176,8 +173,8 @@ async function contextOf(
     patientProfileId: entry?.patientProfileId ?? null,
     doctorProfileId: entry?.doctorProfileId ?? null,
     patientName: entry?.patientName ?? null,
-    age: current ? ageFromBirthDate(current.patient.dateOfBirth) : null,
-    sex: current ? sexFromGender(current.patient.gender) : null,
+    age: entry ? ageFromBirthDate(entry.dateOfBirth) : null,
+    sex: entry ? sexFromGender(entry.gender) : null,
     status: entry ? visitStatusOfQueue(entry.examStatus) : null,
     serviceName: appointment?.serviceName ?? null,
     scheduledAt: appointment?.startTime ?? entry?.queuedAt ?? null,
@@ -193,16 +190,8 @@ export async function getVisitContext(
   visitId: string,
   signal?: AbortSignal,
 ): Promise<VisitContext> {
-  const [entry, active] = await Promise.all([
-    fetchExamQueueEntry(visitId),
-    fetchActiveVisits(signal),
-  ]);
-  const base = await contextOf(
-    visitId,
-    entry,
-    active.find((item) => item.visitId === visitId),
-    signal,
-  );
+  const entry = await fetchExamQueueEntry(visitId);
+  const base = await contextOf(visitId, entry, signal);
   if (!base.patientProfileId) return base;
   try {
     const history = await getMedicalHistory(base.patientProfileId, signal);

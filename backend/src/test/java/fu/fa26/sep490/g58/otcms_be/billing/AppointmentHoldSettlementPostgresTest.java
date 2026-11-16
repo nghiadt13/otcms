@@ -152,6 +152,22 @@ class AppointmentHoldSettlementPostgresTest extends HoldBillingTestSupport {
         assertEquals(1, appointmentPort.confirmedTransitions.get());
     }
 
+    /** Two identical deliveries at once: the invoice lock serialises them, the loser sees the winner's fingerprint. */
+    @RepeatedTest(8)
+    void identicalWebhookDeliveriesRacingSettleOnce() throws Exception {
+        Held held = heldWithQr();
+        race(() -> { payments.handleVerifiedGatewayEvent(paidEvent(held.orderCode())); return null; },
+                () -> { payments.handleVerifiedGatewayEvent(paidEvent(held.orderCode())); return null; });
+
+        assertEquals("CONFIRMED", appointmentStatus(held.appointmentId()));
+        assertEquals("PAID", invoiceStatus(held.invoiceId()));
+        assertEquals("CONFIRMED", attemptStatus(held.attemptId()));
+        assertEquals(1, appointmentPort.confirmedTransitions.get());
+        assertEquals(1, jdbc.queryForObject("select count(*) from audit_logs where source = 'payment_gateway_events' "
+                + "and action = 'APPLIED' and entity_id = ?", Integer.class, held.attemptId()));
+        assertEquals(java.util.List.of("APPLIED:"), eventOutcomes(held.orderCode())); // the replay wrote nothing
+    }
+
     private static void race(Callable<Void> first, Callable<Void> second) throws Exception {
         ExecutorService pool = Executors.newFixedThreadPool(2);
         try {

@@ -29,7 +29,7 @@ export function ExaminationResultView({
   const sections = buildResultSections(result);
   const incomplete = result.status === "INCOMPLETE";
   return (
-    <div className="space-y-8">
+    <div className="min-w-0 space-y-6 sm:space-y-8">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <Link
           href={PATIENT_ROUTES.results}
@@ -68,7 +68,8 @@ export function ExaminationResultView({
             Lượt khám chưa được bác sĩ kết luận.
           </AlertTitle>
           <AlertDescription className="text-base">
-            Chỉ hiện ảnh và kết quả xét nghiệm.
+            Các mục kết luận và đơn thuốc sẽ hiển thị khi hồ sơ được hoàn tất.
+            Thông tin hành chính, hình ảnh và PDF đã phát hành vẫn có thể xem.
           </AlertDescription>
         </Alert>
       ) : null}

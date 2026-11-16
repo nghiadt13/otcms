@@ -1,5 +1,8 @@
 package fu.fa26.sep490.g58.otcms_be.appointment.service.impl;
 
+import fu.fa26.sep490.g58.otcms_be.appointment.mapper.AppointmentAuditEntries;
+import fu.fa26.sep490.g58.otcms_be.common.audit.AuditLogWriter;
+
 import fu.fa26.sep490.g58.otcms_be.appointment.repository.AppointmentPaymentHoldRepository;
 import fu.fa26.sep490.g58.otcms_be.appointment.service.ConfirmAppointmentPaymentService;
 import fu.fa26.sep490.g58.otcms_be.notification.model.NotificationMessages;
@@ -19,6 +22,7 @@ import java.util.UUID;
  */
 @Service
 public class ConfirmAppointmentPaymentServiceImpl implements ConfirmAppointmentPaymentService {
+    private final AuditLogWriter auditLogWriter;
     /** Statuses reached only through CONFIRMED: the booking was already confirmed earlier. */
     private static final Set<String> CONFIRMED_OR_LATER =
             Set.of("CONFIRMED", "CHECKED_IN", "IN_PROGRESS", "COMPLETED", "NO_SHOW");
@@ -30,7 +34,8 @@ public class ConfirmAppointmentPaymentServiceImpl implements ConfirmAppointmentP
     private final Clock clock;
 
     public ConfirmAppointmentPaymentServiceImpl(AppointmentPaymentHoldRepository holds,
-            NotificationPublisher notifications, StaffAvailabilityProviderQueryService doctors, Clock clock) {
+            NotificationPublisher notifications, StaffAvailabilityProviderQueryService doctors, Clock clock, AuditLogWriter auditLogWriter) {
+        this.auditLogWriter = auditLogWriter;
         this.holds = holds;
         this.notifications = notifications;
         this.doctors = doctors;
@@ -48,9 +53,10 @@ public class ConfirmAppointmentPaymentServiceImpl implements ConfirmAppointmentP
         Instant now = Instant.now(clock);
         if (holds.markConfirmed(appointmentId, now) != 1) return Result.ALREADY_CONFIRMED;
         // Payment is confirmed by the system on behalf of the account that booked.
-        holds.insertStatusAudit(UUID.randomUUID(), appointmentId, row.createdByAccountId(), "SYSTEM",
-                "AWAITING_PAYMENT", "CONFIRMED", row.doctorProfileId(), row.startTime(), row.endTime(),
-                CONFIRM_REASON, now, "payment-confirmed-" + appointmentId);
+        AppointmentAuditEntries.record(auditLogWriter, AppointmentAuditEntries.changed(appointmentId, row.createdByAccountId(),
+                "SYSTEM", "STATUS_CHANGED", "AWAITING_PAYMENT", "CONFIRMED", row.doctorProfileId(),
+                row.doctorProfileId(), row.startTime(), row.startTime(), row.endTime(), row.endTime(),
+                null, null, CONFIRM_REASON, null, now), "payment-confirmed-" + appointmentId);
         // The booking notification was deferred while the slot was only held; it goes out exactly once, here.
         notifications.publishToPatient(row.patientProfileId(), NotificationMessages.appointmentBooked(appointmentId,
                 row.startTime(), doctors.findDoctorDisplayName(row.doctorProfileId()).orElse("")));

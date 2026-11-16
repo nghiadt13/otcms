@@ -5,7 +5,7 @@ import fu.fa26.sep490.g58.otcms_be.common.security.AccountRole;
 import fu.fa26.sep490.g58.otcms_be.common.security.AuthenticatedAccount;
 import fu.fa26.sep490.g58.otcms_be.servicecatalog.exception.ClinicServiceException;
 import fu.fa26.sep490.g58.otcms_be.servicecatalog.repository.ClinicServiceRepository;
-import fu.fa26.sep490.g58.otcms_be.servicecatalog.repository.ServiceCatalogManagementAuditRepository;
+import fu.fa26.sep490.g58.otcms_be.servicecatalog.service.ServiceCatalogAuditRecorder;
 import fu.fa26.sep490.g58.otcms_be.servicecatalog.model.entity.ClinicServiceJpaEntity;
 import fu.fa26.sep490.g58.otcms_be.servicecatalog.mapper.ClinicServiceMapper;
 import fu.fa26.sep490.g58.otcms_be.servicecatalog.service.impl.ActivateClinicServiceServiceImpl;
@@ -16,7 +16,6 @@ import fu.fa26.sep490.g58.otcms_be.servicecatalog.model.ClinicService;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
-import java.time.Clock;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -26,7 +25,7 @@ import static org.mockito.Mockito.*;
 class ClinicServiceHandlerTest {
     private final ClinicServiceRepository repository = mock(ClinicServiceRepository.class);
     private final CoordinationGuardService guard = mock(CoordinationGuardService.class);
-    private final ServiceCatalogManagementAuditRepository audits = mock(ServiceCatalogManagementAuditRepository.class);
+    private final ServiceCatalogAuditRecorder audits = mock(ServiceCatalogAuditRecorder.class);
 
     private static ClinicServiceJpaEntity entity(ClinicService service) {
         return ClinicServiceMapper.toEntity(service);
@@ -62,14 +61,14 @@ class ClinicServiceHandlerTest {
         when(repository.save(any(ClinicServiceJpaEntity.class))).thenAnswer(call -> call.getArgument(0));
         UUID actor = UUID.randomUUID();
         var authenticatedActor = new AuthenticatedAccount(actor, AccountRole.ADMIN, UUID.randomUUID());
-        new DeactivateClinicServiceServiceImpl(repository, guard, audits, Clock.systemUTC())
+        new DeactivateClinicServiceServiceImpl(repository, guard, audits)
                 .deactivate(id, authenticatedActor, UUID.randomUUID().toString());
         var order = inOrder(guard, repository, audits);
         order.verify(guard).acquire();
         order.verify(repository).findById(id);
         order.verify(repository).save(any(ClinicServiceJpaEntity.class));
-        order.verify(audits).append(any(), eq(id), eq(actor), eq("CLINIC_SERVICE"), eq(id), eq("DEACTIVATED"),
-                anyString(), anyString(), any(), anyString());
+        order.verify(audits).record(eq(id), eq("MRI"), eq(actor), eq("CLINIC_SERVICE"), eq(id), eq("DEACTIVATED"),
+                eq(java.util.Map.of("active", true)), eq(java.util.Map.of("active", false)));
     }
 
     @Test
@@ -87,7 +86,7 @@ class ClinicServiceHandlerTest {
 
         clearInvocations(guard, repository);
         var actor = new AuthenticatedAccount(UUID.randomUUID(), AccountRole.ADMIN, UUID.randomUUID());
-        new ActivateClinicServiceServiceImpl(repository, guard, audits, Clock.systemUTC())
+        new ActivateClinicServiceServiceImpl(repository, guard, audits)
                 .activate(id, actor, UUID.randomUUID().toString());
         var activationOrder = inOrder(guard, repository);
         activationOrder.verify(guard).acquire();

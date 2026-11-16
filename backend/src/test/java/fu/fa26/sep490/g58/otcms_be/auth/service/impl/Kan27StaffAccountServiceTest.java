@@ -5,6 +5,7 @@ import fu.fa26.sep490.g58.otcms_be.auth.exception.StaffAccountAdminException.Rea
 import fu.fa26.sep490.g58.otcms_be.auth.model.entity.*;
 import fu.fa26.sep490.g58.otcms_be.auth.model.entity.enums.*;
 import fu.fa26.sep490.g58.otcms_be.auth.repository.*;
+import fu.fa26.sep490.g58.otcms_be.common.audit.AuditLogWriter;
 import fu.fa26.sep490.g58.otcms_be.auth.service.AuthSessionService;
 import fu.fa26.sep490.g58.otcms_be.common.security.*;
 import fu.fa26.sep490.g58.otcms_be.staff.service.StaffProfileAccountQueryService;
@@ -29,10 +30,10 @@ import static org.mockito.Mockito.*;
 class Kan27StaffAccountServiceTest {
     private final AccountRepository accounts = mock(AccountRepository.class);
     private final AuthConcurrencyRepository locks = mock(AuthConcurrencyRepository.class);
-    private final AccountManagementAuditRepository audits = mock(AccountManagementAuditRepository.class);
+    private final AuditLogWriter audits = mock(AuditLogWriter.class);
     private final PasswordEncoder encoder = PasswordEncoderFactories.createDelegatingPasswordEncoder();
     private final AdministratorPasswordIssuer issuer = spy(new AdministratorPasswordIssuer(new TemporaryPasswordGenerator(), encoder));
-    private final PasswordResetChallengeRepository resets = mock(PasswordResetChallengeRepository.class);
+    private final VerificationCodeRepository resets = mock(VerificationCodeRepository.class);
     private final AuthSessionService sessions = mock(AuthSessionService.class);
     private final StaffProfileAccountQueryService profiles = mock(StaffProfileAccountQueryService.class);
     private final StaffAccountAdminServiceImpl service = new StaffAccountAdminServiceImpl(accounts, locks, audits,
@@ -205,7 +206,7 @@ class Kan27StaffAccountServiceTest {
         account.setStatus(AccountStatus.TEMPORARILY_LOCKED);
         assertReason(Reason.STATUS_UNCHANGED, () -> service.activate(admin, account.getId(), correlation));
         assertReason(Reason.STATUS_UNCHANGED, () -> service.deactivate(admin, account.getId(), correlation));
-        verify(audits, times(2)).saveAndFlush(any());
+        verify(audits, times(2)).record(any());
     }
 
     @ParameterizedTest @EnumSource(value = AccountStatus.class, names = {"ACTIVE", "DISABLED", "TEMPORARILY_LOCKED"})
@@ -225,7 +226,7 @@ class Kan27StaffAccountServiceTest {
         assertEquals(status, account.getStatus());
         assertEquals(4, account.getFailedCredentialCount());
         assertEquals(until, account.getLockedUntil());
-        verify(resets).supersedeCurrent(eq(account.getId()), any());
+        verify(resets).supersedeCurrent(eq(account.getId()), eq(VerificationPurpose.PASSWORD_RESET), any());
         verify(sessions).revokeAll(account.getId());
         assertAudit("REISSUE_PASSWORD", account.getId());
         assertFalse(response.toString().contains(response.temporaryPassword()));
@@ -248,9 +249,11 @@ class Kan27StaffAccountServiceTest {
         return captor.getValue();
     }
     private void assertAudit(String action, UUID target) {
-        verify(audits).saveAndFlush(argThat(a -> a.getAction().equals(action) && a.getAccountId().equals(target)
-                && a.getActorAccountId().equals(admin.accountId()) && a.getCorrelationId().equals(correlation)
-                && a.getOccurredAt() != null && a.getId() != null));
+        // The correlation id is taken from the request MDC by AuditLogWriter, so it is not part of the entry.
+        verify(audits).record(argThat(e -> e.action().equals(action) && e.entityId().equals(target)
+                && e.actorAccountId().equals(admin.accountId()) && e.source().equals("account_management_audits")
+                && e.category().equals("ACCOUNT") && e.recordType().equals("ACCOUNT")
+                && e.recordLabel().equals(target.toString()) && e.visibleInActivityLog()));
     }
     private void assertReason(Reason reason, org.junit.jupiter.api.function.Executable action) {
         assertEquals(reason, assertThrows(StaffAccountAdminException.class, action).reason());

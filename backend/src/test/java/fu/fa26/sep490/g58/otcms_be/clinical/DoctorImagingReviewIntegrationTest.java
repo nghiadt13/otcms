@@ -6,6 +6,7 @@ import static org.mockito.Mockito.*;
 
 import fu.fa26.sep490.g58.otcms_be.auth.repository.AccountRepository;
 import fu.fa26.sep490.g58.otcms_be.auth.model.entity.enums.AccountType;
+import fu.fa26.sep490.g58.otcms_be.clinical.service.ClinicalServiceOrderExecutionPort;
 import fu.fa26.sep490.g58.otcms_be.common.security.AccountRole;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.exception.DiagnosticOperationException;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.integration.*;
@@ -15,8 +16,8 @@ import fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.*;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.enums.*;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.repository.*;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.service.*;
-import fu.fa26.sep490.g58.otcms_be.staff.model.entity.DoctorProfileJpaEntity;
-import fu.fa26.sep490.g58.otcms_be.staff.repository.DoctorProfileRepository;
+import fu.fa26.sep490.g58.otcms_be.staff.model.entity.StaffProfileJpaEntity;
+import fu.fa26.sep490.g58.otcms_be.staff.repository.StaffProfileRepository;
 import fu.fa26.sep490.g58.otcms_be.visit.model.entity.*;
 import fu.fa26.sep490.g58.otcms_be.visit.repository.*;
 import java.io.*;
@@ -24,11 +25,12 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.Instant;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.springframework.mock.web.MockServletContext;
-import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.context.support.AnnotationConfigWebApplicationContext;
 
 /** Real Visit/Diagnostic/Clinical composition, doubled persistence and external Imaging contracts.
@@ -38,137 +40,158 @@ class DoctorImagingReviewIntegrationTest {
     final UUID visit = UUID.randomUUID(), patient = UUID.randomUUID(), account = UUID.randomUUID(), doctor = UUID.randomUUID();
     final UUID requestId = UUID.randomUUID(), attemptId = UUID.randomUUID();
     final String study = "confirmed-study";
-    DiagnosticRequestJpaEntity request;
-    final Map<UUID, DiagnosticFindingsVersionJpaEntity> versions = new HashMap<>();
     final Map<UUID, DiagnosticReportJpaEntity> reportRows = new HashMap<>();
-    final Map<UUID, DiagnosticOutboxJpaEntity> events = new HashMap<>();
-    final Map<UUID, VisitImagingResultReceiptJpaEntity> receipts = new HashMap<>();
-    final Map<String, DiagnosticIdempotencyRecordJpaEntity> keys = new HashMap<>();
+    final AtomicReference<Instant> resultReadyAt = new AtomicReference<>();
+    final AtomicReference<Instant> findingsReleasedAt = new AtomicReference<>();
+    final AtomicReference<ClinicalServiceOrderExecutionPort.ExecutionStatus> executionStatus =
+            new AtomicReference<>(ClinicalServiceOrderExecutionPort.ExecutionStatus.RESULT_AVAILABLE);
+    final AtomicLong executionVersion = new AtomicLong();
+    final AtomicReference<String> reviewKey = new AtomicReference<>();
+    final AtomicReference<String> reviewFingerprint = new AtomicReference<>();
+    final AtomicReference<String> executionStudy = new AtomicReference<>("confirmed-study");
+    final AtomicReference<UUID> executionAttemptId = new AtomicReference<>();
+    ClinicalServiceOrderExecutionPort.ImagingExecution execution;
+    DiagnosticReportJpaEntity currentFindings;
     <T> T bean(Class<T> type) { return context.getBean(type); }
     DiagnosticActor actor() { return DiagnosticActor.user(account, AccountRole.DOCTOR); }
     DiagnosticFindingsService findings() { return bean(DiagnosticFindingsService.class); }
+    void resultReady(UUID request, UUID visitId, UUID event) {
+        new org.springframework.transaction.support.TransactionTemplate(bean(DoctorCoreProductionWiringTest.RecordingTransactions.class))
+                .executeWithoutResult(status -> bean(VisitDiagnosticPort.class).publishResultReady(request, visitId, event));
+    }
+    ReleaseAcknowledgement releaseVisit(FindingsReleaseEvent event) {
+        return new org.springframework.transaction.support.TransactionTemplate(bean(DoctorCoreProductionWiringTest.RecordingTransactions.class))
+                .execute(status -> bean(VisitDiagnosticPort.class).publishFindingsReleased(event));
+    }
 
     @BeforeEach void start() throws Exception {
         context = new AnnotationConfigWebApplicationContext(); context.setServletContext(new MockServletContext());
-        context.register(DoctorCoreProductionWiringTest.ProductionConfiguration.class); context.refresh();
-        var profile = mock(DoctorProfileJpaEntity.class); when(profile.id()).thenReturn(doctor);
-        when(bean(DoctorProfileRepository.class).findByAccountId(account)).thenReturn(Optional.of(profile));
+        context.register(DoctorCoreProductionWiringTest.ProductionConfiguration.class, TestOwnerPorts.class); context.refresh();
+        var profile = mock(StaffProfileJpaEntity.class); when(profile.id()).thenReturn(doctor);
+        when(bean(StaffProfileRepository.class).findByAccountIdAndDoctorTrue(account)).thenReturn(Optional.of(profile));
         when(bean(AccountRepository.class).existsByIdAndAccountTypeAndStatus(eq(account), eq(AccountType.DOCTOR), any())).thenReturn(true);
         when(bean(ClinicVisitJpaRepository.class).findById(visit)).thenReturn(Optional.of(
-                ClinicVisitJpaEntity.walkIn(visit, patient, null, account, Instant.EPOCH)));
+                ClinicVisitJpaEntity.walkIn(visit, patient, null, account, Instant.EPOCH, null, null)));
+        when(bean(ClinicVisitJpaRepository.class).markImagingResultReady(eq(visit), eq(patient), any())).thenAnswer(call -> {
+            resultReadyAt.compareAndSet(null, call.getArgument(2)); return 1;
+        });
+        when(bean(ClinicVisitJpaRepository.class).markFindingsReleased(eq(visit), eq(patient), any())).thenAnswer(call -> {
+            findingsReleasedAt.compareAndSet(null, call.getArgument(2)); return 1;
+        });
         when(bean(VisitCareAssignmentRepository.class).findFirstByVisitIdAndStatusOrderByAssignedAtDescIdDesc(visit, "IN_PROGRESS"))
                 .thenReturn(Optional.of(VisitCareAssignmentJpaEntity.inProgress(UUID.randomUUID(), visit, doctor,
                         "ORTHOPEDIC", 30, Instant.EPOCH, Instant.EPOCH.plusSeconds(1800))));
-        request = new DiagnosticRequestJpaEntity(requestId, visit, patient, account, UUID.randomUUID(), null,
-                "MRI", DiagnosticRequestStatus.RESULT_AVAILABLE, null, null, attemptId);
-        request.setCreatedAt(Instant.EPOCH);
-        when(bean(DiagnosticRequestJpaRepository.class).findById(requestId)).thenReturn(Optional.of(request));
-        when(bean(DiagnosticRequestJpaRepository.class).findByIdForUpdate(requestId)).thenReturn(Optional.of(request));
-        when(bean(DiagnosticRequestJpaRepository.class).saveAndFlush(any())).thenAnswer(call -> {
-            ReflectionTestUtils.setField(request, "version", request.getVersion() + 1); return request;
-        });
-        when(bean(DiagnosticAttemptJpaRepository.class).findByRequestIdAndId(requestId, attemptId)).thenReturn(Optional.of(
-                new DiagnosticAttemptJpaEntity(attemptId, requestId, 1, UUID.randomUUID(), "ACQUISITION_STARTED", "IMAGING", null, Instant.EPOCH, study)));
-        var findings = bean(DiagnosticFindingsVersionJpaRepository.class);
-        when(findings.saveAndFlush(any())).thenAnswer(call -> { var row = (DiagnosticFindingsVersionJpaEntity) call.getArgument(0); versions.put(row.getId(), row); return row; });
-        when(findings.findFirstByRequestIdOrderByVersionNumberDesc(requestId)).thenAnswer(call -> versions.values().stream().max(Comparator.comparingInt(DiagnosticFindingsVersionJpaEntity::getVersionNumber)));
-        when(findings.findAllByRequestIdOrderByVersionNumberDesc(requestId)).thenAnswer(call -> new ArrayList<>(versions.values()));
-        when(findings.findByIdAndRequestId(any(), eq(requestId))).thenAnswer(call -> Optional.ofNullable(versions.get(call.getArgument(0))));
+        execution = mock(ClinicalServiceOrderExecutionPort.ImagingExecution.class);
+        when(execution.orderId()).thenReturn(requestId); when(execution.visitId()).thenReturn(visit);
+        when(execution.patientId()).thenReturn(patient); when(execution.orderingDoctorAccountId()).thenReturn(account);
+        when(execution.serviceId()).thenReturn(UUID.randomUUID()); when(execution.roomId()).thenReturn(UUID.randomUUID());
+        when(execution.imagingType()).thenReturn("MRI"); when(execution.bodyArea()).thenReturn("Chest");
+        when(execution.clinicalReason()).thenReturn("Review findings"); executionAttemptId.set(attemptId);
+        when(execution.attemptId()).thenAnswer(call -> executionAttemptId.get());
+        when(execution.technicianAccountId()).thenReturn(UUID.randomUUID()); when(execution.firstUseEventId()).thenReturn(UUID.randomUUID());
+        when(execution.firstUseAt()).thenReturn(Instant.EPOCH); when(execution.studyRef()).thenAnswer(call -> executionStudy.get());
+        when(execution.status()).thenAnswer(call -> executionStatus.get());
+        when(execution.executionVersion()).thenAnswer(call -> executionVersion.get());
+        when(execution.reviewIdempotencyKey()).thenAnswer(call -> reviewKey.get());
+        when(execution.reviewFingerprint()).thenAnswer(call -> reviewFingerprint.get());
+        when(execution.createdAt()).thenReturn(Instant.EPOCH); when(execution.updatedAt()).thenReturn(Instant.EPOCH);
+        when(bean(ClinicalServiceOrderExecutionPort.class).find(requestId)).thenAnswer(call -> Optional.of(execution));
+        when(bean(ClinicalServiceOrderExecutionPort.class).findForUpdate(requestId)).thenAnswer(call -> Optional.of(execution));
+        when(bean(ClinicalServiceOrderExecutionPort.class).markReviewed(eq(requestId), anyLong(), anyString(), anyString()))
+                .thenAnswer(call -> {
+                    if (executionVersion.get() != call.<Long>getArgument(1)
+                            || executionStatus.get() != ClinicalServiceOrderExecutionPort.ExecutionStatus.RESULT_AVAILABLE) return 0;
+                    executionStatus.set(ClinicalServiceOrderExecutionPort.ExecutionStatus.REVIEWED);
+                    executionVersion.incrementAndGet(); reviewKey.set(call.getArgument(2)); reviewFingerprint.set(call.getArgument(3));
+                    return 1;
+                });
+        when(bean(ClinicalServiceOrderExecutionPort.class).linkStudy(eq(requestId), anyLong(), any(), anyString()))
+                .thenAnswer(call -> {
+                    if (executionVersion.get() != call.<Long>getArgument(1)
+                            || executionStatus.get() != ClinicalServiceOrderExecutionPort.ExecutionStatus.IN_PROGRESS) return 0;
+                    executionStatus.set(ClinicalServiceOrderExecutionPort.ExecutionStatus.RESULT_AVAILABLE);
+                    executionStudy.set(call.getArgument(3)); executionVersion.incrementAndGet(); return 1;
+                });
         var reports = bean(DiagnosticReportJpaRepository.class);
-        when(reports.saveAndFlush(any())).thenAnswer(call -> { var row = (DiagnosticReportJpaEntity) call.getArgument(0); reportRows.put(row.getId(), row); return row; });
+        when(reports.saveAndFlush(any())).thenAnswer(call -> { var row = (DiagnosticReportJpaEntity) call.getArgument(0); reportRows.put(row.getId(), row); currentFindings = row; return row; });
         when(reports.findByIdAndRequestId(any(), eq(requestId))).thenAnswer(call -> Optional.ofNullable(reportRows.get(call.getArgument(0))));
-        var outbox = bean(DiagnosticOutboxJpaRepository.class);
-        when(outbox.save(any())).thenAnswer(call -> { var row = (DiagnosticOutboxJpaEntity) call.getArgument(0); events.put(row.getEventId(), row); return row; });
-        when(outbox.findByEventId(any())).thenAnswer(call -> Optional.ofNullable(events.get(call.getArgument(0))));
-        when(outbox.lockDueEvents(any(), any(), any())).thenAnswer(call -> events.values().stream().filter(e -> e.getStatus() == DiagnosticOutboxStatus.PENDING).toList());
-        var idempotency = bean(DiagnosticIdempotencyRecordJpaRepository.class);
-        when(idempotency.claimActorOperation(any(), any(), any(), any(), any(), any(), any())).thenAnswer(call -> {
-            String key = call.getArgument(4) + ":" + call.getArgument(5);
-            if (keys.containsKey(key)) return 0;
-            keys.put(key, new DiagnosticIdempotencyRecordJpaEntity(call.getArgument(0), account, null, visit, requestId,
-                    call.getArgument(4), call.getArgument(5), call.getArgument(6), DiagnosticOperationOutcome.ALLOWED, new HashMap<>())); return 1;
+        when(reports.findByRequestIdAndReportVersion(eq(requestId), anyInt())).thenAnswer(call -> reportRows.values().stream()
+                .filter(row -> requestId.equals(row.getRequestId()) && row.getReportVersion() == call.<Integer>getArgument(1)).findFirst());
+        when(reports.findFirstByRequestIdOrderByReportVersionDesc(requestId)).thenAnswer(call -> reportRows.values().stream()
+                .filter(row -> requestId.equals(row.getRequestId())).max(Comparator.comparingInt(DiagnosticReportJpaEntity::getReportVersion)));
+        when(reports.findByRequestIdAndDraftIdempotencyKey(eq(requestId), anyString())).thenAnswer(call -> reportRows.values().stream()
+                .filter(row -> requestId.equals(row.getRequestId()) && call.getArgument(1).equals(row.getDraftIdempotencyKey())).findFirst());
+        when(reports.findByRequestIdAndCorrectionIdempotencyKey(eq(requestId), anyString())).thenAnswer(call -> reportRows.values().stream()
+                .filter(row -> requestId.equals(row.getRequestId()) && call.getArgument(1).equals(row.getCorrectionIdempotencyKey())).findFirst());
+        when(reports.findByRequestIdAndUploadIdempotencyKey(eq(requestId), anyString())).thenAnswer(call -> reportRows.values().stream()
+                .filter(row -> requestId.equals(row.getRequestId()) && call.getArgument(1).equals(row.getUploadIdempotencyKey())).findFirst());
+        when(reports.findByRequestIdAndCompleteIdempotencyKey(eq(requestId), anyString())).thenAnswer(call -> reportRows.values().stream()
+                .filter(row -> requestId.equals(row.getRequestId()) && call.getArgument(1).equals(row.getCompleteIdempotencyKey())).findFirst());
+        when(reports.findByReportIdAndRequestId(any(), eq(requestId))).thenAnswer(call -> reportRows.values().stream()
+                .filter(row -> requestId.equals(row.getRequestId()) && Objects.equals(call.getArgument(0), row.getReportId())).findFirst());
+        var imaging = bean(ImagingStudyPort.class);
+        when(imaging.acceptFindingsRelease(any())).thenAnswer(call -> {
+            var event = (FindingsReleaseEvent) call.getArgument(0);
+            assertNotNull(findingsReleasedAt.get());
+            String hash = bean(DiagnosticResultEventQueryService.class).requireFindingsRelease(event).payloadSha256();
+            return new ReleaseAcknowledgement(event.eventId(), event.requestId(), hash, true);
         });
-        when(idempotency.findActorOperation(any(), any(), any(), any(), any())).thenAnswer(call -> Optional.ofNullable(keys.get(call.getArgument(3) + ":" + call.getArgument(4))));
-        // Bulk DML does not refresh a previously managed entity; do not hide that production behavior.
-        when(idempotency.completeResult(any(), any())).thenReturn(1);
-        var inbox = bean(VisitImagingResultReceiptRepository.class);
-        when(inbox.insertReceipt(any(), any(), any(), any(), any(), any(), any())).thenAnswer(call -> {
-            UUID id = call.getArgument(0); if (receipts.containsKey(id)) return 0;
-            var row = mock(VisitImagingResultReceiptJpaEntity.class);
-            when(row.getEventId()).thenReturn(id); when(row.getRequestId()).thenReturn(call.getArgument(1));
-            when(row.getVisitId()).thenReturn(call.getArgument(2)); when(row.getPatientProfileId()).thenReturn(call.getArgument(3));
-            when(row.getEventType()).thenReturn(call.getArgument(4)); when(row.getPayloadSha256()).thenReturn(call.getArgument(5));
-            receipts.put(id, row); return 1;
-        });
-        when(inbox.findById(any())).thenAnswer(call -> Optional.ofNullable(receipts.get(call.getArgument(0))));
     }
     @AfterEach void close() { context.close(); }
     void error(DiagnosticOperationOutcome expected, org.junit.jupiter.api.function.Executable action) {
         assertEquals(expected, assertThrows(DiagnosticOperationException.class, action).outcome());
     }
-    void review() { findings().review(actor(), requestId, "review", request.getVersion(), study, "test"); }
-    DiagnosticFindingsView draft() { review(); return findings().saveDraft(actor(), requestId, "draft", request.getVersion(), "No fracture", "test"); }
+    void review() { findings().review(actor(), requestId, "review", 0, study, "test"); }
+    DiagnosticFindingsView draft() { if (executionStatus.get() != ClinicalServiceOrderExecutionPort.ExecutionStatus.REVIEWED) review(); return findings().saveDraft(actor(), requestId, "draft", executionVersion.get(), "No fracture", "test"); }
     UUID report(int version, DiagnosticReportValidationStatus validation) {
-        UUID id = UUID.randomUUID(); reportRows.put(id, new DiagnosticReportJpaEntity(id, requestId, visit, study, version,
-                "private/report", "a".repeat(64), validation, account, Instant.EPOCH, null)); return id;
+        DiagnosticReportJpaEntity row = reportRows.values().stream()
+                .filter(value -> requestId.equals(value.getRequestId()) && value.getReportVersion() == version).findFirst().orElseThrow();
+        UUID id = UUID.randomUUID();
+        row.attachReport(id, "private/report", "a".repeat(64), validation, account, Instant.EPOCH, Instant.EPOCH);
+        return id;
     }
     FindingsReleaseEvent release() {
-        var draft = draft(); var report = report(draft.version(), DiagnosticReportValidationStatus.VALIDATED);
-        findings().complete(actor(), requestId, "complete", request.getVersion(), draft.version(), report, study, "test");
-        var event = events.values().iterator().next();
-        return new FindingsReleaseEvent(event.getEventId(), requestId, visit, patient, study, draft.findingsVersionId(), report, "a".repeat(64));
-    }
-    DiagnosticOutboxJpaEntity ready(UUID targetVisit) {
-        UUID id = UUID.randomUUID(); var row = new DiagnosticOutboxJpaEntity(UUID.randomUUID(), id, requestId, targetVisit,
-                "IMAGING_RESULT_READY", Map.of("eventId", id.toString(), "requestId", requestId.toString(), "visitId", targetVisit.toString()),
-                DiagnosticOutboxStatus.PENDING, 0, Instant.EPOCH, null, null); events.put(id, row); return row;
+        var draft = draft(); var reportId = report(draft.version(), DiagnosticReportValidationStatus.VALIDATED);
+        findings().complete(actor(), requestId, "complete", executionVersion.get(), draft.version(), reportId, study, "test");
+        UUID eventId = UUID.nameUUIDFromBytes(("FINDINGS_RELEASE:" + requestId + ":complete").getBytes(StandardCharsets.UTF_8));
+        return new FindingsReleaseEvent(eventId, requestId, visit, patient, study, draft.findingsVersionId(), reportId, "a".repeat(64));
     }
     @Test void correctionAndCompletionReplayUseCompletedManagedPayloadAndPreserveReleaseGates() {
         var initial = draft();
         UUID firstReport = report(1, DiagnosticReportValidationStatus.VALIDATED);
-        var old = versions.get(initial.findingsVersionId());
-        old.markReleased(firstReport, Instant.EPOCH);
-        reportRows.get(firstReport).setReleasedAt(Instant.EPOCH);
-        long requestVersion = request.getVersion();
+        var old = reportRows.get(initial.findingsVersionId());
+        findings().complete(actor(), requestId, "complete-initial", executionVersion.get(), initial.version(),
+                firstReport, study, "test");
+        long requestVersion = executionVersion.get();
         var correction = findings().createCorrection(actor(), requestId, "correction", requestVersion,
                 "Small effusion", "Image re-review", "test");
         var replay = findings().createCorrection(actor(), requestId, "correction", requestVersion,
                 "Small effusion", "Image re-review", "replay");
         assertEquals(correction.findingsVersionId(), replay.findingsVersionId());
         assertEquals(2, replay.version()); assertEquals("PRIVATE", replay.releaseState());
-        assertEquals(2, versions.size());
+        assertEquals(2, reportRows.size());
         UUID secondReport = report(2, DiagnosticReportValidationStatus.VALIDATED);
         findings().complete(actor(), requestId, "complete-correction", requestVersion, 2, secondReport, study, "test");
-        assertEquals("RELEASE_PENDING", findings().complete(actor(), requestId, "complete-correction",
+        assertEquals("RELEASED", findings().complete(actor(), requestId, "complete-correction",
                 requestVersion, 2, secondReport, study, "replay").releaseState());
-        var imaging = mock(ImagingStudyPort.class);
-        when(imaging.acceptFindingsRelease(any())).thenAnswer(call -> {
-            var event = (FindingsReleaseEvent) call.getArgument(0);
-            assertEquals(1, receipts.size()); // Owner ACK already persisted, second ACK not returned.
-            assertEquals(DiagnosticFindingsVersionState.DRAFT, versions.get(correction.findingsVersionId()).getState());
-            assertNull(reportRows.get(secondReport).getReleasedAt());
-            return new ReleaseAcknowledgement(event.eventId(), requestId,
-                    bean(DiagnosticResultEventQueryService.class).requireFindingsRelease(event).payloadSha256(), true);
-        });
-        context.getBeanFactory().registerSingleton("externalImagingCorrectionDouble", imaging);
-        var retry = new DiagnosticEvidenceService.RetryPolicy(3, 1, 8);
-        assertEquals(1, bean(DiagnosticEvidenceService.class).dispatchDueOutbox(10, retry).delivered());
-        assertEquals(DiagnosticFindingsVersionState.COMPLETED, versions.get(correction.findingsVersionId()).getState());
-        assertNotNull(reportRows.get(secondReport).getReleasedAt());
+        // Both owner acknowledgements are performed synchronously in complete().
+        assertNotNull(reportRows.values().stream().filter(row -> secondReport.equals(row.getReportId()))
+                .findFirst().orElseThrow().getReleasedAt());
+        assertEquals(DiagnosticFindingsVersionState.COMPLETED, reportRows.get(correction.findingsVersionId()).getState());
+        assertNotNull(reportRows.values().stream().filter(row -> secondReport.equals(row.getReportId()))
+                .findFirst().orElseThrow().getReleasedAt());
         assertEquals("RELEASED", findings().complete(actor(), requestId, "complete-correction",
                 requestVersion, 2, secondReport, study, "released-replay").releaseState());
-        assertEquals(0, bean(DiagnosticEvidenceService.class).dispatchDueOutbox(10, retry).delivered());
-        verify(imaging, times(1)).acceptFindingsRelease(any());
+        verify(bean(ImagingStudyPort.class), atLeastOnce()).acceptFindingsRelease(any());
         assertEquals("No fracture", old.getFindingsText());
-        assertEquals(firstReport, old.getRequiredPdfReportId()); assertEquals(Instant.EPOCH, old.getCompletedAt());
+        assertEquals(firstReport, old.getReportId()); assertNotNull(old.getCompletedAt());
         assertThrows(IllegalStateException.class, () -> old.reviseDraft("changed", Instant.now()));
-        verify(bean(DiagnosticIdempotencyRecordJpaRepository.class), never()).completeResult(any(), any());
-        verify(bean(DiagnosticIdempotencyRecordJpaRepository.class), atLeastOnce()).saveAndFlush(any());
+        verify(bean(DiagnosticReportJpaRepository.class), atLeastOnce()).saveAndFlush(any());
     }
 
     @Test void currentDoctorReviewsAndIdenticalReplayIsSafe() {
-        review(); assertEquals(DiagnosticRequestStatus.REVIEWED, request.getStatus());
-        findings().review(actor(), requestId, "review", 0, study, "test"); assertEquals(1, request.getVersion());
+        review(); assertEquals(ClinicalServiceOrderExecutionPort.ExecutionStatus.REVIEWED, executionStatus.get());
+        findings().review(actor(), requestId, "review", 0, study, "test"); assertEquals(1, executionVersion.get());
         error(DiagnosticOperationOutcome.IDEMPOTENCY_CONFLICT, () -> findings().review(actor(), requestId, "review", 0, "other", "test"));
     }
     @Test void inactiveDoctorCannotReviewOrReplay() {
@@ -186,7 +209,7 @@ class DoctorImagingReviewIntegrationTest {
         error(DiagnosticOperationOutcome.UNAUTHORIZED_RECORD, this::review);
     }
     @Test void mismatchedPatientDeniedBeforeReview() {
-        when(bean(ClinicVisitJpaRepository.class).findById(visit)).thenReturn(Optional.of(ClinicVisitJpaEntity.walkIn(visit, UUID.randomUUID(), null, account, Instant.EPOCH)));
+        when(bean(ClinicVisitJpaRepository.class).findById(visit)).thenReturn(Optional.of(ClinicVisitJpaEntity.walkIn(visit, UUID.randomUUID(), null, account, Instant.EPOCH, null, null)));
         error(DiagnosticOperationOutcome.EVIDENCE_MISMATCH, this::review);
     }
     @Test void closedVisitCannotReview() {
@@ -196,47 +219,45 @@ class DoctorImagingReviewIntegrationTest {
     }
     @ParameterizedTest @EnumSource(value = DiagnosticRequestStatus.class, names = {"PENDING", "IN_PROGRESS", "CANCELLED"})
     void nonReviewableStatesDenied(DiagnosticRequestStatus status) {
-        request.setStatus(status);
-        if (status != DiagnosticRequestStatus.IN_PROGRESS) request.setCurrentAttemptId(null);
-        else when(bean(DiagnosticAttemptJpaRepository.class).findByRequestIdAndId(requestId, attemptId)).thenReturn(Optional.of(
-                new DiagnosticAttemptJpaEntity(attemptId, requestId, 1, UUID.randomUUID(), "ACQUISITION_STARTED", "IMAGING", null, Instant.EPOCH, null)));
+        executionStatus.set(ClinicalServiceOrderExecutionPort.ExecutionStatus.valueOf(status.name()));
+        executionStudy.set(null);
+        executionAttemptId.set(status == DiagnosticRequestStatus.IN_PROGRESS ? attemptId : null);
         error(DiagnosticOperationOutcome.STATE_CONFLICT, this::review);
     }
-    @Test void matchedConfirmedStudyCoordinatesRealVisitThroughExistingOutbox() {
-        request.setStatus(DiagnosticRequestStatus.IN_PROGRESS);
-        var attempt = new DiagnosticAttemptJpaEntity(attemptId, requestId, 1, UUID.randomUUID(), "ACQUISITION_STARTED", "IMAGING", null, Instant.EPOCH, null);
-        when(bean(DiagnosticAttemptJpaRepository.class).findByRequestIdAndId(requestId, attemptId)).thenReturn(Optional.of(attempt));
+    @Test void matchedConfirmedStudyCoordinatesRealVisitSynchronously() {
+        executionStatus.set(ClinicalServiceOrderExecutionPort.ExecutionStatus.IN_PROGRESS);
+        executionStudy.set(null);
         var event = new StudyEvidence(UUID.randomUUID(), study, requestId, visit, patient, attemptId, StudyVerificationStatus.CONFIRMED_MATCH, true);
-        var imaging = mock(ImagingStudyPort.class);
-        when(imaging.confirmIngestedStudy(event.eventId(), study, requestId, visit, patient, attemptId, event.verificationEvidence())).thenReturn(event);
-        context.getBeanFactory().registerSingleton("externalImagingConfirmationDouble", imaging);
+        when(bean(ImagingStudyPort.class).confirmIngestedStudy(event.eventId(), study, requestId, visit, patient,
+                attemptId, event.verificationEvidence())).thenReturn(event);
         var result = bean(DiagnosticEvidenceService.class).linkConfirmedStudy(DiagnosticActor.trustedIntegration(), event, "test");
         assertEquals(DiagnosticRequestStatus.RESULT_AVAILABLE, result.status());
-        verify(imaging).confirmIngestedStudy(event.eventId(), study, requestId, visit, patient, attemptId, event.verificationEvidence());
-        assertEquals(1, bean(DiagnosticEvidenceService.class).dispatchDueOutbox(10,
-                new DiagnosticEvidenceService.RetryPolicy(3, 1, 8)).delivered());
-        assertEquals(1, receipts.size()); assertEquals(patient, receipts.get(event.eventId()).getPatientProfileId());
+        verify(bean(ImagingStudyPort.class)).confirmIngestedStudy(event.eventId(), study, requestId, visit, patient, attemptId, event.verificationEvidence());
+        verify(bean(ClinicalImagingOrderPort.class)).markResultAvailable(requestId);
+        assertNotNull(resultReadyAt.get());
+        verify(bean(ClinicVisitJpaRepository.class)).markImagingResultReady(eq(visit), eq(patient), any());
     }
     @ParameterizedTest @EnumSource(value = StudyVerificationStatus.class, names = {"PENDING", "REJECTED", "MISMATCH"})
     void unconfirmedOrRejectedStudyCannotBecomeReviewable(StudyVerificationStatus status) {
-        request.setStatus(DiagnosticRequestStatus.IN_PROGRESS);
+        executionStatus.set(ClinicalServiceOrderExecutionPort.ExecutionStatus.IN_PROGRESS);
+        executionStudy.set(null);
         var expected = new StudyEvidence(UUID.randomUUID(), study, requestId, visit, patient, attemptId, StudyVerificationStatus.CONFIRMED_MATCH, true);
         var imaging = mock(ImagingStudyPort.class);
         when(imaging.confirmIngestedStudy(any(), any(), any(), any(), any(), any(), anyList())).thenReturn(
                 new StudyEvidence(expected.eventId(), study, requestId, visit, patient, attemptId, status, true));
-        context.getBeanFactory().registerSingleton("externalImagingConfirmationDouble", imaging);
+        when(bean(ImagingStudyPort.class).confirmIngestedStudy(any(), any(), any(), any(), any(), any(), anyList()))
+                .thenAnswer(call -> new StudyEvidence(call.getArgument(0), study, requestId, visit, patient, attemptId, status, true));
         error(DiagnosticOperationOutcome.EVIDENCE_MISMATCH, () -> bean(DiagnosticEvidenceService.class)
                 .linkConfirmedStudy(DiagnosticActor.trustedIntegration(), expected, "test"));
-        assertEquals(DiagnosticRequestStatus.IN_PROGRESS, request.getStatus()); assertTrue(events.isEmpty());
+        assertEquals(ClinicalServiceOrderExecutionPort.ExecutionStatus.IN_PROGRESS, executionStatus.get());
+        assertNull(resultReadyAt.get());
     }
-    @Test void wrongStudyOrStaleAttemptDenied() {
+    @Test void wrongStudyOrMissingCurrentAttemptDenied() {
         error(DiagnosticOperationOutcome.EVIDENCE_MISMATCH, () -> findings().review(actor(), requestId, "wrong", 0, "other-study", "test"));
-        request.setCurrentAttemptId(UUID.randomUUID()); error(DiagnosticOperationOutcome.DEPENDENCY_UNAVAILABLE, this::review);
+        executionAttemptId.set(null); error(DiagnosticOperationOutcome.STATE_CONFLICT, this::review);
     }
     @Test void previousAttemptStudyCannotBeReviewedAgainstNewCurrentAttempt() {
-        UUID current = UUID.randomUUID(); request.setCurrentAttemptId(current);
-        when(bean(DiagnosticAttemptJpaRepository.class).findByRequestIdAndId(requestId, current)).thenReturn(Optional.of(
-                new DiagnosticAttemptJpaEntity(current, requestId, 2, UUID.randomUUID(), "ACQUISITION_STARTED", "IMAGING", null, Instant.EPOCH, "new-study")));
+        executionAttemptId.set(UUID.randomUUID()); executionStudy.set("new-study");
         error(DiagnosticOperationOutcome.EVIDENCE_MISMATCH, this::review);
     }
     @Test void staleVersionRejectedAndDraftRequiresReviewedStudy() {
@@ -248,72 +269,84 @@ class DoctorImagingReviewIntegrationTest {
         error(DiagnosticOperationOutcome.REPORT_NOT_READY, () -> findings().complete(actor(), requestId, "invalid", 1, draft.version(), invalid, study, "test"));
         error(DiagnosticOperationOutcome.EVIDENCE_MISMATCH, () -> findings().complete(actor(), requestId, "wrong", 1, draft.version(), invalid, "wrong", "test"));
     }
-    @Test void resultReadyReceiptIsReplaySafeAndCannotMutateVisitOrExamination() {
-        var event = ready(visit); var port = bean(VisitDiagnosticPort.class);
-        port.publishResultReady(requestId, visit, event.getEventId()); port.publishResultReady(requestId, visit, event.getEventId());
-        assertEquals(1, receipts.size()); assertEquals(patient, receipts.values().iterator().next().getPatientProfileId());
+    @Test void resultReadyTimestampIsReplaySafeAndCannotMutateVisitOrExamination() {
+        UUID event = UUID.randomUUID();
+        resultReady(requestId, visit, event);
+        Instant first = resultReadyAt.get();
+        resultReady(requestId, visit, event);
+        assertNotNull(first); assertEquals(first, resultReadyAt.get());
         assertEquals("OPEN", bean(ClinicVisitJpaRepository.class).findById(visit).orElseThrow().getStatus());
         verify(bean(ClinicVisitJpaRepository.class), never()).save(any());
         verifyNoInteractions(bean(fu.fa26.sep490.g58.otcms_be.clinical.repository.ClinicalExaminationRepository.class));
     }
     @Test void resultReadyRejectsWrongVisitAndPatient() {
-        var wrong = ready(UUID.randomUUID());
-        error(DiagnosticOperationOutcome.EVIDENCE_MISMATCH, () -> bean(VisitDiagnosticPort.class).publishResultReady(requestId, wrong.getVisitId(), wrong.getEventId()));
-        var event = ready(visit); when(bean(ClinicVisitJpaRepository.class).findById(visit)).thenReturn(Optional.of(ClinicVisitJpaEntity.walkIn(visit, UUID.randomUUID(), null, account, Instant.EPOCH)));
-        error(DiagnosticOperationOutcome.EVIDENCE_MISMATCH, () -> bean(VisitDiagnosticPort.class).publishResultReady(requestId, visit, event.getEventId())); assertTrue(receipts.isEmpty());
+        UUID wrongVisit = UUID.randomUUID();
+        error(DiagnosticOperationOutcome.EVIDENCE_MISMATCH, () -> resultReady(requestId, wrongVisit, UUID.randomUUID()));
+        when(bean(ClinicVisitJpaRepository.class).markImagingResultReady(eq(visit), eq(patient), any())).thenReturn(0);
+        error(DiagnosticOperationOutcome.EVIDENCE_MISMATCH, () -> resultReady(requestId, visit, UUID.randomUUID())); assertNull(resultReadyAt.get());
     }
     @Test void resultReadyRequiresExistingVisit() {
-        var event = ready(visit);
-        when(bean(ClinicVisitJpaRepository.class).findById(visit)).thenReturn(Optional.empty());
-        error(DiagnosticOperationOutcome.RECORD_NOT_FOUND, () -> bean(VisitDiagnosticPort.class).publishResultReady(requestId, visit, event.getEventId()));
-        assertTrue(receipts.isEmpty());
+        when(bean(ClinicVisitJpaRepository.class).markImagingResultReady(eq(visit), eq(patient), any())).thenReturn(0);
+        error(DiagnosticOperationOutcome.EVIDENCE_MISMATCH, () -> resultReady(requestId, visit, UUID.randomUUID()));
+        assertNull(resultReadyAt.get());
     }
     @Test void releaseAcknowledgesExactEventAndRejectsConflictingPayload() {
-        var event = release(); var port = bean(VisitDiagnosticPort.class);
-        var ack = port.publishFindingsReleased(event); assertTrue(ack.accepted()); assertEquals(event.eventId(), ack.eventId());
-        assertEquals(ack, port.publishFindingsReleased(event)); assertEquals(1, receipts.size());
-        var conflict = new FindingsReleaseEvent(event.eventId(), requestId, visit, patient, study, event.findingsVersionId(), UUID.randomUUID(), event.reportSha256());
-        error(DiagnosticOperationOutcome.EVIDENCE_MISMATCH, () -> port.publishFindingsReleased(conflict));
-        var wrongPatient = new FindingsReleaseEvent(event.eventId(), requestId, visit, UUID.randomUUID(), study, event.findingsVersionId(), event.reportId(), event.reportSha256());
-        error(DiagnosticOperationOutcome.EVIDENCE_MISMATCH, () -> port.publishFindingsReleased(wrongPatient));
-        assertNull(reportRows.get(event.reportId()).getReleasedAt()); // Visit ack alone does not release to Patient.
-        var wrongVisit = new FindingsReleaseEvent(event.eventId(), requestId, UUID.randomUUID(), patient, study, event.findingsVersionId(), event.reportId(), event.reportSha256());
-        error(DiagnosticOperationOutcome.EVIDENCE_MISMATCH, () -> port.publishFindingsReleased(wrongVisit));
-    }
-    @Test void receiptRejectsReusedEventWithDifferentPreviouslyAcknowledgedHash() {
-        var event = release(); bean(VisitDiagnosticPort.class).publishFindingsReleased(event);
-        when(receipts.get(event.eventId()).getPayloadSha256()).thenReturn("b".repeat(64));
-        error(DiagnosticOperationOutcome.IDEMPOTENCY_CONFLICT, () -> bean(VisitDiagnosticPort.class).publishFindingsReleased(event));
-    }
-    @Test void missingImagingOwnerKeepsReleasePending() {
         var event = release();
-        var result = bean(DiagnosticEvidenceService.class).dispatchDueOutbox(10, new DiagnosticEvidenceService.RetryPolicy(3, 1, 8));
-        assertEquals(0, result.delivered()); assertEquals(1, result.retryScheduled()); assertNull(reportRows.get(event.reportId()).getReleasedAt());
+        var ack = releaseVisit(event); assertTrue(ack.accepted()); assertEquals(event.eventId(), ack.eventId());
+        Instant firstRelease = findingsReleasedAt.get();
+        assertEquals(ack, releaseVisit(event)); assertEquals(firstRelease, findingsReleasedAt.get());
+        var conflict = new FindingsReleaseEvent(event.eventId(), requestId, visit, patient, study, event.findingsVersionId(), UUID.randomUUID(), event.reportSha256());
+        error(DiagnosticOperationOutcome.EVIDENCE_MISMATCH, () -> releaseVisit(conflict));
+        var wrongPatient = new FindingsReleaseEvent(event.eventId(), requestId, visit, UUID.randomUUID(), study, event.findingsVersionId(), event.reportId(), event.reportSha256());
+        error(DiagnosticOperationOutcome.EVIDENCE_MISMATCH, () -> releaseVisit(wrongPatient));
+        assertNotNull(reportRows.get(event.findingsVersionId()).getReleasedAt()); // The synchronous findings service owns release state.
+        var wrongVisit = new FindingsReleaseEvent(event.eventId(), requestId, UUID.randomUUID(), patient, study, event.findingsVersionId(), event.reportId(), event.reportSha256());
+        error(DiagnosticOperationOutcome.EVIDENCE_MISMATCH, () -> releaseVisit(wrongVisit));
     }
-    @Test void imagingFailureAfterVisitAcknowledgementRetriesWithOneVisitReceipt() {
-        var event = release(); var imaging = mock(ImagingStudyPort.class);
-        when(imaging.acceptFindingsRelease(any())).thenReturn(new ReleaseAcknowledgement(event.eventId(), requestId, "wrong-hash", true));
-        context.getBeanFactory().registerSingleton("externalImagingContractDouble", imaging);
-        var retry = new DiagnosticEvidenceService.RetryPolicy(3, 1, 8);
-        assertEquals(1, bean(DiagnosticEvidenceService.class).dispatchDueOutbox(10, retry).retryScheduled());
-        assertEquals(1, receipts.size()); assertNull(reportRows.get(event.reportId()).getReleasedAt());
-        doAnswer(call -> new ReleaseAcknowledgement(event.eventId(), requestId,
-                bean(DiagnosticResultEventQueryService.class).requireFindingsRelease(event).payloadSha256(), true))
-                .when(imaging).acceptFindingsRelease(any());
-        assertEquals(1, bean(DiagnosticEvidenceService.class).dispatchDueOutbox(10, retry).delivered());
-        assertEquals(1, receipts.size()); assertNotNull(reportRows.get(event.reportId()).getReleasedAt());
+    @Test void confirmationEventRejectsDifferentStudyAndVerificationEvidence() {
+        var studies = mock(fu.fa26.sep490.g58.otcms_be.imaging.repository.ImagingStudyRepository.class);
+        var row = mock(fu.fa26.sep490.g58.otcms_be.imaging.model.entity.ImagingStudyJpaEntity.class);
+        UUID eventId = UUID.randomUUID();
+        when(studies.findByConfirmationEventId(eventId)).thenReturn(Optional.of(row));
+        when(row.getStudyRef()).thenReturn(study);
+        when(row.getRequestId()).thenReturn(requestId);
+        when(row.getVisitId()).thenReturn(visit);
+        when(row.getPatientId()).thenReturn(patient);
+        when(row.getAttemptId()).thenReturn(attemptId);
+        when(row.getVerificationEvidence()).thenReturn(List.of("MATCH"));
+        when(row.getVerificationStatus()).thenReturn("CONFIRMED_MATCH");
+        when(row.getState()).thenReturn(fu.fa26.sep490.g58.otcms_be.imaging.model.entity.enums.ImagingOperationState.LINKED);
+        var adapter = new fu.fa26.sep490.g58.otcms_be.imaging.integration.diagnostic.ImagingStudyContractAdapter(
+                studies, mock(fu.fa26.sep490.g58.otcms_be.imaging.service.impl.ImagingAuditPersistenceService.class),
+                mock(DiagnosticViewerAuthorizationService.class),
+                mock(fu.fa26.sep490.g58.otcms_be.imaging.service.ImagingReconciliationService.class));
+        assertNotNull(adapter.confirmIngestedStudy(eventId, study, requestId, visit, patient, attemptId, List.of("MATCH")));
+        for (var conflicting : List.of("different-study", study)) {
+            var evidence = conflicting.equals(study) ? List.of("DIFFERENT") : List.of("MATCH");
+            var ex = assertThrows(fu.fa26.sep490.g58.otcms_be.imaging.exception.ImagingOperationException.class,
+                    () -> adapter.confirmIngestedStudy(eventId, conflicting, requestId, visit, patient, attemptId, evidence));
+            assertEquals(fu.fa26.sep490.g58.otcms_be.imaging.exception.ImagingOperationOutcome.EVIDENCE_MISMATCH, ex.outcome());
+        }
     }
-    @Test void bothOwnerAcknowledgementsCompleteExistingOutboxFlow() {
+    @Test void imagingOwnerFailureAbortsSynchronousReleaseCall() {
+        var draft = draft(); UUID reportId = report(draft.version(), DiagnosticReportValidationStatus.VALIDATED);
+        doThrow(new IllegalStateException("imaging owner unavailable"))
+                .when(bean(ImagingStudyPort.class)).acceptFindingsRelease(any());
+        assertThrows(DiagnosticOperationException.class, () -> findings().complete(actor(), requestId, "complete",
+                executionVersion.get(), draft.version(), reportId, study, "test"));
+    }
+    @Test void invalidImagingAcknowledgementAbortsSynchronousRelease() {
+        var draft = draft(); UUID reportId = report(draft.version(), DiagnosticReportValidationStatus.VALIDATED);
+        doAnswer(call -> new ReleaseAcknowledgement(UUID.randomUUID(), requestId, "wrong-hash", true))
+                .when(bean(ImagingStudyPort.class)).acceptFindingsRelease(any());
+        assertThrows(DiagnosticOperationException.class, () -> findings().complete(actor(), requestId, "complete",
+                executionVersion.get(), draft.version(), reportId, study, "test"));
+    }
+    @Test void bothOwnerAcknowledgementsCompleteFindingsSynchronously() {
         var event = release(); var imaging = mock(ImagingStudyPort.class);
-        when(imaging.acceptFindingsRelease(any())).thenAnswer(call -> {
-            var value = (FindingsReleaseEvent) call.getArgument(0);
-            String hash = bean(DiagnosticResultEventQueryService.class).requireFindingsRelease(value).payloadSha256();
-            return new ReleaseAcknowledgement(value.eventId(), value.requestId(), hash, true);
-        });
-        context.getBeanFactory().registerSingleton("externalImagingContractDouble", imaging);
-        var result = bean(DiagnosticEvidenceService.class).dispatchDueOutbox(10, new DiagnosticEvidenceService.RetryPolicy(3, 1, 8));
-        assertEquals(1, result.delivered()); assertNotNull(reportRows.get(event.reportId()).getReleasedAt());
-        assertEquals(DiagnosticFindingsVersionState.COMPLETED, versions.get(event.findingsVersionId()).getState());
+        assertNotNull(reportRows.get(event.findingsVersionId()).getReleasedAt());
+        assertEquals(DiagnosticFindingsVersionState.COMPLETED, reportRows.get(event.findingsVersionId()).getState());
+        verify(bean(ImagingStudyPort.class)).acceptFindingsRelease(any());
         assertEquals("RELEASED", findings().complete(actor(), requestId, "complete", 1, 1, event.reportId(), study, "test").releaseState());
     }
     @Test void uploadRetainsTheActualVerifiedPdfHash() throws Exception {
@@ -325,7 +358,8 @@ class DoctorImagingReviewIntegrationTest {
         }); context.getBeanFactory().registerSingleton("externalReportStorageDouble", storage);
         var uploaded = findings().uploadReport(actor(), requestId, "pdf", 1,
                 new DiagnosticReportUpload(() -> new ByteArrayInputStream(pdf), pdf.length, "application/pdf"), "test");
-        assertEquals(HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(pdf)), reportRows.get(uploaded.reportId()).getContentSha256());
+        assertEquals(HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(pdf)), reportRows.values().stream()
+                .filter(row -> uploaded.reportId().equals(row.getReportId())).findFirst().orElseThrow().getContentSha256());
     }
     @Test void historicalDoctorNeedsDurableCareAndOtherPatientAuthorizationIsSeparate() {
         var assignment = VisitCareAssignmentJpaEntity.inProgress(UUID.randomUUID(), visit, doctor, "ORTHOPEDIC", 30, Instant.EPOCH, Instant.EPOCH.plusSeconds(1800));
@@ -346,6 +380,16 @@ class DoctorImagingReviewIntegrationTest {
     @Test void noShowRemainsExplicitlyUnsupportedWithoutFakeResumeFacts() {
         error(DiagnosticOperationOutcome.DEPENDENCY_UNAVAILABLE, () -> bean(VisitDiagnosticPort.class)
                 .acceptDeferredNoShowCancellation(requestId, visit, Instant.EPOCH, UUID.randomUUID()));
-        assertTrue(receipts.isEmpty());
+        assertNull(resultReadyAt.get()); assertNull(findingsReleasedAt.get());
+    }
+
+    @org.springframework.boot.test.context.TestConfiguration(proxyBeanMethods = false)
+    static class TestOwnerPorts {
+        @org.springframework.context.annotation.Bean
+        ImagingStudyPort testImagingStudyPort() { return mock(ImagingStudyPort.class); }
+
+        @org.springframework.context.annotation.Bean
+        @org.springframework.context.annotation.Primary
+        ClinicalImagingOrderPort testClinicalImagingOrderPort() { return mock(ClinicalImagingOrderPort.class); }
     }
 }

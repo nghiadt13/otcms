@@ -3,7 +3,6 @@ package fu.fa26.sep490.g58.otcms_be.auth;
 import fu.fa26.sep490.g58.otcms_be.auth.model.entity.*;
 import fu.fa26.sep490.g58.otcms_be.auth.model.entity.enums.*;
 import fu.fa26.sep490.g58.otcms_be.auth.repository.AccountRepository;
-import fu.fa26.sep490.g58.otcms_be.auth.repository.AuthenticationAuditRepository;
 import fu.fa26.sep490.g58.otcms_be.auth.exception.CredentialLoginException;
 import fu.fa26.sep490.g58.otcms_be.auth.service.CredentialLoginService;
 import fu.fa26.sep490.g58.otcms_be.auth.security.StaffNetworkPolicy;
@@ -38,7 +37,6 @@ class T005RealLoginIntegrationTest {
     private static final String PREFIX = "t005-pg-";
 
     @Autowired AccountRepository accounts;
-    @Autowired AuthenticationAuditRepository audits;
     @Autowired CredentialLoginService login;
     @Autowired PasswordEncoder encoder;
     @Autowired JdbcTemplate jdbc;
@@ -47,8 +45,14 @@ class T005RealLoginIntegrationTest {
 
     @AfterEach
     void cleanup() {
-        jdbc.update("delete from auth_audits where account_id in (select id from accounts where normalized_email like ?)", PREFIX + "%");
-        jdbc.update("delete from auth_audits where correlation_id like ?", PREFIX + "%");
+        // audit_logs is append-only; the trigger is lifted only while this fixture removes its own rows.
+        jdbc.execute("alter table audit_logs disable trigger tr_audit_logs_immutable");
+        try {
+            jdbc.update("delete from audit_logs where source = 'auth_audits' and entity_id in "
+                    + "(select id from accounts where normalized_email like ?)", PREFIX + "%");
+        } finally {
+            jdbc.execute("alter table audit_logs enable trigger tr_audit_logs_immutable");
+        }
         jdbc.update("delete from accounts where normalized_email like ?", PREFIX + "%");
     }
 
@@ -98,10 +102,10 @@ class T005RealLoginIntegrationTest {
         CredentialLoginException limited = assertThrows(CredentialLoginException.class,
                 () -> login.login("unknown-t005@example.com", "wrong", AccountType.PATIENT, ip));
         assertEquals("RATE_LIMIT_EXCEEDED", limited.getMessage());
-        Integer count = jdbc.queryForObject("select count(*) from auth_audits where method = 'LOGIN_IP' and outcome = 'ATTEMPT' and client_ip is null and identifier_hmac is not null", Integer.class);
+        Integer count = jdbc.queryForObject("select count(*) from audit_logs where source = 'auth_audits' and action = 'LOGIN_IP' and outcome = 'ATTEMPT' and client_ip is null and identifier_hmac is not null", Integer.class);
         assertNotNull(count);
         assertTrue(count >= 2);
-        String rawCount = jdbc.queryForObject("select count(*) from auth_audits where client_ip = ?", Integer.class, ip).toString();
+        String rawCount = jdbc.queryForObject("select count(*) from audit_logs where client_ip = ?", Integer.class, ip).toString();
         assertEquals("0", rawCount);
     }
 

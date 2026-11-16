@@ -103,7 +103,7 @@ class Kan29EmailChangeCollisionPostgresIntegrationTest {
         assertEquals(originalUpdatedAt, jdbc.queryForObject("select updated_at from accounts where id=?", java.sql.Timestamp.class, patient).toInstant());
         assertEquals(1, jdbc.queryForObject("select count(*) from accounts where normalized_email=?", Integer.class, target));
         assertEquals(competitor, jdbc.queryForObject("select id from accounts where normalized_email=?", UUID.class, target));
-        assertEquals(1, jdbc.queryForObject("select count(*) from email_change_challenges where account_id=? "
+        assertEquals(1, jdbc.queryForObject("select count(*) from verification_codes where purpose='EMAIL_CHANGE' and account_id=? "
                 + "and consumed_at is null and superseded_at is null and failed_attempts=0", Integer.class, patient));
         assertFalse(output.getAll().contains(target), "Literal target email must not appear in captured application/Hibernate logs");
         assertFalse(output.getAll().contains(deliveredCode.get()), "OTP must not appear in captured logs");

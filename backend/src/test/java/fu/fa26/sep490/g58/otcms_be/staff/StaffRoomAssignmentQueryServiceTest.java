@@ -57,16 +57,16 @@ class StaffRoomAssignmentQueryServiceTest {
     @Test void diagnosticStatusUsesRealAssignmentCompositionWithoutImagingRuntime() {
         active(AccountType.IMAGING_TECHNICIAN);
         when(assignments.hasActiveAssignment(actor, room, at)).thenReturn(true);
-        var requests = mock(fu.fa26.sep490.g58.otcms_be.diagnostic.repository.DiagnosticRequestJpaRepository.class);
+        var requests = mock(fu.fa26.sep490.g58.otcms_be.clinical.service.ClinicalServiceOrderExecutionPort.class);
         org.springframework.beans.factory.ObjectProvider<fu.fa26.sep490.g58.otcms_be.diagnostic.integration.VisitDiagnosticReadPort> visitPorts = mock(org.springframework.beans.factory.ObjectProvider.class);
         org.springframework.beans.factory.ObjectProvider<fu.fa26.sep490.g58.otcms_be.diagnostic.integration.RoomStatusAccessPort> roomPorts = mock(org.springframework.beans.factory.ObjectProvider.class);
         when(roomPorts.getIfAvailable()).thenReturn(new StaffDiagnosticRoomStatusAdapter(query, Clock.fixed(at, ZoneOffset.UTC)));
         UUID requestId = UUID.randomUUID();
-        var request = new fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.DiagnosticRequestJpaEntity(requestId,
+        var request = new fu.fa26.sep490.g58.otcms_be.diagnostic.ImagingExecutionTestFixtures.Row(requestId,
                 UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), room, "MRI",
                 fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.enums.DiagnosticRequestStatus.PENDING, null, null, null);
-        when(requests.findById(requestId)).thenReturn(Optional.of(request));
-        var service = new fu.fa26.sep490.g58.otcms_be.diagnostic.service.impl.DiagnosticStatusServiceImpl(requests, mock(fu.fa26.sep490.g58.otcms_be.diagnostic.repository.DiagnosticAttemptJpaRepository.class), visitPorts, roomPorts, mock(fu.fa26.sep490.g58.otcms_be.patient.service.PatientClinicalIdentityQueryService.class));
+        when(requests.find(requestId)).thenReturn(Optional.of(fu.fa26.sep490.g58.otcms_be.diagnostic.ImagingExecutionTestFixtures.execution(request)));
+        var service = new fu.fa26.sep490.g58.otcms_be.diagnostic.service.impl.DiagnosticStatusServiceImpl(requests, visitPorts, roomPorts, mock(fu.fa26.sep490.g58.otcms_be.patient.service.PatientClinicalIdentityQueryService.class));
         var technician = fu.fa26.sep490.g58.otcms_be.diagnostic.model.DiagnosticActor.user(actor,
                 fu.fa26.sep490.g58.otcms_be.common.security.AccountRole.IMAGING_TECHNICIAN);
         assertEquals(requestId, service.getStatus(technician, requestId).requestId());

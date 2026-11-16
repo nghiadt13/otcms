@@ -1,9 +1,7 @@
 package fu.fa26.sep490.g58.otcms_be.imaging.security;
 
 import fu.fa26.sep490.g58.otcms_be.imaging.model.entity.ImagingStudyJpaEntity;
-import fu.fa26.sep490.g58.otcms_be.imaging.repository.ImagingStudyInstanceRepository;
 import fu.fa26.sep490.g58.otcms_be.imaging.repository.ImagingStudyRepository;
-import fu.fa26.sep490.g58.otcms_be.imaging.repository.ImagingStudySeriesRepository;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.Optional;
@@ -18,14 +16,9 @@ public class ImagingDicomWebScopeResolver {
     private static final Pattern BULK_DATA_SEGMENT = Pattern.compile("[A-Za-z0-9._-]{1,128}");
 
     private final ImagingStudyRepository studies;
-    private final ImagingStudySeriesRepository series;
-    private final ImagingStudyInstanceRepository instances;
 
-    public ImagingDicomWebScopeResolver(ImagingStudyRepository studies,
-            ImagingStudySeriesRepository series, ImagingStudyInstanceRepository instances) {
+    public ImagingDicomWebScopeResolver(ImagingStudyRepository studies) {
         this.studies = studies;
-        this.series = series;
-        this.instances = instances;
     }
 
     public Optional<StudyScope> resolve(String rawPath, Map<String, String[]> query) {
@@ -49,7 +42,9 @@ public class ImagingDicomWebScopeResolver {
         String studyUid = pathStudyUid == null ? queryStudyUid : pathStudyUid;
         if (studyUid == null) return Optional.empty();
         ImagingStudyJpaEntity study = studies.findByStudyInstanceUid(studyUid).orElse(null);
-        if (study == null) return Optional.empty();
+        if (study == null || study.getArchiveStudyRef() == null || study.getDicomIndex() == null) {
+            return Optional.empty();
+        }
 
         String pathSeriesUid = null;
         String pathSopUid = null;
@@ -63,8 +58,8 @@ public class ImagingDicomWebScopeResolver {
             }
             if ("series".equals(root) && cursor < segments.length) {
                 pathSeriesUid = segments[cursor++];
-                if (!isUid(pathSeriesUid) || series.findByStudyRefAndSeriesInstanceUid(
-                        study.getStudyRef(), pathSeriesUid).isEmpty()) return Optional.empty();
+                if (!isUid(pathSeriesUid) || !studies.containsDicomIndex(study.getId(),
+                        seriesProbe(pathSeriesUid))) return Optional.empty();
                 if (cursor < segments.length) {
                     if (!"metadata".equals(segments[cursor]) && !"instances".equals(segments[cursor])) {
                         return Optional.empty();
@@ -73,9 +68,7 @@ public class ImagingDicomWebScopeResolver {
                     if (cursor < segments.length && "instances".equals(segments[cursor - 1])) {
                         pathSopUid = cursor < segments.length ? segments[cursor++] : null;
                         if (!isUid(pathSopUid)) return Optional.empty();
-                        var parentSeries = series.findByStudyRefAndSeriesInstanceUid(study.getStudyRef(), pathSeriesUid)
-                                .orElseThrow();
-                        if (instances.findBySeriesIdAndSopInstanceUid(parentSeries.getId(), pathSopUid).isEmpty()) {
+                        if (!studies.containsDicomIndex(study.getId(), instanceProbe(pathSeriesUid, pathSopUid))) {
                             return Optional.empty();
                         }
                         if (!validInstanceSuffix(segments, cursor)) return Optional.empty();
@@ -113,11 +106,20 @@ public class ImagingDicomWebScopeResolver {
             return cursor < segments.length && cursor + 1 == segments.length
                     && FRAME_LIST.matcher(segments[cursor]).matches();
         }
-        if ("bulkdata".equals(suffix)) {
+        if ("bulkdata".equals(suffix) || "bulk".equals(suffix)) {
             return cursor < segments.length && Arrays.stream(segments, cursor, segments.length)
                     .allMatch(segment -> BULK_DATA_SEGMENT.matcher(segment).matches());
         }
         return false;
+    }
+
+    private static String seriesProbe(String seriesUid) {
+        return "{\"series\":[{\"uid\":\"" + seriesUid + "\"}]}";
+    }
+
+    private static String instanceProbe(String seriesUid, String sopUid) {
+        return "{\"series\":[{\"uid\":\"" + seriesUid
+                + "\",\"instances\":[{\"sop_uid\":\"" + sopUid + "\"}]}]}";
     }
 
     private static boolean matchesOptionalUidFilter(Map<String, String[]> query, String name, String pathUid) {

@@ -11,7 +11,8 @@ public class CheckInAppointment {
     private final UUID visitId;
     private final UUID sourceVisitId;
     private final Instant startTime;
-    public CheckInAppointment(UUID id, UUID patientProfileId, UUID doctorProfileId, String status, UUID visitId, UUID sourceVisitId, Instant startTime) {
+    private final Instant endTime;
+    public CheckInAppointment(UUID id, UUID patientProfileId, UUID doctorProfileId, String status, UUID visitId, UUID sourceVisitId, Instant startTime, Instant endTime) {
         this.id = id;
         this.patientProfileId = patientProfileId;
         this.doctorProfileId = doctorProfileId;
@@ -19,6 +20,7 @@ public class CheckInAppointment {
         this.visitId = visitId;
         this.sourceVisitId = sourceVisitId;
         this.startTime = startTime;
+        this.endTime = endTime;
     }
     public UUID getId() { return id; }
     public UUID id() { return id; }
@@ -34,4 +36,5 @@ public class CheckInAppointment {
     public UUID sourceVisitId() { return sourceVisitId; }
     public Instant getStartTime() { return startTime; }
     public Instant startTime() { return startTime; }
+    public Instant endTime() { return endTime; }
 }

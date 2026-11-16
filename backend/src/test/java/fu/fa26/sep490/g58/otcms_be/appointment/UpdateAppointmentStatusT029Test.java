@@ -36,7 +36,7 @@ class UpdateAppointmentStatusT029Test {
     private final DoctorProfileIdentityQueryService doctors = mock(DoctorProfileIdentityQueryService.class);
     private final VisitScheduledCareService visits = mock(VisitScheduledCareService.class);
     private final UpdateAppointmentStatusServiceImpl service = new UpdateAppointmentStatusServiceImpl(guard,
-            appointments, doctors, visits, Clock.fixed(now, ZoneOffset.UTC));
+            appointments, doctors, visits, Clock.fixed(now, ZoneOffset.UTC), org.mockito.Mockito.mock(fu.fa26.sep490.g58.otcms_be.common.audit.AuditLogWriter.class));
     private final CancellableAppointment checkedIn = new CancellableAppointment(appointmentId, patientId,
             UUID.randomUUID(), doctorId, "CHECKED_IN", "PATIENT_ONLINE", "purpose", now.minusSeconds(600),
             now.plusSeconds(1200), 30, 5, visitId, null, now.minusSeconds(3600));

@@ -109,41 +109,6 @@ public class DoctorProfileController {
                 actor, CorrelationIdFilter.current(http));
     }
 
-    @PostMapping("/api/v1/admin/doctors/{doctorProfileId}/time-offs")
-    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
-    public ResponseEntity<fu.fa26.sep490.g58.otcms_be.staff.model.dto.response.DoctorIntervalResponse> createTimeOff(
-            @PathVariable UUID doctorProfileId, @Valid @RequestBody DoctorIntervalRequest request,
-            @AuthenticationPrincipal AuthenticatedAccount actor, HttpServletRequest http) {
-        var result = manageResources.createTimeOff(doctorProfileId, request.getStartsAt(), request.getEndsAt(),
-                actor, CorrelationIdFilter.current(http));
-        return ResponseEntity.status(HttpStatus.CREATED).body(result);
-    }
-
-    @DeleteMapping("/api/v1/admin/doctors/{doctorProfileId}/time-offs/{timeOffId}")
-    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
-    @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void deleteTimeOff(@PathVariable UUID doctorProfileId, @PathVariable UUID timeOffId,
-            @AuthenticationPrincipal AuthenticatedAccount actor, HttpServletRequest http) {
-        manageResources.deleteTimeOff(doctorProfileId, timeOffId, actor, CorrelationIdFilter.current(http));
-    }
-
-    @GetMapping("/api/v1/admin/doctors/{doctorProfileId}/time-offs/{timeOffId}/mutation-impact")
-    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
-    public AdminMutationImpact assessTimeOffRemovalImpact(@PathVariable UUID doctorProfileId,
-            @PathVariable UUID timeOffId, @AuthenticationPrincipal AuthenticatedAccount actor) {
-        return manageResources.assessTimeOffRemovalImpact(doctorProfileId, timeOffId, actor);
-    }
-
-    @PutMapping("/api/v1/admin/doctors/{doctorProfileId}/time-offs/{timeOffId}")
-    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
-    public fu.fa26.sep490.g58.otcms_be.staff.model.dto.response.DoctorIntervalResponse updateTimeOff(
-            @PathVariable UUID doctorProfileId, @PathVariable UUID timeOffId,
-            @Valid @RequestBody DoctorIntervalRequest request,
-            @AuthenticationPrincipal AuthenticatedAccount actor, HttpServletRequest http) {
-        return manageResources.updateTimeOff(doctorProfileId, timeOffId, request.getStartsAt(), request.getEndsAt(),
-                actor, CorrelationIdFilter.current(http));
-    }
-
     @PatchMapping("/api/v1/admin/doctors/{doctorProfileId}/directory-state")
     @PreAuthorize("hasAuthority('ROLE_ADMIN')")
     public DoctorAdminResponse updateDirectoryState(@PathVariable UUID doctorProfileId,

@@ -60,10 +60,6 @@ function ShellContent({ children }: { children: ReactNode }) {
       </div>
     );
 
-  // The real upload worklist and operation screens do not consume demo imaging state.
-  if (pathname === "/imaging/orders" || pathname.startsWith("/imaging/orders/"))
-    return <div className="imaging min-h-dvh">{children}</div>;
-
   if (!ready)
     return (
       <div
@@ -75,6 +71,8 @@ function ShellContent({ children }: { children: ReactNode }) {
         <Skeleton className="h-64 w-full" />
       </div>
     );
+  const isOrderScreen = pathname === "/imaging/orders" || pathname.startsWith("/imaging/orders/");
+
   return (
     <div className="imaging">
       <a className="im-skip" href="#im-content">
@@ -90,19 +88,21 @@ function ShellContent({ children }: { children: ReactNode }) {
             onReset={() => setResetOpen(true)}
             onExit={() => setExitOpen(true)}
           />
-          <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-secondary/50 px-4 py-2 text-xs text-muted-foreground md:px-6">
-            <span>
-              {pathname === "/imaging/rooms"
-                ? "Danh sách phòng chẩn đoán hình ảnh · dữ liệu từ hệ thống"
-                : pathname === "/imaging/change-password"
-                  ? "Đổi mật khẩu · kết nối hệ thống"
-                  : "Bản xem thử giao diện · dữ liệu mẫu · giờ mô phỏng 09:10"}
-            </span>
-            {pathname !== "/imaging/rooms" &&
-              pathname !== "/imaging/change-password" && (
-                <span>{ROOM_NAME} · Ca sáng 07:00 – 12:00</span>
-              )}
-          </div>
+          {!isOrderScreen && (
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-secondary/50 px-4 py-2 text-xs text-muted-foreground md:px-6">
+              <span>
+                {pathname === "/imaging/rooms"
+                  ? "Danh sách phòng chẩn đoán hình ảnh · dữ liệu từ hệ thống"
+                  : pathname === "/imaging/change-password"
+                    ? "Đổi mật khẩu · kết nối hệ thống"
+                    : "Bản xem thử giao diện · dữ liệu mẫu · giờ mô phỏng 09:10"}
+              </span>
+              {pathname !== "/imaging/rooms" &&
+                pathname !== "/imaging/change-password" && (
+                  <span>{ROOM_NAME} · Ca sáng 07:00 – 12:00</span>
+                )}
+            </div>
+          )}
           <main
             id="im-content"
             className="im-content min-w-0 flex-1 p-4 text-sm md:p-6"

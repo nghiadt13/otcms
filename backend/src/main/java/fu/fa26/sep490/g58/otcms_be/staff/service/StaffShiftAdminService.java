@@ -40,7 +40,7 @@ public class StaffShiftAdminService {
         String sql = """
                 SELECT s.id, s.staff_profile_id, p.display_name, a.account_type, s.room_id,
                        r.display_label, r.room_type, s.starts_at, s.ends_at
-                FROM staff_work_shifts s JOIN staff_profiles p ON p.id=s.staff_profile_id
+                FROM work_shifts s JOIN staff_profiles p ON p.id=s.staff_profile_id
                 JOIN accounts a ON a.id=p.account_id JOIN rooms r ON r.id=s.room_id
                 WHERE s.starts_at < ? AND s.ends_at > ? AND p.status='ACTIVE'
                   AND a.status='ACTIVE' AND a.account_type IN ('RECEPTIONIST','LAB_TECHNICIAN','IMAGING_TECHNICIAN')
@@ -74,7 +74,7 @@ public class StaffShiftAdminService {
         Instant startsAt = at(request.date(), request.startTime());
         Instant endsAt = at(request.date(), request.endTime());
         ensureNoOverlap(request.staffId(), request.roomId(), startsAt, endsAt, null);
-        jdbc.update("INSERT INTO staff_work_shifts(id,staff_profile_id,room_id,starts_at,ends_at) VALUES (?,?,?,?,?)",
+        jdbc.update("INSERT INTO work_shifts(id,staff_profile_id,room_id,starts_at,ends_at) VALUES (?,?,?,?,?)",
                 id, request.staffId(), request.roomId(), Timestamp.from(startsAt), Timestamp.from(endsAt));
         return one(id);
     }
@@ -91,7 +91,7 @@ public class StaffShiftAdminService {
         Instant startsAt = at(request.date(), request.startTime());
         Instant endsAt = at(request.date(), request.endTime());
         ensureNoOverlap(staffId, request.roomId(), startsAt, endsAt, id);
-        int changed = jdbc.update("UPDATE staff_work_shifts SET staff_profile_id=?,room_id=?,starts_at=?,ends_at=?,updated_at=now() WHERE id=?",
+        int changed = jdbc.update("UPDATE work_shifts SET staff_profile_id=?,room_id=?,starts_at=?,ends_at=?,updated_at=now() WHERE id=? AND staff_profile_id IN (SELECT p.id FROM staff_profiles p JOIN accounts a ON a.id=p.account_id WHERE a.account_type <> 'DOCTOR')",
                 staffId, request.roomId(), Timestamp.from(startsAt), Timestamp.from(endsAt), id);
         if (changed == 0) throw missing();
         return one(id);
@@ -102,7 +102,7 @@ public class StaffShiftAdminService {
         Existing existing = existing(id);
         if (!existing.startsAt().isAfter(Instant.now())) throw new StaffProfileException("STAFF_SHIFT_NOT_EDITABLE");
         guard.acquire();
-        if (jdbc.update("DELETE FROM staff_work_shifts WHERE id=?", id) == 0) throw missing();
+        if (jdbc.update("DELETE FROM work_shifts WHERE id=? AND staff_profile_id IN (SELECT p.id FROM staff_profiles p JOIN accounts a ON a.id=p.account_id WHERE a.account_type <> 'DOCTOR')", id) == 0) throw missing();
     }
 
     private void validate(StaffShiftRequest r, boolean needsStaff) {
@@ -130,12 +130,8 @@ public class StaffShiftAdminService {
 
     private void ensureNoOverlap(UUID staffId, UUID roomId, Instant start, Instant end, UUID ignoreId) {
         Integer count = jdbc.queryForObject("""
-                SELECT (SELECT count(*) FROM staff_work_shifts
-                        WHERE (staff_profile_id=? OR room_id=?) AND starts_at < ? AND ends_at > ?
-                          AND (?::uuid IS NULL OR id<>?))
-                     + (SELECT count(*) FROM doctor_shifts WHERE room_id=? AND starts_at < ? AND ends_at > ?)
-                """, Integer.class, staffId, roomId, Timestamp.from(end), Timestamp.from(start), ignoreId, ignoreId,
-                roomId, Timestamp.from(end), Timestamp.from(start));
+                SELECT count(*) FROM work_shifts WHERE (staff_profile_id=? OR room_id=?) AND starts_at < ? AND ends_at > ? AND (?::uuid IS NULL OR id<>?)
+                """, Integer.class, staffId, roomId, Timestamp.from(end), Timestamp.from(start), ignoreId, ignoreId);
         if (count != null && count > 0) throw new StaffProfileException("STAFF_SHIFT_CONFLICT");
     }
 
@@ -143,13 +139,13 @@ public class StaffShiftAdminService {
         return jdbc.query("""
                 SELECT s.id, s.staff_profile_id, p.display_name, a.account_type, s.room_id,
                        r.display_label, r.room_type, s.starts_at, s.ends_at
-                FROM staff_work_shifts s JOIN staff_profiles p ON p.id=s.staff_profile_id
-                JOIN accounts a ON a.id=p.account_id JOIN rooms r ON r.id=s.room_id WHERE s.id=?
+                FROM work_shifts s JOIN staff_profiles p ON p.id=s.staff_profile_id
+                JOIN accounts a ON a.id=p.account_id JOIN rooms r ON r.id=s.room_id WHERE s.id=? AND a.account_type <> 'DOCTOR'
                 """, rs -> rs.next() ? response(rs) : null, id);
     }
 
     private Existing existing(UUID id) {
-        Existing found = jdbc.query("SELECT staff_profile_id, starts_at FROM staff_work_shifts WHERE id=?",
+        Existing found = jdbc.query("SELECT staff_profile_id, starts_at FROM work_shifts WHERE id=? AND staff_profile_id IN (SELECT p.id FROM staff_profiles p JOIN accounts a ON a.id=p.account_id WHERE a.account_type <> 'DOCTOR')",
                 rs -> rs.next() ? new Existing(rs.getObject(1, UUID.class), rs.getTimestamp(2).toInstant()) : null, id);
         if (found == null) throw missing();
         return found;

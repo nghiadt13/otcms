@@ -3,7 +3,7 @@ package fu.fa26.sep490.g58.otcms_be.staff;
 import fu.fa26.sep490.g58.otcms_be.staff.exception.DoctorProfileException;
 import fu.fa26.sep490.g58.otcms_be.staff.mapper.DoctorProfileMapper;
 import fu.fa26.sep490.g58.otcms_be.staff.model.DoctorProfile;
-import fu.fa26.sep490.g58.otcms_be.staff.repository.DoctorProfileRepository;
+import fu.fa26.sep490.g58.otcms_be.staff.repository.StaffProfileRepository;
 import fu.fa26.sep490.g58.otcms_be.staff.service.impl.DoctorDirectoryServiceImpl;
 import fu.fa26.sep490.g58.otcms_be.appointment.service.*;
 import fu.fa26.sep490.g58.otcms_be.servicecatalog.model.ClinicService;
@@ -18,7 +18,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 class DoctorDirectoryServiceImplTest {
-    final DoctorProfileRepository profiles = mock(DoctorProfileRepository.class);
+    final StaffProfileRepository profiles = mock(StaffProfileRepository.class);
     final GetClinicServiceCatalogService catalog = mock(GetClinicServiceCatalogService.class);
     final ClinicServiceBookingQueryService booking = mock(ClinicServiceBookingQueryService.class);
     final GetAppointmentAvailabilityService availability = mock(GetAppointmentAvailabilityService.class);
@@ -31,7 +31,7 @@ class DoctorDirectoryServiceImplTest {
                 "Biography", "Consultation", visible, accepting, active);
     }
     void found(boolean accepting) {
-        when(profiles.findById(id)).thenReturn(Optional.of(DoctorProfileMapper.toEntity(profile(true, accepting, true))));
+        when(profiles.findByIdAndDoctorTrue(id)).thenReturn(Optional.of(DoctorProfileMapper.toEntity(profile(true, accepting, true))));
     }
     ClinicService service() {
         var service = mock(ClinicService.class); when(service.id()).thenReturn(UUID.randomUUID()); return service;
@@ -79,10 +79,10 @@ class DoctorDirectoryServiceImplTest {
         verifyNoInteractions(catalog, booking, availability);
     }
     @Test void hiddenInactiveAndMissingProfilesRemainUnavailableWithoutEnrichment() {
-        when(profiles.findById(id)).thenReturn(Optional.empty()); assertTrue(directory.findPublicDetail(id).isEmpty());
-        when(profiles.findById(id)).thenReturn(Optional.of(DoctorProfileMapper.toEntity(profile(false, true, true))));
+        when(profiles.findByIdAndDoctorTrue(id)).thenReturn(Optional.empty()); assertTrue(directory.findPublicDetail(id).isEmpty());
+        when(profiles.findByIdAndDoctorTrue(id)).thenReturn(Optional.of(DoctorProfileMapper.toEntity(profile(false, true, true))));
         assertTrue(directory.findPublicDetail(id).isEmpty());
-        when(profiles.findById(id)).thenReturn(Optional.of(DoctorProfileMapper.toEntity(profile(true, true, false))));
+        when(profiles.findByIdAndDoctorTrue(id)).thenReturn(Optional.of(DoctorProfileMapper.toEntity(profile(true, true, false))));
         assertTrue(directory.findPublicDetail(id).isEmpty());
         verifyNoInteractions(catalog, booking, availability);
     }
@@ -103,8 +103,8 @@ class DoctorDirectoryServiceImplTest {
     }
     @Test void listAndExistingProfileQueryNeverEnrichAvailability() {
         var entity = DoctorProfileMapper.toEntity(profile(true, true, true));
-        when(profiles.findPublicDirectory()).thenReturn(List.of(entity));
-        when(profiles.findById(id)).thenReturn(Optional.of(entity));
+        when(profiles.findPublicDoctors()).thenReturn(List.of(entity));
+        when(profiles.findByIdAndDoctorTrue(id)).thenReturn(Optional.of(entity));
         assertEquals(1, directory.listPublic().size()); assertTrue(directory.findPublic(id).isPresent());
         verifyNoInteractions(catalog, booking, availability);
     }

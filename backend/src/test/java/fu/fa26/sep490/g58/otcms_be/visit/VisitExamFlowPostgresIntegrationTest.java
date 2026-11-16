@@ -79,7 +79,7 @@ class VisitExamFlowPostgresIntegrationTest {
         doctorAccount = account(AccountType.DOCTOR);
         doctor = doctorProfile(doctorAccount, "EF Doctor");
         UUID room = room();
-        jdbc.update("insert into doctor_shifts (id, doctor_profile_id, starts_at, ends_at, room_id) values (?, ?, ?, ?, ?)",
+        jdbc.update("insert into work_shifts (id, staff_profile_id, starts_at, ends_at, room_id) values (?, ?, ?, ?, ?)",
                 UUID.randomUUID(), doctor, ts(NOW.minus(Duration.ofHours(9))), ts(NOW.plus(Duration.ofHours(8))), room);
         freeExamination = service("EF free consultation", "EXAMINATION", BigDecimal.ZERO, null);
         imagingService = service("EF knee MRI", "IMAGING", new BigDecimal("100"), "MRI");
@@ -137,6 +137,7 @@ class VisitExamFlowPostgresIntegrationTest {
         var validated = ClinicalImagingRequestFingerprint.validated(command);
         imagingTransactions.submit(validated, ClinicalImagingRequestFingerprint.fingerprint(validated));
 
+        entityManager.flush();
         assertEquals("AWAITING_CONCLUSION", queueStatus(visitA));
         assertEquals(1, count("select count(*) from visit_assignments where visit_id = ? and status = 'IN_PROGRESS'", visitA));
         assertTrue(clinicalCare.findClinicalCareContext(visitA).orElseThrow().clinicalWorkAllowed());
@@ -285,9 +286,9 @@ class VisitExamFlowPostgresIntegrationTest {
 
     private UUID doctorProfile(UUID account, String name) {
         UUID id = UUID.randomUUID();
-        jdbc.update("insert into doctor_profiles (id, account_id, full_name, photo_url, work_contact, specialties, "
+        jdbc.update("insert into staff_profiles (is_doctor, id, account_id, display_name, photo_url, work_contact, specialties, "
                 + "qualifications, biography, consultation_information, publicly_visible, "
-                + "accepting_new_bookings, in_active_directory) values (?, ?, ?, '', '', '', '', '', '', true, true, true)",
+                + "accepting_new_bookings, in_active_directory) values (true, ?, ?, ?, '', '', '', '', '', '', true, true, true)",
                 id, account, name);
         return id;
     }
@@ -316,9 +317,11 @@ class VisitExamFlowPostgresIntegrationTest {
                 + "booking_source, purpose, start_time, end_time, duration_minutes, buffer_minutes, created_by_account_id) "
                 + "values (?, ?, ?, ?, 'CONFIRMED', 'PATIENT_ONLINE', 'EF purpose', ?, ?, 30, 5, ?)",
                 id, patientProfile, freeExamination, doctor, ts(start), ts(end), patientAccount);
-        jdbc.update("insert into appointment_audits (appointment_id, actor_account_id, actor_type, action, new_status, "
-                + "new_doctor_profile_id, new_start_time, new_end_time, occurred_at, correlation_id) "
-                + "values (?, ?, 'PATIENT', 'CREATED', 'CONFIRMED', ?, ?, ?, ?, ?)",
+        jdbc.update("insert into audit_logs (entity_id, actor_account_id, actor_type, action, source, category, record_type, "
+                + "after_state, occurred_at, correlation_id) values (?, ?, 'PATIENT', 'CREATED', "
+                + "'appointment_audits', 'APPOINTMENT', 'APPOINTMENT', "
+                + "jsonb_build_object('status', 'CONFIRMED', 'doctorProfileId', cast(? as uuid), "
+                + "'startTime', cast(? as timestamptz), 'endTime', cast(? as timestamptz)), ?, ?)",
                 id, patientAccount, doctor, ts(start), ts(end), ts(NOW), UUID.randomUUID().toString());
         return id;
     }
@@ -341,11 +344,11 @@ class VisitExamFlowPostgresIntegrationTest {
     }
 
     private String queueStatus(UUID visit) {
-        return jdbc.queryForObject("select exam_status from visit_exam_queue where visit_id = ?", String.class, visit);
+        return jdbc.queryForObject("select status from queue_entries where stage = 'EXAM' and visit_id = ?", String.class, visit);
     }
 
     private int queueNumber(UUID visit) {
-        return jdbc.queryForObject("select queue_number from visit_exam_queue where visit_id = ?", Integer.class, visit);
+        return jdbc.queryForObject("select queue_number from queue_entries where stage = 'EXAM' and visit_id = ?", Integer.class, visit);
     }
 
     private String visitStatus(UUID visit) {

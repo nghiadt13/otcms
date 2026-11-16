@@ -19,13 +19,10 @@ import fu.fa26.sep490.g58.otcms_be.servicecatalog.model.entity.ClinicServiceJpaE
 import fu.fa26.sep490.g58.otcms_be.servicecatalog.model.entity.DoctorServiceAssignmentJpaEntity;
 import fu.fa26.sep490.g58.otcms_be.servicecatalog.repository.ClinicServiceRepository;
 import fu.fa26.sep490.g58.otcms_be.servicecatalog.repository.DoctorServiceAssignmentRepository;
-import fu.fa26.sep490.g58.otcms_be.servicecatalog.repository.ServiceCatalogManagementAuditRepository;
+import fu.fa26.sep490.g58.otcms_be.servicecatalog.service.ServiceCatalogAuditRecorder;
 import fu.fa26.sep490.g58.otcms_be.servicecatalog.service.impl.ManageDoctorServiceAssignmentsServiceImpl;
 import fu.fa26.sep490.g58.otcms_be.staff.service.DoctorProfileQueryService;
 import fu.fa26.sep490.g58.otcms_be.visit.service.VisitMutationImpactService;
-import java.time.Clock;
-import java.time.Instant;
-import java.time.ZoneOffset;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -44,7 +41,7 @@ class ManageDoctorServiceAssignmentsT032Test {
 
     @Mock private ClinicServiceRepository services;
     @Mock private DoctorServiceAssignmentRepository assignments;
-    @Mock private ServiceCatalogManagementAuditRepository audits;
+    @Mock private ServiceCatalogAuditRecorder audits;
     @Mock private DoctorProfileQueryService doctors;
     @Mock private AppointmentMutationImpactService appointments;
     @Mock private VisitMutationImpactService visits;
@@ -54,7 +51,7 @@ class ManageDoctorServiceAssignmentsT032Test {
     @BeforeEach
     void setUp() {
         service = new ManageDoctorServiceAssignmentsServiceImpl(services, assignments, audits, doctors,
-                appointments, visits, guard, Clock.fixed(Instant.parse("2026-10-20T09:00:00Z"), ZoneOffset.UTC));
+                appointments, visits, guard);
     }
 
     @Test
@@ -76,7 +73,7 @@ class ManageDoctorServiceAssignmentsT032Test {
         assertTrue(failure.impact().isActiveCareBlocks());
         verify(guard).acquire();
         verify(assignments, never()).save(any());
-        verify(audits, never()).append(any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
+        verify(audits, never()).record(any(), any(), any(), any(), any(), any(), any(), any());
     }
 
     @Test
@@ -93,6 +90,6 @@ class ManageDoctorServiceAssignmentsT032Test {
 
         assertEquals("DEPENDENCY_UNAVAILABLE", failure.getMessage());
         verify(assignments, never()).save(any());
-        verify(audits, never()).append(any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
+        verify(audits, never()).record(any(), any(), any(), any(), any(), any(), any(), any());
     }
 }

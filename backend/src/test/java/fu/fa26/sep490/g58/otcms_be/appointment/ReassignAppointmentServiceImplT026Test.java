@@ -54,7 +54,7 @@ class ReassignAppointmentServiceImplT026Test {
         var properties = new AppointmentBookingProperties(30, 1440, 30, 15, 15,
                 ZoneId.of("Asia/Ho_Chi_Minh"), new AppointmentBookingProperties.PublicRateLimit(60, 60), 15, 30000L, false);
         handler = new ReassignAppointmentServiceImpl(guard, appointments, assignments, providers, slots, properties,
-                Clock.fixed(now, ZoneId.of("UTC")), mock(NotificationPublisher.class));
+                Clock.fixed(now, ZoneId.of("UTC")), mock(NotificationPublisher.class), org.mockito.Mockito.mock(fu.fa26.sep490.g58.otcms_be.common.audit.AuditLogWriter.class));
         current = new ReassignableAppointment(appointmentId, patientId, serviceId,
                 currentDoctor, "CONFIRMED", "RECEPTIONIST_ASSISTED", "knee pain", now,
                 now.plusSeconds(1800), 30, 5, null, null, now.minusSeconds(86400));

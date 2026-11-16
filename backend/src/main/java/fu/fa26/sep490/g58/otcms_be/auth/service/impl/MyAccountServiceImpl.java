@@ -4,7 +4,6 @@ import fu.fa26.sep490.g58.otcms_be.auth.exception.MyAccountOperationException;
 import static fu.fa26.sep490.g58.otcms_be.auth.exception.MyAccountOperationException.Reason.*;
 import fu.fa26.sep490.g58.otcms_be.auth.model.dto.MyAccountDtos.Avatar;
 import fu.fa26.sep490.g58.otcms_be.auth.model.entity.AccountJpaEntity;
-import fu.fa26.sep490.g58.otcms_be.auth.model.entity.AccountAvatarJpaEntity;
 import fu.fa26.sep490.g58.otcms_be.auth.model.entity.enums.AccountStatus;
 import fu.fa26.sep490.g58.otcms_be.auth.repository.*;
 import fu.fa26.sep490.g58.otcms_be.auth.service.*;
@@ -17,10 +16,9 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class MyAccountServiceImpl implements MyAccountService {
     private final AccountRepository accounts;
-    private final AccountAvatarRepository avatars;
     private final MyAccountQueryService query;
-    public MyAccountServiceImpl(AccountRepository accounts, AccountAvatarRepository avatars, MyAccountQueryService query) {
-        this.accounts = accounts; this.avatars = avatars; this.query = query;
+    public MyAccountServiceImpl(AccountRepository accounts, MyAccountQueryService query) {
+        this.accounts = accounts; this.query = query;
     }
 
     @Override @Transactional(readOnly = true)
@@ -45,26 +43,24 @@ public class MyAccountServiceImpl implements MyAccountService {
     public MyAccountQueryService.MyAccountView updateAvatar(AuthenticatedAccount actor, byte[] content, String type) {
         require(actor, true, true);
         if (!validImage(content, type)) throw new MyAccountOperationException(INVALID_INPUT);
-        var avatar = avatars.findById(actor.accountId()).orElseGet(AccountAvatarJpaEntity::new);
-        avatar.setAccountId(actor.accountId());
-        avatar.setPhotoContent(content.clone());
-        avatar.setPhotoContentType(type);
-        avatar.setUpdatedAt(Instant.now());
-        avatars.saveAndFlush(avatar);
+        accounts.updateAvatar(actor.accountId(), content.clone(), type, Instant.now());
         return get(actor);
     }
 
     @Override @Transactional
     public void removeAvatar(AuthenticatedAccount actor) {
         require(actor, true, true);
-        avatars.findById(actor.accountId()).ifPresent(avatars::delete);
+        accounts.clearAvatar(actor.accountId());
     }
 
     @Override @Transactional(readOnly = true)
     public Avatar avatar(AuthenticatedAccount actor, UUID accountId) {
         require(actor, false, true);
-        var avatar = avatars.findById(accountId).orElseThrow(() -> new MyAccountOperationException(AVATAR_NOT_FOUND));
-        return new Avatar(avatar.getPhotoContent().clone(), avatar.getPhotoContentType());
+        var owner = accounts.findById(accountId).filter(a -> a.getAvatarContentType() != null)
+                .orElseThrow(() -> new MyAccountOperationException(AVATAR_NOT_FOUND));
+        byte[] content = accounts.findAvatarContent(accountId)
+                .orElseThrow(() -> new MyAccountOperationException(AVATAR_NOT_FOUND));
+        return new Avatar(content.clone(), owner.getAvatarContentType());
     }
 
     private AccountJpaEntity require(AuthenticatedAccount actor, boolean lock, boolean mutationGate) {

@@ -8,9 +8,7 @@ import fu.fa26.sep490.g58.otcms_be.staff.model.dto.response.StaffProfileResponse
 import fu.fa26.sep490.g58.otcms_be.staff.model.dto.response.StaffProfileResponse.DoctorInfo;
 import fu.fa26.sep490.g58.otcms_be.staff.model.dto.response.StaffProfilesPageResponse;
 import fu.fa26.sep490.g58.otcms_be.staff.model.entity.StaffProfileJpaEntity;
-import fu.fa26.sep490.g58.otcms_be.staff.model.entity.DoctorProfileJpaEntity;
 import fu.fa26.sep490.g58.otcms_be.staff.repository.StaffProfileRepository;
-import fu.fa26.sep490.g58.otcms_be.staff.repository.DoctorProfileRepository;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
@@ -23,13 +21,12 @@ import org.springframework.security.access.AccessDeniedException;
 @Service
 public class StaffProfileAdminService {
     private final StaffProfileRepository profiles;
-    private final DoctorProfileRepository doctors;
     private final StaffAccountDirectory accounts;
     private final AppointmentMutationImpactService appointments;
 
-    public StaffProfileAdminService(StaffProfileRepository profiles, DoctorProfileRepository doctors,
+    public StaffProfileAdminService(StaffProfileRepository profiles,
             StaffAccountDirectory accounts, AppointmentMutationImpactService appointments) {
-        this.profiles = profiles; this.doctors = doctors; this.accounts = accounts;
+        this.profiles = profiles; this.accounts = accounts;
         this.appointments = appointments;
     }
 
@@ -71,14 +68,13 @@ public class StaffProfileAdminService {
         StaffProfileJpaEntity profile = new StaffProfileJpaEntity(id, account.id(),
                 input.displayName().trim(), input.workContact().trim());
         validatePhoto(photo, photoType, profile);
-        profiles.saveAndFlush(profile);
         if (account.role().name().equals("DOCTOR")) {
             DoctorInfo info = input.doctor();
-            doctors.saveAndFlush(new DoctorProfileJpaEntity(id, account.id(), profile.displayName(),
-                    profile.photoContent() == null ? null : photoPath(id),
-                    profile.workContact(), String.join(",", info.specialties()), info.qualifications(),
-                    info.biography(), info.consultationInfo(), info.isPublic(), false, true));
+            profile.becomeDoctor(String.join(",", info.specialties()), info.qualifications(),
+                    info.biography(), info.consultationInfo(), info.isPublic());
+            if (profile.photoContent() != null) profile.updatePhotoUrl(photoPath(id));
         }
+        profiles.saveAndFlush(profile);
         return response(profile);
     }
 
@@ -91,13 +87,12 @@ public class StaffProfileAdminService {
         profile.update(input.displayName().trim(), input.workContact().trim());
         validatePhoto(photo, photoType, profile);
         if (account.role().name().equals("DOCTOR")) {
-            DoctorProfileJpaEntity doctor = doctors.findById(id).orElseThrow(() ->
-                    new StaffProfileException("STAFF_PROFILE_NOT_FOUND"));
+            if (!profile.isDoctor()) throw new StaffProfileException("STAFF_PROFILE_NOT_FOUND");
             DoctorInfo info = input.doctor();
-            doctor.updateProfile(profile.displayName(), profile.workContact(), String.join(",", info.specialties()),
-                    info.qualifications(), info.biography(), info.consultationInfo(), info.isPublic());
-            if (profile.photoContent() != null) doctor.updatePhotoUrl(photoPath(id));
-            doctors.save(doctor);
+            profile.updateDoctorProfile(profile.displayName(), profile.workContact(),
+                    String.join(",", info.specialties()), info.qualifications(), info.biography(),
+                    info.consultationInfo(), info.isPublic());
+            if (profile.photoContent() != null) profile.updatePhotoUrl(photoPath(id));
         }
         return response(profiles.saveAndFlush(profile));
     }
@@ -105,13 +100,10 @@ public class StaffProfileAdminService {
     @Transactional
     public void remove(UUID id) {
         StaffProfileJpaEntity profile = findActive(id);
-        if (doctors.existsById(id) && appointments.findProtectedBookingIntervals(id).stream()
+        if (profile.isDoctor() && appointments.findProtectedBookingIntervals(id).stream()
                 .anyMatch(interval -> interval.occupiedUntil().isAfter(Instant.now())))
             throw new StaffProfileException("DOCTOR_HAS_FUTURE_APPOINTMENTS");
-        doctors.findById(id).ifPresent(doctor -> {
-            doctor.updateDirectoryState(false, false, false);
-            doctors.save(doctor);
-        });
+        if (profile.isDoctor()) profile.updateDirectoryState(false, false, false);
         profile.remove();
         profiles.save(profile);
     }
@@ -120,10 +112,7 @@ public class StaffProfileAdminService {
     public StaffProfileResponse savePhoto(UUID id, byte[] bytes, String type) {
         StaffProfileJpaEntity profile = findActive(id);
         validatePhoto(bytes, type, profile);
-        doctors.findById(id).ifPresent(doctor -> {
-            doctor.updatePhotoUrl(photoPath(id));
-            doctors.save(doctor);
-        });
+        if (profile.isDoctor()) profile.updatePhotoUrl(photoPath(id));
         return response(profiles.saveAndFlush(profile));
     }
 
@@ -150,8 +139,7 @@ public class StaffProfileAdminService {
         StaffProfileJpaEntity profile = find(id);
         if (!"ACTIVE".equals(profile.status()) || profile.photoContent() == null)
             throw new StaffProfileException("STAFF_PROFILE_NOT_FOUND");
-        if (!admin && doctors.findById(id)
-                .filter(doctor -> doctor.publiclyVisible() && doctor.inActiveDirectory()).isEmpty())
+        if (!admin && !(profile.isDoctor() && profile.publiclyVisible() && profile.inActiveDirectory()))
             throw new AccessDeniedException("Staff photo is private");
         return profile;
     }
@@ -186,7 +174,8 @@ public class StaffProfileAdminService {
     private StaffProfileResponse response(StaffProfileJpaEntity profile) {
         var account = accounts.staff(profile.accountId()).orElseThrow(() ->
                 new StaffProfileException("STAFF_ACCOUNT_UNAVAILABLE"));
-        DoctorProfileJpaEntity doctor = doctors.findById(profile.id()).orElse(null);
+        // Doctor fields live on the same row since final-db V110; non-doctors keep null doctor fields.
+        StaffProfileJpaEntity doctor = profile.isDoctor() ? profile : null;
         DoctorInfo info = doctor == null ? null : new DoctorInfo(
                 doctor.specialties().isBlank() ? List.of() : List.of(doctor.specialties().split(",")),
                 doctor.qualifications(), doctor.biography(), doctor.consultationInformation(), doctor.publiclyVisible());

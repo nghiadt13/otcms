@@ -46,11 +46,11 @@ class T008PasswordRecoveryServiceTest {
         verifyNoInteractions(accounts, challenges, encoder, sessions);
     }
     private final AccountRepository accounts = mock(AccountRepository.class);
-    private final PasswordResetChallengeRepository challenges = mock(PasswordResetChallengeRepository.class);
+    private final VerificationCodeRepository challenges = mock(VerificationCodeRepository.class);
     private final EmailDeliveryService email = mock(EmailDeliveryService.class);
     private final PasswordEncoder encoder = mock(PasswordEncoder.class);
     private final AuthSessionService sessions = mock(AuthSessionService.class);
-    private final AuthProperties props = new AuthProperties(null,null,null,null,null,null,"v1","v1");
+    private final AuthProperties props = new AuthProperties(null,null,null,null,null,"v1","v1");
     private final PasswordRecoveryService service = new PasswordRecoveryServiceImpl(accounts,challenges,email,encoder,sessions,props,
             Clock.fixed(Instant.parse("2026-01-01T00:00:00Z"), ZoneOffset.UTC));
 
@@ -74,7 +74,7 @@ class T008PasswordRecoveryServiceTest {
         when(encoder.matches("old-password-123", "old-hash")).thenReturn(true);
         when(encoder.encode("new-password-123")).thenReturn("new-hash");
         service.change(account.getId(), new ChangePasswordRequest("old-password-123", "new-password-123"));
-        verify(challenges).supersedeCurrent(account.getId(), Instant.parse("2026-01-01T00:00:00Z"));
+        verify(challenges).supersedeCurrent(account.getId(), VerificationPurpose.PASSWORD_RESET, Instant.parse("2026-01-01T00:00:00Z"));
         verify(sessions).revokeAll(account.getId());
         assertEquals("new-hash", account.getPasswordHash());
     }
@@ -94,7 +94,6 @@ class T008PasswordRecoveryServiceTest {
             staff.setAccountType(type);
             staff.setPasswordHash("hash");
             when(accounts.findByNormalizedEmail(staff.getNormalizedEmail())).thenReturn(Optional.of(staff));
-            when(challenges.findCurrentByAccountIdForUpdate(staff.getId())).thenReturn(Optional.empty());
             assertEquals(PasswordRecoveryService.GENERIC_MESSAGE, service.forgot(staff.getNormalizedEmail(), AccountType.RECEPTIONIST));
         }
 
@@ -106,27 +105,28 @@ class T008PasswordRecoveryServiceTest {
 
     @Test void forgotCreatesHashedFifteenMinuteChallengeAndDoesNotSendHash() {
         AccountJpaEntity a=account(AccountStatus.ACTIVE); a.setPasswordHash("{bcrypt}old"); when(accounts.findByNormalizedEmail(a.getNormalizedEmail())).thenReturn(Optional.of(a));
-        when(challenges.findCurrentByAccountIdForUpdate(a.getId())).thenReturn(Optional.empty());
         String response=service.forgot(a.getNormalizedEmail(),AccountType.PATIENT);
         assertEquals(PasswordRecoveryService.GENERIC_MESSAGE,response);
-        ArgumentCaptor<PasswordResetChallengeJpaEntity> challenge=ArgumentCaptor.forClass(PasswordResetChallengeJpaEntity.class); verify(challenges).saveAndFlush(challenge.capture());
+        ArgumentCaptor<VerificationCodeJpaEntity> challenge=ArgumentCaptor.forClass(VerificationCodeJpaEntity.class);
+        var order=inOrder(challenges); order.verify(challenges).supersedeCurrent(eq(a.getId()),eq(VerificationPurpose.PASSWORD_RESET),any()); order.verify(challenges).saveAndFlush(challenge.capture());
+        assertEquals(VerificationPurpose.PASSWORD_RESET,challenge.getValue().getPurpose()); assertEquals(a.getId(),challenge.getValue().getAccountId());
         ArgumentCaptor<String> token=ArgumentCaptor.forClass(String.class); verify(email).sendPasswordReset(eq(a.getNormalizedEmail()),token.capture(),eq(a.getId()));
-        assertNotEquals(token.getValue(),challenge.getValue().getTokenHash()); assertEquals(900,Duration.between(challenge.getValue().getCreatedAt(),challenge.getValue().getExpiresAt()).getSeconds()); assertEquals(0,challenge.getValue().getFailedAttempts());
+        assertNotEquals(token.getValue(),challenge.getValue().getCodeHash()); assertEquals(900,Duration.between(challenge.getValue().getCreatedAt(),challenge.getValue().getExpiresAt()).getSeconds()); assertEquals(0,challenge.getValue().getFailedAttempts());
     }
 
     @Test void invalidAndExpiredTokenIncrementsAttemptsAndReuseIsRejected() {
-        AccountJpaEntity a=account(AccountStatus.ACTIVE); a.setPasswordHash("old-hash"); PasswordResetChallengeJpaEntity c=new PasswordResetChallengeJpaEntity(); c.setAccount(a); c.setTokenHash(PasswordRecoveryServiceImpl.hash("token")); c.setCreatedAt(Instant.EPOCH); c.setExpiresAt(Instant.parse("2025-01-01T00:00:00Z")); c.setFailedAttempts(0);
-        when(challenges.findByTokenHashForUpdate(c.getTokenHash())).thenReturn(Optional.of(c));
-        when(challenges.findAccountIdByTokenHash(c.getTokenHash())).thenReturn(Optional.of(a.getId()));
+        AccountJpaEntity a=account(AccountStatus.ACTIVE); a.setPasswordHash("old-hash"); VerificationCodeJpaEntity c=new VerificationCodeJpaEntity(); c.setAccountId(a.getId()); c.setPurpose(VerificationPurpose.PASSWORD_RESET); c.setCodeHash(PasswordRecoveryServiceImpl.hash("token")); c.setCreatedAt(Instant.EPOCH); c.setExpiresAt(Instant.parse("2025-01-01T00:00:00Z")); c.setFailedAttempts(0);
+        when(challenges.findByCodeHashForUpdate(c.getCodeHash(), VerificationPurpose.PASSWORD_RESET)).thenReturn(Optional.of(c));
+        when(challenges.findAccountIdByCodeHash(c.getCodeHash(), VerificationPurpose.PASSWORD_RESET)).thenReturn(Optional.of(a.getId()));
         when(accounts.findByIdForUpdate(a.getId())).thenReturn(Optional.of(a));
         var ex=assertThrows(PasswordRecoveryException.class,()->service.reset(new ResetPasswordRequest("token","new-password-123"),AccountType.PATIENT));
         assertEquals("PASSWORD_RESET_TOKEN_INVALID",ex.getMessage()); assertEquals(1,c.getFailedAttempts()); verify(challenges).save(c);
     }
 
     @Test void passwordReuseIsRejectedAndSuccessfulResetRevokesAllSessions() {
-        AccountJpaEntity a=account(AccountStatus.ACTIVE); a.setPasswordHash("old-hash"); PasswordResetChallengeJpaEntity c=new PasswordResetChallengeJpaEntity(); c.setAccount(a); c.setTokenHash(PasswordRecoveryServiceImpl.hash("token")); c.setCreatedAt(Instant.EPOCH); c.setExpiresAt(Instant.parse("2027-01-01T00:00:00Z"));
-        when(challenges.findByTokenHashForUpdate(c.getTokenHash())).thenReturn(Optional.of(c)); when(encoder.matches("same-password1", "old-hash")).thenReturn(true);
-        when(challenges.findAccountIdByTokenHash(c.getTokenHash())).thenReturn(Optional.of(a.getId()));
+        AccountJpaEntity a=account(AccountStatus.ACTIVE); a.setPasswordHash("old-hash"); VerificationCodeJpaEntity c=new VerificationCodeJpaEntity(); c.setAccountId(a.getId()); c.setPurpose(VerificationPurpose.PASSWORD_RESET); c.setCodeHash(PasswordRecoveryServiceImpl.hash("token")); c.setCreatedAt(Instant.EPOCH); c.setExpiresAt(Instant.parse("2027-01-01T00:00:00Z"));
+        when(challenges.findByCodeHashForUpdate(c.getCodeHash(), VerificationPurpose.PASSWORD_RESET)).thenReturn(Optional.of(c)); when(encoder.matches("same-password1", "old-hash")).thenReturn(true);
+        when(challenges.findAccountIdByCodeHash(c.getCodeHash(), VerificationPurpose.PASSWORD_RESET)).thenReturn(Optional.of(a.getId()));
         when(accounts.findByIdForUpdate(a.getId())).thenReturn(Optional.of(a));
         assertEquals("PASSWORD_REUSE_NOT_ALLOWED", assertThrows(PasswordRecoveryException.class,()->service.reset(new ResetPasswordRequest("token","same-password1"),AccountType.PATIENT)).getMessage()); verifyNoInteractions(sessions);
         when(encoder.matches("new-password-123", "old-hash")).thenReturn(false); when(encoder.encode("new-password-123")).thenReturn("new-hash");

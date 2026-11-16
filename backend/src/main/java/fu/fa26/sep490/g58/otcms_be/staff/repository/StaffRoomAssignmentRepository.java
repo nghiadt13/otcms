@@ -17,7 +17,7 @@ public class StaffRoomAssignmentRepository {
         if (roomIds.isEmpty()) return java.util.List.of();
         return new org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate(jdbc).query("""
                 select distinct s.room_id, p.account_id
-                from staff_work_shifts s join staff_profiles p on p.id = s.staff_profile_id
+                from work_shifts s join staff_profiles p on p.id = s.staff_profile_id join accounts a on a.id = p.account_id and a.account_type <> 'DOCTOR'
                 where p.status = 'ACTIVE' and s.room_id in (:roomIds)
                   and s.starts_at <= :at and s.ends_at > :at
                 """, java.util.Map.of("roomIds", roomIds, "at", Timestamp.from(at)),
@@ -27,7 +27,7 @@ public class StaffRoomAssignmentRepository {
     public boolean hasActiveAssignment(UUID accountId, UUID roomId, Instant at) {
         return Boolean.TRUE.equals(jdbc.queryForObject("""
                 select exists (
-                    select 1 from staff_work_shifts s join staff_profiles p on p.id = s.staff_profile_id
+                    select 1 from work_shifts s join staff_profiles p on p.id = s.staff_profile_id join accounts a on a.id = p.account_id and a.account_type <> 'DOCTOR'
                     where p.account_id = ? and p.status = 'ACTIVE' and s.room_id = ?
                         and s.starts_at <= ? and s.ends_at > ?
                 )

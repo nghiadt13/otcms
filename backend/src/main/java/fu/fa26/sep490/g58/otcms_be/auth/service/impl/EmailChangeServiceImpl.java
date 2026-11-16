@@ -17,14 +17,14 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class EmailChangeServiceImpl implements EmailChangeService {
     private final AccountRepository accounts;
-    private final EmailChangeChallengeRepository challenges;
+    private final VerificationCodeRepository challenges;
     private final EmailOtpService otp;
     private final EmailDeliveryService delivery;
     private final AuthProperties properties;
     private final AuthConcurrencyRepository coordination;
     private final EmailChangeAccountWriter emailWriter;
 
-    public EmailChangeServiceImpl(AccountRepository accounts, EmailChangeChallengeRepository challenges,
+    public EmailChangeServiceImpl(AccountRepository accounts, VerificationCodeRepository challenges,
             EmailOtpService otp, EmailDeliveryService delivery, AuthProperties properties, AuthConcurrencyRepository coordination,
             EmailChangeAccountWriter emailWriter) {
         this.accounts = accounts; this.challenges = challenges; this.otp = otp;
@@ -41,15 +41,16 @@ public class EmailChangeServiceImpl implements EmailChangeService {
             throw new MyAccountOperationException(INVALID_INPUT);
         Instant now = Instant.now();
         // Latest valid intent invalidates the old OTP even when no replacement can be issued.
-        challenges.supersedeCurrent(account.getId(), now);
+        challenges.supersedeCurrent(account.getId(), VerificationPurpose.EMAIL_CHANGE, now);
         if (email.equals(account.getNormalizedEmail()) || accounts.existsByNormalizedEmail(email)
-                || challenges.countByAccountIdAndCreatedAtAfter(account.getId(),
+                || challenges.countByAccountIdAndPurposeAndCreatedAtAfter(account.getId(), VerificationPurpose.EMAIL_CHANGE,
                 now.minusSeconds(properties.resend().windowSeconds())) >= properties.resend().requests()) return;
         String code = otp.generate();
-        var challenge = new EmailChangeChallengeJpaEntity();
+        var challenge = new VerificationCodeJpaEntity();
         challenge.setAccountId(account.getId());
-        challenge.setNormalizedTargetEmail(email);
-        challenge.setOtpHash(otp.hash(code));
+        challenge.setPurpose(VerificationPurpose.EMAIL_CHANGE);
+        challenge.setTargetEmail(email);
+        challenge.setCodeHash(otp.hash(code));
         challenge.setCreatedAt(now);
         challenge.setExpiresAt(otp.expiresAt(now));
         challenges.saveAndFlush(challenge);
@@ -64,17 +65,17 @@ public class EmailChangeServiceImpl implements EmailChangeService {
     @Override @Transactional(noRollbackFor = MyAccountOperationException.class, rollbackFor = EmailChangeWriteException.class)
     public void verify(AuthenticatedAccount actor, String code) {
         var account = patient(actor);
-        var challenge = challenges.findCurrentForUpdate(account.getId())
+        var challenge = challenges.findCurrentForUpdate(account.getId(), VerificationPurpose.EMAIL_CHANGE)
                 .orElseThrow(() -> new MyAccountOperationException(OTP_INVALID));
         Instant now = Instant.now();
         if (!challenge.getExpiresAt().isAfter(now) || challenge.getFailedAttempts() >= EmailOtpService.MAX_FAILED_ATTEMPTS)
             throw new MyAccountOperationException(OTP_INVALID);
-        if (code == null || !code.matches("[0-9]{6}") || !otp.matches(code, challenge.getOtpHash())) {
+        if (code == null || !code.matches("[0-9]{6}") || !otp.matches(code, challenge.getCodeHash())) {
             challenge.setFailedAttempts(challenge.getFailedAttempts() + 1);
             if (challenge.getFailedAttempts() >= EmailOtpService.MAX_FAILED_ATTEMPTS) challenge.setSupersededAt(now);
             throw new MyAccountOperationException(OTP_INVALID);
         }
-        String email = challenge.getNormalizedTargetEmail();
+        String email = challenge.getTargetEmail();
         // Same target coordination namespace as UC06. DB uniqueness also guards non-cooperating writers.
         coordination.lock("registration-email:" + email);
         if (accounts.existsByNormalizedEmail(email)) {

@@ -34,7 +34,7 @@ class ClinicalImagingRequestConcurrencyTest {
             List.of(new ImagingOrderRequest(UUID.randomUUID(), "Reason", "Knee", null)), true);
 
     @Test void replayUniqueCollisionReloadsWinnerOutsideFailedAttempt() {
-        var conflict = unique("uk_clinical_imaging_replay_doctor_key");
+        var conflict = unique("uk_clinical_orders_submit_key");
         var winner = new SubmissionResult(round(), true);
         when(transactions.submit(any(), any())).thenThrow(conflict);
         when(transactions.recoverReplay(any(), any())).thenReturn(Optional.of(winner));
@@ -53,27 +53,27 @@ class ClinicalImagingRequestConcurrencyTest {
 
     @Test void boundedRoundNumberRetryIsDistinctFromReplayCollision() {
         var result = new SubmissionResult(round(), false);
-        when(transactions.submit(any(), any())).thenThrow(unique("uk_clinical_round_visit_number")).thenReturn(result);
+        when(transactions.submit(any(), any())).thenThrow(unique("uk_clinical_orders_round_number")).thenReturn(result);
         assertSame(result, service.submit(command));
         verify(transactions, times(2)).submit(any(), any());
         verify(transactions, never()).recoverReplay(any(), any());
     }
 
     @Test void roundNumberContentionExhaustsAfterThreeAttempts() {
-        when(transactions.submit(any(), any())).thenThrow(unique("uk_clinical_round_visit_number"));
+        when(transactions.submit(any(), any())).thenThrow(unique("uk_clinical_orders_round_number"));
         assertEquals("MSG-42", assertThrows(ClinicalOperationException.class, () -> service.submit(command)).code());
         verify(transactions, times(3)).submit(any(), any());
     }
 
     @Test void collisionWithoutCommittedWinnerPropagatesOriginalFailure() {
-        var failure = unique("uk_clinical_imaging_replay_doctor_key");
+        var failure = unique("uk_clinical_orders_submit_key");
         when(transactions.submit(any(), any())).thenThrow(failure);
         when(transactions.recoverReplay(any(), any())).thenReturn(Optional.empty());
         assertSame(failure, assertThrows(DataIntegrityViolationException.class, () -> service.submit(command)));
     }
 
     @Test void replayConflictFromWinnerIsNotSuppressed() {
-        when(transactions.submit(any(), any())).thenThrow(unique("uk_clinical_imaging_replay_doctor_key"));
+        when(transactions.submit(any(), any())).thenThrow(unique("uk_clinical_orders_submit_key"));
         when(transactions.recoverReplay(any(), any())).thenThrow(new ClinicalOperationException("IDEMPOTENCY_CONFLICT"));
         assertEquals("IDEMPOTENCY_CONFLICT", assertThrows(ClinicalOperationException.class, () -> service.submit(command)).code());
     }
@@ -83,29 +83,29 @@ class ClinicalImagingRequestConcurrencyTest {
         var manager = new RecordingTransactions(events);
         var preparation = mock(ClinicalOrderPreparationService.class);
         var writer = mock(ClinicalOrderingTransactionService.class);
-        var replays = mock(ClinicalImagingRequestReplayRepository.class);
-        var rounds = mock(OrderingRoundRepository.class);
         var orders = mock(ServiceOrderRepository.class);
-        var winner = new OrderingRoundJpaEntity(visitId, UUID.randomUUID(), 1, doctorId, Instant.EPOCH);
         String hash = ClinicalImagingRequestFingerprint.fingerprint(command);
-        var stored = new ClinicalImagingRequestReplayJpaEntity(doctorId, "key", hash, winner.getId(), Instant.EPOCH);
+        UUID roundId = UUID.randomUUID();
+        var winner = new ServiceOrderJpaEntity("SO-WINNER", roundId, 1, true, "key", hash, visitId,
+                UUID.randomUUID(), command.orders().getFirst().serviceId(), "X-Ray",
+                fu.fa26.sep490.g58.otcms_be.clinical.model.ClinicalServiceType.IMAGING, doctorId,
+                "Reason", "Knee", null, java.math.BigDecimal.ONE, Instant.EPOCH);
         var lookups = new AtomicInteger();
-        when(replays.findByDoctorProfileIdAndIdempotencyKey(doctorId, "key")).thenAnswer(invocation -> {
+        when(orders.findByRequestingDoctorIdAndSubmitIdempotencyKeyAndRoundHeadTrue(doctorId, "key")).thenAnswer(invocation -> {
             if (lookups.getAndIncrement() == 0) return Optional.empty();
             assertTrue(events.contains("rollback"), "Winner lookup must follow completed loser rollback");
             events.add("winner-read");
-            return Optional.of(stored);
+            return Optional.of(winner);
         });
         when(preparation.requireCurrentCare(visitId, doctorId)).thenReturn(
                 new VisitClinicalContextPort.ClinicalVisitContext(visitId, UUID.randomUUID(), doctorId, true));
         when(preparation.prepare(anyList(), eq(true))).thenReturn(List.of());
-        when(writer.createRound(any(), any(), any(), anyList())).thenAnswer(invocation -> {
-            events.add("round-and-orders-attempted"); return round();
+        when(writer.createRound(any(), any(), any(), anyList(), any(), any())).thenAnswer(invocation -> {
+            events.add("round-and-orders-attempted");
+            throw unique("uk_clinical_orders_submit_key");
         });
-        when(replays.saveAndFlush(any())).thenThrow(unique("uk_clinical_imaging_replay_doctor_key"));
-        when(rounds.findById(winner.getId())).thenReturn(Optional.of(winner));
-        when(orders.findByOrderingRoundId(winner.getId())).thenReturn(List.of());
-        var target = new ClinicalImagingRequestTransactionService(preparation, writer, replays, rounds, orders, Clock.systemUTC(),
+        when(orders.findByOrderingRoundId(roundId)).thenReturn(List.of(winner));
+        var target = new ClinicalImagingRequestTransactionService(preparation, writer, orders, Clock.systemUTC(),
                 mock(fu.fa26.sep490.g58.otcms_be.common.service.CoordinationGuardService.class),
                 mock(fu.fa26.sep490.g58.otcms_be.clinical.service.VisitConclusionPort.class));
         var proxy = new ProxyFactory(target);
@@ -113,7 +113,7 @@ class ClinicalImagingRequestConcurrencyTest {
         proxy.addAdvice(new TransactionInterceptor(manager, new AnnotationTransactionAttributeSource()));
         var coordinator = new ClinicalImagingRequestServiceImpl((ClinicalImagingRequestTransactionService) proxy.getProxy());
         var result = coordinator.submit(command);
-        assertTrue(result.replayed()); assertEquals(winner.getId(), result.round().id());
+        assertTrue(result.replayed()); assertEquals(roundId, result.round().id());
         assertEquals(List.of("begin", "round-and-orders-attempted", "rollback", "begin", "winner-read", "commit"), events);
     }
 

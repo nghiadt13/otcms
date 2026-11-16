@@ -29,6 +29,36 @@ class ClinicContentServiceImplTest {
         assertEquals(entry.createdBy(),next.createdBy());
         assertEquals(1L,next.version());
     }
+    @Test void rejectsAnnouncementTypeIncludingWhitespaceOnCreateAndFilter() {
+        for (String type : List.of("ANNOUNCEMENT", " ANNOUNCEMENT ")) {
+            var createError = assertThrows(ContentOperationException.class,
+                () -> handler.create(new WebsiteContentInput(type, "Notice", new MarkdownBody("Body"), null), actor));
+            var filterError = assertThrows(ContentOperationException.class, () -> handler.list(type, "", 0, 20));
+            assertEquals(ContentOperationException.Reason.INVALID_CONTENT, createError.reason());
+            assertEquals(ContentOperationException.Reason.INVALID_CONTENT, filterError.reason());
+        }
+        verifyNoInteractions(store);
+    }
+    @Test void updateIgnoresAnnouncementTypeAsItIgnoresUnknownType() {
+        when(store.insert(any(WebsiteContent.class))).thenAnswer(c -> c.getArgument(0));
+        var entry = handler.create(new WebsiteContentInput("HEALTH_ARTICLE", "Title", new MarkdownBody("Body"), null), actor);
+        when(store.content(entry.id(), false)).thenReturn(Optional.of(entry));
+        when(store.update(any(), eq(0L))).thenAnswer(c -> c.getArgument(0));
+        var unknown = handler.update(entry.id(), new WebsiteContentInput("UNKNOWN", "Updated", new MarkdownBody("Body"), null), actor);
+        var announcement = handler.update(entry.id(), new WebsiteContentInput("ANNOUNCEMENT", "Updated", new MarkdownBody("Body"), null), actor);
+        assertEquals(ContentType.HEALTH_ARTICLE, unknown.type());
+        assertEquals(unknown.type(), announcement.type());
+    }
+    @Test void publicResponseSchemasExcludeInternalAnnouncementType() {
+        var converters = io.swagger.v3.core.converter.ModelConverters.getInstance();
+        for (Class<?> response : List.of(
+                fu.fa26.sep490.g58.otcms_be.content.model.dto.ClinicContentDtos.WebsiteSummaryResponse.class,
+                fu.fa26.sep490.g58.otcms_be.content.model.dto.ClinicContentDtos.WebsiteDetailResponse.class,
+                fu.fa26.sep490.g58.otcms_be.content.model.dto.ClinicContentDtos.ArticleContentResponse.class)) {
+            var schema = converters.read(response).get(response.getSimpleName());
+            assertEquals(List.of("ABOUT_PAGE", "HEALTH_ARTICLE", "CLINIC_INFO"), ((io.swagger.v3.oas.models.media.Schema<?>) schema.getProperties().get("type")).getEnum());
+        }
+    }
     @Test void validatesContactFieldsAndImageSizeMimeAndSignatureBeforePersisting() {
         assertThrows(ContentOperationException.class,() -> handler.create(new WebsiteContentInput("CLINIC_INFO","Clinic",
         new ClinicContact("Name","Address","0900000000","bad",List.of("8-17")),null),actor));

@@ -6,7 +6,7 @@ import fu.fa26.sep490.g58.otcms_be.common.security.*;
 import fu.fa26.sep490.g58.otcms_be.common.service.CoordinationGuardService;
 import fu.fa26.sep490.g58.otcms_be.patient.exception.MedicalHistoryException;
 import fu.fa26.sep490.g58.otcms_be.patient.model.dto.MedicalHistoryDtos.*;
-import fu.fa26.sep490.g58.otcms_be.patient.model.entity.PatientMedicalHistoryJpaEntity;
+import fu.fa26.sep490.g58.otcms_be.auth.model.entity.PatientProfileJpaEntity;
 import fu.fa26.sep490.g58.otcms_be.patient.repository.PatientMedicalHistoryRepository;
 import fu.fa26.sep490.g58.otcms_be.patient.service.*;
 import java.time.*;
@@ -82,13 +82,13 @@ public class PatientMedicalHistoryServiceImpl implements PatientMedicalHistorySe
         if (profiles.findProfile(profileId).isEmpty()) throw missing();
     }
     private MedicalHistoryResponse read(UUID profileId) {
-        return histories.findById(profileId).map(this::response).orElseGet(MedicalHistoryResponse::empty);
+        return histories.findById(profileId).filter(p -> p.getMedicalHistoryUpdatedAt() != null).map(this::response).orElseGet(MedicalHistoryResponse::empty);
     }
-    private MedicalHistoryResponse response(PatientMedicalHistoryJpaEntity row) {
-        String name = accounts.find(row.getUpdatedByAccountId()).map(MyAccountQueryService.MyAccountView::displayName)
+    private MedicalHistoryResponse response(PatientProfileJpaEntity row) {
+        String name = accounts.find(row.getMedicalHistoryUpdatedBy()).map(MyAccountQueryService.MyAccountView::displayName)
                 .filter(value -> value != null && !value.isBlank()).orElse(null);
         return new MedicalHistoryResponse(row.getConditions(), row.getAllergies(), row.getProcedures(), row.getInjuries(),
-                row.getOrthopedicHistory(), row.getUpdatedAt().atZone(ZoneId.of("Asia/Ho_Chi_Minh")).toOffsetDateTime(), name, row.getVersion());
+                row.getOrthopedicHistory(), row.getMedicalHistoryUpdatedAt().atZone(ZoneId.of("Asia/Ho_Chi_Minh")).toOffsetDateTime(), name, row.getMedicalHistoryVersion());
     }
     private String text(String value, String field, List<FieldError> errors) {
         if (value == null) { errors.add(new FieldError(field, "MSG-20")); return ""; }

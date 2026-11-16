@@ -41,15 +41,17 @@ public class VisitWorkflowServiceImpl implements VisitWorkflowService, Reception
     private final VisitExamQueueService examQueue;
     private final DoctorProfileIdentityQueryService doctorProfiles;
     private final VisitRoomJpaRepository visitRooms;
+    private final VisitAuditRecorder audit;
 
     public VisitWorkflowServiceImpl(VisitWorkflowRepository workflowRepository, Clock clock,
             WalkInVisitLifecycleService walkInLifecycle,
             fu.fa26.sep490.g58.otcms_be.clinical.service.ClinicalFollowUpEvidenceQueryService clinical,
             VisitExamQueueService examQueue, DoctorProfileIdentityQueryService doctorProfiles,
-            VisitRoomJpaRepository visitRooms) {
+            VisitRoomJpaRepository visitRooms, VisitAuditRecorder audit) {
         this.workflowRepository = workflowRepository; this.clock = clock; this.walkInLifecycle = walkInLifecycle;
         this.clinical = clinical; this.examQueue = examQueue; this.doctorProfiles = doctorProfiles;
         this.visitRooms = visitRooms;
+        this.audit = audit;
     }
 
     @Override
@@ -155,8 +157,9 @@ public class VisitWorkflowServiceImpl implements VisitWorkflowService, Reception
         }
         UUID careAssignmentId = assignmentId == null
                 ? workflowRepository.findActiveAssignment(command.visitId(), command.doctorProfileId()) : assignmentId;
-        workflowRepository.appendCareAudit(command.visitId(), careAssignmentId, command.actorAccountId(), action,
-                stepCode == null ? "SCHEDULED_APPOINTMENT" : stepCode, oldEnd, newEnd, occurredAt,
+        audit.careAssignment(command.visitId(), careAssignmentId, command.actorAccountId(), action,
+                stepCode == null ? "SCHEDULED_APPOINTMENT" : stepCode,
+                oldEnd == null ? null : oldEnd.toInstant(), newEnd == null ? null : newEnd.toInstant(), occurredAt,
                 command.correlationId());
     }
 

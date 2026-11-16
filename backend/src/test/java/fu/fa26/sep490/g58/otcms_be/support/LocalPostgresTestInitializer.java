@@ -23,7 +23,7 @@ public final class LocalPostgresTestInitializer
 
         if (!testProfile || supabaseProfile || !isAllowedLocalTestUrl(jdbcUrl)) {
             throw new IllegalStateException(
-                    "Spring integration tests require the test profile and a loopback PostgreSQL database named otcms_test_db");
+                    "Spring integration tests require the test profile and a loopback PostgreSQL database named otcms_test_db or otcms_test_db_<suffix>");
         }
     }
 
@@ -39,7 +39,7 @@ public final class LocalPostgresTestInitializer
             boolean loopback = "localhost".equalsIgnoreCase(host)
                     || "127.0.0.1".equals(host)
                     || "::1".equals(host);
-            return loopback && uri.getUserInfo() == null && "/otcms_test_db".equals(database);
+            return loopback && uri.getUserInfo() == null && database != null && database.matches("/otcms_test_db(_[a-z0-9]+)?");
         } catch (IllegalArgumentException exception) {
             return false;
         }

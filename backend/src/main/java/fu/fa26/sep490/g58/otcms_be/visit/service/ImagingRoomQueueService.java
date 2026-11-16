@@ -11,4 +11,5 @@ public interface ImagingRoomQueueService {
     Map<UUID, List<QueueRoom>> findEligibleRooms(Collection<UUID> serviceIds);
     Map<UUID, QueueRoom> findRooms(Collection<UUID> roomIds);
     void requireEligibleRoom(UUID roomId, UUID serviceId, String imagingType);
+    boolean isAssignedTechnician(UUID accountId, UUID roomId);
 }

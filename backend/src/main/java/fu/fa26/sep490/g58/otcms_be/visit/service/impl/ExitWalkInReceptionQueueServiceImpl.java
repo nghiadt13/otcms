@@ -19,14 +19,17 @@ public class ExitWalkInReceptionQueueServiceImpl implements ExitWalkInReceptionQ
     private final ClinicVisitJpaRepository visits;
     private final ReceptionistAccountAccessService receptionists;
     private final DoctorAccountAccessService doctors;
+    private final VisitAuditRecorder audit;
 
     public ExitWalkInReceptionQueueServiceImpl(WalkInReceptionQueueEntryJpaRepository entries,
             ClinicVisitJpaRepository visits,
-            ReceptionistAccountAccessService receptionists, DoctorAccountAccessService doctors) {
+            ReceptionistAccountAccessService receptionists, DoctorAccountAccessService doctors,
+            VisitAuditRecorder audit) {
         this.entries = entries;
         this.visits = visits;
         this.receptionists = receptionists;
         this.doctors = doctors;
+        this.audit = audit;
     }
 
     @Override
@@ -57,12 +60,13 @@ public class ExitWalkInReceptionQueueServiceImpl implements ExitWalkInReceptionQ
             throw new VisitOperationException("VISIT_RECEPTION_QUEUE_CONFLICT");
         }
 
-        entries.setAuditActor(command.actorAccountId().toString());
-        entries.setAuditCorrelation(command.correlationId());
-        for (var entryId : entries.findWaitingEntryIdsForUpdate(command.visitId())) {
+        // The actor check above replaces the old trigger rule; the history row is written here (was a trigger).
+        for (var entryId : entries.findWaitingReceptionIdsForUpdate(command.visitId())) {
             if (entries.leaveReception(entryId, command.occurredAt(), command.reason()) != 1) {
                 throw new VisitOperationException("VISIT_RECEPTION_QUEUE_CONFLICT");
             }
+            audit.queueLeft(command.visitId(), entryId, command.reason(), command.actorAccountId(),
+                    command.correlationId());
         }
     }
 }

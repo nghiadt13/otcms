@@ -6,8 +6,7 @@ import fu.fa26.sep490.g58.otcms_be.imaging.model.ImagingReconciliationDecisionCo
 import fu.fa26.sep490.g58.otcms_be.imaging.model.ImagingReconciliationQueue;
 import fu.fa26.sep490.g58.otcms_be.imaging.model.entity.enums.ImagingReconciliationClassification;
 import fu.fa26.sep490.g58.otcms_be.imaging.repository.ImagingReconciliationCaseRepository;
-import fu.fa26.sep490.g58.otcms_be.imaging.repository.ImagingIngestOperationRepository;
-import fu.fa26.sep490.g58.otcms_be.imaging.repository.ImagingReleaseInboxRepository;
+import fu.fa26.sep490.g58.otcms_be.imaging.repository.ImagingStudyRepository;
 import fu.fa26.sep490.g58.otcms_be.imaging.service.ImagingReconciliationQuery;
 import fu.fa26.sep490.g58.otcms_be.imaging.exception.ImagingOperationException;
 import fu.fa26.sep490.g58.otcms_be.imaging.exception.ImagingOperationOutcome;
@@ -16,7 +15,6 @@ import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.domain.PageRequest;
 
@@ -25,16 +23,13 @@ import org.springframework.data.domain.PageRequest;
 public class ImagingReconciliationServiceImpl implements ImagingReconciliationService {
     private final ImagingReconciliationCaseRepository cases;
     private final ImagingAuditPersistenceService audit;
-    private final ImagingIngestOperationRepository operations;
-    private final ImagingReleaseInboxRepository releases;
+    private final ImagingStudyRepository studies;
 
     public ImagingReconciliationServiceImpl(ImagingReconciliationCaseRepository cases,
-            ImagingAuditPersistenceService audit, ImagingIngestOperationRepository operations,
-            ImagingReleaseInboxRepository releases) {
+            ImagingAuditPersistenceService audit, ImagingStudyRepository studies) {
         this.cases = cases;
         this.audit = audit;
-        this.operations = operations;
-        this.releases = releases;
+        this.studies = studies;
     }
 
     @Override
@@ -171,16 +166,16 @@ public class ImagingReconciliationServiceImpl implements ImagingReconciliationSe
     private boolean hasLinkedEvidence(fu.fa26.sep490.g58.otcms_be.imaging.model.entity.ImagingReconciliationCaseJpaEntity item) {
         if (!"RETRYABLE".equals(item.getClassification())) return false;
         if (item.getOperationId() != null) {
-            return operations.findById(item.getOperationId())
-                    .map(operation -> operation.getState()
+            return studies.findById(item.getOperationId())
+                    .map(study -> study.getState()
                             == fu.fa26.sep490.g58.otcms_be.imaging.model.entity.enums.ImagingOperationState.LINKED)
                     .orElse(false);
         }
         if (item.getEventId() == null || !"RELEASE".equals(item.getCategory())
                 || item.getSafeEvidenceSha256() == null) return false;
-        return releases.findByEventId(item.getEventId())
-                .filter(release -> "ACCEPTED".equals(release.getOutcome()))
-                .map(release -> item.getSafeEvidenceSha256().trim().equals(release.getPayloadSha256().trim()))
+        return studies.findByReleaseEventId(item.getEventId())
+                .map(study -> study.getReleasePayloadSha256() != null && item.getSafeEvidenceSha256().trim()
+                        .equals(study.getReleasePayloadSha256().trim()))
                 .orElse(false);
     }
 

@@ -34,7 +34,7 @@ class AppointmentAwaitingPaymentV106PostgresIntegrationTest {
         String schema = newSchema("t106_up_");
         try {
             assertTrue(flyway(schema, "105").migrate().migrationsExecuted > 0);
-            Fixture f = fixture(schema, "up");
+            Fixture f = fixture(schema, "up", true);
             UUID freeService = service(schema, "free", 0);
             assign(schema, f.doctorId, freeService);
             Instant day = Instant.now().plus(2, ChronoUnit.DAYS).truncatedTo(ChronoUnit.HOURS);
@@ -58,8 +58,10 @@ class AppointmentAwaitingPaymentV106PostgresIntegrationTest {
                     Timestamp.class, legacyUnpaid).toInstant();
             assertTrue(Duration.between(Instant.now(), deadline).abs().compareTo(Duration.ofMinutes(16)) < 0);
             assertTrue(deadline.isAfter(Instant.now().plus(10, ChronoUnit.MINUTES)));
-            Map<String, Object> audit = jdbc.queryForMap("select actor_type, action, old_status, new_status from "
-                    + schema + ".appointment_audits where appointment_id = ?", legacyUnpaid);
+            // V106 wrote appointment_audits; V114 carried the row into audit_logs (source 'appointment_audits').
+            Map<String, Object> audit = jdbc.queryForMap("select actor_type, action, before_state->>'status' as old_status, "
+                    + "after_state->>'status' as new_status from " + schema
+                    + ".audit_logs where source = 'appointment_audits' and entity_id = ?", legacyUnpaid);
             assertEquals("SYSTEM", audit.get("actor_type"));
             assertEquals("STATUS_CHANGED", audit.get("action"));
             assertEquals("CONFIRMED", audit.get("old_status"));
@@ -71,7 +73,7 @@ class AppointmentAwaitingPaymentV106PostgresIntegrationTest {
             assertEquals("CANCELLED", status(schema, alreadyCancelled));
             assertNull(jdbc.queryForObject("select payment_deadline from " + schema + ".appointments where id = ?",
                     Timestamp.class, byReceptionist));
-            assertEquals(1, jdbc.queryForObject("select count(*) from " + schema + ".appointment_audits where correlation_id = 'V106-awaiting-payment'",
+            assertEquals(1, jdbc.queryForObject("select count(*) from " + schema + ".audit_logs where source = 'appointment_audits' and correlation_id = 'V106-awaiting-payment'",
                     Integer.class));
         } finally {
             dropSchema(schema);
@@ -83,7 +85,7 @@ class AppointmentAwaitingPaymentV106PostgresIntegrationTest {
         String schema = newSchema("t106_rules_");
         try {
             flyway(schema, null).migrate();
-            Fixture f = fixture(schema, "rules");
+            Fixture f = fixture(schema, "rules", false);
             Instant start = Instant.now().plus(3, ChronoUnit.DAYS).truncatedTo(ChronoUnit.HOURS);
 
             assertThrows(DataAccessException.class, () -> appointment(schema, f, f.serviceId, "PATIENT_ONLINE",
@@ -103,12 +105,13 @@ class AppointmentAwaitingPaymentV106PostgresIntegrationTest {
             assertEquals("CONFIRMED", status(schema, rebooked));
 
             UUID audit = UUID.randomUUID();
-            jdbc.update("insert into " + schema + ".appointment_audits (id, appointment_id, actor_account_id, actor_type, action, old_status, new_status, "
-                            + "old_doctor_profile_id, new_doctor_profile_id, old_start_time, new_start_time, old_end_time, new_end_time, reason, occurred_at, correlation_id) "
-                            + "values (?, ?, ?, 'SYSTEM', 'STATUS_CHANGED', 'AWAITING_PAYMENT', 'PAYMENT_EXPIRED', ?, ?, ?, ?, ?, ?, 'Het thoi gian thanh toan', now(), 't106')",
-                    audit, hold, f.patientAccount, f.doctorId, f.doctorId, Timestamp.from(start), Timestamp.from(start),
-                    Timestamp.from(start.plusSeconds(1800)), Timestamp.from(start.plusSeconds(1800)));
-            assertEquals(1, jdbc.queryForObject("select count(*) from " + schema + ".appointment_audits where id = ?", Integer.class, audit));
+            jdbc.update("insert into " + schema + ".audit_logs (id, source, category, action, record_type, entity_id, record_label, "
+                            + "actor_account_id, actor_type, before_state, after_state, metadata, occurred_at, correlation_id) "
+                            + "values (?, 'appointment_audits', 'APPOINTMENT', 'STATUS_CHANGED', 'APPOINTMENT', ?, ?, ?, 'SYSTEM', "
+                            + "jsonb_build_object('status', 'AWAITING_PAYMENT'), jsonb_build_object('status', 'PAYMENT_EXPIRED'), "
+                            + "jsonb_build_object('reason', 'Het thoi gian thanh toan'), now(), 't106')",
+                    audit, hold, hold.toString(), f.patientAccount);
+            assertEquals(1, jdbc.queryForObject("select count(*) from " + schema + ".audit_logs where id = ?", Integer.class, audit));
         } finally {
             dropSchema(schema);
         }
@@ -119,7 +122,7 @@ class AppointmentAwaitingPaymentV106PostgresIntegrationTest {
         String schema = newSchema("t106_visit_");
         try {
             flyway(schema, null).migrate();
-            Fixture f = fixture(schema, "visit");
+            Fixture f = fixture(schema, "visit", false);
             Instant start = Instant.now().plus(4, ChronoUnit.DAYS).truncatedTo(ChronoUnit.HOURS);
             UUID hold = appointment(schema, f, f.serviceId, "PATIENT_ONLINE", "AWAITING_PAYMENT", start,
                     Instant.now().plus(15, ChronoUnit.MINUTES));
@@ -134,15 +137,21 @@ class AppointmentAwaitingPaymentV106PostgresIntegrationTest {
 
     private record Fixture(UUID patientAccount, UUID patientId, UUID doctorId, UUID serviceId) {}
 
-    private Fixture fixture(String schema, String tag) {
+    private Fixture fixture(String schema, String tag, boolean legacyDoctorTable) {
         UUID patientAccount = account(schema, "PATIENT", tag);
         UUID doctorAccount = account(schema, "DOCTOR", tag);
         UUID patientId = UUID.randomUUID();
         UUID doctorId = UUID.randomUUID();
         jdbc.update("insert into " + schema + ".patient_profiles (id, account_id, full_name, phone_canonical, phone_owner_type, date_of_birth, gender) values (?, ?, 'T106 Patient', ?, 'PATIENT', '1990-01-01', 'OTHER')",
                 patientId, patientAccount, "+8491" + String.format("%07d", Math.abs(tag.hashCode()) % 10_000_000));
-        jdbc.update("insert into " + schema + ".doctor_profiles (id, account_id, full_name, work_contact) values (?, ?, 'T106 Doctor', ?)",
-                doctorId, doctorAccount, "t106-" + tag);
+        if (legacyDoctorTable) {
+            // Schema still at V105: doctor_profiles exists; V110 copies it into staff_profiles during the upgrade.
+            jdbc.update("insert into " + schema + ".doctor_profiles (id, account_id, full_name, work_contact) values (?, ?, 'T106 Doctor', ?)",
+                    doctorId, doctorAccount, "t106-" + tag);
+        } else {
+            jdbc.update("insert into " + schema + ".staff_profiles (is_doctor, id, account_id, display_name, work_contact) values (true, ?, ?, 'T106 Doctor', ?)",
+                    doctorId, doctorAccount, "t106-" + tag);
+        }
         UUID serviceId = service(schema, "paid", 200000);
         assign(schema, doctorId, serviceId);
         return new Fixture(patientAccount, patientId, doctorId, serviceId);

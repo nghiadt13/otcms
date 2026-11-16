@@ -10,6 +10,8 @@ import fu.fa26.sep490.g58.otcms_be.auth.repository.*;
 import fu.fa26.sep490.g58.otcms_be.auth.model.entity.*;
 import fu.fa26.sep490.g58.otcms_be.auth.model.entity.enums.*;
 import fu.fa26.sep490.g58.otcms_be.auth.service.EmailDeliveryService;
+import fu.fa26.sep490.g58.otcms_be.common.audit.AuditLogWriter;
+import fu.fa26.sep490.g58.otcms_be.common.audit.repository.AuditLogRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
@@ -58,8 +60,8 @@ class PatientRegistrationT004Test {
 
     @Test
     void rateLimitIdentifierIsDeterministicHmacAndNeverRawIp() throws Exception {
-        AuthProperties p = new AuthProperties(null, new AuthProperties.RateLimit(5, 3600), new AuthProperties.RateLimit(3, 3600), null, null, null, "v1", "v1", "test-secret");
-        RegistrationServiceImpl service = new RegistrationServiceImpl(mock(AccountRepository.class), mock(ConsentEvidenceRepository.class), mock(EmailVerificationChallengeRepository.class), mock(AuthenticationAuditRepository.class), mock(EmailDeliveryService.class), p, mock(AuthConcurrencyRepository.class));
+        AuthProperties p = new AuthProperties(null, new AuthProperties.RateLimit(5, 3600), new AuthProperties.RateLimit(3, 3600), null, null, "v1", "v1", "test-secret");
+        RegistrationServiceImpl service = new RegistrationServiceImpl(mock(AccountRepository.class), mock(VerificationCodeRepository.class), mock(AuditLogWriter.class), mock(AuditLogRepository.class), mock(EmailDeliveryService.class), p, mock(AuthConcurrencyRepository.class));
         Method method = RegistrationServiceImpl.class.getDeclaredMethod("hmacIdentifier", String.class);
         method.setAccessible(true);
         String rawIp = "203.0.113.7";
@@ -82,12 +84,12 @@ class PatientRegistrationT004Test {
     @org.junit.jupiter.params.provider.ValueSource(strings = {"abcd1234", "ábcdefg١"})
     void registrationAcceptsEightToElevenCharacterLetterAndDigitPassword(String password) {
         AccountRepository accounts = mock(AccountRepository.class);
-        ConsentEvidenceRepository consents = mock(ConsentEvidenceRepository.class);
-        EmailVerificationChallengeRepository challenges = mock(EmailVerificationChallengeRepository.class);
-        AuthenticationAuditRepository audits = mock(AuthenticationAuditRepository.class);
+        VerificationCodeRepository challenges = mock(VerificationCodeRepository.class);
+        AuditLogWriter auditWriter = mock(AuditLogWriter.class);
+        AuditLogRepository audits = mock(AuditLogRepository.class);
         EmailDeliveryService mail = mock(EmailDeliveryService.class);
         AuthConcurrencyRepository concurrency = mock(AuthConcurrencyRepository.class);
-        when(audits.countByMethodAndOutcomeAndIdentifierHmacAndOccurredAtAfter(anyString(), anyString(), anyString(), any()))
+        when(audits.countBySourceAndActionAndOutcomeAndIdentifierHmacAndOccurredAtAfter(anyString(), anyString(), anyString(), anyString(), any()))
                 .thenReturn(0L);
         when(accounts.findByNormalizedEmail("alice@example.com")).thenReturn(java.util.Optional.empty());
         when(accounts.insertIfEmailAvailable(any(), eq("alice@example.com"), eq("PATIENT"),
@@ -95,8 +97,8 @@ class PatientRegistrationT004Test {
         AccountJpaEntity saved = new AccountJpaEntity();
         saved.setId(UUID.randomUUID());
         when(accounts.findById(any())).thenReturn(java.util.Optional.of(saved));
-        RegistrationServiceImpl service = new RegistrationServiceImpl(accounts, consents, challenges,
-                audits, mail, properties(), concurrency);
+        RegistrationServiceImpl service = new RegistrationServiceImpl(accounts, challenges,
+                auditWriter, audits, mail, properties(), concurrency);
 
         service.register(new fu.fa26.sep490.g58.otcms_be.auth.model.dto.request.RegistrationRequest(
                 "Alice Patient", " Alice@Example.com ", password, password, true), "198.51.100.8");
@@ -104,17 +106,24 @@ class PatientRegistrationT004Test {
         verify(accounts).insertIfEmailAvailable(any(), eq("alice@example.com"), eq("PATIENT"),
                 eq("PENDING_VERIFICATION"), argThat(hash -> !hash.contains(password)), eq("Alice Patient"), any(), any());
         verify(mail).sendVerificationCode(eq("alice@example.com"), matches("\\d{6}"), eq(saved.getId()));
+        // Consent is recorded on the account row and in the audit trail, in the registration transaction.
+        assertEquals(ConsentActorType.PATIENT, saved.getConsentActorType());
+        assertEquals("v1", saved.getTermsVersion());
+        assertEquals("v1", saved.getPrivacyVersion());
+        assertNotNull(saved.getConsentAcceptedAt());
+        verify(auditWriter).record(argThat(e -> "CONSENT".equals(e.category()) && "ACCEPT_CONSENT".equals(e.action())
+                && saved.getId().equals(e.entityId()) && !e.visibleInActivityLog()));
     }
 
     @Test
     void registrationRejectsPasswordWithoutLetterOrDigitBeforePersistence() {
         AccountRepository accounts = mock(AccountRepository.class);
-        AuthenticationAuditRepository audits = mock(AuthenticationAuditRepository.class);
-        when(audits.countByMethodAndOutcomeAndIdentifierHmacAndOccurredAtAfter(anyString(), anyString(), anyString(), any()))
+        AuditLogRepository audits = mock(AuditLogRepository.class);
+        when(audits.countBySourceAndActionAndOutcomeAndIdentifierHmacAndOccurredAtAfter(anyString(), anyString(), anyString(), anyString(), any()))
                 .thenReturn(0L);
         when(accounts.findByNormalizedEmail(anyString())).thenReturn(java.util.Optional.empty());
-        RegistrationServiceImpl service = new RegistrationServiceImpl(accounts, mock(ConsentEvidenceRepository.class),
-                mock(EmailVerificationChallengeRepository.class), audits, mock(EmailDeliveryService.class),
+        RegistrationServiceImpl service = new RegistrationServiceImpl(accounts,
+                mock(VerificationCodeRepository.class), mock(AuditLogWriter.class), audits, mock(EmailDeliveryService.class),
                 properties(), mock(AuthConcurrencyRepository.class));
 
         assertThrows(RegistrationException.class, () -> service.register(
@@ -129,50 +138,53 @@ class PatientRegistrationT004Test {
     @Test
     void resendLocksAccountSupersedesCurrentChallengeAndSendsNewOtp() {
         AccountRepository accounts = mock(AccountRepository.class);
-        EmailVerificationChallengeRepository challenges = mock(EmailVerificationChallengeRepository.class);
+        VerificationCodeRepository challenges = mock(VerificationCodeRepository.class);
         EmailDeliveryService mail = mock(EmailDeliveryService.class);
-        RegistrationServiceImpl service = new RegistrationServiceImpl(accounts,
-                mock(ConsentEvidenceRepository.class), challenges, mock(AuthenticationAuditRepository.class), mail,
+        RegistrationServiceImpl service = new RegistrationServiceImpl(accounts, challenges,
+                mock(AuditLogWriter.class), mock(AuditLogRepository.class), mail,
                 properties(), mock(AuthConcurrencyRepository.class));
         UUID id = UUID.randomUUID(); AccountJpaEntity account = new AccountJpaEntity(); account.setId(id);
         account.setNormalizedEmail("alice@example.com"); account.setAccountType(AccountType.PATIENT); account.setStatus(AccountStatus.PENDING_VERIFICATION);
         when(accounts.findByNormalizedEmail("alice@example.com")).thenReturn(java.util.Optional.of(account));
         when(accounts.findByIdForUpdate(id)).thenReturn(java.util.Optional.of(account));
-        when(challenges.countByAccountIdAndCreatedAtAfter(eq(id), any())).thenReturn(0L);
+        when(challenges.countByAccountIdAndPurposeAndCreatedAtAfter(eq(id), eq(VerificationPurpose.EMAIL_VERIFY), any())).thenReturn(0L);
         service.resendOtp(" Alice@Example.com ");
         verify(accounts).findByIdForUpdate(id);
-        verify(challenges).supersedeCurrent(eq(id), any());
-        verify(challenges).save(any());
+        // The open code is superseded before the new one is inserted (one open code per account and purpose).
+        var order = inOrder(challenges);
+        order.verify(challenges).supersedeCurrent(eq(id), eq(VerificationPurpose.EMAIL_VERIFY), any());
+        order.verify(challenges).save(argThat(c -> c.getPurpose() == VerificationPurpose.EMAIL_VERIFY && id.equals(c.getAccountId())));
         verify(mail).sendVerificationCode(eq("alice@example.com"), anyString(), eq(id));
     }
 
     @Test
     void resendEmailFailurePersistsAuditAndPropagatesSafeCode() {
         AccountRepository accounts = mock(AccountRepository.class);
-        EmailVerificationChallengeRepository challenges = mock(EmailVerificationChallengeRepository.class);
-        AuthenticationAuditRepository audits = mock(AuthenticationAuditRepository.class);
+        VerificationCodeRepository challenges = mock(VerificationCodeRepository.class);
+        AuditLogWriter audits = mock(AuditLogWriter.class);
         EmailDeliveryService mail = mock(EmailDeliveryService.class);
-        RegistrationServiceImpl service = new RegistrationServiceImpl(accounts,
-                mock(ConsentEvidenceRepository.class), challenges, audits, mail, properties(), mock(AuthConcurrencyRepository.class));
+        RegistrationServiceImpl service = new RegistrationServiceImpl(accounts, challenges, audits,
+                mock(AuditLogRepository.class), mail, properties(), mock(AuthConcurrencyRepository.class));
         UUID id = UUID.randomUUID(); AccountJpaEntity account = new AccountJpaEntity(); account.setId(id);
         account.setNormalizedEmail("alice@example.com"); account.setAccountType(AccountType.PATIENT); account.setStatus(AccountStatus.PENDING_VERIFICATION);
         when(accounts.findByNormalizedEmail("alice@example.com")).thenReturn(java.util.Optional.of(account));
         when(accounts.findByIdForUpdate(id)).thenReturn(java.util.Optional.of(account));
-        when(challenges.countByAccountIdAndCreatedAtAfter(eq(id), any())).thenReturn(0L);
+        when(challenges.countByAccountIdAndPurposeAndCreatedAtAfter(eq(id), eq(VerificationPurpose.EMAIL_VERIFY), any())).thenReturn(0L);
         doThrow(new RuntimeException("smtp down")).when(mail).sendVerificationCode(eq("alice@example.com"), anyString(), eq(id));
         RegistrationException ex = assertThrows(RegistrationException.class, () -> service.resendOtp("alice@example.com"));
         assertEquals("EMAIL_DELIVERY_UNAVAILABLE", ex.getMessage());
-        verify(audits).save(argThat(a -> "RESEND_EMAIL_DELIVERY_UNAVAILABLE".equals(a.getOutcome())));
+        verify(audits).record(argThat(a -> "RESEND_EMAIL_DELIVERY_UNAVAILABLE".equals(a.outcome())
+                && "auth_audits".equals(a.source()) && "EMAIL_VERIFICATION".equals(a.action()) && !a.visibleInActivityLog()));
     }
 
     private RegistrationServiceImpl service() {
         return new RegistrationServiceImpl(mock(AccountRepository.class),
-                mock(ConsentEvidenceRepository.class), mock(EmailVerificationChallengeRepository.class),
-                mock(AuthenticationAuditRepository.class), mock(EmailDeliveryService.class), properties(), mock(AuthConcurrencyRepository.class));
+                mock(VerificationCodeRepository.class), mock(AuditLogWriter.class),
+                mock(AuditLogRepository.class), mock(EmailDeliveryService.class), properties(), mock(AuthConcurrencyRepository.class));
     }
 
     private AuthProperties properties() {
         return new AuthProperties(null, new AuthProperties.RateLimit(5, 3600), new AuthProperties.RateLimit(3, 3600),
-                null, null, null, "v1", "v1", "test-secret");
+                null, null, "v1", "v1", "test-secret");
     }
 }

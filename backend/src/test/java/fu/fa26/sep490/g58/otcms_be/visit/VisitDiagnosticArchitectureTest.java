@@ -21,12 +21,14 @@ class VisitDiagnosticArchitectureTest {
             }
         }
     }
-    @Test void coordinationOnlyWritesReceiptsAndCannotFinishClinicalWork() throws Exception {
+    @Test void coordinationWritesVisitEvidenceInTheCallerTransactionAndCannotFinishClinicalWork() throws Exception {
         String service = Files.readString(root.resolve("visit/service/impl/VisitImagingCoordinationServiceImpl.java"));
         for (String forbidden : List.of("visits.save", "setStatus", "ClinicalExamination", "Invoice", "Prescription", "queueNumber")) {
             assertFalse(service.contains(forbidden), forbidden);
         }
-        assertTrue(service.contains("Propagation.REQUIRES_NEW"));
+        assertTrue(service.contains("Propagation.MANDATORY"));
+        assertTrue(service.contains("markImagingResultReady"));
+        assertTrue(service.contains("markFindingsReleased"));
         String query = Files.readString(root.resolve("diagnostic/service/impl/DiagnosticResultEventQueryServiceImpl.java"));
         assertFalse(query.contains(".save("));
         assertFalse(query.contains(".saveAndFlush("));
@@ -34,9 +36,11 @@ class VisitDiagnosticArchitectureTest {
     @Test void completionEvidenceIsReadOnlyDiagnosticOwnedAndVisitUsesOnlyPublicContract() {
         var implementation = fu.fa26.sep490.g58.otcms_be.diagnostic.service.impl.DiagnosticVisitCompletionEvidenceServiceImpl.class;
         assertTrue(implementation.getAnnotation(org.springframework.transaction.annotation.Transactional.class).readOnly());
-        for (var dependency : implementation.getDeclaredFields()) {
-            assertEquals("fu.fa26.sep490.g58.otcms_be.diagnostic.repository", dependency.getType().getPackageName());
-        }
+        var dependencies = java.util.Arrays.stream(implementation.getDeclaredFields())
+                .map(java.lang.reflect.Field::getType).collect(java.util.stream.Collectors.toSet());
+        assertEquals(java.util.Set.of(
+                fu.fa26.sep490.g58.otcms_be.clinical.service.ClinicalServiceOrderExecutionPort.class,
+                fu.fa26.sep490.g58.otcms_be.diagnostic.repository.DiagnosticReportJpaRepository.class), dependencies);
         assertTrue(java.util.Arrays.stream(fu.fa26.sep490.g58.otcms_be.visit.service.impl.WalkInVisitLifecycleServiceImpl.class.getDeclaredFields())
                 .anyMatch(f -> f.getType() == fu.fa26.sep490.g58.otcms_be.diagnostic.service.DiagnosticVisitCompletionEvidenceService.class));
     }

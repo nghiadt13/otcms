@@ -8,9 +8,12 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.Table;
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.Set;
 import java.util.UUID;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 @Entity
 @Table(name = "rooms")
@@ -39,10 +42,9 @@ public class VisitRoomJpaEntity {
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
-    @ElementCollection
-    @CollectionTable(name = "room_capabilities", joinColumns = @JoinColumn(name = "room_id"))
-    @Column(name = "capability_code", nullable = false, length = 64)
-    private Set<String> capabilities = new LinkedHashSet<>();
+    @JdbcTypeCode(SqlTypes.ARRAY)
+    @Column(name = "capabilities", nullable = false, columnDefinition = "text[]")
+    private String[] capabilities = new String[0];
 
     @ElementCollection
     @CollectionTable(name = "room_supported_services", joinColumns = @JoinColumn(name = "room_id"))
@@ -68,7 +70,7 @@ public class VisitRoomJpaEntity {
         this.active = active;
         this.createdAt = createdAt;
         this.updatedAt = updatedAt;
-        this.capabilities = new LinkedHashSet<>(capabilities);
+        this.capabilities = new LinkedHashSet<>(capabilities).toArray(String[]::new);
         this.supportedServiceIds = new LinkedHashSet<>(supportedServiceIds);
     }
 
@@ -80,7 +82,7 @@ public class VisitRoomJpaEntity {
     public boolean isActive() { return active; }
     public Instant getCreatedAt() { return createdAt; }
     public Instant getUpdatedAt() { return updatedAt; }
-    public Set<String> getCapabilities() { return Set.copyOf(capabilities); }
+    public Set<String> getCapabilities() { return Set.copyOf(Arrays.asList(capabilities)); }
     public Set<UUID> getSupportedServiceIds() { return Set.copyOf(supportedServiceIds); }
 
     public void update(String displayLabel, Set<String> capabilities, Instant updatedAt) {
@@ -91,8 +93,7 @@ public class VisitRoomJpaEntity {
             Set<UUID> supportedServiceIds, Instant updatedAt) {
         this.displayLabel = displayLabel;
         this.description = description;
-        this.capabilities.clear();
-        this.capabilities.addAll(capabilities);
+        this.capabilities = new LinkedHashSet<>(capabilities).toArray(String[]::new);
         this.supportedServiceIds.clear();
         this.supportedServiceIds.addAll(supportedServiceIds);
         this.updatedAt = updatedAt;

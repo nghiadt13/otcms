@@ -58,9 +58,9 @@ class CancelAppointmentServiceImplT025Test {
         var properties = new AppointmentBookingProperties(30, 120, 30, 15, 15,
                 ZoneId.of("Asia/Ho_Chi_Minh"), new AppointmentBookingProperties.PublicRateLimit(60, 60), 15, 30000L, false);
         var clock = Clock.fixed(now, ZoneId.of("UTC"));
-        handler = new CancelAppointmentServiceImpl(guard, appointments, auth, properties, clock, notifications, doctors);
+        handler = new CancelAppointmentServiceImpl(guard, appointments, auth, properties, clock, notifications, doctors, org.mockito.Mockito.mock(fu.fa26.sep490.g58.otcms_be.common.audit.AuditLogWriter.class));
         fullHandler = new CancelAppointmentServiceImpl(guard, appointments, auth, properties, clock, lifecycle, visits,
-                notifications, doctors, null, null);
+                notifications, doctors, null, null, org.mockito.Mockito.mock(fu.fa26.sep490.g58.otcms_be.common.audit.AuditLogWriter.class));
         current = appointment("CONFIRMED", now.plusSeconds(86400), null);
         when(appointments.findForUpdate(appointmentId)).thenReturn(Optional.of(current));
         when(auth.authorize(accountId, patientId)).thenReturn(new AuthorizePatientProfileService.AuthorizedPatientProfile(

@@ -20,50 +20,35 @@ it("uses inclusive Vietnam dates even across month boundaries", () => {
   });
   expect(vietnamDateTime("2026-11-01T08:00")).toBe("2026-11-01T01:00:00.000Z");
 });
-it("uses the actual time-off read and write contracts", async () => {
+it("uses the actual shift read, impact and write contracts", async () => {
   request.mockResolvedValue({ items: [] });
-  await listDoctorSchedule("doctor", "time-offs", "2026-11-01", "2026-11-07");
+  await listDoctorSchedule("doctor", "shifts", "2026-11-01", "2026-11-07");
   expect(request.mock.calls[0][0]).toContain(
-    "/api/v1/admin/doctor-profiles/doctor/time-offs?",
+    "/api/v1/admin/doctors/doctor/shifts?",
   );
   const body = {
     startsAt: "2026-11-01T01:00:00Z",
     endsAt: "2026-11-01T02:00:00Z",
   };
-  await assessDoctorInterval("doctor", "time-offs", "off", body);
+  await assessDoctorInterval("doctor", "shifts", "shift", body);
   expect(JSON.parse(request.mock.calls[1][1].body)).toEqual({
-    resourceType: "TIME_OFF",
-    resourceId: "off",
+    resourceType: "SHIFT",
+    resourceId: "shift",
     ...body,
   });
-  await saveDoctorInterval("doctor", "time-offs", "off", body);
+  await saveDoctorInterval("doctor", "shifts", "shift", body);
   expect(request).toHaveBeenLastCalledWith(
-    "/api/v1/admin/doctors/doctor/time-offs/off",
+    "/api/v1/admin/doctors/doctor/shifts/shift",
     expect.objectContaining({ method: "PUT", body: JSON.stringify(body) }),
   );
 });
 
-it("checks time-off removal impact before deleting and never deletes when blocked", async () => {
-  request.mockResolvedValue({
-    blocked: true,
-    affectedBookingCount: 1,
-    activeCareBlocks: false,
-  });
-  const result = await deleteDoctorInterval("d", "time-offs", "off").catch(
-    (e) => ({ code: e.code }),
-  );
-  expect(result).toEqual({ code: "MSG-36" });
+it("deletes a shift directly; the backend blocks it when bookings are affected", async () => {
+  request.mockResolvedValue(undefined);
+  await deleteDoctorInterval("d", "shifts", "shift");
   expect(request).toHaveBeenCalledTimes(1);
-  expect(request.mock.calls[0][0]).toBe(
-    "/api/v1/admin/doctors/d/time-offs/off/mutation-impact",
-  );
-  request.mockReset();
-  request
-    .mockResolvedValueOnce({ blocked: false })
-    .mockResolvedValueOnce(undefined);
-  await deleteDoctorInterval("d", "time-offs", "off");
-  expect(request.mock.calls[1]).toEqual([
-    "/api/v1/admin/doctors/d/time-offs/off",
+  expect(request.mock.calls[0]).toEqual([
+    "/api/v1/admin/doctors/d/shifts/shift",
     { method: "DELETE" },
   ]);
 });

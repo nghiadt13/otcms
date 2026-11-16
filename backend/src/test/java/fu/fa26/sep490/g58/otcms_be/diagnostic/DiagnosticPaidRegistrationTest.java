@@ -5,12 +5,13 @@ import static org.mockito.Mockito.*;
 import static org.mockito.ArgumentMatchers.*;
 import fu.fa26.sep490.g58.otcms_be.auth.service.*;
 import fu.fa26.sep490.g58.otcms_be.auth.model.entity.enums.AccountType;
+import fu.fa26.sep490.g58.otcms_be.clinical.service.ClinicalServiceOrderExecutionPort;
 import fu.fa26.sep490.g58.otcms_be.common.security.AccountRole;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.integration.*;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.integration.DiagnosticPortModels.*;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.repository.*;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.model.DiagnosticActor;
-import fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.DiagnosticRequestJpaEntity;
+import fu.fa26.sep490.g58.otcms_be.diagnostic.ImagingExecutionTestFixtures.Row;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.enums.*;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.exception.DiagnosticOperationException;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.service.DiagnosticImagingRequestRegistration.*;
@@ -33,7 +34,7 @@ import org.springframework.data.domain.PageImpl;
 
 /** Real registration -> Room/Staff owner services -> real Technician status queue. Only persistence/Auth/catalog reads are doubled. */
 class DiagnosticPaidRegistrationTest {
-    final DiagnosticRequestJpaRepository requests = mock(DiagnosticRequestJpaRepository.class);
+    final ClinicalServiceOrderExecutionPort requests = mock(ClinicalServiceOrderExecutionPort.class);
     final DoctorProfileIdentityQueryService identities = mock(DoctorProfileIdentityQueryService.class);
     final DoctorAccountAccessService accounts = mock(DoctorAccountAccessService.class);
     final VisitDiagnosticReadPort visits = mock(VisitDiagnosticReadPort.class);
@@ -52,7 +53,7 @@ class DiagnosticPaidRegistrationTest {
             technician = UUID.randomUUID(), otherTechnician = UUID.randomUUID(), offShift = UUID.randomUUID();
     final RegisterImagingOrder command = new RegisterImagingOrder(order, visit, patient, doctor, serviceId, roomId, "KNEE", "Pain");
     final DiagnosticImagingRequestRegistrationImpl registration = new DiagnosticImagingRequestRegistrationImpl(requests, identities, accounts, visits, catalog, orders, rooms);
-    final Map<UUID, DiagnosticRequestJpaEntity> rows = new LinkedHashMap<>();
+    final Map<UUID, Row> rows = new LinkedHashMap<>();
 
     @BeforeEach void setup() {
         when(identities.findDoctorAccountId(doctor)).thenReturn(Optional.of(account));
@@ -76,16 +77,17 @@ class DiagnosticPaidRegistrationTest {
         when(shifts.findCurrentAssignments(any(), eq(clock.instant()))).thenReturn(List.of(new StaffRoomAssignmentRepository.Assignment(roomId, technician)));
         when(shifts.hasActiveAssignment(technician, roomId, clock.instant())).thenReturn(true);
         when(shifts.hasActiveAssignment(otherTechnician, otherRoom, clock.instant())).thenReturn(true);
-        when(requests.findFirstByServiceOrderIdAndStatusNotOrderByCreatedAtDescIdDesc(any(), eq(DiagnosticRequestStatus.CANCELLED)))
-                .thenAnswer(call -> Optional.ofNullable(rows.get(call.getArgument(0))).filter(row -> row.getStatus() != DiagnosticRequestStatus.CANCELLED));
-        when(requests.insertAssigned(any(), any(), any(), any(), any(), any(), any(), any(), any(), any())).thenAnswer(call -> {
-            UUID id = call.getArgument(9);
+        when(requests.find(any())).thenAnswer(call -> Optional.ofNullable(rows.get(call.getArgument(0)))
+                .map(ImagingExecutionTestFixtures::execution));
+        when(requests.assignImagingRoom(any(), any(), any(), any(), any(), any(), any())).thenAnswer(call -> {
+            UUID id = call.getArgument(0);
             if (rows.containsKey(id) && rows.get(id).getStatus() != DiagnosticRequestStatus.CANCELLED) return 0;
-            var request = new DiagnosticRequestJpaEntity(call.getArgument(0), visit, patient, account, serviceId, call.getArgument(5),
+            var request = new Row(id, visit, patient, account, serviceId, call.getArgument(4),
                     "XRAY", "KNEE", "Pain", DiagnosticRequestStatus.PENDING, null, null, null);
-            request.setServiceOrderId(id); rows.put(id, request); return 1;
+            rows.put(id, request); return 1;
         });
-        when(requests.findAllByStatusInOrderByCreatedAtDescIdDesc(any(), any())).thenAnswer(call -> new PageImpl<>(new ArrayList<>(rows.values())));
+        when(requests.page(any(), any(), any(), any(), any(), anyBoolean(), any())).thenAnswer(call ->
+                new PageImpl<>(rows.values().stream().map(ImagingExecutionTestFixtures::execution).toList()));
     }
 
     @Test void unpaidClinicalOrderCannotRegisterEvenThroughInternalCaller() {
@@ -130,7 +132,7 @@ class DiagnosticPaidRegistrationTest {
         assertEquals(roomId, rows.get(order).getRoomId()); assertEquals(DiagnosticRequestStatus.PENDING, rows.get(order).getStatus());
         assertEquals(DiagnosticOperationOutcome.STATE_CONFLICT, assertThrows(DiagnosticOperationException.class,
                 () -> registration.register(new RegisterImagingOrder(order, visit, patient, doctor, serviceId, otherRoom, "KNEE", "Pain"))).outcome());
-        verify(requests, times(1)).insertAssigned(any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
+        verify(requests, times(1)).assignImagingRoom(any(), any(), any(), any(), any(), any(), any());
     }
     @Test void occupiedRoomAcceptsMultiplePendingRequestsWithoutCapacityOrReservationDependency() {
         when(roomRows.hasBlockingUse(any(), any())).thenReturn(true);
@@ -148,39 +150,37 @@ class DiagnosticPaidRegistrationTest {
         beans.addBean("roomStatus", new StaffDiagnosticRoomStatusAdapter(staff, clock));
         var patientIdentities = mock(fu.fa26.sep490.g58.otcms_be.patient.service.PatientClinicalIdentityQueryService.class);
         when(patientIdentities.findClinicalIdentities(any())).thenReturn(Map.of(patient, new fu.fa26.sep490.g58.otcms_be.patient.service.PatientClinicalIdentityQueryService.ClinicalIdentity(patient, "Patient", java.time.LocalDate.of(1990, 1, 1), "MALE")));
-        var status = new DiagnosticStatusServiceImpl(requests, mock(fu.fa26.sep490.g58.otcms_be.diagnostic.repository.DiagnosticAttemptJpaRepository.class), beans.getBeanProvider(VisitDiagnosticReadPort.class), beans.getBeanProvider(RoomStatusAccessPort.class), patientIdentities);
+        var status = new DiagnosticStatusServiceImpl(requests, beans.getBeanProvider(VisitDiagnosticReadPort.class), beans.getBeanProvider(RoomStatusAccessPort.class), patientIdentities);
         var assigned = DiagnosticActor.user(technician, AccountRole.IMAGING_TECHNICIAN);
-        var round = new fu.fa26.sep490.g58.otcms_be.clinical.model.entity.OrderingRoundJpaEntity(visit, patient, 1, doctor, clock.instant());
-        var clinicalOrder = new fu.fa26.sep490.g58.otcms_be.clinical.model.entity.ServiceOrderJpaEntity("CD-QUEUE", round.getId(), visit, patient,
+        UUID roundId = UUID.randomUUID();
+        var clinicalOrder = new fu.fa26.sep490.g58.otcms_be.clinical.model.entity.ServiceOrderJpaEntity("CD-QUEUE", roundId, 1, true, null, null, visit, patient,
                 serviceId, "X-ray", fu.fa26.sep490.g58.otcms_be.clinical.model.ClinicalServiceType.IMAGING, doctor,
                 "Pain", "KNEE", null, java.math.BigDecimal.ONE, clock.instant());
-        var clinicalRounds = mock(fu.fa26.sep490.g58.otcms_be.clinical.repository.OrderingRoundRepository.class);
         var clinicalOrders = mock(fu.fa26.sep490.g58.otcms_be.clinical.repository.ServiceOrderRepository.class);
         var guard = mock(fu.fa26.sep490.g58.otcms_be.common.service.CoordinationGuardService.class);
-        when(clinicalRounds.findById(round.getId())).thenReturn(Optional.of(round));
-        when(clinicalRounds.existsById(round.getId())).thenReturn(true);
-        when(clinicalOrders.findByOrderingRoundId(round.getId())).thenReturn(List.of(clinicalOrder));
+        when(clinicalOrders.findFirstByOrderingRoundIdAndRoundHeadTrue(roundId)).thenReturn(Optional.of(clinicalOrder));
+        when(clinicalOrders.findByOrderingRoundId(roundId)).thenReturn(List.of(clinicalOrder));
         when(orders.requireOpenImagingOrder(clinicalOrder.getId())).thenAnswer(call -> new ClinicalImagingOrder(
                 clinicalOrder.getId(), visit, serviceId, true,
                 clinicalOrder.getPaymentStatus() == fu.fa26.sep490.g58.otcms_be.clinical.model.ServiceOrderPaymentStatus.PAID));
         var statuses = mock(fu.fa26.sep490.g58.otcms_be.diagnostic.service.DiagnosticOrderStatusQueryService.class);
         when(statuses.findByServiceOrders(any())).thenReturn(Map.of());
-        var workflow = new fu.fa26.sep490.g58.otcms_be.clinical.service.impl.ClinicalRoundWorkflowServiceImpl(clinicalRounds, clinicalOrders,
+        var workflow = new fu.fa26.sep490.g58.otcms_be.clinical.service.impl.ClinicalRoundWorkflowServiceImpl(clinicalOrders,
                 mock(fu.fa26.sep490.g58.otcms_be.clinical.service.impl.ClinicalOrderPreparationService.class),
                 mock(fu.fa26.sep490.g58.otcms_be.patient.service.PatientClinicalIdentityQueryService.class), statuses, registration, guard,
                 rooms, mock(fu.fa26.sep490.g58.otcms_be.clinical.service.VisitClinicalContextPort.class));
         var reception = new fu.fa26.sep490.g58.otcms_be.common.security.AuthenticatedAccount(UUID.randomUUID(), AccountRole.RECEPTIONIST, UUID.randomUUID());
         var assignments = List.of(new fu.fa26.sep490.g58.otcms_be.clinical.service.ClinicalRoundWorkflowService.RoomAssignment(clinicalOrder.getId(), roomId));
         assertThrows(fu.fa26.sep490.g58.otcms_be.clinical.exception.ClinicalOperationException.class,
-                () -> workflow.dispatch(round.getId(), reception, assignments));
-        new fu.fa26.sep490.g58.otcms_be.clinical.integration.billing.ClinicalRoundBillingAdapter(clinicalRounds, clinicalOrders, guard, clock)
-                .markRoundPaid(round.getId());
+                () -> workflow.dispatch(roundId, reception, assignments));
+        new fu.fa26.sep490.g58.otcms_be.clinical.integration.billing.ClinicalRoundBillingAdapter(clinicalOrders, guard, clock)
+                .markRoundPaid(roundId);
         assertEquals(fu.fa26.sep490.g58.otcms_be.clinical.model.ServiceOrderPaymentStatus.PAID, clinicalOrder.getPaymentStatus());
         assertTrue(rows.isEmpty());
         assertTrue(status.listTechnicianUploadWork(assigned, null, 0, 20).items().isEmpty());
-        var dispatched = workflow.dispatch(round.getId(), reception, assignments);
+        var dispatched = workflow.dispatch(roundId, reception, assignments);
         assertEquals(rows.get(clinicalOrder.getId()).getId(), dispatched.getFirst());
-        assertEquals(dispatched, workflow.dispatch(round.getId(), reception, assignments));
+        assertEquals(dispatched, workflow.dispatch(roundId, reception, assignments));
         var visible = status.listTechnicianUploadWork(assigned, null, 0, 20).items();
         assertEquals(1, visible.size()); assertEquals(roomId, visible.getFirst().roomId()); assertEquals(DiagnosticRequestStatus.PENDING, visible.getFirst().status());
         assertTrue(status.listTechnicianUploadWork(DiagnosticActor.user(otherTechnician, AccountRole.IMAGING_TECHNICIAN), null, 0, 20).items().isEmpty());

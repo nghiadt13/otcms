@@ -1,4 +1,7 @@
 package fu.fa26.sep490.g58.otcms_be.appointment.service.impl;
+
+import fu.fa26.sep490.g58.otcms_be.appointment.mapper.AppointmentAuditEntries;
+import fu.fa26.sep490.g58.otcms_be.common.audit.AuditLogWriter;
 import fu.fa26.sep490.g58.otcms_be.notification.model.NotificationMessages;
 import fu.fa26.sep490.g58.otcms_be.notification.service.NotificationPublisher;
 
@@ -36,6 +39,7 @@ import java.util.UUID;
 
 @Service
 public class CreateFollowUpAppointmentServiceImpl implements CreateFollowUpAppointmentService {
+    private final AuditLogWriter auditLogWriter;
     private final CoordinationGuardService guard;
     private final DoctorProfileIdentityQueryService doctors;
     private final VisitWorkflowService visits;
@@ -52,7 +56,8 @@ public class CreateFollowUpAppointmentServiceImpl implements CreateFollowUpAppoi
             VisitWorkflowService visits, ClinicServiceBookingQueryService services, StaffAvailabilityProviderQueryService providers,
             ServiceDoctorAssignmentQueryService assignments, GenerateAvailableSlotsService slots,
             AppointmentJpaRepository appointments, AppointmentBookingProperties properties, Clock clock,
-            NotificationPublisher notifications) {
+            NotificationPublisher notifications, AuditLogWriter auditLogWriter) {
+        this.auditLogWriter = auditLogWriter;
         this.guard = guard; this.doctors = doctors; this.visits = visits; this.services = services;
         this.providers = providers; this.assignments = assignments; this.slots = slots;
         this.appointments = appointments; this.properties = properties; this.clock = clock;
@@ -146,6 +151,7 @@ public class CreateFollowUpAppointmentServiceImpl implements CreateFollowUpAppoi
                 AppointmentBooking.ActorType.DOCTOR, now, command.correlationId(), command.sourceVisitId(),
                 evidence.originatingAppointmentId(), authenticatedDoctor, command.reason());
         var created = appointments.saveFollowUp(booking);
+        AppointmentAuditEntries.record(auditLogWriter, AppointmentAuditEntries.created(booking), booking.correlationId());
         notifications.publishToPatient(evidence.patientProfileId(), NotificationMessages.appointmentBooked(booking.id(),
                 booking.startTime(), providers.findDoctorDisplayName(command.doctorId()).orElse("")));
         return created;

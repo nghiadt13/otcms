@@ -15,8 +15,8 @@ export interface PrescriptionItem {
 /** Thông tin người bệnh in trên đơn; kèm quan hệ để giao diện nói rõ "của ai". */
 export type PrescriptionPatient = Pick<
   LinkedProfile,
-  "fullName" | "dateOfBirth" | "patientCode" | "relationship"
->;
+  "fullName" | "dateOfBirth" | "relationship"
+> & { patientCode?: string | null };
 
 export interface PrescriptionDocument {
   id: string;

@@ -1,5 +1,8 @@
 package fu.fa26.sep490.g58.otcms_be.appointment.service.impl;
 
+import fu.fa26.sep490.g58.otcms_be.appointment.mapper.AppointmentAuditEntries;
+import fu.fa26.sep490.g58.otcms_be.common.audit.AuditLogWriter;
+
 import fu.fa26.sep490.g58.otcms_be.appointment.repository.AppointmentPaymentHoldRepository;
 import fu.fa26.sep490.g58.otcms_be.appointment.service.ReleaseAppointmentPaymentHoldService.Actor;
 import fu.fa26.sep490.g58.otcms_be.appointment.service.ReleaseAppointmentPaymentHoldService.Outcome;
@@ -17,10 +20,12 @@ import java.util.UUID;
  */
 @Component
 public class AppointmentHoldExpiryTransaction {
+    private final AuditLogWriter auditLogWriter;
     private final AppointmentPaymentHoldRepository holds;
     private final Clock clock;
 
-    public AppointmentHoldExpiryTransaction(AppointmentPaymentHoldRepository holds, Clock clock) {
+    public AppointmentHoldExpiryTransaction(AppointmentPaymentHoldRepository holds, Clock clock, AuditLogWriter auditLogWriter) {
+        this.auditLogWriter = auditLogWriter;
         this.holds = holds;
         this.clock = clock;
     }
@@ -34,9 +39,10 @@ public class AppointmentHoldExpiryTransaction {
         if (holds.markPaymentExpired(appointmentId, now) != 1) return Outcome.NOT_AWAITING;
         // audit_actor_account_id is NOT NULL: the system acts on behalf of the account that created the hold.
         UUID actorAccount = actor.accountId() != null ? actor.accountId() : row.createdByAccountId();
-        holds.insertStatusAudit(UUID.randomUUID(), appointmentId, actorAccount, actor.actorType(),
-                "AWAITING_PAYMENT", "PAYMENT_EXPIRED", row.doctorProfileId(), row.startTime(), row.endTime(),
-                actor.reason(), now, actor.correlationId());
+        AppointmentAuditEntries.record(auditLogWriter, AppointmentAuditEntries.changed(appointmentId, actorAccount,
+                actor.actorType(), "STATUS_CHANGED", "AWAITING_PAYMENT", "PAYMENT_EXPIRED", row.doctorProfileId(),
+                row.doctorProfileId(), row.startTime(), row.startTime(), row.endTime(), row.endTime(),
+                null, null, actor.reason(), null, now), actor.correlationId());
         return Outcome.RELEASED;
     }
 }

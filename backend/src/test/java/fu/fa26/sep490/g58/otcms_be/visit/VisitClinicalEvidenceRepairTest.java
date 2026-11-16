@@ -27,7 +27,7 @@ class VisitClinicalEvidenceRepairTest {
     final VisitWorkflowRepository repository = mock(VisitWorkflowRepository.class);
     final VisitWorkflowServiceImpl visits = new VisitWorkflowServiceImpl(repository, Clock.fixed(Instant.EPOCH, ZoneOffset.UTC),
             mock(WalkInVisitLifecycleService.class), clinical, mock(VisitExamQueueService.class),
-            mock(DoctorProfileIdentityQueryService.class), mock(VisitRoomJpaRepository.class));
+            mock(DoctorProfileIdentityQueryService.class), mock(VisitRoomJpaRepository.class), mock(fu.fa26.sep490.g58.otcms_be.visit.service.impl.VisitAuditRecorder.class));
 
     ClinicalExaminationJpaEntity examination(ClinicalExaminationStatus status, Boolean indication) {
         var exam = ClinicalExaminationJpaEntity.create(visitId, "reason", "symptoms", "findings", null, null, null, status, Instant.EPOCH);

@@ -43,6 +43,13 @@ export interface DoctorExamQueueItem extends Omit<ExamQueueItem, "examStatus"> {
   gender: "MALE" | "FEMALE" | "OTHER" | null;
 }
 
+/** A6 visit detail includes patient demographics for authorized doctors. */
+export interface DoctorExamQueueEntry extends ExamQueueItem {
+  /** YYYY-MM-DD. */
+  dateOfBirth: string | null;
+  gender: "MALE" | "FEMALE" | "OTHER" | null;
+}
+
 /** Bác sĩ có ca làm việc bao phủ thời điểm hiện tại (A3). */
 export interface OnShiftDoctor {
   doctorProfileId: string;
@@ -85,8 +92,8 @@ export function listOnShiftDoctors(): Promise<{ items: OnShiftDoctor[] }> {
 }
 
 /** Một dòng hàng chờ theo mã lượt khám (A6). BE trả 404 khi lượt không có trong hàng chờ. */
-export function getExamQueueEntry(visitId: string): Promise<ExamQueueItem> {
-  return apiRequest<ExamQueueItem>(
+export function getExamQueueEntry(visitId: string): Promise<DoctorExamQueueEntry> {
+  return apiRequest<DoctorExamQueueEntry>(
     `/api/v1/visits/${encodeURIComponent(visitId)}/exam-queue-entry`,
   );
 }

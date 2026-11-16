@@ -29,7 +29,7 @@ class T008PasswordRecoveryPostgresIntegrationTest {
     @Autowired AuthSessionService sessionService;
     @Autowired AccountRepository accounts;
     @Autowired AuthSessionRepository sessions;
-    @Autowired PasswordResetChallengeRepository challenges;
+    @Autowired VerificationCodeRepository challenges;
     @Autowired PasswordEncoder encoder;
     @MockitoBean EmailDeliveryService email;
     @Autowired org.springframework.jdbc.core.JdbcTemplate jdbc;
@@ -37,7 +37,7 @@ class T008PasswordRecoveryPostgresIntegrationTest {
 
     @AfterEach void cleanup() {
         if (fixtureAccountId == null) return;
-        jdbc.update("delete from password_resets where account_id=?", fixtureAccountId);
+        jdbc.update("delete from verification_codes where account_id=?", fixtureAccountId);
         jdbc.update("delete from sessions where account_id=?", fixtureAccountId);
         jdbc.update("delete from accounts where id=?", fixtureAccountId);
     }
@@ -58,10 +58,10 @@ class T008PasswordRecoveryPostgresIntegrationTest {
         verify(email).sendStaffPasswordReset(eq(account.getNormalizedEmail()), token.capture(), eq(account.getId()));
         verify(email, never()).sendPasswordReset(anyString(), anyString(), any());
         String tokenHash = fu.fa26.sep490.g58.otcms_be.auth.service.impl.PasswordRecoveryServiceImpl.hash(token.getValue());
-        assertNull(challenges.findByTokenHash(tokenHash).orElseThrow().getSupersededAt());
+        assertNull(challenges.findByCodeHash(tokenHash, VerificationPurpose.PASSWORD_RESET).orElseThrow().getSupersededAt());
 
         recovery.change(account.getId(), new ChangePasswordRequest("old-password-123", "changed-password-123"));
-        assertNotNull(challenges.findByTokenHash(tokenHash).orElseThrow().getSupersededAt());
+        assertNotNull(challenges.findByCodeHash(tokenHash, VerificationPurpose.PASSWORD_RESET).orElseThrow().getSupersededAt());
         var error = assertThrows(PasswordRecoveryException.class,
                 () -> recovery.reset(new ResetPasswordRequest(token.getValue(), "reset-password-123"), AccountType.RECEPTIONIST));
         assertEquals("PASSWORD_RESET_TOKEN_INVALID", error.getMessage());
@@ -83,8 +83,8 @@ class T008PasswordRecoveryPostgresIntegrationTest {
         recovery.forgot("t008@example.test", AccountType.PATIENT);
         var token = org.mockito.ArgumentCaptor.forClass(String.class);
         verify(email).sendPasswordReset(eq("t008@example.test"), token.capture(), eq(account.getId()));
-        PasswordResetChallengeJpaEntity challenge = challenges.findCurrentByAccountIdForUpdate(account.getId()).orElseThrow();
-        assertNotEquals(token.getValue(), challenge.getTokenHash());
+        VerificationCodeJpaEntity challenge = challenges.findCurrentForUpdate(account.getId(), VerificationPurpose.PASSWORD_RESET).orElseThrow();
+        assertNotEquals(token.getValue(), challenge.getCodeHash());
         assertEquals(0, challenge.getFailedAttempts());
 
         recovery.reset(new ResetPasswordRequest(token.getValue(), "new-password-123"), AccountType.PATIENT);

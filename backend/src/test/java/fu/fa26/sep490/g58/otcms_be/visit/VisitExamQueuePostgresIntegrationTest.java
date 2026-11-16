@@ -103,7 +103,7 @@ class VisitExamQueuePostgresIntegrationTest {
         queue.complete(visit2, doctorAProfileId, now);
         entityManager.flush();
         assertEquals("COMPLETED", jdbc.queryForObject(
-                "select exam_status from visit_exam_queue where visit_id = ?", String.class, visit2));
+                "select status from queue_entries where stage = 'EXAM' and visit_id = ?", String.class, visit2));
     }
 
     @Test
@@ -195,9 +195,9 @@ class VisitExamQueuePostgresIntegrationTest {
 
     private UUID doctorProfile(UUID accountId, String name) {
         UUID id = UUID.randomUUID();
-        jdbc.update("insert into doctor_profiles (id, account_id, full_name, photo_url, work_contact, specialties, "
+        jdbc.update("insert into staff_profiles (is_doctor, id, account_id, display_name, photo_url, work_contact, specialties, "
                 + "qualifications, biography, consultation_information, publicly_visible, "
-                + "accepting_new_bookings, in_active_directory) values (?, ?, ?, '', '', '', '', '', '', true, true, true)",
+                + "accepting_new_bookings, in_active_directory) values (true, ?, ?, ?, '', '', '', '', '', '', true, true, true)",
                 id, accountId, name);
         return id;
     }
@@ -210,7 +210,7 @@ class VisitExamQueuePostgresIntegrationTest {
     }
 
     private void shift(UUID doctorProfileId, UUID roomId, Instant startsAt, Instant endsAt) {
-        jdbc.update("insert into doctor_shifts (id, doctor_profile_id, starts_at, ends_at, room_id) "
+        jdbc.update("insert into work_shifts (id, staff_profile_id, starts_at, ends_at, room_id) "
                 + "values (?, ?, ?, ?, ?)", UUID.randomUUID(), doctorProfileId, Timestamp.from(startsAt),
                 Timestamp.from(endsAt), roomId);
     }

@@ -15,9 +15,7 @@ import fu.fa26.sep490.g58.otcms_be.visit.model.ExamQueueEntry;
 import fu.fa26.sep490.g58.otcms_be.visit.model.VisitCompletionResult;
 import fu.fa26.sep490.g58.otcms_be.visit.model.VisitExamStatus;
 import fu.fa26.sep490.g58.otcms_be.visit.model.entity.ClinicVisitJpaEntity;
-import fu.fa26.sep490.g58.otcms_be.visit.model.entity.VisitAuditJpaEntity;
 import fu.fa26.sep490.g58.otcms_be.visit.repository.ClinicVisitJpaRepository;
-import fu.fa26.sep490.g58.otcms_be.visit.repository.VisitAuditJpaRepository;
 import fu.fa26.sep490.g58.otcms_be.visit.repository.WalkInVisitLifecycleRepository;
 import fu.fa26.sep490.g58.otcms_be.visit.service.ExitWalkInReceptionQueueCommand;
 import fu.fa26.sep490.g58.otcms_be.visit.service.ExitWalkInReceptionQueueService;
@@ -36,7 +34,7 @@ public class WalkInVisitLifecycleServiceImpl implements WalkInVisitLifecycleServ
     private final CoordinationGuardService guard;
     private final ClinicVisitJpaRepository visits;
     private final WalkInVisitLifecycleRepository lifecycle;
-    private final VisitAuditJpaRepository audits;
+    private final VisitAuditRecorder audit;
     private final ExitWalkInReceptionQueueService queueExit;
     private final ReceptionistAccountAccessService receptionists;
     private final ClinicalVisitCompletionEvidenceService clinical;
@@ -51,7 +49,7 @@ public class WalkInVisitLifecycleServiceImpl implements WalkInVisitLifecycleServ
     private final DoctorProfileIdentityQueryService doctorProfiles;
 
     public WalkInVisitLifecycleServiceImpl(CoordinationGuardService guard, ClinicVisitJpaRepository visits,
-            WalkInVisitLifecycleRepository lifecycle, VisitAuditJpaRepository audits,
+            WalkInVisitLifecycleRepository lifecycle, VisitAuditRecorder audit,
             ExitWalkInReceptionQueueService queueExit, ReceptionistAccountAccessService receptionists,
             ClinicalVisitCompletionEvidenceService clinical, DiagnosticVisitCompletionEvidenceService diagnostic, Clock clock,
             NotificationPublisher notifications, VisitReviewSourceService reviewSources,
@@ -61,7 +59,7 @@ public class WalkInVisitLifecycleServiceImpl implements WalkInVisitLifecycleServ
         this.guard = guard;
         this.visits = visits;
         this.lifecycle = lifecycle;
-        this.audits = audits;
+        this.audit = audit;
         this.queueExit = queueExit;
         this.receptionists = receptionists;
         this.clinical = clinical;
@@ -232,11 +230,13 @@ public class WalkInVisitLifecycleServiceImpl implements WalkInVisitLifecycleServ
             throw new VisitOperationException("VISIT_CARE_NOT_CHANGEABLE");
         }
         lifecycle.releaseReservedCare(visitId, now);
-        VisitAuditJpaEntity audit = "CANCELLED".equals(reason)
-                ? VisitAuditJpaEntity.walkInCancelled(actorAccountId, visitId, now, correlationId)
-                : walkIn ? VisitAuditJpaEntity.walkInClosed(actorAccountId, visitId, now, correlationId)
-                        : VisitAuditJpaEntity.visitClosed(actorAccountId, visitId, now, correlationId);
-        audits.saveAndFlush(audit);
+        if ("CANCELLED".equals(reason)) {
+            audit.walkInCancelled(actorAccountId, visitId, now, correlationId);
+        } else if (walkIn) {
+            audit.walkInClosed(actorAccountId, visitId, now, correlationId);
+        } else {
+            audit.visitClosed(actorAccountId, visitId, now, correlationId);
+        }
     }
 
     private static void validate(UUID visitId, UUID actorAccountId, AccountRole actorRole, String correlationId) {

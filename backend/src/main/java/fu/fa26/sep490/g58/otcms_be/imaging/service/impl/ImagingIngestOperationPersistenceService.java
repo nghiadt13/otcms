@@ -2,62 +2,70 @@ package fu.fa26.sep490.g58.otcms_be.imaging.service.impl;
 
 import fu.fa26.sep490.g58.otcms_be.imaging.exception.ImagingOperationException;
 import fu.fa26.sep490.g58.otcms_be.imaging.exception.ImagingOperationOutcome;
-import fu.fa26.sep490.g58.otcms_be.imaging.model.ImagingOperationRecord;
-import fu.fa26.sep490.g58.otcms_be.imaging.model.entity.ImagingIngestOperationJpaEntity;
 import fu.fa26.sep490.g58.otcms_be.imaging.model.ImagingDicomStudyValidation;
+import fu.fa26.sep490.g58.otcms_be.imaging.model.ImagingOperationRecord;
+import fu.fa26.sep490.g58.otcms_be.imaging.model.entity.ImagingStudyJpaEntity;
 import fu.fa26.sep490.g58.otcms_be.imaging.model.entity.enums.ImagingOperationState;
-import fu.fa26.sep490.g58.otcms_be.imaging.repository.ImagingIngestOperationRepository;
+import fu.fa26.sep490.g58.otcms_be.imaging.repository.ImagingStudyRepository;
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/** Maps domain projections to FEAT-004 JPA entities and owns operation persistence rules. */
+/** Persists upload workflow state on its owning imaging_studies row. */
 @Service
 public class ImagingIngestOperationPersistenceService {
-    private final ImagingIngestOperationRepository operations;
+    private final ImagingStudyRepository studies;
 
-    public ImagingIngestOperationPersistenceService(ImagingIngestOperationRepository operations) {
-        this.operations = operations;
+    public ImagingIngestOperationPersistenceService(ImagingStudyRepository studies) {
+        this.studies = studies;
     }
 
     @Transactional(readOnly = true)
     public Optional<ImagingOperationRecord> findById(UUID id) {
-        return operations.findById(id).map(ImagingIngestOperationJpaEntity::toModel);
+        return studies.findById(id).map(ImagingStudyJpaEntity::toModel);
+    }
+
+    @Transactional(readOnly = true)
+    public List<ImagingOperationRecord> findAllByRequestAndAttempt(UUID requestId, UUID attemptId) {
+        return studies.findAllByRequestIdAndAttemptIdOrderByCreatedAtDesc(requestId, attemptId).stream()
+                .map(ImagingStudyJpaEntity::toModel)
+                .toList();
     }
 
     @Transactional
     public void insert(ImagingOperationRecord operation) {
-        operations.saveAndFlush(new ImagingIngestOperationJpaEntity(operation));
+        studies.saveAndFlush(new ImagingStudyJpaEntity(operation, operation.id().toString()));
     }
 
     @Transactional
-    public void recordValidation(UUID operationId, ImagingDicomStudyValidation validation) {
-        ImagingIngestOperationJpaEntity operation = operations.findById(operationId)
+    public void recordValidation(UUID studyId, ImagingDicomStudyValidation validation) {
+        ImagingStudyJpaEntity study = studies.findById(studyId)
                 .orElseThrow(() -> new ImagingOperationException(ImagingOperationOutcome.RECORD_NOT_FOUND));
-        operation.applyValidation(validation);
-        operations.saveAndFlush(operation);
+        study.applyValidation(validation);
+        studies.saveAndFlush(study);
     }
 
     @Transactional
-    public void recordStudyReferences(UUID operationId, String studyRef, String archiveStudyRef) {
-        ImagingIngestOperationJpaEntity operation = operations.findById(operationId)
+    public void recordStudyReferences(UUID studyId, String studyRef, String archiveStudyRef) {
+        ImagingStudyJpaEntity study = studies.findById(studyId)
                 .orElseThrow(() -> new ImagingOperationException(ImagingOperationOutcome.RECORD_NOT_FOUND));
-        operation.setStudyRef(studyRef);
-        operation.setArchiveStudyRef(archiveStudyRef);
-        operations.saveAndFlush(operation);
+        study.setStudyRef(studyRef);
+        study.setArchiveStudyRef(archiveStudyRef);
+        studies.saveAndFlush(study);
     }
 
     @Transactional
-    public void transition(UUID operationId, long expectedVersion, ImagingOperationState next,
+    public void transition(UUID studyId, long expectedVersion, ImagingOperationState next,
             String safeOutcomeCode, Instant updatedAt) {
-        ImagingIngestOperationJpaEntity current = operations.findById(operationId)
+        ImagingStudyJpaEntity current = studies.findById(studyId)
                 .orElseThrow(() -> new ImagingOperationException(ImagingOperationOutcome.RECORD_NOT_FOUND));
         if (!current.getState().canTransitionTo(next)) {
             throw new ImagingOperationException(ImagingOperationOutcome.STATE_CONFLICT);
         }
-        int changed = operations.transitionStateIfVersionMatches(operationId, expectedVersion,
+        int changed = studies.transitionStateIfVersionMatches(studyId, expectedVersion,
                 current.getState(), next, safeOutcomeCode, updatedAt);
         if (changed != 1) throw new ImagingOperationException(ImagingOperationOutcome.VERSION_CONFLICT);
     }

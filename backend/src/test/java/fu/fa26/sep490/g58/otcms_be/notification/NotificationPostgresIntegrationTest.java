@@ -230,8 +230,8 @@ class NotificationPostgresIntegrationTest {
         assertTrue(inbox.list(patient, false, 0, 20).items().stream().noneMatch(i -> i.relatedRecord().available()));
     }
     @Test void bookingAndReassignmentPublishAppointmentNotifications() {
-        jdbc.update("update doctor_profiles set full_name='Bác sĩ ban đầu' where id=?", doctor);
-        jdbc.update("update doctor_profiles set full_name='Bác sĩ thay thế' where id=?", replacement);
+        jdbc.update("update staff_profiles set display_name='Bác sĩ ban đầu' where id=?", doctor);
+        jdbc.update("update staff_profiles set display_name='Bác sĩ thay thế' where id=?", replacement);
         var created = book(profile, CreateAppointmentCommand.Actor.PATIENT);
         assertMessage(NotificationMessages.APPOINTMENT_BOOKED, a, created.id(), "APPOINTMENT", "03/11/2026 lúc 10:00", "Bác sĩ ban đầu");
         assertTrue(inbox.list(patient, false, 0, 20).items().getFirst().relatedRecord().available());
@@ -338,7 +338,7 @@ class NotificationPostgresIntegrationTest {
         }));
         assertTrue(causeContains(failure, "change notification failure"));
         assertEquals(0, jdbc.queryForObject("select count(*) from appointments where created_by_account_id=?", Integer.class, a));
-        assertEquals(0, jdbc.queryForObject("select count(*) from appointment_audits where actor_account_id=?", Integer.class, receptionist));
+        assertEquals(0, jdbc.queryForObject("select count(*) from audit_logs where source = 'appointment_audits' and actor_account_id=?", Integer.class, receptionist));
         assertEquals(0, jdbc.queryForObject("select count(*) from notifications where recipient_account_id=?", Integer.class, a));
     }
     private void changeAppointment(String operation, UUID id) {
@@ -377,7 +377,7 @@ class NotificationPostgresIntegrationTest {
         }));
         assertTrue(causeContains(failure, "notification test failure"));
         assertEquals(0, jdbc.queryForObject("select count(*) from patient_reviews where author_account_id=?", Integer.class, a));
-        assertEquals(0, jdbc.queryForObject("select count(*) from patient_review_moderation_history where actor_account_id=?", Integer.class, a));
+        assertEquals(0, jdbc.queryForObject("select count(*) from audit_logs where source = 'patient_review_moderation_history' and actor_account_id=?", Integer.class, a));
         assertEquals(0, jdbc.queryForObject("select count(*) from notifications where recipient_account_id=?", Integer.class, admin));
     }
     @Test void publisherRequiresAnExistingBusinessTransaction() {
@@ -408,7 +408,7 @@ class NotificationPostgresIntegrationTest {
         }));
         assertTrue(causeContains(failure, "booking notification test failure"));
         assertEquals(0, jdbc.queryForObject("select count(*) from appointments where created_by_account_id=?", Integer.class, a));
-        assertEquals(0, jdbc.queryForObject("select count(*) from appointment_audits where actor_account_id=?", Integer.class, a));
+        assertEquals(0, jdbc.queryForObject("select count(*) from audit_logs where source = 'appointment_audits' and actor_account_id=?", Integer.class, a));
         assertEquals(0, jdbc.queryForObject("select count(*) from notifications where recipient_account_id=?", Integer.class, a));
     }
     @Test void cancelDoesNotPublishReviewInvitation() {
@@ -565,9 +565,9 @@ class NotificationPostgresIntegrationTest {
                 "+849" + String.format("%09d", Math.floorMod(id.getLeastSignificantBits(), 1_000_000_000L)));
     }
     private void doctor(UUID id, UUID account) {
-        jdbc.update("insert into doctor_profiles(id,account_id,full_name,publicly_visible,accepting_new_bookings,in_active_directory) values (?,?,'Notification test doctor',true,true,true)", id, account);
+        jdbc.update("insert into staff_profiles(is_doctor, id,account_id,display_name,publicly_visible,accepting_new_bookings,in_active_directory) values (true, ?,?,'Notification test doctor',true,true,true)", id, account);
         jdbc.update("insert into doctor_services(doctor_profile_id,service_id,active) values (?,?,true)", id, serviceId);
-        jdbc.update("insert into doctor_shifts(id,doctor_profile_id,starts_at,ends_at) values (?,?,?,?)", UUID.randomUUID(), id,
+        jdbc.update("insert into work_shifts(id,staff_profile_id,starts_at,ends_at) values (?,?,?,?)", UUID.randomUUID(), id,
                 Timestamp.from(Instant.parse("2026-11-03T02:00:00Z")), Timestamp.from(Instant.parse("2026-11-03T05:00:00Z")));
     }
     private void visit(UUID id, UUID target, String status) {

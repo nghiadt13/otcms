@@ -77,8 +77,7 @@ public final class ProductionReadinessGate {
     public boolean protects(String method, String path) {
         if (!Set.of("POST", "PUT", "PATCH", "DELETE").contains(method.toUpperCase())) return false;
         if (path.equals("/api/v1/appointments") || path.equals("/api/v1/visits/walk-ins")) return true;
-        if (path.matches("/api/v1/admin/doctors/[^/]+/mutation-impact")
-                || path.matches("/api/v1/admin/doctors/[^/]+/time-offs/[^/]+/mutation-impact")) return false;
+        if (path.matches("/api/v1/admin/doctors/[^/]+/mutation-impact")) return false;
         return path.equals("/api/v1/admin/doctor-profiles") || path.startsWith("/api/v1/admin/doctors/")
                 || path.equals("/api/v1/admin/clinic-services")
                 || path.startsWith("/api/v1/admin/clinic-services/")

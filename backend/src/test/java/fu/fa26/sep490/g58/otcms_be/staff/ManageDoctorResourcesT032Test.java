@@ -11,15 +11,17 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import fu.fa26.sep490.g58.otcms_be.appointment.service.AppointmentMutationImpactService;
+import fu.fa26.sep490.g58.otcms_be.common.audit.AuditEntry;
+import fu.fa26.sep490.g58.otcms_be.common.audit.AuditLogWriter;
 import fu.fa26.sep490.g58.otcms_be.common.exception.ResourceMutationBlockedException;
+import fu.fa26.sep490.g58.otcms_be.staff.model.entity.StaffProfileJpaEntity;
 import fu.fa26.sep490.g58.otcms_be.common.security.AccountRole;
 import fu.fa26.sep490.g58.otcms_be.common.security.AuthenticatedAccount;
 import fu.fa26.sep490.g58.otcms_be.common.service.CoordinationGuardService;
 import fu.fa26.sep490.g58.otcms_be.staff.model.entity.DoctorWorkShiftJpaEntity;
-import fu.fa26.sep490.g58.otcms_be.staff.repository.DoctorOperationalTimeOffRepository;
-import fu.fa26.sep490.g58.otcms_be.staff.repository.DoctorProfileRepository;
+import fu.fa26.sep490.g58.otcms_be.staff.repository.StaffProfileRepository;
 import fu.fa26.sep490.g58.otcms_be.staff.repository.DoctorWorkShiftRepository;
-import fu.fa26.sep490.g58.otcms_be.staff.repository.StaffResourceManagementAuditRepository;
+import fu.fa26.sep490.g58.otcms_be.staff.service.DoctorProfileIdentityQueryService;
 import fu.fa26.sep490.g58.otcms_be.staff.service.impl.ManageDoctorResourcesServiceImpl;
 import fu.fa26.sep490.g58.otcms_be.visit.service.VisitMutationImpactService;
 import java.time.Clock;
@@ -43,10 +45,10 @@ class ManageDoctorResourcesT032Test {
     private final UUID shiftId = UUID.randomUUID();
     private final AuthenticatedAccount admin = new AuthenticatedAccount(actorId, AccountRole.ADMIN, UUID.randomUUID());
 
-    @Mock private DoctorProfileRepository profiles;
+    @Mock private StaffProfileRepository profiles;
     @Mock private DoctorWorkShiftRepository shifts;
-    @Mock private DoctorOperationalTimeOffRepository timeOffs;
-    @Mock private StaffResourceManagementAuditRepository audits;
+    @Mock private DoctorProfileIdentityQueryService audits;
+    @Mock private AuditLogWriter auditLogs;
     @Mock private AppointmentMutationImpactService appointments;
     @Mock private VisitMutationImpactService visits;
     @Mock private CoordinationGuardService guard;
@@ -54,14 +56,14 @@ class ManageDoctorResourcesT032Test {
 
     @BeforeEach
     void setUp() {
-        service = new ManageDoctorResourcesServiceImpl(profiles, shifts, timeOffs, audits, appointments, visits,
+        service = new ManageDoctorResourcesServiceImpl(profiles, shifts, audits, auditLogs, appointments, visits,
                 guard, Clock.fixed(START, ZoneOffset.UTC));
     }
 
     @Test
     void deletingShiftThatRemovesBookingCoverageReturnsMinimalImpactAndDoesNotWrite() {
         var shift = new DoctorWorkShiftJpaEntity(shiftId, doctorId, START, END);
-        when(profiles.existsById(doctorId)).thenReturn(true);
+        when(profiles.existsByIdAndDoctorTrue(doctorId)).thenReturn(true);
         when(shifts.findByIdAndDoctorProfileId(shiftId, doctorId)).thenReturn(Optional.of(shift));
         when(shifts.findAllByDoctorProfileIdOrderByStartsAtAscIdAsc(doctorId)).thenReturn(List.of(shift));
         when(appointments.findProtectedBookingIntervals(doctorId)).thenReturn(List.of(
@@ -78,7 +80,7 @@ class ManageDoctorResourcesT032Test {
         assertFalse(failure.impact().isActiveCareBlocks());
         verify(guard).acquire();
         verify(shifts, never()).delete(any(DoctorWorkShiftJpaEntity.class));
-        verify(audits, never()).append(any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
+        verify(auditLogs, never()).record(any());
     }
 
     @Test
@@ -86,7 +88,7 @@ class ManageDoctorResourcesT032Test {
         UUID replacementId = UUID.randomUUID();
         var shift = new DoctorWorkShiftJpaEntity(shiftId, doctorId, START, END);
         var replacement = new DoctorWorkShiftJpaEntity(replacementId, doctorId, START.minusSeconds(60), END.plusSeconds(60));
-        when(profiles.existsById(doctorId)).thenReturn(true);
+        when(profiles.existsByIdAndDoctorTrue(doctorId)).thenReturn(true);
         when(shifts.findByIdAndDoctorProfileId(shiftId, doctorId)).thenReturn(Optional.of(shift));
         when(shifts.findAllByDoctorProfileIdOrderByStartsAtAscIdAsc(doctorId)).thenReturn(List.of(shift, replacement));
         when(appointments.findProtectedBookingIntervals(doctorId)).thenReturn(List.of(
@@ -96,22 +98,53 @@ class ManageDoctorResourcesT032Test {
         service.deleteShift(doctorId, shiftId, admin, "t032-correlation");
 
         verify(shifts).delete(shift);
-        verify(audits).append(any(), eq(doctorId), eq(actorId), eq("WORK_SHIFT"), eq(shiftId), eq("DELETED"),
-                any(), eq("{}"), any(), eq("t032-correlation"));
+        verify(auditLogs).record(org.mockito.ArgumentMatchers.argThat(entry -> entry.entityId().equals(shiftId)
+                && entry.action().equals("CANCEL_STAFF_SHIFT") && entry.actorAccountId().equals(actorId)));
     }
 
     @Test
     void impactReadFailureFailsClosedAsDependencyUnavailable() {
-        when(profiles.existsById(doctorId)).thenReturn(true);
-        when(appointments.countBookingsOverlappingTimeOff(doctorId, START, END))
+        when(profiles.existsByIdAndDoctorTrue(doctorId)).thenReturn(true);
+        var shift = new DoctorWorkShiftJpaEntity(shiftId, doctorId, START, END);
+        when(shifts.findByIdAndDoctorProfileId(shiftId, doctorId)).thenReturn(Optional.of(shift));
+        when(shifts.findAllByDoctorProfileIdOrderByStartsAtAscIdAsc(doctorId)).thenReturn(List.of(shift));
+        when(appointments.findProtectedBookingIntervals(doctorId))
                 .thenThrow(new IllegalStateException("owner query unavailable"));
 
         var failure = assertThrows(fu.fa26.sep490.g58.otcms_be.staff.exception.DoctorProfileException.class,
-                () -> service.createTimeOff(doctorId, START, END, admin, "t032-correlation"));
+                () -> service.deleteShift(doctorId, shiftId, admin, "t032-correlation"));
 
         assertEquals("DEPENDENCY_UNAVAILABLE", failure.getMessage());
-        verify(timeOffs, never()).save(any());
-        verify(audits, never()).append(any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
+        verify(shifts, never()).delete(any(DoctorWorkShiftJpaEntity.class));
+        verify(auditLogs, never()).record(any());
+    }
+
+    @Test
+    void creatingAndDeletingDoctorShiftRecordsActionsAndDoctorName() {
+        Instant start = START.plusSeconds(60), end = END.plusSeconds(60);
+        var shift = new DoctorWorkShiftJpaEntity(shiftId, doctorId, start, end);
+        when(profiles.existsByIdAndDoctorTrue(doctorId)).thenReturn(true);
+        when(shifts.findAllByDoctorProfileIdOrderByStartsAtAscIdAsc(doctorId)).thenReturn(List.of(), List.of(shift));
+        when(shifts.save(any())).thenAnswer(call -> call.getArgument(0));
+        when(shifts.findByIdAndDoctorProfileId(shiftId, doctorId)).thenReturn(Optional.of(shift));
+        when(audits.findDoctorNames(List.of(doctorId))).thenReturn(java.util.Map.of(doctorId, "BS. An"));
+
+        String mdcKey = fu.fa26.sep490.g58.otcms_be.common.web.CorrelationIdFilter.MDC_KEY;
+        org.slf4j.MDC.put(mdcKey, "outer");
+        try {
+            org.mockito.Mockito.doAnswer(call -> { assertEquals("correlation", org.slf4j.MDC.get(mdcKey)); return null; })
+                    .when(auditLogs).record(any());
+            service.createShift(doctorId, start, end, admin, "correlation");
+            service.deleteShift(doctorId, shiftId, admin, "correlation");
+            assertEquals("outer", org.slf4j.MDC.get(mdcKey));
+        } finally { org.slf4j.MDC.remove(mdcKey); }
+
+        var entries = org.mockito.ArgumentCaptor.forClass(AuditEntry.class);
+        verify(auditLogs, org.mockito.Mockito.times(2)).record(entries.capture());
+        assertEquals(List.of("CREATE_STAFF_SHIFT", "CANCEL_STAFF_SHIFT"),
+                entries.getAllValues().stream().map(AuditEntry::action).toList());
+        assertTrue(entries.getAllValues().stream().allMatch(entry -> "BS. An".equals(entry.recordLabel())));
+        assertTrue(entries.getAllValues().stream().allMatch(entry -> START.equals(entry.occurredAt())));
     }
 
     @Test
@@ -125,7 +158,7 @@ class ManageDoctorResourcesT032Test {
     @Test
     void historicalShiftCannotBeMovedToFutureOrDeleted() {
         var shift = new DoctorWorkShiftJpaEntity(shiftId, doctorId, START.minusSeconds(3600), START.minusSeconds(60));
-        when(profiles.existsById(doctorId)).thenReturn(true);
+        when(profiles.existsByIdAndDoctorTrue(doctorId)).thenReturn(true);
         when(shifts.findByIdAndDoctorProfileId(shiftId, doctorId)).thenReturn(Optional.of(shift));
         assertThrows(fu.fa26.sep490.g58.otcms_be.staff.exception.DoctorProfileException.class,
                 () -> service.deleteShift(doctorId, shiftId, admin, "correlation"));
@@ -136,15 +169,27 @@ class ManageDoctorResourcesT032Test {
     }
 
     @Test
-    void overlappingTimeOffCannotBeSavedEvenWithoutAppointments() {
-        when(profiles.existsById(doctorId)).thenReturn(true);
-        when(timeOffs.findOverlapping(List.of(doctorId), START, END)).thenReturn(List.of(
-                new fu.fa26.sep490.g58.otcms_be.staff.model.entity.DoctorOperationalTimeOffJpaEntity(
-                        UUID.randomUUID(), doctorId, START, END)));
-        var failure = assertThrows(fu.fa26.sep490.g58.otcms_be.staff.exception.DoctorProfileException.class,
-                () -> service.createTimeOff(doctorId, START, END, admin, "correlation"));
-        assertEquals("DOCTOR_TIME_OFF_OVERLAP", failure.getMessage());
-        verify(timeOffs, never()).save(any());
-        org.mockito.Mockito.verifyNoInteractions(appointments);
+    void directoryStateChangeWritesDoctorProfileAuditWithObjectSnapshots() {
+        var profile = new StaffProfileJpaEntity(doctorId, UUID.randomUUID(), "BS. An", null);
+        profile.becomeDoctor("s", "q", "b", "c", true);
+        when(profiles.findByIdAndDoctorTrue(doctorId)).thenReturn(Optional.of(profile));
+        when(profiles.save(profile)).thenReturn(profile);
+
+        service.updateDirectoryState(doctorId, false, false, true, admin, "t032-correlation");
+
+        var entry = org.mockito.ArgumentCaptor.forClass(AuditEntry.class);
+        verify(auditLogs).record(entry.capture());
+        assertEquals("staff_resource_audits", entry.getValue().source());
+        assertEquals("STAFF_PROFILE", entry.getValue().category());
+        assertEquals("UPDATE_STAFF_PROFILE", entry.getValue().action());
+        assertEquals("DOCTOR_PROFILE", entry.getValue().recordType());
+        assertEquals(doctorId, entry.getValue().entityId());
+        assertEquals("BS. An", entry.getValue().recordLabel());
+        assertEquals(actorId, entry.getValue().actorAccountId());
+        assertTrue(entry.getValue().visibleInActivityLog());
+        assertEquals(java.util.Map.of("publiclyVisible", true, "acceptingNewBookings", false,
+                "inActiveDirectory", true), entry.getValue().beforeState());
+        assertEquals(java.util.Map.of("publiclyVisible", false, "acceptingNewBookings", false,
+                "inActiveDirectory", true), entry.getValue().afterState());
     }
 }

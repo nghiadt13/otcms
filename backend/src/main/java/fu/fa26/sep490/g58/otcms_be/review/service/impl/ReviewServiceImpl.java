@@ -1,4 +1,6 @@
 package fu.fa26.sep490.g58.otcms_be.review.service.impl;
+import fu.fa26.sep490.g58.otcms_be.common.audit.AuditEntry;
+import fu.fa26.sep490.g58.otcms_be.common.audit.AuditLogWriter;
 import fu.fa26.sep490.g58.otcms_be.notification.model.NotificationMessages;
 import fu.fa26.sep490.g58.otcms_be.notification.service.NotificationPublisher;
 
@@ -22,18 +24,18 @@ import org.springframework.transaction.annotation.Transactional;
 public class ReviewServiceImpl implements ReviewService {
     private static final ZoneId ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
     private final PatientReviewRepository reviews;
-    private final PatientReviewHistoryRepository history;
+    private final AuditLogWriter audit;
     private final OwnPatientProfileService ownProfiles;
     private final PatientProfileDirectory profiles;
     private final VisitReviewSourceService visits;
     private final Clock clock;
     private final ReviewVisitContextService visitContext;
     private final NotificationPublisher notifications;
-    public ReviewServiceImpl(PatientReviewRepository reviews, PatientReviewHistoryRepository history,
+    public ReviewServiceImpl(PatientReviewRepository reviews, AuditLogWriter audit,
             OwnPatientProfileService ownProfiles, PatientProfileDirectory profiles,
             VisitReviewSourceService visits, Clock clock, ReviewVisitContextService visitContext,
             NotificationPublisher notifications) {
-        this.reviews = reviews; this.history = history; this.ownProfiles = ownProfiles;
+        this.reviews = reviews; this.audit = audit; this.ownProfiles = ownProfiles;
         this.profiles = profiles; this.visits = visits; this.clock = clock; this.visitContext = visitContext;
         this.notifications = notifications;
     }
@@ -70,7 +72,7 @@ public class ReviewServiceImpl implements ReviewService {
         var review = PatientReviewJpaEntity.submit(visit.id(), profile.id(), accountId,
                 request.rating(), request.text().trim(), now);
         reviews.saveAndFlush(review);
-        history.save(new PatientReviewHistoryJpaEntity(review, "SUBMIT", null, accountId, now));
+        recordModeration(review, "SUBMIT", null, accountId, now);
         var context = visitContext.enrich(visit);
         notifications.publishToRole(fu.fa26.sep490.g58.otcms_be.common.security.AccountRole.ADMIN,
                 NotificationMessages.reviewSubmitted(review.getId(), visit.arrivedAt(), context.doctorName(), request.rating()));
@@ -124,7 +126,7 @@ public class ReviewServiceImpl implements ReviewService {
         var now = clock.instant();
         review.changeStatus(target, now);
         reviews.saveAndFlush(review);
-        history.save(new PatientReviewHistoryJpaEntity(review, action, from, actorId, now));
+        recordModeration(review, action, from, actorId, now);
         return detail(review);
     }
     @Transactional
@@ -136,9 +138,17 @@ public class ReviewServiceImpl implements ReviewService {
         var now = clock.instant();
         review.reply(request.text().trim(), actorId, now);
         reviews.saveAndFlush(review);
-        history.save(new PatientReviewHistoryJpaEntity(review, action, review.getStatus(), actorId, now));
+        recordModeration(review, action, review.getStatus(), actorId, now);
         return detail(review);
     }
+    private void recordModeration(PatientReviewJpaEntity review, String action, ReviewStatus from, UUID actor, Instant now) {
+        String replyText = "REPLY".equals(action) || "EDIT_REPLY".equals(action) ? review.getReplyText() : null;
+        audit.record(AuditEntry.builder("patient_review_moderation_history", "REVIEW", action, "PATIENT_REVIEW")
+                .entityId(review.getId()).actorAccountId(actor).actorType("ACCOUNT").visibleInActivityLog(false)
+                .beforeState(new ModerationState(from == null ? null : from.name(), null))
+                .afterState(new ModerationState(review.getStatus().name(), replyText)).occurredAt(now).build());
+    }
+    public record ModerationState(String status, String replyText) { }
     private Page<PatientReviewJpaEntity> page(Specification<PatientReviewJpaEntity> spec, int page, int size,
             String sort, String defaultSort) {
         var parts = (sort == null || sort.isBlank() ? defaultSort : sort).split(",", -1);

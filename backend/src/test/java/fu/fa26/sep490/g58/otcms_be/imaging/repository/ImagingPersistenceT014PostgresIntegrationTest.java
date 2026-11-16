@@ -1,283 +1,171 @@
 package fu.fa26.sep490.g58.otcms_be.imaging.repository;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 import fu.fa26.sep490.g58.otcms_be.imaging.exception.ImagingOperationException;
-import fu.fa26.sep490.g58.otcms_be.imaging.model.ImagingIdempotencyRecord;
 import fu.fa26.sep490.g58.otcms_be.imaging.model.ImagingOperationRecord;
 import fu.fa26.sep490.g58.otcms_be.imaging.model.ImagingReconciliationDecision;
 import fu.fa26.sep490.g58.otcms_be.imaging.model.ImagingReconciliationDecisionCommand;
-import fu.fa26.sep490.g58.otcms_be.imaging.model.entity.ImagingAuditEventJpaEntity;
-import fu.fa26.sep490.g58.otcms_be.imaging.model.entity.ImagingConfirmationOutboxJpaEntity;
-import fu.fa26.sep490.g58.otcms_be.imaging.model.entity.ImagingReleaseInboxJpaEntity;
-import fu.fa26.sep490.g58.otcms_be.imaging.model.entity.ImagingReconciliationCaseJpaEntity;
-import fu.fa26.sep490.g58.otcms_be.imaging.model.entity.ImagingStudyInstanceJpaEntity;
 import fu.fa26.sep490.g58.otcms_be.imaging.model.entity.ImagingStudyJpaEntity;
-import fu.fa26.sep490.g58.otcms_be.imaging.model.entity.ImagingStudySeriesJpaEntity;
-import fu.fa26.sep490.g58.otcms_be.imaging.model.entity.ImagingUidClaimId;
-import fu.fa26.sep490.g58.otcms_be.imaging.model.entity.ImagingUidClaimJpaEntity;
 import fu.fa26.sep490.g58.otcms_be.imaging.model.entity.ImagingViewerGrantJpaEntity;
 import fu.fa26.sep490.g58.otcms_be.imaging.model.entity.enums.ImagingOperationState;
 import fu.fa26.sep490.g58.otcms_be.imaging.model.entity.enums.ImagingOperationType;
 import fu.fa26.sep490.g58.otcms_be.imaging.model.entity.enums.ImagingReconciliationClassification;
-import fu.fa26.sep490.g58.otcms_be.imaging.service.impl.ImagingIdempotencyPersistenceService;
-import fu.fa26.sep490.g58.otcms_be.imaging.service.impl.ImagingIngestOperationPersistenceService;
-import fu.fa26.sep490.g58.otcms_be.imaging.service.ImagingReconciliationService;
+import fu.fa26.sep490.g58.otcms_be.imaging.model.entity.enums.ImagingVerificationStatus;
 import fu.fa26.sep490.g58.otcms_be.imaging.service.ImagingReconciliationQuery;
+import fu.fa26.sep490.g58.otcms_be.imaging.service.ImagingReconciliationService;
+import fu.fa26.sep490.g58.otcms_be.imaging.service.impl.ImagingAuditPersistenceService;
+import fu.fa26.sep490.g58.otcms_be.imaging.service.impl.ImagingIngestOperationPersistenceService;
 import fu.fa26.sep490.g58.otcms_be.support.LocalPostgresTest;
+import jakarta.persistence.EntityManager;
 import java.time.Instant;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.annotation.Transactional;
 
+/** P03 imaging storage, scoped to a rolled-back transaction so append-only audits remain untouched. */
 @SpringBootTest
 @LocalPostgresTest
+@Transactional
 class ImagingPersistenceT014PostgresIntegrationTest {
     private static final Instant NOW = Instant.parse("2026-11-05T00:00:00Z");
+    private final UUID patientAccount = UUID.randomUUID(), patient = UUID.randomUUID();
+    private final UUID doctor = UUID.randomUUID(), staff = UUID.randomUUID(), visit = UUID.randomUUID();
+    private final UUID service = UUID.randomUUID(), order = UUID.randomUUID(), attempt = UUID.randomUUID();
+    private final UUID actor = UUID.randomUUID();
 
     @Autowired JdbcTemplate jdbc;
+    @Autowired EntityManager entityManager;
     @Autowired ImagingIngestOperationPersistenceService operations;
-    @Autowired ImagingIdempotencyPersistenceService idempotency;
     @Autowired ImagingStudyRepository studies;
-    @Autowired ImagingStudySeriesRepository series;
-    @Autowired ImagingStudyInstanceRepository instances;
-    @Autowired ImagingUidClaimRepository uidClaims;
-    @Autowired ImagingConfirmationOutboxRepository confirmationOutbox;
-    @Autowired ImagingReleaseInboxRepository releaseInbox;
     @Autowired ImagingViewerGrantRepository viewerGrants;
-    @Autowired ImagingAuditEventRepository auditEvents;
+    @Autowired ImagingAuditPersistenceService audit;
     @Autowired ImagingReconciliationCaseRepository reconciliationCases;
     @Autowired ImagingReconciliationService reconciliation;
-    private UUID operationId;
-    private UUID releaseEventId;
 
-    @AfterEach
-    void cleanup() {
-        if (releaseEventId != null) {
-            jdbc.update("delete from imaging_audit_events where correlation_id = ?", releaseEventId.toString());
-            jdbc.update("delete from imaging_release_inbox where event_id = ?", releaseEventId);
-            jdbc.update("delete from imaging_reconciliation_cases where event_id = ?", releaseEventId);
-            releaseEventId = null;
-        }
-        if (operationId != null) {
-            jdbc.update("delete from imaging_audit_events where operation_id = ?", operationId);
-            jdbc.update("delete from imaging_confirmation_outbox where operation_id = ?", operationId);
-            jdbc.update("delete from imaging_reconciliation_cases where operation_id = ?", operationId);
-            jdbc.update("delete from imaging_viewer_grants where study_ref in "
-                    + "(select study_ref from imaging_studies where ingest_operation_id = ?)", operationId);
-            jdbc.update("delete from imaging_uid_claims where study_ref in "
-                    + "(select study_ref from imaging_studies where ingest_operation_id = ?)", operationId);
-            jdbc.update("delete from imaging_study_instances where series_id in (select id from imaging_study_series "
-                    + "where study_ref in (select study_ref from imaging_studies where ingest_operation_id = ?))", operationId);
-            jdbc.update("delete from imaging_study_series where study_ref in "
-                    + "(select study_ref from imaging_studies where ingest_operation_id = ?)", operationId);
-            jdbc.update("delete from imaging_release_inbox where study_ref in "
-                    + "(select study_ref from imaging_studies where ingest_operation_id = ?)", operationId);
-            jdbc.update("delete from imaging_studies where ingest_operation_id = ?", operationId);
-            jdbc.update("delete from imaging_idempotency_records where target_operation_id = ?", operationId);
-            jdbc.update("delete from imaging_ingest_operations where id = ?", operationId);
-        }
+    @BeforeEach void seedOwners() {
+        account(patientAccount, "PATIENT"); account(doctor, "DOCTOR"); account(actor, "IMAGING_TECHNICIAN");
+        jdbc.update("insert into patient_profiles (id,account_id,full_name,phone_canonical,phone_owner_type,date_of_birth,gender) values (?,?,'Imaging T014',?,'PATIENT',date '1990-01-01','OTHER')",
+                patient, patientAccount, "+849" + String.format("%09d", Math.floorMod(patient.getLeastSignificantBits(), 1_000_000_000L)));
+        jdbc.update("insert into staff_profiles (is_doctor,id,account_id,display_name) values (true,?,?,'Imaging doctor')", staff, doctor);
+        jdbc.update("insert into visits (id,patient_profile_id,source,arrived_at,checked_in_at,created_by_account_id,status) values (?,?,'WALK_IN',now(),now(),?,'OPEN')", visit, patient, doctor);
+        jdbc.update("insert into clinical_service_orders (id,order_code,ordering_round_id,round_number,ordered_at,round_head,visit_id,patient_id,service_id,service_name_snapshot,service_type,requesting_doctor_id,clinical_reason,body_area,price_snapshot,order_status,payment_status,created_at,updated_at) values (?,?,?,1,now(),true,?,?,?,'CT','IMAGING',?,'T014','CHEST',1,'ORDERED','PAID',now(),now())",
+                order, order.toString().replace("-", ""), UUID.randomUUID(), visit, patient, service, staff);
     }
 
-    @Test
-    void persistsStudyArchiveAuditAndRecoveryProjectionsThroughJpaRepositories() {
-        ImagingOperationRecord operation = operation(ImagingOperationState.ARCHIVED_NOT_SENT, 0);
-        operationId = operation.id();
+    private void account(UUID id, String type) {
+        jdbc.update("insert into accounts (id,normalized_email,account_type,status,created_at,updated_at) values (?,?,?,'ACTIVE',now(),now())", id, id + "@example.test", type);
+    }
+
+    @Test void persistsStudyArchiveAuditAndRecoveryProjectionsThroughJpaRepositories() {
+        ImagingOperationRecord operation = operation(ImagingOperationState.ARCHIVED_NOT_SENT);
         operations.insert(operation);
         String studyRef = "study-" + UUID.randomUUID();
-        ImagingStudyJpaEntity study = new ImagingStudyJpaEntity(studyRef, operation.id(), operation.requestId(),
-                operation.attemptId(), operation.visitId(), operation.patientId(), "orthanc-study-ref",
-                "1.2.826.0.1.3680043.10.100.1", "CT", 1, 1, "CONFIRMED_MATCH");
+        var study = studies.findById(operation.id()).orElseThrow();
+        var index = new ImagingStudyJpaEntity.DicomIndex(List.of(new ImagingStudyJpaEntity.DicomSeries(
+                "1.2.826.0.1.3680043.10.100.2", "orthanc-series-ref", List.of(
+                new ImagingStudyJpaEntity.DicomInstance("1.2.826.0.1.3680043.10.100.3", "orthanc-instance-ref", 1)))));
+        study.persistConfirmedStudy(studyRef, "orthanc-study-ref", index, NOW);
         studies.saveAndFlush(study);
-        assertEquals(studyRef, studies.findByIngestOperationId(operation.id()).orElseThrow().getStudyRef());
-
-        UUID seriesId = UUID.randomUUID();
-        series.saveAndFlush(new ImagingStudySeriesJpaEntity(seriesId, studyRef,
-                "1.2.826.0.1.3680043.10.100.2", "orthanc-series-ref", 1));
-        UUID instanceId = UUID.randomUUID();
-        instances.saveAndFlush(new ImagingStudyInstanceJpaEntity(instanceId, seriesId,
-                "1.2.826.0.1.3680043.10.100.3", "orthanc-instance-ref", 1));
-        assertEquals(instanceId, instances.findBySeriesIdAndSopInstanceUid(seriesId,
-                "1.2.826.0.1.3680043.10.100.3").orElseThrow().getId());
-
-        ImagingUidClaimId uid = new ImagingUidClaimId("STUDY", study.getStudyInstanceUid());
-        uidClaims.saveAndFlush(new ImagingUidClaimJpaEntity(uid, studyRef));
-        assertEquals(studyRef, uidClaims.findById(uid).orElseThrow().getStudyRef());
-
+        assertEquals(studyRef, studies.findById(operation.id()).orElseThrow().getStudyRef());
+        assertTrue(studies.containsDicomIndex(operation.id(), "{\"series\":[{\"uid\":\"1.2.826.0.1.3680043.10.100.2\",\"instances\":[{\"sop_uid\":\"1.2.826.0.1.3680043.10.100.3\"}]}]}"));
         UUID eventId = UUID.randomUUID();
-        confirmationOutbox.saveAndFlush(new ImagingConfirmationOutboxJpaEntity(UUID.randomUUID(), eventId,
-                operation.id(), studyRef, operation.requestId(), operation.attemptId(), operation.visitId(),
-                operation.patientId(), "CONFIRMED_MATCH", Map.of("patient", "MATCH"), "b".repeat(64),
-                "PENDING", 0, NOW, null, null, null));
-        assertEquals(eventId, confirmationOutbox.findByOperationId(operation.id()).orElseThrow().getEventId());
-
-        UUID releaseEventId = UUID.randomUUID();
-        releaseInbox.saveAndFlush(new ImagingReleaseInboxJpaEntity(UUID.randomUUID(), releaseEventId,
-                operation.requestId(), operation.visitId(), operation.patientId(), studyRef, UUID.randomUUID(),
-                UUID.randomUUID(), "c".repeat(64), "d".repeat(64), "ACCEPTED", null));
-        assertEquals(releaseEventId, releaseInbox.findByEventId(releaseEventId).orElseThrow().getEventId());
-
-        UUID grantId = UUID.randomUUID();
-        viewerGrants.saveAndFlush(new ImagingViewerGrantJpaEntity(grantId, "e".repeat(64),
-                operation.actorAccountId(), "DOCTOR_REVIEW", studyRef, "review-v1", NOW,
-                NOW.plusSeconds(300), null));
-        assertEquals(grantId, viewerGrants.findByTokenSha256("e".repeat(64)).orElseThrow().getId());
-
-        UUID auditId = UUID.randomUUID();
-        auditEvents.saveAndFlush(new ImagingAuditEventJpaEntity(auditId, operation.actorAccountId(), null,
-                "UPLOAD", "ACCEPTED", operation.id(), studyRef, operation.requestId(), operation.attemptId(),
-                operation.visitId(), operation.patientId(), "corr-" + UUID.randomUUID(), Map.of(), NOW));
-        assertEquals(auditId, auditEvents.findAllByStudyRefOrderByRecordedAtDescIdDesc(studyRef).getFirst().getId());
-
-        reconciliationCases.saveAndFlush(new ImagingReconciliationCaseJpaEntity(UUID.randomUUID(), operation.id(),
-                null, "ARCHIVE_PARTIAL_FAILURE", "ORPHANED", "OPEN", "ARCHIVE_UNCERTAIN", "IMAGING_OPS", NOW,
-                null, null));
-        reconciliation.openOperation(operation.id(), "CONFIRMATION",
-                ImagingReconciliationClassification.RETRYABLE, "CONFIRMATION_UNAVAILABLE");
-        reconciliation.openOperation(operation.id(), "CONFIRMATION",
-                ImagingReconciliationClassification.RETRYABLE, "CONFIRMATION_UNAVAILABLE");
+        study.prepareConfirmation(eventId, "send-key", "b".repeat(64), NOW);
+        studies.saveAndFlush(study);
+        assertEquals(eventId, studies.findByConfirmationEventId(eventId).orElseThrow().getConfirmationEventId());
+        study.markAcknowledged(NOW);
+        UUID releaseEvent = UUID.randomUUID();
+        study.acceptFindingsRelease(releaseEvent, "d".repeat(64), UUID.randomUUID(), UUID.randomUUID(), "c".repeat(64), NOW);
+        studies.saveAndFlush(study);
+        assertEquals(releaseEvent, studies.findByReleaseEventId(releaseEvent).orElseThrow().getReleaseEventId());
+        UUID grant = UUID.randomUUID();
+        viewerGrants.saveAndFlush(new ImagingViewerGrantJpaEntity(grant, "e".repeat(64), actor,
+                "DOCTOR_REVIEW", studyRef, "review-v1", NOW, NOW.plusSeconds(300), null));
+        assertEquals(grant, viewerGrants.findByTokenSha256("e".repeat(64)).orElseThrow().getId());
+        audit.recordActor(actor, "UPLOAD", "ACCEPTED", operation.id(), studyRef, order, attempt, visit, patient,
+                "corr-t014", Map.of());
+        assertEquals(1, jdbc.queryForObject("select count(*) from audit_logs where source = 'imaging_audit_events' and action = 'UPLOAD' and metadata ->> 'operationId' = ?", Integer.class, operation.id().toString()));
+        reconciliation.openOperation(operation.id(), "ARCHIVE", ImagingReconciliationClassification.ORPHANED, "ARCHIVE_UNCERTAIN");
+        reconciliation.openOperation(operation.id(), "CONFIRMATION", ImagingReconciliationClassification.RETRYABLE, "CONFIRMATION_UNAVAILABLE");
+        reconciliation.openOperation(operation.id(), "CONFIRMATION", ImagingReconciliationClassification.RETRYABLE, "CONFIRMATION_UNAVAILABLE");
         var cases = reconciliationCases.findAllByOperationIdAndStateNot(operation.id(), "RESOLVED");
         assertEquals(2, cases.size());
-        assertTrue(cases.stream().anyMatch(item -> item.getCategory().equals("CONFIRMATION")
-                && item.getClassification().equals("RETRYABLE")));
+        assertTrue(cases.stream().anyMatch(item -> item.getCategory().equals("CONFIRMATION") && item.getClassification().equals("RETRYABLE")));
     }
 
-    @Test
-    void adminDecisionClosesOnlyTheQueueCaseAndPersistsActorAudit() {
-        ImagingOperationRecord operation = operation(ImagingOperationState.QUARANTINED, 0);
-        operationId = operation.id();
-        operations.insert(operation);
-        reconciliation.openOperation(operation.id(), "INGEST",
-                ImagingReconciliationClassification.CONFLICT, "IDENTITY_MISMATCH");
-
-        UUID queueReaderId = UUID.randomUUID();
-        var queue = reconciliation.listQueue(queueReaderId, new ImagingReconciliationQuery(
-                "OPEN", "CONFLICT", "INGEST", 0, 25), "corr-reconciliation-list");
-        assertEquals(1, queue.getTotalElements());
-        var item = queue.getContent().getFirst();
-        UUID adminId = UUID.randomUUID();
-        reconciliation.recordDecision(adminId, item.caseId(), new ImagingReconciliationDecisionCommand(
-                ImagingReconciliationDecision.KEEP_QUARANTINED, "INC-42"), "corr-reconciliation-decision");
-        reconciliation.recordDecision(adminId, item.caseId(), new ImagingReconciliationDecisionCommand(
-                ImagingReconciliationDecision.KEEP_QUARANTINED, "INC-42"), "corr-reconciliation-decision");
-
+    @Test void adminDecisionClosesOnlyTheQueueCaseAndPersistsActorAudit() {
+        var operation = operation(ImagingOperationState.QUARANTINED); operations.insert(operation);
+        reconciliation.openOperation(operation.id(), "INGEST", ImagingReconciliationClassification.CONFLICT, "IDENTITY_MISMATCH");
+        UUID queueReader = UUID.randomUUID();
+        var queue = reconciliation.listQueue(queueReader, new ImagingReconciliationQuery("OPEN", "CONFLICT", "INGEST", 0, 25), "corr-reconciliation-list");
+        var item = queue.getContent().stream().filter(c -> operation.id().equals(c.operationId())).findFirst().orElseThrow();
+        UUID admin = UUID.randomUUID();
+        reconciliation.recordDecision(admin, item.caseId(), new ImagingReconciliationDecisionCommand(ImagingReconciliationDecision.KEEP_QUARANTINED, "INC-42"), "corr-reconciliation-decision");
+        entityManager.clear();
+        reconciliation.recordDecision(admin, item.caseId(), new ImagingReconciliationDecisionCommand(ImagingReconciliationDecision.KEEP_QUARANTINED, "INC-42"), "corr-reconciliation-decision");
         var resolved = reconciliationCases.findById(item.caseId()).orElseThrow();
-        assertEquals("RESOLVED", resolved.getState());
-        assertEquals("INC-42", resolved.getResolutionRef());
+        assertEquals("RESOLVED", resolved.getState()); assertEquals("INC-42", resolved.getResolutionRef());
         assertEquals("KEEP_QUARANTINED", resolved.getResolutionDecision());
         assertEquals(ImagingOperationState.QUARANTINED, operations.findById(operation.id()).orElseThrow().state());
-        assertEquals(1, jdbc.queryForObject("""
-                select count(*) from imaging_audit_events
-                 where operation_id = ? and actor_account_id = ?
-                   and action = 'IMAGING_RECONCILIATION_DECISION'
-                   and correlation_id = 'corr-reconciliation-decision'
-                   and safe_metadata ->> 'decisionCode' = 'KEEP_QUARANTINED'
-                   and safe_metadata ->> 'caseId' = ?
-                """, Integer.class, operation.id(), adminId, item.caseId().toString()));
-        assertEquals(1, jdbc.queryForObject("""
-                select count(*) from imaging_audit_events
-                 where actor_account_id = ? and action = 'IMAGING_RECONCILIATION_QUEUE_READ'
-                   and correlation_id = 'corr-reconciliation-list'
-                """, Integer.class, queueReaderId));
+        assertEquals(1, jdbc.queryForObject("select count(*) from audit_logs where action = 'IMAGING_RECONCILIATION_DECISION' and actor_account_id = ? and metadata ->> 'correlationRef' = 'corr-reconciliation-decision' and metadata ->> 'decisionCode' = 'KEEP_QUARANTINED' and metadata ->> 'caseId' = ?", Integer.class, admin, item.caseId().toString()));
+        assertEquals(1, jdbc.queryForObject("select count(*) from audit_logs where action = 'IMAGING_RECONCILIATION_QUEUE_READ' and actor_account_id = ? and metadata ->> 'correlationRef' = 'corr-reconciliation-list'", Integer.class, queueReader));
     }
 
-    @Test
-    @Transactional
-    void reconciliationWorkerClosesRetryableReleaseOnlyAfterMatchingDurableAcceptance() {
-        releaseEventId = UUID.randomUUID();
-        UUID requestId = UUID.randomUUID();
-        UUID visitId = UUID.randomUUID();
-        UUID patientId = UUID.randomUUID();
-        UUID findingsVersionId = UUID.randomUUID();
-        UUID reportId = UUID.randomUUID();
-        String payloadHash = "d".repeat(64);
-        reconciliation.openEvent(releaseEventId, "RELEASE", ImagingReconciliationClassification.RETRYABLE,
-                payloadHash, "RELEASE_BEFORE_LINKED");
-        assertEquals(1, releaseInbox.insertAcceptedIfAbsent(UUID.randomUUID(), releaseEventId, requestId, visitId,
-                patientId, "opaque-study", findingsVersionId, reportId, "e".repeat(64), payloadHash, NOW));
-
+    @Test void reconciliationWorkerClosesRetryableReleaseOnlyAfterMatchingDurableAcceptance() {
+        var operation = operation(ImagingOperationState.ARCHIVED_NOT_SENT); operations.insert(operation);
+        UUID event = UUID.randomUUID(); String hash = "d".repeat(64);
+        reconciliation.openEvent(event, "RELEASE", ImagingReconciliationClassification.RETRYABLE, hash, "RELEASE_BEFORE_LINKED");
+        var study = studies.findById(operation.id()).orElseThrow();
+        study.persistConfirmedStudy("study-" + operation.id(), "archive-" + operation.id(), null, NOW);
+        study.markAcknowledged(NOW);
+        study.acceptFindingsRelease(event, hash, UUID.randomUUID(), UUID.randomUUID(), "e".repeat(64), NOW);
+        studies.saveAndFlush(study);
         assertNotNull(reconciliation.reconcileOpenBatch(new UUID(0L, 0L)));
-
-        assertEquals(1, jdbc.queryForObject("""
-                select count(*) from imaging_reconciliation_cases
-                 where event_id = ? and state = 'RESOLVED' and classification = 'LINKED'
-                   and resolution_decision is null
-                """, Integer.class, releaseEventId));
-        assertEquals(1, jdbc.queryForObject("""
-                select count(*) from imaging_audit_events
-                 where action = 'IMAGING_RECONCILIATION_AUTO_CLOSE'
-                   and correlation_id = ? and safe_metadata ->> 'eventId' = ?
-                """, Integer.class, releaseEventId.toString(), releaseEventId.toString()));
+        assertEquals(1, jdbc.queryForObject("select count(*) from imaging_reconciliation_cases where event_id = ? and state = 'RESOLVED' and classification = 'LINKED' and resolution_decision is null", Integer.class, event));
+        assertEquals(1, jdbc.queryForObject("select count(*) from audit_logs where action = 'IMAGING_RECONCILIATION_AUTO_CLOSE' and metadata ->> 'correlationRef' = ? and metadata ->> 'eventId' = ?", Integer.class, event.toString(), event.toString()));
     }
 
-    @Test
-    void storesSafeOperationProjectionAndUsesOptimisticStateTransition() {
-        ImagingOperationRecord operation = operation(ImagingOperationState.PROCESSING, 0);
-        operationId = operation.id();
-        operations.insert(operation);
-
-        var persisted = operations.findById(operationId).orElseThrow();
-        assertEquals(operationId, persisted.id());
-        assertEquals(operation.requestId(), persisted.requestId());
-        assertEquals(operation.attemptId(), persisted.attemptId());
-        assertEquals(ImagingOperationState.PROCESSING, persisted.state());
+    @Test void storesSafeOperationProjectionAndUsesOptimisticStateTransition() {
+        var operation = operation(ImagingOperationState.PROCESSING); operations.insert(operation);
+        var persisted = operations.findById(operation.id()).orElseThrow();
+        assertEquals(operation.id(), persisted.id()); assertEquals(order, persisted.requestId());
+        assertEquals(attempt, persisted.attemptId()); assertEquals(ImagingOperationState.PROCESSING, persisted.state());
         assertEquals(operation.payloadSha256(), persisted.payloadSha256());
-
-        operations.transition(operationId, 0, ImagingOperationState.ARCHIVED_NOT_SENT, null, NOW.plusSeconds(1));
-        var transitioned = operations.findById(operationId).orElseThrow();
-        assertEquals(ImagingOperationState.ARCHIVED_NOT_SENT, transitioned.state());
-        assertEquals(1, transitioned.version());
-        assertThrows(ImagingOperationException.class, () -> operations.transition(operationId, 0,
-                ImagingOperationState.CONFIRMATION_PENDING, null, NOW.plusSeconds(2)));
-        ImagingOperationException stateConflict = assertThrows(ImagingOperationException.class,
-                () -> operations.transition(operationId, 1, ImagingOperationState.PROCESSING,
-                        null, NOW.plusSeconds(2)));
-        assertEquals(fu.fa26.sep490.g58.otcms_be.imaging.exception.ImagingOperationOutcome.STATE_CONFLICT,
-                stateConflict.outcome());
+        operations.transition(operation.id(), 0, ImagingOperationState.ARCHIVED_NOT_SENT, null, NOW.plusSeconds(1));
+        var transitioned = operations.findById(operation.id()).orElseThrow();
+        assertEquals(ImagingOperationState.ARCHIVED_NOT_SENT, transitioned.state()); assertEquals(1, transitioned.version());
+        assertThrows(ImagingOperationException.class, () -> operations.transition(operation.id(), 0, ImagingOperationState.CONFIRMATION_PENDING, null, NOW.plusSeconds(2)));
+        ImagingOperationException conflict = assertThrows(ImagingOperationException.class, () -> operations.transition(operation.id(), 1, ImagingOperationState.PROCESSING, null, NOW.plusSeconds(2)));
+        assertEquals(fu.fa26.sep490.g58.otcms_be.imaging.exception.ImagingOperationOutcome.STATE_CONFLICT, conflict.outcome());
     }
 
-    @Test
-    void persistsIdempotencyUniquenessAndKeepsIdentityTagsOutOfSchema() {
-        ImagingOperationRecord operation = operation(ImagingOperationState.PROCESSING, 0);
-        operationId = operation.id();
-        operations.insert(operation);
-        UUID keyId = UUID.randomUUID();
-        String key = "t014-" + UUID.randomUUID();
-        ImagingIdempotencyRecord record = new ImagingIdempotencyRecord(keyId, operation.actorAccountId(),
-                operation.requestId(), operation.attemptId(), ImagingOperationType.UPLOAD, key,
-                operation.payloadSha256(), operation.id(), null, NOW);
-        idempotency.insert(record);
-        assertEquals(record, idempotency.find(operation.actorAccountId(), operation.requestId(),
-                operation.attemptId(), ImagingOperationType.UPLOAD, key).orElseThrow());
-        assertThrows(org.springframework.dao.DataAccessException.class, () -> jdbc.update("""
-                insert into imaging_idempotency_records
-                    (id, actor_account_id, request_id, attempt_id, operation_type, idempotency_key,
-                     payload_sha256, target_operation_id)
-                values (?, ?, ?, ?, 'UPLOAD', ?, ?, ?)
-                """, UUID.randomUUID(), operation.actorAccountId(), operation.requestId(), operation.attemptId(), key,
-                operation.payloadSha256(), operation.id()));
-        assertTrue(operations.findById(operation.id()).isPresent());
-        assertTrue(jdbc.queryForList("""
-                select column_name from information_schema.columns
-                 where table_schema = current_schema()
-                   and table_name in ('imaging_ingest_operations', 'imaging_studies')
-                   and column_name in ('patient_name', 'patient_id_tag', 'accession_number', 'issuer_value')
-                """).isEmpty());
+    @Test void persistsIdempotencyUniquenessAndKeepsIdentityTagsOutOfSchema() {
+        var operation = operation(ImagingOperationState.PROCESSING); operations.insert(operation);
+        var saved = studies.findByActorAccountIdAndRequestIdAndAttemptIdAndUploadIdempotencyKey(actor, order, attempt, operation.id().toString()).orElseThrow();
+        assertEquals(operation.id(), saved.getId()); assertEquals(operation.payloadSha256(), saved.getPayloadSha256());
+        assertTrue(jdbc.queryForList("select column_name from information_schema.columns where table_schema = current_schema() and table_name = 'imaging_studies' and column_name in ('patient_name','patient_id_tag','accession_number','issuer_value')").isEmpty());
+        var duplicate = new ImagingStudyJpaEntity(operation(ImagingOperationState.PROCESSING), operation.id().toString());
+        assertThrows(org.springframework.dao.DataAccessException.class, () -> studies.saveAndFlush(duplicate));
     }
 
-    private ImagingOperationRecord operation(ImagingOperationState state, long version) {
-        return new ImagingOperationRecord(UUID.randomUUID(), null, UUID.randomUUID(), UUID.randomUUID(),
-                UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), ImagingOperationType.UPLOAD,
-                state, "a".repeat(64), 1234, null, null, 0, 0,
-                fu.fa26.sep490.g58.otcms_be.imaging.model.entity.enums.ImagingVerificationStatus.NOT_EVALUATED,
-                java.util.List.of(), null, null, version, NOW, NOW);
+    @Test void studyInstanceUidIsUnique() {
+        var first = operation(ImagingOperationState.PROCESSING); operations.insert(first);
+        var second = operation(ImagingOperationState.PROCESSING); operations.insert(second);
+        assertEquals(first.id(), studies.findByStudyInstanceUid(first.studyInstanceUid()).orElseThrow().getId());
+        assertThrows(org.springframework.dao.DataAccessException.class, () -> jdbc.update(
+                "update imaging_studies set study_instance_uid = ? where id = ?", first.studyInstanceUid(), second.id()));
+    }
+
+    private ImagingOperationRecord operation(ImagingOperationState state) {
+        return new ImagingOperationRecord(UUID.randomUUID(), null, order, attempt, visit, patient, actor,
+                ImagingOperationType.UPLOAD, state, "a".repeat(64), 1234,
+                "1.2.826." + Math.abs(UUID.randomUUID().getMostSignificantBits()), null, 0, 0,
+                ImagingVerificationStatus.NOT_EVALUATED, List.of(), null, null, 0, NOW, NOW);
     }
 }

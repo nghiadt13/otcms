@@ -1,32 +1,54 @@
 package fu.fa26.sep490.g58.otcms_be.visit.repository;
 
-import fu.fa26.sep490.g58.otcms_be.visit.model.entity.AppointmentArrivalJpaEntity;
+import jakarta.persistence.EntityManager;
 import java.sql.Timestamp;
 import java.util.List;
 import java.util.UUID;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Modifying;
-import org.springframework.data.jpa.repository.Query;
-import org.springframework.data.repository.query.Param;
+import org.springframework.stereotype.Repository;
 
-public interface AppointmentArrivalRepository extends JpaRepository<AppointmentArrivalJpaEntity, UUID> {
-    @Modifying
-    @Query(value = """
-            insert into appointment_arrivals (appointment_id, patient_profile_id, actor_account_id, source,
-                reason, arrived_at, recorded_at)
-            values (:appointment, :patient, :actor, :source, cast(:reason as varchar), :arrivedAt, clock_timestamp())
-            on conflict (appointment_id) do nothing
-            """, nativeQuery = true)
-    int insertIfAbsent(@Param("appointment") UUID appointmentId, @Param("patient") UUID patientProfileId,
-            @Param("actor") UUID actorAccountId, @Param("source") String source, @Param("reason") String reason,
-            @Param("arrivedAt") Timestamp arrivedAt);
+@Repository
+public class AppointmentArrivalRepository {
+    private final EntityManager entityManager;
+    public AppointmentArrivalRepository(EntityManager entityManager) { this.entityManager = entityManager; }
 
-    @Query(value = """
-            select appointment_id, patient_profile_id, actor_account_id, source, reason, arrived_at, recorded_at
-            from appointment_arrivals
-            where arrived_at >= :from and arrived_at < :to
-            order by arrived_at, appointment_id
-            """, nativeQuery = true)
-    List<Object[]> findArrivals(@Param("from") Timestamp from, @Param("to") Timestamp to, Pageable pageable);
+    public int claimIfUnrecorded(UUID appointment, UUID patient, UUID actor, String source, String reason, Timestamp arrivedAt) {
+        return entityManager.createNativeQuery("""
+                update appointments set arrived_at = :arrivedAt, arrival_source = :source,
+                    arrival_reason = cast(:reason as varchar), arrival_recorded_by = :actor,
+                    arrival_recorded_at = clock_timestamp()
+                where id = :appointment and patient_profile_id = :patient and arrived_at is null
+                """).setParameter("appointment", appointment).setParameter("patient", patient)
+                .setParameter("actor", actor).setParameter("source", source).setParameter("reason", reason)
+                .setParameter("arrivedAt", arrivedAt).executeUpdate();
+    }
+
+    @SuppressWarnings("unchecked")
+    public List<Object[]> findArrival(UUID appointment) {
+        return entityManager.createNativeQuery("""
+                select id, patient_profile_id, arrival_recorded_by, arrival_source, arrival_reason,
+                    arrived_at, arrival_recorded_at from appointments
+                where id = :appointment and arrived_at is not null
+                """).setParameter("appointment", appointment).getResultList();
+    }
+
+    @SuppressWarnings("unchecked")
+    public List<Object[]> findArrivals(Timestamp from, Timestamp to, int offset, int limit) {
+        return entityManager.createNativeQuery("""
+                select id, patient_profile_id, arrival_recorded_by, arrival_source, arrival_reason,
+                    arrived_at, arrival_recorded_at from appointments
+                where arrived_at >= :from and arrived_at < :to order by arrived_at, id
+                """).setParameter("from", from).setParameter("to", to)
+                .setFirstResult(offset).setMaxResults(limit).getResultList();
+    }
+
+    @SuppressWarnings("unchecked")
+    public List<Object[]> findRecordedArrivalEvidence(UUID appointmentId, UUID patientProfileId,
+            Timestamp windowStart, Timestamp windowEnd) {
+        return entityManager.createNativeQuery("""
+                select id, patient_profile_id, arrived_at, arrival_recorded_by from appointments
+                where id = :appointmentId and patient_profile_id = :patientProfileId
+                    and arrived_at >= :windowStart and arrived_at <= :windowEnd
+                """).setParameter("appointmentId", appointmentId).setParameter("patientProfileId", patientProfileId)
+                .setParameter("windowStart", windowStart).setParameter("windowEnd", windowEnd).getResultList();
+    }
 }

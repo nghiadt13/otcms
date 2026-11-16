@@ -5,12 +5,13 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 import fu.fa26.sep490.g58.otcms_be.auth.service.DoctorAccountAccessService;
+import fu.fa26.sep490.g58.otcms_be.clinical.service.ClinicalServiceOrderExecutionPort;
+import fu.fa26.sep490.g58.otcms_be.diagnostic.ImagingExecutionTestFixtures;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.exception.DiagnosticOperationException;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.integration.*;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.integration.DiagnosticPortModels.*;
-import fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.DiagnosticRequestJpaEntity;
+import fu.fa26.sep490.g58.otcms_be.diagnostic.ImagingExecutionTestFixtures.Row;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.enums.*;
-import fu.fa26.sep490.g58.otcms_be.diagnostic.repository.DiagnosticRequestJpaRepository;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.service.DiagnosticImagingRequestRegistration.RegisterImagingOrder;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.service.impl.DiagnosticImagingRequestRegistrationImpl;
 import fu.fa26.sep490.g58.otcms_be.servicecatalog.integration.diagnostic.ImagingServiceCatalogAdapter;
@@ -25,7 +26,7 @@ import org.junit.jupiter.api.Test;
 class DoctorImagingRegistrationTest {
     final UUID orderId = UUID.randomUUID(), visitId = UUID.randomUUID(), patientId = UUID.randomUUID(),
             doctorId = UUID.randomUUID(), accountId = UUID.randomUUID(), serviceId = UUID.randomUUID();
-    final DiagnosticRequestJpaRepository requests = mock(DiagnosticRequestJpaRepository.class);
+    final ClinicalServiceOrderExecutionPort requests = mock(ClinicalServiceOrderExecutionPort.class);
     final DoctorProfileIdentityQueryService identities = mock(DoctorProfileIdentityQueryService.class);
     final DoctorAccountAccessService accounts = mock(DoctorAccountAccessService.class);
     final VisitDiagnosticReadPort visits = mock(VisitDiagnosticReadPort.class);
@@ -36,26 +37,26 @@ class DoctorImagingRegistrationTest {
     final DiagnosticImagingRequestRegistrationImpl registration = new DiagnosticImagingRequestRegistrationImpl(
             requests, identities, accounts, visits, catalog, orders, rooms);
     RegisterImagingOrder command() { return new RegisterImagingOrder(orderId, visitId, patientId, doctorId, serviceId, roomId, "RIGHT_KNEE", "Pain"); }
-    DiagnosticRequestJpaEntity row(DiagnosticRequestStatus status) {
-        var row = new DiagnosticRequestJpaEntity(UUID.randomUUID(), visitId, patientId, accountId, serviceId,
+    Row row(DiagnosticRequestStatus status) {
+        var row = new Row(orderId, visitId, patientId, accountId, serviceId,
                 roomId, "MRI", "RIGHT_KNEE", "Pain", status, null, null, null);
-        row.setServiceOrderId(orderId); return row;
+        return row;
     }
 
     @Test void activeSameRoomReplayUsesOriginalRequestIncludingResultsWithoutCatalog() {
         when(identities.findDoctorAccountId(doctorId)).thenReturn(Optional.of(accountId));
         for (var status : List.of(DiagnosticRequestStatus.PENDING, DiagnosticRequestStatus.RESULT_AVAILABLE)) {
             var original = row(status);
-            when(requests.findFirstByServiceOrderIdAndStatusNotOrderByCreatedAtDescIdDesc(orderId, DiagnosticRequestStatus.CANCELLED)).thenReturn(Optional.of(original));
+            when(requests.find(orderId)).thenReturn(Optional.of(ImagingExecutionTestFixtures.execution(original)));
             assertEquals(original.getId(), registration.register(command()).requestId());
         }
         verifyNoInteractions(catalog, orders, visits, accounts);
-        verify(requests, never()).insertAssigned(any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
+        verify(requests, never()).assignImagingRoom(any(), any(), any(), any(), any(), any(), any());
     }
 
     @Test void mismatchedPatientOrWrongProfileCannotReuseExistingRequest() {
         var original = row(DiagnosticRequestStatus.PENDING);
-        when(requests.findFirstByServiceOrderIdAndStatusNotOrderByCreatedAtDescIdDesc(orderId, DiagnosticRequestStatus.CANCELLED)).thenReturn(Optional.of(original));
+        when(requests.find(orderId)).thenReturn(Optional.of(ImagingExecutionTestFixtures.execution(original)));
         assertThrows(DiagnosticOperationException.class, () -> registration.register(new RegisterImagingOrder(
                 orderId, visitId, UUID.randomUUID(), doctorId, serviceId, roomId, "RIGHT_KNEE", "Pain")));
         when(identities.findDoctorAccountId(doctorId)).thenReturn(Optional.of(UUID.randomUUID()));
@@ -69,7 +70,7 @@ class DoctorImagingRegistrationTest {
         when(identities.findDoctorAccountId(doctorId)).thenReturn(Optional.of(accountId));
         assertThrows(DiagnosticOperationException.class, () -> registration.register(command()));
         verifyNoInteractions(visits, catalog, orders);
-        verify(requests, never()).insertAssigned(any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
+        verify(requests, never()).assignImagingRoom(any(), any(), any(), any(), any(), any(), any());
     }
 
     @Test void eligibilityAndLinkageFailuresPreventInsertion() {
@@ -82,7 +83,7 @@ class DoctorImagingRegistrationTest {
         when(orders.requireOpenImagingOrder(orderId)).thenReturn(null);
         assertEquals(DiagnosticOperationOutcome.EVIDENCE_MISMATCH, assertThrows(DiagnosticOperationException.class,
                 () -> registration.register(command())).outcome());
-        verifyNoInteractions(catalog); verify(requests, never()).insertAssigned(any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
+        verifyNoInteractions(catalog); verify(requests, never()).assignImagingRoom(any(), any(), any(), any(), any(), any(), any());
     }
 
     @Test void catalogueUsesExplicitStoredModalityAndRejectsOtherTypesMissingInactiveAndUnsetModality() {

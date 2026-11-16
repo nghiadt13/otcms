@@ -31,25 +31,6 @@ public interface AppointmentLifecycleRepository extends JpaRepository<Appointmen
     int updateLifecycleStatus(@Param("id") UUID id, @Param("expected") String expected,
             @Param("target") String target, @Param("visit") UUID visit, @Param("occurred") Timestamp occurred);
 
-    @Modifying
-    @Query(value = """
-            insert into appointment_audits (id, appointment_id, actor_account_id, actor_type, action,
-                old_status, new_status, old_doctor_profile_id, new_doctor_profile_id,
-                old_start_time, new_start_time, old_end_time, new_end_time, reason, linked_visit_id,
-                source_visit_id, occurred_at, correlation_id)
-            values (:auditId, :id, :actor, :actorType, :action, :oldStatus, :newStatus,
-                :doctor, :doctor, :oldStart, :newStart, :oldEnd, :newEnd, cast(:reason as varchar), :visit,
-                :sourceVisit, :occurred, :correlation)
-            """, nativeQuery = true)
-    int insertLifecycleAudit(@Param("auditId") UUID auditId, @Param("id") UUID id,
-            @Param("actor") UUID actor, @Param("actorType") String actorType, @Param("action") String action,
-            @Param("oldStatus") String oldStatus, @Param("newStatus") String newStatus,
-            @Param("doctor") UUID doctor, @Param("oldStart") Timestamp oldStart,
-            @Param("newStart") Timestamp newStart, @Param("oldEnd") Timestamp oldEnd,
-            @Param("newEnd") Timestamp newEnd, @Param("reason") String reason, @Param("visit") UUID visit,
-            @Param("sourceVisit") UUID sourceVisit, @Param("occurred") Timestamp occurred,
-            @Param("correlation") String correlation);
-
     @Query(value = """
             select id, patient_profile_id, service_id, doctor_profile_id, status, booking_source, purpose,
                    start_time, end_time, duration_minutes, buffer_minutes, occupied_until, visit_id,
@@ -76,11 +57,6 @@ public interface AppointmentLifecycleRepository extends JpaRepository<Appointmen
             String target, String reason, Instant occurredAt, String correlationId) {
         if (updateLifecycleStatus(current.id(), current.status(), target, current.visitId(),
                 Timestamp.from(occurredAt)) != 1) throw new IllegalStateException("Appointment status changed inside guarded transaction");
-        insertLifecycleAudit(UUID.randomUUID(), current.id(), actor, actorType,
-                "CANCELLED".equals(target) ? "CANCELLED" : "STATUS_CHANGED", current.status(), target,
-                current.doctorProfileId(), Timestamp.from(current.startTime()), Timestamp.from(current.startTime()),
-                Timestamp.from(current.endTime()), Timestamp.from(current.endTime()), reason, current.visitId(),
-                current.sourceVisitId(), Timestamp.from(occurredAt), correlationId);
         return AppointmentRowMapper.createdAppointment(findLifecycleResult(current.id()).getFirst());
     }
 }

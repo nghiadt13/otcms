@@ -45,7 +45,7 @@ class ImagingViewerGrantServiceTest {
     void storesOnlyHashedTokenAndCapsExpiryAtFiveMinutes() throws Exception {
         String studyRef = "study-allowed";
         UUID actor = UUID.randomUUID();
-        when(studies.findById(studyRef)).thenReturn(Optional.of(study(studyRef)));
+        when(studies.findByStudyRef(studyRef)).thenReturn(Optional.of(study(studyRef)));
         when(ownerPorts.getIfAvailable()).thenReturn(owner);
         when(owner.authorizeStudyView(studyRef, actor, "DOCTOR_REVIEW"))
                 .thenReturn(new ViewAuthorization(true, Instant.now().plusSeconds(900), "review-v2"));
@@ -76,7 +76,7 @@ class ImagingViewerGrantServiceTest {
     void deniesWhenOwnerDecisionIsUnavailableAndDoesNotPersistGrant() {
         String studyRef = "study-private";
         UUID actor = UUID.randomUUID();
-        when(studies.findById(studyRef)).thenReturn(Optional.of(study(studyRef)));
+        when(studies.findByStudyRef(studyRef)).thenReturn(Optional.of(study(studyRef)));
         when(ownerPorts.getIfAvailable()).thenReturn(null);
 
         ImagingOperationException unavailable = assertThrows(ImagingOperationException.class,
@@ -94,7 +94,7 @@ class ImagingViewerGrantServiceTest {
     void deniesOwnerDecisionWithoutAuthorizedVersion() {
         String studyRef = "study-denied";
         UUID actor = UUID.randomUUID();
-        when(studies.findById(studyRef)).thenReturn(Optional.of(study(studyRef)));
+        when(studies.findByStudyRef(studyRef)).thenReturn(Optional.of(study(studyRef)));
         when(ownerPorts.getIfAvailable()).thenReturn(owner);
         when(owner.authorizeStudyView(studyRef, actor, "PATIENT_VIEW"))
                 .thenReturn(new ViewAuthorization(true, Instant.now().plusSeconds(60), null));

@@ -5,8 +5,8 @@ import fu.fa26.sep490.g58.otcms_be.common.security.AccountRole;
 import fu.fa26.sep490.g58.otcms_be.common.security.AuthenticatedAccount;
 import fu.fa26.sep490.g58.otcms_be.servicecatalog.exception.ClinicServiceException;
 import fu.fa26.sep490.g58.otcms_be.servicecatalog.repository.ClinicServiceRepository;
-import fu.fa26.sep490.g58.otcms_be.servicecatalog.repository.ServiceCatalogManagementAuditRepository;
-import java.time.Clock;
+import fu.fa26.sep490.g58.otcms_be.servicecatalog.service.ServiceCatalogAuditRecorder;
+import java.util.Map;
 import fu.fa26.sep490.g58.otcms_be.servicecatalog.service.DeactivateClinicServiceService;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
@@ -16,15 +16,13 @@ import org.springframework.transaction.annotation.Transactional;
 public class DeactivateClinicServiceServiceImpl implements DeactivateClinicServiceService {
     private final ClinicServiceRepository services;
     private final CoordinationGuardService coordinationGuard;
-    private final ServiceCatalogManagementAuditRepository audits;
-    private final Clock clock;
+    private final ServiceCatalogAuditRecorder audits;
 
     public DeactivateClinicServiceServiceImpl(ClinicServiceRepository services, CoordinationGuardService coordinationGuard,
-            ServiceCatalogManagementAuditRepository audits, Clock clock) {
+            ServiceCatalogAuditRecorder audits) {
         this.services = services;
         this.coordinationGuard = coordinationGuard;
         this.audits = audits;
-        this.clock = clock;
     }
 
     @Override
@@ -40,8 +38,8 @@ public class DeactivateClinicServiceServiceImpl implements DeactivateClinicServi
         if (service.active()) {
             service.deactivate();
             services.save(service);
-            audits.append(UUID.randomUUID(), serviceId, actor.accountId(), "CLINIC_SERVICE", serviceId,
-                    "DEACTIVATED", "{\"active\":true}", "{\"active\":false}", clock.instant(), correlationId);
+            audits.record(serviceId, service.name(), actor.accountId(), "CLINIC_SERVICE", serviceId,
+                    "DEACTIVATED", Map.of("active", true), Map.of("active", false));
         }
     }
 }

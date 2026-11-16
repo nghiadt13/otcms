@@ -31,13 +31,14 @@ class MarkNoShowAfterShiftTransactionTest {
     private final CoordinationGuardService guard = mock(CoordinationGuardService.class);
     private final AppointmentNoShowRepository appointments = mock(AppointmentNoShowRepository.class);
     private final DoctorScheduleService schedules = mock(DoctorScheduleService.class);
+    private final fu.fa26.sep490.g58.otcms_be.common.audit.AuditLogWriter audit = mock(fu.fa26.sep490.g58.otcms_be.common.audit.AuditLogWriter.class);
     private MarkNoShowAfterShiftTransaction transaction;
 
     @BeforeEach
     void setUp() {
         var properties = new AppointmentBookingProperties(30, 120, 30, 15, 15, ZoneId.of("Asia/Ho_Chi_Minh"),
                 new AppointmentBookingProperties.PublicRateLimit(60, 60), 15, 30000L, false);
-        transaction = new MarkNoShowAfterShiftTransaction(guard, appointments, schedules, properties);
+        transaction = new MarkNoShowAfterShiftTransaction(guard, appointments, schedules, properties, audit);
         when(appointments.findForUpdate(appointmentId)).thenReturn(Optional.of(confirmed("CONFIRMED", null)));
         when(appointments.createdByAccountId(appointmentId)).thenReturn(creatorAccountId);
     }
@@ -57,6 +58,30 @@ class MarkNoShowAfterShiftTransactionTest {
         verify(schedules, times(2)).forProfile(doctorId, Instant.parse("2026-11-10T17:00:00Z"), dayEnd);
         verify(appointments).markNoShow(any(NoShowAppointment.class), eq(creatorAccountId), eq("SYSTEM"),
                 eq(MarkNoShowAfterShiftTransaction.SHIFT_ENDED_REASON), eq(afterEnd), eq("no-show-sweep-" + appointmentId));
+    }
+
+    @Test
+    void scheduledAuditUsesItsCorrelationAndRestoresPreviousMdc() {
+        String key = fu.fa26.sep490.g58.otcms_be.common.web.CorrelationIdFilter.MDC_KEY;
+        when(schedules.forProfile(eq(doctorId), any(), any())).thenReturn(List.of());
+        doAnswer(invocation -> {
+            assertEquals("no-show-sweep-" + appointmentId, org.slf4j.MDC.get(key));
+            var entry = invocation.getArgument(0, fu.fa26.sep490.g58.otcms_be.common.audit.AuditEntry.class);
+            assertEquals("SYSTEM", entry.actorType());
+            assertEquals("STATUS_CHANGED", entry.action());
+            assertEquals("NO_SHOW", ((java.util.Map<?, ?>) entry.afterState()).get("status"));
+            return null;
+        }).when(audit).record(any());
+        org.slf4j.MDC.put(key, "previous");
+        try {
+            assertEquals(Outcome.MARKED, transaction.markNoShow(appointmentId, dayEnd.plusSeconds(1)));
+            assertEquals("previous", org.slf4j.MDC.get(key));
+            org.slf4j.MDC.remove(key);
+            assertEquals(Outcome.MARKED, transaction.markNoShow(appointmentId, dayEnd.plusSeconds(1)));
+            org.junit.jupiter.api.Assertions.assertNull(org.slf4j.MDC.get(key));
+        } finally {
+            org.slf4j.MDC.remove(key);
+        }
     }
 
     @Test

@@ -1,43 +1,62 @@
 package fu.fa26.sep490.g58.otcms_be.imaging.service.impl;
 
-import fu.fa26.sep490.g58.otcms_be.imaging.model.entity.ImagingAuditEventJpaEntity;
-import fu.fa26.sep490.g58.otcms_be.imaging.repository.ImagingAuditEventRepository;
+import fu.fa26.sep490.g58.otcms_be.common.audit.AuditEntry;
+import fu.fa26.sep490.g58.otcms_be.common.audit.AuditLogWriter;
 import java.time.Instant;
-import java.util.List;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/** Writes PHI-safe audit evidence; callers must not swallow persistence failures on protected changes. */
+/** Writes PHI-safe imaging audit events to audit_logs in the caller's business transaction. */
 @Service
 public class ImagingAuditPersistenceService {
     private static final Set<String> SAFE_METADATA_KEYS = Set.of("purpose", "expiresAt", "state",
             "payloadSizeBytes", "instanceCount", "evidenceCodes", "eventId", "payloadSha256",
             "reasonCode", "resourceType", "decisionCode", "resultCount", "caseId");
-    private final ImagingAuditEventRepository audits;
+    private final AuditLogWriter auditWriter;
 
-    public ImagingAuditPersistenceService(ImagingAuditEventRepository audits) { this.audits = audits; }
+    public ImagingAuditPersistenceService(AuditLogWriter auditWriter) { this.auditWriter = auditWriter; }
 
     @Transactional
     public void recordActor(UUID actorId, String action, String outcome, UUID operationId, String studyRef,
             UUID requestId, UUID attemptId, UUID visitId, UUID patientId, String correlationId,
             Map<String, Object> safeMetadata) {
-        audits.saveAndFlush(new ImagingAuditEventJpaEntity(UUID.randomUUID(), actorId, null, requireCode(action),
-                requireCode(outcome), operationId, validateStudyRef(studyRef), requestId, attemptId, visitId, patientId,
-                validateCorrelationId(correlationId), validateSafeMetadata(safeMetadata), Instant.now()));
+        record(actorId, null, action, outcome, operationId, studyRef, requestId, attemptId, visitId,
+                patientId, correlationId, safeMetadata);
     }
 
     @Transactional
     public void recordService(String serviceIdentity, String action, String outcome, UUID operationId,
             String studyRef, UUID requestId, UUID attemptId, UUID visitId, UUID patientId,
             String correlationId, Map<String, Object> safeMetadata) {
-        audits.saveAndFlush(new ImagingAuditEventJpaEntity(UUID.randomUUID(), null, requireCode(serviceIdentity),
-                requireCode(action), requireCode(outcome), operationId, validateStudyRef(studyRef),
-                requestId, attemptId, visitId, patientId,
-                validateCorrelationId(correlationId), validateSafeMetadata(safeMetadata), Instant.now()));
+        record(null, serviceIdentity, action, outcome, operationId, studyRef, requestId, attemptId, visitId,
+                patientId, correlationId, safeMetadata);
+    }
+
+    private void record(UUID actorId, String serviceIdentity, String action, String outcome, UUID operationId,
+            String studyRef, UUID requestId, UUID attemptId, UUID visitId, UUID patientId,
+            String correlationId, Map<String, Object> metadata) {
+        Map<String, Object> safe = validateSafeMetadata(metadata);
+        put(safe, "studyRef", validateStudyRef(studyRef));
+        put(safe, "operationId", operationId);
+        put(safe, "requestId", requestId);
+        put(safe, "attemptId", attemptId);
+        put(safe, "visitId", visitId);
+        put(safe, "patientId", patientId);
+        put(safe, "correlationRef", validateCorrelationId(correlationId));
+        put(safe, "serviceIdentity", serviceIdentity == null ? null : requireCode(serviceIdentity));
+        auditWriter.record(AuditEntry.builder("imaging_audit_events", "IMAGING", requireCode(action), "IMAGING_STUDY")
+                .entityId(null).recordLabel(null).visibleInActivityLog(false)
+                .actorAccountId(actorId).actorType(actorId == null ? "SYSTEM" : "ACCOUNT")
+                .metadata(safe).outcome(requireCode(outcome)).occurredAt(Instant.now()).build());
+    }
+
+    private static void put(Map<String, Object> values, String key, Object value) {
+        if (value != null) values.put(key, value instanceof UUID uuid ? uuid.toString() : value);
     }
 
     private static String validateCorrelationId(String value) {
@@ -62,7 +81,7 @@ public class ImagingAuditPersistenceService {
     }
 
     private static Map<String, Object> validateSafeMetadata(Map<String, Object> metadata) {
-        if (metadata == null || metadata.isEmpty()) return Map.of();
+        if (metadata == null || metadata.isEmpty()) return new HashMap<>();
         if (metadata.size() > 12 || !SAFE_METADATA_KEYS.containsAll(metadata.keySet())) {
             throw new IllegalArgumentException("Imaging audit metadata contains an unapproved field");
         }
@@ -89,6 +108,6 @@ public class ImagingAuditPersistenceService {
             }
             safe.put(entry.getKey(), value);
         }
-        return Map.copyOf(safe);
+        return safe;
     }
 }

@@ -31,16 +31,15 @@ class VisitT012PostgresIntegrationTest {
 
     @AfterEach void cleanup() {
         if (followUpVisitId != null) jdbc.update("delete from clinical_examinations where visit_id=?", followUpVisitId);
-        jdbc.update("delete from appointment_arrivals where actor_account_id in (select id from accounts where normalized_email like 't012-%')");
         jdbc.update("delete from appointments where created_by_account_id in (select id from accounts where normalized_email like 't012-%')");
-        jdbc.update("delete from visit_examinations where visit_id in (select id from visits where created_by_account_id in (select id from accounts where normalized_email like 't012-%'))");
+
         jdbc.update("delete from visit_assignments where visit_id in (select id from visits where created_by_account_id in (select id from accounts where normalized_email like 't012-%'))");
-        jdbc.update("delete from visit_check_ins where receptionist_account_id in (select id from accounts where normalized_email like 't012-%')");
+
         jdbc.update("delete from visits where created_by_account_id in (select id from accounts where normalized_email like 't012-%')");
-        jdbc.update("delete from doctor_services where doctor_profile_id in (select id from doctor_profiles where work_contact like 't012-%')");
+        jdbc.update("delete from doctor_services where doctor_profile_id in (select id from staff_profiles where work_contact like 't012-%')");
         jdbc.update("delete from clinic_services where name = 'T012 service'");
         jdbc.update("delete from patient_profiles where full_name like 'T012 %'");
-        jdbc.update("delete from doctor_profiles where work_contact like 't012-%'");
+        jdbc.update("delete from staff_profiles where work_contact like 't012-%'");
         jdbc.update("delete from accounts where normalized_email like 't012-%'");
     }
 
@@ -139,9 +138,9 @@ class VisitT012PostgresIntegrationTest {
         UUID otherDoctorId = UUID.randomUUID();
         jdbc.update("insert into patient_profiles (id, account_id, full_name, phone_canonical, phone_owner_type, date_of_birth, gender) values (?, ?, ?, ?, 'PATIENT', '1990-01-01', 'OTHER')",
                 patientId, patientAccountId, "T012 Patient", "+84900000001");
-        jdbc.update("insert into doctor_profiles (id, account_id, full_name, work_contact) values (?, ?, ?, ?)",
+        jdbc.update("insert into staff_profiles (is_doctor, id, account_id, display_name, work_contact) values (true, ?, ?, ?, ?)",
                 doctorId, doctorAccountId, "T012 Doctor", "t012-doctor");
-        jdbc.update("insert into doctor_profiles (id, account_id, full_name, work_contact) values (?, ?, ?, ?)",
+        jdbc.update("insert into staff_profiles (is_doctor, id, account_id, display_name, work_contact) values (true, ?, ?, ?, ?)",
                 otherDoctorId, insertAccount(AccountType.DOCTOR, "other-doctor"), "T012 Other Doctor", "t012-other-doctor");
         Instant arrived = Instant.parse("2026-10-13T10:00:00Z");
         jdbc.update("insert into visits (id, patient_profile_id, source, arrived_at, checked_in_at, created_by_account_id) values (?, ?, 'WALK_IN', ?, ?, ?)",
@@ -188,15 +187,16 @@ class VisitT012PostgresIntegrationTest {
 
         jdbc.update("insert into patient_profiles (id, account_id, full_name, phone_canonical, phone_owner_type, date_of_birth, gender) values (?, ?, ?, ?, 'PATIENT', '1990-01-01', 'OTHER')",
                 patientId, patientAccountId, "T012 Arrival Patient", "+84900000002");
-        jdbc.update("insert into doctor_profiles (id, account_id, full_name, work_contact) values (?, ?, ?, ?)",
+        jdbc.update("insert into staff_profiles (is_doctor, id, account_id, display_name, work_contact) values (true, ?, ?, ?, ?)",
                 doctorId, doctorAccountId, "T012 Arrival Doctor", "t012-arrival-doctor");
         jdbc.update("insert into clinic_services (id, name, duration_minutes, buffer_minutes, online_bookable, active) values (?, 'T012 service', 30, 0, true, true)", serviceId);
         jdbc.update("insert into doctor_services (doctor_profile_id, service_id) values (?, ?)", doctorId, serviceId);
         Instant startsAt = arrivedAt.plusSeconds(3600);
         jdbc.update("insert into appointments (id, patient_profile_id, service_id, doctor_profile_id, booking_source, purpose, start_time, end_time, duration_minutes, buffer_minutes, created_by_account_id) values (?, ?, ?, ?, 'PATIENT_ONLINE', 'T012 arrival evidence', ?, ?, 30, 0, ?)",
                 appointmentId, patientId, serviceId, doctorId, Timestamp.from(startsAt), Timestamp.from(startsAt.plusSeconds(1800)), patientAccountId);
-        jdbc.update("insert into appointment_arrivals (appointment_id, patient_profile_id, actor_account_id, source, arrived_at) values (?, ?, ?, 'LEGACY_RECEPTIONIST', ?)",
-                appointmentId, patientId, receptionistId, Timestamp.from(arrivedAt));
+        jdbc.update("update appointments set arrived_at = ?, arrival_source = 'LEGACY_RECEPTIONIST', "
+                + "arrival_recorded_at = now(), arrival_recorded_by = ? where id = ? and patient_profile_id = ?",
+                Timestamp.from(arrivedAt), receptionistId, appointmentId, patientId);
 
         RecordedArrivalQueryService.RecordedArrival result = recordedArrivals.requireRecordedArrival(
                 appointmentId, patientId, arrivedAt, arrivedAt);

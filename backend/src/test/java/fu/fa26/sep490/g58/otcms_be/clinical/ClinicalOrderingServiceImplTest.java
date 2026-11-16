@@ -22,32 +22,30 @@ import org.springframework.transaction.annotation.Transactional;
 class ClinicalOrderingServiceImplTest {
     private final VisitClinicalContextPort visits = mock(VisitClinicalContextPort.class);
     private final ClinicServiceCatalogPort catalog = mock(ClinicServiceCatalogPort.class);
-    private final OrderingRoundRepository rounds = mock(OrderingRoundRepository.class);
     private final ServiceOrderRepository orders = mock(ServiceOrderRepository.class);
     private final UUID visitId = UUID.randomUUID();
     private final UUID patientId = UUID.randomUUID();
     private final UUID doctorId = UUID.randomUUID();
     private final UUID imagingId = UUID.randomUUID();
     private final UUID labId = UUID.randomUUID();
-    private final ClinicalOrderingTransactionService writer = new ClinicalOrderingTransactionService(rounds, orders,
+    private final ClinicalOrderingTransactionService writer = new ClinicalOrderingTransactionService(orders,
             Clock.fixed(Instant.parse("2026-11-04T10:00:00Z"), ZoneOffset.UTC),
             mock(fu.fa26.sep490.g58.otcms_be.common.service.CoordinationGuardService.class),
             new fu.fa26.sep490.g58.otcms_be.clinical.service.impl.ClinicalOrderPreparationService(visits, catalog));
     private final ClinicalOrderingServiceImpl service = new ClinicalOrderingServiceImpl(new fu.fa26.sep490.g58.otcms_be.clinical.service.impl.ClinicalOrderPreparationService(visits, catalog),
-            writer, rounds, orders, Clock.fixed(Instant.parse("2026-11-04T10:00:00Z"), ZoneOffset.UTC),
+            writer, orders, Clock.fixed(Instant.parse("2026-11-04T10:00:00Z"), ZoneOffset.UTC),
             mock(fu.fa26.sep490.g58.otcms_be.common.service.CoordinationGuardService.class));
 
     @BeforeEach
     void setUp() {
         when(visits.getVisitContext(visitId)).thenReturn(new VisitClinicalContextPort.ClinicalVisitContext(
                 visitId, patientId, doctorId, true));
-        when(rounds.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
         when(orders.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
         when(catalog.getService(imagingId)).thenReturn(snapshot(imagingId, "X-Ray Knee", ClinicalServiceType.IMAGING,
                 "1250.50", true));
         when(catalog.getService(labId)).thenReturn(snapshot(labId, "CBC", ClinicalServiceType.LABORATORY,
                 "450.00", true));
-        when(rounds.findTopByVisitIdOrderByRoundNumberDesc(visitId)).thenReturn(Optional.empty());
+        when(orders.findTopByVisitIdAndRoundHeadTrueOrderByRoundNumberDesc(visitId)).thenReturn(Optional.empty());
     }
 
     @Test
@@ -64,7 +62,6 @@ class ClinicalOrderingServiceImplTest {
         assertEquals(new BigDecimal("1250.50"), order.priceSnapshot());
         assertEquals(ServiceOrderStatus.ORDERED, order.orderStatus());
         assertEquals(ServiceOrderPaymentStatus.PENDING_PAYMENT, order.paymentStatus());
-        verify(rounds).save(any());
         verify(orders).save(any());
         verify(visits, times(2)).getVisitContext(visitId);
         verifyNoMoreInteractions(visits);
@@ -77,17 +74,21 @@ class ClinicalOrderingServiceImplTest {
         assertEquals(1, result.round().roundNumber());
         assertEquals(2, result.round().orders().size());
         assertEquals(result.round().orders().get(0).orderingRoundId(), result.round().orders().get(1).orderingRoundId());
-        verify(rounds, times(1)).save(any());
+        var saved = org.mockito.ArgumentCaptor.forClass(ServiceOrderJpaEntity.class);
+        verify(orders, times(2)).save(saved.capture());
+        assertTrue(saved.getAllValues().getFirst().isRoundHead());
+        assertFalse(saved.getAllValues().getLast().isRoundHead());
     }
 
     @Test
     void subsequentSubmitCreatesNextRoundAndPreservesPriorRound() {
-        var previous = new OrderingRoundJpaEntity(visitId, patientId, 1, doctorId, Instant.now());
-        when(rounds.findTopByVisitIdOrderByRoundNumberDesc(visitId)).thenReturn(Optional.of(previous));
+        var previous = new ServiceOrderJpaEntity("PREVIOUS", UUID.randomUUID(), 1, true, null, null,
+                visitId, patientId, labId, "CBC", ClinicalServiceType.LABORATORY, doctorId,
+                "Reason", null, null, BigDecimal.ONE, Instant.now());
+        when(orders.findTopByVisitIdAndRoundHeadTrueOrderByRoundNumberDesc(visitId)).thenReturn(Optional.of(previous));
         var result = service.submit(command(request(labId, "Reason", null, null)));
         assertEquals(2, result.round().roundNumber());
-        verify(rounds, never()).delete(any());
-        verify(rounds).save(any());
+        verify(orders).save(any());
     }
 
     @Test
@@ -95,7 +96,7 @@ class ClinicalOrderingServiceImplTest {
         assertEquals("MSG-40", assertThrows(ClinicalOperationException.class,
                 () -> service.submit(new ClinicalOrderingService.SubmitRound(visitId, UUID.randomUUID(),
                         List.of(request(labId, "Reason", null, null))))).code());
-        verifyNoInteractions(catalog, rounds, orders);
+        verifyNoInteractions(catalog, orders);
     }
 
     @Test
@@ -105,7 +106,7 @@ class ClinicalOrderingServiceImplTest {
                 "10.00", false));
         assertThrows(ClinicalOperationException.class,
                 () -> service.submit(command(request(inactive, "Reason", null, null))));
-        verify(rounds, never()).save(any());
+        verify(orders, never()).save(any());
     }
 
     @Test
@@ -216,32 +217,38 @@ class ClinicalOrderingServiceImplTest {
 
     @Test
     void readinessUsesOnlyLatestRoundAndIgnoresCancelledOrders() {
-        var old = new OrderingRoundJpaEntity(visitId, patientId, 1, doctorId, Instant.now());
-        var latest = new OrderingRoundJpaEntity(visitId, patientId, 2, doctorId, Instant.now());
-        when(rounds.findTopByVisitIdOrderByRoundNumberDesc(visitId)).thenReturn(Optional.of(old));
-        when(orders.findByOrderingRoundId(old.getId())).thenReturn(List.of(persistedOrderWithStatus(
-                old.getId(), ServiceOrderStatus.RESULTS_AVAILABLE)));
+        UUID oldRoundId = UUID.randomUUID(), latestRoundId = UUID.randomUUID();
+        var old = new ServiceOrderJpaEntity("OLD", oldRoundId, 1, true, null, null, visitId, patientId,
+                labId, "CBC", ClinicalServiceType.LABORATORY, doctorId, "Reason", null, null, BigDecimal.ONE, Instant.now());
+        var latest = new ServiceOrderJpaEntity("LATEST", latestRoundId, 2, true, null, null, visitId, patientId,
+                labId, "CBC", ClinicalServiceType.LABORATORY, doctorId, "Reason", null, null, BigDecimal.ONE, Instant.now());
+        when(orders.findTopByVisitIdAndRoundHeadTrueOrderByRoundNumberDesc(visitId)).thenReturn(Optional.of(old));
+        when(orders.findByOrderingRoundId(oldRoundId)).thenReturn(List.of(persistedOrderWithStatus(
+                oldRoundId, ServiceOrderStatus.RESULTS_AVAILABLE)));
         assertTrue(service.isLatestRoundReadyForReview(visitId));
 
-        when(rounds.findTopByVisitIdOrderByRoundNumberDesc(visitId)).thenReturn(Optional.of(latest));
+        when(orders.findTopByVisitIdAndRoundHeadTrueOrderByRoundNumberDesc(visitId)).thenReturn(Optional.of(latest));
         var pending = persistedOrderWithStatus(latest.getId(), ServiceOrderStatus.ORDERED);
-        when(orders.findByOrderingRoundId(latest.getId())).thenReturn(List.of(pending));
+        when(orders.findByOrderingRoundId(latestRoundId)).thenReturn(List.of(pending));
         assertFalse(service.isLatestRoundReadyForReview(visitId));
 
         var ready = persistedOrderWithStatus(latest.getId(), ServiceOrderStatus.RESULTS_AVAILABLE);
         var cancelled = persistedOrderWithStatus(latest.getId(), ServiceOrderStatus.CANCELLED);
-        when(orders.findByOrderingRoundId(latest.getId())).thenReturn(List.of(ready, cancelled));
+        when(orders.findByOrderingRoundId(latestRoundId)).thenReturn(List.of(ready, cancelled));
         assertTrue(service.isLatestRoundReadyForReview(visitId));
     }
 
     @Test
     void latestRoundMustHaveAtLeastOneEffectiveOrder() {
-        var latest = new OrderingRoundJpaEntity(visitId, patientId, 1, doctorId, Instant.now());
-        when(rounds.findTopByVisitIdOrderByRoundNumberDesc(visitId)).thenReturn(Optional.of(latest));
-        when(orders.findByOrderingRoundId(latest.getId())).thenReturn(List.of(
-                persistedOrderWithStatus(latest.getId(), ServiceOrderStatus.CANCELLED)));
+        UUID latestRoundId = UUID.randomUUID();
+        var latest = new ServiceOrderJpaEntity("LATEST", latestRoundId, 1, true, null, null,
+                visitId, patientId, labId, "CBC", ClinicalServiceType.LABORATORY, doctorId,
+                "Reason", null, null, BigDecimal.ONE, Instant.now());
+        when(orders.findTopByVisitIdAndRoundHeadTrueOrderByRoundNumberDesc(visitId)).thenReturn(Optional.of(latest));
+        when(orders.findByOrderingRoundId(latestRoundId)).thenReturn(List.of(
+                persistedOrderWithStatus(latestRoundId, ServiceOrderStatus.CANCELLED)));
         assertFalse(service.isLatestRoundReadyForReview(visitId));
-        when(rounds.findTopByVisitIdOrderByRoundNumberDesc(visitId)).thenReturn(Optional.empty());
+        when(orders.findTopByVisitIdAndRoundHeadTrueOrderByRoundNumberDesc(visitId)).thenReturn(Optional.empty());
         assertFalse(service.isLatestRoundReadyForReview(visitId));
     }
 
@@ -252,7 +259,7 @@ class ClinicalOrderingServiceImplTest {
                 () -> service.submit(command(request(imagingId, "Pain", "Knee", null)))).code());
         assertEquals("MSG-40", assertThrows(ClinicalOperationException.class,
                 () -> service.submit(new ClinicalOrderingService.SubmitRound(visitId, null, List.of()))).code());
-        verifyNoInteractions(catalog, rounds, orders);
+        verifyNoInteractions(catalog, orders);
     }
 
     @Test
@@ -262,7 +269,7 @@ class ClinicalOrderingServiceImplTest {
                         Arrays.asList((ClinicalOrderingService.OrderRequest) null)))).code());
         assertEquals("MSG-39", assertThrows(ClinicalOperationException.class,
                 () -> service.submit(command(request(null, "Pain", "Knee", null)))).code());
-        verifyNoInteractions(catalog, rounds, orders);
+        verifyNoInteractions(catalog, orders);
     }
 
     @Test
@@ -271,7 +278,7 @@ class ClinicalOrderingServiceImplTest {
                 ClinicalServiceType.IMAGING, "150.00", true));
         assertEquals("MSG-39", assertThrows(ClinicalOperationException.class,
                 () -> service.submit(command(request(imagingId, "Pain", "Knee", null)))).code());
-        verifyNoInteractions(rounds, orders);
+        verifyNoInteractions(orders);
     }
 
     @Test
@@ -284,7 +291,7 @@ class ClinicalOrderingServiceImplTest {
                 visitId, null, doctorId, true));
         assertEquals("MSG-39", assertThrows(ClinicalOperationException.class,
                 () -> service.submit(command(request(imagingId, "Pain", "Knee", null)))).code());
-        verifyNoInteractions(catalog, rounds, orders);
+        verifyNoInteractions(catalog, orders);
     }
 
     private ClinicalOrderingService.SubmitRound command(ClinicalOrderingService.OrderRequest... requests) {

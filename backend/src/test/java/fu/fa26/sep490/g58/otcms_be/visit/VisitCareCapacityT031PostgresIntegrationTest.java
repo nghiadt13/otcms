@@ -57,6 +57,7 @@ class VisitCareCapacityT031PostgresIntegrationTest {
     @Autowired MockMvc mvc;
     @Autowired JdbcTemplate jdbc;
     @Autowired PlatformTransactionManager transactionManager;
+    @Autowired fu.fa26.sep490.g58.otcms_be.visit.repository.VisitRoomReservationRepository roomReservations;
 
     private UUID doctorAccount;
     private UUID patientAccount;
@@ -82,7 +83,7 @@ class VisitCareCapacityT031PostgresIntegrationTest {
         visit = UUID.randomUUID();
         jdbc.update("insert into patient_profiles (id, account_id, full_name, phone_canonical, phone_owner_type, date_of_birth, gender) values (?, ?, 'T031 Patient', ?, 'PATIENT', '1990-01-01', 'OTHER')",
                 patient, patientAccount, "+849" + UUID.randomUUID().toString().replace("-", "").substring(0, 9));
-        jdbc.update("insert into doctor_profiles (id, account_id, full_name, photo_url, work_contact, specialties, qualifications, biography, consultation_information, publicly_visible, accepting_new_bookings, in_active_directory) values (?, ?, 'T031 Doctor', '', 'private', '', '', '', '', true, true, true)",
+        jdbc.update("insert into staff_profiles (is_doctor, id, account_id, display_name, photo_url, work_contact, specialties, qualifications, biography, consultation_information, publicly_visible, accepting_new_bookings, in_active_directory) values (true, ?, ?, 'T031 Doctor', '', 'private', '', '', '', '', true, true, true)",
                 doctor, doctorAccount);
         bookingService = UUID.randomUUID();
         // Price 0: a free service, so the walk-in fixture below is cancellable like a free walk-in.
@@ -90,7 +91,7 @@ class VisitCareCapacityT031PostgresIntegrationTest {
                         + "values (?, 'T033 Cross Feature Race', 30, 0, true, true, 0)", bookingService);
         jdbc.update("insert into doctor_services (doctor_profile_id, service_id, active) values (?, ?, true)",
                 doctor, bookingService);
-        jdbc.update("insert into doctor_shifts (id, doctor_profile_id, starts_at, ends_at) values (?, ?, ?, ?)",
+        jdbc.update("insert into work_shifts (id, staff_profile_id, starts_at, ends_at) values (?, ?, ?, ?)",
                 UUID.randomUUID(), doctor, Timestamp.from(NOW.minusSeconds(300)), Timestamp.from(NOW.plusSeconds(7200)));
         jdbc.update("insert into visits (id, patient_profile_id, source, arrived_at, checked_in_at, created_by_account_id) values (?, ?, 'WALK_IN', ?, ?, ?)",
                 visit, patient, Timestamp.from(NOW.minusSeconds(60)), Timestamp.from(NOW.minusSeconds(60)), receptionist);
@@ -99,68 +100,55 @@ class VisitCareCapacityT031PostgresIntegrationTest {
                     receptionist.toString());
             jdbc.queryForObject("select set_config('otcms.reception_correlation_id', ?, true)", String.class,
                     CORRELATION);
-            jdbc.update("insert into walk_in_reception_queue_entries (visit_id, arrived_at, entered_at) "
-                            + "values (?, ?, ?)", visit, Timestamp.from(NOW.minusSeconds(60)), Timestamp.from(NOW));
+            jdbc.update("insert into queue_entries (stage, status, visit_id, arrived_at, entered_at) values ('RECEPTION', 'WAITING', ?, ?, ?)", visit, Timestamp.from(NOW.minusSeconds(60)), Timestamp.from(NOW));
             return null;
         });
         // A free walk-in as the admission flow leaves it: WAITING with number 1 and the free service.
-        jdbc.update("insert into visit_exam_queue (visit_id, doctor_profile_id, service_id, clinic_date, queue_number, exam_status, created_at, queued_at) "
-                + "values (?, ?, ?, date '2026-10-19', 1, 'WAITING', ?, ?)", visit, doctor, bookingService,
+        jdbc.update("insert into queue_entries (stage, visit_id, doctor_profile_id, service_id, clinic_date, queue_number, status, entered_at, queued_at) values ('EXAM', ?, ?, ?, date '2026-10-19', 1, 'WAITING', ?, ?)", visit, doctor, bookingService,
                 Timestamp.from(NOW.minusSeconds(60)), Timestamp.from(NOW.minusSeconds(60)));
         visits.add(visit);
         room = UUID.randomUUID();
         jdbc.update("insert into rooms (id, room_code, display_label, active) values (?, 'T031-EXAM-ROOM', 'T031 Exam Room', true)", room);
-        jdbc.update("insert into room_capabilities (room_id, capability_code) values (?, 'EXAM_ROOM')", room);
+        jdbc.update("update rooms set capabilities = array['EXAM_ROOM'] where id = ?", room);
         otherDoctorAccount = account(AccountType.DOCTOR, "other-doctor");
         otherDoctor = UUID.randomUUID();
-        jdbc.update("insert into doctor_profiles (id, account_id, full_name, photo_url, work_contact, specialties, qualifications, biography, consultation_information, publicly_visible, accepting_new_bookings, in_active_directory) values (?, ?, 'T031 Other Doctor', '', 'private', '', '', '', '', true, true, true)", otherDoctor, otherDoctorAccount);
+        jdbc.update("insert into staff_profiles (is_doctor, id, account_id, display_name, photo_url, work_contact, specialties, qualifications, biography, consultation_information, publicly_visible, accepting_new_bookings, in_active_directory) values (true, ?, ?, 'T031 Other Doctor', '', 'private', '', '', '', '', true, true, true)", otherDoctor, otherDoctorAccount);
     }
 
     @AfterEach
     void cleanUp() {
-        String careAuditImmutable = triggerMode("visit_assignment_audits", "tr_visit_care_assignment_audits_immutable");
-        String careAuditNoTruncate = triggerMode("visit_assignment_audits", "tr_visit_care_assignment_audits_no_truncate");
-        String roomAuditImmutable = triggerMode("room_reservation_audits", "tr_visit_room_reservation_audits_immutable");
-        String roomManagementAuditImmutable = triggerMode("room_management_audits", "tr_visit_room_management_audits_immutable");
-        String roomManagementAuditNoTruncate = triggerMode("room_management_audits", "tr_visit_room_management_audits_no_truncate");
-        String appointmentAuditTrigger = jdbc.queryForObject("select tgenabled::text from pg_trigger where tgrelid = 'appointment_audits'::regclass and tgname = 'tr_appointment_audits_immutable'", String.class);
-        String visitAuditTrigger = jdbc.queryForObject("select tgenabled::text from pg_trigger where tgrelid = 'visit_audits'::regclass and tgname = 'tr_visit_audits_immutable'", String.class);
-        jdbc.execute("alter table visit_assignment_audits disable trigger tr_visit_care_assignment_audits_immutable");
-        jdbc.execute("alter table visit_assignment_audits disable trigger tr_visit_care_assignment_audits_no_truncate");
-        jdbc.execute("alter table room_reservation_audits disable trigger tr_visit_room_reservation_audits_immutable");
-        jdbc.execute("alter table room_management_audits disable trigger tr_visit_room_management_audits_immutable");
-        jdbc.execute("alter table room_management_audits disable trigger tr_visit_room_management_audits_no_truncate");
-        jdbc.execute("alter table appointment_audits disable trigger tr_appointment_audits_immutable");
-        jdbc.execute("alter table visit_audits disable trigger tr_visit_audits_immutable");
-        jdbc.execute("alter table walk_in_reception_queue_history disable trigger all");
+
+
+        String auditLogsImmutable = triggerMode("audit_logs", "tr_audit_logs_immutable");
+
+        jdbc.execute("alter table audit_logs disable trigger tr_audit_logs_immutable");
         try {
             for (UUID visitId : visits) {
-                jdbc.update("delete from walk_in_reception_queue_history where queue_entry_id in "
-                        + "(select id from walk_in_reception_queue_entries where visit_id = ?)", visitId);
-                jdbc.update("delete from walk_in_reception_queue_entries where visit_id = ?", visitId);
-                jdbc.update("delete from visit_assignment_audits where visit_id = ?", visitId);
-                jdbc.update("delete from room_reservation_audits where visit_id = ?", visitId);
+                jdbc.update("delete from audit_logs where source = 'walk_in_reception_queue_history' and entity_id = ?", visitId);
+                jdbc.update("delete from queue_entries where stage = 'RECEPTION' and visit_id = ?", visitId);
+                jdbc.update("delete from audit_logs where source = 'visit_assignment_audits' and record_label = ?::text", visitId);
+                jdbc.update("delete from audit_logs where source = 'room_reservation_audits' and metadata->>'visitId' = ?::text", visitId);
                 jdbc.update("delete from room_reservations where visit_id = ?", visitId);
                 jdbc.update("delete from visit_assignments where visit_id = ?", visitId);
-                jdbc.update("delete from visit_check_ins where visit_id = ?", visitId);
-                jdbc.update("delete from visit_audits where visit_id = ?", visitId);
-                jdbc.update("delete from visit_exam_queue where visit_id = ?", visitId);
+
+                jdbc.update("delete from audit_logs where source = 'visit_audits' and record_label = ?::text", visitId);
+                jdbc.update("delete from queue_entries where stage = 'EXAM' and visit_id = ?", visitId);
                 jdbc.update("delete from visits where id = ?", visitId);
             }
             if (bookingService != null) {
-                jdbc.update("delete from appointment_audits where appointment_id in "
+                jdbc.update("delete from audit_logs where source = 'appointment_audits' and entity_id in "
                         + "(select id from appointments where service_id = ?)", bookingService);
                 jdbc.update("delete from appointments where service_id = ?", bookingService);
                 jdbc.update("delete from doctor_services where service_id = ?", bookingService);
                 jdbc.update("delete from clinic_services where id = ?", bookingService);
             }
-            if (doctor != null) jdbc.update("delete from doctor_shifts where doctor_profile_id = ?", doctor);
-            if (doctor != null) jdbc.update("delete from visit_exam_queue where doctor_profile_id = ?", doctor);
-            if (room != null) jdbc.update("delete from room_management_audits where room_id = ?", room);
-            if (doctor != null) jdbc.update("delete from doctor_profiles where id = ?", doctor);
-            if (otherDoctor != null) jdbc.update("delete from doctor_profiles where id = ?", otherDoctor);
+            if (doctor != null) jdbc.update("delete from work_shifts where staff_profile_id = ?", doctor);
+            if (doctor != null) jdbc.update("delete from queue_entries where stage = 'EXAM' and doctor_profile_id = ?", doctor);
+            if (room != null) jdbc.update("delete from audit_logs where source = 'room_management_audits' and entity_id = ?", room);
+            if (doctor != null) jdbc.update("delete from staff_profiles where id = ?", doctor);
+            if (otherDoctor != null) jdbc.update("delete from staff_profiles where id = ?", otherDoctor);
             if (room != null) {
-                jdbc.update("delete from room_capabilities where room_id = ?", room);
+
                 jdbc.update("delete from rooms where id = ?", room);
             }
             if (patient != null) jdbc.update("delete from patient_profiles where id = ?", patient);
@@ -168,15 +156,22 @@ class VisitCareCapacityT031PostgresIntegrationTest {
                 if (id != null) jdbc.update("delete from accounts where id = ?", id);
             }
         } finally {
-            jdbc.execute("alter table walk_in_reception_queue_history enable trigger all");
-            restoreTrigger("visit_assignment_audits", "tr_visit_care_assignment_audits_immutable", careAuditImmutable);
-            restoreTrigger("visit_assignment_audits", "tr_visit_care_assignment_audits_no_truncate", careAuditNoTruncate);
-            restoreTrigger("room_reservation_audits", "tr_visit_room_reservation_audits_immutable", roomAuditImmutable);
-            restoreTrigger("room_management_audits", "tr_visit_room_management_audits_immutable", roomManagementAuditImmutable);
-            restoreTrigger("room_management_audits", "tr_visit_room_management_audits_no_truncate", roomManagementAuditNoTruncate);
-            restoreTrigger("appointment_audits", "tr_appointment_audits_immutable", appointmentAuditTrigger);
-            restoreTrigger("visit_audits", "tr_visit_audits_immutable", visitAuditTrigger);
+            restoreTrigger("audit_logs", "tr_audit_logs_immutable", auditLogsImmutable);
         }
+    }
+
+    @Test
+    void repeatedCapacityConflictsDeduplicateAndMatchMigrationKey() {
+        new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
+            roomReservations.appendConflict(visit, null, doctorAccount, "CONSULTATION", CORRELATION, NOW);
+            roomReservations.appendConflict(visit, null, doctorAccount, "CONSULTATION", CORRELATION, NOW);
+            // Legacy audit columns for actor and correlation were NOT NULL.
+            assertThrows(NullPointerException.class, () -> roomReservations.appendConflict(visit, null, doctorAccount, "CONSULTATION", null, NOW));
+            assertThrows(NullPointerException.class, () -> roomReservations.appendConflict(visit, null, null, "CONSULTATION", CORRELATION, NOW));
+        });
+        assertEquals(1, jdbc.queryForObject("select count(*) from audit_logs where source='room_reservation_audits' and action='CAPACITY_CONFLICT' and entity_id=? and correlation_id=? and dedup_key = 'room-capacity:' || encode(sha256(convert_to(?::text || ':' || ?::text || ':' || ?, 'UTF8')), 'hex')", Integer.class,
+                visit, CORRELATION, visit, doctorAccount, CORRELATION));
+        assertEquals(1, jdbc.queryForObject("select count(*) from audit_logs where source='room_reservation_audits' and action='CAPACITY_CONFLICT' and entity_id=?", Integer.class, visit));
     }
 
     @Test
@@ -239,16 +234,12 @@ class VisitCareCapacityT031PostgresIntegrationTest {
         UUID assignment = UUID.fromString(content.substring(content.indexOf("\"id\":\"") + 6,
                 content.indexOf('"', content.indexOf("\"id\":\"") + 6)));
         assertEquals(1, jdbc.queryForObject("select count(*) from visit_assignments where id = ? and expected_duration_minutes = 30 and step_code = 'CONSULTATION' and status = 'IN_PROGRESS'", Integer.class, assignment));
-        assertEquals(1, jdbc.queryForObject("select count(*) from visit_assignment_audits where assignment_id = ? and action = 'STARTED' and actor_account_id = ? and correlation_id = ?", Integer.class, assignment, doctorAccount, CORRELATION));
+        assertEquals(1, jdbc.queryForObject("select count(*) from audit_logs where source = 'visit_assignment_audits' and entity_id = ? and action = 'STARTED' and actor_account_id = ? and correlation_id = ?", Integer.class, assignment, doctorAccount, CORRELATION));
         // A start reserves no room; rooms are only reserved by an extension (unchanged).
         assertEquals(0, jdbc.queryForObject("select count(*) from room_reservations where assignment_id = ?", Integer.class, assignment));
-        assertEquals(0, jdbc.queryForObject("select count(*) from room_reservation_audits where assignment_id = ?", Integer.class, assignment));
-        assertEquals(0, jdbc.queryForObject("select count(*) from walk_in_reception_queue_entries "
-                + "where visit_id = ? and status = 'WAITING'", Integer.class, visit));
-        assertEquals(1, jdbc.queryForObject("select count(*) from walk_in_reception_queue_history h "
-                + "join walk_in_reception_queue_entries q on q.id = h.queue_entry_id "
-                + "where q.visit_id = ? and h.to_status = 'LEFT_RECEPTION' and h.reason = 'CARE_STARTED' "
-                + "and h.actor_account_id = ? and h.correlation_id = ?", Integer.class,
+        assertEquals(0, jdbc.queryForObject("select count(*) from audit_logs where source = 'room_reservation_audits' and metadata->>'assignmentId' = ?::text", Integer.class, assignment));
+        assertEquals(0, jdbc.queryForObject("select count(*) from queue_entries where stage = 'RECEPTION' and visit_id = ? and status = 'WAITING'", Integer.class, visit));
+        assertEquals(1, jdbc.queryForObject("select count(*) from audit_logs h where h.source = 'walk_in_reception_queue_history' and h.entity_id = ? and h.metadata->>'toStatus' = 'LEFT_RECEPTION' and h.action = 'CARE_STARTED' and h.actor_account_id = ? and h.correlation_id = ?", Integer.class,
                 visit, doctorAccount, CORRELATION));
 
         // No extension here: an extension after a reservation-free start reserves from the old expected end, and
@@ -260,7 +251,7 @@ class VisitCareCapacityT031PostgresIntegrationTest {
         assertEquals(1, jdbc.queryForObject("select count(*) from visit_assignments where id = ? and actual_ended_at = ? and ends_at = ?", Integer.class, assignment, Timestamp.from(NOW), Timestamp.from(NOW.plusSeconds(1800))));
         assertEquals(0, jdbc.queryForObject("select count(*) from room_reservations where assignment_id = ?", Integer.class, assignment));
         assertThrows(org.springframework.dao.DataAccessException.class,
-                () -> jdbc.update("delete from visit_assignment_audits where assignment_id = ?", assignment));
+                () -> jdbc.update("delete from audit_logs where source = 'visit_assignment_audits' and entity_id = ?", assignment));
     }
 
     @Test
@@ -270,14 +261,10 @@ class VisitCareCapacityT031PostgresIntegrationTest {
                         .header("X-Correlation-ID", CORRELATION))
                 .andExpect(status().isNoContent());
         assertEquals("CLOSED", jdbc.queryForObject("select status from visits where id = ?", String.class, visit));
-        assertEquals(0, jdbc.queryForObject("select count(*) from walk_in_reception_queue_entries "
-                + "where visit_id = ? and status = 'WAITING'", Integer.class, visit));
-        assertEquals(1, jdbc.queryForObject("select count(*) from walk_in_reception_queue_history h "
-                + "join walk_in_reception_queue_entries q on q.id = h.queue_entry_id "
-                + "where q.visit_id = ? and h.reason = 'CANCELLED' and h.actor_account_id = ?",
+        assertEquals(0, jdbc.queryForObject("select count(*) from queue_entries where stage = 'RECEPTION' and visit_id = ? and status = 'WAITING'", Integer.class, visit));
+        assertEquals(1, jdbc.queryForObject("select count(*) from audit_logs h where h.source = 'walk_in_reception_queue_history' and h.entity_id = ? and h.action = 'CANCELLED' and h.actor_account_id = ?",
                 Integer.class, visit, receptionist));
-        assertEquals(1, jdbc.queryForObject("select count(*) from visit_audits where visit_id = ? "
-                + "and action = 'WALK_IN_CANCELLED' and actor_account_id = ?", Integer.class, visit, receptionist));
+        assertEquals(1, jdbc.queryForObject("select count(*) from audit_logs where source = 'visit_audits' and record_label = ?::text and action = 'WALK_IN_CANCELLED' and actor_account_id = ?", Integer.class, visit, receptionist));
     }
 
     @Test
@@ -289,14 +276,10 @@ class VisitCareCapacityT031PostgresIntegrationTest {
                         .header("X-Correlation-ID", CORRELATION))
                 .andExpect(status().isNoContent());
         assertEquals("CLOSED", jdbc.queryForObject("select status from visits where id = ?", String.class, visit));
-        assertEquals(0, jdbc.queryForObject("select count(*) from walk_in_reception_queue_entries "
-                + "where visit_id = ? and status = 'WAITING'", Integer.class, visit));
-        assertEquals(1, jdbc.queryForObject("select count(*) from walk_in_reception_queue_history h "
-                + "join walk_in_reception_queue_entries q on q.id = h.queue_entry_id "
-                + "where q.visit_id = ? and h.reason = 'VISIT_CLOSED' and h.actor_account_id = ?",
+        assertEquals(0, jdbc.queryForObject("select count(*) from queue_entries where stage = 'RECEPTION' and visit_id = ? and status = 'WAITING'", Integer.class, visit));
+        assertEquals(1, jdbc.queryForObject("select count(*) from audit_logs h where h.source = 'walk_in_reception_queue_history' and h.entity_id = ? and h.action = 'VISIT_CLOSED' and h.actor_account_id = ?",
                 Integer.class, visit, receptionist));
-        assertEquals(1, jdbc.queryForObject("select count(*) from visit_audits where visit_id = ? "
-                + "and action = 'WALK_IN_CLOSED' and actor_account_id = ?", Integer.class, visit, receptionist));
+        assertEquals(1, jdbc.queryForObject("select count(*) from audit_logs where source = 'visit_audits' and record_label = ?::text and action = 'WALK_IN_CLOSED' and actor_account_id = ?", Integer.class, visit, receptionist));
     }
 
     @Test
@@ -312,9 +295,7 @@ class VisitCareCapacityT031PostgresIntegrationTest {
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.error.code").value("VISIT_CANCELLATION_NOT_ALLOWED"));
         assertEquals("OPEN", jdbc.queryForObject("select status from visits where id = ?", String.class, visit));
-        assertEquals(1, jdbc.queryForObject("select count(*) from walk_in_reception_queue_history h "
-                + "join walk_in_reception_queue_entries q on q.id = h.queue_entry_id "
-                + "where q.visit_id = ? and h.reason = 'CARE_STARTED'", Integer.class, visit));
+        assertEquals(1, jdbc.queryForObject("select count(*) from audit_logs h where h.source = 'walk_in_reception_queue_history' and h.entity_id = ? and h.action = 'CARE_STARTED'", Integer.class, visit));
         // UC28 closure is Receptionist-only; Doctor denial precedes business-state checks.
         mvc.perform(post("/api/v1/visits/{visitId}/closure", visit)
                         .with(actor(doctorAccount, AccountRole.DOCTOR)).with(csrf())
@@ -344,12 +325,11 @@ class VisitCareCapacityT031PostgresIntegrationTest {
         assertEquals(0, jdbc.queryForObject("select count(*) from visit_assignments where visit_id = ?",
                 Integer.class, visit));
         // The queue move to IN_EXAMINATION happens before the reception exit, so it rolls back with the care.
-        assertEquals("WAITING", jdbc.queryForObject("select exam_status from visit_exam_queue where visit_id = ?",
+        assertEquals("WAITING", jdbc.queryForObject("select status from queue_entries where stage = 'EXAM' and visit_id = ?",
                 String.class, visit));
-        assertEquals(0, jdbc.queryForObject("select count(*) from visit_assignment_audits where visit_id = ?",
+        assertEquals(0, jdbc.queryForObject("select count(*) from audit_logs where source = 'visit_assignment_audits' and record_label = ?::text",
                 Integer.class, visit));
-        assertEquals(1, jdbc.queryForObject("select count(*) from walk_in_reception_queue_entries "
-                + "where visit_id = ? and status = 'WAITING'", Integer.class, visit));
+        assertEquals(1, jdbc.queryForObject("select count(*) from queue_entries where stage = 'RECEPTION' and visit_id = ? and status = 'WAITING'", Integer.class, visit));
     }
 
     @Test
@@ -365,21 +345,19 @@ class VisitCareCapacityT031PostgresIntegrationTest {
             dropQueueExitFailureTrigger();
         }
         assertEquals("OPEN", jdbc.queryForObject("select status from visits where id = ?", String.class, visit));
-        assertEquals(0, jdbc.queryForObject("select count(*) from visit_audits where visit_id = ? "
-                + "and action = 'WALK_IN_CANCELLED'", Integer.class, visit));
-        assertEquals(1, jdbc.queryForObject("select count(*) from walk_in_reception_queue_entries "
-                + "where visit_id = ? and status = 'WAITING'", Integer.class, visit));
+        assertEquals(0, jdbc.queryForObject("select count(*) from audit_logs where source = 'visit_audits' and record_label = ?::text and action = 'WALK_IN_CANCELLED'", Integer.class, visit));
+        assertEquals(1, jdbc.queryForObject("select count(*) from queue_entries where stage = 'RECEPTION' and visit_id = ? and status = 'WAITING'", Integer.class, visit));
     }
 
     private void installQueueExitFailureTrigger() {
         jdbc.execute("create function reject_t048_queue_exit() returns trigger language plpgsql as $$ begin "
                 + "raise exception 'T048 injected queue exit failure' using errcode = 'P0001'; end; $$");
-        jdbc.execute("create trigger tr_t048_queue_exit_failure before update on walk_in_reception_queue_entries "
+        jdbc.execute("create trigger tr_t048_queue_exit_failure before update on queue_entries "
                 + "for each row execute function reject_t048_queue_exit()");
     }
 
     private void dropQueueExitFailureTrigger() {
-        jdbc.execute("drop trigger if exists tr_t048_queue_exit_failure on walk_in_reception_queue_entries");
+        jdbc.execute("drop trigger if exists tr_t048_queue_exit_failure on queue_entries");
         jdbc.execute("drop function if exists reject_t048_queue_exit()");
     }
 
@@ -393,8 +371,7 @@ class VisitCareCapacityT031PostgresIntegrationTest {
         jdbc.update("insert into visit_assignments (id, visit_id, doctor_profile_id, starts_at, ends_at, status, assigned_at, step_code, expected_duration_minutes) values (?, ?, ?, ?, ?, 'IN_PROGRESS', ?, 'CONSULTATION', 30)",
                 conflictingAssignment, conflictingVisit, doctor, Timestamp.from(NOW), Timestamp.from(NOW.plusSeconds(900)), Timestamp.from(NOW));
         // The queue decides doctor conflicts: this doctor is already examining conflictingVisit (number 2).
-        jdbc.update("insert into visit_exam_queue (visit_id, doctor_profile_id, clinic_date, queue_number, exam_status, created_at, queued_at, started_at) "
-                + "values (?, ?, date '2026-10-19', 2, 'IN_EXAMINATION', ?, ?, ?)", conflictingVisit, doctor,
+        jdbc.update("insert into queue_entries (stage, visit_id, doctor_profile_id, clinic_date, queue_number, status, entered_at, queued_at, started_at) values ('EXAM', ?, ?, date '2026-10-19', 2, 'IN_EXAMINATION', ?, ?, ?)", conflictingVisit, doctor,
                 Timestamp.from(NOW.minusSeconds(120)), Timestamp.from(NOW.minusSeconds(120)), Timestamp.from(NOW.minusSeconds(60)));
         mvc.perform(post("/api/v1/visits/{visitId}/care-assignments", visit)
                         .with(actor(doctorAccount, AccountRole.DOCTOR)).with(csrf())
@@ -402,8 +379,8 @@ class VisitCareCapacityT031PostgresIntegrationTest {
                         .content("{\"stepCode\":\"CONSULTATION\"}"))
                 .andExpect(status().isConflict()).andExpect(jsonPath("$.error.code").value("VISIT_EXAM_STATE_CONFLICT"));
         assertEquals(0, jdbc.queryForObject("select count(*) from visit_assignments where visit_id = ?", Integer.class, visit));
-        assertEquals(0, jdbc.queryForObject("select count(*) from visit_assignment_audits where visit_id = ?", Integer.class, visit));
-        assertEquals("WAITING", jdbc.queryForObject("select exam_status from visit_exam_queue where visit_id = ?", String.class, visit));
+        assertEquals(0, jdbc.queryForObject("select count(*) from audit_logs where source = 'visit_assignment_audits' and record_label = ?::text", Integer.class, visit));
+        assertEquals("WAITING", jdbc.queryForObject("select status from queue_entries where stage = 'EXAM' and visit_id = ?", String.class, visit));
     }
 
     @Test
@@ -429,7 +406,7 @@ class VisitCareCapacityT031PostgresIntegrationTest {
         // The occupied room has no effect: the start takes no room and writes no room reservation or capacity audit.
         assertEquals(1, jdbc.queryForObject("select count(*) from visit_assignments where visit_id = ? and status = 'IN_PROGRESS'", Integer.class, visit));
         assertEquals(0, jdbc.queryForObject("select count(*) from room_reservations where visit_id = ?", Integer.class, visit));
-        assertEquals(0, jdbc.queryForObject("select count(*) from room_reservation_audits where visit_id = ? and action = 'CAPACITY_CONFLICT'", Integer.class, visit));
+        assertEquals(0, jdbc.queryForObject("select count(*) from audit_logs where source = 'room_reservation_audits' and metadata->>'visitId' = ?::text and action = 'CAPACITY_CONFLICT'", Integer.class, visit));
     }
 
     @Test
@@ -438,8 +415,7 @@ class VisitCareCapacityT031PostgresIntegrationTest {
         jdbc.update("insert into visits (id, patient_profile_id, source, arrived_at, checked_in_at, created_by_account_id) values (?, ?, 'WALK_IN', ?, ?, ?)",
                 otherVisit, patient, Timestamp.from(NOW.minusSeconds(60)), Timestamp.from(NOW.minusSeconds(60)), receptionist);
         // The second visit of the same doctor, waiting with number 2 and the free service.
-        jdbc.update("insert into visit_exam_queue (visit_id, doctor_profile_id, service_id, clinic_date, queue_number, exam_status, created_at, queued_at) "
-                + "values (?, ?, ?, date '2026-10-19', 2, 'WAITING', ?, ?)", otherVisit, doctor, bookingService,
+        jdbc.update("insert into queue_entries (stage, visit_id, doctor_profile_id, service_id, clinic_date, queue_number, status, entered_at, queued_at) values ('EXAM', ?, ?, ?, date '2026-10-19', 2, 'WAITING', ?, ?)", otherVisit, doctor, bookingService,
                 Timestamp.from(NOW.minusSeconds(30)), Timestamp.from(NOW.minusSeconds(30)));
         visits.add(otherVisit);
         CountDownLatch ready = new CountDownLatch(2);
@@ -452,7 +428,7 @@ class VisitCareCapacityT031PostgresIntegrationTest {
             int firstStatus = first.get(15, TimeUnit.SECONDS);
             int secondStatus = second.get(15, TimeUnit.SECONDS);
             assertEquals(List.of(201, 409), List.of(firstStatus, secondStatus).stream().sorted().toList());
-            assertEquals(1, jdbc.queryForObject("select count(*) from visit_exam_queue where doctor_profile_id = ? and exam_status = 'IN_EXAMINATION'", Integer.class, doctor));
+            assertEquals(1, jdbc.queryForObject("select count(*) from queue_entries where stage = 'EXAM' and doctor_profile_id = ? and status = 'IN_EXAMINATION'", Integer.class, doctor));
             assertEquals(1, jdbc.queryForObject("select count(*) from visit_assignments where visit_id in (?, ?) and status = 'IN_PROGRESS'", Integer.class, visit, otherVisit));
         } finally {
             start.countDown();
