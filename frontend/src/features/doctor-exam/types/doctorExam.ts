@@ -189,9 +189,10 @@ export type PastVisit = {
 };
 
 export type ResultSheet = {
+  documentId?: string;
   version: number;
   status: "CURRENT" | "REPLACED";
-  issuedAt: string;
+  issuedAt: string | null;
 };
 
 /** Việc nào đã có API thật. false: màn vẫn dựng, nút lưu bị khóa và có ghi chú chờ BE. */

@@ -106,7 +106,12 @@ function ResultSheetButton({
         rel="noopener noreferrer"
         target="_blank"
       >
-        {loading ? "Đang mở…" : "Xem PDF"}
+        {loading
+          ? "Đang mở…"
+          : sheet.status === "CURRENT" &&
+              sheet.fileUrl.startsWith("/api/v1/medical-documents/")
+            ? "Xem phiếu kết quả"
+            : "Xem PDF"}
         <span className="sr-only"> phiên bản {sheet.version}</span>
         {!loading ? <ExternalLink aria-hidden /> : null}
       </a>

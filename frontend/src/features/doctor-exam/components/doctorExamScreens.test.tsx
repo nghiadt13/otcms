@@ -196,7 +196,7 @@ describe("Điều kiện hoàn tất và kết thúc lượt (BR-33)", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("khi điều kiện đạt: xác nhận, báo MSG-43, lượt chuyển sang đã xong và về danh sách hôm nay", async () => {
+  it("khi điều kiện đạt: xác nhận, báo MSG-43 và lượt chuyển sang đã xong", async () => {
     const [mri] = await doctorDemoApi.listOrders("demo-visit-3");
     await doctorDemoApi.cancelOrder(mri, "CLINIC_UNABLE", "Máy đang bảo trì");
     renderClosing("demo-visit-3");
@@ -207,9 +207,7 @@ describe("Điều kiện hoàn tất và kết thúc lượt (BR-33)", () => {
     await userEvent.click(
       within(dialog).getByRole("button", { name: "Kết thúc lượt khám" }),
     );
-    await waitFor(() =>
-      expect(router.push).toHaveBeenCalledWith("/doctor/today"),
-    );
+    await screen.findByText("Lượt khám đã hoàn tất.");
     expect(notify.success).toHaveBeenCalledWith("MSG-43");
     expect((await doctorDemoApi.getVisitContext("demo-visit-3")).status).toBe(
       "COMPLETED",

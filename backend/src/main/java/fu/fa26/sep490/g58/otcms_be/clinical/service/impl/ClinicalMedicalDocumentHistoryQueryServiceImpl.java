@@ -18,6 +18,6 @@ public class ClinicalMedicalDocumentHistoryQueryServiceImpl implements ClinicalM
         if (visitIds.isEmpty()) return List.of();
         return documents.findByPatientProfileIdAndVisitIdInAndReleasedAtIsNotNullOrderByCreatedAtDescIdDesc(patientId, visitIds)
                 .stream().map(d -> new DocumentSummary(d.getId(), d.getVisitId(), d.getPatientProfileId(),
-                        d.getDocumentType().name(), d.getTitle(), d.getMediaType(), d.getReleasedAt())).toList();
+                        d.getDocumentType().name(), d.getTitle(), d.getMediaType(), d.getReleasedAt(), d.getVersion(), d.getStatus())).toList();
     }
 }

@@ -101,7 +101,7 @@ public class PatientVisitResultQueryServiceImpl implements PatientVisitResultQue
             documents.findReleased(visit.patientProfileId(), List.of(visitId)).stream()
                     .filter(document -> "CLINIC_EXAMINATION_REPORT".equals(document.documentType())
                             && "application/pdf".equalsIgnoreCase(document.mediaType()))
-                    .map(document -> new ResultSheet(document.id(), 1, "CURRENT", document.releasedAt(), document.title(),
+                    .map(document -> new ResultSheet(document.id(), document.version(), "ACTIVE".equals(document.status()) ? "CURRENT" : document.status(), document.releasedAt(), document.title(),
                             "/api/v1/medical-documents/" + document.id() + "/view"))
                     .forEach(sheets::add);
         }

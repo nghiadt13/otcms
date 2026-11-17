@@ -37,7 +37,7 @@ public class ClinicalMedicalDocumentServiceImpl implements ClinicalMedicalDocume
         String name = title(title); var checked = files.validate(type, file); byte[] bytes = checked.bytes();
         UUID id = UUID.randomUUID(); var now = clock.instant().truncatedTo(ChronoUnit.MICROS);
         if (documents.insertDocument(id, visitId, scope.patientId(), type.name(), name, checked.originalFilename(),
-                checked.mediaType(), bytes.length, now) != 1) throw error("DEPENDENCY_UNAVAILABLE");
+                checked.mediaType(), bytes.length, now) != 1) throw error("MSG-42");
         if (payloads.put(id, bytes) != 1) throw error("DEPENDENCY_UNAVAILABLE");
         return view(required(id));
     }
@@ -75,7 +75,9 @@ public class ClinicalMedicalDocumentServiceImpl implements ClinicalMedicalDocume
             case RECEPTIONIST -> documents.findByVisitIdAndDocumentTypeOrderByCreatedAtDescIdDesc(visitId, ClinicalMedicalDocumentType.CLINIC_EXAMINATION_REPORT);
             default -> documents.findByVisitIdOrderByCreatedAtDescIdDesc(visitId);
         };
-        return result.stream().map(document -> { requireLink(document, scope); requireVisible(document, scope); return view(document); }).toList();
+        boolean patientSeesResult = scope.role() != AccountRole.PATIENT || access.isClosed(visitId);
+        return result.stream().filter(document -> patientSeesResult || document.getDocumentType() != ClinicalMedicalDocumentType.CLINIC_EXAMINATION_REPORT)
+                .map(document -> { requireLink(document, scope); requireVisible(document, scope); return view(document); }).toList();
     }
 
     @Override @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
@@ -90,8 +92,13 @@ public class ClinicalMedicalDocumentServiceImpl implements ClinicalMedicalDocume
         return new DocumentContent(view(document), bytes);
     }
     private ClinicalMedicalDocumentJpaEntity readable(AuthenticatedAccount actor, UUID documentId) {
-        var document = required(documentId); var scope = access.read(actor, document.getVisitId());
-        requireLink(document, scope); requireVisible(document, scope); return document;
+        var document = required(documentId);
+        boolean report = document.getDocumentType() == ClinicalMedicalDocumentType.CLINIC_EXAMINATION_REPORT;
+        var scope = report && actor != null && actor.accountRole() != AccountRole.PATIENT
+                ? access.resultSheet(actor, document.getVisitId(), false) : access.read(actor, document.getVisitId());
+        requireLink(document, scope); requireVisible(document, scope);
+        if (report && scope.role() == AccountRole.PATIENT) access.resultSheet(actor, document.getVisitId(), true);
+        return document;
     }
     private void requireVisible(ClinicalMedicalDocumentJpaEntity document, Scope scope) {
         if (scope.role() == AccountRole.PATIENT && document.getReleasedAt() == null) throw error("MSG-41");

@@ -113,6 +113,8 @@ class ClinicalMedicalDocumentControllerTest {
         mvc.perform(get(collection()).with(actor(AccountRole.PATIENT))).andExpect(status().isOk()).andExpect(content().json("{\"items\":[]}"));
         mvc.perform(get(item() + "/content").with(actor(AccountRole.PATIENT))).andExpect(status().isNotFound());
         f.completed(); f.service.release(f.doctor(), f.visitId, id, 1L);
+        mvc.perform(get(item() + "/content").with(actor(AccountRole.PATIENT))).andExpect(status().isConflict());
+        f.open = false;
         mvc.perform(get(item() + "/content").with(actor(AccountRole.PATIENT))).andExpect(status().isOk())
                 .andExpect(content().bytes(MedicalDocumentFixture.pdf("initial")))
                 .andExpect(header().string("Cache-Control", "no-store")).andExpect(header().string("X-Content-Type-Options", "nosniff"))

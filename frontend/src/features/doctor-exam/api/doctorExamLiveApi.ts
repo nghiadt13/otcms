@@ -6,8 +6,9 @@ import * as queue from "./doctorExamLiveQueue";
 import * as visits from "./doctorExamLiveVisits";
 import * as prescription from "./doctorExamLivePrescription";
 import * as records from "./doctorExamLivePastRecords";
+import * as resultSheets from "./doctorExamLiveResultSheets";
 
-// Live Clinical/Diagnostic integration. Lab and result sheets remain unavailable.
+// Live Clinical/Diagnostic integration. Laboratory results remain unavailable.
 
 const missing = (): never => {
   throw new ApiError(501, { errorCode: "BACKEND_NOT_AVAILABLE" });
@@ -19,7 +20,7 @@ export const doctorLiveApi: DoctorExamApi = {
     orderListing: true,
     prescriptions: true,
     pastRecords: true,
-    resultSheet: false,
+    resultSheet: true,
     startExamination: true,
     findingsReportPdfRequired: true,
   },
@@ -45,6 +46,6 @@ export const doctorLiveApi: DoctorExamApi = {
   getPrescription: prescription.getPrescription,
   savePrescription: prescription.savePrescription,
   listPastVisits: records.listPastVisits,
-  listResultSheets: async () => [],
+  listResultSheets: resultSheets.listResultSheets,
   amendResult: async () => missing(),
 };

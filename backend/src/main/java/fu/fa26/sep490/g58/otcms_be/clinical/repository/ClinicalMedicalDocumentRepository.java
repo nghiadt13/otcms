@@ -17,8 +17,27 @@ public interface ClinicalMedicalDocumentRepository extends JpaRepository<Clinica
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query(value = """
             insert into clinical_medical_documents (id, visit_id, patient_profile_id, document_type, title,
+                original_filename, media_type, byte_size, created_at, updated_at, version, source)
+            values (:id, :visitId, :patientId, 'CLINIC_EXAMINATION_REPORT', 'Phiếu kết quả khám',
+                'phieu-ket-qua.pdf', 'application/pdf', :size, :now, :now, 1, 'GENERATED')
+            on conflict (visit_id) where document_type = 'CLINIC_EXAMINATION_REPORT' and status = 'ACTIVE' do nothing
+            """, nativeQuery = true)
+    int insertGeneratedResultSheet(@Param("id") UUID id, @Param("visitId") UUID visitId,
+            @Param("patientId") UUID patientId, @Param("size") long size, @Param("now") Instant now);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query(value = """
+            update clinical_medical_documents set released_at = :now, released_by_doctor_profile_id = :doctorId,
+                updated_at = :now where id = :id and source = 'GENERATED' and released_at is null
+            """, nativeQuery = true)
+    int releaseGeneratedResultSheet(@Param("id") UUID id, @Param("doctorId") UUID doctorId, @Param("now") Instant now);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query(value = """
+            insert into clinical_medical_documents (id, visit_id, patient_profile_id, document_type, title,
                 original_filename, media_type, byte_size, created_at, updated_at, version)
             values (:id, :visitId, :patientId, :type, :title, :filename, :mediaType, :size, :now, :now, 1)
+            on conflict (visit_id) where document_type = 'CLINIC_EXAMINATION_REPORT' and status = 'ACTIVE' do nothing
             """, nativeQuery = true)
     int insertDocument(@Param("id") UUID id, @Param("visitId") UUID visitId, @Param("patientId") UUID patientId,
             @Param("type") String type, @Param("title") String title, @Param("filename") String filename,

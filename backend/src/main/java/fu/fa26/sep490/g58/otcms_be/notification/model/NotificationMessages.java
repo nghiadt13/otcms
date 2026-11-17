@@ -17,6 +17,7 @@ public final class NotificationMessages {
     public static final String REFUND_AWAITING_CLINIC_CANCELLATION = "REFUND_AWAITING_CLINIC_CANCELLATION";
     public static final String VISIT_INCOMPLETE = "VISIT_INCOMPLETE";
     public static final String VISIT_CHANGED = "VISIT_CHANGED";
+    public static final String VISIT_RESULTS_PUBLISHED = "VISIT_RESULTS_PUBLISHED";
     private static final DateTimeFormatter TIME = DateTimeFormatter.ofPattern("dd/MM/uuuu 'lúc' HH:mm",
             Locale.forLanguageTag("vi-VN")).withZone(ZoneId.of("Asia/Ho_Chi_Minh"));
 
@@ -68,6 +69,12 @@ public final class NotificationMessages {
     public static NotificationMessage visitChanged(UUID visitId, String patientRef, String change) {
         return new NotificationMessage(VISIT_CHANGED, "Lượt khám có thay đổi", "Lượt khám của bệnh nhân " + patientRef
                 + " có thay đổi: " + change + ". Vui lòng xem lại.", NotificationRelatedKind.VISIT, visitId);
+    }
+    /** MSG-78: results of a completed visit are available to the patient. */
+    public static NotificationMessage visitResultsPublished(UUID visitId, Instant visitAt, String patientName) {
+        return new NotificationMessage(VISIT_RESULTS_PUBLISHED, "Kết quả khám đã được công bố",
+                "Kết quả khám ngày " + DATE.format(visitAt) + " của " + patientName
+                + " đã được công bố. Vui lòng đăng nhập để xem.", NotificationRelatedKind.VISIT, visitId);
     }
     private static NotificationMessage appointment(String type, String title, String content, UUID id) {
         return new NotificationMessage(type, title, content, NotificationRelatedKind.APPOINTMENT, id);

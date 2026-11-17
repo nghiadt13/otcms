@@ -219,7 +219,7 @@ describe("UC33", () => {
       pastRecords: true,
       laboratoryOrders: false,
       orderListing: true,
-      resultSheet: false,
+      resultSheet: true,
     });
     expect(api).not.toHaveProperty("completeVisit");
     expect(api.capabilities).not.toHaveProperty("closeWithEvidence");
