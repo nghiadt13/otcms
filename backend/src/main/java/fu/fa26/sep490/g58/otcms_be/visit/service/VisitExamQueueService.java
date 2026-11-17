@@ -34,6 +34,19 @@ public interface VisitExamQueueService {
     /** PENDING_PAYMENT or WAITING to CANCELLED. Skipped when there is no row. */
     void cancel(UUID visitId, Instant now);
 
+    /**
+     * AWAITING_CONCLUSION to WAITING for a patient who returns within the 7-day period (UC-29 AF2): same visit, new
+     * number of today in the room of the attending doctor, ordered by the time of this check-in.
+     */
+    ExamQueueTicket requeueReturning(UUID visitId, Instant now);
+
+    /**
+     * Moves the exam entry to another doctor on duty (UC-31 AF2): new queue number and room of that doctor, status and
+     * check-in order kept. Allowed from WAITING, ABSENT or AWAITING_CONCLUSION (MSG-42 otherwise); a doctor with no
+     * shift now is MSG-41.
+     */
+    ExamQueueTicket reassignDoctor(UUID visitId, UUID newDoctorProfileId, Instant now);
+
     Optional<ExamQueueEntry> find(UUID visitId);
 
     /** Service id of the walk-in fee while the row is PENDING_PAYMENT; empty otherwise. */

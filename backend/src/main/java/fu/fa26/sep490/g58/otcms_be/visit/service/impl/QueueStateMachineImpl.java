@@ -152,9 +152,11 @@ public class QueueStateMachineImpl implements QueueStateMachine {
         throw error("MSG-40");
     }
 
+    /** Exam rows use their clinic date (a returning patient is moved to today); other rows use the entry day. */
     private boolean today(QueueEntryJpaEntity q) {
-        return q.getEnteredAt().atZone(booking.clinicTimeZone()).toLocalDate()
-                .equals(clock.instant().atZone(booking.clinicTimeZone()).toLocalDate());
+        java.time.LocalDate day = q.getClinicDate() != null ? q.getClinicDate()
+                : q.getEnteredAt().atZone(booking.clinicTimeZone()).toLocalDate();
+        return day.equals(clock.instant().atZone(booking.clinicTimeZone()).toLocalDate());
     }
 
     private static Long insertionOrder(List<QueueEntryJpaEntity> rows, int position) {

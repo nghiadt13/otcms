@@ -58,7 +58,7 @@ public class ClinicalPastMedicalRecordsServiceImpl implements ClinicalPastMedica
         Set<UUID> ids = new LinkedHashSet<>();
         for (var visit : history.items()) {
             if (!patientId.equals(visit.patientProfileId()) || currentVisitId.equals(visit.visitId())
-                    || !"CLOSED".equals(visit.status()) || !ids.add(visit.visitId())) throw error("DEPENDENCY_UNAVAILABLE");
+                    || !("CLOSED".equals(visit.status()) || "INCOMPLETE".equals(visit.status())) || !ids.add(visit.visitId())) throw error("DEPENDENCY_UNAVAILABLE");
         }
         if (ids.size() > size || history.total() < ids.size()) throw error("DEPENDENCY_UNAVAILABLE");
         var exams = examinations.findCompletedByVisitIds(ids);

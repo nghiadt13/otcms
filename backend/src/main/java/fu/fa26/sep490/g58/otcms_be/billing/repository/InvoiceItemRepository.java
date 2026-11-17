@@ -13,6 +13,8 @@ import org.springframework.data.repository.query.Param;
 public interface InvoiceItemRepository extends JpaRepository<InvoiceItemJpaEntity, InvoiceItemJpaEntity.Key> {
     List<InvoiceItemJpaEntity> findAllByInvoiceIdOrderByLineNumber(UUID invoiceId);
     Optional<InvoiceItemJpaEntity> findFirstById(UUID id);
+    /** The fee item of one service order (uk_invoice_items_service_order: at most one). */
+    Optional<InvoiceItemJpaEntity> findFirstByServiceOrderId(UUID serviceOrderId);
     /** Items a payment settled (the receipt lines). */
     List<InvoiceItemJpaEntity> findAllByPaymentAttemptIdOrderByLineNumber(UUID paymentAttemptId);
 

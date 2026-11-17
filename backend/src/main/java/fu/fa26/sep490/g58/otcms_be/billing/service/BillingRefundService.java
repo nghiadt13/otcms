@@ -25,6 +25,12 @@ public interface BillingRefundService {
     void requestRefund(UUID itemId, String reason, Instant clinicCancelledAppointmentStart);
 
     /**
+     * The service order was cancelled without being performed and its visit is Incomplete: an unpaid item of the order
+     * is voided; a paid item stays paid (BR-53, no refund). Idempotent; an order without an item is nothing to do.
+     */
+    void voidUnpaidServiceOrder(UUID serviceOrderId);
+
+    /**
      * The appointment will not take place and the clinic is not at fault (patient cancelled, no-show): its unpaid fee
      * item is voided; a paid fee stays paid (no refund, D7). Idempotent; no invoice is nothing to do.
      */

@@ -15,6 +15,8 @@ public final class NotificationMessages {
     public static final String VISIT_CLOSED_REVIEW_INVITE = "VISIT_CLOSED_REVIEW_INVITE";
     public static final String REVIEW_SUBMITTED = "REVIEW_SUBMITTED";
     public static final String REFUND_AWAITING_CLINIC_CANCELLATION = "REFUND_AWAITING_CLINIC_CANCELLATION";
+    public static final String VISIT_INCOMPLETE = "VISIT_INCOMPLETE";
+    public static final String VISIT_CHANGED = "VISIT_CHANGED";
     private static final DateTimeFormatter TIME = DateTimeFormatter.ofPattern("dd/MM/uuuu 'lúc' HH:mm",
             Locale.forLanguageTag("vi-VN")).withZone(ZoneId.of("Asia/Ho_Chi_Minh"));
 
@@ -53,6 +55,19 @@ public final class NotificationMessages {
         return new NotificationMessage(REFUND_AWAITING_CLINIC_CANCELLATION, "Khoản phí chờ hoàn lại", "Lịch hẹn ngày "
                 + DATE.format(appointmentAt) + " đã bị hủy bởi phòng khám. Khoản phí đã thanh toán sẽ được hoàn lại, "
                 + "phòng khám sẽ liên hệ với bạn.", NotificationRelatedKind.PAYMENT, invoiceId);
+    }
+    /** MSG-82: the 7-day period of a visit ended, so it is closed as Incomplete. */
+    public static NotificationMessage visitIncomplete(UUID visitId, Instant visitAt, String patientName) {
+        return new NotificationMessage(VISIT_INCOMPLETE, "Lượt khám chưa hoàn tất", "Lượt khám ngày " + DATE.format(visitAt)
+                + (patientName == null || patientName.isBlank() ? "" : " của " + patientName.trim())
+                + " đã đóng ở trạng thái chưa hoàn tất. Ảnh và kết quả xét nghiệm đã được công bố; các chỉ định chưa thực hiện"
+                + " đã bị hủy; khoản đã thanh toán không được hoàn.", NotificationRelatedKind.VISIT, visitId);
+    }
+
+    /** MSG-83: the responsible doctor is told that a visit changed (transferred to them, or a result was corrected). */
+    public static NotificationMessage visitChanged(UUID visitId, String patientRef, String change) {
+        return new NotificationMessage(VISIT_CHANGED, "Lượt khám có thay đổi", "Lượt khám của bệnh nhân " + patientRef
+                + " có thay đổi: " + change + ". Vui lòng xem lại.", NotificationRelatedKind.VISIT, visitId);
     }
     private static NotificationMessage appointment(String type, String title, String content, UUID id) {
         return new NotificationMessage(type, title, content, NotificationRelatedKind.APPOINTMENT, id);

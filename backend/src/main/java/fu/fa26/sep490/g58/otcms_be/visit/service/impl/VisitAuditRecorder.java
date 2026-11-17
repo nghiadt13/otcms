@@ -67,6 +67,23 @@ public class VisitAuditRecorder {
                 .actorAccountId(actorAccountId).occurredAt(occurredAt).build(), correlationId, false);
     }
 
+    // ---- P05 lifecycle: VISIT_INCOMPLETE, VISIT_LEFT, VISIT_AWAITING_CONCLUSION, VISIT_RETURNED, ATTENDING_DOCTOR_TRANSFERRED,
+    //      SERVICE_ORDER_ROOM_TRANSFERRED ----------------------------------------------------------------------
+
+    /**
+     * One lifecycle event of a visit (or of one of its service orders, {@code recordType} SERVICE_ORDER). The actor is
+     * null for the nightly jobs. Same source as the other visit events, so the activity log shows them together.
+     */
+    public void lifecycleEvent(String action, String recordType, UUID entityId, UUID visitId, UUID actorAccountId,
+            Instant occurredAt, Map<String, Object> metadata, String correlationId) {
+        Objects.requireNonNull(occurredAt, "occurredAt");
+        requireCorrelation(correlationId);
+        write(AuditEntry.builder(VISIT_SOURCE, "VISIT", action, recordType)
+                .entityId(entityId).recordLabel(visitId.toString()).actorAccountId(actorAccountId)
+                .actorType(actorAccountId == null ? "SYSTEM" : "ACCOUNT").metadata(metadata)
+                .occurredAt(occurredAt).build(), correlationId, false);
+    }
+
     // ---- visit_assignment_audits: STARTED, EXTENDED, COMPLETED, CAPACITY_CONFLICT -------------------------------
 
     /**

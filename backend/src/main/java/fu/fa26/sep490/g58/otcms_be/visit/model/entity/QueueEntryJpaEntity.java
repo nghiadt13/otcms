@@ -171,6 +171,30 @@ public class QueueEntryJpaEntity {
 
     public void changeSortOrder(long order) { sortOrder = order; }
 
+    /**
+     * AWAITING_CONCLUSION to WAITING: the patient came back within the 7-day period (UC-29 AF2). The row gets today's
+     * date, a new number and a fresh order, exactly like a new check-in.
+     */
+    public void rejoinQueue(int number, UUID rejoinRoomId, LocalDate on, Instant at) {
+        requireExam();
+        this.queueNumber = number;
+        this.roomId = rejoinRoomId;
+        this.clinicDate = on;
+        this.status = VisitExamStatus.WAITING.name();
+        this.queuedAt = at;
+        this.sortOrder = at.toEpochMilli();
+        this.calledAt = null;
+        this.absentAt = null;
+    }
+
+    /** Responsibility moves to another doctor (UC-31 AF2). Status and sort_order stay, so the check-in order is kept. */
+    public void reassign(UUID newDoctorProfileId, UUID newRoomId, int number) {
+        requireExam();
+        this.doctorProfileId = newDoctorProfileId;
+        this.roomId = newRoomId;
+        this.queueNumber = number;
+    }
+
     public void awaitConclusion(Instant at) {
         requireExam();
         this.status = VisitExamStatus.AWAITING_CONCLUSION.name();

@@ -90,6 +90,24 @@ public class BillingRefundServiceImpl implements BillingRefundService {
     }
 
     @Override
+    public void voidUnpaidServiceOrder(UUID serviceOrderId) {
+        UUID itemId = serviceOrderId == null ? null
+                : items.findFirstByServiceOrderId(serviceOrderId).map(InvoiceItemJpaEntity::getId).orElse(null);
+        if (itemId == null) return;
+        transactions.executeWithoutResult(status -> {
+            Locked locked = lockItem(itemId);
+            switch (locked.snapshot().status(locked.item())) {
+                case PENDING, PAYMENT_PENDING -> {
+                    locked.item().markVoided(Instant.now(clock));
+                    settlement.settleByItems(locked.invoice(), locked.snapshot(), null);
+                }
+                // Paid items stay paid (BR-53: no refund when the order is cancelled for an Incomplete visit).
+                case PAID, VOID, REFUND_PENDING, REFUNDED -> { }
+            }
+        });
+    }
+
+    @Override
     public void voidUnpaidAppointmentFee(UUID appointmentId) {
         UUID invoiceId = invoiceOfAppointment(appointmentId);
         if (invoiceId == null) return;
