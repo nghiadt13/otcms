@@ -75,9 +75,6 @@ export function receptionFeedback(
     }
     case "check-in":
       return checkInFeedback(command.patientId, next);
-    case "call-next":
-    case "queue-action":
-    case "reorder":
     case "move-room":
     case "transfer-doctor":
       return success(formatAppMessage("MSG-43"));

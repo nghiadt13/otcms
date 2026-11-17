@@ -50,12 +50,14 @@ public class VisitExamQueueReadServiceImpl implements VisitExamQueueReadService 
     private final DoctorScheduleService schedules;
     private final AppointmentBookingProperties booking;
     private final Clock clock;
+    private final fu.fa26.sep490.g58.otcms_be.clinical.service.ClinicalVisitOrderQueryService orders;
 
     public VisitExamQueueReadServiceImpl(VisitExamQueueJpaRepository queue, VisitRoomJpaRepository rooms,
             PatientProfileDirectory patients, DoctorProfileIdentityQueryService doctorProfiles,
             DoctorAccountAccessService doctorAccounts, ReceptionistAccountAccessService receptionists,
             AuthorizePatientProfileService patientAuthorization, StaffAvailabilityProviderQueryService providers,
-            DoctorScheduleService schedules, AppointmentBookingProperties booking, Clock clock) {
+            DoctorScheduleService schedules, AppointmentBookingProperties booking, Clock clock,
+            fu.fa26.sep490.g58.otcms_be.clinical.service.ClinicalVisitOrderQueryService orders) {
         this.queue = queue;
         this.rooms = rooms;
         this.patients = patients;
@@ -67,6 +69,7 @@ public class VisitExamQueueReadServiceImpl implements VisitExamQueueReadService 
         this.schedules = schedules;
         this.booking = booking;
         this.clock = clock;
+        this.orders = orders;
     }
 
     @Override
@@ -81,7 +84,8 @@ public class VisitExamQueueReadServiceImpl implements VisitExamQueueReadService 
         Map<UUID, ProfileRecord> patientsById = patientsOf(rows);
         Map<UUID, String> names = doctorNamesOf(rows);
         return new ExamQueueDtos.DoctorItemList(rows.stream().sorted(ExamQueueItemMapper.order(names))
-                .map(row -> ExamQueueItemMapper.doctorItem(row, patientsById, names)).toList());
+                .map(row -> ExamQueueItemMapper.doctorItem(row, patientsById, names, today,
+                        "AWAITING_CONCLUSION".equals(row[2]) ? orders.findByVisit((UUID) row[0]) : List.of())).toList());
     }
 
     @Override
@@ -127,7 +131,10 @@ public class VisitExamQueueReadServiceImpl implements VisitExamQueueReadService 
             throw new VisitOperationException("RESOURCE_NOT_FOUND");
         }
         authorizeEntry(actor, rows.getFirst());
-        return ExamQueueItemMapper.doctorItem(rows.getFirst(), patientsOf(rows), doctorNamesOf(rows));
+        Object[] row = rows.getFirst();
+        return ExamQueueItemMapper.doctorItem(row, patientsOf(rows), doctorNamesOf(rows),
+                LocalDate.now(clock.withZone(booking.clinicTimeZone())),
+                "AWAITING_CONCLUSION".equals(row[2]) ? orders.findByVisit((UUID) row[0]) : List.of());
     }
 
     private void authorizeEntry(AuthenticatedAccount actor, Object[] row) {

@@ -6,28 +6,24 @@ import {
   getLinkedProfileRecords,
   resetLinkedProfilesMock,
 } from "@/lib/patient-scope/linkedProfilesMockStore";
-import { listVisits } from "../api/visitApi";
-import { resetVisitMock } from "../api/visitMockStore";
+import type { VisitListItem } from "../types/visitProgress";
 import { VisitList } from "./VisitList";
 
-// Ranh giới ngoài: URL của Next. Lớp API giả chạy thật; chỉ bọc listVisits để ép một lần lỗi.
+// Ranh giới ngoài: URL của Next và mạng. Danh sách lượt chạy thật (listVisits lọc và chia trang); chỉ thay
+// apiRequest bằng các dòng dựng sẵn của GET /api/v1/me/visits. Hồ sơ đã gắn lấy từ kho hồ sơ giả.
 const nav = vi.hoisted(() => ({
   push: vi.fn(),
   replace: vi.fn(),
   search: "",
 }));
+const request = vi.hoisted(() => vi.fn());
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: nav.push, replace: nav.replace }),
   usePathname: () => "/portal/visits",
   useSearchParams: () => new URLSearchParams(nav.search),
 }));
-vi.mock("../api/visitApi", async (importOriginal) => {
-  const original = await importOriginal<typeof import("../api/visitApi")>();
-  return { ...original, listVisits: vi.fn(original.listVisits) };
-});
-
-const NOW = new Date("2026-10-24T08:00:00+07:00");
+vi.mock("@/lib/api/client", () => ({ apiRequest: request }));
 
 function profileIdOf(patientCode: string): string {
   const profile = getLinkedProfileRecords().find(
@@ -36,6 +32,57 @@ function profileIdOf(patientCode: string): string {
   if (!profile) throw new Error(`thiếu hồ sơ ${patientCode}`);
   return profile.id;
 }
+
+type RowPatch = Pick<VisitListItem, "visitId" | "status" | "visitDate"> &
+  Partial<VisitListItem>;
+
+/** Một dòng của GET /api/v1/me/visits; người khám lấy từ hồ sơ đã gắn. */
+function row(patientCode: string, patch: RowPatch): VisitListItem {
+  const profile = getLinkedProfileRecords().find(
+    (item) => item.patientCode === patientCode,
+  );
+  if (!profile) throw new Error(`thiếu hồ sơ ${patientCode}`);
+  return {
+    patientProfileId: profile.id,
+    patientName: profile.fullName,
+    relationship: profile.relationship,
+    checkedInAt: `${patch.visitDate}T01:00:00Z`,
+    queueNumber: null,
+    roomName: null,
+    ...patch,
+  };
+}
+
+/** Năm lượt, mới trước (thứ tự BE). */
+const visitRows = (): VisitListItem[] => [
+  row("BN-000123", {
+    visitId: "vis-an-today",
+    visitDate: "2026-10-24",
+    status: "WAITING_FOR_EXAMINATION",
+    queueNumber: 12,
+    roomName: "Phòng khám 2",
+  }),
+  row("BN-000456", {
+    visitId: "vis-lan-await",
+    visitDate: "2026-10-23",
+    status: "AWAITING_CONCLUSION",
+  }),
+  row("BN-000123", {
+    visitId: "vis-huy-left",
+    visitDate: "2026-10-22",
+    status: "CANCELLED_LEFT",
+  }),
+  row("BN-000123", {
+    visitId: "vis-an-done",
+    visitDate: "2026-10-20",
+    status: "COMPLETED",
+  }),
+  row("BN-000456", {
+    visitId: "vis-lan-incomplete",
+    visitDate: "2026-10-18",
+    status: "INCOMPLETE",
+  }),
+];
 
 /** Các dòng lượt khám (cả dòng là link tới chi tiết). */
 const visitLinks = () =>
@@ -49,12 +96,16 @@ beforeEach(() => {
   nav.push.mockClear();
   nav.replace.mockClear();
   resetLinkedProfilesMock();
-  resetVisitMock({ now: NOW });
-  vi.mocked(listVisits).mockClear();
+  request.mockReset();
+  request.mockImplementation(async (path: string) => {
+    if (path !== "/api/v1/me/visits")
+      throw new Error(`đường dẫn không mong đợi: ${path}`);
+    return visitRows();
+  });
 });
 
 describe("VisitList", () => {
-  it("tab Đang diễn ra mặc định: hai lượt đang khám, mỗi dòng là link tới chi tiết", async () => {
+  it("tab Đang diễn ra mặc định: chỉ lượt đang chờ hoặc đang khám, mỗi dòng là link tới chi tiết", async () => {
     render(<VisitList />);
 
     await waitFor(() =>
@@ -69,7 +120,7 @@ describe("VisitList", () => {
     );
   });
 
-  it("?tab=recent hiện cả lượt đã xong và đã rời đi trong 30 ngày", async () => {
+  it("?tab=recent hiện mọi lượt trong danh sách, kể cả đã xong và đã rời đi", async () => {
     nav.search = "tab=recent";
     render(<VisitList />);
 
@@ -90,7 +141,7 @@ describe("VisitList", () => {
     );
   });
 
-  it("không có lượt đang diễn ra thì nói cách dùng, không viết 'Không có dữ liệu'", async () => {
+  it("không có lượt nào của người khám thì nói cách dùng, không viết 'Không có dữ liệu'", async () => {
     nav.search = `profileId=${profileIdOf("BN-000789")}`;
     render(<VisitList />);
 
@@ -102,9 +153,7 @@ describe("VisitList", () => {
   });
 
   it("lỗi tải báo rõ và Thử lại lấy lại được danh sách", async () => {
-    vi.mocked(listVisits).mockRejectedValueOnce(
-      new ApiError(500, { code: "MSG-04" }),
-    );
+    request.mockRejectedValueOnce(new ApiError(500, { code: "MSG-04" }));
     render(<VisitList />);
 
     const alert = await screen.findByRole("alert");

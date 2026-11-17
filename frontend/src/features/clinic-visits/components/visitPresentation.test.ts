@@ -1,23 +1,11 @@
 import { describe, expect, it } from "vitest";
-import type {
-  VisitOrderProgress,
-  VisitQueuePosition,
-} from "../types/visitProgress";
+import type { VisitProgress } from "../types/visitProgress";
 import {
-  orderPlaceLabel,
-  peopleAheadText,
+  orderRoomText,
+  queueAheadText,
   visitDateLabel,
   visitPatientLabel,
 } from "./visitPresentation";
-
-const queue = (overrides: Partial<VisitQueuePosition>): VisitQueuePosition => ({
-  roomName: "Phòng khám 2",
-  queueType: "EXAMINATION",
-  queueNumber: 12,
-  peopleAhead: 3,
-  status: "WAITING",
-  ...overrides,
-});
 
 describe("visitDateLabel", () => {
   it("ghi thứ theo ngày, không lệch theo múi giờ máy", () => {
@@ -36,58 +24,55 @@ describe("visitPatientLabel", () => {
       }),
     ).toBe("Nguyễn Thị Lan · Cha/Mẹ");
   });
+
+  it("liên kết cũ chưa có quan hệ thì chỉ ghi tên", () => {
+    expect(
+      visitPatientLabel({ id: "p2", fullName: "Trần Văn Bình", relationship: null }),
+    ).toBe("Trần Văn Bình");
+  });
 });
 
-describe("peopleAheadText", () => {
+const position = (
+  patch: Partial<Pick<VisitProgress, "beingCalled" | "peopleAhead">>,
+) => ({ beingCalled: false, peopleAhead: 3, ...patch });
+
+describe("queueAheadText", () => {
   it("đang chờ: ghi số người phía trước bằng chữ", () => {
-    expect(peopleAheadText(queue({ peopleAhead: 3 }))).toBe(
+    expect(queueAheadText(position({ peopleAhead: 3 }))).toBe(
       "Còn 3 người trước bạn.",
     );
   });
 
-  it("đang chờ và không còn ai trước: báo đến lượt kế tiếp", () => {
-    expect(peopleAheadText(queue({ peopleAhead: 0 }))).toBe(
+  it("không còn ai trước: báo đến lượt kế tiếp", () => {
+    expect(queueAheadText(position({ peopleAhead: 0 }))).toBe(
       "Bạn là người tiếp theo.",
     );
   });
 
-  it("đang được gọi: dòng ghi 'Đang gọi bạn'", () => {
-    expect(
-      peopleAheadText(queue({ status: "BEING_SERVED", peopleAhead: 0 })),
-    ).toBe("Đang gọi bạn");
-  });
-
-  it("vắng mặt: hướng dẫn quay lại quầy lễ tân", () => {
-    expect(peopleAheadText(queue({ status: "ABSENT" }))).toContain(
-      "quầy lễ tân",
+  it("đang được gọi: ghi 'Đang gọi bạn' dù còn số người trước", () => {
+    expect(queueAheadText(position({ beingCalled: true, peopleAhead: 0 }))).toBe(
+      "Đang gọi bạn",
     );
   });
 
-  it("trạng thái đã đóng không hiện trong danh sách chờ", () => {
-    expect(peopleAheadText(queue({ status: "DONE" }))).toBe("");
+  it("chưa vào hàng (không có số người trước): trả chuỗi rỗng", () => {
+    expect(queueAheadText(position({ peopleAhead: null }))).toBe("");
   });
 });
 
-describe("orderPlaceLabel", () => {
-  const order = (
-    overrides: Partial<VisitOrderProgress>,
-  ): VisitOrderProgress => ({
-    id: "svc-1",
-    serviceName: "X-quang khớp gối",
-    kind: "IMAGING",
-    roomName: null,
-    status: "PENDING_PAYMENT",
-    cancellationReason: null,
-    ...overrides,
+describe("orderRoomText", () => {
+  it("có tên phòng thì ghi tên phòng", () => {
+    expect(
+      orderRoomText({ roomId: "room-1", roomName: "Phòng X-quang" }),
+    ).toBe("Phòng thực hiện: Phòng X-quang");
   });
 
-  it("ghi loại và phòng khi đã có phòng", () => {
-    expect(orderPlaceLabel(order({ roomName: "Phòng X-quang 1" }))).toBe(
-      "Chẩn đoán hình ảnh · Phòng X-quang 1",
+  it("có mã phòng nhưng chưa có tên thì nói đã có phòng; không có gì thì nói chưa có", () => {
+    expect(orderRoomText({ roomId: "room-1", roomName: null })).toBe(
+      "Đã có phòng thực hiện",
     );
-  });
-
-  it("chưa có phòng thì chỉ ghi loại", () => {
-    expect(orderPlaceLabel(order({ kind: "LABORATORY" }))).toBe("Xét nghiệm");
+    expect(orderRoomText({ roomId: null, roomName: null })).toBe(
+      "Chưa có phòng thực hiện",
+    );
   });
 });

@@ -1,4 +1,9 @@
-import type { ServiceOrderStatus, VisitStatus } from "@/lib/domain/clinicVisit";
+import type {
+  ClinicalOrderPaymentStatus,
+  ClinicalOrderStatus,
+  ServiceOrderStatus,
+  VisitStatus,
+} from "@/lib/domain/clinicVisit";
 
 // Kiểu dữ liệu của luồng khám bệnh bác sĩ (R3: UC35–UC45, UC49, UC50). Hình dạng bám theo
 // hợp đồng BE `product` (clinical, diagnostic, appointment); trường BE chưa trả thì để null.
@@ -13,7 +18,7 @@ export type TodayPatient = {
   visitId: string | null;
   patientProfileId: string | null;
   patientName: string;
-  /** BE chưa trả tuổi, giới, mã bệnh nhân cho danh sách của bác sĩ: null cho tới khi có. */
+  /** Tuổi theo ngày khám (BE trả trong danh sách bác sĩ); null khi thiếu ngày sinh. */
   age: number | null;
   sex: "Nam" | "Nữ" | "Khác" | null;
   patientCode: string | null;
@@ -24,6 +29,16 @@ export type TodayPatient = {
   queueNumber: number | null;
   source: "BOOKED" | "WALK_IN";
   status: TodayStatus;
+  /** Chỉ định cận lâm sàng; có khi lượt chờ kết luận (UC-35). */
+  serviceOrders?: TodayServiceOrder[];
+};
+
+/** Chỉ định hiện trong dòng bệnh nhân hôm nay: tên, trạng thái và thanh toán. */
+export type TodayServiceOrder = {
+  id: string;
+  serviceName: string;
+  status: ClinicalOrderStatus;
+  paymentStatus: ClinicalOrderPaymentStatus;
 };
 
 /** Thông tin tối thiểu của bệnh nhân trong workspace khám (BR-13). */

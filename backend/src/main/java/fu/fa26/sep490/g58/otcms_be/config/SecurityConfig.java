@@ -40,6 +40,7 @@ public class SecurityConfig {
                                 "/v3/api-docs", "/v3/api-docs/**", "/api/v1/payment-webhooks/payos",
                                 "/dicom-web/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/auth/staff/administrator/login").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/public/queue/rooms/*/now-serving").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/clinic-services", "/api/v1/doctors",
                                 "/api/v1/doctors/**", "/api/v1/appointments/availability",
                                 "/api/v1/staff-profiles/*/photo", "/api/v1/public/reviews").permitAll()

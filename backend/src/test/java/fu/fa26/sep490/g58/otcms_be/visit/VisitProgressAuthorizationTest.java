@@ -26,12 +26,20 @@ class VisitProgressAuthorizationTest {
     final DoctorProfileIdentityQueryService profiles = mock(DoctorProfileIdentityQueryService.class);
     final VisitClinicalCareContextService care = mock(VisitClinicalCareContextService.class);
     final AppointmentBookingProperties booking = mock(AppointmentBookingProperties.class);
-    final VisitReceptionReadServiceImpl service = new VisitReceptionReadServiceImpl(reads, receptionists, patients, booking, doctors, profiles, care);
+    final fu.fa26.sep490.g58.otcms_be.clinical.service.ClinicalVisitOrderQueryService orders =
+            mock(fu.fa26.sep490.g58.otcms_be.clinical.service.ClinicalVisitOrderQueryService.class);
+    final fu.fa26.sep490.g58.otcms_be.visit.repository.QueueRoomRepository roomQueues =
+            mock(fu.fa26.sep490.g58.otcms_be.visit.repository.QueueRoomRepository.class);
+    final fu.fa26.sep490.g58.otcms_be.visit.repository.VisitRoomJpaRepository rooms =
+            mock(fu.fa26.sep490.g58.otcms_be.visit.repository.VisitRoomJpaRepository.class);
+    final VisitReceptionReadServiceImpl service = new VisitReceptionReadServiceImpl(reads, receptionists, patients, booking, doctors, profiles, care,
+            orders, roomQueues, rooms);
+    @BeforeEach void setup() { when(booking.clinicTimeZone()).thenReturn(ZoneId.of("Asia/Ho_Chi_Minh")); }
     AuthenticatedAccount actor(AccountRole role) { return new AuthenticatedAccount(account, role, null); }
     Object[] row(UUID profile) {
         return new Object[]{visit, profile, "WALK_IN", "OPEN", Instant.parse("2026-11-05T00:00:00Z"), "EXAMINATION", null, null, "ROOM-1"};
     }
-    void denial(Runnable operation) { assertEquals("ACCESS_DENIED", assertThrows(VisitOperationException.class, operation::run).code()); }
+    void denial(Runnable operation) { assertEquals("MSG-40", assertThrows(VisitOperationException.class, operation::run).code()); }
     void doctorCare(UUID assigned, boolean allowed) {
         when(doctors.isActiveDoctorAccount(account)).thenReturn(true);
         when(profiles.findDoctorProfileId(account)).thenReturn(Optional.of(doctorProfile));
@@ -46,6 +54,7 @@ class VisitProgressAuthorizationTest {
         assertEquals("OPEN", result.status()); assertNull(result.queuePosition());
         verify(profiles).findDoctorProfileId(account);
         verify(reads).findProgress(visit);
+        verify(reads).findActiveRoomQueue(visit, "Asia/Ho_Chi_Minh");
         verifyNoMoreInteractions(reads);
     }
     @Test void wrongDoctorAndClosedOrNonClinicalVisitDeniedBeforeProjection() {
@@ -71,7 +80,7 @@ class VisitProgressAuthorizationTest {
     @Test void mismatchedPatientInReadProjectionFailsClosed() {
         doctorCare(doctorProfile, true);
         when(reads.findProgress(visit)).thenReturn(row(UUID.randomUUID()));
-        assertEquals("RESOURCE_NOT_FOUND", assertThrows(VisitOperationException.class,
+        assertEquals("MSG-41", assertThrows(VisitOperationException.class,
                 () -> service.getProgress(actor(AccountRole.DOCTOR), visit)).code());
     }
     @Test void patientStillUsesOwnOrConfirmedDependentOwnerAuthorization() {
@@ -81,6 +90,21 @@ class VisitProgressAuthorizationTest {
         doThrow(new PatientAuthorizationDeniedException()).when(patients).authorize(account, patient);
         denial(() -> service.getProgress(actor(AccountRole.PATIENT), visit));
         verifyNoInteractions(doctors, profiles, care, receptionists);
+    }
+
+    @Test void progressIncludesQueueAndOrderStatusAfterPatientAuthorization() {
+        when(reads.findProgress(visit)).thenReturn(row(patient));
+        when(reads.findActiveRoomQueue(visit, "Asia/Ho_Chi_Minh")).thenReturn(new Object[]{7, "CALLED", "R1", 2L});
+        UUID orderId = UUID.randomUUID();
+        when(orders.findByVisit(visit)).thenReturn(List.of(
+                new fu.fa26.sep490.g58.otcms_be.clinical.service.ClinicalVisitOrderQueryService.Order(
+                        orderId, "O1", "Imaging", "ORDERED", "PAID", null)));
+        var result = service.getProgress(actor(AccountRole.PATIENT), visit);
+        assertEquals(7, result.queueNumber());
+        assertEquals(2, result.peopleAhead());
+        assertTrue(result.beingCalled());
+        assertEquals("PAID", result.serviceOrders().getFirst().paymentStatus());
+        verify(patients).authorize(account, patient);
     }
     @Test void anonymousAdminOwnerAndTechnicianDeniedWithoutInventedRoomScope() {
         denial(() -> service.getProgress(null, visit));
@@ -97,5 +121,18 @@ class VisitProgressAuthorizationTest {
         when(booking.clinicTimeZone()).thenReturn(ZoneId.of("Asia/Ho_Chi_Minh"));
         when(reads.findPosition(eq(entry), any(), any())).thenReturn(3);
         assertEquals(3, service.getProgress(actor(AccountRole.RECEPTIONIST), visit).queuePosition());
+    }
+    @Test void serviceOrderCarriesRoomNameFromRoomTable() {
+        UUID room = UUID.randomUUID(), order = UUID.randomUUID();
+        when(receptionists.isActiveReceptionistAccount(account)).thenReturn(true);
+        when(reads.findProgress(visit)).thenReturn(row(patient));
+        when(orders.findByVisit(visit)).thenReturn(List.of(
+                new fu.fa26.sep490.g58.otcms_be.clinical.service.ClinicalVisitOrderQueryService.Order(
+                        order, "O2", "X-quang", "ORDERED", "PAID", room)));
+        when(rooms.findAllById(Set.of(room))).thenReturn(List.of(new fu.fa26.sep490.g58.otcms_be.visit.model.entity.VisitRoomJpaEntity(
+                room, "XR-01", "Phòng X-quang", true, Instant.now(), Instant.now(), Set.of())));
+        var item = service.getProgress(actor(AccountRole.RECEPTIONIST), visit).serviceOrders().getFirst();
+        assertEquals(room, item.roomId());
+        assertEquals("Phòng X-quang", item.roomName());
     }
 }

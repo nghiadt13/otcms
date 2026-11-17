@@ -1,27 +1,39 @@
 import type { CareRelationship } from "@/lib/domain/careRelationship";
 import type {
-  QueueEntryStatus,
-  QueueType,
-  ServiceOrderStatus,
+  ClinicalOrderPaymentStatus,
+  ClinicalOrderStatus,
   VisitStatus,
-  VisitType,
 } from "@/lib/domain/clinicVisit";
 
-// Hợp đồng dữ liệu tiến độ lượt khám (UC34). Tên trường khớp REST: camelCase, enum UPPER_SNAKE.
-// Không có kết quả khám ở đây (BR-35): kết quả đi qua khu Kết quả khám.
+// Hợp đồng dữ liệu lượt khám khu bệnh nhân (UC34). Danh sách lượt (VisitListItem từ GET /api/v1/me/visits)
+// và tiến độ (VisitProgress từ GET /api/v1/visits/{id}/progress) đều là dữ liệu BE. Không có kết quả khám
+// ở đây (BR-35): kết quả đi qua khu Kết quả khám.
 
-/** `active`: Chờ khám, Đang khám, Chờ kết luận. `recent`: mọi trạng thái trong 30 ngày gần nhất. */
+/** `active`: Chờ khám, Đang khám, Chờ kết luận. `recent`: mọi lượt trong danh sách (đang mở và 7 ngày gần nhất). */
 export type VisitWhen = "active" | "recent";
-
-/** Việc BE cho phép trên lượt khám. FE chỉ vẽ nút có trong `allowedActions`. */
-export type VisitAction = "payOrders" | "viewResults" | "review";
-
-export type ServiceKind = "IMAGING" | "LABORATORY";
 
 export interface VisitPatient {
   id: string;
   fullName: string;
-  relationship: CareRelationship;
+  /** null khi liên kết cũ chưa có quan hệ R3: chỉ hiện tên. */
+  relationship: CareRelationship | null;
+}
+
+/** Một dòng của danh sách lượt (BE: MyVisitItemResponse). */
+export interface VisitListItem {
+  visitId: string;
+  patientProfileId: string;
+  patientName: string;
+  relationship: CareRelationship | null;
+  /** YYYY-MM-DD theo giờ phòng khám. */
+  visitDate: string;
+  /** Thời điểm check-in (ISO 8601). */
+  checkedInAt: string;
+  status: VisitStatus;
+  /** Số thứ tự khi lượt đang trong hàng khám hoặc dịch vụ; null khi không ở hàng. */
+  queueNumber: number | null;
+  /** Tên phòng của hàng đang chờ; null khi không ở hàng. */
+  roomName: string | null;
 }
 
 export interface VisitSummary {
@@ -29,39 +41,41 @@ export interface VisitSummary {
   /** YYYY-MM-DD */
   visitDate: string;
   status: VisitStatus;
-  type: VisitType;
   patient: VisitPatient;
 }
 
-/** Vị trí trong một hàng đợi phòng mà bệnh nhân đang chờ (khám, dịch vụ hoặc đọc kết quả). */
-export interface VisitQueuePosition {
-  roomName: string;
-  queueType: QueueType;
-  queueNumber: number;
-  /** Số người đứng trước trong cùng hàng. */
-  peopleAhead: number;
-  status: QueueEntryStatus;
-}
-
-export interface VisitOrderProgress {
-  id: string;
+/** Chỉ định trong tiến độ (BE: VisitProgressResponse.ServiceOrder). */
+export interface VisitProgressOrder {
+  orderId: string;
+  orderCode: string;
   serviceName: string;
-  kind: ServiceKind;
-  /** Phòng thực hiện; `null` khi chưa gắn phòng. */
+  status: ClinicalOrderStatus;
+  paymentStatus: ClinicalOrderPaymentStatus;
+  roomId: string | null;
+  /** Tên phòng (nhãn hiển thị) khi chỉ định đã có phòng; null khi chưa có. */
   roomName: string | null;
-  status: ServiceOrderStatus;
-  /** Chỉ có khi `status` là `CANCELLED`. */
-  cancellationReason: string | null;
 }
 
-export interface VisitProgress extends VisitSummary {
-  /** ISO +07:00: thời điểm BE tính tiến độ. */
-  updatedAt: string;
-  /** YYYY-MM-DD, chỉ có khi lượt Chờ kết luận. BE tính; FE không tự cộng ngày. */
-  returnDeadline: string | null;
-  queues: VisitQueuePosition[];
-  orders: VisitOrderProgress[];
-  allowedActions: VisitAction[];
+/** Tiến độ một lượt khám (BE: VisitProgressResponse). Các trường vào hàng đợi là null khi chưa vào hàng. */
+export interface VisitProgress {
+  visitId: string;
+  source: "SCHEDULED" | "WALK_IN";
+  /** Trạng thái thô của lượt trong bảng visits; không phải trạng thái khám R3, FE không dùng để hiện chữ. */
+  status: string;
+  /** Bước chăm sóc đang làm, hoặc trạng thái lượt khi không có bước. */
+  currentStage: string | null;
+  arrivedAt: string | null;
+  /** Vị trí của lượt vãng lai đang chờ trong hàng tiếp nhận. */
+  queuePosition: number | null;
+  /** Tên phòng của hàng đang chờ. */
+  currentRoom: string | null;
+  /** Số thứ tự trong hàng đang chờ. */
+  queueNumber: number | null;
+  /** Số người đứng trước trong hàng. */
+  peopleAhead: number | null;
+  /** Bệnh nhân đang được gọi vào phòng. */
+  beingCalled: boolean;
+  serviceOrders: VisitProgressOrder[];
 }
 
 export interface VisitListQuery {

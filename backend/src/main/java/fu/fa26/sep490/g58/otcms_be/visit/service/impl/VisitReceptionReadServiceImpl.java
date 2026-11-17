@@ -13,13 +13,19 @@ import fu.fa26.sep490.g58.otcms_be.visit.exception.VisitOperationException;
 import fu.fa26.sep490.g58.otcms_be.visit.model.dto.response.ReceptionQueueItemResponse;
 import fu.fa26.sep490.g58.otcms_be.visit.model.dto.response.ReceptionQueueResponse;
 import fu.fa26.sep490.g58.otcms_be.visit.model.dto.response.VisitProgressResponse;
+import fu.fa26.sep490.g58.otcms_be.visit.model.entity.VisitRoomJpaEntity;
 import fu.fa26.sep490.g58.otcms_be.visit.repository.VisitReceptionReadRepository;
+import fu.fa26.sep490.g58.otcms_be.visit.repository.VisitRoomJpaRepository;
 import fu.fa26.sep490.g58.otcms_be.visit.service.VisitReceptionReadService;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -35,40 +41,47 @@ public class VisitReceptionReadServiceImpl implements VisitReceptionReadService 
     private final DoctorAccountAccessService doctors;
     private final DoctorProfileIdentityQueryService doctorProfiles;
     private final VisitClinicalCareContextService care;
+    private final fu.fa26.sep490.g58.otcms_be.clinical.service.ClinicalVisitOrderQueryService orders;
+    private final fu.fa26.sep490.g58.otcms_be.visit.repository.QueueRoomRepository roomQueues;
+    private final VisitRoomJpaRepository rooms;
 
     public VisitReceptionReadServiceImpl(VisitReceptionReadRepository reads,
             ReceptionistAccountAccessService receptionists,
             AuthorizePatientProfileService patientAuthorization, AppointmentBookingProperties booking,
             DoctorAccountAccessService doctors, DoctorProfileIdentityQueryService doctorProfiles,
-            VisitClinicalCareContextService care) {
+            VisitClinicalCareContextService care,
+            fu.fa26.sep490.g58.otcms_be.clinical.service.ClinicalVisitOrderQueryService orders,
+            fu.fa26.sep490.g58.otcms_be.visit.repository.QueueRoomRepository roomQueues,
+            VisitRoomJpaRepository rooms) {
         this.reads = reads;
         this.receptionists = receptionists;
         this.patientAuthorization = patientAuthorization;
         this.booking = booking;
         this.doctors = doctors; this.doctorProfiles = doctorProfiles; this.care = care;
+        this.orders = orders; this.roomQueues = roomQueues; this.rooms = rooms;
     }
 
     @Override
     @Transactional(readOnly = true)
     public VisitProgressResponse getProgress(AuthenticatedAccount actor, UUID visitId) {
-        if (actor == null || actor.accountId() == null || actor.accountRole() == null) throw new VisitOperationException("ACCESS_DENIED");
+        if (actor == null || actor.accountId() == null || actor.accountRole() == null) throw new VisitOperationException("MSG-40");
         if (visitId == null) throw new VisitOperationException("VALIDATION_FAILED");
         if (actor.accountRole() == AccountRole.PATIENT) return getOwnProgress(actor.accountId(), visitId);
         UUID expectedPatient = null;
         if (actor.accountRole() == AccountRole.RECEPTIONIST) {
-            if (!receptionists.isActiveReceptionistAccount(actor.accountId())) throw new VisitOperationException("ACCESS_DENIED");
+            if (!receptionists.isActiveReceptionistAccount(actor.accountId())) throw new VisitOperationException("MSG-40");
         } else if (actor.accountRole() == AccountRole.DOCTOR) {
-            if (!doctors.isActiveDoctorAccount(actor.accountId())) throw new VisitOperationException("ACCESS_DENIED");
-            var profile = doctorProfiles.findDoctorProfileId(actor.accountId()).orElseThrow(() -> new VisitOperationException("ACCESS_DENIED"));
-            var context = care.findClinicalCareContext(visitId).orElseThrow(() -> new VisitOperationException("ACCESS_DENIED"));
+            if (!doctors.isActiveDoctorAccount(actor.accountId())) throw new VisitOperationException("MSG-40");
+            var profile = doctorProfiles.findDoctorProfileId(actor.accountId()).orElseThrow(() -> new VisitOperationException("MSG-40"));
+            var context = care.findClinicalCareContext(visitId).orElseThrow(() -> new VisitOperationException("MSG-40"));
             if (!visitId.equals(context.visitId()) || !context.clinicalWorkAllowed()
-                    || !profile.equals(context.responsibleDoctorProfileId())) throw new VisitOperationException("ACCESS_DENIED");
+                    || !profile.equals(context.responsibleDoctorProfileId())) throw new VisitOperationException("MSG-40");
             expectedPatient = context.patientProfileId();
-            if (expectedPatient == null) throw new VisitOperationException("ACCESS_DENIED");
-        } else throw new VisitOperationException("ACCESS_DENIED");
+            if (expectedPatient == null) throw new VisitOperationException("MSG-40");
+        } else throw new VisitOperationException("MSG-40");
         var row = reads.findProgress(visitId);
         if (row == null || !visitId.equals(row[0]) || expectedPatient != null && !expectedPatient.equals(row[1])) {
-            throw new VisitOperationException("RESOURCE_NOT_FOUND");
+            throw new VisitOperationException("MSG-41");
         }
         return progress(row);
     }
@@ -99,7 +112,7 @@ public class VisitReceptionReadServiceImpl implements VisitReceptionReadService 
         List<ReceptionQueueItemResponse> items = rows.stream()
                 .limit(size).map(row -> new ReceptionQueueItemResponse((UUID) row[0], (UUID) row[1],
                         instant(row[2]), (String) row[3], ((Number) row[4]).intValue(), (String) row[5],
-                        (String) row[6])).toList();
+                        (String) row[6], row[7] == null ? null : ((Number) row[7]).intValue(), (UUID) row[8])).toList();
         return new ReceptionQueueResponse(date, page, size, rows.size() > size, items);
     }
 
@@ -108,11 +121,11 @@ public class VisitReceptionReadServiceImpl implements VisitReceptionReadService 
     public VisitProgressResponse getOwnProgress(UUID patientAccountId, UUID visitId) {
         if (patientAccountId == null || visitId == null) throw new VisitOperationException("VALIDATION_FAILED");
         Object[] row = reads.findProgress(visitId);
-        if (row == null) throw new VisitOperationException("RESOURCE_NOT_FOUND");
+        if (row == null) throw new VisitOperationException("MSG-41");
         try {
             patientAuthorization.authorize(patientAccountId, (UUID) row[1]);
         } catch (PatientAuthorizationDeniedException exception) {
-            throw new VisitOperationException("ACCESS_DENIED", exception);
+            throw new VisitOperationException("MSG-40", exception);
         }
         return progress(row);
     }
@@ -127,8 +140,35 @@ public class VisitReceptionReadServiceImpl implements VisitReceptionReadService 
             int currentPosition = reads.findPosition(asUuid(row[6]), from, to);
             if (currentPosition > 0) position = currentPosition;
         }
-        return new VisitProgressResponse((UUID) row[0], (String) row[2], (String) row[3],
-                (String) row[5], instant(row[4]), position, (String) row[8]);
+        UUID visitId = (UUID) row[0];
+        Object[] active = reads.findActiveRoomQueue(visitId, booking.clinicTimeZone().getId());
+        var roomsByOrder = roomQueues.findServicesForVisit(visitId).stream()
+                .filter(q -> q.getServiceOrderId() != null && q.getRoomId() != null)
+                .collect(java.util.stream.Collectors.toMap(q -> q.getServiceOrderId(), q -> q.getRoomId(), (a, b) -> a));
+        var orderRows = orders.findByVisit(visitId);
+        var namesByRoom = roomNames(orderRows.stream()
+                .map(order -> roomsByOrder.getOrDefault(order.id(), order.roomId())).toList());
+        var serviceOrders = orderRows.stream().map(order -> {
+            UUID roomId = roomsByOrder.getOrDefault(order.id(), order.roomId());
+            return new VisitProgressResponse.ServiceOrder(order.id(), order.code(), order.serviceName(),
+                    order.status(), order.paymentStatus(), roomId, roomId == null ? null : namesByRoom.get(roomId));
+        }).toList();
+        Integer peopleAhead = null;
+        if (active != null) peopleAhead = ((Number) active[3]).intValue();
+        else if (position != null) peopleAhead = position - 1;
+        return new VisitProgressResponse(visitId, (String) row[2], (String) row[3],
+                (String) row[5], instant(row[4]), position, active == null ? (String) row[8] : (String) active[2],
+                active == null || active[0] == null ? null : ((Number) active[0]).intValue(),
+                peopleAhead,
+                active != null && "CALLED".equals(active[1]), serviceOrders);
+    }
+
+    /** Tên phòng (nhãn hiển thị) theo mã phòng; không gọi bảng phòng khi chỉ định chưa có phòng nào. */
+    private Map<UUID, String> roomNames(List<UUID> roomIds) {
+        Set<UUID> ids = roomIds.stream().filter(Objects::nonNull).collect(Collectors.toSet());
+        if (ids.isEmpty()) return Map.of();
+        return rooms.findAllById(ids).stream()
+                .collect(Collectors.toMap(VisitRoomJpaEntity::getId, VisitRoomJpaEntity::getDisplayLabel));
     }
 
     private static java.time.Instant instant(Object value) {
