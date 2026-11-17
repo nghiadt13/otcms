@@ -128,12 +128,18 @@ public class CancelAppointmentServiceImpl implements CancelAppointmentService {
                 && current.startTime().isBefore(now.plus(properties.patientChangeDeadlineMinutes(), ChronoUnit.MINUTES))) {
             throw new AppointmentBookingException("APPOINTMENT_CHANGE_TOO_LATE");
         }
-        var cancelled = appointments.cancel(current, command.actorAccountId(), command.actor().name(),
-                command.reason() == null ? null : command.reason().trim(), now, command.correlationId());
-        AppointmentAuditEntries.record(auditLogWriter, AppointmentAuditEntries.changed(current.id(), command.actorAccountId(), command.actor().name(), "CANCELLED",
-                "CONFIRMED", "CANCELLED", current.doctorProfileId(), current.doctorProfileId(),
-                current.startTime(), current.startTime(), current.endTime(), current.endTime(),
-                current.visitId(), current.sourceVisitId(), command.reason() == null ? null : command.reason().trim(), null, now), command.correlationId());
+        CreatedAppointment cancelled;
+        try {
+            cancelled = appointments.cancel(current, command.actorAccountId(), command.actor().name(),
+                    command.reason() == null ? null : command.reason().trim(), now, command.correlationId());
+            AppointmentAuditEntries.record(auditLogWriter, AppointmentAuditEntries.changed(current.id(), command.actorAccountId(), command.actor().name(), "CANCELLED",
+                    "CONFIRMED", "CANCELLED", current.doctorProfileId(), current.doctorProfileId(),
+                    current.startTime(), current.startTime(), current.endTime(), current.endTime(),
+                    current.visitId(), current.sourceVisitId(), command.reason() == null ? null : command.reason().trim(), null, now), command.correlationId());
+        } catch (DataAccessException failure) {
+            // Audit or update failure rolls the whole cancellation back and surfaces as 503, like check-in.
+            throw new AppointmentBookingException("DEPENDENCY_UNAVAILABLE", failure);
+        }
         publishCancellation(current, command);
         return cancelled;
     }

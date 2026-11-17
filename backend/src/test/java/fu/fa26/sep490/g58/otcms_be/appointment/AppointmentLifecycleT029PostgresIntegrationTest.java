@@ -164,7 +164,7 @@ class AppointmentLifecycleT029PostgresIntegrationTest {
     }
 
     @Test
-    void receptionistCannotCancelCheckedInAppointmentButAdminCancelsBeforeCareStarts() throws Exception {
+    void receptionistCannotCancelCheckedInAppointment() throws Exception {
         UUID appointment = checkedInAppointment();
         UUID visit = jdbc.queryForObject("select visit_id from appointments where id = ?", UUID.class, appointment);
         mvc.perform(cancelAs(appointment, receptionistAccount, AccountType.RECEPTIONIST))
@@ -172,26 +172,23 @@ class AppointmentLifecycleT029PostgresIntegrationTest {
         assertEquals("CHECKED_IN", jdbc.queryForObject("select status from appointments where id = ?", String.class, appointment));
         assertEquals("OPEN", jdbc.queryForObject("select status from visits where id = ?", String.class, visit));
         assertEquals("WAITING", jdbc.queryForObject("select status from queue_entries where stage = 'EXAM' and visit_id = ?", String.class, visit));
-
-        mvc.perform(cancel(appointment)).andExpect(status().isOk()).andExpect(jsonPath("$.status").value("CANCELLED"));
-        assertEquals("CLOSED", jdbc.queryForObject("select status from visits where id = ?", String.class, visit));
-        assertEquals("CANCELLED", jdbc.queryForObject("select status from queue_entries where stage = 'EXAM' and visit_id = ?", String.class, visit));
-        assertEquals(1, jdbc.queryForObject("select count(*) from visits where id = ?", Integer.class, visit));
-        assertEquals(1, jdbc.queryForObject("select count(*) from audit_logs where source = 'appointment_audits' and entity_id = ? and actor_type = 'ADMIN' and action = 'CANCELLED' and before_state->>'status' = 'CHECKED_IN' and after_state->>'status' = 'CANCELLED' and metadata->>'reason' = 'T029 cancellation'", Integer.class, appointment));
     }
 
     @Test
-    void doctorStartAndAdminCancellationRaceResolvesAccordingToFirstCommittedState() throws Exception {
-        UUID cancelledFirst = checkedInAppointment();
-        mvc.perform(cancel(cancelledFirst)).andExpect(status().isOk());
-        mvc.perform(statusChange(cancelledFirst, doctorAccount, AccountType.DOCTOR, "IN_PROGRESS"))
-                .andExpect(status().isConflict()).andExpect(jsonPath("$.error.code").value("APPOINTMENT_NOT_CHANGEABLE"));
+    void adminCancellationIsRefusedBeforeAndAfterCareStarts() throws Exception {
+        UUID appointment = checkedInAppointment();
+        UUID visit = jdbc.queryForObject("select visit_id from appointments where id = ?", UUID.class, appointment);
+        // B8: nobody cancels a checked-in appointment, so the doctor's start is the only outcome that commits.
+        mvc.perform(cancel(appointment)).andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error.code").value("APPOINTMENT_NOT_CHANGEABLE"));
+        assertEquals("CHECKED_IN", jdbc.queryForObject("select status from appointments where id = ?", String.class, appointment));
+        assertEquals("OPEN", jdbc.queryForObject("select status from visits where id = ?", String.class, visit));
+        assertEquals(0, jdbc.queryForObject("select count(*) from audit_logs where source = 'appointment_audits' and entity_id = ? and after_state->>'status' = 'CANCELLED'", Integer.class, appointment));
 
-        UUID startedFirst = checkedInAppointment();
-        mvc.perform(statusChange(startedFirst, doctorAccount, AccountType.DOCTOR, "IN_PROGRESS")).andExpect(status().isOk());
-        mvc.perform(cancel(startedFirst)).andExpect(status().isConflict())
+        mvc.perform(statusChange(appointment, doctorAccount, AccountType.DOCTOR, "IN_PROGRESS")).andExpect(status().isOk());
+        mvc.perform(cancel(appointment)).andExpect(status().isConflict())
                 .andExpect(jsonPath("$.error.code").value("VISIT_CANCELLATION_NOT_ALLOWED"));
-        assertEquals("IN_PROGRESS", jdbc.queryForObject("select status from appointments where id = ?", String.class, startedFirst));
+        assertEquals("IN_PROGRESS", jdbc.queryForObject("select status from appointments where id = ?", String.class, appointment));
     }
 
     @Test
@@ -228,16 +225,16 @@ class AppointmentLifecycleT029PostgresIntegrationTest {
     }
 
     @Test
-    void existingClinicalActivityRejectsCancellationWithoutChangingEitherOwner() throws Exception {
+    void refusedAdminCancellationKeepsDraftExamination() throws Exception {
         UUID appointment = checkedInAppointment();
         UUID visit = jdbc.queryForObject("select visit_id from appointments where id = ?", UUID.class, appointment);
-        // Cancellation consumes the Clinical owner's examination evidence, including DRAFT.
+        // B8: a checked-in appointment is never cancelled, so the refused cancellation leaves the Clinical owner's DRAFT examination alone.
         jdbc.update("insert into clinical_examinations (id, visit_id, status, created_at, updated_at) "
                 + "values (?, ?, 'DRAFT', ?, ?)", UUID.randomUUID(), visit, Timestamp.from(NOW), Timestamp.from(NOW));
         assertEquals(1, jdbc.queryForObject("select count(*) from clinical_examinations where visit_id = ? and status = 'DRAFT'",
                 Integer.class, visit));
         mvc.perform(cancel(appointment)).andExpect(status().isConflict())
-                .andExpect(jsonPath("$.error.code").value("VISIT_CANCELLATION_NOT_ALLOWED"));
+                .andExpect(jsonPath("$.error.code").value("APPOINTMENT_NOT_CHANGEABLE"));
         assertEquals("CHECKED_IN", jdbc.queryForObject("select status from appointments where id = ?", String.class, appointment));
         assertEquals("OPEN", jdbc.queryForObject("select status from visits where id = ?", String.class, visit));
         assertEquals(0, jdbc.queryForObject("select count(*) from audit_logs where source = 'appointment_audits' and entity_id = ? and after_state->>'status' = 'CANCELLED'", Integer.class, appointment));
@@ -255,9 +252,8 @@ class AppointmentLifecycleT029PostgresIntegrationTest {
     }
 
     @Test
-    void appointmentAuditFailureRollsBackVisitCloseAndCancellation() throws Exception {
-        UUID appointment = checkedInAppointment();
-        UUID visit = jdbc.queryForObject("select visit_id from appointments where id = ?", UUID.class, appointment);
+    void appointmentAuditFailureRollsBackConfirmedCancellation() throws Exception {
+        UUID appointment = confirmedAppointment();
         jdbc.execute("create function reject_t029_cancel_audit() returns trigger language plpgsql as $$ begin "
                 + "if new.correlation_id = '" + CORRELATION + "' and new.after_state->>'status' = 'CANCELLED' then "
                 + "raise exception 'T029 injected appointment audit failure'; end if; return new; end $$");
@@ -265,8 +261,7 @@ class AppointmentLifecycleT029PostgresIntegrationTest {
                 + "for each row execute function reject_t029_cancel_audit()");
         mvc.perform(cancel(appointment)).andExpect(status().isServiceUnavailable())
                 .andExpect(jsonPath("$.error.code").value("DEPENDENCY_UNAVAILABLE"));
-        assertEquals("CHECKED_IN", jdbc.queryForObject("select status from appointments where id = ?", String.class, appointment));
-        assertEquals("OPEN", jdbc.queryForObject("select status from visits where id = ?", String.class, visit));
+        assertEquals("CONFIRMED", jdbc.queryForObject("select status from appointments where id = ?", String.class, appointment));
         assertEquals(0, jdbc.queryForObject("select count(*) from audit_logs where source = 'appointment_audits' and entity_id = ? and after_state->>'status' = 'CANCELLED'", Integer.class, appointment));
     }
 
@@ -297,6 +292,15 @@ class AppointmentLifecycleT029PostgresIntegrationTest {
     }
 
     private UUID checkedInAppointment() throws Exception {
+        UUID appointment = confirmedAppointment();
+        mvc.perform(post("/api/v1/appointments/{id}/check-in", appointment).with(actor(receptionistAccount, AccountType.RECEPTIONIST))
+                .with(csrf()).header("Idempotency-Key", "t029-checkin-" + appointment).header("X-Correlation-ID", CORRELATION)
+                .contentType("application/json").content("{\"verifiedPatientProfileId\":\"" + patientProfile + "\"}"))
+                .andExpect(status().isOk());
+        return appointment;
+    }
+
+    private UUID confirmedAppointment() {
         UUID appointment = UUID.randomUUID(); appointments.add(appointment);
         Instant start = NOW;
         jdbc.update("insert into appointments (id, patient_profile_id, service_id, doctor_profile_id, status, booking_source, purpose, start_time, end_time, duration_minutes, buffer_minutes, created_by_account_id) values (?, ?, ?, ?, 'CONFIRMED', 'PATIENT_ONLINE', 'T029 purpose', ?, ?, 30, 5, ?)",
@@ -308,10 +312,6 @@ class AppointmentLifecycleT029PostgresIntegrationTest {
                 + "'startTime', cast(? as timestamptz), 'endTime', cast(? as timestamptz)), ?, ?)",
                 appointment, appointment.toString(), patientAccount, doctorProfile, Timestamp.from(start), Timestamp.from(start.plusSeconds(1800)), Timestamp.from(NOW),
                 UUID.randomUUID().toString());
-        mvc.perform(post("/api/v1/appointments/{id}/check-in", appointment).with(actor(receptionistAccount, AccountType.RECEPTIONIST))
-                .with(csrf()).header("Idempotency-Key", "t029-checkin-" + appointment).header("X-Correlation-ID", CORRELATION)
-                .contentType("application/json").content("{\"verifiedPatientProfileId\":\"" + patientProfile + "\"}"))
-                .andExpect(status().isOk());
         return appointment;
     }
 
@@ -321,7 +321,7 @@ class AppointmentLifecycleT029PostgresIntegrationTest {
                 .content("{\"targetStatus\":\"" + target + "\"}");
     }
 
-    /** Cancels as the admin: after check-in only the admin may cancel (B3/B4). */
+    /** Cancels as the admin: the admin may cancel a confirmed appointment (B4) but never a checked-in one (B8). */
     private org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder cancel(UUID appointment) {
         return cancelAs(appointment, adminAccount, AccountType.ADMIN);
     }

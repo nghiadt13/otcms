@@ -160,16 +160,18 @@ class ReassignAppointmentT026PostgresIntegrationTest {
 
     @Test
     void adminDoesNotGainOtherAppointmentMutationPermissions() throws Exception {
-        // Admin may cancel (B4, see AppointmentLifecycleT029/CancelAppointmentT025 tests); every other mutation stays denied.
+        // Admin may reschedule (B6) and cancel (B4, see AppointmentLifecycleT029/CancelAppointmentT025 tests); status changes and check-in stay denied.
         String root = "/api/v1/appointments/" + appointment;
-        var requests = List.of(
-                org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch(root + "/reschedule")
-                        .content("{\"startTime\":\"" + SLOT + "\",\"reason\":\"Reschedule\"}"),
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch(root + "/reschedule")
+                        .content("{\"startTime\":\"" + SLOT + "\",\"reason\":\"Reschedule\"}")
+                        .with(actor(adminAccount, AccountType.ADMIN)).with(csrf()).contentType("application/json"))
+                .andExpect(status().isOk());
+        var denied = List.of(
                 org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch(root + "/status")
                         .content("{\"targetStatus\":\"NO_SHOW\",\"reason\":\"Absent\"}"),
                 post(root + "/check-in").header("Idempotency-Key", UUID.randomUUID().toString())
                         .content("{\"verifiedPatientProfileId\":\"" + patientProfile + "\"}"));
-        for (var request : requests) mvc.perform(request.with(actor(adminAccount, AccountType.ADMIN)).with(csrf())
+        for (var request : denied) mvc.perform(request.with(actor(adminAccount, AccountType.ADMIN)).with(csrf())
                 .contentType("application/json")).andExpect(status().isForbidden());
         assertEquals(currentDoctor, jdbc.queryForObject("select doctor_profile_id from appointments where id=?", UUID.class, appointment));
     }
