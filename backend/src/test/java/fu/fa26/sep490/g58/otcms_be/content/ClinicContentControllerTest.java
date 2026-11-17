@@ -28,7 +28,7 @@ import fu.fa26.sep490.g58.otcms_be.content.controller.*;
 import fu.fa26.sep490.g58.otcms_be.content.service.*;
 import fu.fa26.sep490.g58.otcms_be.content.model.*;
 @WebMvcTest({
-    AdminWebsiteContentController.class,AdminAnnouncementController.class,PublicClinicContentController.class
+    AdminWebsiteContentController.class,AdminAnnouncementController.class,PublicClinicContentController.class,PatientAnnouncementController.class
 })
 @Import({
     fu.fa26.sep490.g58.otcms_be.content.mapper.ClinicContentDtoMapper.class,fu.fa26.sep490.g58.otcms_be.content.HttpContractCapture.class,SecurityConfig.class,ClinicContentControllerTest.Fixture.class
@@ -63,6 +63,15 @@ class ClinicContentControllerTest {
         when(content.announcement(id,true)).thenThrow(new ContentOperationException(ContentOperationException.Reason.NOT_FOUND));
         mvc.perform(get("/api/v1/public/announcements/"+id)).andExpect(status().isNotFound())
         .andExpect(jsonPath("$.error.code").value("MSG-50"));
+    }
+    @Test void patientAnnouncementsRequirePatientRole() throws Exception {
+        var notice = new ClinicAnnouncement(UUID.randomUUID(), "Patient notice", "Body", "PATIENT", null, java.time.Instant.now(), UUID.randomUUID(), "admin", 0);
+        when(content.patientAnnouncements(0, 20)).thenReturn(new ContentPage<>(List.of(notice), 0, 20, 1, 1));
+        mvc.perform(get("/api/v1/me/announcements")).andExpect(status().isUnauthorized());
+        mvc.perform(get("/api/v1/me/announcements").with(user("doctor").roles("DOCTOR"))).andExpect(status().isForbidden());
+        mvc.perform(get("/api/v1/me/announcements").with(user("patient").roles("PATIENT")))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.items[0].title").value("Patient notice"))
+            .andExpect(jsonPath("$.items[0].audience").doesNotExist());
     }
     @Test void publicImagesAreBinaryAndUnknownOrUnpublishedArticleUsesMessage50() throws Exception {
         UUID id=UUID.randomUUID();

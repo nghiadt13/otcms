@@ -187,12 +187,6 @@ export type ReceptionState = {
 export type PatientInput = Omit<Patient, "id">;
 export type ReceptionCommand =
   | {
-      type: "save-patient";
-      input: PatientInput;
-      id?: string;
-      identityConfirmed: boolean;
-    }
-  | {
       type: "confirm-link";
       id: string;
       evidence: string;
@@ -215,18 +209,6 @@ export type ReceptionCommand =
       appointmentId?: string;
       returnVisitId?: string;
       present: boolean;
-    }
-  | { type: "call-next"; roomId: string; kind: "exam" | "review" }
-  | {
-      type: "queue-action";
-      id: string;
-      action: "arrived" | "absent" | "return";
-    }
-  | {
-      type: "reorder";
-      id: string;
-      position: number;
-      reason: string;
     }
   | { type: "move-room"; id: string; roomId: string; reason: string }
   | {

@@ -19,6 +19,8 @@ export function resolvePatientRecordHref(
       return PATIENT_ROUTES.visitDetail(record.id);
     case "VISIT_RESULT":
       return PATIENT_ROUTES.resultDetail(record.id);
+    case "REVIEW":
+      return PATIENT_ROUTES.reviews;
     case "PAYMENT":
       return PATIENT_ROUTES.paymentDetail(record.id);
     default:

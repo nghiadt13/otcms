@@ -146,6 +146,8 @@ export const PAYMENT_STATUS_TONE: Record<PaymentStatus, StatusTone> = {
 export type ExamQueueStatus =
   | "PENDING_PAYMENT"
   | "WAITING"
+  | "CALLED"
+  | "ABSENT"
   | "IN_EXAMINATION"
   | "AWAITING_CONCLUSION"
   | "COMPLETED"
@@ -154,14 +156,42 @@ export type ExamQueueStatus =
 export const EXAM_QUEUE_STATUS_LABELS: Record<ExamQueueStatus, string> = {
   PENDING_PAYMENT: "Chờ thu phí",
   WAITING: "Chờ khám",
+  CALLED: "Đã gọi",
+  ABSENT: "Vắng mặt",
   IN_EXAMINATION: "Đang khám",
   AWAITING_CONCLUSION: "Chờ kết luận",
   COMPLETED: "Đã khám xong",
   CANCELLED: "Đã hủy",
 };
+/** Trạng thái chỉ định cận lâm sàng từ BE (ServiceOrderStatus). Khác với `ServiceOrderStatus` ở trên (mock cũ). */
+export type ClinicalOrderStatus = "ORDERED" | "RESULTS_AVAILABLE" | "CANCELLED";
+/** Thanh toán của một chỉ định cận lâm sàng từ BE (ServiceOrderPaymentStatus). */
+export type ClinicalOrderPaymentStatus = "PENDING_PAYMENT" | "PAID";
+
+export const CLINICAL_ORDER_STATUS_LABELS: Record<ClinicalOrderStatus, string> = {
+  ORDERED: "Đã chỉ định",
+  RESULTS_AVAILABLE: "Đã có kết quả",
+  CANCELLED: "Đã hủy",
+};
+export const CLINICAL_ORDER_STATUS_TONE: Record<ClinicalOrderStatus, StatusTone> = {
+  ORDERED: "info",
+  RESULTS_AVAILABLE: "success",
+  CANCELLED: "neutral",
+};
+export const CLINICAL_ORDER_PAYMENT_LABELS: Record<ClinicalOrderPaymentStatus, string> = {
+  PENDING_PAYMENT: "Chưa thanh toán",
+  PAID: "Đã thanh toán",
+};
+export const CLINICAL_ORDER_PAYMENT_TONE: Record<ClinicalOrderPaymentStatus, StatusTone> = {
+  PENDING_PAYMENT: "warning",
+  PAID: "success",
+};
+
 export const EXAM_QUEUE_STATUS_TONE: Record<ExamQueueStatus, StatusTone> = {
   PENDING_PAYMENT: "warning",
   WAITING: "info",
+  CALLED: "info",
+  ABSENT: "warning",
   IN_EXAMINATION: "success",
   AWAITING_CONCLUSION: "info",
   COMPLETED: "success",

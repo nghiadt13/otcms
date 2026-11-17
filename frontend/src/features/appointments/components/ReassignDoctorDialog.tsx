@@ -41,8 +41,6 @@ type ReassignDoctorDialogProps<T extends ReassignTarget> = {
   onChanged: (updated: T) => void;
   /** Lịch không còn / không còn Đã đặt: màn đóng Dialog và tải lại. */
   onStale: () => void;
-  /** AF1: màn đóng Dialog và mở xác nhận gửi thông báo. */
-  onNotifyRequest: (appointment: T) => void;
 };
 
 type ReassignBodyProps<T extends ReassignTarget> = Omit<
@@ -80,7 +78,6 @@ function ReassignBody<T extends ReassignTarget>({
   onClose,
   onChanged,
   onStale,
-  onNotifyRequest,
 }: ReassignBodyProps<T>) {
   const eligible = useEligibleDoctors(appointment.id, appointment.startAt, api);
   const [selectedId, setSelectedId] = useState("");
@@ -109,10 +106,6 @@ function ReassignBody<T extends ReassignTarget>({
       : null;
   const noCandidates =
     !eligible.loading && !loadError && eligible.doctors?.length === 0;
-  const canNotify =
-    noCandidates &&
-    Boolean(api.notifyNoReplacement) &&
-    appointment.allowedActions.includes("notifyNoReplacement");
 
   async function submit() {
     if (!reason.trim()) {
@@ -202,11 +195,6 @@ function ReassignBody<T extends ReassignTarget>({
         <Button variant="outline" disabled={submitting} onClick={onClose}>
           Hủy
         </Button>
-        {canNotify ? (
-          <Button onClick={() => onNotifyRequest(appointment)}>
-            Báo cho bệnh nhân
-          </Button>
-        ) : null}
         {!noCandidates && !loadError ? (
           <Button
             disabled={

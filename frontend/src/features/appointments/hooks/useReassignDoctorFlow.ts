@@ -1,9 +1,6 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import { notifyError, notifySuccess } from "@/lib/messages/notify";
-import { NOTIFY_SUCCESS_TEXT } from "../schema/appointmentMessages";
-import { isStaleAppointmentError } from "../schema/staleAppointmentError";
 import type {
   ReassignDoctorApi,
   ReassignTarget,
@@ -25,13 +22,11 @@ type ReassignDoctorFlowOptions<T extends ReassignTarget> = {
  * một danh sách lịch. Admin và Lễ tân dùng chung; khác nhau ở `api` truyền vào.
  */
 export function useReassignDoctorFlow<T extends ReassignTarget>({
-  api,
   replaceItem,
   reload,
   doctorFilter,
 }: ReassignDoctorFlowOptions<T>) {
   const [reassigning, setReassigning] = useState<T | null>(null);
-  const [notifying, setNotifying] = useState<T | null>(null);
 
   // Lịch không còn dùng được: đóng Dialog và tải lại danh sách.
   const handleStale = useCallback(() => {
@@ -49,34 +44,10 @@ export function useReassignDoctorFlow<T extends ReassignTarget>({
     [replaceItem, reload, doctorFilter],
   );
 
-  // AF1: đóng Dialog chuyển rồi mở xác nhận báo bệnh nhân (không chồng hai hộp thoại).
-  const requestNotify = useCallback((appointment: T) => {
-    setReassigning(null);
-    setNotifying(appointment);
-  }, []);
-
-  const confirmNotify = useCallback(async () => {
-    if (!notifying) return;
-    if (!api.notifyNoReplacement) return;
-    try {
-      const updated = await api.notifyNoReplacement(notifying.id);
-      notifySuccess(NOTIFY_SUCCESS_TEXT);
-      replaceItem((item) => item.id === updated.id, updated);
-    } catch (error) {
-      notifyError(error);
-      if (!isStaleAppointmentError(error)) throw error; // giữ Confirm để thử lại
-      reload(); // lịch không còn dùng được: đóng Confirm và tải lại
-    }
-  }, [api, notifying, replaceItem, reload]);
-
   return {
     reassigning,
     setReassigning,
-    notifying,
-    setNotifying,
-    requestNotify,
     handleStale,
     handleChanged,
-    confirmNotify,
   };
 }

@@ -1,168 +1,205 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@/lib/api/apiError";
-import {
-  getLinkedProfileRecords,
-  resetLinkedProfilesMock,
-} from "@/lib/patient-scope/linkedProfilesMockStore";
-import type { VisitWhen } from "../types/visitProgress";
+import type { VisitListItem, VisitProgress } from "../types/visitProgress";
 import { getVisitProgress, listVisits } from "./visitApi";
-import { resetVisitMock } from "./visitMockStore";
 
-// Hợp đồng lớp API giả của lượt khám: phạm vi hồ sơ, mã lỗi MSG, hàng đợi tiến dần và các hành
-// động theo trạng thái. Đồng hồ cố định 24/10/2026 để tab "Gần đây" (30 ngày) ổn định.
-const NOW = new Date("2026-10-24T08:00:00+07:00");
+const request = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/api/client", () => ({ apiRequest: request }));
 
-function profileIdOf(patientCode: string): string {
-  const profile = getLinkedProfileRecords().find(
-    (item) => item.patientCode === patientCode,
-  );
-  if (!profile) throw new Error(`thiếu hồ sơ ${patientCode}`);
-  return profile.id;
-}
+// Hợp đồng lớp API của lượt khám: danh sách đọc GET /api/v1/me/visits rồi lọc và chia trang ở máy; tiến độ
+// là API thật, khóa đường dẫn và lỗi đi nguyên từ BE.
 
-beforeEach(() => {
-  resetLinkedProfilesMock();
-  resetVisitMock({ now: NOW });
+const item = (
+  patch: Pick<VisitListItem, "visitId" | "status"> & Partial<VisitListItem>,
+): VisitListItem => ({
+  patientProfileId: "p-self",
+  patientName: "Nguyễn Văn An",
+  relationship: "SELF",
+  visitDate: "2026-10-24",
+  checkedInAt: "2026-10-24T01:00:00Z",
+  queueNumber: null,
+  roomName: null,
+  ...patch,
 });
 
-describe("listVisits", () => {
-  it("đang diễn ra chỉ gồm Chờ khám, Đang khám, Chờ kết luận; mới trước", async () => {
-    const page = await listVisits({ when: "active", page: 0, size: 10 });
-    expect(page.items.map((item) => item.id)).toEqual([
-      "vis-an-today",
-      "vis-lan-await",
+/** Sáu dòng như BE trả, mới trước. */
+const rows = (): VisitListItem[] => [
+  item({
+    visitId: "vis-1",
+    status: "WAITING_FOR_EXAMINATION",
+    queueNumber: 12,
+    roomName: "Phòng khám 2",
+  }),
+  item({
+    visitId: "vis-2",
+    status: "IN_EXAMINATION",
+    patientProfileId: "p-child",
+    patientName: "Nguyễn Gia Huy",
+    relationship: "CHILD",
+    visitDate: "2026-10-23",
+  }),
+  item({ visitId: "vis-3", status: "CANCELLED_LEFT", visitDate: "2026-10-22" }),
+  item({
+    visitId: "vis-4",
+    status: "AWAITING_CONCLUSION",
+    patientProfileId: "p-child",
+    patientName: "Nguyễn Gia Huy",
+    relationship: "CHILD",
+    visitDate: "2026-10-21",
+  }),
+  item({ visitId: "vis-5", status: "COMPLETED", visitDate: "2026-10-20" }),
+  item({
+    visitId: "vis-6",
+    status: "INCOMPLETE",
+    patientProfileId: "p-legacy",
+    patientName: "Trần Văn Bình",
+    relationship: null,
+    visitDate: "2026-10-18",
+  }),
+];
+
+const ids = (page: { items: { id: string }[] }) =>
+  page.items.map((visit) => visit.id);
+
+beforeEach(() => {
+  request.mockReset();
+  request.mockResolvedValue(rows());
+});
+
+describe("listVisits (API thật)", () => {
+  it("gọi GET /api/v1/me/visits và giữ thứ tự BE", async () => {
+    const page = await listVisits({ when: "recent", page: 0, size: 10 });
+    expect(request).toHaveBeenCalledWith("/api/v1/me/visits", {
+      signal: undefined,
+    });
+    expect(ids(page)).toEqual([
+      "vis-1",
+      "vis-2",
+      "vis-3",
+      "vis-4",
+      "vis-5",
+      "vis-6",
     ]);
+    expect(page).toMatchObject({
+      page: 0,
+      size: 10,
+      totalItems: 6,
+      totalPages: 1,
+    });
   });
 
-  it("gần đây gồm mọi trạng thái trong 30 ngày, mới trước", async () => {
-    const page = await listVisits({ when: "recent", page: 0, size: 10 });
-    expect(page.items.map((item) => item.id)).toEqual([
-      "vis-huy-left",
-      "vis-an-today",
-      "vis-lan-await",
-      "vis-an-done",
-      "vis-lan-incomplete",
-    ]);
+  it("đang diễn ra chỉ gồm Chờ khám, Đang khám, Chờ kết luận", async () => {
+    const page = await listVisits({ when: "active", page: 0, size: 10 });
+    expect(ids(page)).toEqual(["vis-1", "vis-2", "vis-4"]);
   });
 
   it("lọc theo hồ sơ đã gắn qua patientId", async () => {
     const page = await listVisits({
       when: "recent",
-      patientId: profileIdOf("BN-000456"),
+      patientId: "p-child",
       page: 0,
       size: 10,
     });
-    expect(page.items.map((item) => item.id)).toEqual([
-      "vis-lan-await",
-      "vis-lan-incomplete",
-    ]);
+    expect(ids(page)).toEqual(["vis-2", "vis-4"]);
     expect(
-      page.items.every((item) => item.patient.relationship === "PARENT"),
+      page.items.every((visit) => visit.patient.relationship === "CHILD"),
     ).toBe(true);
   });
 
-  it("patientId không thuộc tài khoản → 403 MSG-40", async () => {
-    await expect(
-      listVisits({
-        when: "active",
-        patientId: "00000000-0000-0000-0000-000000000000",
-        page: 0,
-        size: 10,
-      }),
-    ).rejects.toMatchObject({ status: 403, code: "MSG-40" });
-  });
-
-  it("when lạ → 400 MSG-31 kèm lỗi theo trường", async () => {
-    const error = await listVisits({
-      when: "later" as unknown as VisitWhen,
-      page: 0,
-      size: 10,
-    }).catch((err: unknown) => err);
-    expect(error).toBeInstanceOf(ApiError);
-    expect(error).toMatchObject({
-      status: 400,
-      code: "MSG-31",
-      fieldErrors: [{ field: "when", code: "MSG-31" }],
+  it("đổi dòng BE thành lượt; quan hệ cũ là null thì giữ null", async () => {
+    const page = await listVisits({ when: "recent", page: 0, size: 10 });
+    expect(page.items[0]).toEqual({
+      id: "vis-1",
+      visitDate: "2026-10-24",
+      status: "WAITING_FOR_EXAMINATION",
+      patient: { id: "p-self", fullName: "Nguyễn Văn An", relationship: "SELF" },
+    });
+    expect(page.items[5].patient).toEqual({
+      id: "p-legacy",
+      fullName: "Trần Văn Bình",
+      relationship: null,
     });
   });
 
-  it("bỏ gắn hồ sơ thì lượt của hồ sơ đó không còn hiện", async () => {
-    resetLinkedProfilesMock({ variant: "selfOnly" });
+  it("chia trang: đúng cỡ, đúng số trang và tổng; trang vượt quá thì rỗng", async () => {
+    const second = await listVisits({ when: "recent", page: 1, size: 4 });
+    expect(ids(second)).toEqual(["vis-5", "vis-6"]);
+    expect(second).toMatchObject({
+      page: 1,
+      size: 4,
+      totalItems: 6,
+      totalPages: 2,
+    });
+
+    const beyond = await listVisits({ when: "recent", page: 5, size: 4 });
+    expect(beyond.items).toEqual([]);
+  });
+
+  it("không có lượt nào thì trang rỗng, không lỗi", async () => {
+    request.mockResolvedValueOnce([]);
     const page = await listVisits({ when: "active", page: 0, size: 10 });
-    expect(page.items.map((item) => item.id)).toEqual(["vis-an-today"]);
+    expect(page).toMatchObject({ items: [], totalItems: 0, totalPages: 0 });
+  });
+
+  it("chuyển tín hiệu hủy, và lỗi của BE đi nguyên", async () => {
+    const controller = new AbortController();
+    await listVisits({ when: "recent", page: 0, size: 10 }, controller.signal);
+    expect(request).toHaveBeenCalledWith("/api/v1/me/visits", {
+      signal: controller.signal,
+    });
+
+    request.mockRejectedValueOnce(new ApiError(500, { code: "MSG-04" }));
+    await expect(
+      listVisits({ when: "recent", page: 0, size: 10 }),
+    ).rejects.toMatchObject({ status: 500, code: "MSG-04" });
   });
 });
 
-describe("getVisitProgress", () => {
-  it("Chờ kết luận: hai hàng đợi song song, hạn quay lại, chỉ có thanh toán", async () => {
-    const progress = await getVisitProgress("vis-lan-await");
-    expect(progress.queues).toEqual([
-      {
-        roomName: "Phòng X-quang 1",
-        queueType: "SERVICE",
-        queueNumber: 5,
-        peopleAhead: 1,
-        status: "WAITING",
-      },
-      {
-        roomName: "Phòng xét nghiệm",
-        queueType: "SERVICE",
-        queueNumber: 8,
-        peopleAhead: 0,
-        status: "BEING_SERVED",
-      },
-    ]);
-    expect(progress.returnDeadline).toBe("2026-10-29");
-    expect(progress.allowedActions).toEqual(["payOrders"]);
-    expect(progress.updatedAt).toMatch(/\+07:00$/);
-  });
+const progressBody = (patch: Partial<VisitProgress> = {}): VisitProgress => ({
+  visitId: "visit-1",
+  source: "SCHEDULED",
+  status: "OPEN",
+  currentStage: "CONSULTATION",
+  arrivedAt: "2026-10-24T01:00:00Z",
+  queuePosition: null,
+  currentRoom: "Phòng khám 2",
+  queueNumber: 12,
+  peopleAhead: 3,
+  beingCalled: false,
+  serviceOrders: [],
+  ...patch,
+});
 
-  it("Hoàn tất: không hàng đợi, có xem kết quả và đánh giá", async () => {
-    const progress = await getVisitProgress("vis-an-done");
-    expect(progress.queues).toEqual([]);
-    expect(progress.allowedActions).toEqual(["viewResults", "review"]);
-    expect(progress.returnDeadline).toBeNull();
-  });
+describe("getVisitProgress (API thật)", () => {
+  it("gọi đúng đường dẫn progress và trả nguyên dữ liệu BE", async () => {
+    const body = progressBody();
+    request.mockResolvedValueOnce(body);
 
-  it("Đã rời đi: không hàng đợi, không hành động", async () => {
-    const progress = await getVisitProgress("vis-huy-left");
-    expect(progress.status).toBe("CANCELLED_LEFT");
-    expect(progress.queues).toEqual([]);
-    expect(progress.allowedActions).toEqual([]);
-  });
-
-  it("chờ khám có chỉ định chưa thanh toán: được thanh toán, chưa có kết quả", async () => {
-    const progress = await getVisitProgress("vis-an-today");
-    expect(progress.allowedActions).toEqual(["payOrders"]);
-    expect(
-      progress.orders.find((order) => order.id === "svc-cbc")?.status,
-    ).toBe("PENDING_PAYMENT");
-  });
-
-  it("mỗi lần đọc số người phía trước giảm 1; về 0 thì đang gọi", async () => {
-    const seen: Array<[number, string]> = [];
-    for (let read = 0; read < 4; read += 1) {
-      const progress = await getVisitProgress("vis-an-today");
-      seen.push([progress.queues[0].peopleAhead, progress.queues[0].status]);
-    }
-    expect(seen).toEqual([
-      [3, "WAITING"],
-      [2, "WAITING"],
-      [1, "WAITING"],
-      [0, "BEING_SERVED"],
-    ]);
-  });
-
-  it("mã lượt lạ → 404 MSG-41", async () => {
-    await expect(getVisitProgress("vis-khong-co")).rejects.toMatchObject({
-      status: 404,
-      code: "MSG-41",
+    await expect(getVisitProgress("visit-1")).resolves.toEqual(body);
+    expect(request).toHaveBeenCalledWith("/api/v1/visits/visit-1/progress", {
+      signal: undefined,
     });
   });
 
-  it("lượt của hồ sơ đã bỏ gắn → 403 MSG-40", async () => {
-    resetLinkedProfilesMock({ variant: "selfOnly" });
-    await expect(getVisitProgress("vis-lan-await")).rejects.toMatchObject({
+  it("mã hóa mã lượt trong đường dẫn và chuyển tín hiệu hủy", async () => {
+    request.mockResolvedValueOnce(progressBody());
+    const controller = new AbortController();
+
+    await getVisitProgress("a/b", controller.signal);
+    expect(request).toHaveBeenCalledWith("/api/v1/visits/a%2Fb/progress", {
+      signal: controller.signal,
+    });
+  });
+
+  it("lỗi của BE đi nguyên: 404 MSG-41 và 403 MSG-40", async () => {
+    request.mockRejectedValueOnce(new ApiError(404, { code: "MSG-41" }));
+    await expect(getVisitProgress("khong-co")).rejects.toMatchObject({
+      status: 404,
+      code: "MSG-41",
+    });
+
+    request.mockRejectedValueOnce(new ApiError(403, { code: "MSG-40" }));
+    await expect(getVisitProgress("cua-nguoi-khac")).rejects.toMatchObject({
       status: 403,
       code: "MSG-40",
     });

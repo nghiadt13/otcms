@@ -12,6 +12,8 @@ import { formatAppMessage, messageFromError } from "@/lib/messages/appMessages";
 import { notifyError, notifyWarning } from "@/lib/messages/notify";
 import type { useAppointmentUrlState } from "../hooks/useAppointmentUrlState";
 import { useDoctorAvailability } from "../hooks/useDoctorAvailability";
+import { listBookableServices } from "../api/bookingLiveApi";
+import type { BookableService } from "../types/booking";
 import type { useDoctorLookup } from "../hooks/useDoctorLookup";
 import { messageFromRangeError } from "../schema/appointmentMessages";
 import {
@@ -36,6 +38,15 @@ export function AvailabilityTab({ url, lookup }: AvailabilityTabProps) {
   const [doctorEdit, setDoctorEdit] = useState<{ value?: string } | null>(null);
   const [modeEdit, setModeEdit] = useState<Mode | null>(null);
   const [fromEdit, setFromEdit] = useState<string | null>(null);
+  const [serviceId, setServiceId] = useState("");
+  const [services, setServices] = useState<BookableService[]>([]);
+  const [serviceError, setServiceError] = useState("");
+  useEffect(() => {
+    const controller = new AbortController();
+    listBookableServices(controller.signal).then((result) => setServices(result.items))
+      .catch((error: unknown) => { if (!controller.signal.aborted) setServiceError(messageFromError(error)); });
+    return () => controller.abort();
+  }, []);
   const doctor = doctorEdit ? doctorEdit.value : state.doctorId;
   const mode: Mode = modeEdit ?? (range.from === range.to ? "day" : "week");
   const from = fromEdit ?? range.from;
@@ -45,9 +56,10 @@ export function AvailabilityTab({ url, lookup }: AvailabilityTabProps) {
   const notBookable = urlDoctor !== undefined && !urlDoctor.bookable;
   const rangeError = rangeErrorCode(range.from, range.to);
   const enabled =
-    Boolean(state.doctorId) && !rangeError && !notBookable && !lookup.loading;
+    Boolean(state.doctorId && serviceId) && !rangeError && !notBookable && !lookup.loading;
   const avail = useDoctorAvailability(
     state.doctorId,
+    serviceId,
     range.from,
     range.to,
     enabled,
@@ -107,6 +119,7 @@ export function AvailabilityTab({ url, lookup }: AvailabilityTabProps) {
   return (
     <div className="grid gap-4">
       <div className="flex flex-wrap items-end gap-3">
+        <label className="grid gap-1.5">Dịch vụ<select className="rounded-md border p-2" value={serviceId} onChange={(event) => setServiceId(event.target.value)}><option value="">Chọn dịch vụ</option>{services.map((service) => <option key={service.id} value={service.id}>{service.name}</option>)}</select>{serviceError && <span role="alert">{serviceError}</span>}</label>
         <div className="grid w-full gap-1.5 sm:w-auto">
           <Label htmlFor={`${id}-doctor`}>Bác sĩ</Label>
           <DoctorCombobox
@@ -151,7 +164,7 @@ export function AvailabilityTab({ url, lookup }: AvailabilityTabProps) {
         </div>
         <Button
           className="w-full sm:w-auto"
-          disabled={!doctor || !from || avail.loading}
+          disabled={!doctor || !serviceId || !from || avail.loading}
           onClick={apply}
         >
           {avail.loading ? "Đang tải..." : "Xem giờ trống"}

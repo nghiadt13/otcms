@@ -20,6 +20,7 @@ public interface ClinicContentRepository {
     void image(WebsiteImage image);
     Optional<WebsiteImage> image(UUID id);
     ContentPage<ClinicAnnouncement> announcements(Filters filters, boolean publicOnly);
+    ContentPage<ClinicAnnouncement> patientAnnouncements(Filters filters);
     Optional<ClinicAnnouncement> announcement(UUID id, boolean publicOnly);
     ClinicAnnouncement insert(ClinicAnnouncement entry);
     void audit(UUID actor, String category, String action, UUID recordId, String recordLabel, Instant at);

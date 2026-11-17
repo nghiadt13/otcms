@@ -28,10 +28,10 @@ public interface AppointmentRescheduleRepository extends JpaRepository<Appointme
 
     @Modifying
     @Query(value = """
-            update appointments set start_time = :start, end_time = :end, updated_at = :updated
+            update appointments set doctor_profile_id = :doctorId, start_time = :start, end_time = :end, updated_at = :updated
             where id = :id and status = 'CONFIRMED'
             """, nativeQuery = true)
-    int updateSchedule(@Param("id") UUID id, @Param("start") Timestamp start,
+    int updateSchedule(@Param("id") UUID id, @Param("doctorId") UUID doctorId, @Param("start") Timestamp start,
             @Param("end") Timestamp end, @Param("updated") Timestamp updated);
 
     @Query(value = """
@@ -52,14 +52,14 @@ public interface AppointmentRescheduleRepository extends JpaRepository<Appointme
                 AppointmentRowMapper.instant(row[13])));
     }
 
-    default CreatedAppointment reschedule(ReschedulableAppointment old, Instant start, Instant end,
+    default CreatedAppointment reschedule(ReschedulableAppointment old, UUID doctorId, Instant start, Instant end,
             UUID actorAccountId, String actorType, String reason, Instant occurredAt, String correlationId) {
         try {
-            if (updateSchedule(old.id(), Timestamp.from(start), Timestamp.from(end), Timestamp.from(occurredAt)) != 1) {
+            if (updateSchedule(old.id(), doctorId, Timestamp.from(start), Timestamp.from(end), Timestamp.from(occurredAt)) != 1) {
                 throw new IllegalStateException("Appointment changed inside guarded reschedule transaction");
             }
         } catch (DataIntegrityViolationException exception) {
-            if (hasSqlState(exception, "23P01")) throw new AppointmentBookingException("SLOT_UNAVAILABLE", exception);
+            if (hasSqlState(exception, "23P01")) throw new AppointmentBookingException("DOCTOR_NOT_ELIGIBLE", exception);
             throw exception;
         }
         return AppointmentRowMapper.createdAppointment(findRescheduledResult(old.id()).getFirst());

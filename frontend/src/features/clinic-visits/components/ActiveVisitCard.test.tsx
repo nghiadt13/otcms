@@ -1,28 +1,41 @@
 import { render, screen } from "@testing-library/react";
-import { beforeEach, describe, expect, it } from "vitest";
-import { resetLinkedProfilesMock } from "@/lib/patient-scope/linkedProfilesMockStore";
-import { listVisits } from "../api/visitApi";
-import { resetVisitMock } from "../api/visitMockStore";
-import type { VisitSummary } from "../types/visitProgress";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { getVisitProgress } from "../api/visitApi";
+import type { VisitProgress, VisitSummary } from "../types/visitProgress";
 import { ActiveVisitCard } from "./ActiveVisitCard";
 
-const NOW = new Date("2026-10-24T08:00:00+07:00");
+// Tiến độ là API thật nên mock ở ranh giới getVisitProgress; lượt là dữ liệu dựng sẵn (không gọi danh sách).
+vi.mock("../api/visitApi", () => ({ getVisitProgress: vi.fn() }));
 
-async function activeVisitOf(id: string): Promise<VisitSummary> {
-  const page = await listVisits({ when: "active", page: 0, size: 10 });
-  const visit = page.items.find((item) => item.id === id);
-  if (!visit) throw new Error(`thiếu lượt ${id}`);
-  return visit;
-}
+const visit: VisitSummary = {
+  id: "vis-an-today",
+  visitDate: "2026-10-24",
+  status: "WAITING_FOR_EXAMINATION",
+  patient: { id: "p-an", fullName: "Nguyễn Văn An", relationship: "SELF" },
+};
+
+const progress: VisitProgress = {
+  visitId: "vis-an-today",
+  source: "SCHEDULED",
+  status: "OPEN",
+  currentStage: "CONSULTATION",
+  arrivedAt: "2026-10-24T01:00:00Z",
+  queuePosition: null,
+  currentRoom: "Phòng khám 2",
+  queueNumber: 12,
+  peopleAhead: 3,
+  beingCalled: false,
+  serviceOrders: [],
+};
 
 beforeEach(() => {
-  resetLinkedProfilesMock();
-  resetVisitMock({ now: NOW });
+  vi.mocked(getVisitProgress).mockReset();
+  vi.mocked(getVisitProgress).mockResolvedValue(progress);
 });
 
 describe("ActiveVisitCard", () => {
   it("hiện người khám, trạng thái, số thứ tự và số người phía trước bằng chữ", async () => {
-    render(<ActiveVisitCard visit={await activeVisitOf("vis-an-today")} />);
+    render(<ActiveVisitCard visit={visit} />);
 
     expect(
       await screen.findByText("Nguyễn Văn An · Bản thân"),
@@ -33,10 +46,28 @@ describe("ActiveVisitCard", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("Số thứ tự")).toBeInTheDocument();
     expect(screen.getByText("12")).toHaveClass("tabular-nums");
+    expect(getVisitProgress).toHaveBeenCalledWith(
+      "vis-an-today",
+      expect.any(AbortSignal),
+    );
+  });
+
+  it("chưa vào hàng thì ghi không chờ ở phòng nào", async () => {
+    vi.mocked(getVisitProgress).mockResolvedValue({
+      ...progress,
+      queueNumber: null,
+      peopleAhead: null,
+      currentRoom: null,
+    });
+    render(<ActiveVisitCard visit={visit} />);
+
+    expect(
+      await screen.findByText("Hiện bạn không chờ ở phòng nào."),
+    ).toBeInTheDocument();
   });
 
   it("nút Xem tiến độ dẫn tới chi tiết lượt và gọi tên người khám", async () => {
-    render(<ActiveVisitCard visit={await activeVisitOf("vis-an-today")} />);
+    render(<ActiveVisitCard visit={visit} />);
 
     const link = await screen.findByRole("link", {
       name: "Xem tiến độ của Nguyễn Văn An",
@@ -45,7 +76,6 @@ describe("ActiveVisitCard", () => {
   });
 
   it("chỉ lượt đầu tiên là nút chính; lượt khác là nút phụ", async () => {
-    const visit = await activeVisitOf("vis-an-today");
     const { rerender } = render(<ActiveVisitCard primary visit={visit} />);
     expect(
       await screen.findByRole("link", {

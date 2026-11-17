@@ -63,3 +63,16 @@ describe("ApiError dựng từ errorCode", () => {
     ).toBeUndefined();
   });
 });
+
+describe("lỗi đổi giờ và hủy lịch hiển thị đúng câu R3", () => {
+  it.each([
+    ["DOCTOR_NOT_ELIGIBLE", "MSG-24"],
+    ["APPOINTMENT_NOT_CHANGEABLE", "MSG-32"],
+    ["APPOINTMENT_NOT_FOUND", "MSG-29"],
+    ["VALIDATION_FAILED", "MSG-04"],
+  ])("errorCode %s hiển thị câu của %s", (errorCode, msgCode) => {
+    expect(messageFromError(new ApiError(422, { errorCode }))).toBe(
+      APP_MESSAGES[msgCode],
+    );
+  });
+});

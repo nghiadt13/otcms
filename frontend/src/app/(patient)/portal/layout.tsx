@@ -3,7 +3,6 @@ import { BookingMockStoreBootstrap } from "@/features/appointments/components/Bo
 import { SiteTopBar } from "@/features/clinic-website/components/SiteTopBar";
 import { siteNavItems } from "@/features/clinic-website/siteNavigation";
 import { PatientNotificationBell } from "@/features/notifications/components/PatientNotificationBell";
-import { PatientNotificationMockBootstrap } from "@/features/notifications/components/PatientNotificationMockBootstrap";
 import { OwnProfileCompleteGate } from "@/features/patient-profiles/components/OwnProfileCompleteGate";
 import { PatientAuthGate } from "@/features/patient-shell/components/PatientAuthGate";
 import { PatientPortalHeader } from "@/features/patient-shell/components/PatientPortalHeader";
@@ -16,7 +15,6 @@ import { PortalAreaFrame } from "./_area/PortalAreaFrame";
 // khi backend xác nhận người đăng nhập là bệnh nhân (chưa đăng nhập → /login); quyền thật vẫn
 // do backend kiểm từng API. Dải thông tin ghép ở đây vì feature patient-shell không import
 // clinic-website. Chuông thông báo đi qua slot của header.
-// BookingMockStoreBootstrap và PatientNotificationMockBootstrap chỉ nạp kho giả (mock), xóa khi nối BE.
 export default async function PatientPortalLayout({
   children,
 }: {
@@ -39,7 +37,6 @@ export default async function PatientPortalLayout({
         siteLinks={siteLinks}
       />
       <BookingMockStoreBootstrap />
-      <PatientNotificationMockBootstrap />
       <main className="mx-auto max-w-3xl px-4 py-6 has-[[data-portal-wide]]:max-w-6xl md:py-10">
         <PortalAreaFrame>{children}</PortalAreaFrame>
       </main>

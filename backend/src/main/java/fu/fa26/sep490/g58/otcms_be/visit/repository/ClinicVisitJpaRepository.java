@@ -70,6 +70,35 @@ public interface ClinicVisitJpaRepository extends JpaRepository<ClinicVisitJpaEn
             @Param("patientId") UUID patientProfileId, @Param("currentId") UUID currentVisitId,
             @Param("before") java.time.Instant before, org.springframework.data.domain.Pageable pageable);
 
+    /**
+     * Lượt của các hồ sơ trong phạm vi (BR-19) đang mở hoặc check-in từ {@code since}; bỏ lượt còn chờ thu phí.
+     * Cột: id, patient_profile_id, checked_in_at, status, trạng thái khám gần nhất, số thứ tự và tên phòng của
+     * hàng đang chờ khám hoặc dịch vụ (null khi không ở hàng).
+     */
+    @Query(value = """
+            select v.id, v.patient_profile_id, v.checked_in_at, v.status, exam.status, active.queue_number,
+                   active.room_label
+            from visits v
+            left join lateral (
+                select q.status from queue_entries q
+                where q.visit_id = v.id and q.stage = 'EXAM'
+                order by q.entered_at desc, q.id desc limit 1
+            ) exam on true
+            left join lateral (
+                select q.queue_number, room.display_label as room_label
+                from queue_entries q left join rooms room on room.id = q.room_id
+                where q.visit_id = v.id and q.stage in ('EXAM', 'SERVICE')
+                  and q.status in ('WAITING', 'CALLED', 'IN_EXAMINATION')
+                order by q.entered_at desc, q.id desc limit 1
+            ) active on true
+            where v.patient_profile_id in (:profileIds)
+              and (v.status = 'OPEN' or v.checked_in_at >= :since)
+              and coalesce(exam.status, '') <> 'PENDING_PAYMENT'
+            order by v.checked_in_at desc, v.id desc
+            """, nativeQuery = true)
+    java.util.List<Object[]> findMyVisitRows(
+            @Param("profileIds") java.util.Collection<UUID> profileIds, @Param("since") java.sql.Timestamp since);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select visit from ClinicVisitJpaEntity visit where visit.id = :visitId")
     Optional<ClinicVisitJpaEntity> findByIdForUpdate(@Param("visitId") UUID visitId);

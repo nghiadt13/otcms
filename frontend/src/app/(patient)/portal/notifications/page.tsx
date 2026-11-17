@@ -1,3 +1,4 @@
+import { PatientAnnouncements } from "@/features/announcements/components/PatientAnnouncements";
 import { PortalPageHeader } from "@/components/patient/PortalPageHeader";
 import { PatientNotificationsClient } from "./PatientNotificationsClient";
 
@@ -15,6 +16,7 @@ export default function PatientNotificationsPage() {
         title="Thông báo"
       />
       <PatientNotificationsClient />
+      <PatientAnnouncements />
     </>
   );
 }

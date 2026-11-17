@@ -5,7 +5,7 @@ import type { AppointmentStatus } from "@/lib/domain/clinicVisit";
 
 // Enum dùng chung ở lib/domain; giữ re-export để các file trong feature không đổi import.
 export type { AppointmentStatus };
-export type AppointmentAction = "reassign" | "notifyNoReplacement";
+export type AppointmentAction = "reassign";
 export type SlotStatus = "FREE" | "BOOKED";
 export type AppointmentTab = "list" | "availability";
 

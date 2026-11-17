@@ -7,7 +7,7 @@ import { resetLinkedProfilesMock } from "@/lib/patient-scope/linkedProfilesMockS
 import {
   getUnreadNotificationCount,
   resetNotificationMockStore,
-} from "../api/notificationApi";
+} from "../api/notificationTestServer";
 import { MOCK_PATIENT_NOTIFICATIONS } from "../api/patientNotificationMockData";
 import type { NotificationItem } from "../types/notification";
 import type { NotificationRecordHrefResolver } from "../utils/notificationRecordLinks";
@@ -164,3 +164,5 @@ describe("PatientNotificationsScreen", () => {
     expect(notifyError).not.toHaveBeenCalled();
   });
 });
+
+vi.mock("@/lib/api/client", async () => await import("../api/notificationTestClient"));

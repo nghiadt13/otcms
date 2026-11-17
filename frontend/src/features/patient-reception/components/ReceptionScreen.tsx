@@ -1,5 +1,7 @@
 "use client";
 
+import type { ComponentType } from "react";
+import type { ReceptionAppointment } from "../api/receptionLiveApi";
 import {
   isReceptionSectionAvailable,
   type ReceptionSection,
@@ -17,7 +19,7 @@ import { NoticeScreen, ReferenceScreen } from "./ReferenceScreens";
 import { ClinicalRoundOrdersScreen } from "./ClinicalRoundOrdersScreen";
 import { AccountScreen } from "./AccountScreen";
 
-export function ReceptionScreen({ section }: { section: ReceptionSection }) {
+export function ReceptionScreen({ section, appointmentActions }: { section: ReceptionSection; appointmentActions?: ComponentType<{ appointment: ReceptionAppointment; onChanged: () => void }> }) {
   const { data, loading, error } = useReception();
   if (!isReceptionSectionAvailable(section)) return <ReceptionSectionLocked />;
   if (!data)
@@ -34,7 +36,7 @@ export function ReceptionScreen({ section }: { section: ReceptionSection }) {
     case "patients":
       return <PatientSearchScreen />;
     case "appointments":
-      return <AppointmentScreen />;
+      return <AppointmentScreen Actions={appointmentActions} />;
     case "queues":
       return <QueueScreen />;
     case "visits":

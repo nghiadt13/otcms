@@ -70,11 +70,7 @@ describe("receptionFeedback", () => {
     ).toEqual({ tone: "error", text: APP_MESSAGES["MSG-53"] });
   });
 
-  it("điều phối hàng đợi dùng MSG-43, đặt lịch dùng MSG-26", async () => {
-    expect(
-      (await command({ type: "call-next", roomId: "p101", kind: "exam" }))
-        ?.text,
-    ).toBe(APP_MESSAGES["MSG-43"]);
+  it("đặt lịch dùng MSG-26", async () => {
     expect(
       (
         await command({

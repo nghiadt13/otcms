@@ -22,6 +22,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
         fu.fa26.sep490.g58.otcms_be.visit.controller.VisitRoomAdminController.class,
         fu.fa26.sep490.g58.otcms_be.visit.controller.StaffRoomQueryController.class,
         fu.fa26.sep490.g58.otcms_be.visit.controller.VisitReceptionReadController.class,
+        fu.fa26.sep490.g58.otcms_be.visit.controller.QueueRoomController.class,
         fu.fa26.sep490.g58.otcms_be.visit.controller.VisitExamQueueController.class
 })
 @Order(Ordered.HIGHEST_PRECEDENCE)
@@ -29,6 +30,9 @@ public class VisitApiExceptionHandler {
     @ExceptionHandler(VisitOperationException.class)
     public ResponseEntity<ErrorResponse> handle(VisitOperationException exception, HttpServletRequest request) {
         HttpStatus status = switch (exception.code()) {
+            case "MSG-40" -> HttpStatus.FORBIDDEN;
+            case "MSG-41" -> HttpStatus.NOT_FOUND;
+            case "MSG-42" -> HttpStatus.CONFLICT;
             case "ACCESS_DENIED" -> HttpStatus.FORBIDDEN;
             case "RESOURCE_NOT_FOUND", "ROOM_NOT_FOUND" -> HttpStatus.NOT_FOUND;
             case "IDEMPOTENCY_CONFLICT", "VISIT_LINK_CONFLICT", "VISIT_CAPACITY_NOT_AVAILABLE",
@@ -55,7 +59,8 @@ public class VisitApiExceptionHandler {
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<ErrorResponse> malformed(HttpMessageNotReadableException exception,
             HttpServletRequest request) {
-        return ResponseEntity.badRequest().body(ErrorResponse.of("VALIDATION_FAILED", "Invalid request body",
+        String code = request.getRequestURI().startsWith("/api/v1/queue/") ? "MSG-39" : "VALIDATION_FAILED";
+        return ResponseEntity.badRequest().body(ErrorResponse.of(code, "Invalid request body",
                 CorrelationIdFilter.current(request)));
     }
 
@@ -73,7 +78,9 @@ public class VisitApiExceptionHandler {
             return ResponseEntity.status(HttpStatus.CONFLICT).body(ErrorResponse.of("SLOT_UNAVAILABLE",
                     "The requested appointment slot is no longer available", CorrelationIdFilter.current(request)));
         }
-        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(ErrorResponse.of("DEPENDENCY_UNAVAILABLE",
+        String code = request.getRequestURI().startsWith("/api/v1/queue/")
+                || request.getRequestURI().startsWith("/api/v1/public/queue/") ? "MSG-04" : "DEPENDENCY_UNAVAILABLE";
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(ErrorResponse.of(code,
                 "A required database operation is temporarily unavailable", CorrelationIdFilter.current(request)));
     }
 

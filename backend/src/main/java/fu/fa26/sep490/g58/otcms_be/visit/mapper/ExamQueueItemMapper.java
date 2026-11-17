@@ -5,6 +5,9 @@ import fu.fa26.sep490.g58.otcms_be.visit.model.dto.response.ExamQueueDtos;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.OffsetDateTime;
+import java.time.LocalDate;
+import java.time.Period;
+import java.util.List;
 import java.util.Comparator;
 import java.util.Map;
 import java.util.UUID;
@@ -27,7 +30,8 @@ public final class ExamQueueItemMapper {
     }
 
     public static ExamQueueDtos.DoctorItem doctorItem(Object[] row, Map<UUID, ProfileRecord> patients,
-            Map<UUID, String> doctorNames) {
+            Map<UUID, String> doctorNames, LocalDate today,
+            List<fu.fa26.sep490.g58.otcms_be.clinical.service.ClinicalVisitOrderQueryService.Order> orders) {
         ExamQueueDtos.Item base = item(row, patients, doctorNames);
         ProfileRecord patient = patients.get(base.patientProfileId());
         return new ExamQueueDtos.DoctorItem(base.visitId(), base.queueNumber(), base.examStatus(), base.source(),
@@ -35,7 +39,9 @@ public final class ExamQueueItemMapper {
                 base.doctorName(), base.roomId(), base.roomLabel(), base.serviceId(), base.queuedAt(),
                 base.startedAt(), base.finishedAt(),
                 patient == null ? null : patient.dateOfBirth(),
-                patient == null ? null : patient.gender());
+                patient == null ? null : patient.gender(),
+                patient == null || patient.dateOfBirth() == null ? null : Period.between(patient.dateOfBirth(), today).getYears(),
+                orders);
     }
 
     /** Doctor name, then queue number (unnumbered rows last), then creation time, then visit id. */

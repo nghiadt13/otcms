@@ -140,14 +140,14 @@ class AppointmentAvailabilityT019PostgresIntegrationTest {
     }
 
     @Test
-    void doctorMayInspectAnotherEligibleProviderForFollowUp() throws Exception {
+    void doctorAvailabilityIsRestrictedToOwnProfile() throws Exception {
         mvc.perform(get("/api/v1/staff/appointments/availability").with(actor(AccountType.DOCTOR))
                         .param("serviceId", serviceId.toString())
                         .param("doctorId", doctorIds.get(1).toString())
                         .param("from", AVAILABLE_DATE.toString()).param("to", AVAILABLE_DATE.toString()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.slots[*].doctorId", hasItem(doctorIds.get(1).toString())))
-                .andExpect(jsonPath("$.slots[*].doctorId", not(hasItem(doctorIds.get(0).toString()))));
+                .andExpect(jsonPath("$.slots[*].doctorId", hasItem(doctorIds.get(0).toString())))
+                .andExpect(jsonPath("$.slots[*].doctorId", not(hasItem(doctorIds.get(1).toString()))));
     }
 
     @Test
@@ -206,7 +206,7 @@ class AppointmentAvailabilityT019PostgresIntegrationTest {
     }
 
     private RequestPostProcessor actor(AccountType type) {
-        var principal = new AuthenticatedAccount(UUID.randomUUID(), fu.fa26.sep490.g58.otcms_be.common.security.AccountRole.valueOf(type.name()), UUID.randomUUID());
+        var principal = new AuthenticatedAccount(type == AccountType.DOCTOR ? accountIds.get(0) : UUID.randomUUID(), fu.fa26.sep490.g58.otcms_be.common.security.AccountRole.valueOf(type.name()), UUID.randomUUID());
         return authentication(new UsernamePasswordAuthenticationToken(principal, null,
                 List.of(new SimpleGrantedAuthority("ROLE_" + type.name()))));
     }

@@ -62,9 +62,8 @@ export function receptionFeedback(
   next: ReceptionState,
 ): ReceptionFeedback | null {
   switch (command.type) {
-    case "save-patient":
     case "confirm-link":
-      return success(formatAppMessage("MSG-90"));
+      return success(formatAppMessage("MSG-84"));
     case "book":
       return success(formatAppMessage("MSG-26"));
     case "reassign": {
@@ -76,9 +75,6 @@ export function receptionFeedback(
     }
     case "check-in":
       return checkInFeedback(command.patientId, next);
-    case "call-next":
-    case "queue-action":
-    case "reorder":
     case "move-room":
     case "transfer-doctor":
       return success(formatAppMessage("MSG-43"));

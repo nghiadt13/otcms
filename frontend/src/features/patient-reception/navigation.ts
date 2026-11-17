@@ -129,6 +129,7 @@ export const ReceiptIcon = ReceiptText;
 const LIVE_RECEPTION_SECTIONS: ReadonlySet<ReceptionSection> =
   new Set<ReceptionSection>([
     "",
+    "patients",
     "appointments",
     "queues",
     "orders",

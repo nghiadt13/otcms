@@ -79,3 +79,5 @@ describe("NewReviewScreen", () => {
     expect(replace).not.toHaveBeenCalled();
   });
 });
+
+vi.mock("@/lib/api/client", async () => await import("../api/reviewTestClient"));

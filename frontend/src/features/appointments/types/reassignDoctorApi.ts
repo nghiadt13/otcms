@@ -28,6 +28,4 @@ export interface ReassignDoctorApi<
 > extends EligibleDoctorsApi {
   /** Chuyển sang bác sĩ đã chọn, giờ không đổi. Trả bản ghi mới từ BE. */
   reassign(appointment: T, doctorId: string, reason: string): Promise<T>;
-  /** Báo cho bệnh nhân khi không có bác sĩ thay (AF1). Lịch vẫn Đã đặt. */
-  notifyNoReplacement?(appointmentId: string): Promise<T>;
 }

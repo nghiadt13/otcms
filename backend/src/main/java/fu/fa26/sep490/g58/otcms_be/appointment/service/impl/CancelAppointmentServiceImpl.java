@@ -19,7 +19,6 @@ import fu.fa26.sep490.g58.otcms_be.common.service.CoordinationGuardService;
 import fu.fa26.sep490.g58.otcms_be.common.exception.CoordinationGuardUnavailableException;
 import fu.fa26.sep490.g58.otcms_be.patient.exception.PatientAuthorizationDeniedException;
 import fu.fa26.sep490.g58.otcms_be.patient.service.AuthorizePatientProfileService;
-import fu.fa26.sep490.g58.otcms_be.visit.exception.VisitWorkflowException;
 import fu.fa26.sep490.g58.otcms_be.visit.service.VisitScheduledCareService;
 import fu.fa26.sep490.g58.otcms_be.appointment.repository.AppointmentLifecycleRepository;
 import org.springframework.dao.DataAccessException;
@@ -27,8 +26,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -39,14 +36,11 @@ import java.util.function.Supplier;
 @Service
 public class CancelAppointmentServiceImpl implements CancelAppointmentService {
     private final AuditLogWriter auditLogWriter;
-    private static final Logger log = LoggerFactory.getLogger(CancelAppointmentServiceImpl.class);
     private final CoordinationGuardService guard;
     private final AppointmentCancellationRepository appointments;
     private final AuthorizePatientProfileService patientAuthorization;
     private final AppointmentBookingProperties properties;
     private final Clock clock;
-    private final AppointmentLifecycleRepository lifecycle;
-    private final VisitScheduledCareService visits;
     private final NotificationPublisher notifications;
     private final StaffAvailabilityProviderQueryService doctors;
     private final BillingRefundService fees;
@@ -73,8 +67,6 @@ public class CancelAppointmentServiceImpl implements CancelAppointmentService {
         this.patientAuthorization = patientAuthorization;
         this.properties = properties;
         this.clock = clock;
-        this.lifecycle = lifecycle;
-        this.visits = visits;
         this.notifications = notifications;
         this.doctors = doctors;
     }
@@ -118,60 +110,26 @@ public class CancelAppointmentServiceImpl implements CancelAppointmentService {
             throw new AppointmentBookingException("VISIT_CANCELLATION_NOT_ALLOWED");
         }
         if ("CHECKED_IN".equals(current.status())) {
-            // B3: after check-in only the admin may cancel (and only while care has not started, see below).
-            if (command.actor() != CancelAppointmentCommand.Actor.ADMIN) {
-                throw new AppointmentBookingException("APPOINTMENT_NOT_CHANGEABLE");
-            }
-            if (lifecycle == null || visits == null) {
-                throw new AppointmentBookingException("APPOINTMENT_NOT_CHANGEABLE");
-            }
-            if (current.visitId() == null) {
-                throw new AppointmentBookingException("VISIT_LINK_CONFLICT");
-            }
-            try {
-                visits.cancelCheckedInVisit(new VisitScheduledCareService.ScheduledCareCommand(appointmentId,
-                        current.visitId(), current.patientProfileId(), current.doctorProfileId(), current.endTime(), now,
-                        command.actorAccountId(), current.durationMinutes(), command.correlationId()));
-            } catch (VisitWorkflowException failure) {
-                if ("VISIT_CANCELLATION_NOT_ALLOWED".equals(failure.code())
-                        || "VISIT_LINK_CONFLICT".equals(failure.code())) {
-                    throw new AppointmentBookingException(failure.code(), failure);
-                }
-                throw new AppointmentBookingException("DEPENDENCY_UNAVAILABLE", failure);
-            } catch (DataAccessException failure) {
-                log.error("Checked-in visit cancellation persistence failed for appointment {}", appointmentId, failure);
-                throw new AppointmentBookingException("DEPENDENCY_UNAVAILABLE", failure);
-            }
-            var checkedIn = lifecycle.findForUpdate(appointmentId)
-                    .orElseThrow(() -> new AppointmentBookingException("APPOINTMENT_NOT_FOUND"));
-            if (!"CHECKED_IN".equals(checkedIn.status())) throw new AppointmentBookingException("APPOINTMENT_NOT_CHANGEABLE");
-            try {
-                var cancelled = lifecycle.transition(checkedIn, command.actorAccountId(), command.actor().name(),
-                        "CANCELLED", command.reason().trim(), now, command.correlationId());
-                AppointmentAuditEntries.record(auditLogWriter, AppointmentAuditEntries.changed(checkedIn.id(), command.actorAccountId(), command.actor().name(), "CANCELLED",
-                checkedIn.status(), "CANCELLED", checkedIn.doctorProfileId(), checkedIn.doctorProfileId(),
-                checkedIn.startTime(), checkedIn.startTime(), checkedIn.endTime(), checkedIn.endTime(),
-                checkedIn.visitId(), checkedIn.sourceVisitId(), command.reason().trim(), null, now), command.correlationId());
-                settleFee(current, command);
-                publishCancellation(current, command);
-                return cancelled;
-            } catch (DataAccessException failure) {
-                log.error("Checked-in appointment lifecycle persistence failed for appointment {}", appointmentId, failure);
-                throw new AppointmentBookingException("DEPENDENCY_UNAVAILABLE", failure);
-            }
+            throw new AppointmentBookingException("APPOINTMENT_NOT_CHANGEABLE");
         }
         if (!"CONFIRMED".equals(current.status())) throw new AppointmentBookingException("APPOINTMENT_NOT_CHANGEABLE");
         if (command.actor() == CancelAppointmentCommand.Actor.PATIENT
                 && current.startTime().isBefore(now.plus(properties.patientChangeDeadlineMinutes(), ChronoUnit.MINUTES))) {
             throw new AppointmentBookingException("APPOINTMENT_CHANGE_TOO_LATE");
         }
-        var cancelled = appointments.cancel(current, command.actorAccountId(), command.actor().name(),
-                command.reason() == null ? null : command.reason().trim(), now, command.correlationId());
-        AppointmentAuditEntries.record(auditLogWriter, AppointmentAuditEntries.changed(current.id(), command.actorAccountId(), command.actor().name(), "CANCELLED",
-                "CONFIRMED", "CANCELLED", current.doctorProfileId(), current.doctorProfileId(),
-                current.startTime(), current.startTime(), current.endTime(), current.endTime(),
-                current.visitId(), current.sourceVisitId(), command.reason() == null ? null : command.reason().trim(), null, now), command.correlationId());
-        settleFee(current, command);
+        CreatedAppointment cancelled;
+        try {
+            cancelled = appointments.cancel(current, command.actorAccountId(), command.actor().name(),
+                    command.reason() == null ? null : command.reason().trim(), now, command.correlationId());
+            AppointmentAuditEntries.record(auditLogWriter, AppointmentAuditEntries.changed(current.id(), command.actorAccountId(), command.actor().name(), "CANCELLED",
+                    "CONFIRMED", "CANCELLED", current.doctorProfileId(), current.doctorProfileId(),
+                    current.startTime(), current.startTime(), current.endTime(), current.endTime(),
+                    current.visitId(), current.sourceVisitId(), command.reason() == null ? null : command.reason().trim(), null, now), command.correlationId());
+            settleFee(current, command);
+        } catch (DataAccessException failure) {
+            // Audit or update failure rolls the whole cancellation back and surfaces as 503, like check-in.
+            throw new AppointmentBookingException("DEPENDENCY_UNAVAILABLE", failure);
+        }
         publishCancellation(current, command);
         return cancelled;
     }
