@@ -177,6 +177,25 @@ export function reassignReceptionAppointment(input: {
   );
 }
 
+export function getReceptionRescheduleAvailability(appointmentId: string, from: string, to: string, signal?: AbortSignal) {
+  return apiRequest<{ slots: ReceptionAvailabilitySlot[] }>(
+    `/api/v1/appointments/${encodeURIComponent(appointmentId)}/reschedule-availability${toQueryString({ from, to })}`,
+    { signal },
+  );
+}
+
+export function rescheduleReceptionAppointment(input: { appointmentId: string; doctorId: string; startTime: string; reason: string }) {
+  return apiRequest<ReceptionAppointment>(`/api/v1/appointments/${encodeURIComponent(input.appointmentId)}/reschedule`, {
+    method: "PATCH", body: JSON.stringify({ doctorId: input.doctorId, startTime: input.startTime, reason: input.reason.trim() }),
+  });
+}
+
+export function cancelReceptionAppointment(input: { appointmentId: string; reason: string }) {
+  return apiRequest<ReceptionAppointment>(`/api/v1/appointments/${encodeURIComponent(input.appointmentId)}/cancel`, {
+    method: "POST", body: JSON.stringify({ reason: input.reason.trim() }),
+  });
+}
+
 export function listReceptionArrivals(
   query: { date: string; state?: string },
   signal?: AbortSignal,

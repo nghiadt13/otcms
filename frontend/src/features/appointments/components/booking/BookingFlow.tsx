@@ -8,7 +8,6 @@ import {
   notifySuccess,
   notifyWarning,
 } from "@/lib/messages/notify";
-import { createAppointment as createMockAppointment } from "../../api/bookingApi";
 import { createAppointment as createLiveAppointment } from "../../api/bookingLiveApi";
 import { clearPayOsIdempotencyKeys } from "../../api/clearPayOsIdempotencyKeys";
 import { useBookableServices } from "../../hooks/useBookableServices";
@@ -29,47 +28,24 @@ import {
 import type {
   BookedAppointment,
   BookingPatient,
-  BookingVariant,
   PaymentRenderer,
 } from "../../types/booking";
 import type { WizardStepKey } from "../../schema/bookingWizard";
-import { BookingFlowBlocks } from "./BookingFlowBlocks";
 import { PaymentHoldStep } from "./PaymentHoldStep";
 import { BookingWizard } from "./wizard/BookingWizard";
 
-// Luồng đặt lịch dùng chung (UC20, UC21): một trang cuộn tiến dần, khối mở khi khối trước đã chọn.
-// Lõi không biết người dùng là ai: người khám đến từ ngoài (khu bệnh nhân: hồ sơ đã gắn; khu Lễ
-// tân: một bệnh nhân đã tìm được). `variant` chỉ đổi cỡ chữ và chạm, không đổi logic.
-// File này giữ trạng thái, dữ liệu và việc gửi; markup nằm ở BookingFlowBlocks.
+// Luồng đặt lịch bệnh nhân; markup wizard nằm ở BookingWizard.
 
 export type BookingFlowProps = {
-  /** Gọi sau khi đặt xong (toast MSG-26 đã hiện). Trang thay luồng bằng BookingResult. */
+  variant: "patient";
+  patients: readonly BookingPatient[];
+  renderPayment?: PaymentRenderer;
   onBooked: (appointment: BookedAppointment) => void;
-} & (
-  | {
-      variant: "patient";
-      /** Người khám chọn được (trang lấy từ tài khoản đang đăng nhập). */
-      patients: readonly BookingPatient[];
-      /**
-       * Màn thanh toán của lịch vừa tạo (bước 5). BE trả AWAITING_PAYMENT (đặt online, dịch vụ có
-       * phí: giữ giờ 15 phút) thì sang bước này thay vì gọi `onBooked` ngay; trả CONFIRMED (dịch vụ
-       * miễn phí) thì báo MSG-26 và bỏ qua bước 5. Rời bước 5 chưa trả = hủy giữ chỗ
-       * (xem PaymentHoldStep). `onFinish` gọi `onBooked` khi đã thanh toán xong.
-       */
-      renderPayment?: PaymentRenderer;
-    }
-  | {
-      variant: "staff";
-      /** Bệnh nhân đã tìm được. Đổi người: đặt `key` theo `patient.id` ở nơi gọi. */
-      patient: BookingPatient;
-    }
-);
+};
 
 export function BookingFlow(props: BookingFlowProps) {
   const { onBooked } = props;
-  const variant: BookingVariant = props.variant;
-  const patients: BookingPatient[] =
-    props.variant === "patient" ? [...props.patients] : [props.patient];
+  const patients: BookingPatient[] = [...props.patients];
   const singlePatient = patients.length === 1 ? patients[0] : undefined;
 
   const [state, dispatch] = useReducer(
@@ -80,21 +56,16 @@ export function BookingFlow(props: BookingFlowProps) {
   const [submitting, setSubmitting] = useState(false);
   // Lý do khám: chỉ khu bệnh nhân nhập (ở bước xác nhận của wizard).
   const [purpose, setPurpose] = useState("");
-  // Chỉ khu bệnh nhân dùng wizard; khu Lễ tân vẫn là trang cuộn (BookingFlowBlocks).
+  // Bước hiện tại của wizard bệnh nhân.
   const [wizardStep, setWizardStep] = useState<WizardStepKey>("patient");
   // Lịch vừa tạo, đang ở bước thanh toán.
   const [booked, setBooked] = useState<BookedAppointment | null>(null);
-  const renderPayment =
-    props.variant === "patient" ? props.renderPayment : undefined;
-  const services = useBookableServices(variant === "patient");
+  const renderPayment = props.renderPayment;
+  const services = useBookableServices(true);
 
-  // Khu bệnh nhân: lựa chọn của người dùng, hoặc hồ sơ duy nhất. Khu Lễ tân: người đã cố định.
-  const patientId =
-    props.variant === "staff"
-      ? props.patient.id
-      : patients.some((patient) => patient.id === state.patientId)
-        ? state.patientId
-        : (singlePatient?.id ?? null);
+  // Lựa chọn của người dùng, hoặc hồ sơ duy nhất.
+  const patientId = patients.some((patient) => patient.id === state.patientId)
+    ? state.patientId : (singlePatient?.id ?? null);
   const selectedPatient = patients.find((patient) => patient.id === patientId);
 
   const times = useOpenTimes(
@@ -102,7 +73,7 @@ export function BookingFlow(props: BookingFlowProps) {
     patientId,
     undefined,
     handleTimesError,
-    variant === "patient",
+    true,
   );
   const days = times.data ? upcomingDays(times.data) : null;
   const dayTimes =
@@ -130,7 +101,7 @@ export function BookingFlow(props: BookingFlowProps) {
   const service = services.services.find(
     (item) => item.id === selection.serviceId,
   );
-  const steps = bookingStepStates(selection, props.variant === "patient");
+  const steps = bookingStepStates(selection, true);
   const ready = Boolean(
     patientId && selection.serviceId && selection.date && selection.startAt,
   );
@@ -161,17 +132,15 @@ export function BookingFlow(props: BookingFlowProps) {
       return;
     setSubmitting(true);
     try {
-      const create =
-        variant === "patient" ? createLiveAppointment : createMockAppointment;
       // Đặt lịch mới: bỏ khóa idempotency PayOS còn sót để lần thanh toán này không dính attempt cũ.
-      if (variant === "patient") clearPayOsIdempotencyKeys();
-      const appointment = await create({
+      clearPayOsIdempotencyKeys();
+      const appointment = await createLiveAppointment({
         patientId,
         serviceId: selection.serviceId,
         startAt: selection.startAt,
         doctorId,
         purpose,
-        bookedOnline: variant === "patient",
+        bookedOnline: true,
       });
       if (appointment.status === "AWAITING_PAYMENT" && renderPayment) {
         // Giữ giờ chờ thanh toán: chưa báo thành công, MSG-26 hiện sau khi trả xong ở bước 5.
@@ -216,8 +185,7 @@ export function BookingFlow(props: BookingFlowProps) {
       </p>
     );
 
-  if (props.variant === "patient")
-    return (
+  return (
       <div inert={submitting || undefined}>
         <BookingWizard
           step={wizardStep}
@@ -273,34 +241,4 @@ export function BookingFlow(props: BookingFlowProps) {
       </div>
     );
 
-  return (
-    <div className="grid gap-8" inert={submitting || undefined}>
-      <BookingFlowBlocks
-        variant={variant}
-        steps={steps}
-        selection={selection}
-        dispatch={dispatch}
-        patients={patients}
-        selectedPatient={selectedPatient}
-        singlePatient={singlePatient !== undefined}
-        services={services.services}
-        servicesLoading={services.loading}
-        servicesFailed={services.failed}
-        onRetryServices={services.reload}
-        service={service}
-        days={days}
-        timesLoading={times.loading}
-        timesFailed={times.failed}
-        onRetryTimes={times.reload}
-        allDaysClosed={days !== null && allDaysClosed(days)}
-        dayTimes={dayTimes}
-        doctorsAtTime={doctorsAtTime}
-        doctorId={doctorId}
-        doctorName={doctorName}
-        ready={ready}
-        submitting={submitting}
-        onSubmit={() => void handleSubmit()}
-      />
-    </div>
-  );
 }

@@ -24,6 +24,25 @@ type AdminAppointmentDto = {
   examFeePaid: boolean | null;
 };
 
+export function getAdminRescheduleSlots(id: string, date: string, signal?: AbortSignal) {
+  const params = new URLSearchParams({ from: date, to: date });
+  return apiRequest<{ slots: { doctorId: string; doctorDisplayName: string; startTime: string }[] }>(
+    `/api/v1/appointments/${encodeURIComponent(id)}/reschedule-availability?${params}`, { signal },
+  ).then((result) => result.slots);
+}
+
+export function rescheduleAdminAppointment(id: string, doctorId: string, startTime: string, reason: string) {
+  return apiRequest(`/api/v1/appointments/${encodeURIComponent(id)}/reschedule`, {
+    method: "PATCH", body: JSON.stringify({ doctorId, startTime, reason }),
+  });
+}
+
+export function cancelAdminAppointment(id: string, reason: string) {
+  return apiRequest(`/api/v1/appointments/${encodeURIComponent(id)}/cancel`, {
+    method: "POST", body: JSON.stringify({ reason }),
+  });
+}
+
 type AdminAppointmentPageDto = {
   items: AdminAppointmentDto[];
   page: number;

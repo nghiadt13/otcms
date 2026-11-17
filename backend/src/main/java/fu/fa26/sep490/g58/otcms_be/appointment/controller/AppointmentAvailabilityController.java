@@ -7,6 +7,7 @@ import fu.fa26.sep490.g58.otcms_be.appointment.model.dto.response.AppointmentAva
 import fu.fa26.sep490.g58.otcms_be.appointment.service.GetAppointmentAvailabilityService;
 import fu.fa26.sep490.g58.otcms_be.appointment.service.GetAppointmentChangeAvailabilityService;
 import fu.fa26.sep490.g58.otcms_be.common.security.AuthenticatedAccount;
+import fu.fa26.sep490.g58.otcms_be.staff.service.DoctorProfileIdentityQueryService;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -25,9 +26,11 @@ import java.util.UUID;
 public class AppointmentAvailabilityController {
     private final GetAppointmentAvailabilityService availability;
     private final GetAppointmentChangeAvailabilityService changes;
+    private final DoctorProfileIdentityQueryService doctorIdentities;
 
     public AppointmentAvailabilityController(GetAppointmentAvailabilityService availability,
-                                             GetAppointmentChangeAvailabilityService changes) {
+                                             GetAppointmentChangeAvailabilityService changes, DoctorProfileIdentityQueryService doctorIdentities) {
+        this.doctorIdentities = doctorIdentities;
         this.availability = availability;
         this.changes = changes;
     }
@@ -50,12 +53,20 @@ public class AppointmentAvailabilityController {
                                        @RequestParam(required = false) String from,
                                        @RequestParam(required = false) String to,
                                        @RequestParam(required = false) String doctorId) {
+        var authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_DOCTOR"))) {
+            if (!(authentication.getPrincipal() instanceof AuthenticatedAccount account)) {
+                throw new AppointmentAvailabilityException("ACCESS_DENIED");
+            }
+            doctorId = doctorIdentities.findDoctorProfileId(account.accountId())
+                    .orElseThrow(() -> new AppointmentAvailabilityException("ACCESS_DENIED")).toString();
+        }
         return response(availability.find(query(serviceId, from, to, doctorId,
                 AppointmentAvailabilityQuery.Audience.STAFF)));
     }
 
     @GetMapping("/api/v1/appointments/{appointmentId}/reschedule-availability")
-    @PreAuthorize("hasAnyAuthority('ROLE_PATIENT', 'ROLE_RECEPTIONIST')")
+    @PreAuthorize("hasAnyAuthority('ROLE_RECEPTIONIST', 'ROLE_ADMIN')")
     @ResponseStatus(HttpStatus.OK)
     public AppointmentAvailabilityResponse rescheduleAvailability(@org.springframework.web.bind.annotation.PathVariable String appointmentId,
             @RequestParam(required = false) String from, @RequestParam(required = false) String to) {

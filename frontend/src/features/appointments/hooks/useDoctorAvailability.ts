@@ -1,7 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { getDoctorAvailability } from "../api/appointmentApi";
+import { apiRequest } from "@/lib/api/client";
+import { addDays } from "@/lib/format/formatDate";
+import { vnIsoOf } from "../schema/bookingTime";
 import type { DoctorAvailability } from "../types/appointment";
 
 type Result = { key: string; data?: DoctorAvailability; error?: unknown };
@@ -13,19 +15,30 @@ type Result = { key: string; data?: DoctorAvailability; error?: unknown };
  */
 export function useDoctorAvailability(
   doctorId: string | undefined,
+  serviceId: string | undefined,
   from: string,
   to: string,
   enabled: boolean,
 ) {
   const [result, setResult] = useState<Result | null>(null);
   const [token, setToken] = useState(0);
-  const key = enabled && doctorId ? `${doctorId}|${from}|${to}|${token}` : null;
+  const key = enabled && doctorId && serviceId ? `${doctorId}|${serviceId}|${from}|${to}|${token}` : null;
 
   useEffect(() => {
-    if (!enabled || !doctorId) return;
+    if (!enabled || !doctorId || !serviceId) return;
     const controller = new AbortController();
-    const currentKey = `${doctorId}|${from}|${to}|${token}`;
-    getDoctorAvailability(doctorId, { from, to }, controller.signal)
+    const currentKey = `${doctorId}|${serviceId}|${from}|${to}|${token}`;
+    const params = new URLSearchParams({ doctorId, serviceId, from, to });
+    apiRequest<{ slots: { startTime: string }[] }>(`/api/v1/staff/appointments/availability?${params}`, { signal: controller.signal })
+      .then(({ slots }): DoctorAvailability => {
+        const starts = slots.map((slot) => vnIsoOf(new Date(slot.startTime)));
+        const days = [];
+        for (let date = from; date <= to; date = addDays(date, 1)) {
+          const matching = starts.filter((start) => start.startsWith(date));
+          days.push({ date, hasShift: matching.length > 0, slots: matching.map((startAt) => ({ startAt, status: "FREE" as const })) });
+        }
+        return { doctorId, from, to, slotMinutes: 15, days };
+      })
       .then((data) => {
         if (!controller.signal.aborted) setResult({ key: currentKey, data });
       })
@@ -33,7 +46,7 @@ export function useDoctorAvailability(
         if (!controller.signal.aborted) setResult({ key: currentKey, error });
       });
     return () => controller.abort();
-  }, [doctorId, from, to, token, enabled]);
+  }, [doctorId, serviceId, from, to, token, enabled]);
 
   const reload = useCallback(() => setToken((n) => n + 1), []);
   const current = key && result?.key === key ? result : null;

@@ -71,10 +71,12 @@ public class GetAppointmentChangeAvailabilityServiceImpl implements GetAppointme
             throw new AppointmentAvailabilityException("APPOINTMENT_CHANGE_TOO_LATE");
         }
         validateWindow(fromDate, toDate);
-        if (!assignments.findActiveDoctorProfileIds(appointment.serviceId()).contains(appointment.doctorProfileId())) {
-            throw new AppointmentAvailabilityException("DOCTOR_NOT_ELIGIBLE");
-        }
-        return generate(appointment, Set.of(appointment.doctorProfileId()), fromDate, toDate)
+        Set<UUID> assigned = Set.copyOf(assignments.findActiveDoctorProfileIds(appointment.serviceId()));
+        Set<UUID> eligible = providers.findAcceptingDoctorsInActiveDirectory().stream()
+                .map(StaffAvailabilityProviderQueryService.AvailabilityProvider::doctorProfileId)
+                .filter(assigned::contains).collect(Collectors.toSet());
+        if (eligible.isEmpty()) return List.of();
+        return generate(appointment, eligible, fromDate, toDate)
                 .stream().filter(slot -> !slot.startTime().isBefore(now)).toList();
     }
 
