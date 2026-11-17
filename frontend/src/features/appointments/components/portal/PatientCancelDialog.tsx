@@ -92,7 +92,9 @@ export function PatientCancelDialog({
                 {refundNotice(appointment.examFee)}
               </span>
             ) : null}
-            <span className="mt-2 block">{APP_MESSAGES["MSG-93"]}</span>
+            {paid ? (
+              <span className="mt-2 block">{APP_MESSAGES["MSG-93"]}</span>
+            ) : null}
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter className="flex-col gap-3 sm:flex-row">
