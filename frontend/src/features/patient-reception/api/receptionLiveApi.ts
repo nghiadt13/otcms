@@ -9,6 +9,36 @@ export type ReceptionPatient = {
   dateOfBirth: string;
 };
 
+export type ReceptionPatientDetail = ReceptionPatient & {
+  phoneOwnerType: "PATIENT" | "GUARDIAN";
+  gender: "MALE" | "FEMALE" | "OTHER";
+  address: string | null;
+  nationalId: string | null;
+  identityDocumentType: "CCCD" | "PERSONAL_ID" | "PASSPORT" | null;
+  version: number;
+};
+export type ReceptionPatientInput = {
+  fullName: string; phone: string; phoneOwnerType: "PATIENT" | "GUARDIAN";
+  dateOfBirth: string; gender: "MALE" | "FEMALE" | "OTHER";
+  address: string; nationalId: string | null;
+  identityDocumentType: "CCCD" | "PERSONAL_ID" | "PASSPORT" | null;
+};
+export function getReceptionPatient(id: string) {
+  return apiRequest<ReceptionPatientDetail>(`/api/v1/patient-profiles/${encodeURIComponent(id)}`);
+}
+export function matchReceptionPatients(phone: string, dateOfBirth: string, fullName?: string) {
+  const params = toQueryString({ phone, dateOfBirth, fullName });
+  return apiRequest<{ items: ReceptionPatient[] }>(`/api/v1/patient-profiles/matches${params}`);
+}
+export function createPatientProfile(input: ReceptionPatientInput) {
+  return apiRequest<ReceptionPatient>("/api/v1/patient-profiles", { method: "POST", body: JSON.stringify(input) });
+}
+export function updatePatientProfile(id: string, input: ReceptionPatientInput, version: number) {
+  return apiRequest<ReceptionPatientDetail>(`/api/v1/patient-profiles/${encodeURIComponent(id)}`, {
+    method: "PUT", body: JSON.stringify({ ...input, version }),
+  });
+}
+
 export type ReceptionAppointment = {
   id: string;
   patientProfileId: string;

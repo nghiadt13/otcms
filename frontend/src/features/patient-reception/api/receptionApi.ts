@@ -8,10 +8,7 @@ import {
   availableDoctors,
   patientBookingAt,
   latestRoundReady,
-  normalizePhone,
-  normalizeText,
   onDuty,
-  validatePatient,
   withinReturnWindow,
 } from "../schema/receptionRules";
 import {
@@ -315,36 +312,6 @@ export async function executeReception(
   s.clock = clinicTimestamp(currentTime());
   expireState(s);
   switch (command.type) {
-    case "save-patient": {
-      const input = {
-        ...command.input,
-        name: command.input.name.trim().replace(/\s+/g, " "),
-        phone: normalizePhone(command.input.phone),
-        address: command.input.address.trim(),
-        nationalId: command.input.nationalId.trim().toUpperCase(),
-        email: command.input.email.trim(),
-      };
-      requireThat(
-        Object.keys(validatePatient(input, today(s))).length === 0,
-        "MSG-17",
-        400,
-      );
-      requireThat(command.identityConfirmed, "MSG-17", 400);
-      const matches = s.patients.filter(
-        (p) =>
-          p.id !== command.id &&
-          ((p.phone === input.phone &&
-            p.dob === input.dob &&
-            normalizeText(p.name) === normalizeText(input.name)) ||
-            (input.nationalId &&
-              p.nationalId.toUpperCase() === input.nationalId)),
-      );
-      requireThat(!matches.length, "MSG-18");
-      if (command.id)
-        Object.assign(find(s.patients, command.id, "MSG-19"), input);
-      else s.patients.unshift({ ...input, id: id(s, "BN") });
-      break;
-    }
     case "confirm-link": {
       const link = find(s.careLinks, command.id, "MSG-21"),
         patient = find(s.patients, link.patientId);

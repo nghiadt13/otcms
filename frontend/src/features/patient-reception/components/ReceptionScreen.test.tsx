@@ -20,6 +20,34 @@ vi.mock("next/navigation", () => ({
 vi.mock("sonner", () => ({
   toast: { success: vi.fn(), warning: vi.fn(), error: vi.fn() },
 }));
+// Hồ sơ bệnh nhân đã nối API thật: chỉ giả lập URL /api/v1/patient-profiles, URL khác đi đường cũ.
+vi.mock("@/lib/api/client", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/api/client")>();
+  const minhAnh = {
+    patientProfileId: "BN0001",
+    fullName: "Nguyễn Minh Anh",
+    phoneCanonical: "0900000001",
+    dateOfBirth: "1992-04-15",
+    phoneOwnerType: "PATIENT",
+    gender: "FEMALE",
+    address: "Thái Nguyên",
+    nationalId: null,
+    identityDocumentType: null,
+    version: 1,
+  };
+  return {
+    ...actual,
+    apiRequest: (path: `/api/v1/${string}`, init?: RequestInit) => {
+      if (!path.startsWith("/api/v1/patient-profiles"))
+        return actual.apiRequest(path, init);
+      if (path.startsWith("/api/v1/patient-profiles?"))
+        return Promise.resolve({ content: [minhAnh] });
+      if (path === "/api/v1/patient-profiles/BN0001")
+        return Promise.resolve(minhAnh);
+      return Promise.reject(new Error(`Unexpected request: ${path}`));
+    },
+  };
+});
 beforeEach(() => {
   navigation.query = "";
   resetReceptionMock(createReceptionSeed("2026-10-24"));
@@ -57,7 +85,7 @@ describe("receptionist screens with real mock adapter", () => {
       },
     );
     fireEvent.click(screen.getByRole("button", { name: "Tìm bệnh nhân" }));
-    expect(screen.getByText("Nguyễn Minh Anh")).toBeInTheDocument();
+    expect(await screen.findByText("Nguyễn Minh Anh")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Mở hồ sơ" }));
     const dialog = await screen.findByRole("dialog");
     expect(within(dialog).getByText("Chưa cung cấp")).toBeInTheDocument();

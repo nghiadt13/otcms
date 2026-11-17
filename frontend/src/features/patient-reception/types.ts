@@ -187,12 +187,6 @@ export type ReceptionState = {
 export type PatientInput = Omit<Patient, "id">;
 export type ReceptionCommand =
   | {
-      type: "save-patient";
-      input: PatientInput;
-      id?: string;
-      identityConfirmed: boolean;
-    }
-  | {
       type: "confirm-link";
       id: string;
       evidence: string;

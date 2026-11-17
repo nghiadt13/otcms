@@ -133,6 +133,8 @@ export const APP_MESSAGES: Record<string, string> = {
     "Chưa thể hoàn tất khám: cần có chẩn đoán chính và mọi chỉ định đã có kết quả (kể cả kết quả đọc phim) hoặc đã hủy.",
   // R3 MSG-88: bệnh nhân được tiếp nhận vào hàng chờ khám. MSG-94 có cùng câu nhưng không có trong R3.
   "MSG-88": "Đã tiếp nhận bệnh nhân. Số thứ tự {number}, phòng {room}.",
+  "MSG-84": "Đã lưu thông tin hồ sơ bệnh nhân.",
+  "MSG-85": "Đã gỡ hồ sơ này khỏi danh sách hồ sơ bạn quản lý.",
 };
 
 /** Thay `{tham số}` trong câu MSG. Tham số thiếu giữ nguyên để dễ phát hiện. */

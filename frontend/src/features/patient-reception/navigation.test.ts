@@ -9,6 +9,7 @@ import {
 // không cần cờ demo; các màn còn dữ liệu giả thì bị khoá.
 const LIVE_SECTIONS: ReceptionSection[] = [
   "",
+  "patients",
   "appointments",
   "queues",
   "orders",
