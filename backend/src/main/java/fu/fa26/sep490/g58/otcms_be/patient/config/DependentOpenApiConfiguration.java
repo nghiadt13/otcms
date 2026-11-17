@@ -23,7 +23,7 @@ public class DependentOpenApiConfiguration {
                         && !path.equals("/api/v1/me/patient-profiles")) return;
                 item.readOperations().forEach(operation -> {
                     operation.setDescription((path.startsWith("/api/v1/care-links") ? "Active RECEPTIONIST only. " : "Active PATIENT only. ")
-                            + "VALIDATION_FAILED: MSG-17; CARE_LINK_NOT_AVAILABLE: MSG-21; OTP_INVALID: wrong, expired or unavailable code (MSG-82). "
+                            + "VALIDATION_FAILED: MSG-17; CARE_LINK_NOT_AVAILABLE: MSG-21; OTP_INVALID: wrong, expired or unavailable code (MSG-77). "
                             + "Administrative fields only; ownership is checked before link-state disclosure. Mutations require CSRF.");
                     Map.of("400", "VALIDATION_FAILED / OTP_INVALID", "401", "Authentication required", "403", "ACCESS_DENIED",
                             "404", "CARE_LINK_NOT_AVAILABLE", "409", "CARE_LINK_NOT_AVAILABLE / STALE_VERSION",

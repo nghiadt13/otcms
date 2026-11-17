@@ -77,7 +77,7 @@ describe("NewPatientProfileScreen: thêm thành viên 3 bước", () => {
     expect(screen.queryByLabelText(/Mã OTP/)).toBeNull();
   });
 
-  it("luôn sang bước 3 nhập OTP email tài khoản; sai mã báo MSG-82, đúng mã thì tạo hồ sơ mới", async () => {
+  it("luôn sang bước 3 nhập OTP email tài khoản; sai mã báo MSG-77, đúng mã thì tạo hồ sơ mới", async () => {
     const user = userEvent.setup();
     render(<NewPatientProfileScreen />);
 

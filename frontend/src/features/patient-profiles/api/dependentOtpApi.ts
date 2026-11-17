@@ -25,7 +25,7 @@ interface LinkResultResponse {
 /** Mã OTP của kho giả (chỉ dùng trong test). */
 export const MOCK_DEPENDENT_OTP = "123456";
 
-/** POST /api/v1/me/dependents/links/{linkId}/otp/verify. Sai/hết hạn → 400 MSG-82. */
+/** POST /api/v1/me/dependents/links/{linkId}/otp/verify. Sai/hết hạn → 400 MSG-77. */
 export async function verifyDependentOtp(
   linkId: string,
   code: string,
@@ -39,7 +39,7 @@ export async function verifyDependentOtp(
     return { profileId: response.profile.patientProfileId };
   }
   await mockDelay(0);
-  if (code !== MOCK_DEPENDENT_OTP) throw new ApiError(400, { code: "MSG-82" });
+  if (code !== MOCK_DEPENDENT_OTP) throw new ApiError(400, { code: "MSG-77" });
   return { profileId: linkId };
 }
 
@@ -100,7 +100,7 @@ export async function verifyAddDependentOtp(
   await mockDelay(0);
   const body = mockPendingAdds.get(requestId);
   if (!body || code !== MOCK_DEPENDENT_OTP)
-    throw new ApiError(400, { code: "MSG-82" });
+    throw new ApiError(400, { code: "MSG-77" });
   mockPendingAdds.delete(requestId);
   return createPatientProfile(body);
 }
