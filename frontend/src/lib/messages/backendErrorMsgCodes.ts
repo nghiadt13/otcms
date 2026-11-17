@@ -5,7 +5,7 @@ import type { MsgCode } from "@/lib/api/apiError";
 // dựng lỗi, còn appMessages.ts đã import apiError.ts; đặt chung sẽ thành vòng import.
 // Thêm mã: chỉ thêm dòng vào cuối bảng; mã MSG đích phải có trong APP_MESSAGES (R3).
 export const BACKEND_ERROR_MSG_CODES: Readonly<Record<string, MsgCode>> = {
-  EXAM_FEE_UNPAID: "MSG-37",
+  EXAM_FEE_UNPAID: "MSG-94",
   DOCTOR_NOT_ON_SHIFT: "MSG-04",
   VISIT_EXAM_STATE_CONFLICT: "MSG-42",
   VISIT_COMPLETION_NOT_ALLOWED: "MSG-42",

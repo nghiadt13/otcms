@@ -96,18 +96,15 @@ interface AppointmentDto {
   serviceId: string;
   doctorId: string;
   startTime: string;
-  /** AWAITING_PAYMENT (đặt online, dịch vụ có phí: giữ giờ) hoặc CONFIRMED (xác nhận ngay). */
+  /** CONFIRMED: lịch đã xác nhận, không giữ giờ (phí khám, nếu có, trả sau). */
   status?: string;
-  /** ISO-8601; chỉ có khi status là AWAITING_PAYMENT. */
-  paymentDeadline?: string | null;
 }
 
 /**
  * POST /api/v1/appointments. `doctorId` null (phòng khám sắp xếp): chọn bác sĩ đầu tiên còn trống ở
  * giờ đó, vì backend bắt buộc `doctorId`. `patientProfileId` là hồ sơ được chọn;
  * backend phải kiểm quyền quản lý hồ sơ. `purpose` lấy lý do khám ở bước xác nhận.
- * Kết quả: `status` AWAITING_PAYMENT kèm `paymentDeadline` (giữ giờ, sang bước thanh toán) hoặc
- * BOOKED (dịch vụ miễn phí, xác nhận ngay, không có bước thanh toán).
+ * Kết quả: BOOKED. Dịch vụ có phí còn `examFee.status` PENDING_PAYMENT (bước thanh toán tùy chọn).
  */
 export async function createAppointment(
   body: CreateAppointmentRequest,
@@ -145,7 +142,6 @@ export async function createAppointment(
       .catch(() => undefined)) ??
     peekCurrentAccount()?.displayName ??
     "";
-  const awaitingPayment = created.status === "AWAITING_PAYMENT";
   return {
     id: created.id,
     startAt: vnIsoOf(new Date(created.startTime)),
@@ -156,14 +152,10 @@ export async function createAppointment(
     service: { id: service.id, name: service.name },
     doctor: doctorsById.get(doctorId) ?? { id: doctorId, fullName: "" },
     roomName: DEFAULT_ROOM,
-    status: awaitingPayment ? "AWAITING_PAYMENT" : "BOOKED",
-    paymentDeadline: awaitingPayment ? (created.paymentDeadline ?? null) : null,
+    status: "BOOKED",
     examFee: {
       amount: service.price,
-      status:
-        awaitingPayment || service.price > 0
-          ? "PENDING_PAYMENT"
-          : "NOT_REQUIRED",
+      status: service.price > 0 ? "PENDING_PAYMENT" : "NOT_REQUIRED",
     },
     isFollowUp: false,
   };

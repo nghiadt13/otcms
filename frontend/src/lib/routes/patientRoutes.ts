@@ -24,10 +24,7 @@ export const PATIENT_ROUTES = {
     `/portal/payments/appointment/${enc(appointmentId)}`,
   payInvoice: (invoiceId: string) =>
     `/portal/payments/invoice/${enc(invoiceId)}`,
-  payVisit: (visitId: string) => `/portal/payments/visit/${enc(visitId)}`,
-  /** Luồng mock cũ; lịch khám online dùng route appointment/invoice PayOS riêng. */
-  paymentConfirm: "/portal/payments/pay",
-  /** Thêm `?paymentId=` khi gọi. */
+  /** Thêm `?attemptId=` khi gọi (kết quả PayOS đọc từ BE). */
   paymentResult: "/portal/payments/result",
   paymentHistory: "/portal/payments/history",
   paymentDetail: (paymentId: string) =>

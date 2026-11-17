@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { publicButtonClass } from "@/components/brand/publicButtonStyles";
 import { PortalPageHeader } from "@/components/patient/PortalPageHeader";
 import { Skeleton } from "@/components/ui/skeleton";
+import { formatAppMessage } from "@/lib/messages/appMessages";
 import { PATIENT_ROUTES } from "@/lib/routes/patientRoutes";
 import {
   clearPayOsIdempotencyKey,
@@ -19,15 +20,10 @@ import {
   type BillingInvoice,
   type PayOsPaymentAttempt,
 } from "../../api/payOsPaymentApi";
-import { useHoldDeadline } from "../../hooks/useHoldDeadline";
-import { CancelPaymentHoldButton } from "./CancelPaymentHoldButton";
-import {
-  PayOsHoldEndedNotice,
-  PayOsInvoiceVoidNotice,
-} from "./PayOsHoldEndedNotice";
 import { PayOsInvoiceCard } from "./PayOsInvoiceCard";
+import { PayOsInvoiceVoidNotice } from "./PayOsInvoiceVoidNotice";
 import { PayOsPaidCard } from "./PayOsPaidCard";
-import { countdownLabel, PayOsQrCard } from "./PayOsQrCard";
+import { PayOsQrCard } from "./PayOsQrCard";
 import { PayOsTransferDetails } from "./PayOsTransferDetails";
 
 const POLL_INTERVAL_MS = 5_000;
@@ -50,9 +46,6 @@ export function AppointmentPayOsPayment({
   appointmentId,
   invoiceId,
   onFinish,
-  paymentDeadline,
-  onCancelHold,
-  onBookAgain,
 }: {
   appointmentId?: string;
   invoiceId?: string;
@@ -61,22 +54,10 @@ export function AppointmentPayOsPayment({
    * trang, bỏ các link rời trang và gọi `onFinish({ paid: true })` khi đã thanh toán xong.
    */
   onFinish?: (result: { paid: boolean }) => void;
-  /**
-   * Chế độ lịch: hạn giữ chỗ (ISO, ≤15 phút). Có thì hiện đếm ngược; tới hạn thì thay QR bằng
-   * "Hết thời gian giữ lịch" và không cho tạo mã mới. Đồng hồ máy chỉ để hiển thị, BE quyết định.
-   */
-  paymentDeadline?: string;
-  /** Chế độ lịch: có thì hiện nút "Hủy thanh toán"; xác nhận xong gọi callback (nơi ghép hủy giữ chỗ). */
-  onCancelHold?: () => void | Promise<void>;
-  /** Chế độ lịch: nút "Đặt lịch lại" khi hết giữ lịch; không truyền thì dùng link tới trang đặt lịch. */
-  onBookAgain?: () => void;
 }) {
   const embedded = onFinish !== undefined;
   const appointmentMode =
     invoiceId === undefined && appointmentId !== undefined;
-  const deadline = useHoldDeadline(
-    appointmentMode ? paymentDeadline : undefined,
-  );
   const [invoice, setInvoice] = useState<BillingInvoice | null>(null);
   const [attempt, setAttempt] = useState<PayOsPaymentAttempt | null>(null);
   // BE đã từ chối thanh toán (hóa đơn VOID / INVOICE_NOT_PAYABLE): không còn tạo mã được nữa.
@@ -293,18 +274,10 @@ export function AppointmentPayOsPayment({
   const expired =
     attempt !== null &&
     ["EXPIRED", "CANCELLED", "FAILED"].includes(attempt.status);
-  // Chế độ lịch: hết giữ lịch khi BE từ chối (VOID/INVOICE_NOT_PAYABLE) hoặc đồng hồ tới hạn.
-  // Đã trả thì luôn thắng: thanh toán tới sát hạn vẫn được hiển thị là đã trả.
-  const holdOver = !paid && appointmentMode && (notPayable || deadline.ended);
-  const invoiceVoid = !paid && !appointmentMode && notPayable;
-  // "Tạo mã mới" chỉ khi còn trong hạn giữ lịch (hoặc không có hạn: BE quyết định khi gọi).
-  const canRenew = !notPayable && !deadline.ended;
-  // Trong wizard đặt lịch thanh toán là bắt buộc (lịch chỉ được xác nhận sau khi trả): không có lối
-  // "trả sau tại quầy", chỉ có nút Hủy (khi nơi ghép truyền `onCancelHold`).
-  const cancelButton =
-    appointmentMode && onCancelHold && !paid && !holdOver ? (
-      <CancelPaymentHoldButton onConfirm={onCancelHold} />
-    ) : null;
+  // Hóa đơn đã hủy (lịch bị hủy): không còn tạo mã được.
+  const invoiceVoid = !paid && notPayable;
+  // "Tạo mã mới" khi mã cũ hết hạn và hóa đơn vẫn còn dư nợ.
+  const canRenew = !notPayable;
   return (
     <div className="space-y-5">
       {embedded ? (
@@ -332,24 +305,8 @@ export function AppointmentPayOsPayment({
             >
               Thử lại
             </button>
-            {cancelButton}
           </div>
         </div>
-      ) : null}
-
-      {!paid &&
-      !holdOver &&
-      appointmentMode &&
-      deadline.remainingMs !== null ? (
-        <p
-          className="w-fit rounded-full bg-secondary px-3 py-1 text-sm tabular-nums"
-          role="timer"
-        >
-          Giữ lịch còn{" "}
-          <span className="font-semibold">
-            {countdownLabel(deadline.remainingMs)}
-          </span>
-        </p>
       ) : null}
 
       {paid ? (
@@ -379,12 +336,11 @@ export function AppointmentPayOsPayment({
         />
       ) : null}
 
-      {holdOver ? <PayOsHoldEndedNotice onBookAgain={onBookAgain} /> : null}
       {invoiceVoid ? <PayOsInvoiceVoidNotice /> : null}
 
-      {invoice && !holdOver ? <PayOsInvoiceCard invoice={invoice} /> : null}
+      {invoice ? <PayOsInvoiceCard invoice={invoice} /> : null}
 
-      {!paid && !holdOver && attempt?.status === "PENDING" ? (
+      {!paid && attempt?.status === "PENDING" ? (
         <>
           <div className="grid items-start gap-4 md:grid-cols-2">
             <PayOsQrCard
@@ -404,7 +360,6 @@ export function AppointmentPayOsPayment({
             >
               Kiểm tra trạng thái
             </button>
-            {cancelButton}
             {embedded ? null : (
               <Link
                 className={publicButtonClass("secondary")}
@@ -440,9 +395,14 @@ export function AppointmentPayOsPayment({
             >
               Tạo mã thanh toán mới
             </button>
-            {cancelButton}
           </div>
         </section>
+      ) : null}
+
+      {!paid && !invoiceVoid ? (
+        <p className="text-sm text-muted-foreground">
+          {formatAppMessage("MSG-93")}
+        </p>
       ) : null}
 
       {!paid && attempt?.status === "RECONCILIATION_REQUIRED" ? (

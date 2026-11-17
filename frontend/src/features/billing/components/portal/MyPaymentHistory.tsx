@@ -121,12 +121,10 @@ export function MyPaymentHistory({
       {urlRangeValid ? (
         <PaymentHistoryList
           // Đổi bộ lọc trên URL thì dựng lại danh sách để tải từ trang đầu.
-          filters={{
-            from: from ?? "",
-            to: to ?? "",
-            patientId: profileId ?? "",
-          }}
+          from={from}
           key={`${from ?? ""}|${to ?? ""}|${profileId ?? ""}`}
+          patientId={profileId}
+          to={to}
         />
       ) : null}
     </div>
