@@ -38,7 +38,7 @@ export function UnlinkProfileDialog({
     setPending(true);
     try {
       await unlinkPatientProfile(profile.id);
-      notifySuccess("MSG-91");
+      notifySuccess("MSG-85");
       onOpenChange(false);
       onUnlinked();
     } catch (error) {

@@ -114,7 +114,7 @@ describe("ShiftListView", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "Xóa ca" }));
     await waitFor(() =>
-      expect(toast.success).toHaveBeenCalledWith(formatAppMessage("MSG-93")),
+      expect(toast.success).toHaveBeenCalledWith(formatAppMessage("MSG-87")),
     );
     await waitFor(() =>
       expect(screen.queryAllByText("Võ Thanh Tâm").length).toBe(before - 1),

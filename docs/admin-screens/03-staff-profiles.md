@@ -4,7 +4,7 @@ route: /admin/staff-profiles
 ucs: [UC16 (phần Admin), UC17, UC18, UC19]
 screens: ["91 Clinic Staff Profile List", "92 Clinic Staff Profile Detail"]
 br: [BR-09, BR-18, BR-20]
-msg: [MSG-04, MSG-22, MSG-23, MSG-36, MSG-92]
+msg: [MSG-04, MSG-22, MSG-23, MSG-36, MSG-86]
 data_dependency: tài khoản nhân viên (02); gỡ hồ sơ bác sĩ cần biết lịch hẹn tương lai (05)
 ---
 
@@ -56,7 +56,7 @@ Admin tạo, sửa, gỡ hồ sơ của **Lễ tân, Bác sĩ chỉnh hình, KTV
 
 | Nút | Hành động |
 | --- | --- |
-| **Lưu hồ sơ** (chính) | Gửi; thành công `MSG-92` ("Đã lưu thay đổi hồ sơ nhân viên.") |
+| **Lưu hồ sơ** (chính) | Gửi; thành công `MSG-86` ("Đã lưu thay đổi hồ sơ nhân viên.") |
 | Hủy | Đóng |
 
 - Lưu bác sĩ khi công khai = tắt là hợp lệ (AF1 của UC17): bác sĩ vẫn vắng trên trang công khai.
@@ -66,14 +66,14 @@ Admin tạo, sửa, gỡ hồ sơ của **Lễ tân, Bác sĩ chỉnh hình, KTV
 | Nút | Hiện khi | Hành động |
 | --- | --- | --- |
 | Sửa | Chế độ xem | Mở ô nhập |
-| Lưu thay đổi | Chế độ sửa | `MSG-92` |
-| Công khai / Gỡ công khai | Bác sĩ | `Switch` đổi cờ; thông báo `MSG-92`; trang công khai cập nhật ngay (AF1 của UC18) |
+| Lưu thay đổi | Chế độ sửa | `MSG-86` |
+| Công khai / Gỡ công khai | Bác sĩ | `Switch` đổi cờ; thông báo `MSG-86`; trang công khai cập nhật ngay (AF1 của UC18) |
 | Xem trang công khai | Bác sĩ đã công khai | Mở tab mới trang hồ sơ trên website (đề xuất, giúp Admin kiểm tra) |
 | Gỡ hồ sơ | Hồ sơ đang hoạt động | `AlertDialog` (xem dưới) |
 
 **Gỡ hồ sơ — AlertDialog**
 - Nội dung nêu hậu quả: "Hồ sơ sẽ khỏi danh sách nhân viên đang hoạt động. Bác sĩ sẽ khỏi trang công khai và việc chọn bác sĩ. Tài khoản, lịch hẹn và bệnh án được giữ." Nút **Gỡ hồ sơ** (destructive) / Hủy.
-- Thành công: hồ sơ chuyển "Đã gỡ", `MSG-92`.
+- Thành công: hồ sơ chuyển "Đã gỡ", `MSG-86`.
 - Bác sĩ còn lịch hẹn tương lai: chặn gỡ, toast "Ca làm việc còn lịch hẹn bị ảnh hưởng. Vui lòng chuyển các lịch hẹn sang bác sĩ khác hoặc hủy trước." (R3 dùng mã `MSG-36` cho trường hợp này, UC19 E4) kèm nút **Xem lịch hẹn** đi tới `/admin/appointments?doctorId=…` ([05](05-appointments.md)).
 
 **Lỗi**

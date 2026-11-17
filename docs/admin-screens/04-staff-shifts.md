@@ -4,7 +4,7 @@ route: /admin/staff-shifts
 ucs: [UC25, UC26, UC27, UC28]
 screens: ["95 Clinic Staff Schedule", "96 Shift Management"]
 br: [BR-20, BR-23, BR-24, BR-25]
-msg: [MSG-04, MSG-33, MSG-34, MSG-35, MSG-36, MSG-93]
+msg: [MSG-04, MSG-33, MSG-34, MSG-35, MSG-36, MSG-87]
 data_dependency: tài khoản + hồ sơ nhân viên (02, 03), phòng (06); kiểm tra lịch hẹn bị ảnh hưởng cần 05
 ---
 
@@ -52,7 +52,7 @@ Mỗi ô ca hiện: giờ, phòng. Màu chữ + chữ vai trò (không chỉ dù
 
 | Nút | Hành động |
 | --- | --- |
-| **Lưu ca** (chính) | Gửi; thành công `MSG-93` ("Đã cập nhật ca làm việc.") |
+| **Lưu ca** (chính) | Gửi; thành công `MSG-87` ("Đã cập nhật ca làm việc.") |
 | Hủy | Đóng |
 
 **Khi sửa ca của bác sĩ**: trên đầu Dialog hiện khối "Lịch hẹn trong ca này" (số lượng + danh sách ngắn) lấy từ BR-25 để Admin thấy tác động trước khi lưu.
@@ -66,7 +66,7 @@ Mỗi ô ca hiện: giờ, phòng. Màu chữ + chữ vai trò (không chỉ dù
 | MSG-33 | Ca không còn / ngoài quyền / ca đã qua khi xóa | Toast lỗi; tải lại lưới |
 | MSG-04 | Lỗi dịch vụ | Toast lỗi |
 
-**AlertDialog xóa ca**: "Ca {giờ} ngày {ngày} của {nhân viên} sẽ bị xóa, giờ nhận lịch của bác sĩ trong ca cũng mất." → **Xóa ca** (destructive) / Hủy. Thành công `MSG-93`.
+**AlertDialog xóa ca**: "Ca {giờ} ngày {ngày} của {nhân viên} sẽ bị xóa, giờ nhận lịch của bác sĩ trong ca cũng mất." → **Xóa ca** (destructive) / Hủy. Thành công `MSG-87`.
 
 ## Không có
 - Ca lặp (lặp hằng tuần), sao chép tuần, nghỉ phép, tính công: không nằm trong R3 (`AGENTS.md` cũng loại nghỉ phép/lương).

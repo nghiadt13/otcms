@@ -60,7 +60,7 @@ export function ProfileEditForm({
         detail.id,
         updateRequestFromValues(values, editable),
       );
-      notifySuccess("MSG-90");
+      notifySuccess("MSG-84");
       onSaved();
     } catch (error) {
       setPending(false);

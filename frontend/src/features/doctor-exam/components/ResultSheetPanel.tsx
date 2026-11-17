@@ -30,7 +30,7 @@ export function ResultSheetPanel({
   async function amend() {
     const done = await run(
       () => getDoctorExamApi().amendResult(visitId, reason.trim()),
-      "MSG-81",
+      "MSG-76",
     );
     if (!done) return;
     setReason("");

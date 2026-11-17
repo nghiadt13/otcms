@@ -92,7 +92,7 @@ export function MedicalHistoryEditor({
           ).map(({ field: name }) => [name, current[name]]),
         ),
       }));
-      notifySuccess("MSG-90");
+      notifySuccess("MSG-84");
     } catch (error) {
       if (isStaleHistoryError(error)) setStale(true);
       else if (

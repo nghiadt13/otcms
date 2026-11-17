@@ -4,7 +4,7 @@ route: /admin/rooms
 ucs: [UC64, UC65, UC66, UC67]
 screens: ["76 Rooms List", "77 Create Room", "78 Room Detail", "79 Room Service"]
 br: [BR-57]
-msg: [MSG-04, MSG-50, MSG-54, MSG-61, MSG-62, MSG-63, MSG-64, MSG-98]
+msg: [MSG-04, MSG-50, MSG-54, MSG-61, MSG-62, MSG-63, MSG-64, MSG-92]
 data_dependency: danh mục dịch vụ (07); trạng thái "đang dùng" cần ca/hàng đợi (xử lý ở BE)
 ---
 
@@ -40,7 +40,7 @@ Admin thêm phòng, sửa mô tả và dịch vụ hỗ trợ, đặt trạng th
 ## Màn 77 — Thêm phòng (Dialog)
 | Trường | Bắt buộc | Quy tắc |
 | --- | --- | --- |
-| Tên hoặc mã phòng | Có | Duy nhất; trùng → `MSG-98` |
+| Tên hoặc mã phòng | Có | Duy nhất; trùng → `MSG-92` |
 | Loại phòng | Có | 3 loại trên |
 | Mô tả | Không | |
 | Dịch vụ hỗ trợ | Có (≥ 1) | Chọn nhiều, **chỉ liệt kê dịch vụ đang cung cấp thuộc đúng loại phòng**. Đổi loại phòng thì xóa lựa chọn không còn khớp |
@@ -50,7 +50,7 @@ Admin thêm phòng, sửa mô tả và dịch vụ hỗ trợ, đặt trạng th
 | **Thêm phòng** (chính) | Gửi; thành công `MSG-61` ("Đã lưu thông tin phòng.") |
 | Hủy | Đóng |
 
-Lỗi: `MSG-62` đỏ dưới ô (thông tin phòng hoặc dịch vụ không hợp lệ); `MSG-98` đỏ dưới ô tên; `MSG-04` toast.
+Lỗi: `MSG-62` đỏ dưới ô (thông tin phòng hoặc dịch vụ không hợp lệ); `MSG-92` đỏ dưới ô tên; `MSG-04` toast.
 
 ## Màn 78 và 79 — Chi tiết, sửa phòng và dịch vụ của phòng
 - Chi tiết (Sheet): tên, loại, mô tả, trạng thái, dịch vụ hỗ trợ; có thể kèm "ca sắp tới của phòng" (chỉ đọc, đề xuất).

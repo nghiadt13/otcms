@@ -67,7 +67,7 @@ function SuggestionRow({
     setPending(true);
     try {
       await linkSuggestedProfile({ patientId: profile.id, relationship });
-      notifySuccess("MSG-90");
+      notifySuccess("MSG-84");
       onLinked();
     } catch (error) {
       setPending(false);
