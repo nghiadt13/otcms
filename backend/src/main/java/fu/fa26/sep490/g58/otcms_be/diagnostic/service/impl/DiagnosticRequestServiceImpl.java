@@ -62,6 +62,7 @@ public class DiagnosticRequestServiceImpl implements DiagnosticRequestService {
     private final ObjectProvider<ImagingServiceCatalogPort> catalogPorts;
     private final ObjectProvider<ClinicalImagingOrderPort> orderPorts;
     private final ObjectProvider<fu.fa26.sep490.g58.otcms_be.visit.service.ImagingRoomQueueService> queueRooms;
+    private final ObjectProvider<fu.fa26.sep490.g58.otcms_be.visit.service.ServiceOrderRoomTransferService> orderRoomTransfers;
 
     public DiagnosticRequestServiceImpl(ClinicalServiceOrderExecutionPort requests,
             AuditLogWriter auditEvents,
@@ -70,7 +71,8 @@ public class DiagnosticRequestServiceImpl implements DiagnosticRequestService {
             ObjectProvider<RoomReservationPort> roomPorts,
             ObjectProvider<ImagingServiceCatalogPort> catalogPorts,
             ObjectProvider<ClinicalImagingOrderPort> orderPorts,
-            ObjectProvider<fu.fa26.sep490.g58.otcms_be.visit.service.ImagingRoomQueueService> queueRooms) {
+            ObjectProvider<fu.fa26.sep490.g58.otcms_be.visit.service.ImagingRoomQueueService> queueRooms,
+            ObjectProvider<fu.fa26.sep490.g58.otcms_be.visit.service.ServiceOrderRoomTransferService> orderRoomTransfers) {
         this.requests = Objects.requireNonNull(requests, "requests");
         this.auditEvents = Objects.requireNonNull(auditEvents, "auditEvents");
         this.authorization = Objects.requireNonNull(authorization, "authorization");
@@ -79,6 +81,7 @@ public class DiagnosticRequestServiceImpl implements DiagnosticRequestService {
         this.catalogPorts = Objects.requireNonNull(catalogPorts, "catalogPorts");
         this.orderPorts = Objects.requireNonNull(orderPorts, "orderPorts");
         this.queueRooms = Objects.requireNonNull(queueRooms, "queueRooms");
+        this.orderRoomTransfers = orderRoomTransfers;
     }
 
     @Override
@@ -265,6 +268,9 @@ public class DiagnosticRequestServiceImpl implements DiagnosticRequestService {
         if (requests.transferRoom(requestId, expectedVersion, newRoomId, idempotencyKey, fingerprint) != 1) {
             return resolveFailedWrite(requestId, idempotencyKey, fingerprint, expectedVersion, false);
         }
+        // The patient's waiting entry in the room queue follows the request to its new room (UC-31 AF1).
+        var roomTransfers = orderRoomTransfers == null ? null : orderRoomTransfers.getIfAvailable();
+        if (roomTransfers != null) roomTransfers.followRoomChange(requestId, newRoomId);
         DiagnosticRequestView result = toView(requests.find(requestId).orElseThrow(this::dependencyUnavailable));
         recordAudit(null, actor, request, operation, correlationId,
                 Map.of("oldRoomId", oldRoomId == null ? "UNASSIGNED" : oldRoomId.toString(), "newRoomId", newRoomId.toString(), "reason", reason.trim()));

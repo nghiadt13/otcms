@@ -9,7 +9,9 @@ import fu.fa26.sep490.g58.otcms_be.diagnostic.service.DiagnosticVisitCompletionE
 import fu.fa26.sep490.g58.otcms_be.auth.service.ReceptionistAccountAccessService;
 import fu.fa26.sep490.g58.otcms_be.common.security.AccountRole;
 import fu.fa26.sep490.g58.otcms_be.common.service.CoordinationGuardService;
+import fu.fa26.sep490.g58.otcms_be.config.AppointmentBookingProperties;
 import fu.fa26.sep490.g58.otcms_be.servicecatalog.service.GetClinicServiceCatalogService;
+import fu.fa26.sep490.g58.otcms_be.visit.event.VisitCompletedEvent;
 import fu.fa26.sep490.g58.otcms_be.visit.exception.VisitOperationException;
 import fu.fa26.sep490.g58.otcms_be.visit.model.ExamQueueEntry;
 import fu.fa26.sep490.g58.otcms_be.visit.model.VisitCompletionResult;
@@ -26,6 +28,7 @@ import fu.fa26.sep490.g58.otcms_be.staff.service.DoctorProfileIdentityQueryServi
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.util.UUID;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -47,6 +50,8 @@ public class WalkInVisitLifecycleServiceImpl implements WalkInVisitLifecycleServ
     private final GetClinicServiceCatalogService catalog;
     private final ManageVisitCareAssignmentService careAssignments;
     private final DoctorProfileIdentityQueryService doctorProfiles;
+    private final ApplicationEventPublisher events;
+    private final AppointmentBookingProperties booking;
 
     public WalkInVisitLifecycleServiceImpl(CoordinationGuardService guard, ClinicVisitJpaRepository visits,
             WalkInVisitLifecycleRepository lifecycle, VisitAuditRecorder audit,
@@ -55,7 +60,7 @@ public class WalkInVisitLifecycleServiceImpl implements WalkInVisitLifecycleServ
             NotificationPublisher notifications, VisitReviewSourceService reviewSources,
             StaffAvailabilityProviderQueryService doctorNames, VisitExamQueueService examQueue,
             GetClinicServiceCatalogService catalog, ManageVisitCareAssignmentService careAssignments,
-            DoctorProfileIdentityQueryService doctorProfiles) {
+            DoctorProfileIdentityQueryService doctorProfiles, ApplicationEventPublisher events, AppointmentBookingProperties booking) {
         this.guard = guard;
         this.visits = visits;
         this.lifecycle = lifecycle;
@@ -72,6 +77,8 @@ public class WalkInVisitLifecycleServiceImpl implements WalkInVisitLifecycleServ
         this.catalog = catalog;
         this.careAssignments = careAssignments;
         this.doctorProfiles = doctorProfiles;
+        this.events = events;
+        this.booking = booking;
     }
 
     @Override
@@ -122,19 +129,14 @@ public class WalkInVisitLifecycleServiceImpl implements WalkInVisitLifecycleServ
     @Transactional
     public void close(UUID visitId, UUID actorAccountId, AccountRole actorRole, String correlationId) {
         validate(visitId, actorAccountId, actorRole, correlationId);
-        if (actorRole != AccountRole.RECEPTIONIST || !receptionists.isActiveReceptionistAccount(actorAccountId)) {
-            throw new VisitOperationException("ACCESS_DENIED");
-        }
+        // B2 (R3): only the attending doctor closes a visit; the receptionist's closure was removed.
+        if (actorRole != AccountRole.DOCTOR) throw new VisitOperationException("ACCESS_DENIED");
+        UUID doctorProfileId = doctorProfiles.findDoctorProfileId(actorAccountId)
+                .orElseThrow(() -> new VisitOperationException("ACCESS_DENIED"));
         guard.acquire();
         var visit = visits.findByIdForUpdate(visitId)
                 .orElseThrow(() -> new VisitOperationException("RESOURCE_NOT_FOUND"));
-        if (!"OPEN".equals(visit.getStatus()) || lifecycle.hasInProgressCare(visitId)) {
-            throw new VisitOperationException("VISIT_CARE_NOT_CHANGEABLE");
-        }
-        if (!completionEvidenceSatisfied(visitId, visit)) throw new VisitOperationException("VISIT_CARE_NOT_CHANGEABLE");
-        var closedAt = clock.instant();
-        closeAndRecord(visitId, actorAccountId, actorRole, correlationId, "VISIT_CLOSED", closedAt, "WALK_IN".equals(visit.getSource()));
-        inviteReview(visitId, visit, closedAt);
+        completeLocked(visitId, visit, doctorProfileId, actorAccountId, correlationId);
     }
 
     @Override
@@ -168,7 +170,11 @@ public class WalkInVisitLifecycleServiceImpl implements WalkInVisitLifecycleServ
     private VisitCompletionResult completeLocked(UUID visitId, ClinicVisitJpaEntity visit, UUID doctorProfileId,
             UUID actorAccountId, String correlationId) {
         if (!"OPEN".equals(visit.getStatus())) throw new VisitOperationException("VISIT_EXAM_STATE_CONFLICT");
-        requireExaminedBy(visitId, doctorProfileId);
+        var exam = requireExaminedBy(visitId, doctorProfileId);
+        if (exam.examStatus() == VisitExamStatus.AWAITING_CONCLUSION
+                && VisitLifecycleVisitTransaction.periodEnded(visit.getCheckedInAt(), clock.instant(), booking.clinicTimeZone())) {
+            throw new VisitOperationException("VISIT_EXAM_STATE_CONFLICT");
+        }
         if (!completionEvidenceSatisfied(visitId, visit)) throw new VisitOperationException("VISIT_COMPLETION_NOT_ALLOWED");
         var closedAt = clock.instant();
         careAssignments.completeDoctorCare(visitId, doctorProfileId, actorAccountId, correlationId, closedAt);
@@ -176,11 +182,12 @@ public class WalkInVisitLifecycleServiceImpl implements WalkInVisitLifecycleServ
         closeAndRecord(visitId, actorAccountId, AccountRole.DOCTOR, correlationId, "VISIT_CLOSED", closedAt, false);
         examQueue.complete(visitId, doctorProfileId, closedAt);
         inviteReview(visitId, visit, closedAt);
+        events.publishEvent(new VisitCompletedEvent(visitId, doctorProfileId));
         return new VisitCompletionResult(visitId, VisitExamStatus.COMPLETED, closedAt);
     }
 
     /** The queue entry must be this doctor's and must be under examination (IN_EXAMINATION or AWAITING_CONCLUSION). */
-    private void requireExaminedBy(UUID visitId, UUID doctorProfileId) {
+    private ExamQueueEntry requireExaminedBy(UUID visitId, UUID doctorProfileId) {
         ExamQueueEntry entry = examQueue.find(visitId)
                 .orElseThrow(() -> new VisitOperationException("VISIT_EXAM_STATE_CONFLICT"));
         boolean examining = entry.examStatus() == VisitExamStatus.IN_EXAMINATION
@@ -188,6 +195,7 @@ public class WalkInVisitLifecycleServiceImpl implements WalkInVisitLifecycleServ
         if (!examining || !doctorProfileId.equals(entry.doctorProfileId())) {
             throw new VisitOperationException("VISIT_EXAM_STATE_CONFLICT");
         }
+        return entry;
     }
 
     /**

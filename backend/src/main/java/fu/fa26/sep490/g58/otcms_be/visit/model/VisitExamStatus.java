@@ -20,8 +20,8 @@ public enum VisitExamStatus {
             case WAITING -> next == CALLED || next == IN_EXAMINATION || next == CANCELLED;
             case CALLED -> next == ABSENT || next == IN_EXAMINATION || next == CANCELLED;
             case ABSENT -> next == WAITING || next == CANCELLED;
-            case IN_EXAMINATION -> next == AWAITING_CONCLUSION || next == COMPLETED;
-            case AWAITING_CONCLUSION -> next == COMPLETED;
+            case IN_EXAMINATION -> next == AWAITING_CONCLUSION || next == COMPLETED || next == CANCELLED;
+            case AWAITING_CONCLUSION -> next == WAITING || next == COMPLETED;
             case COMPLETED, CANCELLED -> false;
         };
     }

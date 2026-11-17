@@ -37,6 +37,7 @@ import org.springframework.web.context.support.AnnotationConfigWebApplicationCon
 class VisitCompletionProductionWiringTest {
     AnnotationConfigWebApplicationContext context;
     final UUID visit = UUID.randomUUID(), patient = UUID.randomUUID(), actor = UUID.randomUUID();
+    final UUID doctor = UUID.randomUUID();
     final UUID request = UUID.randomUUID(), attempt = UUID.randomUUID(), report = UUID.randomUUID();
     final Instant now = Instant.parse("2026-11-05T08:00:00Z");
     ServiceOrderJpaEntity order;
@@ -50,6 +51,7 @@ class VisitCompletionProductionWiringTest {
         when(bean(AccountRepository.class).existsByIdAndAccountTypeAndStatus(eq(actor), eq(AccountType.RECEPTIONIST), any())).thenReturn(true);
         when(bean(ClinicVisitJpaRepository.class).findByIdForUpdate(visit)).thenReturn(Optional.of(ClinicVisitJpaEntity.walkIn(visit, patient, null, actor, now, null, null)));
         when(bean(WalkInVisitLifecycleRepository.class).closeOpenVisit(eq(visit), any())).thenReturn(true);
+        when(bean(VisitExamQueueService.class).find(visit)).thenReturn(Optional.of(new fu.fa26.sep490.g58.otcms_be.visit.model.ExamQueueEntry(visit, doctor, null, null, 1, fu.fa26.sep490.g58.otcms_be.visit.model.VisitExamStatus.IN_EXAMINATION, now.atZone(java.time.ZoneOffset.UTC).toLocalDate(), now, null, null, null)));
         when(bean(VisitReviewSourceService.class).find(visit)).thenReturn(Optional.empty());
         when(bean(ClinicalExaminationRepository.class).findByVisitId(visit)).thenReturn(Optional.of(
                 ClinicalExaminationJpaEntity.create(visit, "Reason", "Symptoms", "Findings", null, null, null, ClinicalExaminationStatus.COMPLETED, now)));
@@ -83,7 +85,7 @@ class VisitCompletionProductionWiringTest {
                 UUID.randomUUID(), "Reason", "Knee", "Instructions", BigDecimal.ONE, now);
     }
     @AfterEach void stop() { if (context != null) context.close(); }
-    void close() { bean(WalkInVisitLifecycleService.class).close(visit, actor, AccountRole.RECEPTIONIST, "phase3"); }
+    void close() { bean(WalkInVisitLifecycleService.class).completeByDoctor(visit, doctor, actor, "phase3"); }
     @Test void unpaidOrPaidUndispatchedOrderBlocksActualVisitClosure() {
         for (boolean paid : List.of(false, true)) {
             order = orderedImaging(); if (paid) order.markPaid(now);
@@ -97,7 +99,7 @@ class VisitCompletionProductionWiringTest {
     @Test void actualOwnerQueriesAllowCompleteImagingAndPreserveClosureEffects() {
         close(); verify(bean(WalkInVisitLifecycleRepository.class)).closeOpenVisit(eq(visit), any());
         verify(bean(WalkInVisitLifecycleRepository.class)).releaseReservedCare(eq(visit), any());
-        verify(bean(VisitAuditRecorder.class)).walkInClosed(eq(actor), eq(visit), any(), any()); verify(bean(NotificationPublisher.class)).publishToPatient(eq(patient), any());
+        verify(bean(VisitAuditRecorder.class)).visitClosed(eq(actor), eq(visit), any(), any()); verify(bean(NotificationPublisher.class)).publishToPatient(eq(patient), any());
         assertEquals(1, bean(DoctorCoreProductionWiringTest.RecordingTransactions.class).commits);
     }
     @Test void actualOwnerQueryRejectsUnreleasedReportBeforeAnyClosureEffects() {
@@ -128,6 +130,7 @@ class VisitCompletionProductionWiringTest {
     }
 
     @Configuration static class Extras {
+        @Bean fu.fa26.sep490.g58.otcms_be.config.AppointmentBookingProperties bookingProperties() { return mock(fu.fa26.sep490.g58.otcms_be.config.AppointmentBookingProperties.class); }
         @Bean WalkInVisitLifecycleRepository lifecycleRows() { return mock(WalkInVisitLifecycleRepository.class); }
         @Bean VisitAuditRecorder auditRows() { return mock(VisitAuditRecorder.class); }
         @Bean ExitWalkInReceptionQueueService queueExit() { return mock(ExitWalkInReceptionQueueService.class); }

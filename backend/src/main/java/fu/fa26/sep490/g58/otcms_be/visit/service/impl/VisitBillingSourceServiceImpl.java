@@ -27,7 +27,7 @@ public class VisitBillingSourceServiceImpl implements VisitBillingSourceService 
         if (visit == null) {
             throw new VisitOperationException("VISIT_NOT_BILLABLE");
         }
-        if ("CLOSED".equals(visit.getStatus())) {
+        if ("CLOSED".equals(visit.getStatus()) || "INCOMPLETE".equals(visit.getStatus())) {
             // A cancelled walk-in, or one closed before its fee was paid, must not collect money.
             VisitExamStatus status = examQueue.find(visitId).map(ExamQueueEntry::examStatus).orElse(null);
             if (status == VisitExamStatus.CANCELLED || status == VisitExamStatus.PENDING_PAYMENT) {

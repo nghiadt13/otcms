@@ -23,7 +23,8 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
         fu.fa26.sep490.g58.otcms_be.visit.controller.StaffRoomQueryController.class,
         fu.fa26.sep490.g58.otcms_be.visit.controller.VisitReceptionReadController.class,
         fu.fa26.sep490.g58.otcms_be.visit.controller.QueueRoomController.class,
-        fu.fa26.sep490.g58.otcms_be.visit.controller.VisitExamQueueController.class
+        fu.fa26.sep490.g58.otcms_be.visit.controller.VisitExamQueueController.class,
+        fu.fa26.sep490.g58.otcms_be.visit.controller.VisitLifecycleController.class
 })
 @Order(Ordered.HIGHEST_PRECEDENCE)
 public class VisitApiExceptionHandler {
@@ -59,7 +60,7 @@ public class VisitApiExceptionHandler {
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<ErrorResponse> malformed(HttpMessageNotReadableException exception,
             HttpServletRequest request) {
-        String code = request.getRequestURI().startsWith("/api/v1/queue/") ? "MSG-39" : "VALIDATION_FAILED";
+        String code = usesMsgCodes(request.getRequestURI()) ? "MSG-39" : "VALIDATION_FAILED";
         return ResponseEntity.badRequest().body(ErrorResponse.of(code, "Invalid request body",
                 CorrelationIdFilter.current(request)));
     }
@@ -67,7 +68,8 @@ public class VisitApiExceptionHandler {
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ErrorResponse> invalidRequest(MethodArgumentNotValidException exception,
             HttpServletRequest request) {
-        return ResponseEntity.badRequest().body(ErrorResponse.of("VALIDATION_FAILED", "Invalid request body",
+        String code = usesMsgCodes(request.getRequestURI()) ? "MSG-39" : "VALIDATION_FAILED";
+        return ResponseEntity.badRequest().body(ErrorResponse.of(code, "Invalid request body",
                 CorrelationIdFilter.current(request)));
     }
 
@@ -78,10 +80,17 @@ public class VisitApiExceptionHandler {
             return ResponseEntity.status(HttpStatus.CONFLICT).body(ErrorResponse.of("SLOT_UNAVAILABLE",
                     "The requested appointment slot is no longer available", CorrelationIdFilter.current(request)));
         }
-        String code = request.getRequestURI().startsWith("/api/v1/queue/")
+        String code = usesMsgCodes(request.getRequestURI())
                 || request.getRequestURI().startsWith("/api/v1/public/queue/") ? "MSG-04" : "DEPENDENCY_UNAVAILABLE";
         return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(ErrorResponse.of(code,
                 "A required database operation is temporarily unavailable", CorrelationIdFilter.current(request)));
+    }
+
+    /** Queue and lifecycle endpoints report their errors with R3 MSG codes. */
+    private static boolean usesMsgCodes(String uri) {
+        return uri.startsWith("/api/v1/queue/") || uri.endsWith("/returns") || uri.endsWith("/attending-doctor-transfers")
+                || uri.endsWith("/room-transfers") || uri.endsWith("/walk-in-suggestions")
+                || uri.endsWith("/return-candidate");
     }
 
     private static String findSqlState(Throwable failure) {

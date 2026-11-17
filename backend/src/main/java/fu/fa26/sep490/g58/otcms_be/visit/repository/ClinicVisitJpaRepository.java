@@ -15,7 +15,7 @@ public interface ClinicVisitJpaRepository extends JpaRepository<ClinicVisitJpaEn
     @Query("""
             select v from ClinicVisitJpaEntity v
             where v.patientProfileId in :patientIds
-                and (v.status = 'OPEN' or (v.status = 'CLOSED' and exists (
+                and (v.status in ('OPEN', 'INCOMPLETE') or (v.status = 'CLOSED' and exists (
                     select a.id from VisitCareAssignmentJpaEntity a
                     where a.visitId = v.id and a.status = 'COMPLETED')))
             order by v.arrivedAt desc, v.id desc
@@ -27,7 +27,7 @@ public interface ClinicVisitJpaRepository extends JpaRepository<ClinicVisitJpaEn
     @Query("""
             select v from ClinicVisitJpaEntity v
             where v.id = :visitId and v.patientProfileId in :patientIds
-                and (v.status = 'OPEN' or (v.status = 'CLOSED' and exists (
+                and (v.status in ('OPEN', 'INCOMPLETE') or (v.status = 'CLOSED' and exists (
                     select a.id from VisitCareAssignmentJpaEntity a
                     where a.visitId = v.id and a.status = 'COMPLETED')))
             """)
@@ -37,7 +37,7 @@ public interface ClinicVisitJpaRepository extends JpaRepository<ClinicVisitJpaEn
     @Query("""
             select v.id from ClinicVisitJpaEntity v
             where v.patientProfileId = :patientId
-                and (v.status = 'OPEN' or (v.status = 'CLOSED' and exists (
+                and (v.status in ('OPEN', 'INCOMPLETE') or (v.status = 'CLOSED' and exists (
                     select a.id from VisitCareAssignmentJpaEntity a
                     where a.visitId = v.id and a.status = 'COMPLETED')))
                 and (v.arrivedAt < :arrivedAt or (v.arrivedAt = :arrivedAt and v.id < :visitId))
@@ -50,7 +50,7 @@ public interface ClinicVisitJpaRepository extends JpaRepository<ClinicVisitJpaEn
     @Query("""
             select v.id from ClinicVisitJpaEntity v
             where v.patientProfileId = :patientId
-                and (v.status = 'OPEN' or (v.status = 'CLOSED' and exists (
+                and (v.status in ('OPEN', 'INCOMPLETE') or (v.status = 'CLOSED' and exists (
                     select a.id from VisitCareAssignmentJpaEntity a
                     where a.visitId = v.id and a.status = 'COMPLETED')))
                 and (v.arrivedAt > :arrivedAt or (v.arrivedAt = :arrivedAt and v.id > :visitId))
@@ -62,8 +62,9 @@ public interface ClinicVisitJpaRepository extends JpaRepository<ClinicVisitJpaEn
 
     @Query("""
             select v from ClinicVisitJpaEntity v
-            where v.patientProfileId = :patientId and v.id <> :currentId and v.status = 'CLOSED' and v.arrivedAt <= :before
-                and exists (select a.id from VisitCareAssignmentJpaEntity a where a.visitId = v.id and a.status = 'COMPLETED')
+            where v.patientProfileId = :patientId and v.id <> :currentId and v.arrivedAt <= :before
+                and ((v.status = 'CLOSED' and exists (select a.id from VisitCareAssignmentJpaEntity a where a.visitId = v.id and a.status = 'COMPLETED'))
+                    or v.status = 'INCOMPLETE')
             order by v.arrivedAt desc, v.id desc
             """)
     org.springframework.data.domain.Page<ClinicVisitJpaEntity> findHistoricalVisits(

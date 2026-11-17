@@ -82,8 +82,9 @@ public class MyVisitListServiceImpl implements MyVisitListService {
                 row[5] == null ? null : ((Number) row[5]).intValue(), (String) row[6]);
     }
 
-    /** Trạng thái R3 từ trạng thái lượt và trạng thái khám gần nhất. Chưa có Incomplete (thuộc phase 05). */
+    /** Trạng thái R3 từ trạng thái lượt và trạng thái khám gần nhất. */
     private static String status(String visitStatus, String examStatus) {
+        if ("INCOMPLETE".equals(visitStatus)) return "INCOMPLETE";
         if ("CANCELLED".equals(examStatus)) return "CANCELLED_LEFT";
         if ("CLOSED".equals(visitStatus) || "COMPLETED".equals(examStatus)) return "COMPLETED";
         if ("IN_EXAMINATION".equals(examStatus)) return "IN_EXAMINATION";

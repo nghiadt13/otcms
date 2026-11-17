@@ -72,12 +72,15 @@ class WalkInVisitDoctorCompletionServiceTest {
     private final GetClinicServiceCatalogService catalog = mock(GetClinicServiceCatalogService.class);
     private final ManageVisitCareAssignmentService careAssignments = mock(ManageVisitCareAssignmentService.class);
     private final DoctorProfileIdentityQueryService doctorProfiles = mock(DoctorProfileIdentityQueryService.class);
+    private final org.springframework.context.ApplicationEventPublisher events = mock(org.springframework.context.ApplicationEventPublisher.class);
+    private final fu.fa26.sep490.g58.otcms_be.config.AppointmentBookingProperties booking = mock(fu.fa26.sep490.g58.otcms_be.config.AppointmentBookingProperties.class);
     private final WalkInVisitLifecycleServiceImpl service = new WalkInVisitLifecycleServiceImpl(guard, visits, lifecycle,
             audits, queue, receptionists, clinical, diagnostic, Clock.fixed(now, ZoneOffset.UTC), notifications, reviews,
-            names, examQueue, catalog, careAssignments, doctorProfiles);
+            names, examQueue, catalog, careAssignments, doctorProfiles, events, booking);
 
     @BeforeEach
     void setUp() {
+        when(booking.clinicTimeZone()).thenReturn(java.time.ZoneId.of("Asia/Ho_Chi_Minh"));
         when(doctorProfiles.findDoctorProfileId(doctorAccount)).thenReturn(Optional.of(doctorProfile));
         when(visits.findByIdForUpdate(visitId)).thenReturn(Optional.of(
                 ClinicVisitJpaEntity.walkIn(visitId, patient, null, doctorAccount, now, null, null)));
@@ -149,6 +152,25 @@ class WalkInVisitDoctorCompletionServiceTest {
     }
 
     @Test
+    void awaitingVisitCanBeCompletedOnDaySeven() {
+        when(visits.findByIdForUpdate(visitId)).thenReturn(Optional.of(
+                ClinicVisitJpaEntity.walkIn(visitId, patient, null, doctorAccount, now.minusSeconds(6 * 86400L), null, null)));
+        when(examQueue.find(visitId)).thenReturn(Optional.of(entry(doctorProfile, VisitExamStatus.AWAITING_CONCLUSION)));
+        assertEquals(VisitExamStatus.COMPLETED,
+                service.completeWalkIn(visitId, doctorAccount, AccountRole.DOCTOR, "corr-complete").examStatus());
+    }
+    @Test
+    void expiredAwaitingVisitCannotBeCompletedBeforeSweep() {
+        when(visits.findByIdForUpdate(visitId)).thenReturn(Optional.of(
+                ClinicVisitJpaEntity.walkIn(visitId, patient, null, doctorAccount, now.minusSeconds(7 * 86400L), null, null)));
+        when(examQueue.find(visitId)).thenReturn(Optional.of(entry(doctorProfile, VisitExamStatus.AWAITING_CONCLUSION)));
+        var failure = assertThrows(VisitOperationException.class, () ->
+                service.completeWalkIn(visitId, doctorAccount, AccountRole.DOCTOR, "corr-complete"));
+        assertEquals("VISIT_EXAM_STATE_CONFLICT", failure.code());
+        verify(clinical, never()).getCompletionEvidence(any());
+        verify(lifecycle, never()).closeOpenVisit(any(), any());
+    }
+    @Test
     void completionEndsCareThenVisitThenQueueAndInvitesReviewWithoutReceptionExit() {
         var result = service.completeWalkIn(visitId, doctorAccount, AccountRole.DOCTOR, "corr-complete");
 
@@ -158,6 +180,7 @@ class WalkInVisitDoctorCompletionServiceTest {
         order.verify(lifecycle).closeOpenVisit(visitId, now);
         order.verify(examQueue).complete(visitId, doctorProfile, now);
         order.verify(notifications).publishToPatient(eq(patient), any());
+        verify(events).publishEvent(new fu.fa26.sep490.g58.otcms_be.visit.event.VisitCompletedEvent(visitId, doctorProfile));
         verifyNoInteractions(queue);
     }
 
