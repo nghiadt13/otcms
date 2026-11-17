@@ -2,6 +2,30 @@ import { apiRequest, publicApiRequest } from "@/lib/api/client";
 import { toQueryString } from "@/lib/api/pagination";
 export { getCurrentClinicArrivalProof } from "@/lib/api/clinicArrivalApi";
 
+export type ReceptionReturnCandidate = {
+  visitId: string;
+  firstCheckInAt: string;
+  returnDeadline: string;
+  doctorProfileId: string;
+  doctorName: string;
+  roomId: string;
+  roomLabel: string;
+};
+
+export function getReceptionReturnCandidate(patientProfileId: string, signal?: AbortSignal) {
+  return apiRequest<ReceptionReturnCandidate | undefined>(
+    `/api/v1/reception/patients/${encodeURIComponent(patientProfileId)}/return-candidate`,
+    { signal },
+  );
+}
+
+export function returnReceptionVisit(visitId: string) {
+  return apiRequest<{ messageCode: string; data: { visitId: string; status: "WAITING"; queueNumber: number; doctorProfileId: string; doctorName: string; roomId: string; roomLabel: string } }>(
+    `/api/v1/visits/${encodeURIComponent(visitId)}/returns`,
+    { method: "POST" },
+  );
+}
+
 export type ReceptionPatient = {
   patientProfileId: string;
   fullName: string;

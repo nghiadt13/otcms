@@ -8,13 +8,14 @@ import {
   EXAM_QUEUE_STATUS_LABELS,
   EXAM_QUEUE_STATUS_TONE,
 } from "@/lib/domain/clinicVisit";
-import { listOnShiftDoctors, type OnShiftDoctor } from "@/lib/api/examQueueApi";
 import { formatAppMessage, messageFromError } from "@/lib/messages/appMessages";
 import {
   createReceptionWalkIn,
   listExaminationServices,
+  listWalkInSuggestions,
   type ExaminationService,
   type ReceptionWalkIn,
+  type WalkInSuggestion,
 } from "../api/receptionWalkInLiveApi";
 import { queuedFeedbackText } from "../schema/receptionMessages";
 import { money, SelectField } from "./ReceptionUi";
@@ -31,7 +32,7 @@ export function WalkInVisitForm({
   patientProfileId: string;
   priorAppointmentId?: string;
 }) {
-  const [doctors, setDoctors] = useState<OnShiftDoctor[]>([]);
+  const [doctors, setDoctors] = useState<WalkInSuggestion[]>([]);
   const [services, setServices] = useState<ExaminationService[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [loadError, setLoadError] = useState("");
@@ -49,10 +50,11 @@ export function WalkInVisitForm({
 
   useEffect(() => {
     let active = true;
-    Promise.all([listOnShiftDoctors(), listExaminationServices()])
+    Promise.all([listWalkInSuggestions(), listExaminationServices()])
       .then(([doctorPage, serviceList]) => {
         if (!active) return;
         setDoctors(doctorPage.items);
+        setDoctorId(doctorPage.items[0]?.doctorProfileId ?? "");
         setServices(serviceList);
         setLoaded(true);
       })
