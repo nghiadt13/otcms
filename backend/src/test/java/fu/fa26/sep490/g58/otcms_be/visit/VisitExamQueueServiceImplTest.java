@@ -146,6 +146,15 @@ class VisitExamQueueServiceImplTest {
     }
 
     @Test
+    void startExaminationAcceptsCalledEntry() {
+        QueueEntryJpaEntity row = waitingRow(1);
+        row.call(NOW);
+        existingRow(row);
+        service.startExamination(VISIT, DOCTOR, NOW.plusSeconds(1));
+        assertEquals(VisitExamStatus.IN_EXAMINATION, row.getExamStatus());
+    }
+
+    @Test
     void markAwaitingConclusionSkipsMissingAndRepeatedRows() {
         when(queue.findExamByVisitId(VISIT)).thenReturn(Optional.empty());
         service.markAwaitingConclusion(VISIT, NOW);

@@ -1,4 +1,4 @@
-import { apiRequest } from "@/lib/api/client";
+import { apiRequest, publicApiRequest } from "@/lib/api/client";
 import { toQueryString } from "@/lib/api/pagination";
 export { getCurrentClinicArrivalProof } from "@/lib/api/clinicArrivalApi";
 
@@ -298,5 +298,82 @@ export function dispatchClinicalImagingRound(
   return apiRequest<{ diagnosticRequestIds: string[] }>(
     `/api/v1/reception/clinical-ordering-rounds/${encodeURIComponent(roundId)}/imaging-dispatch`,
     { method: "POST", body: JSON.stringify({ assignments }) },
+  );
+}
+
+// Hàng chờ theo phòng (UC-32, UC-33). Thứ tự hàng do BE quyết (sort_order); FE chỉ hiển thị.
+// Lỗi nghiệp vụ đi qua ApiError và đổi sang mã MSG bằng messageFromError.
+
+/** Khu hàng chờ: phòng khám (EXAM) hoặc phòng dịch vụ (SERVICE, UC-46). */
+export type RoomQueueStage = "EXAM" | "SERVICE";
+
+/** Một lượt trong hàng của phòng (BE: QueueRoomDtos.Entry). `status`: WAITING, CALLED, IN_EXAMINATION, ABSENT, AWAITING_CONCLUSION... */
+export type RoomQueueEntry = {
+  id: string;
+  visitId: string;
+  queueNumber: number | null;
+  stage: RoomQueueStage;
+  status: string;
+  sortOrder: number;
+};
+
+/** Kết quả của thao tác gọi, vắng, đưa lại (BE: QueueRoomDtos.Updated). */
+export type RoomQueueUpdate = { messageCode: string; entry: RoomQueueEntry };
+
+/** Hàng của một phòng hôm nay theo thứ tự hàng. */
+export function listRoomQueue(
+  roomId: string,
+  stage: RoomQueueStage,
+  signal?: AbortSignal,
+) {
+  const params = toQueryString({ stage });
+  return apiRequest<RoomQueueEntry[]>(
+    `/api/v1/queue/rooms/${encodeURIComponent(roomId)}${params}`,
+    { signal },
+  );
+}
+
+/** Gọi người kế tiếp của phòng. BE trả MSG-42 khi đang có người được gọi hoặc đang khám. */
+export function callNextInRoom(roomId: string, stage: RoomQueueStage) {
+  const params = toQueryString({ stage });
+  return apiRequest<RoomQueueUpdate>(
+    `/api/v1/queue/rooms/${encodeURIComponent(roomId)}/call-next${params}`,
+    { method: "POST" },
+  );
+}
+
+/** Đánh dấu vắng cho người đang được gọi (CALLED). */
+export function markQueueEntryAbsent(entryId: string) {
+  return apiRequest<RoomQueueUpdate>(
+    `/api/v1/queue/entries/${encodeURIComponent(entryId)}/absence`,
+    { method: "POST" },
+  );
+}
+
+/**
+ * Đưa người vắng (trong ngày) quay lại hàng. `beforeEntryId` là người đang chờ đứng sau để chèn
+ * trước; null nghĩa là cuối hàng. Lý do bắt buộc (BE trả MSG-39 khi rỗng).
+ */
+export function returnQueueEntry(
+  entryId: string,
+  input: { beforeEntryId: string | null; reason: string },
+) {
+  return apiRequest<RoomQueueUpdate>(
+    `/api/v1/queue/entries/${encodeURIComponent(entryId)}/return`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        beforeEntryId: input.beforeEntryId,
+        reason: input.reason.trim(),
+      }),
+    },
+  );
+}
+
+/** Số đang gọi của phòng cho màn hình công khai (chỉ có số, không có tên bệnh nhân). */
+export function getRoomNowServing(roomId: string, signal?: AbortSignal) {
+  return publicApiRequest<number[]>(
+    `/api/v1/public/queue/rooms/${encodeURIComponent(roomId)}/now-serving`,
+    { signal },
   );
 }

@@ -2,24 +2,33 @@ import { act, renderHook } from "@testing-library/react";
 import { toast } from "sonner";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@/lib/api/apiError";
-import { resetLinkedProfilesMock } from "@/lib/patient-scope/linkedProfilesMockStore";
+import { formatAppMessage } from "@/lib/messages/appMessages";
 import { getVisitProgress } from "../api/visitApi";
-import { resetVisitMock } from "../api/visitMockStore";
+import type { VisitProgress } from "../types/visitProgress";
 import {
   useVisitProgress,
   VISIT_PROGRESS_REFRESH_MS,
 } from "./useVisitProgress";
-import { formatAppMessage } from "@/lib/messages/appMessages";
-// Lớp API giả chạy thật; chỉ bọc bằng vi.fn để đếm lần gọi và ép một lần lỗi.
+
+// Hook chạy thật; chỉ thay getVisitProgress (ranh giới API) bằng vi.fn để đếm lần gọi và ép lỗi.
 vi.mock("sonner", () => ({
   toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn() },
 }));
-vi.mock("../api/visitApi", async (importOriginal) => {
-  const original = await importOriginal<typeof import("../api/visitApi")>();
-  return { ...original, getVisitProgress: vi.fn(original.getVisitProgress) };
-});
+vi.mock("../api/visitApi", () => ({ getVisitProgress: vi.fn() }));
 
-const NOW = new Date("2026-10-24T08:00:00+07:00");
+const progressAt = (peopleAhead: number): VisitProgress => ({
+  visitId: "vis-an-today",
+  source: "SCHEDULED",
+  status: "OPEN",
+  currentStage: "CONSULTATION",
+  arrivedAt: "2026-10-24T01:00:00Z",
+  queuePosition: null,
+  currentRoom: "Phòng khám 2",
+  queueNumber: 12,
+  peopleAhead,
+  beingCalled: false,
+  serviceOrders: [],
+});
 
 function setVisibility(state: "visible" | "hidden") {
   Object.defineProperty(document, "visibilityState", {
@@ -44,10 +53,9 @@ const callCount = () => vi.mocked(getVisitProgress).mock.calls.length;
 
 beforeEach(() => {
   vi.useFakeTimers();
-  resetLinkedProfilesMock();
-  resetVisitMock({ now: NOW });
   setVisibility("visible");
-  vi.mocked(getVisitProgress).mockClear();
+  vi.mocked(getVisitProgress).mockReset();
+  vi.mocked(getVisitProgress).mockResolvedValue(progressAt(3));
   vi.mocked(toast.error).mockClear();
 });
 
@@ -56,14 +64,16 @@ afterEach(() => {
 });
 
 describe("useVisitProgress", () => {
-  it("tự tải lại sau 30 s và cập nhật số người phía trước", async () => {
+  it("tự tải lại sau 30 s và cập nhật số người phía trước; ghi thời điểm cập nhật", async () => {
     const { result } = renderHook(() => useVisitProgress("vis-an-today"));
     await advance(0);
     expect(result.current.loading).toBe(false);
-    expect(result.current.progress?.queues[0].peopleAhead).toBe(3);
+    expect(result.current.progress?.peopleAhead).toBe(3);
+    expect(result.current.updatedAt).toEqual(expect.any(String));
 
+    vi.mocked(getVisitProgress).mockResolvedValueOnce(progressAt(2));
     await advance(VISIT_PROGRESS_REFRESH_MS);
-    expect(result.current.progress?.queues[0].peopleAhead).toBe(2);
+    expect(result.current.progress?.peopleAhead).toBe(2);
   });
 
   it("tab ẩn thì không gọi API; hiện lại thì tải ngay", async () => {
@@ -124,10 +134,11 @@ describe("useVisitProgress", () => {
     await advance(0);
     expect(result.current.error).toBeInstanceOf(ApiError);
     expect(result.current.progress).toBeNull();
+    expect(result.current.updatedAt).toBeNull();
 
     act(() => result.current.reload());
     await advance(0);
     expect(result.current.error).toBeNull();
-    expect(result.current.progress?.id).toBe("vis-an-today");
+    expect(result.current.progress?.visitId).toBe("vis-an-today");
   });
 });

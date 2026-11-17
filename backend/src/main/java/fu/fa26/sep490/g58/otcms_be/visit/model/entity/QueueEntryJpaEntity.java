@@ -66,6 +66,18 @@ public class QueueEntryJpaEntity {
     @Column(name = "queue_number")
     private Integer queueNumber;
 
+    @Column(name = "sort_order", nullable = false)
+    private long sortOrder;
+
+    @Column(name = "called_at")
+    private Instant calledAt;
+
+    @Column(name = "absent_at")
+    private Instant absentAt;
+
+    @Column(name = "service_order_id")
+    private UUID serviceOrderId;
+
     @Column(name = "queued_at")
     private Instant queuedAt;
 
@@ -89,6 +101,7 @@ public class QueueEntryJpaEntity {
         entity.status = RECEPTION_WAITING;
         entity.arrivedAt = arrivedAt;
         entity.enteredAt = enteredAt;
+        entity.sortOrder = arrivedAt.toEpochMilli();
         return entity;
     }
 
@@ -121,6 +134,7 @@ public class QueueEntryJpaEntity {
         entity.serviceId = serviceId;
         entity.clinicDate = clinicDate;
         entity.enteredAt = createdAt;
+        entity.sortOrder = createdAt.toEpochMilli();
         return entity;
     }
 
@@ -139,6 +153,23 @@ public class QueueEntryJpaEntity {
         this.status = VisitExamStatus.IN_EXAMINATION.name();
         this.startedAt = at;
     }
+
+    public void call(Instant at) {
+        status = VisitExamStatus.CALLED.name();
+        calledAt = at;
+    }
+
+    public void markAbsent(Instant at) {
+        status = VisitExamStatus.ABSENT.name();
+        absentAt = at;
+    }
+
+    public void returnToQueue(long order) {
+        status = VisitExamStatus.WAITING.name();
+        sortOrder = order;
+    }
+
+    public void changeSortOrder(long order) { sortOrder = order; }
 
     public void awaitConclusion(Instant at) {
         requireExam();
@@ -175,6 +206,10 @@ public class QueueEntryJpaEntity {
     public UUID getServiceId() { return serviceId; }
     public LocalDate getClinicDate() { return clinicDate; }
     public Integer getQueueNumber() { return queueNumber; }
+    public long getSortOrder() { return sortOrder; }
+    public Instant getCalledAt() { return calledAt; }
+    public Instant getAbsentAt() { return absentAt; }
+    public UUID getServiceOrderId() { return serviceOrderId; }
     public Instant getQueuedAt() { return queuedAt; }
     public Instant getStartedAt() { return startedAt; }
     public Instant getAwaitingAt() { return awaitingAt; }
