@@ -152,7 +152,8 @@ public class CheckInAppointmentTransaction {
         }
         if (price == null || price.signum() <= 0) return;
         if (!invoicePaidStatus.paidStatus(List.of(appointmentId)).getOrDefault(appointmentId, false)) {
-            throw new AppointmentBookingException("EXAM_FEE_UNPAID");
+            // MSG-94: the exam fee is unpaid, so the patient cannot be received yet (counter and QR check-in alike).
+            throw new AppointmentBookingException("MSG-94");
         }
     }
 

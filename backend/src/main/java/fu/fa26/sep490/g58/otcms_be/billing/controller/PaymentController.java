@@ -1,6 +1,7 @@
 package fu.fa26.sep490.g58.otcms_be.billing.controller;
 
 import fu.fa26.sep490.g58.otcms_be.billing.model.dto.request.CounterPaymentRequest;
+import fu.fa26.sep490.g58.otcms_be.billing.model.dto.request.PaymentAttemptRequest;
 import fu.fa26.sep490.g58.otcms_be.billing.model.dto.response.PaymentAttemptResponse;
 import fu.fa26.sep490.g58.otcms_be.billing.service.PaymentService;
 import fu.fa26.sep490.g58.otcms_be.common.security.AuthenticatedAccount;
@@ -31,9 +32,10 @@ public class PaymentController {
 
     @PostMapping("/invoices/{invoiceId}/payment-attempts")
     public PaymentAttemptResponse onlineAttempt(@PathVariable UUID invoiceId,
+            @RequestBody(required = false) PaymentAttemptRequest request,
             @RequestHeader("Idempotency-Key") String key,
             @AuthenticationPrincipal AuthenticatedAccount actor) {
-        return payments.createOnlineAttempt(invoiceId, actor, key);
+        return payments.createOnlineAttempt(invoiceId, request, actor, key);
     }
 
     @GetMapping("/payment-attempts/{attemptId}")

@@ -12,6 +12,7 @@ export const ADMIN_ROUTES = {
   announcements: "/admin/announcements",
   payments: "/admin/payments",
   unpaidItems: "/admin/unpaid-items",
+  refunds: "/admin/refunds",
   reports: "/admin/reports",
   activityLogs: "/admin/activity-logs",
   account: "/admin/account",

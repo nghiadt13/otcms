@@ -111,7 +111,7 @@ export function AppointmentDetailSheet({
       </SheetContent>
     </Sheet>
     {appointment && <>
-      <CancelAppointmentWithReasonDialog open={action === "cancel"} onClose={() => setAction(null)} onConfirm={async (reason) => { await cancelAdminAppointment(appointment.id, reason); onChanged(); onClose(); }} />
+      <CancelAppointmentWithReasonDialog open={action === "cancel"} onClose={() => setAction(null)} onConfirm={async (reason, clinicFault) => { await cancelAdminAppointment(appointment.id, reason, clinicFault); onChanged(); onClose(); }} />
       <RescheduleAppointmentDialog currentDoctorId={appointment.doctor?.id} open={action === "reschedule"} onClose={() => setAction(null)} loadSlots={loadSlots} onConfirm={async (slot, reason) => { await rescheduleAdminAppointment(appointment.id, slot.doctorId, slot.startTime, reason); onChanged(); onClose(); }} />
     </>}
     </>

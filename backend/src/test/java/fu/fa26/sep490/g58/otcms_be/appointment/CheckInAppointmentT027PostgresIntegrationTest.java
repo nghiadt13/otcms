@@ -90,9 +90,10 @@ class CheckInAppointmentT027PostgresIntegrationTest {
             for (UUID appointmentId : appointments) {
                 jdbc.update("delete from audit_logs where source = 'appointment_audits' and entity_id = ?", appointmentId);
                 jdbc.update("update appointments set status = 'CANCELLED', visit_id = null where id = ?", appointmentId);
-                jdbc.update("delete from payment_attempts where invoice_id in "
-                        + "(select id from invoices where appointment_id = ?)", appointmentId);
+                // Items first: invoice_items.payment_attempt_id references payment_attempts (V126).
                 jdbc.update("delete from invoice_items where invoice_id in "
+                        + "(select id from invoices where appointment_id = ?)", appointmentId);
+                jdbc.update("delete from payment_attempts where invoice_id in "
                         + "(select id from invoices where appointment_id = ?)", appointmentId);
                 jdbc.update("delete from invoices where appointment_id = ?", appointmentId);
                 List<UUID> visits = jdbc.query("select id from visits where originating_appointment_id = ?",
@@ -231,7 +232,7 @@ class CheckInAppointmentT027PostgresIntegrationTest {
         jdbc.update("update clinic_services set price = 250000 where id = ?", service);
 
         mvc.perform(checkIn(appointment, receptionistAccount, "t027-fee-unpaid"))
-                .andExpect(status().isConflict()).andExpect(jsonPath("$.error.code").value("EXAM_FEE_UNPAID"));
+                .andExpect(status().isConflict()).andExpect(jsonPath("$.error.code").value("MSG-94"));
         assertEquals("CONFIRMED", jdbc.queryForObject("select status from appointments where id = ?", String.class, appointment));
         assertEquals(0, jdbc.queryForObject("select count(*) from visits where originating_appointment_id = ?", Integer.class, appointment));
         assertEquals(0, jdbc.queryForObject("select count(*) from appointments where id = ? and checkin_idempotency_key is not null", Integer.class, appointment));
@@ -241,10 +242,11 @@ class CheckInAppointmentT027PostgresIntegrationTest {
                         .with(actor(receptionistAccount, AccountType.RECEPTIONIST)).with(csrf()))
                 .andExpect(status().isOk());
         UUID invoice = jdbc.queryForObject("select id from invoices where appointment_id = ?", UUID.class, appointment);
+        UUID feeItem = jdbc.queryForObject("select id from invoice_items where invoice_id = ?", UUID.class, invoice);
         mvc.perform(post("/api/v1/invoices/{id}/counter-payments", invoice)
                         .with(actor(receptionistAccount, AccountType.RECEPTIONIST)).with(csrf())
                         .header("Idempotency-Key", "t027-fee-counter").contentType("application/json")
-                        .content("{\"amount\":250000,\"method\":\"CASH\"}"))
+                        .content("{\"itemIds\":[\"" + feeItem + "\"],\"method\":\"CASH\"}"))
                 .andExpect(status().isOk());
 
         mvc.perform(checkIn(appointment, receptionistAccount, "t027-fee-paid"))

@@ -1,81 +1,91 @@
 "use client";
 
+import Link from "next/link";
+import { ChevronRight } from "lucide-react";
 import { publicButtonClass } from "@/components/brand/publicButtonStyles";
-import { Skeleton } from "@/components/ui/skeleton";
-import { messageFromError } from "@/lib/messages/appMessages";
-import {
-  type PaymentHistoryFilter,
-  useMyPaymentHistory,
-} from "../../hooks/useMyPaymentHistory";
+import { formatCurrencyVnd } from "@/lib/format/formatCurrencyVnd";
+import { formatDateTime } from "@/lib/format/formatDate";
+import { PATIENT_ROUTES } from "@/lib/routes/patientRoutes";
+import { usePaymentRecordList } from "@/hooks/usePaymentRecordList";
+import { paymentChannelLabel } from "@/lib/domain/billingLabels";
 import { PaymentErrorBlock } from "./PaymentErrorBlock";
-import { PaymentRow } from "./PaymentRow";
-import { LIST_FRAME_CLASS } from "./patientBillingPresentation";
+import { LIST_FRAME_CLASS, LIST_LINK_CLASS } from "./patientBillingPresentation";
 
 /**
- * Danh sách thanh toán đã hoàn tất theo bộ lọc. Màn cha đặt `key` theo bộ lọc, nên đổi lọc là
- * tải lại từ trang đầu.
+ * Các giao dịch đã thanh toán thành công của một người khám (GET /api/v1/payments). Mỗi dòng mở
+ * phiếu thu. Khoảng ngày và người khám lấy từ URL; khoảng sai do màn cha chặn trước.
  */
 export function PaymentHistoryList({
-  filters,
+  from,
+  to,
+  patientId,
 }: {
-  filters: PaymentHistoryFilter;
+  from?: string;
+  to?: string;
+  patientId?: string;
 }) {
-  const { data, loading, error, page, setPage, reload } =
-    useMyPaymentHistory(filters);
-  const items = data?.items ?? [];
-  const totalPages = data?.totalPages ?? 1;
+  const history = usePaymentRecordList({ from, to, patientId });
 
-  if (loading) {
+  if (history.error)
     return (
-      <div aria-busy="true" className={`${LIST_FRAME_CLASS} p-0`}>
-        {[0, 1, 2, 3].map((row) => (
-          <div className="px-4 py-4" key={row}>
-            <Skeleton className="h-5 w-2/3" />
-            <Skeleton className="mt-2 h-4 w-1/3" />
-          </div>
-        ))}
-      </div>
+      <PaymentErrorBlock message={history.error} onRetry={history.reload} />
     );
-  }
-  if (error)
+  if (history.loading)
     return (
-      <PaymentErrorBlock message={messageFromError(error)} onRetry={reload} />
-    );
-  if (items.length === 0) {
-    return (
-      <p className="rounded-lg border bg-card px-4 py-6 text-base text-muted-foreground">
-        Chưa có thanh toán nào trong khoảng thời gian này. Chọn lại khoảng ngày
-        hoặc để trống để xem tất cả.
+      <p className="text-base text-muted-foreground" role="status">
+        Đang tải lịch sử thanh toán…
       </p>
     );
-  }
+  if (history.items.length === 0)
+    return (
+      <p className="text-base text-muted-foreground">
+        Chưa có khoản thanh toán nào trong khoảng đã chọn.
+      </p>
+    );
+
   return (
     <div className="space-y-4">
       <ul className={LIST_FRAME_CLASS}>
-        {items.map((payment) => (
-          <PaymentRow key={payment.id} payment={payment} />
+        {history.items.map((payment) => (
+          <li key={payment.id}>
+            <Link
+              className={LIST_LINK_CLASS}
+              href={PATIENT_ROUTES.paymentDetail(payment.id)}
+            >
+              <span className="min-w-0 space-y-1">
+                <span className="block font-medium tabular-nums">
+                  {payment.invoiceNumber}
+                </span>
+                <span className="block text-sm text-muted-foreground">
+                  {formatDateTime(payment.confirmedAt)} ·{" "}
+                  {paymentChannelLabel(payment.channel)}
+                </span>
+              </span>
+              <span className="flex shrink-0 items-center gap-2 tabular-nums">
+                {formatCurrencyVnd(payment.amount)}
+                <ChevronRight aria-hidden className="size-5" />
+              </span>
+            </Link>
+          </li>
         ))}
       </ul>
-      {totalPages > 1 ? (
-        <nav
-          aria-label="Phân trang lịch sử"
-          className="flex items-center justify-between gap-3"
-        >
+      {history.totalPages > 1 ? (
+        <nav aria-label="Phân trang lịch sử" className="flex items-center justify-between gap-3">
           <button
             className={publicButtonClass("secondary")}
-            disabled={page === 0}
-            onClick={() => setPage(page - 1)}
+            disabled={history.page === 0}
+            onClick={() => history.setPage(history.page - 1)}
             type="button"
           >
             Trang trước
           </button>
-          <span className="text-base tabular-nums">
-            Trang {page + 1} / {totalPages}
+          <span className="text-sm text-muted-foreground">
+            Trang {history.page + 1}/{history.totalPages}
           </span>
           <button
             className={publicButtonClass("secondary")}
-            disabled={page >= totalPages - 1}
-            onClick={() => setPage(page + 1)}
+            disabled={history.page + 1 >= history.totalPages}
+            onClick={() => history.setPage(history.page + 1)}
             type="button"
           >
             Trang sau

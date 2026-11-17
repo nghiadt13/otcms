@@ -13,20 +13,10 @@ public interface InvoiceService {
     InvoiceResponse get(UUID invoiceId, AuthenticatedAccount actor);
     InvoicePageResponse listMine(AuthenticatedAccount actor, int page, int size);
 
-    enum VoidResult {
-        /** OPEN invoice without money was voided and its PENDING attempts closed. */
-        VOIDED,
-        /** Invoice was already VOID (idempotent repeat). */
-        ALREADY_VOID,
-        /** The appointment has no invoice. */
-        NO_INVOICE,
-        /** Money was already confirmed (invoice PAID or partially paid): never voided. */
-        HAS_PAYMENT
-    }
-
     /**
-     * Internal (no controller): voids the unpaid invoice of an appointment hold under the invoice row lock.
-     * Does not call the payment gateway; see {@link AppointmentHoldSettlementService} for the full release flow.
+     * Internal (no controller): opens the OPEN invoice with the single exam-fee item of a just booked appointment, in
+     * the booking transaction (D7: booking never waits for payment). Does nothing for a free service, a service that
+     * cannot be billed, or an appointment that already has an invoice.
      */
-    VoidResult voidUnpaidAppointmentInvoice(UUID appointmentId);
+    void openForBooking(UUID appointmentId, UUID createdByAccountId);
 }

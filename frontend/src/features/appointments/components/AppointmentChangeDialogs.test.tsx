@@ -15,7 +15,16 @@ it("requires a reason before cancelling", async () => {
   expect(button).toBeDisabled();
   await userEvent.type(screen.getByLabelText("Lý do hủy"), "Bệnh nhân yêu cầu");
   await userEvent.click(button);
-  await waitFor(() => expect(confirm).toHaveBeenCalledWith("Bệnh nhân yêu cầu"));
+  await waitFor(() => expect(confirm).toHaveBeenCalledWith("Bệnh nhân yêu cầu", false));
+});
+
+it("sends clinic fault when staff selects it", async () => {
+  const confirm = vi.fn().mockResolvedValue(undefined);
+  render(<CancelAppointmentWithReasonDialog open onClose={vi.fn()} onConfirm={confirm} />);
+  await userEvent.type(screen.getByLabelText("Lý do hủy"), "Bác sĩ nghỉ");
+  await userEvent.click(screen.getByRole("checkbox", { name: "Lỗi phía phòng khám (bác sĩ nghỉ, không có người thay)" }));
+  await userEvent.click(screen.getByRole("button", { name: "Xác nhận hủy" }));
+  await waitFor(() => expect(confirm).toHaveBeenCalledWith("Bác sĩ nghỉ", true));
 });
 
 it("submits the selected doctor and time with a reason", async () => {

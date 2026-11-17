@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useReducer, useState } from "react";
-import { toast } from "sonner";
 import { isApiError } from "@/lib/api/apiError";
 import {
   notifyError,
@@ -22,7 +21,6 @@ import {
   type BookingSelection,
 } from "../../schema/bookingSelection";
 import {
-  bookingSubmitErrorText,
   bookingSubmitOutcome,
 } from "../../schema/bookingSubmitOutcome";
 import type {
@@ -31,7 +29,7 @@ import type {
   PaymentRenderer,
 } from "../../types/booking";
 import type { WizardStepKey } from "../../schema/bookingWizard";
-import { PaymentHoldStep } from "./PaymentHoldStep";
+import { PaymentOfferStep } from "./PaymentOfferStep";
 import { BookingWizard } from "./wizard/BookingWizard";
 
 // Luồng đặt lịch bệnh nhân; markup wizard nằm ở BookingWizard.
@@ -142,21 +140,19 @@ export function BookingFlow(props: BookingFlowProps) {
         purpose,
         bookedOnline: true,
       });
-      if (appointment.status === "AWAITING_PAYMENT" && renderPayment) {
-        // Giữ giờ chờ thanh toán: chưa báo thành công, MSG-26 hiện sau khi trả xong ở bước 5.
+      if (appointment.examFee.status === "PENDING_PAYMENT" && renderPayment) {
+        // Lịch đã xác nhận nhưng còn phí khám: bước 5 cho trả ngay hoặc trả sau.
         setBooked(appointment);
         setWizardStep("payment");
       } else {
-        // Đã xác nhận ngay (dịch vụ miễn phí, hoặc không có bước thanh toán): bỏ qua bước 5.
+        // Dịch vụ miễn phí hoặc không có bước thanh toán: bỏ qua bước 5.
         notifySuccess("MSG-26");
         onBooked(appointment);
       }
     } catch (error) {
-      const text = bookingSubmitErrorText(error);
-      if (text) toast.error(text);
-      else notifyError(error);
+      notifyError(error);
       const outcome = bookingSubmitOutcome(error);
-      if (outcome === "slotTaken" || outcome === "tooSoon") {
+      if (outcome === "slotTaken") {
         dispatch({ type: "reopen", step: "time" });
         setWizardStep("schedule");
         times.reload();
@@ -168,14 +164,6 @@ export function BookingFlow(props: BookingFlowProps) {
     } finally {
       setSubmitting(false);
     }
-  }
-
-  /** Giữ chỗ đã kết thúc (hủy / hết hạn / tab khác hủy): xóa lựa chọn và về bước đầu để đặt lại. */
-  function resetAfterRelease() {
-    setBooked(null);
-    dispatch({ type: "reopen", step: "patient" });
-    setPurpose("");
-    setWizardStep("patient");
   }
 
   if (patients.length === 0)
@@ -216,23 +204,21 @@ export function BookingFlow(props: BookingFlowProps) {
           onSubmit={() => void handleSubmit()}
           paymentSlot={
             booked && renderPayment ? (
-              <PaymentHoldStep
+              <PaymentOfferStep
                 appointment={booked}
-                onFinish={({ paid, announced }) => {
-                  if (!announced) notifySuccess("MSG-26");
-                  // Kết quả hiển thị đúng trạng thái sau bước thanh toán: trả xong thì lịch đã xác nhận.
+                onFinish={({ paid }) => {
+                  notifySuccess("MSG-26");
+                  // Kết quả hiển thị đúng trạng thái sau bước thanh toán: trả xong thì phí đã thu.
                   onBooked(
                     paid
-                      ? {
-                          ...booked,
-                          status: "BOOKED",
-                          paymentDeadline: null,
-                          examFee: { ...booked.examFee, status: "PAID" },
-                        }
+                      ? { ...booked, examFee: { ...booked.examFee, status: "PAID" } }
                       : booked,
                   );
                 }}
-                onReleased={resetAfterRelease}
+                onLater={() => {
+                  notifySuccess("MSG-26");
+                  onBooked(booked);
+                }}
                 renderPayment={renderPayment}
               />
             ) : null

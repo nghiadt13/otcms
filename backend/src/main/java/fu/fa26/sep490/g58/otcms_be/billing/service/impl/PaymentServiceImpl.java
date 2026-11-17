@@ -1,13 +1,14 @@
 package fu.fa26.sep490.g58.otcms_be.billing.service.impl;
 
 import fu.fa26.sep490.g58.otcms_be.billing.exception.BillingException;
-import fu.fa26.sep490.g58.otcms_be.billing.integration.AppointmentPaymentPort;
 import fu.fa26.sep490.g58.otcms_be.billing.mapper.BillingMapper;
 import fu.fa26.sep490.g58.otcms_be.billing.model.InvoiceStatus;
 import fu.fa26.sep490.g58.otcms_be.billing.model.PaymentAttemptStatus;
 import fu.fa26.sep490.g58.otcms_be.billing.model.PaymentChannel;
 import fu.fa26.sep490.g58.otcms_be.billing.model.dto.request.CounterPaymentRequest;
+import fu.fa26.sep490.g58.otcms_be.billing.model.dto.request.PaymentAttemptRequest;
 import fu.fa26.sep490.g58.otcms_be.billing.model.dto.response.PaymentAttemptResponse;
+import fu.fa26.sep490.g58.otcms_be.billing.model.entity.InvoiceItemJpaEntity;
 import fu.fa26.sep490.g58.otcms_be.billing.model.entity.InvoiceJpaEntity;
 import fu.fa26.sep490.g58.otcms_be.billing.model.entity.PaymentAttemptJpaEntity;
 import fu.fa26.sep490.g58.otcms_be.billing.repository.InvoiceRepository;
@@ -41,9 +42,8 @@ import org.springframework.transaction.support.TransactionTemplate;
 @Service
 public class PaymentServiceImpl implements PaymentService {
     private static final String PROVIDER = "PAYOS";
-    private static final String PAID_AFTER_VOID = "Paid after invoice voided (appointment hold released)";
+    private static final String PAID_AFTER_VOID = "Paid after the invoice was voided";
     private final InvoiceSettlementSupport settlement;
-    private final AppointmentPaymentPort appointments;
     private final InvoiceRepository invoices;
     private final PaymentAttemptRepository attempts;
     private final AuditLogWriter audit;
@@ -56,10 +56,8 @@ public class PaymentServiceImpl implements PaymentService {
     public PaymentServiceImpl(InvoiceRepository invoices, PaymentAttemptRepository attempts,
             AuditLogWriter audit, PaymentGatewayRegistry gateways,
             AuthorizePatientBillingProfileService patientAuthorization, BillingMapper mapper,
-            PlatformTransactionManager transactionManager, Clock clock, InvoiceSettlementSupport settlement,
-            AppointmentPaymentPort appointments) {
+            PlatformTransactionManager transactionManager, Clock clock, InvoiceSettlementSupport settlement) {
         this.settlement = settlement;
-        this.appointments = appointments;
         this.invoices = invoices;
         this.attempts = attempts;
         this.audit = audit;
@@ -74,22 +72,30 @@ public class PaymentServiceImpl implements PaymentService {
     public PaymentAttemptResponse recordCounterPayment(UUID invoiceId, CounterPaymentRequest request,
             AuthenticatedAccount actor, String idempotencyKey) {
         requireRole(actor, AccountRole.RECEPTIONIST);
-        if (request == null || request.amount() == null || request.amount() <= 0
-                || !List.of("CASH", "BANK_TRANSFER", "OTHER").contains(request.method())) {
-            throw new BillingException("PAYMENT_AMOUNT_INVALID");
-        }
-        String fingerprint = hash(invoiceId + "|COUNTER|" + request.amount() + "|" + request.method());
+        if (request == null || !"CASH".equals(request.method())) throw new BillingException("PAYMENT_METHOD_INVALID");
+        List<UUID> itemIds = request.itemIds();
+        if (itemIds == null || itemIds.isEmpty()) throw new BillingException("MSG-49");
+        String fingerprint = hash(invoiceId + "|COUNTER|" + sorted(itemIds) + "|" + request.method());
         PaymentAttemptJpaEntity result = transactions.execute(status -> {
             PaymentAttemptJpaEntity prior = findIdempotent(actor, idempotencyKey, fingerprint);
             if (prior != null) return prior;
-            InvoiceJpaEntity invoice = lockPayableInvoice(invoiceId);
-            BigDecimal due = settlement.outstanding(invoiceId);
-            BigDecimal amount = BigDecimal.valueOf(request.amount()).setScale(2);
-            if (amount.signum() <= 0 || amount.compareTo(due) > 0) throw new BillingException("PAYMENT_AMOUNT_INVALID");
+            // Lock order: invoice, then its items (inside lockItems), then attempts. Decisions use the locked snapshot.
+            InvoiceJpaEntity invoice = settlement.lockInvoiceFresh(invoiceId).orElseThrow(() -> new BillingException("MSG-50"));
+            // A retry that waited for the lock finds the first request's result here instead of a spurious MSG-49.
+            prior = findIdempotent(actor, idempotencyKey, fingerprint);
+            if (prior != null) return prior;
+            if (invoice.getStatus() != InvoiceStatus.OPEN) throw new BillingException("MSG-49");
+            Instant now = Instant.now(clock);
+            InvoiceItemSnapshot snapshot = settlement.lockItems(invoiceId, now);
+            settlement.requireConsistentAllocation(invoiceId, snapshot);
+            List<InvoiceItemJpaEntity> picked = snapshot.pick(itemIds);
             PaymentAttemptJpaEntity payment = PaymentAttemptJpaEntity.counter(UUID.randomUUID(), invoiceId,
-                    amount, actor.accountId(), idempotencyKey, fingerprint, request.method(), Instant.now(clock));
+                    InvoiceItemSnapshot.total(picked), actor.accountId(), idempotencyKey, fingerprint,
+                    request.method(), now);
             attempts.saveAndFlush(payment);
-            settlement.settleInvoice(invoice, payment);
+            snapshot.claim(picked, payment);
+            settlement.settleByItems(invoice, snapshot, payment);
+            settlement.publishServiceOrdersPaid(invoiceId, picked);
             return payment;
         });
         return attempts.findById(result.getId()).map(mapper::toPaymentAttempt)
@@ -97,65 +103,75 @@ public class PaymentServiceImpl implements PaymentService {
     }
 
     @Override
-    public PaymentAttemptResponse createOnlineAttempt(UUID invoiceId, AuthenticatedAccount actor, String idempotencyKey) {
-        if (actor == null || actor.accountRole() != AccountRole.PATIENT) {
-            throw new BillingException("ACCESS_DENIED");
-        }
+    public PaymentAttemptResponse createOnlineAttempt(UUID invoiceId, PaymentAttemptRequest request,
+            AuthenticatedAccount actor, String idempotencyKey) {
+        PaymentChannel channel = request == null || request.channel() == null ? PaymentChannel.ONLINE : request.channel();
+        // The patient pays online; a receptionist may only open the QR shown at the counter.
+        if (channel == PaymentChannel.COUNTER) throw new BillingException("PAYMENT_CHANNEL_INVALID");
+        requireRole(actor, channel == PaymentChannel.ONLINE ? AccountRole.PATIENT : AccountRole.RECEPTIONIST);
+        List<UUID> requestedIds = request == null || request.itemIds() == null || request.itemIds().isEmpty()
+                ? null : request.itemIds();
         InvoiceJpaEntity readable = invoices.findById(invoiceId).orElseThrow(() -> new BillingException("INVOICE_NOT_FOUND"));
         authorizeInvoice(readable, actor);
         PaymentGateway gateway = gateways.require(PROVIDER);
-        String fingerprint = hash(invoiceId + "|ONLINE|" + PROVIDER);
+        String fingerprint = hash(invoiceId + "|" + channel + "|" + PROVIDER + "|"
+                + (requestedIds == null ? "ALL" : sorted(requestedIds)));
         LinkReservation reservation = transactions.execute(status -> {
             PaymentAttemptJpaEntity prior = findIdempotent(actor, idempotencyKey, fingerprint);
-            if (prior != null) return new LinkReservation(prior, false, null);
-            InvoiceJpaEntity locked = lockPayableInvoice(invoiceId);
-            Instant holdDeadline = requireLiveHold(locked);
-            var reconciliation = attempts.findFirstByInvoiceIdAndChannelAndStatusOrderByCreatedAtDesc(
-                    invoiceId, PaymentChannel.ONLINE, PaymentAttemptStatus.RECONCILIATION_REQUIRED);
-            if (reconciliation.isPresent()) throw new BillingException("PAYMENT_RECONCILIATION_FAILED");
-            var active = attempts.findFirstByInvoiceIdAndChannelAndStatusOrderByCreatedAtDesc(
-                    invoiceId, PaymentChannel.ONLINE, PaymentAttemptStatus.PENDING);
-            if (active.isPresent()) {
-                PaymentAttemptJpaEntity existing = active.get();
-                if (existing.getExpiresAt() == null || existing.getExpiresAt().isAfter(Instant.now(clock))) {
-                    return new LinkReservation(existing, false, null);
+            if (prior != null) return new LinkReservation(prior, false, List.of());
+            InvoiceJpaEntity locked = settlement.lockInvoiceFresh(invoiceId)
+                    .orElseThrow(() -> new BillingException("INVOICE_NOT_FOUND"));
+            prior = findIdempotent(actor, idempotencyKey, fingerprint);
+            if (prior != null) return new LinkReservation(prior, false, List.of());
+            if (locked.getStatus() != InvoiceStatus.OPEN) throw new BillingException("INVOICE_NOT_PAYABLE");
+            Instant now = Instant.now(clock);
+            InvoiceItemSnapshot snapshot = settlement.lockItems(invoiceId, now);
+            settlement.requireConsistentAllocation(invoiceId, snapshot);
+            if (channel == PaymentChannel.ONLINE) {
+                // uk_payment_attempt_active_online: one PENDING/RECONCILIATION_REQUIRED online attempt per invoice.
+                if (attempts.findFirstByInvoiceIdAndChannelAndStatusOrderByCreatedAtDesc(invoiceId, channel,
+                        PaymentAttemptStatus.RECONCILIATION_REQUIRED).isPresent()) {
+                    throw new BillingException("PAYMENT_RECONCILIATION_FAILED");
                 }
-                existing.fail(PaymentAttemptStatus.EXPIRED, "PayOS checkout link expired");
-                attempts.saveAndFlush(existing);
             }
-            BigDecimal due = settlement.outstanding(invoiceId);
-            if (due.signum() <= 0) throw new BillingException("INVOICE_NOT_PAYABLE");
+            for (PaymentAttemptJpaEntity existing : attempts.findAllByInvoiceIdOrderByCreatedAtDesc(invoiceId)) {
+                if (existing.getChannel() != channel || existing.getStatus() != PaymentAttemptStatus.PENDING) continue;
+                if (existing.isOpenAt(now)) {
+                    // Asking again for the same items (or for "everything") returns the open checkout; else MSG-49.
+                    if (requestedIds == null || sameItems(snapshot.linkedTo(existing.getId()), requestedIds)) {
+                        return new LinkReservation(existing, false, List.of());
+                    }
+                    if (channel == PaymentChannel.ONLINE) throw new BillingException("MSG-49");
+                } else {
+                    existing.fail(PaymentAttemptStatus.EXPIRED, "PayOS checkout link expired");
+                    attempts.saveAndFlush(existing);
+                }
+            }
+            List<InvoiceItemJpaEntity> picked = requestedIds == null ? snapshot.payable() : snapshot.pick(requestedIds);
+            if (picked.isEmpty()) throw new BillingException("MSG-49");
+            BigDecimal due = InvoiceItemSnapshot.total(picked);
+            if (due.signum() <= 0) throw new BillingException("MSG-49");
             long orderCode = nextOrderCode();
-            PaymentAttemptJpaEntity pending = PaymentAttemptJpaEntity.pendingOnline(UUID.randomUUID(), invoiceId,
-                    due, actor.accountId(), idempotencyKey, fingerprint, orderCode);
+            PaymentAttemptJpaEntity pending = PaymentAttemptJpaEntity.pendingProvider(channel, UUID.randomUUID(),
+                    invoiceId, due, actor.accountId(), idempotencyKey, fingerprint, orderCode);
             attempts.saveAndFlush(pending);
-            return new LinkReservation(pending, true, holdDeadline);
+            // The link stays after expiry/failure on purpose: a late webhook still knows which items it pays.
+            snapshot.claim(picked, pending);
+            List<PaymentGateway.GatewayItem> gatewayItems = picked.stream().map(item -> new PaymentGateway.GatewayItem(
+                    item.getDescriptionSnapshot(), item.getQuantity(), item.getUnitPriceSnapshot().longValueExact())).toList();
+            return new LinkReservation(pending, true, gatewayItems);
         });
         PaymentAttemptJpaEntity attempt = reservation.attempt();
         if (attempt.getCheckoutUrl() != null) return mapper.toPaymentAttempt(attempt);
         if (!reservation.createLink()) return mapper.toPaymentAttempt(attempt);
         Instant now = Instant.now(clock);
-        // The QR of an appointment hold must never outlive the hold (audit #2): expiry = min(now + ttl, deadline).
         Instant expiry = now.plusSeconds(gateway.linkTtlSeconds());
-        if (reservation.holdDeadline() != null && reservation.holdDeadline().isBefore(expiry)) {
-            expiry = reservation.holdDeadline();
-        }
-        if (!expiry.isAfter(now)) {
-            transactions.executeWithoutResult(status -> attempts.findById(attempt.getId()).ifPresent(payment -> {
-                if (payment.getStatus() == PaymentAttemptStatus.PENDING) {
-                    payment.fail(PaymentAttemptStatus.EXPIRED, "Appointment payment hold expired");
-                }
-            }));
-            throw new BillingException("INVOICE_NOT_PAYABLE");
-        }
         try {
             long checkoutAmount = attempt.getAmount().longValueExact();
-            List<PaymentGateway.GatewayItem> gatewayItems = List.of(
-                    new PaymentGateway.GatewayItem("Outstanding invoice balance", 1, checkoutAmount));
             PaymentGateway.GatewayLink link = gateway.createLink(new PaymentGateway.GatewayPaymentCommand(
                     attempt.getProviderOrderCode(), checkoutAmount,
                     "Invoice " + invoiceId.toString().substring(0, 8),
-                    attempt.getId(), expiry, gatewayItems));
+                    attempt.getId(), expiry, reservation.gatewayItems()));
             PaymentAttemptJpaEntity updated = transactions.execute(status -> {
                 PaymentAttemptJpaEntity managed = attempts.findById(attempt.getId())
                         .orElseThrow(() -> new BillingException("PAYMENT_ATTEMPT_NOT_FOUND"));
@@ -225,15 +241,11 @@ public class PaymentServiceImpl implements PaymentService {
                 settlement.holdForReconciliation(payment, PAID_AFTER_VOID, event.transactionReference());
                 outcome = "RECONCILIATION_REQUIRED";
                 detail = "INVOICE_VOID";
-            } else if (settlement.outstanding(payment.getInvoiceId()).compareTo(payment.getAmount()) != 0) {
-                payment.requireReconciliation("Provider reports payment but invoice balance changed", event.transactionReference());
-                outcome = "RECONCILIATION_REQUIRED";
-                detail = "OUTSTANDING_BALANCE_CHANGED";
             } else {
-                payment.confirm(event.transactionReference(), Instant.now(clock));
-                boolean applied = settlement.settleInvoice(invoice, payment);
-                outcome = applied ? "APPLIED" : "RECONCILIATION_REQUIRED";
-                detail = applied ? null : "APPOINTMENT_HOLD_RELEASED";
+                var applied = settlement.applyProviderPayment(invoice, payment, event.transactionReference(),
+                        Instant.now(clock));
+                outcome = applied.outcome();
+                detail = applied.detail();
             }
         } else if (!event.successful() && payment.getStatus() == PaymentAttemptStatus.PENDING) {
             payment.fail(PaymentAttemptStatus.FAILED, "PayOS reported an unsuccessful payment");
@@ -275,7 +287,7 @@ public class PaymentServiceImpl implements PaymentService {
         InvoiceJpaEntity readableInvoice = invoices.findById(attempt.getInvoiceId())
                 .orElseThrow(() -> new BillingException("INVOICE_NOT_FOUND"));
         authorizeInvoice(readableInvoice, actor);
-        if (attempt.getChannel() != PaymentChannel.ONLINE) throw new BillingException("PAYMENT_RECONCILIATION_FAILED");
+        if (attempt.getChannel() == PaymentChannel.COUNTER) throw new BillingException("PAYMENT_RECONCILIATION_FAILED");
         PaymentGateway.GatewayPaymentStatus providerStatus;
         try {
             providerStatus = gateways.require(attempt.getProvider()).query(attempt.getProviderOrderCode());
@@ -287,7 +299,7 @@ public class PaymentServiceImpl implements PaymentService {
 
     /**
      * Applies an authoritative provider status (queried by the caller OUTSIDE any transaction) under the invoice lock.
-     * Shared by manual reconcile and the appointment hold settlement. A PAID status on a VOID invoice is never applied.
+     * Used by manual reconcile. A PAID status on a VOID invoice is never applied.
      */
     @Override
     public PaymentAttemptResponse applyProviderStatus(UUID attemptId, PaymentGateway.GatewayPaymentStatus providerStatus) {
@@ -308,10 +320,8 @@ public class PaymentServiceImpl implements PaymentService {
                     managed.requireReconciliation("PayOS payment does not match the recorded attempt",
                             providerStatus.transactionReference());
                 } else if (managed.getStatus() != PaymentAttemptStatus.CONFIRMED) {
-                    if (settlement.outstanding(managed.getInvoiceId()).compareTo(managed.getAmount()) == 0) {
-                        managed.confirm(providerStatus.transactionReference(), Instant.now(clock));
-                        settlement.settleInvoice(invoice, managed);
-                    } else managed.requireReconciliation("Paid attempt no longer matches outstanding balance", providerStatus.transactionReference());
+                    settlement.applyProviderPayment(invoice, managed, providerStatus.transactionReference(),
+                            Instant.now(clock));
                 }
             } else if (managed.getStatus() != PaymentAttemptStatus.CONFIRMED
                     && List.of("CANCELLED", "EXPIRED", "FAILED").contains(providerStatus.status().toUpperCase(Locale.ROOT))) {
@@ -330,27 +340,12 @@ public class PaymentServiceImpl implements PaymentService {
                 && "VND".equalsIgnoreCase(event.currency())
                 && (payment.getProviderPaymentLinkId() == null || payment.getProviderPaymentLinkId().equals(event.paymentLinkId()));
     }
-    private InvoiceJpaEntity lockPayableInvoice(UUID id) {
-        InvoiceJpaEntity invoice = invoices.findByIdForUpdate(id).orElseThrow(() -> new BillingException("INVOICE_NOT_FOUND"));
-        if (invoice.getStatus() != InvoiceStatus.OPEN) throw new BillingException("INVOICE_NOT_PAYABLE");
-        return invoice;
+    private static List<UUID> sorted(List<UUID> ids) {
+        return ids.stream().sorted().toList();
     }
-    /**
-     * Hold deadline of an online-booking invoice, or null when no hold applies. Refuses to open a payment when the
-     * hold already ran out or was released (the invoice is normally VOID by then; this covers the sweeper gap).
-     */
-    private Instant requireLiveHold(InvoiceJpaEntity invoice) {
-        if (!"APPOINTMENT".equals(invoice.getSourceType()) || invoice.getAppointmentId() == null) return null;
-        UUID appointmentId = invoice.getAppointmentId();
-        var deadline = appointments.liveHoldDeadline(appointmentId);
-        if (deadline.isPresent()) {
-            if (!deadline.get().isAfter(Instant.now(clock))) throw new BillingException("INVOICE_NOT_PAYABLE");
-            return deadline.get();
-        }
-        if (appointments.heldOrReleasedIds(java.util.Set.of(appointmentId)).contains(appointmentId)) {
-            throw new BillingException("INVOICE_NOT_PAYABLE");
-        }
-        return null;
+    private static boolean sameItems(List<InvoiceItemJpaEntity> linked, List<UUID> requestedIds) {
+        return linked.size() == requestedIds.size() && linked.stream().map(InvoiceItemJpaEntity::getId)
+                .collect(java.util.stream.Collectors.toSet()).equals(new java.util.HashSet<>(requestedIds));
     }
     private PaymentAttemptJpaEntity findIdempotent(AuthenticatedAccount actor, String key, String fingerprint) {
         if (key == null || key.isBlank() || key.length() > 128) throw new BillingException("IDEMPOTENCY_CONFLICT");
@@ -382,5 +377,6 @@ public class PaymentServiceImpl implements PaymentService {
         try { return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8))); }
         catch (NoSuchAlgorithmException exception) { throw new IllegalStateException("SHA-256 is required", exception); }
     }
-    private record LinkReservation(PaymentAttemptJpaEntity attempt, boolean createLink, Instant holdDeadline) { }
+    private record LinkReservation(PaymentAttemptJpaEntity attempt, boolean createLink,
+            List<PaymentGateway.GatewayItem> gatewayItems) { }
 }

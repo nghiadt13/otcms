@@ -23,7 +23,7 @@ const CHECK_IN_FAILURES: Readonly<
     hint: "Hãy nhờ lễ tân kiểm tra giúp.",
   },
   EXAM_FEE_UNPAID: {
-    code: "MSG-37",
+    code: "MSG-94",
     hint: "Hãy ra quầy lễ tân để thanh toán phí khám, rồi quét lại mã.",
   },
   // R3 chưa có MSG riêng cho mã QR hỏng hoặc hết hạn: tạm dùng MSG-37 (cần nhóm xác nhận).

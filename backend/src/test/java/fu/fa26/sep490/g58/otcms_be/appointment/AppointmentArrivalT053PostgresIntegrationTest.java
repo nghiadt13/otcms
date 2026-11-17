@@ -98,9 +98,9 @@ class AppointmentArrivalT053PostgresIntegrationTest {
             for (UUID id : appointments) {
                 jdbc.update("delete from audit_logs where source = 'appointment_audits' and entity_id = ?", id);
                 jdbc.update("update appointments set status = 'CANCELLED', visit_id = null where id = ?", id);
-                jdbc.update("delete from payment_attempts where invoice_id in "
-                        + "(select id from invoices where appointment_id = ?)", id);
                 jdbc.update("delete from invoice_items where invoice_id in "
+                        + "(select id from invoices where appointment_id = ?)", id);
+                jdbc.update("delete from payment_attempts where invoice_id in "
                         + "(select id from invoices where appointment_id = ?)", id);
                 jdbc.update("delete from invoices where appointment_id = ?", id);
                 List<UUID> visits = jdbc.query("select id from visits where originating_appointment_id = ?",
@@ -345,7 +345,7 @@ class AppointmentArrivalT053PostgresIntegrationTest {
 
         mvc.perform(recordQr(target, patientAccount, issueProof()))
                 .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.error.code").value("EXAM_FEE_UNPAID"));
+                .andExpect(jsonPath("$.error.code").value("MSG-94"));
         assertNoArrival(target);
         assertEquals("CONFIRMED", jdbc.queryForObject("select status from appointments where id = ?", String.class, target));
 
@@ -357,7 +357,7 @@ class AppointmentArrivalT053PostgresIntegrationTest {
         mvc.perform(post("/api/v1/invoices/{id}/counter-payments", invoice)
                         .with(actor(receptionistAccount, AccountType.RECEPTIONIST)).with(testCsrf())
                         .header("Idempotency-Key", "t053-fee-counter").contentType("application/json")
-                        .content("{\"amount\":250000,\"method\":\"CASH\"}"))
+                        .content("{\"itemIds\":[\"" + jdbc.queryForObject("select id from invoice_items where invoice_id = ?", UUID.class, invoice) + "\"],\"method\":\"CASH\"}"))
                 .andExpect(status().isOk());
 
         mvc.perform(recordQr(target, patientAccount, issueProof()))

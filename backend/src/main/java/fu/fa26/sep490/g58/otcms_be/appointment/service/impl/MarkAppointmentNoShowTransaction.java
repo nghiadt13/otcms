@@ -7,6 +7,7 @@ import fu.fa26.sep490.g58.otcms_be.appointment.exception.AppointmentBookingExcep
 import fu.fa26.sep490.g58.otcms_be.appointment.model.CreatedAppointment;
 import fu.fa26.sep490.g58.otcms_be.appointment.repository.AppointmentNoShowRepository;
 import fu.fa26.sep490.g58.otcms_be.appointment.service.MarkAppointmentNoShowCommand;
+import fu.fa26.sep490.g58.otcms_be.billing.service.BillingRefundService;
 import fu.fa26.sep490.g58.otcms_be.config.AppointmentBookingProperties;
 import fu.fa26.sep490.g58.otcms_be.common.service.CoordinationGuardService;
 import fu.fa26.sep490.g58.otcms_be.visit.service.RecordedArrivalQueryService;
@@ -26,10 +27,13 @@ public class MarkAppointmentNoShowTransaction {
     private final AppointmentNoShowRepository appointments;
     private final RecordedArrivalQueryService arrivals;
     private final AppointmentBookingProperties properties;
+    private final BillingRefundService fees;
     private final Clock clock;
 
     public MarkAppointmentNoShowTransaction(CoordinationGuardService guard, AppointmentNoShowRepository appointments,
-            RecordedArrivalQueryService arrivals, AppointmentBookingProperties properties, Clock clock, AuditLogWriter auditLogWriter) {
+            RecordedArrivalQueryService arrivals, AppointmentBookingProperties properties, Clock clock,
+            BillingRefundService fees, AuditLogWriter auditLogWriter) {
+        this.fees = fees;
         this.auditLogWriter = auditLogWriter;
         this.guard = guard;
         this.appointments = appointments;
@@ -82,6 +86,8 @@ public class MarkAppointmentNoShowTransaction {
 
         var result = appointments.markNoShow(current, command.actorAccountId(),
                 command.reason() == null ? null : command.reason().trim(), now, command.correlationId());
+        // A no-show keeps a paid fee (no refund); an unpaid one is voided.
+        fees.voidUnpaidAppointmentFee(appointmentId);
         AppointmentAuditEntries.record(auditLogWriter, AppointmentAuditEntries.changed(current.id(), command.actorAccountId(), "RECEPTIONIST", "STATUS_CHANGED",
                 "CONFIRMED", "NO_SHOW", current.doctorProfileId(), current.doctorProfileId(),
                 current.startTime(), current.startTime(), current.endTime(), current.endTime(),

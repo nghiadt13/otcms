@@ -22,7 +22,6 @@ import { BOOKABLE_SERVICES, doctorById } from "./bookingMockCatalog";
 import {
   bookingMockNow,
   cancelStoredAppointment,
-  cancelStoredPendingHolds,
   readStoredAppointments,
 } from "./bookingMockStore";
 import {
@@ -107,7 +106,6 @@ function sharedView(
         record.examFee.status,
         record.startAt,
       ),
-      paymentDeadline: record.paymentDeadline ?? null,
       examFee: record.examFee,
       doctorUnavailable: false,
     },
@@ -171,15 +169,11 @@ function ownView(
 }
 
 /**
- * Mọi lịch của hồ sơ đang gắn, chưa lọc. Bỏ gắn một hồ sơ thì lịch của hồ sơ đó biến mất. Lịch giữ
- * giờ chờ thanh toán chỉ có khi `includeHolds` (đọc chi tiết theo mã); danh sách không bao giờ có.
+ * Mọi lịch của hồ sơ đang gắn, chưa lọc. Bỏ gắn một hồ sơ thì lịch của hồ sơ đó biến mất.
  */
-function myAppointments(
-  linked: readonly LinkedProfile[],
-  includeHolds = false,
-): PatientAppointment[] {
+function myAppointments(linked: readonly LinkedProfile[]): PatientAppointment[] {
   const byId = new Map(linked.map((profile) => [profile.id, profile]));
-  const shared = readStoredAppointments({ includeHolds }).flatMap((record) => {
+  const shared = readStoredAppointments().flatMap((record) => {
     const profile = byId.get(record.patient.id);
     return profile ? [sharedView(record, profile)] : [];
   });
@@ -195,7 +189,7 @@ function myAppointments(
 /** Chi tiết một lịch của hồ sơ đang gắn; ngoài phạm vi hoặc không có → 404 MSG-29 như nhau. */
 function findMine(id: string): PatientAppointment {
   return (
-    myAppointments(getLinkedProfileRecords(), true).find(
+    myAppointments(getLinkedProfileRecords()).find(
       (item) => item.id === id,
     ) ?? mockFail(404, "MSG-29")
   );
@@ -254,11 +248,6 @@ export async function cancelMyAppointment(
 ): Promise<PatientAppointment> {
   await latency();
   const current = findMine(id);
-  // Lịch đang giữ giờ chờ thanh toán cũng hủy được (BE: nhả giờ, không phải lịch "Đã hủy" của R3).
-  if (current.status === "AWAITING_PAYMENT") {
-    cancelStoredPendingHolds();
-    return findMine(id);
-  }
   if (current.status !== "BOOKED" || id === RACE_APPOINTMENT_ID)
     mockFail(409, "MSG-32");
   if (!isPatientCancellable(current.startAt, bookingMockNow().getTime()))
@@ -272,15 +261,3 @@ export async function cancelMyAppointment(
   return findMine(id);
 }
 
-/**
- * POST /api/v1/appointments/pending-hold/cancel: rời trang = hủy thanh toán. Hủy mọi giữ giờ còn
- * sống của tài khoản, idempotent (0 hold vẫn là 200). Kho giả chưa có thanh toán thật nên
- * `alreadyPaid` luôn false.
- */
-export async function cancelPendingHold(): Promise<{
-  cancelledCount: number;
-  alreadyPaid: boolean;
-}> {
-  await latency();
-  return { cancelledCount: cancelStoredPendingHolds(), alreadyPaid: false };
-}

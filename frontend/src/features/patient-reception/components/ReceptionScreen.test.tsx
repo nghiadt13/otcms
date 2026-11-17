@@ -3,7 +3,6 @@ import {
   fireEvent,
   render,
   screen,
-  waitFor,
   within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -35,9 +34,18 @@ vi.mock("@/lib/api/client", async (importOriginal) => {
     identityDocumentType: null,
     version: 1,
   };
+  const invoice = { id: "inv-1", invoiceNumber: "INV-1", appointmentId: "a1", visitId: null, status: "OPEN", totalAmount: 200000, paidAmount: 0, outstandingBalance: 200000, issuedAt: "2026-11-17", items: [{ id: "item-1", lineNumber: 1, serviceId: null, description: "Phí khám", quantity: 1, unitPrice: 200000, lineTotal: 200000, status: "PENDING" }] };
+  const receipt = { id: "pay-1", receiptNumber: "RC-1", invoiceId: "inv-1", invoiceNumber: "INV-1", patientProfileId: "BN0001", patientName: "Nguyễn Minh Anh", amount: 200000, currency: "VND", method: "CASH", channel: "COUNTER", confirmedAt: "2026-11-17T08:00:00Z", receivedByName: null, providerTransactionReference: null, items: [{ itemId: "item-1", lineNumber: 1, description: "Phí khám", quantity: 1, unitPrice: 200000, lineTotal: 200000, status: "PAID", refundReason: null }] };
   return {
     ...actual,
     apiRequest: (path: `/api/v1/${string}`, init?: RequestInit) => {
+      if (path.startsWith("/api/v1/reception/patients/BN0001/billing?"))
+        return Promise.resolve({ patientProfileId: "BN0001", patientName: "Nguyễn Minh Anh", invoices: { items: [invoice], page: 0, size: 20, totalItems: 1, totalPages: 1 } });
+      if (path === "/api/v1/invoices/inv-1/counter-payments") {
+        expect(JSON.parse(String(init?.body))).toEqual({ itemIds: ["item-1"], method: "CASH" });
+        return Promise.resolve({ id: "pay-1" });
+      }
+      if (path === "/api/v1/payments/pay-1/receipt") return Promise.resolve(receipt);
       if (!path.startsWith("/api/v1/patient-profiles"))
         return actual.apiRequest(path, init);
       if (path.startsWith("/api/v1/patient-profiles?"))
@@ -65,7 +73,7 @@ describe("receptionist screens with real mock adapter", () => {
     vi.stubEnv("NODE_ENV", "production");
     vi.stubEnv("NEXT_PUBLIC_RECEPTION_DEMO", "");
     try {
-      mount("payments");
+      mount("notifications");
       expect(
         await screen.findByRole("heading", {
           name: "Khu vực lễ tân chưa được kích hoạt",
@@ -97,37 +105,22 @@ describe("receptionist screens with real mock adapter", () => {
     const user = userEvent.setup();
     mount("payments");
     await screen.findByRole("heading", { name: "Thu phí tại quầy" });
-    fireEvent.click(
-      screen.getByRole("checkbox", {
-        name: "Chọn khoản phi-LH001 của Nguyễn Minh Anh",
-      }),
-    );
-    fireEvent.click(screen.getByRole("button", { name: /Thu 1 khoản/ }));
+    await user.type(screen.getByLabelText("Tên hoặc số điện thoại"), "0900000001");
+    await user.click(await screen.findByRole("button", { name: /Nguyễn Minh Anh/ }));
+    await user.click(await screen.findByRole("button", { name: "Thu tiền" }));
     const dialog = await screen.findByRole("dialog", {
-      name: "Ghi nhận thanh toán",
+      name: "Thu tiền tại quầy",
     });
-    fireEvent.change(within(dialog).getByLabelText("Số tiền khách đưa (₫)"), {
-      target: { value: "250000" },
-    });
-    await user.click(within(dialog).getByRole("checkbox"));
+    expect(within(dialog).getByRole("checkbox", { name: /Phí khám/ })).toBeChecked();
     expect(
-      within(dialog).getByRole("button", { name: "Kiểm tra và xác nhận" }),
-    ).toBeEnabled();
-    await user.click(
-      within(dialog).getByRole("button", { name: "Kiểm tra và xác nhận" }),
-    );
-    const confirm = await screen.findByRole("alertdialog");
-    fireEvent.click(
-      within(confirm).getByRole("button", { name: "Xác nhận thu tiền" }),
-    );
-    await waitFor(() =>
-      expect(
-        screen.getByRole("heading", { name: "BIÊN LAI THU TIỀN" }),
-      ).toBeInTheDocument(),
-    );
-    const state = await loadReception();
-    expect(state.payments[0].cashReceived).toBe(250000);
-    expect(state.payments[0].amount).toBe(200000);
+      within(dialog).getByRole("button", { name: "Xác nhận thu tiền" }),
+    ).toBeDisabled();
+    await user.click(within(dialog).getByRole("checkbox", { name: /Đã nhận tiền/ }));
+    await user.click(within(dialog).getByRole("button", { name: "Xác nhận thu tiền" }));
+    const receipt = await screen.findByRole("dialog", { name: "Biên lai thu tiền" });
+    expect(await within(receipt).findByText("RC-1")).toBeInTheDocument();
+    expect(within(receipt).getByText("Phí khám")).toBeInTheDocument();
+    expect(within(receipt).queryByRole("textbox")).not.toBeInTheDocument();
   });
   it("marks notifications read only through the adapter", async () => {
     mount("notifications");

@@ -1,4 +1,3 @@
-import { ApiError } from "@/lib/api/apiError";
 import { clone, mockDelay, mockFail } from "@/lib/api/mockServer";
 import type { ItemsResponse } from "@/lib/api/pagination";
 import { addDays, todayIsoDate } from "@/lib/format/formatDate";
@@ -29,7 +28,6 @@ import {
 import {
   appendStoredAppointment,
   bookingMockNow,
-  cancelStoredPendingHolds,
   hasBookedPatientAt,
   isStartTaken,
   markStartTaken,
@@ -55,17 +53,10 @@ function toBookedAppointment(record: StoredAppointment): BookedAppointment {
     doctor: record.doctor,
     roomName: record.roomName,
     status: record.status,
-    // Chỉ lịch đang giữ giờ mới có hạn thanh toán.
-    ...(record.paymentDeadline
-      ? { paymentDeadline: record.paymentDeadline }
-      : {}),
     examFee: record.examFee,
     isFollowUp: record.isFollowUp,
   });
 }
-
-/** Giữ giờ chờ thanh toán 15 phút (BE: appointment.booking.payment-hold-minutes). */
-const PAYMENT_HOLD_MINUTES = 15;
 
 /** GET /api/v1/appointments/bookable-services */
 export async function listBookableServices(
@@ -106,9 +97,7 @@ export async function getOpenTimes(
 /**
  * POST /api/v1/appointments. Giờ không còn trống (đã có người đặt, đã qua, hoặc đã bị giữ) → 409
  * MSG-30. Kịch bản `TAKEN_TODAY_TIME`: giờ đó của hôm nay luôn bị người khác giữ trước.
- * Đặt online (`bookedOnline`) dịch vụ có giá > 0 → AWAITING_PAYMENT kèm `paymentDeadline` (giữ giờ 15
- * phút, ẩn khỏi mọi danh sách); cách giờ khám dưới 15 phút → BOOKING_TOO_SOON. Dịch vụ miễn phí và
- * lịch lễ tân đặt hộ → BOOKED ngay. Tạo lịch online mới tự hủy hold cũ.
+ * Mọi lịch đặt → BOOKED ngay, không giữ giờ. Dịch vụ có giá > 0 còn PENDING_PAYMENT (trả sau).
  */
 export async function createAppointment(
   body: CreateAppointmentRequest,
@@ -131,14 +120,6 @@ export async function createAppointment(
   if (date > horizonEnd(today)) invalidBooking(["startAt"]);
   if (hasBookedPatientAt(patient.id, startAt)) invalidBooking(["startAt"]);
 
-  const holdsPayment = body.bookedOnline === true && service.price > 0;
-  if (
-    holdsPayment &&
-    Date.parse(startAt) < now.getTime() + PAYMENT_HOLD_MINUTES * 60_000
-  )
-    throw new ApiError(400, { errorCode: "BOOKING_TOO_SOON" });
-  if (body.bookedOnline) cancelStoredPendingHolds();
-
   const doctor = chooseDoctor(request.doctorId, startAt, date, today);
   const record: StoredAppointment = {
     id: nextAppointmentId(),
@@ -147,10 +128,7 @@ export async function createAppointment(
     service: { id: service.id, name: service.name },
     doctor: { id: doctor.id, fullName: doctor.fullName },
     roomName: doctor.room,
-    status: holdsPayment ? "AWAITING_PAYMENT" : "BOOKED",
-    paymentDeadline: holdsPayment
-      ? vnIsoOf(new Date(now.getTime() + PAYMENT_HOLD_MINUTES * 60_000))
-      : null,
+    status: "BOOKED",
     examFee: {
       amount: service.price,
       status: service.price > 0 ? "PENDING_PAYMENT" : "NOT_REQUIRED",

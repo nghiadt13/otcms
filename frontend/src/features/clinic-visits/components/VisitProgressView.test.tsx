@@ -97,7 +97,7 @@ describe("VisitProgressView", () => {
 
     expect(
       screen.getByRole("link", { name: "Thanh toán các chỉ định chưa thanh toán" }),
-    ).toHaveAttribute("href", PATIENT_ROUTES.payVisit("visit-1"));
+    ).toHaveAttribute("href", PATIENT_ROUTES.payments);
   });
 
   it("chỉ định đã hủy không còn cần thanh toán", () => {

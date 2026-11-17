@@ -54,7 +54,7 @@ export function VisitProgressView({ progress }: { progress: VisitProgress }) {
         {canPay ? (
           <Link
             className={cn(publicButtonClass("primary"), "w-full sm:w-auto")}
-            href={PATIENT_ROUTES.payVisit(progress.visitId)}
+            href={PATIENT_ROUTES.payments}
           >
             Thanh toán các chỉ định chưa thanh toán
           </Link>

@@ -14,7 +14,11 @@ public final class NotificationMessages {
     public static final String APPOINTMENT_RESCHEDULED = "APPOINTMENT_RESCHEDULED";
     public static final String VISIT_CLOSED_REVIEW_INVITE = "VISIT_CLOSED_REVIEW_INVITE";
     public static final String REVIEW_SUBMITTED = "REVIEW_SUBMITTED";
+    public static final String REFUND_AWAITING_CLINIC_CANCELLATION = "REFUND_AWAITING_CLINIC_CANCELLATION";
     private static final DateTimeFormatter TIME = DateTimeFormatter.ofPattern("dd/MM/uuuu 'lúc' HH:mm",
+            Locale.forLanguageTag("vi-VN")).withZone(ZoneId.of("Asia/Ho_Chi_Minh"));
+
+    private static final DateTimeFormatter DATE = DateTimeFormatter.ofPattern("dd/MM/uuuu",
             Locale.forLanguageTag("vi-VN")).withZone(ZoneId.of("Asia/Ho_Chi_Minh"));
 
     private NotificationMessages() { }
@@ -43,6 +47,12 @@ public final class NotificationMessages {
         return new NotificationMessage(REVIEW_SUBMITTED, "Đánh giá mới cần duyệt", "Đánh giá " + rating
                 + "/5 cho lượt khám ngày " + TIME.format(visitAt) + doctor(doctor) + " đang chờ kiểm duyệt.",
                 NotificationRelatedKind.REVIEW, id);
+    }
+    /** MSG-97: the clinic cancelled the appointment, so its paid fee awaits a manual refund. {@code invoiceId} is the related record. */
+    public static NotificationMessage refundAwaitingClinicCancellation(UUID invoiceId, Instant appointmentAt) {
+        return new NotificationMessage(REFUND_AWAITING_CLINIC_CANCELLATION, "Khoản phí chờ hoàn lại", "Lịch hẹn ngày "
+                + DATE.format(appointmentAt) + " đã bị hủy bởi phòng khám. Khoản phí đã thanh toán sẽ được hoàn lại, "
+                + "phòng khám sẽ liên hệ với bạn.", NotificationRelatedKind.PAYMENT, invoiceId);
     }
     private static NotificationMessage appointment(String type, String title, String content, UUID id) {
         return new NotificationMessage(type, title, content, NotificationRelatedKind.APPOINTMENT, id);

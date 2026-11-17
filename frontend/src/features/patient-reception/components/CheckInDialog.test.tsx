@@ -31,6 +31,8 @@ const invoice = {
   issuedAt: "2026-11-11T08:00:00+07:00",
   items: [
     {
+      id: "item-1",
+      status: "PENDING",
       lineNumber: 1,
       description: "Khám nội",
       quantity: 1,
@@ -239,7 +241,7 @@ describe("CheckInDialog (tiếp nhận tại quầy)", () => {
 
     await user.click(screen.getByRole("button", { name: "Thu phí khám" }));
     const dialog = await screen.findByRole("dialog", { name: "Thu phí khám" });
-    await user.click(within(dialog).getByRole("checkbox"));
+    await user.click(within(dialog).getByRole("checkbox", { name: /Đã nhận tiền/ }));
     await user.click(
       within(dialog).getByRole("button", { name: "Xác nhận thu tiền" }),
     );
@@ -247,7 +249,7 @@ describe("CheckInDialog (tiếp nhận tại quầy)", () => {
     await waitFor(() =>
       expect(request).toHaveBeenCalledWith(
         "/api/v1/invoices/inv-1/counter-payments",
-        expect.objectContaining({ method: "POST" }),
+        expect.objectContaining({ method: "POST", body: JSON.stringify({ itemIds: ["item-1"], method: "CASH" }) }),
       ),
     );
     await waitFor(() =>
@@ -257,14 +259,14 @@ describe("CheckInDialog (tiếp nhận tại quầy)", () => {
     );
   });
 
-  it("check-in bị backend từ chối vì chưa thu phí hiện MSG-37", async () => {
+  it("check-in bị backend từ chối vì chưa thu phí hiện MSG-94", async () => {
     const user = userEvent.setup();
     feePaid = true;
     appointments = [appointment({ examFeePaid: true })];
     const base = request.getMockImplementation()!;
     request.mockImplementation(async (path: string, init?: RequestInit) => {
       if (path === "/api/v1/appointments/apt-1/check-in")
-        throw new ApiError(409, { errorCode: "EXAM_FEE_UNPAID" });
+        throw new ApiError(409, { code: "MSG-94" });
       return base(path, init);
     });
     renderDialog({ appointmentId: "apt-1" });
@@ -277,7 +279,7 @@ describe("CheckInDialog (tiếp nhận tại quầy)", () => {
     );
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Không thể tiếp nhận lượt khám này.",
+      "Bạn chưa thanh toán phí khám nên chưa thể tiếp nhận.",
     );
     expect(toast.success).not.toHaveBeenCalled();
   });
@@ -302,7 +304,7 @@ describe("CheckInDialog (tiếp nhận tại quầy)", () => {
     );
 
     const dialog = await screen.findByRole("dialog", { name: "Thu phí khám" });
-    await user.click(within(dialog).getByRole("checkbox"));
+    await user.click(within(dialog).getByRole("checkbox", { name: /Đã nhận tiền/ }));
     await user.click(
       within(dialog).getByRole("button", { name: "Xác nhận thu tiền" }),
     );
@@ -334,7 +336,7 @@ describe("CheckInDialog (tiếp nhận tại quầy)", () => {
     );
     expect(request).toHaveBeenCalledWith(
       "/api/v1/invoices/inv-walk/counter-payments",
-      expect.objectContaining({ method: "POST" }),
+      expect.objectContaining({ method: "POST", body: JSON.stringify({ itemIds: ["item-1"], method: "CASH" }) }),
     );
     expect(request).toHaveBeenCalledWith(
       "/api/v1/visits/v-walk/exam-queue-entry",

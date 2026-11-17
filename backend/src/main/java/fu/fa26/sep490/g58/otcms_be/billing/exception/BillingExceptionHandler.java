@@ -26,6 +26,9 @@ public class BillingExceptionHandler {
             case "ACCESS_DENIED", "MSG-40" -> HttpStatus.FORBIDDEN;
             case "MSG-41" -> HttpStatus.NOT_FOUND;
             case "MSG-42" -> HttpStatus.CONFLICT;
+            case "MSG-49" -> HttpStatus.CONFLICT;
+            case "MSG-50" -> HttpStatus.NOT_FOUND;
+            case "MSG-04" -> HttpStatus.SERVICE_UNAVAILABLE;
             case "DEPENDENCY_UNAVAILABLE" -> HttpStatus.SERVICE_UNAVAILABLE;
             case "GATEWAY_UNAVAILABLE", "PAYMENT_RECONCILIATION_FAILED" -> HttpStatus.SERVICE_UNAVAILABLE;
             case "INVALID_WEBHOOK" -> HttpStatus.BAD_REQUEST;
