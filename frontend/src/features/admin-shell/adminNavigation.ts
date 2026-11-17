@@ -153,7 +153,7 @@ export const adminNavGroups: AdminNavGroup[] = [
         title: "Chờ hoàn tiền",
         href: "/admin/refunds",
         icon: HandCoins,
-        ucs: "UC58",
+        ucs: "UC56",
         description: "Khoản đã thu cần hoàn ngoài hệ thống, xác nhận khi đã trả.",
       },
       {

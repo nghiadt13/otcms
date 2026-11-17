@@ -180,6 +180,7 @@ describe("PatientBookingPage", () => {
     );
     await user.click(screen.getByRole("button", { name: "Đặt lịch khám" }));
 
+    await user.click(await screen.findByRole("button", { name: "Thanh toán ngay" }));
     const pay = await screen.findByRole("button", {
       name: "Thanh toán apt-9001",
     });

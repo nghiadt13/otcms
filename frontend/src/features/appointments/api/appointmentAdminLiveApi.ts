@@ -37,9 +37,9 @@ export function rescheduleAdminAppointment(id: string, doctorId: string, startTi
   });
 }
 
-export function cancelAdminAppointment(id: string, reason: string) {
+export function cancelAdminAppointment(id: string, reason: string, clinicFault: boolean) {
   return apiRequest(`/api/v1/appointments/${encodeURIComponent(id)}/cancel`, {
-    method: "POST", body: JSON.stringify({ reason }),
+    method: "POST", body: JSON.stringify({ reason, clinicFault }),
   });
 }
 

@@ -117,28 +117,32 @@ describe("PatientArrivalQrCheckIn: check-in bị từ chối", () => {
       "CHECK_IN_TIME_NOT_ALLOWED",
       422,
       "Nếu không đúng ngày hẹn, hãy nhờ lễ tân hỗ trợ tiếp nhận.",
+      "MSG-37",
     ],
     [
       "phí khám chưa trả",
       "EXAM_FEE_UNPAID",
       409,
       "Hãy ra quầy lễ tân để thanh toán phí khám, rồi quét lại mã.",
+      "MSG-94",
     ],
     [
       "lịch đã check-in hoặc không còn Đã đặt",
       "APPOINTMENT_NOT_CHANGEABLE",
       409,
       "Hãy nhờ lễ tân kiểm tra giúp.",
+      "MSG-37",
     ],
     [
       "mã QR hỏng hoặc hết hạn",
       "ARRIVAL_PROOF_INVALID",
       422,
       "Hãy quét mã mới đang hiển thị tại quầy.",
+      "MSG-37",
     ],
-  ])(
-    "%s (%s): báo MSG-37 kèm nhãn hướng dẫn, không báo cho màn cha",
-    async (_label, errorCode, status, hint) => {
+  ] as const)(
+    "%s (%s): báo đúng thông báo kèm hướng dẫn, không báo cho màn cha",
+    async (_label, errorCode, status, hint, messageCode) => {
       apiRequest.mockRejectedValueOnce(new ApiError(status, { errorCode }));
       const onRecorded = vi.fn();
       const user = userEvent.setup();
@@ -152,7 +156,7 @@ describe("PatientArrivalQrCheckIn: check-in bị từ chối", () => {
       await submitQr(user, "qr-proof-3");
 
       const alert = await screen.findByRole("alert");
-      expect(alert).toHaveTextContent(formatAppMessage("MSG-37"));
+      expect(alert).toHaveTextContent(formatAppMessage(messageCode));
       expect(alert).toHaveTextContent(hint);
       expect(onRecorded).not.toHaveBeenCalled();
       expect(toast.success).not.toHaveBeenCalled();

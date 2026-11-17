@@ -47,10 +47,10 @@ afterEach(() => {
 });
 
 describe("client: đọc error.code của backend thành mã MSG", () => {
-  it("EXAM_FEE_UNPAID hiển thị đúng MSG-37, không rơi về MSG-04", async () => {
+  it("EXAM_FEE_UNPAID hiển thị đúng MSG-94, không rơi về MSG-04", async () => {
     const failure = await failureWith(409, beError("EXAM_FEE_UNPAID"));
     expect(isApiError(failure)).toBe(true);
-    expect(messageFromError(failure)).toBe(formatAppMessage("MSG-37"));
+    expect(messageFromError(failure)).toBe(formatAppMessage("MSG-94"));
     expect(messageFromError(failure)).not.toBe(formatAppMessage("MSG-04"));
   });
 

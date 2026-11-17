@@ -6,7 +6,7 @@ import { publicButtonClass } from "@/components/brand/publicButtonStyles";
 import { formatCurrencyVnd } from "@/lib/format/formatCurrencyVnd";
 import { formatDateTime } from "@/lib/format/formatDate";
 import { PATIENT_ROUTES } from "@/lib/routes/patientRoutes";
-import { usePaymentRecordList } from "../../hooks/usePaymentRecordList";
+import { usePaymentRecordList } from "@/hooks/usePaymentRecordList";
 import { paymentChannelLabel } from "@/lib/domain/billingLabels";
 import { PaymentErrorBlock } from "./PaymentErrorBlock";
 import { LIST_FRAME_CLASS, LIST_LINK_CLASS } from "./patientBillingPresentation";

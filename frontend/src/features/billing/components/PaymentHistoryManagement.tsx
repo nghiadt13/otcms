@@ -17,7 +17,7 @@ import {
 import { formatCurrencyVnd } from "@/lib/format/formatCurrencyVnd";
 import { formatDateTime } from "@/lib/format/formatDate";
 import { formatAppMessage } from "@/lib/messages/appMessages";
-import { usePaymentRecordList } from "../hooks/usePaymentRecordList";
+import { usePaymentRecordList } from "@/hooks/usePaymentRecordList";
 import { paymentChannelLabel } from "@/lib/domain/billingLabels";
 
 /** Màn Lịch sử thanh toán (admin, owner): các giao dịch đã xác nhận, chỉ để xem. */

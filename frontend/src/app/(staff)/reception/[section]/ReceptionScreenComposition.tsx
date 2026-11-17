@@ -14,7 +14,7 @@ function AppointmentActions({ appointment, onChanged }: { appointment: Reception
     getReceptionRescheduleAvailability(appointment.id, date, date, signal).then((result) => result.slots), [appointment.id]);
   return <div className="my-3 flex gap-2">
     <Button onClick={() => setAction("reschedule")}>Đổi giờ</Button><Button variant="outline" onClick={() => setAction("cancel")}>Hủy lịch</Button>
-    <CancelAppointmentWithReasonDialog open={action === "cancel"} onClose={() => setAction(null)} onConfirm={async (reason) => { await cancelReceptionAppointment({ appointmentId: appointment.id, reason }); onChanged(); }} />
+    <CancelAppointmentWithReasonDialog open={action === "cancel"} onClose={() => setAction(null)} onConfirm={async (reason, clinicFault) => { await cancelReceptionAppointment({ appointmentId: appointment.id, reason, clinicFault }); onChanged(); }} />
     <RescheduleAppointmentDialog currentDoctorId={appointment.doctorId} open={action === "reschedule"} onClose={() => setAction(null)} loadSlots={loadSlots} onConfirm={async (slot, reason) => { await rescheduleReceptionAppointment({ appointmentId: appointment.id, doctorId: slot.doctorId, startTime: slot.startTime, reason }); onChanged(); }} />
   </div>;
 }

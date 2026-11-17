@@ -282,8 +282,7 @@ export function AppointmentPayOsPayment({
     <div className="space-y-5">
       {embedded ? (
         <p className="text-base text-muted-foreground">
-          Quét mã QR để thanh toán phí khám. Lịch khám được xác nhận sau khi
-          giao dịch thành công.
+          Quét mã QR để thanh toán phí khám trước khi check-in.
         </p>
       ) : (
         <PortalPageHeader

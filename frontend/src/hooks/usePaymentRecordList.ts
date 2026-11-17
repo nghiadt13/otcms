@@ -8,7 +8,7 @@ import {
   type PaymentRecord,
 } from "@/lib/api/paymentRecordsApi";
 import { addDays, todayIsoDate } from "@/lib/format/formatDate";
-import { isBillingDateRangeValid } from "../schema/billingDateRangeRules";
+import { isBillingDateRangeValid } from "@/lib/domain/billingDateRangeRules";
 
 type PaymentRecordFilters = { from: string; to: string; patientId: string };
 

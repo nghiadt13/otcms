@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useLinkedProfiles } from "@/hooks/useLinkedProfiles";
 import { formatAppMessage } from "@/lib/messages/appMessages";
-import { isBillingDateRangeValid } from "../../schema/billingDateRangeRules";
+import { isBillingDateRangeValid } from "@/lib/domain/billingDateRangeRules";
 import { PaymentBackLink } from "./PaymentBackLink";
 import { PaymentHistoryList } from "./PaymentHistoryList";
 import { historyHref } from "./patientBillingPresentation";

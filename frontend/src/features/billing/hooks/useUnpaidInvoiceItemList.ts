@@ -8,7 +8,7 @@ import {
   type UnpaidItemsQuery,
 } from "@/lib/api/invoiceItemsApi";
 import { addDays, todayIsoDate } from "@/lib/format/formatDate";
-import { isBillingDateRangeValid } from "../schema/billingDateRangeRules";
+import { isBillingDateRangeValid } from "@/lib/domain/billingDateRangeRules";
 
 type UnpaidFilters = { from: string; to: string };
 

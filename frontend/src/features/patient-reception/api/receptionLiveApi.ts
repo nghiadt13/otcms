@@ -220,9 +220,9 @@ export function rescheduleReceptionAppointment(input: { appointmentId: string; d
   });
 }
 
-export function cancelReceptionAppointment(input: { appointmentId: string; reason: string }) {
+export function cancelReceptionAppointment(input: { appointmentId: string; reason: string; clinicFault: boolean }) {
   return apiRequest<ReceptionAppointment>(`/api/v1/appointments/${encodeURIComponent(input.appointmentId)}/cancel`, {
-    method: "POST", body: JSON.stringify({ reason: input.reason.trim() }),
+    method: "POST", body: JSON.stringify({ reason: input.reason.trim(), clinicFault: input.clinicFault }),
   });
 }
 

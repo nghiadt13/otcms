@@ -13,6 +13,8 @@ const LIVE_SECTIONS: ReceptionSection[] = [
   "appointments",
   "queues",
   "orders",
+  "payments",
+  "payment-history",
 ];
 const ALL_SECTIONS = receptionNavigation.map((item) => item.section);
 const MOCK_SECTIONS = ALL_SECTIONS.filter(

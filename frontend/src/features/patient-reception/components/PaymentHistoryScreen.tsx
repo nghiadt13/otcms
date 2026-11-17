@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { PageHeader } from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
-import { usePaymentRecordList } from "@/features/billing/hooks/usePaymentRecordList";
+import { usePaymentRecordList } from "@/hooks/usePaymentRecordList";
 import { formatCurrencyVnd } from "@/lib/format/formatCurrencyVnd";
 import { formatDateTime } from "@/lib/format/formatDate";
 import { paymentChannelLabel } from "@/lib/domain/billingLabels";
