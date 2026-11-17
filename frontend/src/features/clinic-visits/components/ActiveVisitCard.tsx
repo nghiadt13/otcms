@@ -13,12 +13,12 @@ import { PATIENT_ROUTES } from "@/lib/routes/patientRoutes";
 import { cn } from "@/lib/utils";
 import { useVisitProgress } from "../hooks/useVisitProgress";
 import type { VisitSummary } from "../types/visitProgress";
-import { QueuePositionList } from "./QueuePositionList";
+import { VisitQueueStatus } from "./VisitQueueStatus";
 import { visitPatientLabel } from "./visitPresentation";
 
-// Một lượt đang diễn ra trên trang chủ: người khám, trạng thái, số thứ tự ở từng phòng và lối tới
-// chi tiết. `primary` chỉ bật cho lượt đầu tiên để trang chủ có đúng một nút chính. Tự tải tiến độ
-// riêng (cùng chu kỳ 30 s với trang chi tiết).
+// Một lượt đang diễn ra trên trang chủ: người khám, trạng thái, vị trí trong hàng và lối tới chi tiết.
+// `primary` chỉ bật cho lượt đầu tiên để trang chủ có đúng một nút chính. Tự tải tiến độ riêng (cùng
+// chu kỳ 30 s với trang chi tiết).
 
 export function ActiveVisitCard({
   visit,
@@ -61,8 +61,8 @@ export function ActiveVisitCard({
             Thử lại
           </button>
         </div>
-      ) : progress.queues.length > 0 ? (
-        <QueuePositionList queues={progress.queues} />
+      ) : progress.queueNumber !== null ? (
+        <VisitQueueStatus progress={progress} />
       ) : (
         <p className="text-base text-muted-foreground">
           Hiện bạn không chờ ở phòng nào.

@@ -130,6 +130,11 @@ public class ClinicContentServiceImpl implements ClinicContentService {
         }
     }
     @Override
+    public ContentPage<ClinicAnnouncement> patientAnnouncements(int page, int size) {
+        page(page, size);
+        return store.patientAnnouncements(new ClinicContentRepository.Filters("", "", "", null, null, page, size));
+    }
+    @Override
     public ClinicAnnouncement announcement(UUID id, boolean publicOnly) {
         return store.announcement(id, publicOnly).orElseThrow(() -> missing());
     }

@@ -57,7 +57,7 @@ export function AvailabilityGrid({ data }: { data: DoctorAvailability }) {
                     ) : status === "BOOKED" ? (
                       <StatusBadge tone="neutral">Đã đặt</StatusBadge>
                     ) : (
-                      <span className="text-muted-foreground">Không có ca</span>
+                      <span className="text-muted-foreground">—</span>
                     )}
                   </TableCell>
                 );

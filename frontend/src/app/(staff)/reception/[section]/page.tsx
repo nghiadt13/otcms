@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import { notFound } from "next/navigation";
-import { ReceptionScreen } from "@/features/patient-reception/components/ReceptionScreen";
+import { ReceptionScreenComposition } from "./ReceptionScreenComposition";
 import { DataLoading } from "@/features/patient-reception/components/ReceptionUi";
 import { receptionNavigation } from "@/features/patient-reception/navigation";
 
@@ -19,7 +19,7 @@ export default async function Page({
   if (!item) notFound();
   return (
     <Suspense fallback={<DataLoading />}>
-      <ReceptionScreen key={item.section} section={item.section} />
+      <ReceptionScreenComposition key={item.section} section={item.section} />
     </Suspense>
   );
 }

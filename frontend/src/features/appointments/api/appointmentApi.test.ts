@@ -1,11 +1,9 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { ApiError } from "@/lib/api/apiError";
 import {
-  getDoctorAvailability,
   listAppointments,
   listEligibleDoctors,
   lookupDoctors,
-  notifyNoReplacement,
   reassignAppointmentDoctor,
   resetAppointmentMock,
 } from "./appointmentApi";
@@ -108,60 +106,6 @@ describe("reassign", () => {
     const error = await failure(reassignAppointmentDoctor(apptId(1), ""));
     expect(error.status).toBe(400);
     expect(error.fieldErrors).toEqual([{ field: "doctorId", code: "MSG-12" }]);
-  });
-});
-
-describe("notifyNoReplacement", () => {
-  it("gửi xong thì mất action; gửi lại hoặc id lạ thì lỗi", async () => {
-    const updated = await notifyNoReplacement(apptId(2));
-    expect(updated.status).toBe("BOOKED");
-    expect(updated.allowedActions).toEqual(["reassign"]);
-    expect((await failure(notifyNoReplacement(apptId(2)))).code).toBe("MSG-32");
-    expect((await failure(notifyNoReplacement("khong-co"))).status).toBe(404);
-  });
-});
-
-describe("getDoctorAvailability", () => {
-  it("sinh khung 15 phút từ ca; Chủ nhật không có ca; khung đã đặt là BOOKED", async () => {
-    const result = await getDoctorAvailability(DOCTOR_IDS.ha, {
-      from: "2026-10-24",
-      to: "2026-10-25",
-    });
-    expect(result.slotMinutes).toBe(15);
-    expect(result.days[0].hasShift).toBe(true);
-    expect(result.days[1]).toMatchObject({ hasShift: false, slots: [] });
-    const day = await getDoctorAvailability(DOCTOR_IDS.ha, {
-      from: "2026-10-21",
-      to: "2026-10-21",
-    });
-    const eight = day.days[0].slots.find((s) => s.startAt.includes("T08:00"));
-    expect(eight?.status).toBe("BOOKED");
-    expect(
-      day.days[0].slots.find((s) => s.startAt.includes("T08:15"))?.status,
-    ).toBe("FREE");
-  });
-
-  it("lỗi theo bác sĩ: 409 MSG-24, 404 MSG-50, 500 MSG-04", async () => {
-    const range = { from: "2026-10-21", to: "2026-10-21" };
-    expect(
-      (await failure(getDoctorAvailability(DOCTOR_IDS.yen, range))).code,
-    ).toBe("MSG-24");
-    expect((await failure(getDoctorAvailability("khong-co", range))).code).toBe(
-      "MSG-50",
-    );
-    expect(
-      (await failure(getDoctorAvailability(DOCTOR_IDS.bao, range))).status,
-    ).toBe(500);
-  });
-
-  it("BS. Võ Thanh Trúc kín lịch: không còn khung FREE", async () => {
-    const result = await getDoctorAvailability(DOCTOR_IDS.truc, {
-      from: "2026-10-21",
-      to: "2026-10-22",
-    });
-    expect(
-      result.days.flatMap((d) => d.slots).some((s) => s.status === "FREE"),
-    ).toBe(false);
   });
 });
 

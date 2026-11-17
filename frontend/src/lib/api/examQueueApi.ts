@@ -1,5 +1,9 @@
 import { apiRequest } from "@/lib/api/client";
-import type { ExamQueueStatus } from "@/lib/domain/clinicVisit";
+import type {
+  ClinicalOrderPaymentStatus,
+  ClinicalOrderStatus,
+  ExamQueueStatus,
+} from "@/lib/domain/clinicVisit";
 
 // Hợp đồng hàng chờ khám (plan 261111-0208-visit-flow-r3, mục 3: A1, A2, A3, A6, A9).
 // Lỗi nghiệp vụ đi qua ApiError: màn hình hiển thị bằng messageFromError (mã MSG R3).
@@ -35,8 +39,27 @@ export type DoctorExamQueueStatus = Exclude<
   "PENDING_PAYMENT" | "CANCELLED"
 >;
 
+/** Chỉ định cận lâm sàng của lượt (BE: ClinicalVisitOrderQueryService.Order). */
+export interface ExamQueueServiceOrder {
+  id: string;
+  code: string;
+  serviceName: string;
+  status: ClinicalOrderStatus;
+  paymentStatus: ClinicalOrderPaymentStatus;
+  roomId: string | null;
+}
+
+/** Trường riêng cho bác sĩ (BE: DoctorItem). Chỉ định chỉ có khi lượt chờ kết luận. */
+export interface DoctorExamQueueExtras {
+  /** Tuổi tính sẵn theo ngày khám; null khi thiếu ngày sinh. */
+  age?: number | null;
+  serviceOrders?: ExamQueueServiceOrder[];
+}
+
 /** Dòng trong danh sách của bác sĩ (A2): thêm ngày sinh và giới tính của bệnh nhân. */
-export interface DoctorExamQueueItem extends Omit<ExamQueueItem, "examStatus"> {
+export interface DoctorExamQueueItem
+  extends Omit<ExamQueueItem, "examStatus">,
+    DoctorExamQueueExtras {
   examStatus: DoctorExamQueueStatus;
   /** YYYY-MM-DD. */
   dateOfBirth: string | null;
@@ -44,7 +67,9 @@ export interface DoctorExamQueueItem extends Omit<ExamQueueItem, "examStatus"> {
 }
 
 /** A6 visit detail includes patient demographics for authorized doctors. */
-export interface DoctorExamQueueEntry extends ExamQueueItem {
+export interface DoctorExamQueueEntry
+  extends ExamQueueItem,
+    DoctorExamQueueExtras {
   /** YYYY-MM-DD. */
   dateOfBirth: string | null;
   gender: "MALE" | "FEMALE" | "OTHER" | null;

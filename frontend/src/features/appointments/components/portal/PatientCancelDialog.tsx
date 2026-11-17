@@ -13,6 +13,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { isApiError } from "@/lib/api/apiError";
+import { APP_MESSAGES } from "@/lib/messages/appMessages";
 import { notifyError, notifySuccess } from "@/lib/messages/notify";
 import { PATIENT_ROUTES } from "@/lib/routes/patientRoutes";
 import { cn } from "@/lib/utils";
@@ -90,6 +91,9 @@ export function PatientCancelDialog({
               <span className="mt-2 block">
                 {refundNotice(appointment.examFee)}
               </span>
+            ) : null}
+            {paid ? (
+              <span className="mt-2 block">{APP_MESSAGES["MSG-93"]}</span>
             ) : null}
           </AlertDialogDescription>
         </AlertDialogHeader>

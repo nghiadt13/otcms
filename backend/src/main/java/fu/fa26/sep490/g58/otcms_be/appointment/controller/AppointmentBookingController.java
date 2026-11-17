@@ -139,7 +139,7 @@ public class AppointmentBookingController {
     }
 
     @PatchMapping("/api/v1/appointments/{id}/reschedule")
-    @PreAuthorize("hasAnyAuthority('ROLE_PATIENT', 'ROLE_RECEPTIONIST')")
+    @PreAuthorize("hasAnyAuthority('ROLE_RECEPTIONIST', 'ROLE_ADMIN')")
     public ResponseEntity<AppointmentResponse> reschedule(@PathVariable UUID id,
             @Valid @RequestBody RescheduleAppointmentRequest body,
             @AuthenticationPrincipal AuthenticatedAccount account, HttpServletRequest request) {
@@ -147,10 +147,11 @@ public class AppointmentBookingController {
         RescheduleAppointmentCommand.Actor actor = switch (account.accountRole()) {
             case PATIENT -> RescheduleAppointmentCommand.Actor.PATIENT;
             case RECEPTIONIST -> RescheduleAppointmentCommand.Actor.RECEPTIONIST;
+            case ADMIN -> RescheduleAppointmentCommand.Actor.ADMIN;
             default -> throw new AppointmentBookingException("ACCESS_DENIED");
         };
         var result = rescheduleAppointment.reschedule(id, new RescheduleAppointmentCommand(account.accountId(), actor,
-                body.getStartTime(), body.getReason(), CorrelationIdFilter.current(request)));
+                body.getStartTime(), body.getDoctorId(), body.getReason(), CorrelationIdFilter.current(request)));
         return ResponseEntity.ok().header(CorrelationIdFilter.HEADER, CorrelationIdFilter.current(request))
                 .body(AppointmentMapper.toResponse(result));
     }

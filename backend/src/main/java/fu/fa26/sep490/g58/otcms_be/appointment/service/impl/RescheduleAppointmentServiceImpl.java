@@ -6,6 +6,7 @@ import fu.fa26.sep490.g58.otcms_be.appointment.model.CreatedAppointment;
 import fu.fa26.sep490.g58.otcms_be.notification.model.NotificationMessages;
 import fu.fa26.sep490.g58.otcms_be.notification.service.NotificationPublisher;
 import fu.fa26.sep490.g58.otcms_be.staff.service.StaffAvailabilityProviderQueryService;
+import fu.fa26.sep490.g58.otcms_be.servicecatalog.service.ServiceDoctorAssignmentQueryService;
 
 import fu.fa26.sep490.g58.otcms_be.appointment.exception.AppointmentBookingException;
 import fu.fa26.sep490.g58.otcms_be.appointment.repository.AppointmentRescheduleRepository;
@@ -40,11 +41,14 @@ public class RescheduleAppointmentServiceImpl implements RescheduleAppointmentSe
     private final Clock clock;
     private final NotificationPublisher notifications;
     private final StaffAvailabilityProviderQueryService doctors;
+    private final ServiceDoctorAssignmentQueryService assignments;
 
     public RescheduleAppointmentServiceImpl(CoordinationGuardService guard, AppointmentRescheduleRepository appointments,
             AuthorizePatientProfileService patientAuthorization, GenerateAvailableSlotsService slotEngine,
             AppointmentBookingProperties properties, Clock clock,
-            NotificationPublisher notifications, StaffAvailabilityProviderQueryService doctors, AuditLogWriter auditLogWriter) {
+            NotificationPublisher notifications, StaffAvailabilityProviderQueryService doctors, AuditLogWriter auditLogWriter,
+            ServiceDoctorAssignmentQueryService assignments) {
+        this.assignments = assignments;
         this.auditLogWriter = auditLogWriter;
         this.guard = guard;
         this.appointments = appointments;
@@ -62,7 +66,7 @@ public class RescheduleAppointmentServiceImpl implements RescheduleAppointmentSe
         if (appointmentId == null || command == null || command.actorAccountId() == null || command.actor() == null
                 || command.startTime() == null || command.correlationId() == null
                 || command.correlationId().isBlank() || command.correlationId().length() > 128
-                || (command.actor() == RescheduleAppointmentCommand.Actor.RECEPTIONIST
+                || (command.actor() != RescheduleAppointmentCommand.Actor.PATIENT
                     && (command.reason() == null || command.reason().isBlank() || command.reason().trim().length() > 1000))
                 || (command.reason() != null
                     && (command.reason().isBlank() || command.reason().trim().length() > 1000))) {
@@ -95,20 +99,25 @@ public class RescheduleAppointmentServiceImpl implements RescheduleAppointmentSe
             throw new AppointmentBookingException("BOOKING_WINDOW_VIOLATION");
         }
         LocalDate targetDate = clinicStart.toLocalDate();
-        var requested = new SlotAvailabilityRequest(Set.of(current.doctorProfileId()), targetDate, targetDate,
+        UUID doctorId = command.doctorId() == null ? current.doctorProfileId() : command.doctorId();
+        if (!assignments.findActiveDoctorProfileIds(current.serviceId()).contains(doctorId)
+                || doctors.findAcceptingDoctorsInActiveDirectory().stream().noneMatch(d -> d.doctorProfileId().equals(doctorId))) {
+            throw new AppointmentBookingException("DOCTOR_NOT_ELIGIBLE");
+        }
+        var requested = new SlotAvailabilityRequest(Set.of(doctorId), targetDate, targetDate,
                 SlotServiceContext.snapshot(current.serviceId(), current.durationMinutes(), current.bufferMinutes(),
                         current.id(), current.patientProfileId()));
-        var slot = slotEngine.generate(requested).stream().filter(candidate -> candidate.startTime().equals(start))
-                .findFirst().orElseThrow(() -> new AppointmentBookingException("SLOT_UNAVAILABLE"));
-        var changed = appointments.reschedule(current, slot.startTime(), slot.endTime(), command.actorAccountId(),
+        var slot = slotEngine.generate(requested).stream().filter(candidate -> candidate.doctorProfileId().equals(doctorId) && candidate.startTime().equals(start))
+                .findFirst().orElseThrow(() -> new AppointmentBookingException("DOCTOR_NOT_ELIGIBLE"));
+        var changed = appointments.reschedule(current, doctorId, slot.startTime(), slot.endTime(), command.actorAccountId(),
                 command.actor().name(), command.reason() == null ? null : command.reason().trim(), now,
                 command.correlationId());
         AppointmentAuditEntries.record(auditLogWriter, AppointmentAuditEntries.changed(current.id(), command.actorAccountId(),
                 command.actor().name(), "RESCHEDULED", "CONFIRMED", "CONFIRMED", current.doctorProfileId(),
-                current.doctorProfileId(), current.startTime(), slot.startTime(), current.endTime(), slot.endTime(),
+                doctorId, current.startTime(), slot.startTime(), current.endTime(), slot.endTime(),
                 null, null, command.reason() == null ? null : command.reason().trim(), null, now), command.correlationId());
         notifications.publishToPatient(current.patientProfileId(), NotificationMessages.appointmentRescheduled(
-                current.id(), slot.startTime(), doctors.findDoctorDisplayName(current.doctorProfileId()).orElse("")));
+                current.id(), slot.startTime(), doctors.findDoctorDisplayName(doctorId).orElse("")));
         return changed;
     }
 }

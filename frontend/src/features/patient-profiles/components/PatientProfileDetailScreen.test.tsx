@@ -3,12 +3,13 @@ import userEvent from "@testing-library/user-event";
 import { notFound } from "next/navigation";
 import { toast } from "sonner";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { getLinkedProfileRecords } from "@/lib/patient-scope/linkedProfilesMockStore";
+import { apiRequest } from "@/lib/api/client";
 import { PROFILE_MOCK_IDS } from "../api/patientProfileMockData";
 import { resetPatientProfileMock } from "../api/patientProfileMockStore";
 import { PatientProfileDetailScreen } from "./PatientProfileDetailScreen";
 
 const nav = vi.hoisted(() => ({ push: vi.fn(), replace: vi.fn() }));
+vi.mock("@/lib/api/client", () => ({ apiRequest: vi.fn() }));
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: nav.push, replace: nav.replace }),
   notFound: vi.fn(),
@@ -60,8 +61,9 @@ describe("PatientProfileDetailScreen", () => {
     ).toBeInTheDocument();
   });
 
-  it("bỏ gắn xác nhận: về danh sách, hồ sơ rời kho gắn và hiện MSG-91", async () => {
+  it("bỏ gắn xác nhận: gọi API và hiện MSG-85", async () => {
     const user = userEvent.setup();
+    vi.mocked(apiRequest).mockResolvedValueOnce(undefined);
     render(<PatientProfileDetailScreen profileId={PROFILE_MOCK_IDS.huy} />);
 
     await user.click(
@@ -78,9 +80,7 @@ describe("PatientProfileDetailScreen", () => {
     expect(toast.success).toHaveBeenCalledWith(
       "Đã gỡ hồ sơ này khỏi danh sách hồ sơ bạn quản lý.",
     );
-    expect(getLinkedProfileRecords().map((item) => item.id)).not.toContain(
-      PROFILE_MOCK_IDS.huy,
-    );
+    expect(apiRequest).toHaveBeenCalledWith(`/api/v1/me/dependents/${PROFILE_MOCK_IDS.huy}`, { method: "DELETE" });
   });
 
   it("hồ sơ không thuộc tài khoản: chuyển sang trang không tìm thấy của khu", async () => {

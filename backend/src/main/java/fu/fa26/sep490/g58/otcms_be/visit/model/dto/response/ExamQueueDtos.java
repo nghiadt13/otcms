@@ -25,7 +25,8 @@ public final class ExamQueueDtos {
     public record DoctorItem(UUID visitId, Integer queueNumber, String examStatus, String source, UUID appointmentId,
             UUID patientProfileId, String patientName, UUID doctorProfileId, String doctorName, UUID roomId,
             String roomLabel, UUID serviceId, Instant queuedAt, Instant startedAt, Instant finishedAt,
-            LocalDate dateOfBirth, String gender) {
+            LocalDate dateOfBirth, String gender, Integer age,
+            List<fu.fa26.sep490.g58.otcms_be.clinical.service.ClinicalVisitOrderQueryService.Order> serviceOrders) {
     }
 
     public record DoctorItemList(List<DoctorItem> items) {

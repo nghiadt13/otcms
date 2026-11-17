@@ -81,7 +81,7 @@ describe("roomApi", () => {
     expect((await getRoom(room.id)).name).toBe("P201");
   });
 
-  it("tên trùng (không phân biệt hoa thường) → 409 MSG-98 trên name", async () => {
+  it("tên trùng (không phân biệt hoa thường) → 409 MSG-92 trên name", async () => {
     const err = await expectApiError(
       createRoom({
         name: "p101",
@@ -90,9 +90,9 @@ describe("roomApi", () => {
         serviceIds: [exam.id],
       }),
       409,
-      "MSG-98",
+      "MSG-92",
     );
-    expect(err.fieldErrors).toEqual([{ field: "name", code: "MSG-98" }]);
+    expect(err.fieldErrors).toEqual([{ field: "name", code: "MSG-92" }]);
   });
 
   it("dịch vụ sai loại → 400 MSG-62 trên serviceIds", async () => {

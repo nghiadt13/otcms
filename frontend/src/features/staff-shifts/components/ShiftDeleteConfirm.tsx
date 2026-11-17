@@ -46,7 +46,7 @@ export function ShiftDeleteConfirm({
       }
       throw error;
     }
-    notifySuccess("MSG-93");
+    notifySuccess("MSG-87");
     onDeleted();
   }
 

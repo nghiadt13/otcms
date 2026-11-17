@@ -729,3 +729,46 @@ describe("ngữ cảnh lượt khám nhiều trang và tiền sử", () => {
     ]);
   });
 });
+
+describe("hàng chờ bác sĩ: đã gọi hoặc vắng, tuổi từ BE và chỉ định (UC-35)", () => {
+  it("lượt đã gọi hoặc vắng vẫn là chờ khám; tuổi lấy từ BE; chỉ định đi kèm lượt chờ kết luận", async () => {
+    const orders = [
+      {
+        id: "o1",
+        code: "XN-1",
+        serviceName: "X-quang cột sống",
+        status: "RESULTS_AVAILABLE",
+        paymentStatus: "PAID",
+        roomId: null,
+      },
+    ];
+    route({
+      "/api/v1/doctor/exam-queue": {
+        items: [
+          queueRow({ visitId: "called-1", examStatus: "CALLED", queueNumber: 1, appointmentId: null, source: "WALK_IN", dateOfBirth: null }),
+          queueRow({ visitId: "absent-1", examStatus: "ABSENT", queueNumber: 2, appointmentId: null, source: "WALK_IN", dateOfBirth: null }),
+          queueRow({
+            visitId: "await-1",
+            examStatus: "AWAITING_CONCLUSION",
+            queueNumber: 3,
+            appointmentId: null,
+            source: "WALK_IN",
+            dateOfBirth: "1980-05-20",
+            age: 46,
+            serviceOrders: orders,
+          }),
+        ],
+      },
+      "/api/v1/appointments?": { items: [] },
+    });
+    const rows = await doctorLiveApi.listTodayPatients();
+    expect(rows.map((r) => r.status)).toEqual([
+      "WAITING_FOR_EXAMINATION",
+      "WAITING_FOR_EXAMINATION",
+      "AWAITING_CONCLUSION",
+    ]);
+    expect(rows[2]).toMatchObject({ visitId: "await-1", age: 46 });
+    expect(rows[2].serviceOrders).toEqual(orders);
+    expect(rows[0].serviceOrders).toEqual([]);
+  });
+});

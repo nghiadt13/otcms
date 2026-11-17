@@ -43,6 +43,8 @@ class RescheduleAppointmentServiceImplT024Test {
     private final AppointmentRescheduleRepository appointments = mock(AppointmentRescheduleRepository.class);
     private final AuthorizePatientProfileService auth = mock(AuthorizePatientProfileService.class);
     private final GenerateAvailableSlotsService slots = mock(GenerateAvailableSlotsService.class);
+    private final fu.fa26.sep490.g58.otcms_be.staff.service.StaffAvailabilityProviderQueryService doctors = mock(fu.fa26.sep490.g58.otcms_be.staff.service.StaffAvailabilityProviderQueryService.class);
+    private final fu.fa26.sep490.g58.otcms_be.servicecatalog.service.ServiceDoctorAssignmentQueryService assignments = mock(fu.fa26.sep490.g58.otcms_be.servicecatalog.service.ServiceDoctorAssignmentQueryService.class);
     private RescheduleAppointmentServiceImpl handler;
     private ReschedulableAppointment current;
 
@@ -53,7 +55,9 @@ class RescheduleAppointmentServiceImplT024Test {
         handler = new RescheduleAppointmentServiceImpl(guard, appointments, auth, slots, properties,
                 Clock.fixed(now, ZoneId.of("UTC")),
                 mock(fu.fa26.sep490.g58.otcms_be.notification.service.NotificationPublisher.class),
-                mock(fu.fa26.sep490.g58.otcms_be.staff.service.StaffAvailabilityProviderQueryService.class), org.mockito.Mockito.mock(fu.fa26.sep490.g58.otcms_be.common.audit.AuditLogWriter.class));
+                doctors, org.mockito.Mockito.mock(fu.fa26.sep490.g58.otcms_be.common.audit.AuditLogWriter.class), assignments);
+        when(assignments.findActiveDoctorProfileIds(serviceId)).thenReturn(List.of(doctorId));
+        when(doctors.findAcceptingDoctorsInActiveDirectory()).thenReturn(List.of(new fu.fa26.sep490.g58.otcms_be.staff.service.StaffAvailabilityProviderQueryService.AvailabilityProvider(doctorId, "Doctor", true)));
         current = new ReschedulableAppointment(appointmentId, patientId, serviceId,
                 doctorId, "CONFIRMED", "knee pain", now.plusSeconds(4 * 86400L), now.plusSeconds(4 * 86400L + 1800),
                 30, 5, "PATIENT_ONLINE", null, null, now.minusSeconds(86400));
@@ -70,7 +74,7 @@ class RescheduleAppointmentServiceImplT024Test {
                 target.plusSeconds(2100), null, null, current.createdAt(), now);
         when(slots.generate(any())).thenReturn(List.of(new AvailableSlot(serviceId, doctorId, target,
                 target.plusSeconds(1800), target.plusSeconds(2100))));
-        when(appointments.reschedule(any(), eq(target), eq(target.plusSeconds(1800)), eq(accountId),
+        when(appointments.reschedule(any(), eq(doctorId), eq(target), eq(target.plusSeconds(1800)), eq(accountId),
                 eq("RECEPTIONIST"), eq("operational reason"), eq(now), any())).thenReturn(expected);
         String correlationId = UUID.randomUUID().toString();
 
@@ -90,8 +94,34 @@ class RescheduleAppointmentServiceImplT024Test {
         assertEquals(patientId, request.getValue().serviceContext().patientProfileId());
         assertEquals(30, request.getValue().serviceContext().consultationDuration().toMinutes());
         assertEquals(5, request.getValue().serviceContext().bufferDuration().toMinutes());
-        verify(appointments).reschedule(current, target, target.plusSeconds(1800), accountId, "RECEPTIONIST",
+        verify(appointments).reschedule(current, doctorId, target, target.plusSeconds(1800), accountId, "RECEPTIONIST",
                 "operational reason", now, correlationId);
+    }
+
+    @Test
+    void receptionistCanRescheduleToAnotherEligibleDoctor() {
+        UUID replacement = UUID.randomUUID();
+        Instant target = Instant.parse("2026-10-17T04:00:00Z");
+        when(assignments.findActiveDoctorProfileIds(serviceId)).thenReturn(List.of(replacement));
+        when(doctors.findAcceptingDoctorsInActiveDirectory()).thenReturn(List.of(
+                new fu.fa26.sep490.g58.otcms_be.staff.service.StaffAvailabilityProviderQueryService.AvailabilityProvider(replacement, "Replacement", true)));
+        when(slots.generate(any())).thenReturn(List.of(new AvailableSlot(serviceId, replacement, target,
+                target.plusSeconds(1800), target.plusSeconds(2100))));
+        handler.reschedule(appointmentId, new RescheduleAppointmentCommand(accountId,
+                RescheduleAppointmentCommand.Actor.RECEPTIONIST, OffsetDateTime.ofInstant(target, ZoneId.of("UTC")),
+                replacement, "clinic request", "correlation"));
+        verify(appointments).reschedule(current, replacement, target, target.plusSeconds(1800), accountId,
+                "RECEPTIONIST", "clinic request", now, "correlation");
+    }
+
+    @Test
+    void rejectsIneligibleReplacement() {
+        UUID replacement = UUID.randomUUID();
+        var command = new RescheduleAppointmentCommand(accountId, RescheduleAppointmentCommand.Actor.ADMIN,
+                OffsetDateTime.parse("2026-10-17T04:00:00Z"), replacement, "clinic request", "correlation");
+        assertEquals("DOCTOR_NOT_ELIGIBLE", assertThrows(AppointmentBookingException.class,
+                () -> handler.reschedule(appointmentId, command)).code());
+        verifyNoInteractions(slots);
     }
 
     @Test
@@ -117,7 +147,7 @@ class RescheduleAppointmentServiceImplT024Test {
         assertEquals("APPOINTMENT_NOT_CHANGEABLE", failure.code());
         verify(auth).authorize(accountId, patientId);
         verifyNoInteractions(slots);
-        verify(appointments, never()).reschedule(any(), any(), any(), any(), any(), any(), any(), any());
+        verify(appointments, never()).reschedule(any(), any(), any(), any(), any(), any(), any(), any(), any());
     }
 
     @Test
@@ -129,7 +159,7 @@ class RescheduleAppointmentServiceImplT024Test {
         assertEquals("APPOINTMENT_NOT_FOUND", assertThrows(AppointmentBookingException.class,
                 () -> handler.reschedule(appointmentId, command)).code());
         verifyNoInteractions(slots);
-        verify(appointments, never()).reschedule(any(), any(), any(), any(), any(), any(), any(), any());
+        verify(appointments, never()).reschedule(any(), any(), any(), any(), any(), any(), any(), any(), any());
     }
 
     @Test
@@ -144,12 +174,12 @@ class RescheduleAppointmentServiceImplT024Test {
         var expected = new CreatedAppointment(appointmentId, patientId, serviceId, doctorId, "CONFIRMED",
                 "PATIENT_ONLINE", "knee pain", target, target.plusSeconds(1800), 30, 5,
                 target.plusSeconds(2100), null, null, current.createdAt(), now);
-        doReturn(expected).when(appointments).reschedule(any(), any(), any(), any(), any(), any(), any(), any());
+        doReturn(expected).when(appointments).reschedule(any(), any(), any(), any(), any(), any(), any(), any(), any());
         var command = new RescheduleAppointmentCommand(accountId, RescheduleAppointmentCommand.Actor.RECEPTIONIST,
                 OffsetDateTime.ofInstant(target, ZoneId.of("UTC")), "clinic request", UUID.randomUUID().toString());
 
         assertEquals(expected, handler.reschedule(appointmentId, command));
-        verify(appointments).reschedule(current, target, target.plusSeconds(1800), accountId, "RECEPTIONIST",
+        verify(appointments).reschedule(current, doctorId, target, target.plusSeconds(1800), accountId, "RECEPTIONIST",
                 "clinic request", now, command.correlationId());
     }
 }

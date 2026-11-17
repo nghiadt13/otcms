@@ -50,6 +50,8 @@ describe("clinicVisit: hàng chờ khám", () => {
     expect(EXAM_QUEUE_STATUS_LABELS).toEqual({
       PENDING_PAYMENT: "Chờ thu phí",
       WAITING: "Chờ khám",
+      CALLED: "Đã gọi",
+      ABSENT: "Vắng mặt",
       IN_EXAMINATION: "Đang khám",
       AWAITING_CONCLUSION: "Chờ kết luận",
       COMPLETED: "Đã khám xong",

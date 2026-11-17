@@ -36,9 +36,9 @@ describe("formatAppMessage", () => {
     );
   });
 
-  it("MSG-96 dùng tên tham số đã chọn, MSG-48 dùng {amount} như R3", () => {
+  it("MSG-90 dùng tên tham số đã chọn, MSG-48 dùng {amount} như R3", () => {
     expect(
-      formatAppMessage("MSG-96", {
+      formatAppMessage("MSG-90", {
         date: "25/10/2026",
         time: "09:00",
         patientName: "Nguyễn Văn A",
@@ -49,6 +49,27 @@ describe("formatAppMessage", () => {
     );
     expect(formatAppMessage("MSG-48", { amount: "150.000 ₫" })).toBe(
       "Đã ghi nhận thanh toán 150.000 ₫. Phiếu thu đã được tạo.",
+    );
+  });
+
+  it("MSG-81 và MSG-93 đến MSG-97 theo R3", () => {
+    expect(formatAppMessage("MSG-81")).toBe(
+      "Chưa thể hoàn tất khám: cần có chẩn đoán chính và mọi chỉ định đã có kết quả (kể cả kết quả đọc phim) hoặc đã hủy.",
+    );
+    expect(formatAppMessage("MSG-93")).toBe(
+      "Khoản đã thanh toán không được hoàn lại, kể cả khi hủy lịch hẹn. Vui lòng kiểm tra kỹ trước khi thanh toán hoặc hủy.",
+    );
+    expect(formatAppMessage("MSG-94")).toBe(
+      "Bạn chưa thanh toán phí khám nên chưa thể tiếp nhận. Vui lòng thanh toán trực tuyến hoặc tại quầy lễ tân.",
+    );
+    expect(formatAppMessage("MSG-95")).toBe(
+      "Chỉ định chưa được thanh toán nên chưa thể tiếp nhận. Vui lòng đề nghị bệnh nhân thanh toán tại quầy.",
+    );
+    expect(
+      formatAppMessage("MSG-96", { amount: "150.000 ₫", patientName: "An" }),
+    ).toBe("Đã ghi nhận hoàn tiền 150.000 ₫ cho An.");
+    expect(formatAppMessage("MSG-97", { date: "17/11/2026" })).toBe(
+      "Lịch hẹn ngày 17/11/2026 đã bị hủy bởi phòng khám. Khoản phí đã thanh toán sẽ được hoàn lại, phòng khám sẽ liên hệ với bạn.",
     );
   });
 
@@ -102,7 +123,7 @@ describe("mã MSG khu bệnh nhân", () => {
     "MSG-53",
     "MSG-55",
     "MSG-82",
-    "MSG-90",
+    "MSG-84",
   ])("%s có câu hiển thị không rỗng và không lộ mã", (code) => {
     const text = APP_MESSAGES[code];
     expect(text).toBeTruthy();

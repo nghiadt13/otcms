@@ -8,9 +8,14 @@ public class RescheduleAppointmentCommand {
     private final UUID actorAccountId;
     private final Actor actor;
     private final OffsetDateTime startTime;
+    private final UUID doctorId;
     private final String reason;
     private final String correlationId;
     public RescheduleAppointmentCommand(UUID actorAccountId, Actor actor, OffsetDateTime startTime, String reason, String correlationId) {
+        this(actorAccountId, actor, startTime, null, reason, correlationId);
+    }
+    public RescheduleAppointmentCommand(UUID actorAccountId, Actor actor, OffsetDateTime startTime, UUID doctorId, String reason, String correlationId) {
+        this.doctorId = doctorId;
         this.actorAccountId = actorAccountId;
         this.actor = actor;
         this.startTime = startTime;
@@ -23,9 +28,10 @@ public class RescheduleAppointmentCommand {
     public Actor actor() { return actor; }
     public OffsetDateTime getStartTime() { return startTime; }
     public OffsetDateTime startTime() { return startTime; }
+    public UUID doctorId() { return doctorId; }
     public String getReason() { return reason; }
     public String reason() { return reason; }
     public String getCorrelationId() { return correlationId; }
     public String correlationId() { return correlationId; }
-    public enum Actor { PATIENT, RECEPTIONIST }
+    public enum Actor { PATIENT, RECEPTIONIST, ADMIN }
 }

@@ -19,6 +19,8 @@ export interface VisitProgressState {
   refreshFailedAt: Date | null;
   /** Đang tải lại theo yêu cầu người dùng. */
   refreshing: boolean;
+  /** Thời điểm (ISO) tải thành công gần nhất; `null` khi chưa tải được lần nào. */
+  updatedAt: string | null;
   reload: () => void;
 }
 
@@ -33,6 +35,7 @@ export function useVisitProgress(visitId: string): VisitProgressState {
   const [error, setError] = useState<unknown>(null);
   const [refreshFailedAt, setRefreshFailedAt] = useState<Date | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [updatedAt, setUpdatedAt] = useState<string | null>(null);
   const inFlight = useRef<AbortController | null>(null);
   // Đã có dữ liệu hay chưa: quyết định lỗi đi vào khung lỗi hay chỉ là một lần tải lại hỏng.
   const hasData = useRef(false);
@@ -48,6 +51,7 @@ export function useVisitProgress(visitId: string): VisitProgressState {
           if (controller.signal.aborted) return;
           hasData.current = true;
           setProgress(next);
+          setUpdatedAt(new Date().toISOString());
           setError(null);
           setRefreshFailedAt(null);
           setLoading(false);
@@ -107,5 +111,13 @@ export function useVisitProgress(visitId: string): VisitProgressState {
     load(true);
   }, [load]);
 
-  return { progress, loading, error, refreshFailedAt, refreshing, reload };
+  return {
+    progress,
+    loading,
+    error,
+    refreshFailedAt,
+    refreshing,
+    updatedAt,
+    reload,
+  };
 }
