@@ -30,6 +30,13 @@ public class ClinicalRoundWorkflowController {
         return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(new OrderPage(
                 workflow.listDoctorOrders(visitId, doctors.requireDoctorProfile(actor))));
     }
+    @GetMapping("/api/v1/visits/{visitId}/laboratory-orders")
+    @PreAuthorize("hasAuthority('ROLE_DOCTOR')")
+    public ResponseEntity<OrderPage> doctorLaboratoryOrders(@PathVariable UUID visitId,
+            @AuthenticationPrincipal AuthenticatedAccount actor) {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(new OrderPage(
+                workflow.listDoctorLaboratoryOrders(visitId, doctors.requireDoctorProfile(actor))));
+    }
     @GetMapping("/api/v1/reception/clinical-ordering-rounds")
     @PreAuthorize("hasAuthority('ROLE_RECEPTIONIST')")
     public ResponseEntity<ClinicalRoundWorkflowService.RoundPage> queue(@AuthenticationPrincipal AuthenticatedAccount actor,

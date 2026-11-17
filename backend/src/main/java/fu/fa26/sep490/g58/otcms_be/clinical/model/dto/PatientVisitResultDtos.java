@@ -35,6 +35,16 @@ public final class PatientVisitResultDtos {
     public record ImagingItem(String studyId, String serviceName, String finding) {
         @Override public String toString() { return "ImagingItem[redacted]"; }
     }
+    public record LabLine(String indicator, String value, String unit, String referenceRange, Boolean abnormal) { }
+    public record LabGroup(UUID orderId, String serviceName, Instant releasedAt, String reportFileUrl, List<LabLine> lines) {
+        public LabGroup { lines = List.copyOf(lines); }
+        @Override public String toString() { return "LabGroup[redacted]"; }
+    }
+    public record LaboratoryReportFile(String contentType, byte[] content) {
+        public LaboratoryReportFile { content = content.clone(); }
+        @Override public byte[] content() { return content.clone(); }
+        @Override public String toString() { return "LaboratoryReportFile[redacted]"; }
+    }
     public record PrescriptionRef(UUID id, Instant issuedAt, int itemCount) {
         @Override public String toString() { return "PrescriptionRef[redacted]"; }
     }
@@ -50,12 +60,13 @@ public final class PatientVisitResultDtos {
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record VisitResult(UUID visitId, LocalDate visitDate, String status, PatientRef patient,
             UUID previousVisitId, UUID nextVisitId, List<String> visibleBlocks,
-            ExaminationSection examination, List<ImagingItem> imaging,
+            ExaminationSection examination, List<ImagingItem> imaging, List<LabGroup> laboratory,
             List<PrescriptionRef> prescriptions, AdministrativeInfo administrative,
             List<ResultSheet> resultSheets) {
         public VisitResult {
             visibleBlocks = List.copyOf(visibleBlocks);
             if (imaging != null) imaging = List.copyOf(imaging);
+            if (laboratory != null) laboratory = List.copyOf(laboratory);
             if (prescriptions != null) prescriptions = List.copyOf(prescriptions);
             if (resultSheets != null) resultSheets = List.copyOf(resultSheets);
         }

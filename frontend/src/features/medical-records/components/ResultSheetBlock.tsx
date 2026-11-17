@@ -106,7 +106,7 @@ function ResultSheetButton({
         rel="noopener noreferrer"
         target="_blank"
       >
-        {loading ? "Đang mở…" : "Xem PDF"}
+        {loading ? "Đang mở…" : "Xem phiếu"}
         <span className="sr-only"> phiên bản {sheet.version}</span>
         {!loading ? <ExternalLink aria-hidden /> : null}
       </a>

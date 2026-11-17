@@ -30,6 +30,9 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
     ClinicalExaminationController.class,
     AfterVisitAdviceController.class,
     ClinicalImagingRequestController.class,
+    fu.fa26.sep490.g58.otcms_be.clinical.controller.ClinicalLaboratoryRequestController.class,
+    fu.fa26.sep490.g58.otcms_be.clinical.controller.LaboratoryCollectionController.class,
+    fu.fa26.sep490.g58.otcms_be.clinical.controller.DoctorLaboratoryResultController.class,
     fu.fa26.sep490.g58.otcms_be.clinical.controller.ClinicalRoundWorkflowController.class,
     DoctorActiveVisitController.class,
     ClinicalPrescriptionController.class,
@@ -55,9 +58,9 @@ public class ClinicalApiExceptionHandler {
     @ExceptionHandler(ClinicalOperationException.class)
     public ResponseEntity<ErrorResponse> business(ClinicalOperationException error, HttpServletRequest request) {
         int status = switch (error.code()) {
-            case "MSG-40", "MSG-14" -> 403;
+            case "MSG-40", "MSG-14", "MSG-LAB-03" -> 403;
             case "MSG-41" -> 404;
-            case "MSG-42", "IDEMPOTENCY_CONFLICT" -> 409;
+            case "MSG-42", "IDEMPOTENCY_CONFLICT", "MSG-LAB-01", "MSG-LAB-02", "MSG-LAB-14" -> 409;
             case "DEPENDENCY_UNAVAILABLE" -> 503;
             case "MSG-39", "MSG-08", "MSG-47" -> 400;
             default -> 500;

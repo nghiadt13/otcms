@@ -32,6 +32,10 @@ public interface VisitRoomJpaRepository extends JpaRepository<VisitRoomJpaEntity
             """, nativeQuery = true)
     List<ImagingQueueRoomRow> findImagingQueueRooms(@Param("serviceIds") java.util.Collection<UUID> serviceIds);
 
+    @Query("select r from VisitRoomJpaEntity r where r.active = true and r.type = 'LABORATORY' "
+            + "and :serviceId member of r.supportedServiceIds order by r.roomCode, r.id")
+    List<VisitRoomJpaEntity> findLaboratoryRoomsForService(@Param("serviceId") UUID serviceId);
+
     boolean existsByRoomCode(String roomCode);
 
     List<VisitRoomJpaEntity> findAllByOrderByRoomCodeAscIdAsc();

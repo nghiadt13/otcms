@@ -10,6 +10,8 @@ import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface DiagnosticReportJpaRepository extends JpaRepository<DiagnosticReportJpaEntity, UUID> {
+    @org.springframework.data.jpa.repository.Query("select r from DiagnosticReportJpaEntity r where r.requestId = :orderId and r.resultType = 'LAB' order by r.reportVersion desc")
+    List<DiagnosticReportJpaEntity> findLaboratoryVersions(@org.springframework.data.repository.query.Param("orderId") UUID orderId);
     List<DiagnosticReportJpaEntity> findAllByRequestIdInAndState(Collection<UUID> requestIds,
             DiagnosticFindingsVersionState state);
 

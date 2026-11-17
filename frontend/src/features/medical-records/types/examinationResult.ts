@@ -59,11 +59,16 @@ export interface LabLine {
   value: string;
   unit: string;
   referenceRange: string;
-  /** null = trong khoảng tham chiếu. */
-  flag: LabFlag | null;
+  /** Retained for older mock/result sources that supply direction instead of technician classification. */
+  flag?: LabFlag | null;
+  /** Classification selected by the technician before releasing the result. */
+  abnormal?: boolean | null;
 }
 
 export interface LabGroup {
+  orderId?: string;
+  releasedAt?: string;
+  reportFileUrl?: string | null;
   serviceName: string;
   lines: LabLine[];
 }

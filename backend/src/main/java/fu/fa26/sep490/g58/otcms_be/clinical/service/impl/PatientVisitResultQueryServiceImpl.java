@@ -5,10 +5,14 @@ import fu.fa26.sep490.g58.otcms_be.auth.service.PatientProfileDirectory;
 import fu.fa26.sep490.g58.otcms_be.auth.service.PatientProfileDirectory.ProfileRecord;
 import fu.fa26.sep490.g58.otcms_be.clinical.exception.ClinicalOperationException;
 import fu.fa26.sep490.g58.otcms_be.clinical.model.dto.PatientVisitResultDtos.*;
+import fu.fa26.sep490.g58.otcms_be.clinical.model.ClinicalServiceType;
+import fu.fa26.sep490.g58.otcms_be.clinical.model.ServiceOrderStatus;
+import fu.fa26.sep490.g58.otcms_be.clinical.repository.ServiceOrderRepository;
 import fu.fa26.sep490.g58.otcms_be.clinical.service.*;
 import fu.fa26.sep490.g58.otcms_be.common.security.AccountRole;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.model.DiagnosticActor;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.service.DiagnosticReleasedReportService;
+import fu.fa26.sep490.g58.otcms_be.diagnostic.service.LaboratoryDraftService;
 import fu.fa26.sep490.g58.otcms_be.patient.exception.CareRelationshipException;
 import fu.fa26.sep490.g58.otcms_be.patient.model.dto.DependentDtos.ProfileItem;
 import fu.fa26.sep490.g58.otcms_be.patient.service.DependentProfileService;
@@ -26,6 +30,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class PatientVisitResultQueryServiceImpl implements PatientVisitResultQueryService {
     private static final int MAX_PAGE_SIZE = 100;
+    private static final int MAX_LAB_REPORT_BYTES = 25 * 1024 * 1024;
     private static final ZoneId CLINIC_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
 
     private final PatientProfileAccessService access;
@@ -36,12 +41,15 @@ public class PatientVisitResultQueryServiceImpl implements PatientVisitResultQue
     private final ClinicalPrescriptionHistoryQueryService prescriptions;
     private final ClinicalMedicalDocumentHistoryQueryService documents;
     private final DiagnosticReleasedReportService diagnosticReports;
+    private final ServiceOrderRepository serviceOrders;
+    private final LaboratoryDraftService laboratoryDrafts;
     private final AppointmentReviewContextService appointments;
 
     public PatientVisitResultQueryServiceImpl(PatientProfileAccessService access, DependentProfileService dependents,
             PatientProfileDirectory profiles, PatientPortalVisitHistoryQueryService visits,
             ClinicalExaminationHistoryQueryService examinations, ClinicalPrescriptionHistoryQueryService prescriptions,
             ClinicalMedicalDocumentHistoryQueryService documents, DiagnosticReleasedReportService diagnosticReports,
+            ServiceOrderRepository serviceOrders, LaboratoryDraftService laboratoryDrafts,
             AppointmentReviewContextService appointments) {
         this.access = access;
         this.dependents = dependents;
@@ -51,6 +59,8 @@ public class PatientVisitResultQueryServiceImpl implements PatientVisitResultQue
         this.prescriptions = prescriptions;
         this.documents = documents;
         this.diagnosticReports = diagnosticReports;
+        this.serviceOrders = serviceOrders;
+        this.laboratoryDrafts = laboratoryDrafts;
         this.appointments = appointments;
     }
 
@@ -90,6 +100,8 @@ public class PatientVisitResultQueryServiceImpl implements PatientVisitResultQue
                 .map(item -> new ImagingItem(item.studyRef(), imagingLabel(item.imagingType(), item.bodyArea()),
                         item.findingsText())).toList();
 
+        List<LabGroup> laboratory = laboratoryResults(visitId);
+
         List<PrescriptionRef> issued = completed
                 ? prescriptions.findIssuedByPatientAndVisitIds(visit.patientProfileId(), List.of(visitId)).stream()
                     .map(item -> new PrescriptionRef(item.id(), item.issuedAt(), item.items().size())).toList()
@@ -120,14 +132,53 @@ public class PatientVisitResultQueryServiceImpl implements PatientVisitResultQue
         List<String> visible = new ArrayList<>();
         if (exam != null) visible.add("EXAMINATION");
         if (!images.isEmpty()) visible.add("IMAGING");
+        if (!laboratory.isEmpty()) visible.add("LABORATORY");
         if (!issued.isEmpty()) visible.add("PRESCRIPTIONS");
         if (administrative != null) visible.add("ADMINISTRATIVE");
         if (!sheets.isEmpty()) visible.add("RESULT_SHEET");
 
         return new VisitResult(visitId, visitDate(visit), resultStatus(visit), patientRef(profile, scope.relationships()),
                 visits.findPreviousVisit(visit).orElse(null), visits.findNextVisit(visit).orElse(null), visible,
-                exam, images.isEmpty() ? null : images, issued.isEmpty() ? null : issued, administrative,
+                exam, images.isEmpty() ? null : images, laboratory.isEmpty() ? null : laboratory,
+                issued.isEmpty() ? null : issued, administrative,
                 sheets.isEmpty() ? null : sheets);
+    }
+
+    @Override
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
+    public LaboratoryReportFile getLaboratoryReport(UUID accountId, UUID visitId, UUID orderId) {
+        if (accountId == null || visitId == null || orderId == null) throw error("MSG-39");
+        Scope scope = scope(accountId, null);
+        visits.findVisit(visitId, scope.profileIds()).orElseThrow(() -> error("MSG-41"));
+        var order = serviceOrders.findById(orderId).orElseThrow(() -> error("MSG-41"));
+        if (!visitId.equals(order.getVisitId()) || order.getServiceType() != ClinicalServiceType.LABORATORY
+                || order.getOrderStatus() != ServiceOrderStatus.RESULTS_AVAILABLE
+                || laboratoryDrafts.issued(orderId).isEmpty()) throw error("MSG-41");
+        var report = laboratoryDrafts.issuedReportInfo(orderId);
+        if (report == null) throw error("MSG-41");
+        try (var content = laboratoryDrafts.openReport(orderId)) {
+            byte[] bytes = content.readNBytes(MAX_LAB_REPORT_BYTES + 1);
+            if (bytes.length == 0 || bytes.length > MAX_LAB_REPORT_BYTES) throw error("DEPENDENCY_UNAVAILABLE");
+            return new LaboratoryReportFile(report.contentType(), bytes);
+        } catch (java.io.IOException | RuntimeException failure) {
+            throw error("DEPENDENCY_UNAVAILABLE");
+        }
+    }
+
+    private List<LabGroup> laboratoryResults(UUID visitId) {
+        return serviceOrders.findVisitOrdersByType(visitId, ClinicalServiceType.LABORATORY).stream()
+                .filter(order -> order.getOrderStatus() == ServiceOrderStatus.RESULTS_AVAILABLE)
+                .map(order -> {
+                    var values = laboratoryDrafts.issued(order.getId());
+                    if (values.isEmpty()) return null;
+                    List<LabLine> lines = values.stream().map(value -> new LabLine(value.indicator(), value.value(),
+                            value.unit(), value.referenceRange(), value.abnormal())).toList();
+                    var report = laboratoryDrafts.issuedReportInfo(order.getId());
+                    String reportUrl = report == null ? null : "/api/v1/visits/" + visitId + "/results/laboratory/"
+                            + order.getId() + "/report";
+                    return new LabGroup(order.getId(), order.getServiceNameSnapshot(), order.getUpdatedAt(), reportUrl, lines);
+                })
+                .filter(Objects::nonNull).toList();
     }
 
     private Scope scope(UUID accountId, UUID requestedPatientId) {

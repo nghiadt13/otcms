@@ -140,12 +140,19 @@ export type LabResultLine = {
   value: string;
   unit: string;
   reference: string;
-  abnormal: boolean;
+  /** Null is retained for older issued results that predate mandatory classification. */
+  abnormal: boolean | null;
 };
 export type LabResult = {
   orderId: string;
   serviceName: string;
   lines: LabResultLine[];
+  assessment?: LabResultAssessment | null;
+};
+export type LabResultAssessment = {
+  text: string;
+  assessedByAccountId: string;
+  assessedAt: string;
 };
 
 export type PrescriptionLine = {

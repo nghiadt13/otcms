@@ -1,6 +1,6 @@
 "use client";
 
-import { useId } from "react";
+import { useId, useState } from "react";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -33,6 +33,7 @@ export function ServicePicker({
 }) {
   const sizes = bookingSize(variant);
   const groupId = useId();
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   if (loading)
     return (
@@ -69,21 +70,23 @@ export function ServicePicker({
         return (
           <div
             key={service.id}
-            className={`flex items-center gap-3 ${sizes.row}`}
+            className={`flex items-start gap-3 ${sizes.row}`}
           >
             <RadioGroupItem id={id} value={service.id} />
-            <Label
-              htmlFor={id}
-              className="grid min-w-0 flex-1 cursor-pointer gap-0.5 font-normal"
-            >
-              <span className={sizes.strong}>{service.name}</span>
-              <span className={`${sizes.body} tabular-nums`}>
-                {formatCurrencyVnd(service.price)}
-              </span>
-              {service.bookingDetails ? (
-                <span className={sizes.detail}>{service.bookingDetails}</span>
+            <Label htmlFor={id} className="sr-only">{service.name}</Label>
+            <div className="grid min-w-0 flex-1 gap-1">
+              <button type="button" className={`${sizes.strong} text-left`} aria-expanded={expandedId === service.id}
+                aria-controls={`${id}-details`}
+                onClick={() => { if (value !== service.id) onChange(service.id); setExpandedId((current) => current === service.id ? null : service.id); }}>
+                {service.name}
+              </button>
+              {expandedId === service.id ? (
+                <div id={`${id}-details`} className="grid gap-1">
+                  <span className={`${sizes.body} tabular-nums`}>{formatCurrencyVnd(service.price)}</span>
+                  {service.bookingDetails ? <span className={`${sizes.detail} whitespace-pre-line`}>{service.bookingDetails}</span> : null}
+                </div>
               ) : null}
-            </Label>
+            </div>
           </div>
         );
       })}

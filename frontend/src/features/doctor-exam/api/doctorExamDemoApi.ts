@@ -310,7 +310,11 @@ export const doctorDemoApi: DoctorExamApi = {
         orderId: o.id,
         serviceName: o.serviceName,
         lines: clone(DEMO_LAB_LINES),
+        assessment: null,
       }));
+  },
+  async assessLabResult() {
+    mockFail(501, "MSG-42");
   },
   async getPrescription(visitId, signal) {
     await wait(signal);
