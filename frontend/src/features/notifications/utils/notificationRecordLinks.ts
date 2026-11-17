@@ -10,6 +10,7 @@ export const RECORD_LABELS: Record<NotificationRecordKind, string> = {
   VISIT: "Lượt khám",
   VISIT_RESULT: "Kết quả khám",
   PAYMENT: "Thanh toán",
+  REVIEW: "Đánh giá",
 };
 
 /** Bản ghi liên quan → đường dẫn màn; null nghĩa là không mở được (ẩn nút Mở). */

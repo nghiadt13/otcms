@@ -30,6 +30,7 @@ import java.util.UUID;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -102,6 +103,21 @@ class ClinicContentPostgresIntegrationTest {
         assertEquals(2,jdbc.queryForObject("select count(*) from audit_logs where source = 'content_audits' and entity_id=?",Integer.class,UUID.fromString(id)));
         jdbc.update("update website_contents set status='DRAFT' where id=?",UUID.fromString(id));
         mvc.perform(get("/api/v1/public/articles/"+id)).andExpect(status().isNotFound());
+    }
+    @Test void patientAnnouncementListIncludesOnlyPublishedPatientAndPublic() throws Exception {
+        actor();
+        UUID publicId = UUID.randomUUID(), patientId = UUID.randomUUID(), staffId = UUID.randomUUID();
+        String sql = "insert into website_contents(id,title,body,type,summary,status,audience,recipient_role,published_at,updated_at,created_by,updated_by,version) values(?,?,?,'ANNOUNCEMENT','',?,?,?,now(),now(),?,?,0)";
+        jdbc.update(sql, publicId, "Public", "Body", "PUBLISHED", "PUBLIC", null, lastActor, lastActor);
+        jdbc.update(sql, patientId, "Patient", "Body", "PUBLISHED", "PATIENT", null, lastActor, lastActor);
+        jdbc.update(sql, staffId, "Staff", "Body", "PUBLISHED", "STAFF", "RECEPTIONIST", lastActor, lastActor);
+        mvc.perform(get("/api/v1/me/announcements").with(user("patient").roles("PATIENT")))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.items[?(@.id == '"+publicId+"')]").exists())
+            .andExpect(jsonPath("$.items[?(@.id == '"+patientId+"')]").exists())
+            .andExpect(jsonPath("$.items[?(@.id == '"+staffId+"')]").doesNotExist());
+        mvc.perform(get("/api/v1/public/announcements"))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.items[?(@.id == '"+patientId+"')]").doesNotExist());
     }
     @Test void structuredClinicContactIsStoredAndReturnedToPublic() throws Exception {
         mvc.perform(post("/api/v1/admin/website-contents").with(actor()).with(csrf()).contentType("application/json")

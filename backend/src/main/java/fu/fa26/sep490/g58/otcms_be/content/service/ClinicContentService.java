@@ -24,6 +24,7 @@ public interface ClinicContentService {
     List<WebsiteContent> publicArticles();
     AnnouncementOptions options();
     ContentPage<ClinicAnnouncement> announcements(String q, String audience, String from, String to, int page, int size, boolean publicOnly);
+    ContentPage<ClinicAnnouncement> patientAnnouncements(int page, int size);
     ClinicAnnouncement announcement(UUID id, boolean publicOnly);
     ClinicAnnouncement announce(AnnouncementInput input, UUID actor);
 }
