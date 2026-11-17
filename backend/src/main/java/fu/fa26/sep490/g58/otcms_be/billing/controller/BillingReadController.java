@@ -34,11 +34,6 @@ public class BillingReadController {
     public ResponseEntity<String> invoice(@AuthenticationPrincipal AuthenticatedAccount actor, @PathVariable UUID invoiceId) {
         return attachment(reads.invoiceExport(actor, invoiceId), "invoice-" + invoiceId + ".txt");
     }
-    @GetMapping("/payments/{paymentId}/receipt")
-    @PreAuthorize("hasAuthority('ROLE_RECEPTIONIST')")
-    public ResponseEntity<String> receipt(@AuthenticationPrincipal AuthenticatedAccount actor, @PathVariable UUID paymentId) {
-        return attachment(reads.receiptExport(actor, paymentId), "receipt-" + paymentId + ".txt");
-    }
     private static ResponseEntity<String> attachment(String content, String filename) {
         return ResponseEntity.ok().cacheControl(CacheControl.noStore())
                 .contentType(new MediaType("text", "plain", java.nio.charset.StandardCharsets.UTF_8))

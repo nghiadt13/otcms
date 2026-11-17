@@ -177,7 +177,7 @@ class CheckInAppointmentServiceImplT027Test {
         when(billingSources.requireSource(appointmentId)).thenReturn(source(new BigDecimal("250000")));
         when(invoicePaidStatus.paidStatus(List.of(appointmentId))).thenReturn(Map.of(appointmentId, false));
 
-        assertEquals("EXAM_FEE_UNPAID", assertThrows(AppointmentBookingException.class,
+        assertEquals("MSG-94", assertThrows(AppointmentBookingException.class,
                 () -> handler.checkIn(appointmentId, command)).code());
         verifyNoInteractions(reception);
         verify(appointments, never()).completeCheckIn(any(), any(), any(), any(), any(), any());
@@ -189,7 +189,7 @@ class CheckInAppointmentServiceImplT027Test {
         when(billingSources.requireSource(appointmentId)).thenReturn(source(new BigDecimal("250000")));
         when(invoicePaidStatus.paidStatus(List.of(appointmentId))).thenReturn(Map.of());
 
-        assertEquals("EXAM_FEE_UNPAID", assertThrows(AppointmentBookingException.class,
+        assertEquals("MSG-94", assertThrows(AppointmentBookingException.class,
                 () -> handler.checkIn(appointmentId, command)).code());
         verifyNoInteractions(reception);
     }

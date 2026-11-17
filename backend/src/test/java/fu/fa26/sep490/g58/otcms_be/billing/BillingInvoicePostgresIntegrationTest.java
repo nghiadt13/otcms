@@ -1,6 +1,7 @@
 package fu.fa26.sep490.g58.otcms_be.billing;
 
 import fu.fa26.sep490.g58.otcms_be.billing.model.dto.request.CounterPaymentRequest;
+import fu.fa26.sep490.g58.otcms_be.billing.exception.BillingException;
 import fu.fa26.sep490.g58.otcms_be.billing.model.dto.request.CreateVisitInvoiceRequest;
 import fu.fa26.sep490.g58.otcms_be.billing.service.InvoiceService;
 import fu.fa26.sep490.g58.otcms_be.billing.service.PaymentService;
@@ -12,6 +13,9 @@ import java.time.Instant;
 import java.sql.Timestamp;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -21,6 +25,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @SpringBootTest
 @LocalPostgresTest
@@ -75,6 +80,44 @@ class BillingInvoicePostgresIntegrationTest {
     }
 
     @Test
+    void selectedItemsArePaidInFullAndOtherItemRemainsPending() {
+        var invoice = invoices.createForVisit(visitId, new CreateVisitInvoiceRequest(List.of(
+                new CreateVisitInvoiceRequest.Item(serviceId, 1))), receptionist);
+        UUID second = UUID.randomUUID(), third = UUID.randomUUID();
+        for (var entry : java.util.Map.of(2, second, 3, third).entrySet()) {
+            jdbc.update("insert into invoice_items (id, invoice_id, line_number, service_id, description_snapshot, quantity, unit_price_snapshot) values (?, ?, ?, ?, 'Test', 1, 50000)",
+                    entry.getValue(), invoice.id(), entry.getKey(), serviceId);
+        }
+        var payment = payments.recordCounterPayment(invoice.id(), new CounterPaymentRequest(
+                List.of(invoice.items().getFirst().id(), second), "CASH"), receptionist, UUID.randomUUID().toString());
+        assertEquals(new BigDecimal("175000.00"), payment.amount());
+        assertEquals(2, jdbc.queryForObject("select count(*) from invoice_items where invoice_id = ? and payment_attempt_id = ?", Integer.class, invoice.id(), payment.id()));
+        assertEquals(1, jdbc.queryForObject("select count(*) from invoice_items where id = ? and payment_attempt_id is null", Integer.class, third));
+        assertEquals("OPEN", invoices.get(invoice.id(), receptionist).status());
+    }
+
+    @Test
+    void concurrentCounterPaymentsForSameItemHaveOneWinner() throws Exception {
+        var invoice = invoices.createForVisit(visitId, new CreateVisitInvoiceRequest(List.of(
+                new CreateVisitInvoiceRequest.Item(serviceId, 1))), receptionist);
+        var request = new CounterPaymentRequest(List.of(invoice.items().getFirst().id()), "CASH");
+        var start = new CountDownLatch(1);
+        try (var executor = Executors.newFixedThreadPool(2)) {
+            var tasks = java.util.stream.IntStream.range(0, 2).mapToObj(i -> executor.submit(() -> {
+                start.await();
+                try {
+                    payments.recordCounterPayment(invoice.id(), request, receptionist, UUID.randomUUID().toString());
+                    return "OK";
+                } catch (BillingException e) { return e.code(); }
+            })).toList();
+            start.countDown();
+            var results = List.of(tasks.get(0).get(30, TimeUnit.SECONDS), tasks.get(1).get(30, TimeUnit.SECONDS));
+            assertTrue(results.contains("OK"));
+            assertTrue(results.contains("MSG-49"));
+        }
+    }
+
+    @Test
     @org.springframework.transaction.annotation.Transactional
     void openVisitClinicalRoundUsesSnapshotsExcludesCancelledAndSettlesOnlyWhenFullyPaid() {
         jdbc.update("update visits set status = 'OPEN' where id = ?", visitId);
@@ -90,10 +133,10 @@ class BillingInvoicePostgresIntegrationTest {
         assertEquals("CLINICAL_ROUND", invoice.sourceType());
         assertEquals(0, new BigDecimal("500000").compareTo(invoice.totalAmount())); assertEquals(2, invoice.items().size());
         assertEquals(invoice.id(), invoices.createForClinicalRound(round, receptionist).id());
-        payments.recordCounterPayment(invoice.id(), new CounterPaymentRequest(200000L, "CASH"), receptionist, "round-partial-" + round);
+        payments.recordCounterPayment(invoice.id(), new CounterPaymentRequest(List.of(invoice.items().get(0).id()), "CASH"), receptionist, "round-partial-" + round);
         assertEquals("OPEN", invoices.get(invoice.id(), receptionist).status());
         assertEquals(0, jdbc.queryForObject("select count(*) from clinical_service_orders where ordering_round_id = ? and payment_status = 'PAID'", Integer.class, round));
-        payments.recordCounterPayment(invoice.id(), new CounterPaymentRequest(300000L, "CASH"), receptionist, "round-full-" + round);
+        payments.recordCounterPayment(invoice.id(), new CounterPaymentRequest(List.of(invoice.items().get(1).id()), "CASH"), receptionist, "round-full-" + round);
         assertEquals("PAID", invoices.get(invoice.id(), receptionist).status());
         assertEquals(2, jdbc.queryForObject("select count(*) from clinical_service_orders where ordering_round_id = ? and payment_status = 'PAID'", Integer.class, round));
         assertEquals(0, jdbc.queryForObject("select count(*) from clinical_service_orders where ordering_round_id = ? and execution_status is not null", Integer.class, round));
@@ -128,14 +171,14 @@ class BillingInvoicePostgresIntegrationTest {
         assertEquals(SERVICE_PRICE, appointmentInvoice.items().get(0).unitPrice());
 
         var payment = payments.recordCounterPayment(visitInvoice.id(),
-                new CounterPaymentRequest(100_000L, "CASH"), receptionist, "billing-test-" + UUID.randomUUID());
+                new CounterPaymentRequest(List.of(visitInvoice.items().getFirst().id()), "CASH"), receptionist, "billing-test-" + UUID.randomUUID());
         var updatedVisitInvoice = invoices.get(visitInvoice.id(), receptionist);
 
         assertEquals("CONFIRMED", payment.status());
-        assertEquals(new BigDecimal("100000.00"), payment.amount());
-        assertEquals(new BigDecimal("100000.00"), updatedVisitInvoice.paidAmount());
-        assertEquals(new BigDecimal("150000.00"), updatedVisitInvoice.outstandingBalance());
-        assertEquals("OPEN", updatedVisitInvoice.status());
+        assertEquals(new BigDecimal("250000.00"), payment.amount());
+        assertEquals(new BigDecimal("250000.00"), updatedVisitInvoice.paidAmount());
+        assertEquals(new BigDecimal("0.00"), updatedVisitInvoice.outstandingBalance());
+        assertEquals("PAID", updatedVisitInvoice.status());
     }
 
     @AfterEach
@@ -144,8 +187,8 @@ class BillingInvoicePostgresIntegrationTest {
         var ownedInvoices = jdbc.queryForList("select id from invoices where created_by_account_id = ? and patient_profile_id = ?",
                 UUID.class, receptionistAccountId, patientProfileId);
         for (UUID invoiceId : ownedInvoices) {
-            jdbc.update("delete from payment_attempts where invoice_id = ?", invoiceId);
             jdbc.update("delete from invoice_items where invoice_id = ?", invoiceId);
+            jdbc.update("delete from payment_attempts where invoice_id = ?", invoiceId);
             jdbc.update("delete from invoices where id = ?", invoiceId);
         }
         jdbc.update("delete from clinical_service_orders where ordering_round_id = ?", clinicalRoundId);

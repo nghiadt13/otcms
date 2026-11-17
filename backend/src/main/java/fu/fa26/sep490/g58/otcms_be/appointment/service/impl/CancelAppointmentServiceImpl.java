@@ -12,8 +12,7 @@ import fu.fa26.sep490.g58.otcms_be.appointment.exception.AppointmentBookingExcep
 import fu.fa26.sep490.g58.otcms_be.appointment.repository.AppointmentCancellationRepository;
 import fu.fa26.sep490.g58.otcms_be.appointment.service.CancelAppointmentCommand;
 import fu.fa26.sep490.g58.otcms_be.appointment.service.CancelAppointmentService;
-import fu.fa26.sep490.g58.otcms_be.appointment.service.ReleaseAppointmentPaymentHoldService;
-import fu.fa26.sep490.g58.otcms_be.appointment.mapper.AppointmentRowMapper;
+import fu.fa26.sep490.g58.otcms_be.billing.service.BillingRefundService;
 
 import fu.fa26.sep490.g58.otcms_be.config.AppointmentBookingProperties;
 import fu.fa26.sep490.g58.otcms_be.common.service.CoordinationGuardService;
@@ -50,14 +49,14 @@ public class CancelAppointmentServiceImpl implements CancelAppointmentService {
     private final VisitScheduledCareService visits;
     private final NotificationPublisher notifications;
     private final StaffAvailabilityProviderQueryService doctors;
-    private final ReleaseAppointmentPaymentHoldService releaseHold;
+    private final BillingRefundService fees;
     /** Null in plain unit tests (no transaction manager): the body then simply runs without a transaction. */
     private final TransactionTemplate transaction;
 
     public CancelAppointmentServiceImpl(CoordinationGuardService guard, AppointmentCancellationRepository appointments,
             AuthorizePatientProfileService patientAuthorization, AppointmentBookingProperties properties, Clock clock,
-            NotificationPublisher notifications, StaffAvailabilityProviderQueryService doctors, AuditLogWriter auditLogWriter) {
-        this(guard, appointments, patientAuthorization, properties, clock, null, null, notifications, doctors, null, null, auditLogWriter);
+            NotificationPublisher notifications, StaffAvailabilityProviderQueryService doctors, BillingRefundService fees, AuditLogWriter auditLogWriter) {
+        this(guard, appointments, patientAuthorization, properties, clock, null, null, notifications, doctors, fees, null, auditLogWriter);
     }
 
     @Autowired
@@ -65,10 +64,10 @@ public class CancelAppointmentServiceImpl implements CancelAppointmentService {
             AuthorizePatientProfileService patientAuthorization, AppointmentBookingProperties properties, Clock clock,
             AppointmentLifecycleRepository lifecycle, VisitScheduledCareService visits,
             NotificationPublisher notifications, StaffAvailabilityProviderQueryService doctors,
-            ReleaseAppointmentPaymentHoldService releaseHold, PlatformTransactionManager transactionManager, AuditLogWriter auditLogWriter) {
+            BillingRefundService fees, PlatformTransactionManager transactionManager, AuditLogWriter auditLogWriter) {
         this.auditLogWriter = auditLogWriter;
         this.transaction = transactionManager == null ? null : new TransactionTemplate(transactionManager);
-        this.releaseHold = releaseHold;
+        this.fees = fees;
         this.guard = guard;
         this.appointments = appointments;
         this.patientAuthorization = patientAuthorization;
@@ -80,11 +79,7 @@ public class CancelAppointmentServiceImpl implements CancelAppointmentService {
         this.doctors = doctors;
     }
 
-    /**
-     * Deliberately not @Transactional. A payment hold is released OUTSIDE any transaction and BEFORE the coordination
-     * guard: billing may call the gateway and may confirm a payment (its own committed transactions), and a
-     * "paid in the meantime" answer must not roll that confirmation back. Every other status runs in one transaction.
-     */
+    /** Runs in one transaction: the appointment and its exam-fee item change together (D7: no automatic refunds). */
     @Override
     public CreatedAppointment cancel(UUID appointmentId, CancelAppointmentCommand command) {
         if (appointmentId == null || command == null || command.actorAccountId() == null || command.actor() == null
@@ -94,12 +89,6 @@ public class CancelAppointmentServiceImpl implements CancelAppointmentService {
                 || (command.actor() != CancelAppointmentCommand.Actor.PATIENT
                     && (command.reason() == null || command.reason().isBlank() || command.reason().trim().length() > 1000))) {
             throw new AppointmentBookingException("VALIDATION_FAILED");
-        }
-        if (releaseHold != null) {
-            var peek = appointments.findStatusAndPatient(appointmentId);
-            if (!peek.isEmpty() && "AWAITING_PAYMENT".equals(peek.getFirst()[0])) {
-                return cancelPaymentHold(appointmentId, AppointmentRowMapper.uuid(peek.getFirst()[1]), command);
-            }
         }
         return inTransaction(() -> cancelInTransaction(appointmentId, command));
     }
@@ -163,6 +152,7 @@ public class CancelAppointmentServiceImpl implements CancelAppointmentService {
                 checkedIn.status(), "CANCELLED", checkedIn.doctorProfileId(), checkedIn.doctorProfileId(),
                 checkedIn.startTime(), checkedIn.startTime(), checkedIn.endTime(), checkedIn.endTime(),
                 checkedIn.visitId(), checkedIn.sourceVisitId(), command.reason().trim(), null, now), command.correlationId());
+                settleFee(current, command);
                 publishCancellation(current, command);
                 return cancelled;
             } catch (DataAccessException failure) {
@@ -181,36 +171,21 @@ public class CancelAppointmentServiceImpl implements CancelAppointmentService {
                 "CONFIRMED", "CANCELLED", current.doctorProfileId(), current.doctorProfileId(),
                 current.startTime(), current.startTime(), current.endTime(), current.endTime(),
                 current.visitId(), current.sourceVisitId(), command.reason() == null ? null : command.reason().trim(), null, now), command.correlationId());
+        settleFee(current, command);
         publishCancellation(current, command);
         return cancelled;
     }
     /**
-     * Cancelling a payment hold (AWAITING_PAYMENT): only the booking patient may, no change deadline applies (nothing
-     * paid to protect), billing settles first (a paid invoice confirms the booking instead), then the slot is freed as
-     * PAYMENT_EXPIRED - never CANCELLED. Runs without a transaction and without the guard: no appointment row is
-     * locked before billing settled, and when billing found the payment complete the confirmation is already
-     * committed by the time the 409 below is thrown.
+     * The fee follows the appointment: an unpaid fee item is voided; a paid one stays paid (no refund) unless the
+     * clinic is at fault (staff set clinicFault: doctor absent, nobody to replace), then it awaits a manual refund.
      */
-    private CreatedAppointment cancelPaymentHold(UUID appointmentId, UUID patientProfileId,
-            CancelAppointmentCommand command) {
-        if (command.actor() != CancelAppointmentCommand.Actor.PATIENT) {
-            // Staff never see a hold.
-            throw new AppointmentBookingException("APPOINTMENT_NOT_FOUND");
+    private void settleFee(CancellableAppointment appointment, CancelAppointmentCommand command) {
+        if (fees == null) return;
+        if (command.actor() != CancelAppointmentCommand.Actor.PATIENT && command.clinicFault()) {
+            fees.refundAppointmentFee(appointment.id(), command.reason().trim(), appointment.startTime());
+        } else {
+            fees.voidUnpaidAppointmentFee(appointment.id());
         }
-        try {
-            patientAuthorization.authorize(command.actorAccountId(), patientProfileId);
-        } catch (PatientAuthorizationDeniedException denied) {
-            throw new AppointmentBookingException("APPOINTMENT_NOT_FOUND", denied);
-        }
-        String reason = command.reason() == null ? "Bệnh nhân hủy giữ chỗ thanh toán" : command.reason().trim();
-        releaseHold.release(appointmentId, true,
-                ReleaseAppointmentPaymentHoldService.Actor.patient(command.actorAccountId(), reason, command.correlationId()));
-        var rows = appointments.findCancelledResult(appointmentId);
-        if (rows.isEmpty()) throw new AppointmentBookingException("APPOINTMENT_NOT_FOUND");
-        var result = AppointmentRowMapper.createdAppointment(rows.getFirst());
-        // Paid in the meantime (now CONFIRMED) or otherwise not released: the cancel did not happen.
-        if (!"PAYMENT_EXPIRED".equals(result.status())) throw new AppointmentBookingException("APPOINTMENT_NOT_CHANGEABLE");
-        return result;
     }
 
     private void publishCancellation(CancellableAppointment appointment, CancelAppointmentCommand command) {

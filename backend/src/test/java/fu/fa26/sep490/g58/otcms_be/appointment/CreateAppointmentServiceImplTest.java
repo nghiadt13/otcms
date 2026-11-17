@@ -52,8 +52,7 @@ class CreateAppointmentServiceImplTest {
     private ServiceDoctorAssignmentQueryService assignments;
     private GenerateAvailableSlotsService slots;
     private AppointmentJpaRepository appointments;
-    private AppointmentPaymentHoldRepository holds;
-    private ReleaseAppointmentPaymentHoldService release;
+    private fu.fa26.sep490.g58.otcms_be.billing.service.InvoiceService invoices;
     private NotificationPublisher notifications;
     private CreateAppointmentServiceImpl handler;
 
@@ -67,14 +66,13 @@ class CreateAppointmentServiceImplTest {
         assignments = mock(ServiceDoctorAssignmentQueryService.class);
         slots = mock(GenerateAvailableSlotsService.class);
         appointments = mock(AppointmentJpaRepository.class);
-        holds = mock(AppointmentPaymentHoldRepository.class);
-        release = mock(ReleaseAppointmentPaymentHoldService.class);
+        invoices = mock(fu.fa26.sep490.g58.otcms_be.billing.service.InvoiceService.class);
         notifications = mock(NotificationPublisher.class);
         var properties = new AppointmentBookingProperties(60, 60, 15, 15, 15,
                 ZoneId.of("Asia/Ho_Chi_Minh"), new AppointmentBookingProperties.PublicRateLimit(30, 60), 15, 30000L, false);
         handler = new CreateAppointmentServiceImpl(guard, currentProfile, authorization, services, providers,
                 assignments, slots, appointments, properties, Clock.fixed(NOW, ZoneId.of("UTC")),
-                notifications, holds, release, org.mockito.Mockito.mock(fu.fa26.sep490.g58.otcms_be.common.audit.AuditLogWriter.class));
+                notifications, invoices, org.mockito.Mockito.mock(fu.fa26.sep490.g58.otcms_be.common.audit.AuditLogWriter.class));
     }
 
     @Test
@@ -141,7 +139,7 @@ class CreateAppointmentServiceImplTest {
                 ZoneId.of("Asia/Ho_Chi_Minh"), new AppointmentBookingProperties.PublicRateLimit(30, 60), 15, 30000L, false);
         handler = new CreateAppointmentServiceImpl(guard, currentProfile, authorization, services, providers,
                 assignments, slots, appointments, properties, Clock.fixed(NOW, ZoneId.of("UTC")),
-                notifications, holds, release, org.mockito.Mockito.mock(fu.fa26.sep490.g58.otcms_be.common.audit.AuditLogWriter.class));
+                notifications, invoices, org.mockito.Mockito.mock(fu.fa26.sep490.g58.otcms_be.common.audit.AuditLogWriter.class));
         when(services.findActiveService(SERVICE,
                 ClinicServiceBookingQueryService.BookingAudience.RECEPTIONIST))
                 .thenReturn(new ClinicServiceBookingQueryService.BookableService(SERVICE, "Visit",
@@ -172,7 +170,6 @@ class CreateAppointmentServiceImplTest {
                 PROFILE, AuthorizePatientProfileService.AuthorizationScope.SELF));
         when(services.findActiveService(SERVICE, ClinicServiceBookingQueryService.BookingAudience.PUBLIC_PATIENT))
                 .thenReturn(new ClinicServiceBookingQueryService.BookableService(SERVICE, "Visit", Duration.ofMinutes(30), Duration.ZERO, true));
-        when(services.findServiceLabel(SERVICE)).thenReturn(Optional.of(new ClinicServiceBookingQueryService.ServiceLabel("Visit", price)));
         when(providers.findAcceptingDoctorsInActiveDirectory()).thenReturn(List.of(
                 new StaffAvailabilityProviderQueryService.AvailabilityProvider(DOCTOR, "Doctor", true)));
         when(assignments.findActiveDoctorProfileIds(SERVICE)).thenReturn(List.of(DOCTOR));
@@ -181,7 +178,7 @@ class CreateAppointmentServiceImplTest {
             var booking = call.getArgument(0, AppointmentBooking.class);
             return new CreatedAppointment(booking.id(), PROFILE, SERVICE, DOCTOR, booking.initialStatus(), "PATIENT_ONLINE",
                     booking.purpose(), start, start.plusSeconds(1800), 30, 0, start.plusSeconds(1800), null, null, NOW, NOW,
-                    booking.paymentDeadline());
+                    null);
         });
     }
 
@@ -191,23 +188,17 @@ class CreateAppointmentServiceImplTest {
     }
 
     @Test
-    void onlinePatientWithFeeHoldsSlotForConfiguredMinutesAndDefersNotification() {
+    void onlinePatientWithFeeIsConfirmedAtOnceWithItsInvoiceAndTheBookingNotification() {
         Instant start = Instant.parse("2026-10-16T03:00:00Z");
         arrangeOnlinePatient(start, new BigDecimal("150000"));
-        UUID stale = UUID.randomUUID();
-        UUID lapsedOfOther = UUID.randomUUID();
-        when(holds.findHoldIdsByCreator(ACCOUNT)).thenReturn(List.of(stale));
-        when(holds.findLapsedHoldIdsOverlapping(eq(DOCTOR), eq(start), eq(start.plusSeconds(1800)), eq(NOW)))
-                .thenReturn(List.of(lapsedOfOther));
 
         var created = createOnline("2026-10-16T10:00:00+07:00");
 
-        assertEquals("AWAITING_PAYMENT", created.status());
-        assertEquals(NOW.plus(Duration.ofMinutes(15)), created.paymentDeadline());
-        verifyNoInteractions(notifications);
-        // own live hold is replaced (force), a lapsed hold of someone else is released without forcing
-        verify(release).release(eq(stale), eq(true), any(ReleaseAppointmentPaymentHoldService.Actor.class));
-        verify(release).release(eq(lapsedOfOther), eq(false), any(ReleaseAppointmentPaymentHoldService.Actor.class));
+        // D7: booking never waits for payment, so no hold, no deadline and no release of other holds.
+        assertEquals("CONFIRMED", created.status());
+        assertNull(created.paymentDeadline());
+        verify(invoices).openForBooking(created.id(), ACCOUNT);
+        verify(notifications).publishToPatient(eq(PROFILE), any());
     }
 
     @Test
@@ -223,34 +214,19 @@ class CreateAppointmentServiceImplTest {
     }
 
     @Test
-    void onlinePatientWithFeeMustBookAtLeastTheHoldWindowAhead() {
-        Instant tooSoon = NOW; // 12:00 local, grid-aligned but inside the 15-minute window
-        arrangeOnlinePatient(tooSoon, new BigDecimal("150000"));
+    void onlinePatientWithFeeMayBookRightAtTheStartTimeBecauseNothingIsHeld() {
+        arrangeOnlinePatient(NOW, new BigDecimal("150000"));
 
-        var failure = assertThrows(AppointmentBookingException.class,
-                () -> createOnline("2026-10-14T12:00:00+07:00"));
+        var created = createOnline("2026-10-14T12:00:00+07:00");
 
-        assertEquals("BOOKING_TOO_SOON", failure.code());
-        verify(appointments, never()).save(any(AppointmentBooking.class));
-        verifyNoInteractions(release);
+        assertEquals("CONFIRMED", created.status());
+        verify(appointments).save(any(AppointmentBooking.class));
     }
 
     @Test
-    void onlinePatientExactlyAtHoldWindowBoundaryIsAccepted() {
-        Instant boundary = NOW.plus(Duration.ofMinutes(15));
-        arrangeOnlinePatient(boundary, new BigDecimal("150000"));
-
-        var created = createOnline("2026-10-14T12:15:00+07:00");
-
-        assertEquals("AWAITING_PAYMENT", created.status());
-        assertEquals(boundary, created.paymentDeadline());
-    }
-
-    @Test
-    void receptionistBookingForPricedServiceStaysConfirmedAndNeverTouchesHolds() {
+    void receptionistBookingForPricedServiceIsConfirmedWithItsInvoice() {
         when(services.findActiveService(SERVICE, ClinicServiceBookingQueryService.BookingAudience.RECEPTIONIST))
                 .thenReturn(new ClinicServiceBookingQueryService.BookableService(SERVICE, "Visit", Duration.ofMinutes(30), Duration.ZERO, true));
-        when(services.findServiceLabel(SERVICE)).thenReturn(Optional.of(new ClinicServiceBookingQueryService.ServiceLabel("Visit", new BigDecimal("150000"))));
         when(providers.findAcceptingDoctorsInActiveDirectory()).thenReturn(List.of(
                 new StaffAvailabilityProviderQueryService.AvailabilityProvider(DOCTOR, "Doctor", false)));
         when(assignments.findActiveDoctorProfileIds(SERVICE)).thenReturn(List.of(DOCTOR));
@@ -260,14 +236,14 @@ class CreateAppointmentServiceImplTest {
             var booking = call.getArgument(0, AppointmentBooking.class);
             return new CreatedAppointment(booking.id(), PROFILE, SERVICE, DOCTOR, booking.initialStatus(),
                     "RECEPTIONIST_ASSISTED", "x", start, start.plusSeconds(1800), 30, 0, start.plusSeconds(1800), null, null,
-                    NOW, NOW, booking.paymentDeadline());
+                    NOW, NOW, null);
         });
 
         var created = handler.create(new CreateAppointmentCommand(ACCOUNT, CreateAppointmentCommand.Actor.RECEPTIONIST,
                 PROFILE, SERVICE, DOCTOR, OffsetDateTime.ofInstant(start, ZoneId.of("UTC")), "Routine visit", "test-correlation"));
 
         assertEquals("CONFIRMED", created.status());
-        verify(holds, never()).findHoldIdsByCreator(any());
+        verify(invoices).openForBooking(created.id(), ACCOUNT);
         verify(notifications).publishToPatient(eq(PROFILE), any());
     }
 }

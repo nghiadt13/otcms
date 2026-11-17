@@ -1,7 +1,6 @@
 package fu.fa26.sep490.g58.otcms_be.billing.service.impl;
 
 import fu.fa26.sep490.g58.otcms_be.billing.exception.BillingException;
-import fu.fa26.sep490.g58.otcms_be.billing.model.PaymentAttemptStatus;
 import fu.fa26.sep490.g58.otcms_be.billing.repository.*;
 import fu.fa26.sep490.g58.otcms_be.billing.service.*;
 import fu.fa26.sep490.g58.otcms_be.common.security.*;
@@ -21,11 +20,10 @@ public class BillingReadServiceImpl implements BillingReadService {
     private final BillingReadRepository reads;
     private final AuthorizePatientBillingProfileService patients;
     private final InvoiceService invoices;
-    private final PaymentAttemptRepository payments;
 
     public BillingReadServiceImpl(BillingReadRepository reads, AuthorizePatientBillingProfileService patients,
-            InvoiceService invoices, PaymentAttemptRepository payments) {
-        this.reads = reads; this.patients = patients; this.invoices = invoices; this.payments = payments;
+            InvoiceService invoices) {
+        this.reads = reads; this.patients = patients; this.invoices = invoices;
     }
     @Override
     public ResultPage<Payment> payments(AuthenticatedAccount actor, UUID patientId, LocalDate from, LocalDate to, int page, int size) {
@@ -41,12 +39,12 @@ public class BillingReadServiceImpl implements BillingReadService {
             if (scope.isEmpty() || patientId != null && !scope.contains(patientId)) throw error("ACCESS_DENIED");
         }
         if (patientId != null) { scope = List.of(patientId); staff = false; }
-        if (from != null && to != null && from.isAfter(to)) throw error("MSG-39");
+        if (from != null && to != null && from.isAfter(to)) throw error("MSG-54");
         Instant start, end;
         try {
             start = from == null ? null : from.atStartOfDay(CLINIC_ZONE).toInstant();
             end = to == null ? null : to.plusDays(1).atStartOfDay(CLINIC_ZONE).toInstant();
-        } catch (DateTimeException invalid) { throw error("MSG-39"); }
+        } catch (DateTimeException invalid) { throw error("MSG-54"); }
         var result = reads.completedPayments(staff, scope, start, end, page(page, size));
         return new ResultPage<>(result.stream().map(p -> new Payment(p.getId(), p.getInvoiceId(), p.getPatientId(),
                 p.getInvoiceNumber(), p.getAmount(), p.getCurrency(), p.getChannel(), p.getConfirmedAt())).toList(),
@@ -74,17 +72,6 @@ public class BillingReadServiceImpl implements BillingReadService {
         }
         return text.append("Total: ").append(invoice.totalAmount()).append(" VND\nPaid: ").append(invoice.paidAmount())
                 .append(" VND\nOutstanding: ").append(invoice.outstandingBalance()).append(" VND\n").toString();
-    }
-    @Override
-    public String receiptExport(AuthenticatedAccount actor, UUID paymentId) {
-        requireReceptionist(actor);
-        if (paymentId == null) throw error("MSG-39");
-        var payment = payments.findById(paymentId).orElseThrow(() -> error("PAYMENT_ATTEMPT_NOT_FOUND"));
-        if (payment.getStatus() != PaymentAttemptStatus.CONFIRMED || payment.getConfirmedAt() == null) throw error("MSG-42");
-        var invoice = invoices.get(payment.getInvoiceId(), actor);
-        return "PAYMENT RECEIPT\nPayment ID: " + payment.getId() + "\nInvoice: " + invoice.invoiceNumber()
-                + "\nPatient profile: " + invoice.patientProfileId() + "\nConfirmed: " + payment.getConfirmedAt()
-                + "\nChannel: " + payment.getChannel() + "\nAmount paid: " + payment.getAmount() + " " + payment.getCurrencyCode() + "\n";
     }
     private static Pageable page(int page, int size) {
         if (page < 0 || size < 1 || size > 100 || (long) page * size > Integer.MAX_VALUE) throw error("MSG-39");

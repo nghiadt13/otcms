@@ -15,6 +15,7 @@ import java.util.UUID;
 @Entity
 @Table(name = "payment_attempts")
 public class PaymentAttemptJpaEntity {
+    public static final long IN_FLIGHT_LINK_SECONDS = 120;
     @Id private UUID id;
     @Column(name = "invoice_id", nullable = false) private UUID invoiceId;
     @Enumerated(EnumType.STRING) @Column(nullable = false, length = 16) private PaymentChannel channel;
@@ -46,8 +47,14 @@ public class PaymentAttemptJpaEntity {
 
     public static PaymentAttemptJpaEntity pendingOnline(UUID id, UUID invoiceId, BigDecimal amount,
             UUID actor, String key, String fingerprint, long orderCode) {
+        return pendingProvider(PaymentChannel.ONLINE, id, invoiceId, amount, actor, key, fingerprint, orderCode);
+    }
+
+    /** A PayOS checkout in the given channel (ONLINE for the patient, COUNTER_QR for a receptionist). */
+    public static PaymentAttemptJpaEntity pendingProvider(PaymentChannel channel, UUID id, UUID invoiceId,
+            BigDecimal amount, UUID actor, String key, String fingerprint, long orderCode) {
         PaymentAttemptJpaEntity attempt = base(id, invoiceId, amount, actor, key, fingerprint);
-        attempt.channel = PaymentChannel.ONLINE;
+        attempt.channel = channel;
         attempt.provider = "PAYOS";
         attempt.providerOrderCode = orderCode;
         attempt.status = PaymentAttemptStatus.PENDING;
@@ -111,11 +118,21 @@ public class PaymentAttemptJpaEntity {
         this.lastEventFingerprint = fingerprint;
         this.signatureVerified = Boolean.TRUE;
     }
+    /**
+     * True while this PENDING checkout can still be paid: until its link expires, and, while the link is still
+     * being created at the gateway (no expiry recorded yet), for {@value #IN_FLIGHT_LINK_SECONDS} seconds.
+     */
+    public boolean isOpenAt(Instant now) {
+        if (status != PaymentAttemptStatus.PENDING) return false;
+        Instant end = expiresAt != null ? expiresAt : createdAt == null ? null : createdAt.plusSeconds(IN_FLIGHT_LINK_SECONDS);
+        return end == null || end.isAfter(now);
+    }
     public String getLastEventFingerprint() { return lastEventFingerprint; }
     public UUID getId() { return id; }
     public UUID getInvoiceId() { return invoiceId; }
     public PaymentChannel getChannel() { return channel; }
     public String getProvider() { return provider; }
+    public String getCounterMethod() { return counterMethod; }
     public BigDecimal getAmount() { return amount; }
     public String getCurrencyCode() { return currencyCode; }
     public PaymentAttemptStatus getStatus() { return status; }

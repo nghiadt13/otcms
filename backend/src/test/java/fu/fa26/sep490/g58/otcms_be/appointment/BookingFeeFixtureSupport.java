@@ -32,11 +32,11 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 
 /**
- * Shared fixture for the AWAITING_PAYMENT hold integration tests: one doctor with a shift on 2026-10-16
+ * Shared fixture for booking + exam-fee integration tests: one doctor with a shift on 2026-10-16
  * (09:00-12:00 clinic time), a paid and a free online-bookable service, two patients and a receptionist, a movable
- * clock. Subclasses choose the billing side: a mocked settlement or the real billing with a fake gateway.
+ * clock. Subclasses run against the real billing with a fake PayOS gateway.
  */
-abstract class PaymentHoldFixtureSupport {
+abstract class BookingFeeFixtureSupport {
     static final Instant NOW = Instant.parse("2026-10-14T05:00:00Z");
     /** 10:00 clinic time inside the doctor's shift. */
     static final Instant SLOT = Instant.parse("2026-10-16T03:00:00Z");
@@ -86,13 +86,19 @@ abstract class PaymentHoldFixtureSupport {
                 Object[] args = {patientA, patientB, receptionist};
                 String mine = "(select id from appointments where created_by_account_id in " + creators + ")";
                 String myInvoices = "(select id from invoices where appointment_id in " + mine + ")";
-                jdbc.update("delete from payment_attempts where invoice_id in " + myInvoices, args);
+                // Items first: invoice_items.payment_attempt_id references payment_attempts (V126).
                 jdbc.update("delete from invoice_items where invoice_id in " + myInvoices, args);
+                jdbc.update("delete from payment_attempts where invoice_id in " + myInvoices, args);
                 jdbc.update("delete from invoices where appointment_id in " + mine, args);
                 jdbc.update("delete from notifications where related_id in (select id from appointments "
                         + "where created_by_account_id in " + creators + ")", args);
                 jdbc.update("delete from audit_logs where source = 'appointment_audits' and entity_id in (select id from appointments "
                         + "where created_by_account_id in " + creators + ")", args);
+                jdbc.update("delete from notifications where recipient_account_id in " + creators, args);
+                // Check-in makes a visit and an exam queue entry; the appointment points at the visit, so release it first.
+                jdbc.update("update appointments set status = 'CANCELLED', visit_id = null where created_by_account_id in " + creators, args);
+                jdbc.update("delete from queue_entries where visit_id in (select id from visits where originating_appointment_id in " + mine + ")", args);
+                jdbc.update("delete from visits where originating_appointment_id in " + mine, args);
                 jdbc.update("delete from appointments where created_by_account_id in " + creators, args);
                 jdbc.update("delete from doctor_services where doctor_profile_id = ?", doctorProfile);
                 jdbc.update("delete from clinic_services where id in (?, ?)", paidService, freeService);
@@ -118,8 +124,8 @@ abstract class PaymentHoldFixtureSupport {
                 .contentType("application/json").content(createJson(patientProfile, service, start)));
     }
 
-    /** Creates an online hold on the paid service and returns its id. */
-    UUID createHold(UUID account, Instant start) throws Exception {
+    /** Books the paid service online (CONFIRMED at once, its fee invoice opens with it) and returns the appointment id. */
+    UUID bookPaid(UUID account, Instant start) throws Exception {
         String body = createOnline(account, paidService, start).andReturn().getResponse().getContentAsString();
         String id = JsonPath.read(body, "$.id");
         return UUID.fromString(id);
@@ -158,22 +164,6 @@ abstract class PaymentHoldFixtureSupport {
         return count("select count(*) from notifications where related_id = ?", appointmentId);
     }
 
-    /** Inserts a 30-minute appointment row directly (fixtures that must not go through the booking rules). */
-    UUID insertAppointment(UUID creator, UUID profile, UUID service, Instant start, String status, Instant deadline,
-            String source) {
-        UUID id = UUID.randomUUID();
-        jdbc.update("insert into appointments (id, patient_profile_id, service_id, doctor_profile_id, status, "
-                + "booking_source, purpose, start_time, end_time, duration_minutes, buffer_minutes, "
-                + "created_by_account_id, payment_deadline) values (?, ?, ?, ?, ?, ?, 'fixture', ?, ?, 30, 0, ?, ?)",
-                id, profile, service, doctorProfile, status, source, Timestamp.from(start),
-                Timestamp.from(start.plusSeconds(1800)), creator, deadline == null ? null : Timestamp.from(deadline));
-        return id;
-    }
-
-    UUID insertHold(UUID creator, UUID profile, Instant start, Instant deadline) {
-        return insertAppointment(creator, profile, paidService, start, "AWAITING_PAYMENT", deadline, "PATIENT_ONLINE");
-    }
-
     private UUID account(String type, String suffix) {
         UUID id = UUID.randomUUID();
         Instant created = Instant.parse("2026-10-01T00:00:00Z");
@@ -200,7 +190,7 @@ abstract class PaymentHoldFixtureSupport {
 
     // ---- clock -----------------------------------------------------------------------------------------------
 
-    /** Clock the tests can move (hold deadlines are relative to it). */
+    /** Clock the tests can move (booking, cancellation and no-show rules are relative to it). */
     static final class MovableClock extends Clock {
         private volatile Instant now = NOW;
 
