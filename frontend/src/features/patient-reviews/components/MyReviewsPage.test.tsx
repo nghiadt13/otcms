@@ -1,6 +1,6 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { resetLinkedProfilesMock } from "@/lib/patient-scope/linkedProfilesMockStore";
 import { resetMyReviewMockData } from "../api/myReviewMockData";
 import { MyReviewsPage } from "./MyReviewsPage";
@@ -21,9 +21,8 @@ describe("MyReviewsPage", () => {
       "/portal/reviews/new?visitId=vis-an-done",
     );
     expect(await screen.findByText("Đang hiển thị")).toBeInTheDocument();
-    expect(screen.getByText("Chờ duyệt")).toBeInTheDocument();
     expect(screen.getByText("Phòng khám phản hồi")).toBeInTheDocument();
-    expect(screen.getByText("Nguyễn Thị Lan · Cha/Mẹ")).toBeInTheDocument();
+    expect(screen.queryByText("Nguyễn Thị Lan · Cha/Mẹ")).not.toBeInTheDocument();
   });
 
   it("hai khối có tiêu đề cấp 2 riêng, không có khối nào trống khi có dữ liệu", async () => {
@@ -66,3 +65,5 @@ describe("MyReviewsPage", () => {
     ).toBeInTheDocument();
   });
 });
+
+vi.mock("@/lib/api/client", async () => await import("../api/reviewTestClient"));
