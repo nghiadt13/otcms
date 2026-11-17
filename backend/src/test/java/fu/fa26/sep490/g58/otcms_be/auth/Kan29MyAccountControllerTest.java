@@ -44,6 +44,6 @@ class Kan29MyAccountControllerTest {
     @Test void scopedOtpErrorUsesTicketCode() throws Exception {
         doThrow(new MyAccountOperationException(MyAccountOperationException.Reason.OTP_INVALID)).when(emails).verify(any(),eq("123456"));
         mvc.perform(post("/api/v1/me/email-change/verify").contentType("application/json").content("{\"code\":\"123456\"}"))
-                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("MSG-82"));
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("MSG-77"));
     }
 }

@@ -35,7 +35,7 @@ public class MyAccountApiExceptionHandler implements org.springframework.web.ser
         return switch (e.reason()) {
             case ACCESS_DENIED -> problem(403, "MSG-14", r);
             case AVATAR_NOT_FOUND -> problem(404, "MSG-08", r);
-            case OTP_INVALID -> problem(400, "MSG-82", r);
+            case OTP_INVALID -> problem(400, "MSG-77", r);
             default -> problem(400, "MSG-08", r);
         };
     }
@@ -61,7 +61,7 @@ public class MyAccountApiExceptionHandler implements org.springframework.web.ser
     private ResponseEntity<ErrorResponse> problem(int status, String code, HttpServletRequest r) {
         String message = switch (code) {
             case "MSG-14" -> "Bạn không có quyền thực hiện thao tác này hoặc tài khoản không còn khả dụng.";
-            case "MSG-82" -> "Mã OTP không đúng hoặc đã hết hạn.";
+            case "MSG-77" -> "Mã OTP không đúng hoặc đã hết hạn.";
             case "MSG-08" -> "Không thể hoàn tất yêu cầu với thông tin hiện tại.";
             default -> "Không thể hoàn tất yêu cầu. Vui lòng thử lại sau hoặc bắt đầu lại.";
         };

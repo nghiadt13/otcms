@@ -102,8 +102,10 @@ export const APP_MESSAGES: Record<string, string> = {
   "MSG-53":
     "Thanh toán không thành công. Vui lòng chọn cách thanh toán khác hoặc thử lại.",
   "MSG-55": "Đã gửi đánh giá. Đánh giá sẽ hiển thị sau khi được duyệt.",
-  "MSG-82":
+  "MSG-77":
     "Mã OTP không đúng hoặc đã hết hạn. Vui lòng nhập lại hoặc yêu cầu mã mới.",
+  "MSG-82":
+    "Lượt khám ngày {date} của {patient name} đã đóng ở trạng thái chưa hoàn tất. Ảnh và kết quả xét nghiệm đã được công bố; các chỉ định chưa thực hiện đã bị hủy; khoản đã thanh toán không được hoàn.",
   "MSG-84": "Đã lưu thông tin hồ sơ bệnh nhân.",
   "MSG-85": "Đã gỡ hồ sơ này khỏi danh sách hồ sơ bạn quản lý.",
   // Khu Lễ tân (plan 261024-0512 phase 00 / plan lễ tân phase 00), câu chữ theo R3 Drive.

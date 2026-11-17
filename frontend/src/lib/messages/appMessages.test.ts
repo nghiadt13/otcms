@@ -25,6 +25,15 @@ describe("formatAppMessage", () => {
     );
   });
 
+  it("MSG-77 và MSG-82 đúng nguyên văn R3", () => {
+    expect(formatAppMessage("MSG-77")).toBe(
+      "Mã OTP không đúng hoặc đã hết hạn. Vui lòng nhập lại hoặc yêu cầu mã mới.",
+    );
+    expect(formatAppMessage("MSG-82")).toBe(
+      "Lượt khám ngày {date} của {patient name} đã đóng ở trạng thái chưa hoàn tất. Ảnh và kết quả xét nghiệm đã được công bố; các chỉ định chưa thực hiện đã bị hủy; khoản đã thanh toán không được hoàn.",
+    );
+  });
+
   it("MSG-11 thay {accountRole} và {username} theo R3", () => {
     expect(
       formatAppMessage("MSG-11", {
@@ -122,6 +131,7 @@ describe("mã MSG khu bệnh nhân", () => {
     "MSG-52",
     "MSG-53",
     "MSG-55",
+    "MSG-77",
     "MSG-82",
     "MSG-84",
   ])("%s có câu hiển thị không rỗng và không lộ mã", (code) => {

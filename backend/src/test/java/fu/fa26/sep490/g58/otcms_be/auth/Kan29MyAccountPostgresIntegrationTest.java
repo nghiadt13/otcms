@@ -182,7 +182,7 @@ class Kan29MyAccountPostgresIntegrationTest {
         assertEquals(target, accounts.findById(patient).orElseThrow().getNormalizedEmail());
         assertNotNull(accounts.findById(patient).orElseThrow().getEmailVerifiedAt());
         assertEquals(1, count("select count(*) from verification_codes where purpose='EMAIL_CHANGE' and account_id=? and consumed_at is not null", patient));
-        verifyCode(code).andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("MSG-82"));
+        verifyCode(code).andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("MSG-77"));
     }
 
     @ParameterizedTest @ValueSource(strings = {"taken", "current", "rate", "delivery"})
@@ -197,7 +197,7 @@ class Kan29MyAccountPostgresIntegrationTest {
         assertEquals("{\"message\":\"MSG-06\"}", body);
         assertFalse(body.contains(next));
         assertEquals(0, count("select count(*) from verification_codes where purpose='EMAIL_CHANGE' and account_id=? and consumed_at is null and superseded_at is null", patient));
-        verifyCode(oldCode).andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("MSG-82"));
+        verifyCode(oldCode).andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("MSG-77"));
     }
 
     @Test void resendSupersedesPriorOtp() throws Exception {
@@ -207,23 +207,23 @@ class Kan29MyAccountPostgresIntegrationTest {
         String second = codes.get(target);
         assertEquals(1, count("select count(*) from verification_codes where purpose='EMAIL_CHANGE' and account_id=? and superseded_at is not null", patient));
         // Secure random can legitimately repeat a six-digit value; persistence supersession is authoritative.
-        if (!first.equals(second)) verifyCode(first).andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("MSG-82"));
+        if (!first.equals(second)) verifyCode(first).andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("MSG-77"));
         verifyCode(second).andExpect(status().isOk());
     }
 
     @Test void wrongOtpPersistsAttemptsAndExhaustion() throws Exception {
         String target = email(); requestEmail(target);
         String wrong = codes.get(target).equals("000000") ? "999999" : "000000";
-        for (int i=0;i<5;i++) verifyCode(wrong).andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("MSG-82"));
+        for (int i=0;i<5;i++) verifyCode(wrong).andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("MSG-77"));
         assertEquals(5, count("select failed_attempts from verification_codes where purpose='EMAIL_CHANGE' and account_id=?", patient));
-        verifyCode(codes.get(target)).andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("MSG-82"));
+        verifyCode(codes.get(target)).andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("MSG-77"));
     }
 
     @Test void expiredOrAbsentOtp() throws Exception {
-        verifyCode("123456").andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("MSG-82"));
+        verifyCode("123456").andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("MSG-77"));
         String target = email(); requestEmail(target);
         jdbc.update("update verification_codes set created_at=now()-interval '20 minutes',expires_at=now()-interval '10 minutes' where purpose='EMAIL_CHANGE' and account_id=?", patient);
-        verifyCode(codes.get(target)).andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("MSG-82"));
+        verifyCode(codes.get(target)).andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("MSG-77"));
     }
 
     @Test void emailClaimedAfterRequestIsUnavailable() throws Exception {
