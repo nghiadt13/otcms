@@ -3,15 +3,18 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { messageFromError } from "@/lib/messages/appMessages";
+import { formatAppMessage, messageFromError } from "@/lib/messages/appMessages";
 import {
   getReceptionVerificationProfile,
+  getReceptionReturnCandidate,
   listReceptionAppointments,
   listReceptionArrivals,
+  returnReceptionVisit,
   type ReceptionAppointment,
   type ReceptionArrival,
   type ReceptionCheckIn,
   type ReceptionPatient,
+  type ReceptionReturnCandidate,
 } from "../api/receptionLiveApi";
 import { queuedFeedbackText } from "../schema/receptionMessages";
 import { CheckInAppointmentRow } from "./CheckInAppointmentRow";
@@ -50,9 +53,20 @@ export function CheckInDialog({
   const [reloadKey, setReloadKey] = useState(0);
   const [error, setError] = useState("");
   const [result, setResult] = useState("");
+  const [candidate, setCandidate] = useState<ReceptionReturnCandidate | null>(null);
+  const [returning, setReturning] = useState(false);
   const today = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Ho_Chi_Minh",
   }).format(new Date());
+
+  useEffect(() => {
+    if (!verified) return;
+    const controller = new AbortController();
+    void getReceptionReturnCandidate(verified.patientProfileId, controller.signal)
+      .then((value) => { if (!controller.signal.aborted) setCandidate(value ?? null); })
+      .catch((cause) => { if (!controller.signal.aborted) setError(messageFromError(cause)); });
+    return () => controller.abort();
+  }, [verified]);
 
   useEffect(() => {
     if (!patientId) return;
@@ -102,6 +116,7 @@ export function CheckInDialog({
     setSelected(patient);
     setPatientId(patient.patientProfileId);
     setVerified(null);
+    setCandidate(null);
     setError("");
   }
 
@@ -109,6 +124,24 @@ export function CheckInDialog({
     setSelected(null);
     setPatientId("");
     setVerified(null);
+    setCandidate(null);
+  }
+
+  async function returnVisit() {
+    if (!candidate || returning) return;
+    setReturning(true);
+    setError("");
+    try {
+      await returnReceptionVisit(candidate.visitId);
+      toast.success(formatAppMessage("MSG-43"));
+      setCandidate(null);
+      onUpdated();
+      onClose();
+    } catch (cause) {
+      setError(messageFromError(cause));
+    } finally {
+      setReturning(false);
+    }
   }
 
   function handleCheckedIn(appointmentId: string, checkIn: ReceptionCheckIn) {
@@ -179,6 +212,16 @@ export function CheckInDialog({
               Đã xác minh hồ sơ: {verified.fullName} ·{" "}
               {dateText(verified.dateOfBirth)}.
             </p>
+            {candidate && (
+              <section className="space-y-2 rounded-md border p-3 text-sm">
+                <h2 className="font-semibold">Lượt khám đang chờ kết luận</h2>
+                <p>Bác sĩ: {candidate.doctorName} · Phòng: {candidate.roomLabel}</p>
+                <p>Hạn quay lại: {dateText(candidate.returnDeadline)}</p>
+                <Button type="button" variant="outline" disabled={returning} onClick={() => void returnVisit()}>
+                  {returning ? "Đang tiếp nhận…" : "Quay lại lượt khám"}
+                </Button>
+              </section>
+            )}
             {appointmentsPatientId === verified.patientProfileId &&
               visibleAppointments.map((appointment) => (
                 <CheckInAppointmentRow

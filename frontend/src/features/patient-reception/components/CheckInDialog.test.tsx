@@ -119,6 +119,8 @@ beforeEach(() => {
         fullName: "Nguyễn Minh Anh",
         dateOfBirth: "1990-01-01",
       };
+    if (path === "/api/v1/reception/patients/pat-1/return-candidate")
+      return undefined;
     if (path === "/api/v1/appointments/apt-1/check-in" && method === "POST")
       return {
         appointmentId: "apt-1",
@@ -137,13 +139,14 @@ beforeEach(() => {
       feePaid = true;
       return {};
     }
-    if (path === "/api/v1/reception/on-shift-doctors")
+    if (path === "/api/v1/reception/walk-in-suggestions")
       return {
         items: [
           {
             doctorProfileId: "doc-1",
             doctorName: "BS Nguyễn An",
             roomId: "room-101",
+            roomCode: "101",
             roomLabel: "Phòng 101",
             waitingCount: 2,
           },
@@ -188,7 +191,7 @@ beforeEach(() => {
 });
 
 function renderDialog(
-  props: { patientId?: string; appointmentId?: string } = {},
+  props: { patientId?: string; appointmentId?: string; onUpdated?: () => void } = {},
 ) {
   return render(
     <ReceptionProvider>
@@ -196,13 +199,63 @@ function renderDialog(
         patientId={props.patientId ?? "pat-1"}
         appointmentId={props.appointmentId}
         onClose={vi.fn()}
-        onUpdated={vi.fn()}
+        onUpdated={props.onUpdated ?? vi.fn()}
       />
     </ReceptionProvider>,
   );
 }
 
 describe("CheckInDialog (tiếp nhận tại quầy)", () => {
+  const candidate = {
+    visitId: "v-return", firstCheckInAt: "2026-11-11T08:00:00+07:00",
+    returnDeadline: "2026-11-18", doctorProfileId: "doc-1", doctorName: "BS Nguyễn An",
+    roomId: "room-101", roomLabel: "Phòng 101",
+  };
+
+  it("tiếp nhận lại lượt chờ kết luận và làm mới hàng chờ", async () => {
+    const user = userEvent.setup();
+    const updated = vi.fn();
+    const base = request.getMockImplementation()!;
+    request.mockImplementation(async (path: string, init?: RequestInit) => {
+      if (path.endsWith("/return-candidate")) return candidate;
+      if (path === "/api/v1/visits/v-return/returns") return { messageCode: "MSG-43", data: {} };
+      return base(path, init);
+    });
+    renderDialog({ onUpdated: updated });
+    await user.click(screen.getByRole("button", { name: "Xác minh hồ sơ bệnh nhân" }));
+    expect(await screen.findByText("Lượt khám đang chờ kết luận")).toBeInTheDocument();
+    expect(screen.getByText(/Hạn quay lại: 18\/11\/2026/)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Quay lại lượt khám" }));
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Thông tin lượt khám đã được cập nhật."));
+    expect(request).toHaveBeenCalledWith("/api/v1/visits/v-return/returns", { method: "POST" });
+    expect(updated).toHaveBeenCalledOnce();
+    expect(request.mock.calls.some(([path]) => String(path).includes("/invoices"))).toBe(false);
+  });
+
+  it("không hiện quay lại khi không có lượt phù hợp", async () => {
+    const user = userEvent.setup();
+    renderDialog();
+    await user.click(screen.getByRole("button", { name: "Xác minh hồ sơ bệnh nhân" }));
+    await waitFor(() => expect(request).toHaveBeenCalledWith(
+      "/api/v1/reception/patients/pat-1/return-candidate", expect.anything(),
+    ));
+    expect(screen.queryByRole("button", { name: "Quay lại lượt khám" })).not.toBeInTheDocument();
+  });
+
+  it("hiện MSG-42 khi lượt không còn được quay lại", async () => {
+    const user = userEvent.setup();
+    const base = request.getMockImplementation()!;
+    request.mockImplementation(async (path: string, init?: RequestInit) => {
+      if (path.endsWith("/return-candidate")) return candidate;
+      if (path === "/api/v1/visits/v-return/returns") throw new ApiError(409, { code: "MSG-42" });
+      return base(path, init);
+    });
+    renderDialog();
+    await user.click(screen.getByRole("button", { name: "Xác minh hồ sơ bệnh nhân" }));
+    await user.click(await screen.findByRole("button", { name: "Quay lại lượt khám" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Không thể thực hiện thao tác này với trạng thái hiện tại.");
+    expect(toast.success).not.toHaveBeenCalled();
+  });
   it("check-in lịch đã thu phí hiện MSG-88 với số thứ tự và phòng", async () => {
     const user = userEvent.setup();
     feePaid = true;
@@ -343,6 +396,29 @@ describe("CheckInDialog (tiếp nhận tại quầy)", () => {
     );
   });
 
+  it("walk-in chọn sẵn gợi ý đầu, hiện số chờ và cho đổi bác sĩ", async () => {
+    const user = userEvent.setup();
+    const base = request.getMockImplementation()!;
+    request.mockImplementation(async (path: string, init?: RequestInit) => {
+      if (path === "/api/v1/reception/walk-in-suggestions") return { items: [
+        { roomId: "r1", roomCode: "101", roomLabel: "Phòng 101", doctorProfileId: "doc-1", doctorName: "BS Nguyễn An", waitingCount: 2 },
+        { roomId: "r2", roomCode: "102", roomLabel: "Phòng 102", doctorProfileId: "doc-2", doctorName: "BS Bình", waitingCount: 5 },
+      ] };
+      return base(path, init);
+    });
+    renderDialog();
+    await user.click(screen.getByRole("button", { name: "Xác minh hồ sơ bệnh nhân" }));
+    const doctor = await screen.findByLabelText("Bác sĩ đang trong ca");
+    await waitFor(() => expect(doctor).toHaveValue("doc-1"));
+    expect(within(doctor).getByRole("option", { name: /Phòng 101 · 2 đang chờ/ })).toBeInTheDocument();
+    await user.selectOptions(doctor, "doc-2");
+    await user.selectOptions(screen.getByLabelText("Dịch vụ khám"), "svc-kham");
+    await user.click(screen.getByRole("button", { name: "Tạo lượt khám trực tiếp" }));
+    expect(request).toHaveBeenCalledWith("/api/v1/visits/walk-ins", expect.objectContaining({
+      body: expect.stringContaining('"doctorProfileId":"doc-2"'),
+    }));
+  });
+
   it("lập hóa đơn lỗi: hiện MSG-04, thử lại dùng cùng Idempotency-Key", async () => {
     const user = userEvent.setup();
     let invoiceCalls = 0;
@@ -397,7 +473,7 @@ describe("CheckInDialog (tiếp nhận tại quầy)", () => {
     const user = userEvent.setup();
     const base = request.getMockImplementation()!;
     request.mockImplementation(async (path: string, init?: RequestInit) => {
-      if (path === "/api/v1/reception/on-shift-doctors") return { items: [] };
+      if (path === "/api/v1/reception/walk-in-suggestions") return { items: [] };
       return base(path, init);
     });
     renderDialog();
