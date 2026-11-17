@@ -66,7 +66,7 @@ type OtpState =
 /**
  * Thêm người thân (UC13) gồm 3 bước: 1 Thông tin, 2 Quan hệ, 3 Xác nhận OTP. Bước 2 xin BE
  * gửi OTP tới email tài khoản của người dùng; bước 3 nhập mã. Đúng mã thì BE thêm người thân:
- * LINKED → MSG-90 rồi `onCreated`; hồ sơ trùng có chủ → thêm một mã OTP gửi tới chủ hồ sơ
+ * LINKED → MSG-84 rồi `onCreated`; hồ sơ trùng có chủ → thêm một mã OTP gửi tới chủ hồ sơ
  * (vẫn ở bước 3); COUNTER_REQUIRED hoặc trùng hồ sơ → thông báo ra quầy, không thêm.
  */
 export function CreateProfileForm({
@@ -139,7 +139,7 @@ export function CreateProfileForm({
   /** Kết quả sau khi đúng mã email tài khoản (hoặc chủ hồ sơ). */
   function applyResult(result: AddDependentResult) {
     if (result.status === "LINKED") {
-      notifySuccess("MSG-90");
+      notifySuccess("MSG-84");
       onCreated(result.profileId);
     } else if (result.status === "OTP_SENT")
       setOtp({
@@ -168,7 +168,7 @@ export function CreateProfileForm({
       }
     else {
       const { profileId } = await verifyDependentOtp(otp.linkId, code);
-      notifySuccess("MSG-90");
+      notifySuccess("MSG-84");
       onCreated(profileId);
     }
   }

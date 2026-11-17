@@ -4,7 +4,7 @@ route: /admin/appointments
 ucs: [UC20, UC22, UC24]
 screens: ["93 Doctor Availability Overview", "94 Appointment Reassignment"]
 br: [BR-16, BR-19, BR-20, BR-22, BR-25]
-msg: [MSG-04, MSG-24, MSG-25, MSG-27, MSG-29, MSG-32, MSG-89, MSG-96]
+msg: [MSG-04, MSG-24, MSG-25, MSG-27, MSG-29, MSG-32, MSG-89, MSG-90]
 data_dependency: đặt lịch của bệnh nhân (chưa có BE) → FE dùng dữ liệu giả
 ---
 
@@ -43,7 +43,7 @@ Mục **mới** trong sidebar. Admin xem mọi lịch hẹn, xem giờ trống c
 2. Danh sách **bác sĩ đủ điều kiện đang có ca cùng giờ** (BR-20, BR-25), chọn một (radio).
 3. Nút **Chuyển lịch hẹn** (chính) / Hủy.
 
-Thành công: toast `MSG-27` ("Đã chuyển lịch hẹn sang bác sĩ {doctor}. Bệnh nhân sẽ nhận được thông báo.") và hệ thống gửi email cho bệnh nhân (`MSG-96`); dòng cập nhật tại chỗ.
+Thành công: toast `MSG-27` ("Đã chuyển lịch hẹn sang bác sĩ {doctor}. Bệnh nhân sẽ nhận được thông báo.") và hệ thống gửi email cho bệnh nhân (`MSG-90`); dòng cập nhật tại chỗ.
 
 **Không có bác sĩ thay thế (AF1):** danh sách rỗng, hiện thông báo trong Dialog: "Không có bác sĩ nào có ca vào giờ này." Lịch giữ **Booked**; hệ thống báo bệnh nhân bằng email và trong hệ thống rằng bác sĩ không thể khám và họ có thể hủy (`MSG-89`). FE hiện nút **Báo cho bệnh nhân** để kích hoạt thông báo này (diễn giải của FE, xem câu hỏi mở). Dialog nhắc "Admin không thể hủy lịch hẹn".
 

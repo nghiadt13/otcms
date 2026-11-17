@@ -60,7 +60,7 @@ describe("PatientProfileDetailScreen", () => {
     ).toBeInTheDocument();
   });
 
-  it("bỏ gắn xác nhận: về danh sách, hồ sơ rời kho gắn và hiện MSG-91", async () => {
+  it("bỏ gắn xác nhận: về danh sách, hồ sơ rời kho gắn và hiện MSG-85", async () => {
     const user = userEvent.setup();
     render(<PatientProfileDetailScreen profileId={PROFILE_MOCK_IDS.huy} />);
 

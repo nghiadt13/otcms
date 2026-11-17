@@ -48,7 +48,7 @@ async function liveRequest<T>(request: Promise<T>): Promise<T> {
         throw new ApiError(error.status, { code: "MSG-64" });
       case "DUPLICATE_ROOM_CODE":
         throw new ApiError(error.status, {
-          fieldErrors: [{ field: "name", code: "MSG-98" }],
+          fieldErrors: [{ field: "name", code: "MSG-92" }],
         });
       case "ROOM_NOT_FOUND":
         throw new ApiError(error.status, { code: "MSG-50" });
@@ -232,7 +232,7 @@ export async function createRoom(input: RoomCreateInput): Promise<Room> {
   if (!isCategory(input.type))
     mockFail(400, "MSG-62", undefined, [{ field: "type", code: "MSG-62" }]);
   if (store.some((r) => norm(r.name) === norm(name)))
-    mockFail(409, "MSG-98", undefined, [{ field: "name", code: "MSG-98" }]);
+    mockFail(409, "MSG-92", undefined, [{ field: "name", code: "MSG-92" }]);
   const room: Room = {
     id: crypto.randomUUID(),
     name,

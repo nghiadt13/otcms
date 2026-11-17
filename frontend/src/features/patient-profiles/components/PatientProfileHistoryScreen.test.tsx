@@ -52,7 +52,7 @@ describe("PatientProfileHistoryScreen — API thật tại ranh giới apiReques
     expect(screen.getByRole("button", { name: "Lưu Dị ứng" })).toBeDisabled();
   });
 
-  it("lưu MSG-90, dùng nội dung/version trả về; đọc lại vẫn có, lần lưu sau gửi version mới", async () => {
+  it("lưu MSG-84, dùng nội dung/version trả về; đọc lại vẫn có, lần lưu sau gửi version mới", async () => {
     const user = userEvent.setup();
     const view = render(
       <PatientProfileHistoryScreen profileId={HISTORY_PROFILE_ID} />,
@@ -61,7 +61,7 @@ describe("PatientProfileHistoryScreen — API thật tại ranh giới apiReques
     editAllergies("  Dị ứng mới  ");
     await user.click(screen.getByRole("button", { name: "Lưu Dị ứng" }));
     await waitFor(() =>
-      expect(toast.success).toHaveBeenCalledWith(formatAppMessage("MSG-90")),
+      expect(toast.success).toHaveBeenCalledWith(formatAppMessage("MSG-84")),
     );
     expect(screen.getByLabelText("Dị ứng")).toHaveValue("Dị ứng mới");
     expect(screen.getByText(/bởi Người cập nhật/)).toBeInTheDocument();

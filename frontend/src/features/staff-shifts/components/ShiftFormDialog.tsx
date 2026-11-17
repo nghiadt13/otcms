@@ -150,7 +150,7 @@ function ShiftForm({
       } else {
         await createShift(values);
       }
-      notifySuccess("MSG-93");
+      notifySuccess("MSG-87");
       onOpenChange(false);
       onSaved();
     } catch (error) {

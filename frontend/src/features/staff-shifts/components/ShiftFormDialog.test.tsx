@@ -131,7 +131,7 @@ describe("ShiftFormDialog", () => {
     expect(screen.getByRole("button", { name: "Hủy" })).toBeDisabled();
 
     await waitFor(() =>
-      expect(toast.success).toHaveBeenCalledWith(formatAppMessage("MSG-93")),
+      expect(toast.success).toHaveBeenCalledWith(formatAppMessage("MSG-87")),
     );
     expect(handlers.onOpenChange).toHaveBeenCalledWith(false);
     expect(handlers.onSaved).toHaveBeenCalled();

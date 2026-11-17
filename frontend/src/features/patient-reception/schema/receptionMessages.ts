@@ -64,7 +64,7 @@ export function receptionFeedback(
   switch (command.type) {
     case "save-patient":
     case "confirm-link":
-      return success(formatAppMessage("MSG-90"));
+      return success(formatAppMessage("MSG-84"));
     case "book":
       return success(formatAppMessage("MSG-26"));
     case "reassign": {
