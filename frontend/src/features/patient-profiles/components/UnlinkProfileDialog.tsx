@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { notifyError, notifySuccess } from "@/lib/messages/notify";
 import { unlinkPatientProfile } from "../api/patientProfileLinkApi";
+import { ApiError, isApiError } from "@/lib/api/apiError";
 import { isHiddenRecordError } from "../api/patientProfileErrors";
 import type { PatientProfileDetail } from "../types/patientProfile";
 
@@ -42,7 +43,7 @@ export function UnlinkProfileDialog({
       onOpenChange(false);
       onUnlinked();
     } catch (error) {
-      notifyError(error);
+      notifyError(isApiError(error) && (error.status === 403 || error.status === 404 || error.errorCode === "CARE_LINK_NOT_AVAILABLE") ? new ApiError(error.status, { code: "MSG-21" }) : error);
       // Hồ sơ đã không còn trong tài khoản: đóng hộp thoại và về danh sách.
       if (isHiddenRecordError(error)) {
         onOpenChange(false);

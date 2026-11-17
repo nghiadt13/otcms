@@ -34,31 +34,8 @@ export interface PatientProfileDetail {
   allowedActions: ProfileAction[];
 }
 
-/**
- * Hồ sơ tại phòng khám có email trùng email đã xác minh, chưa gắn với tài khoản. Chỉ lộ
- * thông tin đủ để người dùng nhận ra: họ tên, năm sinh, mã bệnh nhân, giới tính.
- */
-export interface SuggestedProfile {
-  id: string;
-  patientCode: string;
-  fullName: string;
-  birthYear: number;
-  sex: PatientSex;
-}
-
-/** POST /api/v1/me/patient-profiles/links */
-export interface LinkProfileRequest {
-  patientId: string;
-  relationship: CareRelationship;
-}
-
-/** Loại giấy tờ định danh theo BE (`identityDocumentType`). */
 export type IdentityDocumentType = "CCCD" | "PERSONAL_ID" | "PASSPORT";
 
-/**
- * Thân POST /api/v1/me/dependents (BE AddDependentRequest): họ tên, ngày sinh, giới tính,
- * quan hệ (không gồm SELF), số định danh kèm loại giấy tờ (không bắt buộc, có số thì phải có loại).
- */
 export interface CreateProfileRequest {
   relationship: CareRelationship;
   fullName: string;

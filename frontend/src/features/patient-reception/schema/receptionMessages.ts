@@ -62,7 +62,6 @@ export function receptionFeedback(
   next: ReceptionState,
 ): ReceptionFeedback | null {
   switch (command.type) {
-    case "save-patient":
     case "confirm-link":
       return success(formatAppMessage("MSG-84"));
     case "book":

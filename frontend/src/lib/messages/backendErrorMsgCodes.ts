@@ -15,6 +15,9 @@ export const BACKEND_ERROR_MSG_CODES: Readonly<Record<string, MsgCode>> = {
   SLOT_UNAVAILABLE: "MSG-30",
   CHECK_IN_TIME_NOT_ALLOWED: "MSG-37",
   ARRIVAL_PROOF_INVALID: "MSG-37",
+  PATIENT_PROFILE_DUPLICATE: "MSG-18",
+  PATIENT_MATCH_AMBIGUOUS: "MSG-18",
+  PATIENT_PROFILE_NOT_FOUND: "MSG-19",
 };
 
 const isMsgCode = (value: string): value is MsgCode => /^MSG-\d+$/.test(value);
