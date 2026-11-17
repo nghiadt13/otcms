@@ -18,6 +18,8 @@ export const BACKEND_ERROR_MSG_CODES: Readonly<Record<string, MsgCode>> = {
   PATIENT_PROFILE_DUPLICATE: "MSG-18",
   PATIENT_MATCH_AMBIGUOUS: "MSG-18",
   PATIENT_PROFILE_NOT_FOUND: "MSG-19",
+  DOCTOR_NOT_ELIGIBLE: "MSG-24",
+  APPOINTMENT_NOT_FOUND: "MSG-29",
 };
 
 const isMsgCode = (value: string): value is MsgCode => /^MSG-\d+$/.test(value);

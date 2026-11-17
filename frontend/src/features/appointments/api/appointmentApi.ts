@@ -1,16 +1,12 @@
-import { ApiError } from "@/lib/api/apiError";
 import type {
   ItemsResponse,
   PageQuery,
   PageResponse,
 } from "@/lib/api/pagination";
 import { clone, mockDelay, mockFail, paginate } from "@/lib/api/mockServer";
-import { addDays } from "@/lib/format/formatDate";
 import type {
   Appointment,
   AppointmentListQuery,
-  AvailabilityDay,
-  DoctorAvailability,
   DoctorLookupItem,
   EligibleDoctor,
 } from "../types/appointment";
@@ -18,7 +14,6 @@ import {
   DOCTORS,
   DOCTOR_IDS,
   SCENARIO_IDS,
-  SLOT_MINUTES,
   createInitialAppointments,
   shiftSlotTimes,
   type MockAppointment,
@@ -145,64 +140,6 @@ export async function reassignAppointmentDoctor(
   appointment.doctor = target;
   appointment.allowedActions = ["reassign"];
   return publicView(appointment);
-}
-
-/** POST /api/v1/admin/appointments/{id}/notify-no-replacement */
-export async function notifyNoReplacement(
-  appointmentId: string,
-): Promise<Appointment> {
-  await latency();
-  const appointment = findOrFail(appointmentId);
-  if (
-    appointment.status !== "BOOKED" ||
-    appointment.id === SCENARIO_IDS.changedMidway ||
-    !appointment.allowedActions.includes("notifyNoReplacement")
-  )
-    mockFail(409, "MSG-32");
-  appointment.allowedActions = appointment.allowedActions.filter(
-    (action) => action !== "notifyNoReplacement",
-  );
-  return publicView(appointment);
-}
-
-/** GET /api/v1/admin/doctors/{id}/availability?from=&to= */
-export async function getDoctorAvailability(
-  doctorId: string,
-  range: { from: string; to: string },
-  signal?: AbortSignal,
-): Promise<DoctorAvailability> {
-  await latency(signal);
-  const doctor = DOCTORS.find((item) => item.id === doctorId);
-  if (!doctor) mockFail(404, "MSG-50");
-  if (!doctor.bookable)
-    mockFail(409, "MSG-24", undefined, [{ field: "doctorId", code: "MSG-24" }]);
-  if (doctor.id === DOCTOR_IDS.bao) mockFail(500, "MSG-04");
-  if (range.from > range.to)
-    mockFail(400, "MSG-54", undefined, [{ field: "to", code: "MSG-54" }]);
-  if (range.to > addDays(range.from, 6))
-    throw new ApiError(400, { detail: "Khoảng xem tối đa 7 ngày." });
-  const days: AvailabilityDay[] = [];
-  for (let date = range.from; date <= range.to; date = addDays(date, 1)) {
-    const times = shiftSlotTimes(date);
-    days.push({
-      date,
-      hasShift: times.length > 0,
-      slots: times.map((time) => {
-        const startAt = `${date}T${time}:00+07:00`;
-        return {
-          startAt,
-          status: isBusy(doctor.id, startAt) ? "BOOKED" : "FREE",
-        };
-      }),
-    });
-  }
-  return {
-    doctorId,
-    from: range.from,
-    to: range.to,
-    slotMinutes: SLOT_MINUTES,
-    days,
-  };
 }
 
 /** GET /api/v1/admin/doctors/lookup?bookable= */

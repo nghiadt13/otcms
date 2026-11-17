@@ -4,13 +4,17 @@ import jakarta.validation.constraints.NotNull;
 import fu.fa26.sep490.g58.otcms_be.common.api.StrictRequestBody;
 import jakarta.validation.constraints.Size;
 import java.time.OffsetDateTime;
+import java.util.UUID;
 import tools.jackson.databind.JsonNode;
 
 public class RescheduleAppointmentRequest extends StrictRequestBody {
     @NotNull private OffsetDateTime startTime;
+    private UUID doctorId;
     @Size(max = 1002) private String reason;
 
     public OffsetDateTime getStartTime() { return startTime; }
+    public UUID getDoctorId() { return doctorId; }
+    public void setDoctorId(JsonNode doctorId) { this.doctorId = strictUuid(doctorId); }
     public void setStartTime(JsonNode startTime) { this.startTime = strictOffsetDateTime(startTime); }
     public String getReason() { return reason; }
     public void setReason(JsonNode reason) { this.reason = strictText(reason); }

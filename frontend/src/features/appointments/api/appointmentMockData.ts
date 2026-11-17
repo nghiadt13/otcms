@@ -140,7 +140,7 @@ export function createInitialAppointments(): MockAppointment[] {
       "BOOKED",
       {
         dependent: true,
-        actions: ["reassign", "notifyNoReplacement"],
+        actions: ["reassign"],
       },
     ),
     make(
@@ -194,7 +194,7 @@ export function createInitialAppointments(): MockAppointment[] {
       DOCTOR_IDS.minh,
       "BOOKED",
       {
-        actions: ["reassign", "notifyNoReplacement"],
+        actions: ["reassign"],
       },
     ),
     // Chọn BS. Lê Quang Minh thì báo "mất ca" (409 MSG-24).

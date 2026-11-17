@@ -109,7 +109,6 @@ FE hiện gọi **một adapter lệnh** (`features/patient-reception/api/recept
 | POST | `/api/v1/appointments` | `book` (dùng chung P03; Lễ tân gửi `patientId`) | UC21 |
 | GET | `/api/v1/appointments/{id}/eligible-doctors` | Bác sĩ thay thế cùng giờ | UC22 |
 | POST | `/api/v1/appointments/{id}/reassign` | `reassign` | UC22 |
-| POST | `/api/v1/appointments/{id}/notify-no-replacement` | `notify-unavailable` (AF1) | UC22 |
 | GET | `/api/v1/reception/check-in-candidates?date=` | Màn Tiếp nhận hôm nay `/reception` | UC29 |
 | GET | `/api/v1/reception/priority-groups` | Nhóm ưu tiên (cấu hình) | UC29, BR-31 |
 | POST | `/api/v1/reception/walk-in-fees` | `prepare-walk-in` (lập phí khám khách trực tiếp) | UC29, UC54 |
@@ -250,7 +249,6 @@ Danh sách bản ghi có thao tác nên trả `allowedActions` (§1) thay cho vi
 | `POST /care-links/{id}/confirm` | `{ evidence (≥5 ký tự), identityConfirmed: true }` | 200 `CareLink` | 400 MSG-17 · 404/409 MSG-21 (không còn chờ, hoặc hồ sơ đã đủ email và định danh) |
 | `POST /appointments` | `{ patientId, serviceId, date, time, doctorId? }` | 201 `Appointment` + tạo `Charge` phí khám PENDING | 404/409 MSG-29 (bệnh nhân/dịch vụ không đặt được, trùng giờ của chính bệnh nhân) · 400 MSG-31 (ngày/giờ không hợp lệ hoặc thời điểm bắt đầu ≤ hiện tại theo giờ server) · 409 MSG-30 (hết chỗ) |
 | `POST /appointments/{id}/reassign` | `{ doctorId }` | 200 `Appointment` (giờ giữ nguyên) | 404 MSG-29 · 409 MSG-32 (không còn Booked, bác sĩ hiện tại không vắng) · 409 MSG-24 (bác sĩ mới không trống cùng giờ) |
-| `POST /appointments/{id}/notify-no-replacement` | — | 200 `Appointment` (`notice`) | 404 MSG-29 · 409 MSG-32 · còn bác sĩ thay được → 409 MSG-42 |
 | `POST /reception/walk-in-fees` | `{ patientId, serviceId }` | 201 `Charge` | 404 MSG-18 · 400 MSG-39 (không phải dịch vụ khám đang cung cấp) · 409 MSG-37 (đang có lượt hoạt động) · 409 MSG-42 (đã lập phí) · 409 MSG-41 (không có bác sĩ trực) |
 | `POST /reception/check-ins` | `{ patientId, appointmentId?, returnVisitId?, priority, present: true }` | 201 `{ visit, entries: QueueEntry[] }` | 400 MSG-39 (chưa xác nhận có mặt, nhóm ưu tiên sai) · 404 MSG-18 · 409 MSG-37 (lịch không hợp lệ hôm nay, chưa trả phí khám, trùng lượt, quá hạn 7 ngày, còn chỉ định chưa thu) · 409 MSG-41 (bác sĩ/phòng không sẵn sàng) |
 | `POST /rooms/{roomId}/queue/call-next` | `{ kind: EXAM\|REVIEW }` | 200 `QueueEntry` | 409 MSG-42 (không phải phòng khám có bác sĩ trực, phòng đang gọi/đang khám, bệnh nhân đang ở phòng khác) · 404 MSG-41 (hết người chờ) |

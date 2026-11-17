@@ -11,10 +11,6 @@ export function messageFromRangeError(
 export const reassignSuccessText = (doctorName: string) =>
   `Đã chuyển lịch hẹn sang bác sĩ ${doctorName}.`;
 
-/** Toast sau "Báo cho bệnh nhân" (copy đề xuất, chưa có MSG riêng). */
-export const NOTIFY_SUCCESS_TEXT = "Đã gửi thông báo cho bệnh nhân.";
-
 export const AF1_LINES = [
   "Không có bác sĩ nào có ca vào giờ này.",
-  "Admin không thể hủy lịch hẹn.",
 ] as const;

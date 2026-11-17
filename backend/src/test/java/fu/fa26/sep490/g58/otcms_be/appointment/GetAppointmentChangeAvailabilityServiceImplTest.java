@@ -53,6 +53,7 @@ class GetAppointmentChangeAvailabilityServiceImplTest {
                 now.plusSeconds(3 * 86400L), 30, 5)));
         when(assignments.findActiveDoctorProfileIds(serviceId)).thenReturn(List.of(currentDoctor, replacement));
         when(providers.findAcceptingDoctorsInActiveDirectory()).thenReturn(List.of(
+                new StaffAvailabilityProviderQueryService.AvailabilityProvider(currentDoctor, "Dr Current", true),
                 new StaffAvailabilityProviderQueryService.AvailabilityProvider(replacement, "Dr Replacement", true)));
         when(providers.findDoctorDisplayName(currentDoctor)).thenReturn(Optional.of("Dr Current"));
     }
