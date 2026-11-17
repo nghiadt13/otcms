@@ -34,6 +34,8 @@ class MedicalDocumentFixture {
     final VisitClinicalContextPort clinicalVisits = mock(VisitClinicalContextPort.class);
     final VisitClinicalCareContextService visits = mock(VisitClinicalCareContextService.class);
     final VisitDoctorCareRelationQueryService care = mock(VisitDoctorCareRelationQueryService.class);
+    final VisitReviewSourceService visitSources = mock(VisitReviewSourceService.class);
+    final VisitExamQueueService examQueue = mock(VisitExamQueueService.class);
     final ReceptionistAccountAccessService receptionists = mock(ReceptionistAccountAccessService.class);
     final DoctorProfileIdentityQueryService doctors = mock(DoctorProfileIdentityQueryService.class);
     final PatientIdentityDirectory patientAccounts = mock(PatientIdentityDirectory.class);
@@ -41,7 +43,7 @@ class MedicalDocumentFixture {
     final CareRelationshipRepository links = mock(CareRelationshipRepository.class);
     final ClinicalMedicalDocumentFileValidator validator = new ClinicalMedicalDocumentFileValidator();
     final ClinicalMedicalDocumentAccess access = new ClinicalMedicalDocumentAccess(new ClinicalDoctorIdentityResolver(doctors),
-            clinicalVisits, visits, receptionists, new PatientProfileAccessServiceImpl(patientAccounts, profiles, links), care);
+            clinicalVisits, visits, receptionists, new PatientProfileAccessServiceImpl(patientAccounts, profiles, links), care, visitSources, examQueue);
     final ClinicalMedicalDocumentService service = new ClinicalMedicalDocumentServiceImpl(access, documents, payloads, examinations,
             validator, Clock.fixed(now, ZoneOffset.UTC));
     final Map<UUID, Row> rows = new ConcurrentHashMap<>();
@@ -50,6 +52,7 @@ class MedicalDocumentFixture {
 
     MedicalDocumentFixture() {
         when(doctors.findDoctorProfileId(doctorAccountId)).thenReturn(Optional.of(doctorId));
+        when(visitSources.find(any())).thenAnswer(call -> exists ? Optional.of(new VisitReviewSourceService.Source(call.getArgument(0), patientId, open ? "OPEN" : "CLOSED", now, "", "")) : Optional.empty());
         when(receptionists.isActiveReceptionistAccount(receptionistAccountId)).thenReturn(true);
         when(clinicalVisits.getVisitContext(any())).thenAnswer(call -> exists ? new VisitClinicalContextPort.ClinicalVisitContext(
                 call.getArgument(0), patientId, doctorId, open && allowed) : null);

@@ -41,7 +41,7 @@ class ClinicalMedicalDocumentServiceImplTest {
         error("MSG-40", () -> f.service.get(f.receptionist(), outside.id()));
         error("MSG-40", () -> f.service.update(f.receptionist(), f.visitId, clinic.id(), 1L, "Other", null));
         error("MSG-40", () -> f.service.release(f.receptionist(), f.visitId, clinic.id(), 1L));
-        f.open = false; error("MSG-42", () -> f.service.get(f.receptionist(), clinic.id()));
+        f.open = false; assertEquals(clinic.id(), f.service.get(f.receptionist(), clinic.id()).id());
     }
     @Test void inactiveReceptionistAndNonUploadRolesCannotAddDocuments() {
         when(f.receptionists.isActiveReceptionistAccount(f.receptionistAccountId)).thenReturn(false);
@@ -118,7 +118,13 @@ class ClinicalMedicalDocumentServiceImplTest {
         assertArrayEquals(MedicalDocumentFixture.pdf("initial"), f.service.content(f.patient(), doc.id()).bytes());
         f.dependent(true); assertTrue(f.service.get(f.patient(), doc.id()).released()); assertEquals(1, f.service.list(f.patient(), f.visitId).size());
     }
-    @Test void unrelatedRevokedOrInactivePatientDoesNotReadPayload() {
+    @Test void patientCannotSeeAReleasedReportUntilVisitIsClosed() {
+        var doc = f.uploadReport(); f.completed(); f.service.release(f.doctor(), f.visitId, doc.id(), 1L);
+        error("MSG-42", () -> f.service.content(f.patient(), doc.id()));
+        assertTrue(f.service.list(f.patient(), f.visitId).isEmpty());
+        f.open = false;
+        assertArrayEquals(MedicalDocumentFixture.pdf("initial"), f.service.content(f.patient(), doc.id()).bytes());
+    }    @Test void unrelatedRevokedOrInactivePatientDoesNotReadPayload() {
         var doc = f.uploadReport(); f.completed(); f.service.release(f.doctor(), f.visitId, doc.id(), 1L);
         f.dependent(false); clearInvocations(f.payloads);
         error("MSG-40", () -> f.service.content(f.patient(), doc.id()));

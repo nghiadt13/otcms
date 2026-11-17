@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { Toaster } from "@/components/ui/sonner";
 import {
@@ -7,6 +7,9 @@ import {
 } from "../api/examinationResultMockData";
 import { ResultDetailScreen } from "./ResultDetailScreen";
 import { formatAppMessage } from "@/lib/messages/appMessages";
+const api = vi.hoisted(() => ({ request: vi.fn(), fetchBlob: vi.fn() }));
+vi.mock("@/lib/api/client", () => ({ apiRequest: api.request, fetchBlob: api.fetchBlob }));
+
 // Ranh giới ngoài: router của Next (không có App Router trong test).
 const nav = vi.hoisted(() => ({ replace: vi.fn(), notFound: vi.fn() }));
 vi.mock("next/navigation", () => ({
@@ -15,6 +18,8 @@ vi.mock("next/navigation", () => ({
 }));
 
 beforeEach(() => {
+  api.request.mockReset().mockResolvedValue({ items: [] });
+  api.fetchBlob.mockReset();
   nav.replace.mockClear();
   nav.notFound.mockClear();
 });
@@ -71,6 +76,35 @@ describe("ResultDetailScreen", () => {
     expect(links[0]).toHaveAttribute("rel", "noopener noreferrer");
   });
 
+  it("lấy phiếu ACTIVE và mở PDF được xác thực khi bệnh nhân chọn xem", async () => {
+    api.request.mockResolvedValue({ items: [{ documentId: "doc-1", version: 1, status: "ACTIVE", releasedAt: "2026-10-24T08:15:00+07:00" }] });
+    api.fetchBlob.mockResolvedValue({ blob: new Blob(["pdf"], { type: "application/pdf" }) });
+    const viewer = { opener: window, location: { href: "" }, close: vi.fn() };
+    const open = vi.spyOn(window, "open").mockReturnValue(viewer as unknown as Window);
+    const createUrl = vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:result");
+    const revokeUrl = vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
+    render(<ResultDetailScreen visitId="vis-an-done" />);
+    fireEvent.click(await screen.findByRole("link", { name: /Xem phiếu kết quả/ }));
+    await waitFor(() => expect(api.fetchBlob).toHaveBeenCalledWith("/api/v1/medical-documents/doc-1/content"));
+    expect(api.request).toHaveBeenCalledWith("/api/v1/visits/vis-an-done/result-sheets", { signal: expect.any(AbortSignal) });
+    expect(viewer.location.href).toBe("blob:result");
+    open.mockRestore();
+    createUrl.mockRestore();
+    revokeUrl.mockRestore();
+  });
+
+  it("giữ kết quả khám khi tải phiếu thất bại và cho phép thử lại", async () => {
+    api.request.mockRejectedValueOnce(new Error("network"));
+    api.request.mockResolvedValueOnce({
+      items: [{ documentId: "doc-1", version: 1, status: "ACTIVE", releasedAt: "2026-10-24T08:15:00+07:00" }],
+    });
+    render(<ResultDetailScreen visitId="vis-an-done" />);
+    expect(await screen.findByRole("heading", { name: "Kết quả khám" })).toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent(formatAppMessage("MSG-04"));
+    fireEvent.click(screen.getByRole("button", { name: "Thử lại" }));
+    expect(await screen.findByRole("link", { name: /Xem phiếu kết quả/ })).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
   it("ẩn lượt trước hoặc lượt sau khi không có id tương ứng", async () => {
     const { unmount } = render(<ResultDetailScreen visitId="vis-an-done" />);
     expect(

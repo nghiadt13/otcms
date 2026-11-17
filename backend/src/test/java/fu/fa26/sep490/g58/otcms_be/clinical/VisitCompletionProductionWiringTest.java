@@ -135,7 +135,6 @@ class VisitCompletionProductionWiringTest {
         @Bean VisitAuditRecorder auditRows() { return mock(VisitAuditRecorder.class); }
         @Bean ExitWalkInReceptionQueueService queueExit() { return mock(ExitWalkInReceptionQueueService.class); }
         @Bean NotificationPublisher notifications() { return mock(NotificationPublisher.class); }
-        @Bean VisitReviewSourceService reviewSources() { return mock(VisitReviewSourceService.class); }
         @Bean StaffAvailabilityProviderQueryService names() { return mock(StaffAvailabilityProviderQueryService.class); }
         @Bean VisitExamQueueService examQueue() { return mock(VisitExamQueueService.class); }
         @Bean ManageVisitCareAssignmentService careAssignments() { return mock(ManageVisitCareAssignmentService.class); }

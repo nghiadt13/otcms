@@ -140,3 +140,9 @@ describe("mã MSG khu bệnh nhân", () => {
     expect(text).not.toMatch(/MSG-|UC\d|BR-/);
   });
 });
+
+it("formats MSG-78 with the patient name", () => {
+  expect(formatAppMessage("MSG-78", { date: "17/11/2026", patientName: "An" })).toBe(
+    "Kết quả khám ngày 17/11/2026 của An đã được công bố. Vui lòng đăng nhập để xem.",
+  );
+});

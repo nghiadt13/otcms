@@ -29,6 +29,7 @@ class ClinicalMedicalDocumentPostgresIntegrationTest {
     @MockitoBean VisitClinicalContextPort visits;
     @MockitoBean fu.fa26.sep490.g58.otcms_be.visit.service.VisitClinicalCareContextService visitReads;
     @MockitoBean DoctorProfileIdentityQueryService doctors;
+    @MockitoBean fu.fa26.sep490.g58.otcms_be.visit.service.VisitReviewSourceService visitSources;
     @MockitoSpyBean ClinicalMedicalDocumentPayloadRepository payloads;
     @Autowired ClinicalMedicalDocumentRepository documents;
     @Autowired ClinicalExaminationRepository examinations;
@@ -40,6 +41,8 @@ class ClinicalMedicalDocumentPostgresIntegrationTest {
     DocumentFile file(String marker) { return new DocumentFile("report.pdf", "application/pdf", MedicalDocumentFixture.pdf(marker)); }
     @BeforeEach void care() {
         when(doctors.findDoctorProfileId(accountId)).thenReturn(Optional.of(doctorId));
+        when(visitSources.find(visitId)).thenReturn(Optional.of(new fu.fa26.sep490.g58.otcms_be.visit.service.VisitReviewSourceService.Source(
+                visitId, patientId, "OPEN", Instant.now(), "", "")));
         when(visits.getVisitContext(visitId)).thenReturn(new VisitClinicalContextPort.ClinicalVisitContext(visitId, patientId, doctorId, true));
         when(visitReads.findClinicalCareContext(visitId)).thenReturn(Optional.of(
                 new fu.fa26.sep490.g58.otcms_be.visit.service.VisitClinicalCareContextService.ClinicalCareContext(
@@ -47,13 +50,14 @@ class ClinicalMedicalDocumentPostgresIntegrationTest {
     }
     DocumentView upload() { return service.upload(actor(), visitId, ClinicalMedicalDocumentType.CLINIC_EXAMINATION_REPORT, "Initial", file("initial")); }
     @Test void schemaAndBinaryPayloadPersistWithoutMetadataPayloadCoupling() {
-        var doc = upload(); var second = upload(); assertNotEquals(doc.id(), second.id());
+        var doc = upload();
+        assertEquals("MSG-42", assertThrows(ClinicalOperationException.class, this::upload).code());
         assertArrayEquals(MedicalDocumentFixture.pdf("initial"), jdbc.queryForObject("select content from clinical_medical_document_payloads where document_id = ?", byte[].class, doc.id()));
         assertEquals("bytea", jdbc.queryForObject("""
                 select data_type from information_schema.columns where table_schema = current_schema()
                 and table_name = 'clinical_medical_document_payloads' and column_name = 'content'
                 """, String.class));
-        assertEquals(2, jdbc.queryForObject("select count(*) from clinical_medical_documents where visit_id = ?", Integer.class, visitId));
+        assertEquals(1, jdbc.queryForObject("select count(*) from clinical_medical_documents where visit_id = ?", Integer.class, visitId));
         assertEquals(1, doc.version());
     }
     @Test void expectedVersionAndAtomicReplacementPersistTogether() {
