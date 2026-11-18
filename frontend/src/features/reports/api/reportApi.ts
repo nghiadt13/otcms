@@ -8,7 +8,6 @@ import type {
   ReportResult,
   ReportSubjectOption,
 } from "../types/report";
-const USE_MOCK = false;
 const BASE = "/api/v1/admin/reports" as const;
 function rethrow(error: unknown): never {
   if (error instanceof ApiError && error.errorCode?.startsWith("MSG-"))
@@ -18,7 +17,6 @@ function rethrow(error: unknown): never {
 export async function listReportSubjects(
   signal?: AbortSignal,
 ): Promise<ReportSubjectOption[]> {
-  if (USE_MOCK) throw new Error("Reporting requires a real backend");
   return (
     await apiRequest<{ items: ReportSubjectOption[] }>(`${BASE}/subjects`, {
       signal,

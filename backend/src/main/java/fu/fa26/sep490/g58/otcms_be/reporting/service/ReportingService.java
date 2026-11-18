@@ -9,4 +9,6 @@ public interface ReportingService {
     DashboardSummary dashboard(ReportingPeriod period);
     List<String> subjects();
     ReportResult report(String subject, ReportingPeriod period, String breakdown);
+    /** The default period of the dashboard and reports: today in clinic time. */
+    ReportingPeriod today();
 }

@@ -21,7 +21,7 @@ export type AppointmentStatusCode =
   "BOOKED" | "CHECKED_IN" | "CANCELLED" | "NO_SHOW";
 export type VisitStatusCode =
   "WAITING" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED"; // tạm, chờ BE
-export type PaymentMethod = "CASH" | "VNPAY";
+export type PaymentMethod = "CASH" | "PAYOS";
 export type RoomWaitingRow = {
   roomId: string;
   roomName: string;
@@ -50,6 +50,8 @@ export type DashboardOverview = {
   imagingAndLab: DashboardBlock<{
     imagingPerformed: Metric;
     labPerformed: Metric;
+    /** NO_SOURCE: xét nghiệm chưa có nguồn (do nhóm xét nghiệm bổ sung), labPerformed không có nghĩa. */
+    labStatus?: "READY" | "NO_SOURCE";
   }>;
   services: DashboardBlock<{ top: TopServiceRow[] }>;
   payments: DashboardBlock<{
@@ -59,6 +61,8 @@ export type DashboardOverview = {
   pendingAndCancelled: DashboardBlock<{
     pendingPayment: Metric;
     cancelled: Metric;
+    /** Khoản chờ hoàn tiền (REFUND_PENDING), số hiện tại, không so kỳ. */
+    refundPending?: Metric;
   }>;
   reviews: DashboardBlock<{
     averageRating: RatingMetric;
