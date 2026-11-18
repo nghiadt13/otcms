@@ -120,7 +120,7 @@ FE hiện gọi **một adapter lệnh** (`features/patient-reception/api/recept
 | POST | `/api/v1/queue-entries/{id}/reorder` | `reorder` | UC33 |
 | POST | `/api/v1/queue-entries/{id}/move-room` | `move-room` (chỉ hàng đợi dịch vụ) | UC31 |
 | GET | `/api/v1/queue-entries/changes?date=` | Lịch sử điều phối (lý do, trước/sau) | UC31, UC33 |
-| GET | `/api/v1/visits?date=&status=&q=` | `/reception/visits` | UC34 |
+| GET | `/api/v1/visits?patientId=&status=&page=&size=` | `/reception/visits`; RECEPTIONIST/ADMIN, phân trang, gồm lượt CLOSED | UC34, UC39 |
 | GET | `/api/v1/visits/{id}/progress` | Tiến trình lượt (dùng chung P05, không trả nội dung y khoa) | UC34 |
 | POST | `/api/v1/visits/{id}/transfer-doctor` | `transfer-doctor` (bác sĩ phụ trách vắng) | UC31 AF1 |
 | GET | `/api/v1/service-orders?date=&status=&q=` | `/reception/orders` | UC52 |

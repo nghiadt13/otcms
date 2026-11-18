@@ -196,8 +196,9 @@ function Frame({ children }: { children: ReactNode }) {
   );
 }
 export function ReceptionShell({ children }: { children: ReactNode }) {
+  const pathname = usePathname();
   return (
-    <ReceptionProvider>
+    <ReceptionProvider skipDemo={pathname === "/reception/visits"}>
       <Frame>{children}</Frame>
     </ReceptionProvider>
   );
