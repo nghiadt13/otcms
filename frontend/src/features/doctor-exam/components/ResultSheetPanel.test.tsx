@@ -40,17 +40,19 @@ it("cho phép sinh lại khi danh sách trống rồi tải lại danh sách", a
 
 it("có nút Sửa kết quả khi đã có bản hiện hành và mở hộp thoại với giá trị hiện hành", async () => {
   mocks.list.mockResolvedValue([{ documentId: "doc-1", version: 1, status: "CURRENT", issuedAt: "2026-11-17T03:00:00Z" }]);
-  mocks.request.mockResolvedValue({
+  // The amendment dialog also loads the ICD-10 catalog from the BE.
+  mocks.request.mockImplementation(async (url: string) => url === "/api/v1/clinical/icd10-codes" ? [] : ({
     examination: { reasonForVisit: "Đau gối", symptoms: "Đau", examinationFindings: "Sưng", injuryBodySite: null, injurySide: null, injuryMechanism: null, status: "COMPLETED", diagnoses: [{ code: "M25.5", type: "PRIMARY" }], version: 1 },
     advice: { homeCareAdvice: "Nghỉ", activityAdvice: null, rehabilitationAdvice: null, warningSigns: null, followUpRecommendation: null, examinationStatus: "COMPLETED", updatedAt: null, version: 1 },
     prescriptionItems: [],
     resultSheetVersion: 1,
-  });
+  }));
   render(<ResultSheetPanel visitId="visit-1" />);
   await userEvent.click(await screen.findByRole("button", { name: "Sửa kết quả" }));
   expect(await screen.findByLabelText("Lý do sửa (bắt buộc)")).toBeInTheDocument();
   expect(mocks.request).toHaveBeenCalledWith("/api/v1/visits/visit-1/amendments/current", expect.anything());
-  expect(screen.getByLabelText("Chăm sóc tại nhà")).toHaveValue("Nghỉ");
+  // "Chăm sóc tại nhà" is also a treatment-direction checkbox label; target the advice textbox.
+  expect(screen.getByRole("textbox", { name: "Chăm sóc tại nhà" })).toHaveValue("Nghỉ");
 });
 
 it("không hiện Sửa kết quả khi chưa có phiếu", async () => {

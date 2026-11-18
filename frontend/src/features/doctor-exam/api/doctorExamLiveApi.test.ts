@@ -377,9 +377,13 @@ describe("ghi nhận khám và lời dặn", () => {
   it("nháp dùng PUT /examination, hoàn thành dùng POST /examination/completion; null thành chuỗi rỗng", async () => {
     request.mockResolvedValue(dto);
     const draft = await doctorLiveApi.saveExamination("v", input, "draft");
-    expect(request).toHaveBeenLastCalledWith("/api/v1/visits/v/examination", {
-      method: "PUT",
-      body: JSON.stringify(input),
+    expect(request.mock.lastCall![0]).toBe("/api/v1/visits/v/examination");
+    expect(request.mock.lastCall![1].method).toBe("PUT");
+    // An empty side is sent as null so the DB side check (V136) accepts the draft.
+    expect(JSON.parse(request.mock.lastCall![1].body)).toMatchObject({
+      reasonForVisit: "Đau",
+      injurySide: null,
+      diagnoses: input.diagnoses,
     });
     expect(draft.injuryBodySite).toBe("");
     await doctorLiveApi.saveExamination("v", input, "complete");
