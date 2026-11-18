@@ -19,6 +19,7 @@ import { useAdminRemoteData } from "@/hooks/useAdminRemoteData";
 import { notifyError } from "@/lib/messages/notify";
 import { getDoctorExamApi } from "../api/doctorExamApi";
 import { getAmendableResult } from "../api/doctorExamLiveResultSheets";
+import { prescriptionItems } from "../schema/prescription";
 import { useAsyncAction } from "../hooks/useAsyncAction";
 import {
   toExaminationInput,
@@ -29,6 +30,7 @@ import type {
   AdviceInput,
   AmendChanges,
   ExaminationInput,
+  PrescriptionLine,
 } from "../types/doctorExam";
 import { DoctorLoadState } from "./DoctorLoadState";
 import { IcdDiagnosisPicker } from "./IcdDiagnosisPicker";
@@ -97,6 +99,7 @@ function AmendForm({
       visitId={visitId}
       initialExamination={toExaminationInput(current.data.examination)}
       initialAdvice={adviceOf(current.data.advice)}
+      initialPrescription={current.data.prescriptionItems}
       onClose={onClose}
       onAmended={onAmended}
     />
@@ -107,17 +110,21 @@ function AmendFields({
   visitId,
   initialExamination,
   initialAdvice,
+  initialPrescription,
   onClose,
   onAmended,
 }: {
   visitId: string;
   initialExamination: ExaminationInput;
   initialAdvice: AdviceInput;
+  initialPrescription: PrescriptionLine[];
   onClose: () => void;
   onAmended: () => void;
 }) {
   const [examination, setExamination] = useState(initialExamination);
   const [advice, setAdvice] = useState(initialAdvice);
+  const [prescription, setPrescription] = useState(initialPrescription);
+  const [prescriptionError, setPrescriptionError] = useState("");
   const [reason, setReason] = useState("");
   const [errors, setErrors] = useState<Partial<Record<ExaminationField | "reason", string>>>({});
   const { pending, run } = useAsyncAction();
@@ -126,17 +133,30 @@ function AmendFields({
     setExamination((existing) => ({ ...existing, [key]: value }));
 
   async function submit() {
-    const found: Partial<Record<ExaminationField | "reason", string>> = validateForCompletion(examination);
+    const examChanged = JSON.stringify(examination) !== JSON.stringify(initialExamination);
+    const prescriptionChanged = JSON.stringify(prescription) !== JSON.stringify(initialPrescription);
+    const found: Partial<Record<ExaminationField | "reason", string>> = examChanged ? validateForCompletion(examination) : {};
+    let items: PrescriptionLine[] | undefined;
+    let invalidPrescription = false;
+    setPrescriptionError("");
+    if (prescriptionChanged) {
+      try { items = prescriptionItems(prescription); }
+      catch {
+        setPrescriptionError("Nhập đủ tên thuốc, liều dùng, tần suất và cách dùng cho mỗi dòng thuốc.");
+        invalidPrescription = true;
+      }
+    }
     if (!reason.trim()) found.reason = "Nhập lý do sửa kết quả.";
     setErrors(found);
-    if (Object.keys(found).length) {
+    if (Object.keys(found).length || invalidPrescription) {
       notifyError(new ApiError(400, { code: "MSG-39" }));
       return;
     }
     const changes: AmendChanges = {};
-    if (JSON.stringify(examination) !== JSON.stringify(initialExamination)) changes.examination = examination;
+    if (examChanged) changes.examination = examination;
     if (JSON.stringify(advice) !== JSON.stringify(initialAdvice)) changes.advice = advice;
-    if (!changes.examination && !changes.advice) {
+    if (items && JSON.stringify(items) !== JSON.stringify(prescriptionItems(initialPrescription))) changes.prescription = { items };
+    if (!changes.examination && !changes.advice && !changes.prescription) {
       notifyError(new ApiError(400, { code: "MSG-39" }));
       return;
     }
@@ -198,6 +218,29 @@ function AmendFields({
             />
           </AdminFormField>
         ))}
+        {initialPrescription.length > 0 ? (
+          <section className="space-y-3" aria-label="Đơn thuốc">
+            <h3 className="font-semibold">Đơn thuốc</h3>
+            {prescription.map((line, index) => (
+              <div key={index} className="grid gap-2 rounded-md border p-3 sm:grid-cols-2">
+                {([
+                  ["medicine", "Tên thuốc"], ["dose", "Liều dùng"],
+                  ["frequency", "Tần suất"], ["usage", "Cách dùng"],
+                ] as const).map(([key, label]) => (
+                  <AdminFormField key={key} id={`amend-rx-${index}-${key}`} label={`${label} ${index + 1}`}>
+                    <Input id={`amend-rx-${index}-${key}`} value={line[key]} onChange={(e) =>
+                      setPrescription((rows) => rows.map((row, i) => i === index ? { ...row, [key]: e.target.value } : row))} />
+                  </AdminFormField>
+                ))}
+                <Button type="button" variant="outline" disabled={prescription.length === 1} onClick={() => setPrescription((rows) => rows.filter((_, i) => i !== index))}>
+                  Xóa thuốc {index + 1}
+                </Button>
+              </div>
+            ))}
+            <Button type="button" variant="outline" onClick={() => setPrescription((rows) => [...rows, { medicine: "", dose: "", frequency: "", usage: "" }])}>Thêm thuốc</Button>
+            <FieldError message={prescriptionError} />
+          </section>
+        ) : <p className="text-sm text-muted-foreground">Không có đơn thuốc đã phát hành để sửa.</p>}
         <AdminFormField id="amend-reason" label="Lý do sửa (bắt buộc)">
           <Input
             id="amend-reason"

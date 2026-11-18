@@ -3,6 +3,7 @@ import type {
   Advice,
   AmendChanges,
   Examination,
+  PrescriptionLine,
   ResultSheet,
 } from "../types/doctorExam";
 import {
@@ -22,6 +23,7 @@ type ResultSheetDto = {
 type AmendableResultDto = {
   examination: ExaminationDto;
   advice: AdviceDto;
+  prescriptionItems: Array<PrescriptionLine & { lineNumber: number }>;
   resultSheetVersion: number | null;
 };
 
@@ -45,11 +47,12 @@ export async function regenerateResultSheet(visitId: string): Promise<void> {
 export async function getAmendableResult(
   visitId: string,
   signal?: AbortSignal,
-): Promise<{ examination: Examination; advice: Advice; resultSheetVersion: number | null }> {
+): Promise<{ examination: Examination; advice: Advice; prescriptionItems: PrescriptionLine[]; resultSheetVersion: number | null }> {
   const dto = await apiRequest<AmendableResultDto>(`${root(visitId)}/amendments/current`, { signal });
   return {
     examination: toExamination(dto.examination),
     advice: toAdvice(dto.advice),
+    prescriptionItems: [...dto.prescriptionItems].sort((a, b) => a.lineNumber - b.lineNumber).map(({ medicine, dose, frequency, usage }) => ({ medicine, dose, frequency, usage })),
     resultSheetVersion: dto.resultSheetVersion,
   };
 }

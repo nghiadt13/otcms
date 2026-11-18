@@ -9,6 +9,7 @@ import { normalizeText } from "../schema/receptionRules";
 import { receptionDemoExpiry } from "../api/receptionApi";
 import type { ResultSheet } from "../types";
 import { useReception } from "./ReceptionProvider";
+import { VisitResultSheets } from "./VisitResultSheets";
 import {
   DataTable,
   dateText,
@@ -38,7 +39,7 @@ export function VisitDetail({
   return (
     <FormModal
       title={`Tiến trình ${visit.id}`}
-      description={`${p.name} · ${p.id}. Màn hình này chỉ theo dõi tiến độ, không hiển thị nội dung kết quả.`}
+      description={`${p.name} · ${p.id}. Theo dõi tiến độ và xem phiếu kết quả đã phát hành.`}
       onClose={onClose}
       wide
     >
@@ -147,6 +148,7 @@ export function VisitDetail({
           </p>
         )}
       </section>
+      {visit.status === "completed" ? <VisitResultSheets visitId={visit.id} /> : null}
       <div className="flex flex-wrap gap-2">
         <RouteLink
           href={`/reception/payments?patientId=${p.id}&contextId=${visit.id}`}
