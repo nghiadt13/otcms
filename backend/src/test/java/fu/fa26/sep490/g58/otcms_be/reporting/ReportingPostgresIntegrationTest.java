@@ -87,8 +87,8 @@ class ReportingPostgresIntegrationTest {
         reader.services(p);
         mvc.perform(get("/api/v1/admin/dashboard?from=2026-11-01&to=2026-11-07").with(org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user("admin").roles("ADMIN")))
         .andExpect(status().isOk()).andExpect(jsonPath("$.appointments.total.value").value(expected))
-        .andExpect(jsonPath("$.payments.status").value("NO_SOURCE"))
-        .andExpect(jsonPath("$.visits.waitingByRoomStatus").value("NO_SOURCE"));
+        .andExpect(jsonPath("$.payments.status").value("READY")).andExpect(jsonPath("$.imagingAndLab.labStatus").value("NO_SOURCE"))
+        .andExpect(jsonPath("$.visits.waitingByRoomStatus").value("READY"));
     }
     @Test void nonemptyDailyReportUsesVietnamDatesAndExclusiveNextMidnight() throws Exception {
         var fixture=new org.springframework.core.io.ClassPathResource("reporting-fixtures.sql");
@@ -113,19 +113,19 @@ class ReportingPostgresIntegrationTest {
         mvc.perform(get(path).with(owner)).andExpect(status().isOk());
         for(String query:List.of("from=2026-11-07&to=2026-11-01","from=2026-01-01&to=2026-12-31","from=2026-02-30&to=2026-03-01","from=bad&to=2026-03-01"))
         mvc.perform(get("/api/v1/admin/dashboard?"+query).with(owner)).andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("MSG-72"));
-        mvc.perform(post("/api/v1/admin/reports").with(owner).with(csrf()).contentType("application/json").content("{\"subject\":\"PAYMENTS\",\"from\":\"2026-11-01\",\"to\":\"2026-11-07\"}"))
+        mvc.perform(post("/api/v1/admin/reports").with(owner).with(csrf()).contentType("application/json").content("{\"subject\":\"BOGUS\",\"from\":\"2026-11-01\",\"to\":\"2026-11-07\"}"))
         .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("MSG-72"));
     }
     @Test void emptyReportIsReadyWithZeroTotalAndNoUnapprovedExports() throws Exception {
         var admin=org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user("admin").roles("ADMIN");
         mvc.perform(post("/api/v1/admin/reports").with(admin).with(csrf()).contentType("application/json").content("{\"subject\":\"APPOINTMENTS\",\"from\":\"1900-01-01\",\"to\":\"1900-01-07\",\"breakdown\":\"DATE\"}"))
-        .andExpect(status().isOk()).andExpect(jsonPath("$.hasData").value(false)).andExpect(jsonPath("$.sections[0].totalRow.count").value(0)).andExpect(jsonPath("$.allowedActions").isEmpty());
-        mvc.perform(get("/api/v1/admin/reports/export?format=xlsx").with(admin)).andExpect(status().isServiceUnavailable()).andExpect(jsonPath("$.error.code").value("MSG-04"));
+        .andExpect(status().isOk()).andExpect(jsonPath("$.hasData").value(false)).andExpect(jsonPath("$.sections[0].totalRow.count").value(0)).andExpect(jsonPath("$.allowedActions[0]").value("export"));
+        mvc.perform(get("/api/v1/admin/reports/export?subject=APPOINTMENTS&format=xlsx&from=1900-01-01&to=1900-01-07").with(admin)).andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("MSG-72"));
     }
     @Test void subjectsAndEverySupportedReportProjectionKeepTheirContract() throws Exception {
         var auth = org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user("admin").roles("ADMIN");
         mvc.perform(get("/api/v1/admin/reports/subjects").with(auth)).andExpect(status().isOk());
-        for (String subject : List.of("APPOINTMENTS", "VISITS", "SERVICES")) {
+        for (String subject : List.of("APPOINTMENTS", "VISITS", "SERVICES", "IMAGING", "PAYMENTS", "PENDING_CANCELLED_ORDERS", "REVIEWS")) {
             mvc.perform(post("/api/v1/admin/reports").with(auth).with(csrf()).contentType("application/json")
             .content("{\"subject\":\"" + subject + "\",\"from\":\"1900-01-01\",\"to\":\"1900-01-07\"}"))
             .andExpect(status().isOk());

@@ -47,7 +47,7 @@ const VISIT_STATUS: Record<VisitStatusCode, string> = {
 };
 const PAYMENT_METHOD: Record<PaymentMethod, string> = {
   CASH: "Tiền mặt",
-  VNPAY: "VNPay",
+  PAYOS: "PayOS (trực tuyến)",
 };
 
 const count = (
@@ -155,7 +155,11 @@ export function buildDashboardBlocks(
         imagingAndLab.status === "READY"
           ? [
               count("Chẩn đoán hình ảnh", imagingAndLab.imagingPerformed),
-              count("Xét nghiệm", imagingAndLab.labPerformed),
+              imagingAndLab.labStatus === "NO_SOURCE"
+                ? count("Xét nghiệm", null, {
+                    note: "Chưa có dữ liệu nguồn cho xét nghiệm",
+                  })
+                : count("Xét nghiệm", imagingAndLab.labPerformed),
             ]
           : placeholder(["Chẩn đoán hình ảnh", "Xét nghiệm"]),
     },
@@ -197,7 +201,8 @@ export function buildDashboardBlocks(
     {
       key: "pendingAndCancelled",
       title: "Chỉ định chờ và đã hủy",
-      description: "Chỉ định tạo trong kỳ đang chờ thanh toán hoặc đã hủy.",
+      description:
+        "Chỉ định tạo trong kỳ đang chờ thanh toán hoặc đã hủy, và các khoản chờ hoàn tiền.",
       href: ADMIN_ROUTES.unpaidItems,
       noSource: pendingAndCancelled.status === "NO_SOURCE",
       rows:
@@ -205,6 +210,13 @@ export function buildDashboardBlocks(
           ? [
               count("Chờ thanh toán", pendingAndCancelled.pendingPayment),
               count("Đã hủy", pendingAndCancelled.cancelled),
+              ...(pendingAndCancelled.refundPending
+                ? [
+                    count("Chờ hoàn tiền", pendingAndCancelled.refundPending, {
+                      snapshot: true,
+                    }),
+                  ]
+                : []),
             ]
           : placeholder(["Chờ thanh toán", "Đã hủy"]),
     },

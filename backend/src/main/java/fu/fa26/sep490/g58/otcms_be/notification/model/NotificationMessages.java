@@ -18,8 +18,14 @@ public final class NotificationMessages {
     public static final String VISIT_INCOMPLETE = "VISIT_INCOMPLETE";
     public static final String VISIT_CHANGED = "VISIT_CHANGED";
     public static final String VISIT_RESULTS_PUBLISHED = "VISIT_RESULTS_PUBLISHED";
+    public static final String APPOINTMENT_REMINDER = "APPOINTMENT_REMINDER";
+    public static final String FOLLOW_UP_REMINDER = "FOLLOW_UP_REMINDER";
+    public static final String FOLLOW_UP_OVERDUE = "FOLLOW_UP_OVERDUE";
     private static final DateTimeFormatter TIME = DateTimeFormatter.ofPattern("dd/MM/uuuu 'lúc' HH:mm",
             Locale.forLanguageTag("vi-VN")).withZone(ZoneId.of("Asia/Ho_Chi_Minh"));
+
+    private static final DateTimeFormatter HOUR = DateTimeFormatter.ofPattern("HH:mm", Locale.forLanguageTag("vi-VN"))
+            .withZone(ZoneId.of("Asia/Ho_Chi_Minh"));
 
     private static final DateTimeFormatter DATE = DateTimeFormatter.ofPattern("dd/MM/uuuu",
             Locale.forLanguageTag("vi-VN")).withZone(ZoneId.of("Asia/Ho_Chi_Minh"));
@@ -75,6 +81,21 @@ public final class NotificationMessages {
         return new NotificationMessage(VISIT_RESULTS_PUBLISHED, "Kết quả khám đã được công bố",
                 "Kết quả khám ngày " + DATE.format(visitAt) + " của " + patientName
                 + " đã được công bố. Vui lòng đăng nhập để xem.", NotificationRelatedKind.VISIT, visitId);
+    }
+    /** MSG-80: reminder 24 hours before a booked appointment or a follow-up booked by the doctor. */
+    public static NotificationMessage appointmentReminder(UUID appointmentId, Instant at, String patientName, boolean followUp) {
+        return new NotificationMessage(followUp ? FOLLOW_UP_REMINDER : APPOINTMENT_REMINDER, "Nhắc lịch khám",
+                "Nhắc lịch khám: " + patientName(patientName) + " có lịch " + (followUp ? "tái khám" : "khám lần đầu")
+                + " vào " + HOUR.format(at) + " ngày " + DATE.format(at) + ".", NotificationRelatedKind.APPOINTMENT, appointmentId);
+    }
+    /** MSG-80 (overdue form): a recommended follow-up date has passed and the patient has not returned. */
+    public static NotificationMessage followUpOverdue(UUID appointmentId, Instant at, String patientName) {
+        return new NotificationMessage(FOLLOW_UP_OVERDUE, "Quá hạn tái khám", patientName(patientName)
+                + " chưa quay lại theo hẹn ngày " + DATE.format(at) + ", vui lòng liên hệ phòng khám để đặt lịch.",
+                NotificationRelatedKind.APPOINTMENT, appointmentId);
+    }
+    private static String patientName(String name) {
+        return name == null || name.isBlank() ? "Bệnh nhân" : name.trim();
     }
     private static NotificationMessage appointment(String type, String title, String content, UUID id) {
         return new NotificationMessage(type, title, content, NotificationRelatedKind.APPOINTMENT, id);

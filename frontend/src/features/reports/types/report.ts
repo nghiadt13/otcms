@@ -2,14 +2,15 @@
 export type ReportSubjectCode =
   | "APPOINTMENTS"
   | "VISITS"
-  | "CLINICAL_ORDERS"
   | "SERVICES"
+  | "IMAGING"
   | "PAYMENTS"
-  | "PENDING_AND_CANCELLED"
-  | "PATIENT_FEEDBACK";
+  | "PENDING_CANCELLED_ORDERS"
+  | "REVIEWS";
 
-export type ReportBreakdown = "DATE" | "RECEPTIONIST" | "PAYMENT_METHOD";
-export type ReportExportFormat = "xlsx" | "pdf";
+export type ReportBreakdown = "DATE" | "RECEPTIONIST" | "METHOD";
+/** Chỉ CSV (UTF-8 có BOM, mở được trong Excel). */
+export type ReportExportFormat = "csv";
 export type ReportColumnKind = "text" | "date" | "count" | "money" | "score";
 export type ReportAction = "export";
 
