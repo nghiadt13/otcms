@@ -70,9 +70,7 @@ describe("normalizeBreakdown", () => {
     expect(
       normalizeBreakdown({ ...valid, subject: "SERVICES" }, SUBJECTS),
     ).toBeUndefined();
-    expect(
-      toReportQuery({ ...valid, subject: "SERVICES" }, SUBJECTS),
-    ).toEqual({
+    expect(toReportQuery({ ...valid, subject: "SERVICES" }, SUBJECTS)).toEqual({
       subject: "SERVICES",
       from: "2026-10-01",
       to: "2026-10-20",

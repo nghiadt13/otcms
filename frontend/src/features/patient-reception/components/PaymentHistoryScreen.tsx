@@ -29,7 +29,8 @@ export function PaymentHistoryScreen() {
         />
         {patient ? (
           <p className="text-sm">
-            Lọc theo bệnh nhân: <span className="font-medium">{patient.fullName}</span>
+            Lọc theo bệnh nhân:{" "}
+            <span className="font-medium">{patient.fullName}</span>
           </p>
         ) : null}
       </div>
@@ -42,9 +43,7 @@ export function PaymentHistoryScreen() {
 }
 
 function PaymentHistoryTable({ patientId }: { patientId?: string }) {
-  const history = usePaymentRecordList(
-    patientId ? { patientId } : undefined,
-  );
+  const history = usePaymentRecordList(patientId ? { patientId } : undefined);
   const [receiptId, setReceiptId] = useState<string | null>(null);
   const rangeInvalid = history.rangeError !== null;
 

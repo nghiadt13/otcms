@@ -32,9 +32,7 @@ beforeEach(() => {
     expiresAt: "2026-11-05T12:30:00Z",
     studyInstanceUid: AN_STUDY_UID,
   });
-  viewer.imagingViewerShellPath
-    .mockReset()
-    .mockReturnValue(VIEWER_SHELL_PATH);
+  viewer.imagingViewerShellPath.mockReset().mockReturnValue(VIEWER_SHELL_PATH);
 });
 
 afterEach(() => {

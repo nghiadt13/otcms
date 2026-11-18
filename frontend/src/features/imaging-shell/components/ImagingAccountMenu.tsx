@@ -28,17 +28,21 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar";
-import { fetchCurrentAccount, type CurrentAccount } from "@/lib/auth/currentAccountApi";
+import {
+  fetchCurrentAccount,
+  type CurrentAccount,
+} from "@/lib/auth/currentAccountApi";
 import { ROLE_LABELS, type ActorRole } from "@/lib/domain/clinicRoles";
 
 // Ô tài khoản cuối sidebar, cùng dạng với khu admin: avatar + tên + vai trò, bấm mở menu.
 function AccountSummary({ account }: { account: CurrentAccount | null }) {
   const name = account?.username || account?.displayName;
-  const role = account?.role && account.role in ROLE_LABELS
-    ? ROLE_LABELS[account.role as ActorRole]
-    : account?.accountType === "IMAGING_TECHNICIAN"
-      ? ROLE_LABELS.IMAGING_TECHNICIAN
-      : null;
+  const role =
+    account?.role && account.role in ROLE_LABELS
+      ? ROLE_LABELS[account.role as ActorRole]
+      : account?.accountType === "IMAGING_TECHNICIAN"
+        ? ROLE_LABELS.IMAGING_TECHNICIAN
+        : null;
   return (
     <>
       <Avatar className="size-8 rounded-lg">

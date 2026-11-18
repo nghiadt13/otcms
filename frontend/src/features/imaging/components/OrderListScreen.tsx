@@ -42,7 +42,11 @@ function dayOf(value: string) {
   return value.slice(0, 10);
 }
 
-export function OrderListScreen({ statusMode = false }: { statusMode?: boolean }) {
+export function OrderListScreen({
+  statusMode = false,
+}: {
+  statusMode?: boolean;
+}) {
   const [items, setItems] = useState<AssignedImagingUploadWork[]>([]);
   const [roomNames, setRoomNames] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
@@ -61,7 +65,9 @@ export function OrderListScreen({ statusMode = false }: { statusMode?: boolean }
       .then(([page, rooms]) => {
         if (controller.signal.aborted) return;
         setItems(page.items);
-        setRoomNames(Object.fromEntries(rooms.map((item) => [item.id, item.name])));
+        setRoomNames(
+          Object.fromEntries(rooms.map((item) => [item.id, item.name])),
+        );
       })
       .catch((cause: unknown) => {
         if (!controller.signal.aborted) setError(messageFromError(cause));
@@ -90,10 +96,15 @@ export function OrderListScreen({ statusMode = false }: { statusMode?: boolean }
   return (
     <>
       <PageHeading
-        title={statusMode ? "Trạng thái chỉ định" : "Chỉ định chẩn đoán hình ảnh"}
+        title={
+          statusMode ? "Trạng thái chỉ định" : "Chỉ định chẩn đoán hình ảnh"
+        }
         description="Theo dõi từng chỉ định của phòng từ khi vào phòng đến khi có kết quả. Chỉ định chưa thanh toán không xuất hiện ở đây."
       />
-      <Panel title="Theo dõi chỉ định của phòng" subtitle="Dữ liệu trực tiếp từ hệ thống">
+      <Panel
+        title="Theo dõi chỉ định của phòng"
+        subtitle="Dữ liệu trực tiếp từ hệ thống"
+      >
         <div className="im-toolbar im-toolbar-wrap">
           <label className="im-search">
             <Icon name="search" />
@@ -106,7 +117,11 @@ export function OrderListScreen({ statusMode = false }: { statusMode?: boolean }
           </label>
           <label className="im-filter">
             <span>Trạng thái</span>
-            <NativeSelect aria-label="Lọc trạng thái" value={status} onChange={(event) => setStatus(event.target.value)}>
+            <NativeSelect
+              aria-label="Lọc trạng thái"
+              value={status}
+              onChange={(event) => setStatus(event.target.value)}
+            >
               <option value="all">Tất cả trạng thái</option>
               {Object.entries(statusLabels).map(([value, label]) => (
                 <option key={value} value={value}>
@@ -117,7 +132,11 @@ export function OrderListScreen({ statusMode = false }: { statusMode?: boolean }
           </label>
           <label className="im-filter">
             <span>Phòng</span>
-            <NativeSelect aria-label="Lọc phòng" value={room} onChange={(event) => setRoom(event.target.value)}>
+            <NativeSelect
+              aria-label="Lọc phòng"
+              value={room}
+              onChange={(event) => setRoom(event.target.value)}
+            >
               <option value="all">Tất cả phòng</option>
               {rooms.map((id) => (
                 <option key={id} value={id}>
@@ -128,7 +147,12 @@ export function OrderListScreen({ statusMode = false }: { statusMode?: boolean }
           </label>
           <label className="im-filter">
             <span>Ngày</span>
-            <Input aria-label="Lọc ngày" type="date" value={day} onChange={(event) => setDay(event.target.value)} />
+            <Input
+              aria-label="Lọc ngày"
+              type="date"
+              value={day}
+              onChange={(event) => setDay(event.target.value)}
+            />
           </label>
         </div>
         {loading ? (
@@ -158,8 +182,12 @@ export function OrderListScreen({ statusMode = false }: { statusMode?: boolean }
                 {matches.map((item) => (
                   <TableRow key={item.requestId}>
                     <TableCell>
-                      <span className="im-id-link">{item.requestId.slice(0, 8)}</span>
-                      <small>{new Date(item.createdAt).toLocaleString("vi-VN")}</small>
+                      <span className="im-id-link">
+                        {item.requestId.slice(0, 8)}
+                      </span>
+                      <small>
+                        {new Date(item.createdAt).toLocaleString("vi-VN")}
+                      </small>
                     </TableCell>
                     <TableCell>
                       <div className="im-patient-cell">
@@ -175,10 +203,15 @@ export function OrderListScreen({ statusMode = false }: { statusMode?: boolean }
                       <Badge tone="green">Đã thanh toán</Badge>
                     </TableCell>
                     <TableCell>
-                      <Badge tone={statusTones[item.status]}>{statusLabels[item.status]}</Badge>
+                      <Badge tone={statusTones[item.status]}>
+                        {statusLabels[item.status]}
+                      </Badge>
                     </TableCell>
                     <TableCell>
-                      <Link className="im-text-button" href={`/imaging/orders/${encodeURIComponent(item.requestId)}`}>
+                      <Link
+                        className="im-text-button"
+                        href={`/imaging/orders/${encodeURIComponent(item.requestId)}`}
+                      >
                         Chi tiết <Icon name="arrow" size={14} />
                       </Link>
                     </TableCell>

@@ -112,7 +112,11 @@ describe("listVisits (API thật)", () => {
       id: "vis-1",
       visitDate: "2026-10-24",
       status: "WAITING_FOR_EXAMINATION",
-      patient: { id: "p-self", fullName: "Nguyễn Văn An", relationship: "SELF" },
+      patient: {
+        id: "p-self",
+        fullName: "Nguyễn Văn An",
+        relationship: "SELF",
+      },
     });
     expect(page.items[5].patient).toEqual({
       id: "p-legacy",

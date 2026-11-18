@@ -23,9 +23,7 @@ import {
 } from "../../schema/bookingSelection";
 import { resolvePreselectedSlot } from "../../schema/bookingPreselect";
 import type { BookingSlotQuery } from "@/lib/routes/bookingSlotLink";
-import {
-  bookingSubmitOutcome,
-} from "../../schema/bookingSubmitOutcome";
+import { bookingSubmitOutcome } from "../../schema/bookingSubmitOutcome";
 import type {
   BookedAppointment,
   BookingPatient,
@@ -66,7 +64,9 @@ export function BookingFlow(props: BookingFlowProps) {
     props.preselect && patients.length === 1 ? "schedule" : "patient",
   );
   // Preselected slot from the link, waiting to be applied. A ref, so applying or dropping it does not re-render.
-  const pendingSlotRef = useRef<BookingSlotQuery | null>(props.preselect ?? null);
+  const pendingSlotRef = useRef<BookingSlotQuery | null>(
+    props.preselect ?? null,
+  );
   // Lịch vừa tạo, đang ở bước thanh toán.
   const [booked, setBooked] = useState<BookedAppointment | null>(null);
   const renderPayment = props.renderPayment;
@@ -74,7 +74,8 @@ export function BookingFlow(props: BookingFlowProps) {
 
   // Lựa chọn của người dùng, hoặc hồ sơ duy nhất.
   const patientId = patients.some((patient) => patient.id === state.patientId)
-    ? state.patientId : (singlePatient?.id ?? null);
+    ? state.patientId
+    : (singlePatient?.id ?? null);
   const selectedPatient = patients.find((patient) => patient.id === patientId);
 
   const times = useOpenTimes(
@@ -137,13 +138,20 @@ export function BookingFlow(props: BookingFlowProps) {
       return;
     }
     dispatch({ type: "selectService", serviceId: pending.serviceId });
-  }, [patientId, state.serviceId, services.loading, services.failed, services.services]);
+  }, [
+    patientId,
+    state.serviceId,
+    services.loading,
+    services.failed,
+    services.services,
+  ]);
 
   // Preselect step 2: apply date, time and doctor once the open times of that service have loaded.
   // Anything that no longer exists is reported with its MSG code and left for the user to choose.
   useEffect(() => {
     const pending = pendingSlotRef.current;
-    if (!pending || !times.data || state.serviceId !== pending.serviceId) return;
+    if (!pending || !times.data || state.serviceId !== pending.serviceId)
+      return;
     pendingSlotRef.current = null;
     const outcome = resolvePreselectedSlot(upcomingDays(times.data), pending);
     if (outcome.day === null) {
@@ -242,57 +250,59 @@ export function BookingFlow(props: BookingFlowProps) {
     );
 
   return (
-      <div inert={submitting || undefined}>
-        <BookingWizard
-          step={wizardStep}
-          onStepChange={setWizardStep}
-          steps={steps}
-          selection={selection}
-          dispatch={dispatchUserAction}
-          patients={patients}
-          selectedPatient={selectedPatient}
-          services={services.services}
-          servicesLoading={services.loading}
-          servicesFailed={services.failed}
-          onRetryServices={services.reload}
-          service={service}
-          days={days}
-          timesLoading={times.loading}
-          timesFailed={times.failed}
-          onRetryTimes={times.reload}
-          allDaysClosed={days !== null && allDaysClosed(days)}
-          dayTimes={dayTimes}
-          doctorsAtTime={doctorsAtTime}
-          doctorId={doctorId}
-          doctorName={doctorName}
-          ready={ready && purpose.trim().length > 0}
-          purpose={purpose}
-          onPurposeChange={setPurpose}
-          submitting={submitting}
-          onSubmit={() => void handleSubmit()}
-          paymentSlot={
-            booked && renderPayment ? (
-              <PaymentOfferStep
-                appointment={booked}
-                onFinish={({ paid }) => {
-                  notifySuccess("MSG-26");
-                  // Kết quả hiển thị đúng trạng thái sau bước thanh toán: trả xong thì phí đã thu.
-                  onBooked(
-                    paid
-                      ? { ...booked, examFee: { ...booked.examFee, status: "PAID" } }
-                      : booked,
-                  );
-                }}
-                onLater={() => {
-                  notifySuccess("MSG-26");
-                  onBooked(booked);
-                }}
-                renderPayment={renderPayment}
-              />
-            ) : null
-          }
-        />
-      </div>
-    );
-
+    <div inert={submitting || undefined}>
+      <BookingWizard
+        step={wizardStep}
+        onStepChange={setWizardStep}
+        steps={steps}
+        selection={selection}
+        dispatch={dispatchUserAction}
+        patients={patients}
+        selectedPatient={selectedPatient}
+        services={services.services}
+        servicesLoading={services.loading}
+        servicesFailed={services.failed}
+        onRetryServices={services.reload}
+        service={service}
+        days={days}
+        timesLoading={times.loading}
+        timesFailed={times.failed}
+        onRetryTimes={times.reload}
+        allDaysClosed={days !== null && allDaysClosed(days)}
+        dayTimes={dayTimes}
+        doctorsAtTime={doctorsAtTime}
+        doctorId={doctorId}
+        doctorName={doctorName}
+        ready={ready && purpose.trim().length > 0}
+        purpose={purpose}
+        onPurposeChange={setPurpose}
+        submitting={submitting}
+        onSubmit={() => void handleSubmit()}
+        paymentSlot={
+          booked && renderPayment ? (
+            <PaymentOfferStep
+              appointment={booked}
+              onFinish={({ paid }) => {
+                notifySuccess("MSG-26");
+                // Kết quả hiển thị đúng trạng thái sau bước thanh toán: trả xong thì phí đã thu.
+                onBooked(
+                  paid
+                    ? {
+                        ...booked,
+                        examFee: { ...booked.examFee, status: "PAID" },
+                      }
+                    : booked,
+                );
+              }}
+              onLater={() => {
+                notifySuccess("MSG-26");
+                onBooked(booked);
+              }}
+              renderPayment={renderPayment}
+            />
+          ) : null
+        }
+      />
+    </div>
+  );
 }

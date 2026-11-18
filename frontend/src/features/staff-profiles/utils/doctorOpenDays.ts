@@ -19,11 +19,15 @@ export function openDaysFromToday(
   dayCount: number,
 ): DoctorOpenDay[] {
   const today = todayIsoDate();
-  const days: DoctorOpenDay[] = Array.from({ length: dayCount }, (_, offset) => ({
-    date: addDays(today, offset),
-    times: [],
-  }));
+  const days: DoctorOpenDay[] = Array.from(
+    { length: dayCount },
+    (_, offset) => ({
+      date: addDays(today, offset),
+      times: [],
+    }),
+  );
   const byDate = new Map(days.map((day) => [day.date, day]));
-  for (const time of times) byDate.get(vnDateOf(time.startAt))?.times.push(time);
+  for (const time of times)
+    byDate.get(vnDateOf(time.startAt))?.times.push(time);
   return days;
 }

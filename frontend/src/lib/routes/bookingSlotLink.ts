@@ -53,5 +53,7 @@ function firstValue(value: SearchParamValue): string | undefined {
 function isCalendarDate(value: string): boolean {
   if (!DATE_PATTERN.test(value)) return false;
   const parsed = new Date(`${value}T00:00:00Z`);
-  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().startsWith(value);
+  return (
+    !Number.isNaN(parsed.getTime()) && parsed.toISOString().startsWith(value)
+  );
 }

@@ -99,7 +99,8 @@ export function StaffLoginScreen() {
           </Button>
         </form>
         <p className="mt-5 text-sm text-muted-foreground">
-          Quên mật khẩu? Vui lòng liên hệ Quản trị viên để được cấp lại mật khẩu.
+          Quên mật khẩu? Vui lòng liên hệ Quản trị viên để được cấp lại mật
+          khẩu.
         </p>
       </Card>
     </main>

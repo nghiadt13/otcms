@@ -32,43 +32,43 @@ type StaffAccountResponse = {
 /** GET /api/v1/me */
 export async function getMyAccount(signal?: AbortSignal): Promise<MyAccount> {
   const accountType = (await getSession())?.accountType;
-    if (accountType === "PATIENT") {
-      // /me/patient-account không có ảnh; /me cho biết tài khoản đã có ảnh chưa (`avatarUrl`).
-      const [current, me] = await Promise.all([
-        getCurrentPatientAccount(signal),
-        apiRequest<{ avatarUrl: string | null; displayName: string }>(
-          "/api/v1/me",
-          { signal },
-        ),
-      ]);
-      const avatarUrl = me.avatarUrl
-        ? await loadAccountAvatarUrl(current.id)
-        : null;
-      return {
-        id: current.id,
-        kind: "PATIENT",
-        displayName: current.displayName ?? me.displayName,
-        email: current.email,
-        status: current.status === "ACTIVE" ? "ACTIVE" : "INACTIVE",
-        avatarUrl,
-        allowedActions: [
-          "updateDisplayName",
-          "changePassword",
-          "updateAvatar",
-          ...(avatarUrl ? (["removeAvatar"] as const) : []),
-        ],
-      };
-    }
-    if (accountType) {
-      const current = await apiRequest<StaffAccountResponse>("/api/v1/me", {
-        signal,
-      });
-      const avatarUrl = current.avatarUrl
-        ? await loadAccountAvatarUrl(current.id)
-        : null;
-      return { ...current, avatarUrl };
-    }
-    throw new ApiError(401, { code: "MSG-14" });
+  if (accountType === "PATIENT") {
+    // /me/patient-account không có ảnh; /me cho biết tài khoản đã có ảnh chưa (`avatarUrl`).
+    const [current, me] = await Promise.all([
+      getCurrentPatientAccount(signal),
+      apiRequest<{ avatarUrl: string | null; displayName: string }>(
+        "/api/v1/me",
+        { signal },
+      ),
+    ]);
+    const avatarUrl = me.avatarUrl
+      ? await loadAccountAvatarUrl(current.id)
+      : null;
+    return {
+      id: current.id,
+      kind: "PATIENT",
+      displayName: current.displayName ?? me.displayName,
+      email: current.email,
+      status: current.status === "ACTIVE" ? "ACTIVE" : "INACTIVE",
+      avatarUrl,
+      allowedActions: [
+        "updateDisplayName",
+        "changePassword",
+        "updateAvatar",
+        ...(avatarUrl ? (["removeAvatar"] as const) : []),
+      ],
+    };
+  }
+  if (accountType) {
+    const current = await apiRequest<StaffAccountResponse>("/api/v1/me", {
+      signal,
+    });
+    const avatarUrl = current.avatarUrl
+      ? await loadAccountAvatarUrl(current.id)
+      : null;
+    return { ...current, avatarUrl };
+  }
+  throw new ApiError(401, { code: "MSG-14" });
 }
 
 /** PUT /api/v1/me/avatar (multipart, part `photo`) */

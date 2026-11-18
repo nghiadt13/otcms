@@ -1,10 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  fireEvent,
-  render,
-  screen,
-  within,
-} from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ReceptionProvider } from "./ReceptionProvider";
 import { ReceptionScreen } from "./ReceptionScreen";
@@ -34,18 +29,80 @@ vi.mock("@/lib/api/client", async (importOriginal) => {
     identityDocumentType: null,
     version: 1,
   };
-  const invoice = { id: "inv-1", invoiceNumber: "INV-1", appointmentId: "a1", visitId: null, status: "OPEN", totalAmount: 200000, paidAmount: 0, outstandingBalance: 200000, issuedAt: "2026-11-17", items: [{ id: "item-1", lineNumber: 1, serviceId: null, description: "Phí khám", quantity: 1, unitPrice: 200000, lineTotal: 200000, status: "PENDING" }] };
-  const receipt = { id: "pay-1", receiptNumber: "RC-1", invoiceId: "inv-1", invoiceNumber: "INV-1", patientProfileId: "BN0001", patientName: "Nguyễn Minh Anh", amount: 200000, currency: "VND", method: "CASH", channel: "COUNTER", confirmedAt: "2026-11-17T08:00:00Z", receivedByName: null, providerTransactionReference: null, items: [{ itemId: "item-1", lineNumber: 1, description: "Phí khám", quantity: 1, unitPrice: 200000, lineTotal: 200000, status: "PAID", refundReason: null }] };
+  const invoice = {
+    id: "inv-1",
+    invoiceNumber: "INV-1",
+    appointmentId: "a1",
+    visitId: null,
+    status: "OPEN",
+    totalAmount: 200000,
+    paidAmount: 0,
+    outstandingBalance: 200000,
+    issuedAt: "2026-11-17",
+    items: [
+      {
+        id: "item-1",
+        lineNumber: 1,
+        serviceId: null,
+        description: "Phí khám",
+        quantity: 1,
+        unitPrice: 200000,
+        lineTotal: 200000,
+        status: "PENDING",
+      },
+    ],
+  };
+  const receipt = {
+    id: "pay-1",
+    receiptNumber: "RC-1",
+    invoiceId: "inv-1",
+    invoiceNumber: "INV-1",
+    patientProfileId: "BN0001",
+    patientName: "Nguyễn Minh Anh",
+    amount: 200000,
+    currency: "VND",
+    method: "CASH",
+    channel: "COUNTER",
+    confirmedAt: "2026-11-17T08:00:00Z",
+    receivedByName: null,
+    providerTransactionReference: null,
+    items: [
+      {
+        itemId: "item-1",
+        lineNumber: 1,
+        description: "Phí khám",
+        quantity: 1,
+        unitPrice: 200000,
+        lineTotal: 200000,
+        status: "PAID",
+        refundReason: null,
+      },
+    ],
+  };
   return {
     ...actual,
     apiRequest: (path: `/api/v1/${string}`, init?: RequestInit) => {
       if (path.startsWith("/api/v1/reception/patients/BN0001/billing?"))
-        return Promise.resolve({ patientProfileId: "BN0001", patientName: "Nguyễn Minh Anh", invoices: { items: [invoice], page: 0, size: 20, totalItems: 1, totalPages: 1 } });
+        return Promise.resolve({
+          patientProfileId: "BN0001",
+          patientName: "Nguyễn Minh Anh",
+          invoices: {
+            items: [invoice],
+            page: 0,
+            size: 20,
+            totalItems: 1,
+            totalPages: 1,
+          },
+        });
       if (path === "/api/v1/invoices/inv-1/counter-payments") {
-        expect(JSON.parse(String(init?.body))).toEqual({ itemIds: ["item-1"], method: "CASH" });
+        expect(JSON.parse(String(init?.body))).toEqual({
+          itemIds: ["item-1"],
+          method: "CASH",
+        });
         return Promise.resolve({ id: "pay-1" });
       }
-      if (path === "/api/v1/payments/pay-1/receipt") return Promise.resolve(receipt);
+      if (path === "/api/v1/payments/pay-1/receipt")
+        return Promise.resolve(receipt);
       if (!path.startsWith("/api/v1/patient-profiles"))
         return actual.apiRequest(path, init);
       if (path.startsWith("/api/v1/patient-profiles?"))
@@ -105,19 +162,32 @@ describe("receptionist screens with real mock adapter", () => {
     const user = userEvent.setup();
     mount("payments");
     await screen.findByRole("heading", { name: "Thu phí tại quầy" });
-    await user.type(screen.getByLabelText("Tên hoặc số điện thoại"), "0900000001");
-    await user.click(await screen.findByRole("button", { name: /Nguyễn Minh Anh/ }));
+    await user.type(
+      screen.getByLabelText("Tên hoặc số điện thoại"),
+      "0900000001",
+    );
+    await user.click(
+      await screen.findByRole("button", { name: /Nguyễn Minh Anh/ }),
+    );
     await user.click(await screen.findByRole("button", { name: "Thu tiền" }));
     const dialog = await screen.findByRole("dialog", {
       name: "Thu tiền tại quầy",
     });
-    expect(within(dialog).getByRole("checkbox", { name: /Phí khám/ })).toBeChecked();
+    expect(
+      within(dialog).getByRole("checkbox", { name: /Phí khám/ }),
+    ).toBeChecked();
     expect(
       within(dialog).getByRole("button", { name: "Xác nhận thu tiền" }),
     ).toBeDisabled();
-    await user.click(within(dialog).getByRole("checkbox", { name: /Đã nhận tiền/ }));
-    await user.click(within(dialog).getByRole("button", { name: "Xác nhận thu tiền" }));
-    const receipt = await screen.findByRole("dialog", { name: "Biên lai thu tiền" });
+    await user.click(
+      within(dialog).getByRole("checkbox", { name: /Đã nhận tiền/ }),
+    );
+    await user.click(
+      within(dialog).getByRole("button", { name: "Xác nhận thu tiền" }),
+    );
+    const receipt = await screen.findByRole("dialog", {
+      name: "Biên lai thu tiền",
+    });
     expect(await within(receipt).findByText("RC-1")).toBeInTheDocument();
     expect(within(receipt).getByText("Phí khám")).toBeInTheDocument();
     expect(within(receipt).queryByRole("textbox")).not.toBeInTheDocument();

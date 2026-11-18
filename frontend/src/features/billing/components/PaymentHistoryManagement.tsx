@@ -103,7 +103,9 @@ export function PaymentHistoryManagement() {
                     <TableCell className="break-all">
                       {payment.patientId}
                     </TableCell>
-                    <TableCell>{paymentChannelLabel(payment.channel)}</TableCell>
+                    <TableCell>
+                      {paymentChannelLabel(payment.channel)}
+                    </TableCell>
                     <TableCell className="text-right whitespace-nowrap tabular-nums">
                       {formatCurrencyVnd(payment.amount)}
                     </TableCell>

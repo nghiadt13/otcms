@@ -28,7 +28,9 @@ export function ResultSheetPanel({ visitId }: { visitId: string }) {
     viewer.opener = null;
     setOpening(true);
     try {
-      const { blob } = await fetchBlob(`/api/v1/medical-documents/${encodeURIComponent(documentId)}/content`);
+      const { blob } = await fetchBlob(
+        `/api/v1/medical-documents/${encodeURIComponent(documentId)}/content`,
+      );
       const url = URL.createObjectURL(blob);
       viewer.location.href = url;
       window.setTimeout(() => URL.revokeObjectURL(url), 5 * 60 * 1000);
@@ -41,38 +43,73 @@ export function ResultSheetPanel({ visitId }: { visitId: string }) {
   }
 
   async function regenerate() {
-    const done = await run(async () => { await regenerateResultSheet(visitId); return true; });
+    const done = await run(async () => {
+      await regenerateResultSheet(visitId);
+      return true;
+    });
     if (done) sheets.refresh();
   }
 
   return (
-    <section aria-labelledby="sheet-title" className="space-y-3 rounded-lg border bg-card p-5">
-      <h2 id="sheet-title" className="text-lg font-semibold">Phiếu kết quả khám</h2>
+    <section
+      aria-labelledby="sheet-title"
+      className="space-y-3 rounded-lg border bg-card p-5"
+    >
+      <h2 id="sheet-title" className="text-lg font-semibold">
+        Phiếu kết quả khám
+      </h2>
       {sheets.loading ? (
         <Skeleton className="h-16 w-full" />
       ) : sheets.error ? (
-        <DoctorLoadState loading={false} error={sheets.error} retry={sheets.refresh} />
+        <DoctorLoadState
+          loading={false}
+          error={sheets.error}
+          retry={sheets.refresh}
+        />
       ) : !sheets.data || sheets.data.length === 0 ? (
         <div className="space-y-3">
-          <p className="text-sm text-muted-foreground">Chưa có phiếu kết quả.</p>
-          <Button type="button" variant="outline" disabled={pending} onClick={() => void regenerate()}>
+          <p className="text-sm text-muted-foreground">
+            Chưa có phiếu kết quả.
+          </p>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={pending}
+            onClick={() => void regenerate()}
+          >
             {pending ? "Đang sinh phiếu..." : "Sinh lại phiếu"}
           </Button>
         </div>
       ) : (
         <ul className="divide-y">
           {sheets.data.map((sheet) => (
-            <li key={sheet.documentId ?? sheet.version} className="flex flex-wrap items-center justify-between gap-3 py-2.5">
+            <li
+              key={sheet.documentId ?? sheet.version}
+              className="flex flex-wrap items-center justify-between gap-3 py-2.5"
+            >
               <div>
                 <p className="text-sm font-medium">Phiên bản {sheet.version}</p>
-                {sheet.issuedAt ? <p className="text-xs text-muted-foreground">{formatDateTime(sheet.issuedAt)}</p> : null}
+                {sheet.issuedAt ? (
+                  <p className="text-xs text-muted-foreground">
+                    {formatDateTime(sheet.issuedAt)}
+                  </p>
+                ) : null}
               </div>
               <div className="flex flex-wrap items-center gap-3">
-                <StatusBadge tone={sheet.status === "CURRENT" ? "success" : "neutral"}>
+                <StatusBadge
+                  tone={sheet.status === "CURRENT" ? "success" : "neutral"}
+                >
                   {sheet.status === "CURRENT" ? "Hiện hành" : "Đã thay thế"}
                 </StatusBadge>
-                {sheet.status === "CURRENT" && sheet.documentId && sheet.issuedAt ? (
-                  <Button type="button" variant="outline" disabled={opening} onClick={() => void openPdf(sheet.documentId!)}>
+                {sheet.status === "CURRENT" &&
+                sheet.documentId &&
+                sheet.issuedAt ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={opening}
+                    onClick={() => void openPdf(sheet.documentId!)}
+                  >
                     {opening ? "Đang mở..." : "Xem phiếu kết quả"}
                   </Button>
                 ) : null}
@@ -83,7 +120,11 @@ export function ResultSheetPanel({ visitId }: { visitId: string }) {
       )}
       {sheets.data?.some((sheet) => sheet.status === "CURRENT") ? (
         <div className="border-t pt-3">
-          <Button type="button" variant="outline" onClick={() => setAmending(true)}>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setAmending(true)}
+          >
             Sửa kết quả
           </Button>
         </div>

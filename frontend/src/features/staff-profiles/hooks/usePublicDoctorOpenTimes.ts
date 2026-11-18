@@ -26,7 +26,8 @@ export function usePublicDoctorOpenTimes(): PublicDoctorOpenTimesState {
     const controller = new AbortController();
     listPublicDoctorOpenTimes(controller.signal)
       .then((openTimes) => {
-        if (!controller.signal.aborted) setState({ status: "ready", openTimes });
+        if (!controller.signal.aborted)
+          setState({ status: "ready", openTimes });
       })
       .catch(() => {
         if (!controller.signal.aborted) setState({ status: "failed" });

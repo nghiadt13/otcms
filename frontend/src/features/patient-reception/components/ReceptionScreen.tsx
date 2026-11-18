@@ -20,7 +20,16 @@ import { ClinicalRoundOrdersScreen } from "./ClinicalRoundOrdersScreen";
 import { AccountScreen } from "./AccountScreen";
 import { StaffRoomsScreen } from "@/components/rooms/StaffRoomsScreen";
 
-export function ReceptionScreen({ section, appointmentActions }: { section: ReceptionSection; appointmentActions?: ComponentType<{ appointment: ReceptionAppointment; onChanged: () => void }> }) {
+export function ReceptionScreen({
+  section,
+  appointmentActions,
+}: {
+  section: ReceptionSection;
+  appointmentActions?: ComponentType<{
+    appointment: ReceptionAppointment;
+    onChanged: () => void;
+  }>;
+}) {
   const { data, loading, error } = useReception();
   if (!isReceptionSectionAvailable(section)) return <ReceptionSectionLocked />;
   if (section === "visits") return <VisitScreen />;

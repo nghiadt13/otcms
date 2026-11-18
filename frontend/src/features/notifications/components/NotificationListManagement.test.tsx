@@ -125,4 +125,7 @@ describe("NotificationListManagement", () => {
   });
 });
 
-vi.mock("@/lib/api/client", async () => await import("../api/notificationTestClient"));
+vi.mock(
+  "@/lib/api/client",
+  async () => await import("../api/notificationTestClient"),
+);

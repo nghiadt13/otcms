@@ -12,7 +12,8 @@ export const authMessages = {
   "MSG-08":
     "Không thể hoàn tất yêu cầu với thông tin hiện tại. Vui lòng kiểm tra và thử lại.",
   "MSG-09": "Nếu thông tin đăng ký hợp lệ, hướng dẫn xác minh sẽ được gửi.",
-  "MSG-77": "Mã OTP không đúng hoặc đã hết hạn. Vui lòng nhập lại hoặc yêu cầu mã mới.",
+  "MSG-77":
+    "Mã OTP không đúng hoặc đã hết hạn. Vui lòng nhập lại hoặc yêu cầu mã mới.",
   "MSG-10": "Tài khoản bệnh nhân đã được xác minh.",
 } as const;
 

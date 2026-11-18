@@ -142,6 +142,8 @@ export function createOwnRequestFromValues(
     gender: values.sex,
     address: values.address.trim(),
     // Form chỉ có một ô số định danh nên mặc định loại CCCD (BE bắt buộc loại khi có số).
-    ...(citizenId ? { nationalId: citizenId, identityDocumentType: "CCCD" as const } : {}),
+    ...(citizenId
+      ? { nationalId: citizenId, identityDocumentType: "CCCD" as const }
+      : {}),
   };
 }

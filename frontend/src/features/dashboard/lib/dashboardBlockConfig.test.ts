@@ -46,7 +46,9 @@ describe("buildDashboardBlocks with the sources the backend now fills (UC-77)", 
   it("shows money by method with PayOS instead of the old VNPay", () => {
     const labels = blocks.payments.rows.map((row) => row.label);
     expect(labels).toEqual(["Tổng đã thu", "Tiền mặt", "PayOS (trực tuyến)"]);
-    expect(blocks.payments.rows.every((row) => row.format === "vnd")).toBe(true);
+    expect(blocks.payments.rows.every((row) => row.format === "vnd")).toBe(
+      true,
+    );
     expect(blocks.payments.rows[2].value).toBe(200000);
   });
 

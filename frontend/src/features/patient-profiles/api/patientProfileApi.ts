@@ -31,7 +31,10 @@ import {
 import { DUPLICATE_PROFILE_DETAIL } from "./patientProfileErrors";
 import { getLinkedProfileDetailLive } from "./patientProfileLiveDetail";
 import { updateLinkedProfileLive } from "./patientProfileLiveUpdate";
-import { MOCK_ACCOUNT_ID, type ClinicPatientRecord } from "./patientProfileMockData";
+import {
+  MOCK_ACCOUNT_ID,
+  type ClinicPatientRecord,
+} from "./patientProfileMockData";
 import {
   findClinicRecord,
   listClinicRecords,
@@ -121,7 +124,7 @@ export async function createPatientProfile(
       linked.some((item) => item.relationship === "SELF")
     )
       mockFail(409, "MSG-21");
-  
+
     const fullName = body.fullName.trim();
     const matched = listClinicRecords().find(
       (record) =>
@@ -136,7 +139,7 @@ export async function createPatientProfile(
         maskedEmail: "b***@example.com",
       };
     if (matched) throw new ApiError(409, { detail: DUPLICATE_PROFILE_DETAIL });
-  
+
     const record: ClinicPatientRecord = {
       id: nextPatientId(),
       patientCode: nextPatientCode(),

@@ -125,7 +125,9 @@ export function ClosingScreen() {
           ) : null}
         </section>
       )}
-      {!demo && context?.status === "COMPLETED" ? <ResultSheetPanel visitId={visitId} /> : null}
+      {!demo && context?.status === "COMPLETED" ? (
+        <ResultSheetPanel visitId={visitId} />
+      ) : null}
     </>
   );
 }

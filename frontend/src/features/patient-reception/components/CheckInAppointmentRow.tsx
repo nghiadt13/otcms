@@ -186,7 +186,12 @@ export function CheckInAppointmentRow({
           }}
         />
       )}
-      {receiptId && <PaymentReceiptDialog paymentId={receiptId} onClose={() => setReceiptId(null)} />}
+      {receiptId && (
+        <PaymentReceiptDialog
+          paymentId={receiptId}
+          onClose={() => setReceiptId(null)}
+        />
+      )}
     </div>
   );
 }

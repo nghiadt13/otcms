@@ -57,13 +57,20 @@ function arrangeViewerHeader(frame: HTMLIFrameElement) {
       const header = logo?.parentElement?.parentElement;
       if (header?.children.length === 4) {
         header.setAttribute("data-otcms-viewer-header", "");
-        header.parentElement?.nextElementSibling?.setAttribute("data-otcms-viewer-body", "");
+        header.parentElement?.nextElementSibling?.setAttribute(
+          "data-otcms-viewer-body",
+          "",
+        );
       }
     };
     markHeader();
     const observer = new MutationObserver(markHeader);
     observer.observe(doc.documentElement, { childList: true, subtree: true });
-    frame.contentWindow?.addEventListener("pagehide", () => observer.disconnect(), { once: true });
+    frame.contentWindow?.addEventListener(
+      "pagehide",
+      () => observer.disconnect(),
+      { once: true },
+    );
   } catch {
     // OHIF must share the OTCMS origin for its embedded layout to be adjusted.
   }
@@ -91,7 +98,8 @@ export function ImagingViewerPage({
     const updateFullscreen = () =>
       setIsFullscreen(document.fullscreenElement === iframeRef.current);
     document.addEventListener("fullscreenchange", updateFullscreen);
-    return () => document.removeEventListener("fullscreenchange", updateFullscreen);
+    return () =>
+      document.removeEventListener("fullscreenchange", updateFullscreen);
   }, []);
 
   const toggleFullscreen = useCallback(async () => {
@@ -128,13 +136,17 @@ export function ImagingViewerPage({
           <ArrowLeft aria-hidden />
           Quay lại OTCMS
         </Button>
-        <h1 className="min-w-0 flex-1 truncate text-sm font-semibold">Trình xem ảnh DICOM</h1>
+        <h1 className="min-w-0 flex-1 truncate text-sm font-semibold">
+          Trình xem ảnh DICOM
+        </h1>
         <Button
           type="button"
           variant="outline"
           className="ml-auto shrink-0"
           onClick={() => void toggleFullscreen()}
-          aria-label={isFullscreen ? "Thoát toàn màn hình" : "Xem toàn màn hình"}
+          aria-label={
+            isFullscreen ? "Thoát toàn màn hình" : "Xem toàn màn hình"
+          }
         >
           {isFullscreen ? <Minimize aria-hidden /> : <Maximize aria-hidden />}
           <span className="hidden sm:inline">
@@ -154,7 +166,10 @@ export function ImagingViewerPage({
           />
         </div>
       ) : (
-        <p role="alert" className="m-6 rounded-md border border-destructive p-4 text-sm text-destructive">
+        <p
+          role="alert"
+          className="m-6 rounded-md border border-destructive p-4 text-sm text-destructive"
+        >
           Mã study không hợp lệ. Quay lại OTCMS và mở lại ảnh từ chỉ định.
         </p>
       )}

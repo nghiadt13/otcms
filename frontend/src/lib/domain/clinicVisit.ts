@@ -168,21 +168,31 @@ export type ClinicalOrderStatus = "ORDERED" | "RESULTS_AVAILABLE" | "CANCELLED";
 /** Thanh toán của một chỉ định cận lâm sàng từ BE (ServiceOrderPaymentStatus). */
 export type ClinicalOrderPaymentStatus = "PENDING_PAYMENT" | "PAID";
 
-export const CLINICAL_ORDER_STATUS_LABELS: Record<ClinicalOrderStatus, string> = {
-  ORDERED: "Đã chỉ định",
-  RESULTS_AVAILABLE: "Đã có kết quả",
-  CANCELLED: "Đã hủy",
-};
-export const CLINICAL_ORDER_STATUS_TONE: Record<ClinicalOrderStatus, StatusTone> = {
+export const CLINICAL_ORDER_STATUS_LABELS: Record<ClinicalOrderStatus, string> =
+  {
+    ORDERED: "Đã chỉ định",
+    RESULTS_AVAILABLE: "Đã có kết quả",
+    CANCELLED: "Đã hủy",
+  };
+export const CLINICAL_ORDER_STATUS_TONE: Record<
+  ClinicalOrderStatus,
+  StatusTone
+> = {
   ORDERED: "info",
   RESULTS_AVAILABLE: "success",
   CANCELLED: "neutral",
 };
-export const CLINICAL_ORDER_PAYMENT_LABELS: Record<ClinicalOrderPaymentStatus, string> = {
+export const CLINICAL_ORDER_PAYMENT_LABELS: Record<
+  ClinicalOrderPaymentStatus,
+  string
+> = {
   PENDING_PAYMENT: "Chưa thanh toán",
   PAID: "Đã thanh toán",
 };
-export const CLINICAL_ORDER_PAYMENT_TONE: Record<ClinicalOrderPaymentStatus, StatusTone> = {
+export const CLINICAL_ORDER_PAYMENT_TONE: Record<
+  ClinicalOrderPaymentStatus,
+  StatusTone
+> = {
   PENDING_PAYMENT: "warning",
   PAID: "success",
 };

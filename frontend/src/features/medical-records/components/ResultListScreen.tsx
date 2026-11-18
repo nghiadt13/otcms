@@ -133,13 +133,22 @@ export function ResultListScreen() {
             value={tab}
           >
             <TabsList className="grid w-full grid-cols-1 gap-1 p-1 group-data-horizontal/tabs:h-auto sm:grid-cols-3">
-              <TabsTrigger className="min-h-11 whitespace-normal px-2 text-sm sm:text-base" value="ALL">
+              <TabsTrigger
+                className="min-h-11 whitespace-normal px-2 text-sm sm:text-base"
+                value="ALL"
+              >
                 {tabLabel("Tất cả", counts.total)}
               </TabsTrigger>
-              <TabsTrigger className="min-h-11 whitespace-normal px-2 text-sm sm:text-base" value="COMPLETED">
+              <TabsTrigger
+                className="min-h-11 whitespace-normal px-2 text-sm sm:text-base"
+                value="COMPLETED"
+              >
                 {tabLabel("Có kết quả", counts.completed)}
               </TabsTrigger>
-              <TabsTrigger className="min-h-11 whitespace-normal px-2 text-sm sm:text-base" value="INCOMPLETE">
+              <TabsTrigger
+                className="min-h-11 whitespace-normal px-2 text-sm sm:text-base"
+                value="INCOMPLETE"
+              >
                 {tabLabel("Đang xử lý", counts.incomplete)}
               </TabsTrigger>
             </TabsList>

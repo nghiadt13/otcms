@@ -29,7 +29,10 @@ function sourceLabel(source: ExamQueueItem["source"] | undefined) {
 function statusView(status: string): { label: string; tone: StatusTone } {
   if (status in EXAM_QUEUE_STATUS_LABELS) {
     const key = status as ExamQueueStatus;
-    return { label: EXAM_QUEUE_STATUS_LABELS[key], tone: EXAM_QUEUE_STATUS_TONE[key] };
+    return {
+      label: EXAM_QUEUE_STATUS_LABELS[key],
+      tone: EXAM_QUEUE_STATUS_TONE[key],
+    };
   }
   return { label: status, tone: "neutral" };
 }
@@ -46,7 +49,10 @@ function Section({
   return (
     <section className="space-y-3">
       <h2 className="text-lg font-semibold">
-        {title} <span className="text-sm font-normal text-muted-foreground tabular-nums">({count})</span>
+        {title}{" "}
+        <span className="text-sm font-normal text-muted-foreground tabular-nums">
+          ({count})
+        </span>
       </h2>
       {children}
     </section>
@@ -74,7 +80,8 @@ export function QueueRoomPanel({
   onTransferDoctor?: (entry: RoomQueueEntry) => void;
 }) {
   const groups = splitRoomEntries(entries);
-  const nameOf = (entry: RoomQueueEntry) => itemOf(entry.visitId)?.patientName ?? "—";
+  const nameOf = (entry: RoomQueueEntry) =>
+    itemOf(entry.visitId)?.patientName ?? "—";
   const canCallNext =
     !busy && groups.serving.length === 0 && groups.waiting.length > 0;
 
@@ -82,7 +89,8 @@ export function QueueRoomPanel({
     <div className="space-y-8">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-muted-foreground">
-          {roomLabel} · đang phục vụ {groups.serving.length} · đang chờ {groups.waiting.length} · vắng {groups.absent.length}
+          {roomLabel} · đang phục vụ {groups.serving.length} · đang chờ{" "}
+          {groups.waiting.length} · vắng {groups.absent.length}
         </p>
         <Button disabled={!canCallNext} onClick={onCallNext}>
           Gọi tiếp
@@ -103,7 +111,9 @@ export function QueueRoomPanel({
                   {entry.queueNumber ?? "—"}
                 </span>,
                 nameOf(entry),
-                <StatusBadge key="st" tone={view.tone}>{view.label}</StatusBadge>,
+                <StatusBadge key="st" tone={view.tone}>
+                  {view.label}
+                </StatusBadge>,
                 entry.status === "CALLED" ? (
                   <Button
                     key="absent"
@@ -197,7 +207,9 @@ export function QueueRoomPanel({
               cells: [
                 entry.queueNumber ?? "—",
                 nameOf(entry),
-                <StatusBadge key="st" tone={view.tone}>{view.label}</StatusBadge>,
+                <StatusBadge key="st" tone={view.tone}>
+                  {view.label}
+                </StatusBadge>,
               ],
             };
           })}

@@ -6,7 +6,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { messageFromError } from "@/lib/messages/appMessages";
 import type { AssignedImagingUploadWork } from "../api/imagingIngestApi";
-import { listAssignedImagingUploadWork, startImagingAcquisition } from "../api/imagingIngestApi";
+import {
+  listAssignedImagingUploadWork,
+  startImagingAcquisition,
+} from "../api/imagingIngestApi";
 import { Empty } from "./Empty";
 import { PageHeading } from "./PageHeading";
 import { Panel } from "./Panel";
@@ -17,7 +20,9 @@ type WorkPeriod = "today" | "past";
 function isToday(value: string) {
   const date = new Date(value);
   const now = new Date();
-  return !Number.isNaN(date.getTime()) && date.toDateString() === now.toDateString();
+  return (
+    !Number.isNaN(date.getTime()) && date.toDateString() === now.toDateString()
+  );
 }
 
 function WorkTable({
@@ -44,11 +49,15 @@ function WorkTable({
         <tbody>
           {items.map((item) => (
             <tr key={item.requestId} className="border-t">
-              <td className="p-3 font-mono text-xs sm:text-sm">{item.requestId}</td>
+              <td className="p-3 font-mono text-xs sm:text-sm">
+                {item.requestId}
+              </td>
               <td className="p-3">
                 {item.serviceName ?? item.imagingType}
                 {item.technicianInstructions ? (
-                  <small className="block text-muted-foreground">{item.technicianInstructions}</small>
+                  <small className="block text-muted-foreground">
+                    {item.technicianInstructions}
+                  </small>
                 ) : null}
               </td>
               <td className="p-3">{item.status}</td>
@@ -60,11 +69,16 @@ function WorkTable({
                   <Button
                     variant="outline"
                     size="sm"
-                    render={<Link href={`/imaging/orders/${encodeURIComponent(item.requestId)}`} />}
+                    render={
+                      <Link
+                        href={`/imaging/orders/${encodeURIComponent(item.requestId)}`}
+                      />
+                    }
                   >
                     Chi tiết
                   </Button>
-                  {item.status === "RESULT_AVAILABLE" && item.currentStudyRef ? (
+                  {item.status === "RESULT_AVAILABLE" &&
+                  item.currentStudyRef ? (
                     <ImagingViewerLauncher
                       studyRef={item.currentStudyRef}
                       purpose="TECHNICIAN_ASSIGNED"
@@ -73,7 +87,11 @@ function WorkTable({
                     <Button
                       variant="secondary"
                       size="sm"
-                      render={<Link href={`/imaging/orders/${encodeURIComponent(item.requestId)}/upload`} />}
+                      render={
+                        <Link
+                          href={`/imaging/orders/${encodeURIComponent(item.requestId)}/upload`}
+                        />
+                      }
                     >
                       Tải study
                     </Button>
@@ -83,10 +101,14 @@ function WorkTable({
                       disabled={starting !== null}
                       onClick={() => onStart(item)}
                     >
-                      {starting === item.requestId ? "Đang bắt đầu…" : "Bắt đầu chụp"}
+                      {starting === item.requestId
+                        ? "Đang bắt đầu…"
+                        : "Bắt đầu chụp"}
                     </Button>
                   ) : (
-                    <span className="text-muted-foreground">Chưa thể tải ảnh</span>
+                    <span className="text-muted-foreground">
+                      Chưa thể tải ảnh
+                    </span>
                   )}
                 </div>
               </td>
@@ -116,7 +138,9 @@ export function AssignedUploadWorkScreen() {
     startKeys.current.set(item.requestId, key);
     try {
       await startImagingAcquisition(item.requestId, item.version, key);
-      router.push(`/imaging/orders/${encodeURIComponent(item.requestId)}/upload`);
+      router.push(
+        `/imaging/orders/${encodeURIComponent(item.requestId)}/upload`,
+      );
     } catch (cause) {
       setError(messageFromError(cause));
       setStarting(null);
@@ -130,7 +154,11 @@ export function AssignedUploadWorkScreen() {
     setRefreshing(true);
     setError(null);
     try {
-      const page = await listAssignedImagingUploadWork(0, 100, controller.signal);
+      const page = await listAssignedImagingUploadWork(
+        0,
+        100,
+        controller.signal,
+      );
       if (!controller.signal.aborted) setItems(page.items);
     } catch (cause: unknown) {
       if (!controller.signal.aborted) setError(messageFromError(cause));
@@ -148,7 +176,9 @@ export function AssignedUploadWorkScreen() {
     const refreshOnReturn = () => {
       if (document.visibilityState === "visible") void refreshWorklist();
     };
-    queueMicrotask(() => { if (active) void refreshWorklist(); });
+    queueMicrotask(() => {
+      if (active) void refreshWorklist();
+    });
     window.addEventListener("focus", refreshOnReturn);
     window.addEventListener("pageshow", refreshOnReturn);
     return () => {
@@ -161,9 +191,10 @@ export function AssignedUploadWorkScreen() {
 
   const todayItems = items.filter((item) => isToday(item.createdAt));
   const pastItems = items.filter((item) => !isToday(item.createdAt));
-  const effectivePeriod = !loading && todayItems.length === 0 && pastItems.length > 0
-    ? "past"
-    : period;
+  const effectivePeriod =
+    !loading && todayItems.length === 0 && pastItems.length > 0
+      ? "past"
+      : period;
   const visibleItems = effectivePeriod === "today" ? todayItems : pastItems;
 
   return (
@@ -182,11 +213,17 @@ export function AssignedUploadWorkScreen() {
       </PageHeading>
       <Panel>
         {loading ? (
-          <p role="status" className="p-5">Đang tải chỉ định được phân công…</p>
+          <p role="status" className="p-5">
+            Đang tải chỉ định được phân công…
+          </p>
         ) : error ? (
           <div className="p-5">
-            <p role="alert" className="im-form-error">{error}</p>
-            <Button variant="outline" onClick={() => void refreshWorklist()}>Thử lại</Button>
+            <p role="alert" className="im-form-error">
+              {error}
+            </p>
+            <Button variant="outline" onClick={() => void refreshWorklist()}>
+              Thử lại
+            </Button>
           </div>
         ) : items.length === 0 ? (
           <Empty
@@ -195,7 +232,11 @@ export function AssignedUploadWorkScreen() {
           />
         ) : (
           <>
-            <div className="flex flex-wrap gap-2 border-b px-4 pt-4" role="tablist" aria-label="Thời gian chỉ định">
+            <div
+              className="flex flex-wrap gap-2 border-b px-4 pt-4"
+              role="tablist"
+              aria-label="Thời gian chỉ định"
+            >
               <button
                 type="button"
                 role="tab"
@@ -203,7 +244,10 @@ export function AssignedUploadWorkScreen() {
                 onClick={() => setPeriod("today")}
                 className={`rounded-t-md border-b-2 px-3 py-2 text-sm font-medium ${period === "today" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}
               >
-                Hôm nay <span className="ml-1 rounded-full bg-muted px-2 py-0.5 text-xs">{todayItems.length}</span>
+                Hôm nay{" "}
+                <span className="ml-1 rounded-full bg-muted px-2 py-0.5 text-xs">
+                  {todayItems.length}
+                </span>
               </button>
               <button
                 type="button"
@@ -212,15 +256,30 @@ export function AssignedUploadWorkScreen() {
                 onClick={() => setPeriod("past")}
                 className={`rounded-t-md border-b-2 px-3 py-2 text-sm font-medium ${period === "past" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}
               >
-                Đã qua <span className="ml-1 rounded-full bg-muted px-2 py-0.5 text-xs">{pastItems.length}</span>
+                Đã qua{" "}
+                <span className="ml-1 rounded-full bg-muted px-2 py-0.5 text-xs">
+                  {pastItems.length}
+                </span>
               </button>
             </div>
             {visibleItems.length > 0 ? (
-              <WorkTable items={visibleItems} starting={starting} onStart={(item) => void startImaging(item)} />
+              <WorkTable
+                items={visibleItems}
+                starting={starting}
+                onStart={(item) => void startImaging(item)}
+              />
             ) : (
               <Empty
-                title={period === "today" ? "Hôm nay chưa có chỉ định" : "Chưa có chỉ định đã qua"}
-                description={period === "today" ? "Các chỉ định được phân công hôm nay sẽ hiển thị tại đây." : "Các chỉ định từ những ngày trước sẽ hiển thị tại đây."}
+                title={
+                  period === "today"
+                    ? "Hôm nay chưa có chỉ định"
+                    : "Chưa có chỉ định đã qua"
+                }
+                description={
+                  period === "today"
+                    ? "Các chỉ định được phân công hôm nay sẽ hiển thị tại đây."
+                    : "Các chỉ định từ những ngày trước sẽ hiển thị tại đây."
+                }
               />
             )}
           </>

@@ -205,9 +205,28 @@ export function AdministratorCredentialDialog({
             )}
             {!account && (
               <div className="space-y-2">
-                <Label htmlFor="administrator-password">Mật khẩu khởi tạo</Label>
-                <Input id="administrator-password" type="password" autoComplete="new-password" value={initialPassword} disabled={pending} onChange={(event) => { setInitialPassword(event.target.value); setPasswordError(false); }} aria-invalid={passwordError} />
-                <p className={passwordError ? "text-destructive" : "text-muted-foreground"}>Tối thiểu 8 ký tự, gồm chữ và số.</p>
+                <Label htmlFor="administrator-password">
+                  Mật khẩu khởi tạo
+                </Label>
+                <Input
+                  id="administrator-password"
+                  type="password"
+                  autoComplete="new-password"
+                  value={initialPassword}
+                  disabled={pending}
+                  onChange={(event) => {
+                    setInitialPassword(event.target.value);
+                    setPasswordError(false);
+                  }}
+                  aria-invalid={passwordError}
+                />
+                <p
+                  className={
+                    passwordError ? "text-destructive" : "text-muted-foreground"
+                  }
+                >
+                  Tối thiểu 8 ký tự, gồm chữ và số.
+                </p>
               </div>
             )}
             {error && (

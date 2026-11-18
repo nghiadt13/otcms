@@ -31,9 +31,7 @@ export const WALK_IN_CARE_STEP = "CONSULTATION";
 const DEFAULT_SERVICE_LABEL = "Khám bệnh";
 
 /** Trạng thái hiển thị của dòng hàng chờ; null với trạng thái bác sĩ không thấy (chờ thu phí, đã hủy). */
-function visitStatusOfQueue(
-  examStatus: ExamQueueStatus,
-): VisitStatus | null {
+function visitStatusOfQueue(examStatus: ExamQueueStatus): VisitStatus | null {
   switch (examStatus) {
     case "WAITING":
       return "WAITING_FOR_EXAMINATION";

@@ -106,7 +106,8 @@ async function sendWithUploadProgress(
   onProgress?: (loaded: number, total: number) => void,
 ): Promise<Response> {
   const headers = await authorizedHeaders(init);
-  const request = () => xhrRequest(`${apiBaseUrl}${path}`, init, headers, onProgress);
+  const request = () =>
+    xhrRequest(`${apiBaseUrl}${path}`, init, headers, onProgress);
   const response = await request();
   if (response.status !== 401) return response;
   const session = await refreshSession();
@@ -132,19 +133,41 @@ function xhrRequest(
     xhr.upload.onprogress = (event) => {
       if (event.lengthComputable) onProgress?.(event.loaded, event.total);
     };
-    xhr.onerror = () => { cleanup(); reject(new TypeError("Không thể kết nối tới máy chủ.")); };
-    xhr.onabort = () => { cleanup(); reject(new DOMException("Request aborted", "AbortError")); };
+    xhr.onerror = () => {
+      cleanup();
+      reject(new TypeError("Không thể kết nối tới máy chủ."));
+    };
+    xhr.onabort = () => {
+      cleanup();
+      reject(new DOMException("Request aborted", "AbortError"));
+    };
     xhr.onload = () => {
       cleanup();
       const responseHeaders = new Headers();
-      for (const line of xhr.getAllResponseHeaders().trim().split(/[\r\n]+/)) {
+      for (const line of xhr
+        .getAllResponseHeaders()
+        .trim()
+        .split(/[\r\n]+/)) {
         const separator = line.indexOf(":");
-        if (separator > 0) responseHeaders.append(line.slice(0, separator).trim(), line.slice(separator + 1).trim());
+        if (separator > 0)
+          responseHeaders.append(
+            line.slice(0, separator).trim(),
+            line.slice(separator + 1).trim(),
+          );
       }
-      resolve(new Response(xhr.responseText || null, { status: xhr.status, statusText: xhr.statusText, headers: responseHeaders }));
+      resolve(
+        new Response(xhr.responseText || null, {
+          status: xhr.status,
+          statusText: xhr.statusText,
+          headers: responseHeaders,
+        }),
+      );
     };
     if (signal) {
-      if (signal.aborted) { reject(new DOMException("Request aborted", "AbortError")); return; }
+      if (signal.aborted) {
+        reject(new DOMException("Request aborted", "AbortError"));
+        return;
+      }
       signal.addEventListener("abort", abort, { once: true });
     }
     xhr.send((init.body as XMLHttpRequestBodyInit | null | undefined) ?? null);

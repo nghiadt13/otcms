@@ -16,10 +16,20 @@ export function useDoctorLookup(bookable?: boolean) {
 
   useEffect(() => {
     let cancelled = false;
-    (process.env.NODE_ENV === "test" ? lookupDoctors(bookable === undefined ? {} : { bookable }) :
-      apiRequest<{ items: AdminDoctor[] }>("/api/v1/admin/doctor-profiles").then(({ items }) => ({
-        items: items.map((d) => ({ id: d.doctorProfileId, fullName: d.fullName, bookable: d.acceptingNewBookings && d.inActiveDirectory })).filter((d) => bookable === undefined || d.bookable === bookable),
-      })))
+    (process.env.NODE_ENV === "test"
+      ? lookupDoctors(bookable === undefined ? {} : { bookable })
+      : apiRequest<{ items: AdminDoctor[] }>(
+          "/api/v1/admin/doctor-profiles",
+        ).then(({ items }) => ({
+          items: items
+            .map((d) => ({
+              id: d.doctorProfileId,
+              fullName: d.fullName,
+              bookable: d.acceptingNewBookings && d.inActiveDirectory,
+            }))
+            .filter((d) => bookable === undefined || d.bookable === bookable),
+        }))
+    )
       .then((result) => {
         if (!cancelled) setState({ doctors: result.items });
       })

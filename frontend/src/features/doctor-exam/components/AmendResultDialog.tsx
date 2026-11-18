@@ -72,10 +72,17 @@ export function AmendResultDialog({
         <DialogHeader>
           <DialogTitle>Sửa kết quả khám</DialogTitle>
           <DialogDescription>
-            Giá trị cũ được lưu trong nhật ký hoạt động. Hệ thống sinh phiên bản phiếu kết quả mới và thông báo cho bệnh nhân.
+            Giá trị cũ được lưu trong nhật ký hoạt động. Hệ thống sinh phiên bản
+            phiếu kết quả mới và thông báo cho bệnh nhân.
           </DialogDescription>
         </DialogHeader>
-        {open ? <AmendForm visitId={visitId} onClose={onClose} onAmended={onAmended} /> : null}
+        {open ? (
+          <AmendForm
+            visitId={visitId}
+            onClose={onClose}
+            onAmended={onAmended}
+          />
+        ) : null}
       </DialogContent>
     </Dialog>
   );
@@ -94,7 +101,13 @@ function AmendForm({
     useCallback((signal) => getAmendableResult(visitId, signal), [visitId]),
   );
   if (current.loading || current.error || !current.data)
-    return <DoctorLoadState loading={current.loading} error={current.error} retry={current.refresh} />;
+    return (
+      <DoctorLoadState
+        loading={current.loading}
+        error={current.error}
+        retry={current.refresh}
+      />
+    );
   return (
     <AmendFields
       visitId={visitId}
@@ -127,23 +140,33 @@ function AmendFields({
   const [prescription, setPrescription] = useState(initialPrescription);
   const [prescriptionError, setPrescriptionError] = useState("");
   const [reason, setReason] = useState("");
-  const [errors, setErrors] = useState<Partial<Record<ExaminationField | "reason", string>>>({});
+  const [errors, setErrors] = useState<
+    Partial<Record<ExaminationField | "reason", string>>
+  >({});
   const { pending, run } = useAsyncAction();
 
-  const setExam = <K extends keyof ExaminationInput>(key: K, value: ExaminationInput[K]) =>
-    setExamination((existing) => ({ ...existing, [key]: value }));
+  const setExam = <K extends keyof ExaminationInput>(
+    key: K,
+    value: ExaminationInput[K],
+  ) => setExamination((existing) => ({ ...existing, [key]: value }));
 
   async function submit() {
-    const examChanged = JSON.stringify(examination) !== JSON.stringify(initialExamination);
-    const prescriptionChanged = JSON.stringify(prescription) !== JSON.stringify(initialPrescription);
-    const found: Partial<Record<ExaminationField | "reason", string>> = examChanged ? validateForCompletion(examination) : {};
+    const examChanged =
+      JSON.stringify(examination) !== JSON.stringify(initialExamination);
+    const prescriptionChanged =
+      JSON.stringify(prescription) !== JSON.stringify(initialPrescription);
+    const found: Partial<Record<ExaminationField | "reason", string>> =
+      examChanged ? validateForCompletion(examination) : {};
     let items: PrescriptionLine[] | undefined;
     let invalidPrescription = false;
     setPrescriptionError("");
     if (prescriptionChanged) {
-      try { items = prescriptionItems(prescription); }
-      catch {
-        setPrescriptionError("Nhập đủ tên thuốc, liều dùng, tần suất và cách dùng cho mỗi dòng thuốc.");
+      try {
+        items = prescriptionItems(prescription);
+      } catch {
+        setPrescriptionError(
+          "Nhập đủ tên thuốc, liều dùng, tần suất và cách dùng cho mỗi dòng thuốc.",
+        );
         invalidPrescription = true;
       }
     }
@@ -155,8 +178,14 @@ function AmendFields({
     }
     const changes: AmendChanges = {};
     if (examChanged) changes.examination = examination;
-    if (JSON.stringify(advice) !== JSON.stringify(initialAdvice)) changes.advice = advice;
-    if (items && JSON.stringify(items) !== JSON.stringify(prescriptionItems(initialPrescription))) changes.prescription = { items };
+    if (JSON.stringify(advice) !== JSON.stringify(initialAdvice))
+      changes.advice = advice;
+    if (
+      items &&
+      JSON.stringify(items) !==
+        JSON.stringify(prescriptionItems(initialPrescription))
+    )
+      changes.prescription = { items };
     if (!changes.examination && !changes.advice && !changes.prescription) {
       notifyError(new ApiError(400, { code: "MSG-39" }));
       return;
@@ -171,7 +200,13 @@ function AmendFields({
   }
 
   return (
-    <form className="space-y-4" onSubmit={(event) => { event.preventDefault(); void submit(); }}>
+    <form
+      className="space-y-4"
+      onSubmit={(event) => {
+        event.preventDefault();
+        void submit();
+      }}
+    >
       <fieldset disabled={pending} className="space-y-4">
         <AdminFormField id="amend-findings" label="Phát hiện khi khám">
           <Textarea
@@ -183,7 +218,10 @@ function AmendFields({
           />
           <FieldError message={errors.examinationFindings} />
         </AdminFormField>
-        <AdminFormField id="amend-reason-visit" label="Lý do bệnh nhân đến khám">
+        <AdminFormField
+          id="amend-reason-visit"
+          label="Lý do bệnh nhân đến khám"
+        >
           <Textarea
             id="amend-reason-visit"
             rows={2}
@@ -221,7 +259,12 @@ function AmendFields({
               id={`amend-${key}`}
               rows={2}
               value={advice[key]}
-              onChange={(e) => setAdvice((existing) => ({ ...existing, [key]: e.target.value }))}
+              onChange={(e) =>
+                setAdvice((existing) => ({
+                  ...existing,
+                  [key]: e.target.value,
+                }))
+              }
             />
           </AdminFormField>
         ))}
@@ -229,25 +272,71 @@ function AmendFields({
           <section className="space-y-3" aria-label="Đơn thuốc">
             <h3 className="font-semibold">Đơn thuốc</h3>
             {prescription.map((line, index) => (
-              <div key={index} className="grid gap-2 rounded-md border p-3 sm:grid-cols-2">
-                {([
-                  ["medicine", "Tên thuốc"], ["dose", "Liều dùng"],
-                  ["frequency", "Tần suất"], ["usage", "Cách dùng"],
-                ] as const).map(([key, label]) => (
-                  <AdminFormField key={key} id={`amend-rx-${index}-${key}`} label={`${label} ${index + 1}`}>
-                    <Input id={`amend-rx-${index}-${key}`} value={line[key]} onChange={(e) =>
-                      setPrescription((rows) => rows.map((row, i) => i === index ? { ...row, [key]: e.target.value } : row))} />
+              <div
+                key={index}
+                className="grid gap-2 rounded-md border p-3 sm:grid-cols-2"
+              >
+                {(
+                  [
+                    ["medicine", "Tên thuốc"],
+                    ["dose", "Liều dùng"],
+                    ["frequency", "Tần suất"],
+                    ["usage", "Cách dùng"],
+                  ] as const
+                ).map(([key, label]) => (
+                  <AdminFormField
+                    key={key}
+                    id={`amend-rx-${index}-${key}`}
+                    label={`${label} ${index + 1}`}
+                  >
+                    <Input
+                      id={`amend-rx-${index}-${key}`}
+                      value={line[key]}
+                      onChange={(e) =>
+                        setPrescription((rows) =>
+                          rows.map((row, i) =>
+                            i === index
+                              ? { ...row, [key]: e.target.value }
+                              : row,
+                          ),
+                        )
+                      }
+                    />
                   </AdminFormField>
                 ))}
-                <Button type="button" variant="outline" disabled={prescription.length === 1} onClick={() => setPrescription((rows) => rows.filter((_, i) => i !== index))}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={prescription.length === 1}
+                  onClick={() =>
+                    setPrescription((rows) =>
+                      rows.filter((_, i) => i !== index),
+                    )
+                  }
+                >
                   Xóa thuốc {index + 1}
                 </Button>
               </div>
             ))}
-            <Button type="button" variant="outline" onClick={() => setPrescription((rows) => [...rows, { medicine: "", dose: "", frequency: "", usage: "" }])}>Thêm thuốc</Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() =>
+                setPrescription((rows) => [
+                  ...rows,
+                  { medicine: "", dose: "", frequency: "", usage: "" },
+                ])
+              }
+            >
+              Thêm thuốc
+            </Button>
             <FieldError message={prescriptionError} />
           </section>
-        ) : <p className="text-sm text-muted-foreground">Không có đơn thuốc đã phát hành để sửa.</p>}
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            Không có đơn thuốc đã phát hành để sửa.
+          </p>
+        )}
         <AdminFormField id="amend-reason" label="Lý do sửa (bắt buộc)">
           <Input
             id="amend-reason"

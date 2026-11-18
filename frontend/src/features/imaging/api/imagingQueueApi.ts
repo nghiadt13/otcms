@@ -2,10 +2,7 @@ import { apiRequest } from "@/lib/api/client";
 
 /** Trạng thái một dòng hàng chờ phòng dịch vụ (stage SERVICE). */
 export type ServiceQueueStatus =
-  | "WAITING"
-  | "CALLED"
-  | "IN_EXAMINATION"
-  | "ABSENT";
+  "WAITING" | "CALLED" | "IN_EXAMINATION" | "ABSENT";
 
 export type ServiceWorklistOrder = {
   /** Với chẩn đoán hình ảnh cũng là mã yêu cầu dùng cho bắt đầu chụp / tải study. */
@@ -40,7 +37,10 @@ export type ServiceWorklistEntry = {
   orders: ServiceWorklistOrder[];
 };
 
-export type ServiceWorklist = { roomId: string; entries: ServiceWorklistEntry[] };
+export type ServiceWorklist = {
+  roomId: string;
+  entries: ServiceWorklistEntry[];
+};
 
 /** Hàng chờ thật của phòng (UC-46): thứ tự do BE xếp, KTV không tự đổi vị trí. */
 export function getServiceWorklist(roomId: string, signal?: AbortSignal) {

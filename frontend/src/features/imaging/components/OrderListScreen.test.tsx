@@ -1,4 +1,10 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { OrderListScreen } from "./OrderListScreen";
 
@@ -11,7 +17,12 @@ const work = (overrides: Record<string, unknown>) => ({
   requestId: "11111111-aaaa-bbbb-cccc-000000000001",
   attemptId: null,
   visitId: "v1",
-  patient: { patientProfileId: "p1", fullName: "Trần Thị B", dateOfBirth: null, gender: null },
+  patient: {
+    patientProfileId: "p1",
+    fullName: "Trần Thị B",
+    dateOfBirth: null,
+    gender: null,
+  },
   currentStudyRef: null,
   serviceId: "s1",
   serviceName: "MRI cột sống",
@@ -30,12 +41,24 @@ const work = (overrides: Record<string, unknown>) => ({
 beforeEach(() => {
   vi.clearAllMocks();
   rooms.listImagingRooms.mockResolvedValue([
-    { id: "r1", code: "MRI-01", name: "Phòng MRI", type: "IMAGING", description: "", capabilities: [], availability: "Hoạt động" },
+    {
+      id: "r1",
+      code: "MRI-01",
+      name: "Phòng MRI",
+      type: "IMAGING",
+      description: "",
+      capabilities: [],
+      availability: "Hoạt động",
+    },
   ]);
   ingest.listAssignedImagingUploadWork.mockResolvedValue({
     items: [
       work({}),
-      work({ requestId: "22222222-aaaa-bbbb-cccc-000000000002", status: "RESULT_AVAILABLE", serviceName: "X-quang gối" }),
+      work({
+        requestId: "22222222-aaaa-bbbb-cccc-000000000002",
+        status: "RESULT_AVAILABLE",
+        serviceName: "X-quang gối",
+      }),
     ],
     page: 0,
     size: 100,
@@ -55,7 +78,9 @@ it("lists real orders with status and payment", async () => {
 it("filters by status", async () => {
   render(<OrderListScreen statusMode />);
   await screen.findByText("MRI cột sống");
-  fireEvent.change(screen.getByLabelText("Lọc trạng thái"), { target: { value: "RESULT_AVAILABLE" } });
+  fireEvent.change(screen.getByLabelText("Lọc trạng thái"), {
+    target: { value: "RESULT_AVAILABLE" },
+  });
   await waitFor(() => expect(screen.queryByText("MRI cột sống")).toBeNull());
   expect(screen.getByText("X-quang gối")).toBeTruthy();
 });

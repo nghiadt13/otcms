@@ -37,7 +37,10 @@ export function digitsOnly(raw: string, maxLength: number): string {
  */
 export function localPhoneFromInput(raw: string): string {
   let digits = raw.replace(/\D/g, "");
-  if (digits.startsWith("84") && digits.length > PHONE_DIGITS_AFTER_COUNTRY_CODE)
+  if (
+    digits.startsWith("84") &&
+    digits.length > PHONE_DIGITS_AFTER_COUNTRY_CODE
+  )
     digits = digits.slice(2);
   else if (digits.startsWith("0")) digits = digits.slice(1);
   digits = digits.slice(0, PHONE_DIGITS_AFTER_COUNTRY_CODE);

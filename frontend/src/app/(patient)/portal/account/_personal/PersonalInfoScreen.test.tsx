@@ -5,7 +5,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { resetMockAccountState } from "@/features/my-account/api/myAccountMockStore";
 vi.mock("@/features/my-account/api/myAccountApi", async () => {
   const store = await import("@/features/my-account/api/myAccountMockStore");
-  return { getMyAccount: vi.fn(async () => store.accountSnapshot(store.currentMockAccountState().account)) };
+  return {
+    getMyAccount: vi.fn(async () =>
+      store.accountSnapshot(store.currentMockAccountState().account),
+    ),
+  };
 });
 import { MOCK_PATIENT_ACCOUNT } from "@/features/my-account/api/myAccountMockData";
 import { PROFILE_MOCK_IDS } from "@/features/patient-profiles/api/patientProfileMockData";
@@ -260,7 +264,9 @@ describe("PersonalInfoScreen", () => {
     render(<PersonalInfoScreen next="/portal/appointments/new" />);
 
     expect(
-      await screen.findByText(/Vui lòng điền đầy đủ thông tin cá nhân để tiếp tục/),
+      await screen.findByText(
+        /Vui lòng điền đầy đủ thông tin cá nhân để tiếp tục/,
+      ),
     ).toBeInTheDocument();
     await user.type(screen.getByLabelText(/CCCD/), "079090001234");
     await user.click(screen.getByRole("button", { name: "Lưu thay đổi" }));

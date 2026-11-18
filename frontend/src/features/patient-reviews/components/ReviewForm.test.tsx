@@ -99,4 +99,7 @@ describe("ReviewForm", () => {
   });
 });
 
-vi.mock("@/lib/api/client", async () => await import("../api/reviewTestClient"));
+vi.mock(
+  "@/lib/api/client",
+  async () => await import("../api/reviewTestClient"),
+);

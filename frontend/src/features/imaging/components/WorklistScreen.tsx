@@ -85,7 +85,9 @@ export function WorklistScreen() {
     listImagingRooms()
       .then((items) => {
         if (!active) return;
-        const usable = items.filter((room) => room.availability === "Hoạt động");
+        const usable = items.filter(
+          (room) => room.availability === "Hoạt động",
+        );
         setRooms(usable);
         setRoomId(usable[0]?.id ?? null);
         if (usable.length === 0) setLoading(false);
@@ -141,7 +143,10 @@ export function WorklistScreen() {
         <Button
           className="im-button"
           disabled={!roomId || busy}
-          onClick={() => roomId && void run(() => callNextService(roomId), formatAppMessage("MSG-43"))}
+          onClick={() =>
+            roomId &&
+            void run(() => callNextService(roomId), formatAppMessage("MSG-43"))
+          }
         >
           <Icon name="user" />
           Gọi tiếp theo
@@ -212,7 +217,11 @@ export function WorklistScreen() {
           </p>
         ) : shown.length === 0 ? (
           <Empty
-            title={tab === "absent" ? "Không có bệnh nhân vắng mặt" : "Chưa có bệnh nhân đang chờ"}
+            title={
+              tab === "absent"
+                ? "Không có bệnh nhân vắng mặt"
+                : "Chưa có bệnh nhân đang chờ"
+            }
             description="Bệnh nhân vào hàng ngay khi chỉ định được thanh toán."
           />
         ) : (
@@ -229,18 +238,31 @@ export function WorklistScreen() {
               </TableHeader>
               <TableBody>
                 {shown.map((entry) => (
-                  <TableRow key={entry.entryId} className={entry.status === "IN_EXAMINATION" ? "im-row-serving" : ""}>
+                  <TableRow
+                    key={entry.entryId}
+                    className={
+                      entry.status === "IN_EXAMINATION" ? "im-row-serving" : ""
+                    }
+                  >
                     <TableCell>
-                      <strong className="im-number-text">{entry.queueNumber ?? "—"}</strong>
+                      <strong className="im-number-text">
+                        {entry.queueNumber ?? "—"}
+                      </strong>
                     </TableCell>
                     <TableCell>
                       <div className="im-patient-cell">
                         <PatientAvatar name={entry.patient.fullName ?? "?"} />
                         <div>
-                          <strong>{entry.patient.fullName ?? "Không rõ tên"}</strong>
+                          <strong>
+                            {entry.patient.fullName ?? "Không rõ tên"}
+                          </strong>
                           <small>
-                            {entry.patient.age != null ? `${entry.patient.age} tuổi` : "—"}
-                            {entry.patient.gender ? ` · ${entry.patient.gender}` : ""}
+                            {entry.patient.age != null
+                              ? `${entry.patient.age} tuổi`
+                              : "—"}
+                            {entry.patient.gender
+                              ? ` · ${entry.patient.gender}`
+                              : ""}
                           </small>
                         </div>
                       </div>
@@ -249,25 +271,40 @@ export function WorklistScreen() {
                       {entry.orders.map((order) => (
                         <div key={order.orderId}>
                           {order.paid ? (
-                            <Link className="im-order-line" href={`/imaging/orders/${order.orderId}`}>
+                            <Link
+                              className="im-order-line"
+                              href={`/imaging/orders/${order.orderId}`}
+                            >
                               {order.serviceName}
                             </Link>
                           ) : (
-                            <span className="im-order-line" title={formatAppMessage("MSG-95")}>
-                              {order.serviceName} <Badge tone="red">Chưa thanh toán</Badge>
+                            <span
+                              className="im-order-line"
+                              title={formatAppMessage("MSG-95")}
+                            >
+                              {order.serviceName}{" "}
+                              <Badge tone="red">Chưa thanh toán</Badge>
                             </span>
                           )}
                           <small>
                             {order.orderCode}
                             {order.bodyArea ? ` · ${order.bodyArea}` : ""}
-                            {order.instructions ? ` · ${order.instructions}` : ""}
+                            {order.instructions
+                              ? ` · ${order.instructions}`
+                              : ""}
                           </small>
-                          {!order.paid && <small role="alert">{formatAppMessage("MSG-95")}</small>}
+                          {!order.paid && (
+                            <small role="alert">
+                              {formatAppMessage("MSG-95")}
+                            </small>
+                          )}
                         </div>
                       ))}
                     </TableCell>
                     <TableCell>
-                      <Badge tone={statusTones[entry.status]}>{statusLabels[entry.status]}</Badge>
+                      <Badge tone={statusTones[entry.status]}>
+                        {statusLabels[entry.status]}
+                      </Badge>
                     </TableCell>
                     <TableCell>
                       <div className="im-row-actions">
@@ -277,7 +314,12 @@ export function WorklistScreen() {
                               variant="ghost"
                               className="im-text-button im-danger"
                               disabled={busy}
-                              onClick={() => void run(() => markServiceEntryAbsent(entry.entryId), formatAppMessage("MSG-43"))}
+                              onClick={() =>
+                                void run(
+                                  () => markServiceEntryAbsent(entry.entryId),
+                                  formatAppMessage("MSG-43"),
+                                )
+                              }
                             >
                               Đánh dấu vắng
                             </Button>
@@ -285,7 +327,13 @@ export function WorklistScreen() {
                               variant="ghost"
                               className="im-text-button"
                               disabled={busy || entry.orders.length === 0}
-                              onClick={() => setReturning({ mode: "unable", id: entry.orders[0]?.orderId ?? "", reason: "" })}
+                              onClick={() =>
+                                setReturning({
+                                  mode: "unable",
+                                  id: entry.orders[0]?.orderId ?? "",
+                                  reason: "",
+                                })
+                              }
                             >
                               Không thực hiện được
                             </Button>
@@ -296,7 +344,13 @@ export function WorklistScreen() {
                             variant="ghost"
                             className="im-text-button"
                             disabled={busy}
-                            onClick={() => setReturning({ mode: "return", id: entry.entryId, reason: "" })}
+                            onClick={() =>
+                              setReturning({
+                                mode: "return",
+                                id: entry.entryId,
+                                reason: "",
+                              })
+                            }
                           >
                             Trở lại hàng đợi
                           </Button>
@@ -325,17 +379,29 @@ export function WorklistScreen() {
             }}
           >
             <label>
-              {returning.mode === "unable" ? "Lý do không thực hiện được" : "Lý do đưa trở lại hàng"}
+              {returning.mode === "unable"
+                ? "Lý do không thực hiện được"
+                : "Lý do đưa trở lại hàng"}
               <input
-                aria-label={returning.mode === "unable" ? "Lý do không thực hiện được" : "Lý do đưa trở lại hàng"}
+                aria-label={
+                  returning.mode === "unable"
+                    ? "Lý do không thực hiện được"
+                    : "Lý do đưa trở lại hàng"
+                }
                 value={returning.reason}
-                onChange={(event) => setReturning({ ...returning, reason: event.target.value })}
+                onChange={(event) =>
+                  setReturning({ ...returning, reason: event.target.value })
+                }
               />
             </label>
             <Button type="submit" disabled={busy || !returning.reason.trim()}>
               Xác nhận
             </Button>
-            <Button type="button" variant="ghost" onClick={() => setReturning(null)}>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => setReturning(null)}
+            >
               Hủy
             </Button>
           </form>
@@ -343,7 +409,8 @@ export function WorklistScreen() {
       </Panel>
       <p className="im-footnote">
         <Icon name="shield" size={16} />
-        Thứ tự theo giờ vào hàng đợi. Chỉ định chưa thanh toán không được tiếp nhận.
+        Thứ tự theo giờ vào hàng đợi. Chỉ định chưa thanh toán không được tiếp
+        nhận.
       </p>
     </>
   );

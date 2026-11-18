@@ -43,15 +43,41 @@ export async function listCatalog(
 }
 
 export async function listLabResults(visitId: string, signal?: AbortSignal) {
-  const result = await apiRequest<{ items: { orderId: string; serviceName: string; values: { indicator: string; value: string; unit: string; referenceRange: string; abnormal: boolean | null }[]; assessment: LabResultAssessment | null }[] }>(
-    `/api/v1/visits/${encodeURIComponent(visitId)}/laboratory-results`, { signal },
-  );
-  return result.items.map((item) => ({ orderId: item.orderId, serviceName: item.serviceName,
+  const result = await apiRequest<{
+    items: {
+      orderId: string;
+      serviceName: string;
+      values: {
+        indicator: string;
+        value: string;
+        unit: string;
+        referenceRange: string;
+        abnormal: boolean | null;
+      }[];
+      assessment: LabResultAssessment | null;
+    }[];
+  }>(`/api/v1/visits/${encodeURIComponent(visitId)}/laboratory-results`, {
+    signal,
+  });
+  return result.items.map((item) => ({
+    orderId: item.orderId,
+    serviceName: item.serviceName,
     assessment: item.assessment ?? null,
-    lines: item.values.map((value) => ({ indicator: value.indicator, value: value.value, unit: value.unit, reference: value.referenceRange, abnormal: value.abnormal ?? null })) }));
+    lines: item.values.map((value) => ({
+      indicator: value.indicator,
+      value: value.value,
+      unit: value.unit,
+      reference: value.referenceRange,
+      abnormal: value.abnormal ?? null,
+    })),
+  }));
 }
 
-export async function assessLabResult(visitId: string, orderId: string, assessment: string) {
+export async function assessLabResult(
+  visitId: string,
+  orderId: string,
+  assessment: string,
+) {
   return apiRequest<LabResultAssessment>(
     `/api/v1/visits/${encodeURIComponent(visitId)}/laboratory-results/${encodeURIComponent(orderId)}/assessment`,
     { method: "POST", body: JSON.stringify({ assessment }) },
@@ -153,10 +179,22 @@ export async function listOrders(
 ): Promise<ParaclinicalOrder[]> {
   const id = encodeURIComponent(visitId);
   const [result, laboratory] = await Promise.all([
-    apiRequest<{ items: ClinicalOrderDto[] }>(`/api/v1/visits/${id}/imaging-orders`, { signal }),
-    apiRequest<{ items: ClinicalOrderDto[] }>(`/api/v1/visits/${id}/laboratory-orders`, { signal }),
+    apiRequest<{ items: ClinicalOrderDto[] }>(
+      `/api/v1/visits/${id}/imaging-orders`,
+      { signal },
+    ),
+    apiRequest<{ items: ClinicalOrderDto[] }>(
+      `/api/v1/visits/${id}/laboratory-orders`,
+      { signal },
+    ),
   ]);
-  const orders = [...result.items, ...laboratory.items.map((order) => ({ ...order, serviceType: "LABORATORY" as const }))].map((order) => clinicalOrder(order));
+  const orders = [
+    ...result.items,
+    ...laboratory.items.map((order) => ({
+      ...order,
+      serviceType: "LABORATORY" as const,
+    })),
+  ].map((order) => clinicalOrder(order));
   if (!orders.some((order) => order.imaging)) return orders;
   const history = await apiRequest<{ items: HistoryItemDto[] }>(
     `/api/v1/imaging-history?visitId=${id}&size=100`,
@@ -198,17 +236,26 @@ export async function submitOrders(
     throw new ApiError(400, { code: "MSG-39" });
   const kinds = new Map(catalog.map((service) => [service.id, service.kind]));
   const kind = kinds.get(items[0]?.serviceId);
-  if (!items.length || (kind !== "IMAGING" && kind !== "LABORATORY") || items.some((item) => kinds.get(item.serviceId) !== kind))
+  if (
+    !items.length ||
+    (kind !== "IMAGING" && kind !== "LABORATORY") ||
+    items.some((item) => kinds.get(item.serviceId) !== kind)
+  )
     throw new ApiError(400, { code: "MSG-39" });
   const round = await apiRequest<{
     roundNumber: number;
     orders: ClinicalOrderDto[];
-  }>(`/api/v1/visits/${encodeURIComponent(visitId)}/${kind === "LABORATORY" ? "laboratory" : "imaging"}-requests`, {
-    method: "POST",
-    headers: { "Idempotency-Key": idempotencyKey },
-    body: JSON.stringify({ patientConsentConfirmed, orders: items }),
-  });
-  return round.orders.map((order) => clinicalOrder({ ...order, serviceType: kind }, round.roundNumber));
+  }>(
+    `/api/v1/visits/${encodeURIComponent(visitId)}/${kind === "LABORATORY" ? "laboratory" : "imaging"}-requests`,
+    {
+      method: "POST",
+      headers: { "Idempotency-Key": idempotencyKey },
+      body: JSON.stringify({ patientConsentConfirmed, orders: items }),
+    },
+  );
+  return round.orders.map((order) =>
+    clinicalOrder({ ...order, serviceType: kind }, round.roundNumber),
+  );
 }
 
 const idem = () => ({ "Idempotency-Key": crypto.randomUUID() });

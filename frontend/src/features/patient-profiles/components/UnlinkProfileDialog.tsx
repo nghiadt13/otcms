@@ -43,7 +43,14 @@ export function UnlinkProfileDialog({
       onOpenChange(false);
       onUnlinked();
     } catch (error) {
-      notifyError(isApiError(error) && (error.status === 403 || error.status === 404 || error.code === "MSG-21") ? new ApiError(error.status, { code: "MSG-21" }) : error);
+      notifyError(
+        isApiError(error) &&
+          (error.status === 403 ||
+            error.status === 404 ||
+            error.code === "MSG-21")
+          ? new ApiError(error.status, { code: "MSG-21" })
+          : error,
+      );
       // Hồ sơ đã không còn trong tài khoản: đóng hộp thoại và về danh sách.
       if (isHiddenRecordError(error)) {
         onOpenChange(false);

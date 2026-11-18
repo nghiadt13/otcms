@@ -8,7 +8,10 @@ import {
 import { ResultDetailScreen } from "./ResultDetailScreen";
 import { formatAppMessage } from "@/lib/messages/appMessages";
 const api = vi.hoisted(() => ({ request: vi.fn(), fetchBlob: vi.fn() }));
-vi.mock("@/lib/api/client", () => ({ apiRequest: api.request, fetchBlob: api.fetchBlob }));
+vi.mock("@/lib/api/client", () => ({
+  apiRequest: api.request,
+  fetchBlob: api.fetchBlob,
+}));
 
 // Ranh giới ngoài: router của Next (không có App Router trong test).
 const nav = vi.hoisted(() => ({ replace: vi.fn(), notFound: vi.fn() }));
@@ -77,16 +80,42 @@ describe("ResultDetailScreen", () => {
   });
 
   it("lấy phiếu ACTIVE và mở PDF được xác thực khi bệnh nhân chọn xem", async () => {
-    api.request.mockResolvedValue({ items: [{ documentId: "doc-1", version: 1, status: "ACTIVE", releasedAt: "2026-10-24T08:15:00+07:00" }] });
-    api.fetchBlob.mockResolvedValue({ blob: new Blob(["pdf"], { type: "application/pdf" }) });
+    api.request.mockResolvedValue({
+      items: [
+        {
+          documentId: "doc-1",
+          version: 1,
+          status: "ACTIVE",
+          releasedAt: "2026-10-24T08:15:00+07:00",
+        },
+      ],
+    });
+    api.fetchBlob.mockResolvedValue({
+      blob: new Blob(["pdf"], { type: "application/pdf" }),
+    });
     const viewer = { opener: window, location: { href: "" }, close: vi.fn() };
-    const open = vi.spyOn(window, "open").mockReturnValue(viewer as unknown as Window);
-    const createUrl = vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:result");
-    const revokeUrl = vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
+    const open = vi
+      .spyOn(window, "open")
+      .mockReturnValue(viewer as unknown as Window);
+    const createUrl = vi
+      .spyOn(URL, "createObjectURL")
+      .mockReturnValue("blob:result");
+    const revokeUrl = vi
+      .spyOn(URL, "revokeObjectURL")
+      .mockImplementation(() => {});
     render(<ResultDetailScreen visitId="vis-an-done" />);
-    fireEvent.click(await screen.findByRole("link", { name: /Xem phiếu kết quả/ }));
-    await waitFor(() => expect(api.fetchBlob).toHaveBeenCalledWith("/api/v1/medical-documents/doc-1/content"));
-    expect(api.request).toHaveBeenCalledWith("/api/v1/visits/vis-an-done/result-sheets", { signal: expect.any(AbortSignal) });
+    fireEvent.click(
+      await screen.findByRole("link", { name: /Xem phiếu kết quả/ }),
+    );
+    await waitFor(() =>
+      expect(api.fetchBlob).toHaveBeenCalledWith(
+        "/api/v1/medical-documents/doc-1/content",
+      ),
+    );
+    expect(api.request).toHaveBeenCalledWith(
+      "/api/v1/visits/vis-an-done/result-sheets",
+      { signal: expect.any(AbortSignal) },
+    );
     expect(viewer.location.href).toBe("blob:result");
     open.mockRestore();
     createUrl.mockRestore();
@@ -96,13 +125,27 @@ describe("ResultDetailScreen", () => {
   it("sau khi bác sĩ sửa kết quả: hiện bản mới Hiện hành trước, bản cũ Đã thay thế và đều mở được bằng PDF có xác thực", async () => {
     api.request.mockResolvedValue({
       items: [
-        { documentId: "doc-2", version: 2, status: "ACTIVE", releasedAt: "2026-10-25T08:15:00+07:00" },
-        { documentId: "doc-1", version: 1, status: "REPLACED", releasedAt: "2026-10-24T08:15:00+07:00" },
+        {
+          documentId: "doc-2",
+          version: 2,
+          status: "ACTIVE",
+          releasedAt: "2026-10-25T08:15:00+07:00",
+        },
+        {
+          documentId: "doc-1",
+          version: 1,
+          status: "REPLACED",
+          releasedAt: "2026-10-24T08:15:00+07:00",
+        },
       ],
     });
     render(<ResultDetailScreen visitId="vis-an-done" />);
     await screen.findByRole("link", { name: /Xem phiếu kết quả/ });
-    const links = screen.getAllByRole("link", { name: /phiên bản/ }).filter((link) => link.getAttribute("href")?.startsWith("/api/v1/medical-documents/"));
+    const links = screen
+      .getAllByRole("link", { name: /phiên bản/ })
+      .filter((link) =>
+        link.getAttribute("href")?.startsWith("/api/v1/medical-documents/"),
+      );
     expect(links.map((link) => link.textContent)).toEqual([
       expect.stringContaining("phiên bản 2"),
       expect.stringContaining("phiên bản 1"),
@@ -116,13 +159,26 @@ describe("ResultDetailScreen", () => {
   it("giữ kết quả khám khi tải phiếu thất bại và cho phép thử lại", async () => {
     api.request.mockRejectedValueOnce(new Error("network"));
     api.request.mockResolvedValueOnce({
-      items: [{ documentId: "doc-1", version: 1, status: "ACTIVE", releasedAt: "2026-10-24T08:15:00+07:00" }],
+      items: [
+        {
+          documentId: "doc-1",
+          version: 1,
+          status: "ACTIVE",
+          releasedAt: "2026-10-24T08:15:00+07:00",
+        },
+      ],
     });
     render(<ResultDetailScreen visitId="vis-an-done" />);
-    expect(await screen.findByRole("heading", { name: "Kết quả khám" })).toBeInTheDocument();
-    expect(screen.getByRole("alert")).toHaveTextContent(formatAppMessage("MSG-04"));
+    expect(
+      await screen.findByRole("heading", { name: "Kết quả khám" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      formatAppMessage("MSG-04"),
+    );
     fireEvent.click(screen.getByRole("button", { name: "Thử lại" }));
-    expect(await screen.findByRole("link", { name: /Xem phiếu kết quả/ })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("link", { name: /Xem phiếu kết quả/ }),
+    ).toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
   it("ẩn lượt trước hoặc lượt sau khi không có id tương ứng", async () => {

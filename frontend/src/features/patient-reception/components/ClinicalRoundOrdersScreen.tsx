@@ -35,10 +35,24 @@ async function loadRoundQueue(page: number, signal?: AbortSignal) {
       )
       .map((order) => order.orderId),
   );
-  const labIds = result.items.flatMap((round) => round.orders.filter((order) => order.serviceType === "LABORATORY" && order.orderStatus === "ORDERED" && order.paymentStatus === "PAID").map((order) => order.orderId));
+  const labIds = result.items.flatMap((round) =>
+    round.orders
+      .filter(
+        (order) =>
+          order.serviceType === "LABORATORY" &&
+          order.orderStatus === "ORDERED" &&
+          order.paymentStatus === "PAID",
+      )
+      .map((order) => order.orderId),
+  );
   const [options, laboratory] = await Promise.all([
     listClinicalImagingRoomOptions(ids, signal),
-    Promise.all(labIds.map(async (serviceOrderId) => ({ serviceOrderId, items: await listLaboratoryRooms(serviceOrderId, signal) }))),
+    Promise.all(
+      labIds.map(async (serviceOrderId) => ({
+        serviceOrderId,
+        items: await listLaboratoryRooms(serviceOrderId, signal),
+      })),
+    ),
   ]);
   return { result, options: [...options, ...laboratory] };
 }
@@ -260,16 +274,60 @@ export function ClinicalRoundOrdersScreen() {
                               Chờ thanh toán
                             </p>
                           ))}
-                        {order.serviceType === "LABORATORY" && order.orderStatus === "ORDERED" && order.paymentStatus === "PAID" && (
-                          <div className="space-y-2">
-                            {roomOptions[order.orderId]?.length ? <label className="block text-sm">Phòng xét nghiệm
-                              <select aria-label={`Phòng xét nghiệm · ${order.serviceName}`} className="mt-1 block w-full rounded-md border bg-background px-3 py-2" value={selectedRooms[order.orderId] ?? ""} disabled={pending} onChange={(event) => setSelectedRooms((current) => ({ ...current, [order.orderId]: event.target.value }))}>
-                                <option value="">Chọn phòng</option>{roomOptions[order.orderId].map((room) => <option key={room.roomId} value={room.roomId}>{room.roomCode} · {room.displayLabel}</option>)}
-                              </select>
-                            </label> : <p className="text-sm text-muted-foreground">Không có phòng xét nghiệm phù hợp.</p>}
-                            <Button variant="outline" disabled={pending || !selectedRooms[order.orderId]} onClick={() => void action(async () => { await dispatchLaboratoryOrder(order.orderId, selectedRooms[order.orderId]); await reload(); })}>Gửi chỉ định xét nghiệm</Button>
-                          </div>
-                        )}
+                        {order.serviceType === "LABORATORY" &&
+                          order.orderStatus === "ORDERED" &&
+                          order.paymentStatus === "PAID" && (
+                            <div className="space-y-2">
+                              {roomOptions[order.orderId]?.length ? (
+                                <label className="block text-sm">
+                                  Phòng xét nghiệm
+                                  <select
+                                    aria-label={`Phòng xét nghiệm · ${order.serviceName}`}
+                                    className="mt-1 block w-full rounded-md border bg-background px-3 py-2"
+                                    value={selectedRooms[order.orderId] ?? ""}
+                                    disabled={pending}
+                                    onChange={(event) =>
+                                      setSelectedRooms((current) => ({
+                                        ...current,
+                                        [order.orderId]: event.target.value,
+                                      }))
+                                    }
+                                  >
+                                    <option value="">Chọn phòng</option>
+                                    {roomOptions[order.orderId].map((room) => (
+                                      <option
+                                        key={room.roomId}
+                                        value={room.roomId}
+                                      >
+                                        {room.roomCode} · {room.displayLabel}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </label>
+                              ) : (
+                                <p className="text-sm text-muted-foreground">
+                                  Không có phòng xét nghiệm phù hợp.
+                                </p>
+                              )}
+                              <Button
+                                variant="outline"
+                                disabled={
+                                  pending || !selectedRooms[order.orderId]
+                                }
+                                onClick={() =>
+                                  void action(async () => {
+                                    await dispatchLaboratoryOrder(
+                                      order.orderId,
+                                      selectedRooms[order.orderId],
+                                    );
+                                    await reload();
+                                  })
+                                }
+                              >
+                                Gửi chỉ định xét nghiệm
+                              </Button>
+                            </div>
+                          )}
                       </div>
                       <span>{money(order.priceSnapshot)}</span>
                     </li>

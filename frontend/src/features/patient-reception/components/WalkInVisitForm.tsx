@@ -190,7 +190,12 @@ export function WalkInVisitForm({
           }}
         />
       )}
-      {receiptId && <PaymentReceiptDialog paymentId={receiptId} onClose={() => setReceiptId(null)} />}
+      {receiptId && (
+        <PaymentReceiptDialog
+          paymentId={receiptId}
+          onClose={() => setReceiptId(null)}
+        />
+      )}
     </div>
   );
 }

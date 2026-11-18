@@ -56,7 +56,14 @@ beforeEach(() => {
         ],
       };
     if (path === TRANSFER_PATH)
-      return { messageCode: "MSG-43", data: { orderId: "order-1", roomId: "room-xq", previousRoomId: "room-ct" } };
+      return {
+        messageCode: "MSG-43",
+        data: {
+          orderId: "order-1",
+          roomId: "room-xq",
+          previousRoomId: "room-ct",
+        },
+      };
     throw new Error(`Unexpected request ${path}`);
   });
 });
@@ -84,7 +91,10 @@ describe("ServiceOrderRoomTransferDialog (UC-31)", () => {
     await waitFor(() => expect(handlers.onSaved).toHaveBeenCalledTimes(1));
     expect(request).toHaveBeenCalledWith(TRANSFER_PATH, {
       method: "POST",
-      body: JSON.stringify({ newRoomId: "room-xq", reason: "Phòng CT đang bảo trì" }),
+      body: JSON.stringify({
+        newRoomId: "room-xq",
+        reason: "Phòng CT đang bảo trì",
+      }),
     });
     expect(toast.success).toHaveBeenCalledWith(APP_MESSAGES["MSG-43"]);
   });
@@ -94,7 +104,9 @@ describe("ServiceOrderRoomTransferDialog (UC-31)", () => {
     const user = await chooseRoomAndReason("");
     await user.click(screen.getByRole("button", { name: "Xác nhận đổi" }));
 
-    expect(await screen.findByRole("alert")).toHaveTextContent(APP_MESSAGES["MSG-39"]);
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      APP_MESSAGES["MSG-39"],
+    );
     expect(request).not.toHaveBeenCalledWith(TRANSFER_PATH, expect.anything());
     expect(handlers.onSaved).not.toHaveBeenCalled();
   });
@@ -102,14 +114,29 @@ describe("ServiceOrderRoomTransferDialog (UC-31)", () => {
   it("BE trả MSG-41 (phòng hoặc chỉ định không còn) thì hiện đúng câu MSG-41", async () => {
     request.mockImplementation(async (path: string) => {
       if (path === ROOMS_PATH)
-        return { items: [{ serviceOrderId: "order-1", items: [{ roomId: "room-xq", roomCode: "XQ2", displayLabel: "X-quang 2" }] }] };
+        return {
+          items: [
+            {
+              serviceOrderId: "order-1",
+              items: [
+                {
+                  roomId: "room-xq",
+                  roomCode: "XQ2",
+                  displayLabel: "X-quang 2",
+                },
+              ],
+            },
+          ],
+        };
       throw new ApiError(404, { code: "MSG-41" });
     });
     mount();
     const user = await chooseRoomAndReason("Đổi phòng");
     await user.click(screen.getByRole("button", { name: "Xác nhận đổi" }));
 
-    expect(await screen.findByRole("alert")).toHaveTextContent(APP_MESSAGES["MSG-41"]);
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      APP_MESSAGES["MSG-41"],
+    );
     expect(handlers.onFailed).toHaveBeenCalledTimes(1);
     expect(handlers.onSaved).not.toHaveBeenCalled();
   });
@@ -117,23 +144,42 @@ describe("ServiceOrderRoomTransferDialog (UC-31)", () => {
   it("BE trả MSG-42 (chỉ định đã thực hiện hoặc đã đổi) thì hiện đúng câu MSG-42", async () => {
     request.mockImplementation(async (path: string) => {
       if (path === ROOMS_PATH)
-        return { items: [{ serviceOrderId: "order-1", items: [{ roomId: "room-xq", roomCode: "XQ2", displayLabel: "X-quang 2" }] }] };
+        return {
+          items: [
+            {
+              serviceOrderId: "order-1",
+              items: [
+                {
+                  roomId: "room-xq",
+                  roomCode: "XQ2",
+                  displayLabel: "X-quang 2",
+                },
+              ],
+            },
+          ],
+        };
       throw new ApiError(409, { code: "MSG-42" });
     });
     mount();
     const user = await chooseRoomAndReason("Đổi phòng");
     await user.click(screen.getByRole("button", { name: "Xác nhận đổi" }));
 
-    expect(await screen.findByRole("alert")).toHaveTextContent(APP_MESSAGES["MSG-42"]);
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      APP_MESSAGES["MSG-42"],
+    );
     expect(handlers.onFailed).toHaveBeenCalledTimes(1);
     expect(handlers.onSaved).not.toHaveBeenCalled();
   });
 
   it("không có phòng khác đủ điều kiện thì không cho xác nhận", async () => {
-    request.mockImplementation(async () => ({ items: [{ serviceOrderId: "order-1", items: [] }] }));
+    request.mockImplementation(async () => ({
+      items: [{ serviceOrderId: "order-1", items: [] }],
+    }));
     mount();
 
-    expect(await screen.findByRole("status")).toHaveTextContent(APP_MESSAGES["MSG-41"]);
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      APP_MESSAGES["MSG-41"],
+    );
     expect(screen.getByRole("button", { name: "Xác nhận đổi" })).toBeDisabled();
   });
 });

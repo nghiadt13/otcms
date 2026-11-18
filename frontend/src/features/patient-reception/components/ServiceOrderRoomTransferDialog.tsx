@@ -46,7 +46,9 @@ export function ServiceOrderRoomTransferDialog({
       .then((groups) => {
         if (!active) return;
         const own = groups.find((group) => group.serviceOrderId === orderId);
-        setRooms((own?.items ?? []).filter((room) => room.roomId !== currentRoomId));
+        setRooms(
+          (own?.items ?? []).filter((room) => room.roomId !== currentRoomId),
+        );
       })
       .catch((cause: unknown) => {
         if (active) setLoadError(messageFromError(cause));
@@ -137,7 +139,9 @@ export function ServiceOrderRoomTransferDialog({
         <FormActions
           onClose={onClose}
           label="Xác nhận đổi"
-          disabled={saving || loading || !!loadError || rooms.length === 0 || !newRoomId}
+          disabled={
+            saving || loading || !!loadError || rooms.length === 0 || !newRoomId
+          }
         />
       </form>
     </FormModal>

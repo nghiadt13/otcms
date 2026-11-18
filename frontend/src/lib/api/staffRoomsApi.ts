@@ -36,14 +36,25 @@ function toRoom(room: RoomDto): StaffRoom {
   };
 }
 
-export async function listStaffRooms(signal?: AbortSignal): Promise<StaffRoom[]> {
-  const { items } = await apiRequest<{ items: RoomDto[] }>("/api/v1/staff/rooms", { signal });
+export async function listStaffRooms(
+  signal?: AbortSignal,
+): Promise<StaffRoom[]> {
+  const { items } = await apiRequest<{ items: RoomDto[] }>(
+    "/api/v1/staff/rooms",
+    { signal },
+  );
   return items.map(toRoom);
 }
 
 /** BE trả MSG-50 khi phòng không tồn tại hoặc nằm ngoài phạm vi của người dùng. */
-export async function getStaffRoom(roomId: string, signal?: AbortSignal): Promise<StaffRoom> {
+export async function getStaffRoom(
+  roomId: string,
+  signal?: AbortSignal,
+): Promise<StaffRoom> {
   return toRoom(
-    await apiRequest<RoomDto>(`/api/v1/staff/rooms/${encodeURIComponent(roomId)}`, { signal }),
+    await apiRequest<RoomDto>(
+      `/api/v1/staff/rooms/${encodeURIComponent(roomId)}`,
+      { signal },
+    ),
   );
 }

@@ -15,7 +15,15 @@ vi.mock("next/navigation", () => ({
 vi.mock("sonner", () => ({
   toast: { success: vi.fn(), warning: vi.fn(), error: vi.fn() },
 }));
-vi.mock("@/lib/api/client", () => ({ apiRequest: vi.fn((url: string) => Promise.resolve(url.startsWith("/api/v1/clinic-services") ? { items: [{ id: "svc", name: "Khám", price: 0, description: null }] } : { slots: [{ startTime: "2026-10-21T01:00:00Z" }] })) }));
+vi.mock("@/lib/api/client", () => ({
+  apiRequest: vi.fn((url: string) =>
+    Promise.resolve(
+      url.startsWith("/api/v1/clinic-services")
+        ? { items: [{ id: "svc", name: "Khám", price: 0, description: null }] }
+        : { slots: [{ startTime: "2026-10-21T01:00:00Z" }] },
+    ),
+  ),
+}));
 
 import { toast } from "sonner";
 import { resetAppointmentMock } from "../api/appointmentApi";
@@ -129,9 +137,15 @@ describe("AppointmentsManagement - chuyển bác sĩ", () => {
   it("không có bác sĩ thay thì không hiển thị thao tác thông báo giả", async () => {
     open("from=2026-10-21&to=2026-10-21");
     await openRowMenu("Trần Minh Khoa");
-    await userEvent.click(await screen.findByRole("menuitem", { name: "Chuyển bác sĩ" }));
-    expect(await screen.findByText("Không có bác sĩ nào có ca vào giờ này.")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Báo cho bệnh nhân" })).not.toBeInTheDocument();
+    await userEvent.click(
+      await screen.findByRole("menuitem", { name: "Chuyển bác sĩ" }),
+    );
+    expect(
+      await screen.findByText("Không có bác sĩ nào có ca vào giờ này."),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Báo cho bệnh nhân" }),
+    ).not.toBeInTheDocument();
   });
 
   it("409 MSG-32: toast lỗi và đóng Dialog", async () => {
@@ -192,9 +206,19 @@ describe("AppointmentsManagement - chuyển bác sĩ", () => {
 
 describe("AppointmentsManagement - giờ trống", () => {
   it("gọi availability với dịch vụ và bác sĩ được chọn", async () => {
-    open(`tab=availability&doctorId=${DOCTOR_IDS.tuan}&from=2026-10-21&to=2026-10-21`);
-    await userEvent.selectOptions(await screen.findByLabelText("Dịch vụ"), "svc");
-    await waitFor(() => expect(apiRequest).toHaveBeenCalledWith(expect.stringContaining("/api/v1/staff/appointments/availability?"), expect.anything()));
+    open(
+      `tab=availability&doctorId=${DOCTOR_IDS.tuan}&from=2026-10-21&to=2026-10-21`,
+    );
+    await userEvent.selectOptions(
+      await screen.findByLabelText("Dịch vụ"),
+      "svc",
+    );
+    await waitFor(() =>
+      expect(apiRequest).toHaveBeenCalledWith(
+        expect.stringContaining("/api/v1/staff/appointments/availability?"),
+        expect.anything(),
+      ),
+    );
     expect(await screen.findByText("Thứ tư 21/10")).toBeInTheDocument();
   });
 });

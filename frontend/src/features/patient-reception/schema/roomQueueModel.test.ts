@@ -73,7 +73,9 @@ describe("splitRoomEntries", () => {
 
   it("đang khám cũng thuộc nhóm đang phục vụ", () => {
     expect(
-      splitRoomEntries([entry("a", "IN_EXAMINATION", 1)]).serving.map((e) => e.id),
+      splitRoomEntries([entry("a", "IN_EXAMINATION", 1)]).serving.map(
+        (e) => e.id,
+      ),
     ).toEqual(["a"]);
   });
 });

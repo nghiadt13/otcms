@@ -41,7 +41,11 @@ export function RefundsManagement() {
         title="Chờ hoàn tiền"
         description="Khoản đã thu nhưng phòng khám phải hoàn. Hoàn tiền ngoài hệ thống, rồi bấm xác nhận."
       />
-      <div role="group" aria-label="Trạng thái hoàn tiền" className="mb-4 flex gap-2">
+      <div
+        role="group"
+        aria-label="Trạng thái hoàn tiền"
+        className="mb-4 flex gap-2"
+      >
         {TABS.map((tab) => (
           <Button
             key={tab.value}

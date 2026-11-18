@@ -23,7 +23,13 @@ type ReceptionContextValue = {
   run: (command: ReceptionCommand) => Promise<ReceptionState | null>;
 };
 const ReceptionContext = createContext<ReceptionContextValue | null>(null);
-export function ReceptionProvider({ children, skipDemo = false }: { children: ReactNode; skipDemo?: boolean }) {
+export function ReceptionProvider({
+  children,
+  skipDemo = false,
+}: {
+  children: ReactNode;
+  skipDemo?: boolean;
+}) {
   const [data, setData] = useState<ReceptionState | null>(null);
   const [loading, setLoading] = useState(true);
   const [pending, setPending] = useState(false);
@@ -45,13 +51,17 @@ export function ReceptionProvider({ children, skipDemo = false }: { children: Re
   }, []);
   useEffect(() => {
     mounted.current = true;
-    if (skipDemo) return () => { mounted.current = false; };
+    if (skipDemo)
+      return () => {
+        mounted.current = false;
+      };
     const controller = new AbortController();
     let refreshing = false;
     const sync = () => {
       if (refreshing || busy.current || controller.signal.aborted) return;
       refreshing = true;
-      void import("../api/receptionApi").then(({ loadReception }) => loadReception())
+      void import("../api/receptionApi")
+        .then(({ loadReception }) => loadReception())
         .then((next) => {
           if (!controller.signal.aborted) setData(next);
         })
@@ -102,7 +112,7 @@ export function ReceptionProvider({ children, skipDemo = false }: { children: Re
       }
       try {
         const { loadReception } = await import("../api/receptionApi");
-      const next = await loadReception();
+        const next = await loadReception();
         if (mounted.current) setData(next);
       } catch {
         /* Keep last successful snapshot. */
@@ -115,7 +125,14 @@ export function ReceptionProvider({ children, skipDemo = false }: { children: Re
   }
   return (
     <ReceptionContext.Provider
-      value={{ data: skipDemo ? null : data, loading: skipDemo ? false : loading, error: skipDemo ? "" : error, pending, reload, run }}
+      value={{
+        data: skipDemo ? null : data,
+        loading: skipDemo ? false : loading,
+        error: skipDemo ? "" : error,
+        pending,
+        reload,
+        run,
+      }}
     >
       {children}
     </ReceptionContext.Provider>

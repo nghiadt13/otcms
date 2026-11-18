@@ -11,7 +11,11 @@ import { orderRoomText } from "./visitPresentation";
 // Chỉ định của lượt khám: tên, phòng (có hay chưa), trạng thái và thanh toán bằng chữ. Không hiện kết
 // quả ở đây: kết quả đi qua khu Kết quả khám (BR-35).
 
-export function OrderProgressList({ orders }: { orders: VisitProgressOrder[] }) {
+export function OrderProgressList({
+  orders,
+}: {
+  orders: VisitProgressOrder[];
+}) {
   return (
     <ul className="divide-y rounded-lg border bg-card">
       {orders.map((order) => (
@@ -29,7 +33,9 @@ export function OrderProgressList({ orders }: { orders: VisitProgressOrder[] }) 
             <StatusBadge tone={CLINICAL_ORDER_STATUS_TONE[order.status]}>
               {CLINICAL_ORDER_STATUS_LABELS[order.status]}
             </StatusBadge>
-            <StatusBadge tone={CLINICAL_ORDER_PAYMENT_TONE[order.paymentStatus]}>
+            <StatusBadge
+              tone={CLINICAL_ORDER_PAYMENT_TONE[order.paymentStatus]}
+            >
               {CLINICAL_ORDER_PAYMENT_LABELS[order.paymentStatus]}
             </StatusBadge>
           </div>

@@ -23,21 +23,21 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { receptionHref } from "../navigation";
-import { fetchCurrentAccount, type CurrentAccount } from "@/lib/auth/currentAccountApi";
+import {
+  fetchCurrentAccount,
+  type CurrentAccount,
+} from "@/lib/auth/currentAccountApi";
 import { ROLE_LABELS, type ActorRole } from "@/lib/domain/clinicRoles";
 
 // Ô tài khoản cuối sidebar, cùng dạng với khu admin: avatar + tên đăng nhập + vai trò, bấm mở menu.
-function AccountSummary({
-  account,
-}: {
-  account: CurrentAccount | null;
-}) {
+function AccountSummary({ account }: { account: CurrentAccount | null }) {
   const name = account?.username || account?.displayName;
-  const role = account?.role && account.role in ROLE_LABELS
-    ? ROLE_LABELS[account.role as ActorRole]
-    : account?.accountType === "RECEPTIONIST"
-      ? ROLE_LABELS.RECEPTIONIST
-      : null;
+  const role =
+    account?.role && account.role in ROLE_LABELS
+      ? ROLE_LABELS[account.role as ActorRole]
+      : account?.accountType === "RECEPTIONIST"
+        ? ROLE_LABELS.RECEPTIONIST
+        : null;
   return (
     <>
       <Avatar className="size-8 rounded-lg">
@@ -51,9 +51,7 @@ function AccountSummary({
       <span className="grid flex-1 text-left leading-tight">
         {name ? (
           <>
-            <span className="truncate text-sm font-medium">
-              {name}
-            </span>
+            <span className="truncate text-sm font-medium">{name}</span>
             <span className="truncate text-xs text-muted-foreground">
               {role ?? "Nhân viên"}
             </span>
@@ -99,12 +97,7 @@ export function ReceptionAccountMenu({ onExit }: { onExit: () => void }) {
       <SidebarMenuItem>
         <DropdownMenu>
           <DropdownMenuTrigger
-            render={
-              <SidebarMenuButton
-                size="lg"
-                tooltip={accountName}
-              />
-            }
+            render={<SidebarMenuButton size="lg" tooltip={accountName} />}
           >
             <AccountSummary account={account} />
             <ChevronsUpDown className="ml-auto size-4" />

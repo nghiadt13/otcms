@@ -22,7 +22,9 @@ describe("MyReviewsPage", () => {
     );
     expect(await screen.findByText("Đang hiển thị")).toBeInTheDocument();
     expect(screen.getByText("Phòng khám phản hồi")).toBeInTheDocument();
-    expect(screen.queryByText("Nguyễn Thị Lan · Cha/Mẹ")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Nguyễn Thị Lan · Cha/Mẹ"),
+    ).not.toBeInTheDocument();
   });
 
   it("hai khối có tiêu đề cấp 2 riêng, không có khối nào trống khi có dữ liệu", async () => {
@@ -66,4 +68,7 @@ describe("MyReviewsPage", () => {
   });
 });
 
-vi.mock("@/lib/api/client", async () => await import("../api/reviewTestClient"));
+vi.mock(
+  "@/lib/api/client",
+  async () => await import("../api/reviewTestClient"),
+);

@@ -72,11 +72,21 @@ export async function listAssignedImagingUploadWork(
   );
 }
 
-export async function startImagingAcquisition(requestId: string, expectedVersion: number, idempotencyKey: string) {
-  return apiRequest(`/api/v1/imaging-requests/${encodeURIComponent(requestId)}/acquisition-starts`, {
-    method: "POST",
-    headers: { "Idempotency-Key": idempotencyKey, "X-Expected-Version": String(expectedVersion) },
-  });
+export async function startImagingAcquisition(
+  requestId: string,
+  expectedVersion: number,
+  idempotencyKey: string,
+) {
+  return apiRequest(
+    `/api/v1/imaging-requests/${encodeURIComponent(requestId)}/acquisition-starts`,
+    {
+      method: "POST",
+      headers: {
+        "Idempotency-Key": idempotencyKey,
+        "X-Expected-Version": String(expectedVersion),
+      },
+    },
+  );
 }
 
 /** Build one immutable multipart entity so a retry can reuse byte-identical request bytes. */
@@ -120,7 +130,8 @@ export async function uploadImagingStudy(
   if (!work.attemptId) {
     throw new ApiError(400, { code: "MSG-42" });
   }
-  const path = `/api/v1/imaging/requests/${encodeURIComponent(work.requestId)}/attempts/${encodeURIComponent(work.attemptId)}/ingest-operations` as const;
+  const path =
+    `/api/v1/imaging/requests/${encodeURIComponent(work.requestId)}/attempts/${encodeURIComponent(work.attemptId)}/ingest-operations` as const;
   const init: RequestInit = {
     method: "POST",
     headers: {
@@ -130,7 +141,11 @@ export async function uploadImagingStudy(
     body: submission.body,
   };
   return onProgress
-    ? apiRequestWithUploadProgress<ImagingOperationResponse>(path, init, onProgress)
+    ? apiRequestWithUploadProgress<ImagingOperationResponse>(
+        path,
+        init,
+        onProgress,
+      )
     : apiRequest<ImagingOperationResponse>(path, init);
 }
 
@@ -154,7 +169,11 @@ export async function getLatestImagingOperation(
     `/api/v1/imaging/requests/${encodeURIComponent(requestId)}/attempts/${encodeURIComponent(attemptId)}/ingest-operations` as const,
     { signal },
   );
-  return (linkedOnly ? operations.find((operation) => operation.state === "LINKED") : operations[0]) ?? null;
+  return (
+    (linkedOnly
+      ? operations.find((operation) => operation.state === "LINKED")
+      : operations[0]) ?? null
+  );
 }
 
 export async function sendImagingOperation(

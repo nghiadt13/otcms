@@ -35,9 +35,7 @@ export function PatientBookingPage({
     return (
       <BookingSignInPrompt
         nextPath={
-          preselect
-            ? bookingSlotHref(preselect)
-            : PATIENT_ROUTES.newAppointment
+          preselect ? bookingSlotHref(preselect) : PATIENT_ROUTES.newAppointment
         }
       />
     );

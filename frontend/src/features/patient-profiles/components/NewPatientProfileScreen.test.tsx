@@ -82,15 +82,23 @@ describe("NewPatientProfileScreen: thêm thành viên 3 bước", () => {
   it("tạo hồ sơ mới ngay, không yêu cầu OTP", async () => {
     const user = userEvent.setup();
     render(<NewPatientProfileScreen />);
-    vi.mocked(apiRequest).mockResolvedValueOnce({ result: "LINKED", profile: { patientProfileId: "new-profile" } });
+    vi.mocked(apiRequest).mockResolvedValueOnce({
+      result: "LINKED",
+      profile: { patientProfileId: "new-profile" },
+    });
     await fillInfoStep(user, { dob: "03042019", name: "Phạm Văn Hải" });
     await confirmRelationship(user);
-    expect(apiRequest).toHaveBeenCalledWith("/api/v1/me/dependents", expect.objectContaining({ method: "POST" }));
-    await waitFor(() => expect(nav.push).toHaveBeenCalledWith(
-      "/portal/profiles/new-profile",
-    ));
+    expect(apiRequest).toHaveBeenCalledWith(
+      "/api/v1/me/dependents",
+      expect.objectContaining({ method: "POST" }),
+    );
+    await waitFor(() =>
+      expect(nav.push).toHaveBeenCalledWith("/portal/profiles/new-profile"),
+    );
     expect(screen.queryByLabelText(/Mã OTP/)).toBeNull();
-    expect(toast.success).toHaveBeenCalledWith("Đã lưu thông tin hồ sơ bệnh nhân.");
+    expect(toast.success).toHaveBeenCalledWith(
+      "Đã lưu thông tin hồ sơ bệnh nhân.",
+    );
   });
 
   it("trùng hồ sơ không đủ điều kiện OTP chủ hồ sơ: hiện thông báo ra quầy, không chuyển trang", async () => {
@@ -111,7 +119,11 @@ describe("NewPatientProfileScreen: thêm thành viên 3 bước", () => {
     const user = userEvent.setup();
     render(<NewPatientProfileScreen />);
 
-    vi.mocked(apiRequest).mockResolvedValueOnce({ result: "OTP_SENT", linkId: PROFILE_MOCK_IDS.lan, maskedEmail: "b***@example.com" });
+    vi.mocked(apiRequest).mockResolvedValueOnce({
+      result: "OTP_SENT",
+      linkId: PROFILE_MOCK_IDS.lan,
+      maskedEmail: "b***@example.com",
+    });
     await fillInfoStep(user, {
       dob: "14031936",
       name: "Nguyễn Thị Lan",
@@ -124,7 +136,9 @@ describe("NewPatientProfileScreen: thêm thành viên 3 bước", () => {
     ).toBeInTheDocument();
     expect(nav.push).not.toHaveBeenCalled();
 
-    vi.mocked(apiRequest).mockResolvedValueOnce({ profile: { patientProfileId: PROFILE_MOCK_IDS.lan } });
+    vi.mocked(apiRequest).mockResolvedValueOnce({
+      profile: { patientProfileId: PROFILE_MOCK_IDS.lan },
+    });
     await submitOtp(user, "123456");
     expect(apiRequest).toHaveBeenCalledWith(
       `/api/v1/me/dependents/links/${PROFILE_MOCK_IDS.lan}/otp/verify`,

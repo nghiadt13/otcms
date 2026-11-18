@@ -35,7 +35,12 @@ beforeEach(async () => {
   apiRequest.mockReset();
   apiRequest.mockResolvedValueOnce({
     items: [
-      { id: "svc-paid", name: "Khám cột sống", description: null, price: 250000 },
+      {
+        id: "svc-paid",
+        name: "Khám cột sống",
+        description: null,
+        price: 250000,
+      },
       { id: "svc-free", name: "Khám miễn phí", description: null, price: 0 },
     ],
   });
@@ -50,7 +55,10 @@ describe("createAppointment (live): lịch đặt luôn đã xác nhận, phí t
     const booked = await createAppointment(request());
 
     expect(booked.status).toBe("BOOKED");
-    expect(booked.examFee).toEqual({ amount: 250000, status: "PENDING_PAYMENT" });
+    expect(booked.examFee).toEqual({
+      amount: 250000,
+      status: "PENDING_PAYMENT",
+    });
     expect(booked.patient.fullName).toBe("Nguyễn Văn An");
     expect(booked).not.toHaveProperty("paymentDeadline");
   });

@@ -35,11 +35,7 @@ export async function getPrescription(
   try {
     return map(await apiRequest<PrescriptionDto>(path(visitId), { signal }));
   } catch (error) {
-    if (
-      isApiError(error) &&
-      error.status === 404
-    )
-      return null;
+    if (isApiError(error) && error.status === 404) return null;
     throw error;
   }
 }

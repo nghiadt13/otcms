@@ -14,7 +14,10 @@ import {
 import { RecoveryErrorNotice } from "./RecoveryErrorNotice";
 import type { AuthMessageCode } from "../authMessages";
 import { focusFirstInvalidField } from "../focusFirstInvalidField";
-import { validatePasswordConfirmation, validateVerificationCode } from "../schema/authFieldRules";
+import {
+  validatePasswordConfirmation,
+  validateVerificationCode,
+} from "../schema/authFieldRules";
 import { toAuthMessageCode } from "../types/auth";
 import { AuthTextField } from "./AuthTextField";
 import { AuthAlert } from "./AuthAlert";
@@ -24,7 +27,13 @@ import { PasswordMatchHint } from "./PasswordMatchHint";
 import { PasswordPolicyHint } from "./PasswordPolicyHint";
 
 // UC02: OTP and the new password are submitted together.
-export function ResetPasswordForm({ email, onRestart }: { email: string; onRestart: () => void }) {
+export function ResetPasswordForm({
+  email,
+  onRestart,
+}: {
+  email: string;
+  onRestart: () => void;
+}) {
   const loginHref = "/login";
   const [failure, setFailure] = useState<RecoveryFailure | null>(null);
   const [otp, setOtp] = useState("");
@@ -32,12 +41,12 @@ export function ResetPasswordForm({ email, onRestart }: { email: string; onResta
   const [password, setPassword] = useState("");
   const [confirmation, setConfirmation] = useState("");
   const [confirmTouched, setConfirmTouched] = useState(false);
-  const [errors, setErrors] = useState<{ otp?: string; password?: string; confirm?: string }>(
-    {},
-  );
-  const [message, setMessage] = useState<AuthMessageCode | null>(
-    null,
-  );
+  const [errors, setErrors] = useState<{
+    otp?: string;
+    password?: string;
+    confirm?: string;
+  }>({});
+  const [message, setMessage] = useState<AuthMessageCode | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
 
@@ -92,10 +101,19 @@ export function ResetPasswordForm({ email, onRestart }: { email: string; onResta
     >
       {message && <AuthAlert code={message} tone="error" />}
       {failure === "invalid-token" && <AuthAlert code="MSG-77" tone="error" />}
-      {failure && failure !== "invalid-token" && failure !== "password-reuse" && (
-        <RecoveryErrorNotice reason={failure} />
-      )}
-      <AuthTextField label="Mã OTP" value={otp} onChange={(event) => setOtp(event.target.value)} error={errors.otp} required inputMode="numeric" />
+      {failure &&
+        failure !== "invalid-token" &&
+        failure !== "password-reuse" && (
+          <RecoveryErrorNotice reason={failure} />
+        )}
+      <AuthTextField
+        label="Mã OTP"
+        value={otp}
+        onChange={(event) => setOtp(event.target.value)}
+        error={errors.otp}
+        required
+        inputMode="numeric"
+      />
       <div>
         <PasswordField
           autoComplete="new-password"
@@ -140,7 +158,13 @@ export function ResetPasswordForm({ email, onRestart }: { email: string; onResta
       >
         Đặt mật khẩu mới
       </AuthSubmitButton>
-      <button type="button" onClick={onRestart} className="text-primary underline">Yêu cầu mã mới</button>
+      <button
+        type="button"
+        onClick={onRestart}
+        className="text-primary underline"
+      >
+        Yêu cầu mã mới
+      </button>
     </form>
   );
 }

@@ -151,9 +151,7 @@ describe("BookingFlow - chọn sẵn khung giờ từ link trang bác sĩ", () =
     await waitFor(() =>
       expect(toast.error).toHaveBeenCalledWith(MSG_24, expect.anything()),
     );
-    await user.click(
-      await screen.findByRole("button", { name: "Tiếp tục" }),
-    );
+    await user.click(await screen.findByRole("button", { name: "Tiếp tục" }));
     expect(
       await screen.findByRole("heading", {
         level: 2,

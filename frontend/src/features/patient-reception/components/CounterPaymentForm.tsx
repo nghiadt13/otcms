@@ -12,12 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { INVOICE_ITEM_STATUS_LABELS } from "@/lib/domain/billingLabels";
 import { formatAppMessage, messageFromError } from "@/lib/messages/appMessages";
-import {
-  FormModal,
-  InfoRow,
-  money,
-  SelectField,
-} from "./ReceptionUi";
+import { FormModal, InfoRow, money, SelectField } from "./ReceptionUi";
 import { CounterQrPanel } from "./CounterQrPanel";
 
 type Method = "CASH" | "COUNTER_QR";
@@ -130,7 +125,9 @@ export function CounterPaymentForm({
             <label className="flex items-start gap-3" key={item.id}>
               <Checkbox
                 checked={selected.includes(item.id)}
-                disabled={pending || item.status !== "PENDING" || qrAttempt !== null}
+                disabled={
+                  pending || item.status !== "PENDING" || qrAttempt !== null
+                }
                 onCheckedChange={(value) =>
                   setSelected((ids) =>
                     value === true
@@ -142,7 +139,8 @@ export function CounterPaymentForm({
               <span className="min-w-0 flex-1">
                 <span className="block break-words">{item.description}</span>
                 <span className="block text-sm text-muted-foreground">
-                  {money(item.lineTotal)} · {INVOICE_ITEM_STATUS_LABELS[item.status]}
+                  {money(item.lineTotal)} ·{" "}
+                  {INVOICE_ITEM_STATUS_LABELS[item.status]}
                 </span>
               </span>
             </label>

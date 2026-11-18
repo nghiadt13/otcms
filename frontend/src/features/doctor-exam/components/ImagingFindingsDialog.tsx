@@ -114,7 +114,9 @@ function FindingsBody({
         </div>
         {!done ? (
           <div className="space-y-1.5">
-            <Label htmlFor="findings-report">Tệp PDF báo cáo kết luận{needsPdf ? "" : " (tùy chọn)"}</Label>
+            <Label htmlFor="findings-report">
+              Tệp PDF báo cáo kết luận{needsPdf ? "" : " (tùy chọn)"}
+            </Label>
             <Input
               id="findings-report"
               type="file"
@@ -123,7 +125,9 @@ function FindingsBody({
               onChange={(e) => setReport(e.target.files?.[0] ?? null)}
             />
             <p className="text-xs text-muted-foreground">
-              {needsPdf ? "Cần đính kèm PDF khi hoàn tất kết luận." : "Có thể hoàn tất kết luận mà không đính kèm PDF."}
+              {needsPdf
+                ? "Cần đính kèm PDF khi hoàn tất kết luận."
+                : "Có thể hoàn tất kết luận mà không đính kèm PDF."}
             </p>
           </div>
         ) : null}

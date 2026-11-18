@@ -58,8 +58,7 @@ export interface DoctorExamQueueExtras {
 
 /** Dòng trong danh sách của bác sĩ (A2): thêm ngày sinh và giới tính của bệnh nhân. */
 export interface DoctorExamQueueItem
-  extends Omit<ExamQueueItem, "examStatus">,
-    DoctorExamQueueExtras {
+  extends Omit<ExamQueueItem, "examStatus">, DoctorExamQueueExtras {
   examStatus: DoctorExamQueueStatus;
   /** YYYY-MM-DD. */
   dateOfBirth: string | null;
@@ -68,8 +67,7 @@ export interface DoctorExamQueueItem
 
 /** A6 visit detail includes patient demographics for authorized doctors. */
 export interface DoctorExamQueueEntry
-  extends ExamQueueItem,
-    DoctorExamQueueExtras {
+  extends ExamQueueItem, DoctorExamQueueExtras {
   /** YYYY-MM-DD. */
   dateOfBirth: string | null;
   gender: "MALE" | "FEMALE" | "OTHER" | null;
@@ -117,7 +115,9 @@ export function listOnShiftDoctors(): Promise<{ items: OnShiftDoctor[] }> {
 }
 
 /** Một dòng hàng chờ theo mã lượt khám (A6). BE trả 404 khi lượt không có trong hàng chờ. */
-export function getExamQueueEntry(visitId: string): Promise<DoctorExamQueueEntry> {
+export function getExamQueueEntry(
+  visitId: string,
+): Promise<DoctorExamQueueEntry> {
   return apiRequest<DoctorExamQueueEntry>(
     `/api/v1/visits/${encodeURIComponent(visitId)}/exam-queue-entry`,
   );

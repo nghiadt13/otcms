@@ -19,7 +19,9 @@ const days: OpenDay[] = [
   { date: "2026-11-20", times: [] },
 ];
 
-const slot = (overrides: Partial<Parameters<typeof resolvePreselectedSlot>[1]>) => ({
+const slot = (
+  overrides: Partial<Parameters<typeof resolvePreselectedSlot>[1]>,
+) => ({
   serviceId: "svc-kham-tq",
   doctorId: "doc-1",
   date: "2026-11-19",

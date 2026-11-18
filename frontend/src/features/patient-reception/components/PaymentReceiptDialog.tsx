@@ -10,7 +10,10 @@ import {
 } from "@/lib/api/paymentRecordsApi";
 import { formatCurrencyVnd } from "@/lib/format/formatCurrencyVnd";
 import { formatDateTime } from "@/lib/format/formatDate";
-import { INVOICE_ITEM_STATUS_LABELS, paymentChannelLabel } from "@/lib/domain/billingLabels";
+import {
+  INVOICE_ITEM_STATUS_LABELS,
+  paymentChannelLabel,
+} from "@/lib/domain/billingLabels";
 import { formatAppMessage, messageFromError } from "@/lib/messages/appMessages";
 import { notifyError } from "@/lib/messages/notify";
 import { FormModal, InfoRow } from "./ReceptionUi";
@@ -39,7 +42,8 @@ export function PaymentReceiptDialog({
         if (!cancelled) setState({ receipt, error: "" });
       })
       .catch((cause: unknown) => {
-        if (!cancelled) setState({ receipt: null, error: messageFromError(cause) });
+        if (!cancelled)
+          setState({ receipt: null, error: messageFromError(cause) });
       });
     return () => {
       cancelled = true;
@@ -79,8 +83,12 @@ export function PaymentReceiptDialog({
             <InfoRow label="Số biên lai">{receipt.receiptNumber}</InfoRow>
             <InfoRow label="Bệnh nhân">{receipt.patientName}</InfoRow>
             <InfoRow label="Hóa đơn">{receipt.invoiceNumber}</InfoRow>
-            <InfoRow label="Thời điểm">{formatDateTime(receipt.confirmedAt)}</InfoRow>
-            <InfoRow label="Hình thức">{paymentChannelLabel(receipt.channel)}</InfoRow>
+            <InfoRow label="Thời điểm">
+              {formatDateTime(receipt.confirmedAt)}
+            </InfoRow>
+            <InfoRow label="Hình thức">
+              {paymentChannelLabel(receipt.channel)}
+            </InfoRow>
             {receipt.receivedByName ? (
               <InfoRow label="Người thu">{receipt.receivedByName}</InfoRow>
             ) : null}
@@ -92,7 +100,10 @@ export function PaymentReceiptDialog({
           </dl>
           <ul className="divide-y rounded-lg border">
             {receipt.items.map((line) => (
-              <li className="flex justify-between gap-4 px-3 py-2" key={line.itemId}>
+              <li
+                className="flex justify-between gap-4 px-3 py-2"
+                key={line.itemId}
+              >
                 <span className="min-w-0">
                   <span className="block break-words">{line.description}</span>
                   <span className="block text-xs text-muted-foreground">
@@ -107,7 +118,9 @@ export function PaymentReceiptDialog({
           </ul>
           <p className="flex justify-between font-semibold">
             <span>Tổng đã thu</span>
-            <span className="tabular-nums">{formatCurrencyVnd(receipt.amount)}</span>
+            <span className="tabular-nums">
+              {formatCurrencyVnd(receipt.amount)}
+            </span>
           </p>
           <p className="text-xs text-muted-foreground">
             {formatAppMessage("MSG-93")}

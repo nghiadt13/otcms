@@ -46,10 +46,7 @@ export function ReceiptView({ paymentId }: { paymentId: string }) {
       {loading ? (
         <Skeleton className="h-48 w-full" />
       ) : error ? (
-        <PaymentErrorBlock
-          message={error.message}
-          onRetry={reload}
-        />
+        <PaymentErrorBlock message={error.message} onRetry={reload} />
       ) : data ? (
         <div className="space-y-6">
           <dl className="grid gap-3 text-base sm:grid-cols-2">
@@ -90,7 +87,9 @@ export function ReceiptView({ paymentId }: { paymentId: string }) {
           </ul>
           <p className="flex justify-between gap-4 text-lg font-semibold">
             <span>Tổng đã thu</span>
-            <span className="tabular-nums">{formatCurrencyVnd(data.amount)}</span>
+            <span className="tabular-nums">
+              {formatCurrencyVnd(data.amount)}
+            </span>
           </p>
           <p className="text-sm text-muted-foreground">
             {formatAppMessage("MSG-93")}

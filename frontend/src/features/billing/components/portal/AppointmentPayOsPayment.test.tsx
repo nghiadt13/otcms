@@ -67,29 +67,60 @@ function route(handlers: {
   });
 }
 
-beforeEach(() => { request.mockReset(); window.sessionStorage.clear(); });
+beforeEach(() => {
+  request.mockReset();
+  window.sessionStorage.clear();
+});
 describe("AppointmentPayOsPayment", () => {
   it("hiện QR và chính sách không hoàn phí", async () => {
-    route({}); render(<AppointmentPayOsPayment appointmentId="apt-1" onFinish={() => {}} />);
+    route({});
+    render(
+      <AppointmentPayOsPayment appointmentId="apt-1" onFinish={() => {}} />,
+    );
     expect(await screen.findByLabelText("Quét mã QR")).toBeInTheDocument();
-    expect(screen.getByText(/Khoản đã thanh toán không được hoàn lại/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Khoản đã thanh toán không được hoàn lại/),
+    ).toBeInTheDocument();
   });
   it("hiện đã trả khi hóa đơn hết dư nợ", async () => {
-    route({ invoiceOfAppointment: () => invoice({ status: "PAID", outstandingBalance: 0, paidAmount: 500000 }) });
-    render(<AppointmentPayOsPayment appointmentId="apt-1" onFinish={() => {}} />);
-    expect(await screen.findByRole("button", { name: "Hoàn tất" })).toBeInTheDocument();
+    route({
+      invoiceOfAppointment: () =>
+        invoice({ status: "PAID", outstandingBalance: 0, paidAmount: 500000 }),
+    });
+    render(
+      <AppointmentPayOsPayment appointmentId="apt-1" onFinish={() => {}} />,
+    );
+    expect(
+      await screen.findByRole("button", { name: "Hoàn tất" }),
+    ).toBeInTheDocument();
   });
   it("hiện hóa đơn không thanh toán được khi VOID", async () => {
-    route({ invoiceById: () => invoice({ status: "VOID" }) }); render(<AppointmentPayOsPayment invoiceId="inv-1" />);
-    expect(await screen.findByText("Hóa đơn không còn thanh toán được")).toBeInTheDocument();
+    route({ invoiceById: () => invoice({ status: "VOID" }) });
+    render(<AppointmentPayOsPayment invoiceId="inv-1" />);
+    expect(
+      await screen.findByText("Hóa đơn không còn thanh toán được"),
+    ).toBeInTheDocument();
   });
   it("cho tạo mã mới khi attempt hết hạn", async () => {
-    route({ createAttempt: () => attempt("EXPIRED") }); render(<AppointmentPayOsPayment invoiceId="inv-1" />);
-    expect(await screen.findByRole("button", { name: "Tạo mã thanh toán mới" })).toBeInTheDocument();
+    route({ createAttempt: () => attempt("EXPIRED") });
+    render(<AppointmentPayOsPayment invoiceId="inv-1" />);
+    expect(
+      await screen.findByRole("button", { name: "Tạo mã thanh toán mới" }),
+    ).toBeInTheDocument();
   });
   it("phân biệt hóa đơn vừa trả khi tạo mã bị từ chối", async () => {
-    route({ createAttempt: () => { throw notPayable(); }, invoiceById: () => invoice({ status: "PAID", outstandingBalance: 0, paidAmount: 500000 }) });
-    render(<AppointmentPayOsPayment appointmentId="apt-1" onFinish={() => {}} />);
-    expect(await screen.findByRole("button", { name: "Hoàn tất" })).toBeInTheDocument();
+    route({
+      createAttempt: () => {
+        throw notPayable();
+      },
+      invoiceById: () =>
+        invoice({ status: "PAID", outstandingBalance: 0, paidAmount: 500000 }),
+    });
+    render(
+      <AppointmentPayOsPayment appointmentId="apt-1" onFinish={() => {}} />,
+    );
+    expect(
+      await screen.findByRole("button", { name: "Hoàn tất" }),
+    ).toBeInTheDocument();
   });
 });

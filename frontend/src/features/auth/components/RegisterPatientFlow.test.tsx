@@ -105,7 +105,9 @@ describe("RegisterPatientFlow", () => {
     await user.type(screen.getByLabelText(/Mã xác minh/), "123456");
     await user.click(screen.getByRole("button", { name: "Xác minh" }));
 
-    await waitFor(() => expect(replace).toHaveBeenCalledWith("/login?registered=1"));
+    await waitFor(() =>
+      expect(replace).toHaveBeenCalledWith("/login?registered=1"),
+    );
     expect(screen.queryByText("Bước 3/3")).toBeNull();
     expect(fetchMock).toHaveBeenCalledWith(
       "http://localhost:8080/api/auth/patient/register",

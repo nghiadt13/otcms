@@ -288,9 +288,8 @@ export function AdminDoctorScheduleLive() {
             {doctor?.fullName}:{" "}
             {confirm &&
               `${formatDateTime(confirm.startsAt)} – ${formatTime(confirm.endsAt)}`}
-            .{" "}
-            Giờ nhận lịch trong ca này sẽ được tính lại. Backend sẽ chặn nếu có
-            lịch hẹn hoặc lượt khám bị ảnh hưởng.
+            . Giờ nhận lịch trong ca này sẽ được tính lại. Backend sẽ chặn nếu
+            có lịch hẹn hoặc lượt khám bị ảnh hưởng.
             {error && (
               <span role="alert" className="mt-2 block text-destructive">
                 {error}

@@ -64,7 +64,9 @@ export function PrescriptionDocumentView({
             </div>
             <div>
               <dt className="text-muted-foreground">Mã bệnh nhân</dt>
-              <dd className="tabular-nums">{patient.patientCode || "Chưa cập nhật"}</dd>
+              <dd className="tabular-nums">
+                {patient.patientCode || "Chưa cập nhật"}
+              </dd>
             </div>
             <div className="sm:col-span-2">
               <dt className="text-muted-foreground">Chẩn đoán</dt>

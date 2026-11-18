@@ -176,7 +176,9 @@ describe("UC33", () => {
     );
   });
   it("maps an INCOMPLETE visit to INCOMPLETE instead of assuming COMPLETED", async () => {
-    request.mockResolvedValue(page([{ ...old, status: "INCOMPLETE", examination: null }]));
+    request.mockResolvedValue(
+      page([{ ...old, status: "INCOMPLETE", examination: null }]),
+    );
     expect((await api.listPastVisits("current"))[0].status).toBe("INCOMPLETE");
   });
   it("missing optional data stays null/empty", async () => {

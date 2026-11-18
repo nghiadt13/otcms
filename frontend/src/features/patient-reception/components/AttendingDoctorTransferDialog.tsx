@@ -50,7 +50,9 @@ export function AttendingDoctorTransferDialog({
   /** Đổi lỗi: tải lại hàng nhưng giữ hộp thoại để chọn lại. */
   onFailed: () => void;
 }) {
-  const [options, setOptions] = useState<{ value: string; label: string }[]>([]);
+  const [options, setOptions] = useState<{ value: string; label: string }[]>(
+    [],
+  );
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [doctorProfileId, setDoctorProfileId] = useState("");
@@ -63,7 +65,8 @@ export function AttendingDoctorTransferDialog({
     let active = true;
     listWalkInSuggestions()
       .then((page) => {
-        if (active) setOptions(onDutyDoctorOptions(page.items, currentDoctorProfileId));
+        if (active)
+          setOptions(onDutyDoctorOptions(page.items, currentDoctorProfileId));
       })
       .catch((cause: unknown) => {
         if (active) setLoadError(messageFromError(cause));
@@ -149,7 +152,11 @@ export function AttendingDoctorTransferDialog({
           onClose={onClose}
           label="Xác nhận đổi"
           disabled={
-            saving || loading || !!loadError || options.length === 0 || !doctorProfileId
+            saving ||
+            loading ||
+            !!loadError ||
+            options.length === 0 ||
+            !doctorProfileId
           }
         />
       </form>

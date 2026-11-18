@@ -51,7 +51,10 @@ export function QueueNowServingScreen({ roomId }: { roomId: string }) {
           Chưa có số nào được gọi.
         </p>
       ) : (
-        <ul aria-label="Số đang gọi" className="flex flex-wrap justify-center gap-4">
+        <ul
+          aria-label="Số đang gọi"
+          className="flex flex-wrap justify-center gap-4"
+        >
           {numbers.map((number) => (
             <li
               key={number}

@@ -9,7 +9,8 @@ export const passwordPolicy = [
   {
     id: "maximum",
     label: "Tối đa 64 ký tự và 72 byte UTF-8",
-    test: (v: string) => Array.from(v).length <= 64 && new TextEncoder().encode(v).length <= 72,
+    test: (v: string) =>
+      Array.from(v).length <= 64 && new TextEncoder().encode(v).length <= 72,
   },
   {
     id: "letter",

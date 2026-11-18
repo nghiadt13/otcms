@@ -33,7 +33,9 @@ export type WalkInSuggestion = {
 };
 
 export function listWalkInSuggestions() {
-  return apiRequest<{ items: WalkInSuggestion[] }>("/api/v1/reception/walk-in-suggestions");
+  return apiRequest<{ items: WalkInSuggestion[] }>(
+    "/api/v1/reception/walk-in-suggestions",
+  );
 }
 
 /** Tạo lượt walk-in: bác sĩ phải đang trong ca và dịch vụ phải loại khám (A4). */

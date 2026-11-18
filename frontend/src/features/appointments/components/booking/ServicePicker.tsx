@@ -73,17 +73,34 @@ export function ServicePicker({
             className={`flex items-start gap-3 ${sizes.row}`}
           >
             <RadioGroupItem id={id} value={service.id} />
-            <Label htmlFor={id} className="sr-only">{service.name}</Label>
+            <Label htmlFor={id} className="sr-only">
+              {service.name}
+            </Label>
             <div className="grid min-w-0 flex-1 gap-1">
-              <button type="button" className={`${sizes.strong} text-left`} aria-expanded={expandedId === service.id}
+              <button
+                type="button"
+                className={`${sizes.strong} text-left`}
+                aria-expanded={expandedId === service.id}
                 aria-controls={`${id}-details`}
-                onClick={() => { if (value !== service.id) onChange(service.id); setExpandedId((current) => current === service.id ? null : service.id); }}>
+                onClick={() => {
+                  if (value !== service.id) onChange(service.id);
+                  setExpandedId((current) =>
+                    current === service.id ? null : service.id,
+                  );
+                }}
+              >
                 {service.name}
               </button>
               {expandedId === service.id ? (
                 <div id={`${id}-details`} className="grid gap-1">
-                  <span className={`${sizes.body} tabular-nums`}>{formatCurrencyVnd(service.price)}</span>
-                  {service.bookingDetails ? <span className={`${sizes.detail} whitespace-pre-line`}>{service.bookingDetails}</span> : null}
+                  <span className={`${sizes.body} tabular-nums`}>
+                    {formatCurrencyVnd(service.price)}
+                  </span>
+                  {service.bookingDetails ? (
+                    <span className={`${sizes.detail} whitespace-pre-line`}>
+                      {service.bookingDetails}
+                    </span>
+                  ) : null}
                 </div>
               ) : null}
             </div>

@@ -1,7 +1,10 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-vi.mock("@/lib/auth/changePasswordApi", async (original) => ({ ...(await original<typeof import("@/lib/auth/changePasswordApi")>()), changeFirstLoginPassword: vi.fn() }));
+vi.mock("@/lib/auth/changePasswordApi", async (original) => ({
+  ...(await original<typeof import("@/lib/auth/changePasswordApi")>()),
+  changeFirstLoginPassword: vi.fn(),
+}));
 import { PatientChangePasswordPage } from "./PatientChangePasswordPage";
 
 const { replace } = vi.hoisted(() => ({ replace: vi.fn() }));
@@ -21,10 +24,7 @@ describe("PatientChangePasswordPage", () => {
     const user = userEvent.setup();
     render(<PatientChangePasswordPage />);
 
-    await user.type(
-      screen.getByLabelText("Mật khẩu hiện tại"),
-      "MatKhauCu1",
-    );
+    await user.type(screen.getByLabelText("Mật khẩu hiện tại"), "MatKhauCu1");
     await user.type(screen.getByLabelText("Mật khẩu mới"), "MatKhauMoi2");
     await user.type(
       screen.getByLabelText("Nhập lại mật khẩu mới"),
@@ -32,8 +32,6 @@ describe("PatientChangePasswordPage", () => {
     );
     await user.click(screen.getByRole("button", { name: "Đổi mật khẩu" }));
 
-    await waitFor(() =>
-      expect(replace).toHaveBeenCalledWith("/login"),
-    );
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/login"));
   });
 });

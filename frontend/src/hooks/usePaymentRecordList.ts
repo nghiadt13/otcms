@@ -23,9 +23,11 @@ function defaultRange(now: Date) {
  * (màn admin). Truyền thì dùng đúng khoảng và người khám đó, thiếu ngày nghĩa là không giới hạn
  * (màn bệnh nhân lấy từ URL). Từ > đến: không gọi mạng, báo MSG-54 (`rangeError`).
  */
-export function usePaymentRecordList(
-  options?: { from?: string; to?: string; patientId?: string },
-) {
+export function usePaymentRecordList(options?: {
+  from?: string;
+  to?: string;
+  patientId?: string;
+}) {
   const [initialFilters] = useState<PaymentRecordFilters>(() =>
     options
       ? {

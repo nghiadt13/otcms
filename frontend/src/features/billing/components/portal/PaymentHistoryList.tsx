@@ -9,7 +9,10 @@ import { PATIENT_ROUTES } from "@/lib/routes/patientRoutes";
 import { usePaymentRecordList } from "@/hooks/usePaymentRecordList";
 import { paymentChannelLabel } from "@/lib/domain/billingLabels";
 import { PaymentErrorBlock } from "./PaymentErrorBlock";
-import { LIST_FRAME_CLASS, LIST_LINK_CLASS } from "./patientBillingPresentation";
+import {
+  LIST_FRAME_CLASS,
+  LIST_LINK_CLASS,
+} from "./patientBillingPresentation";
 
 /**
  * Các giao dịch đã thanh toán thành công của một người khám (GET /api/v1/payments). Mỗi dòng mở
@@ -70,7 +73,10 @@ export function PaymentHistoryList({
         ))}
       </ul>
       {history.totalPages > 1 ? (
-        <nav aria-label="Phân trang lịch sử" className="flex items-center justify-between gap-3">
+        <nav
+          aria-label="Phân trang lịch sử"
+          className="flex items-center justify-between gap-3"
+        >
           <button
             className={publicButtonClass("secondary")}
             disabled={history.page === 0}

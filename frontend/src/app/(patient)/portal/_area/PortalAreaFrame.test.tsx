@@ -3,7 +3,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { resetMockAccountState } from "@/features/my-account/api/myAccountMockStore";
 vi.mock("@/features/my-account/api/myAccountApi", async () => {
   const store = await import("@/features/my-account/api/myAccountMockStore");
-  return { getMyAccount: vi.fn(async () => store.accountSnapshot(store.currentMockAccountState().account)) };
+  return {
+    getMyAccount: vi.fn(async () =>
+      store.accountSnapshot(store.currentMockAccountState().account),
+    ),
+  };
 });
 import { MOCK_PATIENT_ACCOUNT } from "@/features/my-account/api/myAccountMockData";
 import { resetPatientProfileMock } from "@/features/patient-profiles/api/patientProfileMockStore";
@@ -68,7 +72,9 @@ describe("PortalAreaFrame", () => {
       "aria-current",
       "page",
     );
-    expect(screen.getByRole("link", { name: "Thông tin cá nhân" })).not.toHaveAttribute("aria-current");
+    expect(
+      screen.getByRole("link", { name: "Thông tin cá nhân" }),
+    ).not.toHaveAttribute("aria-current");
     expect(screen.queryByRole("link", { name: "Thông báo" })).toBeNull();
   });
 });

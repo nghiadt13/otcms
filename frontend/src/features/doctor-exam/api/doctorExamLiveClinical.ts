@@ -86,7 +86,9 @@ export function examinationPayload(input: ExaminationInput) {
   return {
     ...input,
     injurySide: input.injurySide || null,
-    treatmentDirections: input.treatmentDirections?.length ? input.treatmentDirections : null,
+    treatmentDirections: input.treatmentDirections?.length
+      ? input.treatmentDirections
+      : null,
   };
 }
 

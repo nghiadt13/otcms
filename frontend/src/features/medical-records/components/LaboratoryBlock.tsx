@@ -21,16 +21,19 @@ function FlagMark({ flag }: { flag: LabFlag | null }) {
  * Cùng một DOM, chỉ đổi bố cục bằng class, nên không cuộn ngang và không lặp chữ.
  */
 function LabRow({ line }: { line: LabLine }) {
-  const classification = line.abnormal === undefined
-    ? null
-    : line.abnormal === null
-      ? "Chưa xác định"
-      : line.abnormal
-        ? "Bất thường"
-        : "Bình thường";
+  const classification =
+    line.abnormal === undefined
+      ? null
+      : line.abnormal === null
+        ? "Chưa xác định"
+        : line.abnormal
+          ? "Bất thường"
+          : "Bình thường";
   return (
     <li className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-3 gap-y-1 px-3 py-3 sm:px-4 md:grid-cols-[minmax(0,1.6fr)_minmax(0,1.1fr)_minmax(0,0.9fr)_minmax(0,1.4fr)] md:gap-x-4">
-      <p className="min-w-0 break-words text-base font-medium md:order-1">{line.indicator}</p>
+      <p className="min-w-0 break-words text-base font-medium md:order-1">
+        {line.indicator}
+      </p>
       <span className="justify-self-end md:order-3 md:justify-self-start">
         {classification ? (
           <span
@@ -44,7 +47,9 @@ function LabRow({ line }: { line: LabLine }) {
           >
             {classification}
           </span>
-        ) : <FlagMark flag={line.flag ?? null} />}
+        ) : (
+          <FlagMark flag={line.flag ?? null} />
+        )}
       </span>
       <p className="min-w-0 text-base tabular-nums md:order-2">
         <span className="font-semibold">{line.value}</span>{" "}

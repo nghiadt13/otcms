@@ -196,7 +196,9 @@ export function QueueScreen() {
                 />
               </div>
               <QueueRoomPanel
-                roomLabel={rooms.find((room) => room.id === roomId)?.label ?? ""}
+                roomLabel={
+                  rooms.find((room) => room.id === roomId)?.label ?? ""
+                }
                 entries={entries}
                 itemOf={itemOf}
                 busy={busy}
@@ -252,7 +254,9 @@ export function QueueScreen() {
         <AttendingDoctorTransferDialog
           visitId={transferring.visitId}
           patientName={itemOf(transferring.visitId)?.patientName ?? "—"}
-          currentDoctorProfileId={itemOf(transferring.visitId)?.doctorProfileId ?? ""}
+          currentDoctorProfileId={
+            itemOf(transferring.visitId)?.doctorProfileId ?? ""
+          }
           onClose={() => setTransferring(null)}
           onSaved={() => {
             setTransferring(null);

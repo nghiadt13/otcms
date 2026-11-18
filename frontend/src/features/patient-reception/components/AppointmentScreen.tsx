@@ -66,7 +66,10 @@ function AppointmentDetails({
 }: {
   appointment: ReceptionAppointment;
   onClose: () => void;
-  Actions?: ComponentType<{ appointment: ReceptionAppointment; onChanged: () => void }>;
+  Actions?: ComponentType<{
+    appointment: ReceptionAppointment;
+    onChanged: () => void;
+  }>;
   onChanged: () => void;
 }) {
   return (
@@ -89,7 +92,9 @@ function AppointmentDetails({
           <Status value={badgeKey(a.status)} />
         </InfoRow>
       </dl>
-      {a.status === "CONFIRMED" && Actions && <Actions appointment={a} onChanged={onChanged} />}
+      {a.status === "CONFIRMED" && Actions && (
+        <Actions appointment={a} onChanged={onChanged} />
+      )}
       {canCheckIn(a) && (
         <div className="flex justify-end">
           <RouteLink href={checkInHref(a)}>Tiếp nhận</RouteLink>
@@ -99,7 +104,14 @@ function AppointmentDetails({
   );
 }
 
-export function AppointmentScreen({ Actions }: { Actions?: ComponentType<{ appointment: ReceptionAppointment; onChanged: () => void }> } = {}) {
+export function AppointmentScreen({
+  Actions,
+}: {
+  Actions?: ComponentType<{
+    appointment: ReceptionAppointment;
+    onChanged: () => void;
+  }>;
+} = {}) {
   const params = useSearchParams();
   const rawPatient = params.get("patientId") ?? "";
   // Only a real profile id can filter; legacy mock ids would be rejected by the API.
@@ -250,7 +262,10 @@ export function AppointmentScreen({ Actions }: { Actions?: ComponentType<{ appoi
           appointment={detail}
           onClose={() => setDetail(null)}
           Actions={Actions}
-          onChanged={() => { setDetail(null); setReloadKey((value) => value + 1); }}
+          onChanged={() => {
+            setDetail(null);
+            setReloadKey((value) => value + 1);
+          }}
         />
       )}
       {booking && (

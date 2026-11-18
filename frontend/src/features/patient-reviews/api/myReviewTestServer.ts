@@ -102,7 +102,8 @@ export async function listEligibleVisits(
   for (const visit of myReviewStore.visits) {
     if (!visit.completed || reviewed.has(visit.visitId)) continue;
     const profile = linkedProfileOf(visit.patientCode);
-    if (profile?.relationship === "SELF") items.push(toReviewable(visit, profile));
+    if (profile?.relationship === "SELF")
+      items.push(toReviewable(visit, profile));
   }
   items.sort(
     (a, b) =>
@@ -122,7 +123,8 @@ export async function listMyReviews(
   for (const record of myReviewStore.reviews) {
     const visit = findVisit(record.visitId);
     const profile = visit ? linkedProfileOf(visit.patientCode) : undefined;
-    if (visit && profile?.relationship === "SELF") items.push(toMyReview(record, visit, profile));
+    if (visit && profile?.relationship === "SELF")
+      items.push(toMyReview(record, visit, profile));
   }
   items.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   return clone({ items });
@@ -144,7 +146,8 @@ export async function submitReview(
   const visit = findVisit(request.visitId);
   const profile = visit ? linkedProfileOf(visit.patientCode) : undefined;
   // Không lộ lượt của người khác: thiếu hoặc không thuộc tài khoản đều trả 403.
-  if (!visit || !profile || profile.relationship !== "SELF") mockFail(403, "MSG-56");
+  if (!visit || !profile || profile.relationship !== "SELF")
+    mockFail(403, "MSG-56");
   if (!visit.completed) mockFail(409, "MSG-56");
   if (myReviewStore.reviews.some((record) => record.visitId === visit.visitId))
     mockFail(409, "MSG-56");

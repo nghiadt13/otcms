@@ -482,56 +482,67 @@ describe("chỉ định cận lâm sàng và kết luận hình ảnh", () => {
   it("gửi chỉ định xét nghiệm tới endpoint laboratory-requests", async () => {
     request.mockResolvedValue({ roundNumber: 1, orders: [] });
     await doctorLiveApi.submitOrders("v", [item("crp")], catalog, "key", true);
-    expect(request.mock.calls.map(([path]) => path)).toContain("/api/v1/visits/v/laboratory-requests");
+    expect(request.mock.calls.map(([path]) => path)).toContain(
+      "/api/v1/visits/v/laboratory-requests",
+    );
   });
 
   it("danh sách chỉ định ghép trạng thái yêu cầu ảnh với lịch sử kết luận", async () => {
     request.mockImplementation(async (path: string) =>
-      path.endsWith("/laboratory-orders") ? { items: [] } :
-      path.startsWith("/api/v1/imaging-history")
-        ? {
-            items: [
-              {
-                requestId: "r1",
-                studyRef: "uid-1",
-                findingsText: "Rách",
-                findingsVersion: 1,
-                reportId: "rep",
-              },
-            ],
-          }
-        : {
-            items: [
-              {
-                orderId: "o1",
-                orderCode: "CD1",
-                serviceName: "MRI gối",
-                orderStatus: "RESULTS_AVAILABLE",
-                paymentStatus: "PAID",
-                diagnostic: { requestId: "r1", status: "REVIEWED", version: 5 },
-              },
-              {
-                orderId: "o2",
-                orderCode: "CD2",
-                serviceName: "X-quang",
-                orderStatus: "ORDERED",
-                paymentStatus: "PAID",
-                diagnostic: { requestId: "r2", status: "PENDING", version: 1 },
-              },
-              {
-                orderId: "o3",
-                orderCode: "CD3",
-                serviceName: "CT",
-                orderStatus: "CANCELLED",
-                paymentStatus: "PAID",
-                diagnostic: {
-                  requestId: "r3",
-                  status: "CANCELLED",
-                  version: 2,
+      path.endsWith("/laboratory-orders")
+        ? { items: [] }
+        : path.startsWith("/api/v1/imaging-history")
+          ? {
+              items: [
+                {
+                  requestId: "r1",
+                  studyRef: "uid-1",
+                  findingsText: "Rách",
+                  findingsVersion: 1,
+                  reportId: "rep",
                 },
-              },
-            ],
-          },
+              ],
+            }
+          : {
+              items: [
+                {
+                  orderId: "o1",
+                  orderCode: "CD1",
+                  serviceName: "MRI gối",
+                  orderStatus: "RESULTS_AVAILABLE",
+                  paymentStatus: "PAID",
+                  diagnostic: {
+                    requestId: "r1",
+                    status: "REVIEWED",
+                    version: 5,
+                  },
+                },
+                {
+                  orderId: "o2",
+                  orderCode: "CD2",
+                  serviceName: "X-quang",
+                  orderStatus: "ORDERED",
+                  paymentStatus: "PAID",
+                  diagnostic: {
+                    requestId: "r2",
+                    status: "PENDING",
+                    version: 1,
+                  },
+                },
+                {
+                  orderId: "o3",
+                  orderCode: "CD3",
+                  serviceName: "CT",
+                  orderStatus: "CANCELLED",
+                  paymentStatus: "PAID",
+                  diagnostic: {
+                    requestId: "r3",
+                    status: "CANCELLED",
+                    version: 2,
+                  },
+                },
+              ],
+            },
     );
     const orders = await doctorLiveApi.listOrders("v");
     expect(orders.map((o) => o.status)).toEqual([
@@ -618,7 +629,12 @@ describe("chỉ định cận lâm sàng và kết luận hình ảnh", () => {
       return undefined;
     });
     const order = {
-      imaging: { requestId: "r1", studyRef: "uid-1", reviewed: true, version: 4 },
+      imaging: {
+        requestId: "r1",
+        studyRef: "uid-1",
+        reviewed: true,
+        version: 4,
+      },
     } as never;
     const result = await doctorLiveApi.completeFindings(order, "Rách", null);
     expect(calls.filter((c) => !c.startsWith("GET"))).toEqual([
@@ -638,21 +654,22 @@ describe("chỉ định cận lâm sàng và kết luận hình ảnh", () => {
 
   it("chỉ yêu cầu ảnh còn PENDING mới hủy được", async () => {
     request.mockImplementation(async (path: string) =>
-      path.endsWith("/laboratory-orders") ? { items: [] } :
-      path.startsWith("/api/v1/imaging-history")
+      path.endsWith("/laboratory-orders")
         ? { items: [] }
-        : {
-            items: ["PENDING", "IN_PROGRESS", "RESULT_AVAILABLE"].map(
-              (status, i) => ({
-                orderId: "o" + i,
-                orderCode: "CD" + i,
-                serviceName: "X-quang",
-                paymentStatus: "PAID",
-                orderStatus: "ORDERED",
-                diagnostic: { requestId: "r" + i, status, version: 1 },
-              }),
-            ),
-          },
+        : path.startsWith("/api/v1/imaging-history")
+          ? { items: [] }
+          : {
+              items: ["PENDING", "IN_PROGRESS", "RESULT_AVAILABLE"].map(
+                (status, i) => ({
+                  orderId: "o" + i,
+                  orderCode: "CD" + i,
+                  serviceName: "X-quang",
+                  paymentStatus: "PAID",
+                  orderStatus: "ORDERED",
+                  diagnostic: { requestId: "r" + i, status, version: 1 },
+                }),
+              ),
+            },
     );
     expect(
       (await doctorLiveApi.listOrders("v")).map((o) => o.cancellable),
@@ -773,8 +790,22 @@ describe("hàng chờ bác sĩ: đã gọi hoặc vắng, tuổi từ BE và ch�
     route({
       "/api/v1/doctor/exam-queue": {
         items: [
-          queueRow({ visitId: "called-1", examStatus: "CALLED", queueNumber: 1, appointmentId: null, source: "WALK_IN", dateOfBirth: null }),
-          queueRow({ visitId: "absent-1", examStatus: "ABSENT", queueNumber: 2, appointmentId: null, source: "WALK_IN", dateOfBirth: null }),
+          queueRow({
+            visitId: "called-1",
+            examStatus: "CALLED",
+            queueNumber: 1,
+            appointmentId: null,
+            source: "WALK_IN",
+            dateOfBirth: null,
+          }),
+          queueRow({
+            visitId: "absent-1",
+            examStatus: "ABSENT",
+            queueNumber: 2,
+            appointmentId: null,
+            source: "WALK_IN",
+            dateOfBirth: null,
+          }),
           queueRow({
             visitId: "await-1",
             examStatus: "AWAITING_CONCLUSION",

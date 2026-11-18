@@ -66,5 +66,7 @@ export async function listPublicDoctorOpenTimes(
       );
     }),
   );
-  return groupOpenTimesByDoctor(responses.flatMap((response) => response.slots));
+  return groupOpenTimesByDoctor(
+    responses.flatMap((response) => response.slots),
+  );
 }

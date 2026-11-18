@@ -34,7 +34,8 @@ export function PatientBillingPanel({
         if (!cancelled) setState({ billing, error: "" });
       })
       .catch((cause: unknown) => {
-        if (!cancelled) setState({ billing: null, error: messageFromError(cause) });
+        if (!cancelled)
+          setState({ billing: null, error: messageFromError(cause) });
       });
     return () => {
       cancelled = true;
@@ -42,19 +43,38 @@ export function PatientBillingPanel({
   }, [profileId]);
 
   const { billing, error } = state;
-  if (error) return <p role="alert" className="text-sm text-destructive">{error}</p>;
-  if (billing === null) return <p role="status" className="text-sm">Đang tải hóa đơn…</p>;
+  if (error)
+    return (
+      <p role="alert" className="text-sm text-destructive">
+        {error}
+      </p>
+    );
+  if (billing === null)
+    return (
+      <p role="status" className="text-sm">
+        Đang tải hóa đơn…
+      </p>
+    );
   if (billing.invoices.items.length === 0)
-    return <p className="text-sm text-muted-foreground">Bệnh nhân chưa có hóa đơn nào.</p>;
+    return (
+      <p className="text-sm text-muted-foreground">
+        Bệnh nhân chưa có hóa đơn nào.
+      </p>
+    );
 
   return (
     <section className="space-y-4" aria-label="Hóa đơn của bệnh nhân">
       {billing.invoices.items.map((invoice) => {
         const payable = invoice.items.some((item) => item.status === "PENDING");
         return (
-          <article className="space-y-3 rounded-lg border bg-card p-4" key={invoice.id}>
+          <article
+            className="space-y-3 rounded-lg border bg-card p-4"
+            key={invoice.id}
+          >
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <p className="font-medium tabular-nums">{invoice.invoiceNumber}</p>
+              <p className="font-medium tabular-nums">
+                {invoice.invoiceNumber}
+              </p>
               <p className="text-sm">
                 Còn phải thu{" "}
                 <span className="font-semibold tabular-nums">
@@ -64,8 +84,13 @@ export function PatientBillingPanel({
             </div>
             <ul className="divide-y">
               {invoice.items.map((item) => (
-                <li className="flex flex-wrap justify-between gap-2 py-2" key={item.id}>
-                  <span className="min-w-0 break-words">{item.description}</span>
+                <li
+                  className="flex flex-wrap justify-between gap-2 py-2"
+                  key={item.id}
+                >
+                  <span className="min-w-0 break-words">
+                    {item.description}
+                  </span>
                   <span className="flex shrink-0 gap-3 text-sm tabular-nums">
                     {formatCurrencyVnd(item.lineTotal)}
                     <span className="text-muted-foreground">

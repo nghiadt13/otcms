@@ -43,8 +43,12 @@ export function AvailabilityTab({ url, lookup }: AvailabilityTabProps) {
   const [serviceError, setServiceError] = useState("");
   useEffect(() => {
     const controller = new AbortController();
-    listBookableServices(controller.signal).then((result) => setServices(result.items))
-      .catch((error: unknown) => { if (!controller.signal.aborted) setServiceError(messageFromError(error)); });
+    listBookableServices(controller.signal)
+      .then((result) => setServices(result.items))
+      .catch((error: unknown) => {
+        if (!controller.signal.aborted)
+          setServiceError(messageFromError(error));
+      });
     return () => controller.abort();
   }, []);
   const doctor = doctorEdit ? doctorEdit.value : state.doctorId;
@@ -56,7 +60,10 @@ export function AvailabilityTab({ url, lookup }: AvailabilityTabProps) {
   const notBookable = urlDoctor !== undefined && !urlDoctor.bookable;
   const rangeError = rangeErrorCode(range.from, range.to);
   const enabled =
-    Boolean(state.doctorId && serviceId) && !rangeError && !notBookable && !lookup.loading;
+    Boolean(state.doctorId && serviceId) &&
+    !rangeError &&
+    !notBookable &&
+    !lookup.loading;
   const avail = useDoctorAvailability(
     state.doctorId,
     serviceId,
@@ -119,7 +126,22 @@ export function AvailabilityTab({ url, lookup }: AvailabilityTabProps) {
   return (
     <div className="grid gap-4">
       <div className="flex flex-wrap items-end gap-3">
-        <label className="grid gap-1.5">Dịch vụ<select className="rounded-md border p-2" value={serviceId} onChange={(event) => setServiceId(event.target.value)}><option value="">Chọn dịch vụ</option>{services.map((service) => <option key={service.id} value={service.id}>{service.name}</option>)}</select>{serviceError && <span role="alert">{serviceError}</span>}</label>
+        <label className="grid gap-1.5">
+          Dịch vụ
+          <select
+            className="rounded-md border p-2"
+            value={serviceId}
+            onChange={(event) => setServiceId(event.target.value)}
+          >
+            <option value="">Chọn dịch vụ</option>
+            {services.map((service) => (
+              <option key={service.id} value={service.id}>
+                {service.name}
+              </option>
+            ))}
+          </select>
+          {serviceError && <span role="alert">{serviceError}</span>}
+        </label>
         <div className="grid w-full gap-1.5 sm:w-auto">
           <Label htmlFor={`${id}-doctor`}>Bác sĩ</Label>
           <DoctorCombobox

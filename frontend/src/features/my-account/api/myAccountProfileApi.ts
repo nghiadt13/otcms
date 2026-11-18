@@ -2,7 +2,9 @@ import { updateCurrentPatientDisplayName } from "@/lib/auth/currentPatientAccoun
 import { getMyAccount } from "./myAccountApi";
 import type { MyAccount } from "../types/myAccount";
 
-export async function updateMyDisplayName(displayName: string): Promise<MyAccount> {
+export async function updateMyDisplayName(
+  displayName: string,
+): Promise<MyAccount> {
   await updateCurrentPatientDisplayName(displayName);
   return getMyAccount();
 }

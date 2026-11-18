@@ -4,18 +4,16 @@ import { resetCurrentAccountCache } from "@/lib/auth/currentAccountApi";
 import { AuthRequestError } from "../types/auth";
 
 export type RecoveryFailure =
-  | "invalid-token"
-  | "password-reuse"
-  | "validation"
-  | "rate-limit"
-  | "service";
+  "invalid-token" | "password-reuse" | "validation" | "rate-limit" | "service";
 
 export class PasswordRecoveryError extends AuthRequestError {
   constructor(public readonly reason: RecoveryFailure) {
     super(
-      reason === "invalid-token" ? "MSG-77" : reason === "password-reuse" || reason === "validation"
-        ? "MSG-08"
-        : "MSG-04",
+      reason === "invalid-token"
+        ? "MSG-77"
+        : reason === "password-reuse" || reason === "validation"
+          ? "MSG-08"
+          : "MSG-04",
     );
   }
 }
@@ -62,7 +60,11 @@ async function recoveryRequest(
     )
       continue;
     if (response.status === 429) throw new PasswordRecoveryError("rate-limit");
-    if (code === "PASSWORD_RESET_TOKEN_INVALID" || code === "MSG-77" || code === "OTP_INVALID_OR_EXPIRED")
+    if (
+      code === "PASSWORD_RESET_TOKEN_INVALID" ||
+      code === "MSG-77" ||
+      code === "OTP_INVALID_OR_EXPIRED"
+    )
       throw new PasswordRecoveryError("invalid-token");
     if (code === "PASSWORD_REUSE_NOT_ALLOWED")
       throw new PasswordRecoveryError("password-reuse");
@@ -83,7 +85,11 @@ export async function resetPassword(
   newPassword: string,
 ): Promise<void> {
   if (!otp.trim()) throw new PasswordRecoveryError("invalid-token");
-  await recoveryRequest("reset-password", { email: email.trim(), otp, newPassword });
+  await recoveryRequest("reset-password", {
+    email: email.trim(),
+    otp,
+    newPassword,
+  });
   // Backend revoked refresh sessions; discard the browser's cached identity too.
   clearLocalAuthSession();
   resetCurrentAccountCache();

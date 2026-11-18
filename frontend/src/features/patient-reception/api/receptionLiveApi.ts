@@ -12,7 +12,10 @@ export type ReceptionReturnCandidate = {
   roomLabel: string;
 };
 
-export function getReceptionReturnCandidate(patientProfileId: string, signal?: AbortSignal) {
+export function getReceptionReturnCandidate(
+  patientProfileId: string,
+  signal?: AbortSignal,
+) {
   return apiRequest<ReceptionReturnCandidate | undefined>(
     `/api/v1/reception/patients/${encodeURIComponent(patientProfileId)}/return-candidate`,
     { signal },
@@ -20,10 +23,20 @@ export function getReceptionReturnCandidate(patientProfileId: string, signal?: A
 }
 
 export function returnReceptionVisit(visitId: string) {
-  return apiRequest<{ messageCode: string; data: { visitId: string; status: "WAITING"; queueNumber: number; doctorProfileId: string; doctorName: string; roomId: string; roomLabel: string } }>(
-    `/api/v1/visits/${encodeURIComponent(visitId)}/returns`,
-    { method: "POST" },
-  );
+  return apiRequest<{
+    messageCode: string;
+    data: {
+      visitId: string;
+      status: "WAITING";
+      queueNumber: number;
+      doctorProfileId: string;
+      doctorName: string;
+      roomId: string;
+      roomLabel: string;
+    };
+  }>(`/api/v1/visits/${encodeURIComponent(visitId)}/returns`, {
+    method: "POST",
+  });
 }
 
 export type ReceptionPatient = {
@@ -42,25 +55,48 @@ export type ReceptionPatientDetail = ReceptionPatient & {
   version: number;
 };
 export type ReceptionPatientInput = {
-  fullName: string; phone: string; phoneOwnerType: "PATIENT" | "GUARDIAN";
-  dateOfBirth: string; gender: "MALE" | "FEMALE" | "OTHER";
-  address: string; nationalId: string | null;
+  fullName: string;
+  phone: string;
+  phoneOwnerType: "PATIENT" | "GUARDIAN";
+  dateOfBirth: string;
+  gender: "MALE" | "FEMALE" | "OTHER";
+  address: string;
+  nationalId: string | null;
   identityDocumentType: "CCCD" | "PERSONAL_ID" | "PASSPORT" | null;
 };
 export function getReceptionPatient(id: string) {
-  return apiRequest<ReceptionPatientDetail>(`/api/v1/patient-profiles/${encodeURIComponent(id)}`);
+  return apiRequest<ReceptionPatientDetail>(
+    `/api/v1/patient-profiles/${encodeURIComponent(id)}`,
+  );
 }
-export function matchReceptionPatients(phone: string, dateOfBirth: string, fullName?: string) {
+export function matchReceptionPatients(
+  phone: string,
+  dateOfBirth: string,
+  fullName?: string,
+) {
   const params = toQueryString({ phone, dateOfBirth, fullName });
-  return apiRequest<{ items: ReceptionPatient[] }>(`/api/v1/patient-profiles/matches${params}`);
+  return apiRequest<{ items: ReceptionPatient[] }>(
+    `/api/v1/patient-profiles/matches${params}`,
+  );
 }
 export function createPatientProfile(input: ReceptionPatientInput) {
-  return apiRequest<ReceptionPatient>("/api/v1/patient-profiles", { method: "POST", body: JSON.stringify(input) });
-}
-export function updatePatientProfile(id: string, input: ReceptionPatientInput, version: number) {
-  return apiRequest<ReceptionPatientDetail>(`/api/v1/patient-profiles/${encodeURIComponent(id)}`, {
-    method: "PUT", body: JSON.stringify({ ...input, version }),
+  return apiRequest<ReceptionPatient>("/api/v1/patient-profiles", {
+    method: "POST",
+    body: JSON.stringify(input),
   });
+}
+export function updatePatientProfile(
+  id: string,
+  input: ReceptionPatientInput,
+  version: number,
+) {
+  return apiRequest<ReceptionPatientDetail>(
+    `/api/v1/patient-profiles/${encodeURIComponent(id)}`,
+    {
+      method: "PUT",
+      body: JSON.stringify({ ...input, version }),
+    },
+  );
 }
 
 export type ReceptionAppointment = {
@@ -231,23 +267,52 @@ export function reassignReceptionAppointment(input: {
   );
 }
 
-export function getReceptionRescheduleAvailability(appointmentId: string, from: string, to: string, signal?: AbortSignal) {
+export function getReceptionRescheduleAvailability(
+  appointmentId: string,
+  from: string,
+  to: string,
+  signal?: AbortSignal,
+) {
   return apiRequest<{ slots: ReceptionAvailabilitySlot[] }>(
     `/api/v1/appointments/${encodeURIComponent(appointmentId)}/reschedule-availability${toQueryString({ from, to })}`,
     { signal },
   );
 }
 
-export function rescheduleReceptionAppointment(input: { appointmentId: string; doctorId: string; startTime: string; reason: string }) {
-  return apiRequest<ReceptionAppointment>(`/api/v1/appointments/${encodeURIComponent(input.appointmentId)}/reschedule`, {
-    method: "PATCH", body: JSON.stringify({ doctorId: input.doctorId, startTime: input.startTime, reason: input.reason.trim() }),
-  });
+export function rescheduleReceptionAppointment(input: {
+  appointmentId: string;
+  doctorId: string;
+  startTime: string;
+  reason: string;
+}) {
+  return apiRequest<ReceptionAppointment>(
+    `/api/v1/appointments/${encodeURIComponent(input.appointmentId)}/reschedule`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({
+        doctorId: input.doctorId,
+        startTime: input.startTime,
+        reason: input.reason.trim(),
+      }),
+    },
+  );
 }
 
-export function cancelReceptionAppointment(input: { appointmentId: string; reason: string; clinicFault: boolean }) {
-  return apiRequest<ReceptionAppointment>(`/api/v1/appointments/${encodeURIComponent(input.appointmentId)}/cancel`, {
-    method: "POST", body: JSON.stringify({ reason: input.reason.trim(), clinicFault: input.clinicFault }),
-  });
+export function cancelReceptionAppointment(input: {
+  appointmentId: string;
+  reason: string;
+  clinicFault: boolean;
+}) {
+  return apiRequest<ReceptionAppointment>(
+    `/api/v1/appointments/${encodeURIComponent(input.appointmentId)}/cancel`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        reason: input.reason.trim(),
+        clinicFault: input.clinicFault,
+      }),
+    },
+  );
 }
 
 export function listReceptionArrivals(
@@ -347,17 +412,34 @@ export type ImagingQueueRoom = {
 };
 export type ImagingRoomAssignment = { serviceOrderId: string; roomId: string };
 
-export async function listLaboratoryRooms(orderId: string, signal?: AbortSignal): Promise<ImagingQueueRoom[]> {
-  const result = await apiRequest<{ items: { id: string; code: string; label: string }[] }>(
-    `/api/v1/reception/clinical-service-orders/${encodeURIComponent(orderId)}/eligible-laboratory-rooms`, { signal },
+export async function listLaboratoryRooms(
+  orderId: string,
+  signal?: AbortSignal,
+): Promise<ImagingQueueRoom[]> {
+  const result = await apiRequest<{
+    items: { id: string; code: string; label: string }[];
+  }>(
+    `/api/v1/reception/clinical-service-orders/${encodeURIComponent(orderId)}/eligible-laboratory-rooms`,
+    { signal },
   );
-  return result.items.map((room) => ({ roomId: room.id, roomCode: room.code, displayLabel: room.label }));
+  return result.items.map((room) => ({
+    roomId: room.id,
+    roomCode: room.code,
+    displayLabel: room.label,
+  }));
 }
 
-export async function dispatchLaboratoryOrder(orderId: string, roomId: string): Promise<void> {
-  await apiRequest(`/api/v1/reception/clinical-service-orders/${encodeURIComponent(orderId)}/laboratory-dispatch`, {
-    method: "POST", body: JSON.stringify({ roomId }),
-  });
+export async function dispatchLaboratoryOrder(
+  orderId: string,
+  roomId: string,
+): Promise<void> {
+  await apiRequest(
+    `/api/v1/reception/clinical-service-orders/${encodeURIComponent(orderId)}/laboratory-dispatch`,
+    {
+      method: "POST",
+      body: JSON.stringify({ roomId }),
+    },
+  );
 }
 export async function listClinicalImagingRoomOptions(
   serviceOrderIds: string[],

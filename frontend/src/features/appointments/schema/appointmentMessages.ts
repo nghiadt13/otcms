@@ -11,6 +11,4 @@ export function messageFromRangeError(
 export const reassignSuccessText = (doctorName: string) =>
   `Đã chuyển lịch hẹn sang bác sĩ ${doctorName}.`;
 
-export const AF1_LINES = [
-  "Không có bác sĩ nào có ca vào giờ này.",
-] as const;
+export const AF1_LINES = ["Không có bác sĩ nào có ca vào giờ này."] as const;

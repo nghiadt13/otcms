@@ -87,7 +87,9 @@ describe("password recovery API contract", () => {
     ).rejects.toMatchObject({ reason: "service" });
   });
   it("rejects a missing token without making a network request", async () => {
-    await expect(resetPassword("user@example.test", "", "new-password-123")).rejects.toMatchObject({
+    await expect(
+      resetPassword("user@example.test", "", "new-password-123"),
+    ).rejects.toMatchObject({
       reason: "invalid-token",
     });
     expect(fetchMock).not.toHaveBeenCalled();

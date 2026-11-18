@@ -18,7 +18,8 @@ import { ExaminationResultView } from "./ExaminationResultView";
  */
 export function ResultDetailScreen({ visitId }: { visitId: string }) {
   const router = useRouter();
-  const { result, loading, error, sheetError, reload } = useExaminationResult(visitId);
+  const { result, loading, error, sheetError, reload } =
+    useExaminationResult(visitId);
   const code = isApiError(error) ? error.code : undefined;
   const notAccessible = code === "MSG-40" || code === "MSG-41";
   const stale = code === "MSG-42";
@@ -38,10 +39,17 @@ export function ResultDetailScreen({ visitId }: { visitId: string }) {
     <>
       <ExaminationResultView result={result} />
       {sheetError ? (
-        <section aria-label="Phiếu kết quả" className="mt-6 space-y-3 rounded-lg border bg-card px-6 py-5">
+        <section
+          aria-label="Phiếu kết quả"
+          className="mt-6 space-y-3 rounded-lg border bg-card px-6 py-5"
+        >
           <p className="font-medium">Phiếu kết quả</p>
-          <p role="alert" className="text-destructive">{messageFromError(sheetError)}</p>
-          <Button variant="outline" onClick={reload}>Thử lại</Button>
+          <p role="alert" className="text-destructive">
+            {messageFromError(sheetError)}
+          </p>
+          <Button variant="outline" onClick={reload}>
+            Thử lại
+          </Button>
         </section>
       ) : null}
     </>

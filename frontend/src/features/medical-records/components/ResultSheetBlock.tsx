@@ -19,8 +19,7 @@ export function ResultSheetBlock({ sheets }: { sheets: ResultSheetVersion[] }) {
       </p>
     );
   const ordered = [...sheets].sort(
-    (a, b) =>
-      b.issuedAt.localeCompare(a.issuedAt) || b.version - a.version,
+    (a, b) => b.issuedAt.localeCompare(a.issuedAt) || b.version - a.version,
   );
   return (
     <ul className="divide-y rounded-lg border">

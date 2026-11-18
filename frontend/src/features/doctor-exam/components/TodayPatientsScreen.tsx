@@ -55,9 +55,8 @@ function PatientCell({ patient }: { patient: TodayPatient }) {
         <ul className="mt-1 space-y-0.5 text-xs">
           {patient.serviceOrders.map((order) => (
             <li key={order.id} className="break-words">
-              {order.serviceName} ·{" "}
-              {CLINICAL_ORDER_STATUS_LABELS[order.status]} ·{" "}
-              {CLINICAL_ORDER_PAYMENT_LABELS[order.paymentStatus]}
+              {order.serviceName} · {CLINICAL_ORDER_STATUS_LABELS[order.status]}{" "}
+              · {CLINICAL_ORDER_PAYMENT_LABELS[order.paymentStatus]}
             </li>
           ))}
         </ul>

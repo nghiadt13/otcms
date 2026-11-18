@@ -56,7 +56,10 @@ it("UC07 E1 displays invalid input beneath the username field", async () => {
   await user.click(screen.getByRole("button", { name: "Tạo tài khoản Admin" }));
   await user.type(screen.getByLabelText("Tên đăng nhập"), "invalid");
   request.mockRejectedValueOnce(new ApiError(400));
-  await user.type(screen.getByLabelText("Mật khẩu khởi tạo"), "FixturePassword123!");
+  await user.type(
+    screen.getByLabelText("Mật khẩu khởi tạo"),
+    "FixturePassword123!",
+  );
   await user.click(screen.getByRole("button", { name: "Tạo tài khoản" }));
   await screen.findByText(
     "Thông tin không hợp lệ. Vui lòng kiểm tra và nhập lại.",
@@ -84,12 +87,18 @@ it("creates through the owner API, shows credential once and removes it on close
   render(<AdministratorManagement />);
   await user.click(screen.getByRole("button", { name: "Tạo tài khoản Admin" }));
   await user.type(screen.getByLabelText("Tên đăng nhập"), "admin.new");
-  await user.type(screen.getByLabelText("Mật khẩu khởi tạo"), "FixturePassword123!");
+  await user.type(
+    screen.getByLabelText("Mật khẩu khởi tạo"),
+    "FixturePassword123!",
+  );
   await user.click(screen.getByRole("button", { name: "Tạo tài khoản" }));
   expect(await screen.findByText("FixturePassword123!")).toBeInTheDocument();
   expect(request).toHaveBeenCalledWith("/api/v1/owner/administrator-accounts", {
     method: "POST",
-    body: JSON.stringify({ username: "admin.new", initialPassword: "FixturePassword123!" }),
+    body: JSON.stringify({
+      username: "admin.new",
+      initialPassword: "FixturePassword123!",
+    }),
   });
   await user.click(screen.getByRole("button", { name: "Đã lưu, đóng" }));
   await waitFor(() =>
@@ -160,7 +169,10 @@ it("keeps duplicate username errors in the form without showing a password", asy
   );
   await user.click(screen.getByRole("button", { name: "Tạo tài khoản Admin" }));
   await user.type(screen.getByLabelText("Tên đăng nhập"), "taken");
-  await user.type(screen.getByLabelText("Mật khẩu khởi tạo"), "FixturePassword123!");
+  await user.type(
+    screen.getByLabelText("Mật khẩu khởi tạo"),
+    "FixturePassword123!",
+  );
   await user.click(screen.getByRole("button", { name: "Tạo tài khoản" }));
   expect(await screen.findByRole("alert")).toHaveTextContent(
     "Tên đăng nhập này đã được sử dụng",

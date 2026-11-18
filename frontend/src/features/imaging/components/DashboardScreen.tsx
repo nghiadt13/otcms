@@ -33,10 +33,14 @@ export function DashboardScreen() {
 
   const load = useCallback(async (signal?: AbortSignal) => {
     try {
-      const rooms = (await listImagingRooms(signal)).filter((item) => item.availability === "Hoạt động");
+      const rooms = (await listImagingRooms(signal)).filter(
+        (item) => item.availability === "Hoạt động",
+      );
       const first = rooms[0] ?? null;
       const [worklist, assigned] = await Promise.all([
-        first ? getServiceWorklist(first.id, signal) : Promise.resolve({ roomId: "", entries: [] }),
+        first
+          ? getServiceWorklist(first.id, signal)
+          : Promise.resolve({ roomId: "", entries: [] }),
         listAssignedImagingUploadWork(0, 100, signal),
       ]);
       if (signal?.aborted) return;
@@ -70,28 +74,56 @@ export function DashboardScreen() {
   }
 
   const waiting = entries.filter((entry) => entry.status === "WAITING");
-  const serving = entries.find((entry) => entry.status === "CALLED" || entry.status === "IN_EXAMINATION");
+  const serving = entries.find(
+    (entry) => entry.status === "CALLED" || entry.status === "IN_EXAMINATION",
+  );
   const absent = entries.filter((entry) => entry.status === "ABSENT");
   const today = new Date().toDateString();
   const resultsToday = work.filter(
-    (item) => item.status === "RESULT_AVAILABLE" && new Date(item.updatedAt).toDateString() === today,
+    (item) =>
+      item.status === "RESULT_AVAILABLE" &&
+      new Date(item.updatedAt).toDateString() === today,
   ).length;
   const stats = [
-    { label: "Bệnh nhân đang chờ", value: waiting.length, icon: "queue", tone: "blue", sub: "Trong hàng đợi của phòng" },
+    {
+      label: "Bệnh nhân đang chờ",
+      value: waiting.length,
+      icon: "queue",
+      tone: "blue",
+      sub: "Trong hàng đợi của phòng",
+    },
     {
       label: "Đang phục vụ",
       value: serving ? 1 : 0,
       icon: "user",
       tone: "purple",
-      sub: serving?.queueNumber != null ? `Số ${serving.queueNumber}` : "Sẵn sàng gọi bệnh nhân",
+      sub:
+        serving?.queueNumber != null
+          ? `Số ${serving.queueNumber}`
+          : "Sẵn sàng gọi bệnh nhân",
     },
-    { label: "Chỉ định có kết quả hôm nay", value: resultsToday, icon: "check", tone: "green", sub: "Study đã được gửi" },
-    { label: "Bệnh nhân vắng mặt", value: absent.length, icon: "clock", tone: "amber", sub: "Xem lại trong danh sách chờ" },
+    {
+      label: "Chỉ định có kết quả hôm nay",
+      value: resultsToday,
+      icon: "check",
+      tone: "green",
+      sub: "Study đã được gửi",
+    },
+    {
+      label: "Bệnh nhân vắng mặt",
+      value: absent.length,
+      icon: "clock",
+      tone: "amber",
+      sub: "Xem lại trong danh sách chờ",
+    },
   ];
 
   return (
     <>
-      <PageHeading title="Tổng quan công việc" description="Theo dõi công việc và tiếp nhận bệnh nhân tại phòng của bạn.">
+      <PageHeading
+        title="Tổng quan công việc"
+        description="Theo dõi công việc và tiếp nhận bệnh nhân tại phòng của bạn."
+      >
         <ActionLink href="/imaging/worklist">
           <Icon name="queue" />
           Mở danh sách chờ
@@ -117,7 +149,12 @@ export function DashboardScreen() {
               </p>
             </div>
             <div className="im-hero-actions">
-              <Button variant="outline" className="im-button im-button-white" disabled={!room} onClick={() => void callNext()}>
+              <Button
+                variant="outline"
+                className="im-button im-button-white"
+                disabled={!room}
+                onClick={() => void callNext()}
+              >
                 <Icon name="user" />
                 Gọi bệnh nhân tiếp theo
               </Button>
@@ -158,13 +195,25 @@ export function DashboardScreen() {
                     <Link
                       className="im-patient-row"
                       key={entry.entryId}
-                      href={entry.orders[0] ? `/imaging/orders/${entry.orders[0].orderId}` : "/imaging/worklist"}
+                      href={
+                        entry.orders[0]
+                          ? `/imaging/orders/${entry.orders[0].orderId}`
+                          : "/imaging/worklist"
+                      }
                     >
-                      <span className="im-queue-number">{entry.queueNumber}</span>
+                      <span className="im-queue-number">
+                        {entry.queueNumber}
+                      </span>
                       <PatientAvatar name={entry.patient.fullName ?? "?"} />
                       <div className="im-patient-row-info">
-                        <strong>{entry.patient.fullName ?? "Không rõ tên"}</strong>
-                        <span>{entry.orders.map((order) => order.serviceName).join(", ")}</span>
+                        <strong>
+                          {entry.patient.fullName ?? "Không rõ tên"}
+                        </strong>
+                        <span>
+                          {entry.orders
+                            .map((order) => order.serviceName)
+                            .join(", ")}
+                        </span>
                       </div>
                       <Badge tone="neutral">Đang chờ</Badge>
                       <Icon name="arrow" size={16} />
@@ -172,15 +221,33 @@ export function DashboardScreen() {
                   ))}
                 </div>
               ) : (
-                <Empty title="Hàng đợi đã trống" description="Bạn đã xử lý hết bệnh nhân đang chờ tại phòng." />
+                <Empty
+                  title="Hàng đợi đã trống"
+                  description="Bạn đã xử lý hết bệnh nhân đang chờ tại phòng."
+                />
               )}
             </Panel>
             <Panel title="Công việc của bạn" subtitle="Truy cập nhanh">
               <div className="im-quick-links">
                 {[
-                  ["/imaging/orders", "upload", "Tải và gửi study DICOM", "Chọn chỉ định, đối chiếu và gửi bộ ảnh"],
-                  ["/imaging/status", "activity", "Theo dõi trạng thái", "Kiểm tra các chỉ định của phòng"],
-                  ["/imaging/rooms", "room", "Thông tin phòng dịch vụ", "Loại phòng và tình trạng hoạt động"],
+                  [
+                    "/imaging/orders",
+                    "upload",
+                    "Tải và gửi study DICOM",
+                    "Chọn chỉ định, đối chiếu và gửi bộ ảnh",
+                  ],
+                  [
+                    "/imaging/status",
+                    "activity",
+                    "Theo dõi trạng thái",
+                    "Kiểm tra các chỉ định của phòng",
+                  ],
+                  [
+                    "/imaging/rooms",
+                    "room",
+                    "Thông tin phòng dịch vụ",
+                    "Loại phòng và tình trạng hoạt động",
+                  ],
                 ].map(([href, icon, title, sub]) => (
                   <Link key={href} href={href}>
                     <span className="im-quick-icon">

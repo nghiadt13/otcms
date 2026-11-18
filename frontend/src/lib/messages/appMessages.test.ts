@@ -36,8 +36,13 @@ describe("formatAppMessage", () => {
 
   it("MSG-83 đúng nguyên văn R3 với {patientCode} và {change}", () => {
     expect(
-      formatAppMessage("MSG-83", { patientCode: "BN-001", change: "chuyển sang bác sĩ Minh" }),
-    ).toBe("Lượt khám của bệnh nhân BN-001 có thay đổi: chuyển sang bác sĩ Minh. Vui lòng xem lại.");
+      formatAppMessage("MSG-83", {
+        patientCode: "BN-001",
+        change: "chuyển sang bác sĩ Minh",
+      }),
+    ).toBe(
+      "Lượt khám của bệnh nhân BN-001 có thay đổi: chuyển sang bác sĩ Minh. Vui lòng xem lại.",
+    );
   });
 
   it("MSG-11 thay {accountRole} và {username} theo R3", () => {
@@ -95,8 +100,12 @@ describe("formatAppMessage", () => {
 
 describe("messageFromError", () => {
   it("uses the HTTP status when no business code is provided", () => {
-    expect(messageFromError(new ApiError(404))).toBe(formatAppMessage("MSG-41"));
-    expect(messageFromError(new ApiError(403))).toBe(formatAppMessage("MSG-40"));
+    expect(messageFromError(new ApiError(404))).toBe(
+      formatAppMessage("MSG-41"),
+    );
+    expect(messageFromError(new ApiError(403))).toBe(
+      formatAppMessage("MSG-40"),
+    );
   });
   it("ApiError có mã MSG trong bảng dùng câu của bảng", () => {
     const error = new ApiError(422, { code: "MSG-17" });
@@ -152,12 +161,16 @@ describe("mã MSG khu bệnh nhân", () => {
 });
 
 it("formats MSG-78 with the patient name", () => {
-  expect(formatAppMessage("MSG-78", { date: "17/11/2026", patientName: "An" })).toBe(
+  expect(
+    formatAppMessage("MSG-78", { date: "17/11/2026", patientName: "An" }),
+  ).toBe(
     "Kết quả khám ngày 17/11/2026 của An đã được công bố. Vui lòng đăng nhập để xem.",
   );
 });
 it("formats MSG-79 with the patient name", () => {
-  expect(formatAppMessage("MSG-79", { date: "17/11/2026", patientName: "An" })).toBe(
+  expect(
+    formatAppMessage("MSG-79", { date: "17/11/2026", patientName: "An" }),
+  ).toBe(
     "Phiếu kết quả khám ngày 17/11/2026 của An đã có phiên bản mới. Vui lòng xem lại.",
   );
 });

@@ -20,11 +20,18 @@ const doctor = (id: string, fullName: string): PublicDoctor => ({
   biography: "",
   consultationInfo: "",
 });
-const DOCTORS = [doctor("doc-1", "Trần Văn Minh"), doctor("doc-2", "Lê Thị Hà")];
+const DOCTORS = [
+  doctor("doc-1", "Trần Văn Minh"),
+  doctor("doc-2", "Lê Thị Hà"),
+];
 
 const tomorrow = addDays(todayIsoDate(), 1);
 const slots = [
-  { serviceId: "svc-a", doctorId: "doc-1", startAt: vnInstant(tomorrow, "09:30") },
+  {
+    serviceId: "svc-a",
+    doctorId: "doc-1",
+    startAt: vnInstant(tomorrow, "09:30"),
+  },
 ];
 
 beforeEach(() => {

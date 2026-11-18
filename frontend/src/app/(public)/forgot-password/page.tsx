@@ -13,10 +13,7 @@ export default function ForgotPasswordPage() {
       footer={
         <>
           Nhớ mật khẩu rồi?{" "}
-          <Link
-            className={authLinkClass}
-            href="/login"
-          >
+          <Link className={authLinkClass} href="/login">
             Đăng nhập
           </Link>
         </>

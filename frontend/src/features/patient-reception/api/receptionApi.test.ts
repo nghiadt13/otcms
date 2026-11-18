@@ -5,10 +5,7 @@ import {
   loadReception,
   resetReceptionMock,
 } from "./receptionApi";
-import {
-  availableDoctors,
-  withinReturnWindow,
-} from "../schema/receptionRules";
+import { availableDoctors, withinReturnWindow } from "../schema/receptionRules";
 import type { ReceptionCommand, ReceptionState } from "../types";
 
 const DAY = "2026-10-24";

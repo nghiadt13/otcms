@@ -58,7 +58,10 @@ function checkInResult(
 }
 
 /** Mở khung quét, dán mã rồi bấm xác nhận. */
-async function submitQr(user: ReturnType<typeof userEvent.setup>, proof: string) {
+async function submitQr(
+  user: ReturnType<typeof userEvent.setup>,
+  proof: string,
+) {
   await user.click(screen.getByRole("button", { name: "Quét QR tại quầy" }));
   await user.type(screen.getByLabelText("Mã QR"), proof);
   await user.click(screen.getByRole("button", { name: "Xác nhận mã QR" }));
@@ -98,7 +101,12 @@ describe("PatientArrivalQrCheckIn: check-in thành công", () => {
       checkInResult({ queueNumber: 7, roomLabel: null }),
     );
     const user = userEvent.setup();
-    render(<PatientArrivalQrCheckIn appointment={appointment} onRecorded={vi.fn()} />);
+    render(
+      <PatientArrivalQrCheckIn
+        appointment={appointment}
+        onRecorded={vi.fn()}
+      />,
+    );
 
     await submitQr(user, "qr-proof-2");
 
@@ -166,7 +174,12 @@ describe("PatientArrivalQrCheckIn: check-in bị từ chối", () => {
   it("lỗi không rõ mã: báo MSG-04", async () => {
     apiRequest.mockRejectedValueOnce(new ApiError(500, {}));
     const user = userEvent.setup();
-    render(<PatientArrivalQrCheckIn appointment={appointment} onRecorded={vi.fn()} />);
+    render(
+      <PatientArrivalQrCheckIn
+        appointment={appointment}
+        onRecorded={vi.fn()}
+      />,
+    );
 
     await submitQr(user, "qr-proof-4");
 

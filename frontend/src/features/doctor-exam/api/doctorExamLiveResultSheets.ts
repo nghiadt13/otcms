@@ -28,10 +28,17 @@ type AmendableResultDto = {
   resultSheetVersion: number | null;
 };
 
-const root = (visitId: string) => `/api/v1/visits/${encodeURIComponent(visitId)}` as const;
+const root = (visitId: string) =>
+  `/api/v1/visits/${encodeURIComponent(visitId)}` as const;
 
-export async function listResultSheets(visitId: string, signal?: AbortSignal): Promise<ResultSheet[]> {
-  const result = await apiRequest<{ items: ResultSheetDto[] }>(`${root(visitId)}/result-sheets`, { signal });
+export async function listResultSheets(
+  visitId: string,
+  signal?: AbortSignal,
+): Promise<ResultSheet[]> {
+  const result = await apiRequest<{ items: ResultSheetDto[] }>(
+    `${root(visitId)}/result-sheets`,
+    { signal },
+  );
   return result.items.map((sheet) => ({
     documentId: sheet.documentId,
     version: sheet.version,
@@ -41,19 +48,36 @@ export async function listResultSheets(visitId: string, signal?: AbortSignal): P
 }
 
 export async function regenerateResultSheet(visitId: string): Promise<void> {
-  await apiRequest(`${root(visitId)}/result-sheets/regeneration`, { method: "POST" });
+  await apiRequest(`${root(visitId)}/result-sheets/regeneration`, {
+    method: "POST",
+  });
 }
 
 /** UC38 bước 2: giá trị hiện hành của lượt đã hoàn tất (GET khám/lời dặn thường không dùng được sau khi đóng lượt). */
 export async function getAmendableResult(
   visitId: string,
   signal?: AbortSignal,
-): Promise<{ examination: Examination; advice: Advice; prescriptionItems: PrescriptionLine[]; resultSheetVersion: number | null }> {
-  const dto = await apiRequest<AmendableResultDto>(`${root(visitId)}/amendments/current`, { signal });
+): Promise<{
+  examination: Examination;
+  advice: Advice;
+  prescriptionItems: PrescriptionLine[];
+  resultSheetVersion: number | null;
+}> {
+  const dto = await apiRequest<AmendableResultDto>(
+    `${root(visitId)}/amendments/current`,
+    { signal },
+  );
   return {
     examination: toExamination(dto.examination),
     advice: toAdvice(dto.advice),
-    prescriptionItems: [...dto.prescriptionItems].sort((a, b) => a.lineNumber - b.lineNumber).map(({ medicine, dose, frequency, usage }) => ({ medicine, dose, frequency, usage })),
+    prescriptionItems: [...dto.prescriptionItems]
+      .sort((a, b) => a.lineNumber - b.lineNumber)
+      .map(({ medicine, dose, frequency, usage }) => ({
+        medicine,
+        dose,
+        frequency,
+        usage,
+      })),
     resultSheetVersion: dto.resultSheetVersion,
   };
 }
@@ -68,7 +92,8 @@ export async function amendResult(
     method: "POST",
     body: JSON.stringify({
       ...changes,
-      examination: changes.examination && examinationPayload(changes.examination),
+      examination:
+        changes.examination && examinationPayload(changes.examination),
       reason,
     }),
   });

@@ -39,14 +39,28 @@ beforeEach(() => {
 
 describe("createPatientProfile", () => {
   it("gửi thông tin tới API và nhận hồ sơ mới đã liên kết", async () => {
-    vi.mocked(apiRequest).mockResolvedValueOnce({ result: "LINKED", profile: { patientProfileId: "new-id" } });
-    await expect(createPatientProfile(NEW_PROFILE)).resolves.toEqual({ status: "LINKED", profileId: "new-id" });
-    expect(apiRequest).toHaveBeenCalledWith("/api/v1/me/dependents", expect.objectContaining({ method: "POST" }));
+    vi.mocked(apiRequest).mockResolvedValueOnce({
+      result: "LINKED",
+      profile: { patientProfileId: "new-id" },
+    });
+    await expect(createPatientProfile(NEW_PROFILE)).resolves.toEqual({
+      status: "LINKED",
+      profileId: "new-id",
+    });
+    expect(apiRequest).toHaveBeenCalledWith(
+      "/api/v1/me/dependents",
+      expect.objectContaining({ method: "POST" }),
+    );
   });
 
   it("trả lỗi xác thực từ API", async () => {
-    vi.mocked(apiRequest).mockRejectedValueOnce(new ApiError(400, { code: "MSG-17" }));
-    expect(await failureOf(createPatientProfile(NEW_PROFILE))).toMatchObject({ status: 400, code: "MSG-17" });
+    vi.mocked(apiRequest).mockRejectedValueOnce(
+      new ApiError(400, { code: "MSG-17" }),
+    );
+    expect(await failureOf(createPatientProfile(NEW_PROFILE))).toMatchObject({
+      status: 400,
+      code: "MSG-17",
+    });
   });
 });
 

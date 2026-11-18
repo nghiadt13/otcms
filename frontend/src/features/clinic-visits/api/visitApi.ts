@@ -64,9 +64,12 @@ export async function listVisits(
   const visible = items
     .map(summaryOf)
     .filter(
-      (visit) => query.when !== "active" || ACTIVE_STATUSES.includes(visit.status),
+      (visit) =>
+        query.when !== "active" || ACTIVE_STATUSES.includes(visit.status),
     )
-    .filter((visit) => !query.patientId || visit.patient.id === query.patientId);
+    .filter(
+      (visit) => !query.patientId || visit.patient.id === query.patientId,
+    );
   return pageOf(visible, query.page ?? 0, query.size ?? DEFAULT_PAGE_SIZE);
 }
 

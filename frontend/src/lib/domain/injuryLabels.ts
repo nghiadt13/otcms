@@ -13,7 +13,10 @@ export const TREATMENT_DIRECTIONS = [
   { value: "HOME_CARE", label: "Chăm sóc tại nhà" },
   { value: "MEDICATION", label: "Dùng thuốc" },
   { value: "PHYSICAL_THERAPY", label: "Vật lý trị liệu" },
-  { value: "PROCEDURE_ELSEWHERE", label: "Thủ thuật hoặc phẫu thuật tại cơ sở khác" },
+  {
+    value: "PROCEDURE_ELSEWHERE",
+    label: "Thủ thuật hoặc phẫu thuật tại cơ sở khác",
+  },
 ] as const;
 export type TreatmentDirection = (typeof TREATMENT_DIRECTIONS)[number]["value"];
 

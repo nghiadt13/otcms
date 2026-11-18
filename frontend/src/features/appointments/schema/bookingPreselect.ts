@@ -20,7 +20,8 @@ export function resolvePreselectedSlot(
   slot: BookingSlotQuery,
 ): PreselectOutcome {
   const day = days.find((item) => item.date === slot.date) ?? null;
-  const time = day?.times.find((item) => hhmmOfStart(item.startAt) === slot.time) ?? null;
+  const time =
+    day?.times.find((item) => hhmmOfStart(item.startAt) === slot.time) ?? null;
   const doctorAvailable =
     slot.doctorId === null ||
     (time?.doctors.some((doctor) => doctor.id === slot.doctorId) ?? false);

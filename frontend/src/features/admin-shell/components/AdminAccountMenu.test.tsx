@@ -3,7 +3,8 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { SidebarProvider } from "@/components/ui/sidebar";
 vi.mock("@/features/my-account/api/myAccountApi", async () => {
-  const { MOCK_MY_ACCOUNT } = await import("@/features/my-account/api/myAccountMockData");
+  const { MOCK_MY_ACCOUNT } =
+    await import("@/features/my-account/api/myAccountMockData");
   return { getMyAccount: vi.fn().mockResolvedValue(MOCK_MY_ACCOUNT) };
 });
 import { AdminAccountMenu } from "./AdminAccountMenu";

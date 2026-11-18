@@ -6,7 +6,11 @@ import { StatusBadge } from "@/components/admin/StatusBadge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
-import { getStaffRoom, listStaffRooms, type StaffRoom } from "@/lib/api/staffRoomsApi";
+import {
+  getStaffRoom,
+  listStaffRooms,
+  type StaffRoom,
+} from "@/lib/api/staffRoomsApi";
 import { messageFromError } from "@/lib/messages/appMessages";
 
 const typeLabels: Record<string, string> = {
@@ -51,9 +55,12 @@ export function StaffRoomsScreen({ embedded = false }: { embedded?: boolean }) {
     () =>
       rooms.filter(
         (room) =>
-          `${room.name} ${room.code} ${room.capabilities.join(" ")}`.toLowerCase().includes(search.toLowerCase()) &&
+          `${room.name} ${room.code} ${room.capabilities.join(" ")}`
+            .toLowerCase()
+            .includes(search.toLowerCase()) &&
           (type === "all" || room.type === type) &&
-          (availability === "all" || (availability === "active") === room.active),
+          (availability === "all" ||
+            (availability === "active") === room.active),
       ),
     [rooms, search, type, availability],
   );
@@ -74,7 +81,10 @@ export function StaffRoomsScreen({ embedded = false }: { embedded?: boolean }) {
       {embedded ? (
         <h2 className="text-lg font-semibold">Phòng và tình trạng</h2>
       ) : (
-        <PageHeader title="Phòng và tình trạng" description="Phòng thuộc phạm vi công việc của bạn, loại phòng và tình trạng hoạt động." />
+        <PageHeader
+          title="Phòng và tình trạng"
+          description="Phòng thuộc phạm vi công việc của bạn, loại phòng và tình trạng hoạt động."
+        />
       )}
       <div className="flex flex-wrap gap-3">
         <Input
@@ -84,7 +94,11 @@ export function StaffRoomsScreen({ embedded = false }: { embedded?: boolean }) {
           value={search}
           onChange={(event) => setSearch(event.target.value)}
         />
-        <NativeSelect aria-label="Loại phòng" value={type} onChange={(event) => setType(event.target.value)}>
+        <NativeSelect
+          aria-label="Loại phòng"
+          value={type}
+          onChange={(event) => setType(event.target.value)}
+        >
           <option value="all">Tất cả loại phòng</option>
           {[...new Set(rooms.map((room) => room.type))].map((value) => (
             <option key={value} value={value}>
@@ -92,7 +106,11 @@ export function StaffRoomsScreen({ embedded = false }: { embedded?: boolean }) {
             </option>
           ))}
         </NativeSelect>
-        <NativeSelect aria-label="Tình trạng" value={availability} onChange={(event) => setAvailability(event.target.value)}>
+        <NativeSelect
+          aria-label="Tình trạng"
+          value={availability}
+          onChange={(event) => setAvailability(event.target.value)}
+        >
           <option value="all">Tất cả tình trạng</option>
           <option value="active">Hoạt động</option>
           <option value="inactive">Tạm ngưng</option>
@@ -120,16 +138,27 @@ export function StaffRoomsScreen({ embedded = false }: { embedded?: boolean }) {
       ) : (
         <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {matches.map((room) => (
-            <li key={room.id} className="space-y-2 rounded-lg border bg-card p-4">
+            <li
+              key={room.id}
+              className="space-y-2 rounded-lg border bg-card p-4"
+            >
               <div className="flex items-start justify-between gap-2">
                 <h2 className="font-medium">{room.name}</h2>
-                <StatusBadge tone={room.active ? "success" : "warning"}>{room.active ? "Hoạt động" : "Tạm ngưng"}</StatusBadge>
+                <StatusBadge tone={room.active ? "success" : "warning"}>
+                  {room.active ? "Hoạt động" : "Tạm ngưng"}
+                </StatusBadge>
               </div>
               <p className="text-sm text-muted-foreground">
                 {room.code} · {typeLabels[room.type] ?? room.type}
               </p>
-              {room.capabilities.length > 0 && <p className="text-sm">{room.capabilities.join(", ")}</p>}
-              <Button variant="ghost" size="sm" onClick={() => void openDetail(room)}>
+              {room.capabilities.length > 0 && (
+                <p className="text-sm">{room.capabilities.join(", ")}</p>
+              )}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => void openDetail(room)}
+              >
                 Chi tiết
               </Button>
             </li>
@@ -142,7 +171,10 @@ export function StaffRoomsScreen({ embedded = false }: { embedded?: boolean }) {
         </p>
       )}
       {detail && (
-        <section aria-label="Chi tiết phòng" className="space-y-1 rounded-lg border bg-card p-4">
+        <section
+          aria-label="Chi tiết phòng"
+          className="space-y-1 rounded-lg border bg-card p-4"
+        >
           <h2 className="font-medium">{detail.name}</h2>
           <dl className="grid grid-cols-[10rem_1fr] gap-1 text-sm">
             <dt>Mã phòng</dt>

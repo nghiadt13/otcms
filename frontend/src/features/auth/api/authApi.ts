@@ -88,7 +88,10 @@ async function registrationRequest(path: string, body: unknown): Promise<void> {
   }
   if (response.ok) return;
   const result = await response.json().catch(() => ({}));
-  if (result?.error?.code === "OTP_INVALID_OR_EXPIRED" || result?.error?.code === "MSG-77")
+  if (
+    result?.error?.code === "OTP_INVALID_OR_EXPIRED" ||
+    result?.error?.code === "MSG-77"
+  )
     throw new AuthRequestError("MSG-77");
   throw new AuthRequestError(response.status === 400 ? "MSG-08" : "MSG-04");
 }

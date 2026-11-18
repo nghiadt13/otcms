@@ -22,20 +22,33 @@ export function useDoctorAvailability(
 ) {
   const [result, setResult] = useState<Result | null>(null);
   const [token, setToken] = useState(0);
-  const key = enabled && doctorId && serviceId ? `${doctorId}|${serviceId}|${from}|${to}|${token}` : null;
+  const key =
+    enabled && doctorId && serviceId
+      ? `${doctorId}|${serviceId}|${from}|${to}|${token}`
+      : null;
 
   useEffect(() => {
     if (!enabled || !doctorId || !serviceId) return;
     const controller = new AbortController();
     const currentKey = `${doctorId}|${serviceId}|${from}|${to}|${token}`;
     const params = new URLSearchParams({ doctorId, serviceId, from, to });
-    apiRequest<{ slots: { startTime: string }[] }>(`/api/v1/staff/appointments/availability?${params}`, { signal: controller.signal })
+    apiRequest<{ slots: { startTime: string }[] }>(
+      `/api/v1/staff/appointments/availability?${params}`,
+      { signal: controller.signal },
+    )
       .then(({ slots }): DoctorAvailability => {
         const starts = slots.map((slot) => vnIsoOf(new Date(slot.startTime)));
         const days = [];
         for (let date = from; date <= to; date = addDays(date, 1)) {
           const matching = starts.filter((start) => start.startsWith(date));
-          days.push({ date, hasShift: matching.length > 0, slots: matching.map((startAt) => ({ startAt, status: "FREE" as const })) });
+          days.push({
+            date,
+            hasShift: matching.length > 0,
+            slots: matching.map((startAt) => ({
+              startAt,
+              status: "FREE" as const,
+            })),
+          });
         }
         return { doctorId, from, to, slotMinutes: 15, days };
       })

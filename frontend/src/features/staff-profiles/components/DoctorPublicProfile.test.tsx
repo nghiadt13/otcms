@@ -35,9 +35,21 @@ describe("DoctorPublicProfile - lịch 7 ngày với giờ còn trống", () => 
       fakePublicDoctorApi({
         serviceIds: ["svc-a", "svc-b"],
         slots: [
-          { serviceId: "svc-a", doctorId: "doc-1", startAt: vnInstant(tomorrow, "09:30") },
-          { serviceId: "svc-b", doctorId: "doc-1", startAt: vnInstant(tomorrow, "09:30") },
-          { serviceId: "svc-b", doctorId: "doc-1", startAt: vnInstant(tomorrow, "10:00") },
+          {
+            serviceId: "svc-a",
+            doctorId: "doc-1",
+            startAt: vnInstant(tomorrow, "09:30"),
+          },
+          {
+            serviceId: "svc-b",
+            doctorId: "doc-1",
+            startAt: vnInstant(tomorrow, "09:30"),
+          },
+          {
+            serviceId: "svc-b",
+            doctorId: "doc-1",
+            startAt: vnInstant(tomorrow, "10:00"),
+          },
         ],
       }),
     );
@@ -64,11 +76,14 @@ describe("DoctorPublicProfile - lịch 7 ngày với giờ còn trống", () => 
   });
 
   it("nút đặt lịch chung vẫn mở màn đặt lịch không chọn sẵn", async () => {
-    request.mockImplementation(fakePublicDoctorApi({ serviceIds: [], slots: [] }));
+    request.mockImplementation(
+      fakePublicDoctorApi({ serviceIds: [], slots: [] }),
+    );
     render(<DoctorPublicProfile doctor={DOCTOR} />);
-    expect(
-      screen.getByRole("link", { name: /Đặt lịch khám/ }),
-    ).toHaveAttribute("href", "/portal/appointments/new");
+    expect(screen.getByRole("link", { name: /Đặt lịch khám/ })).toHaveAttribute(
+      "href",
+      "/portal/appointments/new",
+    );
     expect(await within(schedule()).findAllByText("Hết giờ")).toHaveLength(7);
   });
 
@@ -78,7 +93,11 @@ describe("DoctorPublicProfile - lịch 7 ngày với giờ còn trống", () => 
       fakePublicDoctorApi({
         serviceIds: ["svc-a"],
         slots: [
-          { serviceId: "svc-a", doctorId: "doc-1", startAt: vnInstant(tomorrow, "09:30") },
+          {
+            serviceId: "svc-a",
+            doctorId: "doc-1",
+            startAt: vnInstant(tomorrow, "09:30"),
+          },
         ],
         failingAvailabilityCalls: 1,
       }),
@@ -88,9 +107,13 @@ describe("DoctorPublicProfile - lịch 7 ngày với giờ còn trống", () => 
     expect(await within(schedule()).findByRole("alert")).toHaveTextContent(
       "Không thể hoàn tất yêu cầu. Vui lòng thử lại sau hoặc bắt đầu lại.",
     );
-    await user.click(within(schedule()).getByRole("button", { name: "Thử lại" }));
+    await user.click(
+      within(schedule()).getByRole("button", { name: "Thử lại" }),
+    );
     expect(
-      await within(schedule()).findByRole("link", { name: /Đặt lịch lúc 09:30/ }),
+      await within(schedule()).findByRole("link", {
+        name: /Đặt lịch lúc 09:30/,
+      }),
     ).toBeInTheDocument();
   });
 });

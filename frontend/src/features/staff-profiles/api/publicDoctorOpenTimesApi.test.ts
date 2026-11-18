@@ -17,9 +17,21 @@ beforeEach(() => {
 describe("groupOpenTimesByDoctor", () => {
   it("gom theo bác sĩ và sắp theo thời gian", () => {
     const grouped = groupOpenTimesByDoctor([
-      { serviceId: "svc-a", doctorId: "doc-1", startTime: "2026-11-19T02:30:00Z" },
-      { serviceId: "svc-a", doctorId: "doc-1", startTime: "2026-11-19T01:30:00Z" },
-      { serviceId: "svc-a", doctorId: "doc-2", startTime: "2026-11-19T01:30:00Z" },
+      {
+        serviceId: "svc-a",
+        doctorId: "doc-1",
+        startTime: "2026-11-19T02:30:00Z",
+      },
+      {
+        serviceId: "svc-a",
+        doctorId: "doc-1",
+        startTime: "2026-11-19T01:30:00Z",
+      },
+      {
+        serviceId: "svc-a",
+        doctorId: "doc-2",
+        startTime: "2026-11-19T01:30:00Z",
+      },
     ]);
     expect(grouped.get("doc-1")).toEqual([
       { serviceId: "svc-a", startAt: "2026-11-19T01:30:00Z" },
@@ -32,8 +44,16 @@ describe("groupOpenTimesByDoctor", () => {
 
   it("cùng bác sĩ và cùng thời điểm ở nhiều dịch vụ thì chỉ giữ dịch vụ đầu tiên", () => {
     const grouped = groupOpenTimesByDoctor([
-      { serviceId: "svc-a", doctorId: "doc-1", startTime: "2026-11-19T01:30:00Z" },
-      { serviceId: "svc-b", doctorId: "doc-1", startTime: "2026-11-19T01:30:00.000Z" },
+      {
+        serviceId: "svc-a",
+        doctorId: "doc-1",
+        startTime: "2026-11-19T01:30:00Z",
+      },
+      {
+        serviceId: "svc-b",
+        doctorId: "doc-1",
+        startTime: "2026-11-19T01:30:00.000Z",
+      },
     ]);
     expect(grouped.get("doc-1")).toEqual([
       { serviceId: "svc-a", startAt: "2026-11-19T01:30:00Z" },
@@ -49,12 +69,20 @@ describe("listPublicDoctorOpenTimes", () => {
       if (path.includes("serviceId=svc-a"))
         return {
           slots: [
-            { serviceId: "svc-a", doctorId: "doc-1", startTime: "2026-11-19T01:30:00Z" },
+            {
+              serviceId: "svc-a",
+              doctorId: "doc-1",
+              startTime: "2026-11-19T01:30:00Z",
+            },
           ],
         };
       return {
         slots: [
-          { serviceId: "svc-b", doctorId: "doc-2", startTime: "2026-11-19T03:00:00Z" },
+          {
+            serviceId: "svc-b",
+            doctorId: "doc-2",
+            startTime: "2026-11-19T03:00:00Z",
+          },
         ],
       };
     });

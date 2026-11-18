@@ -7,7 +7,10 @@ interface LinkResultResponse {
 }
 
 /** Verify the code sent to the owner of an existing profile. */
-export async function verifyDependentOtp(linkId: string, code: string): Promise<{ profileId: string }> {
+export async function verifyDependentOtp(
+  linkId: string,
+  code: string,
+): Promise<{ profileId: string }> {
   const response = await apiRequest<LinkResultResponse>(
     `/api/v1/me/dependents/links/${encodeURIComponent(linkId)}/otp/verify`,
     { method: "POST", body: JSON.stringify({ code }) },
@@ -17,7 +20,9 @@ export async function verifyDependentOtp(linkId: string, code: string): Promise<
 }
 
 /** Resend the code to the existing profile owner. */
-export async function resendDependentOtp(linkId: string): Promise<{ maskedEmail?: string }> {
+export async function resendDependentOtp(
+  linkId: string,
+): Promise<{ maskedEmail?: string }> {
   const response = await apiRequest<LinkResultResponse>(
     `/api/v1/me/dependents/links/${encodeURIComponent(linkId)}/otp/resend`,
     { method: "POST" },

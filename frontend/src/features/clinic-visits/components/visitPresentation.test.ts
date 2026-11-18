@@ -27,7 +27,11 @@ describe("visitPatientLabel", () => {
 
   it("liên kết cũ chưa có quan hệ thì chỉ ghi tên", () => {
     expect(
-      visitPatientLabel({ id: "p2", fullName: "Trần Văn Bình", relationship: null }),
+      visitPatientLabel({
+        id: "p2",
+        fullName: "Trần Văn Bình",
+        relationship: null,
+      }),
     ).toBe("Trần Văn Bình");
   });
 });
@@ -50,9 +54,9 @@ describe("queueAheadText", () => {
   });
 
   it("đang được gọi: ghi 'Đang gọi bạn' dù còn số người trước", () => {
-    expect(queueAheadText(position({ beingCalled: true, peopleAhead: 0 }))).toBe(
-      "Đang gọi bạn",
-    );
+    expect(
+      queueAheadText(position({ beingCalled: true, peopleAhead: 0 })),
+    ).toBe("Đang gọi bạn");
   });
 
   it("chưa vào hàng (không có số người trước): trả chuỗi rỗng", () => {
@@ -62,9 +66,9 @@ describe("queueAheadText", () => {
 
 describe("orderRoomText", () => {
   it("có tên phòng thì ghi tên phòng", () => {
-    expect(
-      orderRoomText({ roomId: "room-1", roomName: "Phòng X-quang" }),
-    ).toBe("Phòng thực hiện: Phòng X-quang");
+    expect(orderRoomText({ roomId: "room-1", roomName: "Phòng X-quang" })).toBe(
+      "Phòng thực hiện: Phòng X-quang",
+    );
   });
 
   it("có mã phòng nhưng chưa có tên thì nói đã có phòng; không có gì thì nói chưa có", () => {

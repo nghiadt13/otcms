@@ -259,7 +259,9 @@ export function AdminServicesLive() {
           if (!confirm) return;
           try {
             await setAdminServiceActive(confirm.id, !confirm.active);
-            toast.success(confirm.active ? APP_MESSAGES["MSG-67"] : APP_MESSAGES["MSG-65"]);
+            toast.success(
+              confirm.active ? APP_MESSAGES["MSG-67"] : APP_MESSAGES["MSG-65"],
+            );
             remote.refresh();
           } catch (error) {
             setActionError(adminApiMessage(error));

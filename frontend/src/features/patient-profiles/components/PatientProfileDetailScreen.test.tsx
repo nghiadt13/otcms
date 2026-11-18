@@ -80,7 +80,10 @@ describe("PatientProfileDetailScreen", () => {
     expect(toast.success).toHaveBeenCalledWith(
       "Đã gỡ hồ sơ này khỏi danh sách hồ sơ bạn quản lý.",
     );
-    expect(apiRequest).toHaveBeenCalledWith(`/api/v1/me/dependents/${PROFILE_MOCK_IDS.huy}`, { method: "DELETE" });
+    expect(apiRequest).toHaveBeenCalledWith(
+      `/api/v1/me/dependents/${PROFILE_MOCK_IDS.huy}`,
+      { method: "DELETE" },
+    );
   });
 
   it("hồ sơ không thuộc tài khoản: chuyển sang trang không tìm thấy của khu", async () => {

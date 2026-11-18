@@ -55,11 +55,8 @@ export function OtpInput({
               <div
                 className={cn(
                   "relative flex h-12 w-10 items-center justify-center rounded-lg border bg-card text-xl font-semibold tabular-nums transition-[border-color,box-shadow] sm:h-14 sm:w-12",
-                  invalid
-                    ? "border-destructive"
-                    : "border-muted-foreground/70",
-                  active &&
-                    "border-primary ring-3 ring-ring/40",
+                  invalid ? "border-destructive" : "border-muted-foreground/70",
+                  active && "border-primary ring-3 ring-ring/40",
                   active && invalid && "border-destructive ring-destructive/30",
                   disabled && "opacity-60",
                 )}

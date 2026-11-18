@@ -16,7 +16,11 @@ vi.mock("sonner", () => ({
   toast: { success: vi.fn(), warning: vi.fn(), error: vi.fn() },
 }));
 
-const suggestion = (doctorProfileId: string, doctorName: string, roomLabel: string) => ({
+const suggestion = (
+  doctorProfileId: string,
+  doctorName: string,
+  roomLabel: string,
+) => ({
   roomId: `room-${doctorProfileId}`,
   roomCode: `R-${doctorProfileId}`,
   roomLabel,
@@ -91,7 +95,9 @@ describe("AttendingDoctorTransferDialog (UC-30)", () => {
     const user = await fillForm("  Bác sĩ phụ trách vắng đột xuất  ");
 
     const select = screen.getByLabelText("Bác sĩ đang trong ca");
-    const options = within(select).getAllByRole("option").map((o) => o.textContent);
+    const options = within(select)
+      .getAllByRole("option")
+      .map((o) => o.textContent);
     expect(options).toEqual(["Chọn bác sĩ", "BS Trần Bình · Phòng 202"]);
 
     await user.click(screen.getByRole("button", { name: "Xác nhận đổi" }));
@@ -116,7 +122,9 @@ describe("AttendingDoctorTransferDialog (UC-30)", () => {
     const user = await fillForm("");
     await user.click(screen.getByRole("button", { name: "Xác nhận đổi" }));
 
-    expect(await screen.findByRole("alert")).toHaveTextContent(APP_MESSAGES["MSG-39"]);
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      APP_MESSAGES["MSG-39"],
+    );
     expect(request).not.toHaveBeenCalledWith(
       expect.stringContaining("attending-doctor-transfers"),
       expect.anything(),
@@ -134,7 +142,9 @@ describe("AttendingDoctorTransferDialog (UC-30)", () => {
     const user = await fillForm("Bác sĩ vắng ca");
     await user.click(screen.getByRole("button", { name: "Xác nhận đổi" }));
 
-    expect(await screen.findByRole("alert")).toHaveTextContent(APP_MESSAGES["MSG-41"]);
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      APP_MESSAGES["MSG-41"],
+    );
     expect(handlers.onFailed).toHaveBeenCalledTimes(1);
     expect(handlers.onSaved).not.toHaveBeenCalled();
     expect(toast.success).not.toHaveBeenCalled();
@@ -150,16 +160,22 @@ describe("AttendingDoctorTransferDialog (UC-30)", () => {
     const user = await fillForm("Đổi bác sĩ");
     await user.click(screen.getByRole("button", { name: "Xác nhận đổi" }));
 
-    expect(await screen.findByRole("alert")).toHaveTextContent(APP_MESSAGES["MSG-42"]);
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      APP_MESSAGES["MSG-42"],
+    );
     expect(handlers.onFailed).toHaveBeenCalledTimes(1);
     expect(handlers.onSaved).not.toHaveBeenCalled();
   });
 
   it("không có bác sĩ nào trong ca thì không cho xác nhận và hiện MSG-41", async () => {
-    request.mockImplementation(async () => ({ items: [suggestion("doc-a", "BS Nguyễn An", "Phòng 101")] }));
+    request.mockImplementation(async () => ({
+      items: [suggestion("doc-a", "BS Nguyễn An", "Phòng 101")],
+    }));
     mount();
 
-    expect(await screen.findByRole("status")).toHaveTextContent(APP_MESSAGES["MSG-41"]);
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      APP_MESSAGES["MSG-41"],
+    );
     expect(screen.getByRole("button", { name: "Xác nhận đổi" })).toBeDisabled();
   });
 });

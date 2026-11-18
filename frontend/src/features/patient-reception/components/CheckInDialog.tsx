@@ -53,7 +53,9 @@ export function CheckInDialog({
   const [reloadKey, setReloadKey] = useState(0);
   const [error, setError] = useState("");
   const [result, setResult] = useState("");
-  const [candidate, setCandidate] = useState<ReceptionReturnCandidate | null>(null);
+  const [candidate, setCandidate] = useState<ReceptionReturnCandidate | null>(
+    null,
+  );
   const [returning, setReturning] = useState(false);
   const today = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Ho_Chi_Minh",
@@ -62,9 +64,16 @@ export function CheckInDialog({
   useEffect(() => {
     if (!verified) return;
     const controller = new AbortController();
-    void getReceptionReturnCandidate(verified.patientProfileId, controller.signal)
-      .then((value) => { if (!controller.signal.aborted) setCandidate(value ?? null); })
-      .catch((cause) => { if (!controller.signal.aborted) setError(messageFromError(cause)); });
+    void getReceptionReturnCandidate(
+      verified.patientProfileId,
+      controller.signal,
+    )
+      .then((value) => {
+        if (!controller.signal.aborted) setCandidate(value ?? null);
+      })
+      .catch((cause) => {
+        if (!controller.signal.aborted) setError(messageFromError(cause));
+      });
     return () => controller.abort();
   }, [verified]);
 
@@ -215,9 +224,16 @@ export function CheckInDialog({
             {candidate && (
               <section className="space-y-2 rounded-md border p-3 text-sm">
                 <h2 className="font-semibold">Lượt khám đang chờ kết luận</h2>
-                <p>Bác sĩ: {candidate.doctorName} · Phòng: {candidate.roomLabel}</p>
+                <p>
+                  Bác sĩ: {candidate.doctorName} · Phòng: {candidate.roomLabel}
+                </p>
                 <p>Hạn quay lại: {dateText(candidate.returnDeadline)}</p>
-                <Button type="button" variant="outline" disabled={returning} onClick={() => void returnVisit()}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={returning}
+                  onClick={() => void returnVisit()}
+                >
                   {returning ? "Đang tiếp nhận…" : "Quay lại lượt khám"}
                 </Button>
               </section>

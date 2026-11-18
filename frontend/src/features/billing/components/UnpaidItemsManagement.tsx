@@ -110,7 +110,9 @@ export function UnpaidItemsManagement() {
                     <TableCell className="text-right whitespace-nowrap tabular-nums">
                       {formatCurrencyVnd(item.lineTotal)}
                     </TableCell>
-                    <TableCell>{INVOICE_ITEM_STATUS_LABELS[item.status]}</TableCell>
+                    <TableCell>
+                      {INVOICE_ITEM_STATUS_LABELS[item.status]}
+                    </TableCell>
                   </TableRow>
                 ))
               : null}

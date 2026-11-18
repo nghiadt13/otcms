@@ -171,7 +171,9 @@ function ownView(
 /**
  * Mọi lịch của hồ sơ đang gắn, chưa lọc. Bỏ gắn một hồ sơ thì lịch của hồ sơ đó biến mất.
  */
-function myAppointments(linked: readonly LinkedProfile[]): PatientAppointment[] {
+function myAppointments(
+  linked: readonly LinkedProfile[],
+): PatientAppointment[] {
   const byId = new Map(linked.map((profile) => [profile.id, profile]));
   const shared = readStoredAppointments().flatMap((record) => {
     const profile = byId.get(record.patient.id);
@@ -189,9 +191,8 @@ function myAppointments(linked: readonly LinkedProfile[]): PatientAppointment[] 
 /** Chi tiết một lịch của hồ sơ đang gắn; ngoài phạm vi hoặc không có → 404 MSG-29 như nhau. */
 function findMine(id: string): PatientAppointment {
   return (
-    myAppointments(getLinkedProfileRecords()).find(
-      (item) => item.id === id,
-    ) ?? mockFail(404, "MSG-29")
+    myAppointments(getLinkedProfileRecords()).find((item) => item.id === id) ??
+    mockFail(404, "MSG-29")
   );
 }
 
@@ -260,4 +261,3 @@ export async function cancelMyAppointment(
   }
   return findMine(id);
 }
-

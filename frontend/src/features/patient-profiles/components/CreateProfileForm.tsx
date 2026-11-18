@@ -10,10 +10,7 @@ import {
 } from "@/components/ui/native-select";
 import { CARE_RELATIONSHIP_LABELS } from "@/lib/domain/careRelationship";
 import { notifyError, notifySuccess } from "@/lib/messages/notify";
-import {
-  resendDependentOtp,
-  verifyDependentOtp,
-} from "../api/dependentOtpApi";
+import { resendDependentOtp, verifyDependentOtp } from "../api/dependentOtpApi";
 import type { AddDependentResult } from "../types/patientProfile";
 import { createPatientProfile } from "../api/patientProfileApi";
 import {
