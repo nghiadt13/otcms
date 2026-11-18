@@ -7,8 +7,7 @@ import { Input } from "@/components/ui/input";
 import { LaboratoryResultDraft } from "./LaboratoryResultDraft";
 
 type Order = { id: string; code: string; patientName: string | null; dateOfBirth: string | null; serviceName: string; clinicalReason: string; paymentStatus: string; orderStatus: string; labStatus: string | null };
-type Sample = { code: string; collectedAt: string; partner: string | null; sentAt: string | null };
-type Partner = { id: string; name: string; contact: string | null; active: boolean };
+type Sample = { code: string; collectedAt: string };
 function formatBirthDate(value: string | null) {
   if (!value) return "Chưa có thông tin";
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
@@ -17,43 +16,32 @@ function formatBirthDate(value: string | null) {
 
 function CollectionActions({ order, onChanged }: { order: Order; onChanged: () => void }) {
   const [verified, setVerified] = useState(false);
-  const [partnerId, setPartnerId] = useState("");
-  const [partners, setPartners] = useState<Partner[]>([]);
   const [sample, setSample] = useState<Sample | null>(null);
   const [status, setStatus] = useState(order.labStatus);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
   useEffect(() => {
-    if (order.labStatus !== "COLLECTED" && order.labStatus !== "SENT") return;
+    if (order.labStatus !== "COLLECTED") return;
     const controller = new AbortController();
     apiRequest<Sample>(`/api/v1/laboratory/orders/${encodeURIComponent(order.id)}/samples/latest`, { signal: controller.signal })
       .then((data) => { if (!controller.signal.aborted) setSample(data); })
       .catch(() => { if (!controller.signal.aborted) setError("Không thể tải thông tin mẫu."); });
     return () => controller.abort();
   }, [order.id, order.labStatus]);
-  useEffect(() => {
-    if (order.labStatus !== "COLLECTED") return;
-    const controller = new AbortController();
-    apiRequest<{ items: Partner[] }>("/api/v1/laboratory/partners", { signal: controller.signal })
-      .then((result) => { if (!controller.signal.aborted) setPartners(result.items); })
-      .catch(() => { if (!controller.signal.aborted) setError("Không thể tải danh sách đối tác."); });
-    return () => controller.abort();
-  }, [order.labStatus]);
-  async function submit(action: "samples" | "shipments") {
+  async function collect() {
     setPending(true); setError("");
     try {
-      const data = await apiRequest<Sample>(`/api/v1/laboratory/orders/${encodeURIComponent(order.id)}/${action}`, {
-        method: "POST", body: JSON.stringify(action === "samples" ? { identityConfirmed: verified } : { partnerId }),
+      const data = await apiRequest<Sample>(`/api/v1/laboratory/orders/${encodeURIComponent(order.id)}/samples`, {
+        method: "POST", body: JSON.stringify({ identityConfirmed: verified }),
       });
-      setSample(data); setStatus(action === "samples" ? "COLLECTED" : "SENT"); onChanged();
+      setSample(data); setStatus("COLLECTED"); onChanged();
     } catch { setError("Không thể lưu thao tác. Vui lòng kiểm tra trạng thái và thử lại."); }
     finally { setPending(false); }
   }
   return <div className="space-y-3 border-t pt-4">
-    {status === "ASSIGNED" && <><label className="flex items-start gap-2"><input type="checkbox" checked={verified} onChange={(event) => setVerified(event.target.checked)} /><span>Tôi đã đối chiếu họ tên và ngày sinh với bệnh nhân.</span></label><Button disabled={!verified || !order.patientName || !order.dateOfBirth || pending} onClick={() => void submit("samples")}>Xác nhận lấy mẫu</Button></>}
+    {status === "ASSIGNED" && <><label className="flex items-start gap-2"><input type="checkbox" checked={verified} onChange={(event) => setVerified(event.target.checked)} /><span>Tôi đã đối chiếu họ tên và ngày sinh với bệnh nhân.</span></label><Button disabled={!verified || !order.patientName || !order.dateOfBirth || pending} onClick={() => void collect()}>Xác nhận lấy mẫu</Button></>}
     {sample && <p>Mã mẫu: <strong>{sample.code}</strong></p>}
-    {status === "COLLECTED" && <><label htmlFor="lab-partner">Đơn vị xét nghiệm đối tác</label><select id="lab-partner" className="h-10 w-full rounded-md border bg-background px-3" value={partnerId} onChange={(event) => setPartnerId(event.target.value)}><option value="">Chọn đối tác xét nghiệm</option>{partners.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select>{partners.length === 0 && <p className="text-sm text-muted-foreground">Chưa có đối tác xét nghiệm đang hoạt động. Vui lòng báo quản trị viên thêm đối tác.</p>}<Button disabled={!partnerId || pending} onClick={() => void submit("shipments")}>Ghi nhận gửi mẫu</Button></>}
-    {status === "SENT" && <><p>Đã gửi mẫu đến đơn vị xét nghiệm.</p><LaboratoryResultDraft orderId={order.id} /></>}
+    {status === "COLLECTED" && <LaboratoryResultDraft orderId={order.id} />}
     {!status && <p>Chỉ định cần thanh toán và được lễ tân phân phòng trước khi lấy mẫu.</p>}
     {error && <p role="alert" className="text-destructive">{error}</p>}
   </div>;

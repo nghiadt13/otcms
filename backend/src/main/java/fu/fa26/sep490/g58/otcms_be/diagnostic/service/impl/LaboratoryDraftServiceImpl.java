@@ -35,21 +35,21 @@ public class LaboratoryDraftServiceImpl implements LaboratoryDraftService {
         return List.copyOf(values);
     }
     @Override @Transactional
-    public void attach(UUID orderId, UUID actorId, byte[] content, String contentType, String code, String issuer, Instant receivedAt, Instant now) {
+    public void attach(UUID orderId, UUID actorId, byte[] content, String contentType, Instant receivedAt, Instant now) {
         var versions = reports.findLaboratoryVersions(orderId);
         if (versions.isEmpty() || versions.getFirst().getState() != DiagnosticFindingsVersionState.DRAFT || versions.getFirst().getReportId() != null)
             throw new IllegalStateException("Draft missing or report already attached");
         var port = storage.getIfAvailable();
         if (port == null) throw new IllegalStateException("Laboratory report storage unavailable");
         var stored = port.store(orderId, content, contentType);
-        versions.getFirst().attachLaboratoryReport(stored, code, issuer, receivedAt, actorId, now);
+        versions.getFirst().attachLaboratoryReport(stored, receivedAt, actorId, now);
     }
     @Override @Transactional(readOnly = true)
     public ReportInfo reportInfo(UUID orderId) {
         var versions = reports.findLaboratoryVersions(orderId);
         if (versions.isEmpty() || versions.getFirst().getReportId() == null) return null;
         var report = versions.getFirst();
-        return new ReportInfo(report.getLaboratoryReportCode(), report.getLaboratoryReportIssuer(), report.getLaboratoryReportReceivedAt(), report.getLaboratoryContentType());
+        return new ReportInfo(report.getLaboratoryReportReceivedAt(), report.getLaboratoryContentType());
     }
     @Override @Transactional(readOnly = true)
     public IssuedReportInfo issuedReportInfo(UUID orderId) {

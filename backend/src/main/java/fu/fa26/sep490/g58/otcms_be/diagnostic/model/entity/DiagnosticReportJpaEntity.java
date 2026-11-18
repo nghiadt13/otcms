@@ -83,8 +83,6 @@ public class DiagnosticReportJpaEntity {
     private UUID laboratoryRecordedByAccountId;
 
     @Column(name = "lab_report_content_type", length = 64) private String laboratoryContentType;
-    @Column(name = "lab_partner_report_code", length = 128) private String laboratoryReportCode;
-    @Column(name = "lab_report_issuer", length = 255) private String laboratoryReportIssuer;
     @Column(name = "lab_report_received_at") private Instant laboratoryReportReceivedAt;
     @Column(name = "lab_report_uploaded_by_account_id") private UUID laboratoryReportUploadedBy;
     @Column(name = "lab_confirmed_by_account_id") private UUID laboratoryConfirmedBy;
@@ -153,11 +151,11 @@ public class DiagnosticReportJpaEntity {
     }
 
     public void attachLaboratoryReport(fu.fa26.sep490.g58.otcms_be.diagnostic.integration.LaboratoryReportStoragePort.Stored report,
-            String code, String issuer, Instant receivedAt, UUID actor, Instant now) {
+            Instant receivedAt, UUID actor, Instant now) {
         requireDraft();
         if (!"LAB".equals(resultType) || reportId != null) throw new IllegalStateException("Report already attached");
         reportId = report.reportId(); storageRef = report.storageRef(); contentSha256 = report.sha256();
-        laboratoryContentType = report.contentType(); laboratoryReportCode = code; laboratoryReportIssuer = issuer;
+        laboratoryContentType = report.contentType();
         laboratoryReportReceivedAt = receivedAt; laboratoryReportUploadedBy = actor;
         uploadedAt = now; validatedAt = now; validationStatus = DiagnosticReportValidationStatus.VALIDATED;
     }
@@ -221,8 +219,6 @@ public class DiagnosticReportJpaEntity {
     public UUID getServiceOrderId() { return requestId; }
     public UUID getReportId() { return reportId; }
     public String getLaboratoryContentType() { return laboratoryContentType; }
-    public String getLaboratoryReportCode() { return laboratoryReportCode; }
-    public String getLaboratoryReportIssuer() { return laboratoryReportIssuer; }
     public Instant getLaboratoryReportReceivedAt() { return laboratoryReportReceivedAt; }
     public String getResultType() { return resultType; }
     public DiagnosticFindingsVersionState getState() { return state; }

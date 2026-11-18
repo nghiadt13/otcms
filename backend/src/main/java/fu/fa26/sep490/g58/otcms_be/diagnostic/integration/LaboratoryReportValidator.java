@@ -8,7 +8,7 @@ import java.util.Objects;
 import javax.imageio.ImageIO;
 import javax.imageio.stream.ImageInputStream;
 
-/** Validate the actual file content before a partner report can be released. */
+/** Validate the actual file content before a laboratory report can be released. */
 public final class LaboratoryReportValidator {
     private static final int MAX_BYTES = 25 * 1024 * 1024;
     private static final long MAX_PIXELS = 40_000_000L;

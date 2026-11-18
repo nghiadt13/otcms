@@ -34,7 +34,7 @@ public class LaboratoryQueueServiceImpl implements LaboratoryQueueService {
     @Transactional(readOnly = true)
     public List<Item> today(AuthenticatedAccount actor) {
         if (actor == null || actor.accountId() == null || actor.accountRole() != AccountRole.LAB_TECHNICIAN)
-            throw new ClinicalOperationException("MSG-LAB-03");
+            throw new ClinicalOperationException("MSG-40");
         var now = clock.instant();
         var zone = ZoneId.of("Asia/Ho_Chi_Minh");
         var day = LocalDate.ofInstant(now, zone);
