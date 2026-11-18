@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useReducer, useState } from "react";
-import { isApiError } from "@/lib/api/apiError";
+import { useEffect, useReducer, useRef, useState } from "react";
+import { ApiError, isApiError } from "@/lib/api/apiError";
 import {
   notifyError,
   notifySuccess,
@@ -19,7 +19,10 @@ import {
   preselectedPatientId,
   upcomingDays,
   type BookingSelection,
+  type BookingSelectionAction,
 } from "../../schema/bookingSelection";
+import { resolvePreselectedSlot } from "../../schema/bookingPreselect";
+import type { BookingSlotQuery } from "@/lib/routes/bookingSlotLink";
 import {
   bookingSubmitOutcome,
 } from "../../schema/bookingSubmitOutcome";
@@ -38,6 +41,8 @@ export type BookingFlowProps = {
   variant: "patient";
   patients: readonly BookingPatient[];
   renderPayment?: PaymentRenderer;
+  /** Khung giờ chọn sẵn từ link trang bác sĩ; chỉ áp dụng phần nào còn trống. */
+  preselect?: BookingSlotQuery | null;
   onBooked: (appointment: BookedAppointment) => void;
 };
 
@@ -55,7 +60,13 @@ export function BookingFlow(props: BookingFlowProps) {
   // Lý do khám: chỉ khu bệnh nhân nhập (ở bước xác nhận của wizard).
   const [purpose, setPurpose] = useState("");
   // Bước hiện tại của wizard bệnh nhân.
-  const [wizardStep, setWizardStep] = useState<WizardStepKey>("patient");
+  // With one patient already chosen and a preselected slot, open on the schedule step so the
+  // preselected service, day, time and doctor are visible at once.
+  const [wizardStep, setWizardStep] = useState<WizardStepKey>(() =>
+    props.preselect && patients.length === 1 ? "schedule" : "patient",
+  );
+  // Preselected slot from the link, waiting to be applied. A ref, so applying or dropping it does not re-render.
+  const pendingSlotRef = useRef<BookingSlotQuery | null>(props.preselect ?? null);
   // Lịch vừa tạo, đang ở bước thanh toán.
   const [booked, setBooked] = useState<BookedAppointment | null>(null);
   const renderPayment = props.renderPayment;
@@ -110,10 +121,67 @@ export function BookingFlow(props: BookingFlowProps) {
       notifyWarning("MSG-25");
   }, [times.data]);
 
+  // Preselect step 1: pick the service from the link once a patient is known and the services are loaded.
+  useEffect(() => {
+    const pending = pendingSlotRef.current;
+    if (!pending || patientId === null || state.serviceId !== null) return;
+    if (services.loading) return;
+    if (services.failed) {
+      // The wizard already shows a retry block for a failed service list.
+      pendingSlotRef.current = null;
+      return;
+    }
+    if (!services.services.some((item) => item.id === pending.serviceId)) {
+      pendingSlotRef.current = null;
+      notifyError(new ApiError(400, { code: "MSG-29" }));
+      return;
+    }
+    dispatch({ type: "selectService", serviceId: pending.serviceId });
+  }, [patientId, state.serviceId, services.loading, services.failed, services.services]);
+
+  // Preselect step 2: apply date, time and doctor once the open times of that service have loaded.
+  // Anything that no longer exists is reported with its MSG code and left for the user to choose.
+  useEffect(() => {
+    const pending = pendingSlotRef.current;
+    if (!pending || !times.data || state.serviceId !== pending.serviceId) return;
+    pendingSlotRef.current = null;
+    const outcome = resolvePreselectedSlot(upcomingDays(times.data), pending);
+    if (outcome.day === null) {
+      notifyError(new ApiError(409, { code: "MSG-30" }));
+      return;
+    }
+    dispatch({ type: "selectDate", date: outcome.day.date });
+    if (outcome.time === null) {
+      notifyError(new ApiError(409, { code: "MSG-30" }));
+      return;
+    }
+    dispatch({
+      type: "selectTime",
+      startAt: outcome.time.startAt,
+      doctorIdsAtTime: outcome.time.doctors.map((doctor) => doctor.id),
+    });
+    if (pending.doctorId !== null) {
+      if (!outcome.doctorAvailable) {
+        notifyError(new ApiError(404, { code: "MSG-24" }));
+        return;
+      }
+      dispatch({ type: "selectDoctor", doctorId: pending.doctorId });
+    }
+    // The user checks the applied choices on the schedule step and continues from there.
+  }, [times.data, state.serviceId]);
+
+  /** A user's own selection cancels a waiting preselect; changing the patient keeps it for later. */
+  function dispatchUserAction(action: BookingSelectionAction) {
+    if (action.type !== "selectPatient") pendingSlotRef.current = null;
+    dispatch(action);
+  }
+
   /** MSG-29 khi lấy giờ trống: dịch vụ hoặc người khám không đặt được, bỏ chọn dịch vụ. */
   function handleTimesError(error: unknown) {
     if (isApiError(error) && error.code === "MSG-29") {
       notifyError(error);
+      // The service was dropped: do not re-apply the waiting slot, which would repeat the error.
+      pendingSlotRef.current = null;
       dispatch({ type: "reopen", step: "service" });
       setWizardStep("schedule");
     }
@@ -180,7 +248,7 @@ export function BookingFlow(props: BookingFlowProps) {
           onStepChange={setWizardStep}
           steps={steps}
           selection={selection}
-          dispatch={dispatch}
+          dispatch={dispatchUserAction}
           patients={patients}
           selectedPatient={selectedPatient}
           services={services.services}
