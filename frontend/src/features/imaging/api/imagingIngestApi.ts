@@ -1,5 +1,7 @@
 ﻿import { apiRequest, apiRequestWithUploadProgress } from "@/lib/api/client";
 
+import { ApiError } from "@/lib/api/apiError";
+
 export type AssignedImagingUploadWork = {
   requestId: string;
   attemptId: string | null;
@@ -79,7 +81,7 @@ export async function startImagingAcquisition(requestId: string, expectedVersion
 
 /** Build one immutable multipart entity so a retry can reuse byte-identical request bytes. */
 export function prepareImagingUpload(files: File[]): ImagingUploadSubmission {
-  if (files.length === 0) throw new Error("Chọn ít nhất một file DICOM.");
+  if (files.length === 0) throw new ApiError(400, { code: "MSG-47" });
   const idempotencyKey = crypto.randomUUID();
   if (files.length === 1 && files[0].name.toLowerCase().endsWith(".zip")) {
     return {
@@ -89,9 +91,7 @@ export function prepareImagingUpload(files: File[]): ImagingUploadSubmission {
     };
   }
   if (files.some((file) => file.name.toLowerCase().endsWith(".zip"))) {
-    throw new Error(
-      "Hãy tải một file ZIP riêng, hoặc chỉ chọn các file DICOM của cùng study.",
-    );
+    throw new ApiError(400, { code: "MSG-47" });
   }
   const boundary = `----OTCMS-${crypto.randomUUID().replaceAll("-", "")}`;
   const parts: BlobPart[] = [];
@@ -118,7 +118,7 @@ export async function uploadImagingStudy(
   onProgress?: (loaded: number, total: number) => void,
 ): Promise<ImagingOperationResponse> {
   if (!work.attemptId) {
-    throw new Error("Chỉ định chưa có attempt được FEAT-003 xác nhận.");
+    throw new ApiError(400, { code: "MSG-42" });
   }
   const path = `/api/v1/imaging/requests/${encodeURIComponent(work.requestId)}/attempts/${encodeURIComponent(work.attemptId)}/ingest-operations` as const;
   const init: RequestInit = {

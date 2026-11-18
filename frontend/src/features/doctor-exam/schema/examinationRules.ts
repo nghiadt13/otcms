@@ -5,9 +5,7 @@ import type {
 } from "../types/doctorExam";
 import { ICD_CODE_PATTERN } from "./icd10Catalog";
 
-// Luật kiểm tra phía FE cho UC37 (khớp những gì BE kiểm ở `ClinicalExaminationServiceImpl`):
-// lưu nháp không đòi gì; hoàn thành cần lý do, triệu chứng, phát hiện khi khám và đúng
-// một chẩn đoán chính hợp lệ (MSG-08 ở BE, MSG-39 cho form).
+// UC37 completion requires clinical fields and exactly one valid primary diagnosis (MSG-39).
 
 export type ExaminationField =
   "reasonForVisit" | "symptoms" | "examinationFindings" | "diagnoses";

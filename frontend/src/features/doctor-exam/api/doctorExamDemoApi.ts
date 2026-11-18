@@ -183,7 +183,7 @@ export const doctorDemoApi: DoctorExamApi = {
       mode === "complete" &&
       input.diagnoses.filter((d) => d.type === "PRIMARY").length !== 1
     )
-      mockFail(400, "MSG-08");
+      mockFail(400, "MSG-39");
     const next: Examination = {
       ...input,
       status: mode === "draft" ? "DRAFT" : "COMPLETED",

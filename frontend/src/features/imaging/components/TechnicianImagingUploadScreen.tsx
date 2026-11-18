@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { messageFromError } from "@/lib/messages/appMessages";
+import { APP_MESSAGES, messageFromError } from "@/lib/messages/appMessages";
 import {
   getImagingOperation,
   getLatestImagingOperation,
@@ -37,9 +37,10 @@ const LABELS: Record<ImagingOperationResponse["state"], string> = {
 function operationErrorMessage(operation: ImagingOperationResponse) {
   switch (operation.error?.code) {
     case "IDENTITY_UNKNOWN":
-      return "Chưa xác minh được định danh bệnh nhân/chỉ định trong study. Study chưa liên kết và chưa gửi bác sĩ.";
     case "IDENTITY_MISMATCH":
-      return "Định danh trong study không khớp chỉ định. Study chưa liên kết và chưa gửi bác sĩ.";
+    case "UPLOAD_VALIDATION_FAILED":
+    case "ARCHIVE_REJECTED":
+      return APP_MESSAGES["MSG-47"];
     case "ARCHIVE_STUDY_ALREADY_LINKED":
       return "Study này đã được OTCMS ghi nhận với chỉ định khác hoặc metadata khác. Không tải lặp lại; hãy kiểm tra chỉ định và chọn đúng study.";
     default:
@@ -763,7 +764,7 @@ export function TechnicianImagingUploadScreen({
                     </p>
                     {operation.error ? (
                       <p role="alert" className="mt-2 text-sm text-destructive">
-                        {operationErrorMessage(operation)} ({operation.error.code})
+                        {operationErrorMessage(operation)} ({["IDENTITY_UNKNOWN", "IDENTITY_MISMATCH", "UPLOAD_VALIDATION_FAILED", "ARCHIVE_REJECTED"].includes(operation.error.code) ? "MSG-47" : operation.error.code})
                       </p>
                     ) : null}
                     {operation.state === "ARCHIVED_NOT_SENT" ||

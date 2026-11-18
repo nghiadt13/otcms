@@ -15,6 +15,12 @@ vi.mock("@/lib/api/client", () => ({
 describe("imagingIngestApi", () => {
   beforeEach(() => vi.mocked(apiRequest).mockReset());
 
+  it("uses MSG-47 for an empty or mixed ZIP selection", () => {
+    expect(() => prepareImagingUpload([])).toThrowError(expect.objectContaining({ code: "MSG-47" }));
+    expect(() => prepareImagingUpload([new File([""], "study.zip"), new File([""], "a.dcm")]))
+      .toThrowError(expect.objectContaining({ code: "MSG-47" }));
+  });
+
   it("loads only the authenticated technician's assigned upload work", async () => {
     vi.mocked(apiRequest).mockResolvedValueOnce({
       items: [],
@@ -61,7 +67,7 @@ describe("imagingIngestApi", () => {
         },
         submission,
       ),
-    ).rejects.toThrow("attempt được FEAT-003 xác nhận");
+    ).rejects.toMatchObject({ code: "MSG-42" });
     expect(apiRequest).not.toHaveBeenCalled();
   });
 

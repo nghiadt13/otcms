@@ -47,6 +47,7 @@ async function liveRequest<T>(request: Promise<T>): Promise<T> {
       case "ROOM_HAS_ACTIVE_RESERVATIONS":
         throw new ApiError(error.status, { code: "MSG-64" });
       case "DUPLICATE_ROOM_CODE":
+      case "MSG-92":
         throw new ApiError(error.status, {
           fieldErrors: [{ field: "name", code: "MSG-92" }],
         });
