@@ -11,7 +11,7 @@ public interface ServiceOrderRepository extends JpaRepository<ServiceOrderJpaEnt
     @org.springframework.data.jpa.repository.Query(value = "select id as \"orderId\", room_id as \"roomId\", lab_status as \"labStatus\" "
             + "from clinical_service_orders where service_type = 'LABORATORY' "
             + "and ((ordered_at >= :fromTime and ordered_at < :toTime) "
-            + "or lab_status in ('ASSIGNED', 'COLLECTED', 'SENT', 'REJECTED'))", nativeQuery = true)
+            + "or lab_status in ('ASSIGNED', 'COLLECTED', 'REJECTED'))", nativeQuery = true)
     List<LaboratoryQueueRow> findLaboratoryAssignments(@org.springframework.data.repository.query.Param("fromTime") java.time.Instant fromTime,
             @org.springframework.data.repository.query.Param("toTime") java.time.Instant toTime);
     @org.springframework.data.jpa.repository.Query(value = "select room_id as \"roomId\", lab_status as \"labStatus\" "
@@ -43,7 +43,7 @@ public interface ServiceOrderRepository extends JpaRepository<ServiceOrderJpaEnt
             @org.springframework.data.repository.query.Param("next") String next,
             @org.springframework.data.repository.query.Param("now") java.time.Instant now);
     @org.springframework.data.jpa.repository.Modifying(flushAutomatically = true, clearAutomatically = true)
-    @org.springframework.data.jpa.repository.Query(value = "update clinical_service_orders set lab_status = 'RESULT_AVAILABLE', order_status = 'RESULTS_AVAILABLE', updated_at = :now, version = version + 1 where id = :orderId and service_type = 'LABORATORY' and payment_status = 'PAID' and order_status = 'ORDERED' and lab_status = 'SENT'", nativeQuery = true)
+    @org.springframework.data.jpa.repository.Query(value = "update clinical_service_orders set lab_status = 'RESULT_AVAILABLE', order_status = 'RESULTS_AVAILABLE', updated_at = :now, version = version + 1 where id = :orderId and service_type = 'LABORATORY' and payment_status = 'PAID' and order_status = 'ORDERED' and lab_status = 'COLLECTED'", nativeQuery = true)
     int releaseLabResult(@org.springframework.data.repository.query.Param("orderId") UUID orderId, @org.springframework.data.repository.query.Param("now") java.time.Instant now);
     @org.springframework.data.jpa.repository.Query("select o from ServiceOrderJpaEntity o where o.visitId = :visitId "
             + "and o.serviceType = :serviceType order by o.roundNumber, o.orderCode")

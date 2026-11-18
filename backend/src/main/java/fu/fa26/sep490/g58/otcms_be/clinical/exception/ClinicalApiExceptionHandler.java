@@ -60,9 +60,9 @@ public class ClinicalApiExceptionHandler {
     @ExceptionHandler(ClinicalOperationException.class)
     public ResponseEntity<ErrorResponse> business(ClinicalOperationException error, HttpServletRequest request) {
         int status = switch (error.code()) {
-            case "MSG-40", "MSG-14", "MSG-LAB-03" -> 403;
+            case "MSG-40", "MSG-14" -> 403;
             case "MSG-41" -> 404;
-            case "MSG-42", "IDEMPOTENCY_CONFLICT", "MSG-LAB-01", "MSG-LAB-02", "MSG-LAB-14" -> 409;
+            case "MSG-42", "IDEMPOTENCY_CONFLICT", "MSG-95" -> 409;
             case "DEPENDENCY_UNAVAILABLE" -> 503;
             case "MSG-39", "MSG-08", "MSG-47" -> 400;
             default -> 500;

@@ -21,16 +21,8 @@ public class LaboratorySampleServiceImpl implements LaboratorySampleService {
                 accountId, now, accountId, now));
         return view(sample);
     }
-    @Override @Transactional
-    public Sample ship(UUID orderId, UUID accountId, UUID partnerId, String partner, Instant now) {
-        var attempts = samples.findAttempts(orderId);
-        if (attempts.isEmpty()) throw new IllegalStateException("Sample is missing");
-        var sample = samples.findAttemptForUpdate(attempts.getFirst().getId(), orderId).orElseThrow();
-        sample.recordShipment(partnerId, partner, accountId, now);
-        return view(sample);
-    }
     private Sample view(LaboratorySampleJpaEntity sample) {
-        return new Sample(sample.getId(), sample.getSampleCode(), sample.getAttemptNumber(), sample.getCollectedAt(), sample.getPartnerName(), sample.getSentAt());
+        return new Sample(sample.getId(), sample.getSampleCode(), sample.getAttemptNumber(), sample.getCollectedAt());
     }
     @Override @Transactional(readOnly = true)
     public Sample latest(UUID orderId) {

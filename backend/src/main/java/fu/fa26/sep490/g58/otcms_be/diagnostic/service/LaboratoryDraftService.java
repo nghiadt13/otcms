@@ -9,12 +9,12 @@ import java.util.UUID;
 public interface LaboratoryDraftService {
     List<LaboratoryResultValue> read(UUID orderId);
     List<LaboratoryResultValue> save(UUID orderId, UUID visitId, UUID sampleId, UUID actorId, List<LaboratoryResultValue> values, Instant now);
-    void attach(UUID orderId, UUID actorId, byte[] content, String contentType, String code, String issuer, Instant receivedAt, Instant now);
+    void attach(UUID orderId, UUID actorId, byte[] content, String contentType, Instant receivedAt, Instant now);
     ReportInfo reportInfo(UUID orderId);
     IssuedReportInfo issuedReportInfo(UUID orderId);
     java.io.InputStream openReport(UUID orderId);
     void approve(UUID orderId, UUID actorId, Instant now);
     List<LaboratoryResultValue> issued(UUID orderId);
-    record ReportInfo(String code, String issuer, Instant receivedAt, String contentType) { }
+    record ReportInfo(Instant receivedAt, String contentType) { }
     record IssuedReportInfo(UUID reportId, int version, Instant releasedAt, String contentType) { }
 }

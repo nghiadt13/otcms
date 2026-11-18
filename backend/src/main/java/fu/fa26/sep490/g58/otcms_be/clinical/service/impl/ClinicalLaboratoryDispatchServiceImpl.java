@@ -37,16 +37,16 @@ public class ClinicalLaboratoryDispatchServiceImpl implements ClinicalLaboratory
     @Transactional(readOnly = true)
     public java.util.List<LaboratoryRoomQueryService.Room> eligibleRooms(UUID orderId, AuthenticatedAccount actor) {
         if (actor == null || actor.accountId() == null || actor.accountRole() != AccountRole.RECEPTIONIST)
-            throw new ClinicalOperationException("MSG-LAB-03");
+            throw new ClinicalOperationException("MSG-40");
         if (orderId == null) throw new ClinicalOperationException("MSG-39");
         var order = orders.findById(orderId).orElseThrow(() -> new ClinicalOperationException("MSG-41"));
         if (order.getServiceType() != ClinicalServiceType.LABORATORY || order.getOrderStatus() != ServiceOrderStatus.ORDERED)
-            throw new ClinicalOperationException("MSG-LAB-14");
+            throw new ClinicalOperationException("MSG-42");
         var context = visits.getVisitContext(order.getVisitId());
         if (context == null || !context.clinicalWorkAllowed() || !order.getVisitId().equals(context.visitId())
                 || !order.getPatientId().equals(context.patientId())
                 || !order.getRequestingDoctorId().equals(context.responsibleDoctorId()))
-            throw new ClinicalOperationException("MSG-LAB-14");
+            throw new ClinicalOperationException("MSG-42");
         return rooms.eligibleRooms(order.getServiceId());
     }
 
@@ -54,26 +54,26 @@ public class ClinicalLaboratoryDispatchServiceImpl implements ClinicalLaboratory
     @Transactional
     public void assign(UUID orderId, UUID roomId, AuthenticatedAccount actor) {
         if (actor == null || actor.accountId() == null || actor.accountRole() != AccountRole.RECEPTIONIST)
-            throw new ClinicalOperationException("MSG-LAB-03");
+            throw new ClinicalOperationException("MSG-40");
         if (orderId == null || roomId == null) throw new ClinicalOperationException("MSG-39");
         guard.acquire();
         var order = orders.findById(orderId).orElseThrow(() -> new ClinicalOperationException("MSG-41"));
         if (order.getServiceType() != ClinicalServiceType.LABORATORY || order.getOrderStatus() != ServiceOrderStatus.ORDERED)
-            throw new ClinicalOperationException("MSG-LAB-14");
-        if (order.getPaymentStatus() != ServiceOrderPaymentStatus.PAID) throw new ClinicalOperationException("MSG-LAB-01");
+            throw new ClinicalOperationException("MSG-42");
+        if (order.getPaymentStatus() != ServiceOrderPaymentStatus.PAID) throw new ClinicalOperationException("MSG-95");
         var context = visits.getVisitContext(order.getVisitId());
         if (context == null || !context.clinicalWorkAllowed() || !order.getVisitId().equals(context.visitId())
                 || !order.getPatientId().equals(context.patientId())
                 || !order.getRequestingDoctorId().equals(context.responsibleDoctorId()))
-            throw new ClinicalOperationException("MSG-LAB-14");
-        var assignment = orders.findLaboratoryAssignment(orderId).orElseThrow(() -> new ClinicalOperationException("MSG-LAB-14"));
+            throw new ClinicalOperationException("MSG-42");
+        var assignment = orders.findLaboratoryAssignment(orderId).orElseThrow(() -> new ClinicalOperationException("MSG-42"));
         if (assignment.getLabStatus() != null) {
             if ("ASSIGNED".equals(assignment.getLabStatus()) && roomId.equals(assignment.getRoomId())) return;
-            throw new ClinicalOperationException("MSG-LAB-14");
+            throw new ClinicalOperationException("MSG-42");
         }
-        if (!rooms.isEligibleRoom(roomId, order.getServiceId())) throw new ClinicalOperationException("MSG-LAB-02");
+        if (!rooms.isEligibleRoom(roomId, order.getServiceId())) throw new ClinicalOperationException("MSG-39");
         var now = clock.instant();
-        if (orders.assignLaboratoryRoom(orderId, roomId, now) != 1) throw new ClinicalOperationException("MSG-LAB-14");
+        if (orders.assignLaboratoryRoom(orderId, roomId, now) != 1) throw new ClinicalOperationException("MSG-42");
         audit.record(AuditEntry.builder("laboratory", "LABORATORY", "ASSIGN_ROOM", "SERVICE_ORDER")
                 .entityId(orderId).actorAccountId(actor.accountId()).actorType("RECEPTIONIST")
                 .afterState(Map.of("roomId", roomId.toString())).occurredAt(now).build());

@@ -30,7 +30,7 @@ public class DoctorLaboratoryResultController {
             @AuthenticationPrincipal AuthenticatedAccount actor) {
         var report = results.report(visitId, orderId, doctors.requireDoctorProfile(actor));
         return ResponseEntity.ok().cacheControl(CacheControl.noStore()).contentType(org.springframework.http.MediaType.parseMediaType(report.contentType()))
-                .header("X-Content-Type-Options", "nosniff").header("Content-Disposition", "attachment; filename=partner-report")
+                .header("X-Content-Type-Options", "nosniff").header("Content-Disposition", "attachment; filename=lab-report")
                 .body(new org.springframework.core.io.InputStreamResource(report.content()));
     }
     @PostMapping("/api/v1/visits/{visitId}/laboratory-results/{orderId}/assessment")
