@@ -1,7 +1,6 @@
 package fu.fa26.sep490.g58.otcms_be.auth;
 
 import fu.fa26.sep490.g58.otcms_be.auth.controller.PasswordRecoveryController;
-import fu.fa26.sep490.g58.otcms_be.auth.security.StaffNetworkPolicy;
 import fu.fa26.sep490.g58.otcms_be.auth.model.dto.request.ForgotPasswordRequest;
 import fu.fa26.sep490.g58.otcms_be.auth.service.PasswordRecoveryService;
 import org.junit.jupiter.api.Test;
@@ -21,12 +20,14 @@ class T010PasswordRecoveryControllerTest {
         var service = new fu.fa26.sep490.g58.otcms_be.auth.service.impl.PasswordRecoveryServiceImpl(
                 accounts, challenges, mock(fu.fa26.sep490.g58.otcms_be.auth.service.EmailDeliveryService.class),
                 encoder, sessions, mock(fu.fa26.sep490.g58.otcms_be.config.AuthProperties.class));
-        MockMvc mvc = MockMvcBuilders.standaloneSetup(new PasswordRecoveryController(service, new StaffNetworkPolicy()))
+        MockMvc mvc = MockMvcBuilders.standaloneSetup(new PasswordRecoveryController(service))
                 .setControllerAdvice(new fu.fa26.sep490.g58.otcms_be.auth.exception.AuthExceptionHandler()).build();
+        // 25 code points, letters and digits present, 73 UTF-8 bytes: only the 72-byte rule rejects it.
+        String newPassword = "ả".repeat(24) + "1";
         mvc.perform(post("/api/auth/patient/reset-password").contentType("application/json")
-                        .content("{\"token\":\"token\",\"newPassword\":\"" + "\u1ea3".repeat(25) + "\"}"))
+                        .content("{\"email\":\"patient@example.test\",\"otp\":\"123456\",\"newPassword\":\"" + newPassword + "\"}"))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
+                .andExpect(jsonPath("$.error.code").value("MSG-08"));
         verifyNoInteractions(accounts, challenges, encoder, sessions);
     }
 
@@ -34,7 +35,7 @@ class T010PasswordRecoveryControllerTest {
         PasswordRecoveryService service = mock(PasswordRecoveryService.class);
         when(service.forgot("patient@example.test", fu.fa26.sep490.g58.otcms_be.auth.model.entity.enums.AccountType.PATIENT))
                 .thenReturn(PasswordRecoveryService.GENERIC_MESSAGE);
-        MockMvc mvc = MockMvcBuilders.standaloneSetup(new PasswordRecoveryController(service, new StaffNetworkPolicy())).build();
+        MockMvc mvc = MockMvcBuilders.standaloneSetup(new PasswordRecoveryController(service)).build();
         mvc.perform(post("/api/auth/patient/forgot-password").contentType("application/json")
                         .content("{\"email\":\"patient@example.test\"}"))
                 .andExpect(status().isAccepted()).andExpect(content().string(PasswordRecoveryService.GENERIC_MESSAGE));
@@ -42,25 +43,27 @@ class T010PasswordRecoveryControllerTest {
 
     @Test void invalidForgotPayloadIsRejectedBeforeServiceCall() throws Exception {
         PasswordRecoveryService service = mock(PasswordRecoveryService.class);
-        MockMvc mvc = MockMvcBuilders.standaloneSetup(new PasswordRecoveryController(service, new StaffNetworkPolicy())).build();
+        MockMvc mvc = MockMvcBuilders.standaloneSetup(new PasswordRecoveryController(service)).build();
         mvc.perform(post("/api/auth/patient/forgot-password").contentType("application/json").content("{\"email\":\"\"}"))
                 .andExpect(status().isBadRequest());
         verifyNoInteractions(service);
     }
 
-    @Test void staffForgotIsDeniedOutsideAllowedNetwork() throws Exception {
+    @Test void staffSelfServiceRecoveryEndpointsAreNotExposed() throws Exception {
         PasswordRecoveryService service = mock(PasswordRecoveryService.class);
-        StaffNetworkPolicy policy = new StaffNetworkPolicy(); policy.setAllowedCidrs(java.util.List.of("10.0.0.0/8"));
-        MockMvc mvc = MockMvcBuilders.standaloneSetup(new PasswordRecoveryController(service, policy)).setControllerAdvice(new fu.fa26.sep490.g58.otcms_be.auth.exception.AuthExceptionHandler()).build();
-        mvc.perform(post("/api/auth/staff/forgot-password").with(r -> { r.setRemoteAddr("192.168.1.10"); return r; })
-                        .contentType("application/json").content("{\"email\":\"staff@example.test\"}"))
-                .andExpect(status().isForbidden());
+        MockMvc mvc = MockMvcBuilders.standaloneSetup(new PasswordRecoveryController(service)).build();
+        mvc.perform(post("/api/auth/staff/forgot-password").contentType("application/json")
+                        .content("{\"email\":\"staff@example.test\"}"))
+                .andExpect(status().isNotFound());
+        mvc.perform(post("/api/auth/staff/reset-password").contentType("application/json")
+                        .content("{\"token\":\"token\",\"newPassword\":\"new-password-123\"}"))
+                .andExpect(status().isNotFound());
         verifyNoInteractions(service);
     }
 
     @Test void malformedResetPayloadIsRejectedBeforeServiceCall() throws Exception {
         PasswordRecoveryService service = mock(PasswordRecoveryService.class);
-        MockMvc mvc = MockMvcBuilders.standaloneSetup(new PasswordRecoveryController(service, new StaffNetworkPolicy())).build();
+        MockMvc mvc = MockMvcBuilders.standaloneSetup(new PasswordRecoveryController(service)).build();
         mvc.perform(post("/api/auth/patient/reset-password").contentType("application/json")
                         .content("{\"token\":\"\",\"newPassword\":\"\"}"))
                 .andExpect(status().isBadRequest());

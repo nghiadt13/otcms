@@ -5,7 +5,4 @@ import java.util.UUID;
 public interface EmailDeliveryService {
     void sendVerificationCode(String normalizedEmail, String oneTimeCode, UUID accountId);
     default void sendPasswordReset(String normalizedEmail, String resetToken, UUID accountId) { }
-    default void sendStaffPasswordReset(String normalizedEmail, String resetToken, UUID accountId) {
-        sendPasswordReset(normalizedEmail, resetToken, accountId);
-    }
 }

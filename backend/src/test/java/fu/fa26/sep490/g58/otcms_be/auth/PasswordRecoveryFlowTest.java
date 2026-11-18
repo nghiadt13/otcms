@@ -9,7 +9,6 @@ import fu.fa26.sep490.g58.otcms_be.auth.model.entity.enums.AccountType;
 import fu.fa26.sep490.g58.otcms_be.auth.model.entity.enums.VerificationPurpose;
 import fu.fa26.sep490.g58.otcms_be.auth.repository.AccountRepository;
 import fu.fa26.sep490.g58.otcms_be.auth.repository.VerificationCodeRepository;
-import fu.fa26.sep490.g58.otcms_be.auth.security.StaffNetworkPolicy;
 import fu.fa26.sep490.g58.otcms_be.auth.service.AuthSessionService;
 import fu.fa26.sep490.g58.otcms_be.auth.service.EmailDeliveryService;
 import fu.fa26.sep490.g58.otcms_be.auth.service.impl.PasswordRecoveryServiceImpl;
@@ -42,7 +41,7 @@ class PasswordRecoveryFlowTest {
         when(accounts.findByIdForUpdate(account.getId())).thenReturn(Optional.of(account));
         var service = new PasswordRecoveryServiceImpl(accounts, challenges, email, encoder, sessions,
                 new AuthProperties(null, null, null, null, null, "v1", "v1"));
-        var mvc = MockMvcBuilders.standaloneSetup(new PasswordRecoveryController(service, new StaffNetworkPolicy()))
+        var mvc = MockMvcBuilders.standaloneSetup(new PasswordRecoveryController(service))
                 .setControllerAdvice(new AuthExceptionHandler()).build();
         mvc.perform(post("/api/auth/patient/forgot-password").contentType("application/json")
                 .content("{\"email\":\"patient@example.test\"}"))
@@ -122,7 +121,7 @@ class PasswordRecoveryFlowTest {
     }
     @Test void malformedRecoveryEmailUsesMsg08() throws Exception {
         var service = mock(fu.fa26.sep490.g58.otcms_be.auth.service.PasswordRecoveryService.class);
-        var mvc = MockMvcBuilders.standaloneSetup(new PasswordRecoveryController(service, new StaffNetworkPolicy()))
+        var mvc = MockMvcBuilders.standaloneSetup(new PasswordRecoveryController(service))
                 .setControllerAdvice(new AuthExceptionHandler()).build();
         mvc.perform(post("/api/auth/patient/forgot-password").contentType("application/json")
                 .content("{\"email\":\"not-an-email\"}"))

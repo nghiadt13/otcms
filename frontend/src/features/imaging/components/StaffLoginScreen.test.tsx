@@ -69,4 +69,12 @@ describe("StaffLoginScreen", () => {
       "không thuộc kỹ thuật viên",
     );
   });
+
+  it("không có liên kết khôi phục mật khẩu cho nhân viên", () => {
+    render(<StaffLoginScreen />);
+    expect(
+      screen.queryByRole("link", { name: /Quên mật khẩu/ }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText(/liên hệ Quản trị viên/)).toBeInTheDocument();
+  });
 });

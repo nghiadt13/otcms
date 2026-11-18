@@ -5,7 +5,6 @@ import { useRef, useState, type FormEvent } from "react";
 import {
   requestPasswordReset,
   PasswordRecoveryError,
-  type RecoveryPortal,
   type RecoveryFailure,
 } from "../api/passwordRecoveryApi";
 import { RecoveryErrorNotice } from "./RecoveryErrorNotice";
@@ -21,11 +20,7 @@ import { AuthTextField } from "./AuthTextField";
 // UC02 bước 1–4: nhập email để nhận hướng dẫn đặt lại mật khẩu. Sau khi gửi luôn
 // hiện cùng một màn xác nhận (MSG-02), dù email có thuộc tài khoản nào hay không
 // (BR-03).
-export function ForgotPasswordForm({
-  portal = "patient",
-}: {
-  portal?: RecoveryPortal;
-}) {
+export function ForgotPasswordForm() {
   const [failure, setFailure] = useState<RecoveryFailure | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
   const [email, setEmail] = useState("");
@@ -48,7 +43,7 @@ export function ForgotPasswordForm({
     setFailure(null);
     setSubmitting(true);
     try {
-      await requestPasswordReset(email, portal);
+      await requestPasswordReset(email);
       setSentTo(email.trim());
     } catch (cause) {
       if (cause instanceof PasswordRecoveryError) setFailure(cause.reason);

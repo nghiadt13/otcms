@@ -39,11 +39,11 @@ describe("password recovery API contract", () => {
       }),
     );
   });
-  it("sends token and unchanged password to the selected portal and handles empty 204", async () => {
+  it("sends OTP and unchanged password to the patient reset endpoint and handles empty 204", async () => {
     fetchMock.mockResolvedValue(new Response(null, { status: 204 }));
-    await resetPassword("user@example.test", "123456", " new-password-123 ", "staff");
+    await resetPassword("user@example.test", "123456", " new-password-123 ");
     expect(fetchMock).toHaveBeenCalledWith(
-      expect.stringContaining("/api/auth/staff/reset-password"),
+      expect.stringContaining("/api/auth/patient/reset-password"),
       expect.objectContaining({
         body: JSON.stringify({
           email: "user@example.test",
@@ -68,7 +68,6 @@ describe("password recovery API contract", () => {
     ["PASSWORD_REUSE_NOT_ALLOWED", 400, "password-reuse"],
     ["VALIDATION_FAILED", 400, "validation"],
     ["RATE_LIMIT_EXCEEDED", 429, "rate-limit"],
-    ["STAFF_NETWORK_ACCESS_DENIED", 403, "staff-network"],
   ])("maps %s safely", async (code, status, reason) => {
     fetchMock.mockResolvedValue(failure(code, status));
     await expect(

@@ -1,7 +1,7 @@
 package fu.fa26.sep490.g58.otcms_be.auth;
 
-import fu.fa26.sep490.g58.otcms_be.auth.model.dto.request.ResetPasswordRequest;
 import fu.fa26.sep490.g58.otcms_be.auth.model.dto.request.ChangePasswordRequest;
+import fu.fa26.sep490.g58.otcms_be.auth.model.dto.request.PatientOtpResetRequest;
 import fu.fa26.sep490.g58.otcms_be.auth.exception.PasswordRecoveryException;
 import fu.fa26.sep490.g58.otcms_be.auth.model.entity.*;
 import fu.fa26.sep490.g58.otcms_be.auth.model.entity.enums.*;
@@ -42,10 +42,11 @@ class T008PasswordRecoveryPostgresIntegrationTest {
         jdbc.update("delete from accounts where id=?", fixtureAccountId);
     }
 
-    @Test void changingPasswordInvalidatesPreviouslyIssuedResetLink() {
+    @Test @Transactional void changingPasswordInvalidatesPreviouslyIssuedResetOtp() {
+        String address = "t008-change-" + UUID.randomUUID() + "@example.test";
         AccountJpaEntity account = new AccountJpaEntity();
-        account.setNormalizedEmail("t008-change-" + UUID.randomUUID() + "@example.test");
-        account.setAccountType(AccountType.ADMIN);
+        account.setNormalizedEmail(address);
+        account.setAccountType(AccountType.PATIENT);
         account.setStatus(AccountStatus.ACTIVE);
         account.setPasswordHash(encoder.encode("old-password-123"));
         account.setCreatedAt(Instant.now());
@@ -53,18 +54,16 @@ class T008PasswordRecoveryPostgresIntegrationTest {
         account = accounts.saveAndFlush(account);
         fixtureAccountId = account.getId();
 
-        recovery.forgot(account.getNormalizedEmail(), AccountType.RECEPTIONIST);
-        var token = org.mockito.ArgumentCaptor.forClass(String.class);
-        verify(email).sendStaffPasswordReset(eq(account.getNormalizedEmail()), token.capture(), eq(account.getId()));
-        verify(email, never()).sendPasswordReset(anyString(), anyString(), any());
-        String tokenHash = fu.fa26.sep490.g58.otcms_be.auth.service.impl.PasswordRecoveryServiceImpl.hash(token.getValue());
-        assertNull(challenges.findByCodeHash(tokenHash, VerificationPurpose.PASSWORD_RESET).orElseThrow().getSupersededAt());
+        recovery.forgot(address, AccountType.PATIENT);
+        var otp = org.mockito.ArgumentCaptor.forClass(String.class);
+        verify(email).sendPasswordReset(eq(address), otp.capture(), eq(account.getId()));
+        assertTrue(challenges.findCurrentForUpdate(account.getId(), VerificationPurpose.PASSWORD_RESET).isPresent());
 
         recovery.change(account.getId(), new ChangePasswordRequest("old-password-123", "changed-password-123"));
-        assertNotNull(challenges.findByCodeHash(tokenHash, VerificationPurpose.PASSWORD_RESET).orElseThrow().getSupersededAt());
+        assertTrue(challenges.findCurrentForUpdate(account.getId(), VerificationPurpose.PASSWORD_RESET).isEmpty());
         var error = assertThrows(PasswordRecoveryException.class,
-                () -> recovery.reset(new ResetPasswordRequest(token.getValue(), "reset-password-123"), AccountType.RECEPTIONIST));
-        assertEquals("PASSWORD_RESET_TOKEN_INVALID", error.getMessage());
+                () -> recovery.resetPatientOtp(new PatientOtpResetRequest(address, otp.getValue(), "reset-password-123")));
+        assertEquals("MSG-77", error.getMessage());
         assertTrue(encoder.matches("changed-password-123", accounts.findById(account.getId()).orElseThrow().getPasswordHash()));
     }
 
@@ -81,13 +80,13 @@ class T008PasswordRecoveryPostgresIntegrationTest {
         sessionService.create(account.getId(), "127.0.0.1", "t008");
 
         recovery.forgot("t008@example.test", AccountType.PATIENT);
-        var token = org.mockito.ArgumentCaptor.forClass(String.class);
-        verify(email).sendPasswordReset(eq("t008@example.test"), token.capture(), eq(account.getId()));
+        var otp = org.mockito.ArgumentCaptor.forClass(String.class);
+        verify(email).sendPasswordReset(eq("t008@example.test"), otp.capture(), eq(account.getId()));
         VerificationCodeJpaEntity challenge = challenges.findCurrentForUpdate(account.getId(), VerificationPurpose.PASSWORD_RESET).orElseThrow();
-        assertNotEquals(token.getValue(), challenge.getCodeHash());
+        assertNotEquals(otp.getValue(), challenge.getCodeHash());
         assertEquals(0, challenge.getFailedAttempts());
 
-        recovery.reset(new ResetPasswordRequest(token.getValue(), "new-password-123"), AccountType.PATIENT);
+        recovery.resetPatientOtp(new PatientOtpResetRequest("t008@example.test", otp.getValue(), "new-password-123"));
         AccountJpaEntity updated = accounts.findById(account.getId()).orElseThrow();
         assertTrue(encoder.matches("new-password-123", updated.getPasswordHash()));
         assertNotNull(challenges.findById(challenge.getId()).orElseThrow().getConsumedAt());
