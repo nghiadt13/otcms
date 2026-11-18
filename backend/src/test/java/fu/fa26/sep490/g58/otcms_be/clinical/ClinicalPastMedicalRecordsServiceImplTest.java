@@ -73,7 +73,7 @@ class ClinicalPastMedicalRecordsServiceImplTest {
                 () -> service.getPastMedicalRecords(null, doctor, account, 0, 20)).code());
     }
     @Test void completedExaminationAndAdviceRemainAttachedToCorrectVisit() {
-        page(); var examination = new Examination("reason", "symptom", "finding", "knee", "RIGHT", null, List.of());
+        page(); var examination = new Examination("reason", "symptom", "finding", "knee", "RIGHT", null, List.of(), null, null);
         var advice = new Advice("rest", null, null, "warning", "review", true);
         when(exams.findCompletedByVisitIds(any())).thenReturn(Map.of(old, new CompletedRecord(old, examination, advice)));
         var result = service.getPastMedicalRecords(current, doctor, account, 0, 20);

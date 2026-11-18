@@ -24,7 +24,8 @@ import fu.fa26.sep490.g58.otcms_be.clinical.repository.ClinicalMedicalDocumentRe
 import fu.fa26.sep490.g58.otcms_be.clinical.repository.ClinicalPrescriptionItemRepository;
 import fu.fa26.sep490.g58.otcms_be.clinical.repository.ClinicalPrescriptionRepository;
 import fu.fa26.sep490.g58.otcms_be.clinical.security.ClinicalMedicalDocumentAccess;
-import fu.fa26.sep490.g58.otcms_be.clinical.service.impl.ClinicalExaminationServiceImpl;
+import fu.fa26.sep490.g58.otcms_be.clinical.service.ClinicalExamFieldRules;
+import fu.fa26.sep490.g58.otcms_be.clinical.service.Icd10Catalog;
 import fu.fa26.sep490.g58.otcms_be.common.audit.AuditEntry;
 import fu.fa26.sep490.g58.otcms_be.common.audit.AuditLogWriter;
 import fu.fa26.sep490.g58.otcms_be.common.security.AuthenticatedAccount;
@@ -95,19 +96,34 @@ public class ResultAmendmentService {
         return new Amended(documentId, version);
     }
 
+    private static List<String> directionsOf(ClinicalExaminationJpaEntity exam) {
+        return exam.getTreatmentDirections() == null ? null : List.of(exam.getTreatmentDirections());
+    }
+
     private void amendExamination(ClinicalExaminationJpaEntity exam, ExaminationRequest body, Map<String, Object> before,
             Map<String, Object> after, java.time.Instant now) {
         var newDiagnoses = body.diagnoses() == null ? List.<DiagnosisRequest>of() : body.diagnoses();
         if (blank(body.reasonForVisit()) || blank(body.symptoms()) || blank(body.examinationFindings())
                 || newDiagnoses.stream().filter(d -> d != null && d.type() == DiagnosisType.PRIMARY).count() != 1
                 || newDiagnoses.stream().anyMatch(d -> d == null || d.type() == null || d.code() == null
-                        || !ClinicalExaminationServiceImpl.ICD.matcher(d.code()).matches())) throw error("MSG-39");
+                        || !Icd10Catalog.contains(d.code()))) throw error("MSG-39");
+        ClinicalExamFieldRules.validate(body.injuryBodySite(), body.injurySide(), body.injuryMechanism(),
+                body.injuryDescription(), body.treatmentDirections(), true);
+        var site = ClinicalExamFieldRules.trimToNull(body.injuryBodySite());
+        var side = ClinicalExamFieldRules.trimToNull(body.injurySide());
+        var mechanism = ClinicalExamFieldRules.trimToNull(body.injuryMechanism());
+        var description = ClinicalExamFieldRules.trimToNull(body.injuryDescription());
+        before.put("injuryDescription", exam.getInjuryDescription());
+        before.put("treatmentDirections", directionsOf(exam));
         var oldDiagnoses = diagnoses.findByExaminationId(exam.getId());
         before.put("examination", examinationState(exam.getReasonForVisit(), exam.getSymptoms(), exam.getExaminationFindings(),
                 exam.getInjuryBodySite(), exam.getInjurySide(), exam.getInjuryMechanism(),
                 oldDiagnoses.stream().map(d -> d.getCode() + ":" + d.getType()).toList()));
-        exam.update(body.reasonForVisit(), body.symptoms(), body.examinationFindings(), body.injuryBodySite(),
-                body.injurySide(), body.injuryMechanism(), ClinicalExaminationStatus.COMPLETED, now);
+        exam.update(body.reasonForVisit(), body.symptoms(), body.examinationFindings(), site, side, mechanism,
+                ClinicalExaminationStatus.COMPLETED, now);
+        exam.setExamFields(description, ClinicalExamFieldRules.normalizeDirections(body.treatmentDirections()));
+        after.put("injuryDescription", exam.getInjuryDescription());
+        after.put("treatmentDirections", directionsOf(exam));
         diagnoses.deleteByExaminationId(exam.getId());
         diagnoses.flush();
         var saved = new ArrayList<String>();
@@ -117,7 +133,7 @@ public class ResultAmendmentService {
             saved.add(code + ":" + d.type());
         }
         after.put("examination", examinationState(body.reasonForVisit(), body.symptoms(), body.examinationFindings(),
-                body.injuryBodySite(), body.injurySide(), body.injuryMechanism(), saved));
+                site, side, mechanism, saved));
     }
 
     private void amendAdvice(ClinicalExaminationJpaEntity exam, AdviceRequest body, Map<String, Object> before,
@@ -182,7 +198,7 @@ public class ResultAmendmentService {
         var examination = new ExaminationResponse(exam.getId(), visitId, exam.getReasonForVisit(), exam.getSymptoms(),
                 exam.getExaminationFindings(), exam.getInjuryBodySite(), exam.getInjurySide(), exam.getInjuryMechanism(),
                 exam.getStatus(), diagnoses.findByExaminationId(exam.getId()).stream()
-                        .map(d -> new DiagnosisResponse(d.getCode(), d.getType())).toList(), exam.getVersion());
+                        .map(d -> new DiagnosisResponse(d.getCode(), d.getType())).toList(), exam.getVersion(), exam.getInjuryDescription(), directionsOf(exam));
         var advice = new AdviceResponse(visitId, exam.getHomeCareAdvice(), exam.getActivityAdvice(), exam.getRehabilitationAdvice(),
                 exam.getWarningSigns(), exam.getFollowUpRecommendation(), exam.getStatus(), exam.getUpdatedAt(), exam.getVersion(),
                 exam.getFollowUpIndicated());

@@ -8,7 +8,8 @@ public interface ClinicalExaminationHistoryQueryService {
     Map<UUID, CompletedRecord> findCompletedByVisitIds(Collection<UUID> visitIds);
     record Diagnosis(String code, DiagnosisType type) { }
     record Examination(String reasonForVisit, String symptoms, String examinationFindings, String injuryBodySite,
-            String injurySide, String injuryMechanism, List<Diagnosis> diagnoses) {
+            String injurySide, String injuryMechanism, List<Diagnosis> diagnoses,
+            String injuryDescription, List<String> treatmentDirections) {
         public Examination { diagnoses = List.copyOf(diagnoses); }
         @Override public String toString() { return "Examination[redacted]"; }
     }

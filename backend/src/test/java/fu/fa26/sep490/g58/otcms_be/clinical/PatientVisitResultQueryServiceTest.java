@@ -63,7 +63,7 @@ class PatientVisitResultQueryServiceTest {
         var image = new ReleasedReport(UUID.randomUUID(), visit, 1, "CURRENT", "X-quang", "Gối", "study-1", "Không gãy xương", at);
         when(reports.listForPatientVisit(any(), eq(visit))).thenReturn(List.of(image));
         var exam = new ClinicalExaminationHistoryQueryService.Examination("Đau gối", "Đau", "Sưng", null, null, null,
-                List.of(new ClinicalExaminationHistoryQueryService.Diagnosis("M25.5", DiagnosisType.PRIMARY)));
+                List.of(new ClinicalExaminationHistoryQueryService.Diagnosis("M25.5", DiagnosisType.PRIMARY)), null, null);
         var advice = new ClinicalExaminationHistoryQueryService.Advice("Chườm lạnh", null, null, null, null, null);
         when(examinations.findCompletedByVisitIds(List.of(visit))).thenReturn(Map.of(visit, new CompletedRecord(visit, exam, advice)));
         when(prescriptions.findIssuedByPatientAndVisitIds(patient, List.of(visit))).thenReturn(List.of(new IssuedPrescriptionSummary(

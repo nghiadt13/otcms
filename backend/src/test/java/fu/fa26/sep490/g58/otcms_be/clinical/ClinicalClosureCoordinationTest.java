@@ -60,6 +60,6 @@ class ClinicalClosureCoordinationTest {
         verifyNoInteractions(prep, orders);
     }
     ClinicalExaminationService.ExaminationCommand command() {
-        return new ClinicalExaminationService.ExaminationCommand(visit, doctor, null, null, null, null, null, null, List.of());
+        return new ClinicalExaminationService.ExaminationCommand(visit, doctor, null, null, null, null, null, null, List.of(), null, null);
     }
 }

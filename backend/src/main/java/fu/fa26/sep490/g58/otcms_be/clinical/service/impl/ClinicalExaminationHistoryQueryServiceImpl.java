@@ -32,7 +32,8 @@ public class ClinicalExaminationHistoryQueryServiceImpl implements ClinicalExami
             var advice = new Advice(exam.getHomeCareAdvice(), exam.getActivityAdvice(), exam.getRehabilitationAdvice(),
                     exam.getWarningSigns(), exam.getFollowUpRecommendation(), exam.getFollowUpIndicated());
             var examination = new Examination(exam.getReasonForVisit(), exam.getSymptoms(), exam.getExaminationFindings(),
-                    exam.getInjuryBodySite(), exam.getInjurySide(), exam.getInjuryMechanism(), lines);
+                    exam.getInjuryBodySite(), exam.getInjurySide(), exam.getInjuryMechanism(), lines, exam.getInjuryDescription(),
+                    exam.getTreatmentDirections()==null?null:List.of(exam.getTreatmentDirections()));
             result.put(exam.getVisitId(), new CompletedRecord(exam.getVisitId(), examination, advice));
         }
         return Map.copyOf(result);

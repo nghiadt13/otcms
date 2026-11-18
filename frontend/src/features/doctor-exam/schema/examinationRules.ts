@@ -1,3 +1,5 @@
+import { isInjurySide } from "@/lib/domain/injuryLabels";
+import { formatAppMessage } from "@/lib/messages/appMessages";
 import type {
   Diagnosis,
   Examination,
@@ -5,10 +7,18 @@ import type {
 } from "../types/doctorExam";
 import { ICD_CODE_PATTERN } from "./icd10Catalog";
 
-// UC37 completion requires clinical fields and exactly one valid primary diagnosis (MSG-39).
+// UC37/UC42 completion requires clinical fields, injury type, treatment directions and exactly one valid primary diagnosis (MSG-39).
 
 export type ExaminationField =
-  "reasonForVisit" | "symptoms" | "examinationFindings" | "diagnoses";
+  | "reasonForVisit"
+  | "symptoms"
+  | "examinationFindings"
+  | "diagnoses"
+  | "injuryBodySite"
+  | "injurySide"
+  | "injuryMechanism"
+  | "injuryDescription"
+  | "treatmentDirections";
 
 export const EMPTY_EXAMINATION: ExaminationInput = {
   reasonForVisit: "",
@@ -17,6 +27,8 @@ export const EMPTY_EXAMINATION: ExaminationInput = {
   injuryBodySite: "",
   injurySide: "",
   injuryMechanism: "",
+  injuryDescription: "",
+  treatmentDirections: [],
   diagnoses: [],
 };
 
@@ -39,6 +51,13 @@ export function validateForCompletion(
   if (!input.symptoms.trim()) errors.symptoms = "Nhập triệu chứng.";
   if (!input.examinationFindings.trim())
     errors.examinationFindings = "Nhập phát hiện khi khám.";
+  // Trường chấn thương và hướng điều trị thiếu thì BE cũng trả MSG-39, nên báo đúng mã đó.
+  const missing = formatAppMessage("MSG-39");
+  if (!input.injuryBodySite.trim()) errors.injuryBodySite = missing;
+  if (!isInjurySide(input.injurySide)) errors.injurySide = missing;
+  if (!input.injuryMechanism.trim()) errors.injuryMechanism = missing;
+  if (!input.injuryDescription?.trim()) errors.injuryDescription = missing;
+  if (!input.treatmentDirections?.length) errors.treatmentDirections = missing;
   const primary = input.diagnoses.filter((d) => d.type === "PRIMARY");
   if (primary.length !== 1) errors.diagnoses = "Chọn đúng một chẩn đoán chính.";
   else if (input.diagnoses.some((d) => !ICD_CODE_PATTERN.test(d.code)))

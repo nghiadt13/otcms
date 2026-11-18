@@ -34,6 +34,7 @@ import type {
 } from "../types/doctorExam";
 import { DoctorLoadState } from "./DoctorLoadState";
 import { IcdDiagnosisPicker } from "./IcdDiagnosisPicker";
+import { InjuryFields } from "./InjuryFields";
 
 // UC38: bác sĩ phụ trách sửa chẩn đoán, phát hiện khám hoặc lời dặn của lượt đã hoàn tất. Lý do bắt buộc
 // (BR-47, MSG-39); BE giữ giá trị cũ trong nhật ký và sinh phiên bản phiếu mới (MSG-76).
@@ -202,6 +203,12 @@ function AmendFields({
           />
           <FieldError message={errors.symptoms} />
         </AdminFormField>
+        <InjuryFields
+          idPrefix="amend-"
+          input={examination}
+          errors={errors}
+          onSet={setExam}
+        />
         <IcdDiagnosisPicker
           value={examination.diagnoses}
           onChange={(next) => setExam("diagnoses", next)}

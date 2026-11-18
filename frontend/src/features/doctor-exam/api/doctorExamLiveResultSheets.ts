@@ -7,6 +7,7 @@ import type {
   ResultSheet,
 } from "../types/doctorExam";
 import {
+  examinationPayload,
   toAdvice,
   toExamination,
   type AdviceDto,
@@ -65,7 +66,11 @@ export async function amendResult(
 ): Promise<ResultSheet[]> {
   await apiRequest(`${root(visitId)}/amendments`, {
     method: "POST",
-    body: JSON.stringify({ ...changes, reason }),
+    body: JSON.stringify({
+      ...changes,
+      examination: changes.examination && examinationPayload(changes.examination),
+      reason,
+    }),
   });
   return listResultSheets(visitId);
 }

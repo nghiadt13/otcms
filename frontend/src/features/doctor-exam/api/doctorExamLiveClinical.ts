@@ -20,6 +20,8 @@ export type ExaminationDto = {
   injuryBodySite: string | null;
   injurySide: string | null;
   injuryMechanism: string | null;
+  injuryDescription: string | null;
+  treatmentDirections?: string[] | null;
   status: ExaminationStatus;
   diagnoses: Diagnosis[] | null;
   version: number | null;
@@ -49,6 +51,8 @@ export function toExamination(dto: ExaminationDto): Examination {
     injuryBodySite: text(dto.injuryBodySite),
     injurySide: text(dto.injurySide),
     injuryMechanism: text(dto.injuryMechanism),
+    injuryDescription: text(dto.injuryDescription),
+    treatmentDirections: dto.treatmentDirections ?? [],
     diagnoses: dto.diagnoses ?? [],
     status: dto.status,
     version: dto.version,
@@ -74,6 +78,18 @@ export async function getExamination(
   }
 }
 
+/**
+ * Form phẳng -> thân yêu cầu BE, đúng tên trường của BE. Bên chưa chọn gửi null để không thành mã nào;
+ * hướng điều trị rỗng gửi null vì cột chỉ nhận từ 1 đến 4 mã.
+ */
+export function examinationPayload(input: ExaminationInput) {
+  return {
+    ...input,
+    injurySide: input.injurySide || null,
+    treatmentDirections: input.treatmentDirections?.length ? input.treatmentDirections : null,
+  };
+}
+
 export async function saveExamination(
   visitId: string,
   input: ExaminationInput,
@@ -83,11 +99,11 @@ export async function saveExamination(
     mode === "draft"
       ? await apiRequest<ExaminationDto>(`${root(visitId)}/examination`, {
           method: "PUT",
-          body: JSON.stringify(input),
+          body: JSON.stringify(examinationPayload(input)),
         })
       : await apiRequest<ExaminationDto>(
           `${root(visitId)}/examination/completion`,
-          { method: "POST", body: JSON.stringify(input) },
+          { method: "POST", body: JSON.stringify(examinationPayload(input)) },
         );
   return toExamination(dto);
 }

@@ -128,7 +128,7 @@ class PatientPrescriptionQueryServiceTest {
         when(exams.findCompletedByVisitIds(List.of(visit))).thenReturn(Map.of(visit,
                 new ClinicalExaminationHistoryQueryService.CompletedRecord(visit,
                         new ClinicalExaminationHistoryQueryService.Examination(null, null, null, null, null, null,
-                                List.of(new ClinicalExaminationHistoryQueryService.Diagnosis("M25", fu.fa26.sep490.g58.otcms_be.clinical.model.DiagnosisType.PRIMARY))), null)));
+                                List.of(new ClinicalExaminationHistoryQueryService.Diagnosis("M25", fu.fa26.sep490.g58.otcms_be.clinical.model.DiagnosisType.PRIMARY)), null, null), null)));
         when(items.findByPrescriptionIdOrderByLineNumberAsc(id)).thenReturn(List.of(
                 new ClinicalPrescriptionItemJpaEntity(id, 1, "Medicine", "Dose", "Frequency", "Usage")));
         var result = service.detail(actor, id);

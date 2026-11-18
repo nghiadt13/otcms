@@ -52,7 +52,7 @@ it("không gọi BE khi không có gì thay đổi", async () => {
 it("chỉ gửi phần đã sửa kèm lý do, báo MSG-76 rồi đóng và tải lại", async () => {
   mocks.amend.mockResolvedValue([]);
   const { onClose, onAmended } = setup();
-  const advice = await screen.findByLabelText("Chăm sóc tại nhà");
+  const advice = await screen.findByRole("textbox", { name: "Chăm sóc tại nhà" });
   await userEvent.clear(advice);
   await userEvent.type(advice, "Chườm lạnh");
   await userEvent.type(screen.getByLabelText("Lý do sửa (bắt buộc)"), "  Đổi lời dặn ");
@@ -97,7 +97,7 @@ it("không gửi đơn khi chỉ thêm dòng trống và sửa lời dặn", asy
   setup();
   await screen.findByLabelText("Tên thuốc 1");
   await userEvent.click(screen.getByRole("button", { name: "Thêm thuốc" }));
-  await userEvent.type(screen.getByLabelText("Chăm sóc tại nhà"), " thêm");
+  await userEvent.type(screen.getByRole("textbox", { name: "Chăm sóc tại nhà" }), " thêm");
   await userEvent.type(screen.getByLabelText("Lý do sửa (bắt buộc)"), "Lý do");
   await userEvent.click(screen.getByRole("button", { name: "Lưu sửa đổi" }));
   await waitFor(() => expect(mocks.amend).toHaveBeenCalledTimes(1));
@@ -107,7 +107,7 @@ it("không gửi đơn khi chỉ thêm dòng trống và sửa lời dặn", asy
 it("giữ hộp thoại mở khi BE từ chối", async () => {
   mocks.amend.mockRejectedValue(new Error("MSG-40"));
   const { onClose, onAmended } = setup();
-  const advice = await screen.findByLabelText("Chăm sóc tại nhà");
+  const advice = await screen.findByRole("textbox", { name: "Chăm sóc tại nhà" });
   await userEvent.type(advice, " thêm");
   await userEvent.type(screen.getByLabelText("Lý do sửa (bắt buộc)"), "Lý do");
   await userEvent.click(screen.getByRole("button", { name: "Lưu sửa đổi" }));
