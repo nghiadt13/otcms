@@ -46,7 +46,8 @@ class DiagnosticPaidRegistrationTest {
     final StaffAccountDirectory directory = mock(StaffAccountDirectory.class);
     final GetClinicServiceCatalogService services = mock(GetClinicServiceCatalogService.class);
     final Clock clock = Clock.fixed(Instant.parse("2026-11-07T03:00:00Z"), ZoneOffset.UTC);
-    final StaffRoomAssignmentQueryService staff = new StaffRoomAssignmentQueryServiceImpl(directory, shifts);
+    final StaffRoomAssignmentQueryService staff = new StaffRoomAssignmentQueryServiceImpl(directory, shifts,
+            mock(fu.fa26.sep490.g58.otcms_be.staff.repository.DoctorWorkShiftRepository.class));
     final ImagingRoomQueueServiceImpl rooms = new ImagingRoomQueueServiceImpl(roomRows, staff, services, clock);
     final UUID order = UUID.randomUUID(), visit = UUID.randomUUID(), patient = UUID.randomUUID(), doctor = UUID.randomUUID(),
             account = UUID.randomUUID(), serviceId = UUID.randomUUID(), roomId = UUID.randomUUID(), otherRoom = UUID.randomUUID(),

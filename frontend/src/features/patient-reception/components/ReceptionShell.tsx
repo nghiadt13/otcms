@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Bell, ChevronRight } from "lucide-react";
 import { useState, type ReactNode } from "react";
+import { signOut } from "@/lib/auth/authSession";
 import { CurrentDateTime } from "@/components/shell/CurrentDateTime";
 import {
   SidebarNavGroup,
@@ -182,12 +183,13 @@ function Frame({ children }: { children: ReactNode }) {
       <ConfirmActionDialog
         open={exitOpen}
         onOpenChange={setExitOpen}
-        title="Thoát bản xem thử?"
-        description="Các thao tác trên dữ liệu mẫu sẽ được đặt lại khi bạn mở lại khu vực lễ tân."
-        confirmLabel="Thoát"
-        pendingLabel="Đang thoát..."
-        onConfirm={() => {
-          router.push("/workspace");
+        title="Đăng xuất khỏi OTCMS?"
+        description="Bạn sẽ quay về màn hình đăng nhập nhân viên."
+        confirmLabel="Đăng xuất"
+        pendingLabel="Đang đăng xuất..."
+        onConfirm={async () => {
+          await signOut();
+          router.replace("/staff-login");
         }}
       />
     </SidebarProvider>

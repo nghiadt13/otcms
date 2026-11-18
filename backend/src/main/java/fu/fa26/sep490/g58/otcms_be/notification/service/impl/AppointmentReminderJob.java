@@ -20,7 +20,7 @@ import org.springframework.stereotype.Component;
  * NF-09 / MSG-80: reminds the patient 24 hours before a booked appointment or follow-up, and once when a
  * recommended follow-up has passed without the patient returning. Runs every 15 minutes.
  *
- * <p>No duplicates: each notification carries a {@code dedupe_key} (unique partial index, V127) and is inserted with
+ * <p>No duplicates: each notification carries a {@code dedupe_key} (unique partial index, V133) and is inserted with
  * ON CONFLICT DO NOTHING, so overlapping runs or several app instances cannot double-send. The key of an upcoming
  * reminder includes the start time, so a rescheduled appointment is reminded again at its new time.
  *

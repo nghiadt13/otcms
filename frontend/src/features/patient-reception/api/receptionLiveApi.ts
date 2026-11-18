@@ -346,6 +346,19 @@ export type ImagingQueueRoom = {
   displayLabel: string;
 };
 export type ImagingRoomAssignment = { serviceOrderId: string; roomId: string };
+
+export async function listLaboratoryRooms(orderId: string, signal?: AbortSignal): Promise<ImagingQueueRoom[]> {
+  const result = await apiRequest<{ items: { id: string; code: string; label: string }[] }>(
+    `/api/v1/reception/clinical-service-orders/${encodeURIComponent(orderId)}/eligible-laboratory-rooms`, { signal },
+  );
+  return result.items.map((room) => ({ roomId: room.id, roomCode: room.code, displayLabel: room.label }));
+}
+
+export async function dispatchLaboratoryOrder(orderId: string, roomId: string): Promise<void> {
+  await apiRequest(`/api/v1/reception/clinical-service-orders/${encodeURIComponent(orderId)}/laboratory-dispatch`, {
+    method: "POST", body: JSON.stringify({ roomId }),
+  });
+}
 export async function listClinicalImagingRoomOptions(
   serviceOrderIds: string[],
   signal?: AbortSignal,

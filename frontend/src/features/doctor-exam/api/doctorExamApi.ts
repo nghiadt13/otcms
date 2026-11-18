@@ -8,6 +8,7 @@ import type {
   ExaminationInput,
   ImagingResult,
   LabResult,
+  LabResultAssessment,
   OrderDraftItem,
   ParaclinicalOrder,
   PastVisit,
@@ -100,6 +101,7 @@ export interface DoctorExamApi {
     report: File | null,
   ): Promise<ImagingResult>;
   listLabResults(visitId: string, signal?: AbortSignal): Promise<LabResult[]>;
+  assessLabResult(visitId: string, orderId: string, assessment: string): Promise<LabResultAssessment>;
   getPrescription(
     visitId: string,
     signal?: AbortSignal,

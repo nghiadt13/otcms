@@ -11,7 +11,7 @@ import * as resultSheets from "./doctorExamLiveResultSheets";
 
 export const doctorLiveApi: DoctorExamApi = {
   capabilities: {
-    laboratoryOrders: false,
+    laboratoryOrders: true,
     orderListing: true,
     prescriptions: true,
     pastRecords: true,
@@ -37,7 +37,8 @@ export const doctorLiveApi: DoctorExamApi = {
   cancelOrder: orders.cancelOrder,
   saveFindings: orders.saveFindings,
   completeFindings: orders.completeFindings,
-  listLabResults: async () => [],
+  listLabResults: orders.listLabResults,
+  assessLabResult: orders.assessLabResult,
   getPrescription: prescription.getPrescription,
   savePrescription: prescription.savePrescription,
   listPastVisits: records.listPastVisits,

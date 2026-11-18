@@ -149,6 +149,7 @@ it("sau khi kết thúc lượt chỉ tải phiếu kết quả, không tải l�
     if (path === "/api/v1/visits/current/exam-queue-entry")
       return { ...(await base(path, init)), examStatus: closed ? "COMPLETED" : "IN_EXAMINATION" };
     if (path === "/api/v1/visits/current/imaging-orders") return { items: [] };
+    if (path === "/api/v1/visits/current/laboratory-orders") return { items: [] };
     if (path === "/api/v1/visits/current/completion") { closed = true; return {}; }
     if (path === "/api/v1/visits/current/result-sheets") return { items: [] };
     return base(path, init);

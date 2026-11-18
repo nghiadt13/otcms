@@ -37,6 +37,8 @@ public interface DiagnosticReportJpaRepository extends JpaRepository<DiagnosticR
             """)
     List<ResultSheetReport> findResultSheetReports(@Param("requestIds") Collection<UUID> requestIds,
             @Param("state") DiagnosticFindingsVersionState state);
+    @org.springframework.data.jpa.repository.Query("select r from DiagnosticReportJpaEntity r where r.requestId = :orderId and r.resultType = 'LAB' order by r.reportVersion desc")
+    List<DiagnosticReportJpaEntity> findLaboratoryVersions(@org.springframework.data.repository.query.Param("orderId") UUID orderId);
     List<DiagnosticReportJpaEntity> findAllByRequestIdInAndState(Collection<UUID> requestIds,
             DiagnosticFindingsVersionState state);
 

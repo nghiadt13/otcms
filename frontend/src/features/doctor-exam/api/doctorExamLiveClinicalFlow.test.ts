@@ -224,7 +224,7 @@ describe("UC33", () => {
     expect(api.capabilities).toMatchObject({
       prescriptions: true,
       pastRecords: true,
-      laboratoryOrders: false,
+      laboratoryOrders: true,
       orderListing: true,
       resultSheet: true,
     });

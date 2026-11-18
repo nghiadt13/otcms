@@ -48,7 +48,9 @@ class PatientVisitResultQueryServiceTest {
     final DiagnosticReleasedReportService reports = mock(DiagnosticReleasedReportService.class);
     final AppointmentReviewContextService appointments = mock(AppointmentReviewContextService.class);
     final PatientVisitResultQueryServiceImpl service = new PatientVisitResultQueryServiceImpl(access, dependents, profiles,
-            visits, examinations, prescriptions, documents, reports, appointments);
+            visits, examinations, prescriptions, documents, reports,
+            mock(fu.fa26.sep490.g58.otcms_be.clinical.repository.ServiceOrderRepository.class),
+            mock(fu.fa26.sep490.g58.otcms_be.diagnostic.service.LaboratoryDraftService.class), appointments);
 
     @BeforeEach void setup() {
         when(access.accessibleProfileIds(account)).thenReturn(Set.of(patient));

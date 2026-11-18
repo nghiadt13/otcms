@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   Activity,
   Bell,
@@ -13,10 +14,19 @@ import {
   ListOrdered,
   Search,
   UserRound,
+  ChevronsUpDown,
+  LogOut,
 } from "lucide-react";
+import { fetchCurrentAccount, type CurrentAccount } from "@/lib/auth/currentAccountApi";
+import { signOut } from "@/lib/auth/authSession";
+import { ConfirmActionDialog } from "@/components/admin/ConfirmActionDialog";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { OtcmsBrandMark } from "@/components/brand/OtcmsBrandMark";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { LaboratoryLiveInfo } from "./LaboratoryLiveInfo";
+import { LaboratoryOrders } from "./LaboratoryOrders";
 import {
   Sidebar,
   SidebarContent,
@@ -129,14 +139,26 @@ const groups: {
     items: [{ title: "Tài khoản của tôi", icon: UserRound }],
   },
 ];
+function isOrdersScreen(screen: Screen): boolean {
+  return screen === "Tổng quan" || screen === "Danh sách chờ" || screen === "Trạng thái chỉ định";
+}
 function Navigation({
   screen,
   change,
+  onExit,
 }: {
   screen: Screen;
   change: (screen: Screen) => void;
+  onExit: () => void;
 }) {
-  const { setOpenMobile } = useSidebar();
+  const { setOpenMobile, isMobile } = useSidebar();
+  const [account, setAccount] = useState<CurrentAccount | null>(null);
+  useEffect(() => {
+    let active = true;
+    fetchCurrentAccount().then((value) => { if (active) setAccount(value); }).catch(() => { if (active) setAccount(null); });
+    return () => { active = false; };
+  }, []);
+  const name = account?.username || account?.displayName || "Tài khoản";
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader>
@@ -185,14 +207,27 @@ function Navigation({
         ))}
       </SidebarContent>
       <SidebarFooter>
-        <div className="px-3 py-2 text-xs text-muted-foreground">
-          Kỹ thuật viên xét nghiệm
-        </div>
+        <SidebarMenu><SidebarMenuItem><DropdownMenu>
+          <DropdownMenuTrigger render={<SidebarMenuButton size="lg" tooltip={name} />}>
+            <Avatar className="size-8 rounded-lg"><AvatarFallback>{name.slice(0, 2).toUpperCase()}</AvatarFallback></Avatar>
+            <span className="grid flex-1 text-left leading-tight"><span className="truncate text-sm font-medium">{name}</span><span className="truncate text-xs text-muted-foreground">Kỹ thuật viên xét nghiệm</span></span>
+            <ChevronsUpDown className="ml-auto size-4" />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent className="w-64" side={isMobile ? "bottom" : "right"} align="end" sideOffset={8}>
+            <div className="px-2 py-1.5 text-sm"><strong>{name}</strong><p className="text-xs text-muted-foreground">Kỹ thuật viên xét nghiệm</p></div>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => { change("Tài khoản của tôi"); setOpenMobile(false); }}><UserRound /> Hồ sơ tài khoản</DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem variant="destructive" onClick={onExit}><LogOut /> Đăng xuất</DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu></SidebarMenuItem></SidebarMenu>
       </SidebarFooter>
     </Sidebar>
   );
 }
 export function LaboratoryPreview() {
+  const router = useRouter();
+  const [exitOpen, setExitOpen] = useState(false);
   const [screen, setScreen] = useState<Screen>("Tổng quan");
   const [selected, setSelected] = useState<(typeof orders)[number] | null>(
     null,
@@ -220,7 +255,7 @@ export function LaboratoryPreview() {
   );
   return (
     <SidebarProvider>
-      <Navigation screen={screen} change={change} />
+      <Navigation screen={screen} change={change} onExit={() => setExitOpen(true)} />
       <SidebarInset className="min-w-0">
         <header className="flex h-14 items-center gap-3 border-b px-4">
           <SidebarTrigger aria-label="Mở hoặc thu gọn menu" />
@@ -231,12 +266,11 @@ export function LaboratoryPreview() {
             Phòng xét nghiệm
           </span>
         </header>
-        <div className="border-b bg-secondary/50 px-4 py-2 text-xs text-muted-foreground md:px-6">
-          Bản xem thử giao diện · Dữ liệu mẫu · Không lưu kết quả thực tế
-        </div>
         <main className="min-w-0 flex-1 p-4 md:p-6">
           <div className="mx-auto max-w-6xl space-y-6">
-            {selected ? (
+            {isOrdersScreen(screen) ? (
+              <><h1 className="text-2xl font-semibold">{screen}</h1><LaboratoryOrders key={screen} screen={screen as "Tổng quan" | "Danh sách chờ" | "Trạng thái chỉ định"} /></>
+            ) : selected ? (
               <>
                 <button
                   className="text-sm font-medium text-primary hover:underline"
@@ -523,6 +557,8 @@ export function LaboratoryPreview() {
                       </div>
                     </section>
                   </>
+                ) : screen === "Phòng dịch vụ" || screen === "Thông báo" || screen === "Tài khoản của tôi" ? (
+                  <LaboratoryLiveInfo key={screen} screen={screen} />
                 ) : (
                   <section className="rounded-lg border bg-card p-6">
                     <h2 className="font-semibold">{screen}</h2>
@@ -536,6 +572,9 @@ export function LaboratoryPreview() {
           </div>
         </main>
       </SidebarInset>
+      <ConfirmActionDialog open={exitOpen} onOpenChange={setExitOpen} title="Đăng xuất?"
+        description="Bạn sẽ quay về màn đăng nhập nhân viên." confirmLabel="Đăng xuất" pendingLabel="Đang đăng xuất..."
+        onConfirm={async () => { await signOut(); router.replace("/staff-login"); }} />
     </SidebarProvider>
   );
 }

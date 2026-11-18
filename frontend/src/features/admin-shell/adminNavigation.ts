@@ -103,6 +103,13 @@ export const adminNavGroups: AdminNavGroup[] = [
         ucs: "UC68–UC71",
         description: "Danh mục dịch vụ khám, chẩn đoán hình ảnh và bảng giá.",
       },
+      {
+        title: "Đối tác",
+        href: "/admin/partners",
+        icon: Users,
+        ucs: "",
+        description: "Quản lý đối tác theo lĩnh vực sử dụng trong phòng khám.",
+      },
     ],
   },
   {

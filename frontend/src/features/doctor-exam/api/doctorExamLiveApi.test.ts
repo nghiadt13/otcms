@@ -475,15 +475,15 @@ describe("chỉ định cận lâm sàng và kết luận hình ảnh", () => {
     });
   });
 
-  it("chưa gửi chỉ định xét nghiệm lên BE (chưa hỗ trợ)", async () => {
-    await expect(
-      doctorLiveApi.submitOrders("v", [item("crp")], catalog, "key", true),
-    ).rejects.toMatchObject({ status: 400, code: "MSG-39" });
-    expect(request).not.toHaveBeenCalled();
+  it("gửi chỉ định xét nghiệm tới endpoint laboratory-requests", async () => {
+    request.mockResolvedValue({ roundNumber: 1, orders: [] });
+    await doctorLiveApi.submitOrders("v", [item("crp")], catalog, "key", true);
+    expect(request.mock.calls.map(([path]) => path)).toContain("/api/v1/visits/v/laboratory-requests");
   });
 
   it("danh sách chỉ định ghép trạng thái yêu cầu ảnh với lịch sử kết luận", async () => {
     request.mockImplementation(async (path: string) =>
+      path.endsWith("/laboratory-orders") ? { items: [] } :
       path.startsWith("/api/v1/imaging-history")
         ? {
             items: [
@@ -634,6 +634,7 @@ describe("chỉ định cận lâm sàng và kết luận hình ảnh", () => {
 
   it("chỉ yêu cầu ảnh còn PENDING mới hủy được", async () => {
     request.mockImplementation(async (path: string) =>
+      path.endsWith("/laboratory-orders") ? { items: [] } :
       path.startsWith("/api/v1/imaging-history")
         ? { items: [] }
         : {

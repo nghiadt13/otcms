@@ -86,7 +86,7 @@ abstract class BookingFeeFixtureSupport {
                 Object[] args = {patientA, patientB, receptionist};
                 String mine = "(select id from appointments where created_by_account_id in " + creators + ")";
                 String myInvoices = "(select id from invoices where appointment_id in " + mine + ")";
-                // Items first: invoice_items.payment_attempt_id references payment_attempts (V126).
+                // Items first: invoice_items.payment_attempt_id references payment_attempts (V132).
                 jdbc.update("delete from invoice_items where invoice_id in " + myInvoices, args);
                 jdbc.update("delete from payment_attempts where invoice_id in " + myInvoices, args);
                 jdbc.update("delete from invoices where appointment_id in " + mine, args);

@@ -90,7 +90,7 @@ class CheckInAppointmentT027PostgresIntegrationTest {
             for (UUID appointmentId : appointments) {
                 jdbc.update("delete from audit_logs where source = 'appointment_audits' and entity_id = ?", appointmentId);
                 jdbc.update("update appointments set status = 'CANCELLED', visit_id = null where id = ?", appointmentId);
-                // Items first: invoice_items.payment_attempt_id references payment_attempts (V126).
+                // Items first: invoice_items.payment_attempt_id references payment_attempts (V132).
                 jdbc.update("delete from invoice_items where invoice_id in "
                         + "(select id from invoices where appointment_id = ?)", appointmentId);
                 jdbc.update("delete from payment_attempts where invoice_id in "

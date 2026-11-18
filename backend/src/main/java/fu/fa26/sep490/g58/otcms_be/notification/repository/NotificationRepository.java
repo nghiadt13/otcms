@@ -19,7 +19,7 @@ public interface NotificationRepository extends JpaRepository<NotificationJpaEnt
     int markAllRead(UUID recipient, Instant now);
 
     /**
-     * NF-09: inserts a notification unless one with the same dedupe key exists (partial unique index, V127).
+     * NF-09: inserts a notification unless one with the same dedupe key exists (partial unique index, V133).
      * Runs in its own transaction so one failing reminder never rolls back the others.
      * @return 1 when inserted, 0 when the key already existed
      */

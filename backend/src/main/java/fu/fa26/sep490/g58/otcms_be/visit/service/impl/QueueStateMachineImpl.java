@@ -105,7 +105,7 @@ public class QueueStateMachineImpl implements QueueStateMachine {
             if (!"WAITING".equals(active.get(i).getStatus())) throw error("MSG-42");
         }
         long oldOrder = entry.getSortOrder();
-        // End of queue: order like a fresh check-in (epoch ms, same rule as the V121 insert trigger),
+        // End of queue: order like a fresh check-in (epoch ms, same rule as the V128 insert trigger),
         // so later check-ins stay behind the returned patient.
         Long order = position == active.size()
                 ? Long.valueOf(Math.max(active.isEmpty() ? Long.MIN_VALUE : active.getLast().getSortOrder() + 1, clock.millis()))

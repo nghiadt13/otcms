@@ -13,6 +13,10 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
+  ACCOUNT_AVATAR_CHANGED_EVENT,
+  loadAccountAvatarUrl,
+} from "@/lib/auth/accountAvatarCache";
+import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
@@ -20,6 +24,7 @@ import {
 } from "@/components/ui/sidebar";
 import { receptionHref } from "../navigation";
 import { fetchCurrentAccount, type CurrentAccount } from "@/lib/auth/currentAccountApi";
+import { ROLE_LABELS, type ActorRole } from "@/lib/domain/clinicRoles";
 
 // Ô tài khoản cuối sidebar, cùng dạng với khu admin: avatar + tên đăng nhập + vai trò, bấm mở menu.
 function AccountSummary({
@@ -27,24 +32,30 @@ function AccountSummary({
 }: {
   account: CurrentAccount | null;
 }) {
+  const name = account?.username || account?.displayName;
+  const role = account?.role && account.role in ROLE_LABELS
+    ? ROLE_LABELS[account.role as ActorRole]
+    : account?.accountType === "RECEPTIONIST"
+      ? ROLE_LABELS.RECEPTIONIST
+      : null;
   return (
     <>
       <Avatar className="size-8 rounded-lg">
         {account?.avatarUrl ? (
-          <AvatarImage src={account.avatarUrl} alt={account.displayName} />
+          <AvatarImage src={account.avatarUrl} alt={name ?? "Tài khoản"} />
         ) : null}
         <AvatarFallback className="rounded-lg">
-          {account ? (account.username || account.displayName).slice(0, 2).toUpperCase() : ""}
+          {(name ?? "").slice(0, 2).toUpperCase()}
         </AvatarFallback>
       </Avatar>
       <span className="grid flex-1 text-left leading-tight">
-        {account ? (
+        {name ? (
           <>
             <span className="truncate text-sm font-medium">
-              {account.username || account.displayName}
+              {name}
             </span>
             <span className="truncate text-xs text-muted-foreground">
-              Lễ tân
+              {role ?? "Nhân viên"}
             </span>
           </>
         ) : (
@@ -63,9 +74,26 @@ export function ReceptionAccountMenu({ onExit }: { onExit: () => void }) {
   const [account, setAccount] = useState<CurrentAccount | null>(null);
   useEffect(() => {
     let active = true;
-    void fetchCurrentAccount().then((value) => { if (active) setAccount(value); }).catch(() => {});
-    return () => { active = false; };
+    const load = () => {
+      fetchCurrentAccount()
+        .then(async (current) => {
+          const avatarUrl = current?.avatarUrl
+            ? await loadAccountAvatarUrl(current.id)
+            : null;
+          if (active) setAccount(current ? { ...current, avatarUrl } : null);
+        })
+        .catch(() => {
+          if (active) setAccount(null);
+        });
+    };
+    load();
+    window.addEventListener(ACCOUNT_AVATAR_CHANGED_EVENT, load);
+    return () => {
+      active = false;
+      window.removeEventListener(ACCOUNT_AVATAR_CHANGED_EVENT, load);
+    };
   }, []);
+  const accountName = account?.username || account?.displayName || "Tài khoản";
   return (
     <SidebarMenu>
       <SidebarMenuItem>
@@ -74,7 +102,7 @@ export function ReceptionAccountMenu({ onExit }: { onExit: () => void }) {
             render={
               <SidebarMenuButton
                 size="lg"
-                tooltip={account?.username ?? "Tài khoản"}
+                tooltip={accountName}
               />
             }
           >
@@ -99,7 +127,7 @@ export function ReceptionAccountMenu({ onExit }: { onExit: () => void }) {
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem variant="destructive" onClick={onExit}>
-              <LogOut /> Thoát bản xem thử
+              <LogOut /> Đăng xuất
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

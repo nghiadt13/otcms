@@ -8,4 +8,8 @@ public interface StaffRoomAssignmentQueryService {
     java.util.Set<UUID> roomsWithActiveImagingTechnician(java.util.Collection<UUID> roomIds, Instant at);
 
     boolean isImagingTechnicianAssigned(UUID accountId, UUID roomId, Instant at);
+
+    boolean isLabTechnicianAssigned(UUID accountId, UUID roomId, Instant at);
+
+    boolean hasActiveLabShift(UUID accountId, Instant at);
 }
