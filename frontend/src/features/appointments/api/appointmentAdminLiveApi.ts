@@ -1,5 +1,4 @@
 import { apiRequest } from "@/lib/api/client";
-import { ApiError } from "@/lib/api/apiError";
 import { toQueryString, type PageResponse } from "@/lib/api/pagination";
 import { todayIsoDate } from "@/lib/format/formatDate";
 import type {
@@ -76,22 +75,6 @@ function toAppointment(dto: AdminAppointmentDto): Appointment {
   };
 }
 
-function reassignError(error: unknown): never {
-  if (error instanceof ApiError) {
-    const code = error.errorCode;
-    if (
-      code === "APPOINTMENT_NOT_CHANGEABLE" ||
-      code === "BOOKING_TIME_IN_PAST"
-    )
-      throw new ApiError(error.status, { code: "MSG-32", errorCode: code });
-    if (code === "SLOT_UNAVAILABLE" || code === "DOCTOR_NOT_ELIGIBLE")
-      throw new ApiError(error.status, { code: "MSG-24", errorCode: code });
-    if (code === "VALIDATION_FAILED")
-      throw new ApiError(error.status, { code: "MSG-12", errorCode: code });
-  }
-  throw error;
-}
-
 /** Candidates for the appointment's existing time; the backend checks shifts and service assignment. */
 export async function listAdminReassignmentDoctors(
   appointmentId: string,
@@ -121,7 +104,7 @@ export async function listAdminReassignmentDoctors(
     }
     return { items: [...doctors.values()] };
   } catch (error) {
-    return reassignError(error);
+    throw error; // BE đã trả mã MSG (MSG-24/30/31/32) ở error.code; không đổi câu ở đây.
   }
 }
 
@@ -148,7 +131,7 @@ export async function reassignAdminAppointment(
       status: appointmentStatus(updated.status),
     };
   } catch (error) {
-    return reassignError(error);
+    throw error; // BE đã trả mã MSG (MSG-24/30/31/32) ở error.code; không đổi câu ở đây.
   }
 }
 

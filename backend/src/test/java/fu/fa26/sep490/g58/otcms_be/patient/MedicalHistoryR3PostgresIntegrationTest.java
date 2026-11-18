@@ -167,7 +167,7 @@ class MedicalHistoryR3PostgresIntegrationTest {
         write(patient, AccountRole.PATIENT, own, value).andExpect(status().isOk());
         value.put("version", 1); value.put(field, "x".repeat(2001));
         write(patient, AccountRole.PATIENT, own, value).andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"))
+                .andExpect(jsonPath("$.error.code").value("MSG-20"))
                 .andExpect(jsonPath("$.error.message").value("Thông tin tiền sử bệnh chưa hợp lệ. Vui lòng kiểm tra và chỉnh sửa."))
                 .andExpect(jsonPath("$.fieldErrors[0].field").value(field)).andExpect(jsonPath("$.fieldErrors[0].code").value("MSG-20"));
         fetch(patient, AccountRole.PATIENT, own).andExpect(status().isOk()).andExpect(jsonPath("$.version").value(1));
@@ -177,7 +177,7 @@ class MedicalHistoryR3PostgresIntegrationTest {
         for (Object invalid : Arrays.asList(null, 42, true, List.of("text"), Map.of("value", "text"))) {
             var value = body(0); value.put(field, invalid);
             write(patient, AccountRole.PATIENT, own, value).andExpect(status().isBadRequest())
-                    .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
+                    .andExpect(jsonPath("$.error.code").value("MSG-20"));
         }
         var absent = body(0); absent.remove(field);
         write(patient, AccountRole.PATIENT, own, absent).andExpect(status().isBadRequest()); assertEquals(0, count(own));
@@ -198,13 +198,13 @@ class MedicalHistoryR3PostgresIntegrationTest {
     @ParameterizedTest @MethodSource("invalidVersions")
     void versionCannotBeCoerced(Object version) throws Exception {
         write(patient, AccountRole.PATIENT, own, body(version)).andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED")); assertEquals(0, count(own));
+                .andExpect(jsonPath("$.error.code").value("MSG-20")); assertEquals(0, count(own));
     }
     @Test void missingVersionAndMalformedBodyAreValidationErrors() throws Exception {
         var value = body(0); value.remove("version");
         write(patient, AccountRole.PATIENT, own, value).andExpect(status().isBadRequest());
         mvc.perform(put(path(own)).with(actor(patient, AccountRole.PATIENT)).with(csrf()).contentType("application/json").content("{"))
-                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("MSG-20"));
     }
     @ParameterizedTest @EnumSource(AccountRole.class)
     void roleMatrixForGetAndPut(AccountRole role) throws Exception {
@@ -214,8 +214,8 @@ class MedicalHistoryR3PostgresIntegrationTest {
         var first = fetch(caller, role, own).andExpect(status().is(expected));
         var second = write(caller, role, own, body(0)).andExpect(status().is(expected));
         if (expected == 403) {
-            first.andExpect(jsonPath("$.error.code").value("ACCESS_DENIED"));
-            second.andExpect(jsonPath("$.error.code").value("ACCESS_DENIED")); assertEquals(0, count(own));
+            first.andExpect(jsonPath("$.error.code").value("MSG-19"));
+            second.andExpect(jsonPath("$.error.code").value("MSG-19")); assertEquals(0, count(own));
         }
     }
     static Stream<Arguments> inactiveActors() {
@@ -226,7 +226,7 @@ class MedicalHistoryR3PostgresIntegrationTest {
     void inactiveActorsCannotUseValidLookingPrincipal(AccountRole role, String status) throws Exception {
         UUID caller = role == AccountRole.PATIENT ? patient : doctor;
         jdbc.update("update accounts set status=? where id=?", status, caller);
-        fetch(caller, role, own).andExpect(status().isForbidden()).andExpect(jsonPath("$.error.code").value("ACCESS_DENIED"));
+        fetch(caller, role, own).andExpect(status().isForbidden()).andExpect(jsonPath("$.error.code").value("MSG-19"));
         write(caller, role, own, body(0)).andExpect(status().isForbidden());
     }
     @Test void claimedRoleMustMatchActualAccount() throws Exception {
@@ -257,7 +257,7 @@ class MedicalHistoryR3PostgresIntegrationTest {
             currentCare(doctor, target);
             write(doctor, AccountRole.DOCTOR, target, seed).andExpect(status().isOk());
         }
-        fetch(patient, AccountRole.PATIENT, target).andExpect(status().isNotFound()).andExpect(jsonPath("$.error.code").value("PATIENT_PROFILE_NOT_FOUND"))
+        fetch(patient, AccountRole.PATIENT, target).andExpect(status().isNotFound()).andExpect(jsonPath("$.error.code").value("MSG-19"))
                 .andExpect(jsonPath("$.error.message").value("Không thể truy cập hồ sơ bệnh nhân này. Vui lòng kiểm tra lại thông tin hoặc quyền truy cập."));
         write(patient, AccountRole.PATIENT, target, body(0)).andExpect(status().isNotFound());
         if (!state.equals("MISSING")) assertEquals(1L, jdbc.queryForObject("select medical_history_version from patient_profiles where id=?", Long.class, target));
@@ -269,10 +269,10 @@ class MedicalHistoryR3PostgresIntegrationTest {
         UUID missing = UUID.randomUUID();
         // Current-care authorization precedes existence lookup for Doctors (retired R3 shortcut).
         fetch(doctor, AccountRole.DOCTOR, missing).andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.error.code").value("ACCESS_DENIED"));
+                .andExpect(jsonPath("$.error.code").value("MSG-19"));
         write(doctor, AccountRole.DOCTOR, missing, body(0)).andExpect(status().isForbidden());
         fetch(patient, AccountRole.PATIENT, missing).andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.error.code").value("PATIENT_PROFILE_NOT_FOUND"));
+                .andExpect(jsonPath("$.error.code").value("MSG-19"));
         write(patient, AccountRole.PATIENT, missing, body(0)).andExpect(status().isNotFound());
     }
     @Test void activeDoctorWithoutProfileOrCurrentCareCannotReadOrWrite() throws Exception {
@@ -294,7 +294,7 @@ class MedicalHistoryR3PostgresIntegrationTest {
         assertEquals(0, count(own));
     }
     @Test void staleAndPositiveVersionWithoutRowNeverWrite() throws Exception {
-        write(patient, AccountRole.PATIENT, own, body(1)).andExpect(status().isConflict()).andExpect(jsonPath("$.error.code").value("STALE_VERSION"));
+        write(patient, AccountRole.PATIENT, own, body(1)).andExpect(status().isConflict()).andExpect(jsonPath("$.error.code").value("MSG-16"));
         assertEquals(0, count(own)); write(patient, AccountRole.PATIENT, own, body(0)).andExpect(status().isOk());
         for (int version : List.of(0, 2)) write(doctor, AccountRole.DOCTOR, own, body(version)).andExpect(status().isConflict())
                 .andExpect(jsonPath("$.error.message").value("Không thể hoàn tất yêu cầu. Hãy tải lại trạng thái trước khi thử lại."));
@@ -321,7 +321,7 @@ class MedicalHistoryR3PostgresIntegrationTest {
                 () -> write(doctor, AccountRole.DOCTOR, own, b).andReturn().getResponse());
         assertEquals(List.of(200, 409), replies.stream().map(r -> r.getStatus()).sorted().toList());
         var loser = replies.stream().filter(r -> r.getStatus() == 409).findFirst().orElseThrow();
-        assertEquals("STALE_VERSION", json.readTree(loser.getContentAsString()).get("error").get("code").asText());
+        assertEquals("MSG-16", json.readTree(loser.getContentAsString()).get("error").get("code").asText());
         boolean patientWon = replies.getFirst().getStatus() == 200;
         assertEquals(patientWon ? "Patient wins" : "Doctor wins", jdbc.queryForObject("select conditions from patient_profiles where id=?", String.class, own));
         assertEquals(patientWon ? patient : doctor, jdbc.queryForObject("select medical_history_updated_by from patient_profiles where id=?", UUID.class, own));

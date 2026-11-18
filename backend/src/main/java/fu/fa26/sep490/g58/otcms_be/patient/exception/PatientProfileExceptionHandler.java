@@ -35,12 +35,12 @@ public class PatientProfileExceptionHandler {
             case "PATIENT_MATCH_AMBIGUOUS", "PATIENT_PROFILE_DUPLICATE", "STALE_VERSION" -> 409;
             default -> 400;
         };
-        return problem(status, code, exception.fieldErrors());
+        return problem(status, msgCodeFor(code), exception.fieldErrors());
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ErrorResponse> validation(MethodArgumentNotValidException error) {
-        return problem(400, "VALIDATION_FAILED", error.getBindingResult().getFieldErrors().stream()
+        return problem(400, "MSG-17", error.getBindingResult().getFieldErrors().stream()
                 .map(f -> new ErrorResponse.FieldError(f.getField(), "MSG-17")).distinct().toList());
     }
 
@@ -49,15 +49,15 @@ public class PatientProfileExceptionHandler {
     public ResponseEntity<ErrorResponse> transport(Exception error) {
         String field = error instanceof MethodArgumentTypeMismatchException mismatch ? mismatch.getName()
                 : error instanceof MissingServletRequestParameterException missing ? missing.getParameterName() : null;
-        return problem(400, "VALIDATION_FAILED", field == null ? List.of()
+        return problem(400, "MSG-17", field == null ? List.of()
                 : List.of(new ErrorResponse.FieldError(field, "MSG-17")));
     }
 
     @ExceptionHandler({OptimisticLockingFailureException.class, OptimisticLockException.class})
-    public ResponseEntity<ErrorResponse> stale(Exception error) { return problem(409, "STALE_VERSION", List.of()); }
+    public ResponseEntity<ErrorResponse> stale(Exception error) { return problem(409, "MSG-16", List.of()); }
 
     @ExceptionHandler(AccessDeniedException.class)
-    public ResponseEntity<ErrorResponse> denied(Exception error) { return problem(403, "ACCESS_DENIED", List.of()); }
+    public ResponseEntity<ErrorResponse> denied(Exception error) { return problem(403, "MSG-19", List.of()); }
 
     @ExceptionHandler(CoordinationGuardUnavailableException.class)
     public ResponseEntity<ErrorResponse> coordination(CoordinationGuardUnavailableException error, HttpServletRequest request) {
@@ -73,14 +73,23 @@ public class PatientProfileExceptionHandler {
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> unexpected(Exception error) { return problem(500, "MSG-04", List.of()); }
 
+    /** Maps the technical patient-profile code to its R3 MSG code; the technical code only drives the HTTP status. */
+    private static String msgCodeFor(String technical) {
+        return switch (technical) {
+            case "PATIENT_PROFILE_NOT_FOUND", "ACCESS_DENIED", "FORBIDDEN" -> "MSG-19";
+            case "PATIENT_MATCH_AMBIGUOUS", "PATIENT_PROFILE_DUPLICATE" -> "MSG-18";
+            case "STALE_VERSION" -> "MSG-16";
+            case "VALIDATION_FAILED" -> "MSG-17";
+            default -> "MSG-04";
+        };
+    }
+
     private ResponseEntity<ErrorResponse> problem(int status, String code, List<ErrorResponse.FieldError> fields) {
         String message = switch (code) {
-            case "VALIDATION_FAILED" -> "Thông tin hồ sơ chưa hợp lệ. Vui lòng kiểm tra và nhập lại.";
-            case "PATIENT_MATCH_AMBIGUOUS", "PATIENT_PROFILE_DUPLICATE" ->
-                    "Chưa thể xác định đúng hồ sơ bệnh nhân. Vui lòng kiểm tra lại thông tin nhận dạng.";
-            case "PATIENT_PROFILE_NOT_FOUND", "ACCESS_DENIED", "FORBIDDEN" ->
-                    "Không thể truy cập hồ sơ bệnh nhân này. Vui lòng kiểm tra lại thông tin hoặc quyền truy cập.";
-            case "STALE_VERSION" -> "Không thể hoàn tất yêu cầu. Hãy tải lại trạng thái trước khi thử lại.";
+            case "MSG-17" -> "Thông tin hồ sơ chưa hợp lệ. Vui lòng kiểm tra và nhập lại.";
+            case "MSG-18" -> "Chưa xác định được đúng hồ sơ bệnh nhân. Vui lòng hỏi thêm họ tên hoặc số CCCD/định danh.";
+            case "MSG-19" -> "Không thể truy cập hồ sơ bệnh nhân này. Vui lòng kiểm tra lại thông tin hoặc quyền truy cập.";
+            case "MSG-16" -> "Không thể hoàn tất yêu cầu. Hãy tải lại trạng thái trước khi thử lại.";
             default -> "Không thể hoàn tất yêu cầu. Vui lòng thử lại sau hoặc bắt đầu lại.";
         };
         var attributes = RequestContextHolder.getRequestAttributes();

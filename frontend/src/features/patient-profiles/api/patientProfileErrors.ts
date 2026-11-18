@@ -37,13 +37,9 @@ export function isDuplicateProfileError(error: unknown): boolean {
   );
 }
 
-/** Tiền sử đã bị người khác sửa sau khi màn tải (409 STALE_VERSION). */
+/** Tiền sử đã bị người khác sửa sau khi màn tải (409 MSG-16). */
 export function isStaleHistoryError(error: unknown): boolean {
-  return (
-    isApiError(error) &&
-    error.status === 409 &&
-    error.errorCode === "STALE_VERSION"
-  );
+  return isApiError(error) && error.status === 409 && error.code === "MSG-16";
 }
 
 /** 403/404 của một hồ sơ hoặc tiền sử: màn chuyển sang trang không tìm thấy của khu. */

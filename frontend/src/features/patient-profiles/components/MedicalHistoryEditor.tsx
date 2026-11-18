@@ -97,7 +97,7 @@ export function MedicalHistoryEditor({
       if (isStaleHistoryError(error)) setStale(true);
       else if (
         isApiError(error) &&
-        (error.errorCode === "VALIDATION_FAILED" || error.status === 400)
+        (error.code === "MSG-20" || error.status === 400)
       )
         setFieldErrors({ [field]: formatAppMessage("MSG-20") });
       else setFailure(medicalHistoryErrorMessage(error));

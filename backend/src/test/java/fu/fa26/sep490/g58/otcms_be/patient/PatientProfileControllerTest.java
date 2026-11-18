@@ -73,7 +73,7 @@ class PatientProfileControllerTest {
         for (AccountRole role : AccountRole.values()) {
             if (role != AccountRole.RECEPTIONIST)
                 mvc.perform(request(operation).with(actor(role))).andExpect(status().isForbidden())
-                        .andExpect(jsonPath("$.error.code").value("ACCESS_DENIED"));
+                        .andExpect(jsonPath("$.error.code").value("MSG-19"));
         }
         verifyNoInteractions(profiles);
         when(profiles.matches(any(), any(), any(), any())).thenReturn(List.of());
@@ -104,7 +104,7 @@ class PatientProfileControllerTest {
     @Test void invalidTransportAndBeanValidationUseExistingEnvelope() throws Exception {
         String correlation = UUID.randomUUID().toString();
         mvc.perform(get(ROOT + "/matches").param("phone", "0912345678").with(actor(AccountRole.RECEPTIONIST)))
-                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("MSG-17"));
         mvc.perform(get(ROOT + "/matches").param("phone", "0912345678").param("dateOfBirth", "not-a-date")
                 .with(actor(AccountRole.RECEPTIONIST))).andExpect(status().isBadRequest());
         mvc.perform(post(ROOT).with(csrf()).with(actor(AccountRole.RECEPTIONIST)).contentType("application/json")
@@ -114,25 +114,25 @@ class PatientProfileControllerTest {
         mvc.perform(put(ROOT + "/" + id).with(csrf()).with(actor(AccountRole.RECEPTIONIST))
                 .requestAttr(fu.fa26.sep490.g58.otcms_be.common.web.CorrelationIdFilter.ATTRIBUTE, correlation)
                 .contentType("application/json").content(BODY)).andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"))
+                .andExpect(jsonPath("$.error.code").value("MSG-17"))
                 .andExpect(jsonPath("$.error.correlationId").value(correlation));
         verifyNoInteractions(profiles);
     }
     @Test void businessErrorsOptimisticAndUnexpectedRemainScoped() throws Exception {
         when(profiles.matches(any(), any(), any(), any())).thenThrow(new PatientProfileException("PATIENT_MATCH_AMBIGUOUS"));
         mvc.perform(request("matches").with(actor(AccountRole.RECEPTIONIST))).andExpect(status().isConflict())
-                .andExpect(jsonPath("$.error.code").value("PATIENT_MATCH_AMBIGUOUS"));
+                .andExpect(jsonPath("$.error.code").value("MSG-18"));
         when(profiles.detail(any(), any())).thenThrow(new PatientProfileException("PATIENT_PROFILE_NOT_FOUND"));
         mvc.perform(request("detail").with(actor(AccountRole.RECEPTIONIST))).andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.error.code").value("PATIENT_PROFILE_NOT_FOUND"));
+                .andExpect(jsonPath("$.error.code").value("MSG-19"));
         when(profiles.create(any(), any(), any(), any(), any(), any(), any(), any(), any()))
                 .thenThrow(new PatientProfileException("PATIENT_PROFILE_DUPLICATE"));
         mvc.perform(request("create").with(actor(AccountRole.RECEPTIONIST))).andExpect(status().isConflict())
-                .andExpect(jsonPath("$.error.code").value("PATIENT_PROFILE_DUPLICATE"));
+                .andExpect(jsonPath("$.error.code").value("MSG-18"));
         when(profiles.update(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any()))
                 .thenThrow(new org.springframework.orm.ObjectOptimisticLockingFailureException("profile", id));
         mvc.perform(request("update").with(actor(AccountRole.RECEPTIONIST))).andExpect(status().isConflict())
-                .andExpect(jsonPath("$.error.code").value("STALE_VERSION"));
+                .andExpect(jsonPath("$.error.code").value("MSG-16"));
         doThrow(new IllegalStateException("private infrastructure detail")).when(profiles).detail(any(), any());
         mvc.perform(request("detail").with(actor(AccountRole.RECEPTIONIST))).andExpect(status().isInternalServerError())
                 .andExpect(jsonPath("$.error.code").value("MSG-04"))

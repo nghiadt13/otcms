@@ -63,7 +63,7 @@ export class MedicalHistoryTestServer {
     const body = JSON.parse(String(init.body)) as MedicalHistoryUpdate;
     if (body.version !== this.history.version)
       throw new ApiError(409, {
-        errorCode: "STALE_VERSION",
+        errorCode: "MSG-16",
         detail: "Localized backend text",
       });
     this.history = {

@@ -187,9 +187,9 @@ describe("PatientProfileHistoryScreen — API thật tại ranh giới apiReques
   });
 
   it.each([
-    [400, "VALIDATION_FAILED", "MSG-20"],
-    [403, "ACCESS_DENIED", "MSG-19"],
-    [404, "PATIENT_PROFILE_NOT_FOUND", "MSG-19"],
+    [400, "MSG-20", "MSG-20"],
+    [403, "MSG-19", "MSG-19"],
+    [404, "MSG-19", "MSG-19"],
   ] as const)(
     "PUT HTTP %s hiển thị %s, không báo thành công",
     async (status, errorCode, messageCode) => {
@@ -212,9 +212,9 @@ describe("PatientProfileHistoryScreen — API thật tại ranh giới apiReques
   );
 
   it.each([
-    [400, "VALIDATION_FAILED", "MSG-20"],
-    [403, "ACCESS_DENIED", "MSG-19"],
-    [404, "PATIENT_PROFILE_NOT_FOUND", "MSG-19"],
+    [400, "MSG-20", "MSG-20"],
+    [403, "MSG-19", "MSG-19"],
+    [404, "MSG-19", "MSG-19"],
   ] as const)(
     "GET HTTP %s hiển thị đúng MSG và không có nội dung y tế",
     async (status, errorCode, messageCode) => {
@@ -353,7 +353,7 @@ describe("mất xác thực sau khi màn đã tải tiền sử", () => {
       render(<PatientProfileHistoryScreen profileId={HISTORY_PROFILE_ID} />);
       await screen.findByLabelText("Dị ứng");
       editAllergies("Draft y tế chưa lưu");
-      server.putError = new ApiError(409, { errorCode: "STALE_VERSION" });
+      server.putError = new ApiError(409, { errorCode: "MSG-16" });
       await user.click(screen.getByRole("button", { name: "Lưu Dị ứng" }));
       expect(
         await screen.findByText(formatAppMessage("MSG-16")),

@@ -151,13 +151,13 @@ class AppointmentBookingT022PostgresIntegrationTest {
         mvc.perform(post("/api/v1/appointments").with(actor(receptionistAccount, AccountType.RECEPTIONIST)).with(csrf())
                         .contentType("application/json").content(request(unlinkedPatientProfile, "Duplicate visit", null, null)))
                 .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.error.code").value("SLOT_UNAVAILABLE"));
+                .andExpect(jsonPath("$.error.code").value("MSG-30"));
 
         mvc.perform(post("/api/v1/appointments").with(actor(receptionistAccount, AccountType.RECEPTIONIST)).with(csrf())
                         .contentType("application/json").content(request(unlinkedPatientProfile,
                                 "Assisted visit", "bookingSource", "DOCTOR_FOLLOW_UP")))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
+                .andExpect(jsonPath("$.error.code").value("MSG-31"));
     }
 
     @Test
@@ -165,7 +165,7 @@ class AppointmentBookingT022PostgresIntegrationTest {
         mvc.perform(post("/api/v1/appointments").with(actor(patientAccount, AccountType.PATIENT)).with(csrf())
                         .contentType("application/json").content(request(otherPatientProfile, "Routine visit", null, null)))
                 .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.error.code").value("PATIENT_PROFILE_NOT_FOUND"));
+                .andExpect(jsonPath("$.error.code").value("MSG-29"));
 
         mvc.perform(post("/api/v1/appointments").with(actor(doctorAccount, AccountType.DOCTOR)).with(csrf())
                         .contentType("application/json").content(request(patientProfile, "Routine visit", null, null)))

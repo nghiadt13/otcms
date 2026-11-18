@@ -18,14 +18,14 @@ public class MyPatientProfileApiExceptionHandler {
         return switch (e.reason()) {
             case ACCESS_DENIED -> problem(403, "MSG-14", List.of(), r);
             case NOT_FOUND -> problem(404, "MSG-14", List.of(), r);
-            case STALE_VERSION -> problem(409, "STALE_VERSION", List.of(), r);
+            case STALE_VERSION -> problem(409, "MSG-16", List.of(), r);
             // Đã có hồ sơ Bản thân, hoặc trùng hồ sơ tạo tại quầy (BR-14): không nói rõ trùng với ai.
             case ALREADY_EXISTS, DUPLICATE -> problem(409, "MSG-08", List.of(), r);
             case INVALID_INPUT -> problem(400, "MSG-08", e.fields(), r);
         };
     }
     @ExceptionHandler({org.springframework.dao.OptimisticLockingFailureException.class, jakarta.persistence.OptimisticLockException.class})
-    public ResponseEntity<ErrorResponse> stale(Exception e, HttpServletRequest r) { return problem(409, "STALE_VERSION", List.of(), r); }
+    public ResponseEntity<ErrorResponse> stale(Exception e, HttpServletRequest r) { return problem(409, "MSG-16", List.of(), r); }
 
     @ExceptionHandler(org.springframework.security.access.AccessDeniedException.class)
     public ResponseEntity<ErrorResponse> denied(Exception e, HttpServletRequest r) { return problem(403, "MSG-14", List.of(), r); }
@@ -40,7 +40,7 @@ public class MyPatientProfileApiExceptionHandler {
     private ResponseEntity<ErrorResponse> problem(int status, String code, List<ErrorResponse.FieldError> fields, HttpServletRequest r) {
         String message = switch (code) {
             case "MSG-14" -> "Bạn không có quyền thực hiện thao tác này hoặc tài khoản không còn khả dụng.";
-            case "STALE_VERSION" -> "Không thể hoàn tất yêu cầu. Hãy tải lại trạng thái trước khi thử lại.";
+            case "MSG-16" -> "Không thể hoàn tất yêu cầu. Hãy tải lại trạng thái trước khi thử lại.";
             case "MSG-08" -> "Không thể hoàn tất yêu cầu với thông tin hiện tại.";
             default -> "Không thể hoàn tất yêu cầu. Vui lòng thử lại sau hoặc bắt đầu lại.";
         };

@@ -135,7 +135,7 @@ class CheckInAppointmentT027PostgresIntegrationTest {
         UUID second = insertAppointment(NOW.plusSeconds(5400), "P04 second appointment");
         mvc.perform(checkIn(appointment, receptionistAccount, "p04-conflict")).andExpect(status().isOk());
         mvc.perform(checkIn(second, receptionistAccount, "p04-conflict"))
-                .andExpect(status().isConflict()).andExpect(jsonPath("$.error.code").value("IDEMPOTENCY_CONFLICT"));
+                .andExpect(status().isConflict()).andExpect(jsonPath("$.error.code").value("MSG-42"));
         assertEquals(0, jdbc.queryForObject("select count(*) from visits where originating_appointment_id = ?",
                 Integer.class, second));
     }
@@ -259,7 +259,7 @@ class CheckInAppointmentT027PostgresIntegrationTest {
         appointment = insertAppointment(Instant.parse("2026-10-15T03:00:00Z"), "T027 next clinic day");
         mvc.perform(checkIn(appointment, receptionistAccount, "t027-next-day"))
                 .andExpect(status().isUnprocessableEntity())
-                .andExpect(jsonPath("$.error.code").value("CHECK_IN_TIME_NOT_ALLOWED"));
+                .andExpect(jsonPath("$.error.code").value("MSG-37"));
         assertEquals("CONFIRMED", jdbc.queryForObject("select status from appointments where id = ?", String.class, appointment));
         assertEquals(0, jdbc.queryForObject("select count(*) from visits where originating_appointment_id = ?", Integer.class, appointment));
         assertEquals(0, jdbc.queryForObject("select count(*) from appointments where id = ? and checkin_idempotency_key is not null", Integer.class, appointment));
@@ -279,7 +279,7 @@ class CheckInAppointmentT027PostgresIntegrationTest {
         mvc.perform(checkIn(appointment, receptionistAccount, "t027-attestation-key"))
                 .andExpect(status().isOk());
         mvc.perform(checkIn(appointment, receptionistAccount, "t027-attestation-key", UUID.randomUUID()))
-                .andExpect(status().isConflict()).andExpect(jsonPath("$.error.code").value("IDEMPOTENCY_CONFLICT"));
+                .andExpect(status().isConflict()).andExpect(jsonPath("$.error.code").value("MSG-42"));
         assertEquals(1, jdbc.queryForObject("select count(*) from visits where originating_appointment_id = ?", Integer.class, appointment));
     }
 
@@ -287,7 +287,7 @@ class CheckInAppointmentT027PostgresIntegrationTest {
     void mismatchedPatientAttestationRejectsWithoutAnyCheckInWrites() throws Exception {
         mvc.perform(checkIn(appointment, receptionistAccount, "t027-mismatched-attestation", UUID.randomUUID()))
                 .andExpect(status().isUnprocessableEntity())
-                .andExpect(jsonPath("$.error.code").value("PATIENT_IDENTITY_MISMATCH"));
+                .andExpect(jsonPath("$.error.code").value("MSG-18"));
 
         assertEquals("CONFIRMED", jdbc.queryForObject("select status from appointments where id = ?", String.class, appointment));
         assertEquals(null, jdbc.queryForObject("select visit_id from appointments where id = ?", UUID.class, appointment));
@@ -307,7 +307,7 @@ class CheckInAppointmentT027PostgresIntegrationTest {
         mvc.perform(checkIn(appointment, receptionistAccount, "t027-first"))
                 .andExpect(status().isOk());
         mvc.perform(checkIn(appointment, receptionistAccount, "t027-other-key"))
-                .andExpect(status().isConflict()).andExpect(jsonPath("$.error.code").value("APPOINTMENT_NOT_CHANGEABLE"));
+                .andExpect(status().isConflict()).andExpect(jsonPath("$.error.code").value("MSG-32"));
         assertEquals(1, jdbc.queryForObject("select count(*) from visits where originating_appointment_id = ?", Integer.class, appointment));
         assertEquals(1, jdbc.queryForObject("select count(*) from appointments where id = ? and checkin_idempotency_key is not null", Integer.class, appointment));
         assertEquals(1, jdbc.queryForObject("select count(*) from audit_logs where source = 'appointment_audits' and entity_id = ? and action = 'STATUS_CHANGED'", Integer.class, appointment));
@@ -354,7 +354,7 @@ class CheckInAppointmentT027PostgresIntegrationTest {
 
         mvc.perform(checkIn(appointment, receptionistAccount, "t027-rollback"))
                 .andExpect(status().isServiceUnavailable())
-                .andExpect(jsonPath("$.error.code").value("DEPENDENCY_UNAVAILABLE"));
+                .andExpect(jsonPath("$.error.code").value("MSG-04"));
         assertEquals("CONFIRMED", jdbc.queryForObject("select status from appointments where id = ?", String.class, appointment));
         assertEquals(null, jdbc.queryForObject("select visit_id from appointments where id = ?", UUID.class, appointment));
         assertEquals(0, jdbc.queryForObject("select count(*) from visits where originating_appointment_id = ?", Integer.class, appointment));

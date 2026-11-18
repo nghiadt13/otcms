@@ -67,7 +67,7 @@ class AppointmentQueryT023PostgresIntegrationTest {
     @Test void detailHidesOutOfScopeRecordsAndAdminIsForbidden() throws Exception {
         UUID other = jdbc.queryForObject("select id from appointments where patient_profile_id=? order by start_time desc limit 1", UUID.class, otherPatient);
         mvc.perform(get("/api/v1/appointments/{id}", other).with(actor(patientAccount, AccountType.PATIENT)).with(csrf()))
-                .andExpect(status().isNotFound()).andExpect(jsonPath("$.error.code").value("APPOINTMENT_NOT_FOUND"));
+                .andExpect(status().isNotFound()).andExpect(jsonPath("$.error.code").value("MSG-29"));
         mvc.perform(get("/api/v1/appointments").with(actor(patientAccount, AccountType.ADMIN)).with(csrf()))
                 .andExpect(status().isForbidden());
     }
@@ -92,15 +92,15 @@ class AppointmentQueryT023PostgresIntegrationTest {
     @Test void lockedDoctorGetsAccessDeniedWithoutChangingAppointments() throws Exception {
         jdbc.update("update accounts set status='TEMPORARILY_LOCKED' where id=?", doctorAccount);
         mvc.perform(get("/api/v1/appointments").with(actor(doctorAccount, AccountType.DOCTOR)).with(csrf()))
-                .andExpect(status().isForbidden()).andExpect(jsonPath("$.error.code").value("ACCESS_DENIED"));
+                .andExpect(status().isForbidden()).andExpect(jsonPath("$.error.code").value("MSG-50"));
         org.junit.jupiter.api.Assertions.assertEquals(3, jdbc.queryForObject("select count(*) from appointments where service_id=?", Integer.class, service));
     }
 
     @Test void badDatesAndReversedRangeAreValidationErrors() throws Exception {
         mvc.perform(get("/api/v1/appointments").with(actor(receptionist, AccountType.RECEPTIONIST)).with(csrf()).param("from", "not-a-date"))
-                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("MSG-54"));
         mvc.perform(get("/api/v1/appointments").with(actor(receptionist, AccountType.RECEPTIONIST)).with(csrf()).param("from", "2026-10-14").param("to", "2026-10-13"))
-                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("MSG-54"));
     }
 
     private UUID account(String type) {

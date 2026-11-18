@@ -106,7 +106,7 @@ class VisitExamFlowPostgresIntegrationTest {
         startAppointment(appointmentA);
         patchStatus(appointmentB, "IN_PROGRESS")
                 .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.error.code").value("VISIT_EXAM_STATE_CONFLICT"));
+                .andExpect(jsonPath("$.error.code").value("MSG-42"));
 
         assertEquals("IN_EXAMINATION", queueStatus(visitA));
         assertEquals("WAITING", queueStatus(visitB));
@@ -161,7 +161,7 @@ class VisitExamFlowPostgresIntegrationTest {
 
         patchStatus(appointment, "COMPLETED")
                 .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.error.code").value("VISIT_COMPLETION_NOT_ALLOWED"));
+                .andExpect(jsonPath("$.error.code").value("MSG-42"));
         assertEquals("OPEN", visitStatus(visit));
         assertEquals("IN_EXAMINATION", queueStatus(visit));
         assertEquals("IN_PROGRESS", careStatus(visit));

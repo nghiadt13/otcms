@@ -17,7 +17,20 @@ public class StaffProfileExceptionHandler {
                     "STAFF_SHIFT_CONFLICT", "STAFF_SHIFT_NOT_EDITABLE" -> HttpStatus.CONFLICT;
             default -> HttpStatus.BAD_REQUEST;
         };
-        return ResponseEntity.status(status).body(ErrorResponse.of(ex.getMessage(),
+        return ResponseEntity.status(status).body(ErrorResponse.of(msgCodeFor(ex.getMessage()),
                 "Staff profile request could not be completed", UUID.randomUUID().toString()));
+    }
+
+    /** Maps the technical staff code to its R3 MSG code; the technical code only drives the HTTP status. */
+    private static String msgCodeFor(String technical) {
+        return switch (technical) {
+            case "STAFF_PROFILE_NOT_FOUND", "STAFF_ACCOUNT_UNAVAILABLE", "STAFF_PROFILE_CONFLICT" -> "MSG-23";
+            case "DOCTOR_HAS_FUTURE_APPOINTMENTS" -> "MSG-36";
+            case "STAFF_SHIFT_CONFLICT" -> "MSG-35";
+            case "STAFF_SHIFT_NOT_EDITABLE" -> "MSG-33";
+            case "STAFF_SHIFT_REQUEST_INVALID" -> "MSG-34";
+            case "VALIDATION_FAILED" -> "MSG-22";
+            default -> "MSG-04";
+        };
     }
 }

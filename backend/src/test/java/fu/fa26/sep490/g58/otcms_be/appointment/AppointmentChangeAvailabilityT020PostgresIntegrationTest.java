@@ -178,12 +178,12 @@ class AppointmentChangeAvailabilityT020PostgresIntegrationTest {
         mvc.perform(get(reassignmentPath(pastAppointmentId)).with(actor(receptionistAccountId, AccountType.RECEPTIONIST))
                         .param("from", CHANGE_DATE.toString()).param("to", CHANGE_DATE.toString()))
                 .andExpect(status().isUnprocessableEntity())
-                .andExpect(jsonPath("$.error.code").value("BOOKING_TIME_IN_PAST"));
+                .andExpect(jsonPath("$.error.code").value("MSG-30"));
 
         mvc.perform(get(reassignmentPath(cancelledAppointmentId)).with(actor(receptionistAccountId, AccountType.RECEPTIONIST))
                         .param("from", CHANGE_DATE.toString()).param("to", CHANGE_DATE.toString()))
                 .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.error.code").value("APPOINTMENT_NOT_CHANGEABLE"));
+                .andExpect(jsonPath("$.error.code").value("MSG-32"));
     }
 
     @Test

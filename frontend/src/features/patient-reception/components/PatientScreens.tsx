@@ -14,7 +14,7 @@ function errorText(error: unknown, mode: "create" | "update" | "read") {
   if (isApiError(error)) {
     if (error.status === 400 || error.status === 422) return formatAppMessage("MSG-17");
     if (error.status === 409 && mode === "create") return formatAppMessage("MSG-18");
-    if (error.status === 409 && error.errorCode === "STALE_VERSION") return formatAppMessage("MSG-16");
+    if (error.status === 409 && error.code === "MSG-16") return formatAppMessage("MSG-16");
     if ((error.status === 403 || error.status === 404) && mode !== "create") return formatAppMessage("MSG-19");
   }
   return messageFromError(error);

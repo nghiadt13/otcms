@@ -52,7 +52,7 @@ it("names the new doctor in the MSG-27 success toast", async () => {
 
 it("keeps the reschedule dialog open and reports the backend error", async () => {
   const slot = { doctorId: "d2", doctorDisplayName: "Bác sĩ Hai", startTime: "2026-11-20T02:00:00Z" };
-  const error = new ApiError(422, { errorCode: "DOCTOR_NOT_ELIGIBLE" });
+  const error = new ApiError(422, { errorCode: "MSG-24" });
   const onClose = vi.fn();
   render(<RescheduleAppointmentDialog open onClose={onClose} loadSlots={vi.fn().mockResolvedValue([slot])} onConfirm={vi.fn().mockRejectedValue(error)} />);
   await userEvent.selectOptions(await screen.findByLabelText("Giờ và bác sĩ"), `${slot.doctorId}|${slot.startTime}`);

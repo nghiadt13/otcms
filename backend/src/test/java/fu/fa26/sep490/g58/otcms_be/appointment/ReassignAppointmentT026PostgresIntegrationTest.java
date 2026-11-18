@@ -185,11 +185,11 @@ class ReassignAppointmentT026PostgresIntegrationTest {
         mvc.perform(post("/api/v1/appointments/{id}/reassign", appointment)
                         .with(actor(receptionistAccount, AccountType.RECEPTIONIST)).with(csrf()).contentType("application/json")
                         .content("{\"doctorId\":\"" + currentDoctor + "\",\"reason\":\"Same Doctor\"}"))
-                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("MSG-31"));
         mvc.perform(post("/api/v1/appointments/{id}/reassign", appointment)
                         .with(actor(receptionistAccount, AccountType.RECEPTIONIST)).with(csrf()).contentType("application/json")
                         .content("{\"doctorId\":\"" + unassignedDoctor + "\",\"reason\":\"Doctor unavailable\"}"))
-                .andExpect(status().isUnprocessableEntity()).andExpect(jsonPath("$.error.code").value("DOCTOR_NOT_ELIGIBLE"));
+                .andExpect(status().isUnprocessableEntity()).andExpect(jsonPath("$.error.code").value("MSG-24"));
         assertEquals(currentDoctor, jdbc.queryForObject("select doctor_profile_id from appointments where id = ?", UUID.class, appointment));
         assertEquals("CONFIRMED", jdbc.queryForObject("select status from appointments where id = ?", String.class, appointment));
         assertEquals(0, jdbc.queryForObject("select count(*) from audit_logs where source = 'appointment_audits' and entity_id = ? "
@@ -202,7 +202,7 @@ class ReassignAppointmentT026PostgresIntegrationTest {
         mvc.perform(post("/api/v1/appointments/{id}/reassign", appointment)
                         .with(actor(receptionistAccount, AccountType.RECEPTIONIST)).with(csrf()).contentType("application/json")
                         .content("{\"doctorId\":\"" + replacementDoctor + "\",\"reason\":\"Doctor unavailable\"}"))
-                .andExpect(status().isConflict()).andExpect(jsonPath("$.error.code").value("SLOT_UNAVAILABLE"));
+                .andExpect(status().isConflict()).andExpect(jsonPath("$.error.code").value("MSG-30"));
         assertEquals(currentDoctor, jdbc.queryForObject("select doctor_profile_id from appointments where id = ?", UUID.class, appointment));
         assertEquals("CONFIRMED", jdbc.queryForObject("select status from appointments where id = ?", String.class, appointment));
         assertEquals(0, jdbc.queryForObject("select count(*) from audit_logs where source = 'appointment_audits' and entity_id = ? "

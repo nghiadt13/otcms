@@ -185,7 +185,7 @@ class RescheduleAppointmentT024PostgresIntegrationTest {
         mvc.perform(patch("/api/v1/appointments/{id}/reschedule", appointment)
                         .with(actor(receptionistAccount, AccountType.RECEPTIONIST)).with(csrf()).contentType("application/json")
                         .content("{\"startTime\":\"" + TARGET_START + "\",\"reason\":\" \"}"))
-                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("MSG-31"));
         assertEquals(OLD_START, jdbc.queryForObject("select start_time from appointments where id = ?", Timestamp.class,
                 appointment).toInstant());
         assertEquals(0, jdbc.queryForObject("select count(*) from audit_logs where source = 'appointment_audits' and entity_id = ? "
@@ -199,7 +199,7 @@ class RescheduleAppointmentT024PostgresIntegrationTest {
         mvc.perform(patch("/api/v1/appointments/{id}/reschedule", appointment)
                         .with(actor(receptionistAccount, AccountType.RECEPTIONIST)).with(csrf()).contentType("application/json")
                         .content("{\"startTime\":\"" + TARGET_START + "\",\"reason\":\"Patient requested a change\"}"))
-                .andExpect(status().isUnprocessableEntity()).andExpect(jsonPath("$.error.code").value("DOCTOR_NOT_ELIGIBLE"));
+                .andExpect(status().isUnprocessableEntity()).andExpect(jsonPath("$.error.code").value("MSG-24"));
         assertEquals(OLD_START, jdbc.queryForObject("select start_time from appointments where id = ?", Timestamp.class,
                 appointment).toInstant());
         assertEquals(1, jdbc.queryForObject("select count(*) from audit_logs where source = 'appointment_audits' and entity_id = ? "

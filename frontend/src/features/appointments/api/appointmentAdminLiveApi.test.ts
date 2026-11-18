@@ -99,9 +99,9 @@ it("posts the selected doctor and reason, preserving patient details", async () 
   });
 });
 
-it("maps a slot lost during submission to the candidate refresh error", async () => {
+it("keeps the MSG-30 slot-lost code from the backend on reassignment", async () => {
   apiRequest.mockRejectedValue(
-    new ApiError(409, { errorCode: "SLOT_UNAVAILABLE" }),
+    new ApiError(409, { errorCode: "MSG-30" }),
   );
   const appointment = {
     id: "appt",
@@ -116,7 +116,7 @@ it("maps a slot lost during submission to the candidate refresh error", async ()
   };
   await expect(
     reassignAdminAppointment(appointment, "new", "Bác sĩ cũ vắng"),
-  ).rejects.toMatchObject({ status: 409, code: "MSG-24" });
+  ).rejects.toMatchObject({ status: 409, code: "MSG-30" });
 });
 afterEach(() => vi.useRealTimers());
 

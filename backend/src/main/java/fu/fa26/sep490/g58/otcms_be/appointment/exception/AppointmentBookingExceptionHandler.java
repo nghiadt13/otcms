@@ -38,20 +38,20 @@ public class AppointmentBookingExceptionHandler {
             case "DEPENDENCY_UNAVAILABLE", "ARRIVAL_PROOF_UNAVAILABLE" -> HttpStatus.SERVICE_UNAVAILABLE;
             default -> HttpStatus.BAD_REQUEST;
         };
-        return ResponseEntity.status(status).body(ErrorResponse.of(exception.code(), "Appointment command was rejected",
-                CorrelationIdFilter.current(request)));
+        return ResponseEntity.status(status).body(ErrorResponse.of(AppointmentMsgCodes.of(exception.code()),
+                "Appointment command was rejected", CorrelationIdFilter.current(request)));
     }
 
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<ErrorResponse> malformed(HttpMessageNotReadableException exception, HttpServletRequest request) {
-        return ResponseEntity.badRequest().body(ErrorResponse.of("VALIDATION_FAILED", "Invalid request body",
+        return ResponseEntity.badRequest().body(ErrorResponse.of("MSG-31", "Invalid request body",
                 CorrelationIdFilter.current(request)));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ErrorResponse> invalidRequest(MethodArgumentNotValidException exception,
             HttpServletRequest request) {
-        return ResponseEntity.badRequest().body(ErrorResponse.of("VALIDATION_FAILED", "Invalid request body",
+        return ResponseEntity.badRequest().body(ErrorResponse.of("MSG-31", "Invalid request body",
                 CorrelationIdFilter.current(request)));
     }
 }
