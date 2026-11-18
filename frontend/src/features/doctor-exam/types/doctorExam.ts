@@ -101,6 +101,7 @@ export type Advice = AdviceInput & {
 export type AmendChanges = {
   examination?: ExaminationInput;
   advice?: AdviceInput;
+  prescription?: { items: PrescriptionLine[] };
 };
 
 export type ServiceKind = "IMAGING" | "LABORATORY";

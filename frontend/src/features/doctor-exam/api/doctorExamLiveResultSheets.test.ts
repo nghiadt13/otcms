@@ -47,7 +47,7 @@ it("đọc giá trị hiện hành để sửa", async () => {
   request.mockResolvedValue({
     examination: { reasonForVisit: "Đau", symptoms: null, examinationFindings: "Sưng", injuryBodySite: null, injurySide: null, injuryMechanism: null, status: "COMPLETED", diagnoses: [{ code: "M25.5", type: "PRIMARY" }], version: 1 },
     advice: { homeCareAdvice: "Nghỉ", activityAdvice: null, rehabilitationAdvice: null, warningSigns: null, followUpRecommendation: null, examinationStatus: "COMPLETED", updatedAt: null, version: 1 },
-    prescriptionItems: [],
+    prescriptionItems: [{ lineNumber: 1, medicine: "Thuốc A", dose: "1 viên", frequency: "Ngày 2 lần", usage: "Sau ăn" }],
     resultSheetVersion: 2,
   });
   const result = await getAmendableResult("visit-1");
@@ -55,5 +55,6 @@ it("đọc giá trị hiện hành để sửa", async () => {
   expect(result.examination.symptoms).toBe("");
   expect(result.examination.diagnoses).toEqual([{ code: "M25.5", type: "PRIMARY" }]);
   expect(result.advice.homeCareAdvice).toBe("Nghỉ");
+  expect(result.prescriptionItems).toEqual([{ medicine: "Thuốc A", dose: "1 viên", frequency: "Ngày 2 lần", usage: "Sau ăn" }]);
   expect(result.resultSheetVersion).toBe(2);
 });

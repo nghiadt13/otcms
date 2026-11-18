@@ -43,6 +43,7 @@ it("có nút Sửa kết quả khi đã có bản hiện hành và mở hộp th
   mocks.request.mockResolvedValue({
     examination: { reasonForVisit: "Đau gối", symptoms: "Đau", examinationFindings: "Sưng", injuryBodySite: null, injurySide: null, injuryMechanism: null, status: "COMPLETED", diagnoses: [{ code: "M25.5", type: "PRIMARY" }], version: 1 },
     advice: { homeCareAdvice: "Nghỉ", activityAdvice: null, rehabilitationAdvice: null, warningSigns: null, followUpRecommendation: null, examinationStatus: "COMPLETED", updatedAt: null, version: 1 },
+    prescriptionItems: [],
     resultSheetVersion: 1,
   });
   render(<ResultSheetPanel visitId="visit-1" />);

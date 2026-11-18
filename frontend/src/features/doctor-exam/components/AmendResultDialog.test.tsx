@@ -16,6 +16,7 @@ const current = {
     diagnoses: [{ code: "M25.5", type: "PRIMARY" }], status: "COMPLETED", version: 1,
   },
   advice: { homeCareAdvice: "Nghỉ", activityAdvice: "", rehabilitationAdvice: "", warningSigns: "", followUpRecommendation: "", examinationStatus: "COMPLETED", updatedAt: null, version: 1 },
+  prescriptionItems: [{ medicine: "Thuốc A", dose: "1 viên", frequency: "Ngày 2 lần", usage: "Sau ăn" }],
   resultSheetVersion: 1,
 };
 
@@ -61,10 +62,46 @@ it("chỉ gửi phần đã sửa kèm lý do, báo MSG-76 rồi đóng và tả
   expect(visitId).toBe("visit-1");
   expect(reason).toBe("Đổi lời dặn");
   expect(changes.examination).toBeUndefined();
+  expect(changes.prescription).toBeUndefined();
   expect(changes.advice.homeCareAdvice).toBe("Chườm lạnh");
   expect(mocks.notifySuccess).toHaveBeenCalledWith("MSG-76");
   expect(onAmended).toHaveBeenCalled();
   expect(onClose).toHaveBeenCalled();
+});
+
+it("nạp đơn hiện hành và chỉ gửi đơn đã sửa cùng lý do", async () => {
+  mocks.amend.mockResolvedValue([]);
+  setup();
+  const dose = await screen.findByLabelText("Liều dùng 1");
+  expect(dose).toHaveValue("1 viên");
+  await userEvent.clear(dose);
+  await userEvent.type(dose, "2 viên");
+  await userEvent.type(screen.getByLabelText("Lý do sửa (bắt buộc)"), "Sửa liều");
+  await userEvent.click(screen.getByRole("button", { name: "Lưu sửa đổi" }));
+  await waitFor(() => expect(mocks.amend).toHaveBeenCalledWith("visit-1", "Sửa liều", {
+    prescription: { items: [{ medicine: "Thuốc A", dose: "2 viên", frequency: "Ngày 2 lần", usage: "Sau ăn" }] },
+  }));
+});
+
+it("không gửi đơn thiếu trường hoặc thiếu lý do", async () => {
+  setup();
+  await userEvent.clear(await screen.findByLabelText("Tên thuốc 1"));
+  await userEvent.click(screen.getByRole("button", { name: "Lưu sửa đổi" }));
+  expect(mocks.amend).not.toHaveBeenCalled();
+  expect(screen.getByText(/Nhập đủ tên thuốc/)).toBeInTheDocument();
+  expect(screen.getByText("Nhập lý do sửa kết quả.")).toBeInTheDocument();
+});
+
+it("không gửi đơn khi chỉ thêm dòng trống và sửa lời dặn", async () => {
+  mocks.amend.mockResolvedValue([]);
+  setup();
+  await screen.findByLabelText("Tên thuốc 1");
+  await userEvent.click(screen.getByRole("button", { name: "Thêm thuốc" }));
+  await userEvent.type(screen.getByLabelText("Chăm sóc tại nhà"), " thêm");
+  await userEvent.type(screen.getByLabelText("Lý do sửa (bắt buộc)"), "Lý do");
+  await userEvent.click(screen.getByRole("button", { name: "Lưu sửa đổi" }));
+  await waitFor(() => expect(mocks.amend).toHaveBeenCalledTimes(1));
+  expect(mocks.amend.mock.calls[0][2].prescription).toBeUndefined();
 });
 
 it("giữ hộp thoại mở khi BE từ chối", async () => {
