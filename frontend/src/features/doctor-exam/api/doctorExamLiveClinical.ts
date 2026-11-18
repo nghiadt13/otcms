@@ -13,7 +13,7 @@ import type {
 // Ghi nhận khám (UC37) và lời dặn (UC42) qua `clinical` của BE: GET/PUT /visits/{id}/examination,
 // POST …/examination/completion, GET/PUT …/after-visit-advice. Chưa có bản ghi → 404 (MSG-41).
 
-type ExaminationDto = {
+export type ExaminationDto = {
   reasonForVisit: string | null;
   symptoms: string | null;
   examinationFindings: string | null;
@@ -25,7 +25,7 @@ type ExaminationDto = {
   version: number | null;
 };
 
-type AdviceDto = {
+export type AdviceDto = {
   homeCareAdvice: string | null;
   activityAdvice: string | null;
   rehabilitationAdvice: string | null;
@@ -41,7 +41,7 @@ const root = (visitId: string) =>
 
 const text = (value: string | null | undefined) => value ?? "";
 
-function toExamination(dto: ExaminationDto): Examination {
+export function toExamination(dto: ExaminationDto): Examination {
   return {
     reasonForVisit: text(dto.reasonForVisit),
     symptoms: text(dto.symptoms),
@@ -92,7 +92,7 @@ export async function saveExamination(
   return toExamination(dto);
 }
 
-function toAdvice(dto: AdviceDto): Advice {
+export function toAdvice(dto: AdviceDto): Advice {
   return {
     homeCareAdvice: text(dto.homeCareAdvice),
     activityAdvice: text(dto.activityAdvice),

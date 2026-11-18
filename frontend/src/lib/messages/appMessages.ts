@@ -144,6 +144,7 @@ export const APP_MESSAGES: Record<string, string> = {
   "MSG-97":
     "Lịch hẹn ngày {date} đã bị hủy bởi phòng khám. Khoản phí đã thanh toán sẽ được hoàn lại, phòng khám sẽ liên hệ với bạn.",
   "MSG-78": "Kết quả khám ngày {date} của {patientName} đã được công bố. Vui lòng đăng nhập để xem.",
+  "MSG-79": "Phiếu kết quả khám ngày {date} của {patientName} đã có phiên bản mới. Vui lòng xem lại.",
 };
 
 /** Thay `{tham số}` trong câu MSG. Tham số thiếu giữ nguyên để dễ phát hiện. */

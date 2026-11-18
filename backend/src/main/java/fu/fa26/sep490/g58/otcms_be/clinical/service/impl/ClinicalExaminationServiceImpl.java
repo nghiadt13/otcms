@@ -2,7 +2,7 @@ package fu.fa26.sep490.g58.otcms_be.clinical.service.impl;
 import fu.fa26.sep490.g58.otcms_be.clinical.exception.ClinicalOperationException; import fu.fa26.sep490.g58.otcms_be.clinical.model.*; import fu.fa26.sep490.g58.otcms_be.clinical.model.entity.*; import fu.fa26.sep490.g58.otcms_be.clinical.repository.*; import fu.fa26.sep490.g58.otcms_be.clinical.service.*;
 import java.time.Clock; import java.time.Instant; import java.util.*; import java.util.regex.Pattern; import org.springframework.stereotype.Service; import org.springframework.transaction.annotation.Transactional;
 @Service public class ClinicalExaminationServiceImpl implements ClinicalExaminationService {
- private static final Pattern ICD=Pattern.compile("(?i)^[MS][0-9]{2}(\\.[A-Z0-9]{1,4})?$");
+ public static final Pattern ICD=Pattern.compile("(?i)^[MS][0-9]{2}(\\.[A-Z0-9]{1,4})?$");
  private final fu.fa26.sep490.g58.otcms_be.common.service.CoordinationGuardService guard;
  private final VisitClinicalContextPort visits; private final ClinicalExaminationRepository exams; private final ClinicalDiagnosisRepository diagnoses; private final Clock clock;
  public ClinicalExaminationServiceImpl(VisitClinicalContextPort visits,ClinicalExaminationRepository exams,ClinicalDiagnosisRepository diagnoses,Clock clock,fu.fa26.sep490.g58.otcms_be.common.service.CoordinationGuardService guard){this.guard=guard;this.visits=visits;this.exams=exams;this.diagnoses=diagnoses;this.clock=clock;}

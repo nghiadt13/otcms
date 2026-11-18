@@ -52,6 +52,25 @@ class ResultSheetImagingQueryServiceTest {
         assertTrue(service.findReleased(patientId, visitId).isEmpty());
     }
 
+    @Test
+    void keepsReleasedFindingsWithoutPdfButStillRejectsUnvalidatedPdf() {
+        var row = row(patientId);
+        when(requests.findAllByVisit(visitId)).thenReturn(List.of(row));
+        var noPdf = report("study", true);
+        when(noPdf.getReportId()).thenReturn(null);
+        when(noPdf.getValidationStatus()).thenReturn(null);
+        when(noPdf.getFindingsText()).thenReturn("Chỉ có kết luận chữ");
+        when(reports.findResultSheetReports(anyCollection(), any())).thenReturn(List.of(noPdf));
+        var result = service.findReleased(patientId, visitId);
+        assertEquals(1, result.size());
+        assertEquals("Chỉ có kết luận chữ", result.getFirst().findingsText());
+
+        var unvalidatedPdf = report("study", true);
+        when(unvalidatedPdf.getValidationStatus()).thenReturn(DiagnosticReportValidationStatus.INVALID);
+        when(reports.findResultSheetReports(anyCollection(), any())).thenReturn(List.of(unvalidatedPdf));
+        assertTrue(service.findReleased(patientId, visitId).isEmpty());
+    }
+
     private ImagingExecution row(UUID patient) {
         var row = mock(ImagingExecution.class);
         when(row.patientId()).thenReturn(patient);

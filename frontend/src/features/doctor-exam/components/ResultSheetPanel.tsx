@@ -10,12 +10,14 @@ import { regenerateResultSheet } from "../api/doctorExamLiveResultSheets";
 import { useAsyncAction } from "../hooks/useAsyncAction";
 import { useResultSheets } from "../hooks/useDoctorData";
 import { notifyDoctorError } from "../schema/doctorErrors";
+import { AmendResultDialog } from "./AmendResultDialog";
 import { DoctorLoadState } from "./DoctorLoadState";
 
 export function ResultSheetPanel({ visitId }: { visitId: string }) {
   const sheets = useResultSheets(visitId);
   const { pending, run } = useAsyncAction();
   const [opening, setOpening] = useState(false);
+  const [amending, setAmending] = useState(false);
 
   async function openPdf(documentId: string) {
     const viewer = window.open("about:blank", "_blank");
@@ -79,6 +81,19 @@ export function ResultSheetPanel({ visitId }: { visitId: string }) {
           ))}
         </ul>
       )}
+      {sheets.data?.some((sheet) => sheet.status === "CURRENT") ? (
+        <div className="border-t pt-3">
+          <Button type="button" variant="outline" onClick={() => setAmending(true)}>
+            Sửa kết quả
+          </Button>
+        </div>
+      ) : null}
+      <AmendResultDialog
+        visitId={visitId}
+        open={amending}
+        onClose={() => setAmending(false)}
+        onAmended={sheets.refresh}
+      />
     </section>
   );
 }

@@ -129,6 +129,7 @@ describe("UC36", () => {
 const old = {
   visitId: "old",
   arrivedAt: "2026-08-01T01:00:00Z",
+  status: "CLOSED",
   examination: {
     diagnoses: [
       { code: "S", type: "SECONDARY" },
@@ -171,6 +172,10 @@ describe("UC33", () => {
       "/api/v1/visits/current/past-medical-records",
       { signal: undefined },
     );
+  });
+  it("maps an INCOMPLETE visit to INCOMPLETE instead of assuming COMPLETED", async () => {
+    request.mockResolvedValue(page([{ ...old, status: "INCOMPLETE", examination: null }]));
+    expect((await api.listPastVisits("current"))[0].status).toBe("INCOMPLETE");
   });
   it("missing optional data stays null/empty", async () => {
     request.mockResolvedValue(

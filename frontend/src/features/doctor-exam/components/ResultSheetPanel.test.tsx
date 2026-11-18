@@ -37,3 +37,24 @@ it("cho phép sinh lại khi danh sách trống rồi tải lại danh sách", a
   expect(mocks.request).toHaveBeenCalledWith("/api/v1/visits/visit-1/result-sheets/regeneration", { method: "POST" });
   expect(await screen.findByRole("button", { name: "Xem phiếu kết quả" })).toBeInTheDocument();
 });
+
+it("có nút Sửa kết quả khi đã có bản hiện hành và mở hộp thoại với giá trị hiện hành", async () => {
+  mocks.list.mockResolvedValue([{ documentId: "doc-1", version: 1, status: "CURRENT", issuedAt: "2026-11-17T03:00:00Z" }]);
+  mocks.request.mockResolvedValue({
+    examination: { reasonForVisit: "Đau gối", symptoms: "Đau", examinationFindings: "Sưng", injuryBodySite: null, injurySide: null, injuryMechanism: null, status: "COMPLETED", diagnoses: [{ code: "M25.5", type: "PRIMARY" }], version: 1 },
+    advice: { homeCareAdvice: "Nghỉ", activityAdvice: null, rehabilitationAdvice: null, warningSigns: null, followUpRecommendation: null, examinationStatus: "COMPLETED", updatedAt: null, version: 1 },
+    resultSheetVersion: 1,
+  });
+  render(<ResultSheetPanel visitId="visit-1" />);
+  await userEvent.click(await screen.findByRole("button", { name: "Sửa kết quả" }));
+  expect(await screen.findByLabelText("Lý do sửa (bắt buộc)")).toBeInTheDocument();
+  expect(mocks.request).toHaveBeenCalledWith("/api/v1/visits/visit-1/amendments/current", expect.anything());
+  expect(screen.getByLabelText("Chăm sóc tại nhà")).toHaveValue("Nghỉ");
+});
+
+it("không hiện Sửa kết quả khi chưa có phiếu", async () => {
+  mocks.list.mockResolvedValue([]);
+  render(<ResultSheetPanel visitId="visit-1" />);
+  await screen.findByRole("button", { name: "Sinh lại phiếu" });
+  expect(screen.queryByRole("button", { name: "Sửa kết quả" })).not.toBeInTheDocument();
+});

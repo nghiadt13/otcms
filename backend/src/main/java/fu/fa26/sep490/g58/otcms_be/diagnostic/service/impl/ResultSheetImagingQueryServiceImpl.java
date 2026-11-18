@@ -46,7 +46,8 @@ public class ResultSheetImagingQueryServiceImpl implements ResultSheetImagingQue
         return rows.stream().filter(row -> {
             var report = latest.get(row.orderId());
             return report != null && report.getCompletedAt() != null && report.getReleasedAt() != null
-                    && report.getReportId() != null && report.getValidationStatus() == DiagnosticReportValidationStatus.VALIDATED
+                    // UC-50: findings may be completed without a PDF (no report id); only an attached PDF must be validated.
+                    && (report.getReportId() == null || report.getValidationStatus() == DiagnosticReportValidationStatus.VALIDATED)
                     && visitId.equals(report.getVisitId()) && Objects.equals(row.studyRef(), report.getStudyRef());
         }).map(row -> new ImagingFinding(row.imagingType(), row.bodyArea(), latest.get(row.orderId()).getFindingsText())).toList();
     }

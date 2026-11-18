@@ -146,3 +146,8 @@ it("formats MSG-78 with the patient name", () => {
     "Kết quả khám ngày 17/11/2026 của An đã được công bố. Vui lòng đăng nhập để xem.",
   );
 });
+it("formats MSG-79 with the patient name", () => {
+  expect(formatAppMessage("MSG-79", { date: "17/11/2026", patientName: "An" })).toBe(
+    "Phiếu kết quả khám ngày 17/11/2026 của An đã có phiên bản mới. Vui lòng xem lại.",
+  );
+});
