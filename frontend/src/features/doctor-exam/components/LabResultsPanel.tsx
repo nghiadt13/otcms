@@ -4,7 +4,6 @@ import { StatusBadge } from "@/components/admin/StatusBadge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
-import { fetchBlob } from "@/lib/api/client";
 import { getDoctorExamApi } from "../api/doctorExamApi";
 import { useState } from "react";
 import {
@@ -27,28 +26,10 @@ export function LabResultsPanel({
 }) {
   const { data, error, loading, refresh } = useLabResults(visitId);
   const demo = useDoctorDemoMode();
-  const [reportError, setReportError] = useState("");
   const [assessmentError, setAssessmentError] = useState("");
   const [assessmentOrderId, setAssessmentOrderId] = useState<string | null>(null);
   const [assessmentText, setAssessmentText] = useState("");
   const [savingAssessment, setSavingAssessment] = useState(false);
-
-  async function downloadReport(orderId: string) {
-    setReportError("");
-    try {
-      const { blob } = await fetchBlob(
-        `/api/v1/visits/${encodeURIComponent(visitId)}/laboratory-results/${encodeURIComponent(orderId)}/report`,
-      );
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `phieu-xet-nghiem.${blob.type === "application/pdf" ? "pdf" : blob.type === "image/png" ? "png" : "jpg"}`;
-      link.click();
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
-    } catch {
-      setReportError("Không thể tải phiếu gốc. Vui lòng thử lại.");
-    }
-  }
 
   async function submitAssessment(orderId: string) {
     if (!assessmentText.trim()) {
@@ -74,7 +55,6 @@ export function LabResultsPanel({
       <h2 id="lab-title" className="text-lg font-semibold">
         Kết quả xét nghiệm
       </h2>
-      {reportError && <p role="alert" className="text-sm text-destructive">{reportError}</p>}
       {!available ? (
         <BackendGapNotice title="Chưa có API xét nghiệm">
           Chỉ định và kết quả xét nghiệm sẽ hiện ở đây khi backend hỗ trợ.
@@ -109,11 +89,6 @@ export function LabResultsPanel({
                     }}
                   >
                     Đánh giá kết quả
-                  </Button>
-                )}
-                {!demo && (
-                  <Button type="button" variant="outline" size="sm" onClick={() => void downloadReport(lab.orderId)}>
-                    Tải phiếu gốc
                   </Button>
                 )}
               </div>

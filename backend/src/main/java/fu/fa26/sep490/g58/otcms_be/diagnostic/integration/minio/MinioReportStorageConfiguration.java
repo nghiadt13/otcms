@@ -19,14 +19,6 @@ import software.amazon.awssdk.services.s3.S3Configuration;
 @Configuration(proxyBeanMethods = false)
 @ConditionalOnProperty(name = "app.diagnostic.report-storage.provider", havingValue = "minio")
 public class MinioReportStorageConfiguration {
-    @Bean
-    fu.fa26.sep490.g58.otcms_be.diagnostic.integration.LaboratoryReportStoragePort laboratoryReportStorage(
-            S3Client client, @Value("${app.diagnostic.report-storage.minio.bucket}") String bucket,
-            fu.fa26.sep490.g58.otcms_be.diagnostic.integration.ReportContentValidator pdf,
-            fu.fa26.sep490.g58.otcms_be.diagnostic.integration.clamav.ClamAvScanner scanner) {
-        return new fu.fa26.sep490.g58.otcms_be.diagnostic.integration.LaboratoryS3ReportStorage(client, bucket,
-                new fu.fa26.sep490.g58.otcms_be.diagnostic.integration.LaboratoryReportValidator(pdf, scanner));
-    }
     @Bean(destroyMethod = "close")
     S3Client minioDiagnosticReportS3Client(
             @Value("${app.diagnostic.report-storage.minio.endpoint}") URI endpoint,

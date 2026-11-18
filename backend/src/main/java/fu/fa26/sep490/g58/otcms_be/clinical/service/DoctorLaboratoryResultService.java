@@ -7,9 +7,7 @@ import java.util.UUID;
 
 public interface DoctorLaboratoryResultService {
     List<Result> list(UUID visitId, UUID doctorId);
-    ReportFile report(UUID visitId, UUID orderId, UUID doctorId);
     Assessment assess(UUID visitId, UUID orderId, UUID doctorId, UUID accountId, String text);
     record Result(UUID orderId, String serviceName, List<LaboratoryResultValue> values, Assessment assessment) { }
     record Assessment(String text, UUID assessedByAccountId, Instant assessedAt) { }
-    record ReportFile(String contentType, java.io.InputStream content) { }
 }

@@ -10,7 +10,6 @@ import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import java.util.UUID;
 import org.springframework.http.CacheControl;
-import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -37,19 +36,6 @@ public class PatientVisitResultController {
     public ResponseEntity<VisitResult> get(@PathVariable UUID visitId,
             @AuthenticationPrincipal AuthenticatedAccount account, HttpServletRequest request) {
         return response(results.get(account.accountId(), visitId), request);
-    }
-
-    @GetMapping("/api/v1/visits/{visitId}/results/laboratory/{orderId}/report")
-    public ResponseEntity<org.springframework.core.io.InputStreamResource> laboratoryReport(
-            @PathVariable UUID visitId, @PathVariable UUID orderId,
-            @AuthenticationPrincipal AuthenticatedAccount account) {
-        var report = results.getLaboratoryReport(account.accountId(), visitId, orderId);
-        return ResponseEntity.ok().cacheControl(CacheControl.noStore())
-                .contentType(MediaType.parseMediaType(report.contentType()))
-                .header("X-Content-Type-Options", "nosniff")
-                .header("Content-Disposition", "attachment; filename=laboratory-report")
-                .body(new org.springframework.core.io.InputStreamResource(
-                        new java.io.ByteArrayInputStream(report.content())));
     }
 
     private static <T> ResponseEntity<T> response(T body, HttpServletRequest request) {
