@@ -132,6 +132,7 @@ const LIVE_RECEPTION_SECTIONS: ReadonlySet<ReceptionSection> =
     "patients",
     "appointments",
     "queues",
+    "visits",
     "orders",
     "payments",
     "payment-history",

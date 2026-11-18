@@ -23,6 +23,7 @@ import { StaffRoomsScreen } from "@/components/rooms/StaffRoomsScreen";
 export function ReceptionScreen({ section, appointmentActions }: { section: ReceptionSection; appointmentActions?: ComponentType<{ appointment: ReceptionAppointment; onChanged: () => void }> }) {
   const { data, loading, error } = useReception();
   if (!isReceptionSectionAvailable(section)) return <ReceptionSectionLocked />;
+  if (section === "visits") return <VisitScreen />;
   if (!data)
     return loading ? (
       <DataLoading />
@@ -40,8 +41,6 @@ export function ReceptionScreen({ section, appointmentActions }: { section: Rece
       return <AppointmentScreen Actions={appointmentActions} />;
     case "queues":
       return <QueueScreen />;
-    case "visits":
-      return <VisitScreen />;
     case "orders":
       return <ClinicalRoundOrdersScreen />;
     case "payments":

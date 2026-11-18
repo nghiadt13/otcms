@@ -12,6 +12,7 @@ const LIVE_SECTIONS: ReceptionSection[] = [
   "patients",
   "appointments",
   "queues",
+  "visits",
   "orders",
   "payments",
   "payment-history",

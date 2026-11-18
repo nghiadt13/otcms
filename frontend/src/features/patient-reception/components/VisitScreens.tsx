@@ -1,247 +1,26 @@
 "use client";
 
 import { useState } from "react";
-import { useSearchParams } from "next/navigation";
 import { Printer } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
 import { normalizeText } from "../schema/receptionRules";
-import { receptionDemoExpiry } from "../api/receptionApi";
 import type { ResultSheet } from "../types";
 import { useReception } from "./ReceptionProvider";
-import { VisitResultSheets } from "./VisitResultSheets";
 import {
   DataTable,
   dateText,
   FormModal,
   InfoRow,
   PatientName,
-  RouteLink,
   SelectField,
   Status,
   TextField,
   timeText,
 } from "./ReceptionUi";
 
-export function VisitDetail({
-  visitId,
-  onClose,
-}: {
-  visitId: string;
-  onClose: () => void;
-}) {
-  const { data: s } = useReception();
-  const visit = s!.visits.find((v) => v.id === visitId)!;
-  const p = s!.patients.find((p) => p.id === visit.patientId)!;
-  const doctor = s!.doctors.find((d) => d.id === visit.doctorId)!;
-  const queues = s!.queues.filter((q) => q.visitId === visit.id);
-  const orders = s!.orders.filter((o) => o.visitId === visit.id);
-  return (
-    <FormModal
-      title={`Tiến trình ${visit.id}`}
-      description={`${p.name} · ${p.id}. Theo dõi tiến độ và xem phiếu kết quả đã phát hành.`}
-      onClose={onClose}
-      wide
-    >
-      <dl>
-        <InfoRow label="Trạng thái">
-          <Status value={visit.status} />
-        </InfoRow>
-        <InfoRow label="Bác sĩ phụ trách">
-          {doctor.name}
-          {doctor.absent && (
-            <span className="ml-2 text-xs text-destructive">Vắng ca</span>
-          )}
-        </InfoRow>
-        <InfoRow label="Tiếp nhận lần đầu">
-          {dateText(visit.firstCheckIn)}
-          {visit.status === "awaiting" && (
-            <span className="block text-xs text-muted-foreground">
-              Hạn tiếp tục: hết ngày {dateText(receptionDemoExpiry(visit))};
-              không đặt lại khi bệnh nhân quay lại.
-            </span>
-          )}
-        </InfoRow>
-      </dl>
-      <section className="space-y-3">
-        <h2 className="text-lg font-semibold">Hàng đợi qua các phòng</h2>
-        {queues.length ? (
-          <ul className="divide-y rounded-lg border">
-            {queues.map((q) => {
-              const list = s!.queues
-                .filter(
-                  (x) =>
-                    x.roomId === q.roomId &&
-                    x.kind === q.kind &&
-                    x.date === q.date &&
-                    x.status === "waiting",
-                )
-                .sort((a, b) => a.position - b.position);
-              return (
-                <li
-                  key={q.id}
-                  className="flex flex-wrap items-center justify-between gap-3 p-3"
-                >
-                  <div>
-                    <p className="font-medium">
-                      {s!.rooms.find((r) => r.id === q.roomId)!.name}
-                    </p>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      Số {q.number} ·{" "}
-                      {q.kind === "review"
-                        ? "Đọc kết quả"
-                        : q.kind === "service"
-                          ? "Dịch vụ"
-                          : "Chờ khám"}{" "}
-                      · {dateText(q.date)}
-                      {q.status === "waiting"
-                        ? ` · ${Math.max(
-                            0,
-                            list.findIndex((x) => x.id === q.id),
-                          )} người phía trước`
-                        : ""}
-                    </p>
-                  </div>
-                  <Status
-                    value={
-                      q.calledAt && q.status === "waiting" ? "called" : q.status
-                    }
-                  />
-                </li>
-              );
-            })}
-          </ul>
-        ) : (
-          <p className="text-muted-foreground">
-            Chưa có hàng đợi đang lưu cho lượt này.
-          </p>
-        )}
-      </section>
-      <section className="space-y-3">
-        <h2 className="text-lg font-semibold">Chỉ định cận lâm sàng</h2>
-        {orders.length ? (
-          <ul className="divide-y rounded-lg border">
-            {orders.map((o) => (
-              <li
-                key={o.id}
-                className="flex flex-wrap items-center justify-between gap-3 p-3"
-              >
-                <div>
-                  <p>{s!.services.find((v) => v.id === o.serviceId)!.name}</p>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    {o.id} · Đợt {o.round} ·{" "}
-                    {s!.rooms.find((r) => r.id === o.roomId)!.name}
-                  </p>
-                  {o.cancellationReason && (
-                    <p className="text-xs text-muted-foreground">
-                      Lý do hủy: {o.cancellationReason}
-                    </p>
-                  )}
-                </div>
-                <Status value={o.status} />
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="text-muted-foreground">
-            Bác sĩ chưa chỉ định dịch vụ cận lâm sàng.
-          </p>
-        )}
-      </section>
-      {visit.status === "completed" ? <VisitResultSheets visitId={visit.id} /> : null}
-      <div className="flex flex-wrap gap-2">
-        <RouteLink
-          href={`/reception/payments?patientId=${p.id}&contextId=${visit.id}`}
-        >
-          Các khoản thu
-        </RouteLink>
-        {visit.status === "awaiting" && (
-          <RouteLink href={`/reception?patientId=${p.id}`}>
-            Tiếp nhận quay lại
-          </RouteLink>
-        )}
-      </div>
-    </FormModal>
-  );
-}
-export function VisitScreen() {
-  const { data: s } = useReception();
-  const params = useSearchParams();
-  const initialId = params.get("visitId");
-  const [selected, setSelected] = useState(
-    s!.visits.some((v) => v.id === initialId) ? initialId : null,
-  );
-  const [search, setSearch] = useState("");
-  const [status, setStatus] = useState("");
-  const list = s!.visits.filter(
-    (v) =>
-      (!status || v.status === status) &&
-      normalizeText(
-        `${v.id} ${s!.patients.find((p) => p.id === v.patientId)!.name}`,
-      ).includes(normalizeText(search)),
-  );
-  return (
-    <>
-      <PageHeader
-        title="Tiến trình lượt khám"
-        description="Theo dõi lượt khám đang hoạt động, lượt quay lại và trạng thái kết thúc."
-      />
-      <div className="mb-4 grid gap-3 sm:grid-cols-2">
-        <TextField
-          label="Bệnh nhân / mã lượt khám"
-          value={search}
-          onChange={setSearch}
-        />
-        <SelectField
-          label="Trạng thái lượt khám"
-          value={status}
-          onChange={setStatus}
-          options={[
-            { value: "", label: "Tất cả" },
-            { value: "waiting", label: "Chờ khám" },
-            { value: "examining", label: "Đang khám" },
-            { value: "awaiting", label: "Chờ kết luận" },
-            { value: "completed", label: "Hoàn thành" },
-            { value: "incomplete", label: "Chưa kết luận · quá hạn" },
-            { value: "left", label: "Đã rời phòng khám" },
-          ]}
-        />
-      </div>
-      <DataTable
-        key={`${search}-${status}`}
-        label="Lượt khám"
-        headers={["Lượt khám", "Bệnh nhân", "Bác sĩ", "Trạng thái", "Thao tác"]}
-        rows={list.map((v) => {
-          const p = s!.patients.find((p) => p.id === v.patientId)!;
-          return {
-            id: v.id,
-            cells: [
-              <div key="visit">
-                <p className="font-medium">{v.id}</p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {dateText(v.firstCheckIn)}
-                </p>
-              </div>,
-              <PatientName key="patient" name={p.name} code={p.id} />,
-              s!.doctors.find((d) => d.id === v.doctorId)!.name,
-              <Status key="status" value={v.status} />,
-              <Button
-                key="details"
-                variant="outline"
-                onClick={() => setSelected(v.id)}
-              >
-                Tiến trình
-              </Button>,
-            ],
-          };
-        })}
-      />
-      {selected && (
-        <VisitDetail visitId={selected} onClose={() => setSelected(null)} />
-      )}
-    </>
-  );
-}
+export { VisitDetail, VisitScreen } from "./LiveVisitScreens";
+import { VisitDetail } from "./LiveVisitScreens";
 export function OrderScreen() {
   const { data: s } = useReception();
   const [search, setSearch] = useState("");

@@ -58,6 +58,18 @@ class VisitReceptionReadT049PostgresIntegrationTest {
     private UUID assignmentId;
     private LocalDate clinicDate;
 
+    @Test
+    void receptionistCanFindClosedVisitsButPatientsCannotListThem() throws Exception {
+        jdbc.update("update visits set status = 'CLOSED' where id = ?", firstVisitId);
+        mvc.perform(get("/api/v1/visits").with(actor(receptionistId, AccountType.RECEPTIONIST)))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.items").isArray());
+        mvc.perform(get("/api/v1/visits").param("patientId", patientAProfileId.toString())
+                .param("status", "CLOSED").with(actor(receptionistId, AccountType.RECEPTIONIST)))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.items[0].visitId").value(firstVisitId.toString()));
+        mvc.perform(get("/api/v1/visits").with(actor(patientAAccountId, AccountType.PATIENT)))
+                .andExpect(status().isForbidden());
+    }
+
     @BeforeEach
     void setUp() {
         removeAbandonedT049DoctorFixtures();

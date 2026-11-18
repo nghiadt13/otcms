@@ -11,7 +11,6 @@ import {
 } from "react";
 import { toast } from "sonner";
 import { formatAppMessage, messageFromError } from "@/lib/messages/appMessages";
-import { executeReception, loadReception } from "../api/receptionApi";
 import { receptionFeedback } from "../schema/receptionMessages";
 import type { ReceptionCommand, ReceptionState } from "../types";
 
@@ -24,7 +23,7 @@ type ReceptionContextValue = {
   run: (command: ReceptionCommand) => Promise<ReceptionState | null>;
 };
 const ReceptionContext = createContext<ReceptionContextValue | null>(null);
-export function ReceptionProvider({ children }: { children: ReactNode }) {
+export function ReceptionProvider({ children, skipDemo = false }: { children: ReactNode; skipDemo?: boolean }) {
   const [data, setData] = useState<ReceptionState | null>(null);
   const [loading, setLoading] = useState(true);
   const [pending, setPending] = useState(false);
@@ -35,6 +34,7 @@ export function ReceptionProvider({ children }: { children: ReactNode }) {
     setLoading(true);
     setError("");
     try {
+      const { loadReception } = await import("../api/receptionApi");
       const next = await loadReception();
       if (mounted.current) setData(next);
     } catch {
@@ -45,12 +45,13 @@ export function ReceptionProvider({ children }: { children: ReactNode }) {
   }, []);
   useEffect(() => {
     mounted.current = true;
+    if (skipDemo) return () => { mounted.current = false; };
     const controller = new AbortController();
     let refreshing = false;
     const sync = () => {
       if (refreshing || busy.current || controller.signal.aborted) return;
       refreshing = true;
-      void loadReception()
+      void import("../api/receptionApi").then(({ loadReception }) => loadReception())
         .then((next) => {
           if (!controller.signal.aborted) setData(next);
         })
@@ -78,13 +79,14 @@ export function ReceptionProvider({ children }: { children: ReactNode }) {
       window.removeEventListener("focus", onVisible);
       document.removeEventListener("visibilitychange", onVisible);
     };
-  }, []);
+  }, [skipDemo]);
   async function run(command: ReceptionCommand) {
     if (!data || busy.current) return null;
     busy.current = true;
     setPending(true);
     setError("");
     try {
+      const { executeReception } = await import("../api/receptionApi");
       const next = await executeReception(command, data.version);
       if (mounted.current) {
         setData(next);
@@ -99,7 +101,8 @@ export function ReceptionProvider({ children }: { children: ReactNode }) {
         toast.error(text);
       }
       try {
-        const next = await loadReception();
+        const { loadReception } = await import("../api/receptionApi");
+      const next = await loadReception();
         if (mounted.current) setData(next);
       } catch {
         /* Keep last successful snapshot. */
@@ -112,7 +115,7 @@ export function ReceptionProvider({ children }: { children: ReactNode }) {
   }
   return (
     <ReceptionContext.Provider
-      value={{ data, loading, error, pending, reload, run }}
+      value={{ data: skipDemo ? null : data, loading: skipDemo ? false : loading, error: skipDemo ? "" : error, pending, reload, run }}
     >
       {children}
     </ReceptionContext.Provider>

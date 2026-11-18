@@ -14,6 +14,16 @@ import org.springframework.transaction.annotation.Propagation;
 public interface ClinicVisitJpaRepository extends JpaRepository<ClinicVisitJpaEntity, UUID> {
     @Query("""
             select v from ClinicVisitJpaEntity v
+            where (:patientId is null or v.patientProfileId = :patientId)
+              and (:status is null or v.status = :status)
+            order by v.arrivedAt desc, v.id desc
+            """)
+    org.springframework.data.domain.Slice<ClinicVisitJpaEntity> findReceptionVisits(
+            @Param("patientId") UUID patientId, @Param("status") String status,
+            org.springframework.data.domain.Pageable pageable);
+
+    @Query("""
+            select v from ClinicVisitJpaEntity v
             where v.patientProfileId in :patientIds
                 and (v.status in ('OPEN', 'INCOMPLETE') or (v.status = 'CLOSED' and exists (
                     select a.id from VisitCareAssignmentJpaEntity a
