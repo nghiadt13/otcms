@@ -3,6 +3,7 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { toast } from "sonner";
 import { ApiError } from "@/lib/api/apiError";
+import { formatAppMessage } from "@/lib/messages/appMessages";
 import { ReceptionProvider } from "./ReceptionProvider";
 import { CheckInDialog } from "./CheckInDialog";
 
@@ -291,6 +292,7 @@ describe("CheckInDialog (tiếp nhận tại quầy)", () => {
     expect(
       await screen.findByRole("button", { name: "Check-in lịch hẹn" }),
     ).toBeDisabled();
+    expect(screen.getByText(formatAppMessage("MSG-94"))).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Thu phí khám" }));
     const dialog = await screen.findByRole("dialog", { name: "Thu phí khám" });
