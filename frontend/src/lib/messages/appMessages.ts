@@ -72,15 +72,16 @@ export const APP_MESSAGES: Record<string, string> = {
   "MSG-73": "Báo cáo đã sẵn sàng để xem hoặc xuất.",
   "MSG-80":
     "Giá trị chỉ số không hợp lệ. Vui lòng kiểm tra lại giá trị và đơn vị.",
+  // MSG-89 không có trong R3 (R3 MSG-89 là thông báo khác). Giữ tạm cho luồng Báo cho bệnh nhân còn trong FE; xóa khi bỏ luồng (plan 261117-1128 phase 03, B7).
   "MSG-89":
     "Bác sĩ của lịch hẹn {date} {time} không thể khám và chưa có bác sĩ thay thế. Bạn có thể hủy lịch hẹn trong mục Lịch hẹn. Phí khám đã thanh toán trực tuyến không được hoàn lại.",
-  "MSG-92": "Đã lưu thay đổi hồ sơ nhân viên.",
-  "MSG-93": "Đã cập nhật ca làm việc.",
-  // MSG-96: R3 đặt {patient name} (có dấu cách); đổi thành {patientName} vì formatAppMessage
+  "MSG-86": "Đã lưu thay đổi hồ sơ nhân viên.",
+  "MSG-87": "Đã cập nhật ca làm việc.",
+  // MSG-90: R3 đặt {patient name} (có dấu cách); đổi thành {patientName} vì formatAppMessage
   // chỉ thay tên tham số dạng \w+.
-  "MSG-96":
+  "MSG-90":
     "Lịch hẹn ngày {date} lúc {time} của {patientName} được chuyển sang bác sĩ {doctor}.",
-  "MSG-98":
+  "MSG-92":
     "Tên hoặc mã phòng này đã được dùng cho phòng khác. Vui lòng chọn tên hoặc mã khác.",
   // Khu bệnh nhân (plan 261024-0512 phase 00), câu chữ theo R3 Drive.
   "MSG-17": "Thông tin hồ sơ chưa hợp lệ. Vui lòng kiểm tra và nhập lại.",
@@ -101,10 +102,12 @@ export const APP_MESSAGES: Record<string, string> = {
   "MSG-53":
     "Thanh toán không thành công. Vui lòng chọn cách thanh toán khác hoặc thử lại.",
   "MSG-55": "Đã gửi đánh giá. Đánh giá sẽ hiển thị sau khi được duyệt.",
-  "MSG-82":
+  "MSG-77":
     "Mã OTP không đúng hoặc đã hết hạn. Vui lòng nhập lại hoặc yêu cầu mã mới.",
-  "MSG-90": "Đã lưu thông tin hồ sơ bệnh nhân.",
-  "MSG-91": "Đã gỡ hồ sơ này khỏi danh sách hồ sơ bạn quản lý.",
+  "MSG-82":
+    "Lượt khám ngày {date} của {patient name} đã đóng ở trạng thái chưa hoàn tất. Ảnh và kết quả xét nghiệm đã được công bố; các chỉ định chưa thực hiện đã bị hủy; khoản đã thanh toán không được hoàn.",
+  "MSG-84": "Đã lưu thông tin hồ sơ bệnh nhân.",
+  "MSG-85": "Đã gỡ hồ sơ này khỏi danh sách hồ sơ bạn quản lý.",
   // Khu Lễ tân (plan 261024-0512 phase 00 / plan lễ tân phase 00), câu chữ theo R3 Drive.
   "MSG-18":
     "Chưa xác định được đúng hồ sơ bệnh nhân. Vui lòng hỏi thêm họ tên hoặc số CCCD/định danh.",
@@ -115,7 +118,6 @@ export const APP_MESSAGES: Record<string, string> = {
   "MSG-39":
     "Thông tin chưa hợp lệ hoặc chưa đầy đủ. Vui lòng kiểm tra và thử lại.",
   "MSG-48": "Đã ghi nhận thanh toán {amount}. Phiếu thu đã được tạo.",
-  "MSG-94": "Đã tiếp nhận bệnh nhân. Số thứ tự {number}, phòng {room}.",
   // Khu Lễ tân /reception (gộp nhánh thien-quang 25/10/2026), câu chữ theo R3 Drive.
   "MSG-19":
     "Không thể truy cập hồ sơ bệnh nhân này. Vui lòng kiểm tra lại thông tin hoặc quyền truy cập.",
@@ -128,11 +130,27 @@ export const APP_MESSAGES: Record<string, string> = {
   "MSG-46": "Đã hủy chỉ định.",
   "MSG-47":
     "Tệp không hợp lệ hoặc không khớp với hồ sơ cần xử lý. Vui lòng kiểm tra và thử lại.",
-  "MSG-81": "Đã lưu sửa đổi kết quả. Phiếu kết quả phiên bản mới đã được tạo.",
-  "MSG-86":
+  "MSG-76": "Đã lưu sửa đổi kết quả. Phiếu kết quả phiên bản mới đã được tạo.",
+  "MSG-81":
     "Chưa thể hoàn tất khám: cần có chẩn đoán chính và mọi chỉ định đã có kết quả (kể cả kết quả đọc phim) hoặc đã hủy.",
-  // R3 MSG-88: bệnh nhân được tiếp nhận vào hàng chờ khám. MSG-94 có cùng câu nhưng không có trong R3.
   "MSG-88": "Đã tiếp nhận bệnh nhân. Số thứ tự {number}, phòng {room}.",
+  "MSG-93":
+    "Khoản đã thanh toán không được hoàn lại, kể cả khi hủy lịch hẹn. Vui lòng kiểm tra kỹ trước khi thanh toán hoặc hủy.",
+  "MSG-94":
+    "Bạn chưa thanh toán phí khám nên chưa thể tiếp nhận. Vui lòng thanh toán trực tuyến hoặc tại quầy lễ tân.",
+  "MSG-95":
+    "Chỉ định chưa được thanh toán nên chưa thể tiếp nhận. Vui lòng đề nghị bệnh nhân thanh toán tại quầy.",
+  "MSG-96": "Đã ghi nhận hoàn tiền {amount} cho {patientName}.",
+  "MSG-97":
+    "Lịch hẹn ngày {date} đã bị hủy bởi phòng khám. Khoản phí đã thanh toán sẽ được hoàn lại, phòng khám sẽ liên hệ với bạn.",
+  "MSG-78":
+    "Kết quả khám ngày {date} của {patientName} đã được công bố. Vui lòng đăng nhập để xem.",
+  // MSG-83: R3 đặt {patient code} và {change} (có dấu cách); đổi thành {patientCode} vì formatAppMessage
+  // chỉ thay tên tham số dạng \w+.
+  "MSG-83":
+    "Lượt khám của bệnh nhân {patientCode} có thay đổi: {change}. Vui lòng xem lại.",
+  "MSG-79":
+    "Phiếu kết quả khám ngày {date} của {patientName} đã có phiên bản mới. Vui lòng xem lại.",
 };
 
 /** Thay `{tham số}` trong câu MSG. Tham số thiếu giữ nguyên để dễ phát hiện. */
@@ -150,5 +168,9 @@ export function formatAppMessage(
 export function messageFromError(error: unknown): string {
   if (isApiError(error) && error.code && error.code in APP_MESSAGES)
     return formatAppMessage(error.code, error.params);
+  if (isApiError(error) && error.status === 404)
+    return formatAppMessage("MSG-41");
+  if (isApiError(error) && error.status === 403)
+    return formatAppMessage("MSG-40");
   return formatAppMessage("MSG-04");
 }

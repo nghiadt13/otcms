@@ -1,9 +1,7 @@
 package fu.fa26.sep490.g58.otcms_be.billing;
 
-import fu.fa26.sep490.g58.otcms_be.billing.integration.AppointmentPaymentPort;
 import fu.fa26.sep490.g58.otcms_be.billing.model.dto.response.InvoiceResponse;
 import fu.fa26.sep490.g58.otcms_be.billing.model.dto.response.PaymentAttemptResponse;
-import fu.fa26.sep490.g58.otcms_be.billing.service.AppointmentHoldSettlementService;
 import fu.fa26.sep490.g58.otcms_be.billing.service.InvoiceService;
 import fu.fa26.sep490.g58.otcms_be.billing.service.PaymentGateway;
 import fu.fa26.sep490.g58.otcms_be.billing.service.PaymentService;
@@ -43,9 +41,8 @@ import org.springframework.test.web.servlet.MockMvc;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 
 /**
- * Real Postgres fixture for the online-booking payment hold. Fakes sit only at the two system boundaries: the payment
- * gateway (PayOS) and the appointment port (reads/updates the real appointments table, so row locks and the
- * confirm-in-the-payment-transaction behaviour are genuine). Time comes from an injectable mutable Clock.
+ * Real Postgres fixture for billing tests (the class name is historical: it first served the removed booking hold).
+ * The only fake sits at the system boundary: the payment gateway (PayOS). Time comes from an injectable mutable Clock.
  */
 // The suite registers its own PAYOS gateway fake: force the real one off so a developer shell with
 // APP_PAYMENT_PAYOS_ENABLED=true cannot create a duplicate "PAYOS" provider key.
@@ -60,12 +57,10 @@ abstract class HoldBillingTestSupport {
     @Autowired JdbcTemplate jdbc;
     @Autowired InvoiceService invoices;
     @Autowired PaymentService payments;
-    @Autowired AppointmentHoldSettlementService settlement;
     @Autowired fu.fa26.sep490.g58.otcms_be.billing.service.BillingReadService billingReads;
     @Autowired MockMvc mockMvc;
     @Autowired MutableClock clock;
     @Autowired FakeGateway gateway;
-    @Autowired JdbcAppointmentPort appointmentPort;
 
     final UUID patientAccountId = UUID.randomUUID();
     final UUID receptionistAccountId = UUID.randomUUID();
@@ -83,7 +78,6 @@ abstract class HoldBillingTestSupport {
     void createFixture() {
         clock.set(Instant.now().truncatedTo(java.time.temporal.ChronoUnit.MICROS)); // Postgres keeps microseconds
         gateway.reset();
-        appointmentPort.reset();
         insertAccount(patientAccountId, "PATIENT");
         insertAccount(receptionistAccountId, "RECEPTIONIST");
         insertAccount(doctorAccountId, "DOCTOR");
@@ -104,8 +98,8 @@ abstract class HoldBillingTestSupport {
     void removeFixture() {
         for (UUID invoiceId : jdbc.queryForList("select id from invoices where patient_profile_id = ?",
                 UUID.class, patientProfileId)) {
-            jdbc.update("delete from payment_attempts where invoice_id = ?", invoiceId);
             jdbc.update("delete from invoice_items where invoice_id = ?", invoiceId);
+            jdbc.update("delete from payment_attempts where invoice_id = ?", invoiceId);
             jdbc.update("delete from invoices where id = ?", invoiceId);
         }
         for (UUID id : appointmentIds) jdbc.update("delete from appointments where id = ?", id);
@@ -117,11 +111,6 @@ abstract class HoldBillingTestSupport {
     }
 
     // ---- fixture helpers -------------------------------------------------------------------------------------
-
-    /** An online booking hold (AWAITING_PAYMENT) whose deadline is {@code deadlineIn} from the test clock. */
-    UUID hold(Duration deadlineIn) {
-        return appointment("AWAITING_PAYMENT", clock.instant().plus(deadlineIn));
-    }
 
     UUID appointment(String status, Instant paymentDeadline) {
         UUID id = UUID.randomUUID();
@@ -152,16 +141,6 @@ abstract class HoldBillingTestSupport {
     long orderCode(UUID attemptId) {
         return jdbc.queryForObject("select provider_order_code from payment_attempts where id = ?", Long.class, attemptId);
     }
-
-    /** Hold + invoice + live QR; returns {appointmentId, invoiceId, attemptId} and the order code. */
-    Held heldWithQr() {
-        UUID appointmentId = hold(Duration.ofMinutes(15));
-        UUID invoiceId = invoiceFor(appointmentId).id();
-        UUID attemptId = qr(invoiceId).id();
-        return new Held(appointmentId, invoiceId, attemptId, orderCode(attemptId));
-    }
-
-    record Held(UUID appointmentId, UUID invoiceId, UUID attemptId, long orderCode) { }
 
     String appointmentStatus(UUID id) {
         return jdbc.queryForObject("select status from appointments where id = ?", String.class, id);
@@ -214,7 +193,6 @@ abstract class HoldBillingTestSupport {
     static class TestBeans {
         @Bean @Primary MutableClock mutableClock() { return new MutableClock(); }
         @Bean FakeGateway fakeGateway() { return new FakeGateway(); }
-        @Bean @Primary JdbcAppointmentPort jdbcAppointmentPort(JdbcTemplate jdbc) { return new JdbcAppointmentPort(jdbc); }
     }
 
     static final class MutableClock extends Clock {
@@ -256,46 +234,6 @@ abstract class HoldBillingTestSupport {
             if (down) throw new IllegalStateException("gateway down");
             return statuses.getOrDefault(orderCode,
                     new GatewayPaymentStatus("PENDING", orderCode, PRICE_LONG, 0, "link-" + orderCode, null, "VND"));
-        }
-    }
-
-    /** Appointment side of the port backed by the real appointments table (row lock, same transaction). */
-    static final class JdbcAppointmentPort implements AppointmentPaymentPort {
-        private final JdbcTemplate jdbc;
-        final AtomicInteger confirmedTransitions = new AtomicInteger();
-        final AtomicInteger confirmCalls = new AtomicInteger();
-
-        JdbcAppointmentPort(JdbcTemplate jdbc) { this.jdbc = jdbc; }
-        void reset() { confirmedTransitions.set(0); confirmCalls.set(0); }
-
-        @Override public ConfirmResult confirmPaid(UUID appointmentId) {
-            confirmCalls.incrementAndGet();
-            List<String> rows = jdbc.queryForList("select status from appointments where id = ? for update",
-                    String.class, appointmentId);
-            if (rows.isEmpty()) return ConfirmResult.NOT_AWAITING;
-            return switch (rows.getFirst()) {
-                case "AWAITING_PAYMENT" -> {
-                    jdbc.update("update appointments set status = 'CONFIRMED', payment_deadline = null where id = ?",
-                            appointmentId);
-                    confirmedTransitions.incrementAndGet();
-                    yield ConfirmResult.CONFIRMED;
-                }
-                case "PAYMENT_EXPIRED", "CANCELLED" -> ConfirmResult.NOT_AWAITING;
-                default -> ConfirmResult.ALREADY_CONFIRMED;
-            };
-        }
-
-        @Override public Optional<Instant> liveHoldDeadline(UUID appointmentId) {
-            return jdbc.query("select payment_deadline from appointments where id = ? and status = 'AWAITING_PAYMENT'",
-                    (rs, i) -> rs.getTimestamp(1).toInstant(), appointmentId).stream().findFirst();
-        }
-
-        @Override public Set<UUID> heldOrReleasedIds(Collection<UUID> appointmentIds) {
-            if (appointmentIds.isEmpty()) return Set.of();
-            String placeholders = String.join(",", java.util.Collections.nCopies(appointmentIds.size(), "?"));
-            return Set.copyOf(jdbc.queryForList("select id from appointments where status in "
-                    + "('AWAITING_PAYMENT', 'PAYMENT_EXPIRED') and id in (" + placeholders + ")", UUID.class,
-                    appointmentIds.toArray()));
         }
     }
 }

@@ -92,12 +92,12 @@ export function MedicalHistoryEditor({
           ).map(({ field: name }) => [name, current[name]]),
         ),
       }));
-      notifySuccess("MSG-90");
+      notifySuccess("MSG-84");
     } catch (error) {
       if (isStaleHistoryError(error)) setStale(true);
       else if (
         isApiError(error) &&
-        (error.errorCode === "VALIDATION_FAILED" || error.status === 400)
+        (error.code === "MSG-20" || error.status === 400)
       )
         setFieldErrors({ [field]: formatAppMessage("MSG-20") });
       else setFailure(medicalHistoryErrorMessage(error));

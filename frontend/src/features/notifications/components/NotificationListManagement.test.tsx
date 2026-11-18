@@ -2,7 +2,7 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { notifySuccess } from "@/lib/messages/notify";
-import { resetNotificationMockStore } from "../api/notificationApi";
+import { resetNotificationMockStore } from "../api/notificationTestServer";
 import { MOCK_NOTIFICATIONS } from "../api/notificationMockData";
 import { NotificationListManagement } from "./NotificationListManagement";
 
@@ -124,3 +124,8 @@ describe("NotificationListManagement", () => {
     );
   });
 });
+
+vi.mock(
+  "@/lib/api/client",
+  async () => await import("../api/notificationTestClient"),
+);

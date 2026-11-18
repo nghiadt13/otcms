@@ -9,9 +9,14 @@ import {
 // không cần cờ demo; các màn còn dữ liệu giả thì bị khoá.
 const LIVE_SECTIONS: ReceptionSection[] = [
   "",
+  "patients",
   "appointments",
   "queues",
+  "visits",
   "orders",
+  "payments",
+  "payment-history",
+  "rooms",
 ];
 const ALL_SECTIONS = receptionNavigation.map((item) => item.section);
 const MOCK_SECTIONS = ALL_SECTIONS.filter(

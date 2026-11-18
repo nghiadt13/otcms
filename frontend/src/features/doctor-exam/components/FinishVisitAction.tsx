@@ -1,6 +1,5 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -14,26 +13,26 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { notifySuccess } from "@/lib/messages/notify";
-import { DOCTOR_ROUTES } from "@/lib/routes/doctorRoutes";
 import { getDoctorExamApi } from "../api/doctorExamApi";
 import { notifyDoctorError } from "../schema/doctorErrors";
 import type { VisitContext } from "../types/doctorExam";
 
-// Nút kết thúc lượt (plan 261111-0208 A9): hộp xác nhận, gọi đúng đường theo nguồn lượt, rồi về
-// danh sách hôm nay. Lỗi (ví dụ thiếu bằng chứng hoàn tất) báo bằng mã MSG; `onFailed` để màn tải lại
+// Nút kết thúc lượt: hộp xác nhận, gọi đúng đường theo nguồn lượt rồi tải lại
+// thông tin lượt để hiện phiếu. Lỗi báo bằng mã MSG; `onFailed` để màn tải lại
 // điều kiện và trạng thái lượt.
 
 export function FinishVisitAction({
   context,
   ready,
   onFailed,
+  onCompleted,
 }: {
   context: VisitContext;
   /** Điều kiện hoàn tất phần khám đã đạt; chưa đạt thì nút bị khóa. */
   ready: boolean;
   onFailed: () => void;
+  onCompleted: () => void;
 }) {
-  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [finishing, setFinishing] = useState(false);
 
@@ -43,7 +42,7 @@ export function FinishVisitAction({
       await getDoctorExamApi().finishVisit(context);
       setOpen(false);
       notifySuccess("MSG-43");
-      router.push(DOCTOR_ROUTES.todayPatients);
+      onCompleted();
     } catch (cause) {
       setOpen(false);
       notifyDoctorError(cause);

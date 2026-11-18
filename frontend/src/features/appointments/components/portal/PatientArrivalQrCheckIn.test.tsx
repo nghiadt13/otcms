@@ -58,7 +58,10 @@ function checkInResult(
 }
 
 /** Mở khung quét, dán mã rồi bấm xác nhận. */
-async function submitQr(user: ReturnType<typeof userEvent.setup>, proof: string) {
+async function submitQr(
+  user: ReturnType<typeof userEvent.setup>,
+  proof: string,
+) {
   await user.click(screen.getByRole("button", { name: "Quét QR tại quầy" }));
   await user.type(screen.getByLabelText("Mã QR"), proof);
   await user.click(screen.getByRole("button", { name: "Xác nhận mã QR" }));
@@ -98,7 +101,12 @@ describe("PatientArrivalQrCheckIn: check-in thành công", () => {
       checkInResult({ queueNumber: 7, roomLabel: null }),
     );
     const user = userEvent.setup();
-    render(<PatientArrivalQrCheckIn appointment={appointment} onRecorded={vi.fn()} />);
+    render(
+      <PatientArrivalQrCheckIn
+        appointment={appointment}
+        onRecorded={vi.fn()}
+      />,
+    );
 
     await submitQr(user, "qr-proof-2");
 
@@ -117,28 +125,32 @@ describe("PatientArrivalQrCheckIn: check-in bị từ chối", () => {
       "CHECK_IN_TIME_NOT_ALLOWED",
       422,
       "Nếu không đúng ngày hẹn, hãy nhờ lễ tân hỗ trợ tiếp nhận.",
+      "MSG-37",
     ],
     [
       "phí khám chưa trả",
       "EXAM_FEE_UNPAID",
       409,
       "Hãy ra quầy lễ tân để thanh toán phí khám, rồi quét lại mã.",
+      "MSG-94",
     ],
     [
       "lịch đã check-in hoặc không còn Đã đặt",
       "APPOINTMENT_NOT_CHANGEABLE",
       409,
       "Hãy nhờ lễ tân kiểm tra giúp.",
+      "MSG-37",
     ],
     [
       "mã QR hỏng hoặc hết hạn",
       "ARRIVAL_PROOF_INVALID",
       422,
       "Hãy quét mã mới đang hiển thị tại quầy.",
+      "MSG-37",
     ],
-  ])(
-    "%s (%s): báo MSG-37 kèm nhãn hướng dẫn, không báo cho màn cha",
-    async (_label, errorCode, status, hint) => {
+  ] as const)(
+    "%s (%s): báo đúng thông báo kèm hướng dẫn, không báo cho màn cha",
+    async (_label, errorCode, status, hint, messageCode) => {
       apiRequest.mockRejectedValueOnce(new ApiError(status, { errorCode }));
       const onRecorded = vi.fn();
       const user = userEvent.setup();
@@ -152,7 +164,7 @@ describe("PatientArrivalQrCheckIn: check-in bị từ chối", () => {
       await submitQr(user, "qr-proof-3");
 
       const alert = await screen.findByRole("alert");
-      expect(alert).toHaveTextContent(formatAppMessage("MSG-37"));
+      expect(alert).toHaveTextContent(formatAppMessage(messageCode));
       expect(alert).toHaveTextContent(hint);
       expect(onRecorded).not.toHaveBeenCalled();
       expect(toast.success).not.toHaveBeenCalled();
@@ -162,7 +174,12 @@ describe("PatientArrivalQrCheckIn: check-in bị từ chối", () => {
   it("lỗi không rõ mã: báo MSG-04", async () => {
     apiRequest.mockRejectedValueOnce(new ApiError(500, {}));
     const user = userEvent.setup();
-    render(<PatientArrivalQrCheckIn appointment={appointment} onRecorded={vi.fn()} />);
+    render(
+      <PatientArrivalQrCheckIn
+        appointment={appointment}
+        onRecorded={vi.fn()}
+      />,
+    );
 
     await submitQr(user, "qr-proof-4");
 

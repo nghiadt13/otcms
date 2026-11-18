@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useLinkedProfiles } from "@/hooks/useLinkedProfiles";
 import { formatAppMessage } from "@/lib/messages/appMessages";
-import { isBillingDateRangeValid } from "../../schema/billingDateRangeRules";
+import { isBillingDateRangeValid } from "@/lib/domain/billingDateRangeRules";
 import { PaymentBackLink } from "./PaymentBackLink";
 import { PaymentHistoryList } from "./PaymentHistoryList";
 import { historyHref } from "./patientBillingPresentation";
@@ -121,12 +121,10 @@ export function MyPaymentHistory({
       {urlRangeValid ? (
         <PaymentHistoryList
           // Đổi bộ lọc trên URL thì dựng lại danh sách để tải từ trang đầu.
-          filters={{
-            from: from ?? "",
-            to: to ?? "",
-            patientId: profileId ?? "",
-          }}
+          from={from}
           key={`${from ?? ""}|${to ?? ""}|${profileId ?? ""}`}
+          patientId={profileId}
+          to={to}
         />
       ) : null}
     </div>

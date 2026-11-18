@@ -1,14 +1,12 @@
 "use client";
 
-import { useEffect, useReducer, useState } from "react";
-import { toast } from "sonner";
-import { isApiError } from "@/lib/api/apiError";
+import { useEffect, useReducer, useRef, useState } from "react";
+import { ApiError, isApiError } from "@/lib/api/apiError";
 import {
   notifyError,
   notifySuccess,
   notifyWarning,
 } from "@/lib/messages/notify";
-import { createAppointment as createMockAppointment } from "../../api/bookingApi";
 import { createAppointment as createLiveAppointment } from "../../api/bookingLiveApi";
 import { clearPayOsIdempotencyKeys } from "../../api/clearPayOsIdempotencyKeys";
 import { useBookableServices } from "../../hooks/useBookableServices";
@@ -21,55 +19,34 @@ import {
   preselectedPatientId,
   upcomingDays,
   type BookingSelection,
+  type BookingSelectionAction,
 } from "../../schema/bookingSelection";
-import {
-  bookingSubmitErrorText,
-  bookingSubmitOutcome,
-} from "../../schema/bookingSubmitOutcome";
+import { resolvePreselectedSlot } from "../../schema/bookingPreselect";
+import type { BookingSlotQuery } from "@/lib/routes/bookingSlotLink";
+import { bookingSubmitOutcome } from "../../schema/bookingSubmitOutcome";
 import type {
   BookedAppointment,
   BookingPatient,
-  BookingVariant,
   PaymentRenderer,
 } from "../../types/booking";
 import type { WizardStepKey } from "../../schema/bookingWizard";
-import { BookingFlowBlocks } from "./BookingFlowBlocks";
-import { PaymentHoldStep } from "./PaymentHoldStep";
+import { PaymentOfferStep } from "./PaymentOfferStep";
 import { BookingWizard } from "./wizard/BookingWizard";
 
-// Luồng đặt lịch dùng chung (UC20, UC21): một trang cuộn tiến dần, khối mở khi khối trước đã chọn.
-// Lõi không biết người dùng là ai: người khám đến từ ngoài (khu bệnh nhân: hồ sơ đã gắn; khu Lễ
-// tân: một bệnh nhân đã tìm được). `variant` chỉ đổi cỡ chữ và chạm, không đổi logic.
-// File này giữ trạng thái, dữ liệu và việc gửi; markup nằm ở BookingFlowBlocks.
+// Luồng đặt lịch bệnh nhân; markup wizard nằm ở BookingWizard.
 
 export type BookingFlowProps = {
-  /** Gọi sau khi đặt xong (toast MSG-26 đã hiện). Trang thay luồng bằng BookingResult. */
+  variant: "patient";
+  patients: readonly BookingPatient[];
+  renderPayment?: PaymentRenderer;
+  /** Khung giờ chọn sẵn từ link trang bác sĩ; chỉ áp dụng phần nào còn trống. */
+  preselect?: BookingSlotQuery | null;
   onBooked: (appointment: BookedAppointment) => void;
-} & (
-  | {
-      variant: "patient";
-      /** Người khám chọn được (trang lấy từ tài khoản đang đăng nhập). */
-      patients: readonly BookingPatient[];
-      /**
-       * Màn thanh toán của lịch vừa tạo (bước 5). BE trả AWAITING_PAYMENT (đặt online, dịch vụ có
-       * phí: giữ giờ 15 phút) thì sang bước này thay vì gọi `onBooked` ngay; trả CONFIRMED (dịch vụ
-       * miễn phí) thì báo MSG-26 và bỏ qua bước 5. Rời bước 5 chưa trả = hủy giữ chỗ
-       * (xem PaymentHoldStep). `onFinish` gọi `onBooked` khi đã thanh toán xong.
-       */
-      renderPayment?: PaymentRenderer;
-    }
-  | {
-      variant: "staff";
-      /** Bệnh nhân đã tìm được. Đổi người: đặt `key` theo `patient.id` ở nơi gọi. */
-      patient: BookingPatient;
-    }
-);
+};
 
 export function BookingFlow(props: BookingFlowProps) {
   const { onBooked } = props;
-  const variant: BookingVariant = props.variant;
-  const patients: BookingPatient[] =
-    props.variant === "patient" ? [...props.patients] : [props.patient];
+  const patients: BookingPatient[] = [...props.patients];
   const singlePatient = patients.length === 1 ? patients[0] : undefined;
 
   const [state, dispatch] = useReducer(
@@ -80,21 +57,25 @@ export function BookingFlow(props: BookingFlowProps) {
   const [submitting, setSubmitting] = useState(false);
   // Lý do khám: chỉ khu bệnh nhân nhập (ở bước xác nhận của wizard).
   const [purpose, setPurpose] = useState("");
-  // Chỉ khu bệnh nhân dùng wizard; khu Lễ tân vẫn là trang cuộn (BookingFlowBlocks).
-  const [wizardStep, setWizardStep] = useState<WizardStepKey>("patient");
+  // Bước hiện tại của wizard bệnh nhân.
+  // With one patient already chosen and a preselected slot, open on the schedule step so the
+  // preselected service, day, time and doctor are visible at once.
+  const [wizardStep, setWizardStep] = useState<WizardStepKey>(() =>
+    props.preselect && patients.length === 1 ? "schedule" : "patient",
+  );
+  // Preselected slot from the link, waiting to be applied. A ref, so applying or dropping it does not re-render.
+  const pendingSlotRef = useRef<BookingSlotQuery | null>(
+    props.preselect ?? null,
+  );
   // Lịch vừa tạo, đang ở bước thanh toán.
   const [booked, setBooked] = useState<BookedAppointment | null>(null);
-  const renderPayment =
-    props.variant === "patient" ? props.renderPayment : undefined;
-  const services = useBookableServices(variant === "patient");
+  const renderPayment = props.renderPayment;
+  const services = useBookableServices(true);
 
-  // Khu bệnh nhân: lựa chọn của người dùng, hoặc hồ sơ duy nhất. Khu Lễ tân: người đã cố định.
-  const patientId =
-    props.variant === "staff"
-      ? props.patient.id
-      : patients.some((patient) => patient.id === state.patientId)
-        ? state.patientId
-        : (singlePatient?.id ?? null);
+  // Lựa chọn của người dùng, hoặc hồ sơ duy nhất.
+  const patientId = patients.some((patient) => patient.id === state.patientId)
+    ? state.patientId
+    : (singlePatient?.id ?? null);
   const selectedPatient = patients.find((patient) => patient.id === patientId);
 
   const times = useOpenTimes(
@@ -102,7 +83,7 @@ export function BookingFlow(props: BookingFlowProps) {
     patientId,
     undefined,
     handleTimesError,
-    variant === "patient",
+    true,
   );
   const days = times.data ? upcomingDays(times.data) : null;
   const dayTimes =
@@ -130,7 +111,7 @@ export function BookingFlow(props: BookingFlowProps) {
   const service = services.services.find(
     (item) => item.id === selection.serviceId,
   );
-  const steps = bookingStepStates(selection, props.variant === "patient");
+  const steps = bookingStepStates(selection, true);
   const ready = Boolean(
     patientId && selection.serviceId && selection.date && selection.startAt,
   );
@@ -141,10 +122,74 @@ export function BookingFlow(props: BookingFlowProps) {
       notifyWarning("MSG-25");
   }, [times.data]);
 
+  // Preselect step 1: pick the service from the link once a patient is known and the services are loaded.
+  useEffect(() => {
+    const pending = pendingSlotRef.current;
+    if (!pending || patientId === null || state.serviceId !== null) return;
+    if (services.loading) return;
+    if (services.failed) {
+      // The wizard already shows a retry block for a failed service list.
+      pendingSlotRef.current = null;
+      return;
+    }
+    if (!services.services.some((item) => item.id === pending.serviceId)) {
+      pendingSlotRef.current = null;
+      notifyError(new ApiError(400, { code: "MSG-29" }));
+      return;
+    }
+    dispatch({ type: "selectService", serviceId: pending.serviceId });
+  }, [
+    patientId,
+    state.serviceId,
+    services.loading,
+    services.failed,
+    services.services,
+  ]);
+
+  // Preselect step 2: apply date, time and doctor once the open times of that service have loaded.
+  // Anything that no longer exists is reported with its MSG code and left for the user to choose.
+  useEffect(() => {
+    const pending = pendingSlotRef.current;
+    if (!pending || !times.data || state.serviceId !== pending.serviceId)
+      return;
+    pendingSlotRef.current = null;
+    const outcome = resolvePreselectedSlot(upcomingDays(times.data), pending);
+    if (outcome.day === null) {
+      notifyError(new ApiError(409, { code: "MSG-30" }));
+      return;
+    }
+    dispatch({ type: "selectDate", date: outcome.day.date });
+    if (outcome.time === null) {
+      notifyError(new ApiError(409, { code: "MSG-30" }));
+      return;
+    }
+    dispatch({
+      type: "selectTime",
+      startAt: outcome.time.startAt,
+      doctorIdsAtTime: outcome.time.doctors.map((doctor) => doctor.id),
+    });
+    if (pending.doctorId !== null) {
+      if (!outcome.doctorAvailable) {
+        notifyError(new ApiError(404, { code: "MSG-24" }));
+        return;
+      }
+      dispatch({ type: "selectDoctor", doctorId: pending.doctorId });
+    }
+    // The user checks the applied choices on the schedule step and continues from there.
+  }, [times.data, state.serviceId]);
+
+  /** A user's own selection cancels a waiting preselect; changing the patient keeps it for later. */
+  function dispatchUserAction(action: BookingSelectionAction) {
+    if (action.type !== "selectPatient") pendingSlotRef.current = null;
+    dispatch(action);
+  }
+
   /** MSG-29 khi lấy giờ trống: dịch vụ hoặc người khám không đặt được, bỏ chọn dịch vụ. */
   function handleTimesError(error: unknown) {
     if (isApiError(error) && error.code === "MSG-29") {
       notifyError(error);
+      // The service was dropped: do not re-apply the waiting slot, which would repeat the error.
+      pendingSlotRef.current = null;
       dispatch({ type: "reopen", step: "service" });
       setWizardStep("schedule");
     }
@@ -161,33 +206,29 @@ export function BookingFlow(props: BookingFlowProps) {
       return;
     setSubmitting(true);
     try {
-      const create =
-        variant === "patient" ? createLiveAppointment : createMockAppointment;
       // Đặt lịch mới: bỏ khóa idempotency PayOS còn sót để lần thanh toán này không dính attempt cũ.
-      if (variant === "patient") clearPayOsIdempotencyKeys();
-      const appointment = await create({
+      clearPayOsIdempotencyKeys();
+      const appointment = await createLiveAppointment({
         patientId,
         serviceId: selection.serviceId,
         startAt: selection.startAt,
         doctorId,
         purpose,
-        bookedOnline: variant === "patient",
+        bookedOnline: true,
       });
-      if (appointment.status === "AWAITING_PAYMENT" && renderPayment) {
-        // Giữ giờ chờ thanh toán: chưa báo thành công, MSG-26 hiện sau khi trả xong ở bước 5.
+      if (appointment.examFee.status === "PENDING_PAYMENT" && renderPayment) {
+        // Lịch đã xác nhận nhưng còn phí khám: bước 5 cho trả ngay hoặc trả sau.
         setBooked(appointment);
         setWizardStep("payment");
       } else {
-        // Đã xác nhận ngay (dịch vụ miễn phí, hoặc không có bước thanh toán): bỏ qua bước 5.
+        // Dịch vụ miễn phí hoặc không có bước thanh toán: bỏ qua bước 5.
         notifySuccess("MSG-26");
         onBooked(appointment);
       }
     } catch (error) {
-      const text = bookingSubmitErrorText(error);
-      if (text) toast.error(text);
-      else notifyError(error);
+      notifyError(error);
       const outcome = bookingSubmitOutcome(error);
-      if (outcome === "slotTaken" || outcome === "tooSoon") {
+      if (outcome === "slotTaken") {
         dispatch({ type: "reopen", step: "time" });
         setWizardStep("schedule");
         times.reload();
@@ -201,14 +242,6 @@ export function BookingFlow(props: BookingFlowProps) {
     }
   }
 
-  /** Giữ chỗ đã kết thúc (hủy / hết hạn / tab khác hủy): xóa lựa chọn và về bước đầu để đặt lại. */
-  function resetAfterRelease() {
-    setBooked(null);
-    dispatch({ type: "reopen", step: "patient" });
-    setPurpose("");
-    setWizardStep("patient");
-  }
-
   if (patients.length === 0)
     return (
       <p role="status" className="text-base text-muted-foreground">
@@ -216,73 +249,16 @@ export function BookingFlow(props: BookingFlowProps) {
       </p>
     );
 
-  if (props.variant === "patient")
-    return (
-      <div inert={submitting || undefined}>
-        <BookingWizard
-          step={wizardStep}
-          onStepChange={setWizardStep}
-          steps={steps}
-          selection={selection}
-          dispatch={dispatch}
-          patients={patients}
-          selectedPatient={selectedPatient}
-          services={services.services}
-          servicesLoading={services.loading}
-          servicesFailed={services.failed}
-          onRetryServices={services.reload}
-          service={service}
-          days={days}
-          timesLoading={times.loading}
-          timesFailed={times.failed}
-          onRetryTimes={times.reload}
-          allDaysClosed={days !== null && allDaysClosed(days)}
-          dayTimes={dayTimes}
-          doctorsAtTime={doctorsAtTime}
-          doctorId={doctorId}
-          doctorName={doctorName}
-          ready={ready && purpose.trim().length > 0}
-          purpose={purpose}
-          onPurposeChange={setPurpose}
-          submitting={submitting}
-          onSubmit={() => void handleSubmit()}
-          paymentSlot={
-            booked && renderPayment ? (
-              <PaymentHoldStep
-                appointment={booked}
-                onFinish={({ paid, announced }) => {
-                  if (!announced) notifySuccess("MSG-26");
-                  // Kết quả hiển thị đúng trạng thái sau bước thanh toán: trả xong thì lịch đã xác nhận.
-                  onBooked(
-                    paid
-                      ? {
-                          ...booked,
-                          status: "BOOKED",
-                          paymentDeadline: null,
-                          examFee: { ...booked.examFee, status: "PAID" },
-                        }
-                      : booked,
-                  );
-                }}
-                onReleased={resetAfterRelease}
-                renderPayment={renderPayment}
-              />
-            ) : null
-          }
-        />
-      </div>
-    );
-
   return (
-    <div className="grid gap-8" inert={submitting || undefined}>
-      <BookingFlowBlocks
-        variant={variant}
+    <div inert={submitting || undefined}>
+      <BookingWizard
+        step={wizardStep}
+        onStepChange={setWizardStep}
         steps={steps}
         selection={selection}
-        dispatch={dispatch}
+        dispatch={dispatchUserAction}
         patients={patients}
         selectedPatient={selectedPatient}
-        singlePatient={singlePatient !== undefined}
         services={services.services}
         servicesLoading={services.loading}
         servicesFailed={services.failed}
@@ -297,9 +273,35 @@ export function BookingFlow(props: BookingFlowProps) {
         doctorsAtTime={doctorsAtTime}
         doctorId={doctorId}
         doctorName={doctorName}
-        ready={ready}
+        ready={ready && purpose.trim().length > 0}
+        purpose={purpose}
+        onPurposeChange={setPurpose}
         submitting={submitting}
         onSubmit={() => void handleSubmit()}
+        paymentSlot={
+          booked && renderPayment ? (
+            <PaymentOfferStep
+              appointment={booked}
+              onFinish={({ paid }) => {
+                notifySuccess("MSG-26");
+                // Kết quả hiển thị đúng trạng thái sau bước thanh toán: trả xong thì phí đã thu.
+                onBooked(
+                  paid
+                    ? {
+                        ...booked,
+                        examFee: { ...booked.examFee, status: "PAID" },
+                      }
+                    : booked,
+                );
+              }}
+              onLater={() => {
+                notifySuccess("MSG-26");
+                onBooked(booked);
+              }}
+              renderPayment={renderPayment}
+            />
+          ) : null
+        }
       />
     </div>
   );

@@ -127,7 +127,21 @@ export const ReceiptIcon = ReceiptText;
 
 /** Màn đã nối BE thật: mở được ở production mà không cần `NEXT_PUBLIC_RECEPTION_DEMO`. */
 const LIVE_RECEPTION_SECTIONS: ReadonlySet<ReceptionSection> =
-  new Set<ReceptionSection>(["", "appointments", "queues", "orders"]);
+  new Set<ReceptionSection>([
+    "",
+    "patients",
+    "appointments",
+    "queues",
+    "visits",
+    "orders",
+    "payments",
+    "payment-history",
+    "rooms",
+  ]);
+
+export function isLiveReceptionSection(section: ReceptionSection): boolean {
+  return LIVE_RECEPTION_SECTIONS.has(section);
+}
 
 /** Màn còn dữ liệu giả chỉ mở ở môi trường dev/test hoặc khi bật cờ demo ở production. */
 export function isReceptionSectionAvailable(

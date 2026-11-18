@@ -14,14 +14,14 @@ public final class ClinicalApiMapper {
                 .map(value -> new ClinicalExaminationService.Diagnosis(value.code(), value.type())).toList();
         return new ClinicalExaminationService.ExaminationCommand(visitId, doctorId, body.reasonForVisit(),
                 body.symptoms(), body.examinationFindings(), body.injuryBodySite(), body.injurySide(),
-                body.injuryMechanism(), diagnoses);
+                body.injuryMechanism(), diagnoses, body.injuryDescription(), body.treatmentDirections());
     }
 
     public static ExaminationResponse response(ClinicalExaminationService.ExaminationView view) {
         return new ExaminationResponse(view.id(), view.visitId(), view.reasonForVisit(), view.symptoms(),
                 view.examinationFindings(), view.injuryBodySite(), view.injurySide(), view.injuryMechanism(),
                 view.status(), view.diagnoses().stream()
-                        .map(value -> new DiagnosisResponse(value.code(), value.type())).toList(), view.version());
+                        .map(value -> new DiagnosisResponse(value.code(), value.type())).toList(), view.version(), view.injuryDescription(), view.treatmentDirections());
     }
 
     public static AfterVisitAdviceService.AdviceCommand command(UUID visitId, UUID doctorId, AdviceRequest body) {

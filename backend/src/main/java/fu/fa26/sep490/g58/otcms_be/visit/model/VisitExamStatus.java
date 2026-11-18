@@ -7,6 +7,8 @@ package fu.fa26.sep490.g58.otcms_be.visit.model;
 public enum VisitExamStatus {
     PENDING_PAYMENT,
     WAITING,
+    CALLED,
+    ABSENT,
     IN_EXAMINATION,
     AWAITING_CONCLUSION,
     COMPLETED,
@@ -15,9 +17,11 @@ public enum VisitExamStatus {
     public boolean canMoveTo(VisitExamStatus next) {
         return switch (this) {
             case PENDING_PAYMENT -> next == WAITING || next == CANCELLED;
-            case WAITING -> next == IN_EXAMINATION || next == CANCELLED;
-            case IN_EXAMINATION -> next == AWAITING_CONCLUSION || next == COMPLETED;
-            case AWAITING_CONCLUSION -> next == COMPLETED;
+            case WAITING -> next == CALLED || next == IN_EXAMINATION || next == CANCELLED;
+            case CALLED -> next == ABSENT || next == IN_EXAMINATION || next == CANCELLED;
+            case ABSENT -> next == WAITING || next == CANCELLED;
+            case IN_EXAMINATION -> next == AWAITING_CONCLUSION || next == COMPLETED || next == CANCELLED;
+            case AWAITING_CONCLUSION -> next == WAITING || next == COMPLETED;
             case COMPLETED, CANCELLED -> false;
         };
     }

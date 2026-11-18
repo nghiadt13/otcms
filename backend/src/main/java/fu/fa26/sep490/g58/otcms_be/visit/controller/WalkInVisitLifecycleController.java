@@ -32,8 +32,9 @@ public class WalkInVisitLifecycleController {
                 CorrelationIdFilter.current(request)).build();
     }
 
+    /** B2: only the attending doctor closes a visit (same rules as completion; any visit source). */
     @PostMapping("/api/v1/visits/{visitId}/closure")
-    @PreAuthorize("hasAuthority('ROLE_RECEPTIONIST')")
+    @PreAuthorize("hasAuthority('ROLE_DOCTOR')")
     public ResponseEntity<Void> close(@PathVariable UUID visitId,
             @AuthenticationPrincipal AuthenticatedAccount account, HttpServletRequest request) {
         if (account == null) throw new VisitOperationException("ACCESS_DENIED");

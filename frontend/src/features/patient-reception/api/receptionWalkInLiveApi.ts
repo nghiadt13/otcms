@@ -23,6 +23,21 @@ export type ReceptionWalkIn = {
 /** Dịch vụ khám còn hiệu lực, lễ tân chọn cho walk-in. */
 export type ExaminationService = { id: string; name: string; price: number };
 
+export type WalkInSuggestion = {
+  roomId: string;
+  roomCode: string;
+  roomLabel: string;
+  doctorProfileId: string;
+  doctorName: string;
+  waitingCount: number;
+};
+
+export function listWalkInSuggestions() {
+  return apiRequest<{ items: WalkInSuggestion[] }>(
+    "/api/v1/reception/walk-in-suggestions",
+  );
+}
+
 /** Tạo lượt walk-in: bác sĩ phải đang trong ca và dịch vụ phải loại khám (A4). */
 export function createReceptionWalkIn(input: {
   patientProfileId: string;

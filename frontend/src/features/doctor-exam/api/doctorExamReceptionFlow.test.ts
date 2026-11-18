@@ -3,6 +3,12 @@ import { listOrders, submitOrders } from "./doctorExamLiveOrders";
 const request = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/api/client", () => ({ apiRequest: request }));
 beforeEach(() => request.mockReset());
+/** Imaging orders come from the imaging endpoint; every other read (laboratory orders, history) is empty. */
+function imagingOrders(items: unknown[]) {
+  request.mockImplementation(async (path?: string) =>
+    String(path).endsWith("/imaging-orders") ? { items } : { items: [] },
+  );
+}
 const order = {
   orderId: "o1",
   orderCode: "CD-1",
@@ -40,25 +46,19 @@ it("reloads pending Clinical orders independently of Diagnostic work", async () 
   );
 });
 it("distinguishes paid undispatched orders from pending Technician work", async () => {
-  request.mockResolvedValueOnce({
-    items: [{ ...order, paymentStatus: "PAID" }],
-  });
+  imagingOrders([{ ...order, paymentStatus: "PAID" }]);
   expect((await listOrders("v"))[0]).toMatchObject({
     status: "PAID",
     statusNote: "Đã thanh toán, chờ lễ tân gửi KTV",
     imaging: null,
   });
-  request
-    .mockResolvedValueOnce({
-      items: [
-        {
-          ...order,
-          paymentStatus: "PAID",
-          diagnostic: { requestId: "request", status: "PENDING", version: 0 },
-        },
-      ],
-    })
-    .mockResolvedValueOnce({ items: [] });
+  imagingOrders([
+    {
+      ...order,
+      paymentStatus: "PAID",
+      diagnostic: { requestId: "request", status: "PENDING", version: 0 },
+    },
+  ]);
   expect((await listOrders("v"))[0]).toMatchObject({
     statusNote: "Đã gửi KTV, chờ chụp",
     imaging: { requestId: "request" },
@@ -66,23 +66,19 @@ it("distinguishes paid undispatched orders from pending Technician work", async 
 });
 
 it("never infers payment or cancellation truth from legacy Diagnostic state", async () => {
-  request
-    .mockResolvedValueOnce({
-      items: [
-        {
-          ...order,
-          diagnostic: { requestId: "legacy", status: "PENDING", version: 0 },
-        },
-        {
-          ...order,
-          orderId: "cancelled",
-          orderStatus: "CANCELLED",
-          paymentStatus: "PAID",
-          diagnostic: { requestId: "old", status: "PENDING", version: 0 },
-        },
-      ],
-    })
-    .mockResolvedValueOnce({ items: [] });
+  imagingOrders([
+    {
+      ...order,
+      diagnostic: { requestId: "legacy", status: "PENDING", version: 0 },
+    },
+    {
+      ...order,
+      orderId: "cancelled",
+      orderStatus: "CANCELLED",
+      paymentStatus: "PAID",
+      diagnostic: { requestId: "old", status: "PENDING", version: 0 },
+    },
+  ]);
   const result = await listOrders("v");
   expect(result[0]).toMatchObject({
     status: "PENDING_PAYMENT",

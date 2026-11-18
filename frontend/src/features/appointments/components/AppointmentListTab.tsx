@@ -6,7 +6,6 @@ import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { todayIsoDate } from "@/lib/format/formatDate";
 import {
   listEligibleDoctors,
-  notifyNoReplacement,
   reassignAppointmentDoctor,
 } from "../api/appointmentApi";
 import {
@@ -26,7 +25,6 @@ import type { ReassignDoctorApi } from "../types/reassignDoctorApi";
 import { AppointmentDetailSheet } from "./AppointmentDetailSheet";
 import { AppointmentFilters } from "./AppointmentFilters";
 import { AppointmentTable } from "./AppointmentTable";
-import { NotifyNoReplacementDialog } from "./NotifyNoReplacementDialog";
 import { ReassignDoctorDialog } from "./ReassignDoctorDialog";
 
 type AppointmentListTabProps = {
@@ -44,7 +42,6 @@ const ADMIN_REASSIGN_API: ReassignDoctorApi<Appointment> =
         listEligibleDoctors,
         reassign: (appointment, doctorId) =>
           reassignAppointmentDoctor(appointment.id, doctorId),
-        notifyNoReplacement,
       }
     : {
         listEligibleDoctors: (id, signal, startAt) => {
@@ -128,6 +125,7 @@ export function AppointmentListTab({ url, lookup }: AppointmentListTabProps) {
       <AppointmentDetailSheet
         appointment={viewing}
         onClose={() => setViewingId(null)}
+        onChanged={list.reload}
       />
       <ReassignDoctorDialog<Appointment>
         appointment={flow.reassigning}
@@ -136,12 +134,6 @@ export function AppointmentListTab({ url, lookup }: AppointmentListTabProps) {
         onClose={() => flow.setReassigning(null)}
         onChanged={flow.handleChanged}
         onStale={flow.handleStale}
-        onNotifyRequest={flow.requestNotify}
-      />
-      <NotifyNoReplacementDialog
-        open={flow.notifying !== null}
-        onOpenChange={(open) => !open && flow.setNotifying(null)}
-        onConfirm={flow.confirmNotify}
       />
     </div>
   );

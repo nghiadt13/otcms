@@ -31,9 +31,7 @@ export const WALK_IN_CARE_STEP = "CONSULTATION";
 const DEFAULT_SERVICE_LABEL = "Khám bệnh";
 
 /** Trạng thái hiển thị của dòng hàng chờ; null với trạng thái bác sĩ không thấy (chờ thu phí, đã hủy). */
-function visitStatusOfQueue(
-  examStatus: ExamQueueStatus,
-): VisitStatus | null {
+function visitStatusOfQueue(examStatus: ExamQueueStatus): VisitStatus | null {
   switch (examStatus) {
     case "WAITING":
       return "WAITING_FOR_EXAMINATION";
@@ -43,6 +41,10 @@ function visitStatusOfQueue(
       return "AWAITING_CONCLUSION";
     case "COMPLETED":
       return "COMPLETED";
+    // Đã gọi hoặc vắng vẫn là chờ khám: lượt chỉ sang "Đang khám" khi bác sĩ bắt đầu khám (BR-65).
+    case "CALLED":
+    case "ABSENT":
+      return "WAITING_FOR_EXAMINATION";
     default:
       return null;
   }
@@ -92,7 +94,7 @@ export async function listTodayPatients(
       visitId: item.visitId,
       patientProfileId: item.patientProfileId,
       patientName: item.patientName,
-      age: ageFromBirthDate(item.dateOfBirth),
+      age: item.age ?? ageFromBirthDate(item.dateOfBirth),
       sex: sexFromGender(item.gender),
       patientCode: null,
       serviceName: appointment?.serviceName ?? DEFAULT_SERVICE_LABEL,
@@ -100,6 +102,7 @@ export async function listTodayPatients(
       source: sourceOfVisit(item.source),
       status,
       queueNumber: item.queueNumber,
+      serviceOrders: item.serviceOrders ?? [],
     });
   }
   for (const item of page.items) {
@@ -192,7 +195,7 @@ export async function getVisitContext(
 ): Promise<VisitContext> {
   const entry = await fetchExamQueueEntry(visitId);
   const base = await contextOf(visitId, entry, signal);
-  if (!base.patientProfileId) return base;
+  if (!base.patientProfileId || base.status === "COMPLETED") return base;
   try {
     const history = await getMedicalHistory(base.patientProfileId, signal);
     return {

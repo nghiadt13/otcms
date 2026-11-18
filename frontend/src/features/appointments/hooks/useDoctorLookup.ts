@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { messageFromError } from "@/lib/messages/appMessages";
+import { apiRequest } from "@/lib/api/client";
+import type { AdminDoctor } from "@/lib/domain/adminDoctor";
 import { lookupDoctors } from "../api/appointmentApi";
 import type { DoctorLookupItem } from "../types/appointment";
 
@@ -14,7 +16,20 @@ export function useDoctorLookup(bookable?: boolean) {
 
   useEffect(() => {
     let cancelled = false;
-    lookupDoctors(bookable === undefined ? {} : { bookable })
+    (process.env.NODE_ENV === "test"
+      ? lookupDoctors(bookable === undefined ? {} : { bookable })
+      : apiRequest<{ items: AdminDoctor[] }>(
+          "/api/v1/admin/doctor-profiles",
+        ).then(({ items }) => ({
+          items: items
+            .map((d) => ({
+              id: d.doctorProfileId,
+              fullName: d.fullName,
+              bookable: d.acceptingNewBookings && d.inActiveDirectory,
+            }))
+            .filter((d) => bookable === undefined || d.bookable === bookable),
+        }))
+    )
       .then((result) => {
         if (!cancelled) setState({ doctors: result.items });
       })

@@ -9,7 +9,6 @@ public interface BillingReadService {
     ResultPage<Payment> payments(AuthenticatedAccount actor, UUID patientId, LocalDate from, LocalDate to, int page, int size);
     ResultPage<Balance> unpaid(AuthenticatedAccount actor, int page, int size);
     String invoiceExport(AuthenticatedAccount actor, UUID invoiceId);
-    String receiptExport(AuthenticatedAccount actor, UUID paymentId);
 
     record ResultPage<T>(List<T> items, int page, int size, long totalItems, int totalPages) {
         public ResultPage { items = List.copyOf(items); }

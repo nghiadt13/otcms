@@ -98,9 +98,9 @@ class AppointmentArrivalT053PostgresIntegrationTest {
             for (UUID id : appointments) {
                 jdbc.update("delete from audit_logs where source = 'appointment_audits' and entity_id = ?", id);
                 jdbc.update("update appointments set status = 'CANCELLED', visit_id = null where id = ?", id);
-                jdbc.update("delete from payment_attempts where invoice_id in "
-                        + "(select id from invoices where appointment_id = ?)", id);
                 jdbc.update("delete from invoice_items where invoice_id in "
+                        + "(select id from invoices where appointment_id = ?)", id);
+                jdbc.update("delete from payment_attempts where invoice_id in "
                         + "(select id from invoices where appointment_id = ?)", id);
                 jdbc.update("delete from invoices where appointment_id = ?", id);
                 List<UUID> visits = jdbc.query("select id from visits where originating_appointment_id = ?",
@@ -138,20 +138,20 @@ class AppointmentArrivalT053PostgresIntegrationTest {
         String[] tamperedParts = token.split("\\.");
         tamperedParts[3] = Long.toString(Long.parseLong(tamperedParts[3]) + 1);
         mvc.perform(recordQr(target, patientAccount, String.join(".", tamperedParts)))
-                .andExpect(status().isUnprocessableEntity()).andExpect(jsonPath("$.error.code").value("ARRIVAL_PROOF_INVALID"));
+                .andExpect(status().isUnprocessableEntity()).andExpect(jsonPath("$.error.code").value("MSG-37"));
         assertNoArrival(target);
         String wrongClinic = token.replace("dDA1My10ZXN0LWNsaW5pYw", "b3RoZXItY2xpbmlj");
         mvc.perform(recordQr(target, patientAccount, wrongClinic))
-                .andExpect(status().isUnprocessableEntity()).andExpect(jsonPath("$.error.code").value("ARRIVAL_PROOF_INVALID"));
+                .andExpect(status().isUnprocessableEntity()).andExpect(jsonPath("$.error.code").value("MSG-37"));
         assertNoArrival(target);
 
         testClock.set(NOW.plusSeconds(60));
         mvc.perform(recordQr(target, patientAccount, token))
-                .andExpect(status().isUnprocessableEntity()).andExpect(jsonPath("$.error.code").value("ARRIVAL_PROOF_INVALID"));
+                .andExpect(status().isUnprocessableEntity()).andExpect(jsonPath("$.error.code").value("MSG-37"));
         assertNoArrival(target);
         testClock.set(NOW.minusSeconds(1));
         mvc.perform(recordQr(target, patientAccount, token))
-                .andExpect(status().isUnprocessableEntity()).andExpect(jsonPath("$.error.code").value("ARRIVAL_PROOF_INVALID"));
+                .andExpect(status().isUnprocessableEntity()).andExpect(jsonPath("$.error.code").value("MSG-37"));
         assertNoArrival(target);
     }
 
@@ -267,9 +267,9 @@ class AppointmentArrivalT053PostgresIntegrationTest {
         testClock.set(NOW.plusSeconds(7200));
         // QR arrival has already committed CHECKED_IN + Visit, so the state conflict takes precedence.
         mvc.perform(markNoShow(timely)).andExpect(status().isConflict())
-                .andExpect(jsonPath("$.error.code").value("APPOINTMENT_NOT_CHANGEABLE"));
+                .andExpect(jsonPath("$.error.code").value("MSG-32"));
         mvc.perform(markNoShow(timelyManual)).andExpect(status().isUnprocessableEntity())
-                .andExpect(jsonPath("$.error.code").value("NO_SHOW_NOT_ALLOWED"));
+                .andExpect(jsonPath("$.error.code").value("MSG-29"));
         assertEquals("CHECKED_IN", jdbc.queryForObject("select status from appointments where id = ?", String.class, timely));
         assertEquals("CONFIRMED", jdbc.queryForObject("select status from appointments where id = ?",
                 String.class, timelyManual));
@@ -283,7 +283,7 @@ class AppointmentArrivalT053PostgresIntegrationTest {
         UUID noShow = appointment(NOW.minusSeconds(3600), patientProfile);
         mvc.perform(markNoShow(noShow)).andExpect(status().isOk()).andExpect(jsonPath("$.status").value("NO_SHOW"));
         mvc.perform(recordQr(noShow, patientAccount, issueProof())).andExpect(status().isConflict())
-                .andExpect(jsonPath("$.error.code").value("APPOINTMENT_NOT_CHANGEABLE"));
+                .andExpect(jsonPath("$.error.code").value("MSG-32"));
         assertNoArrival(noShow);
         assertEquals("NO_SHOW", jdbc.queryForObject("select status from appointments where id = ?", String.class, noShow));
         assertEquals(0, jdbc.queryForObject("select count(*) from visits where originating_appointment_id = ?",
@@ -313,7 +313,7 @@ class AppointmentArrivalT053PostgresIntegrationTest {
                 assertEquals(200, arrival.get(20, TimeUnit.SECONDS));
                 var noShowResult = noShow.get(20, TimeUnit.SECONDS);
                 assertEquals(409, noShowResult.getResponse().getStatus());
-                jsonPath("$.error.code").value("APPOINTMENT_NOT_CHANGEABLE").match(noShowResult);
+                jsonPath("$.error.code").value("MSG-32").match(noShowResult);
                 assertEquals("CHECKED_IN", jdbc.queryForObject("select status from appointments where id = ?", String.class, target));
                 assertEquals(1, arrivalCount(target));
                 assertEquals(1, jdbc.queryForObject("select count(*) from visits where originating_appointment_id = ?",
@@ -345,7 +345,7 @@ class AppointmentArrivalT053PostgresIntegrationTest {
 
         mvc.perform(recordQr(target, patientAccount, issueProof()))
                 .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.error.code").value("EXAM_FEE_UNPAID"));
+                .andExpect(jsonPath("$.error.code").value("MSG-94"));
         assertNoArrival(target);
         assertEquals("CONFIRMED", jdbc.queryForObject("select status from appointments where id = ?", String.class, target));
 
@@ -357,7 +357,7 @@ class AppointmentArrivalT053PostgresIntegrationTest {
         mvc.perform(post("/api/v1/invoices/{id}/counter-payments", invoice)
                         .with(actor(receptionistAccount, AccountType.RECEPTIONIST)).with(testCsrf())
                         .header("Idempotency-Key", "t053-fee-counter").contentType("application/json")
-                        .content("{\"amount\":250000,\"method\":\"CASH\"}"))
+                        .content("{\"itemIds\":[\"" + jdbc.queryForObject("select id from invoice_items where invoice_id = ?", UUID.class, invoice) + "\"],\"method\":\"CASH\"}"))
                 .andExpect(status().isOk());
 
         mvc.perform(recordQr(target, patientAccount, issueProof()))

@@ -174,7 +174,7 @@ export function createDemoVisits(): Record<string, DemoVisit> {
         symptoms: "Sưng gối, đi lại đau, cảm giác lỏng gối.",
         examinationFindings: "Dấu ngăn kéo trước (+), tràn dịch khớp gối nhẹ.",
         injuryBodySite: "Gối",
-        injurySide: "Phải",
+        injurySide: "RIGHT",
         injuryMechanism: "Xoay gối khi chạy",
         diagnoses: done("S83.5"),
         status: "COMPLETED",

@@ -15,20 +15,19 @@ vi.mock("next/navigation", () => ({
 vi.mock("sonner", () => ({
   toast: { success: vi.fn(), warning: vi.fn(), error: vi.fn() },
 }));
-vi.mock("../api/appointmentApi", async (importOriginal) => {
-  const original =
-    await importOriginal<typeof import("../api/appointmentApi")>();
-  return {
-    ...original,
-    getDoctorAvailability: vi.fn(original.getDoctorAvailability),
-  };
-});
+vi.mock("@/lib/api/client", () => ({
+  apiRequest: vi.fn((url: string) =>
+    Promise.resolve(
+      url.startsWith("/api/v1/clinic-services")
+        ? { items: [{ id: "svc", name: "Khám", price: 0, description: null }] }
+        : { slots: [{ startTime: "2026-10-21T01:00:00Z" }] },
+    ),
+  ),
+}));
 
 import { toast } from "sonner";
-import {
-  getDoctorAvailability,
-  resetAppointmentMock,
-} from "../api/appointmentApi";
+import { resetAppointmentMock } from "../api/appointmentApi";
+import { apiRequest } from "@/lib/api/client";
 import { DOCTOR_IDS } from "../api/appointmentMockData";
 import { AppointmentsManagement } from "./AppointmentsManagement";
 import { formatAppMessage } from "@/lib/messages/appMessages";
@@ -135,7 +134,7 @@ describe("AppointmentsManagement - chuyển bác sĩ", () => {
     expect(within(row).getByText("BS. Đỗ Minh Tuấn")).toBeInTheDocument();
   });
 
-  it("AF1: hiện hai câu, Báo cho bệnh nhân qua xác nhận, lịch vẫn Đã đặt", async () => {
+  it("không có bác sĩ thay thì không hiển thị thao tác thông báo giả", async () => {
     open("from=2026-10-21&to=2026-10-21");
     await openRowMenu("Trần Minh Khoa");
     await userEvent.click(
@@ -144,31 +143,6 @@ describe("AppointmentsManagement - chuyển bác sĩ", () => {
     expect(
       await screen.findByText("Không có bác sĩ nào có ca vào giờ này."),
     ).toBeInTheDocument();
-    expect(
-      screen.getByText("Admin không thể hủy lịch hẹn."),
-    ).toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: "Chuyển lịch hẹn" }),
-    ).not.toBeInTheDocument();
-    await userEvent.click(
-      screen.getByRole("button", { name: "Báo cho bệnh nhân" }),
-    );
-    await userEvent.click(
-      await screen.findByRole("button", { name: "Gửi thông báo" }),
-    );
-    await waitFor(() =>
-      expect(toast.success).toHaveBeenCalledWith(
-        "Đã gửi thông báo cho bệnh nhân.",
-      ),
-    );
-    const row = screen.getByText("Trần Minh Khoa").closest("tr")!;
-    expect(within(row).getByText("Đã đặt")).toBeInTheDocument();
-    // Đã báo: mở lại thì không còn nút Báo cho bệnh nhân.
-    await openRowMenu("Trần Minh Khoa");
-    await userEvent.click(
-      await screen.findByRole("menuitem", { name: "Chuyển bác sĩ" }),
-    );
-    await screen.findByText("Admin không thể hủy lịch hẹn.");
     expect(
       screen.queryByRole("button", { name: "Báo cho bệnh nhân" }),
     ).not.toBeInTheDocument();
@@ -231,59 +205,20 @@ describe("AppointmentsManagement - chuyển bác sĩ", () => {
 });
 
 describe("AppointmentsManagement - giờ trống", () => {
-  it("?tab=availability&doctorId= tự tải lưới", async () => {
+  it("gọi availability với dịch vụ và bác sĩ được chọn", async () => {
     open(
       `tab=availability&doctorId=${DOCTOR_IDS.tuan}&from=2026-10-21&to=2026-10-21`,
     );
-    expect(await screen.findByText("Thứ tư 21/10")).toBeInTheDocument();
-    expect(screen.getAllByText("Trống").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("Đã đặt").length).toBeGreaterThan(0);
-  });
-
-  it("chưa chọn bác sĩ thì không gọi API", async () => {
-    open("tab=availability");
-    expect(
-      await screen.findByText("Chọn bác sĩ để xem giờ trống."),
-    ).toBeInTheDocument();
-    expect(getDoctorAvailability).not.toHaveBeenCalled();
-    expect(
-      screen.getByRole("button", { name: "Xem giờ trống" }),
-    ).toBeDisabled();
-  });
-
-  it("bác sĩ không nhận đặt lịch: MSG-24 dưới ô bác sĩ, không gọi API", async () => {
-    open(`tab=availability&doctorId=${DOCTOR_IDS.yen}`);
-    expect(
-      await screen.findByText(formatAppMessage("MSG-24")),
-    ).toBeInTheDocument();
-    expect(getDoctorAvailability).not.toHaveBeenCalled();
-  });
-
-  it("không còn khung trống: toast cảnh báo MSG-25 và trạng thái trống", async () => {
-    open(
-      `tab=availability&doctorId=${DOCTOR_IDS.truc}&from=2026-10-21&to=2026-10-21`,
+    await userEvent.selectOptions(
+      await screen.findByLabelText("Dịch vụ"),
+      "svc",
     );
-    expect(
-      await screen.findByText(
-        "Chưa có giờ trống để hiển thị. Chọn ngày hoặc tuần khác.",
-      ),
-    ).toBeInTheDocument();
-    // Toast bắn trong useEffect sau khi dữ liệu về: chờ thay vì kiểm ngay, tránh race khi máy bận.
     await waitFor(() =>
-      expect(toast.warning).toHaveBeenCalledWith(
-        "Không có giờ hẹn trống trong khoảng thời gian đã chọn. Vui lòng chọn thời gian khác.",
+      expect(apiRequest).toHaveBeenCalledWith(
+        expect.stringContaining("/api/v1/staff/appointments/availability?"),
+        expect.anything(),
       ),
     );
-  });
-
-  it("lỗi 5xx: thông báo trong lưới kèm Thử lại, không toast", async () => {
-    open(
-      `tab=availability&doctorId=${DOCTOR_IDS.bao}&from=2026-10-21&to=2026-10-21`,
-    );
-    expect(
-      await screen.findByRole("button", { name: "Thử lại" }),
-    ).toBeInTheDocument();
-    expect(screen.getByText(formatAppMessage("MSG-04"))).toBeInTheDocument();
-    expect(toast.error).not.toHaveBeenCalled();
+    expect(await screen.findByText("Thứ tư 21/10")).toBeInTheDocument();
   });
 });

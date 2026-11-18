@@ -1,270 +1,416 @@
 "use client";
 
+import Link from "next/link";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import {
   Table,
-  TableHeader,
-  TableRow,
-  TableHead,
   TableBody,
   TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
 } from "@/components/ui/table";
-import Link from "next/link";
-import { useState } from "react";
-import { useImaging } from "../hooks/useImaging";
+import { formatAppMessage, messageFromError } from "@/lib/messages/appMessages";
 import {
-  CURRENT_ROOM,
-  CURRENT_USER,
-  DEMO_DATE,
-  queueLabels,
-  ROOM_NAME,
-} from "../api/imagingMockData";
+  callNextService,
+  getServiceWorklist,
+  markServiceEntryAbsent,
+  reportCannotPerform,
+  returnServiceEntry,
+  type ServiceQueueStatus,
+  type ServiceWorklistEntry,
+} from "../api/imagingQueueApi";
+import { listImagingRooms, type ImagingRoom } from "../api/imagingRoomApi";
 import { Badge } from "./Badge";
 import { Empty } from "./Empty";
 import { Icon } from "./Icon";
 import { PageHeading } from "./PageHeading";
-import { Pagination } from "./Pagination";
 import { Panel } from "./Panel";
 import { PatientAvatar } from "./PatientAvatar";
 
+const REFRESH_MS = 10_000;
+
+const statusLabels: Record<ServiceQueueStatus, string> = {
+  WAITING: "Đang chờ",
+  CALLED: "Đã gọi",
+  IN_EXAMINATION: "Đang thực hiện",
+  ABSENT: "Vắng mặt",
+};
+
+const statusTones: Record<ServiceQueueStatus, string> = {
+  WAITING: "neutral",
+  CALLED: "blue",
+  IN_EXAMINATION: "blue",
+  ABSENT: "amber",
+};
+
+/** UC-46: hàng chờ thật của phòng chụp (stage SERVICE), thứ tự do hệ thống xếp theo giờ vào hàng. */
 export function WorklistScreen() {
-  const { state, callNext, markAbsent, returnPatient } = useImaging();
-  const [tab, setTab] = useState("active");
-  const [search, setSearch] = useState("");
-  const [page, setPage] = useState(1);
-  const all = state.queue.filter(
-    (q) =>
-      q.room === CURRENT_ROOM &&
-      state.orders.some(
-        (o) =>
-          o.visitId === q.visitId &&
-          o.room === CURRENT_ROOM &&
-          ["Paid", "Results Available"].includes(o.status),
-      ),
-  );
-  const tabs = [
-    { id: "active", label: "Đang chờ & phục vụ" },
-    { id: "Absent", label: "Vắng mặt" },
-    { id: "Done", label: "Đã hoàn tất" },
-  ];
-  const matches = all
-    .filter(
-      (q) =>
-        (tab === "active"
-          ? ["Waiting", "Being Served"].includes(q.status)
-          : q.status === tab) &&
-        `${q.number} ${state.visits.find((v) => v.id === q.visitId)?.patient} ${state.visits.find((v) => v.id === q.visitId)?.patientId}`
-          .toLowerCase()
-          .includes(search.toLowerCase()),
-    )
-    .sort(
-      (a, b) =>
-        Number(b.status === "Being Served") -
-          Number(a.status === "Being Served") ||
-        a.priority - b.priority ||
-        a.joinedAt.localeCompare(b.joinedAt),
-    );
-  const current = Math.min(page, Math.max(1, Math.ceil(matches.length / 5)));
+  const [rooms, setRooms] = useState<ImagingRoom[]>([]);
+  const [roomId, setRoomId] = useState<string | null>(null);
+  const [entries, setEntries] = useState<ServiceWorklistEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [tab, setTab] = useState<"active" | "absent">("active");
+  // One small reason form serves both "return to queue" and "cannot perform" (both need a written reason).
+  const [returning, setReturning] = useState<{
+    mode: "return" | "unable";
+    id: string;
+    reason: string;
+  } | null>(null);
+  const controller = useRef<AbortController | null>(null);
+
+  const refresh = useCallback(async (room: string) => {
+    controller.current?.abort();
+    const current = new AbortController();
+    controller.current = current;
+    try {
+      const worklist = await getServiceWorklist(room, current.signal);
+      if (!current.signal.aborted) {
+        setEntries(worklist.entries);
+        setError(null);
+      }
+    } catch (cause) {
+      if (!current.signal.aborted) setError(messageFromError(cause));
+    } finally {
+      if (!current.signal.aborted) setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    listImagingRooms()
+      .then((items) => {
+        if (!active) return;
+        const usable = items.filter(
+          (room) => room.availability === "Hoạt động",
+        );
+        setRooms(usable);
+        setRoomId(usable[0]?.id ?? null);
+        if (usable.length === 0) setLoading(false);
+      })
+      .catch((cause: unknown) => {
+        if (!active) return;
+        setError(messageFromError(cause));
+        setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!roomId) return;
+    const room = roomId;
+    queueMicrotask(() => void refresh(room));
+    const timer = setInterval(() => void refresh(room), REFRESH_MS);
+    return () => {
+      clearInterval(timer);
+      controller.current?.abort();
+    };
+  }, [roomId, refresh]);
+
+  async function run(action: () => Promise<unknown>, success: string) {
+    if (!roomId) return;
+    setBusy(true);
+    setNotice(null);
+    try {
+      await action();
+      setNotice(success);
+      setError(null);
+      await refresh(roomId);
+    } catch (cause) {
+      setError(messageFromError(cause));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const active = entries.filter((entry) => entry.status !== "ABSENT");
+  const absent = entries.filter((entry) => entry.status === "ABSENT");
+  const shown = tab === "active" ? active : absent;
+  const room = rooms.find((item) => item.id === roomId);
+
   return (
     <>
       <PageHeading
-        eyebrow="TIẾP NHẬN TẠI PHÒNG"
         title="Danh sách chờ chẩn đoán hình ảnh"
-        description="Chỉ hiển thị bệnh nhân và chỉ định đã thanh toán thuộc phòng của bạn."
+        description="Bệnh nhân đã thanh toán chỉ định, xếp theo giờ vào hàng của phòng bạn."
       >
-        <Button className="im-button" onClick={callNext}>
+        <Button
+          className="im-button"
+          disabled={!roomId || busy}
+          onClick={() =>
+            roomId &&
+            void run(() => callNextService(roomId), formatAppMessage("MSG-43"))
+          }
+        >
           <Icon name="user" />
           Gọi tiếp theo
         </Button>
       </PageHeading>
-      <div className="im-room-banner">
-        <span className="im-room-icon">
-          <Icon name="room" />
-        </span>
-        <div>
-          <strong>
-            {ROOM_NAME} <span>XR-01</span>
-          </strong>
-          <p>Ca sáng 07:00 – 12:00 · KTV. Nguyễn Minh Anh</p>
+      {rooms.length > 1 && (
+        <label className="im-small">
+          Phòng{" "}
+          <select
+            aria-label="Chọn phòng"
+            value={roomId ?? ""}
+            onChange={(event) => {
+              setLoading(true);
+              setRoomId(event.target.value);
+            }}
+          >
+            {rooms.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.name} ({item.code})
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+      {room && (
+        <div className="im-room-banner">
+          <span className="im-room-icon">
+            <Icon name="room" />
+          </span>
+          <div>
+            <strong>
+              {room.name} <span>{room.code}</span>
+            </strong>
+          </div>
+          <Badge tone="green">Đang nhận bệnh nhân</Badge>
         </div>
-        <Badge tone="green">Đang nhận bệnh nhân</Badge>
-      </div>
+      )}
+      {error && (
+        <p role="alert" className="im-form-error">
+          {error}
+        </p>
+      )}
+      {notice && <p role="status">{notice}</p>}
       <Panel>
         <div className="im-tabs" role="tablist" aria-label="Nhóm hàng đợi">
-          {tabs.map((t) => (
+          {(
+            [
+              ["active", "Đang chờ & phục vụ", active.length],
+              ["absent", "Vắng mặt", absent.length],
+            ] as const
+          ).map(([id, label, count]) => (
             <Button
               variant="ghost"
-              key={t.id}
+              key={id}
               role="tab"
-              aria-selected={tab === t.id}
-              className={tab === t.id ? "im-tab-active" : ""}
-              onClick={() => {
-                setTab(t.id);
-                setPage(1);
-              }}
+              aria-selected={tab === id}
+              className={tab === id ? "im-tab-active" : ""}
+              onClick={() => setTab(id)}
             >
-              {t.label}
-              <span>
-                {
-                  all.filter((q) =>
-                    t.id === "active"
-                      ? ["Waiting", "Being Served"].includes(q.status)
-                      : q.status === t.id,
-                  ).length
-                }
-              </span>
+              {label}
+              <span>{count}</span>
             </Button>
           ))}
         </div>
-        <div className="im-toolbar">
-          <label className="im-search">
-            <Icon name="search" />
-            <Input
-              aria-label="Tìm bệnh nhân trong hàng đợi"
-              placeholder="Tìm tên, mã bệnh nhân hoặc số thứ tự…"
-              value={search}
-              onChange={(e) => {
-                setSearch(e.target.value);
-                setPage(1);
-              }}
-            />
-          </label>
-          <span className="im-muted im-small">
-            Ưu tiên → thời gian vào hàng đợi
-          </span>
-        </div>
-        <div className="im-table-scroll">
-          <Table className="im-table">
-            <TableHeader>
-              <TableRow>
-                <TableHead>Số thứ tự</TableHead>
-                <TableHead>Bệnh nhân</TableHead>
-                <TableHead>Chỉ định đã thanh toán</TableHead>
-                <TableHead>Nhóm ưu tiên</TableHead>
-                <TableHead>Trạng thái</TableHead>
-                <TableHead>Thao tác</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {matches.slice((current - 1) * 5, current * 5).map((q) => {
-                const orders = state.orders.filter(
-                  (o) =>
-                    o.visitId === q.visitId &&
-                    o.room === CURRENT_ROOM &&
-                    ["Paid", "Results Available"].includes(o.status),
-                );
-                const o = orders[0];
-                return (
+        {loading ? (
+          <p role="status" className="p-5">
+            Đang tải hàng đợi…
+          </p>
+        ) : shown.length === 0 ? (
+          <Empty
+            title={
+              tab === "absent"
+                ? "Không có bệnh nhân vắng mặt"
+                : "Chưa có bệnh nhân đang chờ"
+            }
+            description="Bệnh nhân vào hàng ngay khi chỉ định được thanh toán."
+          />
+        ) : (
+          <div className="im-table-scroll">
+            <Table className="im-table">
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Số thứ tự</TableHead>
+                  <TableHead>Bệnh nhân</TableHead>
+                  <TableHead>Chỉ định tại phòng</TableHead>
+                  <TableHead>Trạng thái</TableHead>
+                  <TableHead>Thao tác</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {shown.map((entry) => (
                   <TableRow
-                    key={q.id}
+                    key={entry.entryId}
                     className={
-                      q.status === "Being Served" ? "im-row-serving" : ""
+                      entry.status === "IN_EXAMINATION" ? "im-row-serving" : ""
                     }
                   >
                     <TableCell>
-                      <strong className="im-number-text">{q.number}</strong>
-                      <small>Vào lúc {q.joinedAt}</small>
+                      <strong className="im-number-text">
+                        {entry.queueNumber ?? "—"}
+                      </strong>
                     </TableCell>
                     <TableCell>
                       <div className="im-patient-cell">
-                        <PatientAvatar name={o.patient} />
+                        <PatientAvatar name={entry.patient.fullName ?? "?"} />
                         <div>
-                          <strong>{o.patient}</strong>
+                          <strong>
+                            {entry.patient.fullName ?? "Không rõ tên"}
+                          </strong>
                           <small>
-                            {o.patientId} · {o.age} tuổi · {o.sex}
+                            {entry.patient.age != null
+                              ? `${entry.patient.age} tuổi`
+                              : "—"}
+                            {entry.patient.gender
+                              ? ` · ${entry.patient.gender}`
+                              : ""}
                           </small>
                         </div>
                       </div>
                     </TableCell>
                     <TableCell>
-                      {orders.map((x) => (
-                        <Link
-                          key={x.id}
-                          className="im-order-line"
-                          href={`/imaging/orders/${x.id}`}
-                        >
-                          {x.service}
-                        </Link>
+                      {entry.orders.map((order) => (
+                        <div key={order.orderId}>
+                          {order.paid ? (
+                            <Link
+                              className="im-order-line"
+                              href={`/imaging/orders/${order.orderId}`}
+                            >
+                              {order.serviceName}
+                            </Link>
+                          ) : (
+                            <span
+                              className="im-order-line"
+                              title={formatAppMessage("MSG-95")}
+                            >
+                              {order.serviceName}{" "}
+                              <Badge tone="red">Chưa thanh toán</Badge>
+                            </span>
+                          )}
+                          <small>
+                            {order.orderCode}
+                            {order.bodyArea ? ` · ${order.bodyArea}` : ""}
+                            {order.instructions
+                              ? ` · ${order.instructions}`
+                              : ""}
+                          </small>
+                          {!order.paid && (
+                            <small role="alert">
+                              {formatAppMessage("MSG-95")}
+                            </small>
+                          )}
+                        </div>
                       ))}
-                      <small>
-                        {orders.length} chỉ định · {o.visitId}
-                      </small>
                     </TableCell>
                     <TableCell>
-                      <Badge tone={q.priority < 9 ? "amber" : "neutral"}>
-                        {q.priorityLabel}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Badge
-                        tone={
-                          q.status === "Being Served"
-                            ? "blue"
-                            : q.status === "Done"
-                              ? "green"
-                              : q.status === "Absent"
-                                ? "amber"
-                                : "neutral"
-                        }
-                      >
-                        {queueLabels[q.status]}
+                      <Badge tone={statusTones[entry.status]}>
+                        {statusLabels[entry.status]}
                       </Badge>
                     </TableCell>
                     <TableCell>
                       <div className="im-row-actions">
-                        <Link
-                          href={`/imaging/orders/${orders.find((x) => x.status === "Paid")?.id || o.id}`}
-                        >
-                          Chi tiết <Icon name="arrow" size={14} />
-                        </Link>
-                        {q.status === "Being Served" &&
-                          q.calledBy === CURRENT_USER &&
-                          q.calledOn === DEMO_DATE && (
+                        {entry.status === "CALLED" && (
+                          <>
                             <Button
                               variant="ghost"
                               className="im-text-button im-danger"
-                              onClick={() => markAbsent(q.id)}
+                              disabled={busy}
+                              onClick={() =>
+                                void run(
+                                  () => markServiceEntryAbsent(entry.entryId),
+                                  formatAppMessage("MSG-43"),
+                                )
+                              }
                             >
                               Đánh dấu vắng
                             </Button>
-                          )}
-                        {q.status === "Absent" &&
-                          (q.calledBy === CURRENT_USER &&
-                          q.calledOn === DEMO_DATE ? (
                             <Button
                               variant="ghost"
                               className="im-text-button"
-                              onClick={() => returnPatient(q.id)}
+                              disabled={busy || entry.orders.length === 0}
+                              onClick={() =>
+                                setReturning({
+                                  mode: "unable",
+                                  id: entry.orders[0]?.orderId ?? "",
+                                  reason: "",
+                                })
+                              }
                             >
-                              Trở lại hàng đợi
+                              Không thực hiện được
                             </Button>
-                          ) : (
-                            <small>Không thuộc quyền trả lại trong ngày</small>
-                          ))}
+                          </>
+                        )}
+                        {entry.status === "ABSENT" && (
+                          <Button
+                            variant="ghost"
+                            className="im-text-button"
+                            disabled={busy}
+                            onClick={() =>
+                              setReturning({
+                                mode: "return",
+                                id: entry.entryId,
+                                reason: "",
+                              })
+                            }
+                          >
+                            Trở lại hàng đợi
+                          </Button>
+                        )}
                       </div>
                     </TableCell>
                   </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-        </div>
-        {!matches.length && (
-          <Empty
-            title={
-              tab === "Absent"
-                ? "Không có bệnh nhân vắng mặt"
-                : "Không có bệnh nhân phù hợp"
-            }
-          />
+                ))}
+              </TableBody>
+            </Table>
+          </div>
         )}
-        <Pagination page={current} total={matches.length} onChange={setPage} />
+        {returning && (
+          <form
+            className="im-toolbar"
+            onSubmit={(event) => {
+              event.preventDefault();
+              const target = returning;
+              void run(
+                () =>
+                  target.mode === "unable"
+                    ? reportCannotPerform(target.id, target.reason)
+                    : returnServiceEntry(target.id, target.reason),
+                formatAppMessage("MSG-43"),
+              ).then(() => setReturning(null));
+            }}
+          >
+            <label>
+              {returning.mode === "unable"
+                ? "Lý do không thực hiện được"
+                : "Lý do đưa trở lại hàng"}
+              <input
+                aria-label={
+                  returning.mode === "unable"
+                    ? "Lý do không thực hiện được"
+                    : "Lý do đưa trở lại hàng"
+                }
+                value={returning.reason}
+                onChange={(event) =>
+                  setReturning({ ...returning, reason: event.target.value })
+                }
+              />
+            </label>
+            <Button type="submit" disabled={busy || !returning.reason.trim()}>
+              Xác nhận
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => setReturning(null)}
+            >
+              Hủy
+            </Button>
+          </form>
+        )}
       </Panel>
       <p className="im-footnote">
         <Icon name="shield" size={16} />
-        Thứ tự được xếp theo nhóm ưu tiên, sau đó theo thời điểm vào hàng đợi.
-        Kỹ thuật viên không thay đổi vị trí thủ công.
+        Thứ tự theo giờ vào hàng đợi. Chỉ định chưa thanh toán không được tiếp
+        nhận.
       </p>
     </>
   );

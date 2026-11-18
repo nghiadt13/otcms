@@ -51,7 +51,7 @@ class UC07CreateAdministratorAccountTest {
             account.setId(UUID.randomUUID());
             return account;
         });
-        var response = service.create(actor(AccountRole.OWNER), "Administrator.Name");
+        var response = service.create(actor(AccountRole.OWNER), "Administrator.Name", "Initial123");
         ArgumentCaptor<AccountJpaEntity> saved = ArgumentCaptor.forClass(AccountJpaEntity.class);
         verify(accounts).saveAndFlush(saved.capture());
         AccountJpaEntity account = saved.getValue();
@@ -64,7 +64,7 @@ class UC07CreateAdministratorAccountTest {
         assertEquals("ADMIN", response.getAccountType());
         assertEquals(account.getId(), response.getAccountId());
         assertEquals(account.getUsername(), response.getUsername());
-        verify(passwords).issue(account);
+        verify(passwords).setInitial(account, "Initial123");
         verify(accounts).existsByUsername("Administrator.Name");
         assertFalse(response.getTemporaryPassword().equals(account.getPasswordHash()));
         assertTrue(encoder.matches(response.getTemporaryPassword(), account.getPasswordHash()));
@@ -79,7 +79,7 @@ class UC07CreateAdministratorAccountTest {
     void duplicateUsernameIsRejectedBeforeCredentialCreation() {
         when(accounts.existsByUsername("duplicate")).thenReturn(true);
         var error = assertThrows(AdministratorAccountException.class,
-                () -> service.create(actor(AccountRole.OWNER), "duplicate"));
+                () -> service.create(actor(AccountRole.OWNER), "duplicate", "Initial123"));
         assertEquals("USERNAME_ALREADY_EXISTS", error.getMessage());
         verify(accounts, never()).saveAndFlush(any());
         verifyNoInteractions(passwords);
@@ -87,10 +87,10 @@ class UC07CreateAdministratorAccountTest {
 
     @Test
     void nonOwnerAndAnonymousAreRejectedEvenWithoutController() {
-        assertThrows(AccessDeniedException.class, () -> service.create(null, "admin"));
+        assertThrows(AccessDeniedException.class, () -> service.create(null, "admin", "Initial123"));
         for (AccountRole role : AccountRole.values()) {
             if (role != AccountRole.OWNER) {
-                assertThrows(AccessDeniedException.class, () -> service.create(actor(role), "admin"));
+                assertThrows(AccessDeniedException.class, () -> service.create(actor(role), "admin", "Initial123"));
             }
         }
         verifyNoInteractions(accounts, concurrency, passwords);
@@ -100,7 +100,7 @@ class UC07CreateAdministratorAccountTest {
     void blankUsernameIsRejectedWithoutInventingAFormat() {
         for (String username : new String[]{null, "", " \t"}) {
             var error = assertThrows(AdministratorAccountException.class,
-                    () -> service.create(actor(AccountRole.OWNER), username));
+                    () -> service.create(actor(AccountRole.OWNER), username, "Initial123"));
             assertEquals("VALIDATION_FAILED", error.getMessage());
         }
         verifyNoInteractions(accounts, concurrency);
@@ -110,7 +110,7 @@ class UC07CreateAdministratorAccountTest {
     void invalidUsernameIsRejectedBeforeAnyPersistence() {
         for (String username : new String[]{"a".repeat(65), "admin\u0000", "admin\n", "admin\u007f", "admin\uD800"}) {
             var error = assertThrows(AdministratorAccountException.class,
-                    () -> service.create(actor(AccountRole.OWNER), username));
+                    () -> service.create(actor(AccountRole.OWNER), username, "Initial123"));
             assertEquals("VALIDATION_FAILED", error.getMessage());
         }
         verifyNoInteractions(accounts, concurrency);
@@ -119,7 +119,7 @@ class UC07CreateAdministratorAccountTest {
     @Test
     void maximumLengthUnicodeUsernameIsPreserved() {
         String username = "\u1ea3".repeat(64);
-        assertEquals(username, service.create(actor(AccountRole.OWNER), username).getUsername());
+        assertEquals(username, service.create(actor(AccountRole.OWNER), username, "Initial123").getUsername());
         verify(accounts).saveAndFlush(any());
     }
 
@@ -129,14 +129,14 @@ class UC07CreateAdministratorAccountTest {
         String username = "a";
 
         // Act
-        var response = service.create(actor(AccountRole.OWNER), username);
+        var response = service.create(actor(AccountRole.OWNER), username, "Initial123");
 
         // Assert
         assertEquals(username, response.getUsername());
         ArgumentCaptor<AccountJpaEntity> saved = ArgumentCaptor.forClass(AccountJpaEntity.class);
         verify(accounts).saveAndFlush(saved.capture());
         assertEquals(username, saved.getValue().getUsername());
-        verify(passwords).issue(saved.getValue());
+        verify(passwords).setInitial(saved.getValue(), "Initial123");
     }
 
     @Test
@@ -151,7 +151,7 @@ class UC07CreateAdministratorAccountTest {
 
         // Act
         var error = assertThrows(AdministratorAccountException.class,
-                () -> service.create(actor(AccountRole.OWNER), "admin"));
+                () -> service.create(actor(AccountRole.OWNER), "admin", "Initial123"));
 
         // Assert: only the public error code survives, without the SQL exception chain.
         assertEquals("USERNAME_ALREADY_EXISTS", error.getMessage());
@@ -161,14 +161,14 @@ class UC07CreateAdministratorAccountTest {
         assertFalse(error.toString().contains("synthetic-temporary-password"));
         verify(accounts).existsByUsername("admin");
         verify(accounts).saveAndFlush(any());
-        verify(passwords).issue(any());
+        verify(passwords).setInitial(any(), eq("Initial123"));
     }
 
     @Test
     void persistenceFailureIsSafeAndDoesNotReturnCredentials() {
         when(accounts.saveAndFlush(any())).thenThrow(new DataIntegrityViolationException("internal detail"));
         var error = assertThrows(AdministratorAccountException.class,
-                () -> service.create(actor(AccountRole.OWNER), "admin"));
+                () -> service.create(actor(AccountRole.OWNER), "admin", "Initial123"));
         assertEquals("ACCOUNT_CREATION_FAILED", error.getMessage());
         assertNull(error.getCause());
     }

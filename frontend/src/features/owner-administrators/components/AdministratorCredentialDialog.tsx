@@ -21,6 +21,7 @@ import {
   type Administrator,
   type IssuedAdministratorPassword,
 } from "../api/administratorApi";
+import { isPasswordValid } from "@/lib/domain/passwordPolicy";
 import { validateAdministratorUsername } from "../schema/administratorRules";
 
 export function AdministratorCredentialDialog({
@@ -33,6 +34,8 @@ export function AdministratorCredentialDialog({
   onSaved: () => void;
 }) {
   const [username, setUsername] = useState(account?.username ?? "");
+  const [initialPassword, setInitialPassword] = useState("");
+  const [passwordError, setPasswordError] = useState(false);
   const [issued, setIssued] = useState<IssuedAdministratorPassword | null>(
     null,
   );
@@ -48,14 +51,16 @@ export function AdministratorCredentialDialog({
       ? undefined
       : validateAdministratorUsername(username);
     setFieldError(invalid);
-    if (invalid) return;
+    const invalidPassword = !account && !isPasswordValid(initialPassword);
+    setPasswordError(invalidPassword);
+    if (invalid || invalidPassword) return;
     setPending(true);
     setError("");
     try {
       setIssued(
         account
           ? await reissueAdministratorPassword(account.accountId)
-          : await createAdministrator(username),
+          : await createAdministrator(username, initialPassword),
       );
       if (!account)
         toast.success(
@@ -107,7 +112,7 @@ export function AdministratorCredentialDialog({
               ? "Chỉ hiển thị tại đây một lần. Đóng cửa sổ sẽ không xem lại được mật khẩu."
               : account
                 ? "Mật khẩu hiện tại sẽ bị thay, các phiên đăng nhập bị thu hồi. Admin phải đổi mật khẩu khi đăng nhập tiếp theo."
-                : "Vai trò cố định: Administrator. Hệ thống sẽ tạo mật khẩu khởi tạo."}
+                : "Vai trò cố định: Administrator. Nhập mật khẩu khởi tạo để bàn giao trực tiếp."}
           </DialogDescription>
         </DialogHeader>
         {issued ? (
@@ -195,6 +200,32 @@ export function AdministratorCredentialDialog({
                 >
                   {fieldError ??
                     "Tối đa 64 ký tự. Tên đăng nhập phải duy nhất."}
+                </p>
+              </div>
+            )}
+            {!account && (
+              <div className="space-y-2">
+                <Label htmlFor="administrator-password">
+                  Mật khẩu khởi tạo
+                </Label>
+                <Input
+                  id="administrator-password"
+                  type="password"
+                  autoComplete="new-password"
+                  value={initialPassword}
+                  disabled={pending}
+                  onChange={(event) => {
+                    setInitialPassword(event.target.value);
+                    setPasswordError(false);
+                  }}
+                  aria-invalid={passwordError}
+                />
+                <p
+                  className={
+                    passwordError ? "text-destructive" : "text-muted-foreground"
+                  }
+                >
+                  Tối thiểu 8 ký tự, gồm chữ và số.
                 </p>
               </div>
             )}

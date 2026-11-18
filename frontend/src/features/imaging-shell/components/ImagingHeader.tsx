@@ -18,7 +18,8 @@ export function ImagingHeader({
   const { state } = useImaging();
   const unread = state.notifications.filter((n) => !n.read).length;
   const currentItem = findActiveImagingItem(pathname);
-  const isOrderScreen = pathname === "/imaging/orders" || pathname.startsWith("/imaging/orders/");
+  const isOrderScreen =
+    pathname === "/imaging/orders" || pathname.startsWith("/imaging/orders/");
   return (
     <header className="flex h-14 shrink-0 items-center gap-3 border-b px-4">
       <SidebarTrigger aria-label="Mở hoặc thu gọn menu" />

@@ -81,6 +81,8 @@ describe("PatientProfilesScreen", () => {
       screen.getByRole("heading", { level: 1, name: "Quản lý gia đình" }),
     ).toBeInTheDocument();
     expect(screen.queryByText("Tiền sử bệnh")).not.toBeInTheDocument();
-    expect(screen.queryByText(/đã gắn với tài khoản này/)).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(/đã gắn với tài khoản này/),
+    ).not.toBeInTheDocument();
   });
 });

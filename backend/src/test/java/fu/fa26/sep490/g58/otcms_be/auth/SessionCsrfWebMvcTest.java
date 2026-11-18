@@ -72,7 +72,7 @@ class SessionCsrfWebMvcTest {
                 .andExpect(status().isAccepted());
         mvc.perform(post("/api/auth/patient/reset-password").contentType("application/json")
                 .cookie(new Cookie("XSRF-TOKEN", token)).header("X-CSRF-TOKEN", token)
-                .content("{\"token\":\"reset-token\",\"newPassword\":\"new-password-123\"}"))
+                .content("{\"email\":\"patient@example.test\",\"otp\":\"123456\",\"newPassword\":\"new-password-123\"}"))
                 .andExpect(status().isNoContent());
     }
 

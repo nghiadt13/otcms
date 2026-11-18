@@ -5,6 +5,7 @@ import fu.fa26.sep490.g58.otcms_be.common.audit.AuditLogWriter;
 
 import fu.fa26.sep490.g58.otcms_be.appointment.model.NoShowAppointment;
 import fu.fa26.sep490.g58.otcms_be.appointment.repository.AppointmentNoShowRepository;
+import fu.fa26.sep490.g58.otcms_be.billing.service.BillingRefundService;
 import fu.fa26.sep490.g58.otcms_be.common.service.CoordinationGuardService;
 import fu.fa26.sep490.g58.otcms_be.config.AppointmentBookingProperties;
 import fu.fa26.sep490.g58.otcms_be.staff.model.DoctorWorkShift;
@@ -39,9 +40,12 @@ public class MarkNoShowAfterShiftTransaction {
     private final AppointmentNoShowRepository appointments;
     private final DoctorScheduleService schedules;
     private final AppointmentBookingProperties properties;
+    private final BillingRefundService fees;
 
     public MarkNoShowAfterShiftTransaction(CoordinationGuardService guard, AppointmentNoShowRepository appointments,
-            DoctorScheduleService schedules, AppointmentBookingProperties properties, AuditLogWriter auditLogWriter) {
+            DoctorScheduleService schedules, AppointmentBookingProperties properties, BillingRefundService fees,
+            AuditLogWriter auditLogWriter) {
+        this.fees = fees;
         this.auditLogWriter = auditLogWriter;
         this.guard = guard;
         this.appointments = appointments;
@@ -62,6 +66,7 @@ public class MarkNoShowAfterShiftTransaction {
         UUID creator = appointments.createdByAccountId(appointmentId);
         appointments.markNoShow(current, creator, "SYSTEM", SHIFT_ENDED_REASON, now,
                 "no-show-sweep-" + appointmentId);
+        fees.voidUnpaidAppointmentFee(appointmentId);
         AppointmentAuditEntries.record(auditLogWriter, AppointmentAuditEntries.changed(current.id(), creator, "SYSTEM", "STATUS_CHANGED",
                 "CONFIRMED", "NO_SHOW", current.doctorProfileId(), current.doctorProfileId(),
                 current.startTime(), current.startTime(), current.endTime(), current.endTime(),

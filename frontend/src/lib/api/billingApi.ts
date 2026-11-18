@@ -2,8 +2,23 @@ import { apiRequest } from "@/lib/api/client";
 import { isApiError } from "@/lib/api/apiError";
 import { PAYOS_IDEMPOTENCY_KEY_PREFIX } from "@/lib/api/payOsIdempotencyKeyPrefix";
 
-/** Trạng thái hóa đơn của BE; `VOID` = đã hủy (lịch giữ chỗ hết hạn hoặc bị hủy), không trả được nữa. */
+/** Trạng thái hóa đơn của BE; `VOID` = đã hủy (lịch bị hủy), không trả được nữa. */
 export type BillingInvoiceStatus = "OPEN" | "PAID" | "VOID";
+
+/**
+ * Trạng thái một khoản (dòng hóa đơn) suy ra từ BE: PENDING chưa trả; PAYMENT_PENDING đang có mã
+ * thanh toán mở; PAID đã trả; VOID đã hủy; REFUND_PENDING chờ hoàn tiền thủ công; REFUNDED đã hoàn.
+ */
+export type InvoiceItemStatus =
+  | "PENDING"
+  | "PAYMENT_PENDING"
+  | "PAID"
+  | "VOID"
+  | "REFUND_PENDING"
+  | "REFUNDED";
+
+/** Kênh tạo mã thanh toán: ONLINE (bệnh nhân qua PayOS), COUNTER_QR (lễ tân đưa QR cho khách). */
+export type PaymentAttemptChannel = "ONLINE" | "COUNTER_QR";
 
 /** Thông điệp chữ thường (chưa có mã MSG) khi hóa đơn/lịch không còn thanh toán được. */
 export const INVOICE_NOT_PAYABLE_MESSAGE =
@@ -44,11 +59,14 @@ export interface BillingInvoice {
   outstandingBalance: number;
   issuedAt: string;
   items: Array<{
+    id: string;
     lineNumber: number;
+    serviceId: string | null;
     description: string;
     quantity: number;
     unitPrice: number;
     lineTotal: number;
+    status: InvoiceItemStatus;
   }>;
 }
 
@@ -126,6 +144,10 @@ export function listMyBillingInvoices(
   });
 }
 
+/**
+ * Mã thanh toán online (PayOS) cho mọi khoản còn trả được của hóa đơn. BE không nhận `itemIds`
+ * ở đây: lần thanh toán online luôn gồm đủ các khoản PENDING.
+ */
 export function createPayOsAttempt(
   invoiceId: string,
   idempotencyKey: string,
@@ -136,9 +158,28 @@ export function createPayOsAttempt(
     {
       method: "POST",
       headers: { "Idempotency-Key": idempotencyKey },
+      body: JSON.stringify({ channel: "ONLINE" }),
       signal,
     },
   ).catch(notPayableOr(["INVOICE_NOT_PAYABLE"]));
+}
+
+/** Mã QR PayOS tại quầy cho các khoản đã chọn (lễ tân). Trạng thái đọc qua getPayOsAttempt. */
+export function createCounterQrAttempt(
+  invoiceId: string,
+  itemIds: readonly string[],
+  idempotencyKey: string,
+  signal?: AbortSignal,
+): Promise<PayOsPaymentAttempt> {
+  return apiRequest<PayOsPaymentAttempt>(
+    `/api/v1/invoices/${encodeURIComponent(invoiceId)}/payment-attempts`,
+    {
+      method: "POST",
+      headers: { "Idempotency-Key": idempotencyKey },
+      body: JSON.stringify({ itemIds: [...itemIds], channel: "COUNTER_QR" }),
+      signal,
+    },
+  );
 }
 
 export function getPayOsAttempt(
@@ -227,10 +268,13 @@ export function createClinicalRoundInvoice(
     { method: "POST" },
   );
 }
+/**
+ * Thu tiền mặt tại quầy cho các khoản đã chọn của một hóa đơn. Số tiền do BE tính (tổng các khoản).
+ * Khoản không còn trả được → 409 MSG-49.
+ */
 export function recordCounterPayment(
   invoiceId: string,
-  amount: number,
-  method: "CASH" | "BANK_TRANSFER" | "OTHER",
+  itemIds: readonly string[],
   idempotencyKey: string,
 ) {
   return apiRequest<PayOsPaymentAttempt>(
@@ -238,7 +282,7 @@ export function recordCounterPayment(
     {
       method: "POST",
       headers: { "Idempotency-Key": idempotencyKey },
-      body: JSON.stringify({ amount, method }),
+      body: JSON.stringify({ itemIds: [...itemIds], method: "CASH" }),
     },
   );
 }

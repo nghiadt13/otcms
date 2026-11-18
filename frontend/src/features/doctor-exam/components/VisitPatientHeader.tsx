@@ -118,25 +118,27 @@ export function VisitPatientHeader() {
             ) : null}
           </div>
         </div>
-        <dl className="grid gap-x-6 gap-y-3 border-t pt-4 sm:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
-          <div className="min-w-0">
-            <dt className="text-xs text-muted-foreground">Dị ứng</dt>
-            <dd className="mt-0.5 text-sm">
-              {!context.allergiesLoaded && context.patientProfileId ? (
-                <StatusBadge tone="warning">
-                  Chưa đọc được dị ứng, hỏi bệnh nhân trước khi chỉ định
-                </StatusBadge>
-              ) : context.allergies && context.allergies !== "Không" ? (
-                <StatusBadge tone="danger">{context.allergies}</StatusBadge>
-              ) : (
-                <span className="text-muted-foreground">
-                  {context.allergies || "Chưa ghi nhận"}
-                </span>
-              )}
-            </dd>
-          </div>
-          <Fact label="Tiền sử bệnh" value={context.medicalHistory} />
-        </dl>
+        {context.status !== "COMPLETED" && (
+          <dl className="grid gap-x-6 gap-y-3 border-t pt-4 sm:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
+            <div className="min-w-0">
+              <dt className="text-xs text-muted-foreground">Dị ứng</dt>
+              <dd className="mt-0.5 text-sm">
+                {!context.allergiesLoaded && context.patientProfileId ? (
+                  <StatusBadge tone="warning">
+                    Chưa đọc được dị ứng, hỏi bệnh nhân trước khi chỉ định
+                  </StatusBadge>
+                ) : context.allergies && context.allergies !== "Không" ? (
+                  <StatusBadge tone="danger">{context.allergies}</StatusBadge>
+                ) : (
+                  <span className="text-muted-foreground">
+                    {context.allergies || "Chưa ghi nhận"}
+                  </span>
+                )}
+              </dd>
+            </div>
+            <Fact label="Tiền sử bệnh" value={context.medicalHistory} />
+          </dl>
+        )}
       </CardContent>
     </Card>
   );

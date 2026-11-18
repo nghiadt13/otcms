@@ -8,11 +8,13 @@ import type {
   ExaminationInput,
   ImagingResult,
   LabResult,
+  LabResultAssessment,
   OrderDraftItem,
   ParaclinicalOrder,
   PastVisit,
   Prescription,
   ResultSheet,
+  AmendChanges,
   TodayPatient,
   VisitContext,
 } from "../types/doctorExam";
@@ -99,6 +101,11 @@ export interface DoctorExamApi {
     report: File | null,
   ): Promise<ImagingResult>;
   listLabResults(visitId: string, signal?: AbortSignal): Promise<LabResult[]>;
+  assessLabResult(
+    visitId: string,
+    orderId: string,
+    assessment: string,
+  ): Promise<LabResultAssessment>;
   getPrescription(
     visitId: string,
     signal?: AbortSignal,
@@ -128,7 +135,11 @@ export interface DoctorExamApi {
     visitId: string,
     signal?: AbortSignal,
   ): Promise<ResultSheet[]>;
-  amendResult(visitId: string, reason: string): Promise<ResultSheet[]>;
+  amendResult(
+    visitId: string,
+    reason: string,
+    changes?: AmendChanges,
+  ): Promise<ResultSheet[]>;
 }
 
 /** Chọn bản theo từng lần gọi để công tắc demo có hiệu lực ngay, không cần tải lại module. */

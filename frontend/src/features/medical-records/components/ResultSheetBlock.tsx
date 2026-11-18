@@ -19,8 +19,7 @@ export function ResultSheetBlock({ sheets }: { sheets: ResultSheetVersion[] }) {
       </p>
     );
   const ordered = [...sheets].sort(
-    (a, b) =>
-      b.issuedAt.localeCompare(a.issuedAt) || b.version - a.version,
+    (a, b) => b.issuedAt.localeCompare(a.issuedAt) || b.version - a.version,
   );
   return (
     <ul className="divide-y rounded-lg border">
@@ -106,7 +105,12 @@ function ResultSheetButton({
         rel="noopener noreferrer"
         target="_blank"
       >
-        {loading ? "Đang mở…" : "Xem PDF"}
+        {loading
+          ? "Đang mở…"
+          : sheet.status === "CURRENT" &&
+              sheet.fileUrl.startsWith("/api/v1/medical-documents/")
+            ? "Xem phiếu kết quả"
+            : "Xem PDF"}
         <span className="sr-only"> phiên bản {sheet.version}</span>
         {!loading ? <ExternalLink aria-hidden /> : null}
       </a>

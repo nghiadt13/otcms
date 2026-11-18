@@ -1,7 +1,10 @@
 "use client";
 
 import { localPhoneFromInput } from "../schema/patientProfileFieldChecks";
-import { ProfileTextField, type ProfileTextFieldProps } from "./ProfileTextField";
+import {
+  ProfileTextField,
+  type ProfileTextFieldProps,
+} from "./ProfileTextField";
 
 /**
  * Ô số điện thoại có sẵn "+84": người dùng chỉ gõ 9 số còn lại. Giá trị của form vẫn là số

@@ -80,8 +80,9 @@ public class ImagingStudyContractAdapter implements ImagingStudyPort {
     public ReleaseAcknowledgement acceptFindingsRelease(FindingsReleaseEvent event) {
         if (event == null || event.eventId() == null || event.requestId() == null || event.visitId() == null
                 || event.patientId() == null || event.studyRef() == null || event.findingsVersionId() == null
-                || event.reportId() == null || event.reportSha256() == null
-                || !event.reportSha256().matches("[0-9a-f]{64}")) {
+                // The PDF report is optional (UC-50 AF2): both report fields are present or both absent.
+                || (event.reportId() == null) != (event.reportSha256() == null)
+                || (event.reportSha256() != null && !event.reportSha256().matches("[0-9a-f]{64}"))) {
             throw new ImagingOperationException(ImagingOperationOutcome.EVIDENCE_MISMATCH);
         }
         String payloadHash = hashRelease(event);

@@ -12,8 +12,10 @@ import fu.fa26.sep490.g58.otcms_be.common.security.*;
 import fu.fa26.sep490.g58.otcms_be.content.service.ClinicContentService;
 import fu.fa26.sep490.g58.otcms_be.patient.service.PatientProfileAccessService;
 import fu.fa26.sep490.g58.otcms_be.staff.service.DoctorProfileIdentityQueryService;
+import fu.fa26.sep490.g58.otcms_be.visit.service.VisitReviewSourceService;
 import java.util.*;
 import java.util.stream.Collectors;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
@@ -30,13 +32,16 @@ public class PatientPrescriptionQueryServiceImpl implements PatientPrescriptionQ
     private final VisitClinicalContextPort visits;
     private final ClinicalExaminationHistoryQueryService examinations;
     private final ClinicContentService clinic;
+    private final VisitReviewSourceService visitSources;
 
     public PatientPrescriptionQueryServiceImpl(PatientProfileAccessService access, PatientProfileDirectory profiles,
             DoctorProfileIdentityQueryService doctors, ClinicalPrescriptionRepository prescriptions,
             ClinicalPrescriptionItemRepository items, VisitClinicalContextPort visits,
-            ClinicalExaminationHistoryQueryService examinations, ClinicContentService clinic) {
+            ClinicalExaminationHistoryQueryService examinations, ClinicContentService clinic,
+            VisitReviewSourceService visitSources) {
         this.access = access; this.profiles = profiles; this.doctors = doctors; this.prescriptions = prescriptions;
         this.items = items; this.visits = visits; this.examinations = examinations; this.clinic = clinic;
+        this.visitSources = visitSources;
     }
 
     @Override
@@ -50,7 +55,10 @@ public class PatientPrescriptionQueryServiceImpl implements PatientPrescriptionQ
         if (patientId != null && !allowed.contains(patientId)) throw error("MSG-40");
         if (page < 0 || size < 1 || size > 100) throw error("MSG-39");
         var selected = patientId == null ? allowed : Set.of(patientId);
-        var headers = prescriptions.findByPatientProfileIdInAndStatus(selected, ClinicalPrescriptionStatus.ISSUED,
+        var closedVisitIds = selected.stream().flatMap(id -> visitSources.closedVisits(id).stream())
+                .map(VisitReviewSourceService.Source::id).toList();
+        var headers = closedVisitIds.isEmpty() ? Page.<ClinicalPrescriptionJpaEntity>empty(PageRequest.of(page, size))
+                : prescriptions.findByPatientProfileIdInAndStatusAndVisitIdIn(selected, ClinicalPrescriptionStatus.ISSUED, closedVisitIds,
                 PageRequest.of(page, size, Sort.by(Sort.Order.desc("issuedAt"), Sort.Order.desc("id"))));
         if (headers.isEmpty()) return new PrescriptionPage(List.of(), page, size, headers.getTotalElements(), headers.getTotalPages());
         var patients = profiles.findProfiles(headers.stream().map(ClinicalPrescriptionJpaEntity::getPatientProfileId).distinct().toList())
@@ -77,6 +85,8 @@ public class PatientPrescriptionQueryServiceImpl implements PatientPrescriptionQ
         var visit = visits.getVisitContext(prescription.getVisitId());
         if (visit == null || !prescription.getVisitId().equals(visit.visitId())
                 || !prescription.getPatientProfileId().equals(visit.patientId())) throw error("MSG-41");
+        // BR-35 / UC-44 E3: prescriptions are visible only after the visit is closed.
+        if (!visitSources.find(prescription.getVisitId()).map(source -> "CLOSED".equals(source.status())).orElse(false)) throw error("MSG-42");
         var profile = profiles.findProfile(prescription.getPatientProfileId()).orElseThrow(() -> error("MSG-41"));
         var completed = examinations.findCompletedByVisitIds(List.of(prescription.getVisitId())).get(prescription.getVisitId());
         String diagnosis = completed == null ? null : completed.examination().diagnoses().stream()

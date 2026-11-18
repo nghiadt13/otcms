@@ -3,7 +3,6 @@ import { SiteHeader } from "@/features/clinic-website/components/SiteHeader";
 import { SiteTopBar } from "@/features/clinic-website/components/SiteTopBar";
 import { topBarContact } from "@/features/clinic-website/siteNavigation";
 import { PatientNotificationBell } from "@/features/notifications/components/PatientNotificationBell";
-import { PatientNotificationMockBootstrap } from "@/features/notifications/components/PatientNotificationMockBootstrap";
 
 // Khung chung của các trang giới thiệu (trang chủ, sau này /doctors, /services):
 // dải thông tin (desktop), header dính và footer liên hệ. Màn xác thực nằm ngoài nhóm `(site)` nên không có
@@ -26,7 +25,6 @@ export default function SiteLayout({
         hotline={topBarContact.hotline}
         notificationSlot={<PatientNotificationBell />}
       />
-      <PatientNotificationMockBootstrap />
       <main className="flex-1" id="main-content" tabIndex={-1}>
         {children}
       </main>

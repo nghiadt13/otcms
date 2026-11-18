@@ -14,7 +14,7 @@ public final class PastMedicalRecordsDtos {
         public HistoryResponse { items = List.copyOf(items); }
         @Override public String toString() { return "HistoryResponse[redacted]"; }
     }
-    public record HistoricalVisitRecord(UUID visitId, Instant arrivedAt, Examination examination, Advice advice,
+    public record HistoricalVisitRecord(UUID visitId, Instant arrivedAt, String status, Examination examination, Advice advice,
             IssuedPrescriptionSummary prescription, List<DocumentSummary> documents, List<DiagnosticHistoryItem> imagingResults) {
         public HistoricalVisitRecord { documents = List.copyOf(documents); imagingResults = List.copyOf(imagingResults); }
         @Override public String toString() { return "HistoricalVisitRecord[redacted]"; }

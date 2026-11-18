@@ -1,6 +1,6 @@
 import { cn } from "@/lib/utils";
 
-const STEPS = ["Thông tin", "Quan hệ", "Xác nhận"] as const;
+const STEPS = ["Thông tin", "Quan hệ", "Xác thực nếu hồ sơ đã có"] as const;
 
 /** Thanh bước của form thêm thành viên; `current` bắt đầu từ 1. */
 export function DependentWizardSteps({ current }: { current: 1 | 2 | 3 }) {

@@ -25,9 +25,15 @@ it("loads supported subjects and forwards the exact report query", async () => {
     expect.objectContaining({ method: "POST", body: JSON.stringify(query) }),
   );
 });
-it("never manufactures export files when the backend capability is unavailable", async () => {
+it("exports the exact report query as CSV and never fakes a file when the backend fails", async () => {
+  mock.download.mockResolvedValueOnce(undefined);
+  await exportReport(query, "csv");
+  expect(mock.download).toHaveBeenCalledWith(
+    "/api/v1/admin/reports/export?subject=APPOINTMENTS&from=2026-11-01&to=2026-11-07&breakdown=DATE&format=csv",
+    expect.anything(),
+  );
   mock.download.mockRejectedValue(new ApiError(503, { code: "MSG-04" }));
-  await expect(exportReport(query, "pdf")).rejects.toMatchObject({
+  await expect(exportReport(query, "csv")).rejects.toMatchObject({
     status: 503,
   });
 });

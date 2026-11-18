@@ -4,20 +4,14 @@ import { APP_MESSAGES, formatAppMessage } from "./appMessages";
 // Mã MSG của khu Lễ tân (tiếp nhận, hàng đợi, lịch hẹn). Tách file riêng để không lẫn với
 // test của khu bệnh nhân.
 describe("mã MSG khu Lễ tân", () => {
-  it.each(["MSG-18", "MSG-37", "MSG-38", "MSG-39", "MSG-48", "MSG-94"])(
+  it.each(["MSG-18", "MSG-37", "MSG-38", "MSG-39", "MSG-48", "MSG-88"])(
     "%s có câu chữ trong bảng",
     (code) => {
       expect(APP_MESSAGES[code]).toBeTruthy();
     },
   );
 
-  it("MSG-94 thay {number} và {room} khi tiếp nhận xong", () => {
-    expect(
-      formatAppMessage("MSG-94", { number: 12, room: "Phòng khám 2" }),
-    ).toBe("Đã tiếp nhận bệnh nhân. Số thứ tự 12, phòng Phòng khám 2.");
-  });
-
-  it("MSG-88 (R3) thay {number} và {room} khi tiếp nhận xong", () => {
+  it("MSG-88 thay {number} và {room} khi tiếp nhận xong", () => {
     expect(
       formatAppMessage("MSG-88", { number: 12, room: "Phòng khám 2" }),
     ).toBe("Đã tiếp nhận bệnh nhân. Số thứ tự 12, phòng Phòng khám 2.");
@@ -29,8 +23,8 @@ describe("mã MSG khu Lễ tân", () => {
     );
   });
 
-  it("MSG-94 thiếu tham số thì giữ nguyên {number} để dễ thấy", () => {
-    expect(formatAppMessage("MSG-94", { room: "Phòng 1" })).toBe(
+  it("MSG-88 thiếu tham số thì giữ nguyên {number} để dễ thấy", () => {
+    expect(formatAppMessage("MSG-88", { room: "Phòng 1" })).toBe(
       "Đã tiếp nhận bệnh nhân. Số thứ tự {number}, phòng Phòng 1.",
     );
   });

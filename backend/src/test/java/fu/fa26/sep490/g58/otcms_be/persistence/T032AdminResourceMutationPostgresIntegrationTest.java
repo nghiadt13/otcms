@@ -265,7 +265,7 @@ class T032AdminResourceMutationPostgresIntegrationTest {
                         .content("{\"resourceType\":\"TIME_OFF\",\"startsAt\":\"" + resourceStart + "\",\"endsAt\":\""
                                 + resourceStart.plus(Duration.ofHours(1)) + "\"}"))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error.code").value("DOCTOR_RESOURCE_REQUEST_INVALID"));
+                .andExpect(jsonPath("$.error.code").value("MSG-34"));
     }
 
     @Test

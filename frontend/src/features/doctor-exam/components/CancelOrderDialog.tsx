@@ -20,7 +20,7 @@ import { getDoctorExamApi } from "../api/doctorExamApi";
 import { useAsyncAction } from "../hooks/useAsyncAction";
 import type { CancelCause, ParaclinicalOrder } from "../types/doctorExam";
 
-// Hủy chỉ định chưa có kết quả, bắt buộc lý do; chỉ định đã hủy không hoàn tiền (R3 UC45 AF2, BR-53).
+// Cancelling an order without results requires a reason.
 
 const CAUSES: Record<CancelCause, string> = {
   PATIENT_DECLINED: "Bệnh nhân từ chối",
@@ -60,8 +60,7 @@ export function CancelOrderDialog({
         <DialogHeader>
           <DialogTitle>Hủy chỉ định</DialogTitle>
           <DialogDescription>
-            {order?.serviceName}. Chỉ định đã hủy không được hoàn tiền, kể cả
-            khi đã thanh toán.
+            {order?.serviceName}. Vui lòng chọn nguyên nhân và nhập lý do hủy.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">

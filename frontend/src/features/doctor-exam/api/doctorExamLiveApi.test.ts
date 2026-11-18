@@ -377,9 +377,13 @@ describe("ghi nhận khám và lời dặn", () => {
   it("nháp dùng PUT /examination, hoàn thành dùng POST /examination/completion; null thành chuỗi rỗng", async () => {
     request.mockResolvedValue(dto);
     const draft = await doctorLiveApi.saveExamination("v", input, "draft");
-    expect(request).toHaveBeenLastCalledWith("/api/v1/visits/v/examination", {
-      method: "PUT",
-      body: JSON.stringify(input),
+    expect(request.mock.lastCall![0]).toBe("/api/v1/visits/v/examination");
+    expect(request.mock.lastCall![1].method).toBe("PUT");
+    // An empty side is sent as null so the DB side check (V136) accepts the draft.
+    expect(JSON.parse(request.mock.lastCall![1].body)).toMatchObject({
+      reasonForVisit: "Đau",
+      injurySide: null,
+      diagnoses: input.diagnoses,
     });
     expect(draft.injuryBodySite).toBe("");
     await doctorLiveApi.saveExamination("v", input, "complete");
@@ -475,59 +479,70 @@ describe("chỉ định cận lâm sàng và kết luận hình ảnh", () => {
     });
   });
 
-  it("chưa gửi chỉ định xét nghiệm lên BE (chưa hỗ trợ)", async () => {
-    await expect(
-      doctorLiveApi.submitOrders("v", [item("crp")], catalog, "key", true),
-    ).rejects.toMatchObject({ status: 400, code: "MSG-39" });
-    expect(request).not.toHaveBeenCalled();
+  it("gửi chỉ định xét nghiệm tới endpoint laboratory-requests", async () => {
+    request.mockResolvedValue({ roundNumber: 1, orders: [] });
+    await doctorLiveApi.submitOrders("v", [item("crp")], catalog, "key", true);
+    expect(request.mock.calls.map(([path]) => path)).toContain(
+      "/api/v1/visits/v/laboratory-requests",
+    );
   });
 
   it("danh sách chỉ định ghép trạng thái yêu cầu ảnh với lịch sử kết luận", async () => {
     request.mockImplementation(async (path: string) =>
-      path.startsWith("/api/v1/imaging-history")
-        ? {
-            items: [
-              {
-                requestId: "r1",
-                studyRef: "uid-1",
-                findingsText: "Rách",
-                findingsVersion: 1,
-                reportId: "rep",
-              },
-            ],
-          }
-        : {
-            items: [
-              {
-                orderId: "o1",
-                orderCode: "CD1",
-                serviceName: "MRI gối",
-                orderStatus: "RESULTS_AVAILABLE",
-                paymentStatus: "PAID",
-                diagnostic: { requestId: "r1", status: "REVIEWED", version: 5 },
-              },
-              {
-                orderId: "o2",
-                orderCode: "CD2",
-                serviceName: "X-quang",
-                orderStatus: "ORDERED",
-                paymentStatus: "PAID",
-                diagnostic: { requestId: "r2", status: "PENDING", version: 1 },
-              },
-              {
-                orderId: "o3",
-                orderCode: "CD3",
-                serviceName: "CT",
-                orderStatus: "CANCELLED",
-                paymentStatus: "PAID",
-                diagnostic: {
-                  requestId: "r3",
-                  status: "CANCELLED",
-                  version: 2,
+      path.endsWith("/laboratory-orders")
+        ? { items: [] }
+        : path.startsWith("/api/v1/imaging-history")
+          ? {
+              items: [
+                {
+                  requestId: "r1",
+                  studyRef: "uid-1",
+                  findingsText: "Rách",
+                  findingsVersion: 1,
+                  reportId: "rep",
                 },
-              },
-            ],
-          },
+              ],
+            }
+          : {
+              items: [
+                {
+                  orderId: "o1",
+                  orderCode: "CD1",
+                  serviceName: "MRI gối",
+                  orderStatus: "RESULTS_AVAILABLE",
+                  paymentStatus: "PAID",
+                  diagnostic: {
+                    requestId: "r1",
+                    status: "REVIEWED",
+                    version: 5,
+                  },
+                },
+                {
+                  orderId: "o2",
+                  orderCode: "CD2",
+                  serviceName: "X-quang",
+                  orderStatus: "ORDERED",
+                  paymentStatus: "PAID",
+                  diagnostic: {
+                    requestId: "r2",
+                    status: "PENDING",
+                    version: 1,
+                  },
+                },
+                {
+                  orderId: "o3",
+                  orderCode: "CD3",
+                  serviceName: "CT",
+                  orderStatus: "CANCELLED",
+                  paymentStatus: "PAID",
+                  diagnostic: {
+                    requestId: "r3",
+                    status: "CANCELLED",
+                    version: 2,
+                  },
+                },
+              ],
+            },
     );
     const orders = await doctorLiveApi.listOrders("v");
     expect(orders.map((o) => o.status)).toEqual([
@@ -563,7 +578,7 @@ describe("chỉ định cận lâm sàng và kết luận hình ảnh", () => {
     });
   });
 
-  it("hoàn tất kết luận: xem ảnh → lưu nháp → tải PDF → hoàn tất, và đòi PDF", async () => {
+  it("hoàn tất kết luận: xem ảnh → lưu nháp → tải PDF (tùy chọn) → hoàn tất", async () => {
     const calls: string[] = [];
     request.mockImplementation(async (path: string, init?: RequestInit) => {
       calls.push(`${init?.method ?? "GET"} ${path.split("?")[0]}`);
@@ -581,11 +596,6 @@ describe("chỉ định cận lâm sàng và kết luận hình ảnh", () => {
         version: 3,
       },
     } as never;
-    await expect(
-      doctorLiveApi.completeFindings(order, "Rách", null),
-    ).rejects.toMatchObject({
-      code: "MSG-47",
-    });
     const file = new File(["%PDF"], "kq.pdf", { type: "application/pdf" });
     const result = await doctorLiveApi.completeFindings(order, "Rách", file);
     const steps = calls.filter((c) => !c.startsWith("GET"));
@@ -609,22 +619,57 @@ describe("chỉ định cận lâm sàng và kết luận hình ảnh", () => {
     });
   });
 
+  it("hoàn tất kết luận không cần PDF: bỏ bước tải báo cáo và gửi reportId null", async () => {
+    const calls: string[] = [];
+    request.mockImplementation(async (path: string, init?: RequestInit) => {
+      calls.push(`${init?.method ?? "GET"} ${path.split("?")[0]}`);
+      if (path.endsWith("/findings")) return { version: 1, reportId: null };
+      if (path === "/api/v1/imaging-requests/r1")
+        return { version: 4, status: "REVIEWED" };
+      return undefined;
+    });
+    const order = {
+      imaging: {
+        requestId: "r1",
+        studyRef: "uid-1",
+        reviewed: true,
+        version: 4,
+      },
+    } as never;
+    const result = await doctorLiveApi.completeFindings(order, "Rách", null);
+    expect(calls.filter((c) => !c.startsWith("GET"))).toEqual([
+      "POST /api/v1/imaging-requests/r1/findings",
+      "POST /api/v1/imaging-requests/r1/findings/completions",
+    ]);
+    const completion = request.mock.calls.find((c) =>
+      String(c[0]).endsWith("/completions"),
+    )!;
+    expect(JSON.parse(completion[1].body)).toEqual({
+      findingsVersion: 1,
+      reportId: null,
+      studyRef: "uid-1",
+    });
+    expect(result).toMatchObject({ findingsCompleted: true, reportId: null });
+  });
+
   it("chỉ yêu cầu ảnh còn PENDING mới hủy được", async () => {
     request.mockImplementation(async (path: string) =>
-      path.startsWith("/api/v1/imaging-history")
+      path.endsWith("/laboratory-orders")
         ? { items: [] }
-        : {
-            items: ["PENDING", "IN_PROGRESS", "RESULT_AVAILABLE"].map(
-              (status, i) => ({
-                orderId: "o" + i,
-                orderCode: "CD" + i,
-                serviceName: "X-quang",
-                paymentStatus: "PAID",
-                orderStatus: "ORDERED",
-                diagnostic: { requestId: "r" + i, status, version: 1 },
-              }),
-            ),
-          },
+        : path.startsWith("/api/v1/imaging-history")
+          ? { items: [] }
+          : {
+              items: ["PENDING", "IN_PROGRESS", "RESULT_AVAILABLE"].map(
+                (status, i) => ({
+                  orderId: "o" + i,
+                  orderCode: "CD" + i,
+                  serviceName: "X-quang",
+                  paymentStatus: "PAID",
+                  orderStatus: "ORDERED",
+                  diagnostic: { requestId: "r" + i, status, version: 1 },
+                }),
+              ),
+            },
     );
     expect(
       (await doctorLiveApi.listOrders("v")).map((o) => o.cancellable),
@@ -727,5 +772,62 @@ describe("ngữ cảnh lượt khám nhiều trang và tiền sử", () => {
       "procedures",
       "version",
     ]);
+  });
+});
+
+describe("hàng chờ bác sĩ: đã gọi hoặc vắng, tuổi từ BE và chỉ định (UC-35)", () => {
+  it("lượt đã gọi hoặc vắng vẫn là chờ khám; tuổi lấy từ BE; chỉ định đi kèm lượt chờ kết luận", async () => {
+    const orders = [
+      {
+        id: "o1",
+        code: "XN-1",
+        serviceName: "X-quang cột sống",
+        status: "RESULTS_AVAILABLE",
+        paymentStatus: "PAID",
+        roomId: null,
+      },
+    ];
+    route({
+      "/api/v1/doctor/exam-queue": {
+        items: [
+          queueRow({
+            visitId: "called-1",
+            examStatus: "CALLED",
+            queueNumber: 1,
+            appointmentId: null,
+            source: "WALK_IN",
+            dateOfBirth: null,
+          }),
+          queueRow({
+            visitId: "absent-1",
+            examStatus: "ABSENT",
+            queueNumber: 2,
+            appointmentId: null,
+            source: "WALK_IN",
+            dateOfBirth: null,
+          }),
+          queueRow({
+            visitId: "await-1",
+            examStatus: "AWAITING_CONCLUSION",
+            queueNumber: 3,
+            appointmentId: null,
+            source: "WALK_IN",
+            dateOfBirth: "1980-05-20",
+            age: 46,
+            serviceOrders: orders,
+          }),
+        ],
+      },
+      "/api/v1/appointments?": { items: [] },
+    });
+    const rows = await doctorLiveApi.listTodayPatients();
+    expect(rows.map((r) => r.status)).toEqual([
+      "WAITING_FOR_EXAMINATION",
+      "WAITING_FOR_EXAMINATION",
+      "AWAITING_CONCLUSION",
+    ]);
+    expect(rows[2]).toMatchObject({ visitId: "await-1", age: 46 });
+    expect(rows[2].serviceOrders).toEqual(orders);
+    expect(rows[0].serviceOrders).toEqual([]);
   });
 });

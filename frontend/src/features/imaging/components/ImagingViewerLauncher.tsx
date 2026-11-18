@@ -52,8 +52,8 @@ export function ImagingViewerLauncher({
           : purpose === "DOCTOR_REVIEW"
             ? "Mở ảnh DICOM"
             : purpose === "TECHNICIAN_ASSIGNED"
-            ? "Mở OHIF Viewer"
-            : "Mở ảnh DICOM"}
+              ? "Mở OHIF Viewer"
+              : "Mở ảnh DICOM"}
       </Button>
       {error ? (
         <div className="space-y-2">

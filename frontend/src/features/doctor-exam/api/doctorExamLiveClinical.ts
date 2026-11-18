@@ -13,19 +13,21 @@ import type {
 // Ghi nhận khám (UC37) và lời dặn (UC42) qua `clinical` của BE: GET/PUT /visits/{id}/examination,
 // POST …/examination/completion, GET/PUT …/after-visit-advice. Chưa có bản ghi → 404 (MSG-41).
 
-type ExaminationDto = {
+export type ExaminationDto = {
   reasonForVisit: string | null;
   symptoms: string | null;
   examinationFindings: string | null;
   injuryBodySite: string | null;
   injurySide: string | null;
   injuryMechanism: string | null;
+  injuryDescription: string | null;
+  treatmentDirections?: string[] | null;
   status: ExaminationStatus;
   diagnoses: Diagnosis[] | null;
   version: number | null;
 };
 
-type AdviceDto = {
+export type AdviceDto = {
   homeCareAdvice: string | null;
   activityAdvice: string | null;
   rehabilitationAdvice: string | null;
@@ -41,7 +43,7 @@ const root = (visitId: string) =>
 
 const text = (value: string | null | undefined) => value ?? "";
 
-function toExamination(dto: ExaminationDto): Examination {
+export function toExamination(dto: ExaminationDto): Examination {
   return {
     reasonForVisit: text(dto.reasonForVisit),
     symptoms: text(dto.symptoms),
@@ -49,6 +51,8 @@ function toExamination(dto: ExaminationDto): Examination {
     injuryBodySite: text(dto.injuryBodySite),
     injurySide: text(dto.injurySide),
     injuryMechanism: text(dto.injuryMechanism),
+    injuryDescription: text(dto.injuryDescription),
+    treatmentDirections: dto.treatmentDirections ?? [],
     diagnoses: dto.diagnoses ?? [],
     status: dto.status,
     version: dto.version,
@@ -74,6 +78,20 @@ export async function getExamination(
   }
 }
 
+/**
+ * Form phẳng -> thân yêu cầu BE, đúng tên trường của BE. Bên chưa chọn gửi null để không thành mã nào;
+ * hướng điều trị rỗng gửi null vì cột chỉ nhận từ 1 đến 4 mã.
+ */
+export function examinationPayload(input: ExaminationInput) {
+  return {
+    ...input,
+    injurySide: input.injurySide || null,
+    treatmentDirections: input.treatmentDirections?.length
+      ? input.treatmentDirections
+      : null,
+  };
+}
+
 export async function saveExamination(
   visitId: string,
   input: ExaminationInput,
@@ -83,16 +101,16 @@ export async function saveExamination(
     mode === "draft"
       ? await apiRequest<ExaminationDto>(`${root(visitId)}/examination`, {
           method: "PUT",
-          body: JSON.stringify(input),
+          body: JSON.stringify(examinationPayload(input)),
         })
       : await apiRequest<ExaminationDto>(
           `${root(visitId)}/examination/completion`,
-          { method: "POST", body: JSON.stringify(input) },
+          { method: "POST", body: JSON.stringify(examinationPayload(input)) },
         );
   return toExamination(dto);
 }
 
-function toAdvice(dto: AdviceDto): Advice {
+export function toAdvice(dto: AdviceDto): Advice {
   return {
     homeCareAdvice: text(dto.homeCareAdvice),
     activityAdvice: text(dto.activityAdvice),

@@ -140,14 +140,14 @@ class AppointmentAvailabilityT019PostgresIntegrationTest {
     }
 
     @Test
-    void doctorMayInspectAnotherEligibleProviderForFollowUp() throws Exception {
+    void doctorAvailabilityIsRestrictedToOwnProfile() throws Exception {
         mvc.perform(get("/api/v1/staff/appointments/availability").with(actor(AccountType.DOCTOR))
                         .param("serviceId", serviceId.toString())
                         .param("doctorId", doctorIds.get(1).toString())
                         .param("from", AVAILABLE_DATE.toString()).param("to", AVAILABLE_DATE.toString()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.slots[*].doctorId", hasItem(doctorIds.get(1).toString())))
-                .andExpect(jsonPath("$.slots[*].doctorId", not(hasItem(doctorIds.get(0).toString()))));
+                .andExpect(jsonPath("$.slots[*].doctorId", hasItem(doctorIds.get(0).toString())))
+                .andExpect(jsonPath("$.slots[*].doctorId", not(hasItem(doctorIds.get(1).toString()))));
     }
 
     @Test
@@ -170,12 +170,12 @@ class AppointmentAvailabilityT019PostgresIntegrationTest {
                         .param("serviceId", serviceId.toString()).param("doctorId", doctorIds.get(2).toString())
                         .param("from", AVAILABLE_DATE.toString()).param("to", AVAILABLE_DATE.toString()))
                 .andExpect(status().isUnprocessableEntity())
-                .andExpect(jsonPath("$.error.code").value("DOCTOR_NOT_ELIGIBLE"));
+                .andExpect(jsonPath("$.error.code").value("MSG-24"));
 
         mvc.perform(get("/api/v1/appointments/availability")
                         .param("serviceId", serviceId.toString()).param("from", "not-a-date").param("to", AVAILABLE_DATE.toString()))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
+                .andExpect(jsonPath("$.error.code").value("MSG-54"));
     }
 
     @Test
@@ -189,7 +189,7 @@ class AppointmentAvailabilityT019PostgresIntegrationTest {
                         .param("serviceId", serviceId.toString())
                         .param("from", "2026-10-13").param("to", "2026-10-13"))
                 .andExpect(status().isUnprocessableEntity())
-                .andExpect(jsonPath("$.error.code").value("BOOKING_WINDOW_VIOLATION"));
+                .andExpect(jsonPath("$.error.code").value("MSG-31"));
     }
 
     private void insertService(UUID id, boolean onlineBookable, boolean active, String name) {
@@ -206,7 +206,7 @@ class AppointmentAvailabilityT019PostgresIntegrationTest {
     }
 
     private RequestPostProcessor actor(AccountType type) {
-        var principal = new AuthenticatedAccount(UUID.randomUUID(), fu.fa26.sep490.g58.otcms_be.common.security.AccountRole.valueOf(type.name()), UUID.randomUUID());
+        var principal = new AuthenticatedAccount(type == AccountType.DOCTOR ? accountIds.get(0) : UUID.randomUUID(), fu.fa26.sep490.g58.otcms_be.common.security.AccountRole.valueOf(type.name()), UUID.randomUUID());
         return authentication(new UsernamePasswordAuthenticationToken(principal, null,
                 List.of(new SimpleGrantedAuthority("ROLE_" + type.name()))));
     }

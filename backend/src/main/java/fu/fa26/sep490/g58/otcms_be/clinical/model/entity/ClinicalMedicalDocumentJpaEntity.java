@@ -18,6 +18,8 @@ public class ClinicalMedicalDocumentJpaEntity {
     @Column(name = "byte_size", nullable = false) private long byteSize;
     @Column(name = "released_at") private Instant releasedAt;
     @Column(name = "released_by_doctor_profile_id") private UUID releasedByDoctorProfileId;
+    @Column(nullable = false, length = 16) private String status;
+    @Column(nullable = false, length = 16) private String source;
     @Version @Column(nullable = false) private long version;
     @Column(name = "created_at", nullable = false) private Instant createdAt;
     @Column(name = "updated_at", nullable = false) private Instant updatedAt;
@@ -31,6 +33,8 @@ public class ClinicalMedicalDocumentJpaEntity {
     public String getMediaType() { return mediaType; }
     public long getByteSize() { return byteSize; }
     public Instant getReleasedAt() { return releasedAt; }
+    public String getStatus() { return status; }
+    public String getSource() { return source; }
     public long getVersion() { return version; }
     public Instant getCreatedAt() { return createdAt; }
     public Instant getUpdatedAt() { return updatedAt; }

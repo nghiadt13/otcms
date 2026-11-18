@@ -13,6 +13,7 @@ import fu.fa26.sep490.g58.otcms_be.auth.repository.AccountRepository;
 import fu.fa26.sep490.g58.otcms_be.auth.repository.AuthConcurrencyRepository;
 import fu.fa26.sep490.g58.otcms_be.auth.repository.VerificationCodeRepository;
 import fu.fa26.sep490.g58.otcms_be.auth.service.impl.AdministratorPasswordIssuer;
+import fu.fa26.sep490.g58.otcms_be.auth.service.impl.PasswordPolicy;
 import fu.fa26.sep490.g58.otcms_be.auth.validation.AdministratorUsernamePolicy;
 import fu.fa26.sep490.g58.otcms_be.common.security.AccountRole;
 import fu.fa26.sep490.g58.otcms_be.common.security.AuthenticatedAccount;
@@ -49,9 +50,9 @@ public class OwnerAdministratorService {
     }
 
     @Transactional
-    public CreateAdministratorAccountResponse create(AuthenticatedAccount actor, String username) {
+    public CreateAdministratorAccountResponse create(AuthenticatedAccount actor, String username, String initialPassword) {
         requireOwner(actor);
-        if (!AdministratorUsernamePolicy.isValid(username)) {
+        if (!AdministratorUsernamePolicy.isValid(username) || !PasswordPolicy.isValid(initialPassword)) {
             throw new AdministratorAccountException("VALIDATION_FAILED");
         }
         concurrency.lock("administrator-username:" + username);
@@ -63,11 +64,11 @@ public class OwnerAdministratorService {
         account.setUsername(username);
         account.setAccountType(AccountType.ADMIN);
         account.setStatus(AccountStatus.ACTIVE);
-        String temporaryPassword = passwords.issue(account);
+        passwords.setInitial(account, initialPassword);
         account.setCreatedAt(now);
         account.setUpdatedAt(now);
         saveNewAdministrator(account);
-        return new CreateAdministratorAccountResponse(account.getId(), username, temporaryPassword);
+        return new CreateAdministratorAccountResponse(account.getId(), username, initialPassword);
     }
 
     @Transactional

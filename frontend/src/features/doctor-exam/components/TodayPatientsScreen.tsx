@@ -16,6 +16,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  CLINICAL_ORDER_PAYMENT_LABELS,
+  CLINICAL_ORDER_STATUS_LABELS,
+} from "@/lib/domain/clinicVisit";
 import { formatDate, formatTime, todayIsoDate } from "@/lib/format/formatDate";
 import { cn } from "@/lib/utils";
 import { doctorVisitHref } from "@/lib/routes/doctorRoutes";
@@ -47,6 +51,16 @@ function PatientCell({ patient }: { patient: TodayPatient }) {
       <p className="truncate text-xs text-muted-foreground">
         {facts.length ? facts.join(" · ") : patient.serviceName}
       </p>
+      {patient.serviceOrders?.length ? (
+        <ul className="mt-1 space-y-0.5 text-xs">
+          {patient.serviceOrders.map((order) => (
+            <li key={order.id} className="break-words">
+              {order.serviceName} · {CLINICAL_ORDER_STATUS_LABELS[order.status]}{" "}
+              · {CLINICAL_ORDER_PAYMENT_LABELS[order.paymentStatus]}
+            </li>
+          ))}
+        </ul>
+      ) : null}
     </div>
   );
 }

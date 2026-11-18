@@ -56,6 +56,10 @@ public class ClinicVisitJpaEntity {
     @Column(name = "findings_released_at", insertable = false, updatable = false)
     private Instant findingsReleasedAt;
 
+    /** Set by the Incomplete sweep (BR-65) with a guarded native UPDATE; never written through this entity. */
+    @Column(name = "incomplete_at", insertable = false, updatable = false)
+    private Instant incompleteAt;
+
     protected ClinicVisitJpaEntity() { }
 
     public static ClinicVisitJpaEntity walkIn(UUID id, UUID patientProfileId, UUID priorAppointmentId,
@@ -74,6 +78,7 @@ public class ClinicVisitJpaEntity {
         return entity;
     }
 
+    public Instant getIncompleteAt() { return incompleteAt; }
     public Instant getImagingResultReadyAt() { return imagingResultReadyAt; }
     public Instant getFindingsReleasedAt() { return findingsReleasedAt; }
     public UUID getId() { return id; }

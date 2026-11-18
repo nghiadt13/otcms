@@ -10,14 +10,9 @@ import {
 } from "@/components/ui/native-select";
 import { CARE_RELATIONSHIP_LABELS } from "@/lib/domain/careRelationship";
 import { notifyError, notifySuccess } from "@/lib/messages/notify";
-import {
-  requestAddDependentOtp,
-  resendAddDependentOtp,
-  resendDependentOtp,
-  verifyAddDependentOtp,
-  verifyDependentOtp,
-} from "../api/dependentOtpApi";
+import { resendDependentOtp, verifyDependentOtp } from "../api/dependentOtpApi";
 import type { AddDependentResult } from "../types/patientProfile";
+import { createPatientProfile } from "../api/patientProfileApi";
 import {
   fieldErrorsFromResponse,
   isDuplicateProfileError,
@@ -58,17 +53,9 @@ const EMPTY_VALUES: ProfileFieldValues = {
 const COUNTER_TEXT =
   "Hồ sơ này đã có tại phòng khám. Vui lòng mang giấy tờ tùy thân đến quầy lễ tân để được gắn.";
 
-/** OTP của bước 3: gửi tới email tài khoản (account), hoặc tới chủ hồ sơ trùng (owner). */
-type OtpState =
-  | { mode: "account"; requestId: string; maskedEmail?: string }
-  | { mode: "owner"; linkId: string; maskedEmail?: string };
+/** OTP is required only when linking an existing profile. */
+type OtpState = { linkId: string; maskedEmail?: string };
 
-/**
- * Thêm người thân (UC13) gồm 3 bước: 1 Thông tin, 2 Quan hệ, 3 Xác nhận OTP. Bước 2 xin BE
- * gửi OTP tới email tài khoản của người dùng; bước 3 nhập mã. Đúng mã thì BE thêm người thân:
- * LINKED → MSG-90 rồi `onCreated`; hồ sơ trùng có chủ → thêm một mã OTP gửi tới chủ hồ sơ
- * (vẫn ở bước 3); COUNTER_REQUIRED hoặc trùng hồ sơ → thông báo ra quầy, không thêm.
- */
 export function CreateProfileForm({
   onCreated,
 }: {
@@ -120,34 +107,26 @@ export function CreateProfileForm({
     setNotice(undefined);
     setPending(true);
     try {
-      const sent = await requestAddDependentOtp(
-        createRequestFromValues(values),
-      );
-      setOtp({
-        mode: "account",
-        requestId: sent.requestId,
-        maskedEmail: sent.maskedEmail,
-      });
+      applyResult(await createPatientProfile(createRequestFromValues(values)));
       setPending(false);
-      setStep(3);
     } catch (error) {
       setPending(false);
       handleError(error);
     }
   }
 
-  /** Kết quả sau khi đúng mã email tài khoản (hoặc chủ hồ sơ). */
+  /** Handle immediate linking, owner verification, or counter verification. */
   function applyResult(result: AddDependentResult) {
     if (result.status === "LINKED") {
-      notifySuccess("MSG-90");
+      notifySuccess("MSG-84");
       onCreated(result.profileId);
-    } else if (result.status === "OTP_SENT")
+    } else if (result.status === "OTP_SENT") {
       setOtp({
-        mode: "owner",
         linkId: result.linkId,
         maskedEmail: result.maskedEmail,
       });
-    else {
+      setStep(3);
+    } else {
       setOtp(undefined);
       setNotice(COUNTER_TEXT);
     }
@@ -155,37 +134,15 @@ export function CreateProfileForm({
 
   async function verifyCode(code: string) {
     if (!otp) return;
-    if (otp.mode === "account")
-      try {
-        applyResult(await verifyAddDependentOtp(otp.requestId, code));
-      } catch (error) {
-        if (isDuplicateProfileError(error)) {
-          setOtp(undefined);
-          setNotice(COUNTER_TEXT);
-          return;
-        }
-        throw error;
-      }
-    else {
-      const { profileId } = await verifyDependentOtp(otp.linkId, code);
-      notifySuccess("MSG-90");
-      onCreated(profileId);
-    }
+    const { profileId } = await verifyDependentOtp(otp.linkId, code);
+    notifySuccess("MSG-84");
+    onCreated(profileId);
   }
 
   async function resendCode() {
     if (!otp) return;
-    if (otp.mode === "account") {
-      const next = await resendAddDependentOtp(otp.requestId);
-      setOtp({
-        mode: "account",
-        requestId: next.requestId,
-        maskedEmail: next.maskedEmail ?? otp.maskedEmail,
-      });
-    } else {
-      const next = await resendDependentOtp(otp.linkId);
-      setOtp({ ...otp, maskedEmail: next.maskedEmail ?? otp.maskedEmail });
-    }
+    const next = await resendDependentOtp(otp.linkId);
+    setOtp({ ...otp, maskedEmail: next.maskedEmail ?? otp.maskedEmail });
   }
 
   return (
@@ -271,10 +228,6 @@ export function CreateProfileForm({
               </p>
             ) : null}
           </div>
-          <p className="text-base text-muted-foreground">
-            Mã OTP sẽ được gửi tới email tài khoản của bạn để xác nhận việc thêm
-            người thân.
-          </p>
           <div className="flex flex-wrap gap-3">
             <button
               className={publicButtonClass("secondary")}
@@ -304,23 +257,15 @@ export function CreateProfileForm({
       {step === 3 && otp ? (
         <DependentOtpStep
           intro={
-            otp.mode === "account" ? (
-              <>
-                Mã xác thực 6 số đã gửi tới email tài khoản của bạn{" "}
-                <span className="font-medium">{otp.maskedEmail}</span>. Nhập mã
-                để xác nhận việc thêm người thân.
-              </>
-            ) : (
-              <>
-                Hồ sơ này đã có tại phòng khám. Mã xác thực 6 số đã gửi tới{" "}
-                <span className="font-medium">
-                  {otp.maskedEmail ?? "email lưu trên hồ sơ"}
-                </span>
-                . Nhập mã để xác nhận đây là người thân của bạn.
-              </>
-            )
+            <>
+              Hồ sơ này đã có tại phòng khám. Mã xác thực 6 số đã gửi tới{" "}
+              <span className="font-medium">
+                {otp.maskedEmail ?? "email lưu trên hồ sơ"}
+              </span>
+              . Nhập mã để xác nhận đây là người thân của bạn.
+            </>
           }
-          key={otp.mode === "account" ? otp.requestId : otp.linkId}
+          key={otp.linkId}
           onResend={resendCode}
           onVerify={verifyCode}
         />

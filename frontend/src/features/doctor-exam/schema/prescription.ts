@@ -18,7 +18,7 @@ export function prescriptionItems(
     items.some((line) => Object.values(line).some((value) => !value))
   ) {
     throw new ApiError(400, {
-      code: "MSG-08",
+      code: "MSG-39",
       detail:
         "Nhập đủ tên thuốc, liều dùng, tần suất và cách dùng cho mỗi dòng thuốc.",
     });

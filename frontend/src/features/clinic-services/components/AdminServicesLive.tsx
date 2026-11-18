@@ -259,7 +259,9 @@ export function AdminServicesLive() {
           if (!confirm) return;
           try {
             await setAdminServiceActive(confirm.id, !confirm.active);
-            toast.success("Đã cập nhật trạng thái dịch vụ.");
+            toast.success(
+              confirm.active ? APP_MESSAGES["MSG-67"] : APP_MESSAGES["MSG-65"],
+            );
             remote.refresh();
           } catch (error) {
             setActionError(adminApiMessage(error));
@@ -369,7 +371,7 @@ export function ServiceEditor({
                 bufferMinutes: Number(buffer),
                 onlineBookable: online,
               });
-              toast.success("Đã lưu dịch vụ.");
+              toast.success(APP_MESSAGES["MSG-65"]);
               saved();
             } catch (failure) {
               setError(adminApiMessage(failure));

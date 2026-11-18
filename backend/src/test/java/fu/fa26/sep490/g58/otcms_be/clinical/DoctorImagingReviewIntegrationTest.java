@@ -203,10 +203,12 @@ class DoctorImagingReviewIntegrationTest {
         error(DiagnosticOperationOutcome.UNAUTHORIZED_RECORD, () -> findings().review(other, requestId, "x", 0, study, "test"));
         error(DiagnosticOperationOutcome.UNAUTHORIZED_RECORD, () -> findings().saveDraft(other, requestId, "y", 0, "findings", "test"));
     }
-    @Test void formerRequestingDoctorLosesReviewAccessWhenCurrentDoctorChanges() {
+    /** UC-50 (R3): the requesting doctor keeps access when the visit moved to another doctor. */
+    @Test void formerRequestingDoctorKeepsReviewAccessWhenCurrentDoctorChanges() {
         when(bean(VisitCareAssignmentRepository.class).findFirstByVisitIdAndStatusOrderByAssignedAtDescIdDesc(visit, "IN_PROGRESS"))
                 .thenReturn(Optional.of(VisitCareAssignmentJpaEntity.inProgress(UUID.randomUUID(), visit, UUID.randomUUID(), "ORTHOPEDIC", 30, Instant.EPOCH, Instant.EPOCH.plusSeconds(1800))));
-        error(DiagnosticOperationOutcome.UNAUTHORIZED_RECORD, this::review);
+        review();
+        assertEquals(ClinicalServiceOrderExecutionPort.ExecutionStatus.REVIEWED, executionStatus.get());
     }
     @Test void mismatchedPatientDeniedBeforeReview() {
         when(bean(ClinicVisitJpaRepository.class).findById(visit)).thenReturn(Optional.of(ClinicVisitJpaEntity.walkIn(visit, UUID.randomUUID(), null, account, Instant.EPOCH, null, null)));

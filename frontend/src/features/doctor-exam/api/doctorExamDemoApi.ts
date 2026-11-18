@@ -183,7 +183,7 @@ export const doctorDemoApi: DoctorExamApi = {
       mode === "complete" &&
       input.diagnoses.filter((d) => d.type === "PRIMARY").length !== 1
     )
-      mockFail(400, "MSG-08");
+      mockFail(400, "MSG-39");
     const next: Examination = {
       ...input,
       status: mode === "draft" ? "DRAFT" : "COMPLETED",
@@ -310,7 +310,11 @@ export const doctorDemoApi: DoctorExamApi = {
         orderId: o.id,
         serviceName: o.serviceName,
         lines: clone(DEMO_LAB_LINES),
+        assessment: null,
       }));
+  },
+  async assessLabResult() {
+    mockFail(501, "MSG-42");
   },
   async getPrescription(visitId, signal) {
     await wait(signal);

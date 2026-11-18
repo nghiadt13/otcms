@@ -26,11 +26,11 @@ public class AppointmentBookingExceptionHandler {
             case "APPOINTMENT_NOT_CHANGEABLE" -> HttpStatus.CONFLICT;
             case "VISIT_CAPACITY_NOT_AVAILABLE" -> HttpStatus.CONFLICT;
             case "VISIT_LINK_CONFLICT", "VISIT_CANCELLATION_NOT_ALLOWED", "IDEMPOTENCY_CONFLICT",
-                    "ARRIVAL_RECORD_CONFLICT", "EXAM_FEE_UNPAID", "VISIT_EXAM_STATE_CONFLICT",
+                    "ARRIVAL_RECORD_CONFLICT", "MSG-94", "VISIT_EXAM_STATE_CONFLICT",
                     "VISIT_COMPLETION_NOT_ALLOWED" -> HttpStatus.CONFLICT;
             case "APPOINTMENT_CHANGE_TOO_LATE" -> HttpStatus.UNPROCESSABLE_ENTITY;
             case "SERVICE_NOT_BOOKABLE", "DOCTOR_NOT_ELIGIBLE", "BOOKING_TIME_IN_PAST",
-                    "BOOKING_WINDOW_VIOLATION", "BOOKING_NOTICE_TOO_SHORT", "BOOKING_TOO_SOON", "CHECK_IN_TIME_NOT_ALLOWED",
+                    "BOOKING_WINDOW_VIOLATION", "BOOKING_NOTICE_TOO_SHORT", "CHECK_IN_TIME_NOT_ALLOWED",
                     "NO_SHOW_NOT_ALLOWED", "PATIENT_IDENTITY_MISMATCH" -> HttpStatus.UNPROCESSABLE_ENTITY;
             case "ARRIVAL_PROOF_INVALID" -> HttpStatus.UNPROCESSABLE_ENTITY;
             case "FOLLOW_UP_NOT_ALLOWED" -> HttpStatus.UNPROCESSABLE_ENTITY;
@@ -38,20 +38,20 @@ public class AppointmentBookingExceptionHandler {
             case "DEPENDENCY_UNAVAILABLE", "ARRIVAL_PROOF_UNAVAILABLE" -> HttpStatus.SERVICE_UNAVAILABLE;
             default -> HttpStatus.BAD_REQUEST;
         };
-        return ResponseEntity.status(status).body(ErrorResponse.of(exception.code(), "Appointment command was rejected",
-                CorrelationIdFilter.current(request)));
+        return ResponseEntity.status(status).body(ErrorResponse.of(AppointmentMsgCodes.of(exception.code()),
+                "Appointment command was rejected", CorrelationIdFilter.current(request)));
     }
 
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<ErrorResponse> malformed(HttpMessageNotReadableException exception, HttpServletRequest request) {
-        return ResponseEntity.badRequest().body(ErrorResponse.of("VALIDATION_FAILED", "Invalid request body",
+        return ResponseEntity.badRequest().body(ErrorResponse.of("MSG-31", "Invalid request body",
                 CorrelationIdFilter.current(request)));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ErrorResponse> invalidRequest(MethodArgumentNotValidException exception,
             HttpServletRequest request) {
-        return ResponseEntity.badRequest().body(ErrorResponse.of("VALIDATION_FAILED", "Invalid request body",
+        return ResponseEntity.badRequest().body(ErrorResponse.of("MSG-31", "Invalid request body",
                 CorrelationIdFilter.current(request)));
     }
 }

@@ -3,7 +3,7 @@ package fu.fa26.sep490.g58.otcms_be.visit;
 import fu.fa26.sep490.g58.otcms_be.visit.controller.StaffRoomQueryController;
 import fu.fa26.sep490.g58.otcms_be.visit.exception.*;
 import fu.fa26.sep490.g58.otcms_be.visit.model.VisitRoom;
-import fu.fa26.sep490.g58.otcms_be.visit.service.ManageVisitRoomService;
+import fu.fa26.sep490.g58.otcms_be.visit.service.StaffRoomScopeService;
 import fu.fa26.sep490.g58.otcms_be.auth.security.JwtTokenService;
 import fu.fa26.sep490.g58.otcms_be.auth.service.AccountAccessService;
 import fu.fa26.sep490.g58.otcms_be.common.security.*;
@@ -37,7 +37,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @Import({SecurityConfig.class, VisitApiExceptionHandler.class, StaffRoomQueryControllerTest.Fixture.class})
 class StaffRoomQueryControllerTest {
     @Autowired MockMvc mvc;
-    @MockitoBean ManageVisitRoomService rooms;
+    @MockitoBean StaffRoomScopeService rooms;
     @MockitoBean JwtTokenService tokens;
     @MockitoBean AccountAccessService access;
     @MockitoBean AppointmentWebConfiguration appointmentWebConfiguration;
@@ -50,9 +50,9 @@ class StaffRoomQueryControllerTest {
     }
     @ParameterizedTest @EnumSource(value = AccountRole.class, names = "PATIENT", mode = EnumSource.Mode.EXCLUDE)
     void allSixStaffRolesCanReadEmptyRooms(AccountRole role) throws Exception {
-        when(rooms.listAll()).thenReturn(List.of());
+        when(rooms.listVisible(any())).thenReturn(List.of());
         mvc.perform(get(PATH).with(actor(role))).andExpect(status().isOk()).andExpect(content().json("{\"items\":[]}"));
-        verify(rooms).listAll(); verifyNoMoreInteractions(rooms);
+        verify(rooms).listVisible(any()); verifyNoMoreInteractions(rooms);
     }
     @Test void patientAndAnonymousAreDeniedWithoutReadingInventory() throws Exception {
         mvc.perform(get(PATH)).andExpect(status().isUnauthorized());
@@ -61,7 +61,7 @@ class StaffRoomQueryControllerTest {
     }
     @Test void reusesExactDtoAndPreservesServiceOrderAndInactiveRows() throws Exception {
         Instant now = Instant.parse("2026-11-01T00:00:00Z");
-        when(rooms.listAll()).thenReturn(List.of(new VisitRoom(UUID.randomUUID(), "A", "Active", List.of("EXAM_ROOM"), true, now, now),
+        when(rooms.listVisible(any())).thenReturn(List.of(new VisitRoom(UUID.randomUUID(), "A", "Active", List.of("EXAM_ROOM"), true, now, now),
                 new VisitRoom(UUID.randomUUID(), "B", "Inactive", List.of("EXAM_ROOM"), false, now, now)));
         var body = mvc.perform(get(PATH).with(actor(AccountRole.RECEPTIONIST))).andExpect(status().isOk())
                 .andExpect(jsonPath("$.items[0].roomCode").value("A"))
@@ -73,12 +73,24 @@ class StaffRoomQueryControllerTest {
                 "supportedServiceIds", "active", "createdAt", "updatedAt"), names);
     }
     @Test void dependencyFailureUsesExistingVisitEnvelope() throws Exception {
-        when(rooms.listAll()).thenThrow(new VisitOperationException("DEPENDENCY_UNAVAILABLE"));
+        when(rooms.listVisible(any())).thenThrow(new VisitOperationException("DEPENDENCY_UNAVAILABLE"));
         String correlation = UUID.randomUUID().toString();
         mvc.perform(get(PATH).with(actor(AccountRole.RECEPTIONIST))
                 .requestAttr(fu.fa26.sep490.g58.otcms_be.common.web.CorrelationIdFilter.ATTRIBUTE, correlation))
                 .andExpect(status().isServiceUnavailable()).andExpect(jsonPath("$.error.code").value("DEPENDENCY_UNAVAILABLE"))
                 .andExpect(jsonPath("$.error.correlationId").value(correlation));
+    }
+    @Test void roomDetailReturnsTheRoomAndOutOfScopeIsMsg50() throws Exception {
+        Instant now = Instant.parse("2026-11-01T00:00:00Z");
+        UUID id = UUID.randomUUID();
+        when(rooms.getVisible(any(), eq(id))).thenReturn(new VisitRoom(id, "A", "Active", List.of("EXAM_ROOM"), true, now, now));
+        mvc.perform(get(PATH + "/" + id).with(actor(AccountRole.DOCTOR))).andExpect(status().isOk())
+                .andExpect(jsonPath("$.roomCode").value("A"));
+        UUID other = UUID.randomUUID();
+        when(rooms.getVisible(any(), eq(other))).thenThrow(new VisitOperationException("MSG-50"));
+        mvc.perform(get(PATH + "/" + other).with(actor(AccountRole.IMAGING_TECHNICIAN))).andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.error.code").value("MSG-50"));
+        mvc.perform(get(PATH + "/" + id).with(actor(AccountRole.PATIENT))).andExpect(status().isForbidden());
     }
     @TestConfiguration @EnableWebSecurity @EnableConfigurationProperties(SessionSecurityProperties.class)
     static class Fixture { }

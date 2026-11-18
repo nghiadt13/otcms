@@ -68,7 +68,9 @@ function clockAt(at: string): void {
 function answerApi(routes: Record<string, () => Promise<unknown>>): void {
   apiRequest.mockImplementation((path: string) => {
     const route = routes[path];
-    return route ? route() : Promise.reject(new Error(`không có mock cho ${path}`));
+    return route
+      ? route()
+      : Promise.reject(new Error(`không có mock cho ${path}`));
   });
 }
 

@@ -5,7 +5,6 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { OtcmsLogo } from "@/components/brand/OtcmsLogo";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { useState, type FormEvent } from "react";
 import { signInWithPassword, signOut } from "@/lib/auth/authSession";
 import { Icon } from "./Icon";
@@ -100,9 +99,8 @@ export function StaffLoginScreen() {
           </Button>
         </form>
         <p className="mt-5 text-sm text-muted-foreground">
-          <Link href="/forgot-password?portal=staff" className="underline">
-            Quên mật khẩu?
-          </Link>
+          Quên mật khẩu? Vui lòng liên hệ Quản trị viên để được cấp lại mật
+          khẩu.
         </p>
       </Card>
     </main>

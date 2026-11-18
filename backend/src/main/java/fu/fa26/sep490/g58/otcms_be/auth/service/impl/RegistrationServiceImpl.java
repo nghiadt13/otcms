@@ -77,6 +77,7 @@ public class RegistrationServiceImpl implements RegistrationService {
     @Transactional(noRollbackFor = RegistrationException.class)
     public RegistrationResponse register(RegistrationRequest request, String clientIp) {
         enforceRate(clientIp == null ? "unknown" : clientIp, properties.register());
+        validate(request);
         String email = normalizeEmail(request.email());
         concurrency.lock("registration-email:" + email);
 
@@ -92,7 +93,6 @@ public class RegistrationServiceImpl implements RegistrationService {
             return genericResponse();
         }
 
-        validate(request);
         Instant now = Instant.now();
         UUID accountId = UUID.randomUUID();
         String passwordHash = passwordEncoder.encode(request.password());
@@ -160,10 +160,11 @@ public class RegistrationServiceImpl implements RegistrationService {
         AccountJpaEntity found = accounts.findByNormalizedEmail(email)
                 .filter(account -> account.getAccountType() == AccountType.PATIENT
                         && account.getStatus() == AccountStatus.PENDING_VERIFICATION)
-                .orElseThrow(() -> new RegistrationException("RATE_LIMIT_EXCEEDED"));
+                .orElse(null);
+        if (found == null) return;
         AccountJpaEntity account = accounts.findByIdForUpdate(found.getId())
                 .orElseThrow(() -> new RegistrationException("RATE_LIMIT_EXCEEDED"));
-        if (!canResend(account, Instant.now())) throw new RegistrationException("RATE_LIMIT_EXCEEDED");
+        if (!canResend(account, Instant.now())) return;
         issueReplacementOtp(account, email, Instant.now(), "RESEND_EMAIL_DELIVERY_UNAVAILABLE");
     }
 
@@ -210,7 +211,7 @@ public class RegistrationServiceImpl implements RegistrationService {
             emailDelivery.sendVerificationCode(email, code, account.getId());
         } catch (RuntimeException ex) {
             recordDeliveryOutcome(account, failureOutcome);
-            throw new RegistrationException("EMAIL_DELIVERY_UNAVAILABLE");
+            // Keep the response independent of account existence.
         }
     }
 

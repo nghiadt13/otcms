@@ -30,10 +30,15 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
     ClinicalExaminationController.class,
     AfterVisitAdviceController.class,
     ClinicalImagingRequestController.class,
+    fu.fa26.sep490.g58.otcms_be.clinical.controller.ClinicalLaboratoryRequestController.class,
+    fu.fa26.sep490.g58.otcms_be.clinical.controller.LaboratoryCollectionController.class,
+    fu.fa26.sep490.g58.otcms_be.clinical.controller.DoctorLaboratoryResultController.class,
     fu.fa26.sep490.g58.otcms_be.clinical.controller.ClinicalRoundWorkflowController.class,
     DoctorActiveVisitController.class,
     ClinicalPrescriptionController.class,
     ClinicalMedicalDocumentController.class,
+    fu.fa26.sep490.g58.otcms_be.clinical.controller.ResultSheetController.class,
+    fu.fa26.sep490.g58.otcms_be.clinical.controller.VisitAmendmentController.class,
     fu.fa26.sep490.g58.otcms_be.clinical.controller.PatientVisitResultController.class,
     ClinicalPastMedicalRecordsController.class,
     fu.fa26.sep490.g58.otcms_be.clinical.controller.PatientPrescriptionController.class
@@ -57,7 +62,7 @@ public class ClinicalApiExceptionHandler {
         int status = switch (error.code()) {
             case "MSG-40", "MSG-14" -> 403;
             case "MSG-41" -> 404;
-            case "MSG-42", "IDEMPOTENCY_CONFLICT" -> 409;
+            case "MSG-42", "IDEMPOTENCY_CONFLICT", "MSG-95" -> 409;
             case "DEPENDENCY_UNAVAILABLE" -> 503;
             case "MSG-39", "MSG-08", "MSG-47" -> 400;
             default -> 500;

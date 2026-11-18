@@ -50,6 +50,13 @@ public class ClinicalRoundWorkflowServiceImpl implements ClinicalRoundWorkflowSe
     }
     @Override
     @Transactional(readOnly = true)
+    public List<Order> listDoctorLaboratoryOrders(UUID visitId, UUID doctorProfileId) {
+        preparation.requireCurrentCare(visitId, doctorProfileId);
+        return orders.findVisitOrdersByType(visitId, ClinicalServiceType.LABORATORY).stream()
+                .map(order -> view(order, order.getRoundNumber(), Map.of())).toList();
+    }
+    @Override
+    @Transactional(readOnly = true)
     public RoundPage listReceptionRounds(AuthenticatedAccount actor, int page, int size) {
         requireReceptionist(actor);
         if (page < 0 || size < 1 || size > 100) throw new ClinicalOperationException("MSG-39");

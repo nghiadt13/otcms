@@ -4,6 +4,7 @@ import {
   CalendarDays,
   CreditCard,
   DoorOpen,
+  HandCoins,
   LayoutDashboard,
   type LucideIcon,
   Megaphone,
@@ -147,6 +148,14 @@ export const adminNavGroups: AdminNavGroup[] = [
         icon: Receipt,
         ucs: "UC57",
         description: "Phí khám và chỉ định đang chờ thanh toán.",
+      },
+      {
+        title: "Chờ hoàn tiền",
+        href: "/admin/refunds",
+        icon: HandCoins,
+        ucs: "UC56",
+        description:
+          "Khoản đã thu cần hoàn ngoài hệ thống, xác nhận khi đã trả.",
       },
       {
         title: "Báo cáo",

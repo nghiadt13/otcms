@@ -6,6 +6,10 @@ import { useCurrentAccount } from "@/hooks/useCurrentAccount";
 import { useLinkedProfiles } from "@/hooks/useLinkedProfiles";
 import Link from "next/link";
 import { PATIENT_ROUTES } from "@/lib/routes/patientRoutes";
+import {
+  bookingSlotHref,
+  type BookingSlotQuery,
+} from "@/lib/routes/bookingSlotLink";
 import { publicButtonClass } from "@/components/brand/publicButtonStyles";
 import type { BookedAppointment, PaymentRenderer } from "../../types/booking";
 import { BookingFlow } from "../booking/BookingFlow";
@@ -18,12 +22,23 @@ import { PatientLoadError } from "./PatientLoadError";
 
 export function PatientBookingPage({
   renderPayment,
+  preselect = null,
 }: {
   renderPayment?: PaymentRenderer;
+  /** Khung giờ chọn sẵn từ URL (link giờ trống của trang bác sĩ). */
+  preselect?: BookingSlotQuery | null;
 }) {
   const account = useCurrentAccount();
   // Chưa đăng nhập: dừng ở bước 1 (đăng nhập / đăng ký), chưa gọi API nào cần phiên.
-  if (account.status === "anonymous") return <BookingSignInPrompt />;
+  // After sign-in the user returns to the same preselected slot (the sign-in `next` carries the slot query).
+  if (account.status === "anonymous")
+    return (
+      <BookingSignInPrompt
+        nextPath={
+          preselect ? bookingSlotHref(preselect) : PATIENT_ROUTES.newAppointment
+        }
+      />
+    );
   if (account.status === "loading") return <BookingSkeleton />;
   if (account.status === "error")
     return (
@@ -32,13 +47,17 @@ export function PatientBookingPage({
         onRetry={account.reload}
       />
     );
-  return <SignedInBooking renderPayment={renderPayment} />;
+  return (
+    <SignedInBooking preselect={preselect} renderPayment={renderPayment} />
+  );
 }
 
 function SignedInBooking({
   renderPayment,
+  preselect,
 }: {
   renderPayment?: PaymentRenderer;
+  preselect: BookingSlotQuery | null;
 }) {
   const [booked, setBooked] = useState<BookedAppointment | null>(null);
   const linked = useLinkedProfiles();
@@ -62,6 +81,7 @@ function SignedInBooking({
   return (
     <BookingFlow
       onBooked={setBooked}
+      preselect={preselect}
       renderPayment={renderPayment}
       patients={linked.profiles.map((profile) => ({
         id: profile.id,

@@ -8,10 +8,7 @@ import {
   availableDoctors,
   patientBookingAt,
   latestRoundReady,
-  normalizePhone,
-  normalizeText,
   onDuty,
-  validatePatient,
   withinReturnWindow,
 } from "../schema/receptionRules";
 import {
@@ -57,13 +54,6 @@ const id = (s: ReceptionState, prefix: string) => `${prefix}${++s.sequence}`;
 const today = (s: ReceptionState) => s.clock.slice(0, 10);
 const activeQueue = (q: QueueEntry) =>
   ["waiting", "serving", "absent"].includes(q.status);
-const roomBusy = (s: ReceptionState, roomId: string) =>
-  s.queues.some(
-    (q) =>
-      q.roomId === roomId &&
-      q.date === today(s) &&
-      (q.status === "serving" || (q.status === "waiting" && q.calledAt)),
-  );
 function history(
   s: ReceptionState,
   action: string,
@@ -315,36 +305,6 @@ export async function executeReception(
   s.clock = clinicTimestamp(currentTime());
   expireState(s);
   switch (command.type) {
-    case "save-patient": {
-      const input = {
-        ...command.input,
-        name: command.input.name.trim().replace(/\s+/g, " "),
-        phone: normalizePhone(command.input.phone),
-        address: command.input.address.trim(),
-        nationalId: command.input.nationalId.trim().toUpperCase(),
-        email: command.input.email.trim(),
-      };
-      requireThat(
-        Object.keys(validatePatient(input, today(s))).length === 0,
-        "MSG-17",
-        400,
-      );
-      requireThat(command.identityConfirmed, "MSG-17", 400);
-      const matches = s.patients.filter(
-        (p) =>
-          p.id !== command.id &&
-          ((p.phone === input.phone &&
-            p.dob === input.dob &&
-            normalizeText(p.name) === normalizeText(input.name)) ||
-            (input.nationalId &&
-              p.nationalId.toUpperCase() === input.nationalId)),
-      );
-      requireThat(!matches.length, "MSG-18");
-      if (command.id)
-        Object.assign(find(s.patients, command.id, "MSG-19"), input);
-      else s.patients.unshift({ ...input, id: id(s, "BN") });
-      break;
-    }
     case "confirm-link": {
       const link = find(s.careLinks, command.id, "MSG-21"),
         patient = find(s.patients, link.patientId);
@@ -596,109 +556,6 @@ export async function executeReception(
       addQueue(s, visit, doctor.roomId, "exam");
       break;
     }
-    case "call-next": {
-      const room = find(s.rooms, command.roomId);
-      requireThat(
-        room.category === "exam" &&
-          room.available &&
-          onDuty(s).some((d) => d.roomId === room.id),
-        "MSG-42",
-      );
-      requireThat(!roomBusy(s, room.id), "MSG-42");
-      const entry = s.queues
-        .filter(
-          (q) =>
-            q.roomId === room.id &&
-            q.kind === command.kind &&
-            q.date === today(s) &&
-            q.status === "waiting",
-        )
-        .sort(byQueueOrder)[0];
-      requireThat(entry, "MSG-41");
-      requireThat(
-        !s.queues.some(
-          (q) =>
-            q.visitId === entry.visitId &&
-            q.date === today(s) &&
-            (q.status === "serving" || (q.status === "waiting" && q.calledAt)),
-        ),
-        "MSG-42",
-      );
-      entry.calledAt = s.clock;
-      entry.callerId = s.account.id;
-      break;
-    }
-    case "queue-action": {
-      const q = find(s.queues, command.id),
-        visit = find(s.visits, q.visitId);
-      requireActive(visit);
-      requireThat(
-        q.date === today(s) &&
-          q.kind !== "service" &&
-          q.callerId === s.account.id,
-        "MSG-40",
-        403,
-      );
-      if (command.action === "return") {
-        requireThat(q.status === "absent", "MSG-42");
-        q.status = "waiting";
-        q.calledAt = undefined;
-        q.joinedAt = s.clock;
-        appendToQueue(s, q);
-      } else {
-        requireThat(q.status === "waiting" && q.calledAt, "MSG-42");
-        if (command.action === "absent") {
-          q.status = "absent";
-          q.calledAt = undefined;
-        } else {
-          q.status = "serving";
-          visit.status = "examining";
-        }
-      }
-      break;
-    }
-    case "reorder": {
-      const q = find(s.queues, command.id);
-      requireThat(
-        q.date === today(s) && q.status === "waiting" && !q.calledAt,
-        "MSG-42",
-      );
-      const list = s.queues
-        .filter(
-          (x) =>
-            x.roomId === q.roomId &&
-            x.kind === q.kind &&
-            x.date === today(s) &&
-            x.status === "waiting",
-        )
-        .sort(byQueueOrder);
-      requireThat(
-        Number.isInteger(command.position) &&
-          command.position >= 1 &&
-          command.position <= list.length &&
-          command.reason.trim().length >= 5,
-        "MSG-39",
-        400,
-      );
-      requireThat(
-        !list.slice(command.position - 1).some((x) => x.calledAt),
-        "MSG-42",
-      );
-      const before = `${q.number}, vị trí ${q.position}`;
-      list.splice(list.indexOf(q), 1);
-      list.splice(command.position - 1, 0, q);
-      list.forEach((x, i) => {
-        x.position = i + 1;
-      });
-      history(
-        s,
-        "Điều chỉnh hàng đợi",
-        command.reason.trim(),
-        before,
-        `${q.number}, vị trí ${q.position}`,
-      );
-      break;
-    }
     case "move-room": {
       const q = find(s.queues, command.id),
         visit = find(s.visits, q.visitId),
@@ -736,38 +593,6 @@ export async function executeReception(
         command.reason.trim(),
         before,
         room.id,
-      );
-      break;
-    }
-    case "transfer-doctor": {
-      const visit = find(s.visits, command.visitId);
-      requireActive(visit);
-      requireThat(command.reason.trim().length >= 5, "MSG-39", 400);
-      requireThat(find(s.doctors, visit.doctorId).absent, "MSG-42");
-      const doctor = onDuty(s).find((d) => d.id === command.doctorId);
-      requireThat(doctor, "MSG-41");
-      requireThat(
-        !s.queues.some((q) => q.visitId === visit.id && q.status === "serving"),
-        "MSG-42",
-      );
-      const before = visit.doctorId;
-      visit.doctorId = doctor.id;
-      for (const q of s.queues.filter(
-        (q) =>
-          q.visitId === visit.id &&
-          q.date === today(s) &&
-          activeQueue(q) &&
-          q.kind !== "service",
-      )) {
-        q.status = "closed";
-        addQueue(s, visit, doctor.roomId, q.kind, q.joinedAt);
-      }
-      history(
-        s,
-        "Chuyển bác sĩ phụ trách và gửi thông báo",
-        command.reason.trim(),
-        before,
-        doctor.id,
       );
       break;
     }

@@ -6,7 +6,10 @@ import { PrescriptionForm } from "./PrescriptionForm";
 import { RecordsScreen } from "./RecordsScreen";
 import { TreatmentScreen } from "./TreatmentScreen";
 import { ClosingScreen } from "./ClosingScreen";
-import { VisitWorkspaceProvider } from "./VisitWorkspaceProvider";
+import {
+  VisitWorkspaceContent,
+  VisitWorkspaceProvider,
+} from "./VisitWorkspaceProvider";
 import { doctorDemoApi, resetDoctorDemo } from "../api/doctorExamDemoApi";
 import type { Prescription } from "../types/doctorExam";
 const request = vi.hoisted(() => vi.fn());
@@ -128,6 +131,78 @@ function workspace(child: React.ReactNode) {
     <VisitWorkspaceProvider visitId="current">{child}</VisitWorkspaceProvider>,
   );
 }
+it("lượt đã hoàn tất mở phiếu kết quả và không đọc các API dành cho lượt đang khám", async () => {
+  const base = request.getMockImplementation()!;
+  request.mockImplementation(async (path: string, init?: RequestInit) => {
+    if (path === "/api/v1/visits/current/exam-queue-entry")
+      return { ...(await base(path, init)), examStatus: "COMPLETED" };
+    if (path === "/api/v1/visits/current/result-sheets") return { items: [] };
+    return base(path, init);
+  });
+  workspace(
+    <VisitWorkspaceContent>
+      <ClosingScreen />
+    </VisitWorkspaceContent>,
+  );
+  expect(
+    await screen.findByRole("heading", { name: "Phiếu kết quả khám" }),
+  ).toBeInTheDocument();
+  expect(screen.queryByText("Điều kiện hoàn tất")).not.toBeInTheDocument();
+  expect(
+    request.mock.calls.some(([path]) =>
+      /\/examination$|\/after-visit-advice$|imaging-requests|medical-history/.test(
+        path,
+      ),
+    ),
+  ).toBe(false);
+});
+it("sau khi kết thúc lượt chỉ tải phiếu kết quả, không tải lại checklist", async () => {
+  const user = userEvent.setup();
+  const base = request.getMockImplementation()!;
+  let closed = false;
+  request.mockImplementation(async (path: string, init?: RequestInit) => {
+    if (path === "/api/v1/visits/current/exam-queue-entry")
+      return {
+        ...(await base(path, init)),
+        examStatus: closed ? "COMPLETED" : "IN_EXAMINATION",
+      };
+    if (path === "/api/v1/visits/current/imaging-orders") return { items: [] };
+    if (path === "/api/v1/visits/current/laboratory-orders")
+      return { items: [] };
+    if (path === "/api/v1/visits/current/completion") {
+      closed = true;
+      return {};
+    }
+    if (path === "/api/v1/visits/current/result-sheets") return { items: [] };
+    return base(path, init);
+  });
+  workspace(
+    <VisitWorkspaceContent>
+      <ClosingScreen />
+    </VisitWorkspaceContent>,
+  );
+  await user.click(
+    await screen.findByRole("button", { name: "Kết thúc lượt khám" }),
+  );
+  await user.click(
+    within(await screen.findByRole("alertdialog")).getByRole("button", {
+      name: "Kết thúc lượt khám",
+    }),
+  );
+  expect(
+    await screen.findByRole("heading", { name: "Phiếu kết quả khám" }),
+  ).toBeInTheDocument();
+  const completion = request.mock.calls.findIndex(([path]) =>
+    path.endsWith("/completion"),
+  );
+  expect(
+    request.mock.calls
+      .slice(completion + 1)
+      .some(([path]) =>
+        /\/examination$|\/imaging-orders$|\/medical-history$/.test(path),
+      ),
+  ).toBe(false);
+});
 it("issued prescription has read-only fields and no reissue/save action", () => {
   render(
     <PrescriptionForm

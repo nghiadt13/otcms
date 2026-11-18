@@ -106,7 +106,8 @@ class DoctorClinicalControllerTest {
                 .andExpect(jsonPath("$.version").value(3))
                 .andReturn().getResponse().getContentAsString();
         assertFields(body, Set.of("id", "visitId", "reasonForVisit", "symptoms", "examinationFindings",
-                "injuryBodySite", "injurySide", "injuryMechanism", "status", "diagnoses", "version"));
+                "injuryBodySite", "injurySide", "injuryMechanism", "injuryDescription", "treatmentDirections",
+                "status", "diagnoses", "version"));
         verify(doctors).findDoctorProfileId(accountId);
         verify(examinations).getExamination(visitId, doctorId);
     }
@@ -139,7 +140,7 @@ class DoctorClinicalControllerTest {
         mvc.perform(put(examPath()).with(actor(AccountRole.DOCTOR)).with(csrf()).contentType("application/json")
                 .content("{}")).andExpect(status().isOk());
         verify(examinations).saveDraft(new ClinicalExaminationService.ExaminationCommand(
-                visitId, doctorId, null, null, null, null, null, null, null));
+                visitId, doctorId, null, null, null, null, null, null, null, null, null));
         clearInvocations(examinations);
         when(examinations.completeExamination(any())).thenReturn(examination(ClinicalExaminationStatus.COMPLETED));
         mvc.perform(request("complete").with(actor(AccountRole.DOCTOR)).with(csrf()))
@@ -259,7 +260,7 @@ class DoctorClinicalControllerTest {
 
     @Test void requestsHaveOnlyDeclaredClinicalFields() throws Exception {
         assertRecordFields(ExaminationRequest.class, Set.of("reasonForVisit", "symptoms", "examinationFindings",
-                "injuryBodySite", "injurySide", "injuryMechanism", "diagnoses"));
+                "injuryBodySite", "injurySide", "injuryMechanism", "diagnoses", "injuryDescription", "treatmentDirections"));
         assertRecordFields(DiagnosisRequest.class, Set.of("code", "type"));
         assertRecordFields(AdviceRequest.class, Set.of("homeCareAdvice", "activityAdvice", "rehabilitationAdvice",
                 "warningSigns", "followUpRecommendation", "followUpIndicated"));
@@ -312,7 +313,8 @@ class DoctorClinicalControllerTest {
     private ClinicalExaminationService.ExaminationView examination(ClinicalExaminationStatus status) {
         return new ClinicalExaminationService.ExaminationView(examinationId, visitId, "Pain", "Swelling", "Tenderness",
                 "Knee", "LEFT", "Twist", status,
-                List.of(new ClinicalExaminationService.Diagnosis("M17.0", DiagnosisType.PRIMARY)), 3L);
+                List.of(new ClinicalExaminationService.Diagnosis("M17.0", DiagnosisType.PRIMARY)), 3L,
+                "Pain", List.of("HOME_CARE"));
     }
 
     private AfterVisitAdviceService.AdviceView adviceView() {

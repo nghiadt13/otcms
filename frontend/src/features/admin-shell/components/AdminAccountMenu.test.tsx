@@ -2,7 +2,11 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { SidebarProvider } from "@/components/ui/sidebar";
-import { resetMyAccountMockStore } from "@/features/my-account/api/myAccountApi";
+vi.mock("@/features/my-account/api/myAccountApi", async () => {
+  const { MOCK_MY_ACCOUNT } =
+    await import("@/features/my-account/api/myAccountMockData");
+  return { getMyAccount: vi.fn().mockResolvedValue(MOCK_MY_ACCOUNT) };
+});
 import { AdminAccountMenu } from "./AdminAccountMenu";
 
 const replace = vi.fn();
@@ -17,7 +21,6 @@ vi.mock("next/navigation", () => ({
 vi.mock("@/lib/auth/authSession", () => ({ signOut }));
 
 beforeEach(() => {
-  resetMyAccountMockStore();
   replace.mockClear();
   signOut.mockClear();
   signOut.mockResolvedValue(undefined);

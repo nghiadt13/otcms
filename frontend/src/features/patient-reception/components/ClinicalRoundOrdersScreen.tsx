@@ -11,12 +11,15 @@ import {
 } from "@/lib/api/billingApi";
 import {
   dispatchClinicalImagingRound,
+  dispatchLaboratoryOrder,
+  listLaboratoryRooms,
   listClinicalOrderingRounds,
   listClinicalImagingRoomOptions,
   type ImagingQueueRoom,
   type ClinicalOrderingRound,
 } from "../api/receptionLiveApi";
 import { CounterPaymentForm } from "./CounterPaymentForm";
+import { ServiceOrderRoomTransferDialog } from "./ServiceOrderRoomTransferDialog";
 import { money } from "./ReceptionUi";
 
 async function loadRoundQueue(page: number, signal?: AbortSignal) {
@@ -32,8 +35,26 @@ async function loadRoundQueue(page: number, signal?: AbortSignal) {
       )
       .map((order) => order.orderId),
   );
-  const options = await listClinicalImagingRoomOptions(ids, signal);
-  return { result, options };
+  const labIds = result.items.flatMap((round) =>
+    round.orders
+      .filter(
+        (order) =>
+          order.serviceType === "LABORATORY" &&
+          order.orderStatus === "ORDERED" &&
+          order.paymentStatus === "PAID",
+      )
+      .map((order) => order.orderId),
+  );
+  const [options, laboratory] = await Promise.all([
+    listClinicalImagingRoomOptions(ids, signal),
+    Promise.all(
+      labIds.map(async (serviceOrderId) => ({
+        serviceOrderId,
+        items: await listLaboratoryRooms(serviceOrderId, signal),
+      })),
+    ),
+  ]);
+  return { result, options: [...options, ...laboratory] };
 }
 
 export function ClinicalRoundOrdersScreen() {
@@ -51,6 +72,12 @@ export function ClinicalRoundOrdersScreen() {
   const [selectedRooms, setSelectedRooms] = useState<Record<string, string>>(
     {},
   );
+  // Chỉ định đang đổi phòng (UC-31): phòng hiện tại để loại khỏi danh sách chọn.
+  const [moving, setMoving] = useState<{
+    orderId: string;
+    serviceName: string;
+    roomId: string;
+  } | null>(null);
   const applyQueue = useCallback(
     ({ result, options }: Awaited<ReturnType<typeof loadRoundQueue>>) => {
       setRoomOptions(
@@ -112,7 +139,7 @@ export function ClinicalRoundOrdersScreen() {
     <>
       <PageHeader
         title="Chỉ định cận lâm sàng"
-        description="Thanh toán theo đợt bác sĩ chỉ định, sau đó gửi yêu cầu hình ảnh cho KTV."
+        description="Thanh toán theo đợt bác sĩ chỉ định, sau đó phân phòng và gửi yêu cầu cho kỹ thuật viên."
         actions={
           <Button
             variant="outline"
@@ -183,13 +210,33 @@ export function ClinicalRoundOrdersScreen() {
                         {order.serviceType === "IMAGING" &&
                           order.orderStatus !== "CANCELLED" &&
                           (order.diagnostic ? (
-                            <p className="text-sm">
-                              Đã gửi KTV · Phòng:{" "}
-                              {order.diagnostic.displayLabel ??
-                                order.diagnostic.roomCode ??
-                                order.diagnostic.roomId ??
-                                "Chưa có phòng"}
-                            </p>
+                            <div className="space-y-2">
+                              <p className="text-sm">
+                                Đã gửi KTV · Phòng:{" "}
+                                {order.diagnostic.displayLabel ??
+                                  order.diagnostic.roomCode ??
+                                  order.diagnostic.roomId ??
+                                  "Chưa có phòng"}
+                              </p>
+                              {order.diagnostic.status === "PENDING" &&
+                                order.orderStatus === "ORDERED" &&
+                                order.diagnostic.roomId && (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    disabled={pending}
+                                    onClick={() =>
+                                      setMoving({
+                                        orderId: order.orderId,
+                                        serviceName: order.serviceName,
+                                        roomId: order.diagnostic!.roomId!,
+                                      })
+                                    }
+                                  >
+                                    Đổi phòng
+                                  </Button>
+                                )}
+                            </div>
                           ) : order.paymentStatus === "PAID" ? (
                             roomOptions[order.orderId]?.length ? (
                               <label className="block text-sm">
@@ -227,6 +274,60 @@ export function ClinicalRoundOrdersScreen() {
                               Chờ thanh toán
                             </p>
                           ))}
+                        {order.serviceType === "LABORATORY" &&
+                          order.orderStatus === "ORDERED" &&
+                          order.paymentStatus === "PAID" && (
+                            <div className="space-y-2">
+                              {roomOptions[order.orderId]?.length ? (
+                                <label className="block text-sm">
+                                  Phòng xét nghiệm
+                                  <select
+                                    aria-label={`Phòng xét nghiệm · ${order.serviceName}`}
+                                    className="mt-1 block w-full rounded-md border bg-background px-3 py-2"
+                                    value={selectedRooms[order.orderId] ?? ""}
+                                    disabled={pending}
+                                    onChange={(event) =>
+                                      setSelectedRooms((current) => ({
+                                        ...current,
+                                        [order.orderId]: event.target.value,
+                                      }))
+                                    }
+                                  >
+                                    <option value="">Chọn phòng</option>
+                                    {roomOptions[order.orderId].map((room) => (
+                                      <option
+                                        key={room.roomId}
+                                        value={room.roomId}
+                                      >
+                                        {room.roomCode} · {room.displayLabel}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </label>
+                              ) : (
+                                <p className="text-sm text-muted-foreground">
+                                  Không có phòng xét nghiệm phù hợp.
+                                </p>
+                              )}
+                              <Button
+                                variant="outline"
+                                disabled={
+                                  pending || !selectedRooms[order.orderId]
+                                }
+                                onClick={() =>
+                                  void action(async () => {
+                                    await dispatchLaboratoryOrder(
+                                      order.orderId,
+                                      selectedRooms[order.orderId],
+                                    );
+                                    await reload();
+                                  })
+                                }
+                              >
+                                Gửi chỉ định xét nghiệm
+                              </Button>
+                            </div>
+                          )}
                       </div>
                       <span>{money(order.priceSnapshot)}</span>
                     </li>
@@ -309,6 +410,19 @@ export function ClinicalRoundOrdersScreen() {
           Trang sau
         </Button>
       </div>
+      {moving && (
+        <ServiceOrderRoomTransferDialog
+          orderId={moving.orderId}
+          serviceName={moving.serviceName}
+          currentRoomId={moving.roomId}
+          onClose={() => setMoving(null)}
+          onSaved={() => {
+            setMoving(null);
+            void action(() => reload());
+          }}
+          onFailed={() => void action(() => reload())}
+        />
+      )}
       {invoice && (
         <CounterPaymentForm
           key={invoice.id}

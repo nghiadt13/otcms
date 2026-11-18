@@ -27,10 +27,14 @@ export function patientGenderLabel(gender: string | null): string | null {
   return gender;
 }
 
-export function patientBirthDateLabel(dateOfBirth: string | null): string | null {
+export function patientBirthDateLabel(
+  dateOfBirth: string | null,
+): string | null {
   if (!dateOfBirth) return null;
   const parts = dateOfBirth.split("-");
-  return parts.length === 3 ? `${parts[2]}/${parts[1]}/${parts[0]}` : dateOfBirth;
+  return parts.length === 3
+    ? `${parts[2]}/${parts[1]}/${parts[0]}`
+    : dateOfBirth;
 }
 
 export function patientDemographicSummary(patient: PatientIdentity): string {

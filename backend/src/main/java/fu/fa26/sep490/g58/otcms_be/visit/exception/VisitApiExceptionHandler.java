@@ -10,6 +10,7 @@ import org.springframework.dao.DataAccessException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.transaction.TransactionException;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -22,13 +23,26 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
         fu.fa26.sep490.g58.otcms_be.visit.controller.VisitRoomAdminController.class,
         fu.fa26.sep490.g58.otcms_be.visit.controller.StaffRoomQueryController.class,
         fu.fa26.sep490.g58.otcms_be.visit.controller.VisitReceptionReadController.class,
-        fu.fa26.sep490.g58.otcms_be.visit.controller.VisitExamQueueController.class
+        fu.fa26.sep490.g58.otcms_be.visit.controller.QueueRoomController.class,
+        fu.fa26.sep490.g58.otcms_be.visit.controller.ServiceWorklistController.class,
+        fu.fa26.sep490.g58.otcms_be.visit.controller.VisitExamQueueController.class,
+        fu.fa26.sep490.g58.otcms_be.visit.controller.VisitLifecycleController.class
 })
 @Order(Ordered.HIGHEST_PRECEDENCE)
 public class VisitApiExceptionHandler {
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<ErrorResponse> denied(AccessDeniedException exception, HttpServletRequest request) {
+        if (!isRoomAdmin(request.getRequestURI())) throw exception;
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(ErrorResponse.of("MSG-50", "Access denied",
+                CorrelationIdFilter.current(request)));
+    }
+
     @ExceptionHandler(VisitOperationException.class)
     public ResponseEntity<ErrorResponse> handle(VisitOperationException exception, HttpServletRequest request) {
         HttpStatus status = switch (exception.code()) {
+            case "MSG-40" -> HttpStatus.FORBIDDEN;
+            case "MSG-41", "MSG-50" -> HttpStatus.NOT_FOUND;
+            case "MSG-42" -> HttpStatus.CONFLICT;
             case "ACCESS_DENIED" -> HttpStatus.FORBIDDEN;
             case "RESOURCE_NOT_FOUND", "ROOM_NOT_FOUND" -> HttpStatus.NOT_FOUND;
             case "IDEMPOTENCY_CONFLICT", "VISIT_LINK_CONFLICT", "VISIT_CAPACITY_NOT_AVAILABLE",
@@ -40,7 +54,8 @@ public class VisitApiExceptionHandler {
             case "DEPENDENCY_UNAVAILABLE" -> HttpStatus.SERVICE_UNAVAILABLE;
             default -> HttpStatus.BAD_REQUEST;
         };
-        return ResponseEntity.status(status).body(ErrorResponse.of(exception.code(), "Visit command was rejected",
+        String code = isRoomAdmin(request.getRequestURI()) ? roomCode(exception.code()) : exception.code();
+        return ResponseEntity.status(status).body(ErrorResponse.of(code, "Visit command was rejected",
                 CorrelationIdFilter.current(request)));
     }
 
@@ -55,14 +70,16 @@ public class VisitApiExceptionHandler {
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<ErrorResponse> malformed(HttpMessageNotReadableException exception,
             HttpServletRequest request) {
-        return ResponseEntity.badRequest().body(ErrorResponse.of("VALIDATION_FAILED", "Invalid request body",
+        String code = isRoomAdmin(request.getRequestURI()) ? "MSG-62" : usesMsgCodes(request.getRequestURI()) ? "MSG-39" : "VALIDATION_FAILED";
+        return ResponseEntity.badRequest().body(ErrorResponse.of(code, "Invalid request body",
                 CorrelationIdFilter.current(request)));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ErrorResponse> invalidRequest(MethodArgumentNotValidException exception,
             HttpServletRequest request) {
-        return ResponseEntity.badRequest().body(ErrorResponse.of("VALIDATION_FAILED", "Invalid request body",
+        String code = isRoomAdmin(request.getRequestURI()) ? "MSG-62" : usesMsgCodes(request.getRequestURI()) ? "MSG-39" : "VALIDATION_FAILED";
+        return ResponseEntity.badRequest().body(ErrorResponse.of(code, "Invalid request body",
                 CorrelationIdFilter.current(request)));
     }
 
@@ -73,8 +90,32 @@ public class VisitApiExceptionHandler {
             return ResponseEntity.status(HttpStatus.CONFLICT).body(ErrorResponse.of("SLOT_UNAVAILABLE",
                     "The requested appointment slot is no longer available", CorrelationIdFilter.current(request)));
         }
-        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(ErrorResponse.of("DEPENDENCY_UNAVAILABLE",
+        String code = isRoomAdmin(request.getRequestURI()) || usesMsgCodes(request.getRequestURI())
+                || request.getRequestURI().startsWith("/api/v1/public/queue/") ? "MSG-04" : "DEPENDENCY_UNAVAILABLE";
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(ErrorResponse.of(code,
                 "A required database operation is temporarily unavailable", CorrelationIdFilter.current(request)));
+    }
+
+    private static boolean isRoomAdmin(String uri) {
+        return uri.startsWith("/api/v1/admin/visit-rooms");
+    }
+
+    private static String roomCode(String code) {
+        return switch (code) {
+            case "DUPLICATE_ROOM_CODE" -> "MSG-92";
+            case "ROOM_HAS_ACTIVE_RESERVATIONS" -> "MSG-64";
+            case "ROOM_NOT_FOUND", "ACCESS_DENIED" -> "MSG-50";
+            case "VALIDATION_FAILED" -> "MSG-62";
+            case "DEPENDENCY_UNAVAILABLE" -> "MSG-04";
+            default -> code;
+        };
+    }
+
+    /** Queue and lifecycle endpoints report their errors with R3 MSG codes. */
+    private static boolean usesMsgCodes(String uri) {
+        return uri.startsWith("/api/v1/queue/") || uri.endsWith("/returns") || uri.endsWith("/attending-doctor-transfers")
+                || uri.endsWith("/room-transfers") || uri.endsWith("/walk-in-suggestions")
+                || uri.endsWith("/return-candidate");
     }
 
     private static String findSqlState(Throwable failure) {

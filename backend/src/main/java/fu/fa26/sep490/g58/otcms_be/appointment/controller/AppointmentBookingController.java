@@ -13,8 +13,6 @@ import fu.fa26.sep490.g58.otcms_be.appointment.model.dto.response.AppointmentRes
 import fu.fa26.sep490.g58.otcms_be.appointment.model.dto.response.CheckInResponse;
 import fu.fa26.sep490.g58.otcms_be.appointment.service.CancelAppointmentCommand;
 import fu.fa26.sep490.g58.otcms_be.appointment.service.CancelAppointmentService;
-import fu.fa26.sep490.g58.otcms_be.appointment.service.CancelPendingPaymentHoldService;
-import fu.fa26.sep490.g58.otcms_be.appointment.model.dto.response.CancelPendingHoldResponse;
 import fu.fa26.sep490.g58.otcms_be.appointment.service.CheckInAppointmentCommand;
 import fu.fa26.sep490.g58.otcms_be.appointment.service.CheckInAppointmentService;
 import fu.fa26.sep490.g58.otcms_be.appointment.service.CreateAppointmentCommand;
@@ -55,13 +53,11 @@ public class AppointmentBookingController {
     private final CheckInAppointmentService checkInAppointment;
     private final MarkAppointmentNoShowService markNoShowAppointment;
     private final UpdateAppointmentStatusService updateAppointmentStatus;
-    private final CancelPendingPaymentHoldService cancelPendingHold;
 
     public AppointmentBookingController(CreateAppointmentService createAppointment,
             RescheduleAppointmentService rescheduleAppointment, CancelAppointmentService cancelAppointment,
             ReassignAppointmentService reassignAppointment, CheckInAppointmentService checkInAppointment,
-            MarkAppointmentNoShowService markNoShowAppointment, UpdateAppointmentStatusService updateAppointmentStatus,
-            CancelPendingPaymentHoldService cancelPendingHold) {
+            MarkAppointmentNoShowService markNoShowAppointment, UpdateAppointmentStatusService updateAppointmentStatus) {
         this.createAppointment = createAppointment;
         this.rescheduleAppointment = rescheduleAppointment;
         this.cancelAppointment = cancelAppointment;
@@ -69,7 +65,6 @@ public class AppointmentBookingController {
         this.checkInAppointment = checkInAppointment;
         this.markNoShowAppointment = markNoShowAppointment;
         this.updateAppointmentStatus = updateAppointmentStatus;
-        this.cancelPendingHold = cancelPendingHold;
     }
 
     @PatchMapping("/api/v1/appointments/{id}/status")
@@ -135,28 +130,16 @@ public class AppointmentBookingController {
             case ADMIN -> CancelAppointmentCommand.Actor.ADMIN;
             default -> throw new AppointmentBookingException("ACCESS_DENIED");
         };
+        // Only staff can say the clinic is at fault; a patient flag is ignored (no refund for patient cancellations).
         var result = cancelAppointment.cancel(id, new CancelAppointmentCommand(account.accountId(), actor,
-                body.getReason(), CorrelationIdFilter.current(request)));
+                body.getReason(), CorrelationIdFilter.current(request),
+                actor != CancelAppointmentCommand.Actor.PATIENT && body.isClinicFault()));
         return ResponseEntity.ok().header(CorrelationIdFilter.HEADER, CorrelationIdFilter.current(request))
                 .body(AppointmentMapper.toResponse(result));
     }
 
-    /**
-     * Cancels every live payment hold of the signed-in patient (left the payment step, reload, sign-out).
-     * Idempotent; the literal path wins over /appointments/{id}/cancel.
-     */
-    @PostMapping("/api/v1/appointments/pending-hold/cancel")
-    @PreAuthorize("hasAuthority('ROLE_PATIENT')")
-    public ResponseEntity<CancelPendingHoldResponse> cancelPendingHold(
-            @AuthenticationPrincipal AuthenticatedAccount account, HttpServletRequest request) {
-        if (account == null) throw invalid();
-        var result = cancelPendingHold.cancelAll(account.accountId(), CorrelationIdFilter.current(request));
-        return ResponseEntity.ok().header(CorrelationIdFilter.HEADER, CorrelationIdFilter.current(request))
-                .body(new CancelPendingHoldResponse(result.cancelledCount(), result.alreadyPaid()));
-    }
-
     @PatchMapping("/api/v1/appointments/{id}/reschedule")
-    @PreAuthorize("hasAnyAuthority('ROLE_PATIENT', 'ROLE_RECEPTIONIST')")
+    @PreAuthorize("hasAnyAuthority('ROLE_RECEPTIONIST', 'ROLE_ADMIN')")
     public ResponseEntity<AppointmentResponse> reschedule(@PathVariable UUID id,
             @Valid @RequestBody RescheduleAppointmentRequest body,
             @AuthenticationPrincipal AuthenticatedAccount account, HttpServletRequest request) {
@@ -164,10 +147,11 @@ public class AppointmentBookingController {
         RescheduleAppointmentCommand.Actor actor = switch (account.accountRole()) {
             case PATIENT -> RescheduleAppointmentCommand.Actor.PATIENT;
             case RECEPTIONIST -> RescheduleAppointmentCommand.Actor.RECEPTIONIST;
+            case ADMIN -> RescheduleAppointmentCommand.Actor.ADMIN;
             default -> throw new AppointmentBookingException("ACCESS_DENIED");
         };
         var result = rescheduleAppointment.reschedule(id, new RescheduleAppointmentCommand(account.accountId(), actor,
-                body.getStartTime(), body.getReason(), CorrelationIdFilter.current(request)));
+                body.getStartTime(), body.getDoctorId(), body.getReason(), CorrelationIdFilter.current(request)));
         return ResponseEntity.ok().header(CorrelationIdFilter.HEADER, CorrelationIdFilter.current(request))
                 .body(AppointmentMapper.toResponse(result));
     }

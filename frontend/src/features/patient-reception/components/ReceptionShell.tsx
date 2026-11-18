@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Bell, ChevronRight } from "lucide-react";
 import { useState, type ReactNode } from "react";
+import { signOut } from "@/lib/auth/authSession";
 import { CurrentDateTime } from "@/components/shell/CurrentDateTime";
 import {
   SidebarNavGroup,
@@ -30,7 +31,11 @@ import {
 import { Toaster } from "@/components/ui/sonner";
 import { ConfirmActionDialog } from "@/components/admin/ConfirmActionDialog";
 import { cn } from "@/lib/utils";
-import { receptionHref, receptionNavigation } from "../navigation";
+import {
+  isLiveReceptionSection,
+  receptionHref,
+  receptionNavigation,
+} from "../navigation";
 import { ReceptionAccountMenu } from "./ReceptionAccountMenu";
 import { ReceptionProvider, useReception } from "./ReceptionProvider";
 
@@ -152,13 +157,18 @@ function Frame({ children }: { children: ReactNode }) {
             </Link>
           </div>
         </header>
-        <div className="reception-no-print flex flex-wrap items-center justify-between gap-2 border-b bg-secondary/50 px-4 py-2 text-xs text-muted-foreground md:px-6">
-          <span>Bản xem thử giao diện · dữ liệu mẫu · giờ Việt Nam</span>
-          <span>
-            Tải lại trang sẽ đặt lại dữ liệu. Không nhập thông tin bệnh nhân
-            thật.
-          </span>
-        </div>
+        {item &&
+          !isLiveReceptionSection(item.section) &&
+          (process.env.NODE_ENV !== "production" ||
+            process.env.NEXT_PUBLIC_RECEPTION_DEMO === "true") && (
+            <div className="reception-no-print flex flex-wrap items-center justify-between gap-2 border-b bg-secondary/50 px-4 py-2 text-xs text-muted-foreground md:px-6">
+              <span>Bản xem thử giao diện · dữ liệu mẫu · giờ Việt Nam</span>
+              <span>
+                Tải lại trang sẽ đặt lại dữ liệu. Không nhập thông tin bệnh nhân
+                thật.
+              </span>
+            </div>
+          )}
         <main id="reception-main" className="min-w-0 flex-1 p-4 text-sm md:p-6">
           {error && (
             <div
@@ -182,20 +192,22 @@ function Frame({ children }: { children: ReactNode }) {
       <ConfirmActionDialog
         open={exitOpen}
         onOpenChange={setExitOpen}
-        title="Thoát bản xem thử?"
-        description="Các thao tác trên dữ liệu mẫu sẽ được đặt lại khi bạn mở lại khu vực lễ tân."
-        confirmLabel="Thoát"
-        pendingLabel="Đang thoát..."
-        onConfirm={() => {
-          router.push("/workspace");
+        title="Đăng xuất khỏi OTCMS?"
+        description="Bạn sẽ quay về màn hình đăng nhập nhân viên."
+        confirmLabel="Đăng xuất"
+        pendingLabel="Đang đăng xuất..."
+        onConfirm={async () => {
+          await signOut();
+          router.replace("/staff-login");
         }}
       />
     </SidebarProvider>
   );
 }
 export function ReceptionShell({ children }: { children: ReactNode }) {
+  const pathname = usePathname();
   return (
-    <ReceptionProvider>
+    <ReceptionProvider skipDemo={pathname === "/reception/visits"}>
       <Frame>{children}</Frame>
     </ReceptionProvider>
   );

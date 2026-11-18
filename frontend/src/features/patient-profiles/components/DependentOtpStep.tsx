@@ -9,18 +9,15 @@ import { isApiError } from "@/lib/api/apiError";
 import { formatAppMessage } from "@/lib/messages/appMessages";
 import { notifyError, notifySuccess } from "@/lib/messages/notify";
 
-/** Mã sai/hết hạn: BE trả OTP_INVALID (400); kho giả trả MSG-82. */
+/** Mã sai/hết hạn: BE trả MSG-77 (400). */
 function isInvalidOtp(error: unknown): boolean {
-  return (
-    isApiError(error) &&
-    (error.code === "MSG-82" || error.errorCode === "OTP_INVALID")
-  );
+  return isApiError(error) && error.code === "MSG-77";
 }
 
 /**
  * Bước 3 "Xác nhận": nhập mã OTP 6 số. Việc gọi API do màn cha truyền vào (`onVerify`,
  * `onResend`) để dùng chung cho OTP gửi tới email tài khoản và OTP gửi tới chủ hồ sơ trùng.
- * Mã sai/hết hạn (MSG-82) báo ngay dưới ô; lỗi khác (429, 503...) báo bằng toast.
+ * Mã sai/hết hạn (MSG-77) báo ngay dưới ô; lỗi khác (429, 503...) báo bằng toast.
  */
 export function DependentOtpStep({
   intro,
@@ -46,7 +43,7 @@ export function DependentOtpStep({
     try {
       await onVerify(code);
     } catch (err) {
-      if (isInvalidOtp(err)) setError(formatAppMessage("MSG-82"));
+      if (isInvalidOtp(err)) setError(formatAppMessage("MSG-77"));
       else notifyError(err);
     } finally {
       setPending(false);

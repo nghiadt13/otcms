@@ -1,227 +1,226 @@
 "use client";
 
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
 import {
   Table,
-  TableHeader,
-  TableRow,
-  TableHead,
   TableBody,
   TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
 } from "@/components/ui/table";
 import Link from "next/link";
-import { useState } from "react";
-import { useImaging } from "../hooks/useImaging";
-import { CURRENT_ROOM, statusLabels } from "../api/imagingMockData";
+import { useEffect, useMemo, useState } from "react";
+import { messageFromError } from "@/lib/messages/appMessages";
+import {
+  listAssignedImagingUploadWork,
+  type AssignedImagingUploadWork,
+} from "../api/imagingIngestApi";
+import { listImagingRooms } from "../api/imagingRoomApi";
+import { Badge } from "./Badge";
 import { Empty } from "./Empty";
 import { Icon } from "./Icon";
-import { OrderBadge } from "./OrderBadge";
 import { PageHeading } from "./PageHeading";
-import { Pagination } from "./Pagination";
 import { Panel } from "./Panel";
 import { PatientAvatar } from "./PatientAvatar";
+
+/** UC-52 (chụp): trạng thái từng chỉ định của phòng từ API thật. Chỉ định chưa thanh toán không vào phòng (D7). */
+const statusLabels: Record<AssignedImagingUploadWork["status"], string> = {
+  PENDING: "Đã chỉ định",
+  IN_PROGRESS: "Đang thực hiện",
+  RESULT_AVAILABLE: "Đã có kết quả",
+};
+
+const statusTones: Record<AssignedImagingUploadWork["status"], string> = {
+  PENDING: "amber",
+  IN_PROGRESS: "blue",
+  RESULT_AVAILABLE: "green",
+};
+
+function dayOf(value: string) {
+  return value.slice(0, 10);
+}
 
 export function OrderListScreen({
   statusMode = false,
 }: {
   statusMode?: boolean;
 }) {
-  const { state } = useImaging();
+  const [items, setItems] = useState<AssignedImagingUploadWork[]>([]);
+  const [roomNames, setRoomNames] = useState<Record<string, string>>({});
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("all");
-  const [service, setService] = useState("all");
-  const [page, setPage] = useState(1);
-  const own = state.orders.filter(
-    (o) => o.room === CURRENT_ROOM && o.kind === "imaging",
+  const [room, setRoom] = useState("all");
+  const [day, setDay] = useState("");
+
+  useEffect(() => {
+    const controller = new AbortController();
+    Promise.all([
+      listAssignedImagingUploadWork(0, 100, controller.signal),
+      listImagingRooms(controller.signal).catch(() => []),
+    ])
+      .then(([page, rooms]) => {
+        if (controller.signal.aborted) return;
+        setItems(page.items);
+        setRoomNames(
+          Object.fromEntries(rooms.map((item) => [item.id, item.name])),
+        );
+      })
+      .catch((cause: unknown) => {
+        if (!controller.signal.aborted) setError(messageFromError(cause));
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
+    return () => controller.abort();
+  }, []);
+
+  const matches = useMemo(
+    () =>
+      items.filter(
+        (item) =>
+          `${item.requestId} ${item.patient.fullName} ${item.serviceName ?? ""}`
+            .toLowerCase()
+            .includes(search.toLowerCase()) &&
+          (status === "all" || item.status === status) &&
+          (room === "all" || item.roomId === room) &&
+          (!day || dayOf(item.createdAt) === day),
+      ),
+    [items, search, status, room, day],
   );
-  const matches = own.filter(
-    (o) =>
-      `${o.id} ${o.patient} ${o.patientId}`
-        .toLowerCase()
-        .includes(search.toLowerCase()) &&
-      (status === "all" || o.status === status) &&
-      (service === "all" || o.service === service),
-  );
-  const current = Math.min(page, Math.max(1, Math.ceil(matches.length / 5)));
+  const rooms = [...new Set(items.map((item) => item.roomId))];
+
   return (
     <>
       <PageHeading
-        eyebrow="CHẨN ĐOÁN HÌNH ẢNH"
         title={
           statusMode ? "Trạng thái chỉ định" : "Chỉ định chẩn đoán hình ảnh"
         }
-        description={
-          statusMode
-            ? "Theo dõi từng chỉ định của phòng từ thanh toán đến khi có kết quả."
-            : "Tra cứu chỉ định theo mã hoặc tên bệnh nhân trước khi thực hiện dịch vụ."
-        }
+        description="Theo dõi từng chỉ định của phòng từ khi vào phòng đến khi có kết quả. Chỉ định chưa thanh toán không xuất hiện ở đây."
       />
-      <div className="im-summary-strip">
-        {Object.entries(statusLabels).map(([value, label]) => (
-          <Button
-            variant="ghost"
-            key={value}
-            className={status === value ? "im-summary-active" : ""}
-            onClick={() => {
-              setStatus(status === value ? "all" : value);
-              setPage(1);
-            }}
-          >
-            <span>{label}</span>
-            <strong>
-              {own
-                .filter((o) => o.status === value)
-                .length.toString()
-                .padStart(2, "0")}
-            </strong>
-          </Button>
-        ))}
-      </div>
       <Panel
-        title={
-          statusMode ? "Theo dõi chỉ định của phòng" : "Danh sách chỉ định"
-        }
-        subtitle="Phòng X-quang 01 · XR-01"
+        title="Theo dõi chỉ định của phòng"
+        subtitle="Dữ liệu trực tiếp từ hệ thống"
       >
         <div className="im-toolbar im-toolbar-wrap">
           <label className="im-search">
             <Icon name="search" />
             <Input
               aria-label="Tìm chỉ định"
-              placeholder="Mã chỉ định, tên hoặc mã bệnh nhân…"
+              placeholder="Mã chỉ định, tên bệnh nhân hoặc dịch vụ…"
               value={search}
-              onChange={(e) => {
-                setSearch(e.target.value);
-                setPage(1);
-              }}
+              onChange={(event) => setSearch(event.target.value)}
             />
           </label>
           <label className="im-filter">
             <span>Trạng thái</span>
             <NativeSelect
+              aria-label="Lọc trạng thái"
               value={status}
-              onChange={(e) => {
-                setStatus(e.target.value);
-                setPage(1);
-              }}
+              onChange={(event) => setStatus(event.target.value)}
             >
               <option value="all">Tất cả trạng thái</option>
-              {Object.entries(statusLabels).map(([v, l]) => (
-                <option key={v} value={v}>
-                  {l}
+              {Object.entries(statusLabels).map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
                 </option>
               ))}
             </NativeSelect>
           </label>
           <label className="im-filter">
-            <span>Dịch vụ</span>
+            <span>Phòng</span>
             <NativeSelect
-              value={service}
-              onChange={(e) => {
-                setService(e.target.value);
-                setPage(1);
-              }}
+              aria-label="Lọc phòng"
+              value={room}
+              onChange={(event) => setRoom(event.target.value)}
             >
-              <option value="all">Tất cả dịch vụ</option>
-              {[...new Set(own.map((o) => o.service))].map((s) => (
-                <option key={s}>{s}</option>
+              <option value="all">Tất cả phòng</option>
+              {rooms.map((id) => (
+                <option key={id} value={id}>
+                  {roomNames[id] ?? id}
+                </option>
               ))}
             </NativeSelect>
           </label>
-          {(search || status !== "all" || service !== "all") && (
-            <Button
-              variant="ghost"
-              className="im-text-button"
-              onClick={() => {
-                setSearch("");
-                setStatus("all");
-                setService("all");
-                setPage(1);
-              }}
-            >
-              Xóa bộ lọc
-            </Button>
-          )}
+          <label className="im-filter">
+            <span>Ngày</span>
+            <Input
+              aria-label="Lọc ngày"
+              type="date"
+              value={day}
+              onChange={(event) => setDay(event.target.value)}
+            />
+          </label>
         </div>
-        <div className="im-table-scroll">
-          <Table className="im-table">
-            <TableHeader>
-              <TableRow>
-                <TableHead>Mã chỉ định</TableHead>
-                <TableHead>Bệnh nhân</TableHead>
-                <TableHead>Dịch vụ</TableHead>
-                <TableHead>
-                  {statusMode ? "Thời điểm" : "Bác sĩ yêu cầu"}
-                </TableHead>
-                <TableHead>Trạng thái</TableHead>
-                <TableHead>Thao tác</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {matches.slice((current - 1) * 5, current * 5).map((o) => (
-                <TableRow key={o.id}>
-                  <TableCell>
-                    <Link
-                      className="im-id-link"
-                      href={`/imaging/orders/${o.id}`}
-                    >
-                      {o.id}
-                    </Link>
-                    <small>
-                      {o.visitId} · Đợt {o.round}
-                    </small>
-                  </TableCell>
-                  <TableCell>
-                    <div className="im-patient-cell">
-                      <PatientAvatar name={o.patient} />
-                      <div>
-                        <strong>{o.patient}</strong>
-                        <small>
-                          {o.patientId} · {o.age} tuổi · {o.sex}
-                        </small>
-                      </div>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <strong>{o.service}</strong>
-                    <small>{o.room}</small>
-                  </TableCell>
-                  <TableCell>
-                    {statusMode ? (
-                      <>
-                        <span>Tạo: {o.createdAt}</span>
-                        <small>
-                          {o.resultAt
-                            ? `Có kết quả: ${o.resultAt}`
-                            : o.paidAt
-                              ? `Thanh toán: ${o.paidAt}`
-                              : "Chưa thanh toán"}
-                        </small>
-                      </>
-                    ) : (
-                      o.doctor
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <OrderBadge status={o.status} />
-                  </TableCell>
-                  <TableCell>
-                    <Link
-                      className="im-text-button"
-                      href={`/imaging/orders/${o.id}`}
-                    >
-                      Chi tiết <Icon name="arrow" size={14} />
-                    </Link>
-                  </TableCell>
+        {loading ? (
+          <p role="status" className="p-5">
+            Đang tải trạng thái chỉ định…
+          </p>
+        ) : error ? (
+          <p role="alert" className="im-form-error p-5">
+            {error}
+          </p>
+        ) : matches.length === 0 ? (
+          <Empty />
+        ) : (
+          <div className="im-table-scroll">
+            <Table className="im-table">
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Mã chỉ định</TableHead>
+                  <TableHead>Bệnh nhân</TableHead>
+                  <TableHead>Dịch vụ</TableHead>
+                  <TableHead>Thanh toán</TableHead>
+                  <TableHead>Trạng thái</TableHead>
+                  <TableHead>Thao tác</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-        {!matches.length && <Empty />}
-        <Pagination page={current} total={matches.length} onChange={setPage} />
+              </TableHeader>
+              <TableBody>
+                {matches.map((item) => (
+                  <TableRow key={item.requestId}>
+                    <TableCell>
+                      <span className="im-id-link">
+                        {item.requestId.slice(0, 8)}
+                      </span>
+                      <small>
+                        {new Date(item.createdAt).toLocaleString("vi-VN")}
+                      </small>
+                    </TableCell>
+                    <TableCell>
+                      <div className="im-patient-cell">
+                        <PatientAvatar name={item.patient.fullName} />
+                        <strong>{item.patient.fullName}</strong>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <strong>{item.serviceName ?? item.imagingType}</strong>
+                      <small>{roomNames[item.roomId] ?? ""}</small>
+                    </TableCell>
+                    <TableCell>
+                      <Badge tone="green">Đã thanh toán</Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Badge tone={statusTones[item.status]}>
+                        {statusLabels[item.status]}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Link
+                        className="im-text-button"
+                        href={`/imaging/orders/${encodeURIComponent(item.requestId)}`}
+                      >
+                        Chi tiết <Icon name="arrow" size={14} />
+                      </Link>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
       </Panel>
     </>
   );

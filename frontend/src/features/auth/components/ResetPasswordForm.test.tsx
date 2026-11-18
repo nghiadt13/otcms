@@ -1,8 +1,8 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { ResetPasswordForm } from "./ResetPasswordForm";
+import { beforeEach, afterEach, it, expect, vi } from "vitest";
 import { resetAuthSessionForTest } from "@/lib/auth/authSession";
+import { ResetPasswordForm } from "./ResetPasswordForm";
 
 const fetchMock = vi.fn();
 beforeEach(() => {
@@ -18,84 +18,50 @@ beforeEach(() => {
   );
 });
 afterEach(() => vi.unstubAllGlobals());
-async function fill(password = "new-password-123") {
-  await userEvent.type(screen.getByLabelText(/^Mật khẩu mới/), password);
+async function fill() {
+  await userEvent.type(screen.getByLabelText(/^Mã OTP/), "123456");
+  await userEvent.type(screen.getByLabelText(/^Mật khẩu mới/), "Password1");
   await userEvent.type(
     screen.getByLabelText(/^Nhập lại mật khẩu mới/),
-    password,
+    "Password1",
   );
   await userEvent.click(
     screen.getByRole("button", { name: "Đặt mật khẩu mới" }),
   );
 }
-describe("ResetPasswordForm", () => {
-  it("uses the backend and shows success only after 204", async () => {
-    render(<ResetPasswordForm token="test-token" />);
-    await fill();
-    expect(await screen.findByRole("status")).toHaveTextContent(
-      "Mật khẩu đã được cập nhật",
-    );
-    expect(fetchMock).toHaveBeenCalledWith(
-      expect.stringContaining("/patient/reset-password"),
-      expect.objectContaining({
-        body: JSON.stringify({
-          token: "test-token",
-          newPassword: "new-password-123",
-        }),
+it("submits email, OTP and new password", async () => {
+  render(<ResetPasswordForm email="a@example.com" onRestart={() => {}} />);
+  await fill();
+  expect(await screen.findByRole("status")).toHaveTextContent(
+    "Mật khẩu đã được cập nhật",
+  );
+  expect(fetchMock).toHaveBeenCalledWith(
+    expect.stringContaining("/patient/reset-password"),
+    expect.objectContaining({
+      body: JSON.stringify({
+        email: "a@example.com",
+        otp: "123456",
+        newPassword: "Password1",
       }),
-    );
-  });
-  it("blocks the former eight-character password before calling the API", async () => {
-    render(<ResetPasswordForm token="test-token" />);
-    await fill("Abcd1234");
-    expect(
-      screen.getByText("Mật khẩu chưa đạt yêu cầu bên dưới."),
-    ).toBeInTheDocument();
-    expect(fetchMock).not.toHaveBeenCalled();
-  });
-  it("offers a new recovery link when the backend rejects an expired/used token", async () => {
-    fetchMock
-      .mockResolvedValueOnce(
-        new Response(JSON.stringify({ csrfToken: "csrf-test" })),
-      )
-      .mockResolvedValueOnce(
-        new Response(
-          JSON.stringify({ error: { code: "PASSWORD_RESET_TOKEN_INVALID" } }),
-          { status: 400 },
-        ),
-      );
-    render(<ResetPasswordForm token="expired-token" portal="staff" />);
-    await fill();
-    expect(await screen.findByRole("alert")).toHaveTextContent("đã hết hạn");
-    expect(
-      screen.getByRole("link", { name: "Gửi lại hướng dẫn" }),
-    ).toHaveAttribute("href", "/forgot-password?portal=staff");
-  });
-  it("lets the user choose another password after a reuse rejection", async () => {
-    fetchMock
-      .mockResolvedValueOnce(
-        new Response(JSON.stringify({ csrfToken: "csrf-test" })),
-      )
-      .mockResolvedValueOnce(
-        new Response(
-          JSON.stringify({ error: { code: "PASSWORD_REUSE_NOT_ALLOWED" } }),
-          { status: 400 },
-        ),
-      );
-    render(<ResetPasswordForm token="test-token" />);
-    await fill();
-    expect(
-      await screen.findByText("Mật khẩu mới phải khác mật khẩu hiện tại."),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "Đặt mật khẩu mới" }),
-    ).toBeEnabled();
-  });
-  it("does not render a password form without a token", () => {
-    render(<ResetPasswordForm token="" />);
-    expect(screen.getByRole("alert")).toHaveTextContent(
-      "Link đặt lại mật khẩu không hợp lệ",
-    );
-    expect(screen.queryByLabelText(/^Mật khẩu mới/)).not.toBeInTheDocument();
-  });
+    }),
+  );
+});
+it("shows MSG-77 and lets the patient restart after an invalid OTP", async () => {
+  const restart = vi.fn();
+  fetchMock.mockImplementation((url: string) =>
+    Promise.resolve(
+      url.endsWith("/csrf")
+        ? new Response(JSON.stringify({ csrfToken: "csrf-test" }))
+        : new Response(JSON.stringify({ error: { code: "MSG-77" } }), {
+            status: 400,
+          }),
+    ),
+  );
+  render(<ResetPasswordForm email="a@example.com" onRestart={restart} />);
+  await fill();
+  expect(await screen.findByRole("alert")).toHaveTextContent(
+    "Mã OTP không đúng",
+  );
+  await userEvent.click(screen.getByRole("button", { name: "Yêu cầu mã mới" }));
+  expect(restart).toHaveBeenCalledOnce();
 });

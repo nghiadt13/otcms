@@ -11,6 +11,7 @@ import java.util.UUID;
 
 public interface ClinicalRoundWorkflowService {
     List<Order> listDoctorOrders(UUID visitId, UUID doctorProfileId);
+    List<Order> listDoctorLaboratoryOrders(UUID visitId, UUID doctorProfileId);
     RoundPage listReceptionRounds(AuthenticatedAccount actor, int page, int size);
     List<RoomOptions> eligibleImagingRooms(List<UUID> serviceOrderIds, AuthenticatedAccount actor);
     List<UUID> dispatch(UUID roundId, AuthenticatedAccount actor, List<RoomAssignment> assignments);

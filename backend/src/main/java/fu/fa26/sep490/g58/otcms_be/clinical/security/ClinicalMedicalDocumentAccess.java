@@ -7,6 +7,8 @@ import fu.fa26.sep490.g58.otcms_be.common.security.*;
 import fu.fa26.sep490.g58.otcms_be.patient.service.PatientProfileAccessService;
 import fu.fa26.sep490.g58.otcms_be.visit.service.VisitClinicalCareContextService;
 import fu.fa26.sep490.g58.otcms_be.visit.service.VisitDoctorCareRelationQueryService;
+import fu.fa26.sep490.g58.otcms_be.visit.service.VisitReviewSourceService;
+import fu.fa26.sep490.g58.otcms_be.visit.service.VisitExamQueueService;
 import java.util.UUID;
 import org.springframework.stereotype.Component;
 
@@ -19,13 +21,15 @@ public class ClinicalMedicalDocumentAccess {
     private final ReceptionistAccountAccessService receptionists;
     private final PatientProfileAccessService patients;
     private final VisitDoctorCareRelationQueryService care;
+    private final VisitReviewSourceService visitSources;
+    private final VisitExamQueueService examQueue;
 
     public ClinicalMedicalDocumentAccess(ClinicalDoctorIdentityResolver doctors, VisitClinicalContextPort clinicalVisits,
             VisitClinicalCareContextService visits, ReceptionistAccountAccessService receptionists, PatientProfileAccessService patients,
-            VisitDoctorCareRelationQueryService care) {
+            VisitDoctorCareRelationQueryService care, VisitReviewSourceService visitSources, VisitExamQueueService examQueue) {
         this.doctors = doctors; this.clinicalVisits = clinicalVisits; this.visits = visits;
         this.receptionists = receptionists; this.patients = patients;
-        this.care = care;
+        this.care = care; this.visitSources = visitSources; this.examQueue = examQueue;
     }
     public Scope doctor(AuthenticatedAccount actor, UUID visitId) {
         UUID doctorId = doctors.requireDoctorProfile(actor);
@@ -53,6 +57,49 @@ public class ClinicalMedicalDocumentAccess {
         if (actor.accountRole() == AccountRole.RECEPTIONIST && !visit.visitOpen()) throw error("MSG-42");
         if (actor.accountRole() == AccountRole.PATIENT && !patients.canAccess(actor.accountId(), visit.patientProfileId())) throw error("MSG-40");
         return new Scope(visitId, visit.patientProfileId(), null, actor.accountRole());
+    }
+    /** Closed result sheets remain available to authorized staff and patients. */
+    public Scope resultSheet(AuthenticatedAccount actor, UUID visitId, boolean requireClosed) {
+        requireActor(actor);
+        if (visitId == null) throw error("MSG-39");
+        var visit = visitSources.find(visitId).orElseThrow(() -> error("MSG-41"));
+        if (!"CLOSED".equals(visit.status())) {
+            if (requireClosed || actor.accountRole() == AccountRole.PATIENT) throw error("MSG-42");
+            return read(actor, visitId);
+        }
+        if (actor.accountRole() == AccountRole.PATIENT) {
+            if (!patients.canAccess(actor.accountId(), visit.patientProfileId())) throw error("MSG-40");
+            return new Scope(visitId, visit.patientProfileId(), null, AccountRole.PATIENT);
+        }
+        if (actor.accountRole() == AccountRole.RECEPTIONIST) {
+            if (!receptionists.isActiveReceptionistAccount(actor.accountId())) throw error("MSG-40");
+            return new Scope(visitId, visit.patientProfileId(), null, AccountRole.RECEPTIONIST);
+        }
+        if (actor.accountRole() == AccountRole.DOCTOR) {
+            UUID doctorId = doctors.requireDoctorProfile(actor);
+            boolean responsible = examQueue.find(visitId).map(q -> doctorId.equals(q.doctorProfileId())).orElse(false);
+            if (!responsible && !care.hasCurrentCare(doctorId, visit.patientProfileId())) throw error("MSG-40");
+            return new Scope(visitId, visit.patientProfileId(), doctorId, AccountRole.DOCTOR);
+        }
+        throw error("MSG-40");
+    }
+    public boolean isClosed(UUID visitId) {
+        return visitSources.find(visitId).map(visit -> "CLOSED".equals(visit.status())).orElse(false);
+    }
+    public Scope regenerateResultSheet(AuthenticatedAccount actor, UUID visitId) {
+        UUID doctorId = doctors.requireDoctorProfile(actor);
+        Scope scope = resultSheet(actor, visitId, true);
+        if (!examQueue.find(visitId).map(q -> doctorId.equals(q.doctorProfileId())).orElse(false)) throw error("MSG-40");
+        return scope;
+    }
+    /** UC-38: only the attending doctor of a CLOSED visit may amend its result. */
+    public Scope amendResult(AuthenticatedAccount actor, UUID visitId) {
+        UUID doctorId = doctors.requireDoctorProfile(actor);
+        if (visitId == null) throw error("MSG-39");
+        var visit = visitSources.find(visitId).orElseThrow(() -> error("MSG-41"));
+        if (!examQueue.find(visitId).map(q -> doctorId.equals(q.doctorProfileId())).orElse(false)) throw error("MSG-40");
+        if (!"CLOSED".equals(visit.status())) throw error("MSG-42");
+        return new Scope(visitId, visit.patientProfileId(), doctorId, AccountRole.DOCTOR);
     }
     public Scope upload(AuthenticatedAccount actor, UUID visitId) {
         requireActor(actor);

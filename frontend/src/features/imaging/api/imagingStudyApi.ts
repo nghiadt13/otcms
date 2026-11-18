@@ -81,7 +81,8 @@ function modalityFromImagingType(value: string): ImagingModality | null {
   if (type.includes("MRI") || type === "MR") return "MRI";
   if (type.includes("CT")) return "CT";
   if (type.includes("ULTRASOUND") || type === "US") return "ULTRASOUND";
-  if (type.includes("X-RAY") || type.includes("XRAY") || type === "XR") return "XRAY";
+  if (type.includes("X-RAY") || type.includes("XRAY") || type === "XR")
+    return "XRAY";
   return null;
 }
 
@@ -91,25 +92,40 @@ async function loadLiveStudies(
 ): Promise<PatientImagingStudySummary[]> {
   const visitQuery = (page: number) => {
     const qs = toQueryString({ patientId, page, size: 100 });
-    return apiRequest<VisitPage>(`/api/v1/visits/results${qs}` as const, { signal });
+    return apiRequest<VisitPage>(`/api/v1/visits/results${qs}` as const, {
+      signal,
+    });
   };
   const firstVisits = await visitQuery(0);
-  const visits = await getAllPages(firstVisits.items, firstVisits.totalPages, async (page) =>
-    (await visitQuery(page)).items,
+  const visits = await getAllPages(
+    firstVisits.items,
+    firstVisits.totalPages,
+    async (page) => (await visitQuery(page)).items,
   );
   const visitById = new Map(visits.map((visit) => [visit.visitId, visit]));
   const profileIds = [...new Set(visits.map((visit) => visit.patient.id))];
 
-  const histories = await Promise.all(profileIds.map(async (profileId) => {
-    const historyQuery = (page: number) => {
-      const query = new URLSearchParams({ patientId: profileId, page: String(page), size: "100" });
-      return apiRequest<ImagingHistoryPage>(`/api/v1/imaging-history?${query}` as const, { signal });
-    };
-    const firstHistory = await historyQuery(0);
-    return getAllPages(firstHistory.items, Math.ceil(firstHistory.totalElements / firstHistory.size), async (page) =>
-      (await historyQuery(page)).items,
-    );
-  }));
+  const histories = await Promise.all(
+    profileIds.map(async (profileId) => {
+      const historyQuery = (page: number) => {
+        const query = new URLSearchParams({
+          patientId: profileId,
+          page: String(page),
+          size: "100",
+        });
+        return apiRequest<ImagingHistoryPage>(
+          `/api/v1/imaging-history?${query}` as const,
+          { signal },
+        );
+      };
+      const firstHistory = await historyQuery(0);
+      return getAllPages(
+        firstHistory.items,
+        Math.ceil(firstHistory.totalElements / firstHistory.size),
+        async (page) => (await historyQuery(page)).items,
+      );
+    }),
+  );
 
   const studies: PatientImagingStudySummary[] = [];
   for (const item of histories.flat()) {
@@ -127,7 +143,9 @@ async function loadLiveStudies(
       finding: item.findingsText,
     });
   }
-  return studies.sort((left, right) => right.studyDate.localeCompare(left.studyDate));
+  return studies.sort((left, right) =>
+    right.studyDate.localeCompare(left.studyDate),
+  );
 }
 
 /** Danh sách ảnh bệnh nhân ghép từ lịch sử lượt khám và lịch sử chẩn đoán đã phát hành. */

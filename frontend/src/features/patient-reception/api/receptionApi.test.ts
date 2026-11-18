@@ -5,11 +5,7 @@ import {
   loadReception,
   resetReceptionMock,
 } from "./receptionApi";
-import {
-  availableDoctors,
-  validatePatient,
-  withinReturnWindow,
-} from "../schema/receptionRules";
+import { availableDoctors, withinReturnWindow } from "../schema/receptionRules";
 import type { ReceptionCommand, ReceptionState } from "../types";
 
 const DAY = "2026-10-24";
@@ -28,86 +24,6 @@ async function cash(chargeIds: string[], cashReceived = 1000000) {
 beforeEach(() => resetReceptionMock(seed()));
 
 describe("patient identification and care links", () => {
-  it("rejects duplicate identifiers without partial writes", async () => {
-    const s = await loadReception();
-    const count = s.patients.length;
-    await expect(
-      command({
-        type: "save-patient",
-        input: { ...s.patients[0], phone: "+84900000001" },
-        identityConfirmed: true,
-      }),
-    ).rejects.toThrow("MSG-18");
-    expect((await loadReception()).patients).toHaveLength(count);
-  });
-  it("requires identity confirmation and validates birthdate", async () => {
-    const input = {
-      ...seed().patients[0],
-      phone: "0901111111",
-      name: "Bệnh nhân mới",
-      dob: "2027-01-01",
-    };
-    expect(validatePatient(input, DAY).dob).toBeTruthy();
-    expect(
-      validatePatient({ ...input, dob: "2026-02-30" }, DAY).dob,
-    ).toBeTruthy();
-    await expect(
-      command({
-        type: "save-patient",
-        input: { ...input, dob: "1990-01-01" },
-        identityConfirmed: false,
-      }),
-    ).rejects.toThrow("MSG-17");
-  });
-  it("matches duplicate names despite accents, case and repeated whitespace", async () => {
-    await expect(
-      command({
-        type: "save-patient",
-        input: {
-          ...seed().patients[0],
-          name: "  NGUYEN   MINH  ANH  ",
-          phone: "+84 900 000 001",
-        },
-        identityConfirmed: true,
-      }),
-    ).rejects.toThrow("MSG-18");
-    expect((await loadReception()).patients).toHaveLength(
-      seed().patients.length,
-    );
-  });
-  it("matches passport identifiers regardless of letter case", async () => {
-    const s = seed();
-    s.patients[0].nationalId = "A1234567";
-    resetReceptionMock(s);
-    await expect(
-      command({
-        type: "save-patient",
-        input: {
-          ...s.patients[0],
-          name: "Bệnh nhân khác",
-          phone: "0901111111",
-          nationalId: "a1234567",
-        },
-        identityConfirmed: true,
-      }),
-    ).rejects.toThrow("MSG-18");
-  });
-  it("creates only administrative information without a login or medical fields", async () => {
-    const before = seed();
-    const result = await command({
-      type: "save-patient",
-      input: {
-        ...before.patients[0],
-        name: "Bệnh nhân mới",
-        phone: "0901111111",
-      },
-      identityConfirmed: true,
-    });
-    expect(result.patients).toHaveLength(before.patients.length + 1);
-    expect(result.patients[0]).not.toHaveProperty("allergies");
-    expect(result.patients[0]).not.toHaveProperty("medicalHistory");
-    expect(result.account).toEqual(before.account);
-  });
   it("requires papers and existing eligible relationship request", async () => {
     await expect(
       command({
@@ -487,81 +403,6 @@ describe("check-in and return visit", () => {
 });
 
 describe("queues", () => {
-  it("calls by queue order, blocks occupied room and advances only after arrival", async () => {
-    const result = await command({
-      type: "call-next",
-      roomId: "p101",
-      kind: "exam",
-    });
-    expect(result.queues.find((q) => q.id === "q1")).toMatchObject({
-      status: "waiting",
-      callerId: result.account.id,
-    });
-    await expect(
-      command({ type: "call-next", roomId: "p101", kind: "exam" }),
-    ).rejects.toThrow("MSG-42");
-    const arrived = await command({
-      type: "queue-action",
-      id: "q1",
-      action: "arrived",
-    });
-    expect(arrived.visits.find((v) => v.id === "LK001")?.status).toBe(
-      "examining",
-    );
-  });
-  it("absence frees room and same-day return re-joins the queue with a new arrival time", async () => {
-    await command({ type: "call-next", roomId: "p101", kind: "exam" });
-    await command({ type: "queue-action", id: "q1", action: "absent" });
-    const next = await command({
-      type: "call-next",
-      roomId: "p101",
-      kind: "exam",
-    });
-    expect(next.queues.find((q) => q.id === "q2")?.calledAt).toBeTruthy();
-    const returned = await command({
-      type: "queue-action",
-      id: "q1",
-      action: "return",
-    });
-    expect(returned.queues.find((q) => q.id === "q1")).toMatchObject({
-      status: "waiting",
-      joinedAt: returned.clock,
-      calledAt: undefined,
-    });
-  });
-  it("blocks service-room calls and another caller's absent action", async () => {
-    await expect(
-      command({ type: "call-next", roomId: "xq1", kind: "exam" }),
-    ).rejects.toThrow("MSG-42");
-    const state = seed();
-    state.queues[0].callerId = "another-receptionist";
-    state.queues[0].calledAt = state.clock;
-    resetReceptionMock(state);
-    await expect(
-      command({ type: "queue-action", id: "q1", action: "absent" }),
-    ).rejects.toThrow("MSG-40");
-  });
-  it("requires a reason and retains before/after queue history", async () => {
-    await expect(
-      command({
-        type: "reorder",
-        id: "q2",
-        position: 1,
-        reason: "",
-      }),
-    ).rejects.toThrow("MSG-39");
-    const result = await command({
-      type: "reorder",
-      id: "q2",
-      position: 1,
-      reason: "Điều phối theo tình huống cấp cứu",
-    });
-    expect(result.audit[0]).toMatchObject({
-      actor: "Thiên Quang",
-      reason: "Điều phối theo tình huống cấp cứu",
-    });
-    expect(result.queues.find((q) => q.id === "q2")?.position).toBe(1);
-  });
   it("moves only into service-compatible rooms and preserves visit", async () => {
     const paid = await cash(["phi-CD001"]);
     const entry = paid.queues.find((q) => q.visitId === "LK003")!;
@@ -583,27 +424,6 @@ describe("queues", () => {
     expect(result.visits.find((v) => v.id === "LK003")?.doctorId).toBe(
       "bs-minh",
     );
-  });
-  it("transfers clinical responsibility only from an absent doctor to one on duty", async () => {
-    await expect(
-      command({
-        type: "transfer-doctor",
-        visitId: "LK003",
-        doctorId: "bs-an",
-        reason: "Bàn giao cho bác sĩ trực",
-      }),
-    ).rejects.toThrow("MSG-42");
-    const state = seed();
-    state.doctors.find((d) => d.id === "bs-minh")!.absent = true;
-    resetReceptionMock(state);
-    const result = await command({
-      type: "transfer-doctor",
-      visitId: "LK003",
-      doctorId: "bs-an",
-      reason: "Bác sĩ phụ trách vắng ca",
-    });
-    expect(result.visits.find((v) => v.id === "LK003")?.doctorId).toBe("bs-an");
-    expect(result.audit).toHaveLength(1);
   });
 });
 
@@ -706,17 +526,6 @@ describe("cash, VNPay and immutable receipts", () => {
       (await cash(["phi-LH001"])).charges.find((c) => c.id === "phi-LH001")
         ?.status,
     ).toBe("paid");
-  });
-  it("retains patient name on issued receipt after administrative correction", async () => {
-    const paid = await cash(["phi-LH001"]);
-    const patient = paid.patients.find((p) => p.id === "BN0001")!;
-    const result = await command({
-      type: "save-patient",
-      id: patient.id,
-      input: { ...patient, name: "Nguyễn Minh Anh Đã Sửa" },
-      identityConfirmed: true,
-    });
-    expect(result.payments[0].patientName).toBe("Nguyễn Minh Anh");
   });
   it("creates one queue entry for multiple paid orders in the same room", async () => {
     const state: ReceptionState = seed();

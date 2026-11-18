@@ -98,14 +98,16 @@ describe("RegisterPatientFlow", () => {
     await user.type(screen.getByLabelText(/Mã xác minh/), "000000");
     await user.click(screen.getByRole("button", { name: "Xác minh" }));
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      authMessages["MSG-08"],
+      authMessages["MSG-77"],
     );
 
     await user.clear(screen.getByLabelText(/Mã xác minh/));
     await user.type(screen.getByLabelText(/Mã xác minh/), "123456");
     await user.click(screen.getByRole("button", { name: "Xác minh" }));
 
-    await waitFor(() => expect(replace).toHaveBeenCalledWith("/login?registered=1"));
+    await waitFor(() =>
+      expect(replace).toHaveBeenCalledWith("/login?registered=1"),
+    );
     expect(screen.queryByText("Bước 3/3")).toBeNull();
     expect(fetchMock).toHaveBeenCalledWith(
       "http://localhost:8080/api/auth/patient/register",

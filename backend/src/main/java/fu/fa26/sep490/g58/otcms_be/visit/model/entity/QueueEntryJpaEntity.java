@@ -23,6 +23,8 @@ import java.util.UUID;
 public class QueueEntryJpaEntity {
     public static final String STAGE_RECEPTION = "RECEPTION";
     public static final String STAGE_EXAM = "EXAM";
+    public static final String STAGE_SERVICE = "SERVICE";
+    public static final String STAGE_RESULT_REVIEW = "RESULT_REVIEW";
     public static final String RECEPTION_WAITING = "WAITING";
 
     @Id
@@ -66,6 +68,18 @@ public class QueueEntryJpaEntity {
     @Column(name = "queue_number")
     private Integer queueNumber;
 
+    @Column(name = "sort_order", nullable = false)
+    private long sortOrder;
+
+    @Column(name = "called_at")
+    private Instant calledAt;
+
+    @Column(name = "absent_at")
+    private Instant absentAt;
+
+    @Column(name = "service_order_id")
+    private UUID serviceOrderId;
+
     @Column(name = "queued_at")
     private Instant queuedAt;
 
@@ -89,6 +103,7 @@ public class QueueEntryJpaEntity {
         entity.status = RECEPTION_WAITING;
         entity.arrivedAt = arrivedAt;
         entity.enteredAt = enteredAt;
+        entity.sortOrder = arrivedAt.toEpochMilli();
         return entity;
     }
 
@@ -121,6 +136,7 @@ public class QueueEntryJpaEntity {
         entity.serviceId = serviceId;
         entity.clinicDate = clinicDate;
         entity.enteredAt = createdAt;
+        entity.sortOrder = createdAt.toEpochMilli();
         return entity;
     }
 
@@ -138,6 +154,47 @@ public class QueueEntryJpaEntity {
         requireExam();
         this.status = VisitExamStatus.IN_EXAMINATION.name();
         this.startedAt = at;
+    }
+
+    public void call(Instant at) {
+        status = VisitExamStatus.CALLED.name();
+        calledAt = at;
+    }
+
+    public void markAbsent(Instant at) {
+        status = VisitExamStatus.ABSENT.name();
+        absentAt = at;
+    }
+
+    public void returnToQueue(long order) {
+        status = VisitExamStatus.WAITING.name();
+        sortOrder = order;
+    }
+
+    public void changeSortOrder(long order) { sortOrder = order; }
+
+    /**
+     * AWAITING_CONCLUSION to WAITING: the patient came back within the 7-day period (UC-29 AF2). The row gets today's
+     * date, a new number and a fresh order, exactly like a new check-in.
+     */
+    public void rejoinQueue(int number, UUID rejoinRoomId, LocalDate on, Instant at) {
+        requireExam();
+        this.queueNumber = number;
+        this.roomId = rejoinRoomId;
+        this.clinicDate = on;
+        this.status = VisitExamStatus.WAITING.name();
+        this.queuedAt = at;
+        this.sortOrder = at.toEpochMilli();
+        this.calledAt = null;
+        this.absentAt = null;
+    }
+
+    /** Responsibility moves to another doctor (UC-31 AF2). Status and sort_order stay, so the check-in order is kept. */
+    public void reassign(UUID newDoctorProfileId, UUID newRoomId, int number) {
+        requireExam();
+        this.doctorProfileId = newDoctorProfileId;
+        this.roomId = newRoomId;
+        this.queueNumber = number;
     }
 
     public void awaitConclusion(Instant at) {
@@ -158,6 +215,85 @@ public class QueueEntryJpaEntity {
         this.finishedAt = at;
     }
 
+    /**
+     * Service room queue (stage SERVICE, phase 08): one row per paid service order, WAITING with its room number.
+     * {@code sortOrder} is the FIFO position; a patient moving to the next room gets a fresh one.
+     */
+    public static QueueEntryJpaEntity service(UUID visitId, UUID serviceOrderId, UUID roomId, UUID serviceId,
+            LocalDate clinicDate, int queueNumber, long sortOrder, Instant at) {
+        QueueEntryJpaEntity entity = new QueueEntryJpaEntity();
+        entity.id = UUID.randomUUID();
+        entity.visitId = visitId;
+        entity.stage = STAGE_SERVICE;
+        entity.status = "WAITING";
+        entity.serviceOrderId = serviceOrderId;
+        entity.roomId = roomId;
+        entity.serviceId = serviceId;
+        entity.clinicDate = clinicDate;
+        entity.queueNumber = queueNumber;
+        entity.enteredAt = at;
+        entity.queuedAt = at;
+        entity.sortOrder = sortOrder;
+        return entity;
+    }
+
+    /** Result-review queue (stage RESULT_REVIEW, NF-04): the patient waits in the attending doctor's room to hear results. */
+    public static QueueEntryJpaEntity resultReview(UUID visitId, UUID doctorProfileId, UUID roomId,
+            LocalDate clinicDate, int queueNumber, Instant at) {
+        QueueEntryJpaEntity entity = new QueueEntryJpaEntity();
+        entity.id = UUID.randomUUID();
+        entity.visitId = visitId;
+        entity.stage = STAGE_RESULT_REVIEW;
+        entity.status = "WAITING";
+        entity.doctorProfileId = doctorProfileId;
+        entity.roomId = roomId;
+        entity.clinicDate = clinicDate;
+        entity.queueNumber = queueNumber;
+        entity.enteredAt = at;
+        entity.queuedAt = at;
+        entity.sortOrder = at.toEpochMilli();
+        return entity;
+    }
+
+    /** SERVICE: the technician started the service (CALLED to IN_EXAMINATION). */
+    public void startService(Instant at) {
+        requireStage(STAGE_SERVICE);
+        status = "IN_EXAMINATION";
+        startedAt = at;
+    }
+
+    /** SERVICE or RESULT_REVIEW: the stay in this room is over. */
+    public void closeStay(Instant at) {
+        status = "COMPLETED";
+        finishedAt = at;
+    }
+
+    /** SERVICE or RESULT_REVIEW: the entry leaves the queue without being served (cannot perform, visit ended). */
+    public void cancelStay(Instant at) {
+        status = "CANCELLED";
+        finishedAt = at;
+    }
+
+    public void rejoinRoomQueue(UUID room, LocalDate day, int number, Instant at) {
+        if (!STAGE_SERVICE.equals(stage) && !STAGE_RESULT_REVIEW.equals(stage)) {
+            throw new IllegalStateException("not a room queue row: " + id);
+        }
+        roomId = room;
+        clinicDate = day;
+        queueNumber = number;
+        status = "WAITING";
+        queuedAt = at;
+        sortOrder = at.toEpochMilli();
+        calledAt = null;
+        absentAt = null;
+        startedAt = null;
+        finishedAt = null;
+    }
+
+    private void requireStage(String expected) {
+        if (!expected.equals(stage)) throw new IllegalStateException("not a " + expected + " queue row: " + id);
+    }
+
     private void requireExam() {
         if (!STAGE_EXAM.equals(stage)) throw new IllegalStateException("not an exam queue row: " + id);
     }
@@ -175,6 +311,10 @@ public class QueueEntryJpaEntity {
     public UUID getServiceId() { return serviceId; }
     public LocalDate getClinicDate() { return clinicDate; }
     public Integer getQueueNumber() { return queueNumber; }
+    public long getSortOrder() { return sortOrder; }
+    public Instant getCalledAt() { return calledAt; }
+    public Instant getAbsentAt() { return absentAt; }
+    public UUID getServiceOrderId() { return serviceOrderId; }
     public Instant getQueuedAt() { return queuedAt; }
     public Instant getStartedAt() { return startedAt; }
     public Instant getAwaitingAt() { return awaitingAt; }

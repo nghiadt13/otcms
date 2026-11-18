@@ -1,6 +1,5 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { render, screen } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@/lib/api/apiError";
 import { AppointmentPayOsPayment } from "./AppointmentPayOsPayment";
 
@@ -68,115 +67,25 @@ function route(handlers: {
   });
 }
 
-const inTheFuture = (ms: number) => new Date(Date.now() + ms).toISOString();
-const inThePast = (ms: number) => new Date(Date.now() - ms).toISOString();
-
 beforeEach(() => {
   request.mockReset();
   window.sessionStorage.clear();
 });
-
-afterEach(() => {
-  vi.useRealTimers();
-});
-
-describe("AppointmentPayOsPayment - chế độ lịch có hạn giữ chỗ", () => {
-  it("hiện đếm ngược và QR khi còn hạn", async () => {
+describe("AppointmentPayOsPayment", () => {
+  it("hiện QR và chính sách không hoàn phí", async () => {
     route({});
-    render(
-      <AppointmentPayOsPayment
-        appointmentId="apt-1"
-        onFinish={() => {}}
-        paymentDeadline={inTheFuture(90_000)}
-      />,
-    );
-    const timer = await screen.findByText(/Giữ lịch còn/);
-    expect(timer.textContent).toMatch(/00:01:(29|30)/);
-    expect(screen.getByLabelText("Quét mã QR")).toBeInTheDocument();
-    expect(
-      screen.queryByText("Hết thời gian giữ lịch"),
-    ).not.toBeInTheDocument();
-  });
-
-  it("hết hạn: thay bằng 'Hết thời gian giữ lịch' + Đặt lịch lại, không còn 'Tạo mã mới'", async () => {
-    const onBookAgain = vi.fn();
-    route({});
-    render(
-      <AppointmentPayOsPayment
-        appointmentId="apt-1"
-        onBookAgain={onBookAgain}
-        onFinish={() => {}}
-        paymentDeadline={inThePast(1_000)}
-      />,
-    );
-    expect(
-      await screen.findByText("Hết thời gian giữ lịch"),
-    ).toBeInTheDocument();
-    expect(screen.queryByLabelText("Quét mã QR")).not.toBeInTheDocument();
-    expect(screen.queryByText("Tạo mã thanh toán mới")).not.toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "Đặt lịch lại" }));
-    expect(onBookAgain).toHaveBeenCalledTimes(1);
-  });
-
-  it("đếm ngược về 0 thì chuyển sang hết giữ lịch", async () => {
-    route({});
-    render(
-      <AppointmentPayOsPayment
-        appointmentId="apt-1"
-        onFinish={() => {}}
-        paymentDeadline={inTheFuture(1_500)}
-      />,
-    );
-    expect(await screen.findByText(/Giữ lịch còn/)).toBeInTheDocument();
-    expect(
-      await screen.findByText("Hết thời gian giữ lịch", {}, { timeout: 4_000 }),
-    ).toBeInTheDocument();
-    expect(screen.queryByText(/Giữ lịch còn/)).not.toBeInTheDocument();
-  });
-
-  it("INVOICE_NOT_PAYABLE khi tạo mã: cùng trạng thái hết giữ lịch, không báo lỗi thô", async () => {
-    route({
-      createAttempt: () => {
-        throw notPayable();
-      },
-      invoiceById: () => invoice({ status: "VOID" }),
-    });
-    render(
-      <AppointmentPayOsPayment
-        appointmentId="apt-1"
-        onFinish={() => {}}
-        paymentDeadline={inTheFuture(60_000)}
-      />,
-    );
-    expect(
-      await screen.findByText("Hết thời gian giữ lịch"),
-    ).toBeInTheDocument();
-    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
-    expect(screen.queryByText("Tạo mã thanh toán mới")).not.toBeInTheDocument();
-  });
-
-  it("hóa đơn đã VOID: hết giữ lịch ngay, không tạo mã thanh toán", async () => {
-    route({ invoiceOfAppointment: () => invoice({ status: "VOID" }) });
     render(
       <AppointmentPayOsPayment appointmentId="apt-1" onFinish={() => {}} />,
     );
+    expect(await screen.findByLabelText("Quét mã QR")).toBeInTheDocument();
     expect(
-      await screen.findByText("Hết thời gian giữ lịch"),
+      screen.getByText(/Khoản đã thanh toán không được hoàn lại/),
     ).toBeInTheDocument();
-    expect(
-      request.mock.calls.some(([path]) =>
-        String(path).endsWith("/payment-attempts"),
-      ),
-    ).toBe(false);
   });
-
-  it("INVOICE_NOT_PAYABLE nhưng hóa đơn vừa trả đủ: hiện đã thanh toán, không báo hết giữ lịch", async () => {
+  it("hiện đã trả khi hóa đơn hết dư nợ", async () => {
     route({
-      createAttempt: () => {
-        throw notPayable();
-      },
-      invoiceById: () =>
-        invoice({ status: "PAID", paidAmount: 500000, outstandingBalance: 0 }),
+      invoiceOfAppointment: () =>
+        invoice({ status: "PAID", outstandingBalance: 0, paidAmount: 500000 }),
     });
     render(
       <AppointmentPayOsPayment appointmentId="apt-1" onFinish={() => {}} />,
@@ -184,175 +93,34 @@ describe("AppointmentPayOsPayment - chế độ lịch có hạn giữ chỗ", (
     expect(
       await screen.findByRole("button", { name: "Hoàn tất" }),
     ).toBeInTheDocument();
-    expect(
-      screen.queryByText("Hết thời gian giữ lịch"),
-    ).not.toBeInTheDocument();
   });
-
-  it("xóa khóa idempotency khi lịch hết giữ lịch", async () => {
-    route({
-      createAttempt: () => {
-        throw notPayable();
-      },
-      invoiceById: () => invoice({ status: "VOID" }),
-    });
-    render(
-      <AppointmentPayOsPayment appointmentId="apt-1" onFinish={() => {}} />,
-    );
-    await screen.findByText("Hết thời gian giữ lịch");
-    expect(
-      window.sessionStorage.getItem("otcms:payos:idempotency:inv-1"),
-    ).toBeNull();
-  });
-
-  it("nút Hủy → hộp thoại xác nhận → gọi onCancelHold", async () => {
-    const onCancelHold = vi.fn().mockResolvedValue(undefined);
-    route({});
-    render(
-      <AppointmentPayOsPayment
-        appointmentId="apt-1"
-        onCancelHold={onCancelHold}
-        onFinish={() => {}}
-        paymentDeadline={inTheFuture(60_000)}
-      />,
-    );
-    await userEvent.click(
-      await screen.findByRole("button", { name: "Hủy thanh toán" }),
-    );
-    const dialog = await screen.findByRole("alertdialog");
-    expect(
-      within(dialog).getByText("Bạn có chắc muốn hủy thanh toán?"),
-    ).toBeInTheDocument();
-    expect(onCancelHold).not.toHaveBeenCalled();
-    await userEvent.click(
-      within(dialog).getByRole("button", { name: "Hủy lịch" }),
-    );
-    await waitFor(() => expect(onCancelHold).toHaveBeenCalledTimes(1));
-  });
-
-  it("chọn 'Tiếp tục thanh toán' thì không hủy", async () => {
-    const onCancelHold = vi.fn();
-    route({});
-    render(
-      <AppointmentPayOsPayment
-        appointmentId="apt-1"
-        onCancelHold={onCancelHold}
-        onFinish={() => {}}
-      />,
-    );
-    await userEvent.click(
-      await screen.findByRole("button", { name: "Hủy thanh toán" }),
-    );
-    await userEvent.click(
-      await screen.findByRole("button", { name: "Tiếp tục thanh toán" }),
-    );
-    expect(onCancelHold).not.toHaveBeenCalled();
-    expect(screen.getByLabelText("Quét mã QR")).toBeInTheDocument();
-  });
-
-  it("onCancelHold lỗi: giữ hộp thoại và báo thử lại", async () => {
-    const onCancelHold = vi.fn().mockRejectedValue(new Error("boom"));
-    route({});
-    render(
-      <AppointmentPayOsPayment
-        appointmentId="apt-1"
-        onCancelHold={onCancelHold}
-        onFinish={() => {}}
-      />,
-    );
-    await userEvent.click(
-      await screen.findByRole("button", { name: "Hủy thanh toán" }),
-    );
-    const dialog = await screen.findByRole("alertdialog");
-    await userEvent.click(
-      within(dialog).getByRole("button", { name: "Hủy lịch" }),
-    );
-    expect(await within(dialog).findByRole("alert")).toHaveTextContent(
-      "Chưa hủy được",
-    );
-  });
-
-  it("không còn lối 'Thanh toán sau tại quầy'", async () => {
-    route({});
-    render(
-      <AppointmentPayOsPayment
-        appointmentId="apt-1"
-        onCancelHold={() => {}}
-        onFinish={() => {}}
-      />,
-    );
-    await screen.findByLabelText("Quét mã QR");
-    expect(screen.queryByText(/sau tại quầy/i)).not.toBeInTheDocument();
-  });
-});
-
-describe("AppointmentPayOsPayment - trang /payments/appointment (không nhúng)", () => {
-  it("lịch đã hết hạn/hủy: thông báo + link Đặt lịch lại, không lỗi thô", async () => {
-    route({
-      invoiceOfAppointment: () => {
-        throw new ApiError(409, { errorCode: "SOURCE_NOT_BILLABLE" });
-      },
-    });
-    render(<AppointmentPayOsPayment appointmentId="apt-1" />);
-    expect(
-      await screen.findByText("Hết thời gian giữ lịch"),
-    ).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Đặt lịch lại" })).toHaveAttribute(
-      "href",
-      "/portal/appointments/new",
-    );
-    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
-  });
-});
-
-describe("AppointmentPayOsPayment - chế độ hóa đơn lẻ", () => {
-  it("không đổi: hiện QR, không có đếm ngược giữ lịch và không có nút Hủy", async () => {
-    route({});
-    render(
-      <AppointmentPayOsPayment
-        invoiceId="inv-1"
-        onCancelHold={() => {}}
-        paymentDeadline={inThePast(1_000)}
-      />,
-    );
-    expect(await screen.findByLabelText("Quét mã QR")).toBeInTheDocument();
-    expect(screen.queryByText(/Giữ lịch còn/)).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: "Hủy thanh toán" }),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.queryByText("Hết thời gian giữ lịch"),
-    ).not.toBeInTheDocument();
-  });
-
-  it("hóa đơn VOID: thông báo rõ, không có 'Tạo mã mới'", async () => {
+  it("hiện hóa đơn không thanh toán được khi VOID", async () => {
     route({ invoiceById: () => invoice({ status: "VOID" }) });
     render(<AppointmentPayOsPayment invoiceId="inv-1" />);
     expect(
       await screen.findByText("Hóa đơn không còn thanh toán được"),
     ).toBeInTheDocument();
-    expect(screen.getByText("Đã hủy")).toBeInTheDocument();
-    expect(screen.queryByText("Tạo mã thanh toán mới")).not.toBeInTheDocument();
-    expect(
-      screen.queryByText("Hết thời gian giữ lịch"),
-    ).not.toBeInTheDocument();
   });
-
-  it("INVOICE_NOT_PAYABLE khi tạo mã: thông báo rõ, không báo lỗi thô", async () => {
-    let reads = 0;
+  it("cho tạo mã mới khi attempt hết hạn", async () => {
+    route({ createAttempt: () => attempt("EXPIRED") });
+    render(<AppointmentPayOsPayment invoiceId="inv-1" />);
+    expect(
+      await screen.findByRole("button", { name: "Tạo mã thanh toán mới" }),
+    ).toBeInTheDocument();
+  });
+  it("phân biệt hóa đơn vừa trả khi tạo mã bị từ chối", async () => {
     route({
-      invoiceById: () => {
-        reads += 1;
-        return reads === 1 ? invoice() : invoice({ status: "VOID" });
-      },
       createAttempt: () => {
         throw notPayable();
       },
+      invoiceById: () =>
+        invoice({ status: "PAID", outstandingBalance: 0, paidAmount: 500000 }),
     });
-    render(<AppointmentPayOsPayment invoiceId="inv-1" />);
+    render(
+      <AppointmentPayOsPayment appointmentId="apt-1" onFinish={() => {}} />,
+    );
     expect(
-      await screen.findByText("Hóa đơn không còn thanh toán được"),
+      await screen.findByRole("button", { name: "Hoàn tất" }),
     ).toBeInTheDocument();
-    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 });

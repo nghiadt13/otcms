@@ -6,8 +6,6 @@ const messages: Record<RecoveryFailure, string> = {
   "password-reuse": "Mật khẩu mới phải khác mật khẩu hiện tại.",
   validation: "Thông tin chưa hợp lệ. Vui lòng kiểm tra và thử lại.",
   "rate-limit": "Bạn đã gửi quá nhiều yêu cầu. Vui lòng chờ rồi thử lại.",
-  "staff-network":
-    "Khôi phục tài khoản nhân viên chỉ khả dụng trong mạng phòng khám hoặc VPN được cấp.",
   service: "Không thể hoàn tất yêu cầu. Vui lòng thử lại sau.",
 };
 

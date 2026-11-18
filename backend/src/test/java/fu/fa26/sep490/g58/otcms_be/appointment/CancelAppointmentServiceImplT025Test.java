@@ -47,6 +47,7 @@ class CancelAppointmentServiceImplT025Test {
     private final VisitScheduledCareService visits = mock(VisitScheduledCareService.class);
     private final NotificationPublisher notifications = mock(NotificationPublisher.class);
     private final StaffAvailabilityProviderQueryService doctors = mock(StaffAvailabilityProviderQueryService.class);
+    private final fu.fa26.sep490.g58.otcms_be.billing.service.BillingRefundService fees = mock(fu.fa26.sep490.g58.otcms_be.billing.service.BillingRefundService.class);
     /** Without the checked-in collaborators (patient and online paths only). */
     private CancelAppointmentServiceImpl handler;
     /** With the lifecycle and visit collaborators (checked-in paths). */
@@ -58,9 +59,9 @@ class CancelAppointmentServiceImplT025Test {
         var properties = new AppointmentBookingProperties(30, 120, 30, 15, 15,
                 ZoneId.of("Asia/Ho_Chi_Minh"), new AppointmentBookingProperties.PublicRateLimit(60, 60), 15, 30000L, false);
         var clock = Clock.fixed(now, ZoneId.of("UTC"));
-        handler = new CancelAppointmentServiceImpl(guard, appointments, auth, properties, clock, notifications, doctors, org.mockito.Mockito.mock(fu.fa26.sep490.g58.otcms_be.common.audit.AuditLogWriter.class));
+        handler = new CancelAppointmentServiceImpl(guard, appointments, auth, properties, clock, notifications, doctors, fees, org.mockito.Mockito.mock(fu.fa26.sep490.g58.otcms_be.common.audit.AuditLogWriter.class));
         fullHandler = new CancelAppointmentServiceImpl(guard, appointments, auth, properties, clock, lifecycle, visits,
-                notifications, doctors, null, null, org.mockito.Mockito.mock(fu.fa26.sep490.g58.otcms_be.common.audit.AuditLogWriter.class));
+                notifications, doctors, fees, null, org.mockito.Mockito.mock(fu.fa26.sep490.g58.otcms_be.common.audit.AuditLogWriter.class));
         current = appointment("CONFIRMED", now.plusSeconds(86400), null);
         when(appointments.findForUpdate(appointmentId)).thenReturn(Optional.of(current));
         when(auth.authorize(accountId, patientId)).thenReturn(new AuthorizePatientProfileService.AuthorizedPatientProfile(
@@ -148,21 +149,15 @@ class CancelAppointmentServiceImplT025Test {
     }
 
     @Test
-    void adminCancelsCheckedInVisitThroughVisitPathWithAdminAuditAndNotifiesPatient() {
+    void adminCannotCancelCheckedInAppointment() {
         var checkedIn = appointment("CHECKED_IN", now.plusSeconds(600), visitId);
         when(appointments.findForUpdate(appointmentId)).thenReturn(Optional.of(checkedIn));
-        when(lifecycle.findForUpdate(appointmentId)).thenReturn(Optional.of(checkedIn));
-        var expected = cancelledResult(checkedIn);
-        when(lifecycle.transition(checkedIn, adminAccountId, "ADMIN", "CANCELLED", "ops reason", now, "trace-id"))
-                .thenReturn(expected);
 
-        var result = fullHandler.cancel(appointmentId, new CancelAppointmentCommand(adminAccountId,
-                CancelAppointmentCommand.Actor.ADMIN, "ops reason", "trace-id"));
-
-        assertEquals(expected, result);
-        verify(visits).cancelCheckedInVisit(any());
-        verify(lifecycle).transition(checkedIn, adminAccountId, "ADMIN", "CANCELLED", "ops reason", now, "trace-id");
-        verify(notifications).publishToPatient(eq(patientId), any());
+        var failure = assertThrows(AppointmentBookingException.class,
+                () -> fullHandler.cancel(appointmentId, new CancelAppointmentCommand(adminAccountId,
+                        CancelAppointmentCommand.Actor.ADMIN, "ops reason", "trace-id")));
+        assertEquals("APPOINTMENT_NOT_CHANGEABLE", failure.code());
+        verifyNoInteractions(visits, lifecycle);
     }
 
     @Test

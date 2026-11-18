@@ -34,8 +34,7 @@ class AppointmentBookingControllerValidationTest {
         checkIn = mock(CheckInAppointmentService.class);
         var controller = new AppointmentBookingController(create, mock(RescheduleAppointmentService.class),
                 mock(CancelAppointmentService.class), mock(ReassignAppointmentService.class), checkIn,
-                mock(MarkAppointmentNoShowService.class), mock(UpdateAppointmentStatusService.class),
-                mock(fu.fa26.sep490.g58.otcms_be.appointment.service.CancelPendingPaymentHoldService.class));
+                mock(MarkAppointmentNoShowService.class), mock(UpdateAppointmentStatusService.class));
         mvc = MockMvcBuilders.standaloneSetup(controller)
                 .setControllerAdvice(new AppointmentBookingExceptionHandler())
                 .addFilters(new CorrelationIdFilter()).build();
@@ -44,13 +43,13 @@ class AppointmentBookingControllerValidationTest {
     @Test
     void invalidAndUnknownBookingFieldsMapToExistingValidationError() throws Exception {
         mvc.perform(post("/api/v1/appointments").contentType(MediaType.APPLICATION_JSON).content("{}"))
-                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("MSG-31"));
         mvc.perform(post("/api/v1/appointments").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"serviceId\":\"11111111-1111-1111-1111-111111111111\",\"doctorId\":\"22222222-2222-2222-2222-222222222222\",\"startTime\":\"2026-10-21T10:00:00+07:00\",\"purpose\":\"x\",\"extra\":true}"))
-                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("MSG-31"));
         mvc.perform(post("/api/v1/appointments").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"serviceId\":4}"))
-                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("MSG-31"));
         verifyNoInteractions(create);
     }
 
@@ -58,10 +57,10 @@ class AppointmentBookingControllerValidationTest {
     void checkInRejectsUnknownFieldsAndRequiresPatientAttestation() throws Exception {
         mvc.perform(post("/api/v1/appointments/{id}/check-in", "11111111-1111-1111-1111-111111111111")
                         .contentType(MediaType.APPLICATION_JSON).content("{\"note\":\"extra\"}"))
-                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("MSG-31"));
         mvc.perform(post("/api/v1/appointments/{id}/check-in", "11111111-1111-1111-1111-111111111111")
                         .contentType(MediaType.APPLICATION_JSON).content("{}"))
-                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("MSG-31"));
         verifyNoInteractions(checkIn);
     }
 }

@@ -54,7 +54,10 @@ export function toLiveProfileDetail(
       "address",
       "citizenId",
     ],
-    allowedActions: ["update", "unlink", "editHistory"],
+    allowedActions:
+      relationship === "SELF"
+        ? ["update", "editHistory"]
+        : ["update", "unlink", "editHistory"],
   };
 }
 

@@ -39,7 +39,7 @@ export function useStaffProfileActions() {
   ): Promise<SubmitResult> {
     try {
       const profile = await createStaffProfile(input, photo);
-      notifySuccess("MSG-92");
+      notifySuccess("MSG-86");
       return { ok: true, profile };
     } catch (error) {
       return toFailure(error);
@@ -53,7 +53,7 @@ export function useStaffProfileActions() {
   ): Promise<SubmitResult> {
     try {
       const profile = await updateStaffProfile(id, input, photo);
-      notifySuccess("MSG-92");
+      notifySuccess("MSG-86");
       return { ok: true, profile };
     } catch (error) {
       return toFailure(error);
@@ -77,7 +77,7 @@ export function useStaffProfileActions() {
   async function remove(id: string): Promise<RemoveResult> {
     try {
       await removeStaffProfile(id);
-      notifySuccess("MSG-92");
+      notifySuccess("MSG-86");
       return "removed";
     } catch (error) {
       if (isApiError(error) && error.code === "MSG-36") {

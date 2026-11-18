@@ -35,7 +35,12 @@ beforeEach(async () => {
   apiRequest.mockReset();
   apiRequest.mockResolvedValueOnce({
     items: [
-      { id: "svc-paid", name: "Khám cột sống", description: null, price: 250000 },
+      {
+        id: "svc-paid",
+        name: "Khám cột sống",
+        description: null,
+        price: 250000,
+      },
       { id: "svc-free", name: "Khám miễn phí", description: null, price: 0 },
     ],
   });
@@ -43,24 +48,22 @@ beforeEach(async () => {
   apiRequest.mockReset();
 });
 
-describe("createAppointment (live): đọc status và hạn giữ giờ của BE", () => {
-  it("AWAITING_PAYMENT + paymentDeadline: sang bước thanh toán, phí chờ trả", async () => {
-    apiRequest.mockResolvedValue(
-      created({
-        status: "AWAITING_PAYMENT",
-        paymentDeadline: "2099-01-01T00:45:00Z",
-      }),
-    );
+describe("createAppointment (live): lịch đặt luôn đã xác nhận, phí trả sau", () => {
+  it("CONFIRMED có phí: lịch đã đặt, phí còn chờ trả (bước thanh toán tùy chọn)", async () => {
+    apiRequest.mockResolvedValue(created({ status: "CONFIRMED" }));
 
     const booked = await createAppointment(request());
 
-    expect(booked.status).toBe("AWAITING_PAYMENT");
-    expect(booked.paymentDeadline).toBe("2099-01-01T00:45:00Z");
-    expect(booked.examFee).toEqual({ amount: 250000, status: "PENDING_PAYMENT" });
+    expect(booked.status).toBe("BOOKED");
+    expect(booked.examFee).toEqual({
+      amount: 250000,
+      status: "PENDING_PAYMENT",
+    });
     expect(booked.patient.fullName).toBe("Nguyễn Văn An");
+    expect(booked).not.toHaveProperty("paymentDeadline");
   });
 
-  it("CONFIRMED (dịch vụ miễn phí): xác nhận ngay, không còn hạn, không thu phí", async () => {
+  it("CONFIRMED (dịch vụ miễn phí): không thu phí", async () => {
     apiRequest.mockResolvedValue(
       created({ serviceId: "svc-free", status: "CONFIRMED" }),
     );
@@ -68,27 +71,15 @@ describe("createAppointment (live): đọc status và hạn giữ giờ của BE
     const booked = await createAppointment(request("svc-free"));
 
     expect(booked.status).toBe("BOOKED");
-    expect(booked.paymentDeadline).toBeNull();
     expect(booked.examFee).toEqual({ amount: 0, status: "NOT_REQUIRED" });
   });
 
   it("không gửi cờ bookedOnline lên BE (BE tự biết nguồn đặt từ tài khoản)", async () => {
-    apiRequest.mockResolvedValue(created({ status: "AWAITING_PAYMENT" }));
+    apiRequest.mockResolvedValue(created({ status: "CONFIRMED" }));
 
     await createAppointment({ ...request(), bookedOnline: true });
 
     const [, init] = apiRequest.mock.calls[0] as [string, RequestInit];
     expect(JSON.parse(init.body as string)).not.toHaveProperty("bookedOnline");
-  });
-
-  it("BOOKING_TOO_SOON được giữ nguyên mã thô để màn hình báo chữ riêng", async () => {
-    const { ApiError } = await import("@/lib/api/apiError");
-    apiRequest.mockRejectedValue(
-      new ApiError(400, { errorCode: "BOOKING_TOO_SOON" }),
-    );
-
-    await expect(createAppointment(request())).rejects.toMatchObject({
-      errorCode: "BOOKING_TOO_SOON",
-    });
   });
 });

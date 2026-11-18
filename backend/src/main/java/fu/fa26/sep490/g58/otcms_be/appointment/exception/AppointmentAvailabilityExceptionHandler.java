@@ -21,7 +21,9 @@ public class AppointmentAvailabilityExceptionHandler {
             case "CHANGE_DEADLINE_PASSED", "APPOINTMENT_CHANGE_TOO_LATE", "BOOKING_TIME_IN_PAST" -> HttpStatus.UNPROCESSABLE_ENTITY;
             default -> HttpStatus.BAD_REQUEST;
         };
-        return ResponseEntity.status(status).body(ErrorResponse.of(exception.code(),
+        // Invalid date window or criteria is a search-criteria problem (MSG-54), not a booking-detail one.
+        String msgCode = "VALIDATION_FAILED".equals(exception.code()) ? "MSG-54" : AppointmentMsgCodes.of(exception.code());
+        return ResponseEntity.status(status).body(ErrorResponse.of(msgCode,
                 "Availability request cannot be completed", UUID.randomUUID().toString()));
     }
 }

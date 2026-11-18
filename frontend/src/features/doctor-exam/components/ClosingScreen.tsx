@@ -3,6 +3,7 @@ import { CircleCheck, CircleX } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
 import { cn } from "@/lib/utils";
 import {
+  useDoctorDemoMode,
   useDoctorExamApi,
   useExamination,
   useOrders,
@@ -13,6 +14,7 @@ import {
 } from "../schema/visitProgress";
 import { DoctorLoadState } from "./DoctorLoadState";
 import { FinishVisitAction } from "./FinishVisitAction";
+import { ResultSheetPanel } from "./ResultSheetPanel";
 import { isVisitClosed } from "./doctorStatus";
 import {
   mergeWorkspaceOrders,
@@ -25,6 +27,7 @@ export function ClosingScreen() {
   const examination = useExamination(visitId);
   const orders = useOrders(visitId);
   const api = useDoctorExamApi();
+  const demo = useDoctorDemoMode();
   const closed = isVisitClosed(context?.status ?? null);
   // Bác sĩ kết thúc lượt khi đang khám hoặc chờ kết luận; lượt đã xong thì chỉ xem.
   const finishable =
@@ -100,6 +103,7 @@ export function ClosingScreen() {
                 context={context}
                 ready={ready}
                 onFailed={reloadAll}
+                onCompleted={workspace.refresh}
               />
             </div>
           ) : null}
@@ -121,6 +125,9 @@ export function ClosingScreen() {
           ) : null}
         </section>
       )}
+      {!demo && context?.status === "COMPLETED" ? (
+        <ResultSheetPanel visitId={visitId} />
+      ) : null}
     </>
   );
 }

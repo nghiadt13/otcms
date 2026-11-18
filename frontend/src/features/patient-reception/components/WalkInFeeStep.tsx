@@ -20,11 +20,13 @@ export function WalkInFeeStep({
   serviceId,
   onQueued,
   onClose,
+  onReceipt,
 }: {
   visitId: string;
   serviceId: string;
   onQueued: (entry: ExamQueueItem) => void;
   onClose: () => void;
+  onReceipt?: (paymentId: string) => void;
 }) {
   const [invoice, setInvoice] = useState<BillingInvoice | null>(null);
   const [error, setError] = useState("");
@@ -63,7 +65,8 @@ export function WalkInFeeStep({
         title="Thu phí khám"
         description="Thu phí khám tại quầy để lượt được cấp số thứ tự."
         onClose={onClose}
-        onPaid={async () => {
+        onPaid={async (paymentId) => {
+          onReceipt?.(paymentId);
           const entry = await getExamQueueEntry(visitId);
           toast.success(queuedFeedbackText(entry.queueNumber, entry.roomLabel));
           onQueued(entry);

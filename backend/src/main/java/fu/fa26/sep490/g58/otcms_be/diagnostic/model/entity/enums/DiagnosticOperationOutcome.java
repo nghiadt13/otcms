@@ -12,5 +12,9 @@ public enum DiagnosticOperationOutcome {
     DEPENDENCY_UNAVAILABLE,
     IDEMPOTENCY_CONFLICT,
     RECORD_NOT_FOUND,
-    REPORT_NOT_READY
+    REPORT_NOT_READY,
+    /** D7: a technician cannot start an order whose fee is unpaid (MSG-95). */
+    ORDER_NOT_PAID,
+    /** The patient is in the room queue but was not called yet (MSG-42). */
+    PATIENT_NOT_CALLED
 }

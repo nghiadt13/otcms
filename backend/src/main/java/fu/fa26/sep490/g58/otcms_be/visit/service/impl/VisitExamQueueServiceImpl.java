@@ -138,6 +138,40 @@ public class VisitExamQueueServiceImpl implements VisitExamQueueService {
     }
 
     @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public ExamQueueTicket requeueReturning(UUID visitId, Instant now) {
+        QueueEntryJpaEntity row = requireRow(visitId);
+        if (row.getExamStatus() != VisitExamStatus.AWAITING_CONCLUSION) throw new VisitOperationException("MSG-42");
+        LocalDate today = clinicDate(now);
+        UUID room = Optional.ofNullable(currentRoomId(row.getDoctorProfileId(), now)).orElse(row.getRoomId());
+        row.rejoinQueue(nextQueueNumber(row.getDoctorProfileId(), today), room, today, now);
+        return ticket(row);
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public ExamQueueTicket reassignDoctor(UUID visitId, UUID newDoctorProfileId, Instant now) {
+        QueueEntryJpaEntity row = requireRow(visitId);
+        VisitExamStatus status = row.getExamStatus();
+        if (status != VisitExamStatus.WAITING && status != VisitExamStatus.ABSENT
+                && status != VisitExamStatus.AWAITING_CONCLUSION) {
+            throw new VisitOperationException("MSG-42");
+        }
+        if (newDoctorProfileId.equals(row.getDoctorProfileId())) throw new VisitOperationException("MSG-42");
+        List<DoctorWorkShift> onDuty;
+        try {
+            onDuty = schedules.forProfile(newDoctorProfileId, now, now.plusSeconds(1));
+        } catch (fu.fa26.sep490.g58.otcms_be.staff.exception.DoctorProfileException unknownDoctor) {
+            onDuty = List.of();
+        }
+        if (onDuty.isEmpty()) throw new VisitOperationException("MSG-41");
+        UUID room = onDuty.stream().min(Comparator.comparing(DoctorWorkShift::startsAt))
+                .map(DoctorWorkShift::roomId).orElse(null);
+        row.reassign(newDoctorProfileId, room, nextQueueNumber(newDoctorProfileId, row.getClinicDate()));
+        return ticket(row);
+    }
+
+    @Override
     @Transactional(readOnly = true)
     public Optional<ExamQueueEntry> find(UUID visitId) {
         return queue.findExamByVisitId(visitId).map(VisitExamQueueServiceImpl::entry);

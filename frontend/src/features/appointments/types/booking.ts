@@ -84,8 +84,8 @@ export interface CreateAppointmentRequest {
 
 /**
  * Lịch vừa đặt, hình trả về của POST. Không có SĐT, mã bệnh nhân hay thông tin nội bộ.
- * Đặt trực tuyến dịch vụ có phí: `status` là AWAITING_PAYMENT kèm `paymentDeadline` (giữ giờ 15 phút);
- * dịch vụ miễn phí và lịch lễ tân đặt hộ là BOOKED ngay.
+ * Lịch đặt xong luôn BOOKED (đã xác nhận, không giữ giờ). Dịch vụ có phí còn `examFee.status`
+ * PENDING_PAYMENT cho tới khi trả: thanh toán là tùy chọn, trước giờ check-in.
  */
 export interface BookedAppointment {
   id: string;
@@ -96,27 +96,20 @@ export interface BookedAppointment {
   doctor: DoctorRef;
   roomName: string;
   status: AppointmentStatus;
-  /** ISO-8601; chỉ có khi `status` là AWAITING_PAYMENT. Hết hạn thì BE nhả giờ. */
-  paymentDeadline?: string | null;
   /** Giá chốt lúc đặt (BR-59). */
   examFee: { amount: number; status: ExamFeeStatus };
   isFollowUp: boolean;
 }
 
 /**
- * Màn thanh toán của lịch vừa tạo (bước 5 của wizard). Do trang ghép ở `app/` vì feature này không
- * import billing. Chỉ lịch AWAITING_PAYMENT mới sang bước này.
+ * Màn thanh toán của lịch vừa tạo (bước 5 của wizard, tùy chọn). Do trang ghép ở `app/` vì feature
+ * này không import billing. Chỉ lịch còn phí khám chờ trả (`examFee.status` PENDING_PAYMENT) mới
+ * được đưa tới bước này.
  */
 export interface PaymentStepArgs {
   appointment: BookedAppointment;
-  /** ISO-8601, hạn giữ giờ. Có thì màn thanh toán chạy ở chế độ giữ giờ (đếm ngược, hết hạn thì đặt lại). */
-  paymentDeadline?: string;
   /** Gọi khi đã thanh toán xong (hoặc đã được xác nhận). */
   onFinish: (result: { paid: boolean }) => void;
-  /** Hủy giữ chỗ (nút Hủy/Quay lại, màn thanh toán tự hỏi xác nhận trước khi gọi). Reset wizard về bước 1. */
-  onCancelHold: () => Promise<void>;
-  /** "Đặt lịch lại" khi hết thời gian giữ lịch hoặc hóa đơn không còn thanh toán được. */
-  onBookAgain: () => void;
 }
 
 export type PaymentRenderer = (args: PaymentStepArgs) => ReactNode;

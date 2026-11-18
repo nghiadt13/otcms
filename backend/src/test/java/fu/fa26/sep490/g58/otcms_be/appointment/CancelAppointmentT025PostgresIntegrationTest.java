@@ -132,11 +132,11 @@ class CancelAppointmentT025PostgresIntegrationTest {
         mvc.perform(post("/api/v1/appointments/{id}/cancel", appointment)
                         .with(actor(otherPatientAccount, AccountType.PATIENT)).with(csrf())
                         .contentType("application/json").content("{}"))
-                .andExpect(status().isNotFound()).andExpect(jsonPath("$.error.code").value("APPOINTMENT_NOT_FOUND"));
+                .andExpect(status().isNotFound()).andExpect(jsonPath("$.error.code").value("MSG-29"));
         mvc.perform(post("/api/v1/appointments/{id}/cancel", appointment)
                         .with(actor(receptionistAccount, AccountType.RECEPTIONIST)).with(csrf())
                         .contentType("application/json").content("{\"reason\":\" \"}"))
-                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("MSG-31"));
         assertEquals("CONFIRMED", jdbc.queryForObject("select status from appointments where id = ?", String.class, appointment));
         Instant withinPatientDeadline = NOW.plusSeconds(12 * 3600L);
         jdbc.update("update appointments set start_time = ?, end_time = ? where id = ?",
@@ -158,7 +158,7 @@ class CancelAppointmentT025PostgresIntegrationTest {
                         .with(actor(patientAccount, AccountType.PATIENT)).with(csrf())
                         .contentType("application/json").content("{}"))
                 .andExpect(status().isUnprocessableEntity())
-                .andExpect(jsonPath("$.error.code").value("APPOINTMENT_CHANGE_TOO_LATE"));
+                .andExpect(jsonPath("$.error.code").value("MSG-32"));
         assertEquals("CONFIRMED", jdbc.queryForObject("select status from appointments where id = ?", String.class, appointment));
 
         Instant outsideDeadline = NOW.plusSeconds(121 * 60L);
@@ -192,7 +192,7 @@ class CancelAppointmentT025PostgresIntegrationTest {
         mvc.perform(post("/api/v1/appointments/{id}/cancel", appointment)
                         .with(actor(adminAccount, AccountType.ADMIN)).with(csrf())
                         .contentType("application/json").content("{}"))
-                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("MSG-31"));
         assertEquals("CONFIRMED", jdbc.queryForObject("select status from appointments where id = ?", String.class, appointment));
     }
 

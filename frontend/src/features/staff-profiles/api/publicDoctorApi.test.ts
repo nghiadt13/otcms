@@ -31,13 +31,14 @@ it("maps actual public BE data for directory and homepage without reading a mock
   request.mockResolvedValue({ items: [] });
   expect(await listFeaturedDoctors()).toEqual([]);
 });
-it("uses the seven-day availability returned by the doctor detail endpoint", async () => {
-  const availability = [
-    { date: "2026-11-01", hasOpenTime: false },
-    { date: "2026-11-02", hasOpenTime: true },
-  ];
-  request.mockResolvedValue({ ...doctor, availability });
-  expect((await getPublicDoctor("d")).availability).toEqual(availability);
+it("reads the public profile only; free times come from the booking availability API", async () => {
+  request.mockResolvedValue({
+    ...doctor,
+    availability: [{ date: "2026-11-01", hasOpenTime: false }],
+  });
+  const profile = await getPublicDoctor("d");
+  expect(profile).toMatchObject({ id: "d", fullName: "Doctor from BE" });
+  expect(profile).not.toHaveProperty("availability");
   expect(request).toHaveBeenCalledTimes(1);
   expect(request.mock.calls[0][0]).toBe("/api/v1/doctors/d");
 });

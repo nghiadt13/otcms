@@ -14,8 +14,18 @@ import org.springframework.transaction.annotation.Propagation;
 public interface ClinicVisitJpaRepository extends JpaRepository<ClinicVisitJpaEntity, UUID> {
     @Query("""
             select v from ClinicVisitJpaEntity v
+            where (:patientId is null or v.patientProfileId = :patientId)
+              and (:status is null or v.status = :status)
+            order by v.arrivedAt desc, v.id desc
+            """)
+    org.springframework.data.domain.Slice<ClinicVisitJpaEntity> findReceptionVisits(
+            @Param("patientId") UUID patientId, @Param("status") String status,
+            org.springframework.data.domain.Pageable pageable);
+
+    @Query("""
+            select v from ClinicVisitJpaEntity v
             where v.patientProfileId in :patientIds
-                and (v.status = 'OPEN' or (v.status = 'CLOSED' and exists (
+                and (v.status in ('OPEN', 'INCOMPLETE') or (v.status = 'CLOSED' and exists (
                     select a.id from VisitCareAssignmentJpaEntity a
                     where a.visitId = v.id and a.status = 'COMPLETED')))
             order by v.arrivedAt desc, v.id desc
@@ -27,7 +37,7 @@ public interface ClinicVisitJpaRepository extends JpaRepository<ClinicVisitJpaEn
     @Query("""
             select v from ClinicVisitJpaEntity v
             where v.id = :visitId and v.patientProfileId in :patientIds
-                and (v.status = 'OPEN' or (v.status = 'CLOSED' and exists (
+                and (v.status in ('OPEN', 'INCOMPLETE') or (v.status = 'CLOSED' and exists (
                     select a.id from VisitCareAssignmentJpaEntity a
                     where a.visitId = v.id and a.status = 'COMPLETED')))
             """)
@@ -37,7 +47,7 @@ public interface ClinicVisitJpaRepository extends JpaRepository<ClinicVisitJpaEn
     @Query("""
             select v.id from ClinicVisitJpaEntity v
             where v.patientProfileId = :patientId
-                and (v.status = 'OPEN' or (v.status = 'CLOSED' and exists (
+                and (v.status in ('OPEN', 'INCOMPLETE') or (v.status = 'CLOSED' and exists (
                     select a.id from VisitCareAssignmentJpaEntity a
                     where a.visitId = v.id and a.status = 'COMPLETED')))
                 and (v.arrivedAt < :arrivedAt or (v.arrivedAt = :arrivedAt and v.id < :visitId))
@@ -50,7 +60,7 @@ public interface ClinicVisitJpaRepository extends JpaRepository<ClinicVisitJpaEn
     @Query("""
             select v.id from ClinicVisitJpaEntity v
             where v.patientProfileId = :patientId
-                and (v.status = 'OPEN' or (v.status = 'CLOSED' and exists (
+                and (v.status in ('OPEN', 'INCOMPLETE') or (v.status = 'CLOSED' and exists (
                     select a.id from VisitCareAssignmentJpaEntity a
                     where a.visitId = v.id and a.status = 'COMPLETED')))
                 and (v.arrivedAt > :arrivedAt or (v.arrivedAt = :arrivedAt and v.id > :visitId))
@@ -62,13 +72,43 @@ public interface ClinicVisitJpaRepository extends JpaRepository<ClinicVisitJpaEn
 
     @Query("""
             select v from ClinicVisitJpaEntity v
-            where v.patientProfileId = :patientId and v.id <> :currentId and v.status = 'CLOSED' and v.arrivedAt <= :before
-                and exists (select a.id from VisitCareAssignmentJpaEntity a where a.visitId = v.id and a.status = 'COMPLETED')
+            where v.patientProfileId = :patientId and v.id <> :currentId and v.arrivedAt <= :before
+                and ((v.status = 'CLOSED' and exists (select a.id from VisitCareAssignmentJpaEntity a where a.visitId = v.id and a.status = 'COMPLETED'))
+                    or v.status = 'INCOMPLETE')
             order by v.arrivedAt desc, v.id desc
             """)
     org.springframework.data.domain.Page<ClinicVisitJpaEntity> findHistoricalVisits(
             @Param("patientId") UUID patientProfileId, @Param("currentId") UUID currentVisitId,
             @Param("before") java.time.Instant before, org.springframework.data.domain.Pageable pageable);
+
+    /**
+     * Lượt của các hồ sơ trong phạm vi (BR-19) đang mở hoặc check-in từ {@code since}; bỏ lượt còn chờ thu phí.
+     * Cột: id, patient_profile_id, checked_in_at, status, trạng thái khám gần nhất, số thứ tự và tên phòng của
+     * hàng đang chờ khám hoặc dịch vụ (null khi không ở hàng).
+     */
+    @Query(value = """
+            select v.id, v.patient_profile_id, v.checked_in_at, v.status, exam.status, active.queue_number,
+                   active.room_label
+            from visits v
+            left join lateral (
+                select q.status from queue_entries q
+                where q.visit_id = v.id and q.stage = 'EXAM'
+                order by q.entered_at desc, q.id desc limit 1
+            ) exam on true
+            left join lateral (
+                select q.queue_number, room.display_label as room_label
+                from queue_entries q left join rooms room on room.id = q.room_id
+                where q.visit_id = v.id and q.stage in ('EXAM', 'SERVICE')
+                  and q.status in ('WAITING', 'CALLED', 'IN_EXAMINATION')
+                order by q.entered_at desc, q.id desc limit 1
+            ) active on true
+            where v.patient_profile_id in (:profileIds)
+              and (v.status = 'OPEN' or v.checked_in_at >= :since)
+              and coalesce(exam.status, '') <> 'PENDING_PAYMENT'
+            order by v.checked_in_at desc, v.id desc
+            """, nativeQuery = true)
+    java.util.List<Object[]> findMyVisitRows(
+            @Param("profileIds") java.util.Collection<UUID> profileIds, @Param("since") java.sql.Timestamp since);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select visit from ClinicVisitJpaEntity visit where visit.id = :visitId")

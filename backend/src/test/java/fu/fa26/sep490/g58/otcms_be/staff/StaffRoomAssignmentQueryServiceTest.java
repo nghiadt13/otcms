@@ -18,7 +18,8 @@ class StaffRoomAssignmentQueryServiceTest {
     final Instant at = Instant.parse("2026-11-05T05:00:00Z");
     final StaffAccountDirectory accounts = mock(StaffAccountDirectory.class);
     final StaffRoomAssignmentRepository assignments = mock(StaffRoomAssignmentRepository.class);
-    final StaffRoomAssignmentQueryServiceImpl query = new StaffRoomAssignmentQueryServiceImpl(accounts, assignments);
+    final StaffRoomAssignmentQueryServiceImpl query = new StaffRoomAssignmentQueryServiceImpl(accounts, assignments,
+            mock(fu.fa26.sep490.g58.otcms_be.staff.repository.DoctorWorkShiftRepository.class));
     @Test void activeTechnicianWithCurrentAssignmentIsAuthorizedForExactRoomAndAccount() {
         active(AccountType.IMAGING_TECHNICIAN);
         when(assignments.hasActiveAssignment(actor, room, at)).thenReturn(true);

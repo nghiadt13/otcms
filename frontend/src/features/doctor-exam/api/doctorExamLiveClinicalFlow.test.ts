@@ -45,6 +45,8 @@ describe("UC36", () => {
   it("absent MSG-41 is null; authorization failures propagate", async () => {
     request.mockRejectedValue(new ApiError(404, { code: "MSG-41" }));
     expect(await api.getPrescription("current")).toBeNull();
+    request.mockRejectedValue(new ApiError(404, { code: "MSG-40" }));
+    expect(await api.getPrescription("current")).toBeNull();
     const denied = new ApiError(403);
     request.mockRejectedValue(denied);
     await expect(api.getPrescription("current")).rejects.toBe(denied);
@@ -129,6 +131,7 @@ describe("UC36", () => {
 const old = {
   visitId: "old",
   arrivedAt: "2026-08-01T01:00:00Z",
+  status: "CLOSED",
   examination: {
     diagnoses: [
       { code: "S", type: "SECONDARY" },
@@ -171,6 +174,12 @@ describe("UC33", () => {
       "/api/v1/visits/current/past-medical-records",
       { signal: undefined },
     );
+  });
+  it("maps an INCOMPLETE visit to INCOMPLETE instead of assuming COMPLETED", async () => {
+    request.mockResolvedValue(
+      page([{ ...old, status: "INCOMPLETE", examination: null }]),
+    );
+    expect((await api.listPastVisits("current"))[0].status).toBe("INCOMPLETE");
   });
   it("missing optional data stays null/empty", async () => {
     request.mockResolvedValue(
@@ -217,9 +226,9 @@ describe("UC33", () => {
     expect(api.capabilities).toMatchObject({
       prescriptions: true,
       pastRecords: true,
-      laboratoryOrders: false,
+      laboratoryOrders: true,
       orderListing: true,
-      resultSheet: false,
+      resultSheet: true,
     });
     expect(api).not.toHaveProperty("completeVisit");
     expect(api.capabilities).not.toHaveProperty("closeWithEvidence");

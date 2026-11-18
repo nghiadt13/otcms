@@ -83,13 +83,17 @@ class Kan27StaffLoginAndAccessTest {
     }
 
     @ParameterizedTest @EnumSource(value = AccountType.class, names = {"PATIENT", "OWNER"})
-    void sharedFixDoesNotBroadenPatientOrOwnerEligibility(AccountType type) {
+    void sharedAccessRuleAppliesStatusAndSessionToPatientAndOwnerAccounts(AccountType type) {
         var sessions = mock(AuthSessionRepository.class);
-        UUID id = UUID.randomUUID();
+        var access = new AccountAccessServiceImpl(accounts, sessions);
+        UUID id = UUID.randomUUID(), sessionId = UUID.randomUUID();
+        var actor = new AuthenticatedAccount(id, AccountRole.valueOf(type.name()), sessionId);
         when(accounts.findAccessSnapshotById(id)).thenReturn(Optional.of(new AccountAccessSnapshot(type, AccountStatus.DISABLED, false)));
-        assertEquals(AccessState.ALLOWED, new AccountAccessServiceImpl(accounts, sessions)
-                .evaluate(new AuthenticatedAccount(id, AccountRole.valueOf(type.name()), UUID.randomUUID())));
-        verifyNoInteractions(sessions);
+        assertEquals(AccessState.INVALID_SESSION, access.evaluate(actor));
+        when(accounts.findAccessSnapshotById(id)).thenReturn(Optional.of(new AccountAccessSnapshot(type, AccountStatus.ACTIVE, false)));
+        assertEquals(AccessState.INVALID_SESSION, access.evaluate(actor));
+        when(sessions.existsByIdAndAccountIdAndRevokedAtIsNullAndExpiresAtAfter(eq(sessionId), eq(id), any())).thenReturn(true);
+        assertEquals(AccessState.ALLOWED, access.evaluate(actor));
     }
 
     private int perform(JwtAuthenticationFilter filter, String path, String method) throws Exception {

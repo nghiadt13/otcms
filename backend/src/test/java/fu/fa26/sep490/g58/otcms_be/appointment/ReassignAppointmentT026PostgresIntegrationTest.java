@@ -160,16 +160,18 @@ class ReassignAppointmentT026PostgresIntegrationTest {
 
     @Test
     void adminDoesNotGainOtherAppointmentMutationPermissions() throws Exception {
-        // Admin may cancel (B4, see AppointmentLifecycleT029/CancelAppointmentT025 tests); every other mutation stays denied.
+        // Admin may reschedule (B6) and cancel (B4, see AppointmentLifecycleT029/CancelAppointmentT025 tests); status changes and check-in stay denied.
         String root = "/api/v1/appointments/" + appointment;
-        var requests = List.of(
-                org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch(root + "/reschedule")
-                        .content("{\"startTime\":\"" + SLOT + "\",\"reason\":\"Reschedule\"}"),
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch(root + "/reschedule")
+                        .content("{\"startTime\":\"" + SLOT + "\",\"reason\":\"Reschedule\"}")
+                        .with(actor(adminAccount, AccountType.ADMIN)).with(csrf()).contentType("application/json"))
+                .andExpect(status().isOk());
+        var denied = List.of(
                 org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch(root + "/status")
                         .content("{\"targetStatus\":\"NO_SHOW\",\"reason\":\"Absent\"}"),
                 post(root + "/check-in").header("Idempotency-Key", UUID.randomUUID().toString())
                         .content("{\"verifiedPatientProfileId\":\"" + patientProfile + "\"}"));
-        for (var request : requests) mvc.perform(request.with(actor(adminAccount, AccountType.ADMIN)).with(csrf())
+        for (var request : denied) mvc.perform(request.with(actor(adminAccount, AccountType.ADMIN)).with(csrf())
                 .contentType("application/json")).andExpect(status().isForbidden());
         assertEquals(currentDoctor, jdbc.queryForObject("select doctor_profile_id from appointments where id=?", UUID.class, appointment));
     }
@@ -183,11 +185,11 @@ class ReassignAppointmentT026PostgresIntegrationTest {
         mvc.perform(post("/api/v1/appointments/{id}/reassign", appointment)
                         .with(actor(receptionistAccount, AccountType.RECEPTIONIST)).with(csrf()).contentType("application/json")
                         .content("{\"doctorId\":\"" + currentDoctor + "\",\"reason\":\"Same Doctor\"}"))
-                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("MSG-31"));
         mvc.perform(post("/api/v1/appointments/{id}/reassign", appointment)
                         .with(actor(receptionistAccount, AccountType.RECEPTIONIST)).with(csrf()).contentType("application/json")
                         .content("{\"doctorId\":\"" + unassignedDoctor + "\",\"reason\":\"Doctor unavailable\"}"))
-                .andExpect(status().isUnprocessableEntity()).andExpect(jsonPath("$.error.code").value("DOCTOR_NOT_ELIGIBLE"));
+                .andExpect(status().isUnprocessableEntity()).andExpect(jsonPath("$.error.code").value("MSG-24"));
         assertEquals(currentDoctor, jdbc.queryForObject("select doctor_profile_id from appointments where id = ?", UUID.class, appointment));
         assertEquals("CONFIRMED", jdbc.queryForObject("select status from appointments where id = ?", String.class, appointment));
         assertEquals(0, jdbc.queryForObject("select count(*) from audit_logs where source = 'appointment_audits' and entity_id = ? "
@@ -200,7 +202,7 @@ class ReassignAppointmentT026PostgresIntegrationTest {
         mvc.perform(post("/api/v1/appointments/{id}/reassign", appointment)
                         .with(actor(receptionistAccount, AccountType.RECEPTIONIST)).with(csrf()).contentType("application/json")
                         .content("{\"doctorId\":\"" + replacementDoctor + "\",\"reason\":\"Doctor unavailable\"}"))
-                .andExpect(status().isConflict()).andExpect(jsonPath("$.error.code").value("SLOT_UNAVAILABLE"));
+                .andExpect(status().isConflict()).andExpect(jsonPath("$.error.code").value("MSG-30"));
         assertEquals(currentDoctor, jdbc.queryForObject("select doctor_profile_id from appointments where id = ?", UUID.class, appointment));
         assertEquals("CONFIRMED", jdbc.queryForObject("select status from appointments where id = ?", String.class, appointment));
         assertEquals(0, jdbc.queryForObject("select count(*) from audit_logs where source = 'appointment_audits' and entity_id = ? "

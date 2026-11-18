@@ -10,7 +10,8 @@ export function VisitUpdateBar({
   refreshing,
   onRefresh,
 }: {
-  updatedAt: string;
+  /** Thời điểm tải thành công gần nhất (ISO); null khi chưa tải được lần nào. */
+  updatedAt: string | null;
   refreshFailedAt: Date | null;
   refreshing: boolean;
   onRefresh: () => void;
@@ -18,9 +19,11 @@ export function VisitUpdateBar({
   return (
     <div className="flex flex-wrap items-center justify-between gap-3">
       <div className="space-y-1">
-        <p className="text-sm text-muted-foreground tabular-nums">
-          Cập nhật lúc {formatTime(updatedAt)}
-        </p>
+        {updatedAt ? (
+          <p className="text-sm text-muted-foreground tabular-nums">
+            Cập nhật lúc {formatTime(updatedAt)}
+          </p>
+        ) : null}
         {refreshFailedAt ? (
           <p className="text-sm text-destructive" role="status">
             Không cập nhật được lúc {formatTime(refreshFailedAt)}.

@@ -68,10 +68,9 @@ class EmailOtpReuseTest {
         assertThrows(RegistrationException.class, () -> registration.verifyEmail("patient@example.test", "123456"));
     }
     @ParameterizedTest @ValueSource(longs = {3, 4})
-    void registrationResendRateBehaviorUnchanged(long count) {
+    void registrationResendOverRateLimitIssuesNoCodeWithGenericResponse(long count) {
         when(challenges.countByAccountIdAndPurposeAndCreatedAtAfter(eq(account.getId()), eq(VerificationPurpose.EMAIL_VERIFY), any())).thenReturn(count);
-        assertEquals("RATE_LIMIT_EXCEEDED", assertThrows(RegistrationException.class,
-                () -> registration.resendOtp("patient@example.test")).getMessage());
+        assertDoesNotThrow(() -> registration.resendOtp("patient@example.test"));
         verify(challenges, never()).supersedeCurrent(any(), any(), any());
     }
 }

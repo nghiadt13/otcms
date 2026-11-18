@@ -43,7 +43,7 @@ public final class DiagnosticTransitionPolicyImpl implements DiagnosticTransitio
             case LINK_CONFIRMED_STUDY -> evaluateStudyLink(request, actor, evidence);
             case REVIEW_RESULT -> request.status() != DiagnosticRequestStatus.RESULT_AVAILABLE
                     ? DiagnosticOperationOutcome.STATE_CONFLICT
-                    : !isTreatingDoctor(request, actor, evidence)
+                    : !isFindingsDoctor(actor, evidence)
                             ? DiagnosticOperationOutcome.UNAUTHORIZED_RECORD
                             : hasCurrentAttempt(request, evidence)
                                     ? DiagnosticOperationOutcome.ALLOWED
@@ -93,6 +93,14 @@ public final class DiagnosticTransitionPolicyImpl implements DiagnosticTransitio
         if (actor.kind() != DiagnosticActor.Kind.SYSTEM) return DiagnosticOperationOutcome.UNAUTHORIZED_RECORD;
         return evidence.noShowGateAccepted() && !evidence.visitResumed() && !evidence.firstUseAlreadyRecorded()
                 ? DiagnosticOperationOutcome.ALLOWED : DiagnosticOperationOutcome.VISIT_NOT_ELIGIBLE;
+    }
+
+    /** UC-50: the ordering doctor or the current responsible doctor; the visit port already proved one of the two. */
+    private static boolean isFindingsDoctor(DiagnosticActor actor, DiagnosticEvidenceContext evidence) {
+        return actor.kind() == DiagnosticActor.Kind.USER
+                && actor.role() == AccountRole.DOCTOR
+                && evidence.treatingDoctorId() != null
+                && actor.accountId().equals(evidence.treatingDoctorId());
     }
 
     private static boolean isTreatingDoctor(DiagnosticRequest request, DiagnosticActor actor,

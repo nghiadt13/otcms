@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { messageFromError } from "@/lib/messages/appMessages";
+import { APP_MESSAGES, messageFromError } from "@/lib/messages/appMessages";
 import {
   getImagingOperation,
   getLatestImagingOperation,
@@ -37,9 +37,10 @@ const LABELS: Record<ImagingOperationResponse["state"], string> = {
 function operationErrorMessage(operation: ImagingOperationResponse) {
   switch (operation.error?.code) {
     case "IDENTITY_UNKNOWN":
-      return "Chưa xác minh được định danh bệnh nhân/chỉ định trong study. Study chưa liên kết và chưa gửi bác sĩ.";
     case "IDENTITY_MISMATCH":
-      return "Định danh trong study không khớp chỉ định. Study chưa liên kết và chưa gửi bác sĩ.";
+    case "UPLOAD_VALIDATION_FAILED":
+    case "ARCHIVE_REJECTED":
+      return APP_MESSAGES["MSG-47"];
     case "ARCHIVE_STUDY_ALREADY_LINKED":
       return "Study này đã được OTCMS ghi nhận với chỉ định khác hoặc metadata khác. Không tải lặp lại; hãy kiểm tra chỉ định và chọn đúng study.";
     default:
@@ -83,7 +84,9 @@ type DroppedItemWithEntry = {
   webkitGetAsEntry?: () => DroppedDirectoryEntry | null;
 };
 
-function readDirectoryEntryFiles(entry: DroppedDirectoryEntry): Promise<File[]> {
+function readDirectoryEntryFiles(
+  entry: DroppedDirectoryEntry,
+): Promise<File[]> {
   if (entry.isFile && entry.file) {
     return new Promise((resolve, reject) => {
       entry.file!(
@@ -99,19 +102,16 @@ function readDirectoryEntryFiles(entry: DroppedDirectoryEntry): Promise<File[]> 
   const children: DroppedDirectoryEntry[] = [];
   return new Promise((resolve, reject) => {
     const readBatch = () => {
-      reader.readEntries(
-        (batch) => {
-          if (batch.length === 0) {
-            Promise.all(children.map(readDirectoryEntryFiles))
-              .then((nested) => resolve(nested.flat()))
-              .catch(reject);
-            return;
-          }
-          children.push(...batch);
-          readBatch();
-        },
-        reject,
-      );
+      reader.readEntries((batch) => {
+        if (batch.length === 0) {
+          Promise.all(children.map(readDirectoryEntryFiles))
+            .then((nested) => resolve(nested.flat()))
+            .catch(reject);
+          return;
+        }
+        children.push(...batch);
+        readBatch();
+      }, reject);
     };
     readBatch();
   });
@@ -119,7 +119,10 @@ function readDirectoryEntryFiles(entry: DroppedDirectoryEntry): Promise<File[]> 
 
 async function filesFromDrop(dataTransfer: DataTransfer): Promise<File[]> {
   const entries = Array.from(dataTransfer.items)
-    .map((item) => (item as unknown as DroppedItemWithEntry).webkitGetAsEntry?.() ?? null)
+    .map(
+      (item) =>
+        (item as unknown as DroppedItemWithEntry).webkitGetAsEntry?.() ?? null,
+    )
     .filter((entry): entry is DroppedDirectoryEntry => entry !== null);
 
   if (entries.length === 0) return Array.from(dataTransfer.files);
@@ -157,21 +160,32 @@ export function TechnicianImagingUploadScreen({
   const filesInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
 
-  const refreshAssignedWork = useCallback(async (signal?: AbortSignal) => {
-    const page = await listAssignedImagingUploadWork(0, 100, signal);
-    const item = page.items.find((candidate) => candidate.requestId === requestId);
-    if (signal?.aborted) return;
-    setWork(item ?? null);
-    const latest = item?.attemptId
-      ? await getLatestImagingOperation(requestId, item.attemptId, signal, item.status === "RESULT_AVAILABLE")
-      : null;
-    if (signal?.aborted) return;
-    setOperation(latest);
-  }, [requestId]);
+  const refreshAssignedWork = useCallback(
+    async (signal?: AbortSignal) => {
+      const page = await listAssignedImagingUploadWork(0, 100, signal);
+      const item = page.items.find(
+        (candidate) => candidate.requestId === requestId,
+      );
+      if (signal?.aborted) return;
+      setWork(item ?? null);
+      const latest = item?.attemptId
+        ? await getLatestImagingOperation(
+            requestId,
+            item.attemptId,
+            signal,
+            item.status === "RESULT_AVAILABLE",
+          )
+        : null;
+      if (signal?.aborted) return;
+      setOperation(latest);
+    },
+    [requestId],
+  );
 
   useEffect(() => {
     const controller = new AbortController();
-    Promise.resolve().then(() => refreshAssignedWork(controller.signal))
+    Promise.resolve()
+      .then(() => refreshAssignedWork(controller.signal))
       .catch((cause: unknown) => {
         if (!controller.signal.aborted) setError(messageFromError(cause));
       })
@@ -287,10 +301,10 @@ export function TechnicianImagingUploadScreen({
   }
 
   async function send() {
-    const canSend = operation?.state === "ARCHIVED_NOT_SENT" || (
-      operation?.state === "RECONCILIATION_REQUIRED" &&
-      operation.externalResolutionConfirmed
-    );
+    const canSend =
+      operation?.state === "ARCHIVED_NOT_SENT" ||
+      (operation?.state === "RECONCILIATION_REQUIRED" &&
+        operation.externalResolutionConfirmed);
     if (!operation || !canSend) return;
     setBusy(true);
     setError(null);
@@ -411,7 +425,11 @@ export function TechnicianImagingUploadScreen({
                       input.setAttribute("directory", "");
                       input.click();
                     }}
-                    disabled={busy || !work.attemptId || work.status === "RESULT_AVAILABLE"}
+                    disabled={
+                      busy ||
+                      !work.attemptId ||
+                      work.status === "RESULT_AVAILABLE"
+                    }
                   >
                     Chọn thư mục
                   </Button>
@@ -419,7 +437,11 @@ export function TechnicianImagingUploadScreen({
                     type="button"
                     variant="outline"
                     onClick={() => filesInputRef.current?.click()}
-                    disabled={busy || !work.attemptId || work.status === "RESULT_AVAILABLE"}
+                    disabled={
+                      busy ||
+                      !work.attemptId ||
+                      work.status === "RESULT_AVAILABLE"
+                    }
                   >
                     Chọn file
                   </Button>
@@ -433,13 +455,15 @@ export function TechnicianImagingUploadScreen({
                     event.currentTarget.setAttribute("webkitdirectory", "");
                     event.currentTarget.setAttribute("directory", "");
                   }}
-                  onChange={(event) =>
-                    {
-                      addFiles(Array.from(event.target.files ?? []));
-                      event.currentTarget.value = "";
-                    }
+                  onChange={(event) => {
+                    addFiles(Array.from(event.target.files ?? []));
+                    event.currentTarget.value = "";
+                  }}
+                  disabled={
+                    busy ||
+                    !work.attemptId ||
+                    work.status === "RESULT_AVAILABLE"
                   }
-                  disabled={busy || !work.attemptId || work.status === "RESULT_AVAILABLE"}
                   aria-label="Chọn thư mục DICOM"
                 />
                 <input
@@ -451,7 +475,11 @@ export function TechnicianImagingUploadScreen({
                   onChange={(event) =>
                     addFiles(Array.from(event.target.files ?? []))
                   }
-                  disabled={busy || !work.attemptId || work.status === "RESULT_AVAILABLE"}
+                  disabled={
+                    busy ||
+                    !work.attemptId ||
+                    work.status === "RESULT_AVAILABLE"
+                  }
                   aria-label="Chọn file DICOM hoặc ZIP"
                 />
               </div>
@@ -477,14 +505,18 @@ export function TechnicianImagingUploadScreen({
                             ? Math.min(
                                 100,
                                 Math.round(
-                                  (uploadProgress.loaded / uploadProgress.total) *
+                                  (uploadProgress.loaded /
+                                    uploadProgress.total) *
                                     100,
                                 ),
                               )
                             : 0
                         }
                       />
-                      <p role="status" className="text-xs text-muted-foreground">
+                      <p
+                        role="status"
+                        className="text-xs text-muted-foreground"
+                      >
                         {uploadProgress.total > 0
                           ? `${Math.min(100, Math.round((uploadProgress.loaded / uploadProgress.total) * 100))}% · ${(uploadProgress.loaded / 1024 / 1024).toFixed(1)} / ${(uploadProgress.total / 1024 / 1024).toFixed(1)} MB`
                           : "Đang chuẩn bị gửi tệp…"}
@@ -518,8 +550,11 @@ export function TechnicianImagingUploadScreen({
                 className="mt-3 w-full"
                 onClick={upload}
                 disabled={
-                  busy || loading || !work.attemptId || files.length === 0
-                  || work.status === "RESULT_AVAILABLE"
+                  busy ||
+                  loading ||
+                  !work.attemptId ||
+                  files.length === 0 ||
+                  work.status === "RESULT_AVAILABLE"
                 }
               >
                 {busy
@@ -530,7 +565,8 @@ export function TechnicianImagingUploadScreen({
               </Button>
               {work.status === "RESULT_AVAILABLE" ? (
                 <p role="status" className="mt-3 text-sm text-muted-foreground">
-                  Study đã được liên kết. Dùng nút xem ảnh ở phần thông tin chỉ định.
+                  Study đã được liên kết. Dùng nút xem ảnh ở phần thông tin chỉ
+                  định.
                 </p>
               ) : null}
               {!work.attemptId ? (
@@ -671,7 +707,9 @@ export function TechnicianImagingUploadScreen({
                     ) : hasPersistedStudy ? (
                       <tr className="align-top">
                         <td className="border-b px-3 py-4">
-                          <p className="font-semibold">{work.patient.fullName}</p>
+                          <p className="font-semibold">
+                            {work.patient.fullName}
+                          </p>
                           <p className="mt-1 break-all font-mono text-xs text-muted-foreground">
                             {work.patient.patientProfileId}
                           </p>
@@ -686,7 +724,9 @@ export function TechnicianImagingUploadScreen({
                             {work.bodyArea} · {work.clinicalReason}
                           </p>
                         </td>
-                        <td className="border-b px-3 py-4">{work.imagingType}</td>
+                        <td className="border-b px-3 py-4">
+                          {work.imagingType}
+                        </td>
                         <td className="border-b px-3 py-4">—</td>
                         <td className="border-b px-3 py-4">Đã liên kết</td>
                         <td className="border-b px-3 py-4">—</td>
@@ -744,7 +784,8 @@ export function TechnicianImagingUploadScreen({
                   {hasPersistedStudy ? (
                     <div className="mt-4 border-t pt-4">
                       <p className="mb-2 text-sm text-muted-foreground">
-                        Study này đã được backend liên kết với chỉ định đang phân công.
+                        Study này đã được backend liên kết với chỉ định đang
+                        phân công.
                       </p>
                       <ImagingViewerLauncher
                         studyRef={work.currentStudyRef!}
@@ -763,7 +804,16 @@ export function TechnicianImagingUploadScreen({
                     </p>
                     {operation.error ? (
                       <p role="alert" className="mt-2 text-sm text-destructive">
-                        {operationErrorMessage(operation)} ({operation.error.code})
+                        {operationErrorMessage(operation)} (
+                        {[
+                          "IDENTITY_UNKNOWN",
+                          "IDENTITY_MISMATCH",
+                          "UPLOAD_VALIDATION_FAILED",
+                          "ARCHIVE_REJECTED",
+                        ].includes(operation.error.code)
+                          ? "MSG-47"
+                          : operation.error.code}
+                        )
                       </p>
                     ) : null}
                     {operation.state === "ARCHIVED_NOT_SENT" ||
@@ -787,7 +837,10 @@ export function TechnicianImagingUploadScreen({
                           Study đã được liên kết với chỉ định.
                         </p>
                         {!work.currentStudyRef ? (
-                          <p role="status" className="text-sm text-muted-foreground">
+                          <p
+                            role="status"
+                            className="text-sm text-muted-foreground"
+                          >
                             Đang tải study đã liên kết để cấp quyền xem…
                           </p>
                         ) : null}
@@ -795,7 +848,9 @@ export function TechnicianImagingUploadScreen({
                     ) : null}
                     {operation.state === "QUARANTINED" ? (
                       <p className="mt-2 text-sm">
-                        OTCMS chưa lưu study vào Orthanc vì định danh chưa được xác minh. Hãy kiểm tra thông tin bệnh nhân và chỉ định trong file DICOM trước khi tải lại.
+                        OTCMS chưa lưu study vào Orthanc vì định danh chưa được
+                        xác minh. Hãy kiểm tra thông tin bệnh nhân và chỉ định
+                        trong file DICOM trước khi tải lại.
                       </p>
                     ) : null}
                     {operation.state === "RECONCILIATION_REQUIRED" ? (

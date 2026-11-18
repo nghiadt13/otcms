@@ -2,6 +2,7 @@ package fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity;
 
 import fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.enums.DiagnosticReportValidationStatus;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.enums.DiagnosticFindingsVersionState;
+import fu.fa26.sep490.g58.otcms_be.diagnostic.model.LaboratoryResultValue;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 import jakarta.persistence.Column;
@@ -12,6 +13,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 @Entity
@@ -70,6 +72,19 @@ public class DiagnosticReportJpaEntity {
     @Column(name = "findings_text", columnDefinition = "text")
     private String findingsText;
 
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "lab_values", columnDefinition = "jsonb")
+    private List<LaboratoryResultValue> laboratoryValues;
+
+    @Column(name = "lab_sample_id")
+    private UUID laboratorySampleId;
+
+    @Column(name = "lab_recorded_by_account_id")
+    private UUID laboratoryRecordedByAccountId;
+
+    @Column(name = "lab_confirmed_by_account_id") private UUID laboratoryConfirmedBy;
+    @Column(name = "lab_confirmed_at") private Instant laboratoryConfirmedAt;
+
     @Column(name = "correction_reason", columnDefinition = "text")
     private String correctionReason;
 
@@ -114,6 +129,32 @@ public class DiagnosticReportJpaEntity {
     private String completeFingerprint;
 
     protected DiagnosticReportJpaEntity() { }
+
+    public static DiagnosticReportJpaEntity laboratoryDraft(UUID orderId, UUID visitId, UUID sampleId,
+            UUID accountId, List<LaboratoryResultValue> values, Instant now) {
+        var result = new DiagnosticReportJpaEntity();
+        result.id = UUID.randomUUID(); result.requestId = orderId; result.visitId = visitId;
+        result.reportVersion = 1; result.resultType = "LAB"; result.laboratorySampleId = sampleId;
+        result.laboratoryRecordedByAccountId = accountId; result.laboratoryValues = List.copyOf(values);
+        result.occurredAt = now;
+        return result;
+    }
+
+    public void reviseLaboratoryDraft(UUID sampleId, UUID accountId, List<LaboratoryResultValue> values, Instant now) {
+        requireDraft();
+        if (!"LAB".equals(resultType) || !java.util.Objects.equals(laboratorySampleId, sampleId))
+            throw new IllegalStateException("Invalid laboratory result");
+        laboratoryRecordedByAccountId = accountId; laboratoryValues = List.copyOf(values); occurredAt = now;
+    }
+
+    public void approveLaboratoryReport(UUID actorId, Instant now) {
+        requireDraft();
+        if (!"LAB".equals(resultType)
+                || !fu.fa26.sep490.g58.otcms_be.diagnostic.validation.LaboratoryResultValidation.readyForRelease(laboratoryValues))
+            throw new IllegalStateException("Laboratory result is incomplete");
+        laboratoryConfirmedBy = actorId; laboratoryConfirmedAt = now;
+        state = DiagnosticFindingsVersionState.COMPLETED; completedAt = now; releasedAt = now;
+    }
 
     public DiagnosticReportJpaEntity(UUID id, UUID requestId, UUID visitId, String studyRef,
             int reportVersion, String storageRef, String contentSha256,
@@ -164,9 +205,13 @@ public class DiagnosticReportJpaEntity {
     public int getVersionNumber() { return reportVersion; }
     public UUID getServiceOrderId() { return requestId; }
     public UUID getReportId() { return reportId; }
+    public Instant getLaboratoryConfirmedAt() { return laboratoryConfirmedAt; }
     public String getResultType() { return resultType; }
     public DiagnosticFindingsVersionState getState() { return state; }
     public String getFindingsText() { return findingsText; }
+    public List<LaboratoryResultValue> getLaboratoryValues() {
+        return laboratoryValues == null ? null : List.copyOf(laboratoryValues);
+    }
     public String getCorrectionReason() { return correctionReason; }
     public UUID getRecordedByDoctorId() { return recordedByDoctorId; }
     public Instant getOccurredAt() { return occurredAt; }
@@ -193,8 +238,9 @@ public class DiagnosticReportJpaEntity {
     }
     public void markCompleted(UUID reportId, Instant now) {
         requireDraft();
+        // The PDF report is optional (UC-50 AF2); when one is attached it must be the validated one.
         if (!java.util.Objects.equals(this.reportId, reportId)
-                || validationStatus != DiagnosticReportValidationStatus.VALIDATED) {
+                || (reportId != null && validationStatus != DiagnosticReportValidationStatus.VALIDATED)) {
             throw new IllegalStateException("A validated report is required");
         }
         state = DiagnosticFindingsVersionState.COMPLETED; completedAt = now; releasedAt = now;

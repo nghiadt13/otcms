@@ -8,7 +8,7 @@ export type NotificationAction = "markRead";
  * Loại → đường dẫn màn do lớp ghép (app/) quyết, feature không biết route của khu khác.
  */
 export type NotificationRecordKind =
-  "APPOINTMENT" | "VISIT" | "VISIT_RESULT" | "PAYMENT";
+  "APPOINTMENT" | "VISIT" | "VISIT_RESULT" | "PAYMENT" | "REVIEW";
 
 export interface NotificationRelatedRecord {
   kind: NotificationRecordKind;

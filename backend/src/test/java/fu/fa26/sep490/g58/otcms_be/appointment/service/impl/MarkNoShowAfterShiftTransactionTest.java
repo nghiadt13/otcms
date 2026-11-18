@@ -32,13 +32,14 @@ class MarkNoShowAfterShiftTransactionTest {
     private final AppointmentNoShowRepository appointments = mock(AppointmentNoShowRepository.class);
     private final DoctorScheduleService schedules = mock(DoctorScheduleService.class);
     private final fu.fa26.sep490.g58.otcms_be.common.audit.AuditLogWriter audit = mock(fu.fa26.sep490.g58.otcms_be.common.audit.AuditLogWriter.class);
+    private final fu.fa26.sep490.g58.otcms_be.billing.service.BillingRefundService fees = mock(fu.fa26.sep490.g58.otcms_be.billing.service.BillingRefundService.class);
     private MarkNoShowAfterShiftTransaction transaction;
 
     @BeforeEach
     void setUp() {
         var properties = new AppointmentBookingProperties(30, 120, 30, 15, 15, ZoneId.of("Asia/Ho_Chi_Minh"),
                 new AppointmentBookingProperties.PublicRateLimit(60, 60), 15, 30000L, false);
-        transaction = new MarkNoShowAfterShiftTransaction(guard, appointments, schedules, properties, audit);
+        transaction = new MarkNoShowAfterShiftTransaction(guard, appointments, schedules, properties, fees, audit);
         when(appointments.findForUpdate(appointmentId)).thenReturn(Optional.of(confirmed("CONFIRMED", null)));
         when(appointments.createdByAccountId(appointmentId)).thenReturn(creatorAccountId);
     }
@@ -54,6 +55,7 @@ class MarkNoShowAfterShiftTransactionTest {
 
         Instant afterEnd = shiftEnd.plusSeconds(1);
         assertEquals(Outcome.MARKED, transaction.markNoShow(appointmentId, afterEnd));
+        verify(fees).voidUnpaidAppointmentFee(appointmentId);
         verify(guard, times(2)).acquire();
         verify(schedules, times(2)).forProfile(doctorId, Instant.parse("2026-11-10T17:00:00Z"), dayEnd);
         verify(appointments).markNoShow(any(NoShowAppointment.class), eq(creatorAccountId), eq("SYSTEM"),

@@ -70,9 +70,7 @@ it("Doctor opens the same-origin viewer after the backend authorizes a scoped gr
     expiresAt: "2026-11-06T01:00:00Z",
   });
   show();
-  await userEvent.click(
-    screen.getByRole("button", { name: "Mở ảnh DICOM" }),
-  );
+  await userEvent.click(screen.getByRole("button", { name: "Mở ảnh DICOM" }));
   await waitFor(() => {
     expect(request).toHaveBeenCalledWith(
       "/api/v1/imaging/studies/study-ref/viewer-grants",
@@ -94,9 +92,7 @@ it("missing study shows empty state without launcher", () => {
 it("denied grant never reveals a viewer/archive link", async () => {
   request.mockRejectedValue(new Error("Denied"));
   show();
-  await userEvent.click(
-    screen.getByRole("button", { name: "Mở ảnh DICOM" }),
-  );
+  await userEvent.click(screen.getByRole("button", { name: "Mở ảnh DICOM" }));
   expect(await screen.findByRole("alert")).toBeInTheDocument();
   expect(screen.queryByRole("link")).not.toBeInTheDocument();
 });

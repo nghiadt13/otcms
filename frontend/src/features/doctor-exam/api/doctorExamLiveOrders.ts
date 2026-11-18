@@ -6,6 +6,7 @@ import type {
   CatalogKind,
   CatalogService,
   ImagingResult,
+  LabResultAssessment,
   OrderDraftItem,
   ParaclinicalOrder,
 } from "../types/doctorExam";
@@ -39,6 +40,48 @@ export async function listCatalog(
       modality: item.modality,
       description: item.description ?? "",
     }));
+}
+
+export async function listLabResults(visitId: string, signal?: AbortSignal) {
+  const result = await apiRequest<{
+    items: {
+      orderId: string;
+      serviceName: string;
+      values: {
+        indicator: string;
+        value: string;
+        unit: string;
+        referenceRange: string;
+        abnormal: boolean | null;
+      }[];
+      assessment: LabResultAssessment | null;
+    }[];
+  }>(`/api/v1/visits/${encodeURIComponent(visitId)}/laboratory-results`, {
+    signal,
+  });
+  return result.items.map((item) => ({
+    orderId: item.orderId,
+    serviceName: item.serviceName,
+    assessment: item.assessment ?? null,
+    lines: item.values.map((value) => ({
+      indicator: value.indicator,
+      value: value.value,
+      unit: value.unit,
+      reference: value.referenceRange,
+      abnormal: value.abnormal ?? null,
+    })),
+  }));
+}
+
+export async function assessLabResult(
+  visitId: string,
+  orderId: string,
+  assessment: string,
+) {
+  return apiRequest<LabResultAssessment>(
+    `/api/v1/visits/${encodeURIComponent(visitId)}/laboratory-results/${encodeURIComponent(orderId)}/assessment`,
+    { method: "POST", body: JSON.stringify({ assessment }) },
+  );
 }
 
 type RequestStatusDto = {
@@ -77,6 +120,7 @@ type ClinicalOrderDto = {
   orderingRoundId?: string;
   serviceId: string;
   serviceName: string;
+  serviceType?: "IMAGING" | "LABORATORY";
   clinicalReason: string;
   bodyArea: string | null;
   priceSnapshot: number;
@@ -95,7 +139,7 @@ function clinicalOrder(
     id: order.orderId,
     code: order.orderCode,
     round: order.roundNumber ?? round ?? null,
-    kind: "IMAGING",
+    kind: order.serviceType === "LABORATORY" ? "LABORATORY" : "IMAGING",
     serviceName: order.serviceName,
     bodyArea: order.bodyArea ?? "",
     clinicalReason: order.clinicalReason,
@@ -134,11 +178,23 @@ export async function listOrders(
   signal?: AbortSignal,
 ): Promise<ParaclinicalOrder[]> {
   const id = encodeURIComponent(visitId);
-  const result = await apiRequest<{ items: ClinicalOrderDto[] }>(
-    `/api/v1/visits/${id}/imaging-orders`,
-    { signal },
-  );
-  const orders = result.items.map((order) => clinicalOrder(order));
+  const [result, laboratory] = await Promise.all([
+    apiRequest<{ items: ClinicalOrderDto[] }>(
+      `/api/v1/visits/${id}/imaging-orders`,
+      { signal },
+    ),
+    apiRequest<{ items: ClinicalOrderDto[] }>(
+      `/api/v1/visits/${id}/laboratory-orders`,
+      { signal },
+    ),
+  ]);
+  const orders = [
+    ...result.items,
+    ...laboratory.items.map((order) => ({
+      ...order,
+      serviceType: "LABORATORY" as const,
+    })),
+  ].map((order) => clinicalOrder(order));
   if (!orders.some((order) => order.imaging)) return orders;
   const history = await apiRequest<{ items: HistoryItemDto[] }>(
     `/api/v1/imaging-history?visitId=${id}&size=100`,
@@ -161,7 +217,8 @@ export async function listOrders(
             findingsText: past.findingsText ?? "",
             findingsVersion: past.findingsVersion,
             reportId: past.reportId,
-            findingsCompleted: !!past.reportId && past.findingsVersion !== null,
+            // Chỉ phiên bản đã hoàn tất mới có findingsVersion; PDF là tùy chọn nên reportId có thể null.
+            findingsCompleted: past.findingsVersion !== null,
           },
         }
       : order;
@@ -178,17 +235,27 @@ export async function submitOrders(
   if (patientConsentConfirmed !== true)
     throw new ApiError(400, { code: "MSG-39" });
   const kinds = new Map(catalog.map((service) => [service.id, service.kind]));
-  if (items.some((item) => kinds.get(item.serviceId) !== "IMAGING"))
+  const kind = kinds.get(items[0]?.serviceId);
+  if (
+    !items.length ||
+    (kind !== "IMAGING" && kind !== "LABORATORY") ||
+    items.some((item) => kinds.get(item.serviceId) !== kind)
+  )
     throw new ApiError(400, { code: "MSG-39" });
   const round = await apiRequest<{
     roundNumber: number;
     orders: ClinicalOrderDto[];
-  }>(`/api/v1/visits/${encodeURIComponent(visitId)}/imaging-requests`, {
-    method: "POST",
-    headers: { "Idempotency-Key": idempotencyKey },
-    body: JSON.stringify({ patientConsentConfirmed, orders: items }),
-  });
-  return round.orders.map((order) => clinicalOrder(order, round.roundNumber));
+  }>(
+    `/api/v1/visits/${encodeURIComponent(visitId)}/${kind === "LABORATORY" ? "laboratory" : "imaging"}-requests`,
+    {
+      method: "POST",
+      headers: { "Idempotency-Key": idempotencyKey },
+      body: JSON.stringify({ patientConsentConfirmed, orders: items }),
+    },
+  );
+  return round.orders.map((order) =>
+    clinicalOrder({ ...order, serviceType: kind }, round.roundNumber),
+  );
 }
 
 const idem = () => ({ "Idempotency-Key": crypto.randomUUID() });
@@ -265,22 +332,25 @@ export async function saveFindings(
   };
 }
 
-/** Lưu nháp, đính tệp PDF báo cáo (BE đòi) rồi hoàn tất kết luận. */
+/** Lưu nháp, (tùy chọn) đính tệp PDF báo cáo rồi hoàn tất kết luận (UC-50: PDF không bắt buộc). */
 export async function completeFindings(
   order: ParaclinicalOrder,
   content: string,
   report: File | null,
 ): Promise<ImagingResult> {
-  if (!report) throw new ApiError(400, { code: "MSG-47" });
   const saved = await saveFindings(order, content);
   const base =
     `/api/v1/imaging-requests/${encodeURIComponent(saved.requestId)}` as const;
-  const form = new FormData();
-  form.append("file", report);
-  const uploaded = await apiRequest<{ reportId: string }>(
-    `${base}/reports?expectedVersion=${await currentVersion(saved.requestId)}`,
-    { method: "POST", headers: idem(), body: form },
-  );
+  let reportId: string | null = null;
+  if (report) {
+    const form = new FormData();
+    form.append("file", report);
+    const uploaded = await apiRequest<{ reportId: string }>(
+      `${base}/reports?expectedVersion=${await currentVersion(saved.requestId)}`,
+      { method: "POST", headers: idem(), body: form },
+    );
+    reportId = uploaded.reportId;
+  }
   await apiRequest<unknown>(`${base}/findings/completions`, {
     method: "POST",
     headers: {
@@ -289,14 +359,14 @@ export async function completeFindings(
     },
     body: JSON.stringify({
       findingsVersion: saved.findingsVersion,
-      reportId: uploaded.reportId,
+      reportId,
       studyRef: saved.studyRef,
     }),
   });
   return {
     ...saved,
     version: await currentVersion(saved.requestId),
-    reportId: uploaded.reportId,
+    reportId,
     findingsCompleted: true,
   };
 }

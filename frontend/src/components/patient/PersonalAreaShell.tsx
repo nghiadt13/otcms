@@ -45,7 +45,11 @@ const AREA_GROUPS: readonly (readonly AreaLink[])[] = [
     { label: "Kết quả khám", href: PATIENT_ROUTES.results, icon: FileText },
     { label: "Đơn thuốc", href: PATIENT_ROUTES.prescriptions, icon: Pill },
     { label: "Thanh toán", href: PATIENT_ROUTES.payments, icon: Receipt },
-    { label: "Đổi mật khẩu", href: PATIENT_ROUTES.accountPassword, icon: KeyRound },
+    {
+      label: "Đổi mật khẩu",
+      href: PATIENT_ROUTES.accountPassword,
+      icon: KeyRound,
+    },
   ],
 ];
 

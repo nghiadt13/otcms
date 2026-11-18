@@ -146,6 +146,15 @@ class VisitExamQueueServiceImplTest {
     }
 
     @Test
+    void startExaminationAcceptsCalledEntry() {
+        QueueEntryJpaEntity row = waitingRow(1);
+        row.call(NOW);
+        existingRow(row);
+        service.startExamination(VISIT, DOCTOR, NOW.plusSeconds(1));
+        assertEquals(VisitExamStatus.IN_EXAMINATION, row.getExamStatus());
+    }
+
+    @Test
     void markAwaitingConclusionSkipsMissingAndRepeatedRows() {
         when(queue.findExamByVisitId(VISIT)).thenReturn(Optional.empty());
         service.markAwaitingConclusion(VISIT, NOW);
@@ -183,7 +192,7 @@ class VisitExamQueueServiceImplTest {
     }
 
     @Test
-    void cancelSkipsMissingRowsAndRejectsVisitsAlreadyUnderExam() {
+    void cancelSkipsMissingRowsAndCancelsVisitsAlreadyUnderExam() {
         when(queue.findExamByVisitId(VISIT)).thenReturn(Optional.empty());
         service.cancel(VISIT, NOW);
 
@@ -195,7 +204,8 @@ class VisitExamQueueServiceImplTest {
         QueueEntryJpaEntity examining = waitingRow(2);
         examining.startExamination(NOW);
         existingRow(examining);
-        assertConflict(() -> service.cancel(VISIT, NOW));
+        service.cancel(VISIT, NOW);
+        assertEquals(VisitExamStatus.CANCELLED, examining.getExamStatus());
     }
 
     private void existingRow(QueueEntryJpaEntity row) {

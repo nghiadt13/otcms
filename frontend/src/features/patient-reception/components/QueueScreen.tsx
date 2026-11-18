@@ -2,43 +2,79 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { PageHeader } from "@/components/PageHeader";
+import { StatusBadge } from "@/components/admin/StatusBadge";
 import { Button } from "@/components/ui/button";
 import {
   listReceptionExamQueue,
   type ExamQueueItem,
 } from "@/lib/api/examQueueApi";
+import {
+  EXAM_QUEUE_STATUS_LABELS,
+  EXAM_QUEUE_STATUS_TONE,
+} from "@/lib/domain/clinicVisit";
 import { messageFromError } from "@/lib/messages/appMessages";
-import { QueueDoctorGroup } from "./QueueDoctorGroup";
+import { notifyError, notifySuccess } from "@/lib/messages/notify";
+import {
+  callNextInRoom,
+  listRoomQueue,
+  markQueueEntryAbsent,
+  type RoomQueueEntry,
+} from "../api/receptionLiveApi";
+import {
+  itemsByVisit,
+  roomOptionsOf,
+  splitRoomEntries,
+} from "../schema/roomQueueModel";
+import { AttendingDoctorTransferDialog } from "./AttendingDoctorTransferDialog";
+import { QueueReturnDialog } from "./QueueReturnDialog";
+import { QueueRoomPanel } from "./QueueRoomPanel";
 import { WalkInFeeStep } from "./WalkInFeeStep";
-import { DataLoading, DataTable } from "./ReceptionUi";
+import { DataLoading, DataTable, SelectField } from "./ReceptionUi";
 
 const REFRESH_MS = 15_000;
 
-/** Hàng chờ khám hôm nay theo bác sĩ (A1). Lượt chờ thu phí nằm riêng để lễ tân thu tiếp. */
+/**
+ * Hàng chờ khám hôm nay theo phòng (UC-32, UC-33): gọi người kế, đánh vắng, đưa người vắng quay lại.
+ * Lượt chờ thu phí nằm riêng để lễ tân thu tiếp. Thứ tự hàng và trạng thái lấy từ BE.
+ */
 export function QueueScreen() {
   const [items, setItems] = useState<ExamQueueItem[]>([]);
+  const [roomId, setRoomId] = useState<string | null>(null);
+  const [transferring, setTransferring] = useState<RoomQueueEntry | null>(null);
+  const [entries, setEntries] = useState<RoomQueueEntry[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [paying, setPaying] = useState<ExamQueueItem | null>(null);
-  const inFlight = useRef(false);
+  const [returning, setReturning] = useState<RoomQueueEntry | null>(null);
   const mounted = useRef(false);
+  // Phòng đang chọn (đọc được trong bộ hẹn giờ) và số thứ tự yêu cầu: chỉ kết quả của yêu cầu mới nhất được hiện.
+  const selectedRoom = useRef<string | null>(null);
+  const latestRequest = useRef(0);
 
-  const load = useCallback(async () => {
-    if (inFlight.current) return;
-    inFlight.current = true;
+  const load = useCallback(async (wantedRoom?: string) => {
+    const request = ++latestRequest.current;
     setLoading(true);
     try {
       const page = await listReceptionExamQueue();
-      if (mounted.current) {
-        setItems(page.items);
-        setError("");
-      }
+      const rooms = roomOptionsOf(page.items);
+      const wanted = wantedRoom ?? selectedRoom.current;
+      const next = rooms.some((room) => room.id === wanted)
+        ? wanted
+        : (rooms[0]?.id ?? null);
+      const rows = next ? await listRoomQueue(next, "EXAM") : [];
+      if (!mounted.current || request !== latestRequest.current) return;
+      selectedRoom.current = next;
+      setItems(page.items);
+      setRoomId(next);
+      setEntries(rows);
+      setError("");
     } catch (cause) {
-      if (mounted.current) setError(messageFromError(cause));
+      if (mounted.current && request === latestRequest.current)
+        setError(messageFromError(cause));
     } finally {
-      inFlight.current = false;
-      if (mounted.current) {
+      if (mounted.current && request === latestRequest.current) {
         setLoaded(true);
         setLoading(false);
       }
@@ -56,18 +92,36 @@ export function QueueScreen() {
     };
   }, [load]);
 
+  // Một thao tác gọi/vắng tại một lúc; xong thì tải lại hàng dù thành công hay lỗi (lỗi có thể do hàng đã đổi).
+  async function runRoomAction(action: () => Promise<unknown>) {
+    setBusy(true);
+    try {
+      await action();
+      notifySuccess("MSG-43");
+    } catch (cause) {
+      notifyError(cause);
+    } finally {
+      if (mounted.current) setBusy(false);
+    }
+    await load();
+  }
+
+  const rooms = roomOptionsOf(items);
+  const byVisit = itemsByVisit(items);
+  const itemOf = (visitId: string) => byVisit.get(visitId);
   const awaitingPayment = items.filter(
     (item) => item.examStatus === "PENDING_PAYMENT",
   );
-  const groups = groupByDoctor(
-    items.filter((item) => item.examStatus !== "PENDING_PAYMENT"),
+  const unassigned = items.filter(
+    (item) => !item.roomId && item.examStatus !== "PENDING_PAYMENT",
   );
+  const waitingForReturn = splitRoomEntries(entries).waiting;
 
   return (
     <>
       <PageHeader
         title="Hàng chờ khám"
-        description="Bệnh nhân xếp theo bác sĩ và số thứ tự trong ngày. Danh sách tự làm mới mỗi 15 giây."
+        description="Chọn phòng để gọi bệnh nhân kế tiếp, đánh dấu vắng hoặc đưa người vắng quay lại hàng. Danh sách tự làm mới mỗi 15 giây."
         actions={
           <Button
             variant="outline"
@@ -126,14 +180,63 @@ export function QueueScreen() {
               />
             </section>
           )}
-          {groups.map((group) => (
-            <QueueDoctorGroup
-              key={group.doctorProfileId}
-              doctorName={group.doctorName}
-              roomLabel={group.roomLabel}
-              items={group.items}
-            />
-          ))}
+
+          {rooms.length > 0 && roomId ? (
+            <section className="space-y-6">
+              <div className="max-w-sm">
+                <SelectField
+                  label="Phòng"
+                  value={roomId}
+                  onChange={(id) => void load(id)}
+                  options={rooms.map((room) => ({
+                    value: room.id,
+                    label: room.label,
+                  }))}
+                  disabled={busy}
+                />
+              </div>
+              <QueueRoomPanel
+                roomLabel={
+                  rooms.find((room) => room.id === roomId)?.label ?? ""
+                }
+                entries={entries}
+                itemOf={itemOf}
+                busy={busy}
+                onCallNext={() =>
+                  void runRoomAction(() => callNextInRoom(roomId, "EXAM"))
+                }
+                onAbsent={(entry) =>
+                  void runRoomAction(() => markQueueEntryAbsent(entry.id))
+                }
+                onReturn={setReturning}
+                onTransferDoctor={setTransferring}
+              />
+            </section>
+          ) : null}
+
+          {unassigned.length > 0 && (
+            <section className="space-y-3">
+              <h2 className="text-lg font-semibold">Chưa có phòng</h2>
+              <DataTable
+                label="Lượt chưa có phòng"
+                headers={["Số", "Bệnh nhân", "Trạng thái"]}
+                empty="Không có lượt chưa có phòng."
+                rows={unassigned.map((item) => ({
+                  id: item.visitId,
+                  cells: [
+                    item.queueNumber ?? "—",
+                    item.patientName,
+                    <StatusBadge
+                      key="status"
+                      tone={EXAM_QUEUE_STATUS_TONE[item.examStatus]}
+                    >
+                      {EXAM_QUEUE_STATUS_LABELS[item.examStatus]}
+                    </StatusBadge>,
+                  ],
+                }))}
+              />
+            </section>
+          )}
         </div>
       )}
       {paying?.serviceId && (
@@ -147,30 +250,34 @@ export function QueueScreen() {
           }}
         />
       )}
+      {transferring && (
+        <AttendingDoctorTransferDialog
+          visitId={transferring.visitId}
+          patientName={itemOf(transferring.visitId)?.patientName ?? "—"}
+          currentDoctorProfileId={
+            itemOf(transferring.visitId)?.doctorProfileId ?? ""
+          }
+          onClose={() => setTransferring(null)}
+          onSaved={() => {
+            setTransferring(null);
+            void load();
+          }}
+          onFailed={() => void load()}
+        />
+      )}
+      {returning && roomId && (
+        <QueueReturnDialog
+          entry={returning}
+          waiting={waitingForReturn}
+          nameOf={(entry) => itemOf(entry.visitId)?.patientName ?? "—"}
+          onClose={() => setReturning(null)}
+          onSaved={() => {
+            setReturning(null);
+            void load();
+          }}
+          onFailed={() => void load()}
+        />
+      )}
     </>
   );
-}
-
-/** Gom lượt theo bác sĩ, giữ thứ tự BE trả về (theo tên bác sĩ rồi số thứ tự). */
-function groupByDoctor(items: ExamQueueItem[]) {
-  const groups = new Map<
-    string,
-    {
-      doctorProfileId: string;
-      doctorName: string;
-      roomLabel: string | null;
-      items: ExamQueueItem[];
-    }
-  >();
-  for (const item of items) {
-    const group = groups.get(item.doctorProfileId) ?? {
-      doctorProfileId: item.doctorProfileId,
-      doctorName: item.doctorName,
-      roomLabel: item.roomLabel,
-      items: [],
-    };
-    group.items.push(item);
-    groups.set(item.doctorProfileId, group);
-  }
-  return [...groups.values()];
 }

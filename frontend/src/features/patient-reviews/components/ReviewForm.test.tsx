@@ -98,3 +98,8 @@ describe("ReviewForm", () => {
     expect(notifySuccess).not.toHaveBeenCalled();
   });
 });
+
+vi.mock(
+  "@/lib/api/client",
+  async () => await import("../api/reviewTestClient"),
+);

@@ -31,14 +31,14 @@ const USE_MOCK = process.env.NODE_ENV === "test";
 
 function profileError(error: unknown): never {
   if (!(error instanceof ApiError)) throw error;
+  // BE đã trả mã MSG (vd. MSG-36 khi còn lịch hẹn); chỉ suy theo HTTP status khi không có mã.
+  if (error.code) throw error;
   const code =
-    error.errorCode === "DOCTOR_HAS_FUTURE_APPOINTMENTS"
-      ? "MSG-36"
-      : error.status === 404 || error.status === 409
-        ? "MSG-23"
-        : error.status === 400
-          ? "MSG-22"
-          : "MSG-04";
+    error.status === 404 || error.status === 409
+      ? "MSG-23"
+      : error.status === 400
+        ? "MSG-22"
+        : "MSG-04";
   throw new ApiError(error.status, { code, fieldErrors: error.fieldErrors });
 }
 

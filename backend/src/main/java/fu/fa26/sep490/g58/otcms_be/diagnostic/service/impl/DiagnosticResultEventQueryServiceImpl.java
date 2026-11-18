@@ -45,10 +45,12 @@ public class DiagnosticResultEventQueryServiceImpl implements DiagnosticResultEv
     @Override
     public ResultEvent requireFindingsRelease(FindingsReleaseEvent release) {
         if (release == null || release.eventId() == null || release.requestId() == null || release.visitId() == null
-                || release.patientId() == null || release.findingsVersionId() == null || release.reportId() == null
+                || release.patientId() == null || release.findingsVersionId() == null
                 || release.studyRef() == null || release.studyRef().isBlank() || release.studyRef().contains("\n")
-                || release.studyRef().contains("\r") || release.reportSha256() == null
-                || !release.reportSha256().matches("[0-9a-f]{64}")) throw mismatch();
+                || release.studyRef().contains("\r")
+                // The PDF report is optional (UC-50 AF2): both report fields are present or both absent.
+                || (release.reportId() == null) != (release.reportSha256() == null)
+                || (release.reportSha256() != null && !release.reportSha256().matches("[0-9a-f]{64}"))) throw mismatch();
         ImagingExecution execution = execution(release.requestId(), release.visitId());
         if (!execution.patientId().equals(release.patientId())
                 || execution.status() != ExecutionStatus.REVIEWED
@@ -56,14 +58,16 @@ public class DiagnosticResultEventQueryServiceImpl implements DiagnosticResultEv
         DiagnosticReportJpaEntity result = reports.findByIdAndRequestId(release.findingsVersionId(), release.requestId())
                 .orElseThrow(this::mismatch);
         if (!release.visitId().equals(result.getVisitId()) || !release.studyRef().equals(result.getStudyRef())
-                || result.getVersionNumber() < 1 || !release.reportId().equals(result.getReportId())
-                || result.getValidationStatus() != DiagnosticReportValidationStatus.VALIDATED
-                || result.getValidatedAt() == null || !release.reportSha256().equals(result.getContentSha256())
+                || result.getVersionNumber() < 1 || !java.util.Objects.equals(release.reportId(), result.getReportId())
+                || (release.reportId() != null
+                    && (result.getValidationStatus() != DiagnosticReportValidationStatus.VALIDATED
+                        || result.getValidatedAt() == null || !release.reportSha256().equals(result.getContentSha256())))
                 || (result.getState() == DiagnosticFindingsVersionState.COMPLETED
                     && result.getReleasedAt() == null)) throw mismatch();
         String hash = hash(String.join("\n", release.eventId().toString(), release.requestId().toString(),
                 release.visitId().toString(), release.patientId().toString(), release.studyRef(),
-                release.findingsVersionId().toString(), release.reportId().toString(), release.reportSha256()));
+                release.findingsVersionId().toString(), java.util.Objects.toString(release.reportId(), "<null>"),
+                java.util.Objects.toString(release.reportSha256(), "<null>")));
         return new ResultEvent(release.eventId(), release.requestId(), release.visitId(), release.patientId(),
                 "FINDINGS_RELEASE", hash);
     }

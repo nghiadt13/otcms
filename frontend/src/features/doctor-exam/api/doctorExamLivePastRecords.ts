@@ -10,6 +10,8 @@ type HistoryPage = {
   items: Array<{
     visitId: string;
     arrivedAt: string;
+    /** BE: CLOSED hoặc INCOMPLETE (UC40 gồm cả lượt chưa hoàn tất). */
+    status: string;
     examination: { diagnoses: Diagnosis[] } | null;
     advice: Partial<AdviceInput> | null;
     prescription: { id: string; issuedAt: string } | null;
@@ -45,7 +47,7 @@ export async function listPastVisits(
   return items.map((item) => ({
     visitId: item.visitId,
     visitDate: item.arrivedAt,
-    status: "COMPLETED",
+    status: item.status === "INCOMPLETE" ? "INCOMPLETE" : "COMPLETED",
     primaryDiagnosis:
       item.examination?.diagnoses.find((d) => d.type === "PRIMARY")?.code ??
       null,

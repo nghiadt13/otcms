@@ -119,14 +119,14 @@ class MarkAppointmentNoShowT028PostgresIntegrationTest {
     void rejectsGraceBoundaryAndTimelyArrivalWithoutMutation() throws Exception {
         UUID boundary = appointment(NOW.minusSeconds(900));
         mvc.perform(markNoShow(boundary, receptionistAccount, AccountType.RECEPTIONIST, null))
-                .andExpect(status().isUnprocessableEntity()).andExpect(jsonPath("$.error.code").value("NO_SHOW_NOT_ALLOWED"));
+                .andExpect(status().isUnprocessableEntity()).andExpect(jsonPath("$.error.code").value("MSG-29"));
         assertEquals("CONFIRMED", jdbc.queryForObject("select status from appointments where id = ?", String.class, boundary));
 
         UUID timely = appointment(NOW.minusSeconds(3600));
         jdbc.update("update appointments set arrival_recorded_by = ?, arrival_source = 'LEGACY_RECEPTIONIST', "
                 + "arrived_at = ?, arrival_recorded_at = now() where id = ?", receptionistAccount, Timestamp.from(NOW.minusSeconds(3000)), timely);
         mvc.perform(markNoShow(timely, receptionistAccount, AccountType.RECEPTIONIST, null))
-                .andExpect(status().isUnprocessableEntity()).andExpect(jsonPath("$.error.code").value("NO_SHOW_NOT_ALLOWED"));
+                .andExpect(status().isUnprocessableEntity()).andExpect(jsonPath("$.error.code").value("MSG-29"));
         assertEquals("CONFIRMED", jdbc.queryForObject("select status from appointments where id = ?", String.class, timely));
         assertEquals(0, jdbc.queryForObject("select count(*) from audit_logs where source = 'appointment_audits' and entity_id = ? and after_state->>'status' = 'NO_SHOW'",
                 Integer.class, timely));

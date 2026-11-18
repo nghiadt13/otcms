@@ -75,6 +75,8 @@ class DiagnosticRequestT012PostgresIntegrationTest {
     @Autowired ClinicalServiceOrderExecutionPort executions;
     @Autowired JdbcTemplate jdbc;
     @Autowired PortFakes ports;
+    @Autowired jakarta.persistence.EntityManager entityManager;
+    @Autowired fu.fa26.sep490.g58.otcms_be.billing.service.BillingRefundService refunds;
 
     @BeforeEach
     void setUp() {
@@ -96,6 +98,7 @@ class DiagnosticRequestT012PostgresIntegrationTest {
     @AfterEach
     void cleanRows() {
         for (UUID id : visitIds) {
+            jdbc.update("delete from invoice_items where service_order_id in (select id from clinical_service_orders where visit_id = ?)", id);
             jdbc.update("delete from clinical_service_orders where visit_id = ?", id);
         }
     }
@@ -146,6 +149,42 @@ class DiagnosticRequestT012PostgresIntegrationTest {
         assertEquals(1, jdbc.queryForObject("select count(*) from audit_logs "
                 + "where source = 'diagnostic_audit_events' and entity_id = ? and action = 'MANUAL_CANCEL:ALLOWED'",
                 Integer.class, created.requestId()));
+    }
+
+    @Test
+    @org.springframework.transaction.annotation.Transactional
+    void clinicCancellationRefundsPaidItemAndVoidsUnpaidItem() {
+        UUID account = UUID.randomUUID();
+        jdbc.update("insert into accounts (id, normalized_email, account_type, status, password_hash, created_at, updated_at) "
+                + "values (?, ?, 'PATIENT', 'ACTIVE', 'test', now(), now())", account, account + "@example.test");
+        jdbc.update("insert into patient_profiles (id, account_id, full_name, phone_canonical, phone_owner_type, date_of_birth, gender) "
+                + "values (?, ?, 'Test Patient', ?, 'PATIENT', date '1990-01-01', 'OTHER')", patientId, account,
+                "+849" + String.format("%09d", Math.floorMod(patientId.getLeastSignificantBits(), 1_000_000_000L)));
+        jdbc.update("insert into visits (id, patient_profile_id, source, arrived_at, checked_in_at, created_by_account_id, status) "
+                + "values (?, ?, 'WALK_IN', now(), now(), ?, 'OPEN')", visitId, patientId, account);
+        UUID invoice = UUID.randomUUID();
+        jdbc.update("insert into invoices (id, invoice_number, patient_profile_id, visit_id, source_type, source_fingerprint, status, created_by_account_id) "
+                + "values (?, ?, ?, ?, 'VISIT', ?, 'OPEN', ?)", invoice, invoice.toString(), patientId, visitId, "a".repeat(64), account);
+        DiagnosticRequestView paid = create("refund-paid", "Chest", "Pain");
+        DiagnosticRequestView unpaid = create("refund-unpaid", "Chest", "Pain");
+        UUID attempt = UUID.randomUUID();
+        jdbc.update("insert into payment_attempts (id, invoice_id, channel, counter_method, amount, status, created_by_account_id, "
+                + "idempotency_key, request_fingerprint, confirmed_at) values (?, ?, 'COUNTER', 'CASH', 1, 'CONFIRMED', ?, ?, ?, now())",
+                attempt, invoice, account, attempt.toString(), "b".repeat(64));
+        UUID paidItem = UUID.randomUUID();
+        UUID unpaidItem = UUID.randomUUID();
+        jdbc.update("insert into invoice_items (id, invoice_id, line_number, service_order_id, payment_attempt_id, description_snapshot, quantity, unit_price_snapshot) "
+                + "values (?, ?, 1, ?, ?, 'Paid imaging', 1, 1), (?, ?, 2, ?, null, 'Unpaid imaging', 1, 1)",
+                paidItem, invoice, paid.requestId(), attempt, unpaidItem, invoice, unpaid.requestId());
+
+        service.cancel(doctor(), paid.requestId(), "cancel-paid", 0, CancellationCause.CLINIC_UNABLE, "Changed order", "corr");
+        service.cancel(doctor(), unpaid.requestId(), "cancel-unpaid", 0, CancellationCause.CLINIC_UNABLE, "Cannot perform", "corr");
+        entityManager.flush();
+
+        assertEquals("REFUND_PENDING", jdbc.queryForObject("select refund_status from invoice_items where id = ?", String.class, paidItem));
+        assertTrue(jdbc.queryForObject("select voided_at is not null from invoice_items where id = ?", Boolean.class, unpaidItem));
+        var admin = new fu.fa26.sep490.g58.otcms_be.common.security.AuthenticatedAccount(account, AccountRole.ADMIN, UUID.randomUUID());
+        assertTrue(refunds.listRefunds(admin, "PENDING", 0, 100).items().stream().anyMatch(item -> item.itemId().equals(paidItem)));
     }
 
     @Test
@@ -556,7 +595,8 @@ class DiagnosticRequestT012PostgresIntegrationTest {
     static String releasePayloadSha256(FindingsReleaseEvent event) {
         String canonical = String.join("\n", event.eventId().toString(), event.requestId().toString(),
                 event.visitId().toString(), event.patientId().toString(), event.studyRef(),
-                event.findingsVersionId().toString(), event.reportId().toString(), event.reportSha256());
+                event.findingsVersionId().toString(), java.util.Objects.toString(event.reportId(), "<null>"),
+                java.util.Objects.toString(event.reportSha256(), "<null>"));
         try {
             return java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256")
                     .digest(canonical.getBytes(java.nio.charset.StandardCharsets.UTF_8)));

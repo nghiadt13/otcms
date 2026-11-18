@@ -37,6 +37,11 @@ export interface ExaminationSection {
   primaryDiagnoses: Icd10Ref[];
   secondaryDiagnoses: Icd10Ref[];
   treatmentDirection: string;
+  /** Vị trí, bên (mã BR-39 hoặc null), cơ chế và mô tả chấn thương; null khi chưa ghi nhận. */
+  injuryBodySite?: string | null;
+  injurySide?: string | null;
+  injuryMechanism?: string | null;
+  injuryDescription?: string | null;
   advice: string;
   /** YYYY-MM-DD, null khi không hẹn tái khám. */
   followUpDate: string | null;
@@ -59,11 +64,15 @@ export interface LabLine {
   value: string;
   unit: string;
   referenceRange: string;
-  /** null = trong khoảng tham chiếu. */
-  flag: LabFlag | null;
+  /** Retained for older mock/result sources that supply direction instead of technician classification. */
+  flag?: LabFlag | null;
+  /** Classification selected by the technician before releasing the result. */
+  abnormal?: boolean | null;
 }
 
 export interface LabGroup {
+  orderId?: string;
+  releasedAt?: string;
   serviceName: string;
   lines: LabLine[];
 }

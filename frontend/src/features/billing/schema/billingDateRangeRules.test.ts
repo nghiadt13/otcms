@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isBillingDateRangeValid } from "./billingDateRangeRules";
+import { isBillingDateRangeValid } from "@/lib/domain/billingDateRangeRules";
 
 describe("isBillingDateRangeValid", () => {
   it("từ sau đến thì sai", () => {

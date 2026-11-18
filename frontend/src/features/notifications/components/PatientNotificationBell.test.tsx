@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { resetLinkedProfilesMock } from "@/lib/patient-scope/linkedProfilesMockStore";
-import { resetNotificationMockStore } from "../api/notificationApi";
+import { resetNotificationMockStore } from "../api/notificationTestServer";
 import { MOCK_PATIENT_NOTIFICATIONS } from "../api/patientNotificationMockData";
 import { PatientNotificationBell } from "./PatientNotificationBell";
 
@@ -44,3 +44,8 @@ describe("PatientNotificationBell", () => {
     );
   });
 });
+
+vi.mock(
+  "@/lib/api/client",
+  async () => await import("../api/notificationTestClient"),
+);

@@ -26,15 +26,13 @@ const nextConfig: NextConfig = {
         basePath: false,
       },
       // OHIF and its DICOMweb gateway share the browser origin with OTCMS.
-      ...[
-        "/viewer/:path*",
-        "/assets/:path*",
-        "/manifest.json",
-      ].map((source) => ({
-        source,
-        destination: `http://localhost:3001${source}`,
-        basePath: false as const,
-      })),
+      ...["/viewer/:path*", "/assets/:path*", "/manifest.json"].map(
+        (source) => ({
+          source,
+          destination: `http://localhost:3001${source}`,
+          basePath: false as const,
+        }),
+      ),
       ...["js", "css", "wasm", "woff", "woff2"].map((extension) => ({
         source: `/:file(.*\\.${extension})`,
         destination: "http://localhost:3001/:file",

@@ -5,10 +5,14 @@ import fu.fa26.sep490.g58.otcms_be.auth.service.PatientProfileDirectory;
 import fu.fa26.sep490.g58.otcms_be.auth.service.PatientProfileDirectory.ProfileRecord;
 import fu.fa26.sep490.g58.otcms_be.clinical.exception.ClinicalOperationException;
 import fu.fa26.sep490.g58.otcms_be.clinical.model.dto.PatientVisitResultDtos.*;
+import fu.fa26.sep490.g58.otcms_be.clinical.model.ClinicalServiceType;
+import fu.fa26.sep490.g58.otcms_be.clinical.model.ServiceOrderStatus;
+import fu.fa26.sep490.g58.otcms_be.clinical.repository.ServiceOrderRepository;
 import fu.fa26.sep490.g58.otcms_be.clinical.service.*;
 import fu.fa26.sep490.g58.otcms_be.common.security.AccountRole;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.model.DiagnosticActor;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.service.DiagnosticReleasedReportService;
+import fu.fa26.sep490.g58.otcms_be.diagnostic.service.LaboratoryDraftService;
 import fu.fa26.sep490.g58.otcms_be.patient.exception.CareRelationshipException;
 import fu.fa26.sep490.g58.otcms_be.patient.model.dto.DependentDtos.ProfileItem;
 import fu.fa26.sep490.g58.otcms_be.patient.service.DependentProfileService;
@@ -36,12 +40,15 @@ public class PatientVisitResultQueryServiceImpl implements PatientVisitResultQue
     private final ClinicalPrescriptionHistoryQueryService prescriptions;
     private final ClinicalMedicalDocumentHistoryQueryService documents;
     private final DiagnosticReleasedReportService diagnosticReports;
+    private final ServiceOrderRepository serviceOrders;
+    private final LaboratoryDraftService laboratoryDrafts;
     private final AppointmentReviewContextService appointments;
 
     public PatientVisitResultQueryServiceImpl(PatientProfileAccessService access, DependentProfileService dependents,
             PatientProfileDirectory profiles, PatientPortalVisitHistoryQueryService visits,
             ClinicalExaminationHistoryQueryService examinations, ClinicalPrescriptionHistoryQueryService prescriptions,
             ClinicalMedicalDocumentHistoryQueryService documents, DiagnosticReleasedReportService diagnosticReports,
+            ServiceOrderRepository serviceOrders, LaboratoryDraftService laboratoryDrafts,
             AppointmentReviewContextService appointments) {
         this.access = access;
         this.dependents = dependents;
@@ -51,6 +58,8 @@ public class PatientVisitResultQueryServiceImpl implements PatientVisitResultQue
         this.prescriptions = prescriptions;
         this.documents = documents;
         this.diagnosticReports = diagnosticReports;
+        this.serviceOrders = serviceOrders;
+        this.laboratoryDrafts = laboratoryDrafts;
         this.appointments = appointments;
     }
 
@@ -90,6 +99,8 @@ public class PatientVisitResultQueryServiceImpl implements PatientVisitResultQue
                 .map(item -> new ImagingItem(item.studyRef(), imagingLabel(item.imagingType(), item.bodyArea()),
                         item.findingsText())).toList();
 
+        List<LabGroup> laboratory = laboratoryResults(visitId);
+
         List<PrescriptionRef> issued = completed
                 ? prescriptions.findIssuedByPatientAndVisitIds(visit.patientProfileId(), List.of(visitId)).stream()
                     .map(item -> new PrescriptionRef(item.id(), item.issuedAt(), item.items().size())).toList()
@@ -101,7 +112,7 @@ public class PatientVisitResultQueryServiceImpl implements PatientVisitResultQue
             documents.findReleased(visit.patientProfileId(), List.of(visitId)).stream()
                     .filter(document -> "CLINIC_EXAMINATION_REPORT".equals(document.documentType())
                             && "application/pdf".equalsIgnoreCase(document.mediaType()))
-                    .map(document -> new ResultSheet(document.id(), 1, "CURRENT", document.releasedAt(), document.title(),
+                    .map(document -> new ResultSheet(document.id(), document.version(), "ACTIVE".equals(document.status()) ? "CURRENT" : document.status(), document.releasedAt(), document.title(),
                             "/api/v1/medical-documents/" + document.id() + "/view"))
                     .forEach(sheets::add);
         }
@@ -120,14 +131,29 @@ public class PatientVisitResultQueryServiceImpl implements PatientVisitResultQue
         List<String> visible = new ArrayList<>();
         if (exam != null) visible.add("EXAMINATION");
         if (!images.isEmpty()) visible.add("IMAGING");
+        if (!laboratory.isEmpty()) visible.add("LABORATORY");
         if (!issued.isEmpty()) visible.add("PRESCRIPTIONS");
         if (administrative != null) visible.add("ADMINISTRATIVE");
         if (!sheets.isEmpty()) visible.add("RESULT_SHEET");
 
         return new VisitResult(visitId, visitDate(visit), resultStatus(visit), patientRef(profile, scope.relationships()),
                 visits.findPreviousVisit(visit).orElse(null), visits.findNextVisit(visit).orElse(null), visible,
-                exam, images.isEmpty() ? null : images, issued.isEmpty() ? null : issued, administrative,
+                exam, images.isEmpty() ? null : images, laboratory.isEmpty() ? null : laboratory,
+                issued.isEmpty() ? null : issued, administrative,
                 sheets.isEmpty() ? null : sheets);
+    }
+
+    private List<LabGroup> laboratoryResults(UUID visitId) {
+        return serviceOrders.findVisitOrdersByType(visitId, ClinicalServiceType.LABORATORY).stream()
+                .filter(order -> order.getOrderStatus() == ServiceOrderStatus.RESULTS_AVAILABLE)
+                .map(order -> {
+                    var values = laboratoryDrafts.issued(order.getId());
+                    if (values.isEmpty()) return null;
+                    List<LabLine> lines = values.stream().map(value -> new LabLine(value.indicator(), value.value(),
+                            value.unit(), value.referenceRange(), value.abnormal())).toList();
+                    return new LabGroup(order.getId(), order.getServiceNameSnapshot(), order.getUpdatedAt(), lines);
+                })
+                .filter(Objects::nonNull).toList();
     }
 
     private Scope scope(UUID accountId, UUID requestedPatientId) {
@@ -179,12 +205,13 @@ public class PatientVisitResultQueryServiceImpl implements PatientVisitResultQue
     private static ExaminationSection examination(ClinicalExaminationHistoryQueryService.CompletedRecord record) {
         var source = record.examination();
         List<Icd10Ref> primary = source.diagnoses().stream().filter(d -> d.type().name().equals("PRIMARY"))
-                .map(d -> new Icd10Ref(d.code(), "")).toList();
+                .map(d -> new Icd10Ref(d.code(), Icd10Catalog.nameOf(d.code()))).toList();
         List<Icd10Ref> secondary = source.diagnoses().stream().filter(d -> d.type().name().equals("SECONDARY"))
-                .map(d -> new Icd10Ref(d.code(), "")).toList();
+                .map(d -> new Icd10Ref(d.code(), Icd10Catalog.nameOf(d.code()))).toList();
         var advice = record.advice();
-        String direction = join(advice.homeCareAdvice(), advice.activityAdvice(), advice.rehabilitationAdvice());
-        String warnings = join(advice.warningSigns());
+        // "Hướng điều trị" là các hướng đã chọn (BR-40); lời dặn chăm sóc, hoạt động, phục hồi và dấu hiệu cảnh báo gom vào "Lời dặn".
+        String direction = ClinicalExamFieldRules.directionText(source.treatmentDirections());
+        String careAdvice = join(advice.homeCareAdvice(), advice.activityAdvice(), advice.rehabilitationAdvice(), advice.warningSigns());
         String followUpNote = null;
         if (Boolean.TRUE.equals(advice.followUpIndicated())) {
             followUpNote = advice.followUpRecommendation() == null || advice.followUpRecommendation().isBlank()
@@ -192,7 +219,8 @@ public class PatientVisitResultQueryServiceImpl implements PatientVisitResultQue
                     : advice.followUpRecommendation();
         }
         return new ExaminationSection(value(source.reasonForVisit()), value(source.symptoms()), value(source.examinationFindings()),
-                primary, secondary, direction, warnings, null, followUpNote);
+                primary, secondary, direction, careAdvice, null, followUpNote,
+                source.injuryBodySite(), source.injurySide(), source.injuryMechanism(), source.injuryDescription());
     }
 
     private static AdministrativeInfo administrative(ProfileRecord profile) {

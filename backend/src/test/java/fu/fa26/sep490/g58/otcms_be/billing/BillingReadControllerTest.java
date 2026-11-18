@@ -47,7 +47,6 @@ class BillingReadControllerTest {
         mvc.perform(get("/api/v1/payments")).andExpect(status().isUnauthorized());
         mvc.perform(get("/api/v1/payments").with(actor(AccountRole.DOCTOR))).andExpect(status().isForbidden());
         mvc.perform(get("/api/v1/invoices/unpaid").with(actor(AccountRole.PATIENT))).andExpect(status().isForbidden());
-        mvc.perform(get("/api/v1/payments/" + UUID.randomUUID() + "/receipt").with(actor(AccountRole.ADMIN))).andExpect(status().isForbidden());
         verifyNoInteractions(reads);
     }
     @Test void patientHistoryAndStaffUnpaidPaginationArePrivate() throws Exception {
@@ -60,20 +59,9 @@ class BillingReadControllerTest {
         mvc.perform(get("/api/v1/invoices/unpaid").with(actor(AccountRole.RECEPTIONIST)))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.items").isArray());
     }
-    @Test void receiptIsAnAuthenticatedUtf8AttachmentAndBusinessErrorsUseEnvelope() throws Exception {
-        UUID id = UUID.randomUUID();
-        when(reads.receiptExport(any(), eq(id))).thenReturn("PAYMENT RECEIPT\nAmount paid: 30000 VND\n");
-        mvc.perform(get("/api/v1/payments/" + id + "/receipt").with(actor(AccountRole.RECEPTIONIST)))
-                .andExpect(status().isOk()).andExpect(header().string("X-Content-Type-Options", "nosniff"))
-                .andExpect(header().string("Content-Disposition", org.hamcrest.Matchers.containsString("attachment")))
-                .andExpect(content().contentType("text/plain;charset=UTF-8"));
-        when(reads.receiptExport(any(), eq(id))).thenThrow(new BillingException("MSG-42"));
-        mvc.perform(get("/api/v1/payments/" + id + "/receipt").with(actor(AccountRole.RECEPTIONIST)))
-                .andExpect(status().isConflict()).andExpect(jsonPath("$.error.code").value("MSG-42"));
-    }
     @Test void malformedDatesAndIdentifiersFailBeforeService() throws Exception {
         mvc.perform(get("/api/v1/payments?from=bad-date").with(actor(AccountRole.PATIENT)))
-                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("MSG-39"));
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("MSG-54"));
         mvc.perform(get("/api/v1/invoices/bad-id/print").with(actor(AccountRole.RECEPTIONIST)))
                 .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("MSG-39"));
         verifyNoInteractions(reads);

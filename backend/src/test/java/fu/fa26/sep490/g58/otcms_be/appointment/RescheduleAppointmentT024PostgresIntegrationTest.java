@@ -50,6 +50,8 @@ class RescheduleAppointmentT024PostgresIntegrationTest {
     private UUID receptionistAccount;
     private UUID otherPatientAccount;
     private UUID doctorAccount;
+    private UUID replacementAccount;
+    private UUID replacementProfile;
     private UUID patientProfile;
     private UUID otherPatientProfile;
     private UUID doctorProfile;
@@ -99,9 +101,13 @@ class RescheduleAppointmentT024PostgresIntegrationTest {
                 jdbc.update("delete from work_shifts where staff_profile_id = ?", doctorProfile);
                 jdbc.update("delete from staff_profiles where id = ?", doctorProfile);
             }
+            if (replacementProfile != null) {
+                jdbc.update("delete from work_shifts where staff_profile_id = ?", replacementProfile);
+                jdbc.update("delete from staff_profiles where id = ?", replacementProfile);
+            }
             if (patientProfile != null) jdbc.update("delete from patient_profiles where id = ?", patientProfile);
             if (otherPatientProfile != null) jdbc.update("delete from patient_profiles where id = ?", otherPatientProfile);
-            for (UUID id : new UUID[]{patientAccount, receptionistAccount, otherPatientAccount, doctorAccount}) {
+            for (UUID id : new UUID[]{patientAccount, receptionistAccount, otherPatientAccount, doctorAccount, replacementAccount}) {
                 if (id != null) jdbc.update("delete from accounts where id = ?", id);
             }
         } finally {
@@ -115,13 +121,32 @@ class RescheduleAppointmentT024PostgresIntegrationTest {
     }
 
     @Test
+    void rescheduleCanChangeDoctorAndAuditsBothDoctors() throws Exception {
+        replacementAccount = account("DOCTOR", "replacement");
+        replacementProfile = UUID.randomUUID();
+        jdbc.update("insert into staff_profiles (is_doctor, id, account_id, display_name, photo_url, work_contact, specialties, "
+                        + "qualifications, biography, consultation_information, publicly_visible, accepting_new_bookings, in_active_directory) "
+                        + "values (true, ?, ?, 'Replacement', '', 'private', '', '', '', '', true, true, true)", replacementProfile, replacementAccount);
+        jdbc.update("insert into doctor_services (doctor_profile_id, service_id, active) values (?, ?, true)", replacementProfile, service);
+        jdbc.update("insert into work_shifts (id, staff_profile_id, starts_at, ends_at) values (?, ?, ?, ?)", UUID.randomUUID(), replacementProfile,
+                Timestamp.from(Instant.parse("2026-10-16T02:00:00Z")), Timestamp.from(Instant.parse("2026-10-16T05:00:00Z")));
+        mvc.perform(patch("/api/v1/appointments/{id}/reschedule", appointment)
+                        .with(actor(receptionistAccount, AccountType.RECEPTIONIST)).with(csrf()).contentType("application/json")
+                        .content("{\"startTime\":\"" + TARGET_START + "\",\"doctorId\":\"" + replacementProfile + "\",\"reason\":\"Doctor unavailable\"}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.doctorId").value(replacementProfile.toString()));
+        assertEquals(replacementProfile, jdbc.queryForObject("select doctor_profile_id from appointments where id = ?", UUID.class, appointment));
+        assertEquals(1, jdbc.queryForObject("select count(*) from audit_logs where entity_id = ? and action = 'RESCHEDULED' "
+                + "and before_state->>'doctorProfileId' = ? and after_state->>'doctorProfileId' = ?", Integer.class,
+                appointment, doctorProfile.toString(), replacementProfile.toString()));
+    }
+
+    @Test
     void patientCannotRescheduleOwnBookingAndNothingIsWritten() throws Exception {
         mvc.perform(patch("/api/v1/appointments/{id}/reschedule", appointment)
                         .with(actor(patientAccount, AccountType.PATIENT)).with(csrf())
                         .header("X-Correlation-ID", CORRELATION).contentType("application/json")
                         .content("{\"startTime\":\"" + TARGET_START + "\"}"))
-                .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.error.code").value("APPOINTMENT_NOT_CHANGEABLE"));
+                .andExpect(status().isForbidden());
         assertEquals(OLD_START, jdbc.queryForObject("select start_time from appointments where id = ?", Timestamp.class,
                 appointment).toInstant());
         assertEquals(0, jdbc.queryForObject("select count(*) from audit_logs where source = 'appointment_audits' and entity_id = ? "
@@ -156,11 +181,11 @@ class RescheduleAppointmentT024PostgresIntegrationTest {
         mvc.perform(patch("/api/v1/appointments/{id}/reschedule", appointment)
                         .with(actor(otherPatientAccount, AccountType.PATIENT)).with(csrf()).contentType("application/json")
                         .content("{\"startTime\":\"" + TARGET_START + "\"}"))
-                .andExpect(status().isNotFound()).andExpect(jsonPath("$.error.code").value("APPOINTMENT_NOT_FOUND"));
+                .andExpect(status().isForbidden());
         mvc.perform(patch("/api/v1/appointments/{id}/reschedule", appointment)
                         .with(actor(receptionistAccount, AccountType.RECEPTIONIST)).with(csrf()).contentType("application/json")
                         .content("{\"startTime\":\"" + TARGET_START + "\",\"reason\":\" \"}"))
-                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("MSG-31"));
         assertEquals(OLD_START, jdbc.queryForObject("select start_time from appointments where id = ?", Timestamp.class,
                 appointment).toInstant());
         assertEquals(0, jdbc.queryForObject("select count(*) from audit_logs where source = 'appointment_audits' and entity_id = ? "
@@ -174,7 +199,7 @@ class RescheduleAppointmentT024PostgresIntegrationTest {
         mvc.perform(patch("/api/v1/appointments/{id}/reschedule", appointment)
                         .with(actor(receptionistAccount, AccountType.RECEPTIONIST)).with(csrf()).contentType("application/json")
                         .content("{\"startTime\":\"" + TARGET_START + "\",\"reason\":\"Patient requested a change\"}"))
-                .andExpect(status().isConflict()).andExpect(jsonPath("$.error.code").value("SLOT_UNAVAILABLE"));
+                .andExpect(status().isUnprocessableEntity()).andExpect(jsonPath("$.error.code").value("MSG-24"));
         assertEquals(OLD_START, jdbc.queryForObject("select start_time from appointments where id = ?", Timestamp.class,
                 appointment).toInstant());
         assertEquals(1, jdbc.queryForObject("select count(*) from audit_logs where source = 'appointment_audits' and entity_id = ? "

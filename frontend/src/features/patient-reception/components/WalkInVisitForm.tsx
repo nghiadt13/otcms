@@ -8,17 +8,19 @@ import {
   EXAM_QUEUE_STATUS_LABELS,
   EXAM_QUEUE_STATUS_TONE,
 } from "@/lib/domain/clinicVisit";
-import { listOnShiftDoctors, type OnShiftDoctor } from "@/lib/api/examQueueApi";
 import { formatAppMessage, messageFromError } from "@/lib/messages/appMessages";
 import {
   createReceptionWalkIn,
   listExaminationServices,
+  listWalkInSuggestions,
   type ExaminationService,
   type ReceptionWalkIn,
+  type WalkInSuggestion,
 } from "../api/receptionWalkInLiveApi";
 import { queuedFeedbackText } from "../schema/receptionMessages";
 import { money, SelectField } from "./ReceptionUi";
 import { WalkInFeeStep } from "./WalkInFeeStep";
+import { PaymentReceiptDialog } from "./PaymentReceiptDialog";
 
 /**
  * Tạo lượt khám trực tiếp: chọn bác sĩ đang trong ca và dịch vụ khám. Dịch vụ có giá thì lễ tân thu
@@ -31,7 +33,7 @@ export function WalkInVisitForm({
   patientProfileId: string;
   priorAppointmentId?: string;
 }) {
-  const [doctors, setDoctors] = useState<OnShiftDoctor[]>([]);
+  const [doctors, setDoctors] = useState<WalkInSuggestion[]>([]);
   const [services, setServices] = useState<ExaminationService[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [loadError, setLoadError] = useState("");
@@ -44,15 +46,17 @@ export function WalkInVisitForm({
     serviceId: string;
   } | null>(null);
   const [unpaidVisit, setUnpaidVisit] = useState(false);
+  const [receiptId, setReceiptId] = useState<string | null>(null);
   // Khoá idempotency giữ nguyên khi thử lại cùng lựa chọn sau lỗi mạng; đổi lựa chọn thì tạo khoá mới.
   const keyRef = useRef<{ fingerprint: string; key: string } | null>(null);
 
   useEffect(() => {
     let active = true;
-    Promise.all([listOnShiftDoctors(), listExaminationServices()])
+    Promise.all([listWalkInSuggestions(), listExaminationServices()])
       .then(([doctorPage, serviceList]) => {
         if (!active) return;
         setDoctors(doctorPage.items);
+        setDoctorId(doctorPage.items[0]?.doctorProfileId ?? "");
         setServices(serviceList);
         setLoaded(true);
       })
@@ -179,10 +183,17 @@ export function WalkInVisitForm({
           visitId={feeDue.visitId}
           serviceId={feeDue.serviceId}
           onClose={() => setFeeDue(null)}
+          onReceipt={setReceiptId}
           onQueued={() => {
             setFeeDue(null);
             setUnpaidVisit(false);
           }}
+        />
+      )}
+      {receiptId && (
+        <PaymentReceiptDialog
+          paymentId={receiptId}
+          onClose={() => setReceiptId(null)}
         />
       )}
     </div>

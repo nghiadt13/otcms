@@ -4,4 +4,5 @@ import java.time.Instant;
 import java.util.UUID;
 
 public record ReceptionQueueItemResponse(UUID queueEntryId, UUID visitId, Instant arrivedAt,
-        String status, int position, String currentStage, String currentRoom) { }
+        String status, int position, String currentStage, String currentRoom,
+        Integer queueNumber, UUID appointmentId) { }

@@ -39,14 +39,15 @@ describe("password recovery API contract", () => {
       }),
     );
   });
-  it("sends token and unchanged password to the selected portal and handles empty 204", async () => {
+  it("sends OTP and unchanged password to the patient reset endpoint and handles empty 204", async () => {
     fetchMock.mockResolvedValue(new Response(null, { status: 204 }));
-    await resetPassword("token-test", " new-password-123 ", "staff");
+    await resetPassword("user@example.test", "123456", " new-password-123 ");
     expect(fetchMock).toHaveBeenCalledWith(
-      expect.stringContaining("/api/auth/staff/reset-password"),
+      expect.stringContaining("/api/auth/patient/reset-password"),
       expect.objectContaining({
         body: JSON.stringify({
-          token: "token-test",
+          email: "user@example.test",
+          otp: "123456",
           newPassword: " new-password-123 ",
         }),
       }),
@@ -67,11 +68,10 @@ describe("password recovery API contract", () => {
     ["PASSWORD_REUSE_NOT_ALLOWED", 400, "password-reuse"],
     ["VALIDATION_FAILED", 400, "validation"],
     ["RATE_LIMIT_EXCEEDED", 429, "rate-limit"],
-    ["STAFF_NETWORK_ACCESS_DENIED", 403, "staff-network"],
   ])("maps %s safely", async (code, status, reason) => {
     fetchMock.mockResolvedValue(failure(code, status));
     await expect(
-      resetPassword("token-test", "new-password-123"),
+      resetPassword("user@example.test", "123456", "new-password-123"),
     ).rejects.toMatchObject({ reason });
     expect(fetchMock).toHaveBeenCalledOnce();
     expect(clearLocalAuthSession).not.toHaveBeenCalled();
@@ -83,11 +83,13 @@ describe("password recovery API contract", () => {
     ).rejects.toMatchObject({ reason: "service" });
     fetchMock.mockResolvedValue(new Response("unexpected", { status: 200 }));
     await expect(
-      resetPassword("token", "new-password-123"),
+      resetPassword("user@example.test", "123456", "new-password-123"),
     ).rejects.toMatchObject({ reason: "service" });
   });
   it("rejects a missing token without making a network request", async () => {
-    await expect(resetPassword("", "new-password-123")).rejects.toMatchObject({
+    await expect(
+      resetPassword("user@example.test", "", "new-password-123"),
+    ).rejects.toMatchObject({
       reason: "invalid-token",
     });
     expect(fetchMock).not.toHaveBeenCalled();

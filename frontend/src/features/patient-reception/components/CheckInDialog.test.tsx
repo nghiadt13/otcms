@@ -3,6 +3,7 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { toast } from "sonner";
 import { ApiError } from "@/lib/api/apiError";
+import { formatAppMessage } from "@/lib/messages/appMessages";
 import { ReceptionProvider } from "./ReceptionProvider";
 import { CheckInDialog } from "./CheckInDialog";
 
@@ -31,6 +32,8 @@ const invoice = {
   issuedAt: "2026-11-11T08:00:00+07:00",
   items: [
     {
+      id: "item-1",
+      status: "PENDING",
       lineNumber: 1,
       description: "Khám nội",
       quantity: 1,
@@ -117,6 +120,8 @@ beforeEach(() => {
         fullName: "Nguyễn Minh Anh",
         dateOfBirth: "1990-01-01",
       };
+    if (path === "/api/v1/reception/patients/pat-1/return-candidate")
+      return undefined;
     if (path === "/api/v1/appointments/apt-1/check-in" && method === "POST")
       return {
         appointmentId: "apt-1",
@@ -133,15 +138,26 @@ beforeEach(() => {
       method === "POST"
     ) {
       feePaid = true;
-      return {};
+      return { id: "pay-1" };
     }
-    if (path === "/api/v1/reception/on-shift-doctors")
+    if (path === "/api/v1/payments/pay-1/receipt")
+      return {
+        receiptNumber: "RC-1",
+        patientName: "Nguyễn Minh Anh",
+        invoiceNumber: "OTC-1",
+        confirmedAt: "2026-11-11T08:00:00Z",
+        channel: "COUNTER",
+        amount: 250000,
+        items: [],
+      };
+    if (path === "/api/v1/reception/walk-in-suggestions")
       return {
         items: [
           {
             doctorProfileId: "doc-1",
             doctorName: "BS Nguyễn An",
             roomId: "room-101",
+            roomCode: "101",
             roomLabel: "Phòng 101",
             waitingCount: 2,
           },
@@ -179,14 +195,18 @@ beforeEach(() => {
       path === "/api/v1/invoices/inv-walk/counter-payments" &&
       method === "POST"
     )
-      return {};
+      return { id: "pay-1" };
     if (path === "/api/v1/visits/v-walk/exam-queue-entry") return walkInEntry;
     throw new Error(`Unexpected request ${method} ${path}`);
   });
 });
 
 function renderDialog(
-  props: { patientId?: string; appointmentId?: string } = {},
+  props: {
+    patientId?: string;
+    appointmentId?: string;
+    onUpdated?: () => void;
+  } = {},
 ) {
   return render(
     <ReceptionProvider>
@@ -194,13 +214,96 @@ function renderDialog(
         patientId={props.patientId ?? "pat-1"}
         appointmentId={props.appointmentId}
         onClose={vi.fn()}
-        onUpdated={vi.fn()}
+        onUpdated={props.onUpdated ?? vi.fn()}
       />
     </ReceptionProvider>,
   );
 }
 
 describe("CheckInDialog (tiếp nhận tại quầy)", () => {
+  const candidate = {
+    visitId: "v-return",
+    firstCheckInAt: "2026-11-11T08:00:00+07:00",
+    returnDeadline: "2026-11-18",
+    doctorProfileId: "doc-1",
+    doctorName: "BS Nguyễn An",
+    roomId: "room-101",
+    roomLabel: "Phòng 101",
+  };
+
+  it("tiếp nhận lại lượt chờ kết luận và làm mới hàng chờ", async () => {
+    const user = userEvent.setup();
+    const updated = vi.fn();
+    const base = request.getMockImplementation()!;
+    request.mockImplementation(async (path: string, init?: RequestInit) => {
+      if (path.endsWith("/return-candidate")) return candidate;
+      if (path === "/api/v1/visits/v-return/returns")
+        return { messageCode: "MSG-43", data: {} };
+      return base(path, init);
+    });
+    renderDialog({ onUpdated: updated });
+    await user.click(
+      screen.getByRole("button", { name: "Xác minh hồ sơ bệnh nhân" }),
+    );
+    expect(
+      await screen.findByText("Lượt khám đang chờ kết luận"),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/Hạn quay lại: 18\/11\/2026/)).toBeInTheDocument();
+    await user.click(
+      screen.getByRole("button", { name: "Quay lại lượt khám" }),
+    );
+    await waitFor(() =>
+      expect(toast.success).toHaveBeenCalledWith(
+        "Thông tin lượt khám đã được cập nhật.",
+      ),
+    );
+    expect(request).toHaveBeenCalledWith("/api/v1/visits/v-return/returns", {
+      method: "POST",
+    });
+    expect(updated).toHaveBeenCalledOnce();
+    expect(
+      request.mock.calls.some(([path]) => String(path).includes("/invoices")),
+    ).toBe(false);
+  });
+
+  it("không hiện quay lại khi không có lượt phù hợp", async () => {
+    const user = userEvent.setup();
+    renderDialog();
+    await user.click(
+      screen.getByRole("button", { name: "Xác minh hồ sơ bệnh nhân" }),
+    );
+    await waitFor(() =>
+      expect(request).toHaveBeenCalledWith(
+        "/api/v1/reception/patients/pat-1/return-candidate",
+        expect.anything(),
+      ),
+    );
+    expect(
+      screen.queryByRole("button", { name: "Quay lại lượt khám" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("hiện MSG-42 khi lượt không còn được quay lại", async () => {
+    const user = userEvent.setup();
+    const base = request.getMockImplementation()!;
+    request.mockImplementation(async (path: string, init?: RequestInit) => {
+      if (path.endsWith("/return-candidate")) return candidate;
+      if (path === "/api/v1/visits/v-return/returns")
+        throw new ApiError(409, { code: "MSG-42" });
+      return base(path, init);
+    });
+    renderDialog();
+    await user.click(
+      screen.getByRole("button", { name: "Xác minh hồ sơ bệnh nhân" }),
+    );
+    await user.click(
+      await screen.findByRole("button", { name: "Quay lại lượt khám" }),
+    );
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Không thể thực hiện thao tác này với trạng thái hiện tại.",
+    );
+    expect(toast.success).not.toHaveBeenCalled();
+  });
   it("check-in lịch đã thu phí hiện MSG-88 với số thứ tự và phòng", async () => {
     const user = userEvent.setup();
     feePaid = true;
@@ -236,18 +339,30 @@ describe("CheckInDialog (tiếp nhận tại quầy)", () => {
     expect(
       await screen.findByRole("button", { name: "Check-in lịch hẹn" }),
     ).toBeDisabled();
+    expect(screen.getByText(formatAppMessage("MSG-94"))).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Thu phí khám" }));
     const dialog = await screen.findByRole("dialog", { name: "Thu phí khám" });
-    await user.click(within(dialog).getByRole("checkbox"));
+    await user.click(
+      within(dialog).getByRole("checkbox", { name: /Đã nhận tiền/ }),
+    );
     await user.click(
       within(dialog).getByRole("button", { name: "Xác nhận thu tiền" }),
     );
 
+    const receipt = await screen.findByRole("dialog", {
+      name: "Biên lai thu tiền",
+    });
+    expect(await within(receipt).findByText("RC-1")).toBeInTheDocument();
+    await user.keyboard("{Escape}");
+
     await waitFor(() =>
       expect(request).toHaveBeenCalledWith(
         "/api/v1/invoices/inv-1/counter-payments",
-        expect.objectContaining({ method: "POST" }),
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({ itemIds: ["item-1"], method: "CASH" }),
+        }),
       ),
     );
     await waitFor(() =>
@@ -257,14 +372,14 @@ describe("CheckInDialog (tiếp nhận tại quầy)", () => {
     );
   });
 
-  it("check-in bị backend từ chối vì chưa thu phí hiện MSG-37", async () => {
+  it("check-in bị backend từ chối vì chưa thu phí hiện MSG-94", async () => {
     const user = userEvent.setup();
     feePaid = true;
     appointments = [appointment({ examFeePaid: true })];
     const base = request.getMockImplementation()!;
     request.mockImplementation(async (path: string, init?: RequestInit) => {
       if (path === "/api/v1/appointments/apt-1/check-in")
-        throw new ApiError(409, { errorCode: "EXAM_FEE_UNPAID" });
+        throw new ApiError(409, { code: "MSG-94" });
       return base(path, init);
     });
     renderDialog({ appointmentId: "apt-1" });
@@ -277,7 +392,7 @@ describe("CheckInDialog (tiếp nhận tại quầy)", () => {
     );
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Không thể tiếp nhận lượt khám này.",
+      "Bạn chưa thanh toán phí khám nên chưa thể tiếp nhận.",
     );
     expect(toast.success).not.toHaveBeenCalled();
   });
@@ -302,11 +417,17 @@ describe("CheckInDialog (tiếp nhận tại quầy)", () => {
     );
 
     const dialog = await screen.findByRole("dialog", { name: "Thu phí khám" });
-    await user.click(within(dialog).getByRole("checkbox"));
+    await user.click(
+      within(dialog).getByRole("checkbox", { name: /Đã nhận tiền/ }),
+    );
     await user.click(
       within(dialog).getByRole("button", { name: "Xác nhận thu tiền" }),
     );
 
+    const receipt = await screen.findByRole("dialog", {
+      name: "Biên lai thu tiền",
+    });
+    expect(await within(receipt).findByText("RC-1")).toBeInTheDocument();
     await waitFor(() =>
       expect(toast.success).toHaveBeenCalledWith(
         "Đã tiếp nhận bệnh nhân. Số thứ tự 4, phòng Phòng 102.",
@@ -334,10 +455,62 @@ describe("CheckInDialog (tiếp nhận tại quầy)", () => {
     );
     expect(request).toHaveBeenCalledWith(
       "/api/v1/invoices/inv-walk/counter-payments",
-      expect.objectContaining({ method: "POST" }),
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ itemIds: ["item-1"], method: "CASH" }),
+      }),
     );
     expect(request).toHaveBeenCalledWith(
       "/api/v1/visits/v-walk/exam-queue-entry",
+    );
+  });
+
+  it("walk-in chọn sẵn gợi ý đầu, hiện số chờ và cho đổi bác sĩ", async () => {
+    const user = userEvent.setup();
+    const base = request.getMockImplementation()!;
+    request.mockImplementation(async (path: string, init?: RequestInit) => {
+      if (path === "/api/v1/reception/walk-in-suggestions")
+        return {
+          items: [
+            {
+              roomId: "r1",
+              roomCode: "101",
+              roomLabel: "Phòng 101",
+              doctorProfileId: "doc-1",
+              doctorName: "BS Nguyễn An",
+              waitingCount: 2,
+            },
+            {
+              roomId: "r2",
+              roomCode: "102",
+              roomLabel: "Phòng 102",
+              doctorProfileId: "doc-2",
+              doctorName: "BS Bình",
+              waitingCount: 5,
+            },
+          ],
+        };
+      return base(path, init);
+    });
+    renderDialog();
+    await user.click(
+      screen.getByRole("button", { name: "Xác minh hồ sơ bệnh nhân" }),
+    );
+    const doctor = await screen.findByLabelText("Bác sĩ đang trong ca");
+    await waitFor(() => expect(doctor).toHaveValue("doc-1"));
+    expect(
+      within(doctor).getByRole("option", { name: /Phòng 101 · 2 đang chờ/ }),
+    ).toBeInTheDocument();
+    await user.selectOptions(doctor, "doc-2");
+    await user.selectOptions(screen.getByLabelText("Dịch vụ khám"), "svc-kham");
+    await user.click(
+      screen.getByRole("button", { name: "Tạo lượt khám trực tiếp" }),
+    );
+    expect(request).toHaveBeenCalledWith(
+      "/api/v1/visits/walk-ins",
+      expect.objectContaining({
+        body: expect.stringContaining('"doctorProfileId":"doc-2"'),
+      }),
     );
   });
 
@@ -395,7 +568,8 @@ describe("CheckInDialog (tiếp nhận tại quầy)", () => {
     const user = userEvent.setup();
     const base = request.getMockImplementation()!;
     request.mockImplementation(async (path: string, init?: RequestInit) => {
-      if (path === "/api/v1/reception/on-shift-doctors") return { items: [] };
+      if (path === "/api/v1/reception/walk-in-suggestions")
+        return { items: [] };
       return base(path, init);
     });
     renderDialog();

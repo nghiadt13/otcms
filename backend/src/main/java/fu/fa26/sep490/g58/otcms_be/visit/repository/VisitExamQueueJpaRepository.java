@@ -35,12 +35,13 @@ public interface VisitExamQueueJpaRepository extends JpaRepository<QueueEntryJpa
     @Query(value = ROW_COLUMNS + "and q.clinic_date = :clinicDate", nativeQuery = true)
     List<Object[]> findRowsForClinicDate(@Param("clinicDate") LocalDate clinicDate);
 
-    /** Doctor's day: today's rows, plus unfinished IN_EXAMINATION/AWAITING_CONCLUSION rows from earlier days. */
+    /** Doctor's day: today's rows and visits awaiting conclusion within seven days of first check-in. */
     @Query(value = ROW_COLUMNS + """
             and q.doctor_profile_id = :doctorProfileId
               and q.status not in ('PENDING_PAYMENT', 'CANCELLED')
               and (q.clinic_date = :today
-                   or (q.clinic_date < :today and q.status in ('IN_EXAMINATION', 'AWAITING_CONCLUSION')))
+                   or (q.status = 'AWAITING_CONCLUSION' and v.status = 'OPEN'
+                       and q.clinic_date between cast(:today as date) - 6 and :today))
             """, nativeQuery = true)
     List<Object[]> findRowsForDoctorDay(@Param("doctorProfileId") UUID doctorProfileId,
             @Param("today") LocalDate today);

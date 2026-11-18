@@ -33,7 +33,7 @@ async function submitCredentials(button = "Đăng nhập", staffEmail = false) {
   if (staffEmail)
     await user.click(screen.getByRole("button", { name: "Nhân viên khác" }));
   await user.type(
-    screen.getByLabelText(staffEmail ? /^Tên đăng nhập hoặc email/ : /^Email/),
+    screen.getByLabelText(staffEmail ? /^Tên đăng nhập/ : /^Email/),
     "an@example.com",
   );
   await user.type(screen.getByLabelText(/^Mật khẩu/), "matkhau123");
@@ -138,10 +138,7 @@ describe("SignInForm: đăng nhập nội bộ (staff)", () => {
     const user = userEvent.setup();
     render(<SignInForm staff />);
     await user.click(screen.getByRole("button", { name: "Nhân viên khác" }));
-    await user.type(
-      screen.getByLabelText(/^Tên đăng nhập hoặc email/),
-      "admin@localhost",
-    );
+    await user.type(screen.getByLabelText(/^Tên đăng nhập/), "admin@localhost");
     await user.type(screen.getByLabelText(/^Mật khẩu/), "matkhau123");
     await user.click(screen.getByRole("button", { name: "Đăng nhập" }));
     expect(signInWithPassword).toHaveBeenCalledWith(
@@ -156,10 +153,7 @@ describe("SignInForm: đăng nhập nội bộ (staff)", () => {
     const user = userEvent.setup();
     render(<SignInForm staff />);
     await user.click(screen.getByRole("button", { name: "Nhân viên khác" }));
-    await user.type(
-      screen.getByLabelText(/^Tên đăng nhập hoặc email/),
-      "reception.one",
-    );
+    await user.type(screen.getByLabelText(/^Tên đăng nhập/), "reception.one");
     await user.type(screen.getByLabelText(/^Mật khẩu/), "matkhau123");
     await user.click(screen.getByRole("button", { name: "Đăng nhập" }));
     expect(signInWithPassword).toHaveBeenCalledWith(

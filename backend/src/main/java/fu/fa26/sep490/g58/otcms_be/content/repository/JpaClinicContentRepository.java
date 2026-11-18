@@ -100,6 +100,13 @@ public class JpaClinicContentRepository implements ClinicContentRepository {
     }
     @Override
     public ContentPage<ClinicAnnouncement> announcements(Filters filters, boolean publicOnly) {
+        return announcements(filters, publicOnly, false);
+    }
+    @Override
+    public ContentPage<ClinicAnnouncement> patientAnnouncements(Filters filters) {
+        return announcements(filters, false, true);
+    }
+    private ContentPage<ClinicAnnouncement> announcements(Filters filters, boolean publicOnly, boolean patientOnly) {
         Specification<WebsiteContentJpaEntity> specification = (root, query, builder) -> {
             var predicates = new java.util.ArrayList<jakarta.persistence.criteria.Predicate>();
             predicates.add(builder.gt(builder.function("strpos", Integer.class, builder.lower(root.get("title")),
@@ -107,6 +114,10 @@ public class JpaClinicContentRepository implements ClinicContentRepository {
             predicates.add(builder.equal(root.get("type"), ContentType.ANNOUNCEMENT));
             if (publicOnly) {
                 predicates.add(builder.equal(root.get("audience"), "PUBLIC"));
+            }
+            if (patientOnly) {
+                predicates.add(root.get("audience").in("PUBLIC", "PATIENT"));
+                predicates.add(builder.equal(root.get("status"), "PUBLISHED"));
             }
             if (!filters.audience().isEmpty()) {
                 predicates.add(builder.equal(builder.coalesce(root.get("recipientRole"), root.get("audience")), filters.audience()));

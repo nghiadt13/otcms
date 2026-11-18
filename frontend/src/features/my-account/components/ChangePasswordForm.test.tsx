@@ -2,7 +2,14 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { notifyError, notifySuccess } from "@/lib/messages/notify";
-import { resetMyAccountMockStore } from "../api/myAccountApi";
+import { FirstLoginPasswordError } from "@/lib/auth/changePasswordApi";
+vi.mock("@/lib/auth/changePasswordApi", async (original) => ({
+  ...(await original<typeof import("@/lib/auth/changePasswordApi")>()),
+  changeFirstLoginPassword: vi.fn(async (current: string) => {
+    if (current === "SaiMatKhau1") throw new FirstLoginPasswordError("current");
+    if (current === "LoiDichVu1") throw new FirstLoginPasswordError("service");
+  }),
+}));
 import { ChangePasswordForm } from "./ChangePasswordForm";
 
 vi.mock("@/lib/messages/notify", () => ({
@@ -11,7 +18,6 @@ vi.mock("@/lib/messages/notify", () => ({
 }));
 
 beforeEach(() => {
-  resetMyAccountMockStore();
   vi.clearAllMocks();
 });
 
@@ -96,7 +102,11 @@ describe("ChangePasswordForm", () => {
 
   it("biểu tượng mắt phản ánh trạng thái hiển thị của cả ba ô", async () => {
     render(<ChangePasswordForm mode="voluntary" onDone={vi.fn()} />);
-    const fields = ["Mật khẩu hiện tại", "Mật khẩu mới", "Nhập lại mật khẩu mới"];
+    const fields = [
+      "Mật khẩu hiện tại",
+      "Mật khẩu mới",
+      "Nhập lại mật khẩu mới",
+    ];
     const toggles = screen.getAllByRole("button", { name: "Hiện mật khẩu" });
 
     for (const [index, toggle] of toggles.entries()) {

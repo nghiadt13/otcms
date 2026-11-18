@@ -28,7 +28,6 @@ describe("PATIENT_ROUTES", () => {
     expect(PATIENT_ROUTES.payAppointment("ap-1")).toBe(
       "/portal/payments/appointment/ap-1",
     );
-    expect(PATIENT_ROUTES.payVisit("v-1")).toBe("/portal/payments/visit/v-1");
     expect(PATIENT_ROUTES.paymentResult).toBe("/portal/payments/result");
     expect(PATIENT_ROUTES.paymentDetail("pm-1")).toBe(
       "/portal/payments/history/pm-1",

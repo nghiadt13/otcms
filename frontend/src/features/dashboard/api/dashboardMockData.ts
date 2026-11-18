@@ -100,7 +100,7 @@ export const DASHBOARD_FIXTURE: DashboardOverview = {
     collected: { value: 12450000, previousValue: 9800000 },
     byMethod: [
       { code: "CASH", value: 5200000, previousValue: 4100000 },
-      { code: "VNPAY", value: 7250000, previousValue: 5700000 },
+      { code: "PAYOS", value: 7250000, previousValue: 5700000 },
     ],
   },
   pendingAndCancelled: {
@@ -133,7 +133,7 @@ export const DASHBOARD_LARGE_FIXTURE: DashboardOverview = {
     collected: { value: 3_450_000_000, previousValue: 3_900_000_000 },
     byMethod: [
       { code: "CASH", value: 1_150_000_000, previousValue: 1_500_000_000 },
-      { code: "VNPAY", value: 2_300_000_000, previousValue: 2_400_000_000 },
+      { code: "PAYOS", value: 2_300_000_000, previousValue: 2_400_000_000 },
     ],
   },
   reviews: {
@@ -164,17 +164,19 @@ export function buildEmptyOverview(
       total: { ...zero },
       byStatus: [],
       waitingByRoom: [],
+      waitingByRoomStatus: "READY",
     },
     imagingAndLab: {
       status: "READY",
       imagingPerformed: { ...zero },
       labPerformed: { ...zero },
+      labStatus: "NO_SOURCE",
     },
     services: { status: "READY", top: [] },
     payments: {
       status: "READY",
       collected: { ...zero },
-      byMethod: (["CASH", "VNPAY"] as const).map((code) => ({
+      byMethod: (["CASH", "PAYOS"] as const).map((code) => ({
         code,
         ...zero,
       })),
@@ -183,6 +185,7 @@ export function buildEmptyOverview(
       status: "READY",
       pendingPayment: { ...zero },
       cancelled: { ...zero },
+      refundPending: { value: 0, previousValue: null },
     },
     reviews: {
       status: "READY",

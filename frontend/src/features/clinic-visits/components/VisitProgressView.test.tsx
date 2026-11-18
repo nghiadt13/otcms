@@ -1,49 +1,134 @@
 import { render, screen, within } from "@testing-library/react";
-import { beforeEach, describe, expect, it } from "vitest";
-import { resetLinkedProfilesMock } from "@/lib/patient-scope/linkedProfilesMockStore";
-import { getVisitProgress } from "../api/visitApi";
-import { resetVisitMock } from "../api/visitMockStore";
+import { describe, expect, it } from "vitest";
+import { PATIENT_ROUTES } from "@/lib/routes/patientRoutes";
+import type { VisitProgress } from "../types/visitProgress";
 import { VisitProgressView } from "./VisitProgressView";
 
-const NOW = new Date("2026-10-24T08:00:00+07:00");
+// Tiến độ là dữ liệu BE (không có kết quả khám). Các nút chỉ là gợi ý suy từ chỉ định.
+const progress = (patch: Partial<VisitProgress> = {}): VisitProgress => ({
+  visitId: "visit-1",
+  source: "SCHEDULED",
+  status: "OPEN",
+  currentStage: "CONSULTATION",
+  arrivedAt: "2026-10-24T01:00:00Z",
+  queuePosition: null,
+  currentRoom: "Phòng khám 2",
+  queueNumber: 12,
+  peopleAhead: 3,
+  beingCalled: false,
+  serviceOrders: [],
+  ...patch,
+});
 
-beforeEach(() => {
-  resetLinkedProfilesMock();
-  resetVisitMock({ now: NOW });
+const order = (
+  patch: Partial<VisitProgress["serviceOrders"][number]> = {},
+) => ({
+  orderId: "o-1",
+  orderCode: "CLS-1",
+  serviceName: "MRI cột sống",
+  status: "ORDERED" as const,
+  paymentStatus: "PENDING_PAYMENT" as const,
+  roomId: null,
+  roomName: null,
+  ...patch,
 });
 
 describe("VisitProgressView", () => {
-  it("hai hàng đợi song song hiện đủ hai dòng; người đang được gọi ghi 'Đang gọi bạn'", async () => {
-    render(
-      <VisitProgressView progress={await getVisitProgress("vis-lan-await")} />,
-    );
+  it("đang chờ: hiện phòng, số thứ tự và còn bao nhiêu người trước bạn", () => {
+    render(<VisitProgressView progress={progress()} />);
 
-    const queues = screen.getByRole("region", { name: "Bạn đang chờ" });
-    const rows = within(queues).getAllByRole("listitem");
-    expect(rows).toHaveLength(2);
-    expect(rows[0]).toHaveTextContent("Phòng X-quang 1");
-    expect(rows[0]).toHaveTextContent("Còn 1 người trước bạn.");
-    expect(rows[1]).toHaveTextContent("Phòng xét nghiệm");
-    expect(rows[1]).toHaveTextContent("Đang gọi bạn");
-    expect(rows[1]).toHaveTextContent("Đang phục vụ");
-    expect(within(rows[1]).getByText("8")).toHaveClass("tabular-nums");
+    expect(
+      screen.getByRole("heading", { name: "Bạn đang chờ" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Phòng khám 2")).toBeInTheDocument();
+    expect(screen.getByText("Còn 3 người trước bạn.")).toBeInTheDocument();
+    expect(screen.getByText("12")).toHaveClass("tabular-nums");
   });
 
-  it("có chỉ định chờ thanh toán thì hiện nút thanh toán tới đúng lượt", async () => {
+  it("đang được gọi thì ghi Đang gọi bạn; không còn ai trước thì báo người tiếp theo", () => {
+    const { rerender } = render(
+      <VisitProgressView
+        progress={progress({ beingCalled: true, peopleAhead: 0 })}
+      />,
+    );
+    expect(screen.getByText("Đang gọi bạn")).toBeInTheDocument();
+
+    rerender(<VisitProgressView progress={progress({ peopleAhead: 0 })} />);
+    expect(screen.getByText("Bạn là người tiếp theo.")).toBeInTheDocument();
+  });
+
+  it("chưa vào hàng và không có chỉ định thì không hiện mục hàng đợi", () => {
     render(
-      <VisitProgressView progress={await getVisitProgress("vis-lan-await")} />,
+      <VisitProgressView
+        progress={progress({
+          queueNumber: null,
+          peopleAhead: null,
+          currentRoom: null,
+        })}
+      />,
+    );
+
+    expect(
+      screen.queryByRole("heading", { name: "Bạn đang chờ" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByText("Hiện bạn không chờ ở phòng nào."),
+    ).toBeInTheDocument();
+  });
+
+  it("chỉ định: hiện tên, phòng (có hay chưa), trạng thái và thanh toán bằng chữ", () => {
+    render(
+      <VisitProgressView
+        progress={progress({
+          serviceOrders: [
+            order(),
+            order({
+              orderId: "o-2",
+              serviceName: "Xét nghiệm máu",
+              status: "RESULTS_AVAILABLE",
+              paymentStatus: "PAID",
+              roomId: "room-lab",
+              roomName: "Phòng xét nghiệm",
+            }),
+          ],
+        })}
+      />,
+    );
+
+    const list = screen.getByRole("list");
+    const [first, second] = within(list).getAllByRole("listitem");
+    expect(within(first).getByText("MRI cột sống")).toBeInTheDocument();
+    expect(
+      within(first).getByText("Chưa có phòng thực hiện"),
+    ).toBeInTheDocument();
+    expect(within(first).getByText("Đã chỉ định")).toBeInTheDocument();
+    expect(within(first).getByText("Chưa thanh toán")).toBeInTheDocument();
+    expect(
+      within(second).getByText("Phòng thực hiện: Phòng xét nghiệm"),
+    ).toBeInTheDocument();
+    expect(within(second).getByText("Đã có kết quả")).toBeInTheDocument();
+    expect(within(second).getByText("Đã thanh toán")).toBeInTheDocument();
+  });
+
+  it("có chỉ định chưa thanh toán thì có lối tới trang thanh toán lượt", () => {
+    render(
+      <VisitProgressView progress={progress({ serviceOrders: [order()] })} />,
     );
 
     expect(
       screen.getByRole("link", {
         name: "Thanh toán các chỉ định chưa thanh toán",
       }),
-    ).toHaveAttribute("href", "/portal/payments/visit/vis-lan-await");
+    ).toHaveAttribute("href", PATIENT_ROUTES.payments);
   });
 
-  it("không có chỉ định chờ thanh toán thì ẩn nút thanh toán", async () => {
+  it("chỉ định đã hủy không còn cần thanh toán", () => {
     render(
-      <VisitProgressView progress={await getVisitProgress("vis-an-done")} />,
+      <VisitProgressView
+        progress={progress({
+          serviceOrders: [order({ status: "CANCELLED" })],
+        })}
+      />,
     );
 
     expect(
@@ -53,30 +138,27 @@ describe("VisitProgressView", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("lượt hoàn tất: có link Xem kết quả, không có hàng đợi", async () => {
-    render(
-      <VisitProgressView progress={await getVisitProgress("vis-an-done")} />,
+  it("có kết quả sẵn sàng thì mở khu kết quả; khi chưa có thì ghi chú đợi bác sĩ kết luận", () => {
+    const { rerender } = render(
+      <VisitProgressView
+        progress={progress({
+          serviceOrders: [
+            order({ status: "RESULTS_AVAILABLE", paymentStatus: "PAID" }),
+          ],
+        })}
+      />,
     );
-
     expect(screen.getByRole("link", { name: "Xem kết quả" })).toHaveAttribute(
       "href",
-      "/portal/results/vis-an-done",
+      PATIENT_ROUTES.resultDetail("visit-1"),
     );
-    expect(
-      screen.queryByRole("region", { name: "Bạn đang chờ" }),
-    ).not.toBeInTheDocument();
     expect(
       screen.queryByText(
         "Kết quả khám sẽ hiện ở mục Kết quả khám khi bác sĩ kết luận.",
       ),
     ).not.toBeInTheDocument();
-  });
 
-  it("lượt đang chờ chưa có kết luận: nói rõ kết quả sẽ hiện ở đâu, không có link kết quả", async () => {
-    render(
-      <VisitProgressView progress={await getVisitProgress("vis-an-today")} />,
-    );
-
+    rerender(<VisitProgressView progress={progress()} />);
     expect(
       screen.queryByRole("link", { name: "Xem kết quả" }),
     ).not.toBeInTheDocument();
@@ -85,26 +167,5 @@ describe("VisitProgressView", () => {
         "Kết quả khám sẽ hiện ở mục Kết quả khám khi bác sĩ kết luận.",
       ),
     ).toBeInTheDocument();
-  });
-
-  it("lượt đã rời đi: nói rõ lý do, không có nút thanh toán hay hàng đợi", async () => {
-    render(
-      <VisitProgressView progress={await getVisitProgress("vis-huy-left")} />,
-    );
-
-    expect(
-      screen.getByText("Lượt khám đã đóng vì chưa được khám trong ngày."),
-    ).toBeInTheDocument();
-    expect(screen.queryByRole("link")).not.toBeInTheDocument();
-  });
-
-  it("chờ kết luận: nhắc hạn quay lại đến hết ngày, lấy từ BE", async () => {
-    render(
-      <VisitProgressView progress={await getVisitProgress("vis-lan-await")} />,
-    );
-
-    expect(screen.getByRole("status")).toHaveTextContent(
-      "đến hết ngày 29/10/2026, không mất phí khám lại.",
-    );
   });
 });

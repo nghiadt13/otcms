@@ -1,4 +1,3 @@
-import { icdLabel } from "./icd10Catalog";
 import { primaryDiagnosis } from "./examinationRules";
 import type {
   Advice,
@@ -19,7 +18,7 @@ export function examinationStep(
     return { state: "TODO", summary: "Chưa ghi nhận khám." };
   const primary = primaryDiagnosis(examination.diagnoses);
   const diagnosis = primary
-    ? `Chẩn đoán chính: ${icdLabel(primary.code)}`
+    ? `Chẩn đoán chính: ${primary.code}`
     : "Chưa có chẩn đoán chính.";
   return examination.status === "COMPLETED"
     ? { state: "DONE", summary: diagnosis }
@@ -98,7 +97,7 @@ export function buildClosingChecklist(
         ? "Chưa đọc được ghi nhận khám. Tải lại rồi thử lại."
         : primary
           ? examination?.status === "COMPLETED"
-            ? icdLabel(primary.code)
+            ? primary.code
             : "Cần hoàn thành ghi nhận khám."
           : "Chưa có chẩn đoán chính.",
     },

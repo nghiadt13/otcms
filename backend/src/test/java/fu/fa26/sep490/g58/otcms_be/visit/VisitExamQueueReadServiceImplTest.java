@@ -68,7 +68,8 @@ class VisitExamQueueReadServiceImplTest {
     private final DoctorScheduleService schedules = mock(DoctorScheduleService.class);
     private final AppointmentBookingProperties booking = mock(AppointmentBookingProperties.class);
     private final VisitExamQueueReadServiceImpl service = new VisitExamQueueReadServiceImpl(queue, rooms, patients,
-            doctorProfiles, doctorAccounts, receptionists, patientAuthorization, providers, schedules, booking, CLOCK);
+            doctorProfiles, doctorAccounts, receptionists, patientAuthorization, providers, schedules, booking, CLOCK,
+            mock(fu.fa26.sep490.g58.otcms_be.clinical.service.ClinicalVisitOrderQueryService.class));
 
     @BeforeEach
     void setUp() {

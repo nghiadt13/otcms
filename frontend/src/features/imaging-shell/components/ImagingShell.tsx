@@ -71,7 +71,8 @@ function ShellContent({ children }: { children: ReactNode }) {
         <Skeleton className="h-64 w-full" />
       </div>
     );
-  const isOrderScreen = pathname === "/imaging/orders" || pathname.startsWith("/imaging/orders/");
+  const isOrderScreen =
+    pathname === "/imaging/orders" || pathname.startsWith("/imaging/orders/");
 
   return (
     <div className="imaging">

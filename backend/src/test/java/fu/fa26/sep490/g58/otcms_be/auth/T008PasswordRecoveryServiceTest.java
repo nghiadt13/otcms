@@ -103,15 +103,16 @@ class T008PasswordRecoveryServiceTest {
         assertEquals(PasswordRecoveryService.GENERIC_MESSAGE, service.forgot(patient.getNormalizedEmail(), AccountType.RECEPTIONIST));
     }
 
-    @Test void forgotCreatesHashedFifteenMinuteChallengeAndDoesNotSendHash() {
+    @Test void forgotCreatesHashedTenMinuteChallengeAndDoesNotSendHash() {
         AccountJpaEntity a=account(AccountStatus.ACTIVE); a.setPasswordHash("{bcrypt}old"); when(accounts.findByNormalizedEmail(a.getNormalizedEmail())).thenReturn(Optional.of(a));
+        when(accounts.findByIdForUpdate(a.getId())).thenReturn(Optional.of(a));
         String response=service.forgot(a.getNormalizedEmail(),AccountType.PATIENT);
         assertEquals(PasswordRecoveryService.GENERIC_MESSAGE,response);
         ArgumentCaptor<VerificationCodeJpaEntity> challenge=ArgumentCaptor.forClass(VerificationCodeJpaEntity.class);
         var order=inOrder(challenges); order.verify(challenges).supersedeCurrent(eq(a.getId()),eq(VerificationPurpose.PASSWORD_RESET),any()); order.verify(challenges).saveAndFlush(challenge.capture());
         assertEquals(VerificationPurpose.PASSWORD_RESET,challenge.getValue().getPurpose()); assertEquals(a.getId(),challenge.getValue().getAccountId());
         ArgumentCaptor<String> token=ArgumentCaptor.forClass(String.class); verify(email).sendPasswordReset(eq(a.getNormalizedEmail()),token.capture(),eq(a.getId()));
-        assertNotEquals(token.getValue(),challenge.getValue().getCodeHash()); assertEquals(900,Duration.between(challenge.getValue().getCreatedAt(),challenge.getValue().getExpiresAt()).getSeconds()); assertEquals(0,challenge.getValue().getFailedAttempts());
+        assertNotEquals(token.getValue(),challenge.getValue().getCodeHash()); assertEquals(600,Duration.between(challenge.getValue().getCreatedAt(),challenge.getValue().getExpiresAt()).getSeconds()); assertEquals(0,challenge.getValue().getFailedAttempts());
     }
 
     @Test void invalidAndExpiredTokenIncrementsAttemptsAndReuseIsRejected() {

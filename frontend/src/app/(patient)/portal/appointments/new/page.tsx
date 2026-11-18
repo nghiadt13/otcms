@@ -1,4 +1,5 @@
 import { PortalPageHeader } from "@/components/patient/PortalPageHeader";
+import { readBookingSlotQuery } from "@/lib/routes/bookingSlotLink";
 import { NewBookingScreen } from "./NewBookingScreen";
 
 export const metadata = {
@@ -6,11 +7,17 @@ export const metadata = {
 };
 
 // Đặt lịch khám theo wizard 5 bước (bước cuối là thanh toán). Luồng đặt nằm trong PatientBookingPage.
-export default function NewPatientAppointmentPage() {
+// `?serviceId=&doctorId=&date=&time=` (từ link giờ trống của trang bác sĩ) chọn sẵn khung giờ nếu còn trống.
+export default async function NewPatientAppointmentPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const preselect = readBookingSlotQuery(await searchParams);
   return (
     <>
       <PortalPageHeader title="Đặt lịch khám" />
-      <NewBookingScreen />
+      <NewBookingScreen preselect={preselect} />
     </>
   );
 }

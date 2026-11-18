@@ -262,3 +262,8 @@ describe("ReviewModerationManagement", () => {
     ).toBeInTheDocument();
   });
 });
+
+vi.mock(
+  "@/lib/api/client",
+  async () => await import("../api/reviewTestClient"),
+);

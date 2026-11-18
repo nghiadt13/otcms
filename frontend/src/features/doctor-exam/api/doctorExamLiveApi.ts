@@ -1,4 +1,3 @@
-import { ApiError } from "@/lib/api/apiError";
 import type { DoctorExamApi } from "./doctorExamApi";
 import * as clinical from "./doctorExamLiveClinical";
 import * as orders from "./doctorExamLiveOrders";
@@ -6,22 +5,19 @@ import * as queue from "./doctorExamLiveQueue";
 import * as visits from "./doctorExamLiveVisits";
 import * as prescription from "./doctorExamLivePrescription";
 import * as records from "./doctorExamLivePastRecords";
+import * as resultSheets from "./doctorExamLiveResultSheets";
 
-// Live Clinical/Diagnostic integration. Lab and result sheets remain unavailable.
-
-const missing = (): never => {
-  throw new ApiError(501, { errorCode: "BACKEND_NOT_AVAILABLE" });
-};
+// Live Clinical/Diagnostic integration. Laboratory results remain unavailable.
 
 export const doctorLiveApi: DoctorExamApi = {
   capabilities: {
-    laboratoryOrders: false,
+    laboratoryOrders: true,
     orderListing: true,
     prescriptions: true,
     pastRecords: true,
-    resultSheet: false,
+    resultSheet: true,
     startExamination: true,
-    findingsReportPdfRequired: true,
+    findingsReportPdfRequired: false, // UC-50 AF2: the PDF report is optional
   },
   listTodayPatients: queue.listTodayPatients,
   getVisitContext: queue.getVisitContext,
@@ -41,10 +37,11 @@ export const doctorLiveApi: DoctorExamApi = {
   cancelOrder: orders.cancelOrder,
   saveFindings: orders.saveFindings,
   completeFindings: orders.completeFindings,
-  listLabResults: async () => [],
+  listLabResults: orders.listLabResults,
+  assessLabResult: orders.assessLabResult,
   getPrescription: prescription.getPrescription,
   savePrescription: prescription.savePrescription,
   listPastVisits: records.listPastVisits,
-  listResultSheets: async () => [],
-  amendResult: async () => missing(),
+  listResultSheets: resultSheets.listResultSheets,
+  amendResult: resultSheets.amendResult,
 };

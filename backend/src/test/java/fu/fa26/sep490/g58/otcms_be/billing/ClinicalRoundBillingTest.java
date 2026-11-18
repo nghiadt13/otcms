@@ -4,7 +4,6 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 import static org.mockito.ArgumentMatchers.*;
 import fu.fa26.sep490.g58.otcms_be.billing.exception.BillingException;
-import fu.fa26.sep490.g58.otcms_be.billing.integration.AppointmentPaymentPort;
 import fu.fa26.sep490.g58.otcms_be.billing.integration.ClinicalRoundBillingPort;
 import fu.fa26.sep490.g58.otcms_be.billing.integration.VisitFeeSettlementPort;
 import fu.fa26.sep490.g58.otcms_be.billing.mapper.BillingMapper;
@@ -51,26 +50,25 @@ class ClinicalRoundBillingTest {
     final Map<UUID, InvoiceJpaEntity> invoiceRows = new HashMap<>();
     final Map<UUID, List<InvoiceItemJpaEntity>> itemRows = new HashMap<>();
     final Map<UUID, PaymentAttemptJpaEntity> paymentRows = new HashMap<>();
-    final AppointmentPaymentPort appointmentPort = mock(AppointmentPaymentPort.class);
+    final AppointmentBillingSourceService appointmentSources = mock(AppointmentBillingSourceService.class);
     InvoiceService invoiceService; PaymentService paymentService;
     InvoiceSettlementSupport settlementSupport(ClinicalRoundBillingPort clinicalPort) {
         // lockInvoiceFresh reads the invoice through EntityManager.find then refresh(PESSIMISTIC_WRITE); serve the
         // in-memory rows from find, refresh stays a no-op on the mock.
         var entityManager = mock(jakarta.persistence.EntityManager.class);
         when(entityManager.find(eq(InvoiceJpaEntity.class), any())).thenAnswer(call -> invoiceRows.get(call.getArgument(1)));
-        return new InvoiceSettlementSupport(invoices, items, attempts, clinicalPort, appointmentPort,
-                mock(VisitFeeSettlementPort.class), entityManager);
+        return new InvoiceSettlementSupport(invoices, items, attempts, clinicalPort, appointmentSources,
+                mock(VisitFeeSettlementPort.class), entityManager,
+                mock(org.springframework.context.ApplicationEventPublisher.class));
     }
     @BeforeEach void setup() {
         when(tx.getTransaction(any())).thenAnswer(call -> new SimpleTransactionStatus());
         when(gateway.provider()).thenReturn("PAYOS");
-        when(appointmentPort.confirmPaid(any())).thenReturn(AppointmentPaymentPort.ConfirmResult.ALREADY_CONFIRMED);
         var support = settlementSupport(clinical);
         invoiceService = new InvoiceServiceImpl(invoices, items, attempts, mock(AppointmentBillingSourceService.class),
-                visits, catalog, authorization, new BillingMapper(), tx, clock, clinical, appointmentPort,
-                new AppointmentInvoiceVoider(invoices, attempts, support, tx, clock));
+                visits, catalog, authorization, new BillingMapper(), tx, clock, clinical);
         paymentService = new PaymentServiceImpl(invoices, attempts, audit, new PaymentGatewayRegistry(List.of(gateway)),
-                authorization, new BillingMapper(), tx, clock, support, appointmentPort);
+                authorization, new BillingMapper(), tx, clock, support);
         when(clinical.requirePayableRound(roundId)).thenReturn(new ClinicalRoundBillingPort.ClinicalRoundBillingSource(roundId, visitId, patient,
                 List.of(new ClinicalRoundBillingPort.PayableOrder(UUID.randomUUID(), serviceId, "Snapshot X-ray", new BigDecimal("150000")),
                         new ClinicalRoundBillingPort.PayableOrder(UUID.randomUUID(), serviceId, "Snapshot MRI", new BigDecimal("350000")))));
@@ -80,6 +78,11 @@ class ClinicalRoundBillingTest {
         when(invoices.findByIdForUpdate(any())).thenAnswer(call -> Optional.ofNullable(invoiceRows.get(call.getArgument(0))));
         when(items.saveAll(any())).thenAnswer(call -> { List<InvoiceItemJpaEntity> rows = call.getArgument(0); itemRows.put(rows.getFirst().getInvoiceId(), rows); return rows; });
         when(items.findAllByInvoiceIdOrderByLineNumber(any())).thenAnswer(call -> itemRows.getOrDefault(call.getArgument(0), List.of()));
+        when(items.lockAllByInvoice(any())).thenAnswer(call -> itemRows.getOrDefault(call.getArgument(0), List.of()));
+        when(attempts.findAllById(any())).thenAnswer(call -> {
+            Set<UUID> ids = new HashSet<>(); ((Iterable<UUID>) call.getArgument(0)).forEach(ids::add);
+            return paymentRows.values().stream().filter(row -> ids.contains(row.getId())).toList();
+        });
         when(attempts.saveAndFlush(any())).thenAnswer(call -> { PaymentAttemptJpaEntity row = call.getArgument(0); paymentRows.put(row.getId(), row); return row; });
         when(attempts.save(any())).thenAnswer(call -> call.getArgument(0));
         when(attempts.findById(any())).thenAnswer(call -> Optional.ofNullable(paymentRows.get(call.getArgument(0))));
@@ -97,6 +100,11 @@ class ClinicalRoundBillingTest {
         assertEquals(0, new BigDecimal("500000").compareTo(invoice.totalAmount()));
         assertEquals(2, invoice.items().size()); assertTrue(invoice.items().stream().allMatch(item -> item.quantity() == 1));
         assertEquals("Snapshot X-ray", invoice.items().getFirst().description());
+        var sourceOrders = clinical.requirePayableRound(roundId).orders();
+        var persistedItems = itemRows.get(invoice.id());
+        assertEquals(sourceOrders.stream().map(ClinicalRoundBillingPort.PayableOrder::orderId).toList(),
+                persistedItems.stream().map(InvoiceItemJpaEntity::getServiceOrderId).toList());
+        assertNotEquals(persistedItems.get(0).getId(), persistedItems.get(1).getId());
         assertEquals(invoice.id(), invoiceService.createForClinicalRound(roundId, receptionist).id());
         verifyNoInteractions(visits, catalog); verify(invoices, times(1)).saveAndFlush(any());
     }
@@ -107,15 +115,16 @@ class ClinicalRoundBillingTest {
     }
     @Test void partialCounterPaymentLeavesOrdersPendingAndFullPaymentPropagatesOnlyOnceAcrossRetry() {
         UUID id = invoiceService.createForClinicalRound(roundId, receptionist).id();
-        paymentService.recordCounterPayment(id, new CounterPaymentRequest(200000L, "CASH"), receptionist, "partial");
+        paymentService.recordCounterPayment(id, new CounterPaymentRequest(List.of(itemRows.get(id).get(0).getId()), "CASH"), receptionist, "partial");
         assertEquals(InvoiceStatus.OPEN, invoiceRows.get(id).getStatus()); verify(clinical, never()).markRoundPaid(any());
-        var full = paymentService.recordCounterPayment(id, new CounterPaymentRequest(300000L, "CASH"), receptionist, "remaining");
+        var full = paymentService.recordCounterPayment(id, new CounterPaymentRequest(List.of(itemRows.get(id).get(1).getId()), "CASH"), receptionist, "remaining");
         assertEquals(InvoiceStatus.PAID, invoiceRows.get(id).getStatus());
-        assertEquals(full.id(), paymentService.recordCounterPayment(id, new CounterPaymentRequest(300000L, "CASH"), receptionist, "remaining").id());
+        assertEquals(full.id(), paymentService.recordCounterPayment(id, new CounterPaymentRequest(List.of(itemRows.get(id).get(1).getId()), "CASH"), receptionist, "remaining").id());
         verify(clinical, times(1)).markRoundPaid(roundId);
     }
     PaymentAttemptJpaEntity online(UUID invoiceId) {
         var row = PaymentAttemptJpaEntity.pendingOnline(UUID.randomUUID(), invoiceId, new BigDecimal("500000"), receptionist.accountId(), "online", "hash", 123L);
+        itemRows.getOrDefault(invoiceId, List.of()).forEach(item -> item.setPaymentAttemptId(row.getId()));
         paymentRows.put(row.getId(), row); return row;
     }
     @Test void successfulGatewaySettlementMarksRoundPaidAndRepeatedEventDoesNotRepeatSettlement() {
@@ -152,7 +161,7 @@ class ClinicalRoundBillingTest {
                 return submitted;
             });
             paymentService = new PaymentServiceImpl(invoices, attempts, audit, new PaymentGatewayRegistry(List.of(gateway)),
-                    authorization, new BillingMapper(), tx, clock, settlementSupport(adapter), appointmentPort);
+                    authorization, new BillingMapper(), tx, clock, settlementSupport(adapter));
         }
         ServiceOrderJpaEntity order(String code, String price) {
             return new ServiceOrderJpaEntity(code, roundId, visitId, patient, serviceId, "Snapshot " + code,
@@ -175,11 +184,11 @@ class ClinicalRoundBillingTest {
         var owner = new ClinicalSettlementOwner();
         assertTrue(owner.rows.stream().allMatch(row -> row.getPaymentStatus() == ServiceOrderPaymentStatus.PENDING_PAYMENT));
         assertEquals(roundId, invoiceRows.get(id).getClinicalOrderingRoundId());
-        paymentService.recordCounterPayment(id, new CounterPaymentRequest(200000L, "CASH"), receptionist, "partial-owner");
+        paymentService.recordCounterPayment(id, new CounterPaymentRequest(List.of(itemRows.get(id).get(0).getId()), "CASH"), receptionist, "partial-owner");
         assertEquals(InvoiceStatus.OPEN, invoiceRows.get(id).getStatus());
         verifyNoInteractions(owner.orders, owner.guard);
         assertTrue(owner.flushedPayments.values().stream().allMatch(status -> status == ServiceOrderPaymentStatus.PENDING_PAYMENT));
-        paymentService.recordCounterPayment(id, new CounterPaymentRequest(300000L, "CASH"), receptionist, "full-owner");
+        paymentService.recordCounterPayment(id, new CounterPaymentRequest(List.of(itemRows.get(id).get(1).getId()), "CASH"), receptionist, "full-owner");
         assertEquals(InvoiceStatus.PAID, invoiceRows.get(id).getStatus());
         owner.assertPaidWasPersisted();
     }
@@ -227,9 +236,12 @@ class ClinicalRoundBillingTest {
                 ? InvoiceJpaEntity.visit(id, "VISIT-TEST", patient, visitId, receptionist.accountId(), "hash")
                 : InvoiceJpaEntity.appointment(id, "APPOINTMENT-TEST", patient, UUID.randomUUID(), receptionist.accountId(), "hash");
         invoiceRows.put(id, invoice);
+        // An online payment for an appointment invoice checks the appointment is still on.
+        when(appointmentSources.requireSource(any())).thenReturn(new AppointmentBillingSourceService.BillingSource(
+                UUID.randomUUID(), patient, serviceId, "CONFIRMED", "Snapshot", new BigDecimal("500000")));
         itemRows.put(id, List.of(new InvoiceItemJpaEntity(id, 1, serviceId, "Snapshot", 1, new BigDecimal("500000"))));
         if ("COUNTER".equals(channel)) {
-            paymentService.recordCounterPayment(id, new CounterPaymentRequest(500000L, "CASH"), receptionist, "other-full");
+            paymentService.recordCounterPayment(id, new CounterPaymentRequest(List.of(itemRows.get(id).getFirst().getId()), "CASH"), receptionist, "other-full");
         } else {
             var payment = online(id);
             if ("WEBHOOK".equals(channel)) {

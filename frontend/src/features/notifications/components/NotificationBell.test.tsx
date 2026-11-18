@@ -5,7 +5,7 @@ import { notifySuccess } from "@/lib/messages/notify";
 import {
   getUnreadNotificationCount,
   resetNotificationMockStore,
-} from "../api/notificationApi";
+} from "../api/notificationTestServer";
 import { MOCK_NOTIFICATIONS } from "../api/notificationMockData";
 import { NotificationBell } from "./NotificationBell";
 
@@ -109,3 +109,8 @@ describe("NotificationBell", () => {
     expect(notifySuccess).not.toHaveBeenCalled();
   });
 });
+
+vi.mock(
+  "@/lib/api/client",
+  async () => await import("../api/notificationTestClient"),
+);

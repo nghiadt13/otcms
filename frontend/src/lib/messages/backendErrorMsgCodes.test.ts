@@ -12,7 +12,7 @@ import {
 
 describe("msgCodeFromBackendError", () => {
   it("mã nghiệp vụ của BE tra theo bảng", () => {
-    expect(msgCodeFromBackendError("EXAM_FEE_UNPAID")).toBe("MSG-37");
+    expect(msgCodeFromBackendError("EXAM_FEE_UNPAID")).toBe("MSG-94");
     expect(msgCodeFromBackendError("APPOINTMENT_CHANGE_TOO_LATE")).toBe(
       "MSG-32",
     );
@@ -39,9 +39,9 @@ describe("msgCodeFromBackendError", () => {
 describe("ApiError dựng từ errorCode", () => {
   it("code được suy từ errorCode khi không có code tường minh", () => {
     const error = new ApiError(409, { errorCode: "EXAM_FEE_UNPAID" });
-    expect(error.code).toBe("MSG-37");
+    expect(error.code).toBe("MSG-94");
     expect(error.errorCode).toBe("EXAM_FEE_UNPAID");
-    expect(messageFromError(error)).toBe(formatAppMessage("MSG-37"));
+    expect(messageFromError(error)).toBe(formatAppMessage("MSG-94"));
   });
 
   it("code tường minh thắng errorCode", () => {
@@ -61,5 +61,26 @@ describe("ApiError dựng từ errorCode", () => {
     expect(
       new ApiError(409, { errorCode: "SOME_UNKNOWN_BACKEND_CODE" }).code,
     ).toBeUndefined();
+  });
+});
+
+describe("lỗi đổi giờ và hủy lịch hiển thị đúng câu R3", () => {
+  it.each([
+    ["DOCTOR_NOT_ELIGIBLE", "MSG-24"],
+    ["APPOINTMENT_NOT_CHANGEABLE", "MSG-32"],
+    ["APPOINTMENT_NOT_FOUND", "MSG-29"],
+    ["VALIDATION_FAILED", "MSG-04"],
+  ])("errorCode %s hiển thị câu của %s", (errorCode, msgCode) => {
+    expect(messageFromError(new ApiError(422, { errorCode }))).toBe(
+      APP_MESSAGES[msgCode],
+    );
+  });
+});
+
+describe("ca làm việc bị ràng buộc lịch hẹn", () => {
+  it("RESOURCE_MUTATION_BLOCKED của BE đổi thành MSG-36 ở ApiError.code", () => {
+    const error = new ApiError(409, { errorCode: "RESOURCE_MUTATION_BLOCKED" });
+    expect(error.code).toBe("MSG-36");
+    expect(messageFromError(error)).toBe(APP_MESSAGES["MSG-36"]);
   });
 });

@@ -2,7 +2,15 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { toast } from "sonner";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { resetMyAccountMockStore } from "@/features/my-account/api/myAccountApi";
+import { resetMockAccountState } from "@/features/my-account/api/myAccountMockStore";
+vi.mock("@/features/my-account/api/myAccountApi", async () => {
+  const store = await import("@/features/my-account/api/myAccountMockStore");
+  return {
+    getMyAccount: vi.fn(async () =>
+      store.accountSnapshot(store.currentMockAccountState().account),
+    ),
+  };
+});
 import { MOCK_PATIENT_ACCOUNT } from "@/features/my-account/api/myAccountMockData";
 import { PROFILE_MOCK_IDS } from "@/features/patient-profiles/api/patientProfileMockData";
 import {
@@ -29,7 +37,7 @@ vi.mock("sonner", () => ({
 beforeEach(() => {
   vi.clearAllMocks();
   setMockSignedInKind("PATIENT");
-  resetMyAccountMockStore(MOCK_PATIENT_ACCOUNT);
+  resetMockAccountState(MOCK_PATIENT_ACCOUNT);
   resetPatientProfileMock();
 });
 
@@ -256,7 +264,9 @@ describe("PersonalInfoScreen", () => {
     render(<PersonalInfoScreen next="/portal/appointments/new" />);
 
     expect(
-      await screen.findByText(/Vui lòng điền đầy đủ thông tin cá nhân để tiếp tục/),
+      await screen.findByText(
+        /Vui lòng điền đầy đủ thông tin cá nhân để tiếp tục/,
+      ),
     ).toBeInTheDocument();
     await user.type(screen.getByLabelText(/CCCD/), "079090001234");
     await user.click(screen.getByRole("button", { name: "Lưu thay đổi" }));

@@ -132,17 +132,17 @@ class DependentsR3PostgresIntegrationTest {
         assertTrue(access.canAccess(actor, target));
         var row = jdbc.queryForMap("select * from patient_caregivers where id=?", link);
         assertEquals(actor, row.get("verified_by_account_id")); assertEquals(row.get("confirmed_at"), row.get("verified_at"));
-        verify(actor, link, code).andExpect(status().isConflict()).andExpect(jsonPath("$.error.code").value("CARE_LINK_NOT_AVAILABLE"));
+        verify(actor, link, code).andExpect(status().isConflict()).andExpect(jsonPath("$.error.code").value("MSG-21"));
     }
     @Test void failedAttemptsCommitAndFifthFailureExhausts() throws Exception {
         UUID recipient = account("PATIENT"), link = otpLink(recipient);
         String wrong = "000000".equals(delivery.codes.get(recipient)) ? "111111" : "000000";
         for (int attempt = 1; attempt <= 5; attempt++) {
-            verify(actor, link, wrong).andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("OTP_INVALID"));
+            verify(actor, link, wrong).andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("MSG-77"));
             assertEquals(attempt, jdbc.queryForObject("select failed_attempts from verification_codes where purpose='CARE_LINK' and link_id=?", Integer.class, link));
         }
         verify(actor, link, delivery.codes.get(recipient)).andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error.code").value("OTP_INVALID"));
+                .andExpect(jsonPath("$.error.code").value("MSG-77"));
         assertNotNull(jdbc.queryForObject("select superseded_at from verification_codes where purpose='CARE_LINK' and link_id=?", Timestamp.class, link));
     }
     @ParameterizedTest @ValueSource(longs = {600, 601})
@@ -150,7 +150,7 @@ class DependentsR3PostgresIntegrationTest {
         UUID recipient = account("PATIENT"), link = otpLink(recipient);
         clock.now = NOW.plusSeconds(advance);
         verify(actor, link, delivery.codes.get(recipient)).andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error.code").value("OTP_INVALID"));
+                .andExpect(jsonPath("$.error.code").value("MSG-77"));
     }
     @Test void resendOnlyChangesChallengesReplacesAndLimits() throws Exception {
         UUID recipient = account("PATIENT"), link = otpLink(recipient); String oldCode = delivery.codes.get(recipient);
@@ -169,7 +169,7 @@ class DependentsR3PostgresIntegrationTest {
         UUID link = jdbc.queryForObject("select c.id from patient_caregivers c join patient_profiles p on p.id=c.dependent_patient_profile_id where p.full_name=?", UUID.class, name);
         assertEquals("REQUESTED", jdbc.queryForObject("select state from patient_caregivers where id=?", String.class, link));
         assertEquals(1, jdbc.queryForObject("select count(*) from verification_codes where purpose='CARE_LINK' and link_id=? and superseded_at is not null", Integer.class, link));
-        verify(actor, link, "123456").andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("OTP_INVALID"));
+        verify(actor, link, "123456").andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("MSG-77"));
         add(number, "CCCD", 409);
         resend(actor, link).andExpect(status().isServiceUnavailable());
         resend(actor, link).andExpect(status().isServiceUnavailable());
@@ -211,7 +211,7 @@ class DependentsR3PostgresIntegrationTest {
     @Test void wrongOwnerAndWrongPendingTypeDoNotDiscloseOtp() throws Exception {
         UUID recipient = account("PATIENT"), link = otpLink(recipient), stranger = account("PATIENT");
         profile(stranger, "Stranger", "stranger", "CCCD");
-        verify(stranger, link, "123456").andExpect(status().isNotFound()).andExpect(jsonPath("$.error.code").value("CARE_LINK_NOT_AVAILABLE"));
+        verify(stranger, link, "123456").andExpect(status().isNotFound()).andExpect(jsonPath("$.error.code").value("MSG-21"));
         resend(stranger, link).andExpect(status().isNotFound());
         mvc.perform(post("/api/v1/care-links/{id}/counter-confirmation", link).with(actor(receptionist, "RECEPTIONIST")).with(csrf())
                 .contentType("application/json").content("{\"identityChecked\":true}")).andExpect(status().isConflict());
@@ -511,7 +511,7 @@ class DependentsR3PostgresIntegrationTest {
         try {
             mvc.perform(put("/api/v1/me/dependents/{id}", target).with(actor(actor, "PATIENT")).with(csrf())
                     .contentType("application/json").content(body(name + " updated", number, "CCCD")))
-                    .andExpect(status().isConflict()).andExpect(jsonPath("$.error.code").value("STALE_VERSION"));
+                    .andExpect(status().isConflict()).andExpect(jsonPath("$.error.code").value("MSG-16"));
         } finally { org.mockito.Mockito.reset(profileDirectory); }
     }
 
@@ -531,7 +531,7 @@ class DependentsR3PostgresIntegrationTest {
                 UUID pendingLink = jdbc.queryForObject("select c.id from patient_caregivers c join patient_profiles p on p.id=c.dependent_patient_profile_id where p.full_name=?", UUID.class, name);
                 // The delivery code is not enabled in persistence before the network call succeeds.
                 String wrong = "000000".equals(gate.code) ? "111111" : "000000";
-                verify(actor, pendingLink, wrong).andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("OTP_INVALID"));
+                verify(actor, pendingLink, wrong).andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("MSG-77"));
                 UUID challenge = jdbc.queryForObject("select id from verification_codes where purpose='CARE_LINK' and link_id=? and consumed_at is null and superseded_at is null", UUID.class, pendingLink);
                 assertEquals(1, jdbc.queryForObject("select failed_attempts from verification_codes where purpose='CARE_LINK' and id=?", Integer.class, challenge));
                 var booked = executor.submit(() -> mvc.perform(post("/api/v1/appointments").with(actor(other, "PATIENT")).with(csrf())

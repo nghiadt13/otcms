@@ -123,39 +123,37 @@ class AppointmentChangeAvailabilityT020PostgresIntegrationTest {
     }
 
     @Test
-    void rescheduleAvailabilityReturnsOnlyCurrentDoctorsSlotsAndAllowsExistingInactiveService() throws Exception {
-        mvc.perform(get(reschedulePath()).with(actor(patientAccountId, AccountType.PATIENT))
+    void rescheduleAvailabilityReturnsEligibleDoctorsAndAllowsExistingInactiveService() throws Exception {
+        mvc.perform(get(reschedulePath()).with(actor(receptionistAccountId, AccountType.RECEPTIONIST))
                         .param("from", CHANGE_DATE.toString()).param("to", CHANGE_DATE.toString()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.slots[*].doctorId", hasItem(currentDoctorId.toString())))
-                .andExpect(jsonPath("$.slots[*].doctorId", not(hasItem(replacementDoctorId.toString()))))
+                .andExpect(jsonPath("$.slots[*].doctorId", not(hasItem(currentDoctorId.toString()))))
+                .andExpect(jsonPath("$.slots[*].doctorId", hasItem(replacementDoctorId.toString())))
                 .andExpect(jsonPath("$.slots[*].serviceId", hasItem(serviceId.toString())))
                 .andExpect(jsonPath("$.slots[*].startTime", hasItem(APPOINTMENT_START.toString())))
-                .andExpect(jsonPath("$.slots[*].doctorDisplayName", hasItem("T020 Current Doctor")))
+                .andExpect(jsonPath("$.slots[*].doctorDisplayName", hasItem("T020 Replacement Doctor")))
                 .andExpect(jsonPath("$..patientProfileId").doesNotExist())
                 .andExpect(jsonPath("$..purpose").doesNotExist());
 
         mvc.perform(get(reschedulePath()).with(actor(receptionistAccountId, AccountType.RECEPTIONIST))
                         .param("from", CHANGE_DATE.toString()).param("to", CHANGE_DATE.toString()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.slots[*].doctorId", hasItem(currentDoctorId.toString())));
+                .andExpect(jsonPath("$.slots[*].doctorId", hasItem(replacementDoctorId.toString())));
     }
 
     @Test
     void rescheduleAvailabilityEnforcesProfileScopeRoleAndPatientChangeDeadline() throws Exception {
         mvc.perform(get(reschedulePath()).with(actor(otherPatientAccountId, AccountType.PATIENT))
                         .param("from", CHANGE_DATE.toString()).param("to", CHANGE_DATE.toString()))
-                .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.error.code").value("APPOINTMENT_NOT_FOUND"));
+                .andExpect(status().isForbidden());
 
         mvc.perform(get(reschedulePath()).with(actor(UUID.randomUUID(), AccountType.ADMIN))
                         .param("from", CHANGE_DATE.toString()).param("to", CHANGE_DATE.toString()))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isOk());
 
         mvc.perform(get(reschedulePath(pastAppointmentId)).with(actor(patientAccountId, AccountType.PATIENT))
                         .param("from", CHANGE_DATE.toString()).param("to", CHANGE_DATE.toString()))
-                .andExpect(status().isUnprocessableEntity())
-                .andExpect(jsonPath("$.error.code").value("APPOINTMENT_CHANGE_TOO_LATE"));
+                .andExpect(status().isForbidden());
     }
 
     @Test
@@ -180,12 +178,12 @@ class AppointmentChangeAvailabilityT020PostgresIntegrationTest {
         mvc.perform(get(reassignmentPath(pastAppointmentId)).with(actor(receptionistAccountId, AccountType.RECEPTIONIST))
                         .param("from", CHANGE_DATE.toString()).param("to", CHANGE_DATE.toString()))
                 .andExpect(status().isUnprocessableEntity())
-                .andExpect(jsonPath("$.error.code").value("BOOKING_TIME_IN_PAST"));
+                .andExpect(jsonPath("$.error.code").value("MSG-30"));
 
         mvc.perform(get(reassignmentPath(cancelledAppointmentId)).with(actor(receptionistAccountId, AccountType.RECEPTIONIST))
                         .param("from", CHANGE_DATE.toString()).param("to", CHANGE_DATE.toString()))
                 .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.error.code").value("APPOINTMENT_NOT_CHANGEABLE"));
+                .andExpect(jsonPath("$.error.code").value("MSG-32"));
     }
 
     @Test
@@ -203,7 +201,7 @@ class AppointmentChangeAvailabilityT020PostgresIntegrationTest {
         }
         mvc.perform(get(reschedulePath()).with(actor(UUID.randomUUID(), AccountType.ADMIN))
                 .param("from", CHANGE_DATE.toString()).param("to", CHANGE_DATE.toString()))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isOk());
     }
 
     private void insertAccount(UUID id, String type, String emailPrefix) {

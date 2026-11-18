@@ -52,10 +52,10 @@ class UC07AdministratorAccountControllerTest {
     @Test
     void ownerReceivesPasswordOnlyInNonCacheableCreateResponse() throws Exception {
         String issued = new fu.fa26.sep490.g58.otcms_be.auth.service.impl.TemporaryPasswordGenerator().generate();
-        when(accounts.create(any(), eq("admin")))
+        when(accounts.create(any(), eq("admin"), eq("Initial123")))
                 .thenReturn(new CreateAdministratorAccountResponse(UUID.randomUUID(), "admin", issued));
         mvc.perform(post(ENDPOINT).with(actor(AccountRole.OWNER)).with(csrf())
-                        .contentType("application/json").content("{\"username\":\"admin\"}"))
+                        .contentType("application/json").content("{\"username\":\"admin\",\"initialPassword\":\"Initial123\"}"))
                 .andExpect(status().isCreated())
                 .andExpect(header().string("Cache-Control", "no-store"))
                 .andExpect(jsonPath("$.accountType").value("ADMIN"))
@@ -77,11 +77,11 @@ class UC07AdministratorAccountControllerTest {
     @Test
     void anonymousAndNonOwnerCannotCallCreate() throws Exception {
         mvc.perform(post(ENDPOINT).with(csrf()).contentType("application/json")
-                .content("{\"username\":\"admin\"}")).andExpect(status().isUnauthorized());
+                .content("{\"username\":\"admin\",\"initialPassword\":\"Initial123\"}")).andExpect(status().isUnauthorized());
         for (AccountRole role : AccountRole.values()) {
             if (role != AccountRole.OWNER) {
                 mvc.perform(post(ENDPOINT).with(actor(role)).with(csrf()).contentType("application/json")
-                        .content("{\"username\":\"admin\"}")).andExpect(status().isForbidden());
+                        .content("{\"username\":\"admin\",\"initialPassword\":\"Initial123\"}")).andExpect(status().isForbidden());
             }
         }
         verifyNoInteractions(accounts);
@@ -120,10 +120,10 @@ class UC07AdministratorAccountControllerTest {
 
     @Test
     void duplicateUsernameUsesConflictWithoutExposingCredentials() throws Exception {
-        when(accounts.create(any(), eq("duplicate")))
+        when(accounts.create(any(), eq("duplicate"), eq("Initial123")))
                 .thenThrow(new AdministratorAccountException("USERNAME_ALREADY_EXISTS"));
         mvc.perform(post(ENDPOINT).with(actor(AccountRole.OWNER)).with(csrf()).contentType("application/json")
-                        .content("{\"username\":\"duplicate\"}"))
+                        .content("{\"username\":\"duplicate\",\"initialPassword\":\"Initial123\"}"))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.error.code").value("USERNAME_ALREADY_EXISTS"))
                 .andExpect(jsonPath("$.temporaryPassword").doesNotExist());
@@ -132,7 +132,7 @@ class UC07AdministratorAccountControllerTest {
     @Test
     void missingCsrfDoesNotCreateAnAccount() throws Exception {
         mvc.perform(post(ENDPOINT).with(actor(AccountRole.OWNER)).contentType("application/json")
-                .content("{\"username\":\"admin\"}")).andExpect(status().isForbidden());
+                .content("{\"username\":\"admin\",\"initialPassword\":\"Initial123\"}")).andExpect(status().isForbidden());
         verifyNoInteractions(accounts);
     }
 

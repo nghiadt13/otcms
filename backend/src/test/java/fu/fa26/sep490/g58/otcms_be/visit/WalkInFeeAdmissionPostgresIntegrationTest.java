@@ -39,7 +39,6 @@ import org.springframework.test.web.servlet.request.RequestPostProcessor;
 @LocalPostgresTest
 class WalkInFeeAdmissionPostgresIntegrationTest {
     private static final String CORRELATION = "5c1e9d0a-7b2f-4e3a-8d6c-1f0e9a8b7c6d";
-    private static final long FEE_AMOUNT = 250_000L;
 
     @Autowired MockMvc mvc;
     @Autowired JdbcTemplate jdbc;
@@ -97,7 +96,7 @@ class WalkInFeeAdmissionPostgresIntegrationTest {
         assertEquals(1, invoiceCount(visitId));
         assertEquals("PENDING_PAYMENT", queueStatus(visitId));
 
-        mvc.perform(counterPayment(invoice, FEE_AMOUNT, "wf-full-pay"))
+        mvc.perform(counterPayment(invoice, "wf-full-pay"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("CONFIRMED"));
         assertEquals("PAID", invoiceStatus(invoice));
@@ -109,16 +108,15 @@ class WalkInFeeAdmissionPostgresIntegrationTest {
     }
 
     @Test
-    void partialPaymentLeavesTheWalkInPendingUntilTheFeeIsCovered() throws Exception {
+    void unpaidFeeKeepsTheWalkInWaitingUntilTheItemIsPaidInFull() throws Exception {
         UUID visitId = createPendingWalkIn("wf-partial", feeService);
         UUID invoice = issueInvoice(visitId, feeService);
 
-        mvc.perform(counterPayment(invoice, 100_000L, "wf-partial-1")).andExpect(status().isOk());
         assertEquals("OPEN", invoiceStatus(invoice));
         assertEquals("PENDING_PAYMENT", queueStatus(visitId));
         assertNull(queueNumber(visitId));
 
-        mvc.perform(counterPayment(invoice, 150_000L, "wf-partial-2")).andExpect(status().isOk());
+        mvc.perform(counterPayment(invoice, "wf-partial-pay")).andExpect(status().isOk());
         assertEquals("PAID", invoiceStatus(invoice));
         assertEquals("WAITING", queueStatus(visitId));
         assertEquals(Integer.valueOf(1), queueNumber(visitId));
@@ -157,7 +155,7 @@ class WalkInFeeAdmissionPostgresIntegrationTest {
     void paidWalkInCannotBeCancelledOnceAdmitted() throws Exception {
         UUID visitId = createPendingWalkIn("wf-paid-cancel", feeService);
         UUID invoice = issueInvoice(visitId, feeService);
-        mvc.perform(counterPayment(invoice, FEE_AMOUNT, "wf-paid-cancel-pay")).andExpect(status().isOk());
+        mvc.perform(counterPayment(invoice, "wf-paid-cancel-pay")).andExpect(status().isOk());
 
         mvc.perform(cancel(visitId))
                 .andExpect(status().isConflict())
@@ -222,11 +220,13 @@ class WalkInFeeAdmissionPostgresIntegrationTest {
                 .header("X-Correlation-ID", CORRELATION).contentType("application/json").content(body);
     }
 
-    private MockHttpServletRequestBuilder counterPayment(UUID invoiceId, long amount, String key) {
+    private MockHttpServletRequestBuilder counterPayment(UUID invoiceId, String key) {
+        String itemIds = String.join(",", jdbc.query("select id from invoice_items where invoice_id = ? order by line_number",
+                (rs, row) -> "\"" + rs.getObject("id", UUID.class) + "\"", invoiceId));
         return post("/api/v1/invoices/{invoiceId}/counter-payments", invoiceId)
                 .with(actor(receptionist, AccountType.RECEPTIONIST)).with(csrf())
                 .header("Idempotency-Key", key).header("X-Correlation-ID", CORRELATION)
-                .contentType("application/json").content("{\"amount\":" + amount + ",\"method\":\"CASH\"}");
+                .contentType("application/json").content("{\"itemIds\":[" + itemIds + "],\"method\":\"CASH\"}");
     }
 
     private MockHttpServletRequestBuilder cancel(UUID visitId) {
@@ -278,9 +278,9 @@ class WalkInFeeAdmissionPostgresIntegrationTest {
         jdbc.execute("alter table audit_logs disable trigger tr_audit_logs_immutable");
         jdbc.execute("alter table audit_logs disable trigger tr_audit_logs_no_truncate");
         try {
-            jdbc.update("delete from payment_attempts where invoice_id in (select id from invoices where visit_id in ("
-                    + ownVisits + "))", receptionist);
             jdbc.update("delete from invoice_items where invoice_id in (select id from invoices where visit_id in ("
+                    + ownVisits + "))", receptionist);
+            jdbc.update("delete from payment_attempts where invoice_id in (select id from invoices where visit_id in ("
                     + ownVisits + "))", receptionist);
             jdbc.update("delete from invoices where visit_id in (" + ownVisits + ")", receptionist);
             jdbc.update("delete from audit_logs where source in ('walk_in_reception_queue_history', 'visit_assignment_audits', 'visit_audits') and record_label in (select id::text from (" + ownVisits + ") fixture_visits)", receptionist);

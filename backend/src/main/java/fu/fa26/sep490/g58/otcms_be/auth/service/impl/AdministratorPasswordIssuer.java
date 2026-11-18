@@ -15,6 +15,11 @@ public class AdministratorPasswordIssuer {
         this.encoder = encoder;
     }
 
+    public void setInitial(AccountJpaEntity account, String password) {
+        account.setPasswordHash(encoder.encode(password));
+        account.setMustChangePassword(true);
+    }
+
     public String issue(AccountJpaEntity account) {
         String issued = generator.generate();
         account.setPasswordHash(encoder.encode(issued));

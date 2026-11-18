@@ -86,13 +86,13 @@ public class DiagnosticFindingsServiceImpl implements DiagnosticFindingsService 
             long expectedVersion, String studyRef, String correlationId) {
         ImagingExecution request = executions.findForUpdate(requestId)
                 .orElseThrow(() -> new DiagnosticOperationException(DiagnosticOperationOutcome.RECORD_NOT_FOUND));
-        if (actor == null || actor.kind() != DiagnosticActor.Kind.USER || actor.role() != AccountRole.DOCTOR
-                || !actor.accountId().equals(request.orderingDoctorAccountId())) throw unauthorized();
+        // UC-50: the ordering doctor or the current responsible doctor (proved through the visit port below).
+        if (actor == null || actor.kind() != DiagnosticActor.Kind.USER || actor.role() != AccountRole.DOCTOR) throw unauthorized();
         VisitDiagnosticPort visitPort = visitPorts.getIfAvailable();
         if (visitPort == null) throw dependencyUnavailable();
         VisitEvidence visit;
         try {
-            visit = visitPort.requireImagingOrderEligibility(request.visitId(), actor.accountId());
+            visit = visitPort.requireFindingsAccess(request.visitId(), actor.accountId(), request.orderingDoctorAccountId());
         } catch (DiagnosticOperationException exception) {
             throw exception;
         } catch (RuntimeException exception) {
@@ -120,7 +120,7 @@ public class DiagnosticFindingsServiceImpl implements DiagnosticFindingsService 
                 DiagnosticRequestStatus.valueOf(request.status().name()), attempt, request.executionVersion(), request.createdAt());
         authorization.requireAllowed(domain, DiagnosticAction.REVIEW_RESULT, actor,
                 new DiagnosticEvidenceContext(request.orderId(), request.visitId(), request.patientId(),
-                        request.orderingDoctorAccountId(), null, request.attemptId(), false, true, false, false, false), expectedVersion);
+                        actor.accountId(), null, request.attemptId(), false, true, false, false, false), expectedVersion);
         if (executions.markReviewed(requestId, expectedVersion, key, fingerprint) != 1) {
             ImagingExecution current = executions.find(requestId).orElseThrow(this::dependencyUnavailable);
             if (key.equals(current.reviewIdempotencyKey())) {
@@ -321,7 +321,8 @@ public class DiagnosticFindingsServiceImpl implements DiagnosticFindingsService 
             throw stateConflict();
         }
         if (!Objects.equals(version.getReportId(), reportId)) throw reportNotReady();
-        if (version.getValidationStatus() == DiagnosticReportValidationStatus.PENDING) {
+        // UC-50 AF2: the PDF report is optional; without one the findings text alone completes the version.
+        if (reportId != null && version.getValidationStatus() == DiagnosticReportValidationStatus.PENDING) {
             ReportStoragePort storage = reportPorts.getIfAvailable();
             if (storage == null) throw dependencyUnavailable();
             ReportValidationStatus validation;
@@ -335,9 +336,10 @@ public class DiagnosticFindingsServiceImpl implements DiagnosticFindingsService 
                 if (validation == ReportValidationStatus.VALIDATED) version.setValidatedAt(Instant.now());
             }
         }
-        if (version.getValidationStatus() != DiagnosticReportValidationStatus.VALIDATED
+        if ((reportId != null && (version.getValidationStatus() != DiagnosticReportValidationStatus.VALIDATED
+                    || version.getContentSha256() == null))
                 || !version.getVisitId().equals(request.visitId()) || !studyRef.equals(version.getStudyRef())
-                || version.getReportVersion() != findingsVersion || version.getContentSha256() == null) {
+                || version.getReportVersion() != findingsVersion || version.getFindingsText() == null) {
             throw reportNotReady();
         }
         UUID eventId = UUID.nameUUIDFromBytes(("FINDINGS_RELEASE:" + requestId + ":" + key)
@@ -364,7 +366,7 @@ public class DiagnosticFindingsServiceImpl implements DiagnosticFindingsService 
 
         audit(request, actor, "COMPLETE_FINDINGS", correlationId,
                 Map.of("eventId", eventId.toString(), "findingsVersionId", version.getId().toString(),
-                        "reportId", reportId.toString(), "releaseState", "RELEASED"));
+                        "reportId", Objects.toString(reportId, "none"), "releaseState", "RELEASED"));
         return new DiagnosticFindingsReleaseView(requestId, findingsVersion, "RELEASED");
     }
 
@@ -374,8 +376,8 @@ public class DiagnosticFindingsServiceImpl implements DiagnosticFindingsService 
     }
 
     private void requireDoctorAccess(DiagnosticActor actor, ImagingExecution request) {
-        if (actor == null || actor.kind() != DiagnosticActor.Kind.USER || actor.role() != AccountRole.DOCTOR
-                || !actor.accountId().equals(request.orderingDoctorAccountId())) throw unauthorized();
+        // UC-50: ordering doctor or current responsible doctor; the visit port decides which one the actor is.
+        if (actor == null || actor.kind() != DiagnosticActor.Kind.USER || actor.role() != AccountRole.DOCTOR) throw unauthorized();
         // Replays also require active current care; knowing an old idempotency key grants no access.
         requireVisitEvidence(actor, request);
     }
@@ -385,7 +387,7 @@ public class DiagnosticFindingsServiceImpl implements DiagnosticFindingsService 
         if (port == null) throw dependencyUnavailable();
         VisitEvidence evidence;
         try {
-            evidence = port.requireImagingOrderEligibility(request.visitId(), actor.accountId());
+            evidence = port.requireFindingsAccess(request.visitId(), actor.accountId(), request.orderingDoctorAccountId());
         } catch (DiagnosticOperationException exception) {
             throw exception;
         } catch (RuntimeException exception) {
@@ -459,7 +461,8 @@ public class DiagnosticFindingsServiceImpl implements DiagnosticFindingsService 
     private String releasePayloadSha256(FindingsReleaseEvent event) {
         String canonical = String.join("\n", event.eventId().toString(), event.requestId().toString(),
                 event.visitId().toString(), event.patientId().toString(), event.studyRef(),
-                event.findingsVersionId().toString(), event.reportId().toString(), event.reportSha256());
+                event.findingsVersionId().toString(), Objects.toString(event.reportId(), "<null>"),
+                Objects.toString(event.reportSha256(), "<null>"));
         return HexFormat.of().formatHex(sha256().digest(canonical.getBytes(StandardCharsets.UTF_8)));
     }
 

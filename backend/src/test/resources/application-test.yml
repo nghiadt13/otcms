@@ -25,6 +25,14 @@ spring:
     enabled: true
     baseline-on-migrate: false
 
+otcms:
+  notification:
+    # NF-09 reminder job is off in tests (shared DB); tests call AppointmentReminderJob.runOnce().
+    reminder-job-enabled: false
+  visit:
+    # Nightly lifecycle jobs are off in tests; tests call VisitIncompleteSweepJob.runOnce() / VisitEndOfDayCloseJob.runOnce().
+    lifecycle-jobs-enabled: false
+
 appointment:
   booking:
     # Background sweepers are off in tests (shared DB); tests call ExpireUnpaidAppointmentsJob.sweepOnce()

@@ -38,7 +38,8 @@ class DiagnosticQueueTransferTest {
         service = new DiagnosticRequestServiceImpl(requests, audits,
                 new DiagnosticAuthorizationPolicyImpl(new DiagnosticTransitionPolicyImpl()), beans.getBeanProvider(VisitDiagnosticReadPort.class),
                 beans.getBeanProvider(RoomReservationPort.class), beans.getBeanProvider(ImagingServiceCatalogPort.class),
-                beans.getBeanProvider(ClinicalImagingOrderPort.class), beans.getBeanProvider(ImagingRoomQueueService.class));
+                beans.getBeanProvider(ClinicalImagingOrderPort.class), beans.getBeanProvider(ImagingRoomQueueService.class),
+                beans.getBeanProvider(fu.fa26.sep490.g58.otcms_be.visit.service.ServiceOrderRoomTransferService.class), null, null);
         when(requests.find(id)).thenAnswer(ignored -> Optional.of(ImagingExecutionTestFixtures.execution(row)));
         when(requests.findForUpdate(id)).thenAnswer(ignored -> Optional.of(ImagingExecutionTestFixtures.execution(row)));
         when(requests.transferRoom(eq(id), anyLong(), any(), any(), any())).thenAnswer(call -> { row.setRoomId(call.getArgument(2)); return 1; });
