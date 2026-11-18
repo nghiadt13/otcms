@@ -274,6 +274,22 @@ public class QueueEntryJpaEntity {
         finishedAt = at;
     }
 
+    public void rejoinRoomQueue(UUID room, LocalDate day, int number, Instant at) {
+        if (!STAGE_SERVICE.equals(stage) && !STAGE_RESULT_REVIEW.equals(stage)) {
+            throw new IllegalStateException("not a room queue row: " + id);
+        }
+        roomId = room;
+        clinicDate = day;
+        queueNumber = number;
+        status = "WAITING";
+        queuedAt = at;
+        sortOrder = at.toEpochMilli();
+        calledAt = null;
+        absentAt = null;
+        startedAt = null;
+        finishedAt = null;
+    }
+
     private void requireStage(String expected) {
         if (!expected.equals(stage)) throw new IllegalStateException("not a " + expected + " queue row: " + id);
     }
