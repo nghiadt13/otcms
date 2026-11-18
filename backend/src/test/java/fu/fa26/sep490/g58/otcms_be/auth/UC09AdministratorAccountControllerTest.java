@@ -131,13 +131,13 @@ class UC09AdministratorAccountControllerTest {
     @Test
     void createAndReissueSecretsAreAbsentFromSubsequentListAndDetail() throws Exception {
         String issued = new fu.fa26.sep490.g58.otcms_be.auth.service.impl.TemporaryPasswordGenerator().generate();
-        when(accounts.create(any(), eq("admin"))).thenReturn(new CreateAdministratorAccountResponse(id, "admin", issued));
+        when(accounts.create(any(), eq("admin"), eq("Initial123"))).thenReturn(new CreateAdministratorAccountResponse(id, "admin", issued));
         when(accounts.reissuePassword(any(), eq(id))).thenReturn(new ReissueAdministratorPasswordResponse(id, issued));
         when(accounts.list(any(), isNull(), isNull(), eq(0), eq(20)))
                 .thenReturn(new PageImpl<>(List.of(response())));
         when(accounts.detail(any(), eq(id))).thenReturn(response());
         mvc.perform(post(BASE).with(actor(AccountRole.OWNER)).with(csrf())
-                        .contentType("application/json").content("{\"username\":\"admin\"}"))
+                        .contentType("application/json").content("{\"username\":\"admin\",\"initialPassword\":\"Initial123\"}"))
                 .andExpect(status().isCreated()).andExpect(jsonPath("$.temporaryPassword").value(issued));
         mvc.perform(post(BASE + "/" + id + "/password-reissues").with(actor(AccountRole.OWNER)).with(csrf()))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.temporaryPassword").value(issued));

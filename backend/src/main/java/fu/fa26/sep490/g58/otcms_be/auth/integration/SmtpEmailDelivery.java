@@ -50,7 +50,8 @@ public class SmtpEmailDelivery implements EmailDeliveryService {
 
     @Override
     public void sendPasswordReset(String normalizedEmail, String resetToken, UUID accountId) {
-        sendResetLink(normalizedEmail, resetToken, "patient");
+        send(normalizedEmail, "OTCMS - Đặt lại mật khẩu", "Mã OTP đặt lại mật khẩu: " + resetToken
+                + "\nMã có hiệu lực trong 10 phút. Nếu bạn không yêu cầu, hãy bỏ qua email này.");
     }
 
     @Override

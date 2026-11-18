@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError, isApiError } from "@/lib/api/apiError";
 import { listLinkedProfiles } from "@/lib/patient-scope/linkedProfilesApi";
 import { getLinkedProfileRecords } from "@/lib/patient-scope/linkedProfilesMockStore";
@@ -8,7 +8,9 @@ import {
   getPatientProfile,
   updatePatientProfile,
 } from "./patientProfileApi";
-import { isDuplicateProfileError } from "./patientProfileErrors";
+import { apiRequest } from "@/lib/api/client";
+
+vi.mock("@/lib/api/client", () => ({ apiRequest: vi.fn() }));
 import { PROFILE_MOCK_IDS } from "./patientProfileMockData";
 import { resetPatientProfileMock } from "./patientProfileMockStore";
 
@@ -36,49 +38,15 @@ beforeEach(() => {
 });
 
 describe("createPatientProfile", () => {
-  it("tạo xong có mã BN mới, gắn ngay và hiện trong danh sách đã gắn", async () => {
-    const result = await createPatientProfile(NEW_PROFILE);
-    if (result.status !== "LINKED") throw new Error("Kỳ vọng LINKED");
-    const created = await getPatientProfile(result.profileId);
-    // Mã mới lớn hơn mọi mã đang có: cao nhất hiện tại là BN-000789 (Huy).
-    expect(created).toMatchObject({
-      patientCode: "BN-000790",
-      relationship: "CHILD",
-      hasVisits: false,
-      dateOfBirth: "2019-04-03",
-    });
-    expect(created.editableFields).toContain("fullName");
-    expect(created.allowedActions).toEqual(["update", "unlink", "editHistory"]);
-    const { items } = await listLinkedProfiles();
-    expect(items.map((item) => item.id)).toContain(created.id);
+  it("gửi thông tin tới API và nhận hồ sơ mới đã liên kết", async () => {
+    vi.mocked(apiRequest).mockResolvedValueOnce({ result: "LINKED", profile: { patientProfileId: "new-id" } });
+    await expect(createPatientProfile(NEW_PROFILE)).resolves.toEqual({ status: "LINKED", profileId: "new-id" });
+    expect(apiRequest).toHaveBeenCalledWith("/api/v1/me/dependents", expect.objectContaining({ method: "POST" }));
   });
 
-  it("Họ tên và ngày sinh trùng hồ sơ có sẵn → 409 DUPLICATE_PROFILE, không tạo thêm", async () => {
-    const before = getLinkedProfileRecords().length;
-    const error = await failureOf(
-      createPatientProfile({
-        ...NEW_PROFILE,
-        fullName: "Nguyễn Văn An",
-        dateOfBirth: "1992-07-21",
-      }),
-    );
-    expect(isDuplicateProfileError(error)).toBe(true);
-    expect(getLinkedProfileRecords()).toHaveLength(before);
-  });
-
-  it("họ tên quá ngắn → 400 MSG-17 kèm fieldErrors đúng trường", async () => {
-    const error = await failureOf(
-      createPatientProfile({ ...NEW_PROFILE, fullName: "A" }),
-    );
-    expect(error).toMatchObject({ status: 400, code: "MSG-17" });
-    expect(error.fieldErrors?.map((item) => item.field)).toEqual(["fullName"]);
-  });
-
-  it("Bản thân thứ hai khi tài khoản đã có Bản thân → 409 MSG-21", async () => {
-    const error = await failureOf(
-      createPatientProfile({ ...NEW_PROFILE, relationship: "SELF" }),
-    );
-    expect(error).toMatchObject({ status: 409, code: "MSG-21" });
+  it("trả lỗi xác thực từ API", async () => {
+    vi.mocked(apiRequest).mockRejectedValueOnce(new ApiError(400, { code: "MSG-17" }));
+    expect(await failureOf(createPatientProfile(NEW_PROFILE))).toMatchObject({ status: 400, code: "MSG-17" });
   });
 });
 

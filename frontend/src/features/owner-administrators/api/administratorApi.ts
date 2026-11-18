@@ -21,10 +21,10 @@ export type IssuedAdministratorPassword = {
   temporaryPassword: string;
   mustChangePassword: boolean;
 };
-export const createAdministrator = (username: string) =>
+export const createAdministrator = (username: string, initialPassword: string) =>
   apiRequest<IssuedAdministratorPassword & { username: string }>(base, {
     method: "POST",
-    body: JSON.stringify({ username }),
+    body: JSON.stringify({ username, initialPassword }),
   });
 export const reissueAdministratorPassword = (id: string) =>
   apiRequest<IssuedAdministratorPassword>(

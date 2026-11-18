@@ -1,12 +1,7 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { setMockSignedInKind } from "@/lib/session/mockSignedInKind";
-import { resetMyAccountMockStore } from "../api/myAccountApi";
-import {
-  MOCK_CORRECT_CURRENT_PASSWORD,
-  MOCK_PATIENT_ACCOUNT,
-} from "../api/myAccountMockData";
+vi.mock("@/lib/auth/changePasswordApi", async (original) => ({ ...(await original<typeof import("@/lib/auth/changePasswordApi")>()), changeFirstLoginPassword: vi.fn() }));
 import { PatientChangePasswordPage } from "./PatientChangePasswordPage";
 
 const { replace } = vi.hoisted(() => ({ replace: vi.fn() }));
@@ -19,8 +14,6 @@ vi.mock("next/navigation", () => ({
 
 beforeEach(() => {
   replace.mockClear();
-  setMockSignedInKind("PATIENT");
-  resetMyAccountMockStore(MOCK_PATIENT_ACCOUNT);
 });
 
 describe("PatientChangePasswordPage", () => {
@@ -30,7 +23,7 @@ describe("PatientChangePasswordPage", () => {
 
     await user.type(
       screen.getByLabelText("Mật khẩu hiện tại"),
-      MOCK_CORRECT_CURRENT_PASSWORD,
+      "MatKhauCu1",
     );
     await user.type(screen.getByLabelText("Mật khẩu mới"), "MatKhauMoi2");
     await user.type(
@@ -40,7 +33,7 @@ describe("PatientChangePasswordPage", () => {
     await user.click(screen.getByRole("button", { name: "Đổi mật khẩu" }));
 
     await waitFor(() =>
-      expect(replace).toHaveBeenCalledWith("/portal/account"),
+      expect(replace).toHaveBeenCalledWith("/login"),
     );
   });
 });

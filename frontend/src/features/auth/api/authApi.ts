@@ -87,8 +87,9 @@ async function registrationRequest(path: string, body: unknown): Promise<void> {
     throw new AuthRequestError("MSG-04");
   }
   if (response.ok) return;
-  // 400 = dữ liệu không dùng được (email đã có, mã sai hoặc hết hạn): MSG-08 chung, không lộ lý do
-  // (BR-03). Còn lại (429, 503, 5xx) là lỗi dịch vụ.
+  const result = await response.json().catch(() => ({}));
+  if (result?.error?.code === "OTP_INVALID_OR_EXPIRED" || result?.error?.code === "MSG-77")
+    throw new AuthRequestError("MSG-77");
   throw new AuthRequestError(response.status === 400 ? "MSG-08" : "MSG-04");
 }
 

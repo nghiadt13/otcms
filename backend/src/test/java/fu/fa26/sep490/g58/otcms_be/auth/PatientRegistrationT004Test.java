@@ -171,8 +171,8 @@ class PatientRegistrationT004Test {
         when(accounts.findByIdForUpdate(id)).thenReturn(java.util.Optional.of(account));
         when(challenges.countByAccountIdAndPurposeAndCreatedAtAfter(eq(id), eq(VerificationPurpose.EMAIL_VERIFY), any())).thenReturn(0L);
         doThrow(new RuntimeException("smtp down")).when(mail).sendVerificationCode(eq("alice@example.com"), anyString(), eq(id));
-        RegistrationException ex = assertThrows(RegistrationException.class, () -> service.resendOtp("alice@example.com"));
-        assertEquals("EMAIL_DELIVERY_UNAVAILABLE", ex.getMessage());
+        assertDoesNotThrow(() -> service.resendOtp("alice@example.com"));
+        assertDoesNotThrow(() -> service.resendOtp("unknown@example.com"));
         verify(audits).record(argThat(a -> "RESEND_EMAIL_DELIVERY_UNAVAILABLE".equals(a.outcome())
                 && "auth_audits".equals(a.source()) && "EMAIL_VERIFICATION".equals(a.action()) && !a.visibleInActivityLog()));
     }

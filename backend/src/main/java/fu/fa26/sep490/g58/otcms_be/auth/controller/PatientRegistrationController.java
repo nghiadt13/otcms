@@ -36,6 +36,11 @@ public class PatientRegistrationController {
                 : "EMAIL_DELIVERY_UNAVAILABLE".equals(ex.getMessage())
                 || "RATE_LIMIT_UNAVAILABLE".equals(ex.getMessage()) ? HttpStatus.SERVICE_UNAVAILABLE
                 : HttpStatus.BAD_REQUEST;
-        return ResponseEntity.status(status).body(ErrorResponse.of(ex.getMessage(), "Authentication request could not be completed", null));
+        String code = switch (ex.getMessage()) {
+            case "OTP_INVALID_OR_EXPIRED" -> "MSG-77";
+            case "VALIDATION_FAILED" -> "MSG-08";
+            default -> ex.getMessage();
+        };
+        return ResponseEntity.status(status).body(ErrorResponse.of(code, "Authentication request could not be completed", null));
     }
 }

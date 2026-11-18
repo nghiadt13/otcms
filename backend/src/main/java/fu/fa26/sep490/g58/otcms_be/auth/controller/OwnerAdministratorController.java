@@ -38,7 +38,7 @@ public class OwnerAdministratorController {
             @AuthenticationPrincipal AuthenticatedAccount actor,
             @Valid @RequestBody CreateAdministratorAccountRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED).cacheControl(CacheControl.noStore())
-                .body(administrators.create(actor, request.getUsername()));
+                .body(administrators.create(actor, request.getUsername(), request.getInitialPassword()));
     }
 
     @PostMapping("/{accountId}/activate")

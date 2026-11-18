@@ -3,12 +3,14 @@ package fu.fa26.sep490.g58.otcms_be.auth.service.impl;
 import fu.fa26.sep490.g58.otcms_be.auth.exception.PasswordRecoveryException;
 import fu.fa26.sep490.g58.otcms_be.auth.model.dto.request.ChangePasswordRequest;
 import fu.fa26.sep490.g58.otcms_be.auth.model.dto.request.ResetPasswordRequest;
+import fu.fa26.sep490.g58.otcms_be.auth.model.dto.request.PatientOtpResetRequest;
 import fu.fa26.sep490.g58.otcms_be.auth.model.entity.AccountJpaEntity;
 import fu.fa26.sep490.g58.otcms_be.auth.model.entity.VerificationCodeJpaEntity;
 import fu.fa26.sep490.g58.otcms_be.auth.model.entity.enums.AccountStatus;
 import fu.fa26.sep490.g58.otcms_be.auth.model.entity.enums.AccountType;
 import fu.fa26.sep490.g58.otcms_be.auth.model.entity.enums.VerificationPurpose;
 import fu.fa26.sep490.g58.otcms_be.auth.service.EmailDeliveryService;
+import fu.fa26.sep490.g58.otcms_be.auth.service.EmailOtpService;
 import fu.fa26.sep490.g58.otcms_be.auth.repository.AccountRepository;
 import fu.fa26.sep490.g58.otcms_be.auth.repository.VerificationCodeRepository;
 import fu.fa26.sep490.g58.otcms_be.auth.service.AuthSessionService;
@@ -39,8 +41,16 @@ public class PasswordRecoveryServiceImpl implements PasswordRecoveryService {
     private final AuthProperties properties;
     private final SecureRandom random = new SecureRandom();
     private final Clock clock;
+    private EmailOtpService otp = new EmailOtpServiceImpl();
 
     @Autowired
+    public PasswordRecoveryServiceImpl(AccountRepository accounts, VerificationCodeRepository challenges,
+                                       EmailDeliveryService email, PasswordEncoder encoder,
+                                       AuthSessionService sessions, AuthProperties properties, EmailOtpService otp) {
+        this(accounts, challenges, email, encoder, sessions, properties, Clock.systemUTC());
+        this.otp = otp;
+    }
+
     public PasswordRecoveryServiceImpl(AccountRepository accounts, VerificationCodeRepository challenges,
                                        EmailDeliveryService email, PasswordEncoder encoder,
                                        AuthSessionService sessions, AuthProperties properties) {
@@ -62,6 +72,7 @@ public class PasswordRecoveryServiceImpl implements PasswordRecoveryService {
     @Override
     @Transactional
     public String forgot(String identifier, AccountType portal) {
+        if (portal != AccountType.PATIENT) return GENERIC_MESSAGE;
         String normalized = normalize(identifier);
         AccountJpaEntity account = accounts.findByNormalizedEmail(normalized).orElse(null);
         if (account == null || !matchesPortal(account.getAccountType(), portal)
@@ -71,16 +82,21 @@ public class PasswordRecoveryServiceImpl implements PasswordRecoveryService {
             return GENERIC_MESSAGE;
         }
 
+        account = accounts.findByIdForUpdate(account.getId()).orElse(null);
+        if (account == null || account.getAccountType() != AccountType.PATIENT
+                || (account.getStatus() != AccountStatus.ACTIVE && account.getStatus() != AccountStatus.TEMPORARILY_LOCKED)
+                || account.getPasswordHash() == null) return GENERIC_MESSAGE;
+
         // Supersede the open code first: uk_verification_codes_account_current allows one open code per purpose.
         challenges.supersedeCurrent(account.getId(), VerificationPurpose.PASSWORD_RESET, Instant.now(clock));
-        String resetToken = token();
+        String resetToken = otp.generate();
         VerificationCodeJpaEntity challenge = new VerificationCodeJpaEntity();
         challenge.setAccountId(account.getId());
         challenge.setPurpose(VerificationPurpose.PASSWORD_RESET);
-        challenge.setCodeHash(hash(resetToken));
+        challenge.setCodeHash(otp.hash(resetToken));
         challenge.setFailedAttempts(0);
         challenge.setCreatedAt(Instant.now(clock));
-        challenge.setExpiresAt(Instant.now(clock).plusSeconds(900));
+        challenge.setExpiresAt(otp.expiresAt(Instant.now(clock)));
         challenges.saveAndFlush(challenge);
         try {
             if (account.getAccountType().isStaff()) {
@@ -122,6 +138,39 @@ public class PasswordRecoveryServiceImpl implements PasswordRecoveryService {
             throw new PasswordRecoveryException("PASSWORD_REUSE_NOT_ALLOWED");
         }
 
+        challenge.setConsumedAt(now);
+        account.setPasswordHash(encoder.encode(request.newPassword()));
+        account.setFailedCredentialCount(0);
+        account.setLockedUntil(null);
+        account.setStatus(AccountStatus.ACTIVE);
+        account.setUpdatedAt(now);
+        challenges.save(challenge);
+        accounts.save(account);
+        sessions.revokeAll(account.getId());
+    }
+
+    @Override
+    @Transactional(noRollbackFor = PasswordRecoveryException.class)
+    public void resetPatientOtp(PatientOtpResetRequest request) {
+        if (!PasswordPolicy.isValid(request.newPassword())) throw new PasswordRecoveryException("VALIDATION_FAILED");
+        AccountJpaEntity found = accounts.findByNormalizedEmail(normalize(request.email()))
+                .filter(a -> a.getAccountType() == AccountType.PATIENT)
+                .orElseThrow(() -> new PasswordRecoveryException("MSG-77"));
+        AccountJpaEntity account = accounts.findByIdForUpdate(found.getId())
+                .orElseThrow(() -> new PasswordRecoveryException("MSG-77"));
+        VerificationCodeJpaEntity challenge = challenges.findCurrentForUpdate(account.getId(), VerificationPurpose.PASSWORD_RESET)
+                .orElseThrow(() -> new PasswordRecoveryException("MSG-77"));
+        Instant now = Instant.now(clock);
+        if ((account.getStatus() != AccountStatus.ACTIVE && account.getStatus() != AccountStatus.TEMPORARILY_LOCKED)
+                || account.getPasswordHash() == null || challenge.getConsumedAt() != null || challenge.getSupersededAt() != null
+                || !challenge.getExpiresAt().isAfter(now)
+                || challenge.getFailedAttempts() >= 5 || !otp.matches(request.otp(), challenge.getCodeHash())) {
+            if (challenge.getExpiresAt().isAfter(now) && challenge.getFailedAttempts() < 5) {
+                challenge.setFailedAttempts(challenge.getFailedAttempts() + 1);
+                if (challenge.getFailedAttempts() >= 5) challenge.setSupersededAt(now);
+            }
+            throw new PasswordRecoveryException("MSG-77");
+        }
         challenge.setConsumedAt(now);
         account.setPasswordHash(encoder.encode(request.newPassword()));
         account.setFailedCredentialCount(0);

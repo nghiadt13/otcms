@@ -150,7 +150,7 @@ export function SignInForm({
           staff
             ? staffMode === "administrator"
               ? "Tên đăng nhập"
-              : "Tên đăng nhập hoặc email"
+              : "Tên đăng nhập"
             : "Email"
         }
         onChange={(event) => {
