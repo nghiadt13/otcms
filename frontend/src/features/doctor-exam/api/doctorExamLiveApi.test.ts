@@ -563,7 +563,7 @@ describe("chỉ định cận lâm sàng và kết luận hình ảnh", () => {
     });
   });
 
-  it("hoàn tất kết luận: xem ảnh → lưu nháp → tải PDF → hoàn tất, và đòi PDF", async () => {
+  it("hoàn tất kết luận: xem ảnh → lưu nháp → tải PDF (tùy chọn) → hoàn tất", async () => {
     const calls: string[] = [];
     request.mockImplementation(async (path: string, init?: RequestInit) => {
       calls.push(`${init?.method ?? "GET"} ${path.split("?")[0]}`);
@@ -581,11 +581,6 @@ describe("chỉ định cận lâm sàng và kết luận hình ảnh", () => {
         version: 3,
       },
     } as never;
-    await expect(
-      doctorLiveApi.completeFindings(order, "Rách", null),
-    ).rejects.toMatchObject({
-      code: "MSG-47",
-    });
     const file = new File(["%PDF"], "kq.pdf", { type: "application/pdf" });
     const result = await doctorLiveApi.completeFindings(order, "Rách", file);
     const steps = calls.filter((c) => !c.startsWith("GET"));
@@ -607,6 +602,34 @@ describe("chỉ định cận lâm sàng và kết luận hình ảnh", () => {
       reportId: "rep-1",
       studyRef: "uid-1",
     });
+  });
+
+  it("hoàn tất kết luận không cần PDF: bỏ bước tải báo cáo và gửi reportId null", async () => {
+    const calls: string[] = [];
+    request.mockImplementation(async (path: string, init?: RequestInit) => {
+      calls.push(`${init?.method ?? "GET"} ${path.split("?")[0]}`);
+      if (path.endsWith("/findings")) return { version: 1, reportId: null };
+      if (path === "/api/v1/imaging-requests/r1")
+        return { version: 4, status: "REVIEWED" };
+      return undefined;
+    });
+    const order = {
+      imaging: { requestId: "r1", studyRef: "uid-1", reviewed: true, version: 4 },
+    } as never;
+    const result = await doctorLiveApi.completeFindings(order, "Rách", null);
+    expect(calls.filter((c) => !c.startsWith("GET"))).toEqual([
+      "POST /api/v1/imaging-requests/r1/findings",
+      "POST /api/v1/imaging-requests/r1/findings/completions",
+    ]);
+    const completion = request.mock.calls.find((c) =>
+      String(c[0]).endsWith("/completions"),
+    )!;
+    expect(JSON.parse(completion[1].body)).toEqual({
+      findingsVersion: 1,
+      reportId: null,
+      studyRef: "uid-1",
+    });
+    expect(result).toMatchObject({ findingsCompleted: true, reportId: null });
   });
 
   it("chỉ yêu cầu ảnh còn PENDING mới hủy được", async () => {

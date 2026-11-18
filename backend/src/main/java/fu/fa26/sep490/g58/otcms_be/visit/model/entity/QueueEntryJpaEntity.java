@@ -23,6 +23,8 @@ import java.util.UUID;
 public class QueueEntryJpaEntity {
     public static final String STAGE_RECEPTION = "RECEPTION";
     public static final String STAGE_EXAM = "EXAM";
+    public static final String STAGE_SERVICE = "SERVICE";
+    public static final String STAGE_RESULT_REVIEW = "RESULT_REVIEW";
     public static final String RECEPTION_WAITING = "WAITING";
 
     @Id
@@ -211,6 +213,69 @@ public class QueueEntryJpaEntity {
         requireExam();
         this.status = VisitExamStatus.CANCELLED.name();
         this.finishedAt = at;
+    }
+
+    /**
+     * Service room queue (stage SERVICE, phase 08): one row per paid service order, WAITING with its room number.
+     * {@code sortOrder} is the FIFO position; a patient moving to the next room gets a fresh one.
+     */
+    public static QueueEntryJpaEntity service(UUID visitId, UUID serviceOrderId, UUID roomId, UUID serviceId,
+            LocalDate clinicDate, int queueNumber, long sortOrder, Instant at) {
+        QueueEntryJpaEntity entity = new QueueEntryJpaEntity();
+        entity.id = UUID.randomUUID();
+        entity.visitId = visitId;
+        entity.stage = STAGE_SERVICE;
+        entity.status = "WAITING";
+        entity.serviceOrderId = serviceOrderId;
+        entity.roomId = roomId;
+        entity.serviceId = serviceId;
+        entity.clinicDate = clinicDate;
+        entity.queueNumber = queueNumber;
+        entity.enteredAt = at;
+        entity.queuedAt = at;
+        entity.sortOrder = sortOrder;
+        return entity;
+    }
+
+    /** Result-review queue (stage RESULT_REVIEW, NF-04): the patient waits in the attending doctor's room to hear results. */
+    public static QueueEntryJpaEntity resultReview(UUID visitId, UUID doctorProfileId, UUID roomId,
+            LocalDate clinicDate, int queueNumber, Instant at) {
+        QueueEntryJpaEntity entity = new QueueEntryJpaEntity();
+        entity.id = UUID.randomUUID();
+        entity.visitId = visitId;
+        entity.stage = STAGE_RESULT_REVIEW;
+        entity.status = "WAITING";
+        entity.doctorProfileId = doctorProfileId;
+        entity.roomId = roomId;
+        entity.clinicDate = clinicDate;
+        entity.queueNumber = queueNumber;
+        entity.enteredAt = at;
+        entity.queuedAt = at;
+        entity.sortOrder = at.toEpochMilli();
+        return entity;
+    }
+
+    /** SERVICE: the technician started the service (CALLED to IN_EXAMINATION). */
+    public void startService(Instant at) {
+        requireStage(STAGE_SERVICE);
+        status = "IN_EXAMINATION";
+        startedAt = at;
+    }
+
+    /** SERVICE or RESULT_REVIEW: the stay in this room is over. */
+    public void closeStay(Instant at) {
+        status = "COMPLETED";
+        finishedAt = at;
+    }
+
+    /** SERVICE or RESULT_REVIEW: the entry leaves the queue without being served (cannot perform, visit ended). */
+    public void cancelStay(Instant at) {
+        status = "CANCELLED";
+        finishedAt = at;
+    }
+
+    private void requireStage(String expected) {
+        if (!expected.equals(stage)) throw new IllegalStateException("not a " + expected + " queue row: " + id);
     }
 
     private void requireExam() {

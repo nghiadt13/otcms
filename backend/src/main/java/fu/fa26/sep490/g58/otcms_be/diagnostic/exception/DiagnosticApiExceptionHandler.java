@@ -22,7 +22,8 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 @RestControllerAdvice(assignableTypes = {DiagnosticRequestController.class,
         DiagnosticHistoryController.class,
         fu.fa26.sep490.g58.otcms_be.diagnostic.controller.DiagnosticTechnicianRequestController.class,
-        fu.fa26.sep490.g58.otcms_be.diagnostic.controller.DiagnosticFindingsController.class})
+        fu.fa26.sep490.g58.otcms_be.diagnostic.controller.DiagnosticFindingsController.class,
+        fu.fa26.sep490.g58.otcms_be.diagnostic.controller.DiagnosticAcquisitionController.class})
 @Order(Ordered.HIGHEST_PRECEDENCE)
 public class DiagnosticApiExceptionHandler {
     @ExceptionHandler(DiagnosticOperationException.class)
@@ -32,13 +33,15 @@ public class DiagnosticApiExceptionHandler {
         HttpStatus status = switch (outcome) {
             case UNAUTHORIZED_RECORD -> HttpStatus.FORBIDDEN;
             case RECORD_NOT_FOUND -> HttpStatus.NOT_FOUND;
-            case STATE_CONFLICT, VERSION_CONFLICT, IDEMPOTENCY_CONFLICT -> HttpStatus.CONFLICT;
+            case STATE_CONFLICT, VERSION_CONFLICT, IDEMPOTENCY_CONFLICT, ORDER_NOT_PAID, PATIENT_NOT_CALLED -> HttpStatus.CONFLICT;
             case DEPENDENCY_UNAVAILABLE -> HttpStatus.SERVICE_UNAVAILABLE;
             case VISIT_NOT_ELIGIBLE, SERVICE_NOT_ELIGIBLE, ROOM_NOT_READY, EVIDENCE_MISMATCH, REPORT_NOT_READY ->
                     HttpStatus.UNPROCESSABLE_ENTITY;
             case ALLOWED -> HttpStatus.INTERNAL_SERVER_ERROR;
         };
-        String code = outcome == DiagnosticOperationOutcome.UNAUTHORIZED_RECORD
+        String code = outcome == DiagnosticOperationOutcome.ORDER_NOT_PAID ? "MSG-95"
+                : outcome == DiagnosticOperationOutcome.PATIENT_NOT_CALLED ? "MSG-42"
+                : outcome == DiagnosticOperationOutcome.UNAUTHORIZED_RECORD
                 || outcome == DiagnosticOperationOutcome.RECORD_NOT_FOUND ? "NOT_AVAILABLE" : outcome.name();
         return ResponseEntity.status(status).body(ErrorResponse.of(code, "Diagnostic request operation was rejected",
                 CorrelationIdFilter.current(request)));

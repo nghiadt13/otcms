@@ -114,15 +114,19 @@ class VisitRoomAdminT031PostgresIntegrationTest {
         UUID inactive = jdbc.queryForObject("select id from rooms where room_code='T031-ADMIN-KAN25-B'", UUID.class);
         mvc.perform(delete("/api/v1/admin/visit-rooms/{roomId}", inactive).with(actor(admin, AccountRole.ADMIN)).with(csrf()))
                 .andExpect(status().isNoContent());
-        String staff = mvc.perform(get("/api/v1/staff/rooms").with(actor(receptionist, AccountRole.RECEPTIONIST)))
+        // UC-64: admin keeps the whole inventory (also inactive); the receptionist sees active rooms only.
+        String staff = mvc.perform(get("/api/v1/staff/rooms").with(actor(admin, AccountRole.ADMIN)))
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
         String adminBody = mvc.perform(get("/api/v1/admin/visit-rooms").with(actor(admin, AccountRole.ADMIN)))
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
         var json = tools.jackson.databind.json.JsonMapper.builder().build();
         assertEquals(json.readTree(adminBody), json.readTree(staff));
         org.junit.jupiter.api.Assertions.assertTrue(staff.indexOf("T031-ADMIN-KAN25-A") < staff.indexOf("T031-ADMIN-KAN25-B"));
-        mvc.perform(get("/api/v1/staff/rooms").with(actor(receptionist, AccountRole.RECEPTIONIST)))
+        mvc.perform(get("/api/v1/staff/rooms").with(actor(admin, AccountRole.ADMIN)))
                 .andExpect(jsonPath("$.items[?(@.roomCode == 'T031-ADMIN-KAN25-B')].active").value(false));
+        mvc.perform(get("/api/v1/staff/rooms").with(actor(receptionist, AccountRole.RECEPTIONIST)))
+                .andExpect(jsonPath("$.items[?(@.roomCode == 'T031-ADMIN-KAN25-B')]").isEmpty())
+                .andExpect(jsonPath("$.items[?(@.roomCode == 'T031-ADMIN-KAN25-A')]").isNotEmpty());
     }
 
     private UUID account(AccountType type, String label) {

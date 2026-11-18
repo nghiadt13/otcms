@@ -80,13 +80,22 @@ public class DiagnosticViewerAuthorizationServiceImpl implements DiagnosticViewe
             if (patient == null || !patient.authorized() || !request.patientId().equals(patient.patientId())) {
                 return denied();
             }
+            // UC-51: the images of an Incomplete visit are open to the patient; its findings never are.
+            if ("INCOMPLETE".equals(visit.visitStatus()) && request.attemptId() != null
+                    && studyRef.equals(request.studyRef())
+                    && (request.status() == ExecutionStatus.RESULT_AVAILABLE
+                            || request.status() == ExecutionStatus.REVIEWED)) {
+                return allowed("ATTEMPT:" + request.attemptId());
+            }
             var report = reports.findFirstByRequestIdAndReleasedAtIsNotNullOrderByReportVersionDesc(request.orderId())
                     .orElse(null);
+            // The PDF is optional (UC-50 AF2): released findings need no report, but an attached report must be validated.
             if (report == null || !studyRef.equals(report.getStudyRef())
                     || !request.visitId().equals(report.getVisitId())
                     || report.getState() != DiagnosticFindingsVersionState.COMPLETED
-                    || report.getReportId() == null || report.getFindingsText() == null
-                    || report.getValidationStatus() != fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.enums.DiagnosticReportValidationStatus.VALIDATED) return denied();
+                    || report.getFindingsText() == null
+                    || (report.getReportId() != null
+                        && report.getValidationStatus() != fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.enums.DiagnosticReportValidationStatus.VALIDATED)) return denied();
             return allowed("FINDINGS:" + report.getId());
         }
         return denied();

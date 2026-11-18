@@ -22,7 +22,7 @@ export const doctorLiveApi: DoctorExamApi = {
     pastRecords: true,
     resultSheet: true,
     startExamination: true,
-    findingsReportPdfRequired: true,
+    findingsReportPdfRequired: false, // UC-50 AF2: the PDF report is optional
   },
   listTodayPatients: queue.listTodayPatients,
   getVisitContext: queue.getVisitContext,

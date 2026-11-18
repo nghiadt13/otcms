@@ -14,12 +14,14 @@ import fu.fa26.sep490.g58.otcms_be.visit.model.entity.QueueEntryJpaEntity;
 import fu.fa26.sep490.g58.otcms_be.visit.repository.QueueRoomRepository;
 import fu.fa26.sep490.g58.otcms_be.visit.repository.VisitRoomJpaRepository;
 import fu.fa26.sep490.g58.otcms_be.visit.service.QueueStateMachine;
+import fu.fa26.sep490.g58.otcms_be.visit.service.ImagingRoomQueueService;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -33,19 +35,30 @@ public class QueueStateMachineImpl implements QueueStateMachine {
     private final AppointmentBookingProperties booking;
     private final AuditLogWriter audit;
     private final Clock clock;
+    /** Room technicians run the SERVICE queue of their room (UC-46); null in unit tests that only use staff roles. */
+    private final ImagingRoomQueueService imagingRooms;
 
     public QueueStateMachineImpl(QueueRoomRepository queue, VisitRoomJpaRepository rooms,
             ReceptionistAccountAccessService receptionists, DoctorAccountAccessService doctors,
             DoctorScheduleService schedules, AppointmentBookingProperties booking, AuditLogWriter audit, Clock clock) {
+        this(queue, rooms, receptionists, doctors, schedules, booking, audit, clock, null);
+    }
+
+    @Autowired
+    public QueueStateMachineImpl(QueueRoomRepository queue, VisitRoomJpaRepository rooms,
+            ReceptionistAccountAccessService receptionists, DoctorAccountAccessService doctors,
+            DoctorScheduleService schedules, AppointmentBookingProperties booking, AuditLogWriter audit, Clock clock,
+            ImagingRoomQueueService imagingRooms) {
         this.queue = queue; this.rooms = rooms; this.receptionists = receptionists; this.doctors = doctors;
         this.schedules = schedules; this.booking = booking; this.audit = audit; this.clock = clock;
+        this.imagingRooms = imagingRooms;
     }
 
     @Override
     @Transactional
     public QueueRoomDtos.Entry callNext(UUID roomId, String stage, AuthenticatedAccount actor) {
         validateStage(stage);
-        authorize(actor, roomId, false);
+        authorize(actor, roomId, false, stage);
         List<QueueEntryJpaEntity> rows = lock(roomId, stage);
         if (rows.stream().anyMatch(q -> today(q) && ("CALLED".equals(q.getStatus()) || "IN_EXAMINATION".equals(q.getStatus())))) {
             throw error("MSG-42");
@@ -60,7 +73,7 @@ public class QueueStateMachineImpl implements QueueStateMachine {
     @Transactional
     public QueueRoomDtos.Entry markAbsent(UUID entryId, AuthenticatedAccount actor) {
         QueueRoomRepository.Location location = requireLocation(entryId);
-        authorize(actor, location.getRoomId(), false);
+        authorize(actor, location.getRoomId(), false, location.getStage());
         QueueEntryJpaEntity entry = lockedEntry(entryId, location);
         if (!today(entry) || !"CALLED".equals(entry.getStatus())) throw error("MSG-42");
         entry.markAbsent(clock.instant());
@@ -73,7 +86,7 @@ public class QueueStateMachineImpl implements QueueStateMachine {
             AuthenticatedAccount actor) {
         if (reason == null || reason.isBlank()) throw error("MSG-39");
         QueueRoomRepository.Location location = requireLocation(entryId);
-        authorize(actor, location.getRoomId(), true);
+        authorize(actor, location.getRoomId(), true, location.getStage());
         List<QueueEntryJpaEntity> locked = lock(location.getRoomId(), location.getStage());
         QueueEntryJpaEntity entry = locked.stream().filter(q -> q.getId().equals(entryId)).findFirst()
                 .orElseThrow(() -> error("MSG-41"));
@@ -113,7 +126,7 @@ public class QueueStateMachineImpl implements QueueStateMachine {
     @Transactional(readOnly = true)
     public List<QueueRoomDtos.Entry> list(UUID roomId, String stage, AuthenticatedAccount actor) {
         validateStage(stage);
-        authorize(actor, roomId, false);
+        authorize(actor, roomId, false, stage);
         if (!rooms.existsById(roomId)) throw error("MSG-41");
         return queue.findRoom(roomId, stage).stream().filter(this::today).map(QueueStateMachineImpl::dto).toList();
     }
@@ -142,8 +155,11 @@ public class QueueStateMachineImpl implements QueueStateMachine {
         return queue.findLocation(id).filter(q -> q.getRoomId() != null).orElseThrow(() -> error("MSG-41"));
     }
 
-    private void authorize(AuthenticatedAccount actor, UUID roomId, boolean receptionistOnly) {
+    private void authorize(AuthenticatedAccount actor, UUID roomId, boolean receptionistOnly, String stage) {
         if (actor == null || actor.accountId() == null || roomId == null) throw error("MSG-40");
+        // UC-46: the technician assigned to the room works its SERVICE queue (call, absent, return).
+        if (QueueEntryJpaEntity.STAGE_SERVICE.equals(stage) && actor.accountRole() == AccountRole.IMAGING_TECHNICIAN
+                && imagingRooms != null && imagingRooms.isAssignedTechnician(actor.accountId(), roomId)) return;
         if (actor.accountRole() == AccountRole.RECEPTIONIST && receptionists.isActiveReceptionistAccount(actor.accountId())) return;
         Instant now = clock.instant();
         if (!receptionistOnly && actor.accountRole() == AccountRole.DOCTOR && doctors.isActiveDoctorAccount(actor.accountId())
@@ -171,7 +187,7 @@ public class QueueStateMachineImpl implements QueueStateMachine {
     }
 
     private static void validateStage(String stage) {
-        if (!"EXAM".equals(stage) && !"SERVICE".equals(stage)) throw error("MSG-39");
+        if (!"EXAM".equals(stage) && !"SERVICE".equals(stage) && !"RESULT_REVIEW".equals(stage)) throw error("MSG-39");
     }
 
     private static QueueRoomDtos.Entry dto(QueueEntryJpaEntity q) {

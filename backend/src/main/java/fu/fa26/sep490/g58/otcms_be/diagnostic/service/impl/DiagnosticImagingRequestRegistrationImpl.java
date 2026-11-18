@@ -12,6 +12,7 @@ import fu.fa26.sep490.g58.otcms_be.diagnostic.service.DiagnosticImagingRequestRe
 import fu.fa26.sep490.g58.otcms_be.staff.service.DoctorProfileIdentityQueryService;
 import java.util.Objects;
 import java.util.UUID;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,13 +26,25 @@ public class DiagnosticImagingRequestRegistrationImpl implements DiagnosticImagi
     private final ImagingServiceCatalogPort catalog;
     private final ClinicalImagingOrderPort orders;
     private final fu.fa26.sep490.g58.otcms_be.visit.service.ImagingRoomQueueService rooms;
+    /** Puts a dispatched paid order into its room queue; null in unit tests that do not need the queue. */
+    private final ObjectProvider<fu.fa26.sep490.g58.otcms_be.visit.service.ServiceQueueService> serviceQueue;
 
     public DiagnosticImagingRequestRegistrationImpl(ClinicalServiceOrderExecutionPort requests,
             DoctorProfileIdentityQueryService identities, DoctorAccountAccessService accounts,
             VisitDiagnosticReadPort visits, ImagingServiceCatalogPort catalog, ClinicalImagingOrderPort orders,
             fu.fa26.sep490.g58.otcms_be.visit.service.ImagingRoomQueueService rooms) {
+        this(requests, identities, accounts, visits, catalog, orders, rooms, null);
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public DiagnosticImagingRequestRegistrationImpl(ClinicalServiceOrderExecutionPort requests,
+            DoctorProfileIdentityQueryService identities, DoctorAccountAccessService accounts,
+            VisitDiagnosticReadPort visits, ImagingServiceCatalogPort catalog, ClinicalImagingOrderPort orders,
+            fu.fa26.sep490.g58.otcms_be.visit.service.ImagingRoomQueueService rooms,
+            ObjectProvider<fu.fa26.sep490.g58.otcms_be.visit.service.ServiceQueueService> serviceQueue) {
         this.requests = requests; this.identities = identities; this.accounts = accounts;
         this.visits = visits; this.catalog = catalog; this.orders = orders; this.rooms = rooms;
+        this.serviceQueue = serviceQueue;
     }
 
     @Override
@@ -83,6 +96,9 @@ public class DiagnosticImagingRequestRegistrationImpl implements DiagnosticImagi
                 || !command.bodyArea().equals(persisted.bodyArea()) || !command.clinicalReason().equals(persisted.clinicalReason())) {
             throw failure(DiagnosticOperationOutcome.EVIDENCE_MISMATCH);
         }
+        // D4: a dispatched paid order also gets its place in the room queue (idempotent with the automatic admission).
+        var queue = serviceQueue == null ? null : serviceQueue.getIfAvailable();
+        if (queue != null) queue.enqueueDispatchedOrder(persisted.orderId());
         return new RegistrationResult(persisted.orderId());
     }
 

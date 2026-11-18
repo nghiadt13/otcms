@@ -94,4 +94,36 @@ class DiagnosticViewerAuthorizationServiceTest {
         assertFalse(service.authorize(actor, AccountRole.RECEPTIONIST, "study", "PATIENT_VIEW").allowed());
         assertFalse(service.authorize(actor, AccountRole.DOCTOR, "study", "PATIENT_VIEW").allowed());
     }
+
+    @Test void patientOpensTheImagesOfAnIncompleteVisitWithoutFindings() {
+        when(request.studyRef()).thenReturn("study");
+        when(visits.authorizeImagingHistory(visit, actor)).thenReturn(
+                new VisitHistoryAuthorization(visit, patient, null, null, "INCOMPLETE", true));
+        when(patients.authorizePatientHistory(actor, patient)).thenReturn(new PatientHistoryAuthorization(patient, "SELF", true));
+        assertTrue(service.authorize(actor, AccountRole.PATIENT, "study", "PATIENT_VIEW").allowed());
+        verifyNoInteractions(reports);
+        // An open visit still needs released findings.
+        when(visits.authorizeImagingHistory(visit, actor)).thenReturn(
+                new VisitHistoryAuthorization(visit, patient, null, null, "OPEN", true));
+        assertFalse(service.authorize(actor, AccountRole.PATIENT, "study", "PATIENT_VIEW").allowed());
+        // The study must actually exist: an Incomplete visit does not open an order without a result.
+        when(visits.authorizeImagingHistory(visit, actor)).thenReturn(
+                new VisitHistoryAuthorization(visit, patient, null, null, "INCOMPLETE", true));
+        when(request.status()).thenReturn(ExecutionStatus.PENDING);
+        assertFalse(service.authorize(actor, AccountRole.PATIENT, "study", "PATIENT_VIEW").allowed());
+    }
+
+    @Test void releasedFindingsWithoutAPdfReportAreEnoughForAClosedVisit() {
+        history(null, null, patient);
+        when(patients.authorizePatientHistory(actor, patient)).thenReturn(new PatientHistoryAuthorization(patient, "SELF", true));
+        var report = mock(DiagnosticReportJpaEntity.class);
+        when(report.getId()).thenReturn(reportId);
+        when(report.getReportId()).thenReturn(null);
+        when(report.getFindingsText()).thenReturn("finding");
+        when(report.getState()).thenReturn(DiagnosticFindingsVersionState.COMPLETED);
+        when(report.getStudyRef()).thenReturn("study");
+        when(report.getVisitId()).thenReturn(visit);
+        when(reports.findFirstByRequestIdAndReleasedAtIsNotNullOrderByReportVersionDesc(requestId)).thenReturn(Optional.of(report));
+        assertTrue(service.authorize(actor, AccountRole.PATIENT, "study", "PATIENT_VIEW").allowed());
+    }
 }

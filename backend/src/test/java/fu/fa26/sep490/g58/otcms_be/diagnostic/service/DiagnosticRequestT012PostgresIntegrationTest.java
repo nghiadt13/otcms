@@ -556,7 +556,8 @@ class DiagnosticRequestT012PostgresIntegrationTest {
     static String releasePayloadSha256(FindingsReleaseEvent event) {
         String canonical = String.join("\n", event.eventId().toString(), event.requestId().toString(),
                 event.visitId().toString(), event.patientId().toString(), event.studyRef(),
-                event.findingsVersionId().toString(), event.reportId().toString(), event.reportSha256());
+                event.findingsVersionId().toString(), java.util.Objects.toString(event.reportId(), "<null>"),
+                java.util.Objects.toString(event.reportSha256(), "<null>"));
         try {
             return java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256")
                     .digest(canonical.getBytes(java.nio.charset.StandardCharsets.UTF_8)));

@@ -161,7 +161,8 @@ export async function listOrders(
             findingsText: past.findingsText ?? "",
             findingsVersion: past.findingsVersion,
             reportId: past.reportId,
-            findingsCompleted: !!past.reportId && past.findingsVersion !== null,
+            // Chỉ phiên bản đã hoàn tất mới có findingsVersion; PDF là tùy chọn nên reportId có thể null.
+            findingsCompleted: past.findingsVersion !== null,
           },
         }
       : order;
@@ -265,22 +266,25 @@ export async function saveFindings(
   };
 }
 
-/** Lưu nháp, đính tệp PDF báo cáo (BE đòi) rồi hoàn tất kết luận. */
+/** Lưu nháp, (tùy chọn) đính tệp PDF báo cáo rồi hoàn tất kết luận (UC-50: PDF không bắt buộc). */
 export async function completeFindings(
   order: ParaclinicalOrder,
   content: string,
   report: File | null,
 ): Promise<ImagingResult> {
-  if (!report) throw new ApiError(400, { code: "MSG-47" });
   const saved = await saveFindings(order, content);
   const base =
     `/api/v1/imaging-requests/${encodeURIComponent(saved.requestId)}` as const;
-  const form = new FormData();
-  form.append("file", report);
-  const uploaded = await apiRequest<{ reportId: string }>(
-    `${base}/reports?expectedVersion=${await currentVersion(saved.requestId)}`,
-    { method: "POST", headers: idem(), body: form },
-  );
+  let reportId: string | null = null;
+  if (report) {
+    const form = new FormData();
+    form.append("file", report);
+    const uploaded = await apiRequest<{ reportId: string }>(
+      `${base}/reports?expectedVersion=${await currentVersion(saved.requestId)}`,
+      { method: "POST", headers: idem(), body: form },
+    );
+    reportId = uploaded.reportId;
+  }
   await apiRequest<unknown>(`${base}/findings/completions`, {
     method: "POST",
     headers: {
@@ -289,14 +293,14 @@ export async function completeFindings(
     },
     body: JSON.stringify({
       findingsVersion: saved.findingsVersion,
-      reportId: uploaded.reportId,
+      reportId,
       studyRef: saved.studyRef,
     }),
   });
   return {
     ...saved,
     version: await currentVersion(saved.requestId),
-    reportId: uploaded.reportId,
+    reportId,
     findingsCompleted: true,
   };
 }

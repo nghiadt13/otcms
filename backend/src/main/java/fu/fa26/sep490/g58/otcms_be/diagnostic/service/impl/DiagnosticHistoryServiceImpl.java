@@ -20,7 +20,9 @@ import fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.enums.DiagnosticOpera
 import fu.fa26.sep490.g58.otcms_be.diagnostic.repository.DiagnosticReportJpaRepository;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.service.DiagnosticHistoryService;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 import org.springframework.beans.factory.ObjectProvider;
@@ -93,7 +95,14 @@ public class DiagnosticHistoryServiceImpl implements DiagnosticHistoryService {
         PageRequest pageable = PageRequest.of(page, size, Sort.by(Sort.Order.desc("createdAt"), Sort.Order.desc("id")));
         Page<ImagingExecution> result = requests.page(visitId, authorizedPatientId, null, null, null, false, pageable);
         List<DiagnosticHistoryItem> items = new ArrayList<>(result.getNumberOfElements());
-        for (ImagingExecution request : result.getContent()) items.add(toHistoryItem(request, actor.role()));
+        // UC-51: a patient sees the images of an Incomplete visit but never its findings, so the visit status is needed.
+        Map<UUID, String> visitStatuses = new HashMap<>();
+        for (ImagingExecution request : result.getContent()) {
+            String visitStatus = actor.role() == AccountRole.PATIENT
+                    ? visitStatuses.computeIfAbsent(request.visitId(), id -> authorizeVisitHistory(id, actor.accountId()).visitStatus())
+                    : null;
+            items.add(toHistoryItem(request, actor.role(), visitStatus));
+        }
         DiagnosticHistoryScope scope = visitId == null ? DiagnosticHistoryScope.PATIENT : DiagnosticHistoryScope.VISIT;
         UUID scopeId = visitId == null ? authorizedPatientId : visitId;
         historyAudits.record(AuditEntry.builder("diagnostic_history_access_audits", "DIAGNOSTIC", "VIEW_HISTORY", scope.name())
@@ -102,24 +111,27 @@ public class DiagnosticHistoryServiceImpl implements DiagnosticHistoryService {
         return new DiagnosticHistoryPage(items, page, size, result.getTotalElements());
     }
 
-    private DiagnosticHistoryItem toHistoryItem(ImagingExecution request, AccountRole actorRole) {
+    private DiagnosticHistoryItem toHistoryItem(ImagingExecution request, AccountRole actorRole, String visitStatus) {
         var status = fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.enums.DiagnosticRequestStatus.valueOf(request.status().name());
+        boolean hasStudy = request.status() == ClinicalServiceOrderExecutionPort.ExecutionStatus.RESULT_AVAILABLE
+                || request.status() == ClinicalServiceOrderExecutionPort.ExecutionStatus.REVIEWED;
         // A treating doctor must receive the linked study ref to open images before writing findings.
         // The viewer grant independently rechecks treating-doctor authorization and execution status.
-        String doctorStudyRef = actorRole == AccountRole.DOCTOR
-                && (request.status() == ClinicalServiceOrderExecutionPort.ExecutionStatus.RESULT_AVAILABLE
-                        || request.status() == ClinicalServiceOrderExecutionPort.ExecutionStatus.REVIEWED)
+        // UC-51: a patient also opens the images of an Incomplete visit, whose findings stay hidden.
+        boolean incompleteForPatient = actorRole == AccountRole.PATIENT && "INCOMPLETE".equals(visitStatus);
+        String imagesOnlyStudyRef = hasStudy && (actorRole == AccountRole.DOCTOR || incompleteForPatient)
                 ? request.studyRef() : null;
         DiagnosticReportJpaEntity report = reports.findFirstByRequestIdAndStateOrderByReportVersionDesc(
                 request.orderId(), DiagnosticFindingsVersionState.COMPLETED).orElse(null);
-        if (request.status() == ClinicalServiceOrderExecutionPort.ExecutionStatus.CANCELLED
+        // The PDF is optional (UC-50 AF2): a released version needs no report, but a report must be validated.
+        if (incompleteForPatient || request.status() == ClinicalServiceOrderExecutionPort.ExecutionStatus.CANCELLED
                 || report == null || report.getCompletedAt() == null || report.getReleasedAt() == null
-                || report.getReportId() == null
-                || report.getValidationStatus() != fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.enums.DiagnosticReportValidationStatus.VALIDATED
+                || (report.getReportId() != null
+                    && report.getValidationStatus() != fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.enums.DiagnosticReportValidationStatus.VALIDATED)
                 || !request.orderId().equals(report.getRequestId()) || !request.visitId().equals(report.getVisitId())
                 || !Objects.equals(request.studyRef(), report.getStudyRef())) {
             return new DiagnosticHistoryItem(request.orderId(), request.visitId(), request.imagingType(), status,
-                    doctorStudyRef, null, null, null);
+                    imagesOnlyStudyRef, null, null, null);
         }
         return new DiagnosticHistoryItem(request.orderId(), request.visitId(), request.imagingType(), status,
                 report.getStudyRef(), report.getVersionNumber(), report.getFindingsText(), report.getReportId());

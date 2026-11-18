@@ -18,6 +18,7 @@ import { ResultScreen, VisitScreen } from "./VisitScreens";
 import { NoticeScreen, ReferenceScreen } from "./ReferenceScreens";
 import { ClinicalRoundOrdersScreen } from "./ClinicalRoundOrdersScreen";
 import { AccountScreen } from "./AccountScreen";
+import { StaffRoomsScreen } from "@/components/rooms/StaffRoomsScreen";
 
 export function ReceptionScreen({ section, appointmentActions }: { section: ReceptionSection; appointmentActions?: ComponentType<{ appointment: ReceptionAppointment; onChanged: () => void }> }) {
   const { data, loading, error } = useReception();
@@ -50,6 +51,7 @@ export function ReceptionScreen({ section, appointmentActions }: { section: Rece
     case "results":
       return <ResultScreen />;
     case "rooms":
+      return <StaffRoomsScreen />;
     case "services":
     case "schedule":
       return <ReferenceScreen key={section} type={section} />;

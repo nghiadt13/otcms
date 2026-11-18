@@ -43,6 +43,23 @@ public class VisitDiagnosticReadAdapter implements VisitDiagnosticPort {
     }
 
     @Override
+    public VisitEvidence requireFindingsAccess(UUID visitId, UUID actorAccountId, UUID orderingDoctorAccountId) {
+        try {
+            return requireImagingOrderEligibility(visitId, actorAccountId);
+        } catch (DiagnosticOperationException notResponsible) {
+            // UC-50: the doctor who ordered the study keeps access after the visit moved to another doctor.
+            if (notResponsible.outcome() != DiagnosticOperationOutcome.UNAUTHORIZED_RECORD || actorAccountId == null
+                    || !actorAccountId.equals(orderingDoctorAccountId) || !accounts.isActiveDoctorAccount(actorAccountId)) {
+                throw notResponsible;
+            }
+            var context = visits.findClinicalCareContext(visitId)
+                    .orElseThrow(() -> failure(DiagnosticOperationOutcome.RECORD_NOT_FOUND));
+            return new VisitEvidence(context.visitId(), context.patientProfileId(), actorAccountId,
+                    context.visitOpen(), context.activeCareAssignmentId() != null, context.clinicalWorkAllowed());
+        }
+    }
+
+    @Override
     public VisitStatusAuthorization authorizeImagingStatus(UUID visitId, UUID actorAccountId,
             VisitStatusResponsibility responsibility) {
         if (responsibility != VisitStatusResponsibility.DOCTOR) throw failure(DiagnosticOperationOutcome.UNAUTHORIZED_RECORD);

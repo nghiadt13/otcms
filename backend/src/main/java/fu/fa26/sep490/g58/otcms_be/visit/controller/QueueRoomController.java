@@ -23,27 +23,27 @@ public class QueueRoomController {
     public QueueRoomController(QueueStateMachine queue) { this.queue = queue; }
 
     @PostMapping("/api/v1/queue/rooms/{roomId}/call-next")
-    @PreAuthorize("hasAnyAuthority('ROLE_RECEPTIONIST','ROLE_DOCTOR')")
+    @PreAuthorize("hasAnyAuthority('ROLE_RECEPTIONIST','ROLE_DOCTOR','ROLE_IMAGING_TECHNICIAN')")
     public QueueRoomDtos.Updated callNext(@PathVariable UUID roomId, @RequestParam String stage,
             @AuthenticationPrincipal AuthenticatedAccount actor) {
         return updated(queue.callNext(roomId, stage, actor));
     }
 
     @PostMapping("/api/v1/queue/entries/{id}/absence")
-    @PreAuthorize("hasAnyAuthority('ROLE_RECEPTIONIST','ROLE_DOCTOR')")
+    @PreAuthorize("hasAnyAuthority('ROLE_RECEPTIONIST','ROLE_DOCTOR','ROLE_IMAGING_TECHNICIAN')")
     public QueueRoomDtos.Updated absent(@PathVariable UUID id, @AuthenticationPrincipal AuthenticatedAccount actor) {
         return updated(queue.markAbsent(id, actor));
     }
 
     @PostMapping("/api/v1/queue/entries/{id}/return")
-    @PreAuthorize("hasAuthority('ROLE_RECEPTIONIST')")
+    @PreAuthorize("hasAnyAuthority('ROLE_RECEPTIONIST','ROLE_IMAGING_TECHNICIAN')")
     public QueueRoomDtos.Updated returnEntry(@PathVariable UUID id, @RequestBody QueueRoomDtos.ReturnRequest request,
             @AuthenticationPrincipal AuthenticatedAccount actor) {
         return updated(queue.returnFromAbsence(id, request.beforeEntryId(), request.reason(), actor));
     }
 
     @GetMapping("/api/v1/queue/rooms/{roomId}")
-    @PreAuthorize("hasAnyAuthority('ROLE_RECEPTIONIST','ROLE_DOCTOR')")
+    @PreAuthorize("hasAnyAuthority('ROLE_RECEPTIONIST','ROLE_DOCTOR','ROLE_IMAGING_TECHNICIAN')")
     public ResponseEntity<List<QueueRoomDtos.Entry>> room(@PathVariable UUID roomId, @RequestParam String stage,
             @AuthenticationPrincipal AuthenticatedAccount actor) {
         return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(queue.list(roomId, stage, actor));

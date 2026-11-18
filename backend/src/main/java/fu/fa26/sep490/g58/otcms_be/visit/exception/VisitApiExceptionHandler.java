@@ -23,6 +23,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
         fu.fa26.sep490.g58.otcms_be.visit.controller.StaffRoomQueryController.class,
         fu.fa26.sep490.g58.otcms_be.visit.controller.VisitReceptionReadController.class,
         fu.fa26.sep490.g58.otcms_be.visit.controller.QueueRoomController.class,
+        fu.fa26.sep490.g58.otcms_be.visit.controller.ServiceWorklistController.class,
         fu.fa26.sep490.g58.otcms_be.visit.controller.VisitExamQueueController.class,
         fu.fa26.sep490.g58.otcms_be.visit.controller.VisitLifecycleController.class
 })
@@ -32,7 +33,7 @@ public class VisitApiExceptionHandler {
     public ResponseEntity<ErrorResponse> handle(VisitOperationException exception, HttpServletRequest request) {
         HttpStatus status = switch (exception.code()) {
             case "MSG-40" -> HttpStatus.FORBIDDEN;
-            case "MSG-41" -> HttpStatus.NOT_FOUND;
+            case "MSG-41", "MSG-50" -> HttpStatus.NOT_FOUND;
             case "MSG-42" -> HttpStatus.CONFLICT;
             case "ACCESS_DENIED" -> HttpStatus.FORBIDDEN;
             case "RESOURCE_NOT_FOUND", "ROOM_NOT_FOUND" -> HttpStatus.NOT_FOUND;
