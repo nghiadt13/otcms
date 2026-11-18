@@ -63,6 +63,7 @@ public class SecurityConfig {
         cors.setAllowedOrigins(origins);
         cors.setAllowedMethods(List.of("GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         cors.setAllowedHeaders(List.of("Content-Type", "X-CSRF-TOKEN", "Authorization", "Idempotency-Key", "X-Correlation-ID"));
+        cors.addAllowedHeader("X-Expected-Version"); // optimistic-lock header sent by the doctor order cancellation
         cors.setExposedHeaders(List.of("X-Correlation-ID"));
         cors.setAllowCredentials(true);
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
