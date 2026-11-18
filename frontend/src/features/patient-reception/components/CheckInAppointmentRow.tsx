@@ -7,7 +7,7 @@ import {
   createAppointmentInvoice,
   type BillingInvoice,
 } from "@/lib/api/billingApi";
-import { messageFromError } from "@/lib/messages/appMessages";
+import { formatAppMessage, messageFromError } from "@/lib/messages/appMessages";
 import {
   checkInAppointment,
   recordManualReceptionArrival,
@@ -124,7 +124,7 @@ export function CheckInAppointmentRow({
       </div>
       {feeUnpaid && (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-md bg-muted p-3">
-          <p className="text-sm">Thu phí khám tại quầy trước khi tiếp nhận.</p>
+          <p className="text-sm">{formatAppMessage("MSG-94")}</p>
           <Button
             type="button"
             variant="outline"
