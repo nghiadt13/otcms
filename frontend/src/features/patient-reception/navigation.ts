@@ -138,6 +138,10 @@ const LIVE_RECEPTION_SECTIONS: ReadonlySet<ReceptionSection> =
     "rooms",
   ]);
 
+export function isLiveReceptionSection(section: ReceptionSection): boolean {
+  return LIVE_RECEPTION_SECTIONS.has(section);
+}
+
 /** Màn còn dữ liệu giả chỉ mở ở môi trường dev/test hoặc khi bật cờ demo ở production. */
 export function isReceptionSectionAvailable(
   section: ReceptionSection,

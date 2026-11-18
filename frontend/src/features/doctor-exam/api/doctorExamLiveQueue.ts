@@ -197,7 +197,7 @@ export async function getVisitContext(
 ): Promise<VisitContext> {
   const entry = await fetchExamQueueEntry(visitId);
   const base = await contextOf(visitId, entry, signal);
-  if (!base.patientProfileId) return base;
+  if (!base.patientProfileId || base.status === "COMPLETED") return base;
   try {
     const history = await getMedicalHistory(base.patientProfileId, signal);
     return {

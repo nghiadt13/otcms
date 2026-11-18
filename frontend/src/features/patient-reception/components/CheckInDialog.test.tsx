@@ -138,8 +138,10 @@ beforeEach(() => {
       method === "POST"
     ) {
       feePaid = true;
-      return {};
+      return { id: "pay-1" };
     }
+    if (path === "/api/v1/payments/pay-1/receipt")
+      return { receiptNumber: "RC-1", patientName: "Nguyễn Minh Anh", invoiceNumber: "OTC-1", confirmedAt: "2026-11-11T08:00:00Z", channel: "COUNTER", amount: 250000, items: [] };
     if (path === "/api/v1/reception/walk-in-suggestions")
       return {
         items: [
@@ -185,7 +187,7 @@ beforeEach(() => {
       path === "/api/v1/invoices/inv-walk/counter-payments" &&
       method === "POST"
     )
-      return {};
+      return { id: "pay-1" };
     if (path === "/api/v1/visits/v-walk/exam-queue-entry") return walkInEntry;
     throw new Error(`Unexpected request ${method} ${path}`);
   });
@@ -301,6 +303,10 @@ describe("CheckInDialog (tiếp nhận tại quầy)", () => {
       within(dialog).getByRole("button", { name: "Xác nhận thu tiền" }),
     );
 
+    const receipt = await screen.findByRole("dialog", { name: "Biên lai thu tiền" });
+    expect(await within(receipt).findByText("RC-1")).toBeInTheDocument();
+    await user.keyboard("{Escape}");
+
     await waitFor(() =>
       expect(request).toHaveBeenCalledWith(
         "/api/v1/invoices/inv-1/counter-payments",
@@ -364,6 +370,8 @@ describe("CheckInDialog (tiếp nhận tại quầy)", () => {
       within(dialog).getByRole("button", { name: "Xác nhận thu tiền" }),
     );
 
+    const receipt = await screen.findByRole("dialog", { name: "Biên lai thu tiền" });
+    expect(await within(receipt).findByText("RC-1")).toBeInTheDocument();
     await waitFor(() =>
       expect(toast.success).toHaveBeenCalledWith(
         "Đã tiếp nhận bệnh nhân. Số thứ tự 4, phòng Phòng 102.",

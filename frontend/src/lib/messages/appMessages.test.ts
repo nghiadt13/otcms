@@ -94,6 +94,10 @@ describe("formatAppMessage", () => {
 });
 
 describe("messageFromError", () => {
+  it("uses the HTTP status when no business code is provided", () => {
+    expect(messageFromError(new ApiError(404))).toBe(formatAppMessage("MSG-41"));
+    expect(messageFromError(new ApiError(403))).toBe(formatAppMessage("MSG-40"));
+  });
   it("ApiError có mã MSG trong bảng dùng câu của bảng", () => {
     const error = new ApiError(422, { code: "MSG-17" });
     expect(messageFromError(error)).toBe(

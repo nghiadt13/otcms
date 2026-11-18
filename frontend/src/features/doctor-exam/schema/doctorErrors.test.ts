@@ -28,6 +28,11 @@ describe("lỗi khu bác sĩ theo mã MSG của R3", () => {
     );
   });
 
+  it("phân biệt 404 UNAUTHORIZED_RECORD với 403", () => {
+    expect((normalizeDoctorError(new ApiError(404, { errorCode: "UNAUTHORIZED_RECORD" })) as ApiError).code).toBe("MSG-41");
+    expect((normalizeDoctorError(new ApiError(403, { errorCode: "UNAUTHORIZED_RECORD" })) as ApiError).code).toBe("MSG-40");
+  });
+
   it("câu cần đăng nhập giữ nguyên, lỗi đã có mã không bị đổi", () => {
     expect(
       doctorErrorMessage(new Error("Bạn cần đăng nhập để tiếp tục.")),
