@@ -1,6 +1,7 @@
 package fu.fa26.sep490.g58.otcms_be.clinical.service.resultsheet;
 
 import fu.fa26.sep490.g58.otcms_be.auth.service.PatientProfileDirectory;
+import fu.fa26.sep490.g58.otcms_be.clinical.service.ClinicalExamFieldRules;
 import fu.fa26.sep490.g58.otcms_be.clinical.service.ClinicalExaminationHistoryQueryService;
 import fu.fa26.sep490.g58.otcms_be.clinical.service.ClinicalPrescriptionHistoryQueryService;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.service.ResultSheetImagingQueryService;
@@ -51,8 +52,10 @@ public class ResultSheetSnapshotAssembler {
         lines.add("Triệu chứng: " + value(exam.symptoms()));
         lines.add("Khám lâm sàng: " + value(exam.examinationFindings()));
         lines.add("Bộ phận: " + value(exam.injuryBodySite()));
-        lines.add("Bên: " + value(exam.injurySide()));
+        lines.add("Bên: " + value(ClinicalExamFieldRules.sideLabel(exam.injurySide())));
         lines.add("Cơ chế: " + value(exam.injuryMechanism()));
+        lines.add("Mô tả chấn thương: " + value(exam.injuryDescription()));
+        lines.add("Hướng điều trị: " + value(ClinicalExamFieldRules.directionText(exam.treatmentDirections())));
         lines.add("Chẩn đoán ICD-10: " + (exam.diagnoses().isEmpty() ? "—" : String.join(", ", exam.diagnoses().stream().map(d -> d.code()).toList())));
         lines.add("II. CẬN LÂM SÀNG");
         lines.add("Xét nghiệm: —");

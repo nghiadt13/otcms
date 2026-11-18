@@ -1,5 +1,6 @@
 import type { ExaminationSection, Icd10Ref } from "../types/examinationResult";
 import { formatDate } from "@/lib/format/formatDate";
+import { injurySideLabel } from "@/lib/domain/injuryLabels";
 import { ResultFieldList } from "./ResultFieldList";
 
 /** ICD-10 hiện kèm tên, đúng chữ bác sĩ ghi: "M17.1 – Thoái hóa khớp gối nguyên phát". */
@@ -45,6 +46,18 @@ export function ExaminationBlock({
               empty="Không có"
             />
           ),
+        },
+        {
+          label: "Chấn thương",
+          value:
+            [
+              examination.injuryBodySite,
+              injurySideLabel(examination.injurySide),
+              examination.injuryMechanism,
+              examination.injuryDescription,
+            ]
+              .filter(Boolean)
+              .join(" · ") || "Chưa ghi nhận",
         },
         { label: "Hướng điều trị", value: examination.treatmentDirection },
         { label: "Lời dặn", value: examination.advice },

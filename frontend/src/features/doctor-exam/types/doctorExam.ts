@@ -74,6 +74,8 @@ export type ExaminationInput = {
   injuryBodySite: string;
   injurySide: string;
   injuryMechanism: string;
+  injuryDescription?: string;
+  treatmentDirections?: string[];
   diagnoses: Diagnosis[];
 };
 

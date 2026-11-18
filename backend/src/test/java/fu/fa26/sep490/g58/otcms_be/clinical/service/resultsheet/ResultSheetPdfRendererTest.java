@@ -24,6 +24,8 @@ class ResultSheetPdfRendererTest {
     void rendersVietnameseAndPatientNameAcrossPages() throws Exception {
         List<String> lines = new ArrayList<>();
         lines.add("Lý do khám: Đau khớp gối bên phải");
+        lines.add("Mô tả chấn thương: Sưng gối");
+        lines.add("Hướng điều trị: Chăm sóc tại nhà");
         lines.add("Xét nghiệm: —");
         for (int i = 0; i < 80; i++) lines.add("Lời dặn: Tái khám theo chỉ định của bác sĩ.");
         lines.add("Bác sĩ: Trần Thị Hương");
@@ -37,6 +39,8 @@ class ResultSheetPdfRendererTest {
             assertTrue(text.contains("Nguyễn Thị Ánh"), text);
             assertTrue(text.contains("Đau khớp gối bên phải"), text);
             assertTrue(text.contains("Xét nghiệm: —"), text);
+            assertTrue(text.contains("Mô tả chấn thương: Sưng gối"), text);
+            assertTrue(text.contains("Hướng điều trị: Chăm sóc tại nhà"), text);
             assertTrue(text.contains("Trần Thị Hương"), text);
         }
     }

@@ -58,8 +58,8 @@ class ResultAmendmentPostgresIntegrationTest {
     @Test void amendingCreatesVersionTwoReplacesVersionOneAuditsOldValuesAndNotifiesPatient() {
         Fixture f = closedVisit(false);
         var request = new AmendmentRequest(
-                new ExaminationRequest("Đau gối", "Đau khi đi", "Tràn dịch khớp", "Gối", "Trái", "Ngã",
-                        List.of(new DiagnosisRequest("m23.2", DiagnosisType.PRIMARY))),
+                new ExaminationRequest("Đau gối", "Đau khi đi", "Tràn dịch khớp", "Gối", "LEFT", "Ngã",
+                        List.of(new DiagnosisRequest("m23.2", DiagnosisType.PRIMARY)), "Sưng", List.of("HOME_CARE")),
                 new AdviceRequest("Chườm lạnh", null, null, null, "Tái khám sau 2 tuần", true), null,
                 "  Nhập nhầm chẩn đoán lúc khám  ");
 
@@ -127,7 +127,7 @@ class ResultAmendmentPostgresIntegrationTest {
         assertCode("MSG-39", () -> amendments.amend(f.doctorActor(), f.visit(), new AmendmentRequest(null, null, null, "Lý do")));
         // Invalid ICD-10 code: validated like completion, nothing is written.
         assertCode("MSG-39", () -> amendments.amend(f.doctorActor(), f.visit(), new AmendmentRequest(
-                new ExaminationRequest("a", "b", "c", null, null, null, List.of(new DiagnosisRequest("ZZZ", DiagnosisType.PRIMARY))), null, null, "Lý do")));
+                new ExaminationRequest("a", "b", "c", null, null, null, List.of(new DiagnosisRequest("ZZZ", DiagnosisType.PRIMARY)), null, null), null, null, "Lý do")));
         assertUntouched(f);
     }
 
@@ -170,6 +170,7 @@ class ResultAmendmentPostgresIntegrationTest {
                 visit, at, doctor, at, at);
         jdbc.update("insert into clinical_examinations (id, visit_id, reason_for_visit, symptoms, examination_findings, status, created_at, updated_at, version) values (?, ?, ?, ?, ?, 'COMPLETED', ?, ?, 0)",
                 examination, visit, "Đau gối", "Đau khi đi", "Sưng", at, at);
+        jdbc.update("update clinical_examinations set injury_body_site = 'Gối', injury_side = 'LEFT', injury_mechanism = 'Ngã', injury_description = 'Sưng', treatment_directions = ARRAY['HOME_CARE'] where id = ?", examination);
         jdbc.update("insert into clinical_examination_diagnoses (id, examination_id, code, type) values (?, ?, 'M25.5', 'PRIMARY')",
                 UUID.randomUUID(), examination);
         if (withPrescription) {

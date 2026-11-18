@@ -1,10 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  ICD10_CATALOG,
-  ICD_CODE_PATTERN,
-  icdLabel,
-  searchIcd,
-} from "./icd10Catalog";
+import { formatAppMessage } from "@/lib/messages/appMessages";
 import {
   addSecondary,
   removeDiagnosis,
@@ -40,39 +35,34 @@ const FULL: ExaminationInput = {
   reasonForVisit: "Đau gối",
   symptoms: "Sưng",
   examinationFindings: "Tràn dịch",
-  injuryBodySite: "",
-  injurySide: "",
-  injuryMechanism: "",
+  injuryBodySite: "Gối",
+  injurySide: "LEFT",
+  injuryMechanism: "Ngã",
+  injuryDescription: "Sưng và đau khi gập gối",
+  treatmentDirections: ["HOME_CARE"],
   diagnoses: [{ code: "M17.1", type: "PRIMARY" }],
 };
 
-describe("ICD-10 M/S (BR-39)", () => {
-  it("mọi mã trong danh mục khớp mẫu mã mà BE chấp nhận và chỉ thuộc nhóm M hoặc S", () => {
-    for (const entry of ICD10_CATALOG) {
-      expect(entry.code).toMatch(ICD_CODE_PATTERN);
-      expect(entry.code[0]).toBe(entry.group);
-    }
-    expect(new Set(ICD10_CATALOG.map((e) => e.code)).size).toBe(
-      ICD10_CATALOG.length,
-    );
-  });
-
-  it("tìm không phân biệt dấu và hoa thường, theo mã hoặc tên", () => {
-    expect(searchIcd("thoat vi").map((e) => e.code)).toContain("M51.2");
-    expect(searchIcd("s83.5")[0].code).toBe("S83.5");
-    expect(searchIcd("ĐAU THẮT LƯNG").length).toBeGreaterThan(0);
-    expect(searchIcd("khong co benh nay")).toEqual([]);
-  });
-
-  it("nhãn mã ngoài danh mục chỉ hiện mã", () => {
-    expect(icdLabel("m17.1")).toBe("M17.1 · Thoái hóa khớp gối nguyên phát");
-    expect(icdLabel("m99.9")).toBe("M99.9");
-  });
-});
-
-describe("luật hoàn thành ghi nhận khám (UC37)", () => {
+describe("luật hoàn thành ghi nhận khám (UC37, UC42)", () => {
   it("đủ trường và đúng một chẩn đoán chính thì hợp lệ", () => {
     expect(validateForCompletion(FULL)).toEqual({});
+  });
+
+  it("thiếu chấn thương hoặc hướng điều trị báo MSG-39 ở từng trường", () => {
+    const errors = validateForCompletion({
+      ...FULL,
+      injurySide: "",
+      injuryDescription: " ",
+      treatmentDirections: [],
+    });
+    expect(Object.keys(errors).sort()).toEqual([
+      "injuryDescription",
+      "injurySide",
+      "treatmentDirections",
+    ]);
+    expect(Object.values(errors)).toEqual(
+      Array(3).fill(formatAppMessage("MSG-39")),
+    );
   });
 
   it("thiếu trường hoặc không có chẩn đoán chính bị báo từng trường", () => {

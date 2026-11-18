@@ -1,7 +1,9 @@
 "use client";
 
 import { Plus, X } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { apiRequest } from "@/lib/api/client";
+import { formatAppMessage } from "@/lib/messages/appMessages";
 import { FieldError } from "@/components/admin/FieldError";
 import { Button } from "@/components/ui/button";
 import {
@@ -23,10 +25,20 @@ import {
   removeDiagnosis,
   setPrimary,
 } from "../schema/examinationRules";
-import { icdLabel, searchIcd } from "../schema/icd10Catalog";
+import type { IcdEntry } from "../schema/icd10Catalog";
 import type { Diagnosis } from "../types/doctorExam";
 
 // Chọn chẩn đoán ICD-10 nhóm M và S (BR-39): một chẩn đoán chính, nhiều chẩn đoán phụ.
+// Danh mục lấy từ BE; lỗi tải hiển thị MSG-04 và khóa nút chọn.
+
+/** Chuẩn hoá để tìm không phân biệt hoa thường và dấu tiếng Việt. */
+function foldText(text: string): string {
+  return text
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "")
+    .replace(/đ/g, "d")
+    .toLowerCase();
+}
 
 function IcdSearchPopover({
   label,
@@ -34,17 +46,22 @@ function IcdSearchPopover({
   disabled,
   variant,
   onPick,
+  entries,
 }: {
   label: string;
   taken: readonly string[];
   disabled?: boolean;
   variant: "default" | "outline";
   onPick: (code: string) => void;
+  entries: readonly IcdEntry[];
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
-  const matches = searchIcd(query).filter(
-    (entry) => !taken.includes(entry.code),
+  const needle = foldText(query.trim());
+  const matches = entries.filter(
+    (entry) =>
+      !taken.includes(entry.code) &&
+      foldText(`${entry.code} ${entry.name}`).includes(needle),
   );
   return (
     <Popover
@@ -112,12 +129,33 @@ export function IcdDiagnosisPicker({
   error?: string;
   disabled?: boolean;
 }) {
+  const [entries, setEntries] = useState<IcdEntry[]>([]);
+  const [catalogError, setCatalogError] = useState(false);
+  useEffect(() => {
+    const controller = new AbortController();
+    apiRequest<IcdEntry[]>("/api/v1/clinical/icd10-codes", {
+      signal: controller.signal,
+    })
+      .then(setEntries)
+      .catch(() => {
+        if (!controller.signal.aborted) setCatalogError(true);
+      });
+    return () => controller.abort();
+  }, []);
+  const icdLabel = (code: string) => {
+    const entry = entries.find((item) => item.code === code.toUpperCase());
+    return entry ? `${entry.code} · ${entry.name}` : code.toUpperCase();
+  };
   const primary = primaryDiagnosis(value);
   const secondary = value.filter((d) => d.type === "SECONDARY");
   const taken = value.map((d) => d.code);
+  const catalogUnavailable = catalogError || entries.length === 0;
 
   return (
     <div className="space-y-4">
+      {catalogError ? (
+        <FieldError message={formatAppMessage("MSG-04")} />
+      ) : null}
       <div>
         <p className="text-sm font-medium">Chẩn đoán chính</p>
         {primary ? (
@@ -142,7 +180,8 @@ export function IcdDiagnosisPicker({
             label={primary ? "Đổi chẩn đoán chính" : "Chọn chẩn đoán chính"}
             variant={primary ? "outline" : "default"}
             taken={taken.filter((code) => code !== primary?.code)}
-            disabled={disabled}
+            disabled={disabled || catalogUnavailable}
+            entries={entries}
             onPick={(code) => onChange(setPrimary(value, code))}
           />
         </div>
@@ -180,7 +219,8 @@ export function IcdDiagnosisPicker({
             label="Thêm chẩn đoán phụ"
             variant="outline"
             taken={taken}
-            disabled={disabled}
+            disabled={disabled || catalogUnavailable}
+            entries={entries}
             onPick={(code) => onChange(addSecondary(value, code))}
           />
         </div>

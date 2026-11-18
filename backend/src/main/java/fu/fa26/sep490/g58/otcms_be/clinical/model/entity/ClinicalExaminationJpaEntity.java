@@ -3,6 +3,7 @@ package fu.fa26.sep490.g58.otcms_be.clinical.model.entity;
 import fu.fa26.sep490.g58.otcms_be.clinical.model.ClinicalExaminationStatus;
 import jakarta.persistence.*;
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 @Entity @Table(name="clinical_examinations", uniqueConstraints=@UniqueConstraint(name="uk_clinical_exam_visit", columnNames="visit_id"))
@@ -15,6 +16,8 @@ public class ClinicalExaminationJpaEntity {
     @Column(name="injury_body_site", length=120) private String injuryBodySite;
     @Column(name="injury_side", length=24) private String injurySide;
     @Column(name="injury_mechanism", columnDefinition="text") private String injuryMechanism;
+    @Column(name="injury_description", columnDefinition="text") private String injuryDescription;
+    @Column(name="treatment_directions", columnDefinition="text[]") private String[] treatmentDirections;
     @Column(name="home_care_advice", columnDefinition="text") private String homeCareAdvice;
     @Column(name="activity_advice", columnDefinition="text") private String activityAdvice;
     @Column(name="rehabilitation_advice", columnDefinition="text") private String rehabilitationAdvice;
@@ -42,9 +45,15 @@ public class ClinicalExaminationJpaEntity {
         followUpRecommendation=followUp;
         updatedAt=now;
     }
+    /** Ghi mô tả chấn thương và hướng điều trị; giá trị đã qua ClinicalExamFieldRules (cắt khoảng trắng, kiểm tra). */
+    public void setExamFields(String description, List<String> directions) {
+        injuryDescription=description;
+        treatmentDirections=directions==null?null:directions.toArray(String[]::new);
+    }
     public UUID getId(){return id;} public UUID getVisitId(){return visitId;} public String getReasonForVisit(){return reasonForVisit;}
     public String getSymptoms(){return symptoms;} public String getExaminationFindings(){return examinationFindings;} public String getInjuryBodySite(){return injuryBodySite;}
-    public String getInjurySide(){return injurySide;} public String getInjuryMechanism(){return injuryMechanism;} public ClinicalExaminationStatus getStatus(){return status;}
+    public String getInjurySide(){return injurySide;} public String getInjuryMechanism(){return injuryMechanism;} public String getInjuryDescription(){return injuryDescription;}
+    public String[] getTreatmentDirections(){return treatmentDirections;} public ClinicalExaminationStatus getStatus(){return status;}
     public String getHomeCareAdvice(){return homeCareAdvice;} public String getActivityAdvice(){return activityAdvice;}
     public String getRehabilitationAdvice(){return rehabilitationAdvice;} public String getWarningSigns(){return warningSigns;}
     public String getFollowUpRecommendation(){return followUpRecommendation;}

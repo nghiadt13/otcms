@@ -38,7 +38,7 @@ class ClinicalExaminationServiceImplTest {
     @Test
     void createsIncompleteDraftAndAllowsResponsibleDoctor() {
         var result = service.saveDraft(new ClinicalExaminationService.ExaminationCommand(
-                visitId, doctorId, null, null, null, null, null, null, List.of()));
+                visitId, doctorId, null, null, null, null, null, null, List.of(), null, null));
         assertEquals(ClinicalExaminationStatus.DRAFT, result.status());
         assertNull(result.reasonForVisit());
         verify(examinations).save(any());
@@ -46,11 +46,11 @@ class ClinicalExaminationServiceImplTest {
 
     @Test
     void updatingDraftUsesOneLogicalExaminationForVisit() {
-        var first = service.saveDraft(command(null, List.of()));
+        var first = service.saveDraft(command(null, null));
         when(examinations.findByVisitId(visitId)).thenReturn(Optional.of(savedExamination));
 
         var second = service.saveDraft(new ClinicalExaminationService.ExaminationCommand(
-                visitId, doctorId, "Pain", null, null, null, null, null, List.of()));
+                visitId, doctorId, "Pain", null, null, null, null, null, List.of(), null, null));
 
         assertEquals(first.id(), second.id());
         assertEquals("Pain", second.reasonForVisit());
@@ -58,9 +58,26 @@ class ClinicalExaminationServiceImplTest {
     }
 
     @Test
+    void draftKeepsPartialInjuryWithoutSideOrDirections() {
+        var result = service.saveDraft(new ClinicalExaminationService.ExaminationCommand(
+                visitId, doctorId, "Pain", null, null, " Knee ", null, null, List.of(), "  ", List.of()));
+        assertEquals("Knee", result.injuryBodySite());
+        assertNull(result.injurySide());
+        assertNull(result.injuryDescription());
+        assertNull(result.treatmentDirections());
+    }
+
+    @Test
+    void draftRejectsSideLabelsBecauseTheColumnStoresCodes() {
+        var label = command("Pain", List.of(), "Knee", "Trái", "Twist", "Pain", List.of("HOME_CARE"));
+        assertEquals("MSG-39", assertThrows(ClinicalOperationException.class, () -> service.saveDraft(label)).code());
+        verify(examinations, never()).save(any());
+    }
+
+    @Test
     void unrelatedDoctorIsRejected() {
         var command = new ClinicalExaminationService.ExaminationCommand(
-                visitId, UUID.randomUUID(), null, null, null, null, null, null, List.of());
+                visitId, UUID.randomUUID(), null, null, null, null, null, null, List.of(), null, null);
         assertEquals("MSG-40", assertThrows(ClinicalOperationException.class, () -> service.saveDraft(command)).code());
         verifyNoInteractions(examinations, diagnoses);
     }
@@ -70,7 +87,7 @@ class ClinicalExaminationServiceImplTest {
         var result = service.completeExamination(command("M25.5", List.of(
                 new ClinicalExaminationService.Diagnosis("M25.5", DiagnosisType.PRIMARY),
                 new ClinicalExaminationService.Diagnosis("S83.5", DiagnosisType.SECONDARY),
-                new ClinicalExaminationService.Diagnosis("M17", DiagnosisType.SECONDARY))));
+                new ClinicalExaminationService.Diagnosis("M17.1", DiagnosisType.SECONDARY))));
         assertEquals(ClinicalExaminationStatus.COMPLETED, result.status());
         assertEquals(3, result.diagnoses().size());
         verify(diagnoses, times(3)).save(any());
@@ -83,21 +100,43 @@ class ClinicalExaminationServiceImplTest {
     }
 
     @Test
+    void rejectsWellFormedCodeOutsideCatalog() {
+        var command = command("Pain", List.of(new ClinicalExaminationService.Diagnosis("M99.9", DiagnosisType.PRIMARY)));
+        assertEquals("MSG-39", assertThrows(ClinicalOperationException.class, () -> service.completeExamination(command)).code());
+        verify(examinations, never()).save(any());
+    }
+
+    @Test
     void completedExaminationRequiresExactlyOnePrimaryDiagnosis() {
         assertThrows(ClinicalOperationException.class, () -> service.completeExamination(command("", List.of())));
-        assertThrows(ClinicalOperationException.class, () -> service.completeExamination(command("M25", List.of(
-                new ClinicalExaminationService.Diagnosis("M25", DiagnosisType.PRIMARY),
-                new ClinicalExaminationService.Diagnosis("S83", DiagnosisType.PRIMARY)))));
-        assertThrows(ClinicalOperationException.class, () -> service.completeExamination(command("M25", List.of(
-                new ClinicalExaminationService.Diagnosis("M25", DiagnosisType.SECONDARY)))));
+        assertThrows(ClinicalOperationException.class, () -> service.completeExamination(command("M25.5", List.of(
+                new ClinicalExaminationService.Diagnosis("M25.5", DiagnosisType.PRIMARY),
+                new ClinicalExaminationService.Diagnosis("S83.5", DiagnosisType.PRIMARY)))));
+        assertThrows(ClinicalOperationException.class, () -> service.completeExamination(command("M25.5", List.of(
+                new ClinicalExaminationService.Diagnosis("M25.5", DiagnosisType.SECONDARY)))));
     }
 
     @Test
     void completedExaminationRequiresClinicalFields() {
         var invalid = new ClinicalExaminationService.ExaminationCommand(
-                visitId, doctorId, "Reason", "Symptoms", " ", null, null, null,
-                List.of(new ClinicalExaminationService.Diagnosis("M25", DiagnosisType.PRIMARY)));
+                visitId, doctorId, "Reason", "Symptoms", " ", "Knee", "LEFT", "Twist",
+                List.of(new ClinicalExaminationService.Diagnosis("M25.5", DiagnosisType.PRIMARY)), "Pain", List.of("HOME_CARE"));
         assertEquals("MSG-39", assertThrows(ClinicalOperationException.class, () -> service.completeExamination(invalid)).code());
+    }
+
+    @Test
+    void completionRequiresBodySiteSideMechanismDescriptionAndDirections() {
+        var primary = List.of(new ClinicalExaminationService.Diagnosis("M25.5", DiagnosisType.PRIMARY));
+        var invalidCommands = List.of(
+                command("Pain", primary, null, "LEFT", "Twist", "Pain", List.of("HOME_CARE")),
+                command("Pain", primary, "Knee", null, "Twist", "Pain", List.of("HOME_CARE")),
+                command("Pain", primary, "Knee", "LEFT", null, "Pain", List.of("HOME_CARE")),
+                command("Pain", primary, "Knee", "LEFT", "Twist", null, List.of("HOME_CARE")),
+                command("Pain", primary, "Knee", "LEFT", "Twist", "Pain", List.of()));
+        for (var invalid : invalidCommands) {
+            assertEquals("MSG-39", assertThrows(ClinicalOperationException.class, () -> service.completeExamination(invalid)).code());
+        }
+        verify(examinations, never()).save(any());
     }
 
     @Test
@@ -122,7 +161,7 @@ class ClinicalExaminationServiceImplTest {
         assertEquals("MSG-40", assertThrows(ClinicalOperationException.class,
                 () -> service.getExamination(visitId, null)).code());
         var nullDoctor = new ClinicalExaminationService.ExaminationCommand(
-                visitId, null, null, null, null, null, null, null, null);
+                visitId, null, null, null, null, null, null, null, null, null, null);
         assertEquals("MSG-40", assertThrows(ClinicalOperationException.class,
                 () -> service.saveDraft(nullDoctor)).code());
         when(visits.getVisitContext(visitId)).thenReturn(new VisitClinicalContextPort.ClinicalVisitContext(
@@ -152,10 +191,10 @@ class ClinicalExaminationServiceImplTest {
     @Test
     void completedExaminationCanBeUpdatedWithExistingIdentity() {
         var first = service.completeExamination(command("Pain", List.of(
-                new ClinicalExaminationService.Diagnosis("M25", DiagnosisType.PRIMARY))));
+                new ClinicalExaminationService.Diagnosis("M25.5", DiagnosisType.PRIMARY))));
         when(examinations.findByVisitId(visitId)).thenReturn(Optional.of(savedExamination));
         var updated = service.completeExamination(command("Updated pain", List.of(
-                new ClinicalExaminationService.Diagnosis("S83", DiagnosisType.PRIMARY))));
+                new ClinicalExaminationService.Diagnosis("S83.5", DiagnosisType.PRIMARY))));
         assertEquals(first.id(), updated.id());
         assertEquals("Updated pain", updated.reasonForVisit());
         assertEquals(ClinicalExaminationStatus.COMPLETED, updated.status());
@@ -163,8 +202,13 @@ class ClinicalExaminationServiceImplTest {
 
     private ClinicalExaminationService.ExaminationCommand command(
             String reason, List<ClinicalExaminationService.Diagnosis> dx) {
-        return new ClinicalExaminationService.ExaminationCommand(visitId, doctorId,
-                reason == null ? "Reason" : reason, "Symptoms", "Findings", "Knee", "LEFT", "Twist", dx);
+        return command(reason, dx, "Knee", "LEFT", "Twist", "Pain", List.of("HOME_CARE"));
     }
 
+    private ClinicalExaminationService.ExaminationCommand command(String reason,
+            List<ClinicalExaminationService.Diagnosis> dx, String site, String side, String mechanism,
+            String description, List<String> directions) {
+        return new ClinicalExaminationService.ExaminationCommand(visitId, doctorId,
+                reason == null ? "Reason" : reason, "Symptoms", "Findings", site, side, mechanism, dx, description, directions);
+    }
 }

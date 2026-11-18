@@ -5,11 +5,6 @@ import { AdminFormField } from "@/components/admin/AdminFormField";
 import { FieldError } from "@/components/admin/FieldError";
 import { StatusBadge } from "@/components/admin/StatusBadge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import {
-  NativeSelect,
-  NativeSelectOption,
-} from "@/components/ui/native-select";
 import { Textarea } from "@/components/ui/textarea";
 import { ApiError } from "@/lib/api/apiError";
 import { notifyError } from "@/lib/messages/notify";
@@ -23,11 +18,10 @@ import {
 import type { Examination, ExaminationInput } from "../types/doctorExam";
 import { FormSection } from "./FormSection";
 import { IcdDiagnosisPicker } from "./IcdDiagnosisPicker";
+import { InjuryFields } from "./InjuryFields";
 
-// Form ghi nhận khám (UC37): lý do, triệu chứng, phát hiện khi khám, chấn thương, chẩn đoán ICD-10.
+// Form ghi nhận khám (UC37): lý do, triệu chứng, phát hiện khi khám, chấn thương, hướng điều trị (UC42), chẩn đoán ICD-10.
 // Lưu nháp không đòi gì (AF1); "Hoàn thành ghi nhận" cần đủ trường và đúng một chẩn đoán chính.
-
-const SIDES = ["Trái", "Phải", "Hai bên"] as const;
 
 const STATUS_LABEL = {
   DRAFT: ["info", "Bản nháp"],
@@ -126,38 +120,7 @@ export function ExaminationForm({
               />
               <FieldError message={errors.examinationFindings} />
             </AdminFormField>
-            <div className="grid gap-4 sm:grid-cols-3">
-              <AdminFormField id="site" label="Vị trí chấn thương">
-                <Input
-                  id="site"
-                  maxLength={120}
-                  value={input.injuryBodySite}
-                  onChange={(e) => set("injuryBodySite", e.target.value)}
-                />
-              </AdminFormField>
-              <AdminFormField id="side" label="Bên">
-                <NativeSelect
-                  id="side"
-                  className="w-full"
-                  value={input.injurySide}
-                  onChange={(e) => set("injurySide", e.target.value)}
-                >
-                  <NativeSelectOption value="">Không ghi</NativeSelectOption>
-                  {SIDES.map((side) => (
-                    <NativeSelectOption key={side} value={side}>
-                      {side}
-                    </NativeSelectOption>
-                  ))}
-                </NativeSelect>
-              </AdminFormField>
-              <AdminFormField id="mechanism" label="Cơ chế chấn thương">
-                <Input
-                  id="mechanism"
-                  value={input.injuryMechanism}
-                  onChange={(e) => set("injuryMechanism", e.target.value)}
-                />
-              </AdminFormField>
-            </div>
+            <InjuryFields input={input} errors={errors} onSet={set} />
           </FormSection>
         </div>
 

@@ -230,12 +230,13 @@ public class PatientVisitResultQueryServiceImpl implements PatientVisitResultQue
     private static ExaminationSection examination(ClinicalExaminationHistoryQueryService.CompletedRecord record) {
         var source = record.examination();
         List<Icd10Ref> primary = source.diagnoses().stream().filter(d -> d.type().name().equals("PRIMARY"))
-                .map(d -> new Icd10Ref(d.code(), "")).toList();
+                .map(d -> new Icd10Ref(d.code(), Icd10Catalog.nameOf(d.code()))).toList();
         List<Icd10Ref> secondary = source.diagnoses().stream().filter(d -> d.type().name().equals("SECONDARY"))
-                .map(d -> new Icd10Ref(d.code(), "")).toList();
+                .map(d -> new Icd10Ref(d.code(), Icd10Catalog.nameOf(d.code()))).toList();
         var advice = record.advice();
-        String direction = join(advice.homeCareAdvice(), advice.activityAdvice(), advice.rehabilitationAdvice());
-        String warnings = join(advice.warningSigns());
+        // "Hướng điều trị" là các hướng đã chọn (BR-40); lời dặn chăm sóc, hoạt động, phục hồi và dấu hiệu cảnh báo gom vào "Lời dặn".
+        String direction = ClinicalExamFieldRules.directionText(source.treatmentDirections());
+        String careAdvice = join(advice.homeCareAdvice(), advice.activityAdvice(), advice.rehabilitationAdvice(), advice.warningSigns());
         String followUpNote = null;
         if (Boolean.TRUE.equals(advice.followUpIndicated())) {
             followUpNote = advice.followUpRecommendation() == null || advice.followUpRecommendation().isBlank()
@@ -243,7 +244,8 @@ public class PatientVisitResultQueryServiceImpl implements PatientVisitResultQue
                     : advice.followUpRecommendation();
         }
         return new ExaminationSection(value(source.reasonForVisit()), value(source.symptoms()), value(source.examinationFindings()),
-                primary, secondary, direction, warnings, null, followUpNote);
+                primary, secondary, direction, careAdvice, null, followUpNote,
+                source.injuryBodySite(), source.injurySide(), source.injuryMechanism(), source.injuryDescription());
     }
 
     private static AdministrativeInfo administrative(ProfileRecord profile) {

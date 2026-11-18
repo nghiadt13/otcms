@@ -18,7 +18,8 @@ public final class ClinicalDtos {
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record ExaminationRequest(String reasonForVisit, String symptoms, String examinationFindings,
             @Size(max = 120) String injuryBodySite, @Size(max = 24) String injurySide,
-            String injuryMechanism, List<@NotNull @Valid DiagnosisRequest> diagnoses) { }
+            String injuryMechanism, List<@NotNull @Valid DiagnosisRequest> diagnoses,
+            String injuryDescription, List<String> treatmentDirections) { }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record DiagnosisRequest(String code, DiagnosisType type) { }
@@ -27,7 +28,8 @@ public final class ClinicalDtos {
 
     public record ExaminationResponse(UUID id, UUID visitId, String reasonForVisit, String symptoms,
             String examinationFindings, String injuryBodySite, String injurySide, String injuryMechanism,
-            ClinicalExaminationStatus status, List<DiagnosisResponse> diagnoses, Long version) { }
+            ClinicalExaminationStatus status, List<DiagnosisResponse> diagnoses, Long version,
+            String injuryDescription, List<String> treatmentDirections) { }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record AdviceRequest(String homeCareAdvice, String activityAdvice, String rehabilitationAdvice,

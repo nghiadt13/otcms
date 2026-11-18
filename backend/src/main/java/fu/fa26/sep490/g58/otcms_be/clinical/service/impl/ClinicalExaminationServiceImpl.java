@@ -12,8 +12,21 @@ import java.time.Clock; import java.time.Instant; import java.util.*; import jav
   if(c==null)throw new ClinicalOperationException("MSG-39");
   guard.acquire();
   var ctx=requireResponsibleDoctor(c.visitId(),c.doctorId());
-  if(!ctx.clinicalWorkAllowed())throw new ClinicalOperationException("MSG-42"); var ds=c.diagnoses()==null?List.<Diagnosis>of():c.diagnoses(); if(status==ClinicalExaminationStatus.COMPLETED){if(blank(c.reasonForVisit())||blank(c.symptoms())||blank(c.examinationFindings())||ds.stream().filter(d->d!=null&&d.type()==DiagnosisType.PRIMARY).count()!=1||ds.stream().anyMatch(d->d==null||d.type()==null||d.code()==null||!ICD.matcher(d.code()).matches()))throw new ClinicalOperationException("MSG-39");}
- Instant now=clock.instant(); var e=exams.findByVisitId(c.visitId()).orElseGet(()->ClinicalExaminationJpaEntity.create(c.visitId(),c.reasonForVisit(),c.symptoms(),c.examinationFindings(),c.injuryBodySite(),c.injurySide(),c.injuryMechanism(),status,now)); e.update(c.reasonForVisit(),c.symptoms(),c.examinationFindings(),c.injuryBodySite(),c.injurySide(),c.injuryMechanism(),status,now); e=exams.save(e); diagnoses.deleteByExaminationId(e.getId()); for(var d:ds){if(d==null||d.type()==null||d.code()==null||!ICD.matcher(d.code()).matches())throw new ClinicalOperationException("MSG-39");diagnoses.save(new ClinicalDiagnosisJpaEntity(e.getId(),d.code().toUpperCase(Locale.ROOT),d.type()));} return view(e,ds); }
+  if(!ctx.clinicalWorkAllowed())throw new ClinicalOperationException("MSG-42");
+  var ds=c.diagnoses()==null?List.<Diagnosis>of():c.diagnoses();
+  boolean completed=status==ClinicalExaminationStatus.COMPLETED;
+  if(completed){if(blank(c.reasonForVisit())||blank(c.symptoms())||blank(c.examinationFindings())||ds.stream().filter(d->d!=null&&d.type()==DiagnosisType.PRIMARY).count()!=1||ds.stream().anyMatch(d->d==null||d.type()==null||d.code()==null||!Icd10Catalog.contains(d.code())))throw new ClinicalOperationException("MSG-39");}
+  ClinicalExamFieldRules.validate(c.injuryBodySite(),c.injurySide(),c.injuryMechanism(),c.injuryDescription(),c.treatmentDirections(),completed);
+  var site=ClinicalExamFieldRules.trimToNull(c.injuryBodySite()); var side=ClinicalExamFieldRules.trimToNull(c.injurySide()); var mechanism=ClinicalExamFieldRules.trimToNull(c.injuryMechanism());
+  Instant now=clock.instant();
+  var e=exams.findByVisitId(c.visitId()).orElseGet(()->ClinicalExaminationJpaEntity.create(c.visitId(),c.reasonForVisit(),c.symptoms(),c.examinationFindings(),site,side,mechanism,status,now));
+  e.update(c.reasonForVisit(),c.symptoms(),c.examinationFindings(),site,side,mechanism,status,now);
+  e.setExamFields(ClinicalExamFieldRules.trimToNull(c.injuryDescription()),ClinicalExamFieldRules.normalizeDirections(c.treatmentDirections()));
+  e=exams.save(e);
+  diagnoses.deleteByExaminationId(e.getId());
+  for(var d:ds){if(d==null||d.type()==null||d.code()==null||!Icd10Catalog.contains(d.code()))throw new ClinicalOperationException("MSG-39");diagnoses.save(new ClinicalDiagnosisJpaEntity(e.getId(),d.code().toUpperCase(Locale.ROOT),d.type()));}
+  return view(e,ds);
+ }
  @Override @Transactional(readOnly=true) public ExaminationView getExamination(UUID visitId,UUID doctorId){requireResponsibleDoctor(visitId,doctorId);return exams.findByVisitId(visitId).map(e->view(e,diagnoses.findByExaminationId(e.getId()).stream().map(d->new Diagnosis(d.getCode(),d.getType())).toList())).orElseThrow(()->new ClinicalOperationException("MSG-41"));}
  private VisitClinicalContextPort.ClinicalVisitContext requireResponsibleDoctor(UUID visitId,UUID doctorId){
   if(visitId==null)throw new ClinicalOperationException("MSG-39");
@@ -23,5 +36,6 @@ import java.time.Clock; import java.time.Instant; import java.util.*; import jav
   if(ctx.responsibleDoctorId()==null||!ctx.responsibleDoctorId().equals(doctorId))throw new ClinicalOperationException("MSG-40");
   return ctx;
  }
- private static boolean blank(String s){return s==null||s.isBlank();} private static ExaminationView view(ClinicalExaminationJpaEntity e,List<Diagnosis>d){return new ExaminationView(e.getId(),e.getVisitId(),e.getReasonForVisit(),e.getSymptoms(),e.getExaminationFindings(),e.getInjuryBodySite(),e.getInjurySide(),e.getInjuryMechanism(),e.getStatus(),List.copyOf(d),e.getVersion());}
+ private static boolean blank(String s){return s==null||s.isBlank();}
+ private static ExaminationView view(ClinicalExaminationJpaEntity e,List<Diagnosis>d){return new ExaminationView(e.getId(),e.getVisitId(),e.getReasonForVisit(),e.getSymptoms(),e.getExaminationFindings(),e.getInjuryBodySite(),e.getInjurySide(),e.getInjuryMechanism(),e.getStatus(),List.copyOf(d),e.getVersion(),e.getInjuryDescription(),e.getTreatmentDirections()==null?null:List.of(e.getTreatmentDirections()));}
 }

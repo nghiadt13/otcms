@@ -25,7 +25,8 @@ public final class PatientVisitResultDtos {
     public record Icd10Ref(String code, String title) { }
     public record ExaminationSection(String reason, String symptoms, String findings,
             List<Icd10Ref> primaryDiagnoses, List<Icd10Ref> secondaryDiagnoses,
-            String treatmentDirection, String advice, LocalDate followUpDate, String followUpNote) {
+            String treatmentDirection, String advice, LocalDate followUpDate, String followUpNote,
+            String injuryBodySite, String injurySide, String injuryMechanism, String injuryDescription) {
         public ExaminationSection {
             primaryDiagnoses = List.copyOf(primaryDiagnoses);
             secondaryDiagnoses = List.copyOf(secondaryDiagnoses);
