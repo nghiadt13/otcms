@@ -596,38 +596,6 @@ export async function executeReception(
       );
       break;
     }
-    case "transfer-doctor": {
-      const visit = find(s.visits, command.visitId);
-      requireActive(visit);
-      requireThat(command.reason.trim().length >= 5, "MSG-39", 400);
-      requireThat(find(s.doctors, visit.doctorId).absent, "MSG-42");
-      const doctor = onDuty(s).find((d) => d.id === command.doctorId);
-      requireThat(doctor, "MSG-41");
-      requireThat(
-        !s.queues.some((q) => q.visitId === visit.id && q.status === "serving"),
-        "MSG-42",
-      );
-      const before = visit.doctorId;
-      visit.doctorId = doctor.id;
-      for (const q of s.queues.filter(
-        (q) =>
-          q.visitId === visit.id &&
-          q.date === today(s) &&
-          activeQueue(q) &&
-          q.kind !== "service",
-      )) {
-        q.status = "closed";
-        addQueue(s, visit, doctor.roomId, q.kind, q.joinedAt);
-      }
-      history(
-        s,
-        "Chuyển bác sĩ phụ trách và gửi thông báo",
-        command.reason.trim(),
-        before,
-        doctor.id,
-      );
-      break;
-    }
     case "pay-cash": {
       const charges = selectedCharges(s, command.chargeIds),
         total = charges.reduce((n, c) => n + c.amount, 0);

@@ -34,6 +34,12 @@ describe("formatAppMessage", () => {
     );
   });
 
+  it("MSG-83 đúng nguyên văn R3 với {patientCode} và {change}", () => {
+    expect(
+      formatAppMessage("MSG-83", { patientCode: "BN-001", change: "chuyển sang bác sĩ Minh" }),
+    ).toBe("Lượt khám của bệnh nhân BN-001 có thay đổi: chuyển sang bác sĩ Minh. Vui lòng xem lại.");
+  });
+
   it("MSG-11 thay {accountRole} và {username} theo R3", () => {
     expect(
       formatAppMessage("MSG-11", {

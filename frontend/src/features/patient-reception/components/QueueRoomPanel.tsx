@@ -61,6 +61,7 @@ export function QueueRoomPanel({
   onCallNext,
   onAbsent,
   onReturn,
+  onTransferDoctor,
 }: {
   roomLabel: string;
   entries: RoomQueueEntry[];
@@ -69,6 +70,8 @@ export function QueueRoomPanel({
   onCallNext: () => void;
   onAbsent: (entry: RoomQueueEntry) => void;
   onReturn: (entry: RoomQueueEntry) => void;
+  /** Đổi bác sĩ phụ trách cho người đang chờ (UC-30). Không truyền thì không hiện nút. */
+  onTransferDoctor?: (entry: RoomQueueEntry) => void;
 }) {
   const groups = splitRoomEntries(entries);
   const nameOf = (entry: RoomQueueEntry) => itemOf(entry.visitId)?.patientName ?? "—";
@@ -123,7 +126,11 @@ export function QueueRoomPanel({
       <Section title="Đang chờ" count={groups.waiting.length}>
         <DataTable
           label={`Đang chờ ở ${roomLabel}`}
-          headers={["Thứ tự", "Số", "Bệnh nhân", "Nguồn"]}
+          headers={
+            onTransferDoctor
+              ? ["Thứ tự", "Số", "Bệnh nhân", "Nguồn", "Thao tác"]
+              : ["Thứ tự", "Số", "Bệnh nhân", "Nguồn"]
+          }
           empty="Không có bệnh nhân đang chờ."
           rows={groups.waiting.map((entry, index) => ({
             id: entry.id,
@@ -134,6 +141,19 @@ export function QueueRoomPanel({
               </span>,
               nameOf(entry),
               sourceLabel(itemOf(entry.visitId)?.source),
+              ...(onTransferDoctor
+                ? [
+                    <Button
+                      key="transfer"
+                      size="sm"
+                      variant="outline"
+                      disabled={busy}
+                      onClick={() => onTransferDoctor(entry)}
+                    >
+                      Đổi bác sĩ
+                    </Button>,
+                  ]
+                : []),
             ],
           }))}
         />

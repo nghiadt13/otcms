@@ -212,12 +212,6 @@ export type ReceptionCommand =
     }
   | { type: "move-room"; id: string; roomId: string; reason: string }
   | {
-      type: "transfer-doctor";
-      visitId: string;
-      doctorId: string;
-      reason: string;
-    }
-  | {
       type: "pay-cash";
       chargeIds: string[];
       cashReceived: number;

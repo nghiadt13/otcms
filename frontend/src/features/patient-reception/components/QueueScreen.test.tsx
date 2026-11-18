@@ -242,4 +242,16 @@ describe("QueueScreen (hàng chờ theo phòng, UC-32/UC-33)", () => {
 
     expect(await screen.findByText(/Chưa có bệnh nhân trong hàng chờ hôm nay/)).toBeInTheDocument();
   });
+
+  it("đổi bác sĩ ở hàng đang chờ mở hộp thoại đổi bác sĩ cho đúng lượt", async () => {
+    const user = userEvent.setup();
+    mount();
+
+    const waiting = await waitingTable();
+    await user.click(within(waiting).getAllByRole("button", { name: "Đổi bác sĩ" })[0]);
+
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText(/Bệnh nhân Trần Thu/)).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "Xác nhận đổi" })).toBeDisabled();
+  });
 });

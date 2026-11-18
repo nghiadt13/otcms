@@ -25,6 +25,7 @@ import {
   roomOptionsOf,
   splitRoomEntries,
 } from "../schema/roomQueueModel";
+import { AttendingDoctorTransferDialog } from "./AttendingDoctorTransferDialog";
 import { QueueReturnDialog } from "./QueueReturnDialog";
 import { QueueRoomPanel } from "./QueueRoomPanel";
 import { WalkInFeeStep } from "./WalkInFeeStep";
@@ -39,6 +40,7 @@ const REFRESH_MS = 15_000;
 export function QueueScreen() {
   const [items, setItems] = useState<ExamQueueItem[]>([]);
   const [roomId, setRoomId] = useState<string | null>(null);
+  const [transferring, setTransferring] = useState<RoomQueueEntry | null>(null);
   const [entries, setEntries] = useState<RoomQueueEntry[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -205,6 +207,7 @@ export function QueueScreen() {
                   void runRoomAction(() => markQueueEntryAbsent(entry.id))
                 }
                 onReturn={setReturning}
+                onTransferDoctor={setTransferring}
               />
             </section>
           ) : null}
@@ -243,6 +246,19 @@ export function QueueScreen() {
             setPaying(null);
             void load();
           }}
+        />
+      )}
+      {transferring && (
+        <AttendingDoctorTransferDialog
+          visitId={transferring.visitId}
+          patientName={itemOf(transferring.visitId)?.patientName ?? "—"}
+          currentDoctorProfileId={itemOf(transferring.visitId)?.doctorProfileId ?? ""}
+          onClose={() => setTransferring(null)}
+          onSaved={() => {
+            setTransferring(null);
+            void load();
+          }}
+          onFailed={() => void load()}
         />
       )}
       {returning && roomId && (
