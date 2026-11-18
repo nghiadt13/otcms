@@ -10,6 +10,10 @@ import org.springframework.data.repository.query.Param;
 public interface ClinicalPrescriptionRepository extends JpaRepository<ClinicalPrescriptionJpaEntity, UUID> {
     org.springframework.data.domain.Page<ClinicalPrescriptionJpaEntity> findByPatientProfileIdInAndStatus(
             Collection<UUID> patientIds, ClinicalPrescriptionStatus status, org.springframework.data.domain.Pageable pageable);
+    /** BR-35: the patient portal only lists prescriptions of visits that are already closed. */
+    org.springframework.data.domain.Page<ClinicalPrescriptionJpaEntity> findByPatientProfileIdInAndStatusAndVisitIdIn(
+            Collection<UUID> patientIds, ClinicalPrescriptionStatus status, Collection<UUID> visitIds,
+            org.springframework.data.domain.Pageable pageable);
     Optional<ClinicalPrescriptionJpaEntity> findByVisitId(UUID visitId);
     List<ClinicalPrescriptionJpaEntity> findByPatientProfileIdAndVisitIdInAndStatusOrderByIssuedAtDescIdDesc(
             UUID patientProfileId, Collection<UUID> visitIds, ClinicalPrescriptionStatus status);

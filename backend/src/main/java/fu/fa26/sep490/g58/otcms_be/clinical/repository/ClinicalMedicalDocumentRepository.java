@@ -19,11 +19,20 @@ public interface ClinicalMedicalDocumentRepository extends JpaRepository<Clinica
             insert into clinical_medical_documents (id, visit_id, patient_profile_id, document_type, title,
                 original_filename, media_type, byte_size, created_at, updated_at, version, source)
             values (:id, :visitId, :patientId, 'CLINIC_EXAMINATION_REPORT', 'Phiếu kết quả khám',
-                'phieu-ket-qua.pdf', 'application/pdf', :size, :now, :now, 1, 'GENERATED')
+                'phieu-ket-qua.pdf', 'application/pdf', :size, :now, :now, :version, 'GENERATED')
             on conflict (visit_id) where document_type = 'CLINIC_EXAMINATION_REPORT' and status = 'ACTIVE' do nothing
             """, nativeQuery = true)
     int insertGeneratedResultSheet(@Param("id") UUID id, @Param("visitId") UUID visitId,
-            @Param("patientId") UUID patientId, @Param("size") long size, @Param("now") Instant now);
+            @Param("patientId") UUID patientId, @Param("size") long size, @Param("now") Instant now,
+            @Param("version") long version);
+
+    /** Retires a result sheet version; the unique ACTIVE index requires this to run before the new version is inserted. */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query(value = """
+            update clinical_medical_documents set status = 'REPLACED', updated_at = :now
+            where id = :id and status = 'ACTIVE' and document_type = 'CLINIC_EXAMINATION_REPORT'
+            """, nativeQuery = true)
+    int markResultSheetReplaced(@Param("id") UUID id, @Param("now") Instant now);
 
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query(value = """

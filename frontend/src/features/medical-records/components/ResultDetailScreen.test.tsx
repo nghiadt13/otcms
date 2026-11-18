@@ -93,6 +93,26 @@ describe("ResultDetailScreen", () => {
     revokeUrl.mockRestore();
   });
 
+  it("sau khi bác sĩ sửa kết quả: hiện bản mới Hiện hành trước, bản cũ Đã thay thế và đều mở được bằng PDF có xác thực", async () => {
+    api.request.mockResolvedValue({
+      items: [
+        { documentId: "doc-2", version: 2, status: "ACTIVE", releasedAt: "2026-10-25T08:15:00+07:00" },
+        { documentId: "doc-1", version: 1, status: "REPLACED", releasedAt: "2026-10-24T08:15:00+07:00" },
+      ],
+    });
+    render(<ResultDetailScreen visitId="vis-an-done" />);
+    await screen.findByRole("link", { name: /Xem phiếu kết quả/ });
+    const links = screen.getAllByRole("link", { name: /phiên bản/ }).filter((link) => link.getAttribute("href")?.startsWith("/api/v1/medical-documents/"));
+    expect(links.map((link) => link.textContent)).toEqual([
+      expect.stringContaining("phiên bản 2"),
+      expect.stringContaining("phiên bản 1"),
+    ]);
+    expect(links.map((link) => link.getAttribute("href"))).toEqual([
+      "/api/v1/medical-documents/doc-2/content",
+      "/api/v1/medical-documents/doc-1/content",
+    ]);
+  });
+
   it("giữ kết quả khám khi tải phiếu thất bại và cho phép thử lại", async () => {
     api.request.mockRejectedValueOnce(new Error("network"));
     api.request.mockResolvedValueOnce({

@@ -97,6 +97,12 @@ export type Advice = AdviceInput & {
   version: number | null;
 };
 
+/** UC38: phần bác sĩ sửa sau khi lượt đã hoàn tất; phần vắng nghĩa là giữ nguyên. */
+export type AmendChanges = {
+  examination?: ExaminationInput;
+  advice?: AdviceInput;
+};
+
 export type ServiceKind = "IMAGING" | "LABORATORY";
 export type CatalogKind = "EXAMINATION" | ServiceKind;
 

@@ -92,6 +92,15 @@ public class ClinicalMedicalDocumentAccess {
         if (!examQueue.find(visitId).map(q -> doctorId.equals(q.doctorProfileId())).orElse(false)) throw error("MSG-40");
         return scope;
     }
+    /** UC-38: only the attending doctor of a CLOSED visit may amend its result. */
+    public Scope amendResult(AuthenticatedAccount actor, UUID visitId) {
+        UUID doctorId = doctors.requireDoctorProfile(actor);
+        if (visitId == null) throw error("MSG-39");
+        var visit = visitSources.find(visitId).orElseThrow(() -> error("MSG-41"));
+        if (!examQueue.find(visitId).map(q -> doctorId.equals(q.doctorProfileId())).orElse(false)) throw error("MSG-40");
+        if (!"CLOSED".equals(visit.status())) throw error("MSG-42");
+        return new Scope(visitId, visit.patientProfileId(), doctorId, AccountRole.DOCTOR);
+    }
     public Scope upload(AuthenticatedAccount actor, UUID visitId) {
         requireActor(actor);
         if (actor.accountRole() == AccountRole.DOCTOR) return doctor(actor, visitId);

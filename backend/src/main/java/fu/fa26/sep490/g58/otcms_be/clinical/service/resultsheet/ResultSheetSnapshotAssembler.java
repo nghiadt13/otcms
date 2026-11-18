@@ -34,7 +34,7 @@ public class ResultSheetSnapshotAssembler {
         this.prescriptions = prescriptions; this.imaging = imaging; this.doctors = doctors;
     }
 
-    public ResultSheetPdfRenderer.Snapshot assemble(UUID visitId, UUID doctorId, Instant issuedAt) {
+    public ResultSheetPdfRenderer.Snapshot assemble(UUID visitId, UUID doctorId, Instant issuedAt, long version) {
         var visit = visits.find(visitId).orElseThrow();
         var patient = patients.findProfile(visit.patientProfileId()).orElseThrow();
         var completed = examinations.findCompletedByVisitIds(List.of(visitId)).get(visitId);
@@ -73,7 +73,7 @@ public class ResultSheetSnapshotAssembler {
         lines.add("Tái khám: " + value(advice.followUpRecommendation()));
         lines.add("Bác sĩ: " + value(doctors.findDoctorNames(List.of(doctorId)).get(doctorId)));
         lines.add("Giờ phát hành: " + TIME.format(issuedAt));
-        lines.add("Phiên bản: 1");
+        lines.add("Phiên bản: " + version);
         return new ResultSheetPdfRenderer.Snapshot(value(patient.fullName()), lines);
     }
 

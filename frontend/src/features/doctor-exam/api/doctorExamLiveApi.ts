@@ -1,4 +1,3 @@
-import { ApiError } from "@/lib/api/apiError";
 import type { DoctorExamApi } from "./doctorExamApi";
 import * as clinical from "./doctorExamLiveClinical";
 import * as orders from "./doctorExamLiveOrders";
@@ -9,10 +8,6 @@ import * as records from "./doctorExamLivePastRecords";
 import * as resultSheets from "./doctorExamLiveResultSheets";
 
 // Live Clinical/Diagnostic integration. Laboratory results remain unavailable.
-
-const missing = (): never => {
-  throw new ApiError(501, { errorCode: "BACKEND_NOT_AVAILABLE" });
-};
 
 export const doctorLiveApi: DoctorExamApi = {
   capabilities: {
@@ -47,5 +42,5 @@ export const doctorLiveApi: DoctorExamApi = {
   savePrescription: prescription.savePrescription,
   listPastVisits: records.listPastVisits,
   listResultSheets: resultSheets.listResultSheets,
-  amendResult: async () => missing(),
+  amendResult: resultSheets.amendResult,
 };

@@ -147,6 +147,7 @@ export const APP_MESSAGES: Record<string, string> = {
   // MSG-83: R3 đặt {patient code} và {change} (có dấu cách); đổi thành {patientCode} vì formatAppMessage
   // chỉ thay tên tham số dạng \w+.
   "MSG-83": "Lượt khám của bệnh nhân {patientCode} có thay đổi: {change}. Vui lòng xem lại.",
+  "MSG-79": "Phiếu kết quả khám ngày {date} của {patientName} đã có phiên bản mới. Vui lòng xem lại.",
 };
 
 /** Thay `{tham số}` trong câu MSG. Tham số thiếu giữ nguyên để dễ phát hiện. */

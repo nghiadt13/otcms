@@ -21,6 +21,7 @@ public final class NotificationMessages {
     public static final String APPOINTMENT_REMINDER = "APPOINTMENT_REMINDER";
     public static final String FOLLOW_UP_REMINDER = "FOLLOW_UP_REMINDER";
     public static final String FOLLOW_UP_OVERDUE = "FOLLOW_UP_OVERDUE";
+    public static final String RESULT_SHEET_NEW_VERSION = "RESULT_SHEET_NEW_VERSION";
     private static final DateTimeFormatter TIME = DateTimeFormatter.ofPattern("dd/MM/uuuu 'lúc' HH:mm",
             Locale.forLanguageTag("vi-VN")).withZone(ZoneId.of("Asia/Ho_Chi_Minh"));
 
@@ -96,6 +97,12 @@ public final class NotificationMessages {
     }
     private static String patientName(String name) {
         return name == null || name.isBlank() ? "Bệnh nhân" : name.trim();
+    }
+    /** MSG-79: a completed visit's result sheet has a new version after a correction. */
+    public static NotificationMessage resultSheetNewVersion(UUID visitId, Instant visitAt, String patientName) {
+        return new NotificationMessage(RESULT_SHEET_NEW_VERSION, "Phiếu kết quả có phiên bản mới",
+                "Phiếu kết quả khám ngày " + DATE.format(visitAt) + " của " + patientName
+                + " đã có phiên bản mới. Vui lòng xem lại.", NotificationRelatedKind.VISIT, visitId);
     }
     private static NotificationMessage appointment(String type, String title, String content, UUID id) {
         return new NotificationMessage(type, title, content, NotificationRelatedKind.APPOINTMENT, id);

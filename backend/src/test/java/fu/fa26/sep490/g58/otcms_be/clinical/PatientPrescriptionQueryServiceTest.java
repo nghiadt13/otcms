@@ -15,6 +15,7 @@ import fu.fa26.sep490.g58.otcms_be.common.security.*;
 import fu.fa26.sep490.g58.otcms_be.content.service.ClinicContentService;
 import fu.fa26.sep490.g58.otcms_be.patient.service.PatientProfileAccessService;
 import fu.fa26.sep490.g58.otcms_be.staff.service.DoctorProfileIdentityQueryService;
+import fu.fa26.sep490.g58.otcms_be.visit.service.VisitReviewSourceService;
 import java.time.*;
 import java.util.*;
 import org.junit.jupiter.api.*;
@@ -32,10 +33,20 @@ class PatientPrescriptionQueryServiceTest {
     final VisitClinicalContextPort visits = mock(VisitClinicalContextPort.class);
     final ClinicalExaminationHistoryQueryService exams = mock(ClinicalExaminationHistoryQueryService.class);
     final ClinicContentService clinic = mock(ClinicContentService.class);
+    final VisitReviewSourceService visitSources = mock(VisitReviewSourceService.class);
     final PatientPrescriptionQueryService service = new PatientPrescriptionQueryServiceImpl(access, profiles, doctors,
-            prescriptions, items, visits, exams, clinic);
+            prescriptions, items, visits, exams, clinic, visitSources);
 
-    @BeforeEach void scope() { when(access.accessibleProfileIds(accountId)).thenReturn(Set.of(self, dependent)); }
+    @BeforeEach void scope() {
+        when(access.accessibleProfileIds(accountId)).thenReturn(Set.of(self, dependent));
+        when(visitSources.closedVisits(self)).thenReturn(List.of());
+        closedVisitOf(dependent);
+    }
+    void closedVisitOf(UUID patient) {
+        var closed = new VisitReviewSourceService.Source(visit, patient, "CLOSED", Instant.parse("2026-11-05T00:00:00Z"), "", "");
+        when(visitSources.closedVisits(patient)).thenReturn(List.of(closed));
+        when(visitSources.find(visit)).thenReturn(Optional.of(closed));
+    }
     PatientProfileDirectory.ProfileRecord profile(UUID patientId) {
         return new PatientProfileDirectory.ProfileRecord(patientId, patientId.equals(self) ? accountId : null,
                 "Patient", null, null, LocalDate.of(2000, 1, 1), "OTHER");
@@ -72,7 +83,7 @@ class PatientPrescriptionQueryServiceTest {
     @Test void listUsesAuthorizedIssuedDatabasePageAndBatchProjections() {
         var pageable = PageRequest.of(1, 2, Sort.by(Sort.Order.desc("issuedAt"), Sort.Order.desc("id")));
         var row = header(dependent, ClinicalPrescriptionStatus.ISSUED);
-        when(prescriptions.findByPatientProfileIdInAndStatus(Set.of(self, dependent), ClinicalPrescriptionStatus.ISSUED, pageable))
+        when(prescriptions.findByPatientProfileIdInAndStatusAndVisitIdIn(Set.of(self, dependent), ClinicalPrescriptionStatus.ISSUED, List.of(visit), pageable))
                 .thenReturn(new PageImpl<>(List.of(row), pageable, 3));
         when(profiles.findProfiles(List.of(dependent))).thenReturn(List.of(profile(dependent)));
         when(doctors.findDoctorNames(List.of(doctor))).thenReturn(Map.of(doctor, "Doctor"));
@@ -86,7 +97,7 @@ class PatientPrescriptionQueryServiceTest {
         verify(profiles, never()).findProfile(any());
     }
     @Test void outOfRangePagePreservesCountWithoutSecondaryQueries() {
-        when(prescriptions.findByPatientProfileIdInAndStatus(any(), any(), any()))
+        when(prescriptions.findByPatientProfileIdInAndStatusAndVisitIdIn(any(), any(), any(), any()))
                 .thenReturn(new PageImpl<>(List.of(), PageRequest.of(3, 20), 1));
         assertEquals(1, service.list(actor, null, 3, 20).totalItems());
         verifyNoInteractions(profiles, doctors, items);
@@ -124,5 +135,21 @@ class PatientPrescriptionQueryServiceTest {
         assertEquals("M25", result.diagnosis()); assertEquals("Historical Doctor", result.doctorName());
         assertEquals(dependent, result.patient().id()); assertEquals("Medicine", result.items().getFirst().medicine());
         assertNull(result.clinicName());
+    }
+    @Test void detailOfPrescriptionFromVisitThatIsNotClosedIsUnavailable() {
+        var row = header(self, ClinicalPrescriptionStatus.ISSUED);
+        when(prescriptions.findById(id)).thenReturn(Optional.of(row));
+        when(visits.getVisitContext(visit)).thenReturn(new VisitClinicalContextPort.ClinicalVisitContext(visit, self, doctor, true));
+        for (String status : List.of("IN_PROGRESS", "INCOMPLETE")) {
+            when(visitSources.find(visit)).thenReturn(Optional.of(new VisitReviewSourceService.Source(visit, self, status, Instant.now(), "", "")));
+            code("MSG-42", () -> service.detail(actor, id));
+        }
+        verifyNoInteractions(items, exams, clinic);
+    }
+    @Test void listShowsNothingWhenNoVisitIsClosed() {
+        when(visitSources.closedVisits(dependent)).thenReturn(List.of());
+        var result = service.list(actor, null, 0, 20);
+        assertEquals(0, result.totalItems()); assertTrue(result.items().isEmpty());
+        verifyNoInteractions(prescriptions);
     }
 }

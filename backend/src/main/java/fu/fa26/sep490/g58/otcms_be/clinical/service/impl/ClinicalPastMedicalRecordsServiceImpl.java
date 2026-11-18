@@ -83,7 +83,7 @@ public class ClinicalPastMedicalRecordsServiceImpl implements ClinicalPastMedica
         }
         var items = history.items().stream().map(v -> {
             var exam = exams.get(v.visitId());
-            return new HistoricalVisitRecord(v.visitId(), v.arrivedAt(), exam == null ? null : exam.examination(),
+            return new HistoricalVisitRecord(v.visitId(), v.arrivedAt(), v.status(), exam == null ? null : exam.examination(),
                     exam == null ? null : exam.advice(), rx.get(v.visitId()), docs.getOrDefault(v.visitId(), List.of()),
                     images.getOrDefault(v.visitId(), List.of()));
         }).toList();
