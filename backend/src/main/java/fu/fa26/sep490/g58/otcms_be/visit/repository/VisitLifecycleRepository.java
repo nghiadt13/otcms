@@ -66,7 +66,7 @@ public class VisitLifecycleRepository {
     public int closeServiceEntries(UUID visitId, Instant now) {
         return entityManager.createNativeQuery("""
                 update queue_entries set status = 'CANCELLED', finished_at = :now
-                where visit_id = :visitId and stage = 'SERVICE' and status not in ('COMPLETED', 'CANCELLED')
+                where visit_id = :visitId and stage in ('SERVICE', 'RESULT_REVIEW') and status not in ('COMPLETED', 'CANCELLED')
                 """).setParameter("visitId", visitId).setParameter("now", Timestamp.from(now)).executeUpdate();
     }
 

@@ -154,6 +154,45 @@ class DiagnosticFindingsT014PostgresIntegrationTest {
     }
 
     @Test
+    void findingsCompleteWithoutAPdfReport() {
+        DiagnosticRequestView request = resultAvailable();
+        findings.review(doctor(), request.requestId(), "review-nopdf", request.version(), studyRef, "corr-review");
+        long version = request.version() + 1;
+        DiagnosticFindingsView draft = findings.saveDraft(doctor(), request.requestId(), "draft-nopdf", version,
+                "No acute finding", "corr-draft");
+        DiagnosticFindingsReleaseView release = findings.complete(doctor(), request.requestId(), "complete-nopdf",
+                version, draft.version(), null, studyRef, "corr-complete");
+        assertEquals("RELEASED", release.releaseState());
+        assertNull(jdbc.queryForObject("select report_id from diagnostic_reports where id = ?", UUID.class,
+                draft.findingsVersionId()));
+        assertEquals("COMPLETED", jdbc.queryForObject("select state from diagnostic_reports where id = ?",
+                String.class, draft.findingsVersionId()));
+        assertNotNull(jdbc.queryForObject("select released_at from diagnostic_reports where id = ?",
+                java.sql.Timestamp.class, draft.findingsVersionId()));
+        assertTrue(completion.getCompletionEvidence(visitId, patientId, java.util.List.of(serviceOrderId)).allComplete());
+        // Replay with the same key stays idempotent.
+        assertEquals("RELEASED", findings.complete(doctor(), request.requestId(), "complete-nopdf", version,
+                draft.version(), null, studyRef, "corr-replay").releaseState());
+    }
+
+    @Test
+    void currentResponsibleDoctorWhoDidNotOrderCanRecordFindings() {
+        DiagnosticRequestView request = resultAvailable();
+        UUID attending = UUID.randomUUID();
+        ports.visits.put(visitId, new VisitEvidence(visitId, patientId, attending, true, true, true));
+        DiagnosticActor attendingDoctor = DiagnosticActor.user(attending, AccountRole.DOCTOR);
+        findings.review(attendingDoctor, request.requestId(), "review-attending", request.version(), studyRef, "corr-review");
+        long version = request.version() + 1;
+        DiagnosticFindingsView draft = findings.saveDraft(attendingDoctor, request.requestId(), "draft-attending", version,
+                "Healed fracture", "corr-draft");
+        assertEquals(1, draft.version());
+        // A doctor who neither ordered nor is responsible is still refused.
+        DiagnosticActor stranger = DiagnosticActor.user(UUID.randomUUID(), AccountRole.DOCTOR);
+        assertThrows(DiagnosticOperationException.class, () -> findings.saveDraft(stranger, request.requestId(),
+                "draft-stranger", version, "Other", "corr-draft"));
+    }
+
+    @Test
     void ownerReleaseFailureLeavesNewFindingsAndPdfPrivateForRetry() {
         DiagnosticRequestView request = resultAvailable();
         findings.review(doctor(), request.requestId(), "review-fail", request.version(), studyRef, "corr-review-fail");

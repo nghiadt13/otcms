@@ -51,7 +51,7 @@ public class DiagnosticPatientHistoryQueryServiceImpl implements DiagnosticPatie
         List<HistoricalImagingResult> results = rows.stream().filter(r -> {
             var report = latest.get(r.orderId());
             return report != null && report.getCompletedAt() != null && report.getReleasedAt() != null
-                    && report.getReportId() != null && report.getValidationStatus() == DiagnosticReportValidationStatus.VALIDATED
+                    && (report.getReportId() == null || report.getValidationStatus() == DiagnosticReportValidationStatus.VALIDATED)
                     && r.visitId().equals(report.getVisitId()) && Objects.equals(r.studyRef(), report.getStudyRef());
         }).map(r -> {
             var report = latest.get(r.orderId());

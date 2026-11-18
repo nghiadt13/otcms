@@ -135,6 +135,7 @@ const LIVE_RECEPTION_SECTIONS: ReadonlySet<ReceptionSection> =
     "orders",
     "payments",
     "payment-history",
+    "rooms",
   ]);
 
 /** Màn còn dữ liệu giả chỉ mở ở môi trường dev/test hoặc khi bật cờ demo ở production. */

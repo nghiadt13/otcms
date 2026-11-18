@@ -193,8 +193,9 @@ public class DiagnosticReportJpaEntity {
     }
     public void markCompleted(UUID reportId, Instant now) {
         requireDraft();
+        // The PDF report is optional (UC-50 AF2); when one is attached it must be the validated one.
         if (!java.util.Objects.equals(this.reportId, reportId)
-                || validationStatus != DiagnosticReportValidationStatus.VALIDATED) {
+                || (reportId != null && validationStatus != DiagnosticReportValidationStatus.VALIDATED)) {
             throw new IllegalStateException("A validated report is required");
         }
         state = DiagnosticFindingsVersionState.COMPLETED; completedAt = now; releasedAt = now;

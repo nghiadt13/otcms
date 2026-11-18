@@ -31,6 +31,12 @@ public interface BillingRefundService {
     void voidUnpaidServiceOrder(UUID serviceOrderId);
 
     /**
+     * The clinic could not perform a service order (D7): a PAID item becomes REFUND_PENDING, an unpaid one is voided.
+     * Idempotent; an order without a fee item is nothing to do. Joins the caller's transaction when there is one.
+     */
+    void requestRefundForServiceOrder(UUID serviceOrderId, String reason);
+
+    /**
      * The appointment will not take place and the clinic is not at fault (patient cancelled, no-show): its unpaid fee
      * item is voided; a paid fee stays paid (no refund, D7). Idempotent; no invoice is nothing to do.
      */

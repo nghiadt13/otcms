@@ -35,7 +35,7 @@ function WorkTable({
         <thead>
           <tr>
             <th className="p-3">Mã chỉ định</th>
-            <th className="p-3">Loại ảnh</th>
+            <th className="p-3">Dịch vụ</th>
             <th className="p-3">Trạng thái</th>
             <th className="p-3">Lượt chụp</th>
             <th className="min-w-64 p-3">Thao tác</th>
@@ -45,7 +45,12 @@ function WorkTable({
           {items.map((item) => (
             <tr key={item.requestId} className="border-t">
               <td className="p-3 font-mono text-xs sm:text-sm">{item.requestId}</td>
-              <td className="p-3">{item.imagingType}</td>
+              <td className="p-3">
+                {item.serviceName ?? item.imagingType}
+                {item.technicianInstructions ? (
+                  <small className="block text-muted-foreground">{item.technicianInstructions}</small>
+                ) : null}
+              </td>
               <td className="p-3">{item.status}</td>
               <td className="p-3">
                 {item.attemptId ? "Đã xác nhận" : "Chờ xác nhận bắt đầu chụp"}

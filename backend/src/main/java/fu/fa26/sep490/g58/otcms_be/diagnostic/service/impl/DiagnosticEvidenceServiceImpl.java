@@ -43,12 +43,16 @@ public class DiagnosticEvidenceServiceImpl implements DiagnosticEvidenceService 
     private final ObjectProvider<ImagingStudyPort> studyPorts;
     private final ObjectProvider<VisitDiagnosticPort> visitPorts;
     private final ObjectProvider<ClinicalImagingOrderPort> orderPorts;
+    private final ObjectProvider<fu.fa26.sep490.g58.otcms_be.visit.service.ServiceQueueService> serviceQueue;
+    private final ObjectProvider<fu.fa26.sep490.g58.otcms_be.visit.service.ResultReviewQueueService> resultReview;
 
     public DiagnosticEvidenceServiceImpl(ClinicalServiceOrderExecutionPort executions, AuditLogWriter auditWriter,
             DiagnosticAuthorizationPolicy authorization,
             ObjectProvider<FirstUseEvidencePort> firstUsePorts, ObjectProvider<ImagingStudyPort> studyPorts,
             ObjectProvider<VisitDiagnosticPort> visitPorts,
-            ObjectProvider<ClinicalImagingOrderPort> orderPorts) {
+            ObjectProvider<ClinicalImagingOrderPort> orderPorts,
+            ObjectProvider<fu.fa26.sep490.g58.otcms_be.visit.service.ServiceQueueService> serviceQueue,
+            ObjectProvider<fu.fa26.sep490.g58.otcms_be.visit.service.ResultReviewQueueService> resultReview) {
         this.executions = Objects.requireNonNull(executions, "executions");
         this.auditWriter = Objects.requireNonNull(auditWriter, "auditWriter");
         this.authorization = Objects.requireNonNull(authorization, "authorization");
@@ -56,6 +60,8 @@ public class DiagnosticEvidenceServiceImpl implements DiagnosticEvidenceService 
         this.studyPorts = Objects.requireNonNull(studyPorts, "studyPorts");
         this.visitPorts = Objects.requireNonNull(visitPorts, "visitPorts");
         this.orderPorts = Objects.requireNonNull(orderPorts, "orderPorts");
+        this.serviceQueue = Objects.requireNonNull(serviceQueue, "serviceQueue");
+        this.resultReview = Objects.requireNonNull(resultReview, "resultReview");
     }
 
     @Override
@@ -190,6 +196,9 @@ public class DiagnosticEvidenceServiceImpl implements DiagnosticEvidenceService 
         VisitDiagnosticPort visitPort = visitPorts.getIfAvailable();
         if (visitPort == null) throw dependencyUnavailable();
         visitPort.publishResultReady(updated.orderId(), updated.visitId(), evidence.eventId());
+        // UC-47 step 6: the stay in this room ends (next room follows), then NF-04 checks the whole round.
+        serviceQueue.ifAvailable(queue -> queue.complete(updated.orderId()));
+        resultReview.ifAvailable(review -> review.onOrderResultAvailable(updated.orderId()));
         recordAudit(evidence.eventId(), updated, "LINK_CONFIRMED_STUDY", null, "FEAT-004",
                 Instant.now(), correlationId, payload, DiagnosticOperationOutcome.ALLOWED);
         return toView(updated);

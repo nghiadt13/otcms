@@ -67,9 +67,11 @@ public class DiagnosticVisitCompletionEvidenceServiceImpl implements DiagnosticV
         return eligible.stream().filter(r -> {
             var report = latest.get(r.orderId());
             return report != null && r.visitId().equals(report.getVisitId()) && r.studyRef().equals(report.getStudyRef())
-                    && report.getCompletedAt() != null && report.getReportId() != null
-                    && report.getValidationStatus() == DiagnosticReportValidationStatus.VALIDATED
-                    && report.getValidatedAt() != null && report.getReleasedAt() != null;
+                    && report.getCompletedAt() != null && report.getReleasedAt() != null
+                    // The PDF report is optional (UC-50 AF2); an attached one must be validated.
+                    && (report.getReportId() == null
+                        || (report.getValidationStatus() == DiagnosticReportValidationStatus.VALIDATED
+                            && report.getValidatedAt() != null));
         }).map(ImagingExecution::orderId).collect(Collectors.toUnmodifiableSet());
     }
 }

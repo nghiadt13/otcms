@@ -46,15 +46,26 @@ public class DiagnosticStatusServiceImpl implements DiagnosticStatusService {
     private final ObjectProvider<? extends VisitDiagnosticReadPort> visitPorts;
     private final ObjectProvider<RoomStatusAccessPort> roomPorts;
     private final PatientClinicalIdentityQueryService patientIdentities;
+    private final ObjectProvider<fu.fa26.sep490.g58.otcms_be.clinical.service.ClinicalServiceOrderQueueService> orderDetails;
 
     public DiagnosticStatusServiceImpl(ClinicalServiceOrderExecutionPort requests,
             ObjectProvider<? extends VisitDiagnosticReadPort> visitPorts,
             ObjectProvider<RoomStatusAccessPort> roomPorts,
             PatientClinicalIdentityQueryService patientIdentities) {
+        this(requests, visitPorts, roomPorts, patientIdentities, null);
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public DiagnosticStatusServiceImpl(ClinicalServiceOrderExecutionPort requests,
+            ObjectProvider<? extends VisitDiagnosticReadPort> visitPorts,
+            ObjectProvider<RoomStatusAccessPort> roomPorts,
+            PatientClinicalIdentityQueryService patientIdentities,
+            ObjectProvider<fu.fa26.sep490.g58.otcms_be.clinical.service.ClinicalServiceOrderQueueService> orderDetails) {
         this.requests = Objects.requireNonNull(requests, "requests");
         this.visitPorts = Objects.requireNonNull(visitPorts, "visitPorts");
         this.roomPorts = Objects.requireNonNull(roomPorts, "roomPorts");
         this.patientIdentities = Objects.requireNonNull(patientIdentities, "patientIdentities");
+        this.orderDetails = orderDetails;
     }
 
     @Override
@@ -103,14 +114,19 @@ public class DiagnosticStatusServiceImpl implements DiagnosticStatusService {
         if (selected.isEmpty()) return new DiagnosticAssignedUploadWorkPage(selected, page, size, authorizedCount);
         var identities = patientIdentities.findClinicalIdentities(
                 selected.stream().map(DiagnosticAssignedUploadWorkItem::patientProfileId).distinct().toList());
+        var details = orderDetails == null || orderDetails.getIfAvailable() == null ? java.util.Map.<UUID, fu.fa26.sep490.g58.otcms_be.clinical.service.ClinicalServiceOrderQueueService.QueueOrder>of()
+                : orderDetails.getObject().findAll(selected.stream().map(DiagnosticAssignedUploadWorkItem::serviceOrderId).toList())
+                        .stream().collect(java.util.stream.Collectors.toMap(
+                                fu.fa26.sep490.g58.otcms_be.clinical.service.ClinicalServiceOrderQueueService.QueueOrder::orderId, o -> o));
         List<DiagnosticAssignedUploadWorkItem> enriched = selected.stream().map(item -> {
             var identity = identities.get(item.patientProfileId());
             if (identity == null || !item.patientProfileId().equals(identity.patientProfileId())) throw unavailable();
-            // Service name and technician instructions stay null until the clinical order port exposes them.
+            var detail = details.get(item.serviceOrderId());
             return new DiagnosticAssignedUploadWorkItem(item.requestId(), item.attemptId(), item.visitId(),
                     item.patientProfileId(), new DiagnosticPatientIdentity(identity.patientProfileId(),
                             identity.fullName(), identity.dateOfBirth(), identity.gender()),
-                    item.serviceOrderId(), item.currentStudyRef(), item.serviceId(), null, null,
+                    item.serviceOrderId(), item.currentStudyRef(), item.serviceId(),
+                    detail == null ? null : detail.serviceName(), detail == null ? null : detail.instructions(),
                     item.imagingType(), item.bodyArea(), item.clinicalReason(), item.roomId(), item.status(),
                     item.version(), item.createdAt(),
                     item.updatedAt());

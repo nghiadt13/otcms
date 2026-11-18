@@ -1,5 +1,5 @@
-import { RoomsScreen } from "@/features/imaging/components/RoomsScreen";
+import { StaffRoomsScreen } from "@/components/rooms/StaffRoomsScreen";
 
 export default function Page() {
-  return <RoomsScreen />;
+  return <StaffRoomsScreen />;
 }

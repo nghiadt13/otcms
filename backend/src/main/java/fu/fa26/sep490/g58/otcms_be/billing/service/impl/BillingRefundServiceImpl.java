@@ -90,6 +90,13 @@ public class BillingRefundServiceImpl implements BillingRefundService {
     }
 
     @Override
+    public void requestRefundForServiceOrder(UUID serviceOrderId, String reason) {
+        UUID itemId = serviceOrderId == null ? null
+                : items.findFirstByServiceOrderId(serviceOrderId).map(InvoiceItemJpaEntity::getId).orElse(null);
+        if (itemId != null) requestRefund(itemId, reason);
+    }
+
+    @Override
     public void voidUnpaidServiceOrder(UUID serviceOrderId) {
         UUID itemId = serviceOrderId == null ? null
                 : items.findFirstByServiceOrderId(serviceOrderId).map(InvoiceItemJpaEntity::getId).orElse(null);

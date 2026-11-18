@@ -14,6 +14,15 @@ import java.util.UUID;
 public interface VisitDiagnosticPort extends VisitDiagnosticReadPort {
     VisitEvidence requireImagingOrderEligibility(UUID visitId, UUID actorAccountId);
 
+    /**
+     * UC-50: access for recording findings. The current responsible doctor always qualifies; the ordering doctor
+     * ('orderingDoctorAccountId') qualifies even after the visit moved to another doctor. The returned evidence
+     * always carries the actor as treatingDoctorId. Default keeps the stricter responsible-doctor rule.
+     */
+    default VisitEvidence requireFindingsAccess(UUID visitId, UUID actorAccountId, UUID orderingDoctorAccountId) {
+        return requireImagingOrderEligibility(visitId, actorAccountId);
+    }
+
     NoShowDecision acceptDeferredNoShowCancellation(UUID requestId, UUID visitId,
             Instant deadline, UUID eventId);
 
