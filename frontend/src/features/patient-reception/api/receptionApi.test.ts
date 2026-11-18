@@ -428,27 +428,6 @@ describe("queues", () => {
       "bs-minh",
     );
   });
-  it("transfers clinical responsibility only from an absent doctor to one on duty", async () => {
-    await expect(
-      command({
-        type: "transfer-doctor",
-        visitId: "LK003",
-        doctorId: "bs-an",
-        reason: "Bàn giao cho bác sĩ trực",
-      }),
-    ).rejects.toThrow("MSG-42");
-    const state = seed();
-    state.doctors.find((d) => d.id === "bs-minh")!.absent = true;
-    resetReceptionMock(state);
-    const result = await command({
-      type: "transfer-doctor",
-      visitId: "LK003",
-      doctorId: "bs-an",
-      reason: "Bác sĩ phụ trách vắng ca",
-    });
-    expect(result.visits.find((v) => v.id === "LK003")?.doctorId).toBe("bs-an");
-    expect(result.audit).toHaveLength(1);
-  });
 });
 
 describe("cash, VNPay and immutable receipts", () => {

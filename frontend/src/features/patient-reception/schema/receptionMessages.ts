@@ -76,7 +76,6 @@ export function receptionFeedback(
     case "check-in":
       return checkInFeedback(command.patientId, next);
     case "move-room":
-    case "transfer-doctor":
       return success(formatAppMessage("MSG-43"));
     case "pay-cash":
       return success(

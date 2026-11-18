@@ -5,14 +5,13 @@ import { useSearchParams } from "next/navigation";
 import { Printer } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
-import { onDuty, normalizeText } from "../schema/receptionRules";
+import { normalizeText } from "../schema/receptionRules";
 import { receptionDemoExpiry } from "../api/receptionApi";
-import type { Visit, ResultSheet } from "../types";
+import type { ResultSheet } from "../types";
 import { useReception } from "./ReceptionProvider";
 import {
   DataTable,
   dateText,
-  FormActions,
   FormModal,
   InfoRow,
   PatientName,
@@ -23,67 +22,6 @@ import {
   timeText,
 } from "./ReceptionUi";
 
-function TransferDoctor({
-  visit,
-  onClose,
-}: {
-  visit: Visit;
-  onClose: () => void;
-}) {
-  const { data: s, run, pending } = useReception();
-  const [doctorId, setDoctor] = useState("");
-  const [reason, setReason] = useState("");
-  return (
-    <FormModal
-      title="Chuyển bác sĩ phụ trách"
-      description="Chuyển lượt khám khi bác sĩ phụ trách vắng. Bác sĩ mới sẽ nhận trách nhiệm và thông báo bàn giao."
-      onClose={onClose}
-    >
-      <form
-        className="space-y-4"
-        onSubmit={async (e) => {
-          e.preventDefault();
-          if (
-            await run({
-              type: "transfer-doctor",
-              visitId: visit.id,
-              doctorId,
-              reason,
-            })
-          )
-            onClose();
-        }}
-      >
-        <SelectField
-          label="Bác sĩ đang trực"
-          value={doctorId}
-          onChange={setDoctor}
-          disabled={pending}
-          options={[
-            { value: "", label: "Chọn bác sĩ trực" },
-            ...onDuty(s!)
-              .filter((d) => d.id !== visit.doctorId)
-              .map((d) => ({
-                value: d.id,
-                label: `${d.name} · ${s!.rooms.find((r) => r.id === d.roomId)!.name}`,
-              })),
-          ]}
-        />
-        <TextField
-          label="Lý do bàn giao *"
-          value={reason}
-          onChange={setReason}
-          disabled={pending}
-        />
-        <FormActions
-          onClose={onClose}
-          label="Xác nhận bàn giao"
-          disabled={!doctorId || reason.trim().length < 5}
-        />
-      </form>
-    </FormModal>
-  );
-}
 export function VisitDetail({
   visitId,
   onClose,
@@ -92,14 +30,11 @@ export function VisitDetail({
   onClose: () => void;
 }) {
   const { data: s } = useReception();
-  const [transfer, setTransfer] = useState(false);
   const visit = s!.visits.find((v) => v.id === visitId)!;
   const p = s!.patients.find((p) => p.id === visit.patientId)!;
   const doctor = s!.doctors.find((d) => d.id === visit.doctorId)!;
   const queues = s!.queues.filter((q) => q.visitId === visit.id);
   const orders = s!.orders.filter((o) => o.visitId === visit.id);
-  if (transfer)
-    return <TransferDoctor visit={visit} onClose={() => setTransfer(false)} />;
   return (
     <FormModal
       title={`Tiến trình ${visit.id}`}
@@ -213,12 +148,6 @@ export function VisitDetail({
         )}
       </section>
       <div className="flex flex-wrap gap-2">
-        {doctor.absent &&
-          ["waiting", "examining", "awaiting"].includes(visit.status) && (
-            <Button onClick={() => setTransfer(true)}>
-              Chuyển bác sĩ trực
-            </Button>
-          )}
         <RouteLink
           href={`/reception/payments?patientId=${p.id}&contextId=${visit.id}`}
         >
