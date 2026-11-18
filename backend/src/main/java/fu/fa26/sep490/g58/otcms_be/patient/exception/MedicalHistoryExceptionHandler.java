@@ -25,21 +25,21 @@ public class MedicalHistoryExceptionHandler {
             case "STALE_VERSION" -> 409;
             default -> 400;
         };
-        return problem(status, error.getMessage(), error.fieldErrors(), request);
+        return problem(status, msgCodeFor(error.getMessage()), error.fieldErrors(), request);
     }
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ErrorResponse> validation(MethodArgumentNotValidException error, HttpServletRequest request) {
-        return problem(400, "VALIDATION_FAILED", error.getBindingResult().getFieldErrors().stream()
+        return problem(400, "MSG-20", error.getBindingResult().getFieldErrors().stream()
                 .map(field -> new FieldError(field.getField(), "MSG-20")).distinct().toList(), request);
     }
     @ExceptionHandler({org.springframework.http.converter.HttpMessageNotReadableException.class,
             org.springframework.web.method.annotation.MethodArgumentTypeMismatchException.class})
     public ResponseEntity<ErrorResponse> transport(Exception error, HttpServletRequest request) {
-        return problem(400, "VALIDATION_FAILED", List.of(), request);
+        return problem(400, "MSG-20", List.of(), request);
     }
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<ErrorResponse> denied(Exception error, HttpServletRequest request) {
-        return problem(403, "ACCESS_DENIED", List.of(), request);
+        return problem(403, "MSG-19", List.of(), request);
     }
     @ExceptionHandler(CoordinationGuardUnavailableException.class)
     public ResponseEntity<ErrorResponse> coordination(CoordinationGuardUnavailableException error, HttpServletRequest request) {
@@ -54,11 +54,20 @@ public class MedicalHistoryExceptionHandler {
     public ResponseEntity<ErrorResponse> unexpected(Exception error, HttpServletRequest request) {
         return problem(500, "MSG-04", List.of(), request);
     }
+    /** Maps the technical medical-history code to its R3 MSG code; the technical code only drives the HTTP status. */
+    private static String msgCodeFor(String technical) {
+        return switch (technical) {
+            case "ACCESS_DENIED", "PATIENT_PROFILE_NOT_FOUND" -> "MSG-19";
+            case "STALE_VERSION" -> "MSG-16";
+            case "VALIDATION_FAILED" -> "MSG-20";
+            default -> "MSG-04";
+        };
+    }
     private ResponseEntity<ErrorResponse> problem(int status, String code, List<FieldError> fields, HttpServletRequest request) {
         String message = switch (code) {
-            case "VALIDATION_FAILED" -> "Thông tin tiền sử bệnh chưa hợp lệ. Vui lòng kiểm tra và chỉnh sửa.";
-            case "ACCESS_DENIED", "PATIENT_PROFILE_NOT_FOUND" -> "Không thể truy cập hồ sơ bệnh nhân này. Vui lòng kiểm tra lại thông tin hoặc quyền truy cập.";
-            case "STALE_VERSION" -> "Không thể hoàn tất yêu cầu. Hãy tải lại trạng thái trước khi thử lại.";
+            case "MSG-20" -> "Thông tin tiền sử bệnh chưa hợp lệ. Vui lòng kiểm tra và chỉnh sửa.";
+            case "MSG-19" -> "Không thể truy cập hồ sơ bệnh nhân này. Vui lòng kiểm tra lại thông tin hoặc quyền truy cập.";
+            case "MSG-16" -> "Không thể hoàn tất yêu cầu. Hãy tải lại trạng thái trước khi thử lại.";
             default -> "Không thể hoàn tất yêu cầu. Vui lòng thử lại sau hoặc bắt đầu lại.";
         };
         return ResponseEntity.status(status).header("Cache-Control", "no-store")

@@ -20,6 +20,7 @@ export const BACKEND_ERROR_MSG_CODES: Readonly<Record<string, MsgCode>> = {
   PATIENT_PROFILE_NOT_FOUND: "MSG-19",
   DOCTOR_NOT_ELIGIBLE: "MSG-24",
   APPOINTMENT_NOT_FOUND: "MSG-29",
+  RESOURCE_MUTATION_BLOCKED: "MSG-36",
 };
 
 const isMsgCode = (value: string): value is MsgCode => /^MSG-\d+$/.test(value);

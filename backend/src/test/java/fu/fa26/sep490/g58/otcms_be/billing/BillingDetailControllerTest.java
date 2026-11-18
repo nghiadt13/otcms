@@ -60,7 +60,7 @@ class BillingDetailControllerTest {
                 .andExpect(status().isOk()).andExpect(header().string("Cache-Control", "no-store"))
                 .andExpect(jsonPath("$.items").isArray());
         mvc.perform(get("/api/v1/invoice-items/unpaid?from=bad-date").with(actor(AccountRole.RECEPTIONIST)))
-                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("MSG-39"));
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("MSG-54"));
     }
     @Test void businessErrorsUseTheEnvelope() throws Exception {
         UUID id = UUID.randomUUID();

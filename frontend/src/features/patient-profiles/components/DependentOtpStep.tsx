@@ -9,12 +9,9 @@ import { isApiError } from "@/lib/api/apiError";
 import { formatAppMessage } from "@/lib/messages/appMessages";
 import { notifyError, notifySuccess } from "@/lib/messages/notify";
 
-/** Mã sai/hết hạn: BE trả OTP_INVALID (400); kho giả trả MSG-77. */
+/** Mã sai/hết hạn: BE trả MSG-77 (400). */
 function isInvalidOtp(error: unknown): boolean {
-  return (
-    isApiError(error) &&
-    (error.code === "MSG-77" || error.errorCode === "OTP_INVALID")
-  );
+  return isApiError(error) && error.code === "MSG-77";
 }
 
 /**

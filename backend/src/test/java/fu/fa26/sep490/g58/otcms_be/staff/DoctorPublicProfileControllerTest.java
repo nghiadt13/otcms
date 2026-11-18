@@ -75,7 +75,7 @@ class DoctorPublicProfileControllerTest {
         var failure = new DoctorProfileException("DEPENDENCY_UNAVAILABLE"); failure.initCause(new IllegalStateException("private SQL detail"));
         doThrow(failure).when(directory).findPublicDetail(id);
         mvc.perform(get("/api/v1/doctors/{id}", id)).andExpect(status().isServiceUnavailable())
-                .andExpect(jsonPath("$.error.code").value("DEPENDENCY_UNAVAILABLE"))
+                .andExpect(jsonPath("$.error.code").value("MSG-04"))
                 .andExpect(content().string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("private SQL"))));
     }
     @TestConfiguration @EnableWebSecurity @EnableConfigurationProperties(SessionSecurityProperties.class)

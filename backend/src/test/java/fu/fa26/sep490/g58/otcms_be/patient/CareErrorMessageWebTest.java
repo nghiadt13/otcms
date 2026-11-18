@@ -30,8 +30,8 @@ class CareErrorMessageWebTest {
     @CsvSource(delimiter = '|', value = {
         "VALIDATION_FAILED|400|Thông tin hồ sơ chưa hợp lệ. Vui lòng kiểm tra và nhập lại.",
         "CARE_LINK_NOT_FOUND|404|Không thể quản lý hồ sơ người phụ thuộc này. Vui lòng kiểm tra lại mối quan hệ chăm sóc.",
-        "OTP_INVALID|400|Mã xác thực không hợp lệ hoặc đã hết hạn. Vui lòng kiểm tra và thử lại.",
-        "ACCESS_DENIED|403|Không có quyền thực hiện thao tác này."
+        "OTP_INVALID|400|Mã OTP không đúng hoặc đã hết hạn. Vui lòng nhập lại hoặc yêu cầu mã mới.",
+        "ACCESS_DENIED|403|Không thể quản lý hồ sơ người phụ thuộc này. Vui lòng kiểm tra lại mối quan hệ chăm sóc."
     })
     void applicationMessagesRemainVietnamese(String code, int status, String message) throws Exception {
         when(service.detail(actor, profile)).thenThrow(new CareRelationshipException(code));
@@ -48,7 +48,7 @@ class CareErrorMessageWebTest {
             authenticate();
             mvc.perform(put("/api/v1/me/dependents/{id}", profile).contentType("application/json")
                     .content("{\"fullName\":\"Nguyễn An\",\"dateOfBirth\":\"2000-01-02\",\"gender\":\"OTHER\",\"phone\":\"0912345678\"}"))
-                    .andExpect(status().isConflict()).andExpect(jsonPath("$.error.code").value("STALE_VERSION"))
+                    .andExpect(status().isConflict()).andExpect(jsonPath("$.error.code").value("MSG-16"))
                     .andExpect(jsonPath("$.error.message").value("Không thể hoàn tất yêu cầu. Hãy tải lại trạng thái trước khi thử lại."))
                     .andExpect(jsonPath("$.error.message", not(containsString("?"))));
         } finally { org.springframework.security.core.context.SecurityContextHolder.clearContext(); }

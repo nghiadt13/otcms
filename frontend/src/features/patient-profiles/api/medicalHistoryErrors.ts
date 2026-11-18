@@ -1,16 +1,15 @@
 import { isApiError } from "@/lib/api/apiError";
 import { formatAppMessage, messageFromError } from "@/lib/messages/appMessages";
 
-/** Mã nghiệp vụ nằm ở error.code của response, được apiRequest đọc vào errorCode. */
+/** BE trả mã MSG ở error.code của response; apiRequest đọc vào errorCode và ApiError.code. */
 export function medicalHistoryErrorMessage(error: unknown): string {
   if (isApiError(error)) {
-    switch (error.errorCode) {
-      case "VALIDATION_FAILED":
+    switch (error.code) {
+      case "MSG-20":
         return formatAppMessage("MSG-20");
-      case "ACCESS_DENIED":
-      case "PATIENT_PROFILE_NOT_FOUND":
+      case "MSG-19":
         return formatAppMessage("MSG-19");
-      case "STALE_VERSION":
+      case "MSG-16":
         return formatAppMessage("MSG-16");
     }
     if (error.status === 400) return formatAppMessage("MSG-20");

@@ -61,7 +61,7 @@ class BillingReadControllerTest {
     }
     @Test void malformedDatesAndIdentifiersFailBeforeService() throws Exception {
         mvc.perform(get("/api/v1/payments?from=bad-date").with(actor(AccountRole.PATIENT)))
-                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("MSG-39"));
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("MSG-54"));
         mvc.perform(get("/api/v1/invoices/bad-id/print").with(actor(AccountRole.RECEPTIONIST)))
                 .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("MSG-39"));
         verifyNoInteractions(reads);

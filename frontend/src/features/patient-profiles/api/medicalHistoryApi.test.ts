@@ -76,7 +76,7 @@ describe("medicalHistoryApi — KAN-28", () => {
     expect(await getMedicalHistory(HISTORY_PROFILE_ID)).toEqual(saved);
   });
 
-  it("hai bản cùng version: bản sau nhận STALE_VERSION và không ghi đè", async () => {
+  it("hai bản cùng version: bản sau nhận MSG-16 và không ghi đè", async () => {
     const first = await getMedicalHistory(HISTORY_PROFILE_ID);
     const second = await getMedicalHistory(HISTORY_PROFILE_ID);
     await updateMedicalHistory(HISTORY_PROFILE_ID, body(first.version));
@@ -85,16 +85,16 @@ describe("medicalHistoryApi — KAN-28", () => {
         ...body(second.version),
         allergies: "Ghi đè",
       }),
-    ).rejects.toMatchObject({ status: 409, errorCode: "STALE_VERSION" });
+    ).rejects.toMatchObject({ status: 409, errorCode: "MSG-16" });
     expect((await getMedicalHistory(HISTORY_PROFILE_ID)).allergies).toBe(
       "Dị ứng",
     );
   });
 
   it.each([
-    [400, "VALIDATION_FAILED"],
-    [403, "ACCESS_DENIED"],
-    [404, "PATIENT_PROFILE_NOT_FOUND"],
+    [400, "MSG-20"],
+    [403, "MSG-19"],
+    [404, "MSG-19"],
   ])(
     "giữ ApiError HTTP %s và errorCode tại ranh giới API",
     async (status, errorCode) => {
@@ -108,11 +108,11 @@ describe("medicalHistoryApi — KAN-28", () => {
     },
   );
 
-  it("chỉ errorCode STALE_VERSION là stale; không dựa vào error.message", () => {
+  it("chỉ errorCode MSG-16 là stale; không dựa vào error.message", () => {
     expect(
       isStaleHistoryError(
         new ApiError(409, {
-          errorCode: "STALE_VERSION",
+          errorCode: "MSG-16",
           detail: "Không phải STALE",
         }),
       ),

@@ -138,20 +138,20 @@ class AppointmentArrivalT053PostgresIntegrationTest {
         String[] tamperedParts = token.split("\\.");
         tamperedParts[3] = Long.toString(Long.parseLong(tamperedParts[3]) + 1);
         mvc.perform(recordQr(target, patientAccount, String.join(".", tamperedParts)))
-                .andExpect(status().isUnprocessableEntity()).andExpect(jsonPath("$.error.code").value("ARRIVAL_PROOF_INVALID"));
+                .andExpect(status().isUnprocessableEntity()).andExpect(jsonPath("$.error.code").value("MSG-37"));
         assertNoArrival(target);
         String wrongClinic = token.replace("dDA1My10ZXN0LWNsaW5pYw", "b3RoZXItY2xpbmlj");
         mvc.perform(recordQr(target, patientAccount, wrongClinic))
-                .andExpect(status().isUnprocessableEntity()).andExpect(jsonPath("$.error.code").value("ARRIVAL_PROOF_INVALID"));
+                .andExpect(status().isUnprocessableEntity()).andExpect(jsonPath("$.error.code").value("MSG-37"));
         assertNoArrival(target);
 
         testClock.set(NOW.plusSeconds(60));
         mvc.perform(recordQr(target, patientAccount, token))
-                .andExpect(status().isUnprocessableEntity()).andExpect(jsonPath("$.error.code").value("ARRIVAL_PROOF_INVALID"));
+                .andExpect(status().isUnprocessableEntity()).andExpect(jsonPath("$.error.code").value("MSG-37"));
         assertNoArrival(target);
         testClock.set(NOW.minusSeconds(1));
         mvc.perform(recordQr(target, patientAccount, token))
-                .andExpect(status().isUnprocessableEntity()).andExpect(jsonPath("$.error.code").value("ARRIVAL_PROOF_INVALID"));
+                .andExpect(status().isUnprocessableEntity()).andExpect(jsonPath("$.error.code").value("MSG-37"));
         assertNoArrival(target);
     }
 
@@ -267,9 +267,9 @@ class AppointmentArrivalT053PostgresIntegrationTest {
         testClock.set(NOW.plusSeconds(7200));
         // QR arrival has already committed CHECKED_IN + Visit, so the state conflict takes precedence.
         mvc.perform(markNoShow(timely)).andExpect(status().isConflict())
-                .andExpect(jsonPath("$.error.code").value("APPOINTMENT_NOT_CHANGEABLE"));
+                .andExpect(jsonPath("$.error.code").value("MSG-32"));
         mvc.perform(markNoShow(timelyManual)).andExpect(status().isUnprocessableEntity())
-                .andExpect(jsonPath("$.error.code").value("NO_SHOW_NOT_ALLOWED"));
+                .andExpect(jsonPath("$.error.code").value("MSG-29"));
         assertEquals("CHECKED_IN", jdbc.queryForObject("select status from appointments where id = ?", String.class, timely));
         assertEquals("CONFIRMED", jdbc.queryForObject("select status from appointments where id = ?",
                 String.class, timelyManual));
@@ -283,7 +283,7 @@ class AppointmentArrivalT053PostgresIntegrationTest {
         UUID noShow = appointment(NOW.minusSeconds(3600), patientProfile);
         mvc.perform(markNoShow(noShow)).andExpect(status().isOk()).andExpect(jsonPath("$.status").value("NO_SHOW"));
         mvc.perform(recordQr(noShow, patientAccount, issueProof())).andExpect(status().isConflict())
-                .andExpect(jsonPath("$.error.code").value("APPOINTMENT_NOT_CHANGEABLE"));
+                .andExpect(jsonPath("$.error.code").value("MSG-32"));
         assertNoArrival(noShow);
         assertEquals("NO_SHOW", jdbc.queryForObject("select status from appointments where id = ?", String.class, noShow));
         assertEquals(0, jdbc.queryForObject("select count(*) from visits where originating_appointment_id = ?",
@@ -313,7 +313,7 @@ class AppointmentArrivalT053PostgresIntegrationTest {
                 assertEquals(200, arrival.get(20, TimeUnit.SECONDS));
                 var noShowResult = noShow.get(20, TimeUnit.SECONDS);
                 assertEquals(409, noShowResult.getResponse().getStatus());
-                jsonPath("$.error.code").value("APPOINTMENT_NOT_CHANGEABLE").match(noShowResult);
+                jsonPath("$.error.code").value("MSG-32").match(noShowResult);
                 assertEquals("CHECKED_IN", jdbc.queryForObject("select status from appointments where id = ?", String.class, target));
                 assertEquals(1, arrivalCount(target));
                 assertEquals(1, jdbc.queryForObject("select count(*) from visits where originating_appointment_id = ?",

@@ -168,7 +168,7 @@ class AppointmentLifecycleT029PostgresIntegrationTest {
         UUID appointment = checkedInAppointment();
         UUID visit = jdbc.queryForObject("select visit_id from appointments where id = ?", UUID.class, appointment);
         mvc.perform(cancelAs(appointment, receptionistAccount, AccountType.RECEPTIONIST))
-                .andExpect(status().isConflict()).andExpect(jsonPath("$.error.code").value("APPOINTMENT_NOT_CHANGEABLE"));
+                .andExpect(status().isConflict()).andExpect(jsonPath("$.error.code").value("MSG-32"));
         assertEquals("CHECKED_IN", jdbc.queryForObject("select status from appointments where id = ?", String.class, appointment));
         assertEquals("OPEN", jdbc.queryForObject("select status from visits where id = ?", String.class, visit));
         assertEquals("WAITING", jdbc.queryForObject("select status from queue_entries where stage = 'EXAM' and visit_id = ?", String.class, visit));
@@ -180,14 +180,14 @@ class AppointmentLifecycleT029PostgresIntegrationTest {
         UUID visit = jdbc.queryForObject("select visit_id from appointments where id = ?", UUID.class, appointment);
         // B8: nobody cancels a checked-in appointment, so the doctor's start is the only outcome that commits.
         mvc.perform(cancel(appointment)).andExpect(status().isConflict())
-                .andExpect(jsonPath("$.error.code").value("APPOINTMENT_NOT_CHANGEABLE"));
+                .andExpect(jsonPath("$.error.code").value("MSG-32"));
         assertEquals("CHECKED_IN", jdbc.queryForObject("select status from appointments where id = ?", String.class, appointment));
         assertEquals("OPEN", jdbc.queryForObject("select status from visits where id = ?", String.class, visit));
         assertEquals(0, jdbc.queryForObject("select count(*) from audit_logs where source = 'appointment_audits' and entity_id = ? and after_state->>'status' = 'CANCELLED'", Integer.class, appointment));
 
         mvc.perform(statusChange(appointment, doctorAccount, AccountType.DOCTOR, "IN_PROGRESS")).andExpect(status().isOk());
         mvc.perform(cancel(appointment)).andExpect(status().isConflict())
-                .andExpect(jsonPath("$.error.code").value("VISIT_CANCELLATION_NOT_ALLOWED"));
+                .andExpect(jsonPath("$.error.code").value("MSG-42"));
         assertEquals("IN_PROGRESS", jdbc.queryForObject("select status from appointments where id = ?", String.class, appointment));
     }
 
@@ -234,7 +234,7 @@ class AppointmentLifecycleT029PostgresIntegrationTest {
         assertEquals(1, jdbc.queryForObject("select count(*) from clinical_examinations where visit_id = ? and status = 'DRAFT'",
                 Integer.class, visit));
         mvc.perform(cancel(appointment)).andExpect(status().isConflict())
-                .andExpect(jsonPath("$.error.code").value("APPOINTMENT_NOT_CHANGEABLE"));
+                .andExpect(jsonPath("$.error.code").value("MSG-32"));
         assertEquals("CHECKED_IN", jdbc.queryForObject("select status from appointments where id = ?", String.class, appointment));
         assertEquals("OPEN", jdbc.queryForObject("select status from visits where id = ?", String.class, visit));
         assertEquals(0, jdbc.queryForObject("select count(*) from audit_logs where source = 'appointment_audits' and entity_id = ? and after_state->>'status' = 'CANCELLED'", Integer.class, appointment));
@@ -247,7 +247,7 @@ class AppointmentLifecycleT029PostgresIntegrationTest {
         mvc.perform(statusChange(appointment, receptionistAccount, AccountType.RECEPTIONIST, "IN_PROGRESS"))
                 .andExpect(status().isForbidden());
         mvc.perform(statusChange(appointment, doctorAccount, AccountType.DOCTOR, "COMPLETED"))
-                .andExpect(status().isConflict()).andExpect(jsonPath("$.error.code").value("APPOINTMENT_NOT_CHANGEABLE"));
+                .andExpect(status().isConflict()).andExpect(jsonPath("$.error.code").value("MSG-32"));
         assertEquals("CHECKED_IN", jdbc.queryForObject("select status from appointments where id = ?", String.class, appointment));
     }
 
@@ -260,7 +260,7 @@ class AppointmentLifecycleT029PostgresIntegrationTest {
         jdbc.execute("create trigger tr_t029_reject_cancel_audit before insert on audit_logs "
                 + "for each row execute function reject_t029_cancel_audit()");
         mvc.perform(cancel(appointment)).andExpect(status().isServiceUnavailable())
-                .andExpect(jsonPath("$.error.code").value("DEPENDENCY_UNAVAILABLE"));
+                .andExpect(jsonPath("$.error.code").value("MSG-04"));
         assertEquals("CONFIRMED", jdbc.queryForObject("select status from appointments where id = ?", String.class, appointment));
         assertEquals(0, jdbc.queryForObject("select count(*) from audit_logs where source = 'appointment_audits' and entity_id = ? and after_state->>'status' = 'CANCELLED'", Integer.class, appointment));
     }
@@ -281,7 +281,7 @@ class AppointmentLifecycleT029PostgresIntegrationTest {
         jdbc.update("insert into visit_assignments (id, visit_id, doctor_profile_id, starts_at, ends_at, status) values (?, ?, ?, ?, ?, 'IN_PROGRESS')",
                 assignment, otherVisit, doctorProfile, Timestamp.from(NOW.minusSeconds(60)), Timestamp.from(NOW.plusSeconds(600)));
         mvc.perform(statusChange(appointment, doctorAccount, AccountType.DOCTOR, "IN_PROGRESS"))
-                .andExpect(status().isConflict()).andExpect(jsonPath("$.error.code").value("VISIT_EXAM_STATE_CONFLICT"));
+                .andExpect(status().isConflict()).andExpect(jsonPath("$.error.code").value("MSG-42"));
         assertEquals("CHECKED_IN", jdbc.queryForObject("select status from appointments where id = ?", String.class, appointment));
         assertEquals(0, jdbc.queryForObject("select count(*) from visit_assignments where visit_id = ?", Integer.class, visit));
         assertEquals("WAITING", jdbc.queryForObject("select status from queue_entries where stage = 'EXAM' and visit_id = ?", String.class, visit));

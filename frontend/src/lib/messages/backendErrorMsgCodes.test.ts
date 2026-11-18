@@ -76,3 +76,11 @@ describe("lỗi đổi giờ và hủy lịch hiển thị đúng câu R3", () =
     );
   });
 });
+
+describe("ca làm việc bị ràng buộc lịch hẹn", () => {
+  it("RESOURCE_MUTATION_BLOCKED của BE đổi thành MSG-36 ở ApiError.code", () => {
+    const error = new ApiError(409, { errorCode: "RESOURCE_MUTATION_BLOCKED" });
+    expect(error.code).toBe("MSG-36");
+    expect(messageFromError(error)).toBe(APP_MESSAGES["MSG-36"]);
+  });
+});

@@ -276,7 +276,7 @@ class Kan29MyAccountPostgresIntegrationTest {
         assertEquals(patient, jdbc.queryForObject("select account_id from patient_profiles where id=?", UUID.class, own));
         assertEquals("Profile name", jdbc.queryForObject("select full_name from patient_profiles where id=?", String.class, otherProfile));
         mvc.perform(put("/api/v1/me/patient-profile").with(csrf()).header("Authorization", "Bearer " + token)
-                .contentType("application/json").content(body)).andExpect(status().isConflict()).andExpect(jsonPath("$.error.code").value("STALE_VERSION"));
+                .contentType("application/json").content(body)).andExpect(status().isConflict()).andExpect(jsonPath("$.error.code").value("MSG-16"));
         mvc.perform(get("/api/v1/me/patient-profile/" + otherProfile).header("Authorization", "Bearer " + token)).andExpect(status().isNotFound());
     }
 

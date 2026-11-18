@@ -136,7 +136,7 @@ class CreateFollowUpAppointmentT030PostgresIntegrationTest {
                         .with(actor()).with(csrf()).contentType("application/json")
                         .content(request(null)))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
+                .andExpect(jsonPath("$.error.code").value("MSG-31"));
         mvc.perform(post("/api/v1/visits/{visitId}/follow-up-appointments", visit)
                         .with(authentication(new UsernamePasswordAuthenticationToken(
                                 new AuthenticatedAccount(account, AccountRole.PATIENT, null), null,

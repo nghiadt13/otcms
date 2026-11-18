@@ -170,12 +170,12 @@ class AppointmentAvailabilityT019PostgresIntegrationTest {
                         .param("serviceId", serviceId.toString()).param("doctorId", doctorIds.get(2).toString())
                         .param("from", AVAILABLE_DATE.toString()).param("to", AVAILABLE_DATE.toString()))
                 .andExpect(status().isUnprocessableEntity())
-                .andExpect(jsonPath("$.error.code").value("DOCTOR_NOT_ELIGIBLE"));
+                .andExpect(jsonPath("$.error.code").value("MSG-24"));
 
         mvc.perform(get("/api/v1/appointments/availability")
                         .param("serviceId", serviceId.toString()).param("from", "not-a-date").param("to", AVAILABLE_DATE.toString()))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
+                .andExpect(jsonPath("$.error.code").value("MSG-54"));
     }
 
     @Test
@@ -189,7 +189,7 @@ class AppointmentAvailabilityT019PostgresIntegrationTest {
                         .param("serviceId", serviceId.toString())
                         .param("from", "2026-10-13").param("to", "2026-10-13"))
                 .andExpect(status().isUnprocessableEntity())
-                .andExpect(jsonPath("$.error.code").value("BOOKING_WINDOW_VIOLATION"));
+                .andExpect(jsonPath("$.error.code").value("MSG-31"));
     }
 
     private void insertService(UUID id, boolean onlineBookable, boolean active, String name) {

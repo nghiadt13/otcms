@@ -94,7 +94,7 @@ class DoctorOnlyLookupTest {
         mvc.perform(get("/api/v1/doctors/me/shifts").param("from", "2026-11-01T00:00:00Z").param("to", "2026-11-02T00:00:00Z")
                         .with(actor(AccountRole.DOCTOR, strayAccount)))
                 .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.error.code").value("DOCTOR_PROFILE_NOT_FOUND"));
+                .andExpect(jsonPath("$.error.code").value("MSG-23"));
 
         UUID doctorAccount = account("DOCTOR");
         UUID doctorProfile = profile(doctorAccount, "T110 Doctor Shifts", true);

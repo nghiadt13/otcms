@@ -21,6 +21,8 @@ public class AppointmentQueryExceptionHandler {
             default -> HttpStatus.BAD_REQUEST;
         };
         String message = exception.code().equals("APPOINTMENT_NOT_FOUND") ? "Appointment not found" : "Invalid appointment query";
-        return ResponseEntity.status(status).body(ErrorResponse.of(exception.code(), message, CorrelationIdFilter.current(request)));
+        // Invalid query parameters are a search-criteria problem (MSG-54).
+        String msgCode = "VALIDATION_FAILED".equals(exception.code()) ? "MSG-54" : AppointmentMsgCodes.of(exception.code());
+        return ResponseEntity.status(status).body(ErrorResponse.of(msgCode, message, CorrelationIdFilter.current(request)));
     }
 }

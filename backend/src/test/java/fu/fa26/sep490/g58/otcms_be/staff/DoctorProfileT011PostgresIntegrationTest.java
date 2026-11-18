@@ -88,7 +88,7 @@ class DoctorProfileT011PostgresIntegrationTest {
         UUID accountId = createAccount(AccountType.RECEPTIONIST, "receptionist");
         mvc.perform(post("/api/v1/admin/doctor-profiles").with(actor(AccountType.ADMIN)).with(csrf())
                         .contentType("application/json").content("{\"accountId\":\"" + accountId + "\",\"fullName\":\"Wrong role\"}"))
-                .andExpect(status().isNotFound()).andExpect(jsonPath("$.error.code").value("DOCTOR_ACCOUNT_UNAVAILABLE"));
+                .andExpect(status().isNotFound()).andExpect(jsonPath("$.error.code").value("MSG-23"));
     }
 
     @Test
