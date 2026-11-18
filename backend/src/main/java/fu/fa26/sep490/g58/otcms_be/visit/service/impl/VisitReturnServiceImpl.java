@@ -1,6 +1,9 @@
 package fu.fa26.sep490.g58.otcms_be.visit.service.impl;
 
 import fu.fa26.sep490.g58.otcms_be.auth.service.ReceptionistAccountAccessService;
+import fu.fa26.sep490.g58.otcms_be.billing.service.BillingQueryService;
+import fu.fa26.sep490.g58.otcms_be.clinical.service.ClinicalOrderingService;
+import fu.fa26.sep490.g58.otcms_be.clinical.service.ClinicalServiceOrderQueueService;
 import fu.fa26.sep490.g58.otcms_be.common.security.AccountRole;
 import fu.fa26.sep490.g58.otcms_be.common.security.AuthenticatedAccount;
 import fu.fa26.sep490.g58.otcms_be.common.service.CoordinationGuardService;
@@ -10,11 +13,15 @@ import fu.fa26.sep490.g58.otcms_be.visit.exception.VisitOperationException;
 import fu.fa26.sep490.g58.otcms_be.visit.model.dto.response.VisitLifecycleDtos.ReturnCandidate;
 import fu.fa26.sep490.g58.otcms_be.visit.model.dto.response.VisitLifecycleDtos.VisitQueueTicket;
 import fu.fa26.sep490.g58.otcms_be.visit.model.entity.VisitRoomJpaEntity;
+import fu.fa26.sep490.g58.otcms_be.visit.model.entity.QueueEntryJpaEntity;
+import fu.fa26.sep490.g58.otcms_be.visit.model.VisitExamStatus;
 import fu.fa26.sep490.g58.otcms_be.visit.repository.ClinicVisitJpaRepository;
 import fu.fa26.sep490.g58.otcms_be.visit.repository.VisitLifecycleRepository;
 import fu.fa26.sep490.g58.otcms_be.visit.repository.VisitRoomJpaRepository;
+import fu.fa26.sep490.g58.otcms_be.visit.repository.ServiceQueueRepository;
 import fu.fa26.sep490.g58.otcms_be.visit.service.VisitExamQueueService;
 import fu.fa26.sep490.g58.otcms_be.visit.service.VisitReturnService;
+import fu.fa26.sep490.g58.otcms_be.visit.service.ServiceAdmissionHandler;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
@@ -39,12 +46,19 @@ public class VisitReturnServiceImpl implements VisitReturnService {
     private final AppointmentBookingProperties booking;
     private final TransactionTemplate transactions;
     private final Clock clock;
+    private final ClinicalServiceOrderQueueService orders;
+    private final ClinicalOrderingService ordering;
+    private final BillingQueryService billing;
+    private final ServiceQueueRepository queue;
+    private final List<ServiceAdmissionHandler> handlers;
 
     public VisitReturnServiceImpl(ReceptionistAccountAccessService receptionists, ClinicVisitJpaRepository visits,
             VisitLifecycleRepository lifecycle, VisitLifecycleVisitTransaction incompleteSweep,
             VisitExamQueueService examQueue, CoordinationGuardService guard,
             DoctorProfileIdentityQueryService doctorProfiles, VisitRoomJpaRepository rooms, VisitAuditRecorder audit,
-            AppointmentBookingProperties booking, PlatformTransactionManager transactionManager, Clock clock) {
+            AppointmentBookingProperties booking, PlatformTransactionManager transactionManager, Clock clock,
+            ClinicalServiceOrderQueueService orders, ClinicalOrderingService ordering, BillingQueryService billing,
+            ServiceQueueRepository queue, List<ServiceAdmissionHandler> handlers) {
         this.receptionists = receptionists;
         this.visits = visits;
         this.lifecycle = lifecycle;
@@ -57,6 +71,11 @@ public class VisitReturnServiceImpl implements VisitReturnService {
         this.booking = booking;
         this.transactions = new TransactionTemplate(transactionManager);
         this.clock = clock;
+        this.orders = orders;
+        this.ordering = ordering;
+        this.billing = billing;
+        this.queue = queue;
+        this.handlers = handlers;
     }
 
     @Override
@@ -93,12 +112,65 @@ public class VisitReturnServiceImpl implements VisitReturnService {
             guard.acquire();
             var locked = visits.findByIdForUpdate(visitId).orElseThrow(() -> new VisitOperationException("MSG-41"));
             if (!"OPEN".equals(locked.getStatus())) throw new VisitOperationException("MSG-42");
-            var ticket = examQueue.requeueReturning(visitId, now);
+            var exam = examQueue.find(visitId).orElseThrow(() -> new VisitOperationException("MSG-42"));
+            if (exam.examStatus() != VisitExamStatus.AWAITING_CONCLUSION) {
+                throw new VisitOperationException("MSG-42");
+            }
+            var outstanding = orders.findByVisit(visitId).stream()
+                    .filter(order -> "ORDERED".equals(order.orderStatus()))
+                    .filter(order -> !"CANCELLED".equals(order.executionStatus()))
+                    .toList();
+            UUID roomId;
+            int number;
+            var day = now.atZone(booking.clinicTimeZone()).toLocalDate();
+            var serviceEntries = queue.findOpenServiceByVisit(visitId, ServiceQueueRepository.OPEN);
+            var reviewEntries = queue.findOpenResultReviewByVisit(visitId, ServiceQueueRepository.OPEN);
+            if (!outstanding.isEmpty()) {
+                if (!reviewEntries.isEmpty()) throw new VisitOperationException("MSG-42");
+                var order = outstanding.stream().filter(o -> o.roomId() != null
+                                && (o.executionStatus() == null || "PENDING".equals(o.executionStatus()))
+                                && handlers.stream().anyMatch(h -> h.supports(o.serviceType()))
+                                && billing.isServiceOrderPaid(o.orderId()))
+                        .findFirst().orElseThrow(() -> new VisitOperationException("MSG-42"));
+                roomId = order.roomId();
+                rooms.findByIdForUpdate(roomId).orElseThrow(() -> new VisitOperationException("MSG-41"));
+                number = queue.maxNumber(roomId, QueueEntryJpaEntity.STAGE_SERVICE, day) + 1;
+                var previous = queue.findServiceByOrder(order.orderId()).orElse(null);
+                if (serviceEntries.stream().anyMatch(entry -> previous == null || !entry.getId().equals(previous.getId()))) {
+                    throw new VisitOperationException("MSG-42");
+                }
+                if (previous == null) {
+                    queue.save(QueueEntryJpaEntity.service(visitId, order.orderId(), roomId, order.serviceId(),
+                            day, number, now.toEpochMilli(), now));
+                } else if ("CANCELLED".equals(previous.getStatus()) || "ABSENT".equals(previous.getStatus())
+                        || ("WAITING".equals(previous.getStatus()) && !day.equals(previous.getClinicDate()))) {
+                    previous.rejoinRoomQueue(roomId, day, number, now);
+                } else {
+                    throw new VisitOperationException("MSG-42");
+                }
+            } else {
+                if (!serviceEntries.isEmpty()) throw new VisitOperationException("MSG-42");
+                if (!ordering.isLatestRoundReadyForReview(visitId) || exam.roomId() == null) {
+                    throw new VisitOperationException("MSG-42");
+                }
+                roomId = exam.roomId();
+                rooms.findByIdForUpdate(roomId).orElseThrow(() -> new VisitOperationException("MSG-41"));
+                number = queue.maxNumber(roomId, QueueEntryJpaEntity.STAGE_RESULT_REVIEW, day) + 1;
+                if (reviewEntries.isEmpty()) {
+                    queue.save(QueueEntryJpaEntity.resultReview(visitId, exam.doctorProfileId(), roomId, day, number, now));
+                } else {
+                    var previous = reviewEntries.getFirst();
+                    if (day.equals(previous.getClinicDate()) && !"ABSENT".equals(previous.getStatus())) {
+                        throw new VisitOperationException("MSG-42");
+                    }
+                    previous.rejoinRoomQueue(roomId, day, number, now);
+                }
+            }
             audit.lifecycleEvent("VISIT_RETURNED", "VISIT", visitId, visitId, actor.accountId(), now,
-                    Map.of("queueNumber", ticket.queueNumber(), "doctorProfileId", ticket.doctorProfileId().toString()),
+                    Map.of("queueNumber", number, "doctorProfileId", exam.doctorProfileId().toString()),
                     correlationId);
-            return new VisitQueueTicket(visitId, "WAITING", ticket.queueNumber(), ticket.doctorProfileId(),
-                    ticket.doctorName(), ticket.roomId(), ticket.roomLabel());
+            return new VisitQueueTicket(visitId, "WAITING", number, exam.doctorProfileId(),
+                    doctorName(exam.doctorProfileId()), roomId, roomLabel(roomId));
         });
     }
 
