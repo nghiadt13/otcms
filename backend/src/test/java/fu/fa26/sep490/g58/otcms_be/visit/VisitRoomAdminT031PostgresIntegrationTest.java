@@ -79,7 +79,7 @@ class VisitRoomAdminT031PostgresIntegrationTest {
         mvc.perform(post("/api/v1/admin/visit-rooms").with(actor(admin, AccountRole.ADMIN)).with(csrf())
                         .header("X-Correlation-ID", UUID.randomUUID().toString()).contentType("application/json")
                         .content("{\"roomCode\":\"T031-ADMIN-EXAM\",\"displayLabel\":\"Duplicate\",\"capabilities\":[\"EXAM_ROOM\"]}"))
-                .andExpect(status().isConflict()).andExpect(jsonPath("$.error.code").value("DUPLICATE_ROOM_CODE"));
+                .andExpect(status().isConflict()).andExpect(jsonPath("$.error.code").value("MSG-92"));
 
         mvc.perform(delete("/api/v1/admin/visit-rooms/{roomId}", room).with(actor(admin, AccountRole.ADMIN)).with(csrf())
                         .header("X-Correlation-ID", UUID.randomUUID().toString()))
@@ -95,11 +95,11 @@ class VisitRoomAdminT031PostgresIntegrationTest {
     @Test
     void nonAdminCannotViewOrMutateRooms() throws Exception {
         mvc.perform(get("/api/v1/admin/visit-rooms").with(actor(receptionist, AccountRole.RECEPTIONIST)))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isForbidden()).andExpect(jsonPath("$.error.code").value("MSG-50"));
         mvc.perform(post("/api/v1/admin/visit-rooms").with(actor(receptionist, AccountRole.RECEPTIONIST)).with(csrf())
                         .header("X-Correlation-ID", CORRELATION).contentType("application/json")
                         .content("{\"roomCode\":\"T031-ADMIN-DENIED\",\"displayLabel\":\"Denied\",\"capabilities\":[\"EXAM_ROOM\"]}"))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isForbidden()).andExpect(jsonPath("$.error.code").value("MSG-50"));
         assertEquals(0, jdbc.queryForObject("select count(*) from rooms where room_code = 'T031-ADMIN-DENIED'", Integer.class));
     }
 

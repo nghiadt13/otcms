@@ -43,6 +43,17 @@ public class DiagnosticApiExceptionHandler {
                 : outcome == DiagnosticOperationOutcome.PATIENT_NOT_CALLED ? "MSG-42"
                 : outcome == DiagnosticOperationOutcome.UNAUTHORIZED_RECORD
                 || outcome == DiagnosticOperationOutcome.RECORD_NOT_FOUND ? "NOT_AVAILABLE" : outcome.name();
+        if (isFindings(request.getRequestURI())) {
+            code = switch (outcome) {
+                case UNAUTHORIZED_RECORD -> "MSG-40";
+                case RECORD_NOT_FOUND -> "MSG-41";
+                case EVIDENCE_MISMATCH -> request.getRequestURI().endsWith("/reports") ? "MSG-47" : "MSG-39";
+                case STATE_CONFLICT, VERSION_CONFLICT, IDEMPOTENCY_CONFLICT, VISIT_NOT_ELIGIBLE,
+                        REPORT_NOT_READY -> "MSG-42";
+                case DEPENDENCY_UNAVAILABLE -> "MSG-04";
+                default -> code;
+            };
+        }
         return ResponseEntity.status(status).body(ErrorResponse.of(code, "Diagnostic request operation was rejected",
                 CorrelationIdFilter.current(request)));
     }
@@ -50,22 +61,26 @@ public class DiagnosticApiExceptionHandler {
     @ExceptionHandler({MethodArgumentNotValidException.class, HttpMessageNotReadableException.class,
             MethodArgumentTypeMismatchException.class, IllegalArgumentException.class})
     public ResponseEntity<ErrorResponse> invalid(Exception exception, HttpServletRequest request) {
-        return ResponseEntity.badRequest().body(ErrorResponse.of("VALIDATION_FAILED", "Invalid diagnostic request",
+        return ResponseEntity.badRequest().body(ErrorResponse.of(isFindings(request.getRequestURI()) ? "MSG-39" : "VALIDATION_FAILED", "Invalid diagnostic request",
                 CorrelationIdFilter.current(request)));
     }
 
     @ExceptionHandler({DataAccessException.class, TransactionException.class})
     public ResponseEntity<ErrorResponse> persistence(RuntimeException exception, HttpServletRequest request) {
         return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(ErrorResponse.of(
-                "DEPENDENCY_UNAVAILABLE", "A required diagnostic operation is temporarily unavailable",
+                isFindings(request.getRequestURI()) ? "MSG-04" : "DEPENDENCY_UNAVAILABLE", "A required diagnostic operation is temporarily unavailable",
                 CorrelationIdFilter.current(request)));
     }
 
     @ExceptionHandler(ObjectOptimisticLockingFailureException.class)
     public ResponseEntity<ErrorResponse> optimisticConflict(ObjectOptimisticLockingFailureException exception,
             HttpServletRequest request) {
-        return ResponseEntity.status(HttpStatus.CONFLICT).body(ErrorResponse.of("VERSION_CONFLICT",
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(ErrorResponse.of(isFindings(request.getRequestURI()) ? "MSG-42" : "VERSION_CONFLICT",
                 "The diagnostic request changed; reload it before retrying",
                 CorrelationIdFilter.current(request)));
+    }
+
+    private static boolean isFindings(String uri) {
+        return uri.matches("/api/v1/imaging-requests/[^/]+/(?:reviews|findings(?:/.*)?|reports)");
     }
 }

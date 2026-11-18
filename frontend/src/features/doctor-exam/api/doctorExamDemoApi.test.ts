@@ -64,7 +64,7 @@ describe("luồng khám trên bản demo", () => {
         { ...exam, diagnoses: [] },
         "complete",
       ),
-    ).rejects.toMatchObject({ code: "MSG-08" });
+    ).rejects.toMatchObject({ code: "MSG-39" });
     const advice = {
       homeCareAdvice: "Nghỉ",
       activityAdvice: "",

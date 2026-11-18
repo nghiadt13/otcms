@@ -19,14 +19,14 @@ public class ImagingApiExceptionHandler {
     @ExceptionHandler(ConstraintViolationException.class)
     public ResponseEntity<ErrorResponse> invalidRequest(ConstraintViolationException exception,
             HttpServletRequest request) {
-        return ResponseEntity.badRequest().body(ErrorResponse.of("VALIDATION_FAILED",
+        return ResponseEntity.badRequest().body(ErrorResponse.of(isIngest(request.getRequestURI()) ? "MSG-39" : "VALIDATION_FAILED",
                 "Invalid imaging request", CorrelationIdFilter.current(request)));
     }
 
     @ExceptionHandler({HandlerMethodValidationException.class, MissingRequestHeaderException.class,
             IllegalArgumentException.class})
     public ResponseEntity<ErrorResponse> malformedRequest(Exception exception, HttpServletRequest request) {
-        return ResponseEntity.badRequest().body(ErrorResponse.of("VALIDATION_FAILED",
+        return ResponseEntity.badRequest().body(ErrorResponse.of(isIngest(request.getRequestURI()) ? "MSG-39" : "VALIDATION_FAILED",
                 "Invalid imaging request", CorrelationIdFilter.current(request)));
     }
 
@@ -44,7 +44,22 @@ public class ImagingApiExceptionHandler {
         String code = outcome == ImagingOperationOutcome.UNAUTHORIZED_RECORD
                 || outcome == ImagingOperationOutcome.RECORD_NOT_FOUND ? "UNAUTHORIZED_RECORD"
                 : outcome == ImagingOperationOutcome.FILE_INVALID ? "IMAGING_FILE_INVALID" : outcome.name();
+        if (isIngest(request.getRequestURI())) {
+            code = switch (outcome) {
+                case UNAUTHORIZED_RECORD -> "MSG-40";
+                case RECORD_NOT_FOUND -> "MSG-41";
+                case STATE_CONFLICT, VERSION_CONFLICT, IDEMPOTENCY_CONFLICT -> "MSG-42";
+                case FILE_INVALID, EVIDENCE_MISMATCH -> "MSG-47";
+                case DEPENDENCY_UNAVAILABLE -> "MSG-04";
+                case RECONCILIATION_REQUIRED -> code;
+            };
+        }
         return ResponseEntity.status(status).body(ErrorResponse.of(code,
                 "Imaging operation was rejected", CorrelationIdFilter.current(request)));
+    }
+
+    private static boolean isIngest(String uri) {
+        return uri.startsWith("/api/v1/imaging/ingest-operations/")
+                || uri.startsWith("/api/v1/imaging/requests/") && uri.contains("/ingest-operations");
     }
 }

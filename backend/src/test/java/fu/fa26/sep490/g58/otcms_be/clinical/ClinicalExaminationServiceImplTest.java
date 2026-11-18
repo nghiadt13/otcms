@@ -97,7 +97,7 @@ class ClinicalExaminationServiceImplTest {
         var invalid = new ClinicalExaminationService.ExaminationCommand(
                 visitId, doctorId, "Reason", "Symptoms", " ", null, null, null,
                 List.of(new ClinicalExaminationService.Diagnosis("M25", DiagnosisType.PRIMARY)));
-        assertThrows(ClinicalOperationException.class, () -> service.completeExamination(invalid));
+        assertEquals("MSG-39", assertThrows(ClinicalOperationException.class, () -> service.completeExamination(invalid)).code());
     }
 
     @Test

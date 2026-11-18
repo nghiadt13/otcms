@@ -450,11 +450,11 @@ class VisitCareCapacityT031PostgresIntegrationTest {
                         .with(actor(adminAccount, AccountRole.ADMIN)).with(csrf())
                         .header("X-Correlation-ID", UUID.randomUUID().toString()).contentType("application/json")
                         .content("{\"displayLabel\":\"Updated label\",\"capabilities\":[\"PROCEDURE_ROOM\"]}"))
-                .andExpect(status().isConflict()).andExpect(jsonPath("$.error.code").value("ROOM_HAS_ACTIVE_RESERVATIONS"));
+                .andExpect(status().isConflict()).andExpect(jsonPath("$.error.code").value("MSG-64"));
         mvc.perform(delete("/api/v1/admin/visit-rooms/{roomId}", room)
                         .with(actor(adminAccount, AccountRole.ADMIN)).with(csrf())
                         .header("X-Correlation-ID", UUID.randomUUID().toString()))
-                .andExpect(status().isConflict()).andExpect(jsonPath("$.error.code").value("ROOM_HAS_ACTIVE_RESERVATIONS"));
+                .andExpect(status().isConflict()).andExpect(jsonPath("$.error.code").value("MSG-64"));
         assertEquals(1, jdbc.queryForObject("select count(*) from room_reservations where room_id = ? and status = 'IN_PROGRESS'", Integer.class, room));
     }
 

@@ -47,6 +47,17 @@ class AdminClinicServiceControllerTest {
     private final UUID id = UUID.randomUUID();
     private final String base = "/api/v1/admin/clinic-services";
 
+    @Test void invalidServiceReturnsMsg66() throws Exception {
+        mvc.perform(post(base).with(user("admin").roles("ADMIN")).with(csrf())
+                        .contentType("application/json").content("{}"))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("MSG-66"));
+    }
+
+    @Test void deniedServiceRemovalReturnsMsg50() throws Exception {
+        mvc.perform(delete(base + "/" + id).with(user("other").roles("DOCTOR")).with(csrf()))
+                .andExpect(status().isForbidden()).andExpect(jsonPath("$.error.code").value("MSG-50"));
+    }
+
     @Test void internalCatalogAndAssignmentsAreAdminOnly() throws Exception {
         for (String path : List.of(base, base + "/" + id + "/doctor-assignments")) {
             mvc.perform(get(path)).andExpect(status().isUnauthorized());
