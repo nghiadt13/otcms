@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { ChevronsUpDown, LogOut, UserRound } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -18,30 +19,29 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { receptionHref } from "../navigation";
-import type { ReceptionState } from "../types";
-import { useReception } from "./ReceptionProvider";
+import { fetchCurrentAccount, type CurrentAccount } from "@/lib/auth/currentAccountApi";
 
 // Ô tài khoản cuối sidebar, cùng dạng với khu admin: avatar + tên đăng nhập + vai trò, bấm mở menu.
 function AccountSummary({
   account,
 }: {
-  account: ReceptionState["account"] | undefined;
+  account: CurrentAccount | null;
 }) {
   return (
     <>
       <Avatar className="size-8 rounded-lg">
-        {account?.avatar ? (
-          <AvatarImage src={account.avatar} alt={account.name} />
+        {account?.avatarUrl ? (
+          <AvatarImage src={account.avatarUrl} alt={account.displayName} />
         ) : null}
         <AvatarFallback className="rounded-lg">
-          {account ? account.username.slice(0, 2).toUpperCase() : ""}
+          {account ? (account.username || account.displayName).slice(0, 2).toUpperCase() : ""}
         </AvatarFallback>
       </Avatar>
       <span className="grid flex-1 text-left leading-tight">
         {account ? (
           <>
             <span className="truncate text-sm font-medium">
-              {account.username}
+              {account.username || account.displayName}
             </span>
             <span className="truncate text-xs text-muted-foreground">
               Lễ tân
@@ -60,7 +60,12 @@ function AccountSummary({
 
 export function ReceptionAccountMenu({ onExit }: { onExit: () => void }) {
   const { isMobile, setOpenMobile } = useSidebar();
-  const account = useReception().data?.account;
+  const [account, setAccount] = useState<CurrentAccount | null>(null);
+  useEffect(() => {
+    let active = true;
+    void fetchCurrentAccount().then((value) => { if (active) setAccount(value); }).catch(() => {});
+    return () => { active = false; };
+  }, []);
   return (
     <SidebarMenu>
       <SidebarMenuItem>

@@ -165,5 +165,7 @@ export function formatAppMessage(
 export function messageFromError(error: unknown): string {
   if (isApiError(error) && error.code && error.code in APP_MESSAGES)
     return formatAppMessage(error.code, error.params);
+  if (isApiError(error) && error.status === 404) return formatAppMessage("MSG-41");
+  if (isApiError(error) && error.status === 403) return formatAppMessage("MSG-40");
   return formatAppMessage("MSG-04");
 }

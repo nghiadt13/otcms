@@ -31,6 +31,7 @@ const STATUS_TO_MSG: Record<number, MsgCode> = {
 
 function codeOf(error: ApiError): MsgCode | undefined {
   const raw = error.errorCode;
+  if (error.status === 404 && raw === "UNAUTHORIZED_RECORD") return "MSG-41";
   if (raw && raw in APP_MESSAGES && raw.startsWith("MSG-"))
     return raw as MsgCode;
   return (raw && TECHNICAL_TO_MSG[raw]) || STATUS_TO_MSG[error.status];

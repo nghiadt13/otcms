@@ -17,6 +17,7 @@ import {
 } from "../api/receptionLiveApi";
 import { paymentErrorText } from "../schema/receptionMessages";
 import { CounterPaymentForm } from "./CounterPaymentForm";
+import { PaymentReceiptDialog } from "./PaymentReceiptDialog";
 import { timeText } from "./ReceptionUi";
 
 const feeText = (paid: boolean | null) =>
@@ -48,6 +49,7 @@ export function CheckInAppointmentRow({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [invoice, setInvoice] = useState<BillingInvoice | null>(null);
+  const [receiptId, setReceiptId] = useState<string | null>(null);
   const [arrivalReason, setArrivalReason] = useState("");
   // Giữ khoá idempotency qua lần thử lại sau lỗi mạng; thành công thì bỏ.
   const checkInKey = useRef<string | null>(null);
@@ -177,12 +179,14 @@ export function CheckInAppointmentRow({
           title="Thu phí khám"
           description="Ghi nhận phí khám của lịch hẹn trên hóa đơn."
           onClose={() => setInvoice(null)}
-          onPaid={async () => {
+          onPaid={async (paymentId) => {
             setInvoice(null);
+            setReceiptId(paymentId);
             onFeePaid();
           }}
         />
       )}
+      {receiptId && <PaymentReceiptDialog paymentId={receiptId} onClose={() => setReceiptId(null)} />}
     </div>
   );
 }

@@ -20,6 +20,7 @@ import {
 import { queuedFeedbackText } from "../schema/receptionMessages";
 import { money, SelectField } from "./ReceptionUi";
 import { WalkInFeeStep } from "./WalkInFeeStep";
+import { PaymentReceiptDialog } from "./PaymentReceiptDialog";
 
 /**
  * Tạo lượt khám trực tiếp: chọn bác sĩ đang trong ca và dịch vụ khám. Dịch vụ có giá thì lễ tân thu
@@ -45,6 +46,7 @@ export function WalkInVisitForm({
     serviceId: string;
   } | null>(null);
   const [unpaidVisit, setUnpaidVisit] = useState(false);
+  const [receiptId, setReceiptId] = useState<string | null>(null);
   // Khoá idempotency giữ nguyên khi thử lại cùng lựa chọn sau lỗi mạng; đổi lựa chọn thì tạo khoá mới.
   const keyRef = useRef<{ fingerprint: string; key: string } | null>(null);
 
@@ -181,12 +183,14 @@ export function WalkInVisitForm({
           visitId={feeDue.visitId}
           serviceId={feeDue.serviceId}
           onClose={() => setFeeDue(null)}
+          onReceipt={setReceiptId}
           onQueued={() => {
             setFeeDue(null);
             setUnpaidVisit(false);
           }}
         />
       )}
+      {receiptId && <PaymentReceiptDialog paymentId={receiptId} onClose={() => setReceiptId(null)} />}
     </div>
   );
 }

@@ -37,8 +37,7 @@ export async function getPrescription(
   } catch (error) {
     if (
       isApiError(error) &&
-      error.status === 404 &&
-      (!error.code || error.code === "MSG-41")
+      error.status === 404
     )
       return null;
     throw error;

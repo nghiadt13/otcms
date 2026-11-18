@@ -103,7 +103,7 @@ export function ClosingScreen() {
                 context={context}
                 ready={ready}
                 onFailed={reloadAll}
-                onCompleted={reloadAll}
+                onCompleted={workspace.refresh}
               />
             </div>
           ) : null}

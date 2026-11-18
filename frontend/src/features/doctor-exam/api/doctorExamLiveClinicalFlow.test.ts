@@ -45,6 +45,8 @@ describe("UC36", () => {
   it("absent MSG-41 is null; authorization failures propagate", async () => {
     request.mockRejectedValue(new ApiError(404, { code: "MSG-41" }));
     expect(await api.getPrescription("current")).toBeNull();
+    request.mockRejectedValue(new ApiError(404, { code: "MSG-40" }));
+    expect(await api.getPrescription("current")).toBeNull();
     const denied = new ApiError(403);
     request.mockRejectedValue(denied);
     await expect(api.getPrescription("current")).rejects.toBe(denied);

@@ -11,6 +11,9 @@ import {
 import { useAdminRemoteData } from "@/hooks/useAdminRemoteData";
 import { getDoctorExamApi } from "../api/doctorExamApi";
 import type { ParaclinicalOrder, VisitContext } from "../types/doctorExam";
+import { ResultSheetPanel } from "./ResultSheetPanel";
+import { DoctorLoadState } from "./DoctorLoadState";
+import { useDoctorDemoMode } from "../hooks/useDoctorData";
 
 // Một lượt tải duy nhất cho thông tin bệnh nhân/lượt khám, dùng chung cho header và mọi tab
 // của workspace (tránh mỗi tab tự gọi lại danh sách lịch hẹn). Cũng giữ hai thứ mà BE chưa cho
@@ -102,6 +105,16 @@ export function useVisitWorkspace(): VisitWorkspaceValue {
   if (!value)
     throw new Error("useVisitWorkspace chỉ dùng trong VisitWorkspaceProvider.");
   return value;
+}
+
+export function VisitWorkspaceContent({ children }: { children: ReactNode }) {
+  const { visitId, context, loading, error, refresh } = useVisitWorkspace();
+  const demo = useDoctorDemoMode();
+  if (loading || error || !context)
+    return <DoctorLoadState loading={loading} error={error} retry={refresh} />;
+  if (!demo && context.status === "COMPLETED")
+    return <ResultSheetPanel visitId={visitId} />;
+  return children;
 }
 
 /**
