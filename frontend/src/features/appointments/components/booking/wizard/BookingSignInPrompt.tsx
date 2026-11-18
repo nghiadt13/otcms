@@ -10,9 +10,13 @@ import { BookingStepper } from "./BookingStepper";
 // Bước 1 cho khách chưa có phiên: đặt lịch cần tài khoản bệnh nhân (BR-21) nên chỉ có hai lối,
 // đăng nhập hoặc đăng ký, cả hai quay lại màn đặt lịch. Chưa có bước sau để đi tiếp.
 
-const NEXT = encodeURIComponent(PATIENT_ROUTES.newAppointment);
-
-export function BookingSignInPrompt() {
+// `nextPath` is the booking page to return to after sign-in, including any preselected slot query.
+export function BookingSignInPrompt({
+  nextPath = PATIENT_ROUTES.newAppointment,
+}: {
+  nextPath?: string;
+}) {
+  const next = encodeURIComponent(nextPath);
   return (
     <div className="grid grid-cols-[minmax(0,1fr)] gap-6">
       <BookingStepper current="account" onGoTo={() => undefined} />
@@ -36,7 +40,7 @@ export function BookingSignInPrompt() {
         <div className="flex flex-col gap-3 sm:flex-row">
           <Link
             className={cn(buttonVariants(), "h-12 px-8 text-base sm:w-auto")}
-            href={`/login?next=${NEXT}`}
+            href={`/login?next=${next}`}
           >
             <LogIn aria-hidden />
             Đăng nhập
@@ -46,7 +50,7 @@ export function BookingSignInPrompt() {
               buttonVariants({ variant: "outline" }),
               "h-12 px-8 text-base sm:w-auto",
             )}
-            href={`/register?next=${NEXT}`}
+            href={`/register?next=${next}`}
           >
             <UserPlus aria-hidden />
             Đăng ký tài khoản

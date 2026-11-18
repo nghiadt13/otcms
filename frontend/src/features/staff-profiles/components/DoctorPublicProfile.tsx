@@ -2,16 +2,13 @@ import { CalendarPlus } from "lucide-react";
 import Image from "next/image";
 import { PublicBookAppointmentLink } from "@/components/brand/PublicBookAppointmentLink";
 import { publicButtonClass } from "@/components/brand/publicButtonStyles";
-import type { PublicDoctorDetail } from "../types/publicDoctor";
-import { DoctorAvailabilitySummary } from "./DoctorAvailabilitySummary";
+import type { PublicDoctor } from "../types/publicDoctor";
+import { DoctorOpenTimesSection } from "./DoctorOpenTimesSection";
 
 // Hồ sơ bác sĩ công khai (UC16 bước 3–4): ảnh và chuyên môn, giới thiệu, thông tin khám,
-// tóm tắt giờ nhận 7 ngày và nút đặt lịch. Đặt lịch bắt đầu từ thời gian, không chọn sẵn bác sĩ.
-export function DoctorPublicProfile({
-  doctor,
-}: {
-  doctor: PublicDoctorDetail;
-}) {
+// lịch nhận khám 7 ngày với giờ còn trống và nút đặt lịch.
+// Each free time opens booking with this doctor preselected; the generic booking button does not.
+export function DoctorPublicProfile({ doctor }: { doctor: PublicDoctor }) {
   const initial = doctor.fullName.trim().slice(-1).toUpperCase();
   return (
     <article className="grid gap-12 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] lg:gap-16">
@@ -69,22 +66,7 @@ export function DoctorPublicProfile({
           </p>
         </section>
 
-        {doctor.availability.length > 0 ? (
-          <section
-            aria-labelledby="doctor-availability-title"
-            className="mt-10"
-          >
-            <h2
-              className="text-2xl font-semibold"
-              id="doctor-availability-title"
-            >
-              Lịch nhận khám 7 ngày tới
-            </h2>
-            <div className="mt-4">
-              <DoctorAvailabilitySummary availability={doctor.availability} />
-            </div>
-          </section>
-        ) : null}
+        <DoctorOpenTimesSection doctorId={doctor.id} />
 
         <PublicBookAppointmentLink
           className={publicButtonClass("primary", "lg") + " mt-10"}

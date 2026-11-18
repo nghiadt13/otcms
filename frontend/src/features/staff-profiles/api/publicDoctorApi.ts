@@ -1,11 +1,7 @@
 import { publicApiRequest } from "@/lib/api/client";
 import { apiBaseUrl } from "@/lib/api/apiBaseUrl";
 import { ApiError } from "@/lib/api/apiError";
-import type {
-  PublicDoctor,
-  PublicDoctorDetail,
-  DoctorAvailabilityDay,
-} from "../types/publicDoctor";
+import type { PublicDoctor } from "../types/publicDoctor";
 
 type DoctorResponse = {
   doctorProfileId: string;
@@ -15,10 +11,6 @@ type DoctorResponse = {
   qualifications: string | null;
   biography: string | null;
   consultationInformation: string | null;
-};
-
-type DoctorDetailResponse = DoctorResponse & {
-  availability: DoctorAvailabilityDay[];
 };
 
 function mapDoctor(d: DoctorResponse): PublicDoctor {
@@ -52,16 +44,18 @@ export async function listPublicDoctors(
   return { items: data.items.map(mapDoctor) };
 }
 
+// The profile endpoint also returns a per-day summary; the page does not use it. Free times come
+// from the booking availability API so that the list, the profile and booking agree.
 export async function getPublicDoctor(
   id: string,
   signal?: AbortSignal,
-): Promise<PublicDoctorDetail> {
+): Promise<PublicDoctor> {
   try {
-    const data = await publicApiRequest<DoctorDetailResponse>(
+    const data = await publicApiRequest<DoctorResponse>(
       `/api/v1/doctors/${encodeURIComponent(id)}`,
       { signal },
     );
-    return { ...mapDoctor(data), availability: data.availability };
+    return mapDoctor(data);
   } catch (error) {
     if (error instanceof ApiError && error.status === 404)
       throw new ApiError(404, { code: "MSG-24" });
