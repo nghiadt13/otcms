@@ -5,6 +5,7 @@ import fu.fa26.sep490.g58.otcms_be.auth.exception.StaffNetworkAccessException;
 import fu.fa26.sep490.g58.otcms_be.auth.model.dto.request.ChangePasswordRequest;
 import fu.fa26.sep490.g58.otcms_be.auth.model.dto.request.ForgotPasswordRequest;
 import fu.fa26.sep490.g58.otcms_be.auth.model.dto.request.ResetPasswordRequest;
+import fu.fa26.sep490.g58.otcms_be.auth.model.dto.request.PatientOtpResetRequest;
 import fu.fa26.sep490.g58.otcms_be.auth.model.entity.enums.AccountType;
 import fu.fa26.sep490.g58.otcms_be.auth.security.StaffNetworkPolicy;
 import fu.fa26.sep490.g58.otcms_be.auth.service.PasswordRecoveryService;
@@ -45,8 +46,8 @@ public class PasswordRecoveryController {
     }
 
     @PostMapping("/patient/reset-password")
-    public ResponseEntity<Void> patientReset(@Valid @RequestBody ResetPasswordRequest request) {
-        recovery.reset(request, AccountType.PATIENT);
+    public ResponseEntity<Void> patientReset(@Valid @RequestBody PatientOtpResetRequest request) {
+        recovery.resetPatientOtp(request);
         return ResponseEntity.noContent().build();
     }
 
@@ -54,8 +55,7 @@ public class PasswordRecoveryController {
     public ResponseEntity<Void> staffReset(@Valid @RequestBody ResetPasswordRequest request,
                                            HttpServletRequest httpRequest) {
         requireStaffNetwork(httpRequest);
-        recovery.reset(request, AccountType.RECEPTIONIST);
-        return ResponseEntity.noContent().build();
+        throw new PasswordRecoveryException("MSG-77");
     }
 
     @PostMapping("/change-password")

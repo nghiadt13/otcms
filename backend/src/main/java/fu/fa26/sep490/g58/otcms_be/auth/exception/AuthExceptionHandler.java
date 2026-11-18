@@ -16,7 +16,9 @@ import java.util.UUID;
 public class AuthExceptionHandler {
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ErrorResponse> invalidRequest(MethodArgumentNotValidException ex) {
-        return ResponseEntity.badRequest().body(ErrorResponse.of("VALIDATION_FAILED",
+        String code = ex.getParameter().getContainingClass().equals(
+                fu.fa26.sep490.g58.otcms_be.auth.controller.PasswordRecoveryController.class) ? "MSG-08" : "VALIDATION_FAILED";
+        return ResponseEntity.badRequest().body(ErrorResponse.of(code,
                 "Authentication request could not be completed", UUID.randomUUID().toString()));
     }
 
@@ -34,7 +36,11 @@ public class AuthExceptionHandler {
     @ExceptionHandler(PasswordRecoveryException.class)
     public ResponseEntity<ErrorResponse> password(PasswordRecoveryException ex) {
         HttpStatus status = "AUTHENTICATION_FAILED".equals(ex.getMessage()) ? HttpStatus.UNAUTHORIZED : HttpStatus.BAD_REQUEST;
-        return ResponseEntity.status(status).body(ErrorResponse.of(ex.getMessage(), "Password recovery request failed", UUID.randomUUID().toString()));
+        String code = switch (ex.getMessage()) {
+            case "VALIDATION_FAILED", "CURRENT_PASSWORD_INVALID", "PASSWORD_REUSE_NOT_ALLOWED" -> "MSG-08";
+            default -> ex.getMessage();
+        };
+        return ResponseEntity.status(status).body(ErrorResponse.of(code, "Password recovery request failed", UUID.randomUUID().toString()));
     }
     @ExceptionHandler(SessionException.class)
     public ResponseEntity<ErrorResponse> session(SessionException ex) {

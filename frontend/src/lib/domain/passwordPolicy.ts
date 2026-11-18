@@ -4,7 +4,12 @@ export const passwordPolicy = [
   {
     id: "length",
     label: "Tối thiểu 8 ký tự",
-    test: (v: string) => v.length >= 8,
+    test: (v: string) => Array.from(v).length >= 8,
+  },
+  {
+    id: "maximum",
+    label: "Tối đa 64 ký tự và 72 byte UTF-8",
+    test: (v: string) => Array.from(v).length <= 64 && new TextEncoder().encode(v).length <= 72,
   },
   {
     id: "letter",
@@ -14,7 +19,7 @@ export const passwordPolicy = [
   {
     id: "digit",
     label: "Có ít nhất một chữ số",
-    test: (v: string) => /\d/.test(v),
+    test: (v: string) => /\p{Nd}/u.test(v),
   },
 ] as const;
 

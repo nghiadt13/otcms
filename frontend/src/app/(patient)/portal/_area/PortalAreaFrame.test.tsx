@@ -1,6 +1,10 @@
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { resetMyAccountMockStore } from "@/features/my-account/api/myAccountApi";
+import { resetMockAccountState } from "@/features/my-account/api/myAccountMockStore";
+vi.mock("@/features/my-account/api/myAccountApi", async () => {
+  const store = await import("@/features/my-account/api/myAccountMockStore");
+  return { getMyAccount: vi.fn(async () => store.accountSnapshot(store.currentMockAccountState().account)) };
+});
 import { MOCK_PATIENT_ACCOUNT } from "@/features/my-account/api/myAccountMockData";
 import { resetPatientProfileMock } from "@/features/patient-profiles/api/patientProfileMockStore";
 import { setMockSignedInKind } from "@/lib/session/mockSignedInKind";
@@ -14,7 +18,7 @@ vi.mock("next/navigation", () => ({
 
 beforeEach(() => {
   setMockSignedInKind("PATIENT");
-  resetMyAccountMockStore(MOCK_PATIENT_ACCOUNT);
+  resetMockAccountState(MOCK_PATIENT_ACCOUNT);
   resetPatientProfileMock();
 });
 

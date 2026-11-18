@@ -31,7 +31,7 @@ class UC07AdministratorAccountPostgresIntegrationTest {
     void persistsHashedAdministratorAndRejectsDuplicateWithoutReturningPasswordAgain() {
         var owner = new AuthenticatedAccount(UUID.randomUUID(), AccountRole.OWNER, UUID.randomUUID());
         String username = "uc07-" + UUID.randomUUID();
-        var response = create.create(owner, username);
+        var response = create.create(owner, username, "Initial123");
         var account = accounts.findByUsername(username).orElseThrow();
         assertEquals("ADMIN", account.getAccountType().name());
         assertEquals(AccountStatus.ACTIVE, account.getStatus());
@@ -39,7 +39,7 @@ class UC07AdministratorAccountPostgresIntegrationTest {
         assertNull(account.getNormalizedEmail());
         assertTrue(encoder.matches(response.getTemporaryPassword(), account.getPasswordHash()));
         assertFalse(response.getTemporaryPassword().equals(account.getPasswordHash()));
-        var error = assertThrows(AdministratorAccountException.class, () -> create.create(owner, username));
+        var error = assertThrows(AdministratorAccountException.class, () -> create.create(owner, username, "Initial123"));
         assertEquals("USERNAME_ALREADY_EXISTS", error.getMessage());
     }
 

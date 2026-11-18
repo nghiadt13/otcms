@@ -6,13 +6,7 @@ import { ForgotPasswordForm } from "@/features/auth/components/ForgotPasswordFor
 export const metadata: Metadata = { title: "Quên mật khẩu | OTCMS" };
 
 // UC02 Đặt lại mật khẩu, phần yêu cầu khôi phục qua email.
-export default async function ForgotPasswordPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ portal?: string | string[] }>;
-}) {
-  const { portal: requestedPortal } = await searchParams;
-  const portal = requestedPortal === "staff" ? "staff" : "patient";
+export default function ForgotPasswordPage() {
   return (
     <AuthCard
       description="Nhập email tài khoản, chúng tôi sẽ gửi hướng dẫn đặt lại mật khẩu."
@@ -21,7 +15,7 @@ export default async function ForgotPasswordPage({
           Nhớ mật khẩu rồi?{" "}
           <Link
             className={authLinkClass}
-            href={portal === "staff" ? "/staff-login" : "/login"}
+            href="/login"
           >
             Đăng nhập
           </Link>
@@ -29,7 +23,7 @@ export default async function ForgotPasswordPage({
       }
       title="Quên mật khẩu"
     >
-      <ForgotPasswordForm portal={portal} />
+      <ForgotPasswordForm />
     </AuthCard>
   );
 }

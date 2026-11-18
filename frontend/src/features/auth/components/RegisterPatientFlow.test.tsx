@@ -98,7 +98,7 @@ describe("RegisterPatientFlow", () => {
     await user.type(screen.getByLabelText(/Mã xác minh/), "000000");
     await user.click(screen.getByRole("button", { name: "Xác minh" }));
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      authMessages["MSG-08"],
+      authMessages["MSG-77"],
     );
 
     await user.clear(screen.getByLabelText(/Mã xác minh/));

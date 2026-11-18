@@ -51,7 +51,7 @@ export async function changeFirstLoginPassword(
       throw new FirstLoginPasswordError("current");
     if (code === "PASSWORD_REUSE_NOT_ALLOWED")
       throw new FirstLoginPasswordError("reused");
-    if (code === "VALIDATION_FAILED")
+    if (code === "VALIDATION_FAILED" || code === "MSG-08")
       throw new FirstLoginPasswordError("invalid");
     if (
       (response.status === 401 || response.status === 403) &&

@@ -97,7 +97,7 @@ class AdministratorAccountDatabaseVerificationTest {
                 ready.countDown();
                 await(start);
                 try {
-                    administrators.create(owner(), username);
+                    administrators.create(owner(), username, "Initial123");
                     return "CREATED";
                 } catch (AdministratorAccountException exception) {
                     return exception.getMessage();
@@ -119,7 +119,7 @@ class AdministratorAccountDatabaseVerificationTest {
 
     @Test
     void concurrentReissuesWaitForAccountLockAndCommitOnlyLatestCredential() throws Exception {
-        var created = administrators.create(owner(), "concurrent-reissue-" + UUID.randomUUID());
+        var created = administrators.create(owner(), "concurrent-reissue-" + UUID.randomUUID(), "Initial123");
         UUID id = created.getAccountId();
         sessions.create(id, "127.0.0.1", "database-verification");
         CountDownLatch firstHoldingLock = new CountDownLatch(1);
@@ -176,7 +176,7 @@ class AdministratorAccountDatabaseVerificationTest {
         assertThrows(AdministratorAccountException.class, () -> administrators.reissuePassword(owner(), nonAdmin));
         assertEquals("ACTIVE", jdbc.queryForObject("select status from accounts where id = ?", String.class, nonAdmin));
         assertThrows(AdministratorAccountException.class, () -> administrators.detail(owner(), nonAdmin));
-        var created = administrators.create(owner(), "real-query-" + UUID.randomUUID());
+        var created = administrators.create(owner(), "real-query-" + UUID.randomUUID(), "Initial123");
         var mapper = JsonMapper.builder().findAndAddModules().build();
         String detail = mapper.writeValueAsString(administrators.detail(owner(), created.getAccountId()));
         String list = mapper.writeValueAsString(administrators.list(owner(), created.getUsername(), null, 0, 20).getContent());

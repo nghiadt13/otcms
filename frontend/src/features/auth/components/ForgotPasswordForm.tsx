@@ -1,7 +1,6 @@
 "use client";
 
-import { Mail, MailCheck } from "lucide-react";
-import Link from "next/link";
+import { Mail } from "lucide-react";
 import { useRef, useState, type FormEvent } from "react";
 import {
   requestPasswordReset,
@@ -14,9 +13,9 @@ import type { AuthMessageCode } from "../authMessages";
 import { focusFirstInvalidField } from "../focusFirstInvalidField";
 import { validateEmail } from "../schema/authFieldRules";
 import { toAuthMessageCode } from "../types/auth";
-import { Button } from "@/components/ui/button";
+import { ResetPasswordForm } from "./ResetPasswordForm";
 import { AuthAlert } from "./AuthAlert";
-import { AuthSubmitButton, authSecondaryButtonClass } from "./AuthSubmitButton";
+import { AuthSubmitButton } from "./AuthSubmitButton";
 import { AuthTextField } from "./AuthTextField";
 
 // UC02 bước 1–4: nhập email để nhận hướng dẫn đặt lại mật khẩu. Sau khi gửi luôn
@@ -27,7 +26,6 @@ export function ForgotPasswordForm({
 }: {
   portal?: RecoveryPortal;
 }) {
-  const loginHref = portal === "staff" ? "/staff-login" : "/login";
   const [failure, setFailure] = useState<RecoveryFailure | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
   const [email, setEmail] = useState("");
@@ -62,32 +60,10 @@ export function ForgotPasswordForm({
 
   if (sentTo) {
     return (
-      <div className="mt-8 space-y-6">
-        <div className="flex flex-col items-center text-center">
-          <span className="flex size-12 items-center justify-center rounded-full bg-secondary text-primary">
-            <MailCheck aria-hidden className="size-6" />
-          </span>
-          <p className="mt-4 text-base font-medium break-all text-foreground">
-            {sentTo}
-          </p>
-        </div>
+      <div className="mt-8 space-y-4">
         <AuthAlert code="MSG-02" tone="success" />
-        <p className="text-base leading-7 text-muted-foreground">
-          Mở email và làm theo hướng dẫn để đặt mật khẩu mới. Không thấy email?
-          Kiểm tra thư mục spam hoặc gửi lại sau vài phút.
-        </p>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <Button
-            className={authSecondaryButtonClass}
-            onClick={() => setSentTo(null)}
-            type="button"
-          >
-            Dùng email khác
-          </Button>
-          <Link className={authSecondaryButtonClass} href={loginHref}>
-            Về đăng nhập
-          </Link>
-        </div>
+        <p>{sentTo}</p>
+        <ResetPasswordForm email={sentTo} onRestart={() => setSentTo(null)} />
       </div>
     );
   }

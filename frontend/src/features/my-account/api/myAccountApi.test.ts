@@ -1,96 +1,22 @@
-import { beforeEach, describe, expect, it } from "vitest";
-import { isApiError, toFieldErrorMap } from "@/lib/api/apiError";
-import {
-  changeMyPassword,
-  getMyAccount,
-  removeMyAvatar,
-  resetMyAccountMockStore,
-  updateMyAvatar,
-} from "./myAccountApi";
-import { MOCK_MY_ACCOUNT_FIRST_LOGIN } from "./myAccountMockData";
-
-async function failure(promise: Promise<unknown>) {
-  try {
-    await promise;
-  } catch (err) {
-    if (isApiError(err)) return err;
-  }
-  throw new Error("Mong đợi ApiError");
-}
-
-beforeEach(() => resetMyAccountMockStore());
-
-describe("myAccountApi", () => {
-  it("getMyAccount: Admin không có email, chưa có ảnh thì không có removeAvatar", async () => {
-    const account = await getMyAccount();
-    expect(account).toMatchObject({ kind: "STAFF", username: "admin.hoa" });
-    expect(account).not.toHaveProperty("email");
-    expect(account.allowedActions).toEqual(["updateAvatar", "changePassword"]);
-  });
-
-  it("đổi ảnh hợp lệ thì có removeAvatar; gỡ ảnh trả undefined", async () => {
-    const file = new File(["x"], "a.png", { type: "image/png" });
-    const updated = await updateMyAvatar(file);
-    expect(updated.avatarUrl).toBeTruthy();
-    expect(updated.allowedActions).toContain("removeAvatar");
-    await expect(removeMyAvatar()).resolves.toBeUndefined();
-    expect((await getMyAccount()).avatarUrl).toBeNull();
-  });
-
-  it("ảnh sai định dạng hoặc quá cỡ: fieldErrors ở file", async () => {
-    const gif = new File(["x"], "a.gif", { type: "image/gif" });
-    const err = await failure(updateMyAvatar(gif));
-    expect(err.status).toBe(400);
-    expect(toFieldErrorMap(err.fieldErrors)).toEqual({ file: "MSG-08" });
-
-    const big = new File([new Uint8Array(2 * 1024 * 1024 + 1)], "b.png", {
-      type: "image/png",
-    });
-    const bigErr = await failure(updateMyAvatar(big));
-    expect(toFieldErrorMap(bigErr.fieldErrors)).toEqual({ file: "MSG-08" });
-  });
-
-  it("mật khẩu hiện tại sai: fieldErrors ở currentPassword", async () => {
-    const err = await failure(
-      changeMyPassword({
-        currentPassword: "SaiMatKhau1",
-        newPassword: "MatKhauMoi2",
-      }),
-    );
-    expect(toFieldErrorMap(err.fieldErrors)).toEqual({
-      currentPassword: "MSG-08",
-    });
-  });
-
-  it("mật khẩu mới không đạt chính sách: fieldErrors ở newPassword", async () => {
-    const err = await failure(
-      changeMyPassword({
-        currentPassword: "MatKhauCu1",
-        newPassword: "abcdefgh",
-      }),
-    );
-    expect(toFieldErrorMap(err.fieldErrors)).toEqual({ newPassword: "MSG-08" });
-  });
-
-  it("LoiDichVu1 trả 500 MSG-04", async () => {
-    const err = await failure(
-      changeMyPassword({
-        currentPassword: "LoiDichVu1",
-        newPassword: "MatKhauMoi2",
-      }),
-    );
-    expect([err.status, err.code]).toEqual([500, "MSG-04"]);
-  });
-
-  it("đổi thành công thì tắt mustChangePassword", async () => {
-    resetMyAccountMockStore(MOCK_MY_ACCOUNT_FIRST_LOGIN);
-    expect(await getMyAccount()).toMatchObject({ mustChangePassword: true });
-    await expect(
-      changeMyPassword({
-        currentPassword: "MatKhauCu1",
-        newPassword: "MatKhauMoi2",
-      }),
-    ).resolves.toEqual({ sessionEnded: false });
-    expect(await getMyAccount()).toMatchObject({ mustChangePassword: false });
-  });
+import { beforeEach, expect, it, vi } from "vitest";
+import { apiRequest } from "@/lib/api/client";
+import { getSession } from "@/lib/auth/authSession";
+import { getMyAccount, updateMyAvatar, removeMyAvatar } from "./myAccountApi";
+vi.mock("@/lib/api/client", () => ({ apiRequest: vi.fn() }));
+vi.mock("@/lib/auth/authSession", () => ({ getSession: vi.fn() }));
+vi.mock("@/lib/auth/accountAvatarCache", () => ({ loadAccountAvatarUrl: vi.fn(), notifyAccountAvatarChanged: vi.fn() }));
+beforeEach(() => { vi.clearAllMocks(); vi.mocked(getSession).mockResolvedValue({ accountType: "ADMIN" } as never); vi.mocked(apiRequest).mockResolvedValue({ id: "1", kind: "STAFF", avatarUrl: null }); });
+it("loads the signed-in staff account from the API", async () => {
+  expect(await getMyAccount()).toMatchObject({id: "1", kind: "STAFF"});
+  expect(apiRequest).toHaveBeenCalledWith("/api/v1/me", {signal: undefined});
+});
+it("uploads and removes avatar through the API", async () => {
+  await updateMyAvatar(new File(["x"], "a.png", {type:"image/png"}));
+  expect(apiRequest).toHaveBeenCalledWith("/api/v1/me/avatar", expect.objectContaining({method:"PUT", body: expect.any(FormData)}));
+  await removeMyAvatar();
+  expect(apiRequest).toHaveBeenCalledWith("/api/v1/me/avatar", {method:"DELETE"});
+});
+it("rejects a missing session", async () => {
+  vi.mocked(getSession).mockResolvedValue(null);
+  await expect(getMyAccount()).rejects.toMatchObject({status: 401});
 });

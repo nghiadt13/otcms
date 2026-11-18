@@ -53,9 +53,8 @@ class PasswordRecoveryFlowTest {
         verify(challenges).saveAndFlush(saved.capture());
         var challenge = saved.getValue();
         assertNotEquals(token.getValue(), challenge.getCodeHash());
-        when(challenges.findAccountIdByCodeHash(challenge.getCodeHash(), VerificationPurpose.PASSWORD_RESET)).thenReturn(Optional.of(account.getId()));
-        when(challenges.findByCodeHashForUpdate(challenge.getCodeHash(), VerificationPurpose.PASSWORD_RESET)).thenReturn(Optional.of(challenge));
-        String request = "{\"token\":\"" + token.getValue() + "\",\"newPassword\":\"new-password-123\"}";
+        when(challenges.findCurrentForUpdate(account.getId(), VerificationPurpose.PASSWORD_RESET)).thenReturn(Optional.of(challenge));
+        String request = "{\"email\":\"patient@example.test\",\"otp\":\"" + token.getValue() + "\",\"newPassword\":\"new-password-123\"}";
         mvc.perform(post("/api/auth/patient/reset-password").contentType("application/json").content(request))
                 .andExpect(status().isNoContent());
         assertTrue(encoder.matches("new-password-123", account.getPasswordHash()));
@@ -63,6 +62,72 @@ class PasswordRecoveryFlowTest {
         verify(sessions).revokeAll(account.getId());
         mvc.perform(post("/api/auth/patient/reset-password").contentType("application/json").content(request))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error.code").value("PASSWORD_RESET_TOKEN_INVALID"));
+                .andExpect(jsonPath("$.error.code").value("MSG-77"));
+    }
+    @Test void wrongOtpIsLimitedAndUnknownEmailReturnsSameError() {
+        var accounts = mock(AccountRepository.class);
+        var challenges = mock(VerificationCodeRepository.class);
+        var otp = new fu.fa26.sep490.g58.otcms_be.auth.service.impl.EmailOtpServiceImpl();
+        var account = new AccountJpaEntity();
+        account.setId(UUID.randomUUID());
+        account.setAccountType(AccountType.PATIENT);
+        account.setStatus(AccountStatus.ACTIVE);
+        account.setPasswordHash("existing-hash");
+        var challenge = new VerificationCodeJpaEntity();
+        challenge.setCodeHash(otp.hash("123456"));
+        challenge.setExpiresAt(java.time.Instant.now().plusSeconds(600));
+        when(accounts.findByNormalizedEmail("patient@example.test")).thenReturn(Optional.of(account));
+        when(accounts.findByIdForUpdate(account.getId())).thenReturn(Optional.of(account));
+        when(challenges.findCurrentForUpdate(account.getId(), VerificationPurpose.PASSWORD_RESET)).thenReturn(Optional.of(challenge));
+        var service = new PasswordRecoveryServiceImpl(accounts, challenges, mock(EmailDeliveryService.class),
+                new BCryptPasswordEncoder(4), mock(AuthSessionService.class),
+                new AuthProperties(null, null, null, null, null, "v1", "v1"));
+        for (int i = 0; i < 5; i++) {
+            var request = new fu.fa26.sep490.g58.otcms_be.auth.model.dto.request.PatientOtpResetRequest(
+                    "patient@example.test", "000000", "Password123");
+            assertEquals("MSG-77", assertThrows(fu.fa26.sep490.g58.otcms_be.auth.exception.PasswordRecoveryException.class,
+                    () -> service.resetPatientOtp(request)).getMessage());
+        }
+        assertEquals(5, challenge.getFailedAttempts());
+        assertNotNull(challenge.getSupersededAt());
+        var unknown = new fu.fa26.sep490.g58.otcms_be.auth.model.dto.request.PatientOtpResetRequest(
+                "unknown@example.test", "123456", "Password123");
+        assertEquals("MSG-77", assertThrows(fu.fa26.sep490.g58.otcms_be.auth.exception.PasswordRecoveryException.class,
+                () -> service.resetPatientOtp(unknown)).getMessage());
+    }
+    @Test void expiredOtpAndStaffRecoveryAreRejected() {
+        var accounts = mock(AccountRepository.class);
+        var challenges = mock(VerificationCodeRepository.class);
+        var email = mock(EmailDeliveryService.class);
+        var account = new AccountJpaEntity();
+        account.setId(UUID.randomUUID());
+        account.setAccountType(AccountType.PATIENT);
+        account.setStatus(AccountStatus.ACTIVE);
+        account.setPasswordHash("hash");
+        var challenge = new VerificationCodeJpaEntity();
+        challenge.setCodeHash(new fu.fa26.sep490.g58.otcms_be.auth.service.impl.EmailOtpServiceImpl().hash("123456"));
+        challenge.setExpiresAt(java.time.Instant.now().minusSeconds(1));
+        when(accounts.findByNormalizedEmail("patient@example.test")).thenReturn(Optional.of(account));
+        when(accounts.findByIdForUpdate(account.getId())).thenReturn(Optional.of(account));
+        when(challenges.findCurrentForUpdate(account.getId(), VerificationPurpose.PASSWORD_RESET)).thenReturn(Optional.of(challenge));
+        var service = new PasswordRecoveryServiceImpl(accounts, challenges, email, new BCryptPasswordEncoder(4),
+                mock(AuthSessionService.class), new AuthProperties(null, null, null, null, null, "v1", "v1"));
+        var request = new fu.fa26.sep490.g58.otcms_be.auth.model.dto.request.PatientOtpResetRequest(
+                "patient@example.test", "123456", "Password123");
+        assertEquals("MSG-77", assertThrows(fu.fa26.sep490.g58.otcms_be.auth.exception.PasswordRecoveryException.class,
+                () -> service.resetPatientOtp(request)).getMessage());
+        assertEquals(fu.fa26.sep490.g58.otcms_be.auth.service.PasswordRecoveryService.GENERIC_MESSAGE,
+                service.forgot("staff@example.test", AccountType.RECEPTIONIST));
+        verifyNoInteractions(email);
+    }
+    @Test void malformedRecoveryEmailUsesMsg08() throws Exception {
+        var service = mock(fu.fa26.sep490.g58.otcms_be.auth.service.PasswordRecoveryService.class);
+        var mvc = MockMvcBuilders.standaloneSetup(new PasswordRecoveryController(service, new StaffNetworkPolicy()))
+                .setControllerAdvice(new AuthExceptionHandler()).build();
+        mvc.perform(post("/api/auth/patient/forgot-password").contentType("application/json")
+                .content("{\"email\":\"not-an-email\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.code").value("MSG-08"));
+        verifyNoInteractions(service);
     }
 }

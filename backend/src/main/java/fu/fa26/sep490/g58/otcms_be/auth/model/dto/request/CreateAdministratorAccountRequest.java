@@ -12,6 +12,12 @@ public class CreateAdministratorAccountRequest extends StrictRequestBody {
     @Size(max = AdministratorUsernamePolicy.MAX_LENGTH)
     private String username;
 
+    @NotBlank
+    private String initialPassword;
+
+    public String getInitialPassword() { return initialPassword; }
+    public void setInitialPassword(JsonNode value) { this.initialPassword = strictText(value); }
+
     @AssertTrue(message = "Invalid administrator username")
     public boolean isUsernameValid() {
         return AdministratorUsernamePolicy.isValid(username);
