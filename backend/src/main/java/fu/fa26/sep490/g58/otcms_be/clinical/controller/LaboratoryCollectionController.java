@@ -27,29 +27,6 @@ public class LaboratoryCollectionController {
         service.approve(orderId, actor, request.checked(), request.critical(), request.contactedDoctor(), request.contactedAt());
         return ResponseEntity.noContent().cacheControl(CacheControl.noStore()).build();
     }
-    @GetMapping("/lab-report")
-    public ResponseEntity<?> reportInfo(@PathVariable UUID orderId, @AuthenticationPrincipal AuthenticatedAccount actor) {
-        var info = service.reportInfo(orderId, actor);
-        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(java.util.Map.of("attached", info != null, "info", info == null ? java.util.Map.of() : info));
-    }
-    @GetMapping("/lab-report/file")
-    public ResponseEntity<org.springframework.core.io.InputStreamResource> reportFile(@PathVariable UUID orderId, @AuthenticationPrincipal AuthenticatedAccount actor) {
-        var info = service.reportInfo(orderId, actor);
-        if (info == null) throw new fu.fa26.sep490.g58.otcms_be.clinical.exception.ClinicalOperationException("MSG-41");
-        return ResponseEntity.ok().cacheControl(CacheControl.noStore())
-                .contentType(org.springframework.http.MediaType.parseMediaType(info.contentType()))
-                .header("X-Content-Type-Options", "nosniff")
-                .header("Content-Disposition", "attachment; filename=lab-report")
-                .body(new org.springframework.core.io.InputStreamResource(service.openReport(orderId, actor)));
-    }
-    @PostMapping(value = "/lab-report", consumes = "multipart/form-data")
-    public ResponseEntity<Void> upload(@PathVariable UUID orderId, @RequestParam java.time.Instant receivedAt,
-            @RequestParam org.springframework.web.multipart.MultipartFile file,
-            @AuthenticationPrincipal AuthenticatedAccount actor) throws java.io.IOException {
-        if (file.isEmpty() || file.getSize() > 25 * 1024 * 1024) throw new fu.fa26.sep490.g58.otcms_be.clinical.exception.ClinicalOperationException("MSG-39");
-        service.attachReport(orderId, actor, file.getBytes(), file.getContentType(), receivedAt);
-        return ResponseEntity.noContent().cacheControl(CacheControl.noStore()).build();
-    }
     public record ResultDraftRequest(@NotNull @Size(min = 1, max = 200) java.util.List<fu.fa26.sep490.g58.otcms_be.diagnostic.model.LaboratoryResultValue> values) { }
     @GetMapping("/result-draft")
     public ResponseEntity<?> readDraft(@PathVariable UUID orderId, @AuthenticationPrincipal AuthenticatedAccount actor) {

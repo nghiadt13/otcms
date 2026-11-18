@@ -82,9 +82,6 @@ public class DiagnosticReportJpaEntity {
     @Column(name = "lab_recorded_by_account_id")
     private UUID laboratoryRecordedByAccountId;
 
-    @Column(name = "lab_report_content_type", length = 64) private String laboratoryContentType;
-    @Column(name = "lab_report_received_at") private Instant laboratoryReportReceivedAt;
-    @Column(name = "lab_report_uploaded_by_account_id") private UUID laboratoryReportUploadedBy;
     @Column(name = "lab_confirmed_by_account_id") private UUID laboratoryConfirmedBy;
     @Column(name = "lab_confirmed_at") private Instant laboratoryConfirmedAt;
 
@@ -150,19 +147,9 @@ public class DiagnosticReportJpaEntity {
         laboratoryRecordedByAccountId = accountId; laboratoryValues = List.copyOf(values); occurredAt = now;
     }
 
-    public void attachLaboratoryReport(fu.fa26.sep490.g58.otcms_be.diagnostic.integration.LaboratoryReportStoragePort.Stored report,
-            Instant receivedAt, UUID actor, Instant now) {
-        requireDraft();
-        if (!"LAB".equals(resultType) || reportId != null) throw new IllegalStateException("Report already attached");
-        reportId = report.reportId(); storageRef = report.storageRef(); contentSha256 = report.sha256();
-        laboratoryContentType = report.contentType();
-        laboratoryReportReceivedAt = receivedAt; laboratoryReportUploadedBy = actor;
-        uploadedAt = now; validatedAt = now; validationStatus = DiagnosticReportValidationStatus.VALIDATED;
-    }
     public void approveLaboratoryReport(UUID actorId, Instant now) {
         requireDraft();
-        if (!"LAB".equals(resultType) || reportId == null || laboratoryContentType == null
-                || validationStatus != DiagnosticReportValidationStatus.VALIDATED
+        if (!"LAB".equals(resultType)
                 || !fu.fa26.sep490.g58.otcms_be.diagnostic.validation.LaboratoryResultValidation.readyForRelease(laboratoryValues))
             throw new IllegalStateException("Laboratory result is incomplete");
         laboratoryConfirmedBy = actorId; laboratoryConfirmedAt = now;
@@ -218,8 +205,7 @@ public class DiagnosticReportJpaEntity {
     public int getVersionNumber() { return reportVersion; }
     public UUID getServiceOrderId() { return requestId; }
     public UUID getReportId() { return reportId; }
-    public String getLaboratoryContentType() { return laboratoryContentType; }
-    public Instant getLaboratoryReportReceivedAt() { return laboratoryReportReceivedAt; }
+    public Instant getLaboratoryConfirmedAt() { return laboratoryConfirmedAt; }
     public String getResultType() { return resultType; }
     public DiagnosticFindingsVersionState getState() { return state; }
     public String getFindingsText() { return findingsText; }

@@ -1,7 +1,4 @@
-import { useState } from "react";
-import { ArrowDown, ArrowUp, ExternalLink } from "lucide-react";
-import { fetchBlob } from "@/lib/api/client";
-import { publicButtonClass } from "@/components/brand/publicButtonStyles";
+import { ArrowDown, ArrowUp } from "lucide-react";
 import type { LabFlag, LabGroup, LabLine } from "../types/examinationResult";
 
 // Cờ bất thường luôn có chữ (không chỉ màu): "Cao" / "Thấp" đậm kèm mũi tên.
@@ -60,53 +57,6 @@ function LabRow({ line }: { line: LabLine }) {
   );
 }
 
-function LabReportLink({ fileUrl }: { fileUrl: string }) {
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-
-  async function openReport() {
-    setError("");
-    const viewer = window.open("about:blank", "_blank");
-    if (!viewer) {
-      setError("Trình duyệt đã chặn cửa sổ xem phiếu.");
-      return;
-    }
-    setLoading(true);
-    try {
-      const { blob } = await fetchBlob(fileUrl as `/api/v1/${string}`);
-      const url = URL.createObjectURL(blob);
-      viewer.opener = null;
-      viewer.location.href = url;
-      window.setTimeout(() => URL.revokeObjectURL(url), 5 * 60 * 1000);
-    } catch {
-      viewer.close();
-      setError("Không thể mở phiếu xét nghiệm. Vui lòng thử lại.");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  return (
-    <div className="flex min-w-0 flex-col items-stretch gap-1 lg:shrink-0 lg:items-end">
-      <a
-        aria-disabled={loading}
-        className={`${publicButtonClass("secondary")} w-full justify-center whitespace-normal text-center lg:w-auto`}
-        href={fileUrl}
-        onClick={(event) => {
-          event.preventDefault();
-          if (!loading) void openReport();
-        }}
-        rel="noopener noreferrer"
-        target="_blank"
-      >
-        {loading ? "Đang mở…" : "Xem phiếu xét nghiệm"}
-        {!loading ? <ExternalLink aria-hidden /> : null}
-      </a>
-      {error ? <span className="text-sm text-destructive" role="alert">{error}</span> : null}
-    </div>
-  );
-}
-
 /** Khối "Xét nghiệm": mỗi nhóm dịch vụ một danh sách chỉ số trong một khung có vạch chia. */
 export function LaboratoryBlock({ groups }: { groups: LabGroup[] }) {
   if (groups.length === 0)
@@ -137,7 +87,6 @@ export function LaboratoryBlock({ groups }: { groups: LabGroup[] }) {
                 ))}
               </ul>
             </div>
-            {group.reportFileUrl ? <LabReportLink fileUrl={group.reportFileUrl} /> : null}
           </div>
         </div>
       ))}

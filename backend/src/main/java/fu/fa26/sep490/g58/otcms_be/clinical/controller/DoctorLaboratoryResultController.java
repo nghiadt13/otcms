@@ -24,15 +24,6 @@ public class DoctorLaboratoryResultController {
     public ResponseEntity<?> list(@PathVariable UUID visitId, @AuthenticationPrincipal AuthenticatedAccount actor) {
         return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(Map.of("items", results.list(visitId, doctors.requireDoctorProfile(actor))));
     }
-    @GetMapping("/api/v1/visits/{visitId}/laboratory-results/{orderId}/report")
-    @PreAuthorize("hasAuthority('ROLE_DOCTOR')")
-    public ResponseEntity<org.springframework.core.io.InputStreamResource> report(@PathVariable UUID visitId, @PathVariable UUID orderId,
-            @AuthenticationPrincipal AuthenticatedAccount actor) {
-        var report = results.report(visitId, orderId, doctors.requireDoctorProfile(actor));
-        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).contentType(org.springframework.http.MediaType.parseMediaType(report.contentType()))
-                .header("X-Content-Type-Options", "nosniff").header("Content-Disposition", "attachment; filename=lab-report")
-                .body(new org.springframework.core.io.InputStreamResource(report.content()));
-    }
     @PostMapping("/api/v1/visits/{visitId}/laboratory-results/{orderId}/assessment")
     @PreAuthorize("hasAuthority('ROLE_DOCTOR')")
     public ResponseEntity<DoctorLaboratoryResultService.Assessment> assess(@PathVariable UUID visitId, @PathVariable UUID orderId,

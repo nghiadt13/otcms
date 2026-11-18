@@ -30,7 +30,6 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class PatientVisitResultQueryServiceImpl implements PatientVisitResultQueryService {
     private static final int MAX_PAGE_SIZE = 100;
-    private static final int MAX_LAB_REPORT_BYTES = 25 * 1024 * 1024;
     private static final ZoneId CLINIC_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
 
     private final PatientProfileAccessService access;
@@ -144,27 +143,6 @@ public class PatientVisitResultQueryServiceImpl implements PatientVisitResultQue
                 sheets.isEmpty() ? null : sheets);
     }
 
-    @Override
-    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
-    public LaboratoryReportFile getLaboratoryReport(UUID accountId, UUID visitId, UUID orderId) {
-        if (accountId == null || visitId == null || orderId == null) throw error("MSG-39");
-        Scope scope = scope(accountId, null);
-        visits.findVisit(visitId, scope.profileIds()).orElseThrow(() -> error("MSG-41"));
-        var order = serviceOrders.findById(orderId).orElseThrow(() -> error("MSG-41"));
-        if (!visitId.equals(order.getVisitId()) || order.getServiceType() != ClinicalServiceType.LABORATORY
-                || order.getOrderStatus() != ServiceOrderStatus.RESULTS_AVAILABLE
-                || laboratoryDrafts.issued(orderId).isEmpty()) throw error("MSG-41");
-        var report = laboratoryDrafts.issuedReportInfo(orderId);
-        if (report == null) throw error("MSG-41");
-        try (var content = laboratoryDrafts.openReport(orderId)) {
-            byte[] bytes = content.readNBytes(MAX_LAB_REPORT_BYTES + 1);
-            if (bytes.length == 0 || bytes.length > MAX_LAB_REPORT_BYTES) throw error("DEPENDENCY_UNAVAILABLE");
-            return new LaboratoryReportFile(report.contentType(), bytes);
-        } catch (java.io.IOException | RuntimeException failure) {
-            throw error("DEPENDENCY_UNAVAILABLE");
-        }
-    }
-
     private List<LabGroup> laboratoryResults(UUID visitId) {
         return serviceOrders.findVisitOrdersByType(visitId, ClinicalServiceType.LABORATORY).stream()
                 .filter(order -> order.getOrderStatus() == ServiceOrderStatus.RESULTS_AVAILABLE)
@@ -173,10 +151,7 @@ public class PatientVisitResultQueryServiceImpl implements PatientVisitResultQue
                     if (values.isEmpty()) return null;
                     List<LabLine> lines = values.stream().map(value -> new LabLine(value.indicator(), value.value(),
                             value.unit(), value.referenceRange(), value.abnormal())).toList();
-                    var report = laboratoryDrafts.issuedReportInfo(order.getId());
-                    String reportUrl = report == null ? null : "/api/v1/visits/" + visitId + "/results/laboratory/"
-                            + order.getId() + "/report";
-                    return new LabGroup(order.getId(), order.getServiceNameSnapshot(), order.getUpdatedAt(), reportUrl, lines);
+                    return new LabGroup(order.getId(), order.getServiceNameSnapshot(), order.getUpdatedAt(), lines);
                 })
                 .filter(Objects::nonNull).toList();
     }

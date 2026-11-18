@@ -68,7 +68,6 @@ export interface LabLine {
 export interface LabGroup {
   orderId?: string;
   releasedAt?: string;
-  reportFileUrl?: string | null;
   serviceName: string;
   lines: LabLine[];
 }

@@ -29,17 +29,6 @@ public class DoctorLaboratoryResultServiceImpl implements DoctorLaboratoryResult
                                 order.getDoctorResultAssessedByAccountId(), order.getDoctorResultAssessedAt())))
                 .filter(result -> !result.values().isEmpty()).toList();
     }
-    @Override @Transactional(readOnly = true)
-    public ReportFile report(UUID visitId, UUID orderId, UUID doctorId) {
-        care.requireCurrentCare(visitId, doctorId);
-        var order = orders.findById(orderId).orElseThrow(() -> new fu.fa26.sep490.g58.otcms_be.clinical.exception.ClinicalOperationException("MSG-41"));
-        if (!visitId.equals(order.getVisitId()) || order.getServiceType() != ClinicalServiceType.LABORATORY
-                || order.getOrderStatus() != ServiceOrderStatus.RESULTS_AVAILABLE || results.issued(orderId).isEmpty())
-            throw new fu.fa26.sep490.g58.otcms_be.clinical.exception.ClinicalOperationException("MSG-41");
-        var info = results.reportInfo(orderId);
-        if (info == null) throw new fu.fa26.sep490.g58.otcms_be.clinical.exception.ClinicalOperationException("MSG-41");
-        return new ReportFile(info.contentType(), results.openReport(orderId));
-    }
     @Override @Transactional
     public Assessment assess(UUID visitId, UUID orderId, UUID doctorId, UUID accountId, String text) {
         care.requireCurrentCare(visitId, doctorId);

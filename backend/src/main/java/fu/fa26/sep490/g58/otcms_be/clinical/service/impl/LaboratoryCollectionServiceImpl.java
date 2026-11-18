@@ -66,34 +66,9 @@ public class LaboratoryCollectionServiceImpl implements LaboratoryCollectionServ
         return samples.latest(orderId);
     }
     @Override @Transactional(readOnly = true)
-    public fu.fa26.sep490.g58.otcms_be.diagnostic.service.LaboratoryDraftService.ReportInfo reportInfo(UUID orderId, AuthenticatedAccount actor) {
-        latest(orderId, actor);
-        return drafts.reportInfo(orderId);
-    }
-    @Override @Transactional(readOnly = true)
-    public java.io.InputStream openReport(UUID orderId, AuthenticatedAccount actor) {
-        latest(orderId, actor);
-        if (drafts.reportInfo(orderId) == null) throw new ClinicalOperationException("MSG-41");
-        return drafts.openReport(orderId);
-    }
-    @Override @Transactional(readOnly = true)
     public java.util.List<fu.fa26.sep490.g58.otcms_be.diagnostic.model.LaboratoryResultValue> readDraft(UUID orderId, AuthenticatedAccount actor) {
         latest(orderId, actor);
         return drafts.read(orderId);
-    }
-    @Override @Transactional
-    public void attachReport(UUID orderId, AuthenticatedAccount actor, byte[] content, String contentType, java.time.Instant receivedAt) {
-        guard.acquire();
-        var sample = latest(orderId, actor);
-        var assignment = orders.findLaboratoryAssignment(orderId).orElseThrow(() -> new ClinicalOperationException("MSG-41"));
-        var now = clock.instant();
-        if (!"COLLECTED".equals(assignment.getLabStatus()) || sample == null) throw new ClinicalOperationException("MSG-42");
-        if (content == null || content.length == 0 || content.length > 25 * 1024 * 1024 || receivedAt == null || receivedAt.isBefore(sample.collectedAt()) || receivedAt.isAfter(now)) throw new ClinicalOperationException("MSG-39");
-        try { drafts.attach(orderId, actor.accountId(), content, contentType, receivedAt, now); }
-        catch (IllegalArgumentException ex) { throw new ClinicalOperationException("MSG-39"); }
-        catch (IllegalStateException ex) { throw new ClinicalOperationException("MSG-42"); }
-        audit.record(AuditEntry.builder("laboratory", "LABORATORY", "ATTACH_LAB_REPORT", "SERVICE_ORDER").entityId(orderId)
-                .actorAccountId(actor.accountId()).actorType("LAB_TECHNICIAN").afterState(Map.of("sampleId", sample.id().toString())).occurredAt(now).build());
     }
     @Override @Transactional
     public java.util.List<fu.fa26.sep490.g58.otcms_be.diagnostic.model.LaboratoryResultValue> saveDraft(UUID orderId, AuthenticatedAccount actor,

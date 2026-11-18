@@ -36,14 +36,9 @@ public final class PatientVisitResultDtos {
         @Override public String toString() { return "ImagingItem[redacted]"; }
     }
     public record LabLine(String indicator, String value, String unit, String referenceRange, Boolean abnormal) { }
-    public record LabGroup(UUID orderId, String serviceName, Instant releasedAt, String reportFileUrl, List<LabLine> lines) {
+    public record LabGroup(UUID orderId, String serviceName, Instant releasedAt, List<LabLine> lines) {
         public LabGroup { lines = List.copyOf(lines); }
         @Override public String toString() { return "LabGroup[redacted]"; }
-    }
-    public record LaboratoryReportFile(String contentType, byte[] content) {
-        public LaboratoryReportFile { content = content.clone(); }
-        @Override public byte[] content() { return content.clone(); }
-        @Override public String toString() { return "LaboratoryReportFile[redacted]"; }
     }
     public record PrescriptionRef(UUID id, Instant issuedAt, int itemCount) {
         @Override public String toString() { return "PrescriptionRef[redacted]"; }
