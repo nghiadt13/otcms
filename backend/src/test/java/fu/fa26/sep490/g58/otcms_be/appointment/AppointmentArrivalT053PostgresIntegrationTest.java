@@ -115,6 +115,9 @@ class AppointmentArrivalT053PostgresIntegrationTest {
             jdbc.update("delete from queue_entries where stage = 'EXAM' and doctor_profile_id = ?", doctorProfile);
             jdbc.update("delete from staff_profiles where id = ?", doctorProfile);
             jdbc.update("delete from patient_profiles where id in (?, ?)", patientProfile, otherPatientProfile);
+            // idempotency_records has no FK, so the check-in and counter-payment keys outlive the cascade above.
+            jdbc.update("delete from idempotency_records where owner_id in (?, ?, ?, ?)", patientAccount, otherPatientAccount,
+                    receptionistAccount, doctorAccount);
             jdbc.update("delete from accounts where id in (?, ?, ?, ?)", patientAccount, otherPatientAccount,
                     receptionistAccount, doctorAccount);
         } finally {
@@ -180,9 +183,9 @@ class AppointmentArrivalT053PostgresIntegrationTest {
                 .andExpect(jsonPath("$.arrivedAt").value(NOW.toString()))
                 .andExpect(jsonPath("$.queueNumber").value(1));
         assertEquals(1, arrivalCount(target));
-        assertEquals(patientAccount, jdbc.queryForObject("select arrival_recorded_by from appointments where id = ?",
+        assertEquals(patientAccount, jdbc.queryForObject("select arrival_recorded_by from appointment_arrivals where appointment_id = ?",
                 UUID.class, target));
-        assertEquals("PATIENT_QR", jdbc.queryForObject("select arrival_source from appointments where id = ?",
+        assertEquals("PATIENT_QR", jdbc.queryForObject("select arrival_source from appointment_arrivals where appointment_id = ?",
                 String.class, target));
         assertEquals("CHECKED_IN", jdbc.queryForObject("select status from appointments where id = ?",
                 String.class, target));
@@ -210,9 +213,9 @@ class AppointmentArrivalT053PostgresIntegrationTest {
         mvc.perform(manual(target, receptionistAccount, "different duplicate reason"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.arrivedAt").value(NOW.toString()));
         assertEquals(1, arrivalCount(target));
-        assertEquals(receptionistAccount, jdbc.queryForObject("select arrival_recorded_by from appointments where id = ?",
+        assertEquals(receptionistAccount, jdbc.queryForObject("select arrival_recorded_by from appointment_arrivals where appointment_id = ?",
                 UUID.class, target));
-        assertEquals("Helped patient scan QR", jdbc.queryForObject("select arrival_reason from appointments where id = ?",
+        assertEquals("Helped patient scan QR", jdbc.queryForObject("select arrival_reason from appointment_arrivals where appointment_id = ?",
                 String.class, target));
     }
 
@@ -224,9 +227,9 @@ class AppointmentArrivalT053PostgresIntegrationTest {
         testClock.set(NOW.plusSeconds(20));
         mvc.perform(manual(target, receptionistAccount, "Second reason"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.arrivedAt").value(NOW.toString()));
-        assertEquals(NOW, jdbc.queryForObject("select arrived_at from appointments where id = ?",
+        assertEquals(NOW, jdbc.queryForObject("select arrived_at from appointment_arrivals where appointment_id = ?",
                 Timestamp.class, target).toInstant());
-        assertEquals("First reason", jdbc.queryForObject("select arrival_reason from appointments where id = ?",
+        assertEquals("First reason", jdbc.queryForObject("select arrival_reason from appointment_arrivals where appointment_id = ?",
                 String.class, target));
     }
 
@@ -318,7 +321,7 @@ class AppointmentArrivalT053PostgresIntegrationTest {
                 assertEquals(1, arrivalCount(target));
                 assertEquals(1, jdbc.queryForObject("select count(*) from visits where originating_appointment_id = ?",
                         Integer.class, target));
-                assertEquals(NOW, jdbc.queryForObject("select arrived_at from appointments where id = ?",
+                assertEquals(NOW, jdbc.queryForObject("select arrived_at from appointment_arrivals where appointment_id = ?",
                         Timestamp.class, target).toInstant());
             } finally {
                 blocker.rollback();
@@ -483,7 +486,7 @@ class AppointmentArrivalT053PostgresIntegrationTest {
     }
 
     private int arrivalCount(UUID id) {
-        return jdbc.queryForObject("select count(*) from appointments where id = ? and arrived_at is not null", Integer.class, id);
+        return jdbc.queryForObject("select count(*) from appointment_arrivals where appointment_id = ? and arrived_at is not null", Integer.class, id);
     }
 
     private void assertNoArrival(UUID id) { assertEquals(0, arrivalCount(id)); }

@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyCollection;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
@@ -15,6 +16,9 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
+import fu.fa26.sep490.g58.otcms_be.common.idempotency.IdempotencyReplay;
+import fu.fa26.sep490.g58.otcms_be.common.idempotency.IdempotencyScope;
+import fu.fa26.sep490.g58.otcms_be.common.idempotency.IdempotencyStore;
 import fu.fa26.sep490.g58.otcms_be.common.security.AccountRole;
 import fu.fa26.sep490.g58.otcms_be.common.service.CoordinationGuardService;
 import fu.fa26.sep490.g58.otcms_be.servicecatalog.exception.ClinicServiceException;
@@ -63,6 +67,7 @@ class CreateWalkInVisitT043Test {
 
     private final CoordinationGuardService guard = mock(CoordinationGuardService.class);
     private final ClinicVisitJpaRepository visits = mock(ClinicVisitJpaRepository.class);
+    private final IdempotencyStore idempotency = mock(IdempotencyStore.class);
     private final VisitAuditRecorder audits = mock(VisitAuditRecorder.class);
     private final WalkInReceptionQueueEntryJpaRepository queueEntries = mock(WalkInReceptionQueueEntryJpaRepository.class);
     private final VisitExamQueueService examQueue = mock(VisitExamQueueService.class);
@@ -75,7 +80,7 @@ class CreateWalkInVisitT043Test {
 
     @BeforeEach
     void setUp() {
-        service = new CreateWalkInVisitServiceImpl(guard, visits, queueEntries, audits, receptionists,
+        service = new CreateWalkInVisitServiceImpl(guard, visits, idempotency, queueEntries, audits, receptionists,
                 examQueue, schedules, doctorProfiles, catalog, rooms, Clock.fixed(ARRIVAL, ZoneOffset.UTC));
         when(schedules.forProfile(eq(DOCTOR), any(), any())).thenReturn(List.of(
                 new DoctorWorkShift(UUID.randomUUID(), DOCTOR, ARRIVAL.minusSeconds(3600), ARRIVAL.plusSeconds(3600),
@@ -85,12 +90,14 @@ class CreateWalkInVisitT043Test {
         when(visits.saveAndFlush(any(ClinicVisitJpaEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(receptionists.isActiveReceptionistAccount(ACTOR)).thenReturn(true);
         when(queueEntries.saveAndFlush(any(QueueEntryJpaEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(idempotency.record(eq(IdempotencyScope.WALK_IN_VISIT), eq(ACTOR), eq("key-1"), anyString(), any()))
+                .thenReturn(true);
     }
 
     @Test
     void acquiresGuardBeforeReplayLookupAndPersistsAllEvidenceWithOneInstant() {
         UUID priorAppointmentId = UUID.randomUUID();
-        when(visits.findByCreatedByAccountIdAndWalkInIdempotencyKey(ACTOR, "key-1")).thenReturn(Optional.empty());
+        when(idempotency.find(IdempotencyScope.WALK_IN_VISIT, ACTOR, "key-1")).thenReturn(Optional.empty());
         when(examQueue.find(any())).thenReturn(Optional.of(entry(VisitExamStatus.PENDING_PAYMENT, null, null)));
 
         var result = service.create(command(priorAppointmentId, DOCTOR, SERVICE));
@@ -109,19 +116,19 @@ class CreateWalkInVisitT043Test {
         verify(queueEntries).saveAndFlush(any(QueueEntryJpaEntity.class));
         verify(audits).walkInCreated(eq(ACTOR), any(), eq(ARRIVAL), eq("correlation-1"));
         verify(audits).queueEntered(any(), any(), eq(ACTOR), eq("correlation-1"));
-        assertEquals("key-1", visitCaptor.getValue().getWalkInIdempotencyKey());
-        assertEquals(fingerprint(priorAppointmentId, DOCTOR, SERVICE), visitCaptor.getValue().getWalkInRequestFingerprint());
+        verify(idempotency).record(IdempotencyScope.WALK_IN_VISIT, ACTOR, "key-1",
+                fingerprint(priorAppointmentId, DOCTOR, SERVICE), visitCaptor.getValue().getId());
         verify(examQueue).createPendingPayment(any(), eq(DOCTOR), eq(SERVICE), eq(ARRIVAL));
         verify(examQueue, never()).enqueueWaiting(any(), any(), any(), any());
-        var order = inOrder(guard, visits);
+        var order = inOrder(guard, idempotency);
         order.verify(guard).acquire();
-        order.verify(visits).findByCreatedByAccountIdAndWalkInIdempotencyKey(ACTOR, "key-1");
+        order.verify(idempotency).find(IdempotencyScope.WALK_IN_VISIT, ACTOR, "key-1");
     }
 
     @Test
     void freeServiceIsNumberedAtOnceWithoutPendingPayment() {
         when(catalog.getService(SERVICE)).thenReturn(examination(BigDecimal.ZERO));
-        when(visits.findByCreatedByAccountIdAndWalkInIdempotencyKey(ACTOR, "key-1")).thenReturn(Optional.empty());
+        when(idempotency.find(IdempotencyScope.WALK_IN_VISIT, ACTOR, "key-1")).thenReturn(Optional.empty());
         when(examQueue.find(any())).thenReturn(Optional.of(entry(VisitExamStatus.WAITING, 1, ROOM)));
         VisitRoomJpaEntity roomOfShift = room("Phong kham 2");
         when(rooms.findById(ROOM)).thenReturn(Optional.of(roomOfShift));
@@ -138,8 +145,9 @@ class CreateWalkInVisitT043Test {
 
     @Test
     void exactReplayReturnsTheExistingVisitAfterAcquiringGuardAndWritesNothing() {
-        var replay = ClinicVisitJpaEntity.walkIn(VISIT, PATIENT, null, ACTOR, ARRIVAL, "key-1", fingerprint(null, DOCTOR, SERVICE));
-        when(visits.findByCreatedByAccountIdAndWalkInIdempotencyKey(ACTOR, "key-1")).thenReturn(Optional.of(replay));
+        when(idempotency.find(IdempotencyScope.WALK_IN_VISIT, ACTOR, "key-1"))
+                .thenReturn(Optional.of(new IdempotencyReplay(fingerprint(null, DOCTOR, SERVICE), VISIT, ARRIVAL)));
+        when(visits.findById(VISIT)).thenReturn(Optional.of(ClinicVisitJpaEntity.walkIn(VISIT, PATIENT, null, ACTOR, ARRIVAL)));
         when(examQueue.find(VISIT)).thenReturn(Optional.of(entry(VisitExamStatus.WAITING, 3, ROOM)));
         VisitRoomJpaEntity roomOfShift = room("Phong kham 1");
         when(rooms.findById(ROOM)).thenReturn(Optional.of(roomOfShift));
@@ -152,6 +160,7 @@ class CreateWalkInVisitT043Test {
         assertEquals("Phong kham 1", result.roomLabel());
         verify(guard).acquire();
         verifyNoInteractions(schedules);
+        verify(idempotency, never()).record(any(), any(), any(), any(), any());
         verify(visits, never()).saveAndFlush(any());
         verifyNoInteractions(audits);
         verify(examQueue, never()).createPendingPayment(any(), any(), any(), any());
@@ -160,8 +169,8 @@ class CreateWalkInVisitT043Test {
 
     @Test
     void conflictingReplayFailsBeforeWritingEvidence() {
-        var replay = ClinicVisitJpaEntity.walkIn(VISIT, PATIENT, null, ACTOR, ARRIVAL, "key-1", "different-fingerprint");
-        when(visits.findByCreatedByAccountIdAndWalkInIdempotencyKey(ACTOR, "key-1")).thenReturn(Optional.of(replay));
+        when(idempotency.find(IdempotencyScope.WALK_IN_VISIT, ACTOR, "key-1"))
+                .thenReturn(Optional.of(new IdempotencyReplay("different-fingerprint", VISIT, ARRIVAL)));
 
         var failure = assertThrows(VisitOperationException.class, () -> service.create(command(null, DOCTOR, SERVICE)));
 
@@ -173,8 +182,8 @@ class CreateWalkInVisitT043Test {
 
     @Test
     void sameKeyWithAnotherDoctorIsAConflict() {
-        var replay = ClinicVisitJpaEntity.walkIn(VISIT, PATIENT, null, ACTOR, ARRIVAL, "key-1", fingerprint(null, DOCTOR, SERVICE));
-        when(visits.findByCreatedByAccountIdAndWalkInIdempotencyKey(ACTOR, "key-1")).thenReturn(Optional.of(replay));
+        when(idempotency.find(IdempotencyScope.WALK_IN_VISIT, ACTOR, "key-1"))
+                .thenReturn(Optional.of(new IdempotencyReplay(fingerprint(null, DOCTOR, SERVICE), VISIT, ARRIVAL)));
 
         var failure = assertThrows(VisitOperationException.class,
                 () -> service.create(command(null, OTHER_DOCTOR, SERVICE)));
@@ -196,7 +205,7 @@ class CreateWalkInVisitT043Test {
 
     @Test
     void doctorOffShiftIsRejectedBeforeAnyWrite() {
-        when(visits.findByCreatedByAccountIdAndWalkInIdempotencyKey(ACTOR, "key-1")).thenReturn(Optional.empty());
+        when(idempotency.find(IdempotencyScope.WALK_IN_VISIT, ACTOR, "key-1")).thenReturn(Optional.empty());
         when(schedules.forProfile(eq(DOCTOR), any(), any())).thenReturn(List.of());
 
         var failure = assertThrows(VisitOperationException.class, () -> service.create(command(null, DOCTOR, SERVICE)));
@@ -209,7 +218,7 @@ class CreateWalkInVisitT043Test {
 
     @Test
     void unknownDoctorProfileIsReportedAsNotOnShift() {
-        when(visits.findByCreatedByAccountIdAndWalkInIdempotencyKey(ACTOR, "key-1")).thenReturn(Optional.empty());
+        when(idempotency.find(IdempotencyScope.WALK_IN_VISIT, ACTOR, "key-1")).thenReturn(Optional.empty());
         when(schedules.forProfile(eq(DOCTOR), any(), any()))
                 .thenThrow(new DoctorProfileException("DOCTOR_PROFILE_NOT_FOUND"));
 
@@ -222,7 +231,7 @@ class CreateWalkInVisitT043Test {
 
     @Test
     void serviceMustBeActiveExaminationWithKnownId() {
-        when(visits.findByCreatedByAccountIdAndWalkInIdempotencyKey(ACTOR, "key-1")).thenReturn(Optional.empty());
+        when(idempotency.find(IdempotencyScope.WALK_IN_VISIT, ACTOR, "key-1")).thenReturn(Optional.empty());
         when(catalog.getService(SERVICE)).thenReturn(new ClinicService(SERVICE, "Xet nghiem", "",
                 ClinicServiceType.LABORATORY, new BigDecimal("90000"), Duration.ofMinutes(15), Duration.ZERO, false,
                 true));

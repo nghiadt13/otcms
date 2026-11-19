@@ -118,9 +118,9 @@ class CreateWalkInVisitT043PostgresIntegrationTest {
             first.get(20, TimeUnit.SECONDS);
             second.get(20, TimeUnit.SECONDS);
             if (failure.get() != null) throw new AssertionError("Concurrent WALK_IN replay failed", failure.get());
-            assertEquals(1, jdbc.queryForObject("select count(*) from visits where created_by_account_id = ? and walk_in_idempotency_key = ?", Integer.class,
+            assertEquals(1, jdbc.queryForObject("select count(*) from visits v join idempotency_records r on r.resource_id = v.id and r.scope = 'WALK_IN_VISIT' where v.created_by_account_id = ? and r.idempotency_key = ?", Integer.class,
                     sharedReceptionist, idempotencyKey));
-            UUID createdVisit = jdbc.queryForObject("select id from visits where created_by_account_id = ? and walk_in_idempotency_key = ?", UUID.class,
+            UUID createdVisit = jdbc.queryForObject("select v.id from visits v join idempotency_records r on r.resource_id = v.id and r.scope = 'WALK_IN_VISIT' where v.created_by_account_id = ? and r.idempotency_key =?", UUID.class,
                     sharedReceptionist, idempotencyKey);
             assertEquals(1, jdbc.queryForObject("select count(*) from visits where id = ? "
                     + "and patient_profile_id = ? and created_by_account_id = ? and arrived_at = ?", Integer.class,
@@ -140,7 +140,7 @@ class CreateWalkInVisitT043PostgresIntegrationTest {
         var second = walkIns.create(walkInCommand(secondReceptionist, "t043-shared-key"));
         visitIds.add(second.visitId());
         org.junit.jupiter.api.Assertions.assertNotEquals(first.visitId(), second.visitId());
-        assertEquals(2, jdbc.queryForObject("select count(*) from visits where walk_in_idempotency_key = 't043-shared-key' and created_by_account_id in (?, ?)", Integer.class, receptionist, secondReceptionist));
+        assertEquals(2, jdbc.queryForObject("select count(*) from visits v join idempotency_records r on r.resource_id = v.id and r.scope = 'WALK_IN_VISIT' where r.idempotency_key = 't043-shared-key' and v.created_by_account_id in (?, ?)", Integer.class, receptionist, secondReceptionist));
         assertEquals(second.visitId(), walkIns.create(walkInCommand(secondReceptionist, "t043-shared-key")).visitId());
     }
 
@@ -231,7 +231,7 @@ class CreateWalkInVisitT043PostgresIntegrationTest {
                 .andExpect(jsonPath("$.doctorName").value("T043 Doctor"))
                 .andReturn();
         // The ID is read from the persisted replay row so assertions cover the owner write path.
-        UUID visitId = jdbc.queryForObject("select id from visits where created_by_account_id = ? and walk_in_idempotency_key = 't043-create'", UUID.class, receptionist);
+        UUID visitId = jdbc.queryForObject("select v.id from visits v join idempotency_records r on r.resource_id = v.id and r.scope = 'WALK_IN_VISIT' where v.created_by_account_id = ? and r.idempotency_key ='t043-create'", UUID.class, receptionist);
         visitIds.add(visitId);
         assertEquals("WALK_IN", jdbc.queryForObject("select source from visits where id = ?", String.class, visitId));
         assertEquals("OPEN", jdbc.queryForObject("select status from visits where id = ?", String.class, visitId));
@@ -257,7 +257,7 @@ class CreateWalkInVisitT043PostgresIntegrationTest {
         var replay = mvc.perform(createRequest(payload, "t043-replay", receptionist, AccountType.RECEPTIONIST))
                 .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
         assertEquals(first, replay);
-        UUID visitId = jdbc.queryForObject("select id from visits where created_by_account_id = ? and walk_in_idempotency_key = 't043-replay'", UUID.class, receptionist);
+        UUID visitId = jdbc.queryForObject("select v.id from visits v join idempotency_records r on r.resource_id = v.id and r.scope = 'WALK_IN_VISIT' where v.created_by_account_id = ? and r.idempotency_key ='t043-replay'", UUID.class, receptionist);
         visitIds.add(visitId);
         assertEquals(1, jdbc.queryForObject("select count(*) from visits where id = ?", Integer.class, visitId));
         assertEquals(1, jdbc.queryForObject("select count(*) from visits where id = ?", Integer.class, visitId));
@@ -271,7 +271,7 @@ class CreateWalkInVisitT043PostgresIntegrationTest {
         mvc.perform(create(accountlessPatientProfile, null, "t047-accountless", receptionist,
                         AccountType.RECEPTIONIST))
                 .andExpect(status().isCreated());
-        UUID visitId = jdbc.queryForObject("select id from visits where created_by_account_id = ? and walk_in_idempotency_key = 't047-accountless'", UUID.class, receptionist);
+        UUID visitId = jdbc.queryForObject("select v.id from visits v join idempotency_records r on r.resource_id = v.id and r.scope = 'WALK_IN_VISIT' where v.created_by_account_id = ? and r.idempotency_key ='t047-accountless'", UUID.class, receptionist);
         visitIds.add(visitId);
         assertEquals(accountlessPatientProfile, jdbc.queryForObject(
                 "select patient_profile_id from visits where id = ?", UUID.class, visitId));
@@ -307,7 +307,7 @@ class CreateWalkInVisitT043PostgresIntegrationTest {
     void rejectsSameKeyWithDifferentRequestAndLeavesFirstVisitUnchanged() throws Exception {
         mvc.perform(create(patientProfile, null, "t043-conflict", receptionist, AccountType.RECEPTIONIST))
                 .andExpect(status().isCreated());
-        UUID visitId = jdbc.queryForObject("select id from visits where created_by_account_id = ? and walk_in_idempotency_key = 't043-conflict'", UUID.class, receptionist);
+        UUID visitId = jdbc.queryForObject("select v.id from visits v join idempotency_records r on r.resource_id = v.id and r.scope = 'WALK_IN_VISIT' where v.created_by_account_id = ? and r.idempotency_key ='t043-conflict'", UUID.class, receptionist);
         visitIds.add(visitId);
         mvc.perform(create(otherPatientProfile, null, "t043-conflict", receptionist, AccountType.RECEPTIONIST))
                 .andExpect(status().isConflict())
@@ -345,7 +345,7 @@ class CreateWalkInVisitT043PostgresIntegrationTest {
     void auditRowsRejectUpdateDeleteAndTruncate() throws Exception {
         mvc.perform(create(patientProfile, null, "t043-immutable", receptionist, AccountType.RECEPTIONIST))
                 .andExpect(status().isCreated());
-        UUID visitId = jdbc.queryForObject("select id from visits where created_by_account_id = ? and walk_in_idempotency_key = 't043-immutable'", UUID.class, receptionist);
+        UUID visitId = jdbc.queryForObject("select v.id from visits v join idempotency_records r on r.resource_id = v.id and r.scope = 'WALK_IN_VISIT' where v.created_by_account_id = ? and r.idempotency_key ='t043-immutable'", UUID.class, receptionist);
         visitIds.add(visitId);
         assertThrows(DataAccessException.class, () -> jdbc.update("update audit_logs set action = 'CHANGED' where record_label = ?::text", visitId));
         assertThrows(DataAccessException.class, () -> jdbc.update("delete from audit_logs where source = 'visit_audits' and record_label = ?::text", visitId));

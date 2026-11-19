@@ -169,7 +169,7 @@ class ServiceQueueAdmissionPostgresIntegrationTest {
         UUID doctorRoom = room(), service = service(c, doctorRoom), visit = visit(c);
         exam(visit, c.doctor, doctorRoom);
         UUID round = UUID.randomUUID();
-        UUID one = order(c, visit, service, 1, round, true), two = order(c, visit, service, 1, round, false);
+        UUID one = order(c, visit, service, 1, round), two = order(c, visit, service, 1, round);
         jdbc.update("update clinical_service_orders set order_status = 'RESULTS_AVAILABLE' where id = ?", one);
         tx.executeWithoutResult(status -> resultReview.onOrderResultAvailable(one));
         assertEquals(0, count("select count(*) from queue_entries where visit_id = ? and stage = 'RESULT_REVIEW'", visit));
@@ -188,7 +188,7 @@ class ServiceQueueAdmissionPostgresIntegrationTest {
         UUID doctorRoom = room(), service = service(c, doctorRoom), visit = visit(c);
         exam(visit, c.doctor, doctorRoom);
         UUID round = UUID.randomUUID();
-        UUID one = order(c, visit, service, 1, round, true), two = order(c, visit, service, 1, round, false);
+        UUID one = order(c, visit, service, 1, round), two = order(c, visit, service, 1, round);
         jdbc.update("update clinical_service_orders set order_status = 'CANCELLED', cancel_reason = 'x' where id = ?", two);
         jdbc.update("update clinical_service_orders set order_status = 'RESULTS_AVAILABLE' where id = ?", one);
         tx.executeWithoutResult(status -> resultReview.onOrderResultAvailable(one));
@@ -274,14 +274,17 @@ class ServiceQueueAdmissionPostgresIntegrationTest {
     }
 
     private UUID order(Ctx c, UUID visit, UUID service, int roundNumber) {
-        return order(c, visit, service, roundNumber, UUID.randomUUID(), true);
+        return order(c, visit, service, roundNumber, UUID.randomUUID());
     }
 
-    private UUID order(Ctx c, UUID visit, UUID service, int roundNumber, UUID round, boolean head) {
+    /** The round row is inserted by the first order of the round; the next order of the same round finds it. */
+    private UUID order(Ctx c, UUID visit, UUID service, int roundNumber, UUID round) {
         UUID order = UUID.randomUUID();
         Timestamp now = Timestamp.from(Instant.now());
-        jdbc.update("insert into clinical_service_orders (id, order_code, ordering_round_id, round_number, ordered_at, round_head, visit_id, patient_id, service_id, service_name_snapshot, service_type, requesting_doctor_id, clinical_reason, price_snapshot, order_status, payment_status, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, 'Other service', 'OTHER', ?, 'Pain', 100, 'ORDERED', 'PENDING_PAYMENT', ?, ?)",
-                order, "O-" + order.toString().substring(0, 8), round, roundNumber, now, head, visit, c.patient, service, c.doctor, now, now);
+        jdbc.update("insert into clinical_ordering_rounds (id, visit_id, round_number, ordered_by_doctor_id, ordered_at, created_at) values (?, ?, ?, ?, ?, ?) on conflict (id) do nothing",
+                round, visit, roundNumber, c.doctor, now, now);
+        jdbc.update("insert into clinical_service_orders (id, order_code, ordering_round_id, visit_id, patient_id, service_id, service_name_snapshot, service_type, requesting_doctor_id, clinical_reason, price_snapshot, order_status, payment_status, created_at, updated_at) values (?, ?, ?, ?, ?, ?, 'Other service', 'OTHER', ?, 'Pain', 100, 'ORDERED', 'PENDING_PAYMENT', ?, ?)",
+                order, "O-" + order.toString().substring(0, 8), round, visit, c.patient, service, c.doctor, now, now);
         return order;
     }
 

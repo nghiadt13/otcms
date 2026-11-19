@@ -272,17 +272,17 @@ class DiagnosticFindingsT014PostgresIntegrationTest {
                 now, now, true);
         DiagnosticRequestView inProgress = evidence.recordFirstUse(DiagnosticActor.trustedIntegration(), use, "corr-use");
         assertEquals(DiagnosticRequestStatus.IN_PROGRESS, inProgress.status());
-        assertEquals(1L, jdbc.queryForObject("select execution_version from clinical_service_orders where id = ?",
+        assertEquals(1L, jdbc.queryForObject("select version from imaging_order_executions where service_order_id = ?",
                 Long.class, created.requestId()));
-        assertEquals("IN_PROGRESS", jdbc.queryForObject("select execution_status from clinical_service_orders where id = ?",
+        assertEquals("IN_PROGRESS", jdbc.queryForObject("select execution_status from imaging_order_executions where service_order_id = ?",
                 String.class, created.requestId()));
         StudyEvidence study = new StudyEvidence(UUID.randomUUID(), studyRef, created.requestId(), visitId,
                 patientId, attemptId, StudyVerificationStatus.CONFIRMED_MATCH, true);
         DiagnosticRequestView resultAvailable = evidence.linkConfirmedStudy(DiagnosticActor.trustedIntegration(), study, "corr-study");
         assertEquals(DiagnosticRequestStatus.RESULT_AVAILABLE, resultAvailable.status());
-        assertEquals(2L, jdbc.queryForObject("select execution_version from clinical_service_orders where id = ?",
+        assertEquals(2L, jdbc.queryForObject("select version from imaging_order_executions where service_order_id = ?",
                 Long.class, created.requestId()));
-        assertEquals(studyRef, jdbc.queryForObject("select study_ref from clinical_service_orders where id = ?",
+        assertEquals(studyRef, jdbc.queryForObject("select study_ref from imaging_order_executions where service_order_id = ?",
                 String.class, created.requestId()));
         return resultAvailable;
     }

@@ -194,8 +194,8 @@ class VisitT012PostgresIntegrationTest {
         Instant startsAt = arrivedAt.plusSeconds(3600);
         jdbc.update("insert into appointments (id, patient_profile_id, service_id, doctor_profile_id, booking_source, purpose, start_time, end_time, duration_minutes, buffer_minutes, created_by_account_id) values (?, ?, ?, ?, 'PATIENT_ONLINE', 'T012 arrival evidence', ?, ?, 30, 0, ?)",
                 appointmentId, patientId, serviceId, doctorId, Timestamp.from(startsAt), Timestamp.from(startsAt.plusSeconds(1800)), patientAccountId);
-        jdbc.update("update appointments set arrived_at = ?, arrival_source = 'LEGACY_RECEPTIONIST', "
-                + "arrival_recorded_at = now(), arrival_recorded_by = ? where id = ? and patient_profile_id = ?",
+        jdbc.update("insert into appointment_arrivals (appointment_id, arrived_at, arrival_source, arrival_recorded_at, arrival_recorded_by) "
+                + "select id, ?, 'LEGACY_RECEPTIONIST', now(), ? from appointments where id = ? and patient_profile_id = ?",
                 Timestamp.from(arrivedAt), receptionistId, appointmentId, patientId);
 
         RecordedArrivalQueryService.RecordedArrival result = recordedArrivals.requireRecordedArrival(

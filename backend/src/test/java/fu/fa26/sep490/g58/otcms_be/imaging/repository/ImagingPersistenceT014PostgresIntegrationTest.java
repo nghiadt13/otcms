@@ -2,6 +2,8 @@ package fu.fa26.sep490.g58.otcms_be.imaging.repository;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import fu.fa26.sep490.g58.otcms_be.common.idempotency.IdempotencyScope;
+import fu.fa26.sep490.g58.otcms_be.common.idempotency.IdempotencyStore;
 import fu.fa26.sep490.g58.otcms_be.imaging.exception.ImagingOperationException;
 import fu.fa26.sep490.g58.otcms_be.imaging.model.ImagingOperationRecord;
 import fu.fa26.sep490.g58.otcms_be.imaging.model.ImagingReconciliationDecision;
@@ -44,6 +46,7 @@ class ImagingPersistenceT014PostgresIntegrationTest {
     @Autowired EntityManager entityManager;
     @Autowired ImagingIngestOperationPersistenceService operations;
     @Autowired ImagingStudyRepository studies;
+    @Autowired IdempotencyStore idempotency;
     @Autowired ImagingViewerGrantRepository viewerGrants;
     @Autowired ImagingAuditPersistenceService audit;
     @Autowired ImagingReconciliationCaseRepository reconciliationCases;
@@ -55,8 +58,11 @@ class ImagingPersistenceT014PostgresIntegrationTest {
                 patient, patientAccount, "+849" + String.format("%09d", Math.floorMod(patient.getLeastSignificantBits(), 1_000_000_000L)));
         jdbc.update("insert into staff_profiles (is_doctor,id,account_id,display_name) values (true,?,?,'Imaging doctor')", staff, doctor);
         jdbc.update("insert into visits (id,patient_profile_id,source,arrived_at,checked_in_at,created_by_account_id,status) values (?,?,'WALK_IN',now(),now(),?,'OPEN')", visit, patient, doctor);
-        jdbc.update("insert into clinical_service_orders (id,order_code,ordering_round_id,round_number,ordered_at,round_head,visit_id,patient_id,service_id,service_name_snapshot,service_type,requesting_doctor_id,clinical_reason,body_area,price_snapshot,order_status,payment_status,created_at,updated_at) values (?,?,?,1,now(),true,?,?,?,'CT','IMAGING',?,'T014','CHEST',1,'ORDERED','PAID',now(),now())",
-                order, order.toString().replace("-", ""), UUID.randomUUID(), visit, patient, service, staff);
+        UUID round = UUID.randomUUID();
+        jdbc.update("insert into clinical_ordering_rounds (id,visit_id,round_number,ordered_by_doctor_id,ordered_at,created_at) values (?,?,1,?,now(),now())",
+                round, visit, staff);
+        jdbc.update("insert into clinical_service_orders (id,order_code,ordering_round_id,visit_id,patient_id,service_id,service_name_snapshot,service_type,requesting_doctor_id,clinical_reason,body_area,price_snapshot,order_status,payment_status,created_at,updated_at) values (?,?,?,?,?,?,'CT','IMAGING',?,'T014','CHEST',1,'ORDERED','PAID',now(),now())",
+                order, order.toString().replace("-", ""), round, visit, patient, service, staff);
     }
 
     private void account(UUID id, String type) {
@@ -76,7 +82,7 @@ class ImagingPersistenceT014PostgresIntegrationTest {
         assertEquals(studyRef, studies.findById(operation.id()).orElseThrow().getStudyRef());
         assertTrue(studies.containsDicomIndex(operation.id(), "{\"series\":[{\"uid\":\"1.2.826.0.1.3680043.10.100.2\",\"instances\":[{\"sop_uid\":\"1.2.826.0.1.3680043.10.100.3\"}]}]}"));
         UUID eventId = UUID.randomUUID();
-        study.prepareConfirmation(eventId, "send-key", "b".repeat(64), NOW);
+        study.prepareConfirmation(eventId, NOW);
         studies.saveAndFlush(study);
         assertEquals(eventId, studies.findByConfirmationEventId(eventId).orElseThrow().getConfirmationEventId());
         study.markAcknowledged(NOW);
@@ -147,11 +153,13 @@ class ImagingPersistenceT014PostgresIntegrationTest {
 
     @Test void persistsIdempotencyUniquenessAndKeepsIdentityTagsOutOfSchema() {
         var operation = operation(ImagingOperationState.PROCESSING); operations.insert(operation);
-        var saved = studies.findByActorAccountIdAndRequestIdAndAttemptIdAndUploadIdempotencyKey(actor, order, attempt, operation.id().toString()).orElseThrow();
+        String scopedKey = order + ":" + attempt + ":" + operation.id();
+        var replay = idempotency.find(IdempotencyScope.IMAGING_UPLOAD, actor, scopedKey).orElseThrow();
+        assertEquals(operation.id(), replay.resourceId()); assertTrue(replay.matches(operation.payloadSha256()));
+        var saved = studies.findById(operation.id()).orElseThrow();
         assertEquals(operation.id(), saved.getId()); assertEquals(operation.payloadSha256(), saved.getPayloadSha256());
         assertTrue(jdbc.queryForList("select column_name from information_schema.columns where table_schema = current_schema() and table_name = 'imaging_studies' and column_name in ('patient_name','patient_id_tag','accession_number','issuer_value')").isEmpty());
-        var duplicate = new ImagingStudyJpaEntity(operation(ImagingOperationState.PROCESSING), operation.id().toString());
-        assertThrows(org.springframework.dao.DataAccessException.class, () -> studies.saveAndFlush(duplicate));
+        assertFalse(idempotency.record(IdempotencyScope.IMAGING_UPLOAD, actor, scopedKey, operation.payloadSha256(), UUID.randomUUID(), NOW));
     }
 
     @Test void studyInstanceUidIsUnique() {

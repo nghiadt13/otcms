@@ -123,8 +123,8 @@ class MarkAppointmentNoShowT028PostgresIntegrationTest {
         assertEquals("CONFIRMED", jdbc.queryForObject("select status from appointments where id = ?", String.class, boundary));
 
         UUID timely = appointment(NOW.minusSeconds(3600));
-        jdbc.update("update appointments set arrival_recorded_by = ?, arrival_source = 'LEGACY_RECEPTIONIST', "
-                + "arrived_at = ?, arrival_recorded_at = now() where id = ?", receptionistAccount, Timestamp.from(NOW.minusSeconds(3000)), timely);
+        jdbc.update("insert into appointment_arrivals (appointment_id, arrived_at, arrival_source, arrival_recorded_at, arrival_recorded_by) "
+                + "values (?, ?, 'LEGACY_RECEPTIONIST', now(), ?)", timely, Timestamp.from(NOW.minusSeconds(3000)), receptionistAccount);
         mvc.perform(markNoShow(timely, receptionistAccount, AccountType.RECEPTIONIST, null))
                 .andExpect(status().isUnprocessableEntity()).andExpect(jsonPath("$.error.code").value("MSG-29"));
         assertEquals("CONFIRMED", jdbc.queryForObject("select status from appointments where id = ?", String.class, timely));

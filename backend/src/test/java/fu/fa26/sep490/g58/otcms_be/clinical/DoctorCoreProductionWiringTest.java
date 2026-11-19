@@ -16,6 +16,8 @@ import fu.fa26.sep490.g58.otcms_be.clinical.security.ClinicalDoctorIdentityResol
 import fu.fa26.sep490.g58.otcms_be.clinical.service.*;
 import fu.fa26.sep490.g58.otcms_be.clinical.service.ClinicalImagingRequestService.*;
 import fu.fa26.sep490.g58.otcms_be.clinical.service.impl.*;
+import fu.fa26.sep490.g58.otcms_be.common.idempotency.IdempotencyReplay;
+import fu.fa26.sep490.g58.otcms_be.common.idempotency.IdempotencyStore;
 import fu.fa26.sep490.g58.otcms_be.common.security.AccountRole;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.controller.*;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.integration.*;
@@ -64,7 +66,9 @@ class DoctorCoreProductionWiringTest {
     private final UUID visitId = UUID.randomUUID(), patientId = UUID.randomUUID(), doctorId = UUID.randomUUID();
     private final UUID accountId = UUID.randomUUID(), serviceId = UUID.randomUUID();
     private final Map<UUID, ServiceOrderJpaEntity> orderRows = new LinkedHashMap<>();
+    private final Map<UUID, ClinicalOrderingRoundJpaEntity> roundRows = new LinkedHashMap<>();
     private final Map<UUID, ClinicalServiceOrderExecutionPort.ImagingExecution> diagnosticRows = new LinkedHashMap<>();
+    private final Map<String, IdempotencyReplay> records = new LinkedHashMap<>();
 
     @BeforeEach void startRealApplicationWiring() {
         context = new AnnotationConfigWebApplicationContext();
@@ -75,7 +79,7 @@ class DoctorCoreProductionWiringTest {
         when(bean(StaffProfileRepository.class).findByIdAndDoctorTrue(doctorId)).thenReturn(Optional.of(profile));
         when(bean(AccountRepository.class).existsByIdAndAccountTypeAndStatus(eq(accountId), any(), any())).thenReturn(true);
         when(bean(ClinicVisitJpaRepository.class).findById(visitId)).thenReturn(Optional.of(
-                ClinicVisitJpaEntity.walkIn(visitId, patientId, null, UUID.randomUUID(), Instant.EPOCH, null, null)));
+                ClinicVisitJpaEntity.walkIn(visitId, patientId, null, UUID.randomUUID(), Instant.EPOCH)));
         when(bean(VisitCareAssignmentRepository.class).findFirstByVisitIdAndStatusOrderByAssignedAtDescIdDesc(visitId, "IN_PROGRESS"))
                 .thenReturn(Optional.of(VisitCareAssignmentJpaEntity.inProgress(UUID.randomUUID(), visitId, doctorId,
                         "ORTHOPEDIC", 30, Instant.EPOCH, Instant.EPOCH.plusSeconds(1800))));
@@ -87,14 +91,21 @@ class DoctorCoreProductionWiringTest {
         when(orders.save(any())).thenAnswer(call -> { assertInTransaction(); var row = (ServiceOrderJpaEntity) call.getArgument(0); orderRows.put(row.getId(), row); return row; });
         when(orders.findById(any())).thenAnswer(call -> Optional.ofNullable(orderRows.get(call.getArgument(0))));
         when(orders.findByOrderingRoundId(any())).thenAnswer(call -> orderRows.values().stream().filter(row -> row.getOrderingRoundId().equals(call.getArgument(0))).toList());
-        when(orders.findTopByVisitIdAndRoundHeadTrueOrderByRoundNumberDesc(any())).thenAnswer(call -> orderRows.values().stream()
-                .filter(row -> row.isRoundHead() && row.getVisitId().equals(call.getArgument(0)))
-                .max(Comparator.comparingInt(ServiceOrderJpaEntity::getRoundNumber)));
-        when(orders.findByRequestingDoctorIdAndSubmitIdempotencyKeyAndRoundHeadTrue(any(), any())).thenAnswer(call -> orderRows.values().stream()
-                .filter(row -> row.isRoundHead() && row.getRequestingDoctorId().equals(call.getArgument(0))
-                        && Objects.equals(row.getSubmitIdempotencyKey(), call.getArgument(1))).findFirst());
-        when(orders.findFirstByOrderingRoundIdAndRoundHeadTrue(any())).thenAnswer(call -> orderRows.values().stream()
-                .filter(row -> row.isRoundHead() && row.getOrderingRoundId().equals(call.getArgument(0))).findFirst());
+        var rounds = bean(ClinicalOrderingRoundRepository.class);
+        when(rounds.save(any())).thenAnswer(call -> { assertInTransaction(); var round = (ClinicalOrderingRoundJpaEntity) call.getArgument(0); roundRows.put(round.getId(), round); return round; });
+        when(rounds.findById(any())).thenAnswer(call -> Optional.ofNullable(roundRows.get(call.getArgument(0))));
+        when(rounds.findTopByVisitIdOrderByRoundNumberDesc(any())).thenAnswer(call -> roundRows.values().stream()
+                .filter(round -> round.getVisitId().equals(call.getArgument(0)))
+                .max(Comparator.comparingInt(ClinicalOrderingRoundJpaEntity::getRoundNumber)));
+        var store = bean(IdempotencyStore.class);
+        when(store.find(any(), any(), any())).thenAnswer(call -> Optional.ofNullable(
+                records.get(recordKey(call.getArgument(0), call.getArgument(1), call.getArgument(2)))));
+        when(store.record(any(), any(), any(), any(), any())).thenAnswer(call -> {
+            String key = recordKey(call.getArgument(0), call.getArgument(1), call.getArgument(2));
+            if (records.containsKey(key)) return false;
+            records.put(key, new IdempotencyReplay(call.getArgument(3), call.getArgument(4), Instant.EPOCH));
+            return true;
+        });
         var requests = bean(ClinicalServiceOrderExecutionPort.class);
         when(requests.assignImagingRoom(any(), any(), any(), any(), any(), any(), any())).thenAnswer(call -> {
             assertInTransaction();
@@ -142,8 +153,9 @@ class DoctorCoreProductionWiringTest {
 
     @AfterEach void close() { context.close(); }
     private <T> T bean(Class<T> type) { return context.getBean(type); }
-    private long roundCount() { return orderRows.values().stream().filter(ServiceOrderJpaEntity::isRoundHead).count(); }
-    private long replayCount() { return orderRows.values().stream().filter(row -> row.isRoundHead() && row.getSubmitIdempotencyKey() != null).count(); }
+    private long roundCount() { return roundRows.size(); }
+    private long replayCount() { return records.size(); }
+    private static String recordKey(Object scope, Object owner, Object key) { return scope + "|" + owner + "|" + key; }
     private static void assertInTransaction() { assertTrue(TransactionSynchronizationManager.isActualTransactionActive()); }
     private ImagingRequestCommand command(String key, int count) {
         return new ImagingRequestCommand(visitId, doctorId, key, Collections.nCopies(count,
@@ -382,14 +394,15 @@ class DoctorCoreProductionWiringTest {
             return factory -> {
                 Class<?>[] repositories = {AccountRepository.class, StaffProfileRepository.class, ClinicServiceRepository.class,
                         ClinicVisitJpaRepository.class, VisitCareAssignmentRepository.class, ClinicalExaminationRepository.class,
-                        ClinicalDiagnosisRepository.class, ServiceOrderRepository.class,
+                        ClinicalDiagnosisRepository.class, ServiceOrderRepository.class, ClinicalOrderingRoundRepository.class,
                         ClinicalMedicalDocumentRepository.class, ClinicalMedicalDocumentPayloadRepository.class,
                         fu.fa26.sep490.g58.otcms_be.auth.repository.PatientProfileRepository.class,
                         fu.fa26.sep490.g58.otcms_be.patient.repository.CareRelationshipRepository.class,
                         ClinicalPrescriptionRepository.class, ClinicalPrescriptionItemRepository.class,
                         DiagnosticReportJpaRepository.class,
                         fu.fa26.sep490.g58.otcms_be.clinical.service.ClinicalServiceOrderExecutionPort.class,
-                        fu.fa26.sep490.g58.otcms_be.common.audit.AuditLogWriter.class};
+                        fu.fa26.sep490.g58.otcms_be.common.audit.AuditLogWriter.class,
+                        IdempotencyStore.class};
                 for (Class<?> repository : repositories) factory.registerSingleton(repository.getSimpleName(), mock(repository));
             };
         }

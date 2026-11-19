@@ -100,6 +100,7 @@ class DiagnosticRequestT012PostgresIntegrationTest {
         for (UUID id : visitIds) {
             jdbc.update("delete from invoice_items where service_order_id in (select id from clinical_service_orders where visit_id = ?)", id);
             jdbc.update("delete from clinical_service_orders where visit_id = ?", id);
+            jdbc.update("delete from clinical_ordering_rounds where visit_id = ?", id);
         }
     }
 
@@ -113,8 +114,9 @@ class DiagnosticRequestT012PostgresIntegrationTest {
         assertEquals(0, replay.version());
         assertEquals("Pain and shortness of breath", replay.clinicalReason());
         assertEquals(1, ports.reservationCalls);
-        assertEquals(1, jdbc.queryForObject("select count(*) from clinical_service_orders "
-                + "where visit_id = ? and execution_status = 'PENDING'", Integer.class, visitId));
+        assertEquals(1, jdbc.queryForObject("select count(*) from clinical_service_orders o "
+                + "join imaging_order_executions e on e.service_order_id = o.id "
+                + "where o.visit_id = ? and e.execution_status = 'PENDING'", Integer.class, visitId));
 
         DiagnosticOperationException conflict = assertThrows(DiagnosticOperationException.class,
                 () -> create("create-1", "Chest", "Different reason"));
@@ -129,8 +131,8 @@ class DiagnosticRequestT012PostgresIntegrationTest {
                     "retired", serviceId, "MRI", "Chest", "Pain", roomId, null, "corr"));
             assertEquals(DiagnosticOperationOutcome.UNAUTHORIZED_RECORD, error.outcome());
         }
-        assertEquals(0, jdbc.queryForObject("select count(*) from clinical_service_orders "
-                + "where visit_id = ? and execution_status is not null", Integer.class, visitId));
+        assertEquals(0, jdbc.queryForObject("select count(*) from clinical_service_orders o "
+                + "join imaging_order_executions e on e.service_order_id = o.id where o.visit_id = ?", Integer.class, visitId));
     }
 
     @Test
@@ -169,8 +171,8 @@ class DiagnosticRequestT012PostgresIntegrationTest {
         DiagnosticRequestView unpaid = create("refund-unpaid", "Chest", "Pain");
         UUID attempt = UUID.randomUUID();
         jdbc.update("insert into payment_attempts (id, invoice_id, channel, counter_method, amount, status, created_by_account_id, "
-                + "idempotency_key, request_fingerprint, confirmed_at) values (?, ?, 'COUNTER', 'CASH', 1, 'CONFIRMED', ?, ?, ?, now())",
-                attempt, invoice, account, attempt.toString(), "b".repeat(64));
+                + "confirmed_at) values (?, ?, 'COUNTER', 'CASH', 1, 'CONFIRMED', ?, now())",
+                attempt, invoice, account);
         UUID paidItem = UUID.randomUUID();
         UUID unpaidItem = UUID.randomUUID();
         jdbc.update("insert into invoice_items (id, invoice_id, line_number, service_order_id, payment_attempt_id, description_snapshot, quantity, unit_price_snapshot) "
@@ -263,8 +265,8 @@ class DiagnosticRequestT012PostgresIntegrationTest {
                 () -> service.create(wrongDoctor, visitId, "wrong-doctor-create", serviceId, "MRI", "Chest",
                         "Pain", roomId, null, "corr-wrong"));
         assertEquals(DiagnosticOperationOutcome.UNAUTHORIZED_RECORD, deniedCreate.outcome());
-        assertEquals(0, jdbc.queryForObject("select count(*) from clinical_service_orders "
-                + "where visit_id = ? and execution_status is not null", Integer.class, visitId));
+        assertEquals(0, jdbc.queryForObject("select count(*) from clinical_service_orders o "
+                + "join imaging_order_executions e on e.service_order_id = o.id where o.visit_id = ?", Integer.class, visitId));
     }
 
     @Test
@@ -274,7 +276,7 @@ class DiagnosticRequestT012PostgresIntegrationTest {
 
         DiagnosticRequestView created = createLinked("link-ok", orderId);
 
-        assertEquals(orderId, jdbc.queryForObject("select id from clinical_service_orders where id = ? and execution_status is not null",
+        assertEquals(orderId, jdbc.queryForObject("select o.id from clinical_service_orders o join imaging_order_executions e on e.service_order_id = o.id where o.id = ?",
                 UUID.class, created.requestId()));
     }
 
@@ -290,7 +292,7 @@ class DiagnosticRequestT012PostgresIntegrationTest {
         Instant storedOrderCreatedAt = jdbc.queryForObject(
                 "select created_at from clinical_service_orders where id = ?", Timestamp.class, orderId).toInstant();
         Instant executionCreatedAt = jdbc.queryForObject(
-                "select execution_created_at from clinical_service_orders where id = ?", Timestamp.class, orderId).toInstant();
+                "select created_at from imaging_order_executions where service_order_id = ?", Timestamp.class, orderId).toInstant();
         assertTrue(Math.abs(java.time.Duration.between(orderCreatedAt, storedOrderCreatedAt).toNanos()) <= 1000);
         assertEquals(executionCreatedAt, request.createdAt());
         assertTrue(executionCreatedAt.isAfter(storedOrderCreatedAt));
@@ -333,8 +335,8 @@ class DiagnosticRequestT012PostgresIntegrationTest {
             assertEquals(DiagnosticOperationOutcome.EVIDENCE_MISMATCH,
                     assertThrows(DiagnosticOperationException.class, () -> createLinked("link-bad-" + bad, bad)).outcome());
         }
-        assertEquals(0, jdbc.queryForObject("select count(*) from clinical_service_orders "
-                + "where visit_id = ? and execution_status is not null", Integer.class, visitId));
+        assertEquals(0, jdbc.queryForObject("select count(*) from clinical_service_orders o "
+                + "join imaging_order_executions e on e.service_order_id = o.id where o.visit_id = ?", Integer.class, visitId));
     }
 
     @Test
@@ -349,8 +351,9 @@ class DiagnosticRequestT012PostgresIntegrationTest {
                 CancellationCause.PATIENT_DECLINED, "Patient declined", "corr-cancel");
         assertEquals(List.of(orderId), ports.orderCancelCalls);
         assertThrows(DiagnosticOperationException.class, () -> createLinked("link-third", orderId));
-        assertEquals(0, jdbc.queryForObject("select count(*) from clinical_service_orders where id=? "
-                + "and execution_status <> 'CANCELLED'", Integer.class, orderId));
+        assertEquals(0, jdbc.queryForObject("select count(*) from clinical_service_orders o "
+                + "join imaging_order_executions e on e.service_order_id = o.id where o.id=? "
+                + "and e.execution_status <> 'CANCELLED'", Integer.class, orderId));
     }
 
     @Test
@@ -387,7 +390,10 @@ class DiagnosticRequestT012PostgresIntegrationTest {
                         visit.patientId(), visit.treatingDoctorId(), ports.service.serviceId(), roomId, area, reason)).requestId());
         // Explicit physical-reservation fixture for legacy lifecycle assertions only; dispatch never calls this.
         if (!ports.reservations.containsKey(id)) { ports.reservationCalls++; ports.reservations.put(id, roomId); }
-        return jdbc.queryForObject("select * from clinical_service_orders where id = ?", (row, number) -> new DiagnosticRequestView(
+        return jdbc.queryForObject("select o.body_area, o.clinical_reason, e.execution_status, e.cancellation_cause, "
+                + "e.cancellation_reason, e.study_ref, e.version as execution_version, e.created_at as execution_created_at "
+                + "from clinical_service_orders o join imaging_order_executions e on e.service_order_id = o.id "
+                + "where o.id = ?", (row, number) -> new DiagnosticRequestView(
                 id, visitId, visit.patientId(), visit.treatingDoctorId(), ports.service.serviceId(), roomId,
                 ports.service.imagingType(), row.getString("body_area"), row.getString("clinical_reason"),
                 DiagnosticRequestStatus.valueOf(row.getString("execution_status")), row.getString("cancellation_cause"),
@@ -402,14 +408,17 @@ class DiagnosticRequestT012PostgresIntegrationTest {
         VisitEvidence visit = ports.visits.get(visitId);
         UUID roundId = UUID.randomUUID();
         int roundNumber = jdbc.queryForObject("select coalesce(max(round_number), 0) + 1 "
-                + "from clinical_service_orders where visit_id = ? and round_head", Integer.class, visitId);
+                + "from clinical_ordering_rounds where visit_id = ?", Integer.class, visitId);
         Instant now = Instant.now();
-        jdbc.update("insert into clinical_service_orders (id, order_code, ordering_round_id, round_number, ordered_at, "
-                        + "round_head, visit_id, patient_id, service_id, service_name_snapshot, service_type, "
-                        + "requesting_doctor_id, clinical_reason, body_area, price_snapshot, order_status, payment_status, "
-                        + "created_at, updated_at) values (?, ?, ?, ?, ?, true, ?, ?, ?, ?, 'IMAGING', ?, ?, ?, 1, 'ORDERED', 'PAID', ?, ?)",
-                orderId, orderId.toString().replace("-", ""), roundId, roundNumber, Timestamp.from(now), visitId,
-                visit.patientId(), ports.service.serviceId(), "Test MRI", visit.treatingDoctorId(), reason, area,
+        jdbc.update("insert into clinical_ordering_rounds (id, visit_id, round_number, ordered_by_doctor_id, ordered_at, created_at) "
+                        + "values (?, ?, ?, ?, ?, ?)", roundId, visitId, roundNumber, visit.treatingDoctorId(),
+                Timestamp.from(now), Timestamp.from(createdAt));
+        jdbc.update("insert into clinical_service_orders (id, order_code, ordering_round_id, visit_id, patient_id, service_id, "
+                        + "service_name_snapshot, service_type, requesting_doctor_id, clinical_reason, body_area, price_snapshot, "
+                        + "order_status, payment_status, created_at, updated_at) "
+                        + "values (?, ?, ?, ?, ?, ?, 'Test MRI', 'IMAGING', ?, ?, ?, 1, 'ORDERED', 'PAID', ?, ?)",
+                orderId, orderId.toString().replace("-", ""), roundId, visitId, visit.patientId(),
+                ports.service.serviceId(), visit.treatingDoctorId(), reason, area,
                 Timestamp.from(createdAt), Timestamp.from(createdAt));
     }
 

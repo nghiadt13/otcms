@@ -19,9 +19,11 @@ import java.time.*;
 import java.util.*;
 import org.junit.jupiter.api.*;
 import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
 
 class ClinicalRoundWorkflowTest {
     final ServiceOrderRepository orders = mock(ServiceOrderRepository.class);
+    final ClinicalOrderingRoundRepository rounds = mock(ClinicalOrderingRoundRepository.class);
     final ClinicalOrderPreparationService preparation = mock(ClinicalOrderPreparationService.class);
     final PatientClinicalIdentityQueryService patients = mock(PatientClinicalIdentityQueryService.class);
     final DiagnosticOrderStatusQueryService statuses = mock(DiagnosticOrderStatusQueryService.class);
@@ -30,19 +32,22 @@ class ClinicalRoundWorkflowTest {
     final UUID visit = UUID.randomUUID(), patient = UUID.randomUUID(), doctor = UUID.randomUUID(), serviceId = UUID.randomUUID();
     final Instant now = Instant.parse("2026-11-06T12:00:00Z");
     final UUID roundId = UUID.randomUUID();
-    final ServiceOrderJpaEntity order = new ServiceOrderJpaEntity("CD-1", roundId, 2, true, null, null, visit, patient, serviceId,
+    final ServiceOrderJpaEntity order = new ServiceOrderJpaEntity("CD-1", roundId, visit, patient, serviceId,
             "Snapshot X-ray", ClinicalServiceType.IMAGING, doctor, "Pain", "KNEE", null, new BigDecimal("150000.00"), now);
+    final ClinicalOrderingRoundJpaEntity round = new ClinicalOrderingRoundJpaEntity(roundId, visit, 2, doctor, now);
     final fu.fa26.sep490.g58.otcms_be.visit.service.ImagingRoomQueueService roomQueries = mock(fu.fa26.sep490.g58.otcms_be.visit.service.ImagingRoomQueueService.class);
     final VisitClinicalContextPort contexts = mock(VisitClinicalContextPort.class);
     final UUID roomId = UUID.randomUUID();
     List<ClinicalRoundWorkflowService.RoomAssignment> assignments() { return List.of(new ClinicalRoundWorkflowService.RoomAssignment(order.getId(), roomId)); }
-    final ClinicalRoundWorkflowService workflow = new ClinicalRoundWorkflowServiceImpl(orders, preparation, patients, statuses, registration, guard, roomQueries, contexts);
-    final ClinicalRoundBillingAdapter billing = new ClinicalRoundBillingAdapter(orders, guard, Clock.fixed(now, ZoneOffset.UTC));
+    final ClinicalRoundWorkflowService workflow = new ClinicalRoundWorkflowServiceImpl(orders, rounds, preparation, patients, statuses, registration, guard, roomQueries, contexts);
+    final ClinicalRoundBillingAdapter billing = new ClinicalRoundBillingAdapter(orders, rounds, guard, Clock.fixed(now, ZoneOffset.UTC));
     AuthenticatedAccount actor(AccountRole role) { return new AuthenticatedAccount(UUID.randomUUID(), role, UUID.randomUUID()); }
     @BeforeEach void setup() {
-        when(orders.findFirstByOrderingRoundIdAndRoundHeadTrue(roundId)).thenReturn(Optional.of(order));
+        when(rounds.findById(roundId)).thenReturn(Optional.of(round));
+        when(rounds.existsById(roundId)).thenReturn(true);
+        when(rounds.findAllById(any())).thenReturn(List.of(round));
         when(orders.findByOrderingRoundId(roundId)).thenReturn(List.of(order));
-        when(orders.findAllByRoundHeadTrue(any())).thenReturn(new PageImpl<>(List.of(order)));
+        when(rounds.findAll(any(Pageable.class))).thenReturn(new PageImpl<>(List.of(round)));
         when(orders.saveAllAndFlush(anyList())).thenAnswer(call -> call.getArgument(0));
         when(statuses.findByServiceOrders(any())).thenReturn(Map.of());
     }
@@ -98,7 +103,7 @@ class ClinicalRoundWorkflowTest {
         verify(statuses, times(1)).findByServiceOrders(List.of(order.getId()));
     }
     @Test void assignmentsArePerOrderAndAllPersistedFieldsRemainAuthoritative() {
-        var second = new ServiceOrderJpaEntity("CD-2", roundId, 2, false, null, null, visit, patient,
+        var second = new ServiceOrderJpaEntity("CD-2", roundId, visit, patient,
                 UUID.randomUUID(), "MRI", ClinicalServiceType.IMAGING, doctor, "Reason 2", "HIP", null, BigDecimal.TEN, now);
         order.markPaid(now); second.markPaid(now);
         when(orders.findByOrderingRoundId(roundId)).thenReturn(List.of(order, second));

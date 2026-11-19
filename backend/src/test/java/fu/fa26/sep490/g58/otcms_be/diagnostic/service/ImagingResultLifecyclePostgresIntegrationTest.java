@@ -67,11 +67,14 @@ class ImagingResultLifecyclePostgresIntegrationTest {
                 + "values (?,?,?,now(),now()+interval '30 minutes','IN_PROGRESS')", UUID.randomUUID(), visit, doctorProfile);
         jdbc.update("insert into clinical_examinations (id,visit_id,reason_for_visit,symptoms,examination_findings,status,created_at,updated_at) "
                 + "values (?,?, 'Imaging follow-up','Knee pain','Stable','COMPLETED',now(),now())", UUID.randomUUID(), visit);
-        jdbc.update("insert into clinical_service_orders (id,order_code,ordering_round_id,round_number,ordered_at,"
+        UUID round = UUID.randomUUID();
+        jdbc.update("insert into clinical_ordering_rounds (id,visit_id,round_number,ordered_by_doctor_id,ordered_at,created_at) "
+                + "values (?,?,1,?,now(),now())", round, visit, doctorProfile);
+        jdbc.update("insert into clinical_service_orders (id,order_code,ordering_round_id,"
                 + "visit_id,patient_id,service_id,service_name_snapshot,service_type,requesting_doctor_id,"
                 + "clinical_reason,body_area,price_snapshot,order_status,payment_status,created_at,updated_at) "
-                + "values (?,?,?,1,now(),?,?,?,'Lifecycle MRI','IMAGING',?,'Test','KNEE',1,'ORDERED','PAID',now(),now())",
-                order, order.toString().replace("-", ""), UUID.randomUUID(), visit, patient, serviceId, doctorProfile);
+                + "values (?,?,?,?,?,?,'Lifecycle MRI','IMAGING',?,'Test','KNEE',1,'ORDERED','PAID',now(),now())",
+                order, order.toString().replace("-", ""), round, visit, patient, serviceId, doctorProfile);
     }
 
     private void account(UUID id, String role) {
@@ -82,9 +85,9 @@ class ImagingResultLifecyclePostgresIntegrationTest {
     @Test void paidOrderFlowsThroughLinkedStudyAndReleasedReport() {
         assertEquals(1, executions.assignImagingRoom(order, visit, patient, serviceId, room, "MRI", doctorAccount));
         // P03 has no acquisition-start endpoint. Seed trusted first-use as an explicit fixture.
-        assertEquals(1, jdbc.update("update clinical_service_orders set execution_status='IN_PROGRESS', attempt_id=?, "
+        assertEquals(1, jdbc.update("update imaging_order_executions set execution_status='IN_PROGRESS', attempt_id=?, "
                 + "first_use_event_id=?, first_use_type='ACQUISITION_STARTED', first_use_source_id='fixture', "
-                + "first_use_at=now(), technician_account_id=?, execution_version=1, execution_updated_at=now() where id=?",
+                + "first_use_at=now(), technician_account_id=?, version=1, updated_at=now() where service_order_id=?",
                 attempt, UUID.randomUUID(), technician, order));
         ImagingAssignedWork work = new ImagingAssignedWork(technician, order, attempt, visit, patient, "fixture", true);
         UUID operation = uploads.register(technician, order, attempt, "upload-key", "a".repeat(64), 15, work).operation().id();
@@ -114,9 +117,9 @@ class ImagingResultLifecyclePostgresIntegrationTest {
                 "complete-key", version, draft.version(), report.reportId(), study, "lifecycle-release");
         assertEquals("RELEASED", released.releaseState());
         assertNotNull(jdbc.queryForObject("select findings_released_at from visits where id=?", java.sql.Timestamp.class, visit));
-        assertNotNull(jdbc.queryForObject("select findings_released_at from imaging_studies where id=?", java.sql.Timestamp.class, operation));
-        assertEquals(report.reportId(), jdbc.queryForObject("select released_report_id from imaging_studies where id=?", UUID.class, operation));
-        assertEquals(draft.findingsVersionId(), jdbc.queryForObject("select released_findings_id from imaging_studies where id=?", UUID.class, operation));
+        assertNotNull(jdbc.queryForObject("select findings_released_at from imaging_study_releases where imaging_study_id=?", java.sql.Timestamp.class, operation));
+        assertEquals(report.reportId(), jdbc.queryForObject("select released_report_id from imaging_study_releases where imaging_study_id=?", UUID.class, operation));
+        assertEquals(draft.findingsVersionId(), jdbc.queryForObject("select released_findings_id from imaging_study_releases where imaging_study_id=?", UUID.class, operation));
         assertTrue(clinicalCompletion.getCompletionEvidence(visit).allNonCancelledOrdersHaveResults());
         assertTrue(clinicalCompletion.getCompletionEvidence(visit).examinationCompleted());
         assertTrue(diagnosticCompletion.getCompletionEvidence(visit, patient, List.of(order)).allComplete());

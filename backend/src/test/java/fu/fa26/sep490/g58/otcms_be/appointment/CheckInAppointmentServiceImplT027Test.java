@@ -9,6 +9,9 @@ import fu.fa26.sep490.g58.otcms_be.appointment.service.AppointmentBillingSourceS
 import fu.fa26.sep490.g58.otcms_be.appointment.service.CheckInAppointmentCommand;
 import fu.fa26.sep490.g58.otcms_be.appointment.service.impl.CheckInAppointmentTransaction;
 import fu.fa26.sep490.g58.otcms_be.billing.service.AppointmentInvoicePaidStatusQueryService;
+import fu.fa26.sep490.g58.otcms_be.common.idempotency.IdempotencyReplay;
+import fu.fa26.sep490.g58.otcms_be.common.idempotency.IdempotencyScope;
+import fu.fa26.sep490.g58.otcms_be.common.idempotency.IdempotencyStore;
 import fu.fa26.sep490.g58.otcms_be.common.service.CoordinationGuardService;
 import fu.fa26.sep490.g58.otcms_be.config.AppointmentBookingProperties;
 import fu.fa26.sep490.g58.otcms_be.visit.exception.ReceptionWorkflowException;
@@ -47,6 +50,7 @@ class CheckInAppointmentServiceImplT027Test {
     private final ExamQueueTicket ticket = new ExamQueueTicket(3, doctorId, "Dr. Test", null, null);
     private final CoordinationGuardService guard = mock(CoordinationGuardService.class);
     private final AppointmentCheckInRepository appointments = mock(AppointmentCheckInRepository.class);
+    private final IdempotencyStore idempotency = mock(IdempotencyStore.class);
     private final ReceptionWorkflowService reception = mock(ReceptionWorkflowService.class);
     private final AppointmentBillingSourceService billingSources = mock(AppointmentBillingSourceService.class);
     private final AppointmentInvoicePaidStatusQueryService invoicePaidStatus =
@@ -63,7 +67,9 @@ class CheckInAppointmentServiceImplT027Test {
         command = new CheckInAppointmentCommand(actorId, patientId, "t027-key", "trace-id");
         current = new CheckInAppointment(appointmentId, patientId, doctorId,
                 "CONFIRMED", null, null, now.plusSeconds(1800), java.time.Instant.parse("2026-10-26T10:30:00Z"));
-        when(appointments.findReplay(actorId, appointmentId, "t027-key")).thenReturn(Optional.empty());
+        when(idempotency.find(IdempotencyScope.APPOINTMENT_CHECKIN, actorId, "t027-key")).thenReturn(Optional.empty());
+        when(idempotency.record(eq(IdempotencyScope.APPOINTMENT_CHECKIN), eq(actorId), eq("t027-key"), anyString(),
+                eq(appointmentId))).thenReturn(true);
         when(appointments.findForUpdate(appointmentId)).thenReturn(Optional.of(current));
         when(billingSources.requireSource(appointmentId)).thenReturn(source(BigDecimal.ZERO));
         when(reception.checkInAtomically(any())).thenReturn(checkedInAt(now));
@@ -75,16 +81,17 @@ class CheckInAppointmentServiceImplT027Test {
         var result = handler.checkIn(appointmentId, command);
 
         assertEquals(new CheckedInAppointment(appointmentId, visitId, now, ticket), result);
-        InOrder order = inOrder(guard, appointments, reception);
+        InOrder order = inOrder(guard, idempotency, appointments, reception);
         order.verify(guard).acquire();
-        order.verify(appointments).findReplay(actorId, appointmentId, "t027-key");
+        order.verify(idempotency).find(IdempotencyScope.APPOINTMENT_CHECKIN, actorId, "t027-key");
         order.verify(appointments).findForUpdate(appointmentId);
         var request = ArgumentCaptor.forClass(ReceptionWorkflowService.CheckInCommand.class);
         verify(reception).checkInAtomically(request.capture());
         assertEquals(doctorId, request.getValue().doctorProfileId());
         assertEquals(patientId, request.getValue().patientProfileId());
-        verify(appointments).completeCheckIn(eq(current), eq(actorId), eq("t027-key"), anyString(),
-                eq(visitId), eq(now));
+        verify(appointments).completeCheckIn(eq(current), eq(actorId), eq(visitId), eq(now));
+        verify(idempotency).record(eq(IdempotencyScope.APPOINTMENT_CHECKIN), eq(actorId), eq("t027-key"), anyString(),
+                eq(appointmentId));
     }
 
     @Test
@@ -99,8 +106,7 @@ class CheckInAppointmentServiceImplT027Test {
         var result = handlerAt(morning).checkIn(appointmentId, command);
 
         assertEquals(new CheckedInAppointment(appointmentId, visitId, morning, ticket), result);
-        verify(appointments).completeCheckIn(eq(current), eq(actorId), eq("t027-key"), anyString(),
-                eq(visitId), eq(morning));
+        verify(appointments).completeCheckIn(eq(current), eq(actorId), eq(visitId), eq(morning));
     }
 
     @Test
@@ -113,13 +119,15 @@ class CheckInAppointmentServiceImplT027Test {
                     () -> handler.checkIn(appointmentId, command)).code());
         }
         verifyNoInteractions(reception, invoicePaidStatus);
-        verify(appointments, never()).completeCheckIn(any(), any(), any(), any(), any(), any());
+        verify(appointments, never()).completeCheckIn(any(), any(), any(), any());
     }
 
     @Test
     void authorizedReplayPrecedesCurrentStateDayFeeAndDoesNotRepeatWrites() {
-        when(appointments.findReplay(actorId, appointmentId, "t027-key"))
-                .thenReturn(Optional.of(new CheckInReplay(fingerprint(), visitId, now.minusSeconds(3600))));
+        when(idempotency.find(IdempotencyScope.APPOINTMENT_CHECKIN, actorId, "t027-key"))
+                .thenReturn(Optional.of(new IdempotencyReplay(fingerprint(), appointmentId, now.minusSeconds(3600))));
+        when(appointments.findReplay(appointmentId))
+                .thenReturn(Optional.of(new CheckInReplay(visitId, now.minusSeconds(3600))));
 
         assertEquals(new CheckedInAppointment(appointmentId, visitId, now.minusSeconds(3600), ticket),
                 handler.checkIn(appointmentId, command));
@@ -127,13 +135,16 @@ class CheckInAppointmentServiceImplT027Test {
         verify(appointments, never()).findForUpdate(any());
         verify(reception, never()).checkInAtomically(any());
         verifyNoInteractions(billingSources, invoicePaidStatus);
-        verify(appointments, never()).completeCheckIn(any(), any(), any(), any(), any(), any());
+        verify(appointments, never()).completeCheckIn(any(), any(), any(), any());
+        verify(idempotency, never()).record(any(), any(), any(), any(), any());
     }
 
     @Test
     void replayOfVisitWithoutQueueRowReturnsNoTicket() {
-        when(appointments.findReplay(actorId, appointmentId, "t027-key"))
-                .thenReturn(Optional.of(new CheckInReplay(fingerprint(), visitId, now.minusSeconds(3600))));
+        when(idempotency.find(IdempotencyScope.APPOINTMENT_CHECKIN, actorId, "t027-key"))
+                .thenReturn(Optional.of(new IdempotencyReplay(fingerprint(), appointmentId, now.minusSeconds(3600))));
+        when(appointments.findReplay(appointmentId))
+                .thenReturn(Optional.of(new CheckInReplay(visitId, now.minusSeconds(3600))));
         when(reception.findExamQueueTicket(visitId)).thenReturn(Optional.empty());
 
         assertEquals(new CheckedInAppointment(appointmentId, visitId, now.minusSeconds(3600), null),
@@ -142,12 +153,26 @@ class CheckInAppointmentServiceImplT027Test {
 
     @Test
     void rejectsChangedReplayPayloadWithoutTouchingState() {
-        when(appointments.findReplay(actorId, appointmentId, "t027-key"))
-                .thenReturn(Optional.of(new CheckInReplay("different", visitId, now)));
+        when(idempotency.find(IdempotencyScope.APPOINTMENT_CHECKIN, actorId, "t027-key"))
+                .thenReturn(Optional.of(new IdempotencyReplay("different", appointmentId, now)));
 
         assertEquals("IDEMPOTENCY_CONFLICT", assertThrows(AppointmentBookingException.class,
                 () -> handler.checkIn(appointmentId, command)).code());
         verify(appointments, never()).findForUpdate(any());
+    }
+
+    @Test
+    void keyAlreadyHeldByAnotherAppointmentIsAConflictAfterTheCheckInWrite() {
+        // The same actor used this key for another appointment: the store refuses the new record.
+        when(idempotency.record(eq(IdempotencyScope.APPOINTMENT_CHECKIN), eq(actorId), eq("t027-key"), anyString(),
+                eq(appointmentId))).thenReturn(false);
+
+        assertEquals("IDEMPOTENCY_CONFLICT", assertThrows(AppointmentBookingException.class,
+                () -> handler.checkIn(appointmentId, command)).code());
+        InOrder order = inOrder(appointments, idempotency);
+        order.verify(appointments).completeCheckIn(eq(current), eq(actorId), eq(visitId), eq(now));
+        order.verify(idempotency).record(eq(IdempotencyScope.APPOINTMENT_CHECKIN), eq(actorId), eq("t027-key"),
+                anyString(), eq(appointmentId));
     }
 
     @Test
@@ -160,7 +185,7 @@ class CheckInAppointmentServiceImplT027Test {
                 () -> handler.checkIn(appointmentId, command)).code());
         verify(reception).hasConsistentCheckInEvidence(appointmentId, patientId, visitId);
         verify(reception, never()).checkInAtomically(any());
-        verify(appointments, never()).completeCheckIn(any(), any(), any(), any(), any(), any());
+        verify(appointments, never()).completeCheckIn(any(), any(), any(), any());
     }
 
     @Test
@@ -180,7 +205,7 @@ class CheckInAppointmentServiceImplT027Test {
         assertEquals("MSG-94", assertThrows(AppointmentBookingException.class,
                 () -> handler.checkIn(appointmentId, command)).code());
         verifyNoInteractions(reception);
-        verify(appointments, never()).completeCheckIn(any(), any(), any(), any(), any(), any());
+        verify(appointments, never()).completeCheckIn(any(), any(), any(), any());
     }
 
     @Test
@@ -226,12 +251,13 @@ class CheckInAppointmentServiceImplT027Test {
 
         assertEquals("VISIT_LINK_CONFLICT", assertThrows(AppointmentBookingException.class,
                 () -> handler.checkIn(appointmentId, command)).code());
-        verify(appointments, never()).completeCheckIn(any(), any(), any(), any(), any(), any());
+        verify(appointments, never()).completeCheckIn(any(), any(), any(), any());
     }
 
     private CheckInAppointmentTransaction handlerAt(Instant clockNow) {
-        return new CheckInAppointmentTransaction(guard, appointments, reception, billingSources, invoicePaidStatus,
-                properties, Clock.fixed(clockNow, ZoneOffset.UTC), org.mockito.Mockito.mock(fu.fa26.sep490.g58.otcms_be.common.audit.AuditLogWriter.class));
+        return new CheckInAppointmentTransaction(guard, appointments, idempotency, reception, billingSources,
+                invoicePaidStatus, properties, Clock.fixed(clockNow, ZoneOffset.UTC),
+                org.mockito.Mockito.mock(fu.fa26.sep490.g58.otcms_be.common.audit.AuditLogWriter.class));
     }
 
     private AppointmentBillingSourceService.BillingSource source(BigDecimal price) {

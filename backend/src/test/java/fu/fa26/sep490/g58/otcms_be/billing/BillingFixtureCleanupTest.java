@@ -60,7 +60,10 @@ class BillingFixtureCleanupTest {
             assertTrue(position(deletes, "payment_attempts", invoice) < parent);
             assertTrue(position(deletes, "invoice_items", invoice) < parent);
             assertTrue(parent < service);
+            assertTrue(parent < position(deletes, "clinical_ordering_rounds", id("clinicalRoundId")));
         }
+        assertTrue(position(deletes, "clinical_service_orders", id("clinicalRoundId"))
+                < position(deletes, "clinical_ordering_rounds", id("clinicalRoundId")));
         assertTrue(position(deletes, "clinical_service_orders", id("clinicalRoundId"))
                 < position(deletes, "visits", id("visitId")));
         assertTrue(position(deletes, "visits", id("visitId")) < position(deletes, "appointments", id("appointmentId")));
@@ -69,7 +72,7 @@ class BillingFixtureCleanupTest {
         assertTrue(service < position(deletes, "staff_profiles", id("doctorProfileId")));
         assertTrue(position(deletes, "patient_profiles", id("patientProfileId")) < position(deletes, "accounts", id("patientAccountId")));
         assertTrue(position(deletes, "staff_profiles", id("doctorProfileId")) < position(deletes, "accounts", id("doctorAccountId")));
-        assertEquals(Set.of("payment_attempts", "invoice_items", "invoices", "clinical_service_orders",
+        assertEquals(Set.of("payment_attempts", "invoice_items", "invoices", "clinical_service_orders", "clinical_ordering_rounds",
                 "visits", "appointments", "doctor_services", "clinic_services", "staff_profiles", "patient_profiles", "accounts"),
                 deletes.stream().map(Deletion::table).collect(java.util.stream.Collectors.toSet()));
     }
@@ -79,6 +82,8 @@ class BillingFixtureCleanupTest {
         assertTrue(deletes.stream().noneMatch(row -> Set.of("payment_attempts", "invoice_items", "invoices").contains(row.table())));
         assertTrue(position(deletes, "clinical_service_orders", id("clinicalRoundId"))
                 < position(deletes, "visits", id("visitId")));
+        assertTrue(position(deletes, "clinical_service_orders", id("clinicalRoundId"))
+                < position(deletes, "clinical_ordering_rounds", id("clinicalRoundId")));
         assertTrue(position(deletes, "doctor_services", id("serviceId")) < position(deletes, "clinic_services", id("serviceId")));
     }
 }

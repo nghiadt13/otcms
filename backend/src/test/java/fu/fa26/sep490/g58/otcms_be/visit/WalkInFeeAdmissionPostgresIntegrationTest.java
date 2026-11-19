@@ -244,7 +244,7 @@ class WalkInFeeAdmissionPostgresIntegrationTest {
     }
 
     private UUID visitOf(String key) {
-        return jdbc.queryForObject("select id from visits where created_by_account_id = ? and walk_in_idempotency_key = ?", UUID.class, receptionist, key);
+        return jdbc.queryForObject("select v.id from visits v join idempotency_records r on r.resource_id = v.id and r.scope = 'WALK_IN_VISIT' where v.created_by_account_id = ? and r.idempotency_key = ?", UUID.class, receptionist, key);
     }
 
     private UUID invoiceOf(UUID visitId) {

@@ -55,7 +55,7 @@ class VisitClosureServiceTest {
         when(receptionists.isActiveReceptionistAccount(actor)).thenReturn(true);
         when(doctorProfiles.findDoctorProfileId(actor)).thenReturn(Optional.of(doctor));
         when(examQueue.find(id)).thenReturn(Optional.of(queueEntry(VisitExamStatus.IN_EXAMINATION, UUID.randomUUID())));
-        when(visits.findByIdForUpdate(id)).thenReturn(Optional.of(ClinicVisitJpaEntity.walkIn(id, patient, null, actor, now, null, null)));
+        when(visits.findByIdForUpdate(id)).thenReturn(Optional.of(ClinicVisitJpaEntity.walkIn(id, patient, null, actor, now)));
         when(clinical.getCompletionEvidence(id)).thenReturn(evidence(true, true, 0, true, List.of()));
         when(lifecycle.closeOpenVisit(id, now)).thenReturn(true);
         when(reviews.find(id)).thenReturn(Optional.of(new VisitReviewSourceService.Source(id, patient, "CLOSED", now, "", "", null, doctor)));

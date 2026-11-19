@@ -38,34 +38,32 @@ class DiagnosticPersistenceT011PostgresIntegrationTest {
                     .locations("classpath:db/migration").target(MigrationVersion.LATEST).load().migrate();
             UUID order = UUID.randomUUID(), visit = UUID.randomUUID(), patient = UUID.randomUUID();
             UUID doctor = UUID.randomUUID(), attempt = UUID.randomUUID(), firstUse = UUID.randomUUID();
-            createOrder(schema, order, visit, patient, doctor, "idem-1");
-            assertThrows(DataAccessException.class, () -> createOrder(schema, UUID.randomUUID(), UUID.randomUUID(),
-                    UUID.randomUUID(), doctor, "idem-1"));
+            createOrder(schema, order, visit, patient, doctor);
 
             assertThrows(DataAccessException.class, () -> jdbc.update("update " + schema
-                    + ".clinical_service_orders set execution_status='RESULT_AVAILABLE' where id=?", order));
-            assertEquals(1, jdbc.update("update " + schema + ".clinical_service_orders set "
+                    + ".imaging_order_executions set execution_status='RESULT_AVAILABLE' where service_order_id=?", order));
+            assertEquals(1, jdbc.update("update " + schema + ".imaging_order_executions set "
                     + "execution_status='IN_PROGRESS', attempt_id=?, first_use_event_id=?, first_use_type='ACQUISITION_STARTED', "
-                    + "first_use_source_id='t011', first_use_at=?, execution_version=execution_version+1 where id=?",
+                    + "first_use_source_id='t011', first_use_at=?, version=version+1 where service_order_id=?",
                     attempt, firstUse, Timestamp.from(NOW), order));
             UUID competing = UUID.randomUUID();
-            createOrder(schema, competing, UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), null);
-            assertThrows(DataAccessException.class, () -> jdbc.update("update " + schema + ".clinical_service_orders "
-                    + "set execution_status='IN_PROGRESS', attempt_id=?, first_use_event_id=? where id=?",
+            createOrder(schema, competing, UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID());
+            assertThrows(DataAccessException.class, () -> jdbc.update("update " + schema + ".imaging_order_executions "
+                    + "set execution_status='IN_PROGRESS', attempt_id=?, first_use_event_id=? where service_order_id=?",
                     attempt, UUID.randomUUID(), competing));
-            assertThrows(DataAccessException.class, () -> jdbc.update("update " + schema + ".clinical_service_orders "
-                    + "set execution_status='IN_PROGRESS', attempt_id=?, first_use_event_id=? where id=?",
+            assertThrows(DataAccessException.class, () -> jdbc.update("update " + schema + ".imaging_order_executions "
+                    + "set execution_status='IN_PROGRESS', attempt_id=?, first_use_event_id=? where service_order_id=?",
                     UUID.randomUUID(), firstUse, competing));
 
             int[] results = raceStudyLink(schema, order, attempt);
             assertEquals(1, results[0] + results[1]);
             assertEquals(0, Math.min(results[0], results[1]));
             assertThrows(DataAccessException.class, () -> jdbc.update("update " + schema
-                    + ".clinical_service_orders set execution_status='IN_PROGRESS' where id=?", order));
-            String study = jdbc.queryForObject("select study_ref from " + schema + ".clinical_service_orders where id=?",
+                    + ".imaging_order_executions set execution_status='IN_PROGRESS' where service_order_id=?", order));
+            String study = jdbc.queryForObject("select study_ref from " + schema + ".imaging_order_executions where service_order_id=?",
                     String.class, order);
             assertEquals(firstUse, jdbc.queryForObject("select first_use_event_id from " + schema
-                    + ".clinical_service_orders where id=?", UUID.class, order));
+                    + ".imaging_order_executions where service_order_id=?", UUID.class, order));
 
             assertThrows(DataAccessException.class, () -> insertPendingReport(schema, UUID.randomUUID(), order,
                     UUID.randomUUID(), study, doctor));
@@ -91,15 +89,19 @@ class DiagnosticPersistenceT011PostgresIntegrationTest {
         }
     }
 
-    private void createOrder(String schema, UUID id, UUID visit, UUID patient, UUID doctor, String key) {
-        jdbc.update("insert into " + schema + ".clinical_service_orders (id,order_code,ordering_round_id,round_number,"
-                + "ordered_at,round_head,submit_idempotency_key,visit_id,patient_id,service_id,service_name_snapshot,service_type,"
+    private void createOrder(String schema, UUID id, UUID visit, UUID patient, UUID doctor) {
+        UUID round = UUID.randomUUID();
+        jdbc.update("insert into " + schema + ".clinical_ordering_rounds (id,visit_id,round_number,ordered_by_doctor_id,ordered_at,created_at) "
+                + "values (?,?,1,?,?,?)", round, visit, doctor, Timestamp.from(NOW), Timestamp.from(NOW));
+        jdbc.update("insert into " + schema + ".clinical_service_orders (id,order_code,ordering_round_id,"
+                + "visit_id,patient_id,service_id,service_name_snapshot,service_type,"
                 + "requesting_doctor_id,clinical_reason,body_area,price_snapshot,order_status,payment_status,created_at,updated_at,"
-                + "ordering_doctor_account_id,room_id,imaging_type,execution_status,execution_created_at,execution_updated_at) "
-                + "values (?,?,?,1,?,true,?,?,?,?,'MRI','IMAGING',?,'clinical reason','KNEE',1,'ORDERED','PAID',?,?,"
-                + "?,?,'MRI','PENDING',?,?)", id, id.toString().replace("-", ""), UUID.randomUUID(), Timestamp.from(NOW), key,
-                visit, patient, UUID.randomUUID(), doctor, Timestamp.from(NOW), Timestamp.from(NOW), doctor, UUID.randomUUID(),
-                Timestamp.from(NOW), Timestamp.from(NOW));
+                + "room_id) values (?,?,?,?,?,?,'MRI','IMAGING',?,'clinical reason','KNEE',1,'ORDERED','PAID',?,?,?)",
+                id, id.toString().replace("-", ""), round, visit, patient, UUID.randomUUID(), doctor,
+                Timestamp.from(NOW), Timestamp.from(NOW), UUID.randomUUID());
+        jdbc.update("insert into " + schema + ".imaging_order_executions (service_order_id,imaging_type,"
+                + "ordering_doctor_account_id,execution_status,created_at,updated_at) values (?,'MRI',?,'PENDING',?,?)",
+                id, doctor, Timestamp.from(NOW), Timestamp.from(NOW));
     }
 
     private int[] raceStudyLink(String schema, UUID order, UUID attempt) throws Exception {
@@ -116,10 +118,10 @@ class DiagnosticPersistenceT011PostgresIntegrationTest {
     private int tryLink(String schema, UUID order, UUID attempt, String study, CountDownLatch ready, CountDownLatch start) {
         return new TransactionTemplate(transactionManager).execute(status -> {
             ready.countDown(); await(start);
-            return jdbc.update("update " + schema + ".clinical_service_orders set study_ref=?, "
-                    + "execution_status='RESULT_AVAILABLE', execution_version=execution_version+1 "
-                    + "where id=? and attempt_id=? and study_ref is null and execution_status='IN_PROGRESS' "
-                    + "and execution_version=1", study, order, attempt);
+            return jdbc.update("update " + schema + ".imaging_order_executions set study_ref=?, "
+                    + "execution_status='RESULT_AVAILABLE', version=version+1 "
+                    + "where service_order_id=? and attempt_id=? and study_ref is null and execution_status='IN_PROGRESS' "
+                    + "and version=1", study, order, attempt);
         });
     }
 

@@ -1,13 +1,17 @@
 package fu.fa26.sep490.g58.otcms_be.imaging.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.matches;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
+import fu.fa26.sep490.g58.otcms_be.common.idempotency.IdempotencyScope;
+import fu.fa26.sep490.g58.otcms_be.common.idempotency.IdempotencyStore;
 import fu.fa26.sep490.g58.otcms_be.imaging.exception.ImagingOperationException;
 import fu.fa26.sep490.g58.otcms_be.imaging.exception.ImagingOperationOutcome;
 import fu.fa26.sep490.g58.otcms_be.imaging.model.ImagingOperationRecord;
@@ -31,30 +35,31 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class ImagingSendServiceTest {
     @Mock ImagingStudyRepository studies;
     @Mock ImagingAuditPersistenceService audit;
+    @Mock IdempotencyStore idempotency;
 
     @Test
     void sendStoresStableEventAndIdempotencyOnTheStudy() {
-        var archived = new ImagingStudyJpaEntity(operation(ImagingOperationState.ARCHIVED_NOT_SENT, true), "upload-1");
+        var archived = new ImagingStudyJpaEntity(operation(ImagingOperationState.ARCHIVED_NOT_SENT, true));
         when(studies.findById(archived.getId())).thenReturn(Optional.of(archived));
+        when(idempotency.record(eq(IdempotencyScope.IMAGING_SEND), eq(archived.getId()), eq("send-1"),
+                matches("[0-9a-f]{64}"), eq(archived.getId()))).thenReturn(true);
         when(studies.saveAndFlush(any(ImagingStudyJpaEntity.class))).thenAnswer(call -> call.getArgument(0));
         var status = service().send(archived.getActorAccountId(), archived.getId(), "send-1");
         assertEquals(ImagingOperationState.CONFIRMATION_PENDING, status.state());
-        assertEquals("send-1", archived.getSendIdempotencyKey());
-        org.junit.jupiter.api.Assertions.assertTrue(archived.getSendFingerprint().matches("[0-9a-f]{64}"));
-        org.junit.jupiter.api.Assertions.assertNotNull(archived.getConfirmationEventId());
+        assertNotNull(archived.getConfirmationEventId());
         assertEquals(1, archived.getVersion());
         verify(studies).saveAndFlush(archived);
-        verify(audit).recordActor(org.mockito.ArgumentMatchers.eq(archived.getActorAccountId()),
-                org.mockito.ArgumentMatchers.eq("IMAGING_SEND"), org.mockito.ArgumentMatchers.eq("ACCEPTED"),
-                org.mockito.ArgumentMatchers.eq(archived.getId()), org.mockito.ArgumentMatchers.eq(archived.getStudyRef()),
-                org.mockito.ArgumentMatchers.eq(archived.getRequestId()), org.mockito.ArgumentMatchers.eq(archived.getAttemptId()),
-                org.mockito.ArgumentMatchers.eq(archived.getVisitId()), org.mockito.ArgumentMatchers.eq(archived.getPatientId()),
+        verify(audit).recordActor(eq(archived.getActorAccountId()),
+                eq("IMAGING_SEND"), eq("ACCEPTED"),
+                eq(archived.getId()), eq(archived.getStudyRef()),
+                eq(archived.getRequestId()), eq(archived.getAttemptId()),
+                eq(archived.getVisitId()), eq(archived.getPatientId()),
                 any(), any());
     }
 
     @Test
     void quarantinedOrUnverifiedStudyCannotBeSent() {
-        var quarantined = new ImagingStudyJpaEntity(operation(ImagingOperationState.QUARANTINED, false), "upload-2");
+        var quarantined = new ImagingStudyJpaEntity(operation(ImagingOperationState.QUARANTINED, false));
         when(studies.findById(quarantined.getId())).thenReturn(Optional.of(quarantined));
         ImagingOperationException conflict = assertThrows(ImagingOperationException.class,
                 () -> service().send(quarantined.getActorAccountId(), quarantined.getId(), "send-2"));
@@ -62,7 +67,7 @@ class ImagingSendServiceTest {
         verify(studies, never()).saveAndFlush(any());
     }
 
-    private ImagingSendService service() { return new ImagingSendService(studies, audit); }
+    private ImagingSendService service() { return new ImagingSendService(studies, audit, idempotency); }
 
     private static ImagingOperationRecord operation(ImagingOperationState state, boolean verified) {
         return new ImagingOperationRecord(UUID.randomUUID(), verified ? "study-1" : null, UUID.randomUUID(),

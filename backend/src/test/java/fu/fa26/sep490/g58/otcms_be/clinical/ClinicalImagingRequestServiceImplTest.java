@@ -12,6 +12,8 @@ import fu.fa26.sep490.g58.otcms_be.clinical.repository.*;
 import fu.fa26.sep490.g58.otcms_be.clinical.service.*;
 import fu.fa26.sep490.g58.otcms_be.clinical.service.ClinicalImagingRequestService.*;
 import fu.fa26.sep490.g58.otcms_be.clinical.service.impl.*;
+import fu.fa26.sep490.g58.otcms_be.common.idempotency.IdempotencyReplay;
+import fu.fa26.sep490.g58.otcms_be.common.idempotency.IdempotencyStore;
 import java.math.BigDecimal;
 import java.time.*;
 import java.util.*;
@@ -24,29 +26,33 @@ class ClinicalImagingRequestServiceImplTest {
     private final VisitClinicalContextPort visits = mock(VisitClinicalContextPort.class);
     private final ClinicServiceCatalogPort catalog = mock(ClinicServiceCatalogPort.class);
     private final ServiceOrderRepository orders = mock(ServiceOrderRepository.class);
+    private final ClinicalOrderingRoundRepository rounds = mock(ClinicalOrderingRoundRepository.class);
+    private final Map<UUID, ClinicalOrderingRoundJpaEntity> roundRows = new LinkedHashMap<>();
     private final fu.fa26.sep490.g58.otcms_be.diagnostic.service.DiagnosticImagingRequestRegistration diagnostic =
             mock(fu.fa26.sep490.g58.otcms_be.diagnostic.service.DiagnosticImagingRequestRegistration.class);
     private final Map<UUID, ServiceOrderJpaEntity> orderRows = new LinkedHashMap<>();
     private final UUID visitId = UUID.randomUUID(), patientId = UUID.randomUUID(), doctorId = UUID.randomUUID();
     private final UUID serviceId = UUID.randomUUID();
     private final Clock clock = Clock.fixed(Instant.parse("2026-11-04T10:30:00.123456789Z"), ZoneOffset.UTC);
+    private final Map<String, IdempotencyReplay> records = new HashMap<>();
+    private final IdempotencyStore store = fakeIdempotencyStore(records);
     private final ClinicalImagingRequestService service = serviceUsing(catalog);
 
     @BeforeEach void setUp() {
         when(visits.getVisitContext(visitId)).thenReturn(new VisitClinicalContextPort.ClinicalVisitContext(visitId, patientId, doctorId, true));
         when(catalog.getService(serviceId)).thenReturn(snapshot(ClinicalServiceType.IMAGING, true));
-        when(orders.findTopByVisitIdAndRoundHeadTrueOrderByRoundNumberDesc(any())).thenAnswer(invocation -> orderRows.values().stream()
-                .filter(order -> order.getVisitId().equals(invocation.getArgument(0)) && order.isRoundHead())
-                .max(Comparator.comparingInt(ServiceOrderJpaEntity::getRoundNumber)));
+        when(rounds.save(any())).thenAnswer(invocation -> {
+            ClinicalOrderingRoundJpaEntity value = invocation.getArgument(0); roundRows.put(value.getId(), value); return value;
+        });
+        when(rounds.findById(any())).thenAnswer(invocation -> Optional.ofNullable(roundRows.get(invocation.getArgument(0))));
+        when(rounds.findTopByVisitIdOrderByRoundNumberDesc(any())).thenAnswer(invocation -> roundRows.values().stream()
+                .filter(round -> round.getVisitId().equals(invocation.getArgument(0)))
+                .max(Comparator.comparingInt(ClinicalOrderingRoundJpaEntity::getRoundNumber)));
         when(orders.save(any())).thenAnswer(invocation -> {
             ServiceOrderJpaEntity value = invocation.getArgument(0); orderRows.put(value.getId(), value); return value;
         });
         when(orders.findByOrderingRoundId(any())).thenAnswer(invocation -> orderRows.values().stream()
                 .filter(order -> order.getOrderingRoundId().equals(invocation.getArgument(0))).toList());
-        when(orders.findByRequestingDoctorIdAndSubmitIdempotencyKeyAndRoundHeadTrue(any(), any())).thenAnswer(invocation ->
-                orderRows.values().stream().filter(order -> order.isRoundHead()
-                        && order.getRequestingDoctorId().equals(invocation.getArgument(0))
-                        && invocation.getArgument(1).equals(order.getSubmitIdempotencyKey())).findFirst());
     }
 
     @Test void consentIsRequiredBeforeAnyWrite() {
@@ -71,9 +77,11 @@ class ClinicalImagingRequestServiceImplTest {
         assertEquals(2, orderRows.size());
         assertEquals(1, result.round().roundNumber());
         assertEquals(Instant.parse("2026-11-04T10:30:00.123456Z"), result.round().orderedAt());
-        var head = orderRows.values().stream().filter(ServiceOrderJpaEntity::isRoundHead).findFirst().orElseThrow();
-        assertEquals(result.round().id(), head.getOrderingRoundId());
-        assertTrue(head.getSubmitRequestFingerprint().matches("[0-9a-f]{64}"));
+        assertEquals(1, roundRows.size());
+        assertTrue(orderRows.values().stream().allMatch(order -> result.round().id().equals(order.getOrderingRoundId())));
+        var recorded = records.values().stream().findFirst().orElseThrow();
+        assertTrue(recorded.requestFingerprint().matches("[0-9a-f]{64}"));
+        assertEquals(result.round().id(), recorded.resourceId());
         assertTrue(result.round().orders().stream().allMatch(value -> value.serviceType() == ClinicalServiceType.IMAGING));
     }
 
@@ -183,22 +191,37 @@ class ClinicalImagingRequestServiceImplTest {
                         List.of(new ImagingOrderRequest(serviceId, "a\nb", "c", "")), true)));
     }
 
-    @Test void replayKeyLivesOnThePersistedRoundHeadOrder() {
+    @Test void replayKeyIsRecordedOncePerRound() {
         var first = service.submit(command("key"));
         var replay = service.submit(command("key"));
         assertTrue(replay.replayed());
         assertEquals(first.round().id(), replay.round().id());
-        assertEquals(1, orderRows.values().stream().filter(ServiceOrderJpaEntity::isRoundHead).count());
+        assertEquals(1, roundRows.size());
     }
 
     private ClinicalImagingRequestService serviceUsing(ClinicServiceCatalogPort catalogPort) {
         var preparation = new ClinicalOrderPreparationService(visits, catalogPort);
-        var writer = new ClinicalOrderingTransactionService(orders, clock,
-                mock(fu.fa26.sep490.g58.otcms_be.common.service.CoordinationGuardService.class), preparation);
-        return new ClinicalImagingRequestServiceImpl(new ClinicalImagingRequestTransactionService(preparation, writer, orders, clock,
+        var writer = new ClinicalOrderingTransactionService(orders, rounds, clock,
+                mock(fu.fa26.sep490.g58.otcms_be.common.service.CoordinationGuardService.class), preparation, store);
+        return new ClinicalImagingRequestServiceImpl(new ClinicalImagingRequestTransactionService(preparation, writer, orders, rounds, clock,
                 mock(fu.fa26.sep490.g58.otcms_be.common.service.CoordinationGuardService.class),
-                mock(fu.fa26.sep490.g58.otcms_be.clinical.service.VisitConclusionPort.class)));
+                mock(fu.fa26.sep490.g58.otcms_be.clinical.service.VisitConclusionPort.class), store));
     }
+
+    /** In-memory stand-in for idempotency_records: one record per (scope, owner, key), like V137's unique index. */
+    private static IdempotencyStore fakeIdempotencyStore(Map<String, IdempotencyReplay> records) {
+        var store = mock(IdempotencyStore.class);
+        when(store.find(any(), any(), any())).thenAnswer(call -> Optional.ofNullable(
+                records.get(recordKey(call.getArgument(0), call.getArgument(1), call.getArgument(2)))));
+        when(store.record(any(), any(), any(), any(), any())).thenAnswer(call -> {
+            String key = recordKey(call.getArgument(0), call.getArgument(1), call.getArgument(2));
+            if (records.containsKey(key)) return false;
+            records.put(key, new IdempotencyReplay(call.getArgument(3), call.getArgument(4), Instant.EPOCH));
+            return true;
+        });
+        return store;
+    }
+    private static String recordKey(Object scope, Object owner, Object key) { return scope + "|" + owner + "|" + key; }
 
     private ImagingRequestCommand command(String key) { return new ImagingRequestCommand(visitId, doctorId, key, List.of(order()), true); }
     private ImagingOrderRequest order() { return new ImagingOrderRequest(serviceId, "Suspected injury", "RIGHT_KNEE", "Weight-bearing"); }
@@ -207,6 +230,7 @@ class ClinicalImagingRequestServiceImplTest {
     }
     private void assertNoWrites() {
         verify(orders, never()).save(any());
+        verify(rounds, never()).save(any());
     }
     private static void assertCode(String code, org.junit.jupiter.api.function.Executable action) {
         assertEquals(code, assertThrows(ClinicalOperationException.class, action).code());

@@ -109,6 +109,6 @@ class ImagingStudyContractAdapterReleaseTest {
                 event.requestId(), UUID.randomUUID(), event.visitId(), event.patientId(), UUID.randomUUID(),
                 ImagingOperationType.UPLOAD, state, "a".repeat(64), 1, "1.2.3", "CT", 1, 1,
                 ImagingVerificationStatus.CONFIRMED_MATCH, List.of("PATIENT_ID_MATCH"), "archive-study", null,
-                3, Instant.now(), Instant.now()), "upload-key");
+                3, Instant.now(), Instant.now()));
     }
 }

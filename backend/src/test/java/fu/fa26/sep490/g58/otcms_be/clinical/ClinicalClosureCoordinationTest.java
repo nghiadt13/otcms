@@ -7,6 +7,7 @@ import fu.fa26.sep490.g58.otcms_be.clinical.exception.ClinicalOperationException
 import fu.fa26.sep490.g58.otcms_be.clinical.repository.*;
 import fu.fa26.sep490.g58.otcms_be.clinical.service.*;
 import fu.fa26.sep490.g58.otcms_be.clinical.service.impl.*;
+import fu.fa26.sep490.g58.otcms_be.common.idempotency.IdempotencyStore;
 import fu.fa26.sep490.g58.otcms_be.common.service.CoordinationGuardService;
 import java.time.*;
 import java.util.*;
@@ -17,12 +18,13 @@ class ClinicalClosureCoordinationTest {
     final CoordinationGuardService guard = mock(CoordinationGuardService.class);
     final VisitClinicalContextPort visits = mock(VisitClinicalContextPort.class);
     final ServiceOrderRepository orders = mock(ServiceOrderRepository.class);
+    final ClinicalOrderingRoundRepository rounds = mock(ClinicalOrderingRoundRepository.class);
     final ClinicalExaminationRepository exams = mock(ClinicalExaminationRepository.class);
     final ClinicalDiagnosisRepository diagnoses = mock(ClinicalDiagnosisRepository.class);
     final ClinicalOrderPreparationService preparation = new ClinicalOrderPreparationService(visits, mock(ClinicServiceCatalogPort.class));
     @Test void orderCancellationAcquiresSharedGuardBeforeReadingOrders() {
         var ordering = new fu.fa26.sep490.g58.otcms_be.clinical.service.impl.ClinicalOrderingServiceImpl(
-                mock(ClinicalOrderPreparationService.class), mock(ClinicalOrderingTransactionService.class), orders,
+                mock(ClinicalOrderPreparationService.class), mock(ClinicalOrderingTransactionService.class), orders, rounds,
                 Clock.systemUTC(), guard);
         doThrow(new IllegalStateException("guard unavailable")).when(guard).acquire();
         assertThrows(IllegalStateException.class, () -> ordering.cancel(UUID.randomUUID(), "Declined"));
@@ -31,10 +33,10 @@ class ClinicalClosureCoordinationTest {
 
     @Test void delayedOrderWriterRechecksClosedVisitAfterGuardBeforeAnyPersistence() {
         doAnswer(call -> { when(visits.getVisitContext(visit)).thenReturn(new VisitClinicalContextPort.ClinicalVisitContext(visit, patient, doctor, false)); return null; }).when(guard).acquire();
-        var writer = new ClinicalOrderingTransactionService(orders, Clock.systemUTC(), guard, preparation);
+        var writer = new ClinicalOrderingTransactionService(orders, rounds, Clock.systemUTC(), guard, preparation, mock(IdempotencyStore.class));
         assertEquals("MSG-42", assertThrows(ClinicalOperationException.class, () -> writer.createRound(visit, patient, doctor, List.of())).code());
         var sequence = inOrder(guard, visits); sequence.verify(guard).acquire(); sequence.verify(visits).getVisitContext(visit);
-        verifyNoInteractions(orders);
+        verifyNoInteractions(orders, rounds);
     }
     @Test void guardFailurePreventsExaminationReadAndDowngrade() {
         doThrow(new IllegalStateException("guard unavailable")).when(guard).acquire();
@@ -52,12 +54,13 @@ class ClinicalClosureCoordinationTest {
     @Test void uc38AcquiresGuardBeforeFirstVisitReadIncludingReplay() {
         var prep = mock(ClinicalOrderPreparationService.class);
         var tx = new ClinicalImagingRequestTransactionService(prep, mock(ClinicalOrderingTransactionService.class),
-                orders, Clock.systemUTC(), guard, mock(fu.fa26.sep490.g58.otcms_be.clinical.service.VisitConclusionPort.class));
+                orders, rounds, Clock.systemUTC(), guard, mock(fu.fa26.sep490.g58.otcms_be.clinical.service.VisitConclusionPort.class),
+                mock(IdempotencyStore.class));
         doThrow(new IllegalStateException("guard unavailable")).when(guard).acquire();
         var command = new ClinicalImagingRequestService.ImagingRequestCommand(visit, doctor, "key", List.of(), true);
         assertThrows(IllegalStateException.class, () -> tx.submit(command, "fingerprint"));
         assertThrows(IllegalStateException.class, () -> tx.recoverReplay(command, "fingerprint"));
-        verifyNoInteractions(prep, orders);
+        verifyNoInteractions(prep, orders, rounds);
     }
     ClinicalExaminationService.ExaminationCommand command() {
         return new ClinicalExaminationService.ExaminationCommand(visit, doctor, null, null, null, null, null, null, List.of(), null, null);

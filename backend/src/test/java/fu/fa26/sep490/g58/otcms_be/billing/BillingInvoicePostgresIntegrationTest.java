@@ -122,10 +122,12 @@ class BillingInvoicePostgresIntegrationTest {
     void openVisitClinicalRoundUsesSnapshotsExcludesCancelledAndSettlesOnlyWhenFullyPaid() {
         jdbc.update("update visits set status = 'OPEN' where id = ?", visitId);
         UUID round = clinicalRoundId;
+        jdbc.update("insert into clinical_ordering_rounds (id,visit_id,round_number,ordered_by_doctor_id,ordered_at,created_at) "
+                + "values (?,?,1,?,now(),now())", round, visitId, doctorProfileId);
         for (int index = 0; index < 3; index++) {
-            jdbc.update("insert into clinical_service_orders (id,order_code,ordering_round_id,round_number,ordered_at,round_head,visit_id,patient_id,service_id,service_name_snapshot,service_type,requesting_doctor_id,clinical_reason,body_area,price_snapshot,order_status,payment_status,cancel_reason,created_at,updated_at) values (?,?,?, ?,now(),?,?,?,?,?,'IMAGING',?,'Pain','KNEE',?,?,'PENDING_PAYMENT',?,now(),now())",
-                    UUID.randomUUID(), "ROUND-" + round.toString().substring(0, 8) + "-" + index, round, 1,
-                    index == 0, visitId, patientProfileId, serviceId, "Snapshot " + index, doctorProfileId,
+            jdbc.update("insert into clinical_service_orders (id,order_code,ordering_round_id,visit_id,patient_id,service_id,service_name_snapshot,service_type,requesting_doctor_id,clinical_reason,body_area,price_snapshot,order_status,payment_status,cancel_reason,created_at,updated_at) values (?,?,?,?,?,?,?,'IMAGING',?,'Pain','KNEE',?,?,'PENDING_PAYMENT',?,now(),now())",
+                    UUID.randomUUID(), "ROUND-" + round.toString().substring(0, 8) + "-" + index, round,
+                    visitId, patientProfileId, serviceId, "Snapshot " + index, doctorProfileId,
                     index == 0 ? 150000 : index == 1 ? 350000 : 990000,
                     index == 2 ? "CANCELLED" : "ORDERED", index == 2 ? "Declined" : null);
         }
@@ -139,7 +141,8 @@ class BillingInvoicePostgresIntegrationTest {
         payments.recordCounterPayment(invoice.id(), new CounterPaymentRequest(List.of(invoice.items().get(1).id()), "CASH"), receptionist, "round-full-" + round);
         assertEquals("PAID", invoices.get(invoice.id(), receptionist).status());
         assertEquals(2, jdbc.queryForObject("select count(*) from clinical_service_orders where ordering_round_id = ? and payment_status = 'PAID'", Integer.class, round));
-        assertEquals(0, jdbc.queryForObject("select count(*) from clinical_service_orders where ordering_round_id = ? and execution_status is not null", Integer.class, round));
+        assertEquals(0, jdbc.queryForObject("select count(*) from imaging_order_executions e join clinical_service_orders o "
+                + "on o.id = e.service_order_id where o.ordering_round_id = ?", Integer.class, round));
     }
 
     @Test
@@ -192,6 +195,7 @@ class BillingInvoicePostgresIntegrationTest {
             jdbc.update("delete from invoices where id = ?", invoiceId);
         }
         jdbc.update("delete from clinical_service_orders where ordering_round_id = ?", clinicalRoundId);
+        jdbc.update("delete from clinical_ordering_rounds where id = ?", clinicalRoundId);
         jdbc.update("delete from visits where id = ?", visitId);
         jdbc.update("delete from appointments where id = ?", appointmentId);
         jdbc.update("delete from doctor_services where doctor_profile_id = ? and service_id = ?",
