@@ -2,6 +2,8 @@ package fu.fa26.sep490.g58.otcms_be.appointment.service.impl;
 
 import fu.fa26.sep490.g58.otcms_be.appointment.mapper.AppointmentAuditEntries;
 import fu.fa26.sep490.g58.otcms_be.common.audit.AuditLogWriter;
+import fu.fa26.sep490.g58.otcms_be.common.idempotency.IdempotencyScope;
+import fu.fa26.sep490.g58.otcms_be.common.idempotency.IdempotencyStore;
 
 import fu.fa26.sep490.g58.otcms_be.appointment.exception.AppointmentBookingException;
 import fu.fa26.sep490.g58.otcms_be.appointment.exception.AppointmentQueryException;
@@ -15,7 +17,6 @@ import fu.fa26.sep490.g58.otcms_be.common.service.CoordinationGuardService;
 import fu.fa26.sep490.g58.otcms_be.visit.exception.ReceptionWorkflowException;
 import fu.fa26.sep490.g58.otcms_be.visit.service.ReceptionWorkflowService;
 import org.springframework.stereotype.Service;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
@@ -38,6 +39,7 @@ public class CheckInAppointmentTransaction {
 
     private final CoordinationGuardService guard;
     private final AppointmentCheckInRepository appointments;
+    private final IdempotencyStore idempotency;
     private final ReceptionWorkflowService reception;
     private final AppointmentBillingSourceService billingSources;
     private final AppointmentInvoicePaidStatusQueryService invoicePaidStatus;
@@ -45,12 +47,13 @@ public class CheckInAppointmentTransaction {
     private final Clock clock;
 
     public CheckInAppointmentTransaction(CoordinationGuardService guard, AppointmentCheckInRepository appointments,
-            ReceptionWorkflowService reception, AppointmentBillingSourceService billingSources,
+            IdempotencyStore idempotency, ReceptionWorkflowService reception, AppointmentBillingSourceService billingSources,
             AppointmentInvoicePaidStatusQueryService invoicePaidStatus, AppointmentBookingProperties properties,
             Clock clock, AuditLogWriter auditLogWriter) {
         this.auditLogWriter = auditLogWriter;
         this.guard = guard;
         this.appointments = appointments;
+        this.idempotency = idempotency;
         this.reception = reception;
         this.billingSources = billingSources;
         this.invoicePaidStatus = invoicePaidStatus;
@@ -72,12 +75,15 @@ public class CheckInAppointmentTransaction {
         guard.acquire();
 
         // A successful authorized replay takes precedence over current lifecycle, clinic-day and fee state.
-        var replay = appointments.findReplay(command.actorAccountId(), appointmentId, key);
+        // A key that this actor used for another appointment is not a replay here; record() rejects it below.
+        var replay = idempotency.find(IdempotencyScope.APPOINTMENT_CHECKIN, command.actorAccountId(), key)
+                .filter(held -> appointmentId.equals(held.resourceId()));
         if (replay.isPresent()) {
-            var stored = replay.get();
-            if (!requestFingerprint.equalsIgnoreCase(stored.requestFingerprint())) {
+            if (!replay.get().matches(requestFingerprint)) {
                 throw new AppointmentBookingException("IDEMPOTENCY_CONFLICT");
             }
+            var stored = appointments.findReplay(appointmentId).orElseThrow(
+                    () -> new IllegalStateException("Check-in replay row missing for appointment " + appointmentId));
             return new CheckedInAppointment(appointmentId, stored.visitId(), stored.checkedInAt(),
                     reception.findExamQueueTicket(stored.visitId()).orElse(null));
         }
@@ -118,12 +124,11 @@ public class CheckInAppointmentTransaction {
             throw new AppointmentBookingException("VISIT_LINK_CONFLICT");
         }
         Instant checkedInAt = receptionResult.checkedInAt();
-        try {
-            appointments.completeCheckIn(current, command.actorAccountId(), key, requestFingerprint,
-                    receptionResult.visitId(), checkedInAt);
-        } catch (DataIntegrityViolationException duplicateKey) {
-            if (!isCheckInKeyConflict(duplicateKey)) throw duplicateKey;
-            throw new AppointmentBookingException("IDEMPOTENCY_CONFLICT", duplicateKey);
+        appointments.completeCheckIn(current, command.actorAccountId(), receptionResult.visitId(), checkedInAt);
+        // Same transaction as the check-in write. False means this actor already holds the key (for another appointment).
+        if (!idempotency.record(IdempotencyScope.APPOINTMENT_CHECKIN, command.actorAccountId(), key, requestFingerprint,
+                appointmentId)) {
+            throw new AppointmentBookingException("IDEMPOTENCY_CONFLICT");
         }
         AppointmentAuditEntries.record(auditLogWriter, AppointmentAuditEntries.changed(current.id(), command.actorAccountId(),
                 "RECEPTIONIST", "STATUS_CHANGED", "CONFIRMED", "CHECKED_IN", current.doctorProfileId(),
@@ -155,16 +160,6 @@ public class CheckInAppointmentTransaction {
             // MSG-94: the exam fee is unpaid, so the patient cannot be received yet (counter and QR check-in alike).
             throw new AppointmentBookingException("MSG-94");
         }
-    }
-
-    private static boolean isCheckInKeyConflict(Throwable failure) {
-        for (Throwable cause = failure; cause != null; cause = cause.getCause()) {
-            if (cause instanceof org.hibernate.exception.ConstraintViolationException violation
-                    && "uk_appointments_checkin_actor_key".equals(violation.getConstraintName())) return true;
-            if (cause instanceof java.sql.SQLException sql && "23505".equals(sql.getSQLState())
-                    && sql.getMessage() != null && sql.getMessage().contains("uk_appointments_checkin_actor_key")) return true;
-        }
-        return false;
     }
 
     private static String fingerprint(String value) {

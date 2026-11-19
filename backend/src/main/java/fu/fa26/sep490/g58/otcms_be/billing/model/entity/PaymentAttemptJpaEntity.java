@@ -1,5 +1,6 @@
 package fu.fa26.sep490.g58.otcms_be.billing.model.entity;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import fu.fa26.sep490.g58.otcms_be.billing.model.PaymentAttemptStatus;
 import fu.fa26.sep490.g58.otcms_be.billing.model.PaymentChannel;
 import jakarta.persistence.Column;
@@ -11,6 +12,8 @@ import jakarta.persistence.Table;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 @Entity
 @Table(name = "payment_attempts")
@@ -25,17 +28,9 @@ public class PaymentAttemptJpaEntity {
     @Column(name = "currency_code", nullable = false, length = 3) private String currencyCode;
     @Enumerated(EnumType.STRING) @Column(nullable = false, length = 32) private PaymentAttemptStatus status;
     @Column(name = "created_by_account_id", nullable = false) private UUID createdByAccountId;
-    @Column(name = "idempotency_key", nullable = false, length = 128) private String idempotencyKey;
-    @Column(name = "request_fingerprint", nullable = false, length = 64) private String requestFingerprint;
     @Column(name = "provider_order_code") private Long providerOrderCode;
-    @Column(name = "provider_payment_link_id", length = 100) private String providerPaymentLinkId;
     @Column(name = "provider_transaction_reference", length = 128) private String providerTransactionReference;
-    @Column(name = "checkout_url", length = 1000) private String checkoutUrl;
-    @Column(name = "qr_code", columnDefinition = "text") private String qrCode;
-    @Column(name = "transfer_bank_bin", length = 16) private String transferBankBin;
-    @Column(name = "transfer_account_number", length = 64) private String transferAccountNumber;
-    @Column(name = "transfer_account_name", length = 200) private String transferAccountName;
-    @Column(name = "transfer_description", length = 200) private String transferDescription;
+    @JdbcTypeCode(SqlTypes.JSON) @Column(name = "provider_payload", columnDefinition = "jsonb") private ProviderPayload providerPayload;
     @Column(name = "created_at", nullable = false, insertable = false, updatable = false) private Instant createdAt;
     @Column(name = "expires_at") private Instant expiresAt;
     @Column(name = "confirmed_at") private Instant confirmedAt;
@@ -46,14 +41,14 @@ public class PaymentAttemptJpaEntity {
     protected PaymentAttemptJpaEntity() { }
 
     public static PaymentAttemptJpaEntity pendingOnline(UUID id, UUID invoiceId, BigDecimal amount,
-            UUID actor, String key, String fingerprint, long orderCode) {
-        return pendingProvider(PaymentChannel.ONLINE, id, invoiceId, amount, actor, key, fingerprint, orderCode);
+            UUID actor, long orderCode) {
+        return pendingProvider(PaymentChannel.ONLINE, id, invoiceId, amount, actor, orderCode);
     }
 
     /** A PayOS checkout in the given channel (ONLINE for the patient, COUNTER_QR for a receptionist). */
     public static PaymentAttemptJpaEntity pendingProvider(PaymentChannel channel, UUID id, UUID invoiceId,
-            BigDecimal amount, UUID actor, String key, String fingerprint, long orderCode) {
-        PaymentAttemptJpaEntity attempt = base(id, invoiceId, amount, actor, key, fingerprint);
+            BigDecimal amount, UUID actor, long orderCode) {
+        PaymentAttemptJpaEntity attempt = base(id, invoiceId, amount, actor);
         attempt.channel = channel;
         attempt.provider = "PAYOS";
         attempt.providerOrderCode = orderCode;
@@ -62,8 +57,8 @@ public class PaymentAttemptJpaEntity {
     }
 
     public static PaymentAttemptJpaEntity counter(UUID id, UUID invoiceId, BigDecimal amount,
-            UUID actor, String key, String fingerprint, String method, Instant now) {
-        PaymentAttemptJpaEntity attempt = base(id, invoiceId, amount, actor, key, fingerprint);
+            UUID actor, String method, Instant now) {
+        PaymentAttemptJpaEntity attempt = base(id, invoiceId, amount, actor);
         attempt.channel = PaymentChannel.COUNTER;
         attempt.counterMethod = method;
         attempt.status = PaymentAttemptStatus.CONFIRMED;
@@ -71,28 +66,19 @@ public class PaymentAttemptJpaEntity {
         return attempt;
     }
 
-    private static PaymentAttemptJpaEntity base(UUID id, UUID invoiceId, BigDecimal amount,
-            UUID actor, String key, String fingerprint) {
+    private static PaymentAttemptJpaEntity base(UUID id, UUID invoiceId, BigDecimal amount, UUID actor) {
         PaymentAttemptJpaEntity attempt = new PaymentAttemptJpaEntity();
         attempt.id = id;
         attempt.invoiceId = invoiceId;
         attempt.amount = amount;
         attempt.currencyCode = "VND";
         attempt.createdByAccountId = actor;
-        attempt.idempotencyKey = key;
-        attempt.requestFingerprint = fingerprint;
         return attempt;
     }
 
     public void attachPayOsLink(String linkId, String checkoutUrl, String qrCode, Instant expiresAt,
             String bankBin, String accountNumber, String accountName, String description) {
-        this.transferBankBin = bankBin;
-        this.transferAccountNumber = accountNumber;
-        this.transferAccountName = accountName;
-        this.transferDescription = description;
-        this.providerPaymentLinkId = linkId;
-        this.checkoutUrl = checkoutUrl;
-        this.qrCode = qrCode;
+        this.providerPayload = new ProviderPayload(linkId, checkoutUrl, qrCode, bankBin, accountNumber, accountName, description);
         this.expiresAt = expiresAt;
     }
     public void confirm(String transactionReference, Instant now) {
@@ -137,19 +123,22 @@ public class PaymentAttemptJpaEntity {
     public String getCurrencyCode() { return currencyCode; }
     public PaymentAttemptStatus getStatus() { return status; }
     public UUID getCreatedByAccountId() { return createdByAccountId; }
-    public String getIdempotencyKey() { return idempotencyKey; }
-    public String getRequestFingerprint() { return requestFingerprint; }
     public Long getProviderOrderCode() { return providerOrderCode; }
-    public String getProviderPaymentLinkId() { return providerPaymentLinkId; }
+    public String getProviderPaymentLinkId() { return providerPayload == null ? null : providerPayload.paymentLinkId(); }
     public String getProviderTransactionReference() { return providerTransactionReference; }
-    public String getCheckoutUrl() { return checkoutUrl; }
-    public String getQrCode() { return qrCode; }
-    public String getTransferBankBin() { return transferBankBin; }
-    public String getTransferAccountNumber() { return transferAccountNumber; }
-    public String getTransferAccountName() { return transferAccountName; }
-    public String getTransferDescription() { return transferDescription; }
+    public String getCheckoutUrl() { return providerPayload == null ? null : providerPayload.checkoutUrl(); }
+    public String getQrCode() { return providerPayload == null ? null : providerPayload.qrCode(); }
+    public String getTransferBankBin() { return providerPayload == null ? null : providerPayload.transferBankBin(); }
+    public String getTransferAccountNumber() { return providerPayload == null ? null : providerPayload.transferAccountNumber(); }
+    public String getTransferAccountName() { return providerPayload == null ? null : providerPayload.transferAccountName(); }
+    public String getTransferDescription() { return providerPayload == null ? null : providerPayload.transferDescription(); }
     public Instant getCreatedAt() { return createdAt; }
     public Instant getExpiresAt() { return expiresAt; }
     public Instant getConfirmedAt() { return confirmedAt; }
     public String getReconciliationReason() { return reconciliationReason; }
+
+    /** The jsonb column provider_payload (V142): PayOS link data; null-valued keys are omitted, as the migration does. */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record ProviderPayload(String paymentLinkId, String checkoutUrl, String qrCode, String transferBankBin,
+            String transferAccountNumber, String transferAccountName, String transferDescription) { }
 }

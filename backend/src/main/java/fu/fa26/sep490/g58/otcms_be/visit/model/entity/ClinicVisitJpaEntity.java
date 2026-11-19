@@ -43,13 +43,6 @@ public class ClinicVisitJpaEntity {
     @Column(name = "updated_at", insertable = false, updatable = false)
     private Instant updatedAt;
 
-    /** Walk-in create replay key (was walk_in_requests); UNIQUE with created_by_account_id. WALK_IN only. */
-    @Column(name = "walk_in_idempotency_key", length = 128, updatable = false)
-    private String walkInIdempotencyKey;
-
-    @Column(name = "walk_in_request_fingerprint", length = 64, updatable = false)
-    private String walkInRequestFingerprint;
-
     @Column(name = "imaging_result_ready_at", insertable = false, updatable = false)
     private Instant imagingResultReadyAt;
 
@@ -63,7 +56,7 @@ public class ClinicVisitJpaEntity {
     protected ClinicVisitJpaEntity() { }
 
     public static ClinicVisitJpaEntity walkIn(UUID id, UUID patientProfileId, UUID priorAppointmentId,
-            UUID receptionistAccountId, Instant arrivedAt, String idempotencyKey, String requestFingerprint) {
+            UUID receptionistAccountId, Instant arrivedAt) {
         ClinicVisitJpaEntity entity = new ClinicVisitJpaEntity();
         entity.id = id;
         entity.patientProfileId = patientProfileId;
@@ -73,8 +66,6 @@ public class ClinicVisitJpaEntity {
         entity.checkedInAt = arrivedAt;
         entity.createdByAccountId = receptionistAccountId;
         entity.status = "OPEN";
-        entity.walkInIdempotencyKey = idempotencyKey;
-        entity.walkInRequestFingerprint = requestFingerprint;
         return entity;
     }
 
@@ -89,6 +80,4 @@ public class ClinicVisitJpaEntity {
     public Instant getArrivedAt() { return arrivedAt; }
     public Instant getCheckedInAt() { return checkedInAt; }
     public String getStatus() { return status; }
-    public String getWalkInIdempotencyKey() { return walkInIdempotencyKey; }
-    public String getWalkInRequestFingerprint() { return walkInRequestFingerprint; }
 }

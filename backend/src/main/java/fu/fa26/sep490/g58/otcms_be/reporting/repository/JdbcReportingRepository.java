@@ -48,7 +48,7 @@ public class JdbcReportingRepository implements ReportingRepository {
     @Override
     public List<DailyCount> daily(String subject,ReportingPeriod p) {
         // Only these fixed identifiers are allowed; no request string is interpolated into SQL.
-        String table=switch(subject){case "APPOINTMENTS"->"appointments";case "IMAGING"->"clinical_service_orders";default->"visits";};
+        String table=switch(subject){case "APPOINTMENTS"->"appointments";case "IMAGING"->IMAGING_FROM;default->"visits";};
         String column=switch(subject){case "APPOINTMENTS"->"start_time";case "IMAGING"->IMAGING_TIME;default->"checked_in_at";};
         // Payment-hold states are technical: they are never an appointment in any report.
         String filter=switch(subject){case "APPOINTMENTS"->" AND status NOT IN ('AWAITING_PAYMENT','PAYMENT_EXPIRED')";case "IMAGING"->" AND "+IMAGING_DONE;default->"";};
@@ -65,13 +65,18 @@ public class JdbcReportingRepository implements ReportingRepository {
             """,params(p),(rs,i)->new ServiceCount(rs.getString("service_id"), rs.getLong("n")));
     }
     private static final String VN = "Asia/Ho_Chi_Minh";
+    /** Orders with their ordering round (ordered_at) and their execution row (none until dispatched). */
+    private static final String ORDER_FROM = "clinical_service_orders o JOIN clinical_ordering_rounds r ON r.id=o.ordering_round_id "
+        + "LEFT JOIN imaging_order_executions e ON e.service_order_id=o.id";
+    /** Imaging orders with their execution row: only dispatched orders can be performed. */
+    private static final String IMAGING_FROM = "clinical_service_orders o JOIN imaging_order_executions e ON e.service_order_id=o.id";
     /** Imaging counts as performed once its result exists; the capture time is the first use of the attempt. */
-    private static final String IMAGING_TIME = "COALESCE(first_use_at, execution_updated_at)";
-    private static final String IMAGING_DONE = "service_type='IMAGING' AND execution_status IN ('RESULT_AVAILABLE','REVIEWED')";
+    private static final String IMAGING_TIME = "COALESCE(e.first_use_at, e.updated_at)";
+    private static final String IMAGING_DONE = "o.service_type='IMAGING' AND e.execution_status IN ('RESULT_AVAILABLE','REVIEWED')";
 
     @Override
     public long imagingPerformed(ReportingPeriod p) {
-        return jdbc.queryForObject("SELECT count(*) FROM clinical_service_orders WHERE " + IMAGING_DONE
+        return jdbc.queryForObject("SELECT count(*) FROM " + IMAGING_FROM + " WHERE " + IMAGING_DONE
             + " AND " + IMAGING_TIME + ">=:from AND " + IMAGING_TIME + "<:until", params(p), Long.class);
     }
     /** Counter payments are cash; ONLINE and COUNTER_QR both go through PayOS. */
@@ -87,10 +92,11 @@ public class JdbcReportingRepository implements ReportingRepository {
     @Override
     public Map<String,Long> orderCounts(ReportingPeriod p) {
         return counts("""
-            SELECT CASE WHEN order_status='CANCELLED' OR execution_status='CANCELLED' THEN 'CANCELLED' ELSE 'PENDING_PAYMENT' END code,count(*) n
-            FROM clinical_service_orders WHERE ordered_at>=:from AND ordered_at<:until
-              AND (order_status='CANCELLED' OR execution_status='CANCELLED' OR payment_status='PENDING_PAYMENT') GROUP BY 1
-            """,p);
+            SELECT CASE WHEN o.order_status='CANCELLED' OR e.execution_status='CANCELLED' THEN 'CANCELLED' ELSE 'PENDING_PAYMENT' END code,count(*) n
+            FROM %s
+            WHERE r.ordered_at>=:from AND r.ordered_at<:until
+              AND (o.order_status='CANCELLED' OR e.execution_status='CANCELLED' OR o.payment_status='PENDING_PAYMENT') GROUP BY 1
+            """.formatted(ORDER_FROM),p);
     }
     @Override
     public long refundPendingItems() {
@@ -135,10 +141,10 @@ public class JdbcReportingRepository implements ReportingRepository {
     public List<ReportRow> orderRows(ReportingPeriod p) {
         var rows=new ArrayList<ReportRow>();
         for(String code:List.of("PENDING_PAYMENT","CANCELLED")){
-            String where=code.equals("CANCELLED")?"(order_status='CANCELLED' OR execution_status='CANCELLED')"
-                :"(order_status<>'CANCELLED' AND execution_status IS DISTINCT FROM 'CANCELLED' AND payment_status='PENDING_PAYMENT')";
-            rows.add(jdbc.queryForObject("SELECT count(*) n,COALESCE(sum(price_snapshot),0) total FROM clinical_service_orders WHERE "+where
-                +" AND ordered_at>=:from AND ordered_at<:until",params(p),
+            String where=code.equals("CANCELLED")?"(o.order_status='CANCELLED' OR e.execution_status='CANCELLED')"
+                :"(o.order_status<>'CANCELLED' AND e.execution_status IS DISTINCT FROM 'CANCELLED' AND o.payment_status='PENDING_PAYMENT')";
+            rows.add(jdbc.queryForObject("SELECT count(*) n,COALESCE(sum(o.price_snapshot),0) total FROM "+ORDER_FROM+" WHERE "+where
+                +" AND r.ordered_at>=:from AND r.ordered_at<:until",params(p),
                 (rs,i)->new ReportRow(code,rs.getLong("n"),rs.getBigDecimal("total").longValue(),null)));
         }
         // Items waiting for a manual refund, anchored on the invoice issue date so the period still means something.

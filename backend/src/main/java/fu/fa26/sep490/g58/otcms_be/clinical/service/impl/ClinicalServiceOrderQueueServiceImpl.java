@@ -21,8 +21,10 @@ public class ClinicalServiceOrderQueueServiceImpl implements ClinicalServiceOrde
     private static final String SELECT = """
             select o.id, o.order_code, o.visit_id, o.patient_id, o.service_id, o.service_name_snapshot, o.service_type,
                    o.instructions, o.body_area, o.clinical_reason, o.requesting_doctor_id, o.order_status,
-                   o.payment_status, o.room_id, o.execution_status, o.ordered_at
+                   o.payment_status, o.room_id, e.execution_status, r.ordered_at
             from clinical_service_orders o
+            join clinical_ordering_rounds r on r.id = o.ordering_round_id
+            left join imaging_order_executions e on e.service_order_id = o.id
             """;
     private final EntityManager entityManager;
     private final ServiceOrderRepository orders;
@@ -47,7 +49,7 @@ public class ClinicalServiceOrderQueueServiceImpl implements ClinicalServiceOrde
 
     @Override
     public List<QueueOrder> findByVisit(UUID visitId) {
-        return query(" where o.visit_id = :id order by o.ordered_at, o.order_code, o.id", "id", visitId);
+        return query(" where o.visit_id = :id order by r.ordered_at, o.order_code, o.id", "id", visitId);
     }
 
     @Override

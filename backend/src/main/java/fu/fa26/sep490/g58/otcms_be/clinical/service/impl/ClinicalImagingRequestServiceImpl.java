@@ -5,6 +5,7 @@ import fu.fa26.sep490.g58.otcms_be.clinical.service.ClinicalImagingRequestServic
 import java.sql.SQLException;
 import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -12,8 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 /** Coordinates retries only after the transactional attempt proxy has rolled back. */
 @Service
 public class ClinicalImagingRequestServiceImpl implements ClinicalImagingRequestService {
-    static final String REPLAY_KEY = "uk_clinical_orders_submit_key";
-    static final String ROUND_NUMBER = "uk_clinical_orders_round_number";
+    static final String ROUND_NUMBER = "uk_clinical_round_visit_number";
     private static final int MAX_ATTEMPTS = 3;
     private final ClinicalImagingRequestTransactionService transactions;
 
@@ -30,7 +30,8 @@ public class ClinicalImagingRequestServiceImpl implements ClinicalImagingRequest
             try {
                 return transactions.submit(command, fingerprint);
             } catch (DataIntegrityViolationException failure) {
-                if (hasUniqueConstraint(failure, REPLAY_KEY)) {
+                // The writer raises DuplicateKeyException when record() finds the key committed by a same-key winner.
+                if (failure instanceof DuplicateKeyException) {
                     return transactions.recoverReplay(command, fingerprint).orElseThrow(() -> failure);
                 }
                 if (!hasUniqueConstraint(failure, ROUND_NUMBER)) throw failure;

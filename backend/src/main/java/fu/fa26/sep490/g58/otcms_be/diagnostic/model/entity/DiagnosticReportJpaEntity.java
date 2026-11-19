@@ -100,34 +100,6 @@ public class DiagnosticReportJpaEntity {
     @Column(name = "completed_at")
     private Instant completedAt;
 
-    @Column(name = "draft_idempotency_key", length = 255)
-    private String draftIdempotencyKey;
-
-    @JdbcTypeCode(SqlTypes.CHAR)
-    @Column(name = "draft_fingerprint", columnDefinition = "char(64)")
-    private String draftFingerprint;
-
-    @Column(name = "correction_idempotency_key", length = 255)
-    private String correctionIdempotencyKey;
-
-    @JdbcTypeCode(SqlTypes.CHAR)
-    @Column(name = "correction_fingerprint", columnDefinition = "char(64)")
-    private String correctionFingerprint;
-
-    @Column(name = "upload_idempotency_key", length = 255)
-    private String uploadIdempotencyKey;
-
-    @JdbcTypeCode(SqlTypes.CHAR)
-    @Column(name = "upload_fingerprint", columnDefinition = "char(64)")
-    private String uploadFingerprint;
-
-    @Column(name = "complete_idempotency_key", length = 255)
-    private String completeIdempotencyKey;
-
-    @JdbcTypeCode(SqlTypes.CHAR)
-    @Column(name = "complete_fingerprint", columnDefinition = "char(64)")
-    private String completeFingerprint;
-
     protected DiagnosticReportJpaEntity() { }
 
     public static DiagnosticReportJpaEntity laboratoryDraft(UUID orderId, UUID visitId, UUID sampleId,
@@ -217,14 +189,6 @@ public class DiagnosticReportJpaEntity {
     public Instant getOccurredAt() { return occurredAt; }
     public Instant getRecordedAt() { return recordedAt; }
     public Instant getCompletedAt() { return completedAt; }
-    public String getDraftIdempotencyKey() { return draftIdempotencyKey; }
-    public String getDraftFingerprint() { return draftFingerprint; }
-    public String getCorrectionIdempotencyKey() { return correctionIdempotencyKey; }
-    public String getCorrectionFingerprint() { return correctionFingerprint; }
-    public String getUploadIdempotencyKey() { return uploadIdempotencyKey; }
-    public String getUploadFingerprint() { return uploadFingerprint; }
-    public String getCompleteIdempotencyKey() { return completeIdempotencyKey; }
-    public String getCompleteFingerprint() { return completeFingerprint; }
 
     public void reviseDraft(String text, Instant occurredAt) {
         requireDraft(); this.findingsText = text; this.occurredAt = occurredAt;
@@ -250,8 +214,4 @@ public class DiagnosticReportJpaEntity {
             throw new IllegalStateException("Completed findings are immutable");
         }
     }
-    public void recordDraftKey(String key, String fingerprint) { draftIdempotencyKey = key; draftFingerprint = fingerprint; }
-    public void recordCorrectionKey(String key, String fingerprint) { correctionIdempotencyKey = key; correctionFingerprint = fingerprint; }
-    public void recordUploadKey(String key, String fingerprint) { uploadIdempotencyKey = key; uploadFingerprint = fingerprint; }
-    public void recordCompleteKey(String key, String fingerprint) { completeIdempotencyKey = key; completeFingerprint = fingerprint; }
 }

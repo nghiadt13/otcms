@@ -15,16 +15,17 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Room moves for every service type. A dispatched imaging order carries its room in the execution columns and goes
- * through the guarded execution write (version +1); any other order only has {@code room_id}.
+ * Room moves for every service type. The room stays on the order row. A dispatched imaging order also has an execution
+ * row, and its move is a guarded execution write (version +1); any other order moves on the order row alone.
  */
 @Service
 @Transactional(propagation = Propagation.MANDATORY)
 public class ClinicalServiceOrderRoomServiceImpl implements ClinicalServiceOrderRoomService {
     private static final String LOCK = """
-            select o.id, o.visit_id, o.service_id, o.service_type, o.imaging_type, o.room_id, o.order_status,
-                   o.execution_status, o.execution_version
-            from clinical_service_orders o where o.id = :id for update
+            select o.id, o.visit_id, o.service_id, o.service_type, e.imaging_type, o.room_id, o.order_status,
+                   e.execution_status, e.version as execution_version
+            from clinical_service_orders o left join imaging_order_executions e on e.service_order_id = o.id
+            where o.id = :id for update of o
             """;
     private final EntityManager entityManager;
     private final ClinicalServiceOrderExecutionPort executions;
@@ -60,11 +61,14 @@ public class ClinicalServiceOrderRoomServiceImpl implements ClinicalServiceOrder
                 || (execution != null && !"PENDING".equals(execution))) return false;
         if (execution != null) {
             long version = ((Number) row.get("execution_version")).longValue();
-            return executions.transferRoom(orderId, version, roomId, "reception-transfer", sha256(orderId + ":" + roomId)) == 1;
+            // Each move records its own replay key: a fixed key would collide on the second move of the same order.
+            return executions.transferRoom(orderId, version, roomId, "reception-transfer:" + UUID.randomUUID(),
+                    sha256(orderId + ":" + roomId)) == 1;
         }
         return entityManager.createNativeQuery("""
                 update clinical_service_orders set room_id = :roomId, updated_at = clock_timestamp()
-                where id = :id and order_status = 'ORDERED' and execution_status is null
+                where id = :id and order_status = 'ORDERED'
+                  and not exists (select 1 from imaging_order_executions e where e.service_order_id = :id)
                 """).setParameter("roomId", roomId).setParameter("id", orderId).executeUpdate() == 1;
     }
 

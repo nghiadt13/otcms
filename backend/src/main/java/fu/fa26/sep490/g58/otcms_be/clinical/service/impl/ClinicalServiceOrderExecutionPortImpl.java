@@ -3,11 +3,14 @@ package fu.fa26.sep490.g58.otcms_be.clinical.service.impl;
 import fu.fa26.sep490.g58.otcms_be.clinical.repository.ClinicalServiceOrderExecutionRepository;
 import fu.fa26.sep490.g58.otcms_be.clinical.model.dto.ClinicalImagingExecutionRow;
 import fu.fa26.sep490.g58.otcms_be.clinical.service.ClinicalServiceOrderExecutionPort;
+import fu.fa26.sep490.g58.otcms_be.common.idempotency.IdempotencyScope;
+import fu.fa26.sep490.g58.otcms_be.common.idempotency.IdempotencyStore;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.function.IntSupplier;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -18,9 +21,11 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(propagation = Propagation.MANDATORY)
 public class ClinicalServiceOrderExecutionPortImpl implements ClinicalServiceOrderExecutionPort {
     private final ClinicalServiceOrderExecutionRepository repository;
+    private final IdempotencyStore store;
 
-    public ClinicalServiceOrderExecutionPortImpl(ClinicalServiceOrderExecutionRepository repository) {
+    public ClinicalServiceOrderExecutionPortImpl(ClinicalServiceOrderExecutionRepository repository, IdempotencyStore store) {
         this.repository = repository;
+        this.store = store;
     }
 
     @Override public Optional<ImagingExecution> find(UUID id) { return repository.find(id).map(this::execution); }
@@ -48,13 +53,28 @@ public class ClinicalServiceOrderExecutionPortImpl implements ClinicalServiceOrd
         return repository.linkStudy(orderId, version, attemptId, studyRef);
     }
     @Override public int markReviewed(UUID orderId, long version, String key, String fingerprint) {
-        return repository.markReviewed(orderId, version, key, fingerprint);
+        return keyed(IdempotencyScope.ORDER_REVIEW, orderId, key, fingerprint, () -> repository.markReviewed(orderId, version));
     }
     @Override public int cancel(UUID orderId, long version, String cause, String reason, String key, String fingerprint) {
-        return repository.cancel(orderId, version, cause, reason, key, fingerprint);
+        return keyed(IdempotencyScope.ORDER_CANCEL, orderId, key, fingerprint,
+                () -> repository.cancel(orderId, version, cause, reason));
     }
     @Override public int transferRoom(UUID orderId, long version, UUID roomId, String key, String fingerprint) {
-        return repository.transferRoom(orderId, version, roomId, key, fingerprint);
+        return keyed(IdempotencyScope.ORDER_TRANSFER, orderId, key, fingerprint,
+                () -> repository.transferRoom(orderId, version, roomId));
+    }
+
+    /**
+     * Guarded write plus its replay key in idempotency_records (owner = resource = the order). A key already used for
+     * this order is not written again: the caller re-reads the order and decides, as for any lost guarded write.
+     */
+    private int keyed(IdempotencyScope scope, UUID orderId, String key, String fingerprint, IntSupplier write) {
+        if (store.find(scope, orderId, key).isPresent()) return 0;
+        int changed = write.getAsInt();
+        if (changed == 1 && !store.record(scope, orderId, key, fingerprint, orderId)) {
+            throw new IllegalStateException(scope + " key was recorded concurrently for order " + orderId);
+        }
+        return changed;
     }
 
     private ImagingExecution execution(ClinicalImagingExecutionRow row) {

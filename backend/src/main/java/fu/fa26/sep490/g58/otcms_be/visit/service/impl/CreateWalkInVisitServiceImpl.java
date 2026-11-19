@@ -1,6 +1,8 @@
 package fu.fa26.sep490.g58.otcms_be.visit.service.impl;
 
 import fu.fa26.sep490.g58.otcms_be.auth.service.ReceptionistAccountAccessService;
+import fu.fa26.sep490.g58.otcms_be.common.idempotency.IdempotencyScope;
+import fu.fa26.sep490.g58.otcms_be.common.idempotency.IdempotencyStore;
 import fu.fa26.sep490.g58.otcms_be.common.security.AccountRole;
 import fu.fa26.sep490.g58.otcms_be.common.service.CoordinationGuardService;
 import fu.fa26.sep490.g58.otcms_be.servicecatalog.exception.ClinicServiceException;
@@ -44,6 +46,7 @@ public class CreateWalkInVisitServiceImpl implements CreateWalkInVisitService {
 
     private final CoordinationGuardService coordinationGuard;
     private final ClinicVisitJpaRepository visits;
+    private final IdempotencyStore idempotency;
     private final WalkInReceptionQueueEntryJpaRepository queueEntries;
     private final VisitAuditRecorder audit;
     private final ReceptionistAccountAccessService receptionists;
@@ -55,13 +58,14 @@ public class CreateWalkInVisitServiceImpl implements CreateWalkInVisitService {
     private final Clock clock;
 
     public CreateWalkInVisitServiceImpl(CoordinationGuardService coordinationGuard, ClinicVisitJpaRepository visits,
-            WalkInReceptionQueueEntryJpaRepository queueEntries, VisitAuditRecorder audit,
+            IdempotencyStore idempotency, WalkInReceptionQueueEntryJpaRepository queueEntries, VisitAuditRecorder audit,
             ReceptionistAccountAccessService receptionists,
             VisitExamQueueService examQueue, DoctorScheduleService schedules,
             DoctorProfileIdentityQueryService doctorProfiles, GetClinicServiceCatalogService catalog,
             VisitRoomJpaRepository rooms, Clock clock) {
         this.coordinationGuard = coordinationGuard;
         this.visits = visits;
+        this.idempotency = idempotency;
         this.queueEntries = queueEntries;
         this.audit = audit;
         this.receptionists = receptionists;
@@ -86,14 +90,14 @@ public class CreateWalkInVisitServiceImpl implements CreateWalkInVisitService {
 
         coordinationGuard.acquire();
 
-        // Replay: the key now lives on the visit row (walk_in_requests is gone). The guard above serializes
-        // creates; uk_clinic_visits_walk_in_idempotency still backs it at the database.
-        var replay = visits.findByCreatedByAccountIdAndWalkInIdempotencyKey(command.actorAccountId(), key);
+        // Replay: the key lives in idempotency_records (scope WALK_IN_VISIT, owner = creator). The guard above serializes creates.
+        var replay = idempotency.find(IdempotencyScope.WALK_IN_VISIT, command.actorAccountId(), key);
         if (replay.isPresent()) {
-            if (!fingerprint.equals(replay.get().getWalkInRequestFingerprint())) {
+            if (!replay.get().matches(fingerprint)) {
                 throw new VisitOperationException("IDEMPOTENCY_CONFLICT");
             }
-            return result(replay.get());
+            return result(visits.findById(replay.get().resourceId()).orElseThrow(
+                    () -> new IllegalStateException("Walk-in replay visit missing: " + replay.get().resourceId())));
         }
 
         // The old queue trigger refused a reception entry unless the actor was an ACTIVE RECEPTIONIST account.
@@ -109,12 +113,16 @@ public class CreateWalkInVisitServiceImpl implements CreateWalkInVisitService {
         ClinicVisitJpaEntity visit;
         try {
             visit = visits.saveAndFlush(ClinicVisitJpaEntity.walkIn(visitId, command.patientProfileId(),
-                    command.priorAppointmentId(), command.actorAccountId(), arrivedAt, key, fingerprint));
+                    command.priorAppointmentId(), command.actorAccountId(), arrivedAt));
         } catch (DataIntegrityViolationException exception) {
             if (hasConstraint(exception, PATIENT_FK) || hasConstraint(exception, PRIOR_APPOINTMENT_FK)) {
                 throw new VisitOperationException("RESOURCE_NOT_FOUND", exception);
             }
             throw exception;
+        }
+        // Same transaction as the visit insert. False means another request took the key first; the guard prevents that.
+        if (!idempotency.record(IdempotencyScope.WALK_IN_VISIT, command.actorAccountId(), key, fingerprint, visitId)) {
+            throw new VisitOperationException("IDEMPOTENCY_CONFLICT");
         }
 
         audit.walkInCreated(command.actorAccountId(), visitId, arrivedAt, command.correlationId());
