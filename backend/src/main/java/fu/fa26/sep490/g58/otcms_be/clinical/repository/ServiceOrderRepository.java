@@ -8,21 +8,17 @@ public interface ServiceOrderRepository extends JpaRepository<ServiceOrderJpaEnt
     interface LaboratoryQueueRow {
         UUID getOrderId(); UUID getRoomId(); String getLabStatus();
     }
-    @org.springframework.data.jpa.repository.Query(value = "select id as \"orderId\", room_id as \"roomId\", lab_status as \"labStatus\" "
-            + "from clinical_service_orders where service_type = 'LABORATORY' "
-            + "and ((ordered_at >= :fromTime and ordered_at < :toTime) "
-            + "or lab_status in ('ASSIGNED', 'COLLECTED', 'REJECTED'))", nativeQuery = true)
+    @org.springframework.data.jpa.repository.Query(value = "select o.id as \"orderId\", o.room_id as \"roomId\", o.lab_status as \"labStatus\" "
+            + "from clinical_service_orders o join clinical_ordering_rounds r on r.id = o.ordering_round_id "
+            + "where o.service_type = 'LABORATORY' "
+            + "and ((r.ordered_at >= :fromTime and r.ordered_at < :toTime) "
+            + "or o.lab_status in ('ASSIGNED', 'COLLECTED', 'REJECTED'))", nativeQuery = true)
     List<LaboratoryQueueRow> findLaboratoryAssignments(@org.springframework.data.repository.query.Param("fromTime") java.time.Instant fromTime,
             @org.springframework.data.repository.query.Param("toTime") java.time.Instant toTime);
     @org.springframework.data.jpa.repository.Query(value = "select room_id as \"roomId\", lab_status as \"labStatus\" "
             + "from clinical_service_orders where id = :orderId and service_type = 'LABORATORY'", nativeQuery = true)
     java.util.Optional<LaboratoryAssignmentRow> findLaboratoryAssignment(
             @org.springframework.data.repository.query.Param("orderId") UUID orderId);
-    @org.springframework.data.jpa.repository.Query("select o from ServiceOrderJpaEntity o where o.requestingDoctorId = :doctorId "
-            + "and o.submitIdempotencyKey = :key and o.roundHead = true")
-    java.util.Optional<ServiceOrderJpaEntity> findRoundBySubmissionKey(
-            @org.springframework.data.repository.query.Param("doctorId") UUID doctorId,
-            @org.springframework.data.repository.query.Param("key") String key);
     @org.springframework.data.jpa.repository.Query("select o from ServiceOrderJpaEntity o where o.orderingRoundId = :roundId")
     List<ServiceOrderJpaEntity> findLaboratoryRoundOrders(
             @org.springframework.data.repository.query.Param("roundId") UUID roundId);
@@ -45,8 +41,8 @@ public interface ServiceOrderRepository extends JpaRepository<ServiceOrderJpaEnt
     @org.springframework.data.jpa.repository.Modifying(flushAutomatically = true, clearAutomatically = true)
     @org.springframework.data.jpa.repository.Query(value = "update clinical_service_orders set lab_status = 'RESULT_AVAILABLE', order_status = 'RESULTS_AVAILABLE', updated_at = :now, version = version + 1 where id = :orderId and service_type = 'LABORATORY' and payment_status = 'PAID' and order_status = 'ORDERED' and lab_status = 'COLLECTED'", nativeQuery = true)
     int releaseLabResult(@org.springframework.data.repository.query.Param("orderId") UUID orderId, @org.springframework.data.repository.query.Param("now") java.time.Instant now);
-    @org.springframework.data.jpa.repository.Query("select o from ServiceOrderJpaEntity o where o.visitId = :visitId "
-            + "and o.serviceType = :serviceType order by o.roundNumber, o.orderCode")
+    @org.springframework.data.jpa.repository.Query("select o from ServiceOrderJpaEntity o, ClinicalOrderingRoundJpaEntity r where r.id = o.orderingRoundId "
+            + "and o.visitId = :visitId and o.serviceType = :serviceType order by r.roundNumber, o.orderCode")
     List<ServiceOrderJpaEntity> findVisitOrdersByType(
             @org.springframework.data.repository.query.Param("visitId") UUID visitId,
             @org.springframework.data.repository.query.Param("serviceType") fu.fa26.sep490.g58.otcms_be.clinical.model.ClinicalServiceType serviceType);
@@ -73,9 +69,4 @@ public interface ServiceOrderRepository extends JpaRepository<ServiceOrderJpaEnt
     List<ServiceOrderJpaEntity> findByOrderingRoundId(UUID roundId);
     List<ServiceOrderJpaEntity> findByOrderingRoundIdIn(java.util.Collection<UUID> roundIds);
     List<ServiceOrderJpaEntity> findByVisitId(UUID visitId);
-    java.util.Optional<ServiceOrderJpaEntity> findFirstByOrderingRoundIdAndRoundHeadTrue(UUID roundId);
-    java.util.Optional<ServiceOrderJpaEntity> findByRequestingDoctorIdAndSubmitIdempotencyKeyAndRoundHeadTrue(UUID doctorId, String submitIdempotencyKey);
-    java.util.Optional<ServiceOrderJpaEntity> findTopByVisitIdAndRoundHeadTrueOrderByRoundNumberDesc(UUID visitId);
-    org.springframework.data.domain.Page<ServiceOrderJpaEntity> findAllByRoundHeadTrue(org.springframework.data.domain.Pageable pageable);
-    List<ServiceOrderJpaEntity> findByVisitIdAndRoundHeadTrueOrderByRoundNumberAsc(UUID visitId);
 }

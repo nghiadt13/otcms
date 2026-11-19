@@ -30,7 +30,7 @@ class ImagingUploadSendReplayPostgresIntegrationTest {
     @Autowired ImagingSendService sends;
 
     final UUID account = UUID.randomUUID(), patient = UUID.randomUUID(), visit = UUID.randomUUID();
-    final UUID order = UUID.randomUUID(), attempt = UUID.randomUUID(), actor = account;
+    final UUID order = UUID.randomUUID(), attempt = UUID.randomUUID(), actor = account, round = UUID.randomUUID();
 
     @BeforeEach void fixture() {
         jdbc.update("insert into accounts (id,normalized_email,account_type,status,created_at,updated_at) "
@@ -39,20 +39,26 @@ class ImagingUploadSendReplayPostgresIntegrationTest {
                 + "values (?,?,'Imaging replay fixture','+84977775555','PATIENT','1990-01-01','OTHER')", patient, account);
         jdbc.update("insert into visits (id,patient_profile_id,source,arrived_at,checked_in_at,created_by_account_id,status) "
                 + "values (?,?,'WALK_IN',now(),now(),?,'OPEN')", visit, patient, account);
-        jdbc.update("insert into clinical_service_orders (id,order_code,ordering_round_id,round_number,ordered_at,"
+        jdbc.update("insert into clinical_ordering_rounds (id,visit_id,round_number,ordered_by_doctor_id,ordered_at,created_at) "
+                + "values (?,?,1,?,now(),now())", round, visit, UUID.randomUUID());
+        jdbc.update("insert into clinical_service_orders (id,order_code,ordering_round_id,"
                 + "visit_id,patient_id,service_id,service_name_snapshot,service_type,requesting_doctor_id,"
-                + "clinical_reason,body_area,price_snapshot,order_status,payment_status,created_at,updated_at,"
-                + "ordering_doctor_account_id,room_id,imaging_type,execution_status,attempt_id,first_use_event_id,"
-                + "first_use_type,first_use_source_id,first_use_at,execution_created_at,execution_updated_at) "
-                + "values (?,?,?,1,now(),?,?,?,'Replay MRI','IMAGING',?,'Test','KNEE',1,'ORDERED','PAID',now(),now(),"
-                + "?,?,'MRI','IN_PROGRESS',?,?,'ACQUISITION_STARTED','fixture',now(),now(),now())",
-                order, order.toString().replace("-", ""), UUID.randomUUID(), visit, patient, UUID.randomUUID(),
-                UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), attempt, UUID.randomUUID());
+                + "clinical_reason,body_area,price_snapshot,order_status,payment_status,created_at,updated_at,room_id) "
+                + "values (?,?,?,?,?,?,'Replay MRI','IMAGING',?,'Test','KNEE',1,'ORDERED','PAID',now(),now(),?)",
+                order, order.toString().replace("-", ""), round, visit, patient, UUID.randomUUID(),
+                UUID.randomUUID(), UUID.randomUUID());
+        jdbc.update("insert into imaging_order_executions (service_order_id,imaging_type,ordering_doctor_account_id,"
+                + "execution_status,attempt_id,first_use_event_id,first_use_type,first_use_source_id,first_use_at,"
+                + "created_at,updated_at) "
+                + "values (?,'MRI',?,'IN_PROGRESS',?,?,'ACQUISITION_STARTED','fixture',now(),now(),now())",
+                order, UUID.randomUUID(), attempt, UUID.randomUUID());
     }
 
     @AfterEach void cleanup() {
+        jdbc.update("delete from idempotency_records where owner_id=? or resource_id in (select id from imaging_studies where service_order_id=?)", actor, order);
         jdbc.update("delete from imaging_studies where service_order_id=?", order);
         jdbc.update("delete from clinical_service_orders where id=?", order);
+        jdbc.update("delete from clinical_ordering_rounds where id=?", round);
         jdbc.update("delete from visits where id=?", visit);
         jdbc.update("delete from patient_profiles where id=?", patient);
         jdbc.update("delete from accounts where id=?", account);
@@ -65,8 +71,8 @@ class ImagingUploadSendReplayPostgresIntegrationTest {
         assertTrue(first.created());
         assertFalse(retry.created());
         assertEquals(first.operation().id(), retry.operation().id());
-        assertEquals(1, jdbc.queryForObject("select count(*) from imaging_studies where service_order_id=? and upload_idempotency_key=?",
-                Integer.class, order, "upload-key"));
+        assertEquals(1, jdbc.queryForObject("select count(*) from idempotency_records where scope='IMAGING_UPLOAD' and owner_id=? and idempotency_key=?",
+                Integer.class, actor, order + ":" + attempt + ":upload-key"));
         ImagingOperationException conflict = assertThrows(ImagingOperationException.class,
                 () -> uploads.register(actor, order, attempt, "upload-key", "b".repeat(64), 10, work));
         assertEquals(ImagingOperationOutcome.IDEMPOTENCY_CONFLICT, conflict.outcome());
@@ -80,13 +86,13 @@ class ImagingUploadSendReplayPostgresIntegrationTest {
                 study, operation);
         entityManager.clear();
         var first = sends.send(actor, operation, "send-key");
-        UUID event = jdbc.queryForObject("select confirmation_event_id from imaging_studies where id=?", UUID.class, operation);
+        UUID event = jdbc.queryForObject("select confirmation_event_id from imaging_study_releases where imaging_study_id=?", UUID.class, operation);
         assertNotNull(event);
         var retry = sends.send(actor, operation, "send-key");
         assertEquals(ImagingOperationState.CONFIRMATION_PENDING, first.state());
         assertEquals(first.state(), retry.state());
-        assertEquals(event, jdbc.queryForObject("select confirmation_event_id from imaging_studies where id=?", UUID.class, operation));
-        assertEquals(1, jdbc.queryForObject("select count(*) from imaging_studies where id=? and send_idempotency_key=?",
+        assertEquals(event, jdbc.queryForObject("select confirmation_event_id from imaging_study_releases where imaging_study_id=?", UUID.class, operation));
+        assertEquals(1, jdbc.queryForObject("select count(*) from idempotency_records where scope='IMAGING_SEND' and owner_id=? and idempotency_key=?",
                 Integer.class, operation, "send-key"));
         ImagingOperationException conflict = assertThrows(ImagingOperationException.class,
                 () -> sends.send(actor, operation, "different-key"));

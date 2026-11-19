@@ -4,11 +4,14 @@ import fu.fa26.sep490.g58.otcms_be.imaging.model.ImagingOperationRecord;
 import fu.fa26.sep490.g58.otcms_be.imaging.model.entity.enums.ImagingOperationState;
 import fu.fa26.sep490.g58.otcms_be.imaging.model.entity.enums.ImagingOperationType;
 import fu.fa26.sep490.g58.otcms_be.imaging.model.entity.enums.ImagingVerificationStatus;
+import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.Id;
+import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
@@ -86,58 +89,21 @@ public class ImagingStudyJpaEntity {
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
-    @Column(name = "upload_idempotency_key", nullable = false, length = 128)
-    private String uploadIdempotencyKey;
-
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "dicom_index", columnDefinition = "jsonb")
     private DicomIndex dicomIndex;
 
-    @Column(name = "send_idempotency_key", length = 128)
-    private String sendIdempotencyKey;
-
-    @JdbcTypeCode(SqlTypes.CHAR)
-    @Column(name = "send_fingerprint", columnDefinition = "char(64)")
-    private String sendFingerprint;
-
-    @Column(name = "confirmation_event_id")
-    private UUID confirmationEventId;
-
-    @Column(name = "confirmation_attempt_count", nullable = false)
-    private int confirmationAttemptCount;
-
-    @Column(name = "next_confirmation_attempt_at")
-    private Instant nextConfirmationAttemptAt;
-
-    @Column(name = "last_safe_error_code", length = 64)
-    private String lastSafeErrorCode;
+    // EAGER is deliberate: Hibernate cannot lazy-load this inverse 0..1 side without bytecode enhancement.
+    // It is one primary-key lookup per study, never a collection; the owner side is ImagingStudyReleaseJpaEntity.study.
+    @OneToOne(mappedBy = "study", fetch = FetchType.EAGER, cascade = {CascadeType.PERSIST, CascadeType.MERGE})
+    private ImagingStudyReleaseJpaEntity release;
 
     @Column(name = "acknowledged_at")
     private Instant acknowledgedAt;
 
-    @Column(name = "release_event_id")
-    private UUID releaseEventId;
-
-    @JdbcTypeCode(SqlTypes.CHAR)
-    @Column(name = "release_payload_sha256", columnDefinition = "char(64)")
-    private String releasePayloadSha256;
-
-    @Column(name = "released_findings_id")
-    private UUID releasedFindingsId;
-
-    @Column(name = "released_report_id")
-    private UUID releasedReportId;
-
-    @JdbcTypeCode(SqlTypes.CHAR)
-    @Column(name = "released_report_sha256", columnDefinition = "char(64)")
-    private String releasedReportSha256;
-
-    @Column(name = "findings_released_at")
-    private Instant findingsReleasedAt;
-
     protected ImagingStudyJpaEntity() { }
 
-    public ImagingStudyJpaEntity(ImagingOperationRecord operation, String uploadIdempotencyKey) {
+    public ImagingStudyJpaEntity(ImagingOperationRecord operation) {
         id = operation.id();
         studyRef = operation.studyRef();
         requestId = operation.requestId();
@@ -145,7 +111,6 @@ public class ImagingStudyJpaEntity {
         visitId = operation.visitId();
         patientId = operation.patientId();
         actorAccountId = operation.actorAccountId();
-        this.uploadIdempotencyKey = uploadIdempotencyKey;
         state = operation.state();
         payloadSha256 = operation.payloadSha256();
         payloadSizeBytes = operation.payloadSizeBytes();
@@ -228,21 +193,18 @@ public class ImagingStudyJpaEntity {
     public String getPayloadSha256() { return payloadSha256; }
     public Instant getCreatedAt() { return createdAt; }
     public Instant getUpdatedAt() { return updatedAt; }
-    public String getUploadIdempotencyKey() { return uploadIdempotencyKey; }
     public DicomIndex getDicomIndex() { return dicomIndex; }
-    public String getSendIdempotencyKey() { return sendIdempotencyKey; }
-    public String getSendFingerprint() { return sendFingerprint; }
-    public UUID getConfirmationEventId() { return confirmationEventId; }
-    public int getConfirmationAttemptCount() { return confirmationAttemptCount; }
-    public Instant getNextConfirmationAttemptAt() { return nextConfirmationAttemptAt; }
-    public String getLastSafeErrorCode() { return lastSafeErrorCode; }
+    public UUID getConfirmationEventId() { return release == null ? null : release.getConfirmationEventId(); }
+    public int getConfirmationAttemptCount() { return release == null ? 0 : release.getConfirmationAttemptCount(); }
+    public Instant getNextConfirmationAttemptAt() { return release == null ? null : release.getNextConfirmationAttemptAt(); }
+    public String getLastSafeErrorCode() { return release == null ? null : release.getLastSafeErrorCode(); }
     public Instant getAcknowledgedAt() { return acknowledgedAt; }
-    public UUID getReleaseEventId() { return releaseEventId; }
-    public String getReleasePayloadSha256() { return releasePayloadSha256; }
-    public UUID getReleasedFindingsId() { return releasedFindingsId; }
-    public UUID getReleasedReportId() { return releasedReportId; }
-    public String getReleasedReportSha256() { return releasedReportSha256; }
-    public Instant getFindingsReleasedAt() { return findingsReleasedAt; }
+    public UUID getReleaseEventId() { return release == null ? null : release.getReleaseEventId(); }
+    public String getReleasePayloadSha256() { return release == null ? null : release.getReleasePayloadSha256(); }
+    public UUID getReleasedFindingsId() { return release == null ? null : release.getReleasedFindingsId(); }
+    public UUID getReleasedReportId() { return release == null ? null : release.getReleasedReportId(); }
+    public String getReleasedReportSha256() { return release == null ? null : release.getReleasedReportSha256(); }
+    public Instant getFindingsReleasedAt() { return release == null ? null : release.getFindingsReleasedAt(); }
 
     public void updateConfirmationOutcome(ImagingOperationState nextState, String safeCode, Instant now) {
         state = nextState;
@@ -251,9 +213,7 @@ public class ImagingStudyJpaEntity {
     }
 
     public void recordConfirmationRetry(Instant nextAt, String safeCode, Instant now) {
-        confirmationAttemptCount = Math.min(8, confirmationAttemptCount + 1);
-        nextConfirmationAttemptAt = nextAt;
-        lastSafeErrorCode = safeCode;
+        releaseRow(now).recordRetry(nextAt, safeCode, now);
         safeOutcomeCode = safeCode;
         version++;
         updatedAt = now;
@@ -261,38 +221,41 @@ public class ImagingStudyJpaEntity {
 
     public void recordConfirmationReconciliation(String safeCode, Instant now) {
         state = ImagingOperationState.RECONCILIATION_REQUIRED;
-        confirmationAttemptCount = Math.min(8, confirmationAttemptCount + 1);
-        lastSafeErrorCode = safeCode;
+        releaseRow(now).recordAttempt(safeCode, now);
         safeOutcomeCode = safeCode;
         version++;
         updatedAt = now;
     }
 
     public void setDicomIndex(DicomIndex index) { dicomIndex = index; }
-    public void prepareConfirmation(UUID eventId, String key, String fingerprint, Instant now) {
-        state = ImagingOperationState.CONFIRMATION_PENDING; confirmationEventId = eventId;
-        sendIdempotencyKey = key; sendFingerprint = fingerprint; nextConfirmationAttemptAt = now;
+    public void prepareConfirmation(UUID eventId, Instant now) {
+        state = ImagingOperationState.CONFIRMATION_PENDING; releaseRow(now).prepare(eventId, now);
         safeOutcomeCode = null; version++; updatedAt = now;
     }
     public void markAcknowledged(Instant now) {
-        state = ImagingOperationState.LINKED; confirmationAttemptCount = Math.min(8, confirmationAttemptCount + 1);
-        acknowledgedAt = now; lastSafeErrorCode = null; safeOutcomeCode = null; version++; updatedAt = now;
+        state = ImagingOperationState.LINKED; releaseRow(now).recordAttempt(null, now);
+        acknowledgedAt = now; safeOutcomeCode = null; version++; updatedAt = now;
     }
     public void scheduleRetry(Instant nextAt, String safeCode) {
-        confirmationAttemptCount = Math.min(8, confirmationAttemptCount + 1);
-        nextConfirmationAttemptAt = nextAt; lastSafeErrorCode = safeCode; safeOutcomeCode = safeCode;
-        version++; updatedAt = Instant.now();
+        Instant now = Instant.now();
+        releaseRow(now).recordRetry(nextAt, safeCode, now); safeOutcomeCode = safeCode;
+        version++; updatedAt = now;
     }
     public void markReconciliationRequired(String safeCode) {
+        Instant now = Instant.now();
         state = ImagingOperationState.RECONCILIATION_REQUIRED;
-        confirmationAttemptCount = Math.min(8, confirmationAttemptCount + 1);
-        lastSafeErrorCode = safeCode; safeOutcomeCode = safeCode; version++; updatedAt = Instant.now();
+        releaseRow(now).recordAttempt(safeCode, now);
+        safeOutcomeCode = safeCode; version++; updatedAt = now;
     }
     public void acceptFindingsRelease(UUID eventId, String payloadSha256, UUID findingsId,
             UUID reportId, String reportSha256, Instant now) {
-        releaseEventId = eventId; releasePayloadSha256 = payloadSha256; releasedFindingsId = findingsId;
-        releasedReportId = reportId; releasedReportSha256 = reportSha256; findingsReleasedAt = now;
+        releaseRow(now).accept(eventId, payloadSha256, findingsId, reportId, reportSha256, now);
         version++; updatedAt = now;
+    }
+    /** Release bookkeeping lives in imaging_study_releases; the row is created on first use inside the caller's transaction. */
+    private ImagingStudyReleaseJpaEntity releaseRow(Instant now) {
+        if (release == null) release = new ImagingStudyReleaseJpaEntity(this, now);
+        return release;
     }
     public record DicomIndex(List<DicomSeries> series) { }
     public record DicomSeries(String uid, @com.fasterxml.jackson.annotation.JsonProperty("orthanc_ref") String orthancRef,

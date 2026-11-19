@@ -11,12 +11,17 @@ public class AppointmentArrivalRepository {
     private final EntityManager entityManager;
     public AppointmentArrivalRepository(EntityManager entityManager) { this.entityManager = entityManager; }
 
+    /** Inserts the arrival group, or fills it when only a check-in group exists; 0 when already recorded or not the patient's. */
     public int claimIfUnrecorded(UUID appointment, UUID patient, UUID actor, String source, String reason, Timestamp arrivedAt) {
         return entityManager.createNativeQuery("""
-                update appointments set arrived_at = :arrivedAt, arrival_source = :source,
-                    arrival_reason = cast(:reason as varchar), arrival_recorded_by = :actor,
-                    arrival_recorded_at = clock_timestamp()
-                where id = :appointment and patient_profile_id = :patient and arrived_at is null
+                insert into appointment_arrivals (appointment_id, arrived_at, arrival_source, arrival_reason,
+                    arrival_recorded_by, arrival_recorded_at)
+                select a.id, :arrivedAt, :source, cast(:reason as varchar), :actor, clock_timestamp()
+                from appointments a where a.id = :appointment and a.patient_profile_id = :patient
+                on conflict (appointment_id) do update set arrived_at = excluded.arrived_at,
+                    arrival_source = excluded.arrival_source, arrival_reason = excluded.arrival_reason,
+                    arrival_recorded_by = excluded.arrival_recorded_by, arrival_recorded_at = excluded.arrival_recorded_at
+                where appointment_arrivals.arrived_at is null
                 """).setParameter("appointment", appointment).setParameter("patient", patient)
                 .setParameter("actor", actor).setParameter("source", source).setParameter("reason", reason)
                 .setParameter("arrivedAt", arrivedAt).executeUpdate();
@@ -25,18 +30,20 @@ public class AppointmentArrivalRepository {
     @SuppressWarnings("unchecked")
     public List<Object[]> findArrival(UUID appointment) {
         return entityManager.createNativeQuery("""
-                select id, patient_profile_id, arrival_recorded_by, arrival_source, arrival_reason,
-                    arrived_at, arrival_recorded_at from appointments
-                where id = :appointment and arrived_at is not null
+                select a.id, a.patient_profile_id, r.arrival_recorded_by, r.arrival_source, r.arrival_reason,
+                    r.arrived_at, r.arrival_recorded_at from appointments a
+                join appointment_arrivals r on r.appointment_id = a.id
+                where a.id = :appointment and r.arrived_at is not null
                 """).setParameter("appointment", appointment).getResultList();
     }
 
     @SuppressWarnings("unchecked")
     public List<Object[]> findArrivals(Timestamp from, Timestamp to, int offset, int limit) {
         return entityManager.createNativeQuery("""
-                select id, patient_profile_id, arrival_recorded_by, arrival_source, arrival_reason,
-                    arrived_at, arrival_recorded_at from appointments
-                where arrived_at >= :from and arrived_at < :to order by arrived_at, id
+                select a.id, a.patient_profile_id, r.arrival_recorded_by, r.arrival_source, r.arrival_reason,
+                    r.arrived_at, r.arrival_recorded_at from appointments a
+                join appointment_arrivals r on r.appointment_id = a.id
+                where r.arrived_at >= :from and r.arrived_at < :to order by r.arrived_at, a.id
                 """).setParameter("from", from).setParameter("to", to)
                 .setFirstResult(offset).setMaxResults(limit).getResultList();
     }
@@ -45,9 +52,10 @@ public class AppointmentArrivalRepository {
     public List<Object[]> findRecordedArrivalEvidence(UUID appointmentId, UUID patientProfileId,
             Timestamp windowStart, Timestamp windowEnd) {
         return entityManager.createNativeQuery("""
-                select id, patient_profile_id, arrived_at, arrival_recorded_by from appointments
-                where id = :appointmentId and patient_profile_id = :patientProfileId
-                    and arrived_at >= :windowStart and arrived_at <= :windowEnd
+                select a.id, a.patient_profile_id, r.arrived_at, r.arrival_recorded_by from appointments a
+                join appointment_arrivals r on r.appointment_id = a.id
+                where a.id = :appointmentId and a.patient_profile_id = :patientProfileId
+                    and r.arrived_at >= :windowStart and r.arrived_at <= :windowEnd
                 """).setParameter("appointmentId", appointmentId).setParameter("patientProfileId", patientProfileId)
                 .setParameter("windowStart", windowStart).setParameter("windowEnd", windowEnd).getResultList();
     }

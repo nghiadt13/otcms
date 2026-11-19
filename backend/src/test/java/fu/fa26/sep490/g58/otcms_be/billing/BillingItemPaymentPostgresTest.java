@@ -158,9 +158,9 @@ class BillingItemPaymentPostgresTest extends HoldBillingTestSupport {
     void moneyTakenBeforePaymentWasPerItemBlocksTheInvoiceInsteadOfBeingCollectedTwice() {
         Fixture f = threeItems();
         jdbc.update("insert into payment_attempts (id, invoice_id, channel, counter_method, amount, currency_code, status, "
-                + "created_by_account_id, idempotency_key, request_fingerprint, confirmed_at) values "
-                + "(?, ?, 'COUNTER', 'CASH', 50000, 'VND', 'CONFIRMED', ?, ?, ?, now())",
-                UUID.randomUUID(), f.invoiceId(), receptionistAccountId, "legacy-" + UUID.randomUUID(), "0".repeat(64));
+                + "created_by_account_id, confirmed_at) values "
+                + "(?, ?, 'COUNTER', 'CASH', 50000, 'VND', 'CONFIRMED', ?, now())",
+                UUID.randomUUID(), f.invoiceId(), receptionistAccountId);
         assertEquals("MSG-49", code(() -> cash(f, f.i0())));
     }
 

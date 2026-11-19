@@ -1,14 +1,19 @@
 package fu.fa26.sep490.g58.otcms_be.clinical.service.impl;
 
+import fu.fa26.sep490.g58.otcms_be.clinical.model.entity.ClinicalOrderingRoundJpaEntity;
 import fu.fa26.sep490.g58.otcms_be.clinical.model.entity.ServiceOrderJpaEntity;
+import fu.fa26.sep490.g58.otcms_be.clinical.repository.ClinicalOrderingRoundRepository;
 import fu.fa26.sep490.g58.otcms_be.clinical.repository.ServiceOrderRepository;
 import fu.fa26.sep490.g58.otcms_be.clinical.service.ClinicServiceCatalogPort;
 import fu.fa26.sep490.g58.otcms_be.clinical.service.ClinicalOrderingService;
+import fu.fa26.sep490.g58.otcms_be.common.idempotency.IdempotencyScope;
+import fu.fa26.sep490.g58.otcms_be.common.idempotency.IdempotencyStore;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -19,17 +24,21 @@ public class ClinicalOrderingTransactionService {
             ClinicServiceCatalogPort.ClinicalServiceSnapshot service) { }
 
     private final ServiceOrderRepository orders;
+    private final ClinicalOrderingRoundRepository rounds;
     private final Clock clock;
     private final fu.fa26.sep490.g58.otcms_be.common.service.CoordinationGuardService guard;
     private final ClinicalOrderPreparationService preparation;
+    private final IdempotencyStore store;
 
-    public ClinicalOrderingTransactionService(ServiceOrderRepository orders, Clock clock,
+    public ClinicalOrderingTransactionService(ServiceOrderRepository orders, ClinicalOrderingRoundRepository rounds, Clock clock,
             fu.fa26.sep490.g58.otcms_be.common.service.CoordinationGuardService guard,
-            ClinicalOrderPreparationService preparation) {
+            ClinicalOrderPreparationService preparation, IdempotencyStore store) {
         this.orders = orders;
+        this.rounds = rounds;
         this.clock = clock;
         this.guard = guard;
         this.preparation = preparation;
+        this.store = store;
     }
 
     @Transactional
@@ -47,21 +56,24 @@ public class ClinicalOrderingTransactionService {
         if (!patientId.equals(context.patientId())) {
             throw new fu.fa26.sep490.g58.otcms_be.clinical.exception.ClinicalOperationException("MSG-39");
         }
-        int roundNumber = orders.findTopByVisitIdAndRoundHeadTrueOrderByRoundNumberDesc(visitId)
+        int roundNumber = rounds.findTopByVisitIdOrderByRoundNumberDesc(visitId)
                 .map(previous -> previous.getRoundNumber() + 1).orElse(1);
         Instant now = clock.instant().truncatedTo(java.time.temporal.ChronoUnit.MICROS);
         UUID roundId = UUID.randomUUID();
+        if (submitKey != null && !store.record(IdempotencyScope.ORDER_ROUND_SUBMIT, doctorId, submitKey, submitFingerprint, roundId)) {
+            // A concurrent request committed this key first: roll back, and the caller replays that round.
+            throw new DuplicateKeyException("ORDER_ROUND_SUBMIT key already recorded");
+        }
+        rounds.save(new ClinicalOrderingRoundJpaEntity(roundId, visitId, roundNumber, doctorId, now));
         var savedOrders = new ArrayList<ServiceOrderJpaEntity>();
-        boolean head = true;
         for (var snapshot : snapshots) {
             var request = snapshot.request();
             var service = snapshot.service();
-            savedOrders.add(orders.save(new ServiceOrderJpaEntity(newOrderCode(), roundId, roundNumber, head,
-                    head ? submitKey : null, head ? submitFingerprint : null, visitId,
+            savedOrders.add(orders.save(new ServiceOrderJpaEntity(newOrderCode(), roundId,
+                    visitId,
                     patientId, service.serviceId(), service.name(), service.type(), doctorId,
                     request.clinicalReason(), request.bodyArea(), request.instructions(),
                     service.currentPrice(), now)));
-            head = false;
         }
         var views = savedOrders.stream().map(order -> new ClinicalOrderingService.OrderView(
                 order.getId(), order.getOrderCode(), order.getVisitId(), order.getPatientId(),

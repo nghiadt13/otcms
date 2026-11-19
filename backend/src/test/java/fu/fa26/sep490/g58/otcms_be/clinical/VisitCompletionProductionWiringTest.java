@@ -49,7 +49,7 @@ class VisitCompletionProductionWiringTest {
                 ClinicalVisitCompletionEvidenceServiceImpl.class, DiagnosticVisitCompletionEvidenceServiceImpl.class,
                 WalkInVisitLifecycleServiceImpl.class); context.refresh();
         when(bean(AccountRepository.class).existsByIdAndAccountTypeAndStatus(eq(actor), eq(AccountType.RECEPTIONIST), any())).thenReturn(true);
-        when(bean(ClinicVisitJpaRepository.class).findByIdForUpdate(visit)).thenReturn(Optional.of(ClinicVisitJpaEntity.walkIn(visit, patient, null, actor, now, null, null)));
+        when(bean(ClinicVisitJpaRepository.class).findByIdForUpdate(visit)).thenReturn(Optional.of(ClinicVisitJpaEntity.walkIn(visit, patient, null, actor, now)));
         when(bean(WalkInVisitLifecycleRepository.class).closeOpenVisit(eq(visit), any())).thenReturn(true);
         when(bean(VisitExamQueueService.class).find(visit)).thenReturn(Optional.of(new fu.fa26.sep490.g58.otcms_be.visit.model.ExamQueueEntry(visit, doctor, null, null, 1, fu.fa26.sep490.g58.otcms_be.visit.model.VisitExamStatus.IN_EXAMINATION, now.atZone(java.time.ZoneOffset.UTC).toLocalDate(), now, null, null, null)));
         when(bean(VisitReviewSourceService.class).find(visit)).thenReturn(Optional.empty());

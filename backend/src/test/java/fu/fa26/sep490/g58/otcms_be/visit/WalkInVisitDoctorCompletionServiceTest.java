@@ -83,7 +83,7 @@ class WalkInVisitDoctorCompletionServiceTest {
         when(booking.clinicTimeZone()).thenReturn(java.time.ZoneId.of("Asia/Ho_Chi_Minh"));
         when(doctorProfiles.findDoctorProfileId(doctorAccount)).thenReturn(Optional.of(doctorProfile));
         when(visits.findByIdForUpdate(visitId)).thenReturn(Optional.of(
-                ClinicVisitJpaEntity.walkIn(visitId, patient, null, doctorAccount, now, null, null)));
+                ClinicVisitJpaEntity.walkIn(visitId, patient, null, doctorAccount, now)));
         when(examQueue.find(visitId)).thenReturn(Optional.of(entry(doctorProfile, VisitExamStatus.IN_EXAMINATION)));
         when(clinical.getCompletionEvidence(visitId)).thenReturn(evidence(true));
         when(lifecycle.closeOpenVisit(visitId, now)).thenReturn(true);
@@ -154,7 +154,7 @@ class WalkInVisitDoctorCompletionServiceTest {
     @Test
     void awaitingVisitCanBeCompletedOnDaySeven() {
         when(visits.findByIdForUpdate(visitId)).thenReturn(Optional.of(
-                ClinicVisitJpaEntity.walkIn(visitId, patient, null, doctorAccount, now.minusSeconds(6 * 86400L), null, null)));
+                ClinicVisitJpaEntity.walkIn(visitId, patient, null, doctorAccount, now.minusSeconds(6 * 86400L))));
         when(examQueue.find(visitId)).thenReturn(Optional.of(entry(doctorProfile, VisitExamStatus.AWAITING_CONCLUSION)));
         assertEquals(VisitExamStatus.COMPLETED,
                 service.completeWalkIn(visitId, doctorAccount, AccountRole.DOCTOR, "corr-complete").examStatus());
@@ -162,7 +162,7 @@ class WalkInVisitDoctorCompletionServiceTest {
     @Test
     void expiredAwaitingVisitCannotBeCompletedBeforeSweep() {
         when(visits.findByIdForUpdate(visitId)).thenReturn(Optional.of(
-                ClinicVisitJpaEntity.walkIn(visitId, patient, null, doctorAccount, now.minusSeconds(7 * 86400L), null, null)));
+                ClinicVisitJpaEntity.walkIn(visitId, patient, null, doctorAccount, now.minusSeconds(7 * 86400L))));
         when(examQueue.find(visitId)).thenReturn(Optional.of(entry(doctorProfile, VisitExamStatus.AWAITING_CONCLUSION)));
         var failure = assertThrows(VisitOperationException.class, () ->
                 service.completeWalkIn(visitId, doctorAccount, AccountRole.DOCTOR, "corr-complete"));

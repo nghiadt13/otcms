@@ -1,5 +1,7 @@
 package fu.fa26.sep490.g58.otcms_be.imaging.service.impl;
 
+import fu.fa26.sep490.g58.otcms_be.common.idempotency.IdempotencyScope;
+import fu.fa26.sep490.g58.otcms_be.common.idempotency.IdempotencyStore;
 import fu.fa26.sep490.g58.otcms_be.imaging.exception.ImagingOperationException;
 import fu.fa26.sep490.g58.otcms_be.imaging.exception.ImagingOperationOutcome;
 import fu.fa26.sep490.g58.otcms_be.imaging.model.ImagingDicomStudyValidation;
@@ -18,9 +20,11 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class ImagingIngestOperationPersistenceService {
     private final ImagingStudyRepository studies;
+    private final IdempotencyStore idempotency;
 
-    public ImagingIngestOperationPersistenceService(ImagingStudyRepository studies) {
+    public ImagingIngestOperationPersistenceService(ImagingStudyRepository studies, IdempotencyStore idempotency) {
         this.studies = studies;
+        this.idempotency = idempotency;
     }
 
     @Transactional(readOnly = true)
@@ -37,7 +41,13 @@ public class ImagingIngestOperationPersistenceService {
 
     @Transactional
     public void insert(ImagingOperationRecord operation) {
-        studies.saveAndFlush(new ImagingStudyJpaEntity(operation, operation.id().toString()));
+        String scopedKey = ImagingUploadRegistrationService.uploadKey(operation.requestId(), operation.attemptId(),
+                operation.id().toString());
+        if (!idempotency.record(IdempotencyScope.IMAGING_UPLOAD, operation.actorAccountId(), scopedKey,
+                operation.payloadSha256(), operation.id(), operation.createdAt())) {
+            throw new ImagingOperationException(ImagingOperationOutcome.IDEMPOTENCY_CONFLICT);
+        }
+        studies.saveAndFlush(new ImagingStudyJpaEntity(operation));
     }
 
     @Transactional

@@ -14,6 +14,9 @@ import fu.fa26.sep490.g58.otcms_be.billing.repository.*;
 import fu.fa26.sep490.g58.otcms_be.billing.service.*;
 import fu.fa26.sep490.g58.otcms_be.billing.service.impl.*;
 import fu.fa26.sep490.g58.otcms_be.common.security.*;
+import fu.fa26.sep490.g58.otcms_be.common.idempotency.IdempotencyReplay;
+import fu.fa26.sep490.g58.otcms_be.common.idempotency.IdempotencyScope;
+import fu.fa26.sep490.g58.otcms_be.common.idempotency.IdempotencyStore;
 import fu.fa26.sep490.g58.otcms_be.appointment.service.AppointmentBillingSourceService;
 import fu.fa26.sep490.g58.otcms_be.visit.service.VisitBillingSourceService;
 import fu.fa26.sep490.g58.otcms_be.servicecatalog.service.ClinicServiceBookingQueryService;
@@ -28,6 +31,7 @@ import fu.fa26.sep490.g58.otcms_be.clinical.integration.billing.ClinicalRoundBil
 import fu.fa26.sep490.g58.otcms_be.clinical.model.ClinicalServiceType;
 import fu.fa26.sep490.g58.otcms_be.clinical.model.ServiceOrderPaymentStatus;
 import fu.fa26.sep490.g58.otcms_be.clinical.model.entity.ServiceOrderJpaEntity;
+import fu.fa26.sep490.g58.otcms_be.clinical.repository.ClinicalOrderingRoundRepository;
 import fu.fa26.sep490.g58.otcms_be.clinical.repository.ServiceOrderRepository;
 import fu.fa26.sep490.g58.otcms_be.common.service.CoordinationGuardService;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -50,6 +54,8 @@ class ClinicalRoundBillingTest {
     final Map<UUID, InvoiceJpaEntity> invoiceRows = new HashMap<>();
     final Map<UUID, List<InvoiceItemJpaEntity>> itemRows = new HashMap<>();
     final Map<UUID, PaymentAttemptJpaEntity> paymentRows = new HashMap<>();
+    final IdempotencyStore idempotency = mock(IdempotencyStore.class);
+    final Map<String, IdempotencyReplay> idempotencyRows = new HashMap<>();
     final AppointmentBillingSourceService appointmentSources = mock(AppointmentBillingSourceService.class);
     InvoiceService invoiceService; PaymentService paymentService;
     InvoiceSettlementSupport settlementSupport(ClinicalRoundBillingPort clinicalPort) {
@@ -68,7 +74,7 @@ class ClinicalRoundBillingTest {
         invoiceService = new InvoiceServiceImpl(invoices, items, attempts, mock(AppointmentBillingSourceService.class),
                 visits, catalog, authorization, new BillingMapper(), tx, clock, clinical);
         paymentService = new PaymentServiceImpl(invoices, attempts, audit, new PaymentGatewayRegistry(List.of(gateway)),
-                authorization, new BillingMapper(), tx, clock, support);
+                authorization, new BillingMapper(), tx, clock, support, idempotency);
         when(clinical.requirePayableRound(roundId)).thenReturn(new ClinicalRoundBillingPort.ClinicalRoundBillingSource(roundId, visitId, patient,
                 List.of(new ClinicalRoundBillingPort.PayableOrder(UUID.randomUUID(), serviceId, "Snapshot X-ray", new BigDecimal("150000")),
                         new ClinicalRoundBillingPort.PayableOrder(UUID.randomUUID(), serviceId, "Snapshot MRI", new BigDecimal("350000")))));
@@ -87,8 +93,12 @@ class ClinicalRoundBillingTest {
         when(attempts.save(any())).thenAnswer(call -> call.getArgument(0));
         when(attempts.findById(any())).thenAnswer(call -> Optional.ofNullable(paymentRows.get(call.getArgument(0))));
         when(attempts.findFirstByProviderOrderCode(anyLong())).thenAnswer(call -> paymentRows.values().stream().filter(row -> Objects.equals(row.getProviderOrderCode(), call.getArgument(0))).findFirst());
-        when(attempts.findFirstByCreatedByAccountIdAndIdempotencyKey(any(), any())).thenAnswer(call -> paymentRows.values().stream()
-                .filter(row -> row.getCreatedByAccountId().equals(call.getArgument(0)) && row.getIdempotencyKey().equals(call.getArgument(1))).findFirst());
+        // In-memory idempotency_records: one row per scope + owner + key; the first writer wins (record returns false after that).
+        when(idempotency.find(eq(IdempotencyScope.PAYMENT_ATTEMPT), any(), any())).thenAnswer(call ->
+                Optional.ofNullable(idempotencyRows.get(call.getArgument(1) + "|" + call.getArgument(2))));
+        when(idempotency.record(eq(IdempotencyScope.PAYMENT_ATTEMPT), any(), any(), any(), any())).thenAnswer(call ->
+                idempotencyRows.putIfAbsent(call.getArgument(1) + "|" + call.getArgument(2),
+                        new IdempotencyReplay(call.getArgument(3), call.getArgument(4), clock.instant())) == null);
         when(attempts.sumByInvoiceAndStatus(any(), eq(PaymentAttemptStatus.CONFIRMED))).thenAnswer(call -> paymentRows.values().stream()
                 .filter(row -> row.getInvoiceId().equals(call.getArgument(0)) && row.getStatus() == PaymentAttemptStatus.CONFIRMED)
                 .map(PaymentAttemptJpaEntity::getAmount).reduce(BigDecimal.ZERO, BigDecimal::add));
@@ -122,8 +132,16 @@ class ClinicalRoundBillingTest {
         assertEquals(full.id(), paymentService.recordCounterPayment(id, new CounterPaymentRequest(List.of(itemRows.get(id).get(1).getId()), "CASH"), receptionist, "remaining").id());
         verify(clinical, times(1)).markRoundPaid(roundId);
     }
+    @Test void sameIdempotencyKeyForAnotherRequestIsRefusedWithoutASecondPayment() {
+        UUID id = invoiceService.createForClinicalRound(roundId, receptionist).id();
+        paymentService.recordCounterPayment(id, new CounterPaymentRequest(List.of(itemRows.get(id).get(0).getId()), "CASH"), receptionist, "reused");
+        var conflict = assertThrows(BillingException.class, () -> paymentService.recordCounterPayment(id,
+                new CounterPaymentRequest(List.of(itemRows.get(id).get(1).getId()), "CASH"), receptionist, "reused"));
+        assertEquals("IDEMPOTENCY_CONFLICT", conflict.code());
+        assertEquals(1, paymentRows.size());
+    }
     PaymentAttemptJpaEntity online(UUID invoiceId) {
-        var row = PaymentAttemptJpaEntity.pendingOnline(UUID.randomUUID(), invoiceId, new BigDecimal("500000"), receptionist.accountId(), "online", "hash", 123L);
+        var row = PaymentAttemptJpaEntity.pendingOnline(UUID.randomUUID(), invoiceId, new BigDecimal("500000"), receptionist.accountId(), 123L);
         itemRows.getOrDefault(invoiceId, List.of()).forEach(item -> item.setPaymentAttemptId(row.getId()));
         paymentRows.put(row.getId(), row); return row;
     }
@@ -142,18 +160,19 @@ class ClinicalRoundBillingTest {
     /** Persistence probe distinguishes managed mutations from writes flushed by the owning service. */
     private final class ClinicalSettlementOwner {
         final ServiceOrderRepository orders = mock(ServiceOrderRepository.class);
+        final ClinicalOrderingRoundRepository rounds = mock(ClinicalOrderingRoundRepository.class);
         final CoordinationGuardService guard = mock(CoordinationGuardService.class);
         final ServiceOrderJpaEntity first = order("FIRST", "150000");
         final ServiceOrderJpaEntity second = order("SECOND", "350000");
         final ServiceOrderJpaEntity cancelled = order("CANCELLED", "990000");
         final List<ServiceOrderJpaEntity> rows = List.of(first, second, cancelled);
         final Map<UUID, ServiceOrderPaymentStatus> flushedPayments = new HashMap<>();
-        final ClinicalRoundBillingAdapter adapter = new ClinicalRoundBillingAdapter(orders, guard, clock);
+        final ClinicalRoundBillingAdapter adapter = new ClinicalRoundBillingAdapter(orders, rounds, guard, clock);
 
         ClinicalSettlementOwner() {
             cancelled.cancel("Declined", clock.instant());
             rows.forEach(row -> flushedPayments.put(row.getId(), row.getPaymentStatus()));
-            when(orders.findFirstByOrderingRoundIdAndRoundHeadTrue(roundId)).thenReturn(Optional.of(first));
+            when(rounds.existsById(roundId)).thenReturn(true);
             when(orders.findByOrderingRoundId(roundId)).thenReturn(rows);
             when(orders.saveAllAndFlush(anyList())).thenAnswer(call -> {
                 List<ServiceOrderJpaEntity> submitted = call.getArgument(0);
@@ -161,7 +180,7 @@ class ClinicalRoundBillingTest {
                 return submitted;
             });
             paymentService = new PaymentServiceImpl(invoices, attempts, audit, new PaymentGatewayRegistry(List.of(gateway)),
-                    authorization, new BillingMapper(), tx, clock, settlementSupport(adapter));
+                    authorization, new BillingMapper(), tx, clock, settlementSupport(adapter), idempotency);
         }
         ServiceOrderJpaEntity order(String code, String price) {
             return new ServiceOrderJpaEntity(code, roundId, visitId, patient, serviceId, "Snapshot " + code,
@@ -218,7 +237,7 @@ class ClinicalRoundBillingTest {
         owner.adapter.markRoundPaid(roundId);
         Instant updated = owner.first.getUpdatedAt();
         Instant cancelledUpdated = owner.cancelled.getUpdatedAt();
-        new ClinicalRoundBillingAdapter(owner.orders, owner.guard, Clock.offset(clock, Duration.ofMinutes(1)))
+        new ClinicalRoundBillingAdapter(owner.orders, owner.rounds, owner.guard, Clock.offset(clock, Duration.ofMinutes(1)))
                 .markRoundPaid(roundId);
         assertEquals(updated, owner.first.getUpdatedAt());
         assertEquals(cancelledUpdated, owner.cancelled.getUpdatedAt());

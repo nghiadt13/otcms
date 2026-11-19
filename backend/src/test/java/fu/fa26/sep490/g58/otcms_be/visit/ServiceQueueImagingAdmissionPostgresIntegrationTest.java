@@ -55,7 +55,7 @@ class ServiceQueueImagingAdmissionPostgresIntegrationTest {
         serviceQueue.admitPaidOrder(f.order);
 
         assertEquals(f.room, jdbc.queryForObject("select room_id from clinical_service_orders where id = ?", UUID.class, f.order));
-        assertEquals("PENDING", jdbc.queryForObject("select execution_status from clinical_service_orders where id = ?", String.class, f.order));
+        assertEquals("PENDING", jdbc.queryForObject("select execution_status from imaging_order_executions where service_order_id = ?", String.class, f.order));
         assertEquals("PAID", jdbc.queryForObject("select payment_status from clinical_service_orders where id = ?", String.class, f.order));
         assertEquals(1, jdbc.queryForObject("select count(*) from queue_entries where service_order_id = ? and stage = 'SERVICE' and status = 'WAITING' and room_id = ?", Integer.class, f.order, f.room));
 
@@ -67,7 +67,7 @@ class ServiceQueueImagingAdmissionPostgresIntegrationTest {
         assertEquals("CALLED", machine.callNext(f.room, "SERVICE", actor).status());
         assertNotNull(acquisition.start(f.technician(), f.order));
         assertEquals("IN_EXAMINATION", jdbc.queryForObject("select status from queue_entries where service_order_id = ?", String.class, f.order));
-        assertEquals("IN_PROGRESS", jdbc.queryForObject("select execution_status from clinical_service_orders where id = ?", String.class, f.order));
+        assertEquals("IN_PROGRESS", jdbc.queryForObject("select execution_status from imaging_order_executions where service_order_id = ?", String.class, f.order));
     }
 
     @Test void technicianCannotStartAnOrderWhoseFeeIsNotPaid() {
@@ -80,7 +80,7 @@ class ServiceQueueImagingAdmissionPostgresIntegrationTest {
         when(billing.isServiceOrderPaid(f.order)).thenReturn(false);
         var unpaid = assertThrows(DiagnosticOperationException.class, () -> acquisition.start(f.technician(), f.order));
         assertEquals(DiagnosticOperationOutcome.ORDER_NOT_PAID, unpaid.outcome());
-        assertEquals("PENDING", jdbc.queryForObject("select execution_status from clinical_service_orders where id = ?", String.class, f.order));
+        assertEquals("PENDING", jdbc.queryForObject("select execution_status from imaging_order_executions where service_order_id = ?", String.class, f.order));
     }
 
     @Test void cannotPerformLeavesTheQueueAndKeepsTheOrderForTheDoctor() {
@@ -89,7 +89,7 @@ class ServiceQueueImagingAdmissionPostgresIntegrationTest {
         serviceQueue.admitPaidOrder(f.order);
         acquisition.reportCannotPerform(f.technician(), f.order, "Bệnh nhân có kim loại trong người");
         assertEquals("CANCELLED", jdbc.queryForObject("select status from queue_entries where service_order_id = ?", String.class, f.order));
-        assertEquals("PENDING", jdbc.queryForObject("select execution_status from clinical_service_orders where id = ?", String.class, f.order));
+        assertEquals("PENDING", jdbc.queryForObject("select execution_status from imaging_order_executions where service_order_id = ?", String.class, f.order));
         assertEquals("ORDERED", jdbc.queryForObject("select order_status from clinical_service_orders where id = ?", String.class, f.order));
     }
 
@@ -120,8 +120,11 @@ class ServiceQueueImagingAdmissionPostgresIntegrationTest {
         jdbc.update("insert into visit_assignments (id, visit_id, doctor_profile_id, starts_at, ends_at, status) values (?, ?, ?, ?, ?, 'IN_PROGRESS')",
                 UUID.randomUUID(), visit, doctor, Timestamp.from(now), Timestamp.from(now.plusSeconds(1800)));
         Timestamp at = Timestamp.from(now);
-        jdbc.update("insert into clinical_service_orders (id, order_code, ordering_round_id, round_number, ordered_at, round_head, visit_id, patient_id, service_id, service_name_snapshot, service_type, requesting_doctor_id, clinical_reason, body_area, price_snapshot, order_status, payment_status, created_at, updated_at) values (?, ?, ?, 1, ?, true, ?, ?, ?, 'MRI knee', 'IMAGING', ?, 'Knee pain', 'Knee', 100, 'ORDERED', 'PENDING_PAYMENT', ?, ?)",
-                order, "O-" + order.toString().substring(0, 8), UUID.randomUUID(), at, visit, patient, service, doctor, at, at);
+        UUID round = UUID.randomUUID();
+        jdbc.update("insert into clinical_ordering_rounds (id, visit_id, round_number, ordered_by_doctor_id, ordered_at, created_at) values (?, ?, 1, ?, ?, ?)",
+                round, visit, doctor, at, at);
+        jdbc.update("insert into clinical_service_orders (id, order_code, ordering_round_id, visit_id, patient_id, service_id, service_name_snapshot, service_type, requesting_doctor_id, clinical_reason, body_area, price_snapshot, order_status, payment_status, created_at, updated_at) values (?, ?, ?, ?, ?, ?, 'MRI knee', 'IMAGING', ?, 'Knee pain', 'Knee', 100, 'ORDERED', 'PENDING_PAYMENT', ?, ?)",
+                order, "O-" + order.toString().substring(0, 8), round, visit, patient, service, doctor, at, at);
         return new Fx(order, room, techAccount);
     }
 

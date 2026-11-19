@@ -21,25 +21,36 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Native SQL on {@code clinical_service_orders} for the imaging execution columns (see the port). Pending JPA
- * changes are flushed before each write so a managed ServiceOrderJpaEntity and these UPDATEs never interleave
- * out of order; {@code version} is never changed here (it belongs to that entity).
+ * Native SQL on {@code imaging_order_executions} (reads join {@code clinical_service_orders}; see the port). Pending JPA
+ * changes are flushed before each write so a managed ServiceOrderJpaEntity and these UPDATEs never interleave out of
+ * order. {@code version} here is the execution's lock, changed only by the guarded writes below; the order's JPA
+ * version is never changed here.
  */
 @Repository
 @Transactional(propagation = Propagation.MANDATORY)
 public class ClinicalServiceOrderExecutionRepository {
+    /** Review, cancel and transfer replay keys are read from idempotency_records (latest record per order). */
     private static final String COLUMNS = """
-            select o.id, o.visit_id, o.patient_id, o.ordering_doctor_account_id, o.service_id, o.room_id,
-                   o.imaging_type, o.body_area, o.clinical_reason, o.execution_status, o.cancellation_cause,
-                   o.cancellation_reason, o.attempt_id, o.technician_account_id, o.first_use_type,
-                   o.first_use_event_id, o.first_use_at, o.first_use_source_id, o.study_ref,
-                   o.review_idempotency_key, o.review_fingerprint, o.cancel_idempotency_key, o.cancel_fingerprint,
-                   o.transfer_idempotency_key, o.transfer_fingerprint, o.execution_version,
-                   o.execution_created_at as created_at, o.execution_updated_at as updated_at
+            select o.id, o.visit_id, o.patient_id, e.ordering_doctor_account_id, o.service_id, o.room_id,
+                   e.imaging_type, o.body_area, o.clinical_reason, e.execution_status, e.cancellation_cause,
+                   e.cancellation_reason, e.attempt_id, e.technician_account_id, e.first_use_type,
+                   e.first_use_event_id, e.first_use_at, e.first_use_source_id, e.study_ref,
+                   review_rec.idempotency_key as review_idempotency_key, review_rec.request_fingerprint as review_fingerprint,
+                   cancel_rec.idempotency_key as cancel_idempotency_key, cancel_rec.request_fingerprint as cancel_fingerprint,
+                   transfer_rec.idempotency_key as transfer_idempotency_key, transfer_rec.request_fingerprint as transfer_fingerprint,
+                   e.version as execution_version,
+                   e.created_at as created_at, e.updated_at as updated_at
             from clinical_service_orders o
-            where o.execution_status is not null
+            join imaging_order_executions e on e.service_order_id = o.id
+            left join lateral (select r.idempotency_key, r.request_fingerprint from idempotency_records r
+                    where r.scope = 'ORDER_REVIEW' and r.owner_id = o.id order by r.created_at desc limit 1) review_rec on true
+            left join lateral (select r.idempotency_key, r.request_fingerprint from idempotency_records r
+                    where r.scope = 'ORDER_CANCEL' and r.owner_id = o.id order by r.created_at desc limit 1) cancel_rec on true
+            left join lateral (select r.idempotency_key, r.request_fingerprint from idempotency_records r
+                    where r.scope = 'ORDER_TRANSFER' and r.owner_id = o.id order by r.created_at desc limit 1) transfer_rec on true
+            where e.service_order_id is not null
             """;
-    private static final String NEWEST_FIRST = " order by o.execution_created_at desc, o.id desc";
+    private static final String NEWEST_FIRST = " order by e.created_at desc, o.id desc";
 
     private final EntityManager entityManager;
 
@@ -55,15 +66,15 @@ public class ClinicalServiceOrderExecutionRepository {
 
     public Optional<ClinicalImagingExecutionRow> findForUpdate(UUID orderId) {
         entityManager.flush();
-        return single(query(COLUMNS + " and o.id = :id for update").setParameter("id", orderId));
+        return single(query(COLUMNS + " and o.id = :id for update of o, e").setParameter("id", orderId));
     }
 
     public Optional<ClinicalImagingExecutionRow> findByStudyRef(String studyRef) {
-        return single(query(COLUMNS + " and o.study_ref = :studyRef").setParameter("studyRef", studyRef));
+        return single(query(COLUMNS + " and e.study_ref = :studyRef").setParameter("studyRef", studyRef));
     }
 
     public Optional<ClinicalImagingExecutionRow> findByFirstUseEventId(UUID firstUseEventId) {
-        return single(query(COLUMNS + " and o.first_use_event_id = :eventId")
+        return single(query(COLUMNS + " and e.first_use_event_id = :eventId")
                 .setParameter("eventId", firstUseEventId));
     }
 
@@ -86,13 +97,14 @@ public class ClinicalServiceOrderExecutionRepository {
         StringBuilder where = new StringBuilder();
         if (visitId != null) where.append(" and o.visit_id = :visitId");
         if (patientId != null) where.append(" and o.patient_id = :patientId");
-        if (orderingDoctorAccountId != null) where.append(" and o.ordering_doctor_account_id = :doctorId");
+        if (orderingDoctorAccountId != null) where.append(" and e.ordering_doctor_account_id = :doctorId");
         if (roomId != null) where.append(" and o.room_id = :roomId");
-        if (statuses != null && !statuses.isEmpty()) where.append(" and o.execution_status in (:statuses)");
-        String order = oldestFirst ? " order by o.execution_created_at asc, o.id asc" : NEWEST_FIRST;
+        if (statuses != null && !statuses.isEmpty()) where.append(" and e.execution_status in (:statuses)");
+        String order = oldestFirst ? " order by e.created_at asc, o.id asc" : NEWEST_FIRST;
         Query rows = query(COLUMNS + where + order);
         Query count = entityManager.createNativeQuery(
-                "select count(*) from clinical_service_orders o where o.execution_status is not null" + where);
+                "select count(*) from clinical_service_orders o join imaging_order_executions e on e.service_order_id = o.id"
+                        + " where e.service_order_id is not null" + where);
         for (Query q : List.of(rows, count)) {
             if (visitId != null) q.setParameter("visitId", visitId);
             if (patientId != null) q.setParameter("patientId", patientId);
@@ -110,36 +122,48 @@ public class ClinicalServiceOrderExecutionRepository {
     }
 
     public List<ClinicalImagingExecutionRow> findPendingCreatedBefore(Instant createdBefore) {
-        return list(query(COLUMNS + " and o.execution_status = 'PENDING' and o.execution_created_at < :before"
-                + " order by o.execution_created_at asc").setParameter("before", Timestamp.from(createdBefore)));
+        return list(query(COLUMNS + " and e.execution_status = 'PENDING' and e.created_at < :before"
+                + " order by e.created_at asc").setParameter("before", Timestamp.from(createdBefore)));
     }
 
     // ---- guarded writes --------------------------------------------------------------------------------------
 
+    /**
+     * Dispatch, in this transaction: the order row takes the room (guard: paid, open imaging order with no execution
+     * row yet), then the execution row is inserted. Returns 1 only when both happened. Returns 0 with nothing written
+     * when the order is not dispatchable or already has an execution.
+     */
     public int assignImagingRoom(UUID orderId, UUID visitId, UUID patientId, UUID serviceId, UUID roomId,
             String imagingType, UUID orderingDoctorAccountId) {
-        return update("""
-                update clinical_service_orders
-                   set execution_status = 'PENDING', room_id = :roomId, imaging_type = :imagingType,
-                       ordering_doctor_account_id = :doctorId,
-                       execution_created_at = clock_timestamp(), execution_updated_at = clock_timestamp()
-                 where id = :id and execution_status is null and service_type = 'IMAGING'
-                   and order_status = 'ORDERED' and payment_status = 'PAID'
+        lockOrder(orderId);
+        int assigned = update("""
+                update clinical_service_orders set room_id = :roomId
+                 where id = :id and service_type = 'IMAGING' and order_status = 'ORDERED' and payment_status = 'PAID'
                    and visit_id = :visitId and patient_id = :patientId and service_id = :serviceId
-                """, orderId, q -> q.setParameter("roomId", roomId).setParameter("imagingType", imagingType)
-                .setParameter("doctorId", orderingDoctorAccountId).setParameter("visitId", visitId)
+                   and not exists (select 1 from imaging_order_executions e where e.service_order_id = :id)
+                """, orderId, q -> q.setParameter("roomId", roomId).setParameter("visitId", visitId)
                 .setParameter("patientId", patientId).setParameter("serviceId", serviceId));
+        if (assigned == 0) return 0;
+        int created = update("""
+                insert into imaging_order_executions (service_order_id, imaging_type, ordering_doctor_account_id,
+                       execution_status, version, created_at, updated_at)
+                values (:id, :imagingType, cast(:doctorId as uuid), 'PENDING', 0, clock_timestamp(), clock_timestamp())
+                on conflict (service_order_id) do nothing
+                """, orderId, q -> q.setParameter("imagingType", imagingType)
+                .setParameter("doctorId", orderingDoctorAccountId));
+        if (created == 0) throw new IllegalStateException("imaging execution already exists for order " + orderId);
+        return created;
     }
 
     public int recordFirstUse(UUID orderId, long expectedVersion, UUID attemptId, UUID technicianAccountId,
             String firstUseType, UUID firstUseEventId, Instant firstUseAt, String firstUseSourceId) {
         return versioned("""
-                update clinical_service_orders
+                update imaging_order_executions
                    set execution_status = 'IN_PROGRESS', attempt_id = :attemptId,
                        technician_account_id = :technicianId, first_use_type = :type,
                        first_use_event_id = :eventId, first_use_at = :at, first_use_source_id = :sourceId,
-                       execution_version = execution_version + 1, execution_updated_at = clock_timestamp()
-                 where id = :id and execution_version = :expectedVersion
+                       version = version + 1, updated_at = clock_timestamp()
+                 where service_order_id = :id and version = :expectedVersion
                    and execution_status = 'PENDING' and attempt_id is null
                 """, orderId, expectedVersion, q -> q.setParameter("attemptId", attemptId)
                 .setParameter("technicianId", technicianAccountId).setParameter("type", firstUseType)
@@ -149,50 +173,64 @@ public class ClinicalServiceOrderExecutionRepository {
 
     public int linkStudy(UUID orderId, long expectedVersion, UUID attemptId, String studyRef) {
         return versioned("""
-                update clinical_service_orders
+                update imaging_order_executions
                    set execution_status = 'RESULT_AVAILABLE', study_ref = :studyRef,
-                       execution_version = execution_version + 1, execution_updated_at = clock_timestamp()
-                 where id = :id and execution_version = :expectedVersion
+                       version = version + 1, updated_at = clock_timestamp()
+                 where service_order_id = :id and version = :expectedVersion
                    and execution_status = 'IN_PROGRESS' and attempt_id = :attemptId and study_ref is null
                 """, orderId, expectedVersion,
                 q -> q.setParameter("attemptId", attemptId).setParameter("studyRef", studyRef));
     }
 
-    public int markReviewed(UUID orderId, long expectedVersion, String idempotencyKey, String fingerprint) {
+    public int markReviewed(UUID orderId, long expectedVersion) {
         return versioned("""
-                update clinical_service_orders
-                   set execution_status = 'REVIEWED', review_idempotency_key = :key, review_fingerprint = :fp,
-                       execution_version = execution_version + 1, execution_updated_at = clock_timestamp()
-                 where id = :id and execution_version = :expectedVersion
+                update imaging_order_executions
+                   set execution_status = 'REVIEWED',
+                       version = version + 1, updated_at = clock_timestamp()
+                 where service_order_id = :id and version = :expectedVersion
                    and execution_status = 'RESULT_AVAILABLE'
-                """, orderId, expectedVersion,
-                q -> q.setParameter("key", idempotencyKey).setParameter("fp", fingerprint));
+                """, orderId, expectedVersion, q -> { });
     }
 
-    public int cancel(UUID orderId, long expectedVersion, String cause, String reason, String idempotencyKey,
-            String fingerprint) {
+    public int cancel(UUID orderId, long expectedVersion, String cause, String reason) {
         return versioned("""
-                update clinical_service_orders
+                update imaging_order_executions
                    set execution_status = 'CANCELLED', cancellation_cause = :cause, cancellation_reason = :reason,
-                       cancel_idempotency_key = :key, cancel_fingerprint = :fp,
-                       execution_version = execution_version + 1, execution_updated_at = clock_timestamp()
-                 where id = :id and execution_version = :expectedVersion and execution_status = 'PENDING'
-                """, orderId, expectedVersion, q -> q.setParameter("cause", cause).setParameter("reason", reason)
-                .setParameter("key", idempotencyKey).setParameter("fp", fingerprint));
+                       version = version + 1, updated_at = clock_timestamp()
+                 where service_order_id = :id and version = :expectedVersion and execution_status = 'PENDING'
+                """, orderId, expectedVersion, q -> q.setParameter("cause", cause).setParameter("reason", reason));
     }
 
-    public int transferRoom(UUID orderId, long expectedVersion, UUID roomId, String idempotencyKey,
-            String fingerprint) {
-        return versioned("""
-                update clinical_service_orders
-                   set room_id = :roomId, transfer_idempotency_key = :key, transfer_fingerprint = :fp,
-                       execution_version = execution_version + 1, execution_updated_at = clock_timestamp()
-                 where id = :id and execution_version = :expectedVersion and execution_status = 'PENDING'
-                """, orderId, expectedVersion, q -> q.setParameter("roomId", roomId)
-                .setParameter("key", idempotencyKey).setParameter("fp", fingerprint));
+    /**
+     * Room move of a dispatched imaging order: the execution's version guard first (PENDING, expected version), then
+     * the order's room. Returns 1 only when both happened; 0 with nothing written otherwise.
+     */
+    public int transferRoom(UUID orderId, long expectedVersion, UUID roomId) {
+        lockOrder(orderId);
+        int moved = versioned("""
+                update imaging_order_executions
+                   set version = version + 1, updated_at = clock_timestamp()
+                 where service_order_id = :id and version = :expectedVersion and execution_status = 'PENDING'
+                """, orderId, expectedVersion, q -> { });
+        if (moved == 0) return 0;
+        if (update("update clinical_service_orders set room_id = :roomId where id = :id", orderId,
+                q -> q.setParameter("roomId", roomId)) != 1) {
+            throw new IllegalStateException("room not moved for order " + orderId);
+        }
+        return moved;
     }
 
     // ---- helpers ---------------------------------------------------------------------------------------------
+
+    /**
+     * Row lock on the order, taken before a write that depends on its execution row. It is held until commit, so the
+     * "no execution yet" check that follows sees a concurrent dispatch that committed first.
+     */
+    private void lockOrder(UUID orderId) {
+        entityManager.flush();
+        entityManager.createNativeQuery("select o.id from clinical_service_orders o where o.id = :id for update")
+                .setParameter("id", orderId).getResultList();
+    }
 
     private int versioned(String sql, UUID orderId, long expectedVersion,
             java.util.function.Consumer<Query> parameters) {
@@ -226,9 +264,9 @@ public class ClinicalServiceOrderExecutionRepository {
                     text(t, "cancellation_reason"), uuid(t, "attempt_id"), uuid(t, "technician_account_id"),
                     text(t, "first_use_type"), uuid(t, "first_use_event_id"), instant(t, "first_use_at"),
                     text(t, "first_use_source_id"), text(t, "study_ref"),
-                    text(t, "review_idempotency_key"), trimmed(t, "review_fingerprint"),
-                    text(t, "cancel_idempotency_key"), trimmed(t, "cancel_fingerprint"),
-                    text(t, "transfer_idempotency_key"), trimmed(t, "transfer_fingerprint"),
+                    text(t, "review_idempotency_key"), text(t, "review_fingerprint"),
+                    text(t, "cancel_idempotency_key"), text(t, "cancel_fingerprint"),
+                    text(t, "transfer_idempotency_key"), text(t, "transfer_fingerprint"),
                     ((Number) t.get("execution_version")).longValue(),
                     instant(t, "created_at"), instant(t, "updated_at")));
         }
@@ -243,12 +281,6 @@ public class ClinicalServiceOrderExecutionRepository {
     private static String text(Tuple t, String column) {
         Object value = t.get(column);
         return value == null ? null : value.toString();
-    }
-
-    /** Fingerprints are char(64); trim defensively so comparisons with Java hex strings stay exact. */
-    private static String trimmed(Tuple t, String column) {
-        String value = text(t, column);
-        return value == null ? null : value.trim();
     }
 
     private static Instant instant(Tuple t, String column) {

@@ -114,10 +114,6 @@ public interface ClinicVisitJpaRepository extends JpaRepository<ClinicVisitJpaEn
     @Query("select visit from ClinicVisitJpaEntity visit where visit.id = :visitId")
     Optional<ClinicVisitJpaEntity> findByIdForUpdate(@Param("visitId") UUID visitId);
 
-    /** Walk-in replay lookup; same scope as uk_clinic_visits_walk_in_idempotency (creator, key). */
-    Optional<ClinicVisitJpaEntity> findByCreatedByAccountIdAndWalkInIdempotencyKey(UUID createdByAccountId,
-            String walkInIdempotencyKey);
-
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("update ClinicVisitJpaEntity v set v.imagingResultReadyAt = coalesce(v.imagingResultReadyAt, :at) "
             + "where v.id = :visitId and v.patientProfileId = :patientId")

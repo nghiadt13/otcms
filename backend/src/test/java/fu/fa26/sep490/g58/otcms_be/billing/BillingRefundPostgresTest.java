@@ -69,6 +69,7 @@ class BillingRefundPostgresTest extends HoldBillingTestSupport {
     void removeOrderFixture() {
         jdbc.update("update invoice_items set service_order_id = null where service_order_id = ?", orderId);
         jdbc.update("delete from clinical_service_orders where id = ?", orderId);
+        jdbc.update("delete from clinical_ordering_rounds where visit_id = ?", visitId);
         jdbc.update("delete from visits where id = ?", visitId);
     }
 
@@ -228,11 +229,14 @@ class BillingRefundPostgresTest extends HoldBillingTestSupport {
         jdbc.update("insert into visits (id, patient_profile_id, source, arrived_at, checked_in_at, created_by_account_id, status) "
                 + "values (?, ?, 'WALK_IN', ?, ?, ?, 'OPEN')", visitId, patientProfileId, Timestamp.from(now), Timestamp.from(now),
                 receptionistAccountId);
-        jdbc.update("insert into clinical_service_orders (id,order_code,ordering_round_id,round_number,ordered_at,round_head,visit_id,"
+        UUID round = UUID.randomUUID();
+        jdbc.update("insert into clinical_ordering_rounds (id,visit_id,round_number,ordered_by_doctor_id,ordered_at,created_at) "
+                + "values (?,?,1,?,now(),now())", round, visitId, doctorProfileId);
+        jdbc.update("insert into clinical_service_orders (id,order_code,ordering_round_id,visit_id,"
                 + "patient_id,service_id,service_name_snapshot,service_type,requesting_doctor_id,clinical_reason,body_area,price_snapshot,"
-                + "order_status,payment_status,cancel_reason,created_at,updated_at) values (?,?,?,1,now(),true,?,?,?,'Order snapshot',"
+                + "order_status,payment_status,cancel_reason,created_at,updated_at) values (?,?,?,?,?,?,'Order snapshot',"
                 + "'IMAGING',?,'Pain','KNEE',125000,'ORDERED','PENDING_PAYMENT',null,now(),now())",
-                orderId, "RF-" + orderId.toString().substring(0, 8), UUID.randomUUID(), visitId, patientProfileId, serviceId, doctorProfileId);
+                orderId, "RF-" + orderId.toString().substring(0, 8), round, visitId, patientProfileId, serviceId, doctorProfileId);
         jdbc.update("update invoice_items set service_order_id = ? where id = ?", orderId, itemId);
     }
 }

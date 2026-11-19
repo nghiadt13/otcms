@@ -71,7 +71,7 @@ class DoctorImagingReviewIntegrationTest {
         when(bean(StaffProfileRepository.class).findByAccountIdAndDoctorTrue(account)).thenReturn(Optional.of(profile));
         when(bean(AccountRepository.class).existsByIdAndAccountTypeAndStatus(eq(account), eq(AccountType.DOCTOR), any())).thenReturn(true);
         when(bean(ClinicVisitJpaRepository.class).findById(visit)).thenReturn(Optional.of(
-                ClinicVisitJpaEntity.walkIn(visit, patient, null, account, Instant.EPOCH, null, null)));
+                ClinicVisitJpaEntity.walkIn(visit, patient, null, account, Instant.EPOCH)));
         when(bean(ClinicVisitJpaRepository.class).markImagingResultReady(eq(visit), eq(patient), any())).thenAnswer(call -> {
             resultReadyAt.compareAndSet(null, call.getArgument(2)); return 1;
         });
@@ -114,19 +114,22 @@ class DoctorImagingReviewIntegrationTest {
                 });
         var reports = bean(DiagnosticReportJpaRepository.class);
         when(reports.saveAndFlush(any())).thenAnswer(call -> { var row = (DiagnosticReportJpaEntity) call.getArgument(0); reportRows.put(row.getId(), row); currentFindings = row; return row; });
+        when(reports.findById(any())).thenAnswer(call -> Optional.ofNullable(reportRows.get(call.getArgument(0))));
         when(reports.findByIdAndRequestId(any(), eq(requestId))).thenAnswer(call -> Optional.ofNullable(reportRows.get(call.getArgument(0))));
         when(reports.findByRequestIdAndReportVersion(eq(requestId), anyInt())).thenAnswer(call -> reportRows.values().stream()
                 .filter(row -> requestId.equals(row.getRequestId()) && row.getReportVersion() == call.<Integer>getArgument(1)).findFirst());
         when(reports.findFirstByRequestIdOrderByReportVersionDesc(requestId)).thenAnswer(call -> reportRows.values().stream()
                 .filter(row -> requestId.equals(row.getRequestId())).max(Comparator.comparingInt(DiagnosticReportJpaEntity::getReportVersion)));
-        when(reports.findByRequestIdAndDraftIdempotencyKey(eq(requestId), anyString())).thenAnswer(call -> reportRows.values().stream()
-                .filter(row -> requestId.equals(row.getRequestId()) && call.getArgument(1).equals(row.getDraftIdempotencyKey())).findFirst());
-        when(reports.findByRequestIdAndCorrectionIdempotencyKey(eq(requestId), anyString())).thenAnswer(call -> reportRows.values().stream()
-                .filter(row -> requestId.equals(row.getRequestId()) && call.getArgument(1).equals(row.getCorrectionIdempotencyKey())).findFirst());
-        when(reports.findByRequestIdAndUploadIdempotencyKey(eq(requestId), anyString())).thenAnswer(call -> reportRows.values().stream()
-                .filter(row -> requestId.equals(row.getRequestId()) && call.getArgument(1).equals(row.getUploadIdempotencyKey())).findFirst());
-        when(reports.findByRequestIdAndCompleteIdempotencyKey(eq(requestId), anyString())).thenAnswer(call -> reportRows.values().stream()
-                .filter(row -> requestId.equals(row.getRequestId()) && call.getArgument(1).equals(row.getCompleteIdempotencyKey())).findFirst());
+        var idempotencyRecords = new HashMap<String, fu.fa26.sep490.g58.otcms_be.common.idempotency.IdempotencyReplay>();
+        var idempotencyStore = bean(fu.fa26.sep490.g58.otcms_be.common.idempotency.IdempotencyStore.class);
+        when(idempotencyStore.find(any(), any(), any())).thenAnswer(call -> Optional.ofNullable(
+                idempotencyRecords.get(call.getArgument(0) + "|" + call.getArgument(1) + "|" + call.getArgument(2))));
+        when(idempotencyStore.record(any(), any(), any(), any(), any())).thenAnswer(call -> {
+            String recordKey = call.getArgument(0) + "|" + call.getArgument(1) + "|" + call.getArgument(2);
+            if (idempotencyRecords.containsKey(recordKey)) return false;
+            idempotencyRecords.put(recordKey, new fu.fa26.sep490.g58.otcms_be.common.idempotency.IdempotencyReplay(call.getArgument(3), call.getArgument(4), Instant.EPOCH));
+            return true;
+        });
         when(reports.findByReportIdAndRequestId(any(), eq(requestId))).thenAnswer(call -> reportRows.values().stream()
                 .filter(row -> requestId.equals(row.getRequestId()) && Objects.equals(call.getArgument(0), row.getReportId())).findFirst());
         var imaging = bean(ImagingStudyPort.class);
@@ -211,7 +214,7 @@ class DoctorImagingReviewIntegrationTest {
         assertEquals(ClinicalServiceOrderExecutionPort.ExecutionStatus.REVIEWED, executionStatus.get());
     }
     @Test void mismatchedPatientDeniedBeforeReview() {
-        when(bean(ClinicVisitJpaRepository.class).findById(visit)).thenReturn(Optional.of(ClinicVisitJpaEntity.walkIn(visit, UUID.randomUUID(), null, account, Instant.EPOCH, null, null)));
+        when(bean(ClinicVisitJpaRepository.class).findById(visit)).thenReturn(Optional.of(ClinicVisitJpaEntity.walkIn(visit, UUID.randomUUID(), null, account, Instant.EPOCH)));
         error(DiagnosticOperationOutcome.EVIDENCE_MISMATCH, this::review);
     }
     @Test void closedVisitCannotReview() {

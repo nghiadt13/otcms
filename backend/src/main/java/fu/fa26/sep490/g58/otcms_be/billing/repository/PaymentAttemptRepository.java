@@ -26,7 +26,6 @@ public interface PaymentAttemptRepository extends JpaRepository<PaymentAttemptJp
     Optional<PaymentAttemptJpaEntity> findFirstByInvoiceIdAndChannelAndStatusOrderByCreatedAtDesc(
             UUID invoiceId, fu.fa26.sep490.g58.otcms_be.billing.model.PaymentChannel channel,
             PaymentAttemptStatus status);
-    Optional<PaymentAttemptJpaEntity> findFirstByCreatedByAccountIdAndIdempotencyKey(UUID actorId, String key);
     Optional<PaymentAttemptJpaEntity> findFirstByProviderOrderCode(Long orderCode);
     List<PaymentAttemptJpaEntity> findAllByInvoiceIdOrderByCreatedAtDesc(UUID invoiceId);
 

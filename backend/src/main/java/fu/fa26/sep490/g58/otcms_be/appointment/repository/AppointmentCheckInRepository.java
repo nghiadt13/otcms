@@ -17,13 +17,12 @@ import java.util.UUID;
 
 public interface AppointmentCheckInRepository extends JpaRepository<AppointmentJpaEntity, UUID> {
     @Query(value = """
-            select checkin_request_fingerprint, visit_id, checkin_checked_in_at
-            from appointments
-            where checkin_actor_account_id = :actor and id = :appointment
-              and checkin_idempotency_key = :key
+            select a.visit_id, r.checkin_checked_in_at
+            from appointments a
+            left join appointment_arrivals r on r.appointment_id = a.id
+            where a.id = :appointment
             """, nativeQuery = true)
-    List<Object[]> findCheckInReplayRows(@Param("actor") UUID actor,
-            @Param("appointment") UUID appointment, @Param("key") String key);
+    List<Object[]> findCheckInReplayRows(@Param("appointment") UUID appointment);
 
     @Query(value = """
             select id, patient_profile_id, doctor_profile_id, status, visit_id, source_visit_id, start_time, end_time
@@ -33,20 +32,28 @@ public interface AppointmentCheckInRepository extends JpaRepository<AppointmentJ
 
     @Modifying
     @Query(value = """
-            update appointments set status = 'CHECKED_IN', visit_id = :visit, updated_at = :updated,
-                checkin_idempotency_key = :key, checkin_request_fingerprint = :fingerprint,
-                checkin_actor_account_id = :actor, checkin_checked_in_at = :updated
+            update appointments set status = 'CHECKED_IN', visit_id = :visit, updated_at = :updated
             where id = :appointment and patient_profile_id = :patient
               and status = 'CONFIRMED' and visit_id is null
             """, nativeQuery = true)
     int markCheckedIn(@Param("appointment") UUID appointment, @Param("patient") UUID patient,
-            @Param("visit") UUID visit, @Param("updated") Timestamp updated, @Param("actor") UUID actor,
-            @Param("key") String key, @Param("fingerprint") String fingerprint);
+            @Param("visit") UUID visit, @Param("updated") Timestamp updated);
 
-    default Optional<CheckInReplay> findReplay(UUID actorAccountId, UUID appointmentId, String idempotencyKey) {
-        return findCheckInReplayRows(actorAccountId, appointmentId, idempotencyKey).stream().findFirst()
-                .map(row -> new CheckInReplay((String) row[0], AppointmentRowMapper.uuid(row[1]),
-                        AppointmentRowMapper.instant(row[2])));
+    /** Check-in group of the arrival row. Runs after markCheckedIn in the same transaction; keeps the arrival group. */
+    @Modifying
+    @Query(value = """
+            insert into appointment_arrivals (appointment_id, checkin_actor_account_id, checkin_checked_in_at)
+            values (:appointment, :actor, :updated)
+            on conflict (appointment_id) do update set checkin_actor_account_id = excluded.checkin_actor_account_id,
+                checkin_checked_in_at = excluded.checkin_checked_in_at
+            """, nativeQuery = true)
+    int upsertCheckInArrival(@Param("appointment") UUID appointment, @Param("actor") UUID actor,
+            @Param("updated") Timestamp updated);
+
+    /** Replay payload of an appointment already checked in; the key itself is looked up in idempotency_records. */
+    default Optional<CheckInReplay> findReplay(UUID appointmentId) {
+        return findCheckInReplayRows(appointmentId).stream().findFirst()
+                .map(row -> new CheckInReplay(AppointmentRowMapper.uuid(row[0]), AppointmentRowMapper.instant(row[1])));
     }
 
     default Optional<CheckInAppointment> findForUpdate(UUID appointmentId) {
@@ -56,11 +63,11 @@ public interface AppointmentCheckInRepository extends JpaRepository<AppointmentJ
                 AppointmentRowMapper.uuid(row[5]), AppointmentRowMapper.instant(row[6]), AppointmentRowMapper.instant(row[7])));
     }
 
-    default void completeCheckIn(CheckInAppointment appointment, UUID actorAccountId,
-            String idempotencyKey, String requestFingerprint, UUID visitId, Instant checkedInAt) {
+    default void completeCheckIn(CheckInAppointment appointment, UUID actorAccountId, UUID visitId, Instant checkedInAt) {
         if (markCheckedIn(appointment.id(), appointment.patientProfileId(), visitId,
-                Timestamp.from(checkedInAt), actorAccountId, idempotencyKey, requestFingerprint) != 1) {
+                Timestamp.from(checkedInAt)) != 1) {
             throw new IllegalStateException("Appointment changed inside guarded check-in transaction");
         }
+        upsertCheckInArrival(appointment.id(), actorAccountId, Timestamp.from(checkedInAt));
     }
 }

@@ -97,7 +97,7 @@ public class VisitWorkflowRepository {
     }
 
     public List<Object[]> findRecordedArrival(UUID appointmentId) {
-        return entityManager.createNativeQuery("select patient_profile_id, arrived_at from appointments where id = :appointmentId and arrived_at is not null")
+        return entityManager.createNativeQuery("select a.patient_profile_id, r.arrived_at from appointments a join appointment_arrivals r on r.appointment_id = a.id where a.id = :appointmentId and r.arrived_at is not null")
                 .setParameter("appointmentId", appointmentId).getResultList();
     }
 

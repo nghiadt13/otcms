@@ -105,6 +105,8 @@ abstract class BookingFeeFixtureSupport {
                 jdbc.update("delete from work_shifts where staff_profile_id = ?", doctorProfile);
                 jdbc.update("delete from staff_profiles where id = ?", doctorProfile);
                 jdbc.update("delete from patient_profiles where id in (?, ?)", profileA, profileB);
+                // idempotency_records has no FK to accounts or appointments: remove these owners' keys.
+                jdbc.update("delete from idempotency_records where owner_id in (?, ?, ?, ?)", patientA, patientB, receptionist, doctorAccount);
                 jdbc.update("delete from accounts where id in (?, ?, ?, ?)", patientA, patientB, receptionist, doctorAccount);
             } finally {
                 jdbc.execute("alter table audit_logs enable trigger tr_audit_logs_immutable");

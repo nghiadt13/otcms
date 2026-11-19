@@ -88,8 +88,8 @@ class ImagingConfirmationDispatcherTest {
                 ImagingOperationState.CONFIRMATION_PENDING, "a".repeat(64), 123, "1.2.3", "CT", 1, 1,
                 ImagingVerificationStatus.CONFIRMED_MATCH, List.of("PATIENT_ID_MATCH"), "archive-study", null,
                 1, now, now);
-        var study = new ImagingStudyJpaEntity(record, "upload-key");
-        study.prepareConfirmation(UUID.randomUUID(), "send-key", "b".repeat(64), now);
+        var study = new ImagingStudyJpaEntity(record);
+        study.prepareConfirmation(UUID.randomUUID(), now);
         for (int attempt = 0; attempt < attemptCount; attempt++) {
             study.recordConfirmationRetry(now, "CONFIRMATION_UNAVAILABLE", now);
         }

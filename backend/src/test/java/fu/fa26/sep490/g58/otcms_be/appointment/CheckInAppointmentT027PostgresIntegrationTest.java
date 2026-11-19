@@ -109,7 +109,11 @@ class CheckInAppointmentT027PostgresIntegrationTest {
             if (doctorProfile != null) jdbc.update("delete from staff_profiles where id = ?", doctorProfile);
             if (patientProfile != null) jdbc.update("delete from patient_profiles where id = ?", patientProfile);
             for (UUID id : new UUID[]{patientAccount, receptionistAccount, doctorAccount}) {
-                if (id != null) jdbc.update("delete from accounts where id = ?", id);
+                if (id != null) {
+                    // idempotency_records has no FK to appointments, so its rows survive the cascade above.
+                    jdbc.update("delete from idempotency_records where owner_id = ?", id);
+                    jdbc.update("delete from accounts where id = ?", id);
+                }
             }
         } finally {
             restoreTrigger("audit_logs", "tr_audit_logs_immutable", auditTrigger);
@@ -159,8 +163,8 @@ class CheckInAppointmentT027PostgresIntegrationTest {
     @Test
     void checksInOnTheClinicDayAndReplayAfterProgressionDoesNotDuplicateEvidence() throws Exception {
         Instant arrivedAt = NOW;
-        jdbc.update("update appointments set arrival_recorded_by = ?, arrival_source = 'LEGACY_RECEPTIONIST', arrived_at = ?, "
-                + "arrival_recorded_at = now() where id = ?", receptionistAccount, Timestamp.from(arrivedAt), appointment);
+        jdbc.update("insert into appointment_arrivals (appointment_id, arrived_at, arrival_source, arrival_recorded_at, arrival_recorded_by) "
+                + "values (?, ?, 'LEGACY_RECEPTIONIST', now(), ?)", appointment, Timestamp.from(arrivedAt), receptionistAccount);
 
         mvc.perform(checkIn(appointment, receptionistAccount, "t027-success"))
                 .andExpect(status().isOk()).andExpect(header().string("X-Correlation-ID", CORRELATION))
@@ -179,8 +183,9 @@ class CheckInAppointmentT027PostgresIntegrationTest {
                 + "and (after_state->>'visitId')::uuid = ? and actor_account_id = ? and correlation_id = ? "
                 + "and (metadata->>'verifiedPatientProfileId')::uuid = ?", Integer.class,
                 appointment, visitId, receptionistAccount, CORRELATION, patientProfile));
-        assertEquals(1, jdbc.queryForObject("select count(*) from appointments where id = ? and checkin_idempotency_key is not null "
-                + "and checkin_idempotency_key = 't027-success' and visit_id = ?", Integer.class, appointment, visitId));
+        assertEquals(1, jdbc.queryForObject("select count(*) from idempotency_records r join appointments a on a.id = r.resource_id "
+                + "where r.scope = 'APPOINTMENT_CHECKIN' and r.idempotency_key = 't027-success' and a.id = ? and a.visit_id = ?",
+                Integer.class, appointment, visitId));
         assertEquals(1, jdbc.queryForObject("select count(*) from queue_entries where stage = 'EXAM' and visit_id = ? and doctor_profile_id = ? and status = 'WAITING' and queue_number = 1", Integer.class, visitId, doctorProfile));
 
         jdbc.update("update appointments set status = 'IN_PROGRESS' where id = ?", appointment);
@@ -192,7 +197,7 @@ class CheckInAppointmentT027PostgresIntegrationTest {
         assertEquals("IN_PROGRESS", jdbc.queryForObject("select status from appointments where id = ?", String.class, appointment));
         assertEquals(1, jdbc.queryForObject("select count(*) from visits where originating_appointment_id = ?", Integer.class, appointment));
         assertEquals(1, jdbc.queryForObject("select count(*) from audit_logs where source = 'appointment_audits' and entity_id = ? and action = 'STATUS_CHANGED'", Integer.class, appointment));
-        assertEquals(1, jdbc.queryForObject("select count(*) from appointments where id = ? and checkin_idempotency_key is not null", Integer.class, appointment));
+        assertEquals(1, jdbc.queryForObject("select count(*) from idempotency_records where scope = 'APPOINTMENT_CHECKIN' and resource_id = ?", Integer.class, appointment));
         assertEquals(1, jdbc.queryForObject("select count(*) from queue_entries where stage = 'EXAM' and visit_id = ?", Integer.class, visitId));
     }
 
@@ -200,8 +205,8 @@ class CheckInAppointmentT027PostgresIntegrationTest {
     void lateSameDayCheckInIsAllowedWithoutMinuteWindowAndEntersTheExamQueue() throws Exception {
         // 12:45 clinic time: past the old +15 minute grace, still the appointment's clinic day.
         Instant lateArrival = NOW.plusSeconds(2700);
-        jdbc.update("update appointments set arrival_recorded_by = ?, arrival_source = 'PATIENT_QR', arrived_at = ?, "
-                + "arrival_recorded_at = now() where id = ?", patientAccount, Timestamp.from(lateArrival), appointment);
+        jdbc.update("insert into appointment_arrivals (appointment_id, arrived_at, arrival_source, arrival_recorded_at, arrival_recorded_by) "
+                + "values (?, ?, 'PATIENT_QR', now(), ?)", appointment, Timestamp.from(lateArrival), patientAccount);
         testClock.set(lateArrival.plusSeconds(1));
 
         mvc.perform(checkIn(appointment, receptionistAccount, "t027-delayed-staff"))
@@ -235,7 +240,7 @@ class CheckInAppointmentT027PostgresIntegrationTest {
                 .andExpect(status().isConflict()).andExpect(jsonPath("$.error.code").value("MSG-94"));
         assertEquals("CONFIRMED", jdbc.queryForObject("select status from appointments where id = ?", String.class, appointment));
         assertEquals(0, jdbc.queryForObject("select count(*) from visits where originating_appointment_id = ?", Integer.class, appointment));
-        assertEquals(0, jdbc.queryForObject("select count(*) from appointments where id = ? and checkin_idempotency_key is not null", Integer.class, appointment));
+        assertEquals(0, jdbc.queryForObject("select count(*) from idempotency_records where scope = 'APPOINTMENT_CHECKIN' and resource_id = ?", Integer.class, appointment));
 
         // The receptionist collects the fee at the counter with the existing billing endpoints, then checks in again.
         mvc.perform(post("/api/v1/appointments/{id}/invoices", appointment)
@@ -262,7 +267,7 @@ class CheckInAppointmentT027PostgresIntegrationTest {
                 .andExpect(jsonPath("$.error.code").value("MSG-37"));
         assertEquals("CONFIRMED", jdbc.queryForObject("select status from appointments where id = ?", String.class, appointment));
         assertEquals(0, jdbc.queryForObject("select count(*) from visits where originating_appointment_id = ?", Integer.class, appointment));
-        assertEquals(0, jdbc.queryForObject("select count(*) from appointments where id = ? and checkin_idempotency_key is not null", Integer.class, appointment));
+        assertEquals(0, jdbc.queryForObject("select count(*) from idempotency_records where scope = 'APPOINTMENT_CHECKIN' and resource_id = ?", Integer.class, appointment));
         assertEquals(0, jdbc.queryForObject("select count(*) from audit_logs where source = 'appointment_audits' and entity_id = ? "
                 + "and after_state->>'status' = 'CHECKED_IN'", Integer.class, appointment));
 
@@ -295,7 +300,7 @@ class CheckInAppointmentT027PostgresIntegrationTest {
         assertEquals(0, jdbc.queryForObject("select count(*) from visits v where v.originating_appointment_id = ?", Integer.class, appointment));
         assertEquals(0, jdbc.queryForObject("select count(*) from audit_logs where source = 'appointment_audits' and entity_id = ? "
                 + "and after_state->>'status' = 'CHECKED_IN'", Integer.class, appointment));
-        assertEquals(0, jdbc.queryForObject("select count(*) from appointments where id = ? and checkin_idempotency_key is not null", Integer.class, appointment));
+        assertEquals(0, jdbc.queryForObject("select count(*) from idempotency_records where scope = 'APPOINTMENT_CHECKIN' and resource_id = ?", Integer.class, appointment));
         assertEquals(0, jdbc.queryForObject("select count(*) from queue_entries q join visits v on v.id = q.visit_id where q.stage = 'RECEPTION' and v.originating_appointment_id = ?", Integer.class, appointment));
         assertEquals(0, jdbc.queryForObject("select count(*) from queue_entries q join visits v on v.id = q.visit_id where q.stage = 'EXAM' and v.originating_appointment_id = ?", Integer.class, appointment));
     }
@@ -309,7 +314,7 @@ class CheckInAppointmentT027PostgresIntegrationTest {
         mvc.perform(checkIn(appointment, receptionistAccount, "t027-other-key"))
                 .andExpect(status().isConflict()).andExpect(jsonPath("$.error.code").value("MSG-32"));
         assertEquals(1, jdbc.queryForObject("select count(*) from visits where originating_appointment_id = ?", Integer.class, appointment));
-        assertEquals(1, jdbc.queryForObject("select count(*) from appointments where id = ? and checkin_idempotency_key is not null", Integer.class, appointment));
+        assertEquals(1, jdbc.queryForObject("select count(*) from idempotency_records where scope = 'APPOINTMENT_CHECKIN' and resource_id = ?", Integer.class, appointment));
         assertEquals(1, jdbc.queryForObject("select count(*) from audit_logs where source = 'appointment_audits' and entity_id = ? and action = 'STATUS_CHANGED'", Integer.class, appointment));
     }
 
@@ -330,7 +335,7 @@ class CheckInAppointmentT027PostgresIntegrationTest {
             assertEquals(1, jdbc.queryForObject("select count(*) from visits v where v.originating_appointment_id = ?", Integer.class, appointment));
             assertEquals(1, jdbc.queryForObject("select count(*) from audit_logs where source = 'appointment_audits' and entity_id = ? "
                     + "and action = 'STATUS_CHANGED' and after_state->>'status' = 'CHECKED_IN'", Integer.class, appointment));
-            assertEquals(1, jdbc.queryForObject("select count(*) from appointments where id = ? and checkin_idempotency_key is not null", Integer.class, appointment));
+            assertEquals(1, jdbc.queryForObject("select count(*) from idempotency_records where scope = 'APPOINTMENT_CHECKIN' and resource_id = ?", Integer.class, appointment));
             assertEquals(1, jdbc.queryForObject("select count(*) from queue_entries q join visits v on v.id = q.visit_id where q.stage = 'EXAM' and v.originating_appointment_id = ?", Integer.class, appointment));
         } finally {
             start.countDown();
@@ -359,7 +364,7 @@ class CheckInAppointmentT027PostgresIntegrationTest {
         assertEquals(null, jdbc.queryForObject("select visit_id from appointments where id = ?", UUID.class, appointment));
         assertEquals(0, jdbc.queryForObject("select count(*) from visits where originating_appointment_id = ?", Integer.class, appointment));
         assertEquals(0, jdbc.queryForObject("select count(*) from visits v where v.originating_appointment_id = ?", Integer.class, appointment));
-        assertEquals(0, jdbc.queryForObject("select count(*) from appointments where id = ? and checkin_idempotency_key is not null", Integer.class, appointment));
+        assertEquals(0, jdbc.queryForObject("select count(*) from idempotency_records where scope = 'APPOINTMENT_CHECKIN' and resource_id = ?", Integer.class, appointment));
         assertEquals(0, jdbc.queryForObject("select count(*) from audit_logs where source = 'appointment_audits' and entity_id = ? "
                 + "and after_state->>'status' = 'CHECKED_IN'", Integer.class, appointment));
         assertEquals(0, jdbc.queryForObject("select count(*) from queue_entries q join visits v on v.id = q.visit_id where q.stage = 'EXAM' and v.originating_appointment_id = ?", Integer.class, appointment));

@@ -6,6 +6,7 @@ import fu.fa26.sep490.g58.otcms_be.clinical.model.ClinicalVisitStatus;
 import fu.fa26.sep490.g58.otcms_be.clinical.model.ServiceOrderPaymentStatus;
 import fu.fa26.sep490.g58.otcms_be.clinical.model.ServiceOrderStatus;
 import fu.fa26.sep490.g58.otcms_be.clinical.model.entity.ServiceOrderJpaEntity;
+import fu.fa26.sep490.g58.otcms_be.clinical.repository.ClinicalOrderingRoundRepository;
 import fu.fa26.sep490.g58.otcms_be.clinical.repository.ServiceOrderRepository;
 import fu.fa26.sep490.g58.otcms_be.clinical.service.ClinicalOrderingService;
 import java.time.Clock;
@@ -20,15 +21,17 @@ public class ClinicalOrderingServiceImpl implements ClinicalOrderingService {
     private final ClinicalOrderPreparationService preparation;
     private final ClinicalOrderingTransactionService writer;
     private final ServiceOrderRepository orders;
+    private final ClinicalOrderingRoundRepository rounds;
     private final Clock clock;
 
     public ClinicalOrderingServiceImpl(ClinicalOrderPreparationService preparation,
-            ClinicalOrderingTransactionService writer, ServiceOrderRepository orders, Clock clock,
-            fu.fa26.sep490.g58.otcms_be.common.service.CoordinationGuardService guard) {
+            ClinicalOrderingTransactionService writer, ServiceOrderRepository orders, ClinicalOrderingRoundRepository rounds,
+            Clock clock, fu.fa26.sep490.g58.otcms_be.common.service.CoordinationGuardService guard) {
         this.guard = guard;
         this.preparation = preparation;
         this.writer = writer;
         this.orders = orders;
+        this.rounds = rounds;
         this.clock = clock;
     }
 
@@ -71,9 +74,9 @@ public class ClinicalOrderingServiceImpl implements ClinicalOrderingService {
     @Override
     @Transactional(readOnly = true)
     public boolean isLatestRoundReadyForReview(UUID visitId) {
-        var head = orders.findTopByVisitIdAndRoundHeadTrueOrderByRoundNumberDesc(visitId);
-        if (head.isEmpty()) return false;
-        List<ServiceOrderJpaEntity> effective = orders.findByOrderingRoundId(head.get().getOrderingRoundId()).stream()
+        var latest = rounds.findTopByVisitIdOrderByRoundNumberDesc(visitId);
+        if (latest.isEmpty()) return false;
+        List<ServiceOrderJpaEntity> effective = orders.findByOrderingRoundId(latest.get().getId()).stream()
                 .filter(order -> order.getOrderStatus() != ServiceOrderStatus.CANCELLED).toList();
         return !effective.isEmpty()
                 && effective.stream().allMatch(order -> order.getOrderStatus() == ServiceOrderStatus.RESULTS_AVAILABLE);

@@ -64,7 +64,9 @@ class ServiceOrderRoomTransferPostgresIntegrationTest {
             jdbc.update("insert into room_supported_services (room_id, service_id) values (?, ?)", room, service);
         }
         jdbc.update("insert into visits (id, patient_profile_id, source, arrived_at, checked_in_at, created_by_account_id) values (?, ?, 'WALK_IN', ?, ?, ?)", visit, patient, Timestamp.from(now), Timestamp.from(now), receptionist);
-        jdbc.update("insert into clinical_service_orders (id, order_code, ordering_round_id, round_number, ordered_at, round_head, visit_id, patient_id, service_id, service_name_snapshot, service_type, requesting_doctor_id, clinical_reason, price_snapshot, order_status, payment_status, room_id, created_at, updated_at) values (?, ?, ?, 1, ?, true, ?, ?, ?, 'Other service', 'OTHER', ?, 'Pain', 100, 'ORDERED', 'PAID', ?, ?, ?)", order, "O-" + order.toString().substring(0, 8), UUID.randomUUID(), Timestamp.from(now), visit, patient, service, doctor, oldRoom, Timestamp.from(now), Timestamp.from(now));
+        UUID round = UUID.randomUUID();
+        jdbc.update("insert into clinical_ordering_rounds (id, visit_id, round_number, ordered_by_doctor_id, ordered_at, created_at) values (?, ?, 1, ?, ?, ?)", round, visit, doctor, Timestamp.from(now), Timestamp.from(now));
+        jdbc.update("insert into clinical_service_orders (id, order_code, ordering_round_id, visit_id, patient_id, service_id, service_name_snapshot, service_type, requesting_doctor_id, clinical_reason, price_snapshot, order_status, payment_status, room_id, created_at, updated_at) values (?, ?, ?, ?, ?, ?, 'Other service', 'OTHER', ?, 'Pain', 100, 'ORDERED', 'PAID', ?, ?, ?)", order, "O-" + order.toString().substring(0, 8), round, visit, patient, service, doctor, oldRoom, Timestamp.from(now), Timestamp.from(now));
         jdbc.update("insert into queue_entries (visit_id, stage, status, entered_at, room_id, service_order_id, called_at) values (?, 'SERVICE', ?, ?, ?, ?, ?)", visit, status, Timestamp.from(now), oldRoom, order, status.equals("CALLED") ? Timestamp.from(now) : null);
         return new Fixture(receptionist, order, oldRoom, newRoom, visit, doctor);
     }

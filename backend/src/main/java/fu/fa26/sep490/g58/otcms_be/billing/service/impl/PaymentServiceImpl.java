@@ -18,6 +18,8 @@ import fu.fa26.sep490.g58.otcms_be.billing.service.PaymentGatewayRegistry;
 import fu.fa26.sep490.g58.otcms_be.billing.service.PaymentService;
 import fu.fa26.sep490.g58.otcms_be.common.audit.AuditEntry;
 import fu.fa26.sep490.g58.otcms_be.common.audit.AuditLogWriter;
+import fu.fa26.sep490.g58.otcms_be.common.idempotency.IdempotencyScope;
+import fu.fa26.sep490.g58.otcms_be.common.idempotency.IdempotencyStore;
 import fu.fa26.sep490.g58.otcms_be.common.security.AccountRole;
 import fu.fa26.sep490.g58.otcms_be.common.security.AuthenticatedAccount;
 import fu.fa26.sep490.g58.otcms_be.patient.exception.PatientAuthorizationDeniedException;
@@ -52,11 +54,13 @@ public class PaymentServiceImpl implements PaymentService {
     private final BillingMapper mapper;
     private final TransactionTemplate transactions;
     private final Clock clock;
+    private final IdempotencyStore idempotency;
 
     public PaymentServiceImpl(InvoiceRepository invoices, PaymentAttemptRepository attempts,
             AuditLogWriter audit, PaymentGatewayRegistry gateways,
             AuthorizePatientBillingProfileService patientAuthorization, BillingMapper mapper,
-            PlatformTransactionManager transactionManager, Clock clock, InvoiceSettlementSupport settlement) {
+            PlatformTransactionManager transactionManager, Clock clock, InvoiceSettlementSupport settlement,
+            IdempotencyStore idempotency) {
         this.settlement = settlement;
         this.invoices = invoices;
         this.attempts = attempts;
@@ -66,6 +70,7 @@ public class PaymentServiceImpl implements PaymentService {
         this.mapper = mapper;
         this.transactions = new TransactionTemplate(transactionManager);
         this.clock = clock;
+        this.idempotency = idempotency;
     }
 
     @Override
@@ -89,9 +94,14 @@ public class PaymentServiceImpl implements PaymentService {
             InvoiceItemSnapshot snapshot = settlement.lockItems(invoiceId, now);
             settlement.requireConsistentAllocation(invoiceId, snapshot);
             List<InvoiceItemJpaEntity> picked = snapshot.pick(itemIds);
-            PaymentAttemptJpaEntity payment = PaymentAttemptJpaEntity.counter(UUID.randomUUID(), invoiceId,
-                    InvoiceItemSnapshot.total(picked), actor.accountId(), idempotencyKey, fingerprint,
-                    request.method(), now);
+            // The key is stored in this transaction, with the payment row: a rollback drops both.
+            UUID paymentId = UUID.randomUUID();
+            if (!idempotency.record(IdempotencyScope.PAYMENT_ATTEMPT, actor.accountId(), idempotencyKey,
+                    fingerprint, paymentId)) {
+                return replayOrConflict(actor, idempotencyKey, fingerprint);
+            }
+            PaymentAttemptJpaEntity payment = PaymentAttemptJpaEntity.counter(paymentId, invoiceId,
+                    InvoiceItemSnapshot.total(picked), actor.accountId(), request.method(), now);
             attempts.saveAndFlush(payment);
             snapshot.claim(picked, payment);
             settlement.settleByItems(invoice, snapshot, payment);
@@ -152,8 +162,14 @@ public class PaymentServiceImpl implements PaymentService {
             BigDecimal due = InvoiceItemSnapshot.total(picked);
             if (due.signum() <= 0) throw new BillingException("MSG-49");
             long orderCode = nextOrderCode();
-            PaymentAttemptJpaEntity pending = PaymentAttemptJpaEntity.pendingProvider(channel, UUID.randomUUID(),
-                    invoiceId, due, actor.accountId(), idempotencyKey, fingerprint, orderCode);
+            // Only a request that opens a new checkout stores the key; the reuse path above returns without writing it.
+            UUID pendingId = UUID.randomUUID();
+            if (!idempotency.record(IdempotencyScope.PAYMENT_ATTEMPT, actor.accountId(), idempotencyKey,
+                    fingerprint, pendingId)) {
+                return new LinkReservation(replayOrConflict(actor, idempotencyKey, fingerprint), false, List.of());
+            }
+            PaymentAttemptJpaEntity pending = PaymentAttemptJpaEntity.pendingProvider(channel, pendingId,
+                    invoiceId, due, actor.accountId(), orderCode);
             attempts.saveAndFlush(pending);
             // The link stays after expiry/failure on purpose: a late webhook still knows which items it pays.
             snapshot.claim(picked, pending);
@@ -349,10 +365,17 @@ public class PaymentServiceImpl implements PaymentService {
     }
     private PaymentAttemptJpaEntity findIdempotent(AuthenticatedAccount actor, String key, String fingerprint) {
         if (key == null || key.isBlank() || key.length() > 128) throw new BillingException("IDEMPOTENCY_CONFLICT");
-        return attempts.findFirstByCreatedByAccountIdAndIdempotencyKey(actor.accountId(), key).map(existing -> {
-            if (!existing.getRequestFingerprint().equals(fingerprint)) throw new BillingException("IDEMPOTENCY_CONFLICT");
-            return existing;
+        return idempotency.find(IdempotencyScope.PAYMENT_ATTEMPT, actor.accountId(), key).map(replay -> {
+            if (!replay.matches(fingerprint)) throw new BillingException("IDEMPOTENCY_CONFLICT");
+            return attempts.findById(replay.resourceId())
+                    .orElseThrow(() -> new BillingException("PAYMENT_ATTEMPT_NOT_FOUND"));
         }).orElse(null);
+    }
+    /** Another request stored this key first: replay its attempt, or refuse when this request differs. */
+    private PaymentAttemptJpaEntity replayOrConflict(AuthenticatedAccount actor, String key, String fingerprint) {
+        PaymentAttemptJpaEntity prior = findIdempotent(actor, key, fingerprint);
+        if (prior == null) throw new BillingException("IDEMPOTENCY_CONFLICT");
+        return prior;
     }
     private void authorizeInvoice(InvoiceJpaEntity invoice, AuthenticatedAccount actor) {
         if (actor == null) throw new BillingException("ACCESS_DENIED");

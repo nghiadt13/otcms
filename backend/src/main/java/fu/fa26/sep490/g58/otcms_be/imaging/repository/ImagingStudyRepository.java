@@ -24,16 +24,16 @@ public interface ImagingStudyRepository extends JpaRepository<ImagingStudyJpaEnt
     List<ImagingStudyJpaEntity> findAllByRequestIdAndAttemptIdOrderByCreatedAtDesc(
             UUID requestId, UUID attemptId);
 
-    Optional<ImagingStudyJpaEntity> findByActorAccountIdAndRequestIdAndAttemptIdAndUploadIdempotencyKey(
-            UUID actorId, UUID requestId, UUID attemptId, String key);
-
-    Optional<ImagingStudyJpaEntity> findByConfirmationEventId(UUID eventId);
-    Optional<ImagingStudyJpaEntity> findByReleaseEventId(UUID eventId);
+    @Query("select study from ImagingStudyJpaEntity study join study.release r where r.confirmationEventId = :eventId")
+    Optional<ImagingStudyJpaEntity> findByConfirmationEventId(@Param("eventId") UUID eventId);
+    @Query("select study from ImagingStudyJpaEntity study join study.release r where r.releaseEventId = :eventId")
+    Optional<ImagingStudyJpaEntity> findByReleaseEventId(@Param("eventId") UUID eventId);
 
     @Query(value = """
-            select * from imaging_studies
-             where state = 'CONFIRMATION_PENDING' and next_confirmation_attempt_at <= :now
-             order by next_confirmation_attempt_at, id limit :limit
+            select s.* from imaging_studies s
+              join imaging_study_releases r on r.imaging_study_id = s.id
+             where s.state = 'CONFIRMATION_PENDING' and r.next_confirmation_attempt_at <= :now
+             order by r.next_confirmation_attempt_at, s.id limit :limit
             """, nativeQuery = true)
     List<ImagingStudyJpaEntity> findDueConfirmations(Instant now, int limit);
 

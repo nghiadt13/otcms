@@ -51,11 +51,6 @@ public interface DiagnosticReportJpaRepository extends JpaRepository<DiagnosticR
 
     Optional<DiagnosticReportJpaEntity> findByReportIdAndRequestId(UUID reportId, UUID requestId);
 
-    Optional<DiagnosticReportJpaEntity> findByRequestIdAndDraftIdempotencyKey(UUID requestId, String key);
-    Optional<DiagnosticReportJpaEntity> findByRequestIdAndCorrectionIdempotencyKey(UUID requestId, String key);
-    Optional<DiagnosticReportJpaEntity> findByRequestIdAndUploadIdempotencyKey(UUID requestId, String key);
-    Optional<DiagnosticReportJpaEntity> findByRequestIdAndCompleteIdempotencyKey(UUID requestId, String key);
-
     List<DiagnosticReportJpaEntity> findAllByRequestIdOrderByReportVersionDesc(UUID requestId);
 
     Optional<DiagnosticReportJpaEntity> findFirstByRequestIdAndValidationStatusOrderByReportVersionDesc(

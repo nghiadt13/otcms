@@ -133,7 +133,11 @@ class MarkNoShowAfterShiftJobPostgresIntegrationTest {
             }
             jdbc.update("delete from patient_profiles where id = ?", patientProfile);
             jdbc.update("delete from clinic_services where id = ?", service);
-            for (UUID id : accounts) jdbc.update("delete from accounts where id = ?", id);
+            for (UUID id : accounts) {
+                // idempotency_records has no FK to accounts or appointments: remove this owner's keys.
+                jdbc.update("delete from idempotency_records where owner_id = ?", id);
+                jdbc.update("delete from accounts where id = ?", id);
+            }
         } finally {
             restoreTrigger("audit_logs", "tr_audit_logs_immutable", auditMode);
         }

@@ -5,6 +5,9 @@ import fu.fa26.sep490.g58.otcms_be.clinical.service.ClinicalServiceOrderExecutio
 import fu.fa26.sep490.g58.otcms_be.clinical.service.ClinicalServiceOrderExecutionPort.ImagingExecution;
 import fu.fa26.sep490.g58.otcms_be.common.audit.AuditEntry;
 import fu.fa26.sep490.g58.otcms_be.common.audit.AuditLogWriter;
+import fu.fa26.sep490.g58.otcms_be.common.idempotency.IdempotencyReplay;
+import fu.fa26.sep490.g58.otcms_be.common.idempotency.IdempotencyScope;
+import fu.fa26.sep490.g58.otcms_be.common.idempotency.IdempotencyStore;
 import fu.fa26.sep490.g58.otcms_be.common.security.AccountRole;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.exception.DiagnosticOperationException;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.integration.DiagnosticPortModels.FindingsReleaseEvent;
@@ -66,11 +69,13 @@ public class DiagnosticFindingsServiceImpl implements DiagnosticFindingsService 
     private final ObjectProvider<ImagingStudyPort> studyPorts;
     private final ClinicalServiceOrderExecutionPort executions;
     private final AuditLogWriter auditWriter;
+    private final IdempotencyStore idempotency;
 
     public DiagnosticFindingsServiceImpl(DiagnosticReportJpaRepository reports,
             DiagnosticAuthorizationPolicy authorization, ObjectProvider<VisitDiagnosticPort> visitPorts,
             ObjectProvider<ReportStoragePort> reportPorts, ObjectProvider<ImagingStudyPort> studyPorts,
-            ClinicalServiceOrderExecutionPort executions, AuditLogWriter auditWriter) {
+            ClinicalServiceOrderExecutionPort executions, AuditLogWriter auditWriter,
+            IdempotencyStore idempotency) {
         this.reports = Objects.requireNonNull(reports, "reports");
         this.authorization = Objects.requireNonNull(authorization, "authorization");
         this.visitPorts = Objects.requireNonNull(visitPorts, "visitPorts");
@@ -78,6 +83,7 @@ public class DiagnosticFindingsServiceImpl implements DiagnosticFindingsService 
         this.studyPorts = Objects.requireNonNull(studyPorts, "studyPorts");
         this.executions = Objects.requireNonNull(executions, "executions");
         this.auditWriter = Objects.requireNonNull(auditWriter, "auditWriter");
+        this.idempotency = Objects.requireNonNull(idempotency, "idempotency");
     }
 
     @Override
@@ -156,8 +162,8 @@ public class DiagnosticFindingsServiceImpl implements DiagnosticFindingsService 
         String studyRef = requireCurrentStudy(request, request.studyRef());
         String fingerprint = fingerprint(body + "\n" + expectedVersion + "\n" + studyRef);
         String key = requiredText(idempotencyKey, 255, "Idempotency-Key");
-        DiagnosticReportJpaEntity replay = reports.findByRequestIdAndDraftIdempotencyKey(requestId, key).orElse(null);
-        if (replay != null) return replayFindings(replay, replay.getDraftFingerprint(), fingerprint);
+        IdempotencyReplay replay = idempotency.find(IdempotencyScope.RESULT_DRAFT, requestId, key).orElse(null);
+        if (replay != null) return replayFindings(replay, fingerprint);
         requireVersion(request, expectedVersion);
         VisitEvidence visit = requireVisitEvidence(actor, request);
         if (!actor.accountId().equals(visit.treatingDoctorId())) throw unauthorized();
@@ -166,14 +172,18 @@ public class DiagnosticFindingsServiceImpl implements DiagnosticFindingsService 
         if (latest != null && latest.getState() == DiagnosticFindingsVersionState.COMPLETED) {
             throw stateConflict();
         }
+        if (latest != null && !studyRef.equals(latest.getStudyRef())) throw evidenceMismatch();
+        // Claim the key before writing: a concurrent duplicate replays the winner instead of writing again.
+        UUID findingsId = latest == null ? UUID.randomUUID() : latest.getId();
+        if (!idempotency.record(IdempotencyScope.RESULT_DRAFT, requestId, key, fingerprint, findingsId)) {
+            return replayFindings(storedReplay(IdempotencyScope.RESULT_DRAFT, requestId, key), fingerprint);
+        }
         if (latest == null) {
-            latest = new DiagnosticReportJpaEntity(UUID.randomUUID(), requestId, request.visitId(),
+            latest = new DiagnosticReportJpaEntity(findingsId, requestId, request.visitId(),
                     studyRef, 1, body, actor.accountId(), Instant.now());
         } else {
-            if (!studyRef.equals(latest.getStudyRef())) throw evidenceMismatch();
             latest.reviseDraft(body, Instant.now());
         }
-        latest.recordDraftKey(key, fingerprint);
         reports.saveAndFlush(latest);
         audit(request, actor, "SAVE_FINDINGS_DRAFT", correlationId,
                 Map.of("findingsVersionId", latest.getId().toString(), "version", latest.getVersionNumber()));
@@ -191,8 +201,8 @@ public class DiagnosticFindingsServiceImpl implements DiagnosticFindingsService 
         String studyRef = requireCurrentStudy(request, request.studyRef());
         String fingerprint = fingerprint(body + "\n" + reason + "\n" + expectedVersion + "\n" + studyRef);
         String key = requiredText(idempotencyKey, 255, "Idempotency-Key");
-        DiagnosticReportJpaEntity replay = reports.findByRequestIdAndCorrectionIdempotencyKey(requestId, key).orElse(null);
-        if (replay != null) return replayFindings(replay, replay.getCorrectionFingerprint(), fingerprint);
+        IdempotencyReplay replay = idempotency.find(IdempotencyScope.RESULT_CORRECTION, requestId, key).orElse(null);
+        if (replay != null) return replayFindings(replay, fingerprint);
         requireVersion(request, expectedVersion);
         VisitEvidence visit = requireVisitEvidence(actor, request);
         if (!actor.accountId().equals(visit.treatingDoctorId())) throw unauthorized();
@@ -201,11 +211,14 @@ public class DiagnosticFindingsServiceImpl implements DiagnosticFindingsService 
         if (latest == null || latest.getState() != DiagnosticFindingsVersionState.COMPLETED) {
             throw stateConflict();
         }
-        DiagnosticReportJpaEntity correction = new DiagnosticReportJpaEntity(UUID.randomUUID(),
+        UUID correctionId = UUID.randomUUID();
+        if (!idempotency.record(IdempotencyScope.RESULT_CORRECTION, requestId, key, fingerprint, correctionId)) {
+            return replayFindings(storedReplay(IdempotencyScope.RESULT_CORRECTION, requestId, key), fingerprint);
+        }
+        DiagnosticReportJpaEntity correction = new DiagnosticReportJpaEntity(correctionId,
                 requestId, request.visitId(), studyRef, latest.getVersionNumber() + 1, body, actor.accountId(),
                 Instant.now());
         correction.setCorrectionReason(reason);
-        correction.recordCorrectionKey(key, fingerprint);
         reports.saveAndFlush(correction);
         audit(request, actor, "CREATE_FINDINGS_CORRECTION", correlationId, Map.of(
                 "findingsVersionId", correction.getId().toString(), "version", correction.getVersionNumber(),
@@ -237,11 +250,16 @@ public class DiagnosticFindingsServiceImpl implements DiagnosticFindingsService 
         String fingerprint = fingerprint(studyRef + "\n" + expectedVersion + "\n" + upload.contentLength()
                 + "\n" + version + "\n" + contentSha256);
         String key = requiredText(idempotencyKey, 255, "Idempotency-Key");
-        DiagnosticReportJpaEntity replay = reports.findByRequestIdAndUploadIdempotencyKey(requestId, key).orElse(null);
-        if (replay != null) return replayReport(replay, replay.getUploadFingerprint(), fingerprint);
+        IdempotencyReplay replay = idempotency.find(IdempotencyScope.RESULT_UPLOAD, requestId, key).orElse(null);
+        if (replay != null) return replayReport(replay, fingerprint);
         requireVersion(request, expectedVersion);
         ReportStoragePort storage = reportPorts.getIfAvailable();
         if (storage == null) throw dependencyUnavailable();
+        // Claim the key before storing the PDF: a duplicate must not store a second private file.
+        UUID findingsId = latest == null ? UUID.randomUUID() : latest.getId();
+        if (!idempotency.record(IdempotencyScope.RESULT_UPLOAD, requestId, key, fingerprint, findingsId)) {
+            return replayReport(storedReplay(IdempotencyScope.RESULT_UPLOAD, requestId, key), fingerprint);
+        }
         UUID reportId = UUID.randomUUID();
         MessageDigest digest = sha256();
         StoredReport stored;
@@ -279,13 +297,12 @@ public class DiagnosticFindingsServiceImpl implements DiagnosticFindingsService 
         if (validation == null) validation = ReportValidationStatus.PENDING;
         DiagnosticReportValidationStatus persistedStatus = DiagnosticReportValidationStatus.valueOf(validation.name());
         if (latest == null) {
-            latest = new DiagnosticReportJpaEntity(UUID.randomUUID(), requestId, request.visitId(), studyRef,
+            latest = new DiagnosticReportJpaEntity(findingsId, requestId, request.visitId(), studyRef,
                     version, null, actor.accountId(), Instant.now());
         }
         latest.attachReport(stored.reportId(), stored.storageRef(), storedSha256, persistedStatus,
                 actor.accountId(), Instant.now(),
                 persistedStatus == DiagnosticReportValidationStatus.PENDING ? null : Instant.now());
-        latest.recordUploadKey(key, fingerprint);
         reports.saveAndFlush(latest);
         audit(request, actor, "UPLOAD_CLINIC_REPORT", correlationId,
                 Map.of("reportId", stored.reportId().toString(), "validationStatus", persistedStatus.name()));
@@ -300,16 +317,8 @@ public class DiagnosticFindingsServiceImpl implements DiagnosticFindingsService 
         requireDoctorAccess(actor, request);
         String fingerprint = fingerprint(findingsVersion + "\n" + reportId + "\n" + studyRef + "\n" + expectedVersion);
         String key = requiredText(idempotencyKey, 255, "Idempotency-Key");
-        DiagnosticReportJpaEntity replay = reports.findByRequestIdAndCompleteIdempotencyKey(requestId, key).orElse(null);
-        if (replay != null) {
-            if (!fingerprint.equals(replay.getCompleteFingerprint())) {
-                throw new DiagnosticOperationException(DiagnosticOperationOutcome.IDEMPOTENCY_CONFLICT);
-            }
-            if (replay.getState() != DiagnosticFindingsVersionState.COMPLETED || replay.getReleasedAt() == null) {
-                throw stateConflict();
-            }
-            return new DiagnosticFindingsReleaseView(requestId, replay.getVersionNumber(), "RELEASED");
-        }
+        IdempotencyReplay replay = idempotency.find(IdempotencyScope.RESULT_COMPLETE, requestId, key).orElse(null);
+        if (replay != null) return replayRelease(requestId, replay, fingerprint);
         requireVersion(request, expectedVersion);
         requireCurrentStudy(request, studyRef);
         VisitEvidence visit = requireVisitEvidence(actor, request);
@@ -321,6 +330,10 @@ public class DiagnosticFindingsServiceImpl implements DiagnosticFindingsService 
             throw stateConflict();
         }
         if (!Objects.equals(version.getReportId(), reportId)) throw reportNotReady();
+        // Claim before validating or marking the version, so a replay never returns a half-changed entity.
+        if (!idempotency.record(IdempotencyScope.RESULT_COMPLETE, requestId, key, fingerprint, version.getId())) {
+            return replayRelease(requestId, storedReplay(IdempotencyScope.RESULT_COMPLETE, requestId, key), fingerprint);
+        }
         // UC-50 AF2: the PDF report is optional; without one the findings text alone completes the version.
         if (reportId != null && version.getValidationStatus() == DiagnosticReportValidationStatus.PENDING) {
             ReportStoragePort storage = reportPorts.getIfAvailable();
@@ -348,7 +361,6 @@ public class DiagnosticFindingsServiceImpl implements DiagnosticFindingsService 
                 request.patientId(), studyRef, version.getId(), reportId, version.getContentSha256());
         String payloadSha256 = releasePayloadSha256(event);
         Instant releasedAt = Instant.now();
-        version.recordCompleteKey(key, fingerprint);
         version.markCompleted(reportId, releasedAt);
         reports.saveAndFlush(version);
 
@@ -421,20 +433,36 @@ public class DiagnosticFindingsServiceImpl implements DiagnosticFindingsService 
         if (request.status() != ExecutionStatus.REVIEWED) throw stateConflict();
     }
 
-    private DiagnosticFindingsView replayFindings(DiagnosticReportJpaEntity row, String storedFingerprint,
-            String fingerprint) {
-        if (!fingerprint.equals(storedFingerprint)) {
-            throw new DiagnosticOperationException(DiagnosticOperationOutcome.IDEMPOTENCY_CONFLICT);
-        }
-        return findingsView(row);
+    private DiagnosticFindingsView replayFindings(IdempotencyReplay replay, String fingerprint) {
+        return findingsView(replayedRow(replay, fingerprint));
     }
 
-    private DiagnosticReportView replayReport(DiagnosticReportJpaEntity row, String storedFingerprint,
-            String fingerprint) {
-        if (!fingerprint.equals(storedFingerprint)) {
+    private DiagnosticReportView replayReport(IdempotencyReplay replay, String fingerprint) {
+        DiagnosticReportJpaEntity row = replayedRow(replay, fingerprint);
+        return new DiagnosticReportView(row.getReportId(), row.getValidationStatus().name(), row.getReportVersion());
+    }
+
+    private DiagnosticFindingsReleaseView replayRelease(UUID requestId, IdempotencyReplay replay, String fingerprint) {
+        DiagnosticReportJpaEntity row = replayedRow(replay, fingerprint);
+        if (row.getState() != DiagnosticFindingsVersionState.COMPLETED || row.getReleasedAt() == null) {
+            throw stateConflict();
+        }
+        return new DiagnosticFindingsReleaseView(requestId, row.getVersionNumber(), "RELEASED");
+    }
+
+    /** Same key must carry the same payload fingerprint; the row is reloaded by the resource id recorded with the key. */
+    private DiagnosticReportJpaEntity replayedRow(IdempotencyReplay replay, String fingerprint) {
+        if (!replay.matches(fingerprint)) {
             throw new DiagnosticOperationException(DiagnosticOperationOutcome.IDEMPOTENCY_CONFLICT);
         }
-        return new DiagnosticReportView(row.getReportId(), row.getValidationStatus().name(), row.getReportVersion());
+        return reports.findById(replay.resourceId())
+                .orElseThrow(() -> new DiagnosticOperationException(DiagnosticOperationOutcome.RECORD_NOT_FOUND));
+    }
+
+    /** A key that record() reported as taken must be visible now; if it is not, reject it as a conflict. */
+    private IdempotencyReplay storedReplay(IdempotencyScope scope, UUID requestId, String key) {
+        return idempotency.find(scope, requestId, key)
+                .orElseThrow(() -> new DiagnosticOperationException(DiagnosticOperationOutcome.IDEMPOTENCY_CONFLICT));
     }
 
     private DiagnosticFindingsView findingsView(DiagnosticReportJpaEntity row) {

@@ -135,7 +135,11 @@ class AppointmentLifecycleT029PostgresIntegrationTest {
                 jdbc.update("delete from patient_profiles where id = ?", profile);
             }
             for (UUID id : fixtureServices) jdbc.update("delete from clinic_services where id = ?", id);
-            for (UUID id : fixtureAccounts) jdbc.update("delete from accounts where id = ?", id);
+            for (UUID id : fixtureAccounts) {
+                // idempotency_records has no FK to accounts or appointments: remove this owner's keys.
+                jdbc.update("delete from idempotency_records where owner_id = ?", id);
+                jdbc.update("delete from accounts where id = ?", id);
+            }
         } finally {
             restoreTrigger("audit_logs", "tr_audit_logs_immutable", auditMode);
         }

@@ -154,19 +154,22 @@ class DiagnosticPaidRegistrationTest {
         var status = new DiagnosticStatusServiceImpl(requests, beans.getBeanProvider(VisitDiagnosticReadPort.class), beans.getBeanProvider(RoomStatusAccessPort.class), patientIdentities);
         var assigned = DiagnosticActor.user(technician, AccountRole.IMAGING_TECHNICIAN);
         UUID roundId = UUID.randomUUID();
-        var clinicalOrder = new fu.fa26.sep490.g58.otcms_be.clinical.model.entity.ServiceOrderJpaEntity("CD-QUEUE", roundId, 1, true, null, null, visit, patient,
+        var clinicalOrder = new fu.fa26.sep490.g58.otcms_be.clinical.model.entity.ServiceOrderJpaEntity("CD-QUEUE", roundId, visit, patient,
                 serviceId, "X-ray", fu.fa26.sep490.g58.otcms_be.clinical.model.ClinicalServiceType.IMAGING, doctor,
                 "Pain", "KNEE", null, java.math.BigDecimal.ONE, clock.instant());
         var clinicalOrders = mock(fu.fa26.sep490.g58.otcms_be.clinical.repository.ServiceOrderRepository.class);
+        var clinicalRounds = mock(fu.fa26.sep490.g58.otcms_be.clinical.repository.ClinicalOrderingRoundRepository.class);
+        var clinicalRound = new fu.fa26.sep490.g58.otcms_be.clinical.model.entity.ClinicalOrderingRoundJpaEntity(roundId, visit, 1, doctor, clock.instant());
         var guard = mock(fu.fa26.sep490.g58.otcms_be.common.service.CoordinationGuardService.class);
-        when(clinicalOrders.findFirstByOrderingRoundIdAndRoundHeadTrue(roundId)).thenReturn(Optional.of(clinicalOrder));
+        when(clinicalRounds.findById(roundId)).thenReturn(Optional.of(clinicalRound));
+        when(clinicalRounds.existsById(roundId)).thenReturn(true);
         when(clinicalOrders.findByOrderingRoundId(roundId)).thenReturn(List.of(clinicalOrder));
         when(orders.requireOpenImagingOrder(clinicalOrder.getId())).thenAnswer(call -> new ClinicalImagingOrder(
                 clinicalOrder.getId(), visit, serviceId, true,
                 clinicalOrder.getPaymentStatus() == fu.fa26.sep490.g58.otcms_be.clinical.model.ServiceOrderPaymentStatus.PAID));
         var statuses = mock(fu.fa26.sep490.g58.otcms_be.diagnostic.service.DiagnosticOrderStatusQueryService.class);
         when(statuses.findByServiceOrders(any())).thenReturn(Map.of());
-        var workflow = new fu.fa26.sep490.g58.otcms_be.clinical.service.impl.ClinicalRoundWorkflowServiceImpl(clinicalOrders,
+        var workflow = new fu.fa26.sep490.g58.otcms_be.clinical.service.impl.ClinicalRoundWorkflowServiceImpl(clinicalOrders, clinicalRounds,
                 mock(fu.fa26.sep490.g58.otcms_be.clinical.service.impl.ClinicalOrderPreparationService.class),
                 mock(fu.fa26.sep490.g58.otcms_be.patient.service.PatientClinicalIdentityQueryService.class), statuses, registration, guard,
                 rooms, mock(fu.fa26.sep490.g58.otcms_be.clinical.service.VisitClinicalContextPort.class));
@@ -174,7 +177,7 @@ class DiagnosticPaidRegistrationTest {
         var assignments = List.of(new fu.fa26.sep490.g58.otcms_be.clinical.service.ClinicalRoundWorkflowService.RoomAssignment(clinicalOrder.getId(), roomId));
         assertThrows(fu.fa26.sep490.g58.otcms_be.clinical.exception.ClinicalOperationException.class,
                 () -> workflow.dispatch(roundId, reception, assignments));
-        new fu.fa26.sep490.g58.otcms_be.clinical.integration.billing.ClinicalRoundBillingAdapter(clinicalOrders, guard, clock)
+        new fu.fa26.sep490.g58.otcms_be.clinical.integration.billing.ClinicalRoundBillingAdapter(clinicalOrders, clinicalRounds, guard, clock)
                 .markRoundPaid(roundId);
         assertEquals(fu.fa26.sep490.g58.otcms_be.clinical.model.ServiceOrderPaymentStatus.PAID, clinicalOrder.getPaymentStatus());
         assertTrue(rows.isEmpty());

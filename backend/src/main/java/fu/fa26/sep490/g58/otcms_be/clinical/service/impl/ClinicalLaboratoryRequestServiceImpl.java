@@ -2,11 +2,14 @@ package fu.fa26.sep490.g58.otcms_be.clinical.service.impl;
 
 import fu.fa26.sep490.g58.otcms_be.clinical.exception.ClinicalOperationException;
 import fu.fa26.sep490.g58.otcms_be.clinical.model.ClinicalServiceType;
-import fu.fa26.sep490.g58.otcms_be.clinical.model.entity.ServiceOrderJpaEntity;
+import fu.fa26.sep490.g58.otcms_be.clinical.repository.ClinicalOrderingRoundRepository;
 import fu.fa26.sep490.g58.otcms_be.clinical.repository.ServiceOrderRepository;
 import fu.fa26.sep490.g58.otcms_be.clinical.service.ClinicalLaboratoryRequestService;
 import fu.fa26.sep490.g58.otcms_be.clinical.service.ClinicalOrderingService;
 import fu.fa26.sep490.g58.otcms_be.clinical.service.VisitConclusionPort;
+import fu.fa26.sep490.g58.otcms_be.common.idempotency.IdempotencyReplay;
+import fu.fa26.sep490.g58.otcms_be.common.idempotency.IdempotencyScope;
+import fu.fa26.sep490.g58.otcms_be.common.idempotency.IdempotencyStore;
 import fu.fa26.sep490.g58.otcms_be.common.service.CoordinationGuardService;
 import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
@@ -27,19 +30,23 @@ public class ClinicalLaboratoryRequestServiceImpl implements ClinicalLaboratoryR
     private final ClinicalOrderPreparationService preparation;
     private final ClinicalOrderingTransactionService writer;
     private final ServiceOrderRepository orders;
+    private final ClinicalOrderingRoundRepository rounds;
     private final CoordinationGuardService guard;
     private final VisitConclusionPort conclusions;
     private final Clock clock;
+    private final IdempotencyStore store;
 
     public ClinicalLaboratoryRequestServiceImpl(ClinicalOrderPreparationService preparation,
-            ClinicalOrderingTransactionService writer, ServiceOrderRepository orders,
-            CoordinationGuardService guard, VisitConclusionPort conclusions, Clock clock) {
+            ClinicalOrderingTransactionService writer, ServiceOrderRepository orders, ClinicalOrderingRoundRepository rounds,
+            CoordinationGuardService guard, VisitConclusionPort conclusions, Clock clock, IdempotencyStore store) {
         this.preparation = preparation;
         this.writer = writer;
         this.orders = orders;
+        this.rounds = rounds;
         this.guard = guard;
         this.conclusions = conclusions;
         this.clock = clock;
+        this.store = store;
     }
 
     @Override
@@ -49,7 +56,7 @@ public class ClinicalLaboratoryRequestServiceImpl implements ClinicalLaboratoryR
         String key = command.idempotencyKey().trim();
         String fingerprint = fingerprint(command);
         guard.acquire();
-        var existing = orders.findRoundBySubmissionKey(command.doctorProfileId(), key);
+        var existing = store.find(IdempotencyScope.ORDER_ROUND_SUBMIT, command.doctorProfileId(), key);
         if (existing.isPresent()) return replay(command, fingerprint, existing.get());
         var context = preparation.requireCurrentCare(command.visitId(), command.doctorProfileId());
         var requests = command.orders().stream().map(item -> new ClinicalOrderingService.OrderRequest(
@@ -73,20 +80,22 @@ public class ClinicalLaboratoryRequestServiceImpl implements ClinicalLaboratoryR
         return new SubmissionResult(sorted(round), false);
     }
 
-    private SubmissionResult replay(SubmitRequest command, String fingerprint, ServiceOrderJpaEntity head) {
-        if (!fingerprint.equals(head.getSubmitRequestFingerprint())) throw new ClinicalOperationException("IDEMPOTENCY_CONFLICT");
+    private SubmissionResult replay(SubmitRequest command, String fingerprint, IdempotencyReplay recorded) {
+        if (!recorded.matches(fingerprint)) throw new ClinicalOperationException("IDEMPOTENCY_CONFLICT");
+        var round = rounds.findById(recorded.resourceId())
+                .orElseThrow(() -> new ClinicalOperationException("DEPENDENCY_UNAVAILABLE"));
         preparation.requireCurrentCare(command.visitId(), command.doctorProfileId());
-        if (!head.isRoundHead() || !command.visitId().equals(head.getVisitId())
-                || !command.doctorProfileId().equals(head.getRequestingDoctorId())) {
+        if (!command.visitId().equals(round.getVisitId())
+                || !command.doctorProfileId().equals(round.getOrderedByDoctorId())) {
             throw new ClinicalOperationException("DEPENDENCY_UNAVAILABLE");
         }
-        var items = orders.findLaboratoryRoundOrders(head.getOrderingRoundId()).stream().map(order ->
+        var items = orders.findLaboratoryRoundOrders(round.getId()).stream().map(order ->
                 new ClinicalOrderingService.OrderView(order.getId(), order.getOrderCode(), order.getVisitId(),
                         order.getPatientId(), order.getOrderingRoundId(), order.getServiceId(), order.getServiceNameSnapshot(),
                         order.getServiceType(), order.getRequestingDoctorId(), order.getClinicalReason(), order.getBodyArea(),
                         order.getInstructions(), order.getPriceSnapshot(), order.getOrderStatus(), order.getPaymentStatus())).toList();
-        return new SubmissionResult(sorted(new ClinicalOrderingService.RoundView(head.getOrderingRoundId(), head.getVisitId(),
-                head.getRoundNumber(), head.getRequestingDoctorId(), head.getOrderedAt(), items)), true);
+        return new SubmissionResult(sorted(new ClinicalOrderingService.RoundView(round.getId(), round.getVisitId(),
+                round.getRoundNumber(), round.getOrderedByDoctorId(), round.getOrderedAt(), items)), true);
     }
 
     private static ClinicalOrderingService.RoundView sorted(ClinicalOrderingService.RoundView round) {
