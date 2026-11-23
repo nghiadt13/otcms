@@ -22,9 +22,9 @@ public class ClinicalServiceOrderQueueServiceImpl implements ClinicalServiceOrde
             select o.id, o.order_code, o.visit_id, o.patient_id, o.service_id, o.service_name_snapshot, o.service_type,
                    o.instructions, o.body_area, o.clinical_reason, o.requesting_doctor_id, o.order_status,
                    o.payment_status, o.room_id, e.execution_status, r.ordered_at
-            from clinical_service_orders o
-            join clinical_ordering_rounds r on r.id = o.ordering_round_id
-            left join imaging_order_executions e on e.service_order_id = o.id
+            from service_orders o
+            join service_order_rounds r on r.id = o.ordering_round_id
+            left join imaging_executions e on e.service_order_id = o.id
             """;
     private final EntityManager entityManager;
     private final ServiceOrderRepository orders;

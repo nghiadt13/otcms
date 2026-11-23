@@ -68,8 +68,8 @@ class BillingRefundPostgresTest extends HoldBillingTestSupport {
     @AfterEach
     void removeOrderFixture() {
         jdbc.update("update invoice_items set service_order_id = null where service_order_id = ?", orderId);
-        jdbc.update("delete from clinical_service_orders where id = ?", orderId);
-        jdbc.update("delete from clinical_ordering_rounds where visit_id = ?", visitId);
+        jdbc.update("delete from service_orders where id = ?", orderId);
+        jdbc.update("delete from service_order_rounds where visit_id = ?", visitId);
         jdbc.update("delete from visits where id = ?", visitId);
     }
 
@@ -230,9 +230,9 @@ class BillingRefundPostgresTest extends HoldBillingTestSupport {
                 + "values (?, ?, 'WALK_IN', ?, ?, ?, 'OPEN')", visitId, patientProfileId, Timestamp.from(now), Timestamp.from(now),
                 receptionistAccountId);
         UUID round = UUID.randomUUID();
-        jdbc.update("insert into clinical_ordering_rounds (id,visit_id,round_number,ordered_by_doctor_id,ordered_at,created_at) "
+        jdbc.update("insert into service_order_rounds (id,visit_id,round_number,ordered_by_doctor_id,ordered_at,created_at) "
                 + "values (?,?,1,?,now(),now())", round, visitId, doctorProfileId);
-        jdbc.update("insert into clinical_service_orders (id,order_code,ordering_round_id,visit_id,"
+        jdbc.update("insert into service_orders (id,order_code,ordering_round_id,visit_id,"
                 + "patient_id,service_id,service_name_snapshot,service_type,requesting_doctor_id,clinical_reason,body_area,price_snapshot,"
                 + "order_status,payment_status,cancel_reason,created_at,updated_at) values (?,?,?,?,?,?,'Order snapshot',"
                 + "'IMAGING',?,'Pain','KNEE',125000,'ORDERED','PENDING_PAYMENT',null,now(),now())",

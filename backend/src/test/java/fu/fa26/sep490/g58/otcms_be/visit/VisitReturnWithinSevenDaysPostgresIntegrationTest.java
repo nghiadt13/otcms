@@ -128,8 +128,8 @@ class VisitReturnWithinSevenDaysPostgresIntegrationTest {
     private UUID order(Fixture f, String status) {
         UUID service = UUID.randomUUID(), order = UUID.randomUUID(), round = UUID.randomUUID();
         jdbc.update("insert into clinic_services (id, name, duration_minutes, buffer_minutes, price) values (?, ?, 30, 0, 100)", service, "Return service " + service);
-        jdbc.update("insert into clinical_ordering_rounds (id, visit_id, round_number, ordered_by_doctor_id, ordered_at, created_at) values (?, ?, 1, ?, now(), now())", round, f.visit, f.doctor);
-        jdbc.update("insert into clinical_service_orders (id, order_code, ordering_round_id, visit_id, patient_id, service_id, service_name_snapshot, service_type, requesting_doctor_id, clinical_reason, price_snapshot, order_status, payment_status, room_id, created_at, updated_at) values (?, ?, ?, ?, ?, ?, 'Return service', 'OTHER', ?, 'Pain', 100, ?, 'PAID', ?, now(), now())", order, "R-" + order.toString().substring(0, 8), round, f.visit, f.patient, service, f.doctor, status, f.room);
+        jdbc.update("insert into service_order_rounds (id, visit_id, round_number, ordered_by_doctor_id, ordered_at, created_at) values (?, ?, 1, ?, now(), now())", round, f.visit, f.doctor);
+        jdbc.update("insert into service_orders (id, order_code, ordering_round_id, visit_id, patient_id, service_id, service_name_snapshot, service_type, requesting_doctor_id, clinical_reason, price_snapshot, order_status, payment_status, room_id, created_at, updated_at) values (?, ?, ?, ?, ?, ?, 'Return service', 'OTHER', ?, 'Pain', 100, ?, 'PAID', ?, now(), now())", order, "R-" + order.toString().substring(0, 8), round, f.visit, f.patient, service, f.doctor, status, f.room);
         return order;
     }
     private UUID account(String role) {

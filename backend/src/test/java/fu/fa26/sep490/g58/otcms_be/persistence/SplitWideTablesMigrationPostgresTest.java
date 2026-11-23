@@ -55,17 +55,17 @@ class SplitWideTablesMigrationPostgresTest {
             assertEquals(2, count(schema, "idempotency_records where scope = 'PAYMENT_ATTEMPT'"));
 
             // V138: one row per round; orders keep only the round id
-            assertEquals(2, count(schema, "clinical_ordering_rounds"));
-            assertEquals(2, jdbc.queryForObject("select round_number from " + schema + ".clinical_ordering_rounds where id = '00000000-0000-0000-0000-000000000202'", Integer.class));
+            assertEquals(2, count(schema, "service_order_rounds"));
+            assertEquals(2, jdbc.queryForObject("select round_number from " + schema + ".service_order_rounds where id = '00000000-0000-0000-0000-000000000202'", Integer.class));
 
             // V139: executions for the 3 imaging orders with an execution; the lab order keeps its room on the order row
-            assertEquals(3, count(schema, "imaging_order_executions"));
-            assertEquals(3, jdbc.queryForObject("select version from " + schema + ".imaging_order_executions where service_order_id = '00000000-0000-0000-0000-000000000103'", Integer.class));
-            assertEquals("STUDY-1", jdbc.queryForObject("select study_ref from " + schema + ".imaging_order_executions where service_order_id = '00000000-0000-0000-0000-000000000104'", String.class));
-            assertEquals(1, count(schema, "clinical_service_orders where service_type = 'LABORATORY' and room_id is not null and lab_status = 'ASSIGNED'"));
+            assertEquals(3, count(schema, "imaging_executions"));
+            assertEquals(3, jdbc.queryForObject("select version from " + schema + ".imaging_executions where service_order_id = '00000000-0000-0000-0000-000000000103'", Integer.class));
+            assertEquals("STUDY-1", jdbc.queryForObject("select study_ref from " + schema + ".imaging_executions where service_order_id = '00000000-0000-0000-0000-000000000104'", String.class));
+            assertEquals(1, count(schema, "service_orders where service_type = 'LABORATORY' and room_id is not null and lab_status = 'ASSIGNED'"));
 
             // V140: only the study that has release data
-            assertEquals(1, count(schema, "imaging_study_releases where imaging_study_id = '00000000-0000-0000-0000-000000000601' and confirmation_attempt_count = 2 and last_safe_error_code = 'SOME_ERROR'"));
+            assertEquals(1, count(schema, "study_releases where imaging_study_id = '00000000-0000-0000-0000-000000000601' and confirmation_attempt_count = 2 and last_safe_error_code = 'SOME_ERROR'"));
             assertEquals(2, count(schema, "imaging_studies"));
 
             // V141: the QR arrival and the counter check-in, none for the plain appointment

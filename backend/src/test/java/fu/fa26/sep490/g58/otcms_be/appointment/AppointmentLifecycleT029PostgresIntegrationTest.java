@@ -106,7 +106,7 @@ class AppointmentLifecycleT029PostgresIntegrationTest {
                 jdbc.update("delete from audit_logs where source = 'appointment_audits' and entity_id = ?", id);
                 jdbc.update("update appointments set status = 'CANCELLED', visit_id = null where id = ?", id);
                 for (UUID visit : visits) {
-                    jdbc.update("delete from clinical_examinations where visit_id = ?", visit);
+                    jdbc.update("delete from examinations where visit_id = ?", visit);
 
                     jdbc.update("delete from audit_logs where source = 'visit_assignment_audits' and record_label = ?::text", visit);
                     jdbc.update("delete from visit_assignments where visit_id = ?", visit);
@@ -119,7 +119,7 @@ class AppointmentLifecycleT029PostgresIntegrationTest {
             }
             for (UUID visit : fixtureVisits) {
 
-                jdbc.update("delete from clinical_examinations where visit_id = ?", visit);
+                jdbc.update("delete from examinations where visit_id = ?", visit);
 
                 jdbc.update("delete from audit_logs where source = 'visit_assignment_audits' and record_label = ?::text", visit);
                 jdbc.update("delete from visit_assignments where visit_id = ?", visit);
@@ -155,7 +155,7 @@ class AppointmentLifecycleT029PostgresIntegrationTest {
         UUID visit = jdbc.queryForObject("select visit_id from appointments where id = ?", UUID.class, appointment);
         assertEquals(1, jdbc.queryForObject("select count(*) from visit_assignments where visit_id = ? and doctor_profile_id = ? and status = 'IN_PROGRESS'", Integer.class, visit, doctorProfile));
         // Doctor completion closes the visit only when the examination is complete (Clinical evidence).
-        jdbc.update("insert into clinical_examinations (id, visit_id, status, created_at, updated_at, version) values (?, ?, 'COMPLETED', ?, ?, 0)",
+        jdbc.update("insert into examinations (id, visit_id, status, created_at, updated_at, version) values (?, ?, 'COMPLETED', ?, ?, 0)",
                 UUID.randomUUID(), visit, Timestamp.from(NOW), Timestamp.from(NOW));
         mvc.perform(statusChange(appointment, doctorAccount, AccountType.DOCTOR, "COMPLETED"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("COMPLETED"));
@@ -233,16 +233,16 @@ class AppointmentLifecycleT029PostgresIntegrationTest {
         UUID appointment = checkedInAppointment();
         UUID visit = jdbc.queryForObject("select visit_id from appointments where id = ?", UUID.class, appointment);
         // B8: a checked-in appointment is never cancelled, so the refused cancellation leaves the Clinical owner's DRAFT examination alone.
-        jdbc.update("insert into clinical_examinations (id, visit_id, status, created_at, updated_at) "
+        jdbc.update("insert into examinations (id, visit_id, status, created_at, updated_at) "
                 + "values (?, ?, 'DRAFT', ?, ?)", UUID.randomUUID(), visit, Timestamp.from(NOW), Timestamp.from(NOW));
-        assertEquals(1, jdbc.queryForObject("select count(*) from clinical_examinations where visit_id = ? and status = 'DRAFT'",
+        assertEquals(1, jdbc.queryForObject("select count(*) from examinations where visit_id = ? and status = 'DRAFT'",
                 Integer.class, visit));
         mvc.perform(cancel(appointment)).andExpect(status().isConflict())
                 .andExpect(jsonPath("$.error.code").value("MSG-32"));
         assertEquals("CHECKED_IN", jdbc.queryForObject("select status from appointments where id = ?", String.class, appointment));
         assertEquals("OPEN", jdbc.queryForObject("select status from visits where id = ?", String.class, visit));
         assertEquals(0, jdbc.queryForObject("select count(*) from audit_logs where source = 'appointment_audits' and entity_id = ? and after_state->>'status' = 'CANCELLED'", Integer.class, appointment));
-        assertEquals("DRAFT", jdbc.queryForObject("select status from clinical_examinations where visit_id = ?", String.class, visit));
+        assertEquals("DRAFT", jdbc.queryForObject("select status from examinations where visit_id = ?", String.class, visit));
     }
 
     @Test

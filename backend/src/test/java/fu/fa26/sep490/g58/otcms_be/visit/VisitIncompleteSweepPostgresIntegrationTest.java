@@ -61,9 +61,9 @@ class VisitIncompleteSweepPostgresIntegrationTest {
         jdbc.update("insert into visits (id, patient_profile_id, source, arrived_at, checked_in_at, created_by_account_id) values (?, ?, 'WALK_IN', ?, ?, ?)", visit, patient, Timestamp.from(first), Timestamp.from(first), receptionist);
         jdbc.update("insert into queue_entries (visit_id, stage, status, entered_at, doctor_profile_id, clinic_date, queue_number, queued_at, started_at, awaiting_at) values (?, 'EXAM', 'AWAITING_CONCLUSION', ?, ?, date '2026-11-01', 1, ?, ?, ?)", visit, Timestamp.from(first), doctor, Timestamp.from(first), Timestamp.from(first), Timestamp.from(first));
         UUID round = UUID.randomUUID(), service = UUID.randomUUID();
-        jdbc.update("insert into clinical_ordering_rounds (id, visit_id, round_number, ordered_by_doctor_id, ordered_at, created_at) values (?, ?, 1, ?, now(), now())", round, visit, doctor);
+        jdbc.update("insert into service_order_rounds (id, visit_id, round_number, ordered_by_doctor_id, ordered_at, created_at) values (?, ?, 1, ?, now(), now())", round, visit, doctor);
         for (UUID order : java.util.List.of(unpaidOrder, paidOrder)) {
-            jdbc.update("insert into clinical_service_orders (id, order_code, ordering_round_id, visit_id, patient_id, service_id, service_name_snapshot, service_type, requesting_doctor_id, clinical_reason, price_snapshot, order_status, payment_status, created_at, updated_at) values (?, ?, ?, ?, ?, ?, 'Other service', 'OTHER', ?, 'Pain', 100, 'ORDERED', ?, now(), now())", order, "O-" + order.toString().substring(0, 8), round, visit, patient, service, doctor, order.equals(paidOrder) ? "PAID" : "PENDING_PAYMENT");
+            jdbc.update("insert into service_orders (id, order_code, ordering_round_id, visit_id, patient_id, service_id, service_name_snapshot, service_type, requesting_doctor_id, clinical_reason, price_snapshot, order_status, payment_status, created_at, updated_at) values (?, ?, ?, ?, ?, ?, 'Other service', 'OTHER', ?, 'Pain', 100, 'ORDERED', ?, now(), now())", order, "O-" + order.toString().substring(0, 8), round, visit, patient, service, doctor, order.equals(paidOrder) ? "PAID" : "PENDING_PAYMENT");
         }
         jdbc.update("insert into invoices (id, invoice_number, patient_profile_id, visit_id, source_type, source_fingerprint, created_by_account_id) values (?, ?, ?, ?, 'VISIT', ?, ?)", invoice, invoice.toString(), patient, visit, "a".repeat(64), receptionist);
         jdbc.update("insert into payment_attempts (id, invoice_id, channel, counter_method, amount, currency_code, status, created_by_account_id, confirmed_at) values (?, ?, 'COUNTER', 'CASH', 100, 'VND', 'CONFIRMED', ?, now())", payment, invoice, receptionist);
@@ -71,7 +71,7 @@ class VisitIncompleteSweepPostgresIntegrationTest {
         jdbc.update("insert into invoice_items (id, invoice_id, line_number, description_snapshot, quantity, unit_price_snapshot, service_order_id, payment_attempt_id) values (?, ?, 2, 'Paid', 1, 100, ?, ?)", paidItem, invoice, paidOrder, payment);
 
         assertTrue(lifecycle.markIncompleteIfDue(visit, Instant.parse("2026-11-08T00:15:00Z")));
-        assertEquals(2, jdbc.queryForObject("select count(*) from clinical_service_orders where id in (?, ?) and order_status = 'CANCELLED'", Integer.class, unpaidOrder, paidOrder));
+        assertEquals(2, jdbc.queryForObject("select count(*) from service_orders where id in (?, ?) and order_status = 'CANCELLED'", Integer.class, unpaidOrder, paidOrder));
         assertNotNull(jdbc.queryForObject("select voided_at from invoice_items where id = ?", Timestamp.class, unpaidItem));
         assertNull(jdbc.queryForObject("select voided_at from invoice_items where id = ?", Timestamp.class, paidItem));
         assertNull(jdbc.queryForObject("select refund_status from invoice_items where id = ?", String.class, paidItem));

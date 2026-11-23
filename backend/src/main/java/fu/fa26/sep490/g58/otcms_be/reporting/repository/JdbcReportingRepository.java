@@ -66,10 +66,10 @@ public class JdbcReportingRepository implements ReportingRepository {
     }
     private static final String VN = "Asia/Ho_Chi_Minh";
     /** Orders with their ordering round (ordered_at) and their execution row (none until dispatched). */
-    private static final String ORDER_FROM = "clinical_service_orders o JOIN clinical_ordering_rounds r ON r.id=o.ordering_round_id "
-        + "LEFT JOIN imaging_order_executions e ON e.service_order_id=o.id";
+    private static final String ORDER_FROM = "service_orders o JOIN service_order_rounds r ON r.id=o.ordering_round_id "
+        + "LEFT JOIN imaging_executions e ON e.service_order_id=o.id";
     /** Imaging orders with their execution row: only dispatched orders can be performed. */
-    private static final String IMAGING_FROM = "clinical_service_orders o JOIN imaging_order_executions e ON e.service_order_id=o.id";
+    private static final String IMAGING_FROM = "service_orders o JOIN imaging_executions e ON e.service_order_id=o.id";
     /** Imaging counts as performed once its result exists; the capture time is the first use of the attempt. */
     private static final String IMAGING_TIME = "COALESCE(e.first_use_at, e.updated_at)";
     private static final String IMAGING_DONE = "o.service_type='IMAGING' AND e.execution_status IN ('RESULT_AVAILABLE','REVIEWED')";

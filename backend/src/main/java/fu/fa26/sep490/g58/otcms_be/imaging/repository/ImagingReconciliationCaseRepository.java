@@ -55,7 +55,7 @@ public interface ImagingReconciliationCaseRepository
 
     @Modifying
     @Query(value = """
-            insert into imaging_reconciliation_cases
+            insert into study_reconciliation_cases
                 (id, operation_id, event_id, category, classification, state,
                  safe_reason_code, safe_evidence_sha256, assigned_owner_queue)
             values (:id, :operationId, :eventId, :category, :classification, 'OPEN',

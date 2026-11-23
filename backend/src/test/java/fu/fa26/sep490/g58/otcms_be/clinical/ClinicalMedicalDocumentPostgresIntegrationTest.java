@@ -57,7 +57,7 @@ class ClinicalMedicalDocumentPostgresIntegrationTest {
                 select data_type from information_schema.columns where table_schema = current_schema()
                 and table_name = 'clinical_medical_document_payloads' and column_name = 'content'
                 """, String.class));
-        assertEquals(1, jdbc.queryForObject("select count(*) from clinical_medical_documents where visit_id = ?", Integer.class, visitId));
+        assertEquals(1, jdbc.queryForObject("select count(*) from medical_documents where visit_id = ?", Integer.class, visitId));
         assertEquals(1, doc.version());
     }
     @Test void expectedVersionAndAtomicReplacementPersistTogether() {

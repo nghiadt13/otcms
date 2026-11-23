@@ -13,9 +13,9 @@ import org.hibernate.type.SqlTypes;
 import java.time.Instant;
 import java.util.UUID;
 
-/** Confirmation and release bookkeeping of one imaging study; shares the study id (imaging_study_releases, 1 - 0..1). */
+/** Confirmation and release bookkeeping of one imaging study; shares the study id (study_releases, 1 - 0..1). */
 @Entity
-@Table(name = "imaging_study_releases")
+@Table(name = "study_releases")
 public class ImagingStudyReleaseJpaEntity {
     @Id
     @Column(name = "imaging_study_id")

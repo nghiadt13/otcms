@@ -10,7 +10,7 @@ import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
 @Entity
-@Table(name = "imaging_reconciliation_cases")
+@Table(name = "study_reconciliation_cases")
 public class ImagingReconciliationCaseJpaEntity {
     @Id private UUID id;
     @Column(name = "operation_id") private UUID operationId;

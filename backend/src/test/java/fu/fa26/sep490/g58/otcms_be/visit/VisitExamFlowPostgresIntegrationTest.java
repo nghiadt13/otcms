@@ -333,7 +333,7 @@ class VisitExamFlowPostgresIntegrationTest {
     private void examination(UUID visit, String status) {
         entityManager.flush();
         entityManager.clear();
-        jdbc.update("insert into clinical_examinations (id, visit_id, reason_for_visit, symptoms, examination_findings, "
+        jdbc.update("insert into examinations (id, visit_id, reason_for_visit, symptoms, examination_findings, "
                 + "status, created_at, updated_at, version) values (?, ?, 'EF reason', 'EF symptoms', 'EF findings', ?, ?, ?, 0) "
                 + "on conflict (visit_id) do update set status = excluded.status, updated_at = excluded.updated_at",
                 UUID.randomUUID(), visit, status, ts(NOW), ts(NOW));

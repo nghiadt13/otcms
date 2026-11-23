@@ -24,7 +24,7 @@ public class ClinicalServiceOrderRoomServiceImpl implements ClinicalServiceOrder
     private static final String LOCK = """
             select o.id, o.visit_id, o.service_id, o.service_type, e.imaging_type, o.room_id, o.order_status,
                    e.execution_status, e.version as execution_version
-            from clinical_service_orders o left join imaging_order_executions e on e.service_order_id = o.id
+            from service_orders o left join imaging_executions e on e.service_order_id = o.id
             where o.id = :id for update of o
             """;
     private final EntityManager entityManager;
@@ -66,9 +66,9 @@ public class ClinicalServiceOrderRoomServiceImpl implements ClinicalServiceOrder
                     sha256(orderId + ":" + roomId)) == 1;
         }
         return entityManager.createNativeQuery("""
-                update clinical_service_orders set room_id = :roomId, updated_at = clock_timestamp()
+                update service_orders set room_id = :roomId, updated_at = clock_timestamp()
                 where id = :id and order_status = 'ORDERED'
-                  and not exists (select 1 from imaging_order_executions e where e.service_order_id = :id)
+                  and not exists (select 1 from imaging_executions e where e.service_order_id = :id)
                 """).setParameter("roomId", roomId).setParameter("id", orderId).executeUpdate() == 1;
     }
 

@@ -247,7 +247,7 @@ class NotificationPostgresIntegrationTest {
         jdbc.update("insert into visit_assignments(id,visit_id,doctor_profile_id,starts_at,ends_at,status) values (?,?,?,?,?,'COMPLETED')",
                 UUID.randomUUID(), openVisit, doctor, Timestamp.from(NOW.minusSeconds(600)), Timestamp.from(NOW));
         for (UUID id : List.of(openVisit, unlinkedVisit)) {
-            jdbc.update("insert into clinical_examinations(id,visit_id,status,created_at,updated_at,version) values (?,?,'COMPLETED',?,?,0)",
+            jdbc.update("insert into examinations(id,visit_id,status,created_at,updated_at,version) values (?,?,'COMPLETED',?,?,0)",
                     UUID.randomUUID(), id, Timestamp.from(NOW), Timestamp.from(NOW));
         }
         startDoctorClosure(openVisit, 1);

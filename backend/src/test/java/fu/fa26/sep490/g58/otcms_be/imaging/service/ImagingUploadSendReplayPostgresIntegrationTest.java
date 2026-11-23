@@ -39,15 +39,15 @@ class ImagingUploadSendReplayPostgresIntegrationTest {
                 + "values (?,?,'Imaging replay fixture','+84977775555','PATIENT','1990-01-01','OTHER')", patient, account);
         jdbc.update("insert into visits (id,patient_profile_id,source,arrived_at,checked_in_at,created_by_account_id,status) "
                 + "values (?,?,'WALK_IN',now(),now(),?,'OPEN')", visit, patient, account);
-        jdbc.update("insert into clinical_ordering_rounds (id,visit_id,round_number,ordered_by_doctor_id,ordered_at,created_at) "
+        jdbc.update("insert into service_order_rounds (id,visit_id,round_number,ordered_by_doctor_id,ordered_at,created_at) "
                 + "values (?,?,1,?,now(),now())", round, visit, UUID.randomUUID());
-        jdbc.update("insert into clinical_service_orders (id,order_code,ordering_round_id,"
+        jdbc.update("insert into service_orders (id,order_code,ordering_round_id,"
                 + "visit_id,patient_id,service_id,service_name_snapshot,service_type,requesting_doctor_id,"
                 + "clinical_reason,body_area,price_snapshot,order_status,payment_status,created_at,updated_at,room_id) "
                 + "values (?,?,?,?,?,?,'Replay MRI','IMAGING',?,'Test','KNEE',1,'ORDERED','PAID',now(),now(),?)",
                 order, order.toString().replace("-", ""), round, visit, patient, UUID.randomUUID(),
                 UUID.randomUUID(), UUID.randomUUID());
-        jdbc.update("insert into imaging_order_executions (service_order_id,imaging_type,ordering_doctor_account_id,"
+        jdbc.update("insert into imaging_executions (service_order_id,imaging_type,ordering_doctor_account_id,"
                 + "execution_status,attempt_id,first_use_event_id,first_use_type,first_use_source_id,first_use_at,"
                 + "created_at,updated_at) "
                 + "values (?,'MRI',?,'IN_PROGRESS',?,?,'ACQUISITION_STARTED','fixture',now(),now(),now())",
@@ -57,8 +57,8 @@ class ImagingUploadSendReplayPostgresIntegrationTest {
     @AfterEach void cleanup() {
         jdbc.update("delete from idempotency_records where owner_id=? or resource_id in (select id from imaging_studies where service_order_id=?)", actor, order);
         jdbc.update("delete from imaging_studies where service_order_id=?", order);
-        jdbc.update("delete from clinical_service_orders where id=?", order);
-        jdbc.update("delete from clinical_ordering_rounds where id=?", round);
+        jdbc.update("delete from service_orders where id=?", order);
+        jdbc.update("delete from service_order_rounds where id=?", round);
         jdbc.update("delete from visits where id=?", visit);
         jdbc.update("delete from patient_profiles where id=?", patient);
         jdbc.update("delete from accounts where id=?", account);
@@ -86,12 +86,12 @@ class ImagingUploadSendReplayPostgresIntegrationTest {
                 study, operation);
         entityManager.clear();
         var first = sends.send(actor, operation, "send-key");
-        UUID event = jdbc.queryForObject("select confirmation_event_id from imaging_study_releases where imaging_study_id=?", UUID.class, operation);
+        UUID event = jdbc.queryForObject("select confirmation_event_id from study_releases where imaging_study_id=?", UUID.class, operation);
         assertNotNull(event);
         var retry = sends.send(actor, operation, "send-key");
         assertEquals(ImagingOperationState.CONFIRMATION_PENDING, first.state());
         assertEquals(first.state(), retry.state());
-        assertEquals(event, jdbc.queryForObject("select confirmation_event_id from imaging_study_releases where imaging_study_id=?", UUID.class, operation));
+        assertEquals(event, jdbc.queryForObject("select confirmation_event_id from study_releases where imaging_study_id=?", UUID.class, operation));
         assertEquals(1, jdbc.queryForObject("select count(*) from idempotency_records where scope='IMAGING_SEND' and owner_id=? and idempotency_key=?",
                 Integer.class, operation, "send-key"));
         ImagingOperationException conflict = assertThrows(ImagingOperationException.class,

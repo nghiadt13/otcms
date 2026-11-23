@@ -199,7 +199,7 @@ class ReportingDashboardAndReportsPostgresTest {
     }
     private void order(String orderStatus, String paymentStatus, String type, Instant orderedAt) {
         UUID id = UUID.randomUUID();
-        jdbc.update("insert into clinical_service_orders(id,order_code,ordering_round_id,visit_id,patient_id,service_id,service_name_snapshot,service_type,requesting_doctor_id,clinical_reason,"
+        jdbc.update("insert into service_orders(id,order_code,ordering_round_id,visit_id,patient_id,service_id,service_name_snapshot,service_type,requesting_doctor_id,clinical_reason,"
                 + "price_snapshot,order_status,payment_status,created_at,updated_at) values (?,?,?,?,?,?,'Chỉ định',?,?,'lý do',100000,?,?,?,?)",
                 id, "P10-" + id.toString().substring(0, 18), newRound(orderedAt), visit, profile, service, type, doctor, orderStatus, paymentStatus,
                 Timestamp.from(orderedAt), Timestamp.from(orderedAt));
@@ -207,18 +207,18 @@ class ReportingDashboardAndReportsPostgresTest {
     /** One round per fixture order: the round carries ordered_at, which the order reports filter on. */
     private UUID newRound(Instant orderedAt) {
         UUID id = UUID.randomUUID();
-        jdbc.update("insert into clinical_ordering_rounds(id,visit_id,round_number,ordered_by_doctor_id,ordered_at,created_at) values (?,?,?,?,?,?)",
+        jdbc.update("insert into service_order_rounds(id,visit_id,round_number,ordered_by_doctor_id,ordered_at,created_at) values (?,?,?,?,?,?)",
                 id, visit, ++roundNumber, doctor, Timestamp.from(orderedAt), Timestamp.from(orderedAt));
         return id;
     }
     private void imaging(String executionStatus, Instant at) {
         UUID id = UUID.randomUUID();
         boolean done = !executionStatus.equals("PENDING");
-        jdbc.update("insert into clinical_service_orders(id,order_code,ordering_round_id,visit_id,patient_id,service_id,service_name_snapshot,service_type,requesting_doctor_id,clinical_reason,"
+        jdbc.update("insert into service_orders(id,order_code,ordering_round_id,visit_id,patient_id,service_id,service_name_snapshot,service_type,requesting_doctor_id,clinical_reason,"
                 + "price_snapshot,order_status,payment_status,created_at,updated_at,room_id) values (?,?,?,?,?,?,'Chụp X-quang','IMAGING',?,'lý do',100000,'ORDERED','PAID',?,?,?)",
                 id, "P10-" + id.toString().substring(0, 18), newRound(at), visit, profile, service, doctor,
                 Timestamp.from(at), Timestamp.from(at), done ? room : null);
-        jdbc.update("insert into imaging_order_executions(service_order_id,imaging_type,ordering_doctor_account_id,execution_status,attempt_id,study_ref,first_use_at,created_at,updated_at) "
+        jdbc.update("insert into imaging_executions(service_order_id,imaging_type,ordering_doctor_account_id,execution_status,attempt_id,study_ref,first_use_at,created_at,updated_at) "
                 + "values (?,'XRAY',?,?,?,?,?,?,?)",
                 id, doctorAccount, executionStatus, done ? UUID.randomUUID() : null, done ? "study-" + id : null,
                 done ? Timestamp.from(at) : null, Timestamp.from(at), Timestamp.from(at));

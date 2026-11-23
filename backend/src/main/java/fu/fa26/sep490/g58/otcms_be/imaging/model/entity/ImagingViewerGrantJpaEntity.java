@@ -10,7 +10,7 @@ import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
 @Entity
-@Table(name = "imaging_viewer_grants")
+@Table(name = "study_viewer_grants")
 public class ImagingViewerGrantJpaEntity {
     @Id private UUID id;
     @JdbcTypeCode(SqlTypes.CHAR)

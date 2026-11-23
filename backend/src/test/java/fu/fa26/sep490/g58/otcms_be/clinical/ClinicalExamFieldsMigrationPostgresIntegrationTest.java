@@ -48,14 +48,14 @@ class ClinicalExamFieldsMigrationPostgresIntegrationTest {
 
             for (var entry : expected.entrySet()) {
                 assertEquals(entry.getValue(), jdbc.queryForObject("select injury_side from " + schema
-                        + ".clinical_examinations where id = ?", String.class, entry.getKey()), entry.getKey().toString());
+                        + ".examinations where id = ?", String.class, entry.getKey()), entry.getKey().toString());
             }
             assertEquals(1, jdbc.queryForObject("select count(*) from " + schema
                     + ".flyway_schema_history where version = '136' and success", Integer.class));
             assertEquals("text", columnType(schema, "injury_description"));
             assertEquals("ARRAY", columnType(schema, "treatment_directions"));
             assertEquals(0, jdbc.queryForObject("select count(*) from information_schema.columns where table_schema = ? "
-                    + "and table_name = 'clinical_examinations' and column_name = 'injury_type'", Integer.class, schema));
+                    + "and table_name = 'examinations' and column_name = 'injury_type'", Integer.class, schema));
         } finally {
             jdbc.execute("drop schema if exists " + schema + " cascade");
         }
@@ -95,13 +95,13 @@ class ClinicalExamFieldsMigrationPostgresIntegrationTest {
     }
 
     private static String insertSql(String schema, String side, String directions) {
-        return "insert into " + schema + ".clinical_examinations (id, visit_id, status, created_at, updated_at, injury_side, treatment_directions) "
+        return "insert into " + schema + ".examinations (id, visit_id, status, created_at, updated_at, injury_side, treatment_directions) "
                 + "values (gen_random_uuid(), gen_random_uuid(), 'DRAFT', now(), now(), " + side + ", " + directions + ")";
     }
 
     private String columnType(String schema, String column) {
         return jdbc.queryForObject("select data_type from information_schema.columns where table_schema = ? "
-                + "and table_name = 'clinical_examinations' and column_name = ?", String.class, schema, column);
+                + "and table_name = 'examinations' and column_name = ?", String.class, schema, column);
     }
 
     private Flyway flyway(String schema, String target) {

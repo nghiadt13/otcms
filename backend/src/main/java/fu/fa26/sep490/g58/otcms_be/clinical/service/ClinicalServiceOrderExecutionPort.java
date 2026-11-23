@@ -9,7 +9,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
 /**
- * Imaging execution columns of {@code clinical_service_orders}, for the diagnostic module (final-db phase 03,
+ * Imaging execution columns of {@code service_orders}, for the diagnostic module (final-db phase 03,
  * decision Q7: one JPA entity per table, so diagnostic does not map its own entity on this table).
  *
  * <p>An order is a diagnostic request once reception dispatched it to a room ({@code execution_status} not null);
