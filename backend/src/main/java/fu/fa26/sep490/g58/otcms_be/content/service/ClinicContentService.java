@@ -17,7 +17,7 @@ public interface ClinicContentService {
     WebsiteContent create(WebsiteContentInput input, UUID actor);
     WebsiteContent update(UUID id, WebsiteContentInput input, UUID actor);
     WebsiteImage upload(byte[] bytes, String contentType);
-    WebsiteImage image(UUID id);
+    WebsiteImage.Content image(UUID id);
     WebsiteContent publicArticle(UUID id);
     WebsiteContent publicAbout();
     ClinicContact publicContact();

@@ -72,8 +72,8 @@ public class StaffProfileAdminController {
     @GetMapping("/api/v1/staff-profiles/{id}/photo")
     public ResponseEntity<byte[]> photo(@PathVariable UUID id,
             @AuthenticationPrincipal AuthenticatedAccount actor) {
-        var profile = profiles.photo(id, actor != null && actor.accountRole() == AccountRole.ADMIN);
-        return ResponseEntity.ok().contentType(MediaType.parseMediaType(profile.photoContentType()))
-                .body(profile.photoContent());
+        var photo = profiles.photo(id, actor != null && actor.accountRole() == AccountRole.ADMIN);
+        return ResponseEntity.ok().contentType(MediaType.parseMediaType(photo.contentType()))
+                .body(photo.content());
     }
 }

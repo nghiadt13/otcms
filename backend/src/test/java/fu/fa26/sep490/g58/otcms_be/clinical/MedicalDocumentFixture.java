@@ -29,7 +29,7 @@ class MedicalDocumentFixture {
     final UUID doctorAccountId = UUID.randomUUID(), patientAccountId = UUID.randomUUID(), receptionistAccountId = UUID.randomUUID();
     final Instant now = Instant.parse("2026-11-05T03:00:00Z");
     final ClinicalMedicalDocumentRepository documents = mock(ClinicalMedicalDocumentRepository.class);
-    final ClinicalMedicalDocumentPayloadRepository payloads = mock(ClinicalMedicalDocumentPayloadRepository.class);
+    final ClinicalMedicalDocumentContentStore contents = mock(ClinicalMedicalDocumentContentStore.class);
     final ClinicalExaminationRepository examinations = mock(ClinicalExaminationRepository.class);
     final VisitClinicalContextPort clinicalVisits = mock(VisitClinicalContextPort.class);
     final VisitClinicalCareContextService visits = mock(VisitClinicalCareContextService.class);
@@ -44,7 +44,7 @@ class MedicalDocumentFixture {
     final ClinicalMedicalDocumentFileValidator validator = new ClinicalMedicalDocumentFileValidator();
     final ClinicalMedicalDocumentAccess access = new ClinicalMedicalDocumentAccess(new ClinicalDoctorIdentityResolver(doctors),
             clinicalVisits, visits, receptionists, new PatientProfileAccessServiceImpl(patientAccounts, profiles, links), care, visitSources, examQueue);
-    final ClinicalMedicalDocumentService service = new ClinicalMedicalDocumentServiceImpl(access, documents, payloads, examinations,
+    final ClinicalMedicalDocumentService service = new ClinicalMedicalDocumentServiceImpl(access, documents, contents, examinations,
             validator, Clock.fixed(now, ZoneOffset.UTC));
     final Map<UUID, Row> rows = new ConcurrentHashMap<>();
     final Map<UUID, byte[]> bytes = new ConcurrentHashMap<>();
@@ -80,12 +80,8 @@ class MedicalDocumentFixture {
                 row.released = call.getArgument(3); row.version++; return 1;
             }
         });
-        when(payloads.put(any(), any())).thenAnswer(call -> { bytes.put(call.getArgument(0), ((byte[]) call.getArgument(1)).clone()); return 1; });
-        when(payloads.findById(any())).thenAnswer(call -> {
-            byte[] data = bytes.get(call.getArgument(0));
-            if (data == null) return Optional.empty();
-            var payload = mock(ClinicalMedicalDocumentPayloadJpaEntity.class); when(payload.getContent()).thenReturn(data.clone()); return Optional.of(payload);
-        });
+        when(contents.put(any(), any(), any(), any())).thenAnswer(call -> { bytes.put(call.getArgument(1), ((byte[]) call.getArgument(3)).clone()); return true; });
+        when(contents.get(any(), any())).thenAnswer(call -> Optional.ofNullable(bytes.get(call.getArgument(1))).map(byte[]::clone));
         when(documents.findByVisitIdOrderByCreatedAtDescIdDesc(any())).thenAnswer(call -> selected(call.getArgument(0), null, false));
         when(documents.findByVisitIdAndReleasedAtIsNotNullOrderByCreatedAtDescIdDesc(any())).thenAnswer(call -> selected(call.getArgument(0), null, true));
         when(documents.findByVisitIdAndDocumentTypeOrderByCreatedAtDescIdDesc(any(), any())).thenAnswer(call -> selected(call.getArgument(0), call.getArgument(1), false));

@@ -92,11 +92,11 @@ public class JpaClinicContentRepository implements ClinicContentRepository {
     }
     @Override
     public void image(WebsiteImage image) {
-        images.saveAndFlush(new WebsiteImageJpaEntity(image.id(), image.bytes(), image.contentType()));
+        images.saveAndFlush(new WebsiteImageJpaEntity(image.id(), image.storageKey(), image.contentType(), image.byteSize()));
     }
     @Override
     public Optional<WebsiteImage> image(UUID id) {
-        return images.findById(id).map(entity -> new WebsiteImage(entity.getId(), entity.getContent(), entity.getContentType()));
+        return images.findById(id).map(entity -> new WebsiteImage(entity.getId(), entity.getStorageKey(), entity.getContentType(), entity.getByteSize()));
     }
     @Override
     public ContentPage<ClinicAnnouncement> announcements(Filters filters, boolean publicOnly) {

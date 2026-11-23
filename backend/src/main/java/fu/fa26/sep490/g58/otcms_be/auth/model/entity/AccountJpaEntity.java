@@ -29,8 +29,9 @@ public class AccountJpaEntity {
     @Column(name = "locked_until") private Instant lockedUntil;
     @Column(name = "created_at", nullable = false) private Instant createdAt;
     @Column(name = "updated_at", nullable = false) private Instant updatedAt;
-    // Avatar (final-db V110, merged from the old avatar table). avatar_content (bytea) is not mapped: read and write it
-    // through the native AccountRepository avatar methods only.
+    // Avatar (final-db V110, merged from the old avatar table; object key V144). Bytes live in object storage under
+    // avatar_storage_key; avatar_content (bytea) is not mapped. Written only through the native AccountRepository methods.
+    @Column(name = "avatar_storage_key", length = 300, insertable = false, updatable = false) private String avatarStorageKey;
     @Column(name = "avatar_content_type", length = 32, insertable = false, updatable = false) private String avatarContentType;
     @Column(name = "avatar_updated_at", insertable = false, updatable = false) private Instant avatarUpdatedAt;
     // Newest consent acceptance (final-db V110, merged from the old consent table); history is in audit_logs.

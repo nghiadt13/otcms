@@ -8,13 +8,15 @@ import java.time.Instant;
 import java.util.*;
 import org.junit.jupiter.api.Test;
 import fu.fa26.sep490.g58.otcms_be.notification.service.NotificationPublisher;
+import fu.fa26.sep490.g58.otcms_be.common.storage.InMemoryObjectStorage;
 import fu.fa26.sep490.g58.otcms_be.content.repository.ClinicContentRepository;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 class ClinicContentServiceImplTest {
     private final ClinicContentRepository store=mock(ClinicContentRepository.class);
     private final NotificationPublisher publisher = mock(NotificationPublisher.class);
-    private final ClinicContentServiceImpl handler=new ClinicContentServiceImpl(store,publisher);
+    private final InMemoryObjectStorage storage=new InMemoryObjectStorage();
+    private final ClinicContentServiceImpl handler=new ClinicContentServiceImpl(store,publisher,storage);
     private final UUID actor=UUID.randomUUID();
     @Test void publishesTextWithSafeAuditAndPreservesOriginalPublicationOnUpdate() {
         when(store.insert(any(WebsiteContent.class))).thenAnswer(c -> c.getArgument(0));
@@ -76,6 +78,40 @@ class ClinicContentServiceImplTest {
         assertThrows(ContentOperationException.class,() -> handler.upload(new byte[2097153],"image/png"));
         assertThrows(ContentOperationException.class,() -> handler.upload("<html>not an image</html>".getBytes(),"image/png"));
         verifyNoInteractions(store);
+    }
+    @Test void uploadKeepsBytesInObjectStorageAndOnlyTheKeyInTheRow() {
+        byte[] png={
+            (byte)137,80,78,71,13,10,26,10,0,0,0,0
+        };
+        var image=handler.upload(png,"image/png");
+        String key="website-images/"+image.id()+".png";
+        assertEquals(key,image.storageKey());
+        assertEquals(12L,image.byteSize().longValue());
+        assertArrayEquals(png,storage.objects.get(key));
+        assertEquals("image/png",storage.contentTypes.get(key));
+        verify(store).image(image);
+    }
+    @Test void uploadRemovesTheObjectWhenTheRowCannotBeSaved() {
+        byte[] png={
+            (byte)137,80,78,71,13,10,26,10,0,0,0,0
+        };
+        doThrow(new IllegalStateException("database down")).when(store).image(any(WebsiteImage.class));
+        assertThrows(IllegalStateException.class,() -> handler.upload(png,"image/png"));
+        assertTrue(storage.objects.isEmpty());
+    }
+    @Test void imageNeedsRowWithStorageKeyAndObjectOtherwiseIsNotFound() {
+        UUID id=UUID.randomUUID();
+        String key="website-images/"+id+".png";
+        when(store.image(id)).thenReturn(Optional.empty());
+        assertEquals("MSG-50",assertThrows(ContentOperationException.class,() -> handler.image(id)).getMessage());
+        when(store.image(id)).thenReturn(Optional.of(new WebsiteImage(id,null,"image/png",null)));
+        assertEquals("MSG-50",assertThrows(ContentOperationException.class,() -> handler.image(id)).getMessage());
+        when(store.image(id)).thenReturn(Optional.of(new WebsiteImage(id,key,"image/png",3L)));
+        assertEquals("MSG-50",assertThrows(ContentOperationException.class,() -> handler.image(id)).getMessage());
+        storage.put(key,"image/png",new byte[]{1,2,3});
+        var content=handler.image(id);
+        assertEquals("image/png",content.contentType());
+        assertArrayEquals(new byte[]{1,2,3},content.bytes());
     }
     @Test void deliversPrivateAnnouncementsAndOnlyAcceptsSupportedChannels() {
         assertEquals(List.of("PUBLIC", "PATIENT", "ORTHOPEDIC_DOCTOR", "RECEPTIONIST", "IMAGING_TECHNICIAN", "LAB_TECHNICIAN"), handler.options().audiences());

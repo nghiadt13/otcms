@@ -10,6 +10,7 @@ import fu.fa26.sep490.g58.otcms_be.clinical.model.dto.ClinicalDtos.DiagnosisRequ
 import fu.fa26.sep490.g58.otcms_be.clinical.model.dto.ClinicalDtos.ExaminationRequest;
 import fu.fa26.sep490.g58.otcms_be.clinical.model.dto.ClinicalDtos.PrescriptionAmendment;
 import fu.fa26.sep490.g58.otcms_be.clinical.model.dto.PrescriptionDtos.ItemRequest;
+import fu.fa26.sep490.g58.otcms_be.clinical.service.ClinicalMedicalDocumentContentStore;
 import fu.fa26.sep490.g58.otcms_be.clinical.service.resultsheet.ResultAmendmentService;
 import fu.fa26.sep490.g58.otcms_be.common.security.AccountRole;
 import fu.fa26.sep490.g58.otcms_be.common.security.AuthenticatedAccount;
@@ -45,6 +46,7 @@ class ResultAmendmentPostgresIntegrationTest {
     @Autowired JdbcTemplate jdbc;
     @Autowired WalkInVisitLifecycleService lifecycle;
     @Autowired ResultAmendmentService amendments;
+    @Autowired ClinicalMedicalDocumentContentStore contents;
     @MockitoBean ManageVisitCareAssignmentService careAssignments;
 
     @AfterAll static void dropSchema(@Autowired JdbcTemplate jdbc) {
@@ -69,7 +71,7 @@ class ResultAmendmentPostgresIntegrationTest {
         assertEquals(1, count("select count(*) from medical_documents where visit_id = ? and status = 'ACTIVE' and version = 2 and released_at is not null", f.visit()));
         assertEquals(1, count("select count(*) from medical_documents where visit_id = ? and status = 'REPLACED' and version = 1", f.visit()));
         assertEquals(result.documentId(), jdbc.queryForObject("select id from medical_documents where visit_id = ? and status = 'ACTIVE'", UUID.class, f.visit()));
-        assertTrue(jdbc.queryForObject("select octet_length(content) from clinical_medical_document_payloads where document_id = ?", Integer.class, result.documentId()) > 0);
+        assertTrue(contents.get(f.visit(), result.documentId()).orElseThrow().length > 0);
         // The stored data was changed.
         assertEquals("Tràn dịch khớp", jdbc.queryForObject("select examination_findings from examinations where id = ?", String.class, f.examination()));
         assertEquals(List.of("M23.2"), jdbc.queryForList("select code from examination_diagnoses where examination_id = ?", String.class, f.examination()));

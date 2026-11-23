@@ -122,7 +122,7 @@ class MyAccountQueryServiceImplTest {
         a.setDisplayName("Doctor"); a.setPasswordHash("hash"); a.setMustChangePassword(true);
         a.setStatus(fu.fa26.sep490.g58.otcms_be.auth.model.entity.enums.AccountStatus.ACTIVE);
         when(accounts.findById(id)).thenReturn(Optional.of(a));
-        a.setAvatarContentType("image/png");
+        a.setAvatarStorageKey("avatars/" + id + "/avatar.png");
         var view = service.find(id).orElseThrow();
         assertEquals(java.util.List.of("changePassword"), view.allowedActions());
         assertEquals("ORTHOPEDIC_DOCTOR", view.role());

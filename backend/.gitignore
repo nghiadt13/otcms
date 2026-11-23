@@ -7,3 +7,6 @@
 
 # Local SDD/agent metadata
 .sdd/
+
+# local object storage (dev/test)
+.storage/

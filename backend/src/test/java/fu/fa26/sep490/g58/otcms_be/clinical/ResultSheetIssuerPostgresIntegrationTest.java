@@ -2,6 +2,7 @@ package fu.fa26.sep490.g58.otcms_be.clinical;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import fu.fa26.sep490.g58.otcms_be.clinical.service.ClinicalMedicalDocumentContentStore;
 import fu.fa26.sep490.g58.otcms_be.clinical.service.resultsheet.ResultSheetIssuer;
 import fu.fa26.sep490.g58.otcms_be.common.security.AccountRole;
 import fu.fa26.sep490.g58.otcms_be.support.LocalPostgresTest;
@@ -35,6 +36,7 @@ class ResultSheetIssuerPostgresIntegrationTest {
     @Autowired JdbcTemplate jdbc;
     @Autowired WalkInVisitLifecycleService lifecycle;
     @Autowired ResultSheetIssuer issuer;
+    @Autowired ClinicalMedicalDocumentContentStore contents;
     // Care assignment completion is separately covered by VisitExamFlowPostgresIntegrationTest.
     @MockitoBean ManageVisitCareAssignmentService careAssignments;
 
@@ -65,7 +67,7 @@ class ResultSheetIssuerPostgresIntegrationTest {
         assertEquals("CLOSED", jdbc.queryForObject("select status from visits where id = ?", String.class, visit));
         assertEquals(1, count("select count(*) from medical_documents where visit_id = ? and status = 'ACTIVE' and source = 'GENERATED' and version = 1 and released_at is not null", visit));
         UUID document = jdbc.queryForObject("select id from medical_documents where visit_id = ?", UUID.class, visit);
-        assertTrue(jdbc.queryForObject("select octet_length(content) from clinical_medical_document_payloads where document_id = ?", Integer.class, document) > 0);
+        assertTrue(contents.get(visit, document).orElseThrow().length > 0);
         assertEquals(1, count("select count(*) from notifications where related_id = ? and type = 'VISIT_RESULTS_PUBLISHED'", visit));
         String message = jdbc.queryForObject("select content from notifications where related_id = ? and type = 'VISIT_RESULTS_PUBLISHED'", String.class, visit);
         String expectedDate = java.time.format.DateTimeFormatter.ofPattern("dd/MM/uuuu").withZone(java.time.ZoneId.of("Asia/Ho_Chi_Minh")).format(now);

@@ -16,8 +16,9 @@ import lombok.Setter;
 public class WebsiteImageJpaEntity {
     @Id
     private UUID id;
-    @Column(nullable = false)
-    private byte[] content;
+    @Column(length = 300)
+    private String storageKey;
     @Column(length = 32, nullable = false)
     private String contentType;
+    private Long byteSize;
 }

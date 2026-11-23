@@ -91,20 +91,20 @@ public interface AccountRepository extends JpaRepository<AccountJpaEntity, UUID>
 
     Page<AccountJpaEntity> findByStatusAndCreatedAtBefore(AccountStatus status, Instant cutoff, Pageable pageable);
 
-    // Avatar columns (final-db V110). avatar_content is bytea and not mapped on the entity; the three columns
-    // are always written together to satisfy ck_accounts_avatar_complete.
+    // Avatar columns (final-db V110, object key V144). The bytes live in object storage under avatar_storage_key;
+    // the three columns are always written together to satisfy ck_accounts_avatar_complete.
     @Modifying(clearAutomatically = true, flushAutomatically = true)
-    @Query(value = "update accounts set avatar_content = :content, avatar_content_type = :type, "
+    @Query(value = "update accounts set avatar_storage_key = :storageKey, avatar_content_type = :type, "
             + "avatar_updated_at = :at where id = :id", nativeQuery = true)
-    int updateAvatar(@Param("id") UUID id, @Param("content") byte[] content, @Param("type") String type,
+    int updateAvatar(@Param("id") UUID id, @Param("storageKey") String storageKey, @Param("type") String type,
             @Param("at") Instant at);
 
     @Modifying(clearAutomatically = true, flushAutomatically = true)
-    @Query(value = "update accounts set avatar_content = null, avatar_content_type = null, "
+    @Query(value = "update accounts set avatar_storage_key = null, avatar_content_type = null, "
             + "avatar_updated_at = null where id = :id", nativeQuery = true)
     int clearAvatar(@Param("id") UUID id);
 
-    @Query(value = "select avatar_content from accounts where id = :id and avatar_content is not null",
+    @Query(value = "select avatar_storage_key from accounts where id = :id and avatar_storage_key is not null",
             nativeQuery = true)
-    Optional<byte[]> findAvatarContent(@Param("id") UUID id);
+    Optional<String> findAvatarStorageKey(@Param("id") UUID id);
 }

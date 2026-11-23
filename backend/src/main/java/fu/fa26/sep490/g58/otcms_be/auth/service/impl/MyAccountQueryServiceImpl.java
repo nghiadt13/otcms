@@ -38,7 +38,7 @@ public class MyAccountQueryServiceImpl implements MyAccountQueryService {
                 .or(() -> Optional.ofNullable(account.getFullName()).filter(name -> !name.isBlank()))
                 .or(() -> Optional.ofNullable(account.getUsername()).filter(name -> !name.isBlank()))
                 .orElseGet(() -> email.contains("@") ? email.substring(0, email.indexOf('@')) : email);
-        boolean hasAvatar = account.getAvatarContentType() != null;
+        boolean hasAvatar = account.getAvatarStorageKey() != null;
         var actions = new java.util.ArrayList<String>();
         boolean passwordSupported = account.getPasswordHash() != null && account.getStatus() == AccountStatus.ACTIVE;
         if (passwordSupported) actions.add("changePassword");

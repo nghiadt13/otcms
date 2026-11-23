@@ -78,7 +78,7 @@ class ClinicContentControllerTest {
         byte[] bytes={
             1,2,3
         };
-        when(content.image(id)).thenReturn(new WebsiteImage(id,bytes,"image/png"));
+        when(content.image(id)).thenReturn(new WebsiteImage.Content("image/png",bytes));
         mvc.perform(get("/api/v1/public/website-images/"+id)).andExpect(status().isOk())
         .andExpect(content().contentType("image/png")).andExpect(content().bytes(bytes));
         when(content.publicArticle(id)).thenThrow(new ContentOperationException(ContentOperationException.Reason.NOT_FOUND));

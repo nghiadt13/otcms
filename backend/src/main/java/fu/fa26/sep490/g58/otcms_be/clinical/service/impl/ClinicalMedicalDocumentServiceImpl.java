@@ -7,6 +7,7 @@ import fu.fa26.sep490.g58.otcms_be.clinical.repository.*;
 import fu.fa26.sep490.g58.otcms_be.clinical.security.ClinicalMedicalDocumentAccess;
 import fu.fa26.sep490.g58.otcms_be.clinical.security.ClinicalMedicalDocumentAccess.Scope;
 import fu.fa26.sep490.g58.otcms_be.clinical.service.ClinicalMedicalDocumentService;
+import fu.fa26.sep490.g58.otcms_be.clinical.service.ClinicalMedicalDocumentContentStore;
 import fu.fa26.sep490.g58.otcms_be.clinical.validation.ClinicalMedicalDocumentFileValidator;
 import fu.fa26.sep490.g58.otcms_be.common.security.*;
 import java.time.Clock;
@@ -19,14 +20,14 @@ import org.springframework.transaction.annotation.*;
 public class ClinicalMedicalDocumentServiceImpl implements ClinicalMedicalDocumentService {
     private final ClinicalMedicalDocumentAccess access;
     private final ClinicalMedicalDocumentRepository documents;
-    private final ClinicalMedicalDocumentPayloadRepository payloads;
+    private final ClinicalMedicalDocumentContentStore contents;
     private final ClinicalExaminationRepository examinations;
     private final ClinicalMedicalDocumentFileValidator files;
     private final Clock clock;
     public ClinicalMedicalDocumentServiceImpl(ClinicalMedicalDocumentAccess access, ClinicalMedicalDocumentRepository documents,
-            ClinicalMedicalDocumentPayloadRepository payloads, ClinicalExaminationRepository examinations,
+            ClinicalMedicalDocumentContentStore contents, ClinicalExaminationRepository examinations,
             ClinicalMedicalDocumentFileValidator files, Clock clock) {
-        this.access = access; this.documents = documents; this.payloads = payloads; this.examinations = examinations;
+        this.access = access; this.documents = documents; this.contents = contents; this.examinations = examinations;
         this.files = files; this.clock = clock;
     }
 
@@ -38,7 +39,7 @@ public class ClinicalMedicalDocumentServiceImpl implements ClinicalMedicalDocume
         UUID id = UUID.randomUUID(); var now = clock.instant().truncatedTo(ChronoUnit.MICROS);
         if (documents.insertDocument(id, visitId, scope.patientId(), type.name(), name, checked.originalFilename(),
                 checked.mediaType(), bytes.length, now) != 1) throw error("MSG-42");
-        if (payloads.put(id, bytes) != 1) throw error("DEPENDENCY_UNAVAILABLE");
+        if (!contents.put(visitId, id, checked.mediaType(), bytes)) throw error("DEPENDENCY_UNAVAILABLE");
         return view(required(id));
     }
 
@@ -53,7 +54,7 @@ public class ClinicalMedicalDocumentServiceImpl implements ClinicalMedicalDocume
                 file == null ? document.getMediaType() : file.mediaType(), bytes == null ? document.getByteSize() : bytes.length,
                 clock.instant().truncatedTo(ChronoUnit.MICROS)) != 1) throw error("MSG-42");
         // This write is impossible after a failed/stale header CAS. The transaction owns both changes.
-        if (bytes != null && payloads.put(documentId, bytes) != 1) throw error("DEPENDENCY_UNAVAILABLE");
+        if (bytes != null && !contents.put(visitId, documentId, file.mediaType(), bytes)) throw error("DEPENDENCY_UNAVAILABLE");
         return view(required(documentId));
     }
 
@@ -86,9 +87,8 @@ public class ClinicalMedicalDocumentServiceImpl implements ClinicalMedicalDocume
     @Override @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
     public DocumentContent content(AuthenticatedAccount actor, UUID documentId) {
         var document = readable(actor, documentId);
-        var payload = payloads.findById(documentId).orElseThrow(() -> error("DEPENDENCY_UNAVAILABLE"));
-        byte[] bytes = payload.getContent();
-        if (bytes == null || bytes.length != document.getByteSize()) throw error("DEPENDENCY_UNAVAILABLE");
+        byte[] bytes = contents.get(document.getVisitId(), documentId).orElseThrow(() -> error("DEPENDENCY_UNAVAILABLE"));
+        if (bytes.length != document.getByteSize()) throw error("DEPENDENCY_UNAVAILABLE");
         return new DocumentContent(view(document), bytes);
     }
     private ClinicalMedicalDocumentJpaEntity readable(AuthenticatedAccount actor, UUID documentId) {
