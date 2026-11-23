@@ -1,37 +1,53 @@
-import { render, screen, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { isActiveNavItem } from "../siteNavigation";
 import { SiteHeader } from "./SiteHeader";
 
-// Chỉ giả đường dẫn hiện tại của Next; header và Sheet chạy như thật.
+// Giữ component thật; chỉ giả đường dẫn đang mở.
 vi.mock("next/navigation", () => ({ usePathname: () => "/doctors" }));
 
 describe("SiteHeader", () => {
-  it("đánh dấu mục đang mở và dẫn CTA Đặt lịch khám tới màn đặt lịch", () => {
+  it("giữ menu desktop và đánh dấu bác sĩ đang mở", () => {
     render(<SiteHeader hotline="1900 0000" />);
-    expect(screen.getByRole("link", { name: "Bác sĩ" })).toHaveAttribute(
+    const nav = within(screen.getByRole("navigation", { name: "Menu chính" }));
+    expect(nav.getByRole("link", { name: "Bác sĩ" })).toHaveAttribute(
       "aria-current",
       "page",
     );
-    expect(screen.getByRole("link", { name: "Đặt lịch khám" })).toHaveAttribute(
+    expect(nav.getByRole("link", { name: "Giới thiệu" })).toHaveAttribute(
       "href",
-      "/portal/appointments/new",
+      "/gioi-thieu",
     );
   });
 
-  it("mở menu màn hẹp trong Sheet, đóng bằng Esc và trả focus về nút menu", async () => {
-    const user = userEvent.setup();
+  it("mobile có bốn liên kết trực tiếp, đăng nhập và đặt lịch, không dùng menu thu gọn", () => {
     render(<SiteHeader hotline="1900 0000" />);
-    const toggle = screen.getByRole("button", { name: "Mở menu" });
-
-    await user.click(toggle);
-    const sheet = await screen.findByRole("dialog");
-    expect(sheet).toHaveTextContent("Đăng ký");
-
-    await user.keyboard("{Escape}");
-    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
-    expect(toggle).toHaveFocus();
+    const nav = within(
+      screen.getByRole("navigation", { name: "Điều hướng mobile" }),
+    );
+    expect(nav.getAllByRole("link").map((link) => link.textContent)).toEqual([
+      "Trang chủ",
+      "Dịch vụ",
+      "Bác sĩ",
+      "Hướng dẫn",
+    ]);
+    expect(nav.getByRole("link", { name: "Hướng dẫn" })).toHaveAttribute(
+      "href",
+      "/#quy-trinh-kham",
+    );
+    expect(nav.getByRole("link", { name: "Bác sĩ" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    expect(
+      screen.getByRole("link", { name: "Đặt lịch" }),
+    ).toHaveAttribute("href", "/portal/appointments/new");
+    expect(
+      screen
+        .getAllByRole("link", { name: "Đăng nhập" })
+        .every((link) => link.getAttribute("href") === "/login"),
+    ).toBe(true);
+    expect(screen.queryByRole("button", { name: "Mở menu" })).toBeNull();
   });
 });
 

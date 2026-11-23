@@ -1,68 +1,59 @@
 "use client";
 
-import { CalendarPlus, Menu, PhoneCall } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { type ReactNode, useState } from "react";
+import type { ReactNode } from "react";
 import { OtcmsLogo } from "@/components/brand/OtcmsLogo";
 import { PublicBookAppointmentLink } from "@/components/brand/PublicBookAppointmentLink";
 import { publicButtonClass } from "@/components/brand/publicButtonStyles";
 import { publicContainerClass } from "@/components/brand/publicLayout";
 import { useSlidingUnderline } from "@/components/shell/useSlidingUnderline";
-import { Button } from "@/components/ui/button";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
-} from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
-import {
-  hotlineTelHref,
-  isActiveNavItem,
-  siteNavItems,
-} from "../siteNavigation";
+import { isActiveNavItem, siteNavItems } from "../siteNavigation";
 import { SiteAccountLinks } from "./SiteAccountLinks";
 
-// Thanh menu chính, dính trên cùng khi cuộn. Thiết kế cho desktop: logo, menu
-// ngang (mục đang mở có gạch dưới màu primary) và nút "Đặt lịch khám"; từ lg
-// hotline đã có ở dải SiteTopBar ngay trên nên header không lặp lại.
-// Dưới xl, bảy mục menu không vừa một hàng nên menu nằm trong Sheet (shadcn) và Sheet mang hotline
-// để người dùng điện thoại bấm gọi. Esc, bẫy focus và trả focus về nút ☰ do Sheet lo.
+const mobileItems = [
+  { label: "Trang chủ", href: "/" },
+  { label: "Dịch vụ", href: "/services" },
+  { label: "Bác sĩ", href: "/doctors" },
+  { label: "Hướng dẫn", href: "/#quy-trinh-kham" },
+];
+
 export function SiteHeader({
-  hotline,
   notificationSlot,
 }: {
   hotline: string;
-  /** Chuông thông báo do `app/` ghép vào (feature này không import feature notifications). */
   notificationSlot?: ReactNode;
 }) {
   const pathname = usePathname();
   const underline = useSlidingUnderline<HTMLUListElement>();
-  const [open, setOpen] = useState(false);
-  const items = siteNavItems.map((item) => ({
-    ...item,
-    active: isActiveNavItem(item.href, pathname),
-  }));
-
   return (
-    <header className="sticky top-0 z-40 border-b bg-background/95 shadow-sm shadow-foreground/5 backdrop-blur">
-      <div className={`${publicContainerClass} flex h-16 items-center lg:h-20`}>
-        <OtcmsLogo tone="onLight" />
-
-        <nav aria-label="Menu chính" className="ml-8 hidden h-full xl:block">
+    <header className="sticky top-0 z-40 border-b bg-card/95 shadow-sm shadow-foreground/5 backdrop-blur">
+      <div
+        className={cn(
+          publicContainerClass,
+          "flex min-h-16 items-center justify-between gap-2 py-2 xl:h-20 xl:justify-start xl:py-0",
+        )}
+      >
+        <div className="shrink-0 max-sm:[&_a]:gap-1.5 max-sm:[&_a>span]:text-base max-sm:[&_a>span]:tracking-normal max-sm:[&_a>img]:size-9">
+          <OtcmsLogo tone="onLight" />
+        </div>
+        <nav aria-label="Menu chính" className="ml-6 hidden h-full xl:block">
           <ul
             className="relative flex h-full items-center gap-2"
             {...underline.navProps}
           >
-            {items.map((item) => (
+            {siteNavItems.map((item) => (
               <li className="h-full" key={item.href}>
                 <Link
-                  aria-current={item.active ? "page" : undefined}
+                  aria-current={
+                    isActiveNavItem(item.href, pathname) ? "page" : undefined
+                  }
                   className={cn(
-                    "flex h-full items-center px-3 text-base font-medium whitespace-nowrap transition-colors duration-150 outline-none hover:text-primary focus-visible:ring-3 focus-visible:ring-ring/50 motion-reduce:transition-none",
-                    item.active ? "text-primary" : "text-foreground/80",
+                    "flex h-full items-center px-3 text-base font-medium whitespace-nowrap outline-none hover:text-primary focus-visible:ring-3 focus-visible:ring-ring/50",
+                    isActiveNavItem(item.href, pathname)
+                      ? "text-primary"
+                      : "text-foreground/80",
                   )}
                   href={item.href}
                 >
@@ -73,89 +64,52 @@ export function SiteHeader({
             {underline.indicator}
           </ul>
         </nav>
-
-        <div className="ml-auto flex items-center gap-6">
-          <div className="hidden items-center gap-5 lg:flex">
-            <SiteAccountLinks
-              notificationSlot={notificationSlot}
-              variant="nav"
-            />
-          </div>
-          {/* Từ lg nút đặt lịch đã nằm ở SiteTopBar. */}
+        <div className="ml-auto hidden items-center gap-5 xl:flex">
+          <SiteAccountLinks notificationSlot={notificationSlot} variant="nav" />
+        </div>
+        <div className="ml-auto flex min-w-0 items-center gap-2 xl:hidden">
+          <SiteAccountLinks
+            compact
+            notificationSlot={notificationSlot}
+            variant="nav"
+          />
           <PublicBookAppointmentLink
             className={cn(
               publicButtonClass("primary"),
-              "max-sm:h-11 max-sm:px-4 lg:hidden",
+              "h-11 shrink-0 px-3 text-sm sm:px-5 sm:text-base",
             )}
           >
-            <CalendarPlus aria-hidden className="max-sm:hidden" />
-            Đặt lịch khám
+            Đặt lịch
           </PublicBookAppointmentLink>
-
-          <Sheet onOpenChange={setOpen} open={open}>
-            <SheetTrigger
-              render={
-                <Button
-                  aria-label="Mở menu"
-                  className="-ml-3 size-11 xl:hidden [&_svg:not([class*='size-'])]:size-6"
-                  variant="ghost"
-                />
-              }
-            >
-              <Menu aria-hidden />
-            </SheetTrigger>
-            <SheetContent className="w-80 gap-0" side="right">
-              <SheetHeader className="border-b px-6 py-5">
-                <SheetTitle>
-                  <OtcmsLogo tone="onLight" />
-                </SheetTitle>
-              </SheetHeader>
-              <nav aria-label="Menu chính" className="px-3 py-3">
-                <ul>
-                  {items.map((item) => (
-                    <li key={item.href}>
-                      <Link
-                        aria-current={item.active ? "page" : undefined}
-                        className={cn(
-                          "flex h-12 items-center rounded-md px-3 text-base font-medium outline-none hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50",
-                          item.active
-                            ? "bg-accent text-accent-foreground"
-                            : "text-foreground",
-                        )}
-                        href={item.href}
-                        onClick={() => setOpen(false)}
-                      >
-                        {item.label}
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              </nav>
-              <div className="mt-auto grid gap-3 border-t p-6">
-                <a
-                  className="mb-2 rounded-lg outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
-                  href={hotlineTelHref(hotline)}
-                >
-                  <span className="block text-sm text-muted-foreground">
-                    Hotline đặt lịch
-                  </span>
-                  <span className="mt-0.5 flex items-center gap-2 text-2xl font-semibold text-primary tabular-nums">
-                    <PhoneCall aria-hidden className="size-5" />
-                    {hotline}
-                  </span>
-                </a>
-                {/* Từ lg tài khoản đã nằm ở hàng menu. */}
-                <div className="grid gap-3 lg:hidden">
-                  <SiteAccountLinks
-                    onNavigate={() => setOpen(false)}
-                    variant="sheet"
-                  />
-                </div>
-              </div>
-            </SheetContent>
-          </Sheet>
         </div>
       </div>
+      <nav aria-label="Điều hướng mobile" className="border-t xl:hidden">
+        <ul className={cn(publicContainerClass, "grid grid-cols-4")}>
+          {mobileItems.map((item) => (
+            <li className="min-w-0" key={item.href}>
+              <Link
+                aria-current={
+                  item.href === "/#quy-trinh-kham"
+                    ? undefined
+                    : isActiveNavItem(item.href, pathname)
+                      ? "page"
+                      : undefined
+                }
+                className={cn(
+                  "flex min-h-12 items-center justify-center border-b-2 px-1 text-sm font-medium whitespace-nowrap outline-none hover:text-primary focus-visible:ring-3 focus-visible:ring-inset focus-visible:ring-ring/50 sm:text-base",
+                  item.href !== "/#quy-trinh-kham" &&
+                    isActiveNavItem(item.href, pathname)
+                    ? "border-primary font-semibold text-primary"
+                    : "border-transparent text-foreground/80",
+                )}
+                href={item.href}
+              >
+                {item.label}
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </nav>
     </header>
   );
 }

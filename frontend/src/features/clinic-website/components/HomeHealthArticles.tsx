@@ -12,17 +12,20 @@ export function HomeHealthArticles({
   return (
     <section
       aria-labelledby="health-articles-title"
-      className="bg-background py-16"
+      className="bg-background py-12 sm:py-16"
     >
       <div className={publicContainerClass}>
-        <h2 id="health-articles-title" className="text-3xl font-semibold">
+        <h2
+          id="health-articles-title"
+          className="text-2xl font-semibold tracking-tight sm:text-3xl"
+        >
           Thông tin sức khỏe
         </h2>
         <div className="mt-8 grid gap-6 md:grid-cols-3">
           {articles.map((article) => (
             <article
               key={article.id}
-              className="overflow-hidden rounded-xl border bg-card"
+              className="min-w-0 overflow-hidden rounded-xl border bg-card"
             >
               {article.imageUrl && (
                 <img
@@ -38,7 +41,7 @@ export function HomeHealthArticles({
                 >
                   {formatDate(article.publishedAt)}
                 </time>
-                <h3 className="text-xl font-semibold">
+                <h3 className="line-clamp-3 text-lg font-semibold break-words">
                   <Link
                     href={`/bai-viet/${article.id}`}
                     className="hover:text-primary"
@@ -47,7 +50,9 @@ export function HomeHealthArticles({
                   </Link>
                 </h3>
                 {article.summary && (
-                  <p className="text-muted-foreground">{article.summary}</p>
+                  <p className="line-clamp-3 break-words text-muted-foreground">
+                    {article.summary}
+                  </p>
                 )}
               </div>
             </article>

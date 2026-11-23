@@ -59,8 +59,11 @@ export function SiteAccountLinks({
   variant,
   onNavigate,
   notificationSlot,
+  compact = false,
 }: {
   variant: "nav" | "topbar" | "sheet";
+  /** Header mobile chỉ hiện nút đăng nhập hoặc menu tài khoản. */
+  compact?: boolean;
   /** Đóng menu di động sau khi bấm một mục. */
   onNavigate?: () => void;
   /** Chuông thông báo, đứng trước ô tài khoản ở hàng menu; chỉ hiện với bệnh nhân đã đăng nhập. */
@@ -87,6 +90,7 @@ export function SiteAccountLinks({
           account={state.account}
           onSignOut={handleSignOut}
           variant={variant}
+          compact={compact}
         />
       </>
     ) : (
@@ -95,6 +99,18 @@ export function SiteAccountLinks({
         onNavigate={onNavigate}
         onSignOut={handleSignOut}
       />
+    );
+  }
+
+  if (compact) {
+    return (
+      <Link
+        className="inline-flex h-11 shrink-0 items-center justify-center rounded-lg border border-primary bg-card px-3 text-sm font-semibold text-primary outline-none hover:bg-secondary focus-visible:ring-3 focus-visible:ring-ring/50 sm:px-5 sm:text-base"
+        href="/login"
+        onClick={onNavigate}
+      >
+        Đăng nhập
+      </Link>
     );
   }
 
@@ -136,10 +152,12 @@ function AccountDropdown({
   account,
   onSignOut,
   variant,
+  compact = false,
 }: {
   account: CurrentAccount;
   onSignOut: () => void;
   variant: "nav" | "topbar";
+  compact?: boolean;
 }) {
   const nav = variant === "nav";
   // Cùng ảnh đại diện với màn tài khoản; chưa có ảnh thì hiện chữ cái đầu của tên.
@@ -150,7 +168,7 @@ function AccountDropdown({
         aria-label={`Tài khoản: ${account.displayName}`}
         className={
           nav
-            ? "group inline-flex h-11 max-w-64 cursor-pointer items-center gap-2.5 rounded-full border border-input bg-card py-1 pr-3.5 pl-1 text-base font-medium text-foreground transition-colors duration-150 outline-none hover:border-primary hover:text-primary focus-visible:ring-3 focus-visible:ring-ring/50 data-popup-open:border-primary motion-reduce:transition-none"
+            ? `${compact ? "max-sm:max-w-28 max-sm:gap-1 max-sm:pr-2 max-sm:text-sm " : ""}group inline-flex h-11 max-w-64 cursor-pointer items-center gap-2.5 rounded-full border border-input bg-card py-1 pr-3.5 pl-1 text-base font-medium text-foreground transition-colors duration-150 outline-none hover:border-primary hover:text-primary focus-visible:ring-3 focus-visible:ring-ring/50 data-popup-open:border-primary motion-reduce:transition-none`
             : `${topLinkClass} max-w-56 cursor-pointer outline-none`
         }
       >

@@ -1,61 +1,67 @@
+import {
+  CalendarPlus,
+  ClipboardCheck,
+  Hospital,
+  Stethoscope,
+} from "lucide-react";
 import { publicContainerClass } from "@/components/brand/publicLayout";
-import { PublicSectionHeading } from "@/components/brand/PublicSectionHeading";
 
-// Bốn bước của một lượt khám, đúng thứ tự thật nên được đánh số. Bám theo luồng
-// nghiệp vụ: đặt lịch (UC06 + đặt lịch), lễ tân tiếp nhận (BR-26), khám và chụp,
-// bệnh nhân xem kết quả sau khi bác sĩ phát hành.
-const steps: { title: string; detail: string }[] = [
+const steps = [
   {
-    title: "Đặt lịch trực tuyến",
-    detail: "Chọn dịch vụ, bác sĩ và giờ còn trống. Nhận xác nhận qua email.",
+    icon: CalendarPlus,
+    title: "Đặt lịch khám",
+    detail: "Chọn dịch vụ và giờ khám phù hợp trên website.",
   },
   {
-    title: "Tiếp nhận tại quầy",
+    icon: Hospital,
+    title: "Đến phòng khám",
     detail:
-      "Báo tên hoặc số điện thoại, lễ tân xếp bạn vào hàng chờ đúng phòng.",
+      "Lễ tân tiếp nhận, xác nhận thanh toán và hướng dẫn đến phòng khám.",
   },
   {
-    title: "Khám và chụp phim",
-    detail: "Bác sĩ khám, chỉ định X-quang hoặc MRI ngay trong lượt nếu cần.",
+    icon: Stethoscope,
+    title: "Khám và cận lâm sàng",
+    detail: "Bác sĩ thăm khám; chụp chiếu, xét nghiệm khi có chỉ định.",
   },
   {
-    title: "Xem kết quả trực tuyến",
+    icon: ClipboardCheck,
+    title: "Nhận kết quả và tư vấn",
     detail:
-      "Báo cáo khám, phim chụp và đơn thuốc hiện trong tài khoản của bạn.",
+      "Bác sĩ kết luận, tư vấn và phát hành kết quả trong tài khoản của bạn.",
   },
 ];
 
-// Dải nền teal nhạt, bốn bước như một dòng thời gian: mỗi bước mở bằng vạch
-// ngang và số thứ tự lớn (số mang nghĩa vì đây là trình tự thật, nên không cần
-// thêm icon). Màn hẹp xếp dọc, căn trái giống desktop để mắt đọc một trục.
 export function HomeVisitSteps() {
   return (
     <section
       aria-labelledby="visit-steps-title"
-      className="bg-secondary py-20 lg:py-28"
+      className="scroll-mt-36 bg-secondary/60 py-12 sm:py-16 lg:py-20"
+      id="quy-trinh-kham"
     >
       <div className={publicContainerClass}>
-        <PublicSectionHeading
-          description="Một lượt khám gồm bốn bước. Bạn luôn biết mình đang ở bước nào và cần đến phòng nào."
+        <h2
+          className="text-2xl font-semibold tracking-tight sm:text-3xl lg:text-4xl"
           id="visit-steps-title"
-          title="Quy trình khám tại phòng khám"
-        />
-        <ol className="mt-14 grid gap-10 sm:grid-cols-2 lg:grid-cols-4 lg:gap-8">
-          {steps.map(({ title, detail }, index) => (
-            <li className="border-t-2 border-primary/30 pt-6" key={title}>
-              <p
-                aria-hidden
-                className="text-5xl leading-none font-semibold text-primary tabular-nums"
-              >
-                {index + 1}
-              </p>
-              <h3 className="mt-5 text-lg font-semibold">
-                <span className="sr-only">Bước {index + 1}: </span>
-                {title}
-              </h3>
-              <p className="mt-2 max-w-72 text-base leading-7 text-muted-foreground">
-                {detail}
-              </p>
+        >
+          Quy trình khám tại OTCMS
+        </h2>
+        <p className="mt-3 text-base leading-7 text-muted-foreground">
+          Các bước rõ ràng để bạn chủ động trong mỗi lần đến khám.
+        </p>
+        <ol className="mt-8 grid gap-7 sm:grid-cols-2 lg:mt-10 lg:grid-cols-4 lg:gap-8">
+          {steps.map(({ icon: Icon, title, detail }, index) => (
+            <li className="flex items-start gap-4 lg:flex-col" key={title}>
+              <span className="flex size-12 shrink-0 items-center justify-center rounded-full bg-card text-primary">
+                <Icon aria-hidden className="size-6" />
+              </span>
+              <div>
+                <h3 className="text-base font-semibold lg:text-lg">
+                  <span className="text-primary">{index + 1}.</span> {title}
+                </h3>
+                <p className="mt-2 text-base leading-7 text-muted-foreground">
+                  {detail}
+                </p>
+              </div>
             </li>
           ))}
         </ol>

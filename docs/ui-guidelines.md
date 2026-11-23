@@ -160,3 +160,12 @@ Thiết kế theo nguyên tắc **đặt được bằng một tay, đọc đư�
 - **Xác nhận:** ghi phí khám; thanh toán trực tuyến ở bước 5 là bắt buộc (không có lối "trả sau tại quầy" trong luồng tự đặt). Lịch tự đặt chưa trả xong không hiện trong Lịch hẹn mà được nhắc ở màn đặt lịch (thanh toán tiếp hoặc hủy). Hộp thoại hủy nói thẳng hậu quả về tiền (BR-53).
 
 **Kỹ thuật:** thứ tự focus theo thứ tự đọc; chuyển động 150–250ms, ease-out, kèm `motion-reduce:transition-none`; ở 375px không cuộn ngang cả trang (bảng thì cuộn trong khung).
+
+
+## Trang chủ công khai — cập nhật 23/11/2026
+
+- Desktop giữ các liên kết navbar hiện tại. Dưới `xl`, header có hai hàng: logo + đăng nhập/tài khoản + Đặt lịch ở trên; bốn mục Trang chủ, Dịch vụ, Bác sĩ, Hướng dẫn chia đều ở dưới. Không hamburger và không cuộn ngang. Các mục khác vẫn ở footer.
+- Hero dùng nền sáng, chữ và ảnh hai cột từ `lg`, một cột trên điện thoại. Nội dung tiêu đề/mô tả tiếp tục lấy từ API nội dung website.
+- Lối tắt xếp 2 × 2 trên mobile và một hàng trên desktop; hướng dẫn khám dẫn tới neo `quy-trinh-kham`.
+- Thẻ dịch vụ có ảnh minh họa, tên/giá và liên kết dùng danh mục thật. Trên mobile dùng ảnh nhỏ bên trái để giảm chiều dài trang.
+- `public/images/home/imaging-service.webp` và `laboratory-service.webp` là ảnh AI minh họa, tạo bằng công cụ imagegen tích hợp; không đại diện cho nhân viên hay thiết bị thực tế. Prompt: kỹ thuật viên xem phim khớp gối; kỹ thuật viên thao tác với ống mẫu xét nghiệm, ánh sáng tự nhiên, không thông tin bệnh nhân, không chữ/logo. Thay bằng ảnh phòng khám khi có ảnh thực tế.

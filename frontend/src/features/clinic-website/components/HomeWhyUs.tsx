@@ -11,7 +11,10 @@ import type { HomeHeroContent } from "../types/websiteContent";
 // lấy từ nội dung website (`highlights`) để Quản trị viên sửa được (BR-61).
 export function HomeWhyUs({ highlights }: Pick<HomeHeroContent, "highlights">) {
   return (
-    <section aria-labelledby="why-us-title" className="bg-card py-20 lg:py-28">
+    <section
+      aria-labelledby="why-us-title"
+      className="bg-card py-12 sm:py-16 lg:py-20"
+    >
       <div
         className={cn(
           publicContainerClass,

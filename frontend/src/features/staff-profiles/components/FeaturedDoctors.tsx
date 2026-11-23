@@ -13,7 +13,7 @@ export function FeaturedDoctors({ doctors }: { doctors: PublicDoctor[] }) {
   return (
     <section
       aria-labelledby="featured-doctors-title"
-      className="py-20 lg:py-28"
+      className="bg-secondary/40 py-12 sm:py-16 lg:py-20"
     >
       <div className={publicContainerClass}>
         <PublicSectionHeading
@@ -23,11 +23,11 @@ export function FeaturedDoctors({ doctors }: { doctors: PublicDoctor[] }) {
               <ArrowRight aria-hidden />
             </Link>
           }
-          description="Bác sĩ chuyên sâu từng vùng: khớp gối, cột sống, chấn thương thể thao và thay khớp."
+          description="Tìm hiểu hồ sơ bác sĩ và lịch khám để lựa chọn phù hợp với bạn."
           id="featured-doctors-title"
           title="Đội ngũ bác sĩ"
         />
-        <ul className="mt-12 grid gap-x-8 gap-y-12 sm:grid-cols-2 lg:grid-cols-4">
+        <ul className="mt-8 grid gap-x-6 gap-y-8 sm:grid-cols-2 lg:grid-cols-4">
           {doctors.map((doctor) => (
             <li key={doctor.id}>
               <DoctorCard doctor={doctor} headingLevel={3} />
