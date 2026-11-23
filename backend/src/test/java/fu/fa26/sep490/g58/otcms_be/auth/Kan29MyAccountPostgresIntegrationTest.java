@@ -5,6 +5,8 @@ import fu.fa26.sep490.g58.otcms_be.auth.model.entity.enums.*;
 import fu.fa26.sep490.g58.otcms_be.auth.repository.*;
 import fu.fa26.sep490.g58.otcms_be.auth.service.*;
 import fu.fa26.sep490.g58.otcms_be.common.security.*;
+import fu.fa26.sep490.g58.otcms_be.common.storage.InMemoryObjectStorage;
+import fu.fa26.sep490.g58.otcms_be.common.storage.ObjectStoragePort;
 import fu.fa26.sep490.g58.otcms_be.support.LocalPostgresTest;
 import java.time.*;
 import java.util.*;
@@ -14,6 +16,9 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Primary;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockMultipartFile;
@@ -40,6 +45,10 @@ class Kan29MyAccountPostgresIntegrationTest {
         r.add("spring.datasource.hikari.schema", () -> SCHEMA);
         r.add("app.auth.session-security.jwt-secret", () -> ephemeral);
         r.add("app.auth.rate-limit-hmac-secret", () -> ephemeral);
+    }
+    @TestConfiguration(proxyBeanMethods = false)
+    static class AvatarStorageTestConfiguration {
+        @Bean @Primary ObjectStoragePort avatarObjectStorage() { return new InMemoryObjectStorage(); }
     }
     @Autowired MockMvc mvc;
     @Autowired AccountRepository accounts;

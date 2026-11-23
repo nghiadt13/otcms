@@ -55,11 +55,11 @@ class ServiceQueueAdmissionPostgresIntegrationTest {
             return new ServiceAdmissionHandler() {
                 @Override public boolean supports(String serviceType) { return "OTHER".equals(serviceType); }
                 @Override public List<UUID> eligibleRoomIds(UUID orderId) {
-                    return jdbc.queryForList("select r.room_id from room_supported_services r join clinical_service_orders o"
+                    return jdbc.queryForList("select r.room_id from room_supported_services r join service_orders o"
                             + " on o.service_id = r.service_id where o.id = ? order by r.room_id", UUID.class, orderId);
                 }
                 @Override public void assignRoom(UUID orderId, UUID roomId) {
-                    jdbc.update("update clinical_service_orders set room_id = ? where id = ?", roomId, orderId);
+                    jdbc.update("update service_orders set room_id = ? where id = ?", roomId, orderId);
                 }
             };
         }
@@ -84,10 +84,10 @@ class ServiceQueueAdmissionPostgresIntegrationTest {
         UUID visit = visit(c), order = order(c, visit, service, 1);
         paid(order);
         serviceQueue.admitPaidOrder(order);
-        assertEquals(quiet, jdbc.queryForObject("select room_id from clinical_service_orders where id = ?", UUID.class, order));
+        assertEquals(quiet, jdbc.queryForObject("select room_id from service_orders where id = ?", UUID.class, order));
         assertEquals(1, count("select count(*) from queue_entries where service_order_id = ? and stage = 'SERVICE' and status = 'WAITING' and room_id = ?", order, quiet));
         assertEquals(3, jdbc.queryForObject("select queue_number from queue_entries where service_order_id = ?", Integer.class, order));
-        assertEquals("PAID", jdbc.queryForObject("select payment_status from clinical_service_orders where id = ?", String.class, order));
+        assertEquals("PAID", jdbc.queryForObject("select payment_status from service_orders where id = ?", String.class, order));
     }
 
     @Test void unpaidOrderIsNotAdmitted() {
@@ -96,7 +96,7 @@ class ServiceQueueAdmissionPostgresIntegrationTest {
         when(billing.isServiceOrderPaid(order)).thenReturn(false);
         serviceQueue.admitPaidOrder(order);
         assertEquals(0, count("select count(*) from queue_entries where service_order_id = ?", order));
-        assertNull(jdbc.queryForObject("select room_id from clinical_service_orders where id = ?", UUID.class, order));
+        assertNull(jdbc.queryForObject("select room_id from service_orders where id = ?", UUID.class, order));
     }
 
     @Test void paymentEventAdmitsTheOrderAfterCommit() {
@@ -115,7 +115,7 @@ class ServiceQueueAdmissionPostgresIntegrationTest {
         serviceQueue.admitPaidOrder(first);
         serviceQueue.admitPaidOrder(second);
         assertEquals(1, count("select count(*) from queue_entries where visit_id = ? and stage = 'SERVICE'", visit));
-        assertEquals(roomB, jdbc.queryForObject("select room_id from clinical_service_orders where id = ?", UUID.class, second));
+        assertEquals(roomB, jdbc.queryForObject("select room_id from service_orders where id = ?", UUID.class, second));
         tx.executeWithoutResult(status -> serviceQueue.complete(first));
         assertEquals("COMPLETED", jdbc.queryForObject("select status from queue_entries where service_order_id = ?", String.class, first));
         assertEquals(roomB, jdbc.queryForObject("select room_id from queue_entries where service_order_id = ?", UUID.class, second));
@@ -170,11 +170,11 @@ class ServiceQueueAdmissionPostgresIntegrationTest {
         exam(visit, c.doctor, doctorRoom);
         UUID round = UUID.randomUUID();
         UUID one = order(c, visit, service, 1, round), two = order(c, visit, service, 1, round);
-        jdbc.update("update clinical_service_orders set order_status = 'RESULTS_AVAILABLE' where id = ?", one);
+        jdbc.update("update service_orders set order_status = 'RESULTS_AVAILABLE' where id = ?", one);
         tx.executeWithoutResult(status -> resultReview.onOrderResultAvailable(one));
         assertEquals(0, count("select count(*) from queue_entries where visit_id = ? and stage = 'RESULT_REVIEW'", visit));
 
-        jdbc.update("update clinical_service_orders set order_status = 'RESULTS_AVAILABLE' where id = ?", two);
+        jdbc.update("update service_orders set order_status = 'RESULTS_AVAILABLE' where id = ?", two);
         tx.executeWithoutResult(status -> resultReview.onOrderResultAvailable(two));
         tx.executeWithoutResult(status -> resultReview.onOrderResultAvailable(two)); // idempotent
         assertEquals(1, count("select count(*) from queue_entries where visit_id = ? and stage = 'RESULT_REVIEW' and room_id = ? and status = 'WAITING'", visit, doctorRoom));
@@ -189,8 +189,8 @@ class ServiceQueueAdmissionPostgresIntegrationTest {
         exam(visit, c.doctor, doctorRoom);
         UUID round = UUID.randomUUID();
         UUID one = order(c, visit, service, 1, round), two = order(c, visit, service, 1, round);
-        jdbc.update("update clinical_service_orders set order_status = 'CANCELLED', cancel_reason = 'x' where id = ?", two);
-        jdbc.update("update clinical_service_orders set order_status = 'RESULTS_AVAILABLE' where id = ?", one);
+        jdbc.update("update service_orders set order_status = 'CANCELLED', cancel_reason = 'x' where id = ?", two);
+        jdbc.update("update service_orders set order_status = 'RESULTS_AVAILABLE' where id = ?", one);
         tx.executeWithoutResult(status -> resultReview.onOrderResultAvailable(one));
         assertEquals(1, count("select count(*) from queue_entries where visit_id = ? and stage = 'RESULT_REVIEW'", visit));
     }
@@ -201,7 +201,7 @@ class ServiceQueueAdmissionPostgresIntegrationTest {
         paid(order);
         serviceQueue.admitPaidOrder(order);
         exam(visit, c.doctor, room);
-        jdbc.update("update clinical_service_orders set order_status = 'RESULTS_AVAILABLE' where id = ?", order);
+        jdbc.update("update service_orders set order_status = 'RESULTS_AVAILABLE' where id = ?", order);
         tx.executeWithoutResult(status -> resultReview.onOrderResultAvailable(order));
         assertEquals(1, count("select count(*) from queue_entries where visit_id = ? and stage = 'RESULT_REVIEW' and status = 'WAITING'", visit));
         tx.executeWithoutResult(status -> events.publishEvent(new fu.fa26.sep490.g58.otcms_be.visit.event.VisitCompletedEvent(visit, c.doctor)));
@@ -212,7 +212,7 @@ class ServiceQueueAdmissionPostgresIntegrationTest {
     @Test void worklistShowsPatientHeaderAndOrdersOfTheRoomWithPaymentFlag() {
         Ctx c = ctx();
         UUID room = room(), service = service(c, room), visit = visit(c), order = order(c, visit, service, 1);
-        jdbc.update("update clinical_service_orders set instructions = 'Remove jewelry', body_area = 'Knee' where id = ?", order);
+        jdbc.update("update service_orders set instructions = 'Remove jewelry', body_area = 'Knee' where id = ?", order);
         paid(order);
         serviceQueue.admitPaidOrder(order);
         var receptionist = new fu.fa26.sep490.g58.otcms_be.common.security.AuthenticatedAccount(c.receptionist,
@@ -281,9 +281,9 @@ class ServiceQueueAdmissionPostgresIntegrationTest {
     private UUID order(Ctx c, UUID visit, UUID service, int roundNumber, UUID round) {
         UUID order = UUID.randomUUID();
         Timestamp now = Timestamp.from(Instant.now());
-        jdbc.update("insert into clinical_ordering_rounds (id, visit_id, round_number, ordered_by_doctor_id, ordered_at, created_at) values (?, ?, ?, ?, ?, ?) on conflict (id) do nothing",
+        jdbc.update("insert into service_order_rounds (id, visit_id, round_number, ordered_by_doctor_id, ordered_at, created_at) values (?, ?, ?, ?, ?, ?) on conflict (id) do nothing",
                 round, visit, roundNumber, c.doctor, now, now);
-        jdbc.update("insert into clinical_service_orders (id, order_code, ordering_round_id, visit_id, patient_id, service_id, service_name_snapshot, service_type, requesting_doctor_id, clinical_reason, price_snapshot, order_status, payment_status, created_at, updated_at) values (?, ?, ?, ?, ?, ?, 'Other service', 'OTHER', ?, 'Pain', 100, 'ORDERED', 'PENDING_PAYMENT', ?, ?)",
+        jdbc.update("insert into service_orders (id, order_code, ordering_round_id, visit_id, patient_id, service_id, service_name_snapshot, service_type, requesting_doctor_id, clinical_reason, price_snapshot, order_status, payment_status, created_at, updated_at) values (?, ?, ?, ?, ?, ?, 'Other service', 'OTHER', ?, 'Pain', 100, 'ORDERED', 'PENDING_PAYMENT', ?, ?)",
                 order, "O-" + order.toString().substring(0, 8), round, visit, c.patient, service, c.doctor, now, now);
         return order;
     }
@@ -294,7 +294,7 @@ class ServiceQueueAdmissionPostgresIntegrationTest {
     private void waiting(UUID room, int number) {
         Ctx other = ctx();
         UUID visit = visit(other), service = service(other, room), order = order(other, visit, service, 1);
-        jdbc.update("update clinical_service_orders set room_id = ? where id = ?", room, order);
+        jdbc.update("update service_orders set room_id = ? where id = ?", room, order);
         jdbc.update("insert into queue_entries (visit_id, stage, status, entered_at, room_id, service_order_id, clinic_date, queue_number) values (?, 'SERVICE', 'WAITING', now(), ?, ?, ?, ?)",
                 visit, room, order, TODAY, number);
     }

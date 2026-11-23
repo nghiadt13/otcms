@@ -15,7 +15,7 @@ public class StaffProfileJpaEntity {
     @Column(name = "account_id", nullable = false, unique = true) private UUID accountId;
     @Column(name = "display_name", nullable = false, length = 160) private String displayName;
     @Column(name = "work_contact", length = 254) private String workContact;
-    @Column(name = "photo_content") private byte[] photoContent;
+    @Column(name = "photo_storage_key", length = 300) private String photoStorageKey;
     @Column(name = "photo_content_type", length = 32) private String photoContentType;
     @Column(name = "photo_url", length = 2048) private String photoUrl;
     @Column(nullable = false, length = 16) private String status;
@@ -45,7 +45,7 @@ public class StaffProfileJpaEntity {
     public UUID accountId() { return accountId; }
     public String displayName() { return displayName; }
     public String workContact() { return workContact; }
-    public byte[] photoContent() { return photoContent; }
+    public String photoStorageKey() { return photoStorageKey; }
     public String photoContentType() { return photoContentType; }
     public String photoUrl() { return photoUrl; }
     public String status() { return status; }
@@ -59,7 +59,7 @@ public class StaffProfileJpaEntity {
     public boolean inActiveDirectory() { return inActiveDirectory; }
 
     public void update(String name, String contact) { displayName = name; workContact = contact; }
-    public void photo(byte[] content, String type) { photoContent = content; photoContentType = type; }
+    public void photo(String storageKey, String type) { photoStorageKey = storageKey; photoContentType = type; }
     public void remove() { status = "REMOVED"; }
 
     /** Marks this profile as a doctor. New doctors start in the directory but not accepting bookings. */

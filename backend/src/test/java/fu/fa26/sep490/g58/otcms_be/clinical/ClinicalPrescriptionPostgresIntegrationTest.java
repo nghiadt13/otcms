@@ -65,9 +65,9 @@ class ClinicalPrescriptionPostgresIntegrationTest {
                 () -> prescriptions.issue(new IssuanceCommand(visitId, doctorId, 2L, "issue-key"))).code());
     }
     private void assertCounts(int expectedItems) {
-        assertEquals(1, jdbc.queryForObject("select count(*) from clinical_prescriptions where visit_id = ?", Integer.class, visitId));
+        assertEquals(1, jdbc.queryForObject("select count(*) from prescriptions where visit_id = ?", Integer.class, visitId));
         assertEquals(expectedItems, jdbc.queryForObject("""
-                select count(*) from clinical_prescription_items i join clinical_prescriptions p on p.id = i.prescription_id
+                select count(*) from prescription_items i join prescriptions p on p.id = i.prescription_id
                 where p.visit_id = ?
                 """, Integer.class, visitId));
     }

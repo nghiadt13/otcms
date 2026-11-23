@@ -2,7 +2,7 @@ package fu.fa26.sep490.g58.otcms_be.clinical.service.resultsheet;
 
 import fu.fa26.sep490.g58.otcms_be.clinical.exception.ClinicalOperationException;
 import fu.fa26.sep490.g58.otcms_be.clinical.model.ClinicalMedicalDocumentType;
-import fu.fa26.sep490.g58.otcms_be.clinical.repository.ClinicalMedicalDocumentPayloadRepository;
+import fu.fa26.sep490.g58.otcms_be.clinical.service.ClinicalMedicalDocumentContentStore;
 import fu.fa26.sep490.g58.otcms_be.clinical.repository.ClinicalMedicalDocumentRepository;
 import fu.fa26.sep490.g58.otcms_be.notification.model.NotificationMessages;
 import fu.fa26.sep490.g58.otcms_be.notification.service.NotificationPublisher;
@@ -21,15 +21,15 @@ public class ResultSheetIssuer {
     private final ResultSheetSnapshotAssembler snapshots;
     private final ResultSheetPdfRenderer renderer;
     private final ClinicalMedicalDocumentRepository documents;
-    private final ClinicalMedicalDocumentPayloadRepository payloads;
+    private final ClinicalMedicalDocumentContentStore contents;
     private final NotificationPublisher notifications;
     private final Clock clock;
 
     public ResultSheetIssuer(VisitReviewSourceService visits, ResultSheetSnapshotAssembler snapshots,
             ResultSheetPdfRenderer renderer, ClinicalMedicalDocumentRepository documents,
-            ClinicalMedicalDocumentPayloadRepository payloads, NotificationPublisher notifications, Clock clock) {
+            ClinicalMedicalDocumentContentStore contents, NotificationPublisher notifications, Clock clock) {
         this.visits = visits; this.snapshots = snapshots; this.renderer = renderer; this.documents = documents;
-        this.payloads = payloads; this.notifications = notifications; this.clock = clock;
+        this.contents = contents; this.notifications = notifications; this.clock = clock;
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -45,7 +45,7 @@ public class ResultSheetIssuer {
         UUID documentId = UUID.randomUUID();
         // A competing transaction may have won after the first read; only the winner publishes.
         if (documents.insertGeneratedResultSheet(documentId, visitId, visit.patientProfileId(), pdf.length, now, 1) == 0) return;
-        if (payloads.put(documentId, pdf) != 1 || documents.releaseGeneratedResultSheet(documentId, doctorId, now) != 1) {
+        if (!contents.put(visitId, documentId, "application/pdf", pdf) || documents.releaseGeneratedResultSheet(documentId, doctorId, now) != 1) {
             throw new ClinicalOperationException("DEPENDENCY_UNAVAILABLE");
         }
         notifications.publishToPatient(visit.patientProfileId(),
@@ -72,7 +72,7 @@ public class ResultSheetIssuer {
         byte[] pdf = renderer.render(snapshot);
         UUID documentId = UUID.randomUUID();
         if (documents.insertGeneratedResultSheet(documentId, visitId, visit.patientProfileId(), pdf.length, now, version) != 1
-                || payloads.put(documentId, pdf) != 1
+                || !contents.put(visitId, documentId, "application/pdf", pdf)
                 || documents.releaseGeneratedResultSheet(documentId, doctorId, now) != 1) {
             throw new ClinicalOperationException("DEPENDENCY_UNAVAILABLE");
         }

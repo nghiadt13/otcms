@@ -252,7 +252,7 @@ public class ImagingStudyJpaEntity {
         releaseRow(now).accept(eventId, payloadSha256, findingsId, reportId, reportSha256, now);
         version++; updatedAt = now;
     }
-    /** Release bookkeeping lives in imaging_study_releases; the row is created on first use inside the caller's transaction. */
+    /** Release bookkeeping lives in study_releases; the row is created on first use inside the caller's transaction. */
     private ImagingStudyReleaseJpaEntity releaseRow(Instant now) {
         if (release == null) release = new ImagingStudyReleaseJpaEntity(this, now);
         return release;

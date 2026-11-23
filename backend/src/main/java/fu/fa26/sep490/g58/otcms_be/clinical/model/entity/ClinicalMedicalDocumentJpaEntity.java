@@ -6,7 +6,7 @@ import java.time.Instant;
 import java.util.UUID;
 
 /** Metadata only. Payload reads/writes are isolated from listing and authorization. */
-@Entity @Table(name = "clinical_medical_documents")
+@Entity @Table(name = "medical_documents")
 public class ClinicalMedicalDocumentJpaEntity {
     @Id private UUID id;
     @Column(name = "visit_id", nullable = false) private UUID visitId;

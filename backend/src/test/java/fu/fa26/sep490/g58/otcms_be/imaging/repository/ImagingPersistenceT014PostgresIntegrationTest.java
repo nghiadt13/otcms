@@ -59,9 +59,9 @@ class ImagingPersistenceT014PostgresIntegrationTest {
         jdbc.update("insert into staff_profiles (is_doctor,id,account_id,display_name) values (true,?,?,'Imaging doctor')", staff, doctor);
         jdbc.update("insert into visits (id,patient_profile_id,source,arrived_at,checked_in_at,created_by_account_id,status) values (?,?,'WALK_IN',now(),now(),?,'OPEN')", visit, patient, doctor);
         UUID round = UUID.randomUUID();
-        jdbc.update("insert into clinical_ordering_rounds (id,visit_id,round_number,ordered_by_doctor_id,ordered_at,created_at) values (?,?,1,?,now(),now())",
+        jdbc.update("insert into service_order_rounds (id,visit_id,round_number,ordered_by_doctor_id,ordered_at,created_at) values (?,?,1,?,now(),now())",
                 round, visit, staff);
-        jdbc.update("insert into clinical_service_orders (id,order_code,ordering_round_id,visit_id,patient_id,service_id,service_name_snapshot,service_type,requesting_doctor_id,clinical_reason,body_area,price_snapshot,order_status,payment_status,created_at,updated_at) values (?,?,?,?,?,?,'CT','IMAGING',?,'T014','CHEST',1,'ORDERED','PAID',now(),now())",
+        jdbc.update("insert into service_orders (id,order_code,ordering_round_id,visit_id,patient_id,service_id,service_name_snapshot,service_type,requesting_doctor_id,clinical_reason,body_area,price_snapshot,order_status,payment_status,created_at,updated_at) values (?,?,?,?,?,?,'CT','IMAGING',?,'T014','CHEST',1,'ORDERED','PAID',now(),now())",
                 order, order.toString().replace("-", ""), round, visit, patient, service, staff);
     }
 
@@ -133,7 +133,7 @@ class ImagingPersistenceT014PostgresIntegrationTest {
         study.acceptFindingsRelease(event, hash, UUID.randomUUID(), UUID.randomUUID(), "e".repeat(64), NOW);
         studies.saveAndFlush(study);
         assertNotNull(reconciliation.reconcileOpenBatch(new UUID(0L, 0L)));
-        assertEquals(1, jdbc.queryForObject("select count(*) from imaging_reconciliation_cases where event_id = ? and state = 'RESOLVED' and classification = 'LINKED' and resolution_decision is null", Integer.class, event));
+        assertEquals(1, jdbc.queryForObject("select count(*) from study_reconciliation_cases where event_id = ? and state = 'RESOLVED' and classification = 'LINKED' and resolution_decision is null", Integer.class, event));
         assertEquals(1, jdbc.queryForObject("select count(*) from audit_logs where action = 'IMAGING_RECONCILIATION_AUTO_CLOSE' and metadata ->> 'correlationRef' = ? and metadata ->> 'eventId' = ?", Integer.class, event.toString(), event.toString()));
     }
 

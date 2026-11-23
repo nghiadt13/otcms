@@ -22,7 +22,7 @@ public interface ClinicalPrescriptionRepository extends JpaRepository<ClinicalPr
 
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query(value = """
-            insert into clinical_prescriptions (id, visit_id, patient_profile_id, doctor_profile_id, status,
+            insert into prescriptions (id, visit_id, patient_profile_id, doctor_profile_id, status,
                 created_at, updated_at, version)
             values (:id, :visitId, :patientId, :doctorId, 'DRAFT', :now, :now, 1)
             on conflict (visit_id) do nothing

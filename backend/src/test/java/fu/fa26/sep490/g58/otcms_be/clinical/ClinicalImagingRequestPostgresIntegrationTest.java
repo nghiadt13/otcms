@@ -97,12 +97,12 @@ class ClinicalImagingRequestPostgresIntegrationTest {
     @Test void migrationMovesSubmitKeyToSharedIdempotencyTable() {
         assertEquals(0, jdbc.queryForObject("""
                 select count(*) from pg_indexes where schemaname = current_schema()
-                and tablename = 'clinical_service_orders'
+                and tablename = 'service_orders'
                 and indexname in ('uk_clinical_orders_round_head', 'uk_clinical_orders_round_number')
                 """, Integer.class));
         assertEquals(1, jdbc.queryForObject("""
                 select count(*) from pg_indexes where schemaname = current_schema()
-                and tablename = 'clinical_ordering_rounds' and indexname = 'uk_clinical_round_visit_number'
+                and tablename = 'service_order_rounds' and indexname = 'uk_clinical_round_visit_number'
                 """, Integer.class));
         assertEquals(1, jdbc.queryForObject("""
                 select count(*) from pg_indexes where schemaname = current_schema()
@@ -168,14 +168,14 @@ class ClinicalImagingRequestPostgresIntegrationTest {
                 List.of(new ImagingOrderRequest(serviceId, "Reason", "RIGHT_KNEE", null)), true);
     }
     private void assertCounts(int count) {
-        assertEquals(0, jdbc.queryForObject("select count(*) from imaging_order_executions e join clinical_service_orders o "
+        assertEquals(0, jdbc.queryForObject("select count(*) from imaging_executions e join service_orders o "
                 + "on o.id = e.service_order_id where o.requesting_doctor_id = ?",
                 Integer.class, doctorId));
         assertEquals(count, jdbc.queryForObject("select count(*) from idempotency_records where scope = 'ORDER_ROUND_SUBMIT' and owner_id = ?",
                 Integer.class, doctorId));
-        assertEquals(count, jdbc.queryForObject("select count(*) from clinical_ordering_rounds where ordered_by_doctor_id = ?",
+        assertEquals(count, jdbc.queryForObject("select count(*) from service_order_rounds where ordered_by_doctor_id = ?",
                 Integer.class, doctorId));
-        assertEquals(count, jdbc.queryForObject("select count(*) from clinical_service_orders where requesting_doctor_id = ?",
+        assertEquals(count, jdbc.queryForObject("select count(*) from service_orders where requesting_doctor_id = ?",
                 Integer.class, doctorId));
     }
 

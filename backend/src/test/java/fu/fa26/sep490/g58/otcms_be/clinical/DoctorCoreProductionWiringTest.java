@@ -338,7 +338,7 @@ class DoctorCoreProductionWiringTest {
         verify(bean(VisitCareAssignmentRepository.class), never())
                 .findFirstByVisitIdAndStatusOrderByAssignedAtDescIdDesc(eq(historicalVisit), any());
         verify(bean(fu.fa26.sep490.g58.otcms_be.common.audit.AuditLogWriter.class)).record(any());
-        verifyNoInteractions(bean(ClinicalMedicalDocumentPayloadRepository.class));
+        verifyNoInteractions(bean(ClinicalMedicalDocumentContentStore.class));
     }
 
     @Configuration @EnableWebMvc @EnableTransactionManagement(proxyTargetClass = true)
@@ -395,7 +395,7 @@ class DoctorCoreProductionWiringTest {
                 Class<?>[] repositories = {AccountRepository.class, StaffProfileRepository.class, ClinicServiceRepository.class,
                         ClinicVisitJpaRepository.class, VisitCareAssignmentRepository.class, ClinicalExaminationRepository.class,
                         ClinicalDiagnosisRepository.class, ServiceOrderRepository.class, ClinicalOrderingRoundRepository.class,
-                        ClinicalMedicalDocumentRepository.class, ClinicalMedicalDocumentPayloadRepository.class,
+                        ClinicalMedicalDocumentRepository.class, ClinicalMedicalDocumentContentStore.class,
                         fu.fa26.sep490.g58.otcms_be.auth.repository.PatientProfileRepository.class,
                         fu.fa26.sep490.g58.otcms_be.patient.repository.CareRelationshipRepository.class,
                         ClinicalPrescriptionRepository.class, ClinicalPrescriptionItemRepository.class,

@@ -6,7 +6,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
-@Entity @Table(name="clinical_examinations", uniqueConstraints=@UniqueConstraint(name="uk_clinical_exam_visit", columnNames="visit_id"))
+@Entity @Table(name="examinations", uniqueConstraints=@UniqueConstraint(name="uk_clinical_exam_visit", columnNames="visit_id"))
 public class ClinicalExaminationJpaEntity {
     @Id private UUID id;
     @Column(name="visit_id", nullable=false) private UUID visitId;

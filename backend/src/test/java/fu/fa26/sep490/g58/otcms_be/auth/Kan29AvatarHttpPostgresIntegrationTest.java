@@ -1,6 +1,8 @@
 package fu.fa26.sep490.g58.otcms_be.auth;
 
 import fu.fa26.sep490.g58.otcms_be.auth.service.AuthSessionService;
+import fu.fa26.sep490.g58.otcms_be.common.storage.InMemoryObjectStorage;
+import fu.fa26.sep490.g58.otcms_be.common.storage.ObjectStoragePort;
 import fu.fa26.sep490.g58.otcms_be.support.LocalPostgresTest;
 import java.net.URI;
 import java.net.http.*;
@@ -9,6 +11,9 @@ import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.*;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.*;
 import tools.jackson.databind.json.JsonMapper;
@@ -26,6 +31,10 @@ class Kan29AvatarHttpPostgresIntegrationTest {
         r.add("spring.datasource.hikari.schema",()->SCHEMA);
         r.add("app.auth.session-security.jwt-secret",()->ephemeral);
         r.add("app.auth.rate-limit-hmac-secret",()->ephemeral);
+    }
+    @TestConfiguration(proxyBeanMethods = false)
+    static class AvatarStorageTestConfiguration {
+        @Bean @Primary ObjectStoragePort avatarObjectStorage() { return new InMemoryObjectStorage(); }
     }
     @Value("${local.server.port}") int port;
     @Autowired JdbcTemplate jdbc;

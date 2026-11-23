@@ -66,8 +66,8 @@ class DiagnosticEvidenceT013PostgresIntegrationTest {
 
     @AfterEach
     void cleanRows() {
-        jdbc.update("delete from clinical_service_orders where visit_id = ?", visitId);
-        jdbc.update("delete from clinical_ordering_rounds where visit_id = ?", visitId);
+        jdbc.update("delete from service_orders where visit_id = ?", visitId);
+        jdbc.update("delete from service_order_rounds where visit_id = ?", visitId);
     }
 
     @Test
@@ -79,12 +79,12 @@ class DiagnosticEvidenceT013PostgresIntegrationTest {
         assertEquals(DiagnosticRequestStatus.IN_PROGRESS, first.status());
         assertEquals(1, first.version());
         assertEquals(use.attemptId(), UUID.fromString(jdbc.queryForObject(
-                "select attempt_id from imaging_order_executions where service_order_id = ?", String.class, created.requestId())));
+                "select attempt_id from imaging_executions where service_order_id = ?", String.class, created.requestId())));
 
         DiagnosticRequestView replay = evidenceService.recordFirstUse(
                 DiagnosticActor.trustedIntegration(), use, "corr-first-use-replay");
         assertEquals(first, replay);
-        assertEquals(1, jdbc.queryForObject("select count(*) from imaging_order_executions "
+        assertEquals(1, jdbc.queryForObject("select count(*) from imaging_executions "
                 + "where service_order_id = ? and first_use_event_id = ?", Integer.class, created.requestId(), use.eventId()));
     }
 
@@ -99,9 +99,9 @@ class DiagnosticEvidenceT013PostgresIntegrationTest {
 
         assertEquals(DiagnosticOperationOutcome.EVIDENCE_MISMATCH, rejected.outcome());
         assertEquals(DiagnosticRequestStatus.PENDING, requests.get(doctor(), created.requestId()).status());
-        assertEquals(0L, jdbc.queryForObject("select version from imaging_order_executions where service_order_id = ?",
+        assertEquals(0L, jdbc.queryForObject("select version from imaging_executions where service_order_id = ?",
                 Long.class, created.requestId()));
-        assertNull(jdbc.queryForObject("select attempt_id from imaging_order_executions where service_order_id = ?",
+        assertNull(jdbc.queryForObject("select attempt_id from imaging_executions where service_order_id = ?",
                 String.class, created.requestId()));
     }
 
@@ -111,7 +111,7 @@ class DiagnosticEvidenceT013PostgresIntegrationTest {
         DiagnosticRequestView started = evidenceService.recordFirstUse(DiagnosticActor.trustedIntegration(),
                 useEvidence(created.requestId()), "corr-initial-use");
         UUID attemptId = UUID.fromString(jdbc.queryForObject(
-                "select attempt_id from imaging_order_executions where service_order_id = ?", String.class, created.requestId()));
+                "select attempt_id from imaging_executions where service_order_id = ?", String.class, created.requestId()));
         UseEvidence laterUse = new UseEvidence(UUID.randomUUID(), created.requestId(), attemptId,
                 UseEvidenceType.CONTRAST_ADMINISTERED, "trusted-imaging-source", null,
                 Instant.now().minusSeconds(1), Instant.now(), true);
@@ -121,7 +121,7 @@ class DiagnosticEvidenceT013PostgresIntegrationTest {
 
         assertEquals(DiagnosticRequestStatus.IN_PROGRESS, afterLaterUse.status());
         assertEquals(started, afterLaterUse);
-        assertEquals(1L, jdbc.queryForObject("select version from imaging_order_executions where service_order_id = ?",
+        assertEquals(1L, jdbc.queryForObject("select version from imaging_executions where service_order_id = ?",
                 Long.class, created.requestId()));
         assertEquals(1, jdbc.queryForObject("select count(*) from audit_logs "
                 + "where source = 'diagnostic_audit_events' and entity_id = ? "
@@ -139,9 +139,9 @@ class DiagnosticEvidenceT013PostgresIntegrationTest {
                 lateEvidence, "corr-late-use");
 
         assertEquals(DiagnosticRequestStatus.CANCELLED, cancelled.status());
-        assertEquals(1L, jdbc.queryForObject("select version from imaging_order_executions where service_order_id = ?",
+        assertEquals(1L, jdbc.queryForObject("select version from imaging_executions where service_order_id = ?",
                 Long.class, created.requestId()));
-        assertEquals("CANCELLED", jdbc.queryForObject("select execution_status from imaging_order_executions where service_order_id = ?",
+        assertEquals("CANCELLED", jdbc.queryForObject("select execution_status from imaging_executions where service_order_id = ?",
                 String.class, created.requestId()));
         assertEquals(1, jdbc.queryForObject("select count(*) from audit_logs "
                 + "where source = 'diagnostic_audit_events' and entity_id = ? "
@@ -155,7 +155,7 @@ class DiagnosticEvidenceT013PostgresIntegrationTest {
                 "corr-first-use-study");
         UUID studyEventId = UUID.randomUUID();
         UUID attemptId = UUID.fromString(jdbc.queryForObject(
-                "select attempt_id from imaging_order_executions where service_order_id = ?", String.class, created.requestId()));
+                "select attempt_id from imaging_executions where service_order_id = ?", String.class, created.requestId()));
         StudyEvidence incoming = new StudyEvidence(studyEventId, "study:opaque:123", created.requestId(),
                 visitId, patientId, attemptId, StudyVerificationStatus.CONFIRMED_MATCH, true);
         ports.studyConfirmation = new StudyEvidence(studyEventId, incoming.studyRef(), created.requestId(),
@@ -166,7 +166,7 @@ class DiagnosticEvidenceT013PostgresIntegrationTest {
                         "corr-mismatched-study"));
         assertEquals(DiagnosticOperationOutcome.EVIDENCE_MISMATCH, rejected.outcome());
         assertEquals(DiagnosticRequestStatus.IN_PROGRESS, requests.get(doctor(), created.requestId()).status());
-        assertEquals(1L, jdbc.queryForObject("select version from imaging_order_executions where service_order_id = ?",
+        assertEquals(1L, jdbc.queryForObject("select version from imaging_executions where service_order_id = ?",
                 Long.class, created.requestId()));
 
         ports.studyConfirmation = null;
@@ -189,7 +189,7 @@ class DiagnosticEvidenceT013PostgresIntegrationTest {
         evidenceService.recordFirstUse(DiagnosticActor.trustedIntegration(), useEvidence(created.requestId()),
                 "corr-first-use-linked");
         UUID attemptId = UUID.fromString(jdbc.queryForObject(
-                "select attempt_id from imaging_order_executions where service_order_id = ?", String.class, created.requestId()));
+                "select attempt_id from imaging_executions where service_order_id = ?", String.class, created.requestId()));
         StudyEvidence incoming = new StudyEvidence(UUID.randomUUID(), "study:opaque:linked", created.requestId(),
                 visitId, patientId, attemptId, StudyVerificationStatus.CONFIRMED_MATCH, true);
 
@@ -211,7 +211,7 @@ class DiagnosticEvidenceT013PostgresIntegrationTest {
         UseEvidence use = useEvidence(created.requestId());
         evidenceService.recordFirstUse(DiagnosticActor.trustedIntegration(), use, "corr-first-use-pending");
         UUID attemptId = UUID.fromString(jdbc.queryForObject(
-                "select attempt_id from imaging_order_executions where service_order_id = ?", String.class, created.requestId()));
+                "select attempt_id from imaging_executions where service_order_id = ?", String.class, created.requestId()));
         StudyEvidence unverified = new StudyEvidence(UUID.randomUUID(), "study:pending", created.requestId(), visitId,
                 patientId, attemptId, StudyVerificationStatus.PENDING, false);
         DiagnosticOperationException rejected = assertThrows(DiagnosticOperationException.class,
@@ -230,7 +230,7 @@ class DiagnosticEvidenceT013PostgresIntegrationTest {
     }
 
     private void cleanAbandonedT013Rows() {
-        // The execution and evidence live on clinical_service_orders; each test also cleans its visit in @AfterEach.
+        // The execution and evidence live on service_orders; each test also cleans its visit in @AfterEach.
     }
 
     private UseEvidence useEvidence(UUID requestId) {

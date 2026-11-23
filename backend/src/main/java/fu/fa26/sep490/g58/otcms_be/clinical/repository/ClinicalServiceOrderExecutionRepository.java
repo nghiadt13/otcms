@@ -21,7 +21,7 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Native SQL on {@code imaging_order_executions} (reads join {@code clinical_service_orders}; see the port). Pending JPA
+ * Native SQL on {@code imaging_executions} (reads join {@code service_orders}; see the port). Pending JPA
  * changes are flushed before each write so a managed ServiceOrderJpaEntity and these UPDATEs never interleave out of
  * order. {@code version} here is the execution's lock, changed only by the guarded writes below; the order's JPA
  * version is never changed here.
@@ -40,8 +40,8 @@ public class ClinicalServiceOrderExecutionRepository {
                    transfer_rec.idempotency_key as transfer_idempotency_key, transfer_rec.request_fingerprint as transfer_fingerprint,
                    e.version as execution_version,
                    e.created_at as created_at, e.updated_at as updated_at
-            from clinical_service_orders o
-            join imaging_order_executions e on e.service_order_id = o.id
+            from service_orders o
+            join imaging_executions e on e.service_order_id = o.id
             left join lateral (select r.idempotency_key, r.request_fingerprint from idempotency_records r
                     where r.scope = 'ORDER_REVIEW' and r.owner_id = o.id order by r.created_at desc limit 1) review_rec on true
             left join lateral (select r.idempotency_key, r.request_fingerprint from idempotency_records r
@@ -103,7 +103,7 @@ public class ClinicalServiceOrderExecutionRepository {
         String order = oldestFirst ? " order by e.created_at asc, o.id asc" : NEWEST_FIRST;
         Query rows = query(COLUMNS + where + order);
         Query count = entityManager.createNativeQuery(
-                "select count(*) from clinical_service_orders o join imaging_order_executions e on e.service_order_id = o.id"
+                "select count(*) from service_orders o join imaging_executions e on e.service_order_id = o.id"
                         + " where e.service_order_id is not null" + where);
         for (Query q : List.of(rows, count)) {
             if (visitId != null) q.setParameter("visitId", visitId);
@@ -137,15 +137,15 @@ public class ClinicalServiceOrderExecutionRepository {
             String imagingType, UUID orderingDoctorAccountId) {
         lockOrder(orderId);
         int assigned = update("""
-                update clinical_service_orders set room_id = :roomId
+                update service_orders set room_id = :roomId
                  where id = :id and service_type = 'IMAGING' and order_status = 'ORDERED' and payment_status = 'PAID'
                    and visit_id = :visitId and patient_id = :patientId and service_id = :serviceId
-                   and not exists (select 1 from imaging_order_executions e where e.service_order_id = :id)
+                   and not exists (select 1 from imaging_executions e where e.service_order_id = :id)
                 """, orderId, q -> q.setParameter("roomId", roomId).setParameter("visitId", visitId)
                 .setParameter("patientId", patientId).setParameter("serviceId", serviceId));
         if (assigned == 0) return 0;
         int created = update("""
-                insert into imaging_order_executions (service_order_id, imaging_type, ordering_doctor_account_id,
+                insert into imaging_executions (service_order_id, imaging_type, ordering_doctor_account_id,
                        execution_status, version, created_at, updated_at)
                 values (:id, :imagingType, cast(:doctorId as uuid), 'PENDING', 0, clock_timestamp(), clock_timestamp())
                 on conflict (service_order_id) do nothing
@@ -158,7 +158,7 @@ public class ClinicalServiceOrderExecutionRepository {
     public int recordFirstUse(UUID orderId, long expectedVersion, UUID attemptId, UUID technicianAccountId,
             String firstUseType, UUID firstUseEventId, Instant firstUseAt, String firstUseSourceId) {
         return versioned("""
-                update imaging_order_executions
+                update imaging_executions
                    set execution_status = 'IN_PROGRESS', attempt_id = :attemptId,
                        technician_account_id = :technicianId, first_use_type = :type,
                        first_use_event_id = :eventId, first_use_at = :at, first_use_source_id = :sourceId,
@@ -173,7 +173,7 @@ public class ClinicalServiceOrderExecutionRepository {
 
     public int linkStudy(UUID orderId, long expectedVersion, UUID attemptId, String studyRef) {
         return versioned("""
-                update imaging_order_executions
+                update imaging_executions
                    set execution_status = 'RESULT_AVAILABLE', study_ref = :studyRef,
                        version = version + 1, updated_at = clock_timestamp()
                  where service_order_id = :id and version = :expectedVersion
@@ -184,7 +184,7 @@ public class ClinicalServiceOrderExecutionRepository {
 
     public int markReviewed(UUID orderId, long expectedVersion) {
         return versioned("""
-                update imaging_order_executions
+                update imaging_executions
                    set execution_status = 'REVIEWED',
                        version = version + 1, updated_at = clock_timestamp()
                  where service_order_id = :id and version = :expectedVersion
@@ -194,7 +194,7 @@ public class ClinicalServiceOrderExecutionRepository {
 
     public int cancel(UUID orderId, long expectedVersion, String cause, String reason) {
         return versioned("""
-                update imaging_order_executions
+                update imaging_executions
                    set execution_status = 'CANCELLED', cancellation_cause = :cause, cancellation_reason = :reason,
                        version = version + 1, updated_at = clock_timestamp()
                  where service_order_id = :id and version = :expectedVersion and execution_status = 'PENDING'
@@ -208,12 +208,12 @@ public class ClinicalServiceOrderExecutionRepository {
     public int transferRoom(UUID orderId, long expectedVersion, UUID roomId) {
         lockOrder(orderId);
         int moved = versioned("""
-                update imaging_order_executions
+                update imaging_executions
                    set version = version + 1, updated_at = clock_timestamp()
                  where service_order_id = :id and version = :expectedVersion and execution_status = 'PENDING'
                 """, orderId, expectedVersion, q -> { });
         if (moved == 0) return 0;
-        if (update("update clinical_service_orders set room_id = :roomId where id = :id", orderId,
+        if (update("update service_orders set room_id = :roomId where id = :id", orderId,
                 q -> q.setParameter("roomId", roomId)) != 1) {
             throw new IllegalStateException("room not moved for order " + orderId);
         }
@@ -228,7 +228,7 @@ public class ClinicalServiceOrderExecutionRepository {
      */
     private void lockOrder(UUID orderId) {
         entityManager.flush();
-        entityManager.createNativeQuery("select o.id from clinical_service_orders o where o.id = :id for update")
+        entityManager.createNativeQuery("select o.id from service_orders o where o.id = :id for update")
                 .setParameter("id", orderId).getResultList();
     }
 

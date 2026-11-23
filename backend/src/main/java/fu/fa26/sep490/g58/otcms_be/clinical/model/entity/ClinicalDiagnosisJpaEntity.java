@@ -4,7 +4,7 @@ import fu.fa26.sep490.g58.otcms_be.clinical.model.DiagnosisType;
 import jakarta.persistence.*;
 import java.util.UUID;
 
-@Entity @Table(name="clinical_examination_diagnoses")
+@Entity @Table(name="examination_diagnoses")
 public class ClinicalDiagnosisJpaEntity {
     @Id private UUID id;
     @Column(name="examination_id",nullable=false) private UUID examinationId;

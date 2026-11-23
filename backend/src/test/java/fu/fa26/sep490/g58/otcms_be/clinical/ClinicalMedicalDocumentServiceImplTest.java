@@ -32,7 +32,7 @@ class ClinicalMedicalDocumentServiceImplTest {
                 ClinicalMedicalDocumentType.EXTERNAL_REPORT, "Title", f.file("one")));
         f.exists = false; error("MSG-41", f::uploadReport);
         f.exists = true; f.allowed = false; error("MSG-42", f::uploadReport);
-        verifyNoInteractions(f.documents, f.payloads);
+        verifyNoInteractions(f.documents, f.contents);
     }
     @Test void receptionistCanAddButCannotCorrectOrReleaseAndOnlyReadsClinicReports() {
         var outside = f.service.upload(f.receptionist(), f.visitId, ClinicalMedicalDocumentType.EXTERNAL_REFERRAL, "Referral", f.file("outside"));
@@ -48,14 +48,14 @@ class ClinicalMedicalDocumentServiceImplTest {
         error("MSG-40", () -> f.service.upload(f.receptionist(), f.visitId, ClinicalMedicalDocumentType.EXTERNAL_REPORT, "x", f.file("x")));
         error("MSG-40", () -> f.service.upload(f.patient(), f.visitId, ClinicalMedicalDocumentType.EXTERNAL_REPORT, "x", f.file("x")));
         error("MSG-40", () -> f.service.upload(null, f.visitId, ClinicalMedicalDocumentType.EXTERNAL_REPORT, "x", f.file("x")));
-        verifyNoInteractions(f.documents, f.payloads);
+        verifyNoInteractions(f.documents, f.contents);
     }
     @Test void obviousNonPdfAndMismatchedMimeAreRejectedDespitePdfFilename() {
         error("MSG-47", () -> f.service.upload(f.doctor(), f.visitId, ClinicalMedicalDocumentType.CLINIC_EXAMINATION_REPORT, "x",
                 new DocumentFile("report.pdf", "application/pdf", "<html>not PDF</html>".getBytes())));
         error("MSG-47", () -> f.service.upload(f.doctor(), f.visitId, ClinicalMedicalDocumentType.CLINIC_EXAMINATION_REPORT, "x",
                 new DocumentFile("report.pdf", "image/png", MedicalDocumentFixture.pdf("fake"))));
-        verifyNoInteractions(f.documents, f.payloads);
+        verifyNoInteractions(f.documents, f.contents);
     }
     @ParameterizedTest @ValueSource(strings = {"png", "jpeg"})
     void externalDocumentsAcceptExistingSupportedImageTypes(String format) throws Exception {
@@ -72,7 +72,7 @@ class ClinicalMedicalDocumentServiceImplTest {
         error("MSG-39", () -> f.service.upload(f.doctor(), f.visitId, null, "x", f.file("x")));
         error("MSG-39", () -> f.service.upload(f.doctor(), f.visitId, ClinicalMedicalDocumentType.EXTERNAL_REPORT, " ", f.file("x")));
         error("MSG-39", () -> f.service.update(f.doctor(), f.visitId, UUID.randomUUID(), null, "x", null));
-        verifyNoInteractions(f.documents, f.payloads);
+        verifyNoInteractions(f.documents, f.contents);
     }
     @Test void filenameIsBasenameAndContentBytesAreDefensivelyCopied() {
         byte[] source = MedicalDocumentFixture.pdf("file");
@@ -87,24 +87,24 @@ class ClinicalMedicalDocumentServiceImplTest {
         var updated = f.service.update(f.doctor(), f.visitId, first.id(), 1L, "Corrected", f.file("replacement"));
         assertEquals(2, updated.version()); assertEquals(first.patientProfileId(), updated.patientProfileId());
         assertArrayEquals(MedicalDocumentFixture.pdf("replacement"), f.service.content(f.doctor(), first.id()).bytes());
-        clearInvocations(f.payloads);
+        clearInvocations(f.contents);
         assertEquals(3, f.service.update(f.doctor(), f.visitId, first.id(), 2L, "New title", null).version());
-        verifyNoInteractions(f.payloads);
+        verifyNoInteractions(f.contents);
     }
     @Test void staleVersionOrLostCasDoesNotWritePayload() {
-        var first = f.uploadReport(); clearInvocations(f.payloads);
+        var first = f.uploadReport(); clearInvocations(f.contents);
         error("MSG-42", () -> f.service.update(f.doctor(), f.visitId, first.id(), 2L, "bad", f.file("bad")));
         doReturn(0).when(f.documents).replace(any(), anyLong(), any(), any(), any(), anyLong(), any());
         error("MSG-42", () -> f.service.update(f.doctor(), f.visitId, first.id(), 1L, "lost", f.file("lost")));
-        verifyNoInteractions(f.payloads); assertEquals("Report", f.rows.get(first.id()).title);
+        verifyNoInteractions(f.contents); assertEquals("Report", f.rows.get(first.id()).title);
     }
     @Test void reportReleaseNeedsCompletedExaminationAndMakesReportImmutable() {
         var first = f.uploadReport(); error("MSG-42", () -> f.service.release(f.doctor(), f.visitId, first.id(), 1L));
         f.completed(); var released = f.service.release(f.doctor(), f.visitId, first.id(), 1L);
         assertTrue(released.released()); assertEquals(f.now, released.releasedAt()); assertEquals(2, released.version());
-        clearInvocations(f.payloads);
+        clearInvocations(f.contents);
         error("MSG-42", () -> f.service.update(f.doctor(), f.visitId, first.id(), 2L, "bad", f.file("bad")));
-        error("MSG-42", () -> f.service.release(f.doctor(), f.visitId, first.id(), 2L)); verifyNoInteractions(f.payloads);
+        error("MSG-42", () -> f.service.release(f.doctor(), f.visitId, first.id(), 2L)); verifyNoInteractions(f.contents);
     }
     @Test void externalReleaseDoesNotInventExaminationPrerequisite() {
         var external = f.service.upload(f.doctor(), f.visitId, ClinicalMedicalDocumentType.EXTERNAL_REPORT, "External", f.file("external"));
@@ -126,10 +126,10 @@ class ClinicalMedicalDocumentServiceImplTest {
         assertArrayEquals(MedicalDocumentFixture.pdf("initial"), f.service.content(f.patient(), doc.id()).bytes());
     }    @Test void unrelatedRevokedOrInactivePatientDoesNotReadPayload() {
         var doc = f.uploadReport(); f.completed(); f.service.release(f.doctor(), f.visitId, doc.id(), 1L);
-        f.dependent(false); clearInvocations(f.payloads);
+        f.dependent(false); clearInvocations(f.contents);
         error("MSG-40", () -> f.service.content(f.patient(), doc.id()));
         when(f.patientAccounts.isActivePatient(f.patientAccountId)).thenReturn(false);
-        error("MSG-40", () -> f.service.get(f.patient(), doc.id())); verifyNoInteractions(f.payloads);
+        error("MSG-40", () -> f.service.get(f.patient(), doc.id())); verifyNoInteractions(f.contents);
     }
     @Test void pastDocumentReadRequiresRealCurrentPatientCareAndDoesNotGrantMutation() {
         var doc = f.uploadReport(); f.open = false;
@@ -144,10 +144,9 @@ class ClinicalMedicalDocumentServiceImplTest {
         error("MSG-41", () -> f.service.get(f.doctor(), UUID.randomUUID()));
         f.bytes.clear(); error("DEPENDENCY_UNAVAILABLE", () -> f.service.content(f.doctor(), doc.id()));
     }
-    @Test void databasePayloadFailurePropagatesAfterHeaderWithinTransactionRatherThanBeingSwallowed() {
-        var doc = f.uploadReport(); doThrow(new org.springframework.dao.DataAccessResourceFailureException("Unavailable")).when(f.payloads).put(any(), any());
-        assertThrows(org.springframework.dao.DataAccessResourceFailureException.class,
-                () -> f.service.update(f.doctor(), f.visitId, doc.id(), 1L, "Correct", f.file("correct")));
+    @Test void storageWriteFailureAfterHeaderIsReportedAsDependencyUnavailable() {
+        var doc = f.uploadReport(); doReturn(false).when(f.contents).put(any(), any(), any(), any());
+        error("DEPENDENCY_UNAVAILABLE", () -> f.service.update(f.doctor(), f.visitId, doc.id(), 1L, "Correct", f.file("correct")));
         // No database rollback is claimed from these repository doubles.
     }
     @Test void competingReplacementsHaveOneCompleteWinner() throws Exception {

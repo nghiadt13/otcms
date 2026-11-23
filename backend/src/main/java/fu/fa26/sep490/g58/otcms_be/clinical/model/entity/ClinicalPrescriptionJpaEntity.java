@@ -7,7 +7,7 @@ import java.util.UUID;
 
 /** Owner CAS repository is the only command writer; issued aggregates have no content mutators. */
 @Entity
-@Table(name = "clinical_prescriptions", uniqueConstraints = @UniqueConstraint(name = "uk_clinical_prescription_visit", columnNames = "visit_id"))
+@Table(name = "prescriptions", uniqueConstraints = @UniqueConstraint(name = "uk_clinical_prescription_visit", columnNames = "visit_id"))
 public class ClinicalPrescriptionJpaEntity {
     @Id private UUID id;
     @Column(name = "visit_id", nullable = false) private UUID visitId;

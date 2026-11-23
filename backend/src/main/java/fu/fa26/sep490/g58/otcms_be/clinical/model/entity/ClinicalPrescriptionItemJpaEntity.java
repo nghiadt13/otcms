@@ -4,7 +4,7 @@ import jakarta.persistence.*;
 import java.util.UUID;
 
 @Entity
-@Table(name = "clinical_prescription_items", uniqueConstraints = @UniqueConstraint(name = "uk_clinical_prescription_line", columnNames = {"prescription_id", "line_number"}))
+@Table(name = "prescription_items", uniqueConstraints = @UniqueConstraint(name = "uk_clinical_prescription_line", columnNames = {"prescription_id", "line_number"}))
 public class ClinicalPrescriptionItemJpaEntity {
     @Id private UUID id;
     @Column(name = "prescription_id", nullable = false) private UUID prescriptionId;

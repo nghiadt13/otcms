@@ -55,16 +55,16 @@ class PastMedicalRecordsPostgresIntegrationTest {
     UUID request(UUID visit, UUID requestPatient) {
         UUID id = UUID.randomUUID(), attempt = UUID.randomUUID(), round = UUID.randomUUID();
         // Round numbers are unique per visit: each request takes the visit's next round number.
-        int roundNumber = jdbc.queryForObject("select coalesce(max(round_number), 0) + 1 from clinical_ordering_rounds where visit_id = ?",
+        int roundNumber = jdbc.queryForObject("select coalesce(max(round_number), 0) + 1 from service_order_rounds where visit_id = ?",
                 Integer.class, visit);
-        jdbc.update("insert into clinical_ordering_rounds (id,visit_id,round_number,ordered_by_doctor_id,ordered_at,created_at) "
+        jdbc.update("insert into service_order_rounds (id,visit_id,round_number,ordered_by_doctor_id,ordered_at,created_at) "
                 + "values (?,?,?,?,now(),now())", round, visit, roundNumber, oldDoctor);
-        jdbc.update("insert into clinical_service_orders (id,order_code,ordering_round_id,"
+        jdbc.update("insert into service_orders (id,order_code,ordering_round_id,"
                 + "visit_id,patient_id,service_id,service_name_snapshot,service_type,requesting_doctor_id,clinical_reason,body_area,"
                 + "price_snapshot,order_status,payment_status,created_at,updated_at,room_id) "
                 + "values (?,?,?,?,?,?,'UC33 MRI','IMAGING',?,'UC33 fixture','KNEE',1,'ORDERED','PAID',now(),now(),?)",
                 id, id.toString().replace("-", ""), round, visit, requestPatient, UUID.randomUUID(), oldDoctor, UUID.randomUUID());
-        jdbc.update("insert into imaging_order_executions (service_order_id,imaging_type,ordering_doctor_account_id,execution_status,"
+        jdbc.update("insert into imaging_executions (service_order_id,imaging_type,ordering_doctor_account_id,execution_status,"
                 + "attempt_id,first_use_event_id,first_use_type,first_use_source_id,first_use_at,study_ref,created_at,updated_at) "
                 + "values (?,'MRI',?,'REVIEWED',?,?,'ACQUISITION_STARTED','UC33',now(),?,now(),now())",
                 id, oldAccount, attempt, UUID.randomUUID(), studyRef(id));

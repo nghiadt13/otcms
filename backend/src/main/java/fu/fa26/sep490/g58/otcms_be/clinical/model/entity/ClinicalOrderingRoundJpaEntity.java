@@ -4,9 +4,9 @@ import jakarta.persistence.*;
 import java.time.Instant;
 import java.util.UUID;
 
-/** One ordering round of a visit (table clinical_ordering_rounds). Its id is the ordering_round_id carried by each order of the round. */
+/** One ordering round of a visit (table service_order_rounds). Its id is the ordering_round_id carried by each order of the round. */
 @Entity
-@Table(name = "clinical_ordering_rounds")
+@Table(name = "service_order_rounds")
 public class ClinicalOrderingRoundJpaEntity {
     @Id private UUID id;
     @Column(name = "visit_id", nullable = false) private UUID visitId;

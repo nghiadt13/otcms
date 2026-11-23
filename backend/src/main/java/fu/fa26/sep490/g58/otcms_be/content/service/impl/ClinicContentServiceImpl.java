@@ -1,6 +1,7 @@
 package fu.fa26.sep490.g58.otcms_be.content.service.impl;
 
 import fu.fa26.sep490.g58.otcms_be.common.security.AccountRole;
+import fu.fa26.sep490.g58.otcms_be.common.storage.ObjectStoragePort;
 import fu.fa26.sep490.g58.otcms_be.content.exception.ContentOperationException;
 import fu.fa26.sep490.g58.otcms_be.content.model.AnnouncementInput;
 import fu.fa26.sep490.g58.otcms_be.content.model.AnnouncementOptions;
@@ -21,6 +22,8 @@ import java.time.ZoneId;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import static fu.fa26.sep490.g58.otcms_be.content.service.impl.ContentInputValidator.*;
@@ -30,11 +33,14 @@ import static fu.fa26.sep490.g58.otcms_be.content.service.impl.ContentInputValid
 public class ClinicContentServiceImpl implements ClinicContentService {
     private static final Set<String> STAFF = Set.of("ORTHOPEDIC_DOCTOR", "RECEPTIONIST", "IMAGING_TECHNICIAN", "LAB_TECHNICIAN");
     private static final ZoneId ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
+    private static final Logger log = LoggerFactory.getLogger(ClinicContentServiceImpl.class);
     private final ClinicContentRepository store;
     private final NotificationPublisher publisher;
-    public ClinicContentServiceImpl(ClinicContentRepository store, NotificationPublisher publisher) {
+    private final ObjectStoragePort storage;
+    public ClinicContentServiceImpl(ClinicContentRepository store, NotificationPublisher publisher, ObjectStoragePort storage) {
         this.store = store;
         this.publisher = publisher;
+        this.storage = storage;
     }
     @Override
     public ContentPage<WebsiteContent> list(String type, String q, int page, int size) {
@@ -78,13 +84,32 @@ public class ClinicContentServiceImpl implements ClinicContentService {
         if (bytes == null || bytes.length == 0 || bytes.length > 2 * 1024 * 1024 || !WebsiteImageValidator.validImage(bytes, contentType)) {
             throw new ContentOperationException(ContentOperationException.Reason.INVALID_CONTENT);
         }
-        var image = new WebsiteImage(UUID.randomUUID(), bytes.clone(), contentType);
-        store.image(image);
+        var id = UUID.randomUUID();
+        var key = "website-images/" + id + "." + extension(contentType);
+        storage.put(key, contentType, bytes);
+        var image = new WebsiteImage(id, key, contentType, (long) bytes.length);
+        try {
+            store.image(image);
+        }
+        catch (RuntimeException exception) {
+            try {
+                storage.delete(key);
+            }
+            catch (RuntimeException cleanup) {
+                log.warn("Could not remove orphan website image {}", key, cleanup);
+            }
+            throw exception;
+        }
         return image;
     }
     @Override
-    public WebsiteImage image(UUID id) {
-        return store.image(id).orElseThrow(() -> missing());
+    public WebsiteImage.Content image(UUID id) {
+        var image = store.image(id).filter(meta -> meta.storageKey() != null).orElseThrow(() -> missing());
+        byte[] bytes = storage.get(image.storageKey()).orElseThrow(() -> missing());
+        return new WebsiteImage.Content(image.contentType(), bytes);
+    }
+    private static String extension(String contentType) {
+        return "image/jpeg".equals(contentType) ? "jpg" : contentType.substring("image/".length());
     }
     @Override
     public WebsiteContent publicArticle(UUID id) {

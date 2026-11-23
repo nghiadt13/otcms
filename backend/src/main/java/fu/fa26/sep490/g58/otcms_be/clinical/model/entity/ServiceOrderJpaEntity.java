@@ -1,6 +1,6 @@
 package fu.fa26.sep490.g58.otcms_be.clinical.model.entity;
 import fu.fa26.sep490.g58.otcms_be.clinical.model.*; import jakarta.persistence.*; import java.math.BigDecimal; import java.time.Instant; import java.util.UUID;
-@Entity @Table(name="clinical_service_orders",uniqueConstraints=@UniqueConstraint(name="uk_clinical_order_code",columnNames="order_code"))
+@Entity @Table(name="service_orders",uniqueConstraints=@UniqueConstraint(name="uk_clinical_order_code",columnNames="order_code"))
 public class ServiceOrderJpaEntity {
  @Id private UUID id; @Column(name="order_code",nullable=false,length=32) private String orderCode; @Column(name="ordering_round_id",nullable=false) private UUID orderingRoundId;
  @Column(name="visit_id",nullable=false) private UUID visitId; @Column(name="patient_id",nullable=false) private UUID patientId; @Column(name="service_id",nullable=false) private UUID serviceId;

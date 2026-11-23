@@ -2,6 +2,7 @@ package fu.fa26.sep490.g58.otcms_be.staff.service;
 
 import fu.fa26.sep490.g58.otcms_be.auth.service.StaffAccountDirectory;
 import fu.fa26.sep490.g58.otcms_be.appointment.service.AppointmentMutationImpactService;
+import fu.fa26.sep490.g58.otcms_be.common.storage.ObjectStoragePort;
 import fu.fa26.sep490.g58.otcms_be.staff.exception.StaffProfileException;
 import fu.fa26.sep490.g58.otcms_be.staff.model.dto.request.StaffProfileInput;
 import fu.fa26.sep490.g58.otcms_be.staff.model.dto.response.StaffProfileResponse;
@@ -14,20 +15,27 @@ import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
 import java.time.Instant;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.security.access.AccessDeniedException;
 
 @Service
 public class StaffProfileAdminService {
+    private static final Logger log = LoggerFactory.getLogger(StaffProfileAdminService.class);
     private final StaffProfileRepository profiles;
     private final StaffAccountDirectory accounts;
     private final AppointmentMutationImpactService appointments;
+    private final ObjectStoragePort storage;
 
     public StaffProfileAdminService(StaffProfileRepository profiles,
-            StaffAccountDirectory accounts, AppointmentMutationImpactService appointments) {
+            StaffAccountDirectory accounts, AppointmentMutationImpactService appointments,
+            ObjectStoragePort storage) {
         this.profiles = profiles; this.accounts = accounts;
-        this.appointments = appointments;
+        this.appointments = appointments; this.storage = storage;
     }
 
     @Transactional(readOnly = true)
@@ -67,15 +75,23 @@ public class StaffProfileAdminService {
         UUID id = UUID.randomUUID();
         StaffProfileJpaEntity profile = new StaffProfileJpaEntity(id, account.id(),
                 input.displayName().trim(), input.workContact().trim());
-        validatePhoto(photo, photoType, profile);
-        if (account.role().name().equals("DOCTOR")) {
-            DoctorInfo info = input.doctor();
-            profile.becomeDoctor(String.join(",", info.specialties()), info.qualifications(),
-                    info.biography(), info.consultationInfo(), info.isPublic());
-            if (profile.photoContent() != null) profile.updatePhotoUrl(photoPath(id));
+        validatePhoto(photo, photoType);
+        // Object first; the row points at it in the same transaction and the object goes away if that fails.
+        String newKey = photo == null ? null : uploadPhoto(id, photo, photoType);
+        try {
+            if (newKey != null) profile.photo(newKey, photoType);
+            if (account.role().name().equals("DOCTOR")) {
+                DoctorInfo info = input.doctor();
+                profile.becomeDoctor(String.join(",", info.specialties()), info.qualifications(),
+                        info.biography(), info.consultationInfo(), info.isPublic());
+                if (profile.photoStorageKey() != null) profile.updatePhotoUrl(photoPath(id));
+            }
+            profiles.saveAndFlush(profile);
+            return response(profile);
+        } catch (RuntimeException exception) {
+            deleteQuietly(newKey);
+            throw exception;
         }
-        profiles.saveAndFlush(profile);
-        return response(profile);
     }
 
     @Transactional
@@ -85,16 +101,26 @@ public class StaffProfileAdminService {
                 new StaffProfileException("STAFF_ACCOUNT_UNAVAILABLE"));
         validate(input, account.role().name());
         profile.update(input.displayName().trim(), input.workContact().trim());
-        validatePhoto(photo, photoType, profile);
-        if (account.role().name().equals("DOCTOR")) {
-            if (!profile.isDoctor()) throw new StaffProfileException("STAFF_PROFILE_NOT_FOUND");
-            DoctorInfo info = input.doctor();
-            profile.updateDoctorProfile(profile.displayName(), profile.workContact(),
-                    String.join(",", info.specialties()), info.qualifications(), info.biography(),
-                    info.consultationInfo(), info.isPublic());
-            if (profile.photoContent() != null) profile.updatePhotoUrl(photoPath(id));
+        validatePhoto(photo, photoType);
+        String previousKey = profile.photoStorageKey();
+        String newKey = photo == null ? null : uploadPhoto(id, photo, photoType);
+        try {
+            if (newKey != null) profile.photo(newKey, photoType);
+            if (account.role().name().equals("DOCTOR")) {
+                if (!profile.isDoctor()) throw new StaffProfileException("STAFF_PROFILE_NOT_FOUND");
+                DoctorInfo info = input.doctor();
+                profile.updateDoctorProfile(profile.displayName(), profile.workContact(),
+                        String.join(",", info.specialties()), info.qualifications(), info.biography(),
+                        info.consultationInfo(), info.isPublic());
+                if (profile.photoStorageKey() != null) profile.updatePhotoUrl(photoPath(id));
+            }
+            profiles.saveAndFlush(profile);
+            if (newKey != null) deleteAfterCommit(previousKey);
+            return response(profile);
+        } catch (RuntimeException exception) {
+            deleteQuietly(newKey);
+            throw exception;
         }
-        return response(profiles.saveAndFlush(profile));
     }
 
     @Transactional
@@ -111,12 +137,22 @@ public class StaffProfileAdminService {
     @Transactional
     public StaffProfileResponse savePhoto(UUID id, byte[] bytes, String type) {
         StaffProfileJpaEntity profile = findActive(id);
-        validatePhoto(bytes, type, profile);
-        if (profile.isDoctor()) profile.updatePhotoUrl(photoPath(id));
-        return response(profiles.saveAndFlush(profile));
+        validatePhoto(bytes, type);
+        String previousKey = profile.photoStorageKey();
+        String newKey = bytes == null ? null : uploadPhoto(id, bytes, type);
+        try {
+            if (newKey != null) profile.photo(newKey, type);
+            if (profile.isDoctor()) profile.updatePhotoUrl(photoPath(id));
+            profiles.saveAndFlush(profile);
+            if (newKey != null) deleteAfterCommit(previousKey);
+            return response(profile);
+        } catch (RuntimeException exception) {
+            deleteQuietly(newKey);
+            throw exception;
+        }
     }
 
-    private void validatePhoto(byte[] bytes, String type, StaffProfileJpaEntity profile) {
+    private void validatePhoto(byte[] bytes, String type) {
         if (bytes == null) return;
         if (bytes.length == 0 || bytes.length > 2 * 1024 * 1024
                 || !List.of("image/jpeg", "image/png", "image/webp").contains(type)) throw invalid();
@@ -131,17 +167,60 @@ public class StaffProfileAdminService {
             default -> false;
         };
         if (!signature) throw invalid();
-        profile.photo(bytes, type);
     }
 
+    /** Writes the photo under a fresh key; the caller stores that key on the row afterwards. */
+    private String uploadPhoto(UUID staffProfileId, byte[] bytes, String type) {
+        String key = "staff-photos/" + staffProfileId + "/" + UUID.randomUUID() + "." + extension(type);
+        storage.put(key, type, bytes);
+        return key;
+    }
+
+    private String extension(String type) {
+        return switch (type) {
+            case "image/jpeg" -> "jpg";
+            case "image/png" -> "png";
+            case "image/webp" -> "webp";
+            default -> throw invalid();
+        };
+    }
+
+    /** Best effort: an orphan object only wastes space, so a failed delete is logged, not thrown. */
+    private void deleteQuietly(String key) {
+        if (key == null) return;
+        try {
+            storage.delete(key);
+        } catch (RuntimeException exception) {
+            log.warn("Could not delete staff photo object {}", key, exception);
+        }
+    }
+
+    /** Removes a replaced photo object once the new row is saved: after commit in a transaction, at once otherwise. */
+    private void deleteAfterCommit(String key) {
+        if (key == null) return;
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            deleteQuietly(key);
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override public void afterCommit() { deleteQuietly(key); }
+        });
+    }
+
+    /** Photo bytes read from object storage, with the content type kept on the profile row. */
+    public record StaffPhoto(byte[] content, String contentType) { }
+
+    /** Photo of an ACTIVE profile the caller may see; a missing key or missing object means no photo. */
     @Transactional(readOnly = true)
-    public StaffProfileJpaEntity photo(UUID id, boolean admin) {
+    public StaffPhoto photo(UUID id, boolean admin) {
         StaffProfileJpaEntity profile = find(id);
-        if (!"ACTIVE".equals(profile.status()) || profile.photoContent() == null)
+        if (!"ACTIVE".equals(profile.status()) || profile.photoStorageKey() == null)
             throw new StaffProfileException("STAFF_PROFILE_NOT_FOUND");
         if (!admin && !(profile.isDoctor() && profile.publiclyVisible() && profile.inActiveDirectory()))
             throw new AccessDeniedException("Staff photo is private");
-        return profile;
+        byte[] content = storage.get(profile.photoStorageKey()).orElseThrow(() ->
+                new StaffProfileException("STAFF_PROFILE_NOT_FOUND"));
+        return new StaffPhoto(content, profile.photoContentType());
     }
 
     private StaffProfileJpaEntity find(UUID id) {
@@ -181,7 +260,7 @@ public class StaffProfileAdminService {
                 doctor.qualifications(), doctor.biography(), doctor.consultationInformation(), doctor.publiclyVisible());
         boolean active = profile.status().equals("ACTIVE");
         String role = account.role().name().equals("DOCTOR") ? "ORTHOPEDIC_DOCTOR" : account.role().name();
-        String photoUrl = profile.photoContent() == null
+        String photoUrl = profile.photoStorageKey() == null
                 ? doctor == null ? null : doctor.photoUrl() : photoPath(profile.id());
         return new StaffProfileResponse(profile.id(), profile.accountId(), account.username(), role,
                 profile.displayName(), photoUrl, profile.workContact(), profile.status(),

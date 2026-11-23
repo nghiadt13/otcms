@@ -10,6 +10,7 @@ import fu.fa26.sep490.g58.otcms_be.clinical.model.dto.ClinicalDtos.DiagnosisRequ
 import fu.fa26.sep490.g58.otcms_be.clinical.model.dto.ClinicalDtos.ExaminationRequest;
 import fu.fa26.sep490.g58.otcms_be.clinical.model.dto.ClinicalDtos.PrescriptionAmendment;
 import fu.fa26.sep490.g58.otcms_be.clinical.model.dto.PrescriptionDtos.ItemRequest;
+import fu.fa26.sep490.g58.otcms_be.clinical.service.ClinicalMedicalDocumentContentStore;
 import fu.fa26.sep490.g58.otcms_be.clinical.service.resultsheet.ResultAmendmentService;
 import fu.fa26.sep490.g58.otcms_be.common.security.AccountRole;
 import fu.fa26.sep490.g58.otcms_be.common.security.AuthenticatedAccount;
@@ -45,6 +46,7 @@ class ResultAmendmentPostgresIntegrationTest {
     @Autowired JdbcTemplate jdbc;
     @Autowired WalkInVisitLifecycleService lifecycle;
     @Autowired ResultAmendmentService amendments;
+    @Autowired ClinicalMedicalDocumentContentStore contents;
     @MockitoBean ManageVisitCareAssignmentService careAssignments;
 
     @AfterAll static void dropSchema(@Autowired JdbcTemplate jdbc) {
@@ -66,14 +68,14 @@ class ResultAmendmentPostgresIntegrationTest {
         var result = amendments.amend(f.doctorActor(), f.visit(), request);
 
         assertEquals(2, result.version());
-        assertEquals(1, count("select count(*) from clinical_medical_documents where visit_id = ? and status = 'ACTIVE' and version = 2 and released_at is not null", f.visit()));
-        assertEquals(1, count("select count(*) from clinical_medical_documents where visit_id = ? and status = 'REPLACED' and version = 1", f.visit()));
-        assertEquals(result.documentId(), jdbc.queryForObject("select id from clinical_medical_documents where visit_id = ? and status = 'ACTIVE'", UUID.class, f.visit()));
-        assertTrue(jdbc.queryForObject("select octet_length(content) from clinical_medical_document_payloads where document_id = ?", Integer.class, result.documentId()) > 0);
+        assertEquals(1, count("select count(*) from medical_documents where visit_id = ? and status = 'ACTIVE' and version = 2 and released_at is not null", f.visit()));
+        assertEquals(1, count("select count(*) from medical_documents where visit_id = ? and status = 'REPLACED' and version = 1", f.visit()));
+        assertEquals(result.documentId(), jdbc.queryForObject("select id from medical_documents where visit_id = ? and status = 'ACTIVE'", UUID.class, f.visit()));
+        assertTrue(contents.get(f.visit(), result.documentId()).orElseThrow().length > 0);
         // The stored data was changed.
-        assertEquals("Tràn dịch khớp", jdbc.queryForObject("select examination_findings from clinical_examinations where id = ?", String.class, f.examination()));
-        assertEquals(List.of("M23.2"), jdbc.queryForList("select code from clinical_examination_diagnoses where examination_id = ?", String.class, f.examination()));
-        assertEquals("Chườm lạnh", jdbc.queryForObject("select home_care_advice from clinical_examinations where id = ?", String.class, f.examination()));
+        assertEquals("Tràn dịch khớp", jdbc.queryForObject("select examination_findings from examinations where id = ?", String.class, f.examination()));
+        assertEquals(List.of("M23.2"), jdbc.queryForList("select code from examination_diagnoses where examination_id = ?", String.class, f.examination()));
+        assertEquals("Chườm lạnh", jdbc.queryForObject("select home_care_advice from examinations where id = ?", String.class, f.examination()));
         // Audit holds the reason and the previous values.
         assertEquals(1, count("select count(*) from audit_logs where entity_id = ? and action = 'RESULT_AMENDED' and correction_reason = 'Nhập nhầm chẩn đoán lúc khám'", f.visit()));
         String before = jdbc.queryForObject("select before_state::text from audit_logs where entity_id = ? and action = 'RESULT_AMENDED'", String.class, f.visit());
@@ -87,15 +89,15 @@ class ResultAmendmentPostgresIntegrationTest {
         var second = amendments.amend(f.doctorActor(), f.visit(), new AmendmentRequest(null,
                 new AdviceRequest("Chườm nóng", null, null, null, null, null), null, "Đổi lời dặn"));
         assertEquals(3, second.version());
-        assertEquals(2, count("select count(*) from clinical_medical_documents where visit_id = ? and status = 'REPLACED'", f.visit()));
-        assertEquals(1, count("select count(*) from clinical_medical_documents where visit_id = ? and status = 'ACTIVE'", f.visit()));
+        assertEquals(2, count("select count(*) from medical_documents where visit_id = ? and status = 'REPLACED'", f.visit()));
+        assertEquals(1, count("select count(*) from medical_documents where visit_id = ? and status = 'ACTIVE'", f.visit()));
     }
 
     @Test void amendingAnIssuedPrescriptionReplacesItemsAndKeepsOldItemsInAudit() {
         Fixture f = closedVisit(true);
         amendments.amend(f.doctorActor(), f.visit(), new AmendmentRequest(null, null,
                 new PrescriptionAmendment(List.of(new ItemRequest("Paracetamol", "500mg", "2 lần/ngày", "Sau ăn"))), "Sai liều"));
-        assertEquals(List.of("Paracetamol"), jdbc.queryForList("select i.medicine from clinical_prescription_items i join clinical_prescriptions p on p.id = i.prescription_id where p.visit_id = ?", String.class, f.visit()));
+        assertEquals(List.of("Paracetamol"), jdbc.queryForList("select i.medicine from prescription_items i join prescriptions p on p.id = i.prescription_id where p.visit_id = ?", String.class, f.visit()));
         String before = jdbc.queryForObject("select before_state::text from audit_logs where entity_id = ? and action = 'RESULT_AMENDED'", String.class, f.visit());
         assertTrue(before.contains("Ibuprofen"), before);
     }
@@ -144,11 +146,11 @@ class ResultAmendmentPostgresIntegrationTest {
     }
 
     private void assertUntouched(Fixture f) {
-        assertEquals(1, count("select count(*) from clinical_medical_documents where visit_id = ?", f.visit()));
-        assertEquals(1, count("select count(*) from clinical_medical_documents where visit_id = ? and status = 'ACTIVE' and version = 1", f.visit()));
+        assertEquals(1, count("select count(*) from medical_documents where visit_id = ?", f.visit()));
+        assertEquals(1, count("select count(*) from medical_documents where visit_id = ? and status = 'ACTIVE' and version = 1", f.visit()));
         assertEquals(0, count("select count(*) from audit_logs where entity_id = ? and action = 'RESULT_AMENDED'", f.visit()));
         assertEquals(0, count("select count(*) from notifications where related_id = ? and type = 'RESULT_SHEET_NEW_VERSION'", f.visit()));
-        assertEquals("Sưng", jdbc.queryForObject("select examination_findings from clinical_examinations where id = ?", String.class, f.examination()));
+        assertEquals("Sưng", jdbc.queryForObject("select examination_findings from examinations where id = ?", String.class, f.examination()));
     }
 
     private static void assertCode(String code, Runnable action) {
@@ -168,20 +170,20 @@ class ResultAmendmentPostgresIntegrationTest {
                 visit, patient, at, at, receptionist);
         jdbc.update("insert into queue_entries (visit_id, stage, status, entered_at, doctor_profile_id, clinic_date, queue_number, queued_at, started_at) values (?, 'EXAM', 'IN_EXAMINATION', ?, ?, current_date, 1, ?, ?)",
                 visit, at, doctor, at, at);
-        jdbc.update("insert into clinical_examinations (id, visit_id, reason_for_visit, symptoms, examination_findings, status, created_at, updated_at, version) values (?, ?, ?, ?, ?, 'COMPLETED', ?, ?, 0)",
+        jdbc.update("insert into examinations (id, visit_id, reason_for_visit, symptoms, examination_findings, status, created_at, updated_at, version) values (?, ?, ?, ?, ?, 'COMPLETED', ?, ?, 0)",
                 examination, visit, "Đau gối", "Đau khi đi", "Sưng", at, at);
-        jdbc.update("update clinical_examinations set injury_body_site = 'Gối', injury_side = 'LEFT', injury_mechanism = 'Ngã', injury_description = 'Sưng', treatment_directions = ARRAY['HOME_CARE'] where id = ?", examination);
-        jdbc.update("insert into clinical_examination_diagnoses (id, examination_id, code, type) values (?, ?, 'M25.5', 'PRIMARY')",
+        jdbc.update("update examinations set injury_body_site = 'Gối', injury_side = 'LEFT', injury_mechanism = 'Ngã', injury_description = 'Sưng', treatment_directions = ARRAY['HOME_CARE'] where id = ?", examination);
+        jdbc.update("insert into examination_diagnoses (id, examination_id, code, type) values (?, ?, 'M25.5', 'PRIMARY')",
                 UUID.randomUUID(), examination);
         if (withPrescription) {
             UUID prescription = UUID.randomUUID();
-            jdbc.update("insert into clinical_prescriptions (id, visit_id, patient_profile_id, doctor_profile_id, status, issued_at, created_at, updated_at, version, issuance_key, issuance_expected_version) values (?, ?, ?, ?, 'ISSUED', ?, ?, ?, 2, 'key-1', 1)",
+            jdbc.update("insert into prescriptions (id, visit_id, patient_profile_id, doctor_profile_id, status, issued_at, created_at, updated_at, version, issuance_key, issuance_expected_version) values (?, ?, ?, ?, 'ISSUED', ?, ?, ?, 2, 'key-1', 1)",
                     prescription, visit, patient, doctor, at, at, at);
-            jdbc.update("insert into clinical_prescription_items (id, prescription_id, line_number, medicine, dose, frequency, usage) values (?, ?, 1, 'Ibuprofen', '400mg', '3 lần/ngày', 'Sau ăn')",
+            jdbc.update("insert into prescription_items (id, prescription_id, line_number, medicine, dose, frequency, usage) values (?, ?, 1, 'Ibuprofen', '400mg', '3 lần/ngày', 'Sau ăn')",
                     UUID.randomUUID(), prescription);
         }
         lifecycle.completeWalkIn(visit, doctorAccount, AccountRole.DOCTOR, UUID.randomUUID().toString());
-        assertEquals(1, count("select count(*) from clinical_medical_documents where visit_id = ? and status = 'ACTIVE' and version = 1", visit));
+        assertEquals(1, count("select count(*) from medical_documents where visit_id = ? and status = 'ACTIVE' and version = 1", visit));
         return new Fixture(visit, patient, patientAccount, doctor, doctorAccount, examination);
     }
 

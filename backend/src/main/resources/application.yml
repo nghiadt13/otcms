@@ -58,6 +58,15 @@ otcms:
     orthanc-response-timeout: ${OTCMS_IMAGING_ORTHANC_RESPONSE_TIMEOUT:0s}
 
 app:
+  storage:
+    provider: ${APP_STORAGE_PROVIDER:local}
+    bucket: ${APP_STORAGE_BUCKET:otcms-media}
+    local-root: ${APP_STORAGE_LOCAL_ROOT:./.storage}
+    supabase-s3:
+      endpoint: ${APP_STORAGE_SUPABASE_S3_ENDPOINT:}
+      region: ${APP_STORAGE_SUPABASE_S3_REGION:}
+      access-key: ${APP_STORAGE_SUPABASE_S3_ACCESS_KEY:}
+      secret-key: ${APP_STORAGE_SUPABASE_S3_SECRET_KEY:}
   diagnostic:
     report-storage:
       provider: ${APP_DIAGNOSTIC_REPORT_STORAGE_PROVIDER:local}

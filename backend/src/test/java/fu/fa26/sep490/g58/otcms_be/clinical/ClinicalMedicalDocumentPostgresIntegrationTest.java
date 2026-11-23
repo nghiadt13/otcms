@@ -30,7 +30,7 @@ class ClinicalMedicalDocumentPostgresIntegrationTest {
     @MockitoBean fu.fa26.sep490.g58.otcms_be.visit.service.VisitClinicalCareContextService visitReads;
     @MockitoBean DoctorProfileIdentityQueryService doctors;
     @MockitoBean fu.fa26.sep490.g58.otcms_be.visit.service.VisitReviewSourceService visitSources;
-    @MockitoSpyBean ClinicalMedicalDocumentPayloadRepository payloads;
+    @MockitoSpyBean ClinicalMedicalDocumentContentStore contents;
     @Autowired ClinicalMedicalDocumentRepository documents;
     @Autowired ClinicalExaminationRepository examinations;
     @Autowired ClinicalMedicalDocumentService service;
@@ -52,18 +52,18 @@ class ClinicalMedicalDocumentPostgresIntegrationTest {
     @Test void schemaAndBinaryPayloadPersistWithoutMetadataPayloadCoupling() {
         var doc = upload();
         assertEquals("MSG-42", assertThrows(ClinicalOperationException.class, this::upload).code());
-        assertArrayEquals(MedicalDocumentFixture.pdf("initial"), jdbc.queryForObject("select content from clinical_medical_document_payloads where document_id = ?", byte[].class, doc.id()));
-        assertEquals("bytea", jdbc.queryForObject("""
-                select data_type from information_schema.columns where table_schema = current_schema()
-                and table_name = 'clinical_medical_document_payloads' and column_name = 'content'
-                """, String.class));
-        assertEquals(1, jdbc.queryForObject("select count(*) from clinical_medical_documents where visit_id = ?", Integer.class, visitId));
+        assertArrayEquals(MedicalDocumentFixture.pdf("initial"), contents.get(visitId, doc.id()).orElseThrow());
+        assertEquals(0, jdbc.queryForObject("""
+                select count(*) from information_schema.columns where table_schema = current_schema()
+                and table_name = 'clinical_medical_document_payloads' and data_type = 'bytea'
+                """, Integer.class));
+        assertEquals(1, jdbc.queryForObject("select count(*) from medical_documents where visit_id = ?", Integer.class, visitId));
         assertEquals(1, doc.version());
     }
     @Test void expectedVersionAndAtomicReplacementPersistTogether() {
         var doc = upload(); var changed = service.update(actor(), visitId, doc.id(), 1L, "Changed", file("changed"));
         assertEquals(2, changed.version()); assertEquals("Changed", service.get(actor(), doc.id()).title());
-        assertArrayEquals(MedicalDocumentFixture.pdf("changed"), payloads.findById(doc.id()).orElseThrow().getContent());
+        assertArrayEquals(MedicalDocumentFixture.pdf("changed"), contents.get(visitId, doc.id()).orElseThrow());
         assertEquals("MSG-42", assertThrows(ClinicalOperationException.class,
                 () -> service.update(actor(), visitId, doc.id(), 1L, "Stale", file("stale"))).code());
     }
@@ -72,15 +72,15 @@ class ClinicalMedicalDocumentPostgresIntegrationTest {
                 () -> service.update(actor(), visitId, doc.id(), 1L, "B", file("B")));
         assertEquals(1, results.stream().filter(DocumentView.class::isInstance).count()); assertTrue(results.contains("MSG-42"));
         var metadata = service.get(actor(), doc.id()); assertEquals(2, metadata.version());
-        assertArrayEquals(MedicalDocumentFixture.pdf(metadata.title()), payloads.findById(doc.id()).orElseThrow().getContent());
+        assertArrayEquals(MedicalDocumentFixture.pdf(metadata.title()), contents.get(visitId, doc.id()).orElseThrow());
     }
     @Test void payloadWriteFailureRollsBackBothMetadataAndDeletedOrChangedBytes() {
         var doc = upload();
-        doThrow(new org.springframework.dao.DataAccessResourceFailureException("Injected fixture failure")).when(payloads).put(eq(doc.id()), any());
-        assertThrows(org.springframework.dao.DataAccessResourceFailureException.class,
-                () -> service.update(actor(), visitId, doc.id(), 1L, "Must rollback", file("failed")));
+        doReturn(false).when(contents).put(eq(visitId), eq(doc.id()), any(), any());
+        assertEquals("DEPENDENCY_UNAVAILABLE", assertThrows(ClinicalOperationException.class,
+                () -> service.update(actor(), visitId, doc.id(), 1L, "Must rollback", file("failed"))).code());
         var stored = documents.findById(doc.id()).orElseThrow(); assertEquals(1, stored.getVersion()); assertEquals("Initial", stored.getTitle());
-        assertArrayEquals(MedicalDocumentFixture.pdf("initial"), payloads.findById(doc.id()).orElseThrow().getContent());
+        assertArrayEquals(MedicalDocumentFixture.pdf("initial"), contents.get(visitId, doc.id()).orElseThrow());
     }
     @Test void releasePreventsServiceAndRepositoryReplacement() {
         var doc = upload(); completed(); var released = service.release(actor(), visitId, doc.id(), 1L); assertTrue(released.released());
@@ -88,16 +88,16 @@ class ClinicalMedicalDocumentPostgresIntegrationTest {
                 () -> service.update(actor(), visitId, doc.id(), 2L, "Bad", file("bad"))).code());
         new TransactionTemplate(transactions).execute(status -> {
             assertEquals(0, documents.replace(doc.id(), 2L, "Bad", "bad.pdf", "application/pdf", 10, Instant.now()));
-            assertEquals(0, payloads.put(doc.id(), MedicalDocumentFixture.pdf("bad"))); return null;
+            verify(contents, times(1)).put(any(), any(), any(), any()); return null;
         });
-        assertArrayEquals(MedicalDocumentFixture.pdf("initial"), payloads.findById(doc.id()).orElseThrow().getContent());
+        assertArrayEquals(MedicalDocumentFixture.pdf("initial"), contents.get(visitId, doc.id()).orElseThrow());
     }
     @Test void releaseAndReplacementRaceHasOneWinner() throws Exception {
         var doc = upload(); completed(); var results = race(() -> service.release(actor(), visitId, doc.id(), 1L),
                 () -> service.update(actor(), visitId, doc.id(), 1L, "New", file("new")));
         assertEquals(1, results.stream().filter(DocumentView.class::isInstance).count()); assertTrue(results.contains("MSG-42"));
         var metadata = service.get(actor(), doc.id());
-        assertArrayEquals(MedicalDocumentFixture.pdf(metadata.released() ? "initial" : "new"), payloads.findById(doc.id()).orElseThrow().getContent());
+        assertArrayEquals(MedicalDocumentFixture.pdf(metadata.released() ? "initial" : "new"), contents.get(visitId, doc.id()).orElseThrow());
     }
     private void completed() {
         examinations.saveAndFlush(ClinicalExaminationJpaEntity.create(visitId, "reason", "symptoms", "findings", null, null, null,

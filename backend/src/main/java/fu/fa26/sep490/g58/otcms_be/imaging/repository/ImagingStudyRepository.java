@@ -31,7 +31,7 @@ public interface ImagingStudyRepository extends JpaRepository<ImagingStudyJpaEnt
 
     @Query(value = """
             select s.* from imaging_studies s
-              join imaging_study_releases r on r.imaging_study_id = s.id
+              join study_releases r on r.imaging_study_id = s.id
              where s.state = 'CONFIRMATION_PENDING' and r.next_confirmation_attempt_at <= :now
              order by r.next_confirmation_attempt_at, s.id limit :limit
             """, nativeQuery = true)
