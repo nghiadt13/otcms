@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "@/styles/app-theme.css";
 import { appFont } from "@/lib/fonts";
+import { brandIcons } from "@/lib/brandIcons";
 import { cn } from "@/lib/utils";
 
 // Root layout của khu bệnh nhân (/portal): nạp theme shadcn và font Be Vietnam Pro như khu
@@ -8,6 +9,7 @@ import { cn } from "@/lib/utils";
 export const metadata: Metadata = {
   title: "Cổng bệnh nhân | OTCMS",
   description: "Orthopedic Clinic Management System",
+  icons: brandIcons,
 };
 
 export default function PatientRootLayout({

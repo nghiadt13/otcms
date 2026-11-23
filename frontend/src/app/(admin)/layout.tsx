@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "@/styles/app-theme.css";
 import { appFont } from "@/lib/fonts";
+import { brandIcons } from "@/lib/brandIcons";
 import { cn } from "@/lib/utils";
 
 // Root layout của khu quản trị: nạp theme shadcn (biến màu, @layer base) và font
@@ -8,6 +9,7 @@ import { cn } from "@/lib/utils";
 export const metadata: Metadata = {
   title: "Quản trị | OTCMS",
   description: "Orthopedic Clinic Management System",
+  icons: brandIcons,
 };
 
 export default function AdminRootLayout({

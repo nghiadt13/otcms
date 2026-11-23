@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "@/styles/app-theme.css";
 import { appFont } from "@/lib/fonts";
+import { brandIcons } from "@/lib/brandIcons";
 
 // Root layout của khu công khai (trang chủ, đăng nhập, đăng ký, workspace). Nạp
 // cùng theme shadcn với khu admin (`styles/app-theme.css`) để mọi khu dùng chung
@@ -9,6 +10,7 @@ import { appFont } from "@/lib/fonts";
 export const metadata: Metadata = {
   title: "OTCMS | Quản lý phòng khám chỉnh hình",
   description: "Orthopedic Clinic Management System",
+  icons: brandIcons,
 };
 
 export default function PublicRootLayout({
