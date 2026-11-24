@@ -121,7 +121,7 @@ export function RegistrationDetailsStep({
       </fieldset>
 
       <fieldset className="space-y-4">
-        <legend className={legendClass}>Mật khẩu</legend>
+        <legend className="sr-only">Mật khẩu</legend>
         <div>
           <PasswordField
             {...field("password")}
