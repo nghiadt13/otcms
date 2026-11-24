@@ -1,6 +1,6 @@
 # Hợp đồng API FE ↔ BE — khu Bệnh nhân, Lễ tân, trang công khai
 
-Cập nhật: 25/10/2026 (gộp khu Lễ tân `/reception` từ nhánh `thien-quang`); 09/11/2026 (mục 3.3.1: giữ giờ chờ thanh toán `AWAITING_PAYMENT`) · Người tổng hợp: NghiaDT (điều phối FE) · Nguồn: code FE `frontend/src` + ghi chú từng phase (`plans/261024-1610-fe-patient-reception-implementation/api-notes/`).
+Cập nhật: 25/10/2026 (gộp khu Lễ tân `/reception` từ nhánh `thien-quang`); 09/11/2026 (mục 3.3.1: giữ giờ chờ thanh toán `AWAITING_PAYMENT`); 24/11/2026 (UC-22 AF1 / UC-23: bệnh nhân tự đổi lịch đã thanh toán tối đa 2 lần ≥ 2 giờ, chỉ tự hủy lịch chưa thanh toán) · Người tổng hợp: NghiaDT (điều phối FE) · Nguồn: code FE `frontend/src` + ghi chú từng phase (`plans/261024-1610-fe-patient-reception-implementation/api-notes/`).
 
 FE đã dựng xong khu `/portal` (bệnh nhân), `/reception` (Lễ tân: hồ sơ, lịch hẹn, tiếp nhận, hàng đợi, thu phí, tra cứu) và các trang công khai trên **lớp API giả**. Mỗi hàm trong `features/<feature>/api/*Api.ts` đã đúng URL, method, DTO và hình lỗi mà BE cần trả. Tài liệu này là thứ BE làm theo để khi nối chỉ đổi lớp api, không sửa màn hình.
 
@@ -13,7 +13,7 @@ Nguồn nghiệp vụ: R3 SRS bản Drive (số BR/MSG theo bản Drive; `docs/a
 - Base `/api/v1/`, danh từ số nhiều, key `camelCase`, enum `UPPER_SNAKE`, id chuỗi.
 - Ngày `"2026-10-24"`; thời điểm ISO có offset `"2026-10-24T09:15:00+07:00"`; tiền số nguyên VND (`250000`).
 - Danh sách: query `page` (0-based), `size` (mặc định 20, tối đa 100), `sort=field,asc|desc`. Response `{ "items": [], "page": 0, "size": 20, "totalItems": 134, "totalPages": 7 }`. Một số danh sách ngắn chỉ trả `{ "items": [] }` (ghi rõ ở từng endpoint).
-- **`allowedActions`**: bản ghi có thao tác trả mảng tên thao tác (`["cancel", "payExamFee"]`). FE chỉ vẽ nút có trong mảng, không tự suy từ trạng thái, nên BE là nơi quyết định quyền và hạn (BR-22 không đổi giờ, hạn hủy, phí đã trả…).
+- **`allowedActions`**: bản ghi có thao tác trả mảng tên thao tác (`["cancel", "payExamFee"]` hoặc `["reschedule"]`). FE chỉ vẽ nút có trong mảng, không tự suy từ trạng thái (BR-22: hạn 2 giờ, chưa/đã trả phí, số lần đổi lịch còn lại…).
 - Tạo → `201` + bản ghi; sửa/đổi trạng thái → `200` + bản ghi mới; xóa/gỡ → `204`.
 - **Lỗi = ProblemDetail (RFC 9457) + `code` MSG**, FE tra câu chữ theo mã trong `lib/messages/appMessages.ts`:
 
@@ -109,6 +109,8 @@ FE hiện gọi **một adapter lệnh** (`features/patient-reception/api/recept
 | POST | `/api/v1/appointments` | `book` (dùng chung P03; Lễ tân gửi `patientId`) | UC21 |
 | GET | `/api/v1/appointments/{id}/eligible-doctors` | Bác sĩ thay thế cùng giờ | UC22 |
 | POST | `/api/v1/appointments/{id}/reassign` | `reassign` | UC22 |
+| GET | `/api/v1/appointments/{appointmentId}/reschedule-availability` | Giờ trống & bác sĩ đủ điều kiện đổi lịch (PATIENT với lịch đã thanh toán, RECEPTIONIST, ADMIN) | UC22 AF1 |
+| PATCH | `/api/v1/appointments/{id}/reschedule` | `reschedule` (PATIENT: tối đa 2 lần, ≥ 2h, không cần lý do; Lễ tân/Admin: bắt buộc lý do) | UC22 AF1 |
 | GET | `/api/v1/reception/check-in-candidates?date=` | Màn Tiếp nhận hôm nay `/reception` | UC29 |
 | GET | `/api/v1/reception/priority-groups` | Nhóm ưu tiên (cấu hình) | UC29, BR-31 |
 | POST | `/api/v1/reception/walk-in-fees` | `prepare-walk-in` (lập phí khám khách trực tiếp) | UC29, UC54 |
@@ -179,7 +181,7 @@ FE hiện gọi **một adapter lệnh** (`features/patient-reception/api/recept
 ## 4. Việc BE bắt buộc kiểm (FE ẩn nút chỉ là hỗ trợ giao diện)
 
 - **Quyền theo bản ghi**: mọi dữ liệu khu bệnh nhân chỉ thuộc hồ sơ đã gắn với tài khoản; ngoài phạm vi → 404 MSG-41 (không lộ tồn tại). Vãng lai không có tài khoản không nhận thông báo (BR-68 theo đặc tả).
-- **Đặt lịch**: chỉ dịch vụ Khám; giờ phải còn trống lúc ghi (trùng → 409 MSG-30); không đổi giờ (BR-22); chỉ bệnh nhân hủy lịch Booked trước check-in; Lễ tân/Admin chỉ chuyển bác sĩ cùng giờ.
+- **Đặt lịch**: chỉ dịch vụ Khám; giờ phải còn trống lúc ghi (trùng → 409 MSG-30); bệnh nhân chỉ tự hủy lịch **chưa thanh toán** ≥ 2 giờ trước giờ hẹn (UC-23), và chỉ tự đổi lịch **đã thanh toán** tối đa 2 lần ≥ 2 giờ trước giờ hẹn (UC-22 AF1); Lễ tân/Admin chuyển bác sĩ cùng giờ, đổi giờ hoặc hủy lịch với lý do bắt buộc (BR-22).
 - **Tiền**: số tiền, khoản được trả, trạng thái do BE tính; FE gửi tạm tính và dừng nếu BE trả tổng khác. Trả trùng/đã trả → 409 MSG-49. Không trả một phần online. Chặn SUCCESS muộn của QR VNPay khi Lễ tân đã chuyển sang tiền mặt.
 - **Tiếp nhận, hàng đợi, thu phí tại quầy**: xem R00 §4 (một lượt hoạt động mỗi bệnh nhân, quay lại ≤ 7 ngày không thu phí khám, một phòng một người đang gọi, đổi thứ tự phải có lý do, chống thu trùng và khóa thu khi VNPay chưa rõ kết quả).
 - **Hồ sơ**: lễ tân tra cứu theo điều chỉnh UC10/BR-14 ngày 27/10: tên, SĐT hoặc mã BN; ngày sinh tùy chọn để thu hẹp danh sách trong phạm vi công việc. Đối chiếu họ tên, ngày sinh và SĐT trước thao tác nghiệp vụ; không tự chọn ứng viên đầu tiên. Khu bệnh nhân chỉ truy cập hồ sơ đã được gắn; gắn online chỉ khi email trùng email đã xác minh; tối đa một "Bản thân" mỗi tài khoản và mỗi hồ sơ (MSG-21).
@@ -491,7 +493,9 @@ Phạm vi: mọi endpoint chỉ trả lịch của hồ sơ **đã gắn với t
 | --- | --- | --- | --- | --- | --- | --- |
 | 1 | `GET /api/v1/appointments` | `when`: `upcoming`\|`past` (bắt buộc) · `patientId`: string (tùy; uuid hồ sơ đã gắn) · `page`: int 0-based · `size`: int (FE gửi 10) | `PageResponse<PatientAppointment>` = `{ items, page, size, totalItems, totalPages }` | 400 · MSG-31 (`fieldErrors`: `when`) · 403 · MSG-29 (`patientId` không thuộc tài khoản) · 5xx · MSG-04 | `listMyAppointments(query, signal?)` · hook `usePatientAppointmentList(when, patientId?)` | `upcoming` = trạng thái BOOKED, sắp tăng dần theo `startAt`. `past` = CHECKED_IN, CANCELLED, NO_SHOW, giảm dần. Lọc phạm vi theo hồ sơ đã gắn (BR-19). FE chỉ gửi `patientId` lấy từ danh sách hồ sơ đã gắn. |
 | 2 | `GET /api/v1/appointments/{id}` | path `id`: string | `PatientAppointment` (xem dưới) | 403 hoặc 404 · MSG-29 (không thuộc phạm vi hoặc không có; FE xử lý như nhau → trang không tìm thấy) · 5xx · MSG-04 | `getMyAppointment(id, signal?)` · hook `usePatientAppointment(id)` | Hình trả cho người bệnh: không có SĐT, mã BN, người đặt. Dùng để đọc `allowedActions` sau khi đặt (xem mục ghi chú 2). |
-| 3 | `POST /api/v1/appointments/{id}/cancel` | body rỗng | `PatientAppointment` (status `CANCELLED`, `allowedActions: []`) | 403/404 · MSG-29 · 409 · MSG-32 (đã check-in, đã qua, hoặc không còn Đã đặt) · 5xx · MSG-04 | `cancelMyAppointment(id)` (gọi trong `components/portal/PatientCancelDialog.tsx`) | BR-22: chỉ người bệnh hủy lịch Đã đặt trước check-in; giờ được nhả. BR-53: phí đã trả trực tuyến **không hoàn lại** (BE không hoàn tiền khi hủy). FE không đổi giờ (không có endpoint đổi giờ). |
+| 3 | `POST /api/v1/appointments/{id}/cancel` | body rỗng | `PatientAppointment` (status `CANCELLED`, `allowedActions: []`) | 403/404 · MSG-29 · 409 · MSG-32 (đã thanh toán, đã check-in, hoặc không còn Đã đặt) · 422 · MSG-32 (còn < 2 giờ) · 5xx · MSG-04 | `cancelMyAppointment(id)` (gọi trong `components/portal/PatientCancelDialog.tsx`) | BR-22: bệnh nhân chỉ tự hủy lịch **chưa thanh toán** trước giờ hẹn ≥ 2 giờ; giờ được nhả. Lịch đã thanh toán bị chặn (`409` `MSG-32` / `APPOINTMENT_NOT_CHANGEABLE`) — dùng đổi lịch thay thế. |
+| 4 | `GET /api/v1/appointments/{appointmentId}/reschedule-availability` | query `from`, `to` (`YYYY-MM-DD`, trong `today..today+maxHorizonDays`) | `{ slots: [{ serviceId, doctorId, doctorDisplayName, startTime, endTime, occupiedUntil }] }` | 404 · MSG-29 · 409 · MSG-32 (không còn Đã đặt, chưa thanh toán, hoặc đã đủ 2 lần đổi) · 422 · MSG-32 (< 2 giờ) · 400/422 · MSG-54/MSG-31 · 5xx · MSG-04 | `getRescheduleAvailability` | UC-22 AF1: trả các khung giờ trống tương lai (`startTime > now`) của mọi bác sĩ đủ điều kiện cho cùng dịch vụ; loại bỏ chính `(doctorId, startTime)` hiện tại. |
+| 5 | `PATCH /api/v1/appointments/{id}/reschedule` | `{ startTime, doctorId?, reason? }` (`reason` không bắt buộc với `PATIENT`, bắt buộc với `RECEPTIONIST`/`ADMIN`) | `AppointmentResponse` (giờ/bác sĩ mới, giữ `examFeePaid`, tăng `patientRescheduleCount`, giảm `remainingReschedules`) | 404 · MSG-29 · 409 · MSG-32 (chưa thanh toán, không còn Đã đặt, hoặc đã đủ 2 lần) · 422 · MSG-32 (< 2 giờ) · 400 · MSG-31 (trùng slot hiện tại/payload lỗi) · 422 · MSG-31 (ngoài cửa sổ đặt lịch) · 422 · MSG-30 (giờ quá khứ) · 422 · MSG-24 (bác sĩ/slot không hợp lệ) | `rescheduleAppointment` (dùng lại `RescheduleAppointmentDialog` với `requireReason=false` cho bệnh nhân) | BR-22, BR-53: bệnh nhân đổi lịch đã thanh toán tối đa 2 lần/lịch (chỉ đếm bản ghi `RESCHEDULED` của `PATIENT` trong `audit_logs`, không tính lần đổi của nhân viên), ≥ 2 giờ trước giờ hẹn hiện tại; giữ nguyên phí khám đã trả. |
 
 Đầu vào đặt lịch (`POST /api/v1/appointments`, `GET .../open-times`, `GET .../bookable-services`) là của P03 (`api-notes/P03.md`); màn P04 chỉ gọi qua `BookingFlow` dùng chung.
 Hồ sơ đã gắn (`GET /api/v1/me/patient-profiles`, P00) được màn dùng để lọc người khám và để hiện mã BN trong dòng "Khi đến phòng khám, báo mã bệnh nhân…".
@@ -512,17 +516,22 @@ Hồ sơ đã gắn (`GET /api/v1/me/patient-profiles`, P00) được màn dùng
   "status": "BOOKED",
   "examFee": { "amount": 200000, "status": "PENDING_PAYMENT" },
   "doctorUnavailable": false,
+  "patientRescheduleCount": 0,
+  "remainingReschedules": 2,
+  "maxPatientReschedules": 2,
   "allowedActions": ["cancel", "payExamFee"]
 }
 ```
 - `patient.relationship`: `SELF` | `PARENT` | `CHILD` | `SPOUSE` | `SIBLING`.
 - `status`: `BOOKED` | `CHECKED_IN` | `CANCELLED` | `NO_SHOW`.
 - `examFee.status`: `PAID` | `PENDING_PAYMENT` | `NOT_REQUIRED`. `amount` là giá chốt lúc đặt (BR-59).
+- `patientRescheduleCount` / `remainingReschedules` / `maxPatientReschedules` (tối đa `2`): BE đếm số bản ghi `RESCHEDULED` của `actor_type = 'PATIENT'` trong `audit_logs` (`RECEPTIONIST`/`ADMIN` không tính vào giới hạn này).
 - `visitId`: có khi đã check-in (`CHECKED_IN`) để FE mở `/portal/visits/{visitId}`; `null` khi chưa.
 - `doctorUnavailable`: `true` khi bác sĩ vắng, không có người thay (UC22 AF1; MSG-89 gửi thông báo). Lịch vẫn `BOOKED`.
-- `allowedActions` ⊂ {`cancel`, `payExamFee`}. FE chỉ vẽ nút có trong mảng; BE quyết (không suy từ trạng thái ở FE).
-  - Mock: `BOOKED` → `cancel`; thêm `payExamFee` khi `examFee.status = PENDING_PAYMENT`. Các trạng thái khác → `[]`.
-  - BE cần thêm: `cancel` khi còn trước check-in và chưa hết hạn hủy (câu hỏi mở của phase, BE quyết); `payExamFee` khi phí chưa trả và lịch còn hiệu lực.
+- `allowedActions` ⊂ {`cancel`, `reschedule`, `payExamFee`}. FE chỉ vẽ nút có trong mảng; FE live API (`patientAppointmentLiveApi.ts`) tính từ dữ liệu BE (`examFeePaid`, `remainingReschedules`, `startTime`):
+  - `payExamFee`: `BOOKED` ∧ `startTime > now` ∧ `servicePrice != null` ∧ `examFeePaid !== true`.
+  - `cancel`: `BOOKED` ∧ `startTime > now` ∧ `examFeePaid !== true` ∧ còn ≥ 2 giờ trước giờ hẹn.
+  - `reschedule`: `BOOKED` ∧ `startTime > now` ∧ `examFeePaid === true` ∧ còn ≥ 2 giờ trước giờ hẹn ∧ `remainingReschedules > 0`. Các trạng thái khác → `[]`.
 
 **Query của màn (URL, FE):**
 
@@ -536,9 +545,9 @@ Hồ sơ đã gắn (`GET /api/v1/me/patient-profiles`, P00) được màn dùng
 
 1. **Phạm vi:** list, chi tiết và hủy đều lọc theo hồ sơ đã gắn còn hiệu lực. Bỏ gắn hồ sơ thì lịch của hồ sơ đó mất ngay (404/403 MSG-29).
 2. **Hình trả của POST đặt lịch** (`BookedAppointment`, P03) không có `allowedActions`. FE tải `GET /api/v1/appointments/{id}` ngay sau khi đặt để biết có hiện "Thanh toán trực tuyến" không. Có thể thêm `allowedActions` vào 201 để bỏ một lượt gọi (không bắt buộc).
-3. **Hủy (BR-22, BR-53):** trạng thái → `CANCELLED`, giờ được nhả cho đặt mới (kiểm tra cùng giờ trong BE). Phí `PAID` giữ nguyên `PAID`, không hoàn tiền. Hủy hai lần: lần sau 409 MSG-32.
-4. **Lịch đã check-in ở quầy mà danh sách chưa cập nhật:** hủy → 409 MSG-32 (FE đóng hộp thoại, tải lại chi tiết). Mock có kịch bản `apt-race`.
-5. **Đổi giờ:** không có endpoint. FE chỉ hiện câu "Muốn đổi giờ? Hủy lịch này rồi đặt lịch mới."
+3. **Hủy (BR-22, BR-53):** bệnh nhân chỉ hủy được lịch **chưa thanh toán** (`examFeePaid !== true`) trước giờ hẹn ≥ 2 giờ; trạng thái → `CANCELLED`, giờ được nhả cho đặt mới. Lịch **đã thanh toán** bị chặn hủy (`409` `MSG-32`). Hủy hai lần: lần sau `409` `MSG-32`.
+4. **Lịch đã check-in ở quầy mà danh sách chưa cập nhật:** hủy/đổi lịch → `409` `MSG-32` (FE đóng hộp thoại, tải lại chi tiết). Mock có kịch bản `apt-race`.
+5. **Đổi lịch hẹn (UC-22 AF1, BR-22, BR-53):** bệnh nhân chỉ đổi được lịch **đã thanh toán** (`examFeePaid === true`), trước giờ hẹn hiện tại ≥ 2 giờ, tối đa 2 lần/lịch (chỉ đếm lần đổi của `PATIENT` trong `audit_logs`, không tính nhân viên). Dùng `GET /api/v1/appointments/{appointmentId}/reschedule-availability` và `PATCH /api/v1/appointments/{id}/reschedule` (không bắt buộc lý do với `PATIENT`, loại trừ slot hiện tại, giữ nguyên dịch vụ và phí đã trả). Nếu < 2 giờ hoặc hết 2 lần mà không đến → `NO_SHOW`, không hoàn phí (yêu cầu hoàn đặc biệt xử lý tại quầy). Lịch chưa thanh toán muốn đổi giờ thì hủy và đặt lại.
 6. **Lịch quá giờ còn BOOKED:** FE xếp vào "Sắp tới" theo trạng thái. BE tự chuyển `NO_SHOW` khi hết ca (NF-08); FE không tự suy.
 7. **Mã BN:** không trả trong `PatientAppointment`. FE lấy từ danh sách hồ sơ đã gắn để nhắc người bệnh.
 8. **Lịch giữ giờ (V106, mục 3.3.1):** `GET /appointments` (cả `upcoming` và `past`) **không** trả `AWAITING_PAYMENT` và `PAYMENT_EXPIRED`; `past` dùng danh sách trạng thái cho phép chứ không phải "mọi trạng thái khác CONFIRMED". `GET /appointments/{id}` vẫn trả được hai trạng thái này cho chủ lịch, kèm `paymentDeadline`. `POST .../cancel` hủy được `AWAITING_PAYMENT` mà không áp hạn hủy `APPOINTMENT_CHANGE_TOO_LATE`.
@@ -565,8 +574,8 @@ khu đọc cùng một dữ liệu phí khám, như BE một DB. Nguồn mock: `
 | 2 | `GET /api/v1/payments/payable-sources/appointment/{id}` (P06) | Một khoản: `label` "Phí khám · {tên dịch vụ}", `amount` = giá chốt lúc đặt (BR-59), `status` PENDING_PAYMENT hoặc PAID; `receipt` chỉ khi PAID. | Lịch ngoài phạm vi / không có / đã hủy: mock trả 404 MSG-41. Xem câu hỏi 1, 3. |
 | 3 | `POST /api/v1/payments/online` (P06), body `{sourceKind: "appointment", sourceId, itemIds}` | Tổng = giá chốt của khoản phí. Khoản đang nằm trong giao dịch PENDING → 409 MSG-49. | Khi giao dịch chuyển SUCCESS (chỉ BE quyết): BE đặt `examFee.status = PAID` cho lịch đó, cùng bảng phí mà endpoint 4 và 5 đọc. |
 | 4 | `GET /api/v1/payments/{id}` (P06) | Giao dịch của lịch: `sourceKind: "appointment"`, `sourceId` = mã lịch, `items` = [phí khám]. | Không đổi hình trả. `queueAssignments` rỗng (phí khám không có phòng phục vụ). |
-| 5 | `GET /api/v1/appointments`, `GET /api/v1/appointments/{id}` (P04) | `examFee.status` đọc từ kho phí chung: sau thanh toán thành `PAID`; `allowedActions` bỏ `payExamFee`, còn `cancel`. | `payExamFee` chỉ khi lịch BOOKED và phí PENDING_PAYMENT (đúng P04). |
-| 6 | `POST /api/v1/appointments/{id}/cancel` (P04) | Lịch hủy: không còn là nguồn chờ thanh toán. Phí đã PAID giữ PAID, không hoàn tiền (BR-53). Phí chưa trả không bị xóa khỏi lịch, chỉ mất khả năng thanh toán. | Hủy lịch đã trả: BE không tạo khoản hoàn; giao dịch cũ vẫn có trong lịch sử thanh toán. |
+| 5 | `GET /api/v1/appointments`, `GET /api/v1/appointments/{id}` (P04) | `examFee.status` đọc từ kho phí chung: sau thanh toán thành `PAID`; `allowedActions` bỏ `payExamFee` và `cancel`, chuyển sang `reschedule` (nếu còn ≥ 2 giờ và còn lượt đổi). | `payExamFee` chỉ khi lịch BOOKED và phí PENDING_PAYMENT; `cancel` chỉ khi chưa thanh toán; `reschedule` chỉ khi đã thanh toán. |
+| 6 | `POST /api/v1/appointments/{id}/cancel` (P04) | Lịch hủy (chưa thanh toán): không còn là nguồn chờ thanh toán. Lịch đã thanh toán không cho bệnh nhân tự hủy (`409` `MSG-32`). | Nhân viên hủy lịch đã thanh toán (trường hợp đặc biệt / lỗi phòng khám) thực hiện theo quy trình quầy; BE không tự hoàn tiền khi hủy thường (BR-53). |
 | 7 | `POST /api/v1/appointments` (P03) | Lịch vừa đặt có `examFee` PENDING_PAYMENT và xuất hiện ngay ở nguồn chờ thanh toán (endpoint 1). **Đã thay thế cho đặt online có phí (V106):** lịch đang giữ giờ `AWAITING_PAYMENT` không là nguồn ở endpoint 1; thanh toán diễn ra ngay ở bước 5 của wizard (xem mục 3.3.1). | Hình trả 201 nay thêm `status`, `paymentDeadline` (mục 3.3.1); vẫn chưa có `allowedActions`. |
 
 #### 2. URL giữa màn (query param)
