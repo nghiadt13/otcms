@@ -107,7 +107,7 @@ describe("ResultDetailScreen", () => {
     ]);
     expect(screen.getByRole("link", { name: "Xem ảnh" })).toHaveAttribute(
       "href",
-      "/portal/images/std-an-xray-1",
+      "/portal/images/std-an-xray-1?profileId=5c1e7a20-1f3b-4c8d-9e2a-0b7d6c5a4f01",
     );
     expect(screen.getByRole("link", { name: "Xem đơn thuốc" })).toHaveAttribute(
       "href",
