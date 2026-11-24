@@ -12,7 +12,7 @@ export interface ReviewPatient {
   relationship: CareRelationship;
 }
 
-/** Lượt khám đã hoàn tất của hồ sơ đã gắn mà tài khoản chưa đánh giá (BR-54). */
+/** Lượt khám của chính bệnh nhân đã hoàn tất và chưa được đánh giá (BR-54). */
 export interface ReviewableVisit {
   visitId: string;
   /** YYYY-MM-DD */

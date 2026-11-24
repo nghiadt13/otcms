@@ -47,6 +47,9 @@ export function PatientPortalHeader({
   // Khách chưa đăng nhập chỉ vào được màn đặt lịch: thay menu khu bệnh nhân bằng Đăng nhập / Đăng ký.
   const guest = current.status === "anonymous";
   const showBookButton = pathname !== PATIENT_ROUTES.newAppointment;
+  const isReviewPage =
+    pathname === PATIENT_ROUTES.reviews ||
+    pathname.startsWith(`${PATIENT_ROUTES.reviews}/`);
   // Trang có nút chính riêng (chi tiết lượt khám, form viết đánh giá, thông báo):
   // nút đặt lịch đổi sang outline để mỗi màn chỉ có một nút default.
   const pageHasOwnPrimary =
@@ -57,9 +60,21 @@ export function PatientPortalHeader({
   return (
     <header className="sticky top-0 z-40 border-b bg-background/95 shadow-sm shadow-foreground/5 backdrop-blur">
       <div
-        className={`${publicContainerClass} flex flex-wrap items-center gap-x-3 gap-y-3 py-3 sm:h-16 sm:flex-nowrap sm:py-0 lg:h-20`}
+        className={cn(
+          publicContainerClass,
+          "flex flex-wrap items-center gap-x-3 gap-y-3 py-3 sm:h-16 sm:flex-nowrap sm:py-0 lg:h-20",
+          isReviewPage &&
+            "max-sm:gap-x-1 max-sm:gap-y-2 max-sm:px-3 max-sm:py-2 sm:max-lg:h-auto sm:max-lg:flex-wrap sm:max-lg:py-3",
+        )}
       >
-        <OtcmsLogo tone="onLight" />
+        <OtcmsLogo
+          className={
+            isReviewPage
+              ? "max-sm:gap-2 max-sm:[&>img]:size-8 max-sm:[&>span]:text-sm max-sm:[&>span]:tracking-normal"
+              : undefined
+          }
+          tone="onLight"
+        />
 
         {guest ? (
           <div className="ml-auto flex items-center gap-2">
@@ -74,6 +89,7 @@ export function PatientPortalHeader({
           <>
             <div className="max-xl:ml-auto xl:ml-12 xl:h-full">
               <PatientPortalNav
+                compact={isReviewPage}
                 groups={groupPatientNavItems(PATIENT_NAV_ITEMS)}
                 siteLinks={siteLinks}
               />
@@ -96,6 +112,7 @@ export function PatientPortalHeader({
             className={cn(
               publicButtonClass(pageHasOwnPrimary ? "secondary" : "primary"),
               "order-last w-full sm:order-none sm:w-auto lg:hidden",
+              isReviewPage && "sm:max-lg:order-last sm:max-lg:w-full",
             )}
             href={PATIENT_ROUTES.newAppointment}
           >

@@ -1,20 +1,22 @@
 "use client";
 
+import { Star } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useId, useState, type FormEvent } from "react";
 import { publicButtonClass } from "@/components/brand/publicButtonStyles";
 import { Label } from "@/components/ui/label";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Textarea } from "@/components/ui/textarea";
 import { isApiError, toFieldErrorMap, type ApiError } from "@/lib/api/apiError";
 import { formatAppMessage } from "@/lib/messages/appMessages";
 import { notifyError, notifySuccess } from "@/lib/messages/notify";
 import { PATIENT_ROUTES } from "@/lib/routes/patientRoutes";
+import { cn } from "@/lib/utils";
 import { submitReview } from "../api/myReviewApi";
 import {
   REVIEW_TEXT_MAX_LENGTH,
   REVIEW_TEXT_MIN_LENGTH,
+  reviewTextLength,
   validateReviewText,
 } from "../schema/myReviewFieldRules";
 import type { ReviewableVisit } from "../types/myReview";
@@ -41,6 +43,9 @@ export function ReviewForm({ visit }: { visit: ReviewableVisit }) {
   const textId = `${formId}-text`;
   const hintId = `${formId}-hint`;
   const textErrorId = `${formId}-text-error`;
+  const characterCount = reviewTextLength(text);
+  const overLimit = characterCount > REVIEW_TEXT_MAX_LENGTH;
+  const selectedRating = RATING_OPTIONS.find((option) => option.value === rating);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -70,40 +75,60 @@ export function ReviewForm({ visit }: { visit: ReviewableVisit }) {
 
   return (
     <form
-      className="grid gap-6"
+      className="grid min-w-0 gap-4 rounded-xl border bg-card p-3 sm:gap-6 sm:p-6"
       noValidate
       onSubmit={(event) => void handleSubmit(event)}
     >
-      <div className="grid gap-3">
+      <div className="grid min-w-0 gap-2 sm:gap-3">
         <p className="text-base font-semibold" id={questionId}>
           Bạn hài lòng ở mức nào?
         </p>
-        <RadioGroup
+        <div
           aria-describedby={errors.rating ? ratingErrorId : undefined}
+          aria-invalid={errors.rating ? true : undefined}
           aria-labelledby={questionId}
-          className="gap-0 divide-y overflow-hidden rounded-lg border bg-card"
-          disabled={pending}
-          onValueChange={(value: string) => setRating(Number(value))}
-          value={rating === null ? "" : String(rating)}
+          aria-required="true"
+          className="grid w-full max-w-sm grid-cols-5 gap-1.5 sm:gap-2"
+          role="radiogroup"
         >
           {RATING_OPTIONS.map((option) => {
             const id = `${formId}-rating-${option.value}`;
+            const filled = rating !== null && option.value <= rating;
             return (
-              <div
-                className="flex min-h-12 items-center gap-3 px-4 py-3"
-                key={option.value}
-              >
-                <RadioGroupItem id={id} value={String(option.value)} />
+              <div className="min-w-0" key={option.value}>
+                <input
+                  aria-label={`${option.value} sao · ${option.label}`}
+                  checked={rating === option.value}
+                  className="peer sr-only"
+                  disabled={pending}
+                  id={id}
+                  name={`${formId}-rating`}
+                  onChange={() => setRating(option.value)}
+                  type="radio"
+                  value={option.value}
+                />
                 <Label
-                  className="flex-1 cursor-pointer text-base font-normal"
+                  className="flex min-h-12 cursor-pointer flex-col items-center justify-center gap-1 rounded-lg border bg-background px-1 py-1.5 text-sm font-semibold hover:border-primary peer-checked:border-primary peer-checked:bg-secondary peer-focus-visible:ring-2 peer-focus-visible:ring-ring peer-focus-visible:ring-offset-2 peer-disabled:cursor-default peer-disabled:opacity-60 sm:min-h-14 sm:py-2"
                   htmlFor={id}
                 >
-                  {option.value} sao · {option.label}
+                  <Star
+                    aria-hidden
+                    className={cn(
+                      "size-5",
+                      filled ? "fill-rating text-rating" : "text-muted-foreground",
+                    )}
+                  />
+                  <span aria-hidden>{option.value}</span>
                 </Label>
               </div>
             );
           })}
-        </RadioGroup>
+        </div>
+        <p aria-live="polite" className="text-sm text-muted-foreground">
+          {selectedRating
+            ? `${selectedRating.value}/5 · ${selectedRating.label}`
+            : "Chọn từ 1 đến 5 sao."}
+        </p>
         {errors.rating ? (
           <p
             className="text-base text-destructive"
@@ -115,24 +140,25 @@ export function ReviewForm({ visit }: { visit: ReviewableVisit }) {
         ) : null}
       </div>
 
-      <div className="grid gap-2">
+      <div className="grid min-w-0 gap-2">
         <Label className="text-base font-semibold" htmlFor={textId}>
           Chia sẻ trải nghiệm của bạn
         </Label>
         <Textarea
           aria-describedby={errors.text ? `${hintId} ${textErrorId}` : hintId}
-          aria-invalid={errors.text ? true : undefined}
-          className="min-h-32 text-base md:text-base"
+          aria-invalid={errors.text || overLimit ? true : undefined}
+          className="min-h-28 min-w-0 resize-y text-base max-sm:field-sizing-fixed sm:min-h-32 md:text-base"
           disabled={pending}
           id={textId}
-          maxLength={REVIEW_TEXT_MAX_LENGTH}
           onChange={(event) => setText(event.target.value)}
           value={text}
         />
-        <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-muted-foreground">
-          <span id={hintId}>Viết ít nhất {REVIEW_TEXT_MIN_LENGTH} ký tự.</span>
-          <span className="tabular-nums">
-            {text.length}/{REVIEW_TEXT_MAX_LENGTH}
+        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2 text-sm text-muted-foreground">
+          <span id={hintId}>
+            Viết từ {REVIEW_TEXT_MIN_LENGTH} đến {REVIEW_TEXT_MAX_LENGTH} ký tự.
+          </span>
+          <span className={cn("tabular-nums", overLimit && "text-destructive")}>
+            {characterCount}/{REVIEW_TEXT_MAX_LENGTH}
           </span>
         </div>
         {errors.text ? (
@@ -146,11 +172,11 @@ export function ReviewForm({ visit }: { visit: ReviewableVisit }) {
         ) : null}
       </div>
 
-      <p className="text-base text-muted-foreground">
+      <p className="text-sm leading-relaxed text-muted-foreground sm:text-base">
         Đánh giá sẽ hiển thị công khai sau khi phòng khám duyệt.
       </p>
 
-      <div className="flex flex-col gap-3 sm:flex-row">
+      <div className="grid gap-2 sm:flex sm:gap-3">
         <button
           className={publicButtonClass("primary")}
           disabled={!canSubmit}

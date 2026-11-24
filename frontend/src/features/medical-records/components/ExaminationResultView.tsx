@@ -1,5 +1,6 @@
 import { ChevronLeft } from "lucide-react";
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { StatusBadge } from "@/components/admin/StatusBadge";
 import { PortalPageHeader } from "@/components/patient/PortalPageHeader";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -22,8 +23,10 @@ import { VisitNavigation } from "./VisitNavigation";
  * có thông báo; mục lục chỉ neo tới các khối thật sự hiện; các khối theo `visibleBlocks`.
  */
 export function ExaminationResultView({
+  actions,
   result,
 }: {
+  actions?: ReactNode;
   result: ExaminationResult;
 }) {
   const sections = buildResultSections(result);
@@ -45,6 +48,7 @@ export function ExaminationResultView({
       </div>
 
       <PortalPageHeader
+        actions={actions}
         title={`Kết quả khám ngày ${formatDate(result.visitDate)}`}
         description={
           <>

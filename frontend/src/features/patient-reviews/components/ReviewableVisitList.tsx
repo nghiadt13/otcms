@@ -3,6 +3,7 @@ import { publicButtonClass } from "@/components/brand/publicButtonStyles";
 import { PortalEmptyState } from "@/components/patient/PortalEmptyState";
 import { formatDate } from "@/lib/format/formatDate";
 import { PATIENT_ROUTES } from "@/lib/routes/patientRoutes";
+import { cn } from "@/lib/utils";
 import type { LoadedItems } from "../hooks/useLoadedItems";
 import type { ReviewableVisit } from "../types/myReview";
 import { patientLabel } from "../utils/myReviewLabels";
@@ -26,39 +27,40 @@ export function ReviewableVisitList({
   if (state.items.length === 0)
     return (
       <PortalEmptyState
+        className="max-sm:px-3 max-sm:py-5"
         action={
           <Link
-            className={publicButtonClass("secondary")}
+            className={cn(publicButtonClass("secondary"), "w-full sm:w-auto")}
             href={PATIENT_ROUTES.visits}
           >
             Xem lượt khám
           </Link>
         }
       >
-        Hiện chưa có lượt khám nào để đánh giá. Lượt khám đã hoàn tất sẽ hiện ở
-        đây để bạn đánh giá.
+        Hiện chưa có lượt khám nào để đánh giá. Lượt khám của bạn sẽ hiện ở đây
+        sau khi hoàn tất, nếu bạn chưa gửi đánh giá cho lượt đó.
       </PortalEmptyState>
     );
 
   return (
-    <ul className="divide-y overflow-hidden rounded-lg border bg-card">
+    <ul className="grid gap-2 sm:block sm:divide-y sm:overflow-hidden sm:rounded-lg sm:border sm:bg-card">
       {state.items.map((visit) => {
         const date = formatDate(visit.visitDate);
         return (
           <li
-            className="flex flex-wrap items-center justify-between gap-3 px-4 py-4"
+            className="grid min-w-0 gap-3 p-3 max-sm:rounded-lg max-sm:border max-sm:bg-card sm:flex sm:flex-wrap sm:items-center sm:justify-between sm:p-4"
             key={visit.visitId}
           >
-            <div className="grid min-w-0 gap-1 text-base">
+            <div className="grid min-w-0 gap-1 text-base wrap-anywhere">
               <p className="font-semibold tabular-nums">
                 Lượt khám ngày {date}
               </p>
-              <p className="break-words">{patientLabel(visit.patient)}</p>
+              <p>{patientLabel(visit.patient)}</p>
               <p className="text-muted-foreground">{visit.serviceName}</p>
             </div>
             <Link
               aria-label={`Viết đánh giá lượt khám ngày ${date} của ${visit.patient.fullName}`}
-              className={publicButtonClass("secondary")}
+              className={cn(publicButtonClass("secondary"), "w-full sm:w-auto")}
               href={PATIENT_ROUTES.newReview(visit.visitId)}
             >
               Viết đánh giá

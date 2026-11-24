@@ -1,4 +1,5 @@
 import { ResultDetailScreen } from "@/features/medical-records/components/ResultDetailScreen";
+import { VisitReviewAction } from "@/features/patient-reviews/components/VisitReviewAction";
 
 export const metadata = {
   title: "Chi tiết kết quả khám | OTCMS",
@@ -11,5 +12,11 @@ export default async function PatientResultDetailPage({
   params: Promise<{ visitId: string }>;
 }) {
   const { visitId } = await params;
-  return <ResultDetailScreen key={visitId} visitId={visitId} />;
+  return (
+    <ResultDetailScreen
+      key={visitId}
+      reviewAction={<VisitReviewAction visitId={visitId} />}
+      visitId={visitId}
+    />
+  );
 }

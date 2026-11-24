@@ -14,6 +14,12 @@ describe("validateReviewText", () => {
     expect(validateReviewText(`   ${"a".repeat(9)}   `)).toBe("MSG-57");
     expect(validateReviewText("a".repeat(1001))).toBe("MSG-57");
   });
+
+  it("đếm ký tự ngoài BMP giống backend", () => {
+    expect(validateReviewText("🙂".repeat(9))).toBe("MSG-57");
+    expect(validateReviewText("🙂".repeat(1000))).toBeNull();
+    expect(validateReviewText("🙂".repeat(1001))).toBe("MSG-57");
+  });
 });
 
 describe("validateReviewRating", () => {

@@ -21,37 +21,40 @@ export function MyReviewList({ state }: { state: LoadedItems<MyReview> }) {
     );
   if (state.items.length === 0)
     return (
-      <PortalEmptyState>
+      <PortalEmptyState className="max-sm:px-3 max-sm:py-5">
         Bạn chưa gửi đánh giá nào. Sau khi viết đánh giá, trạng thái duyệt sẽ
         hiện ở đây.
       </PortalEmptyState>
     );
 
   return (
-    <ul className="divide-y overflow-hidden rounded-lg border bg-card">
+    <ul className="grid gap-2 sm:block sm:divide-y sm:overflow-hidden sm:rounded-lg sm:border sm:bg-card">
       {state.items.map((review) => (
-        <li className="grid gap-3 px-4 py-4 text-base" key={review.id}>
+        <li
+          className="grid min-w-0 gap-2 p-3 text-base wrap-anywhere max-sm:rounded-lg max-sm:border max-sm:bg-card sm:gap-3 sm:p-4"
+          key={review.id}
+        >
           <div className="flex flex-wrap items-start justify-between gap-2">
             <div className="grid min-w-0 gap-1">
               <p className="font-semibold tabular-nums">
                 Lượt khám ngày {formatDate(review.visitDate)}
               </p>
-              <p className="break-words">{patientLabel(review.patient)}</p>
+              <p>{patientLabel(review.patient)}</p>
             </div>
-            <StatusBadge tone={MY_REVIEW_STATUS_TONE[review.status]}>
+            <StatusBadge className="shrink-0" tone={MY_REVIEW_STATUS_TONE[review.status]}>
               {STATUS_LABEL[review.status]}
             </StatusBadge>
           </div>
           <ReviewRatingStars rating={review.rating} />
           {review.text ? (
-            <p className="leading-7 break-words">{review.text}</p>
+            <p className="leading-relaxed sm:leading-7">{review.text}</p>
           ) : null}
           {review.clinicReply ? (
-            <div className="rounded-lg bg-secondary p-4">
+            <div className="rounded-lg bg-secondary p-3 sm:p-4">
               <p className="text-sm font-semibold text-secondary-foreground">
                 Phòng khám phản hồi
               </p>
-              <p className="mt-1 leading-7 break-words text-secondary-foreground">
+              <p className="mt-1 leading-relaxed text-secondary-foreground sm:leading-7">
                 {review.clinicReply}
               </p>
             </div>

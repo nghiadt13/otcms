@@ -11,15 +11,15 @@ export function MyReviewsPage() {
   const sent = useMyReviews();
 
   return (
-    <div className="space-y-10">
-      <section aria-labelledby="eligible-visits-heading" className="space-y-4">
-        <h2 className="text-lg font-semibold" id="eligible-visits-heading">
+    <div className="space-y-6 sm:space-y-10">
+      <section aria-labelledby="eligible-visits-heading" className="space-y-3 sm:space-y-4">
+        <h2 className="text-base font-semibold sm:text-lg" id="eligible-visits-heading">
           Lượt khám có thể đánh giá
         </h2>
         <ReviewableVisitList state={eligible} />
       </section>
-      <section aria-labelledby="sent-reviews-heading" className="space-y-4">
-        <h2 className="text-lg font-semibold" id="sent-reviews-heading">
+      <section aria-labelledby="sent-reviews-heading" className="space-y-3 sm:space-y-4">
+        <h2 className="text-base font-semibold sm:text-lg" id="sent-reviews-heading">
           Đánh giá đã gửi
         </h2>
         <MyReviewList state={sent} />

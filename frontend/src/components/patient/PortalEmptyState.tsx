@@ -3,6 +3,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { publicButtonClass } from "@/components/brand/publicButtonStyles";
 import { PATIENT_ROUTES } from "@/lib/routes/patientRoutes";
+import { cn } from "@/lib/utils";
 
 // Khối trống chung của khu bệnh nhân. Hai dạng:
 // - Có `icon` + `title`: khung nét đứt, biểu tượng trong ô tròn, tiêu đề, một câu dạy cách dùng
@@ -12,17 +13,19 @@ import { PATIENT_ROUTES } from "@/lib/routes/patientRoutes";
 export function PortalEmptyState({
   children,
   action,
+  className,
   icon: Icon,
   title,
 }: {
   children: ReactNode;
   action?: ReactNode;
+  className?: string;
   icon?: LucideIcon;
   title?: string;
 }) {
   if (!Icon || !title) {
     return (
-      <div className="rounded-lg border bg-card px-6 py-10 text-center">
+      <div className={cn("rounded-lg border bg-card px-6 py-10 text-center", className)}>
         <p className="text-base">{children}</p>
         {action ? (
           <div className="mt-6 flex justify-center">{action}</div>
@@ -31,7 +34,12 @@ export function PortalEmptyState({
     );
   }
   return (
-    <section className="flex flex-col items-center rounded-xl border border-dashed border-muted-foreground/55 bg-card px-6 py-12 text-center">
+    <section
+      className={cn(
+        "flex flex-col items-center rounded-xl border border-dashed border-muted-foreground/55 bg-card px-6 py-12 text-center",
+        className,
+      )}
+    >
       <span className="flex size-14 items-center justify-center rounded-2xl bg-secondary text-primary">
         <Icon aria-hidden className="size-7" />
       </span>

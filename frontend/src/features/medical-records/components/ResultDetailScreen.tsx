@@ -1,7 +1,7 @@
 "use client";
 
 import { notFound, useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { isApiError } from "@/lib/api/apiError";
@@ -16,7 +16,13 @@ import { ExaminationResultView } from "./ExaminationResultView";
  * có tồn tại hay không); 409 (lượt đã đổi trạng thái) báo bằng toast rồi về danh sách;
  * lỗi khác hiện thông báo kèm nút thử lại.
  */
-export function ResultDetailScreen({ visitId }: { visitId: string }) {
+export function ResultDetailScreen({
+  reviewAction,
+  visitId,
+}: {
+  reviewAction?: ReactNode;
+  visitId: string;
+}) {
   const router = useRouter();
   const { result, loading, error, sheetError, reload } =
     useExaminationResult(visitId);
@@ -35,9 +41,14 @@ export function ResultDetailScreen({ visitId }: { visitId: string }) {
   if (error)
     return <DetailError message={messageFromError(error)} onRetry={reload} />;
   if (loading || !result) return <DetailSkeleton />;
+  const isOwnCompletedVisit =
+    result.status === "COMPLETED" && result.patient.relationship === "SELF";
   return (
     <>
-      <ExaminationResultView result={result} />
+      <ExaminationResultView
+        actions={isOwnCompletedVisit ? reviewAction : undefined}
+        result={result}
+      />
       {sheetError ? (
         <section
           aria-label="Phiếu kết quả"

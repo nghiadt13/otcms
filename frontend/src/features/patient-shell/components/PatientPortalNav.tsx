@@ -31,9 +31,11 @@ function isActiveSiteLink(href: string, pathname: string | null) {
 // một dòng cao 48px, kèm các nhóm của khu bệnh nhân (Khám bệnh, Hồ sơ) vốn không có ở hàng ngang.
 // Không có nhóm lẫn link nào thì không render gì (cả nút "Menu").
 export function PatientPortalNav({
+  compact = false,
   groups,
   siteLinks = [],
 }: {
+  compact?: boolean;
   groups: PatientNavGroupView[];
   siteLinks?: PatientSiteLink[];
 }) {
@@ -46,7 +48,10 @@ export function PatientPortalNav({
     <>
       <nav
         aria-label="Menu khu bệnh nhân"
-        className="relative hidden h-full items-center gap-2 xl:flex"
+        className={cn(
+          "relative hidden h-full items-center gap-2 xl:flex",
+          compact && "xl:max-2xl:gap-1 xl:max-2xl:[&_a]:px-2",
+        )}
         {...underline.navProps}
       >
         {siteLinks.map((link) => {
@@ -73,13 +78,17 @@ export function PatientPortalNav({
         <SheetTrigger
           render={
             <Button
-              className="h-11 gap-2 px-3 text-base xl:hidden"
+              aria-label="Menu"
+              className={cn(
+                "h-11 gap-2 px-3 text-base xl:hidden",
+                compact && "max-[374px]:w-11 max-[374px]:px-0",
+              )}
               variant="ghost"
             />
           }
         >
           <Menu aria-hidden />
-          Menu
+          <span className={compact ? "max-[374px]:hidden" : undefined}>Menu</span>
         </SheetTrigger>
         <SheetContent className="w-80 gap-0" side="right">
           <SheetHeader className="border-b px-6 py-5">

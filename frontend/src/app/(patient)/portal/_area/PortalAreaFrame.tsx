@@ -21,6 +21,7 @@ const AREA_PATHS: ReadonlySet<string> = new Set([
   PATIENT_ROUTES.profiles,
   PATIENT_ROUTES.appointments,
   PATIENT_ROUTES.results,
+  PATIENT_ROUTES.reviews,
   PATIENT_ROUTES.prescriptions,
   PATIENT_ROUTES.payments,
   PATIENT_ROUTES.notifications,
@@ -31,7 +32,10 @@ const AREA_PATHS: ReadonlySet<string> = new Set([
 export function PortalAreaFrame({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   return AREA_PATHS.has(pathname) ? (
-    <AreaShellWithPerson boxed={pathname !== PATIENT_ROUTES.account}>
+    <AreaShellWithPerson
+      boxed={pathname !== PATIENT_ROUTES.account}
+      compactOnMobile={pathname === PATIENT_ROUTES.reviews}
+    >
       {children}
     </AreaShellWithPerson>
   ) : (
@@ -44,9 +48,11 @@ export function PortalAreaFrame({ children }: { children: ReactNode }) {
 function AreaShellWithPerson({
   boxed,
   children,
+  compactOnMobile,
 }: {
   boxed: boolean;
   children: ReactNode;
+  compactOnMobile: boolean;
 }) {
   const { account } = useMyAccount();
   const own = useOwnPatientProfile();
@@ -68,7 +74,11 @@ function AreaShellWithPerson({
   return (
     <PersonalAreaShell person={person}>
       {boxed ? (
-        <div className="rounded-xl border bg-card p-5 sm:p-8">{children}</div>
+        <div
+          className={`rounded-xl border bg-card p-5 sm:p-8${compactOnMobile ? " max-sm:p-3" : ""}`}
+        >
+          {children}
+        </div>
       ) : (
         children
       )}

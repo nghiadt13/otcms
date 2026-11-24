@@ -6,6 +6,7 @@ import {
   KeyRound,
   Pill,
   Receipt,
+  Star,
   UserRound,
   Users,
   type LucideIcon,
@@ -43,6 +44,7 @@ const AREA_GROUPS: readonly (readonly AreaLink[])[] = [
       icon: CalendarDays,
     },
     { label: "Kết quả khám", href: PATIENT_ROUTES.results, icon: FileText },
+    { label: "Đánh giá", href: PATIENT_ROUTES.reviews, icon: Star },
     { label: "Đơn thuốc", href: PATIENT_ROUTES.prescriptions, icon: Pill },
     { label: "Thanh toán", href: PATIENT_ROUTES.payments, icon: Receipt },
     {
