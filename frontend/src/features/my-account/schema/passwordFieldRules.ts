@@ -10,6 +10,7 @@ export const passwordMessages = {
   newRequired: "Nhập mật khẩu mới.",
   newInvalid:
     "Mật khẩu mới chưa đạt yêu cầu. Cần tối thiểu 8 ký tự, gồm chữ cái và chữ số.",
+  newMatchesCurrent: "Mật khẩu mới phải khác mật khẩu hiện tại.",
   confirmRequired: "Nhập lại mật khẩu mới.",
   confirmMismatch: "Mật khẩu nhập lại chưa khớp với mật khẩu mới.",
 } as const;
@@ -18,8 +19,12 @@ export function validateCurrentPassword(value: string): string | null {
   return value.length === 0 ? passwordMessages.currentRequired : null;
 }
 
-export function validateNewPassword(value: string): string | null {
+export function validateNewPassword(
+  value: string,
+  currentPassword?: string,
+): string | null {
   if (value.length === 0) return passwordMessages.newRequired;
+  if (value === currentPassword) return passwordMessages.newMatchesCurrent;
   return isPasswordValid(value) ? null : passwordMessages.newInvalid;
 }
 

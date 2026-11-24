@@ -150,7 +150,10 @@ class AppointmentArrivalT053PostgresIntegrationTest {
 
         testClock.set(NOW.plusSeconds(60));
         mvc.perform(recordQr(target, patientAccount, token))
-                .andExpect(status().isUnprocessableEntity()).andExpect(jsonPath("$.error.code").value("MSG-37"));
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.error.code").value("MSG-37"))
+                .andExpect(jsonPath("$.fieldErrors[0].field").value("proof"))
+                .andExpect(jsonPath("$.fieldErrors[0].code").value("MSG-37"));
         assertNoArrival(target);
         testClock.set(NOW.minusSeconds(1));
         mvc.perform(recordQr(target, patientAccount, token))

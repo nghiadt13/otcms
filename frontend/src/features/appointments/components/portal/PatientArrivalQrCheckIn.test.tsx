@@ -171,6 +171,26 @@ describe("PatientArrivalQrCheckIn: check-in bị từ chối", () => {
     },
   );
 
+  it("mã hết hạn: hướng dẫn quét mã mới tại quầy", async () => {
+    apiRequest.mockRejectedValueOnce(
+      new ApiError(422, {
+        errorCode: "MSG-37",
+        fieldErrors: [{ field: "proof", code: "MSG-37" }],
+      }),
+    );
+    const onRecorded = vi.fn();
+    render(
+      <PatientArrivalQrCheckIn appointment={appointment} onRecorded={onRecorded} />,
+    );
+
+    await submitQr(userEvent.setup(), "expired-proof");
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Mã QR đã hết hạn.");
+    expect(alert).toHaveTextContent("quét mã mới đang hiển thị tại quầy lễ tân");
+    expect(onRecorded).not.toHaveBeenCalled();
+  });
+
   it("lỗi không rõ mã: báo MSG-04", async () => {
     apiRequest.mockRejectedValueOnce(new ApiError(500, {}));
     const user = userEvent.setup();

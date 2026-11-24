@@ -52,6 +52,18 @@ describe("ChangePasswordForm", () => {
     expect(notifySuccess).toHaveBeenCalledWith("Mật khẩu đã được thay đổi.");
   });
 
+  it("báo rõ khi mật khẩu mới trùng mật khẩu hiện tại", async () => {
+    const onDone = vi.fn();
+    render(<ChangePasswordForm mode="voluntary" onDone={onDone} />);
+
+    await fill("MatKhauCu1", "MatKhauCu1");
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Mật khẩu mới phải khác mật khẩu hiện tại.",
+    );
+    expect(onDone).not.toHaveBeenCalled();
+  });
+
   it("chặn mật khẩu nhập lại không khớp, không gọi API", async () => {
     const onDone = vi.fn();
     render(<ChangePasswordForm mode="voluntary" onDone={onDone} />);

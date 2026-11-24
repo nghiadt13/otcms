@@ -44,7 +44,10 @@ public class ClinicArrivalProofServiceImpl implements ClinicArrivalProofService 
             byte[] supplied = Base64.getUrlDecoder().decode(parts[6]);
             String signed = String.join(".", parts[0], parts[1], parts[2], parts[3], parts[4], parts[5]);
             if (!MessageDigest.isEqual(sign(signed), supplied) || expires - issued != properties.ttlSeconds()
-                    || issued > now.getEpochSecond() || expires <= now.getEpochSecond()) throw invalid();
+                    || issued > now.getEpochSecond()) throw invalid();
+            if (expires <= now.getEpochSecond()) {
+                throw new AppointmentBookingException("ARRIVAL_PROOF_EXPIRED");
+            }
         } catch (AppointmentBookingException exception) {
             throw exception;
         } catch (IllegalStateException exception) {

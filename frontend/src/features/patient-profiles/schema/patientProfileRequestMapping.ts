@@ -80,7 +80,7 @@ export function valuesFromDetail(
     fullName: detail.fullName,
     dateOfBirth: isoToDateOfBirthText(detail.dateOfBirth),
     sex: detail.sex,
-    phone: detail.phone,
+    phone: normalizePhone(detail.phone).replace(/^\+84(?=\d{9}$)/, "0"),
     address: detail.address ?? "",
     citizenId: detail.citizenId ?? "",
     email: detail.email ?? "",

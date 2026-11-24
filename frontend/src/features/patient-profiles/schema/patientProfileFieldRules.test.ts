@@ -182,6 +182,15 @@ describe("valuesFromDetail và valuesFromRequest", () => {
     );
   });
 
+  it("nạp số +84 vào form sửa và gửi lại đúng số nội địa", () => {
+    const values = valuesFromDetail({ ...detail, phone: "+84987654321" });
+    expect(values.phone).toBe("0987654321");
+    expect(validateProfileFields(values, ["phone"])).toEqual({});
+    expect(updateRequestFromValues(values, ["phone"])).toEqual({
+      phone: "0987654321",
+    });
+  });
+
   it("thân request thiếu trường thì giá trị form là rỗng", () => {
     expect(valuesFromRequest({ relationship: "SELF" })).toEqual({
       relationship: "SELF",

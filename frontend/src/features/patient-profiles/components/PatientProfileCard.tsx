@@ -1,6 +1,7 @@
 "use client";
 
-import { Pencil, Trash2 } from "lucide-react";
+import { FileText, Pencil, Trash2 } from "lucide-react";
+import Link from "next/link";
 import { useState } from "react";
 import { publicButtonClass } from "@/components/brand/publicButtonStyles";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -11,6 +12,7 @@ import { useCurrentAccount } from "@/hooks/useCurrentAccount";
 import { CARE_RELATIONSHIP_LABELS } from "@/lib/domain/careRelationship";
 import { formatDate } from "@/lib/format/formatDate";
 import type { LinkedProfile } from "@/lib/patient-scope/types";
+import { PATIENT_ROUTES } from "@/lib/routes/patientRoutes";
 import { cn } from "@/lib/utils";
 import { usePatientProfile } from "../hooks/usePatientProfile";
 import type { PatientProfileDetail } from "../types/patientProfile";
@@ -33,6 +35,7 @@ export function PatientProfileCard({
   const { detail, loading, error, reload } = usePatientProfile(profile.id);
   const [editOpen, setEditOpen] = useState(false);
   const [unlinkOpen, setUnlinkOpen] = useState(false);
+  const canEditHistory = detail?.allowedActions.includes("editHistory") ?? false;
   const canUpdate = detail?.allowedActions.includes("update") ?? false;
   const canUnlink = detail?.allowedActions.includes("unlink") ?? false;
 
@@ -64,8 +67,20 @@ export function PatientProfileCard({
             </p>
           ) : null}
         </div>
-        {canUpdate || canUnlink ? (
-          <div className="flex w-full gap-2 sm:w-auto">
+        {canEditHistory || canUpdate || canUnlink ? (
+          <div className="flex w-full flex-wrap gap-2 sm:w-auto">
+            {canEditHistory ? (
+              <Link
+                className={cn(
+                  publicButtonClass("secondary"),
+                  "h-10 flex-1 px-4 sm:flex-none",
+                )}
+                href={PATIENT_ROUTES.profileHistory(profile.id)}
+              >
+                <FileText aria-hidden />
+                Tiền sử bệnh
+              </Link>
+            ) : null}
             {canUpdate ? (
               <button
                 className={cn(

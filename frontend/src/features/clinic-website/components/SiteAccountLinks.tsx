@@ -5,6 +5,7 @@ import {
   CircleUser,
   LogIn,
   LogOut,
+  ReceiptText,
   UserCog,
   UserPlus,
 } from "lucide-react";
@@ -221,6 +222,15 @@ function AccountDropdown({
           <UserCog aria-hidden />
           {personalLabel(account)}
         </DropdownMenuItem>
+        {account.accountType === "PATIENT" ? (
+          <DropdownMenuItem
+            className="h-11 text-base"
+            render={<Link href={PATIENT_ROUTES.paymentHistory} />}
+          >
+            <ReceiptText aria-hidden />
+            Lịch sử thanh toán
+          </DropdownMenuItem>
+        ) : null}
         <DropdownMenuItem className="h-11 text-base" onClick={onSignOut}>
           <LogOut aria-hidden />
           Đăng xuất
@@ -252,6 +262,16 @@ function AccountStack({
       >
         {personalLabel(account)}
       </Link>
+      {account.accountType === "PATIENT" ? (
+        <Link
+          className={publicButtonClass("secondary")}
+          href={PATIENT_ROUTES.paymentHistory}
+          onClick={onNavigate}
+        >
+          <ReceiptText aria-hidden />
+          Lịch sử thanh toán
+        </Link>
+      ) : null}
       <button
         className={publicButtonClass("secondary")}
         onClick={onSignOut}

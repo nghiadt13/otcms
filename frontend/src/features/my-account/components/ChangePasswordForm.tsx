@@ -43,7 +43,7 @@ export function ChangePasswordForm({
 
   const validators: Record<Field, () => string | null> = {
     current: () => validateCurrentPassword(current),
-    next: () => validateNewPassword(next),
+    next: () => validateNewPassword(next, current),
     confirm: () => validateConfirmPassword(next, confirm),
   };
 
@@ -108,7 +108,14 @@ export function ChangePasswordForm({
         large={large}
         onChange={(value) => {
           setCurrent(value);
-          clear("current");
+          setErrors((previous) => ({
+            ...previous,
+            current: undefined,
+            next:
+              previous.next === passwordMessages.newMatchesCurrent
+                ? undefined
+                : previous.next,
+          }));
         }}
         onBlur={() => touch("current")}
       />

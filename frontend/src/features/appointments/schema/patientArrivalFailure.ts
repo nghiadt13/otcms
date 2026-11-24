@@ -35,7 +35,18 @@ const CHECK_IN_FAILURES: Readonly<
 
 /** Chữ lỗi và nhãn chỉ dẫn của một lần check-in thất bại; mã khác đi qua bảng MSG chung. */
 export function arrivalFailureOf(cause: unknown): ArrivalFailure {
-  const errorCode = isApiError(cause) ? cause.errorCode : undefined;
+  const error = isApiError(cause) ? cause : undefined;
+  const errorCode = error?.errorCode;
+  if (
+    error?.fieldErrors?.some(
+      ({ field, code }) => field === "proof" && code === "MSG-37",
+    )
+  ) {
+    return {
+      message: "Mã QR đã hết hạn.",
+      hint: "Vui lòng quét mã mới đang hiển thị tại quầy lễ tân.",
+    };
+  }
   if (errorCode !== undefined && Object.hasOwn(CHECK_IN_FAILURES, errorCode)) {
     const failure = CHECK_IN_FAILURES[errorCode];
     return { message: formatAppMessage(failure.code), hint: failure.hint };

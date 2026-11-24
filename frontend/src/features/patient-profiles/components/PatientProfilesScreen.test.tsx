@@ -47,6 +47,10 @@ describe("PatientProfilesScreen", () => {
     expect(card.getByText("Địa chỉ")).toBeInTheDocument();
     expect(card.getByRole("button", { name: "Sửa" })).toBeEnabled();
     expect(card.getByRole("button", { name: "Xóa" })).toBeEnabled();
+    expect(card.getByRole("link", { name: "Tiền sử bệnh" })).toHaveAttribute(
+      "href",
+      expect.stringMatching(/^\/portal\/profiles\/[^/]+\/history$/),
+    );
     expect(screen.queryByText("Xem chi tiết")).not.toBeInTheDocument();
   });
 
@@ -73,14 +77,13 @@ describe("PatientProfilesScreen", () => {
     expect(screen.getByRole("button", { name: "Thử lại" })).toBeEnabled();
   });
 
-  it("tiêu đề là Quản lý gia đình, không còn mục tiền sử bệnh hay dòng mô tả cũ", async () => {
+  it("tiêu đề là Quản lý gia đình và không còn dòng mô tả cũ", async () => {
     render(<PatientProfilesScreen />);
 
     await screen.findByRole("heading", { name: "Nguyễn Văn An" });
     expect(
       screen.getByRole("heading", { level: 1, name: "Quản lý gia đình" }),
     ).toBeInTheDocument();
-    expect(screen.queryByText("Tiền sử bệnh")).not.toBeInTheDocument();
     expect(
       screen.queryByText(/đã gắn với tài khoản này/),
     ).not.toBeInTheDocument();

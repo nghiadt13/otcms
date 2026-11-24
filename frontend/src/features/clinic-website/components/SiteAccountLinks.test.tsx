@@ -51,6 +51,12 @@ describe("SiteAccountLinks", () => {
     expect(screen.getByText("Nguyễn Văn An")).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Đăng nhập" })).toBeNull();
     expect(screen.queryByRole("link", { name: "Đăng ký" })).toBeNull();
+    await userEvent.click(
+      screen.getByRole("button", { name: "Tài khoản: Nguyễn Văn An" }),
+    );
+    expect(
+      await screen.findByRole("menuitem", { name: "Lịch sử thanh toán" }),
+    ).toHaveAttribute("href", "/portal/payments/history");
   });
 
   it("không đọc được tài khoản: giữ nút Đăng nhập", async () => {

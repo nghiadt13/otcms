@@ -73,6 +73,14 @@ export function MyInvoicesOverview() {
   return (
     <div className="space-y-6">
       <PortalPageHeader
+        actions={
+          <Link
+            className={publicButtonClass("secondary")}
+            href={PATIENT_ROUTES.paymentHistory}
+          >
+            Lịch sử thanh toán
+          </Link>
+        }
         description="Hóa đơn và số dư được tải trực tiếp từ backend."
         title="Thanh toán"
       />

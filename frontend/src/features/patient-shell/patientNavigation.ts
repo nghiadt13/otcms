@@ -2,6 +2,7 @@ import {
   Activity,
   CalendarDays,
   FileText,
+  ReceiptText,
   Pill,
   ScanLine,
   Star,
@@ -15,7 +16,6 @@ import { PATIENT_ROUTES } from "@/lib/routes/patientRoutes";
 // trang của phase đó đã code xong (bảng §4.2 của plan 261024-0512): mục chưa có không
 // hiện, tránh link chết. Thêm mục = thêm một dòng vào đúng danh sách bên dưới.
 
-// Nhóm "Thanh toán" đã rút khỏi menu (sẽ đặt ở chỗ khác); trang /portal/payments vẫn còn.
 export const PATIENT_NAV_GROUPS = ["Khám bệnh", "Hồ sơ"] as const;
 export type PatientNavGroup = (typeof PATIENT_NAV_GROUPS)[number];
 
@@ -89,6 +89,11 @@ export const PATIENT_NAV_ITEMS: readonly PatientNavItem[] = [
  */
 export const PATIENT_ACCOUNT_LINKS: readonly PatientAccountLink[] = [
   { label: "Thông tin cá nhân", href: PATIENT_ROUTES.account, icon: UserCog },
+  {
+    label: "Lịch sử thanh toán",
+    href: PATIENT_ROUTES.paymentHistory,
+    icon: ReceiptText,
+  },
 ];
 
 /** Nhóm các mục theo thứ tự cố định, bỏ nhóm không có mục nào; giữ thứ tự khai báo. */

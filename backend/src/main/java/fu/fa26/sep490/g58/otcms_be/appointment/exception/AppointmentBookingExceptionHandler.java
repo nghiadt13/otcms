@@ -6,6 +6,7 @@ import fu.fa26.sep490.g58.otcms_be.appointment.exception.AppointmentBookingExcep
 import fu.fa26.sep490.g58.otcms_be.common.api.ErrorResponse;
 import fu.fa26.sep490.g58.otcms_be.common.web.CorrelationIdFilter;
 import jakarta.servlet.http.HttpServletRequest;
+import java.util.List;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -32,12 +33,17 @@ public class AppointmentBookingExceptionHandler {
             case "SERVICE_NOT_BOOKABLE", "DOCTOR_NOT_ELIGIBLE", "BOOKING_TIME_IN_PAST",
                     "BOOKING_WINDOW_VIOLATION", "BOOKING_NOTICE_TOO_SHORT", "CHECK_IN_TIME_NOT_ALLOWED",
                     "NO_SHOW_NOT_ALLOWED", "PATIENT_IDENTITY_MISMATCH" -> HttpStatus.UNPROCESSABLE_ENTITY;
-            case "ARRIVAL_PROOF_INVALID" -> HttpStatus.UNPROCESSABLE_ENTITY;
+            case "ARRIVAL_PROOF_INVALID", "ARRIVAL_PROOF_EXPIRED" -> HttpStatus.UNPROCESSABLE_ENTITY;
             case "FOLLOW_UP_NOT_ALLOWED" -> HttpStatus.UNPROCESSABLE_ENTITY;
             case "SLOT_UNAVAILABLE" -> HttpStatus.CONFLICT;
             case "DEPENDENCY_UNAVAILABLE", "ARRIVAL_PROOF_UNAVAILABLE" -> HttpStatus.SERVICE_UNAVAILABLE;
             default -> HttpStatus.BAD_REQUEST;
         };
+        if ("ARRIVAL_PROOF_EXPIRED".equals(exception.code())) {
+            return ResponseEntity.status(status).body(ErrorResponse.withFieldErrors("MSG-37",
+                    "The check-in QR code has expired. Scan a new code at the reception counter.",
+                    CorrelationIdFilter.current(request), List.of(new ErrorResponse.FieldError("proof", "MSG-37"))));
+        }
         return ResponseEntity.status(status).body(ErrorResponse.of(AppointmentMsgCodes.of(exception.code()),
                 "Appointment command was rejected", CorrelationIdFilter.current(request)));
     }
