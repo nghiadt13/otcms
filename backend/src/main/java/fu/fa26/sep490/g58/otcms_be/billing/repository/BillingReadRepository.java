@@ -47,8 +47,8 @@ public interface BillingReadRepository extends Repository<InvoiceJpaEntity, UUID
             where p.invoiceId = i.id
                 and p.status = fu.fa26.sep490.g58.otcms_be.billing.model.PaymentAttemptStatus.CONFIRMED
                 and (:staff = true or i.patientProfileId in :profiles)
-                and (:fromTime is null or p.confirmedAt >= :fromTime)
-                and (:toTime is null or p.confirmedAt < :toTime)
+                and (cast(:fromTime as Instant) is null or p.confirmedAt >= :fromTime)
+                and (cast(:toTime as Instant) is null or p.confirmedAt < :toTime)
             """;
     @Query(value = """
             select p.id as id, i.id as invoiceId, i.patientProfileId as patientId, i.invoiceNumber as invoiceNumber,

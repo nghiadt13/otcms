@@ -2,7 +2,6 @@ import {
   Activity,
   CalendarDays,
   FileText,
-  ReceiptText,
   Pill,
   ScanLine,
   Star,
@@ -89,11 +88,6 @@ export const PATIENT_NAV_ITEMS: readonly PatientNavItem[] = [
  */
 export const PATIENT_ACCOUNT_LINKS: readonly PatientAccountLink[] = [
   { label: "Thông tin cá nhân", href: PATIENT_ROUTES.account, icon: UserCog },
-  {
-    label: "Lịch sử thanh toán",
-    href: PATIENT_ROUTES.paymentHistory,
-    icon: ReceiptText,
-  },
 ];
 
 /** Nhóm các mục theo thứ tự cố định, bỏ nhóm không có mục nào; giữ thứ tự khai báo. */
