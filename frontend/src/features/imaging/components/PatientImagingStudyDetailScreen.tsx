@@ -15,18 +15,24 @@ import { ImagingViewerLauncher } from "./ImagingViewerLauncher";
 
 export function PatientImagingStudyDetailScreen({
   studyRef,
+  initialProfileId,
 }: {
   studyRef: string;
+  initialProfileId?: string;
 }) {
   const linked = useLinkedProfiles();
-  const [profileId, setProfileId] = useState("");
+  const [profileId, setProfileId] = useState(initialProfileId ?? "");
   const [item, setItem] = useState<PatientImagingHistoryItem | null>(null);
   const [loadedProfileId, setLoadedProfileId] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
+  const visitProfile = linked.profiles.find(
+    (profile) => profile.id === initialProfileId,
+  );
   const selectedProfileId =
-    profileId || (linked.profiles.length === 1 ? linked.profiles[0].id : "");
+    linked.profiles.find((profile) => profile.id === profileId)?.id ??
+    (linked.profiles.length === 1 ? linked.profiles[0].id : "");
 
   useEffect(() => {
     if (!selectedProfileId) return;
@@ -65,7 +71,9 @@ export function PatientImagingStudyDetailScreen({
         title="Chi tiết study"
         description="Chi tiết được tải từ lịch sử ảnh đã phân quyền; OHIF chỉ mở sau khi cấp grant."
       />
-      {linked.profiles.length > 1 ? (
+      {visitProfile ? (
+        <p className="text-base font-medium">{visitProfile.fullName}</p>
+      ) : linked.profiles.length > 1 ? (
         <ProfileScopeSelect
           profiles={linked.profiles}
           value={selectedProfileId || undefined}
@@ -95,7 +103,11 @@ export function PatientImagingStudyDetailScreen({
           </Button>
         </div>
       ) : null}
-      {!loading && !error && loadedProfileId === selectedProfileId && !item ? (
+      {selectedProfileId &&
+      !loading &&
+      !error &&
+      loadedProfileId === selectedProfileId &&
+      !item ? (
         <p role="alert">
           Không tìm thấy study trong phạm vi hồ sơ được cấp quyền.
         </p>

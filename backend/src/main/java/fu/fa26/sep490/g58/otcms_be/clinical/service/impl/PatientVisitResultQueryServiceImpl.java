@@ -12,6 +12,7 @@ import fu.fa26.sep490.g58.otcms_be.clinical.service.*;
 import fu.fa26.sep490.g58.otcms_be.common.security.AccountRole;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.model.DiagnosticActor;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.service.DiagnosticReleasedReportService;
+import fu.fa26.sep490.g58.otcms_be.diagnostic.service.DiagnosticHistoryService;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.service.LaboratoryDraftService;
 import fu.fa26.sep490.g58.otcms_be.patient.exception.CareRelationshipException;
 import fu.fa26.sep490.g58.otcms_be.patient.model.dto.DependentDtos.ProfileItem;
@@ -40,6 +41,7 @@ public class PatientVisitResultQueryServiceImpl implements PatientVisitResultQue
     private final ClinicalPrescriptionHistoryQueryService prescriptions;
     private final ClinicalMedicalDocumentHistoryQueryService documents;
     private final DiagnosticReleasedReportService diagnosticReports;
+    private final DiagnosticHistoryService imagingHistory;
     private final ServiceOrderRepository serviceOrders;
     private final LaboratoryDraftService laboratoryDrafts;
     private final AppointmentReviewContextService appointments;
@@ -48,7 +50,7 @@ public class PatientVisitResultQueryServiceImpl implements PatientVisitResultQue
             PatientProfileDirectory profiles, PatientPortalVisitHistoryQueryService visits,
             ClinicalExaminationHistoryQueryService examinations, ClinicalPrescriptionHistoryQueryService prescriptions,
             ClinicalMedicalDocumentHistoryQueryService documents, DiagnosticReleasedReportService diagnosticReports,
-            ServiceOrderRepository serviceOrders, LaboratoryDraftService laboratoryDrafts,
+            DiagnosticHistoryService imagingHistory, ServiceOrderRepository serviceOrders, LaboratoryDraftService laboratoryDrafts,
             AppointmentReviewContextService appointments) {
         this.access = access;
         this.dependents = dependents;
@@ -58,6 +60,7 @@ public class PatientVisitResultQueryServiceImpl implements PatientVisitResultQue
         this.prescriptions = prescriptions;
         this.documents = documents;
         this.diagnosticReports = diagnosticReports;
+        this.imagingHistory = imagingHistory;
         this.serviceOrders = serviceOrders;
         this.laboratoryDrafts = laboratoryDrafts;
         this.appointments = appointments;
@@ -95,9 +98,26 @@ public class PatientVisitResultQueryServiceImpl implements PatientVisitResultQue
 
         var releasedImaging = diagnosticReports.listForPatientVisit(
                 DiagnosticActor.user(accountId, AccountRole.PATIENT), visitId);
-        List<ImagingItem> images = releasedImaging.stream().filter(item -> "CURRENT".equals(item.status()))
-                .map(item -> new ImagingItem(item.studyRef(), imagingLabel(item.imagingType(), item.bodyArea()),
-                        item.findingsText())).toList();
+        List<ImagingItem> images = new ArrayList<>();
+        Set<String> includedStudies = new HashSet<>();
+        for (var item : releasedImaging) {
+            if ("CURRENT".equals(item.status())) {
+                images.add(new ImagingItem(item.studyRef(), imagingLabel(item.imagingType(), item.bodyArea()),
+                        item.findingsText()));
+                includedStudies.add(item.studyRef());
+            }
+        }
+        var actor = DiagnosticActor.user(accountId, AccountRole.PATIENT);
+        for (int page = 0; ; page++) {
+            var history = imagingHistory.getImagingHistory(actor, null, visitId, page, MAX_PAGE_SIZE);
+            for (var item : history.items()) {
+                if (item.studyRef() != null && includedStudies.add(item.studyRef())) {
+                    images.add(new ImagingItem(item.studyRef(), imagingLabel(item.imagingType(), null),
+                            item.findingsText()));
+                }
+            }
+            if (history.items().isEmpty() || (page + 1L) * MAX_PAGE_SIZE >= history.totalItems()) break;
+        }
 
         List<LabGroup> laboratory = laboratoryResults(visitId);
 

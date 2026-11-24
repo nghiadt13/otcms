@@ -63,7 +63,9 @@ export function buildResultSections(
         shortTitle: "Hình ảnh",
         icon: ImageIcon,
       },
-      body: result.imaging && <ImagingBlock items={result.imaging} />,
+      body: result.imaging && (
+        <ImagingBlock items={result.imaging} profileId={result.patient.id} />
+      ),
     },
     {
       block: "LABORATORY",

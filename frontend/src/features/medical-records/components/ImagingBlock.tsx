@@ -9,7 +9,13 @@ import type { ImagingResultItem } from "../types/examinationResult";
  * Khối "Hình ảnh": từng dịch vụ chụp, kết luận của bác sĩ (chỉ khi lượt đã hoàn tất)
  * và nút "Xem ảnh" tới màn chi tiết study khi chỉ định đã gắn study.
  */
-export function ImagingBlock({ items }: { items: ImagingResultItem[] }) {
+export function ImagingBlock({
+  items,
+  profileId,
+}: {
+  items: ImagingResultItem[];
+  profileId: string;
+}) {
   if (items.length === 0)
     return (
       <p className="text-base text-muted-foreground">
@@ -34,7 +40,7 @@ export function ImagingBlock({ items }: { items: ImagingResultItem[] }) {
           </div>
           {item.studyId ? (
             <Link
-              href={PATIENT_ROUTES.imageStudy(item.studyId)}
+              href={`${PATIENT_ROUTES.imageStudy(item.studyId)}?${new URLSearchParams({ profileId })}`}
               className={cn(
                 publicButtonClass("secondary"),
                 "h-11 justify-self-start px-3",

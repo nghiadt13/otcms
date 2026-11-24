@@ -7,9 +7,20 @@ export const metadata = {
 // `key` theo mã study: đổi study thì màn tải lại từ đầu.
 export default async function PatientImageStudyPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ studyId: string }>;
+  searchParams: Promise<{ profileId?: string | string[] }>;
 }) {
   const { studyId } = await params;
-  return <PatientImagingStudyDetailScreen key={studyId} studyRef={studyId} />;
+  const { profileId } = await searchParams;
+  const initialProfileId =
+    typeof profileId === "string" ? profileId : undefined;
+  return (
+    <PatientImagingStudyDetailScreen
+      key={`${studyId}:${initialProfileId ?? ""}`}
+      studyRef={studyId}
+      initialProfileId={initialProfileId}
+    />
+  );
 }

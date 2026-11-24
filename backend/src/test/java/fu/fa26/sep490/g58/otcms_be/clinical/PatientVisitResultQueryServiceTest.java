@@ -17,6 +17,10 @@ import fu.fa26.sep490.g58.otcms_be.clinical.service.ClinicalPrescriptionHistoryQ
 import fu.fa26.sep490.g58.otcms_be.clinical.service.ClinicalPrescriptionService.PrescriptionLine;
 import fu.fa26.sep490.g58.otcms_be.clinical.service.impl.PatientVisitResultQueryServiceImpl;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.service.DiagnosticReleasedReportService;
+import fu.fa26.sep490.g58.otcms_be.diagnostic.service.DiagnosticHistoryService;
+import fu.fa26.sep490.g58.otcms_be.diagnostic.model.DiagnosticHistoryPage;
+import fu.fa26.sep490.g58.otcms_be.diagnostic.model.DiagnosticHistoryItem;
+import fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.enums.DiagnosticRequestStatus;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.service.DiagnosticReleasedReportService.ReleasedReport;
 import fu.fa26.sep490.g58.otcms_be.patient.model.dto.DependentDtos.Items;
 import fu.fa26.sep490.g58.otcms_be.patient.model.dto.DependentDtos.ProfileItem;
@@ -45,14 +49,17 @@ class PatientVisitResultQueryServiceTest {
     final ClinicalExaminationHistoryQueryService examinations = mock(ClinicalExaminationHistoryQueryService.class);
     final ClinicalPrescriptionHistoryQueryService prescriptions = mock(ClinicalPrescriptionHistoryQueryService.class);
     final ClinicalMedicalDocumentHistoryQueryService documents = mock(ClinicalMedicalDocumentHistoryQueryService.class);
+    final DiagnosticHistoryService imagingHistory = mock(DiagnosticHistoryService.class);
     final DiagnosticReleasedReportService reports = mock(DiagnosticReleasedReportService.class);
     final AppointmentReviewContextService appointments = mock(AppointmentReviewContextService.class);
     final PatientVisitResultQueryServiceImpl service = new PatientVisitResultQueryServiceImpl(access, dependents, profiles,
-            visits, examinations, prescriptions, documents, reports,
+            visits, examinations, prescriptions, documents, reports, imagingHistory,
             mock(fu.fa26.sep490.g58.otcms_be.clinical.repository.ServiceOrderRepository.class),
             mock(fu.fa26.sep490.g58.otcms_be.diagnostic.service.LaboratoryDraftService.class), appointments);
 
     @BeforeEach void setup() {
+        when(imagingHistory.getImagingHistory(any(), isNull(), eq(visit), eq(0), eq(100)))
+                .thenReturn(new DiagnosticHistoryPage(List.of(), 0, 100, 0));
         when(access.accessibleProfileIds(account)).thenReturn(Set.of(patient));
         when(dependents.list(account)).thenReturn(new Items<>(List.of(new ProfileItem(patient, "Nguyễn Thị Ánh",
                 LocalDate.of(1990, 1, 1), "FEMALE", "SELF", "CONFIRMED", null))));
@@ -106,4 +113,18 @@ class PatientVisitResultQueryServiceTest {
         verifyNoInteractions(prescriptions, documents);
         verify(examinations, never()).findCompletedByVisitIds(any());
     }
+    @Test void openVisitShowsAuthorizedStudyWithoutPdf() {
+        visitWithStatus("OPEN");
+        when(reports.listForPatientVisit(any(), eq(visit))).thenReturn(List.of());
+        when(imagingHistory.getImagingHistory(any(), isNull(), eq(visit), eq(0), eq(100)))
+                .thenReturn(new DiagnosticHistoryPage(List.of(new DiagnosticHistoryItem(UUID.randomUUID(), visit,
+                        "XRAY", DiagnosticRequestStatus.REVIEWED, "study-qa", 1, "QA findings", null)), 0, 100, 1));
+
+        var result = service.get(account, visit);
+
+        assertTrue(result.visibleBlocks().contains("IMAGING"));
+        assertEquals("study-qa", result.imaging().getFirst().studyId());
+        assertNull(result.resultSheets());
+    }
+
 }
