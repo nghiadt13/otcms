@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { publicButtonClass } from "@/components/brand/publicButtonStyles";
+import type { PublicServiceCategory } from "@/lib/routes/publicServices";
 import { formatAppMessage } from "@/lib/messages/appMessages";
 import { cn } from "@/lib/utils";
 import type { ServiceListError } from "../schema/serviceListQuery";
@@ -12,10 +13,12 @@ export function PublicServiceSearchForm({
   input,
   error,
   className,
+  category,
 }: {
   input: { q: string };
   error: ServiceListError | null;
   className?: string;
+  category?: PublicServiceCategory;
 }) {
   const errorId = "service-search-error";
   return (
@@ -25,6 +28,7 @@ export function PublicServiceSearchForm({
       method="get"
       role="search"
     >
+      {category ? <input type="hidden" name="type" value={category} /> : null}
       <div className="grid gap-2 sm:flex-1">
         <Label className="text-base" htmlFor="service-search-q">
           Tên dịch vụ

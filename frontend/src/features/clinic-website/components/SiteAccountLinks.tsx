@@ -105,7 +105,7 @@ export function SiteAccountLinks({
   if (compact) {
     return (
       <Link
-        className="inline-flex h-11 shrink-0 items-center justify-center rounded-lg border border-primary bg-card px-3 text-sm font-semibold text-primary outline-none hover:bg-secondary focus-visible:ring-3 focus-visible:ring-ring/50 sm:px-5 sm:text-base"
+        className="inline-flex h-11 shrink-0 items-center justify-center rounded-lg border border-primary bg-card px-3 text-sm font-semibold text-primary outline-none hover:bg-secondary focus-visible:ring-3 focus-visible:ring-ring/50 max-[359px]:px-2 sm:px-5 sm:text-base"
         href="/login"
         onClick={onNavigate}
       >

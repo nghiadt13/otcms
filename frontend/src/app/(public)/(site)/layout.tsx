@@ -13,16 +13,16 @@ export default function SiteLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex min-h-dvh flex-col bg-background text-foreground">
+    <div className="group/site flex min-h-dvh flex-col bg-background text-foreground">
       <a
         className="sr-only z-50 rounded-lg bg-primary px-4 py-3 text-base font-semibold text-primary-foreground focus:not-sr-only focus:fixed focus:top-3 focus:left-3"
         href="#main-content"
       >
         Bỏ qua tới nội dung
       </a>
-      <SiteTopBar />
       <SiteHeader
         hotline={topBarContact.hotline}
+        topBar={<SiteTopBar />}
         notificationSlot={<PatientNotificationBell />}
       />
       <main className="flex-1" id="main-content" tabIndex={-1}>

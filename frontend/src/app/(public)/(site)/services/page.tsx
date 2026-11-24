@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import Link from "next/link";
+import { publicServiceCategories } from "@/lib/routes/publicServices";
 import { PublicPageHeader } from "@/components/brand/PublicPageHeader";
 import { publicContainerClass } from "@/components/brand/publicLayout";
 import { listPublicServices } from "@/features/clinic-services/api/publicServiceApi";
@@ -15,18 +17,41 @@ export default async function ServicesPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const { input, query, error } = parseServiceListQuery(await searchParams);
-  const services = error ? null : (await listPublicServices(query)).items;
+  const params = await searchParams;
+  const category = publicServiceCategories.find(
+    ({ type }) => type === params.type,
+  );
+  const { input, query, error } = parseServiceListQuery(params);
+  const catalog = error ? null : (await listPublicServices(query)).items;
+  const services = category
+    ? catalog?.filter((service) => service.type === category.type)
+    : catalog;
 
   return (
     <div className={`${publicContainerClass} py-16 lg:py-24`}>
       <PublicPageHeader
         description="Giá công khai của các dịch vụ đang cung cấp tại phòng khám."
-        title="Dịch vụ và bảng giá"
+        title={category?.label ?? "Dịch vụ và bảng giá"}
       />
-      <PublicServiceSearchForm className="mt-10" error={error} input={input} />
+      {category ? (
+        <Link
+          className="mt-5 inline-block font-medium text-primary underline"
+          href="/services"
+        >
+          Xem tất cả dịch vụ
+        </Link>
+      ) : null}
+      <PublicServiceSearchForm
+        className="mt-10"
+        error={error}
+        input={input}
+        category={category?.type}
+      />
       {services ? (
-        <PublicServiceList filtered={Boolean(query.q)} services={services} />
+        <PublicServiceList
+          filtered={Boolean(query.q || category)}
+          services={services}
+        />
       ) : null}
     </div>
   );
