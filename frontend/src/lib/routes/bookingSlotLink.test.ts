@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { bookingSlotHref, readBookingSlotQuery } from "./bookingSlotLink";
+import {
+  bookingPreferenceHref,
+  bookingSlotHref,
+  readBookingPreference,
+  readBookingSlotQuery,
+} from "./bookingSlotLink";
 
 // Reads the query of a built link back as `searchParams` would see it on the server.
 const paramsOf = (href: string) =>
@@ -79,5 +84,18 @@ describe("readBookingSlotQuery", () => {
         time: "08:15",
       }),
     ).toMatchObject({ serviceId: "svc-a" });
+  });
+});
+
+describe("homepage booking preference", () => {
+  it("keeps the selected service and date across the sign-in link without selecting a time", () => {
+    const params = { serviceId: "service-123", date: "2026-11-24" };
+    const preference = readBookingPreference(params);
+    expect(preference).toEqual({ ...params, doctorId: null, time: null });
+    expect(bookingPreferenceHref(preference!)).toBe(
+      "/portal/appointments/new?serviceId=service-123&date=2026-11-24",
+    );
+    expect(readBookingPreference({ ...params, time: "invalid" })).toBeNull();
+    expect(readBookingPreference({ ...params, date: "2026-02-30" })).toBeNull();
   });
 });

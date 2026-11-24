@@ -7,8 +7,8 @@ import { useLinkedProfiles } from "@/hooks/useLinkedProfiles";
 import Link from "next/link";
 import { PATIENT_ROUTES } from "@/lib/routes/patientRoutes";
 import {
-  bookingSlotHref,
-  type BookingSlotQuery,
+  bookingPreferenceHref,
+  type BookingPreference,
 } from "@/lib/routes/bookingSlotLink";
 import { publicButtonClass } from "@/components/brand/publicButtonStyles";
 import type { BookedAppointment, PaymentRenderer } from "../../types/booking";
@@ -26,7 +26,7 @@ export function PatientBookingPage({
 }: {
   renderPayment?: PaymentRenderer;
   /** Khung giờ chọn sẵn từ URL (link giờ trống của trang bác sĩ). */
-  preselect?: BookingSlotQuery | null;
+  preselect?: BookingPreference | null;
 }) {
   const account = useCurrentAccount();
   // Chưa đăng nhập: dừng ở bước 1 (đăng nhập / đăng ký), chưa gọi API nào cần phiên.
@@ -35,7 +35,9 @@ export function PatientBookingPage({
     return (
       <BookingSignInPrompt
         nextPath={
-          preselect ? bookingSlotHref(preselect) : PATIENT_ROUTES.newAppointment
+          preselect
+            ? bookingPreferenceHref(preselect)
+            : PATIENT_ROUTES.newAppointment
         }
       />
     );
@@ -57,7 +59,7 @@ function SignedInBooking({
   preselect,
 }: {
   renderPayment?: PaymentRenderer;
-  preselect: BookingSlotQuery | null;
+  preselect: BookingPreference | null;
 }) {
   const [booked, setBooked] = useState<BookedAppointment | null>(null);
   const linked = useLinkedProfiles();

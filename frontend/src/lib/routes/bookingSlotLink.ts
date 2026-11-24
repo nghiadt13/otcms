@@ -14,6 +14,16 @@ export interface BookingSlotQuery {
   time: string;
 }
 
+/** Homepage booking starts with a service and a day; the patient chooses a real time in the wizard. */
+export type BookingPreference =
+  | BookingSlotQuery
+  | {
+      serviceId: string;
+      date: string;
+      time: null;
+      doctorId: null;
+    };
+
 type SearchParamValue = string | string[] | undefined;
 
 const ID_PATTERN = /^[A-Za-z0-9-]{1,64}$/;
@@ -43,6 +53,26 @@ export function readBookingSlotQuery(
   const doctor = firstValue(params.doctorId);
   const doctorId = doctor && ID_PATTERN.test(doctor) ? doctor : null;
   return { serviceId, doctorId, date, time };
+}
+
+export function readBookingPreference(
+  params: Record<string, SearchParamValue>,
+): BookingPreference | null {
+  if (params.time !== undefined || params.doctorId !== undefined)
+    return readBookingSlotQuery(params);
+  const { serviceId, date } = params;
+  if (typeof serviceId !== "string" || !ID_PATTERN.test(serviceId)) return null;
+  if (typeof date !== "string" || !isCalendarDate(date)) return null;
+  return { serviceId, date, time: null, doctorId: null };
+}
+
+export function bookingPreferenceHref(preference: BookingPreference): string {
+  if (preference.time !== null) return bookingSlotHref(preference);
+  const query = new URLSearchParams({
+    serviceId: preference.serviceId,
+    date: preference.date,
+  });
+  return `${PATIENT_ROUTES.newAppointment}?${query}`;
 }
 
 function firstValue(value: SearchParamValue): string | undefined {

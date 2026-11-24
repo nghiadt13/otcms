@@ -22,7 +22,7 @@ import {
   type BookingSelectionAction,
 } from "../../schema/bookingSelection";
 import { resolvePreselectedSlot } from "../../schema/bookingPreselect";
-import type { BookingSlotQuery } from "@/lib/routes/bookingSlotLink";
+import type { BookingPreference } from "@/lib/routes/bookingSlotLink";
 import { bookingSubmitOutcome } from "../../schema/bookingSubmitOutcome";
 import type {
   BookedAppointment,
@@ -40,7 +40,7 @@ export type BookingFlowProps = {
   patients: readonly BookingPatient[];
   renderPayment?: PaymentRenderer;
   /** Khung giờ chọn sẵn từ link trang bác sĩ; chỉ áp dụng phần nào còn trống. */
-  preselect?: BookingSlotQuery | null;
+  preselect?: BookingPreference | null;
   onBooked: (appointment: BookedAppointment) => void;
 };
 
@@ -64,7 +64,7 @@ export function BookingFlow(props: BookingFlowProps) {
     props.preselect && patients.length === 1 ? "schedule" : "patient",
   );
   // Preselected slot from the link, waiting to be applied. A ref, so applying or dropping it does not re-render.
-  const pendingSlotRef = useRef<BookingSlotQuery | null>(
+  const pendingSlotRef = useRef<BookingPreference | null>(
     props.preselect ?? null,
   );
   // Lịch vừa tạo, đang ở bước thanh toán.
@@ -153,7 +153,20 @@ export function BookingFlow(props: BookingFlowProps) {
     if (!pending || !times.data || state.serviceId !== pending.serviceId)
       return;
     pendingSlotRef.current = null;
-    const outcome = resolvePreselectedSlot(upcomingDays(times.data), pending);
+    const availableDays = upcomingDays(times.data);
+    if (pending.time === null) {
+      if (
+        availableDays.some(
+          (day) => day.date === pending.date && day.times.length > 0,
+        )
+      ) {
+        dispatch({ type: "selectDate", date: pending.date });
+      } else {
+        notifyError(new ApiError(409, { code: "MSG-30" }));
+      }
+      return;
+    }
+    const outcome = resolvePreselectedSlot(availableDays, pending);
     if (outcome.day === null) {
       notifyError(new ApiError(409, { code: "MSG-30" }));
       return;

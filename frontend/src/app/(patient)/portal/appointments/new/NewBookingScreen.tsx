@@ -2,7 +2,7 @@
 
 import { PatientBookingPage } from "@/features/appointments/components/portal/PatientBookingPage";
 import { AppointmentPayOsPayment } from "@/features/billing/components/portal/AppointmentPayOsPayment";
-import type { BookingSlotQuery } from "@/lib/routes/bookingSlotLink";
+import type { BookingPreference } from "@/lib/routes/bookingSlotLink";
 
 // Ghép wizard đặt lịch (feature appointments) với màn thanh toán PayOS (feature billing) ở tầng app,
 // vì hai feature không được import nhau. Bước 5 (tùy chọn, trả ngay hoặc trả sau) nhận lịch vừa tạo
@@ -11,7 +11,7 @@ import type { BookingSlotQuery } from "@/lib/routes/bookingSlotLink";
 export function NewBookingScreen({
   preselect = null,
 }: {
-  preselect?: BookingSlotQuery | null;
+  preselect?: BookingPreference | null;
 }) {
   return (
     <PatientBookingPage

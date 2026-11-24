@@ -1,5 +1,5 @@
 import { PortalPageHeader } from "@/components/patient/PortalPageHeader";
-import { readBookingSlotQuery } from "@/lib/routes/bookingSlotLink";
+import { readBookingPreference } from "@/lib/routes/bookingSlotLink";
 import { NewBookingScreen } from "./NewBookingScreen";
 
 export const metadata = {
@@ -13,7 +13,7 @@ export default async function NewPatientAppointmentPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const preselect = readBookingSlotQuery(await searchParams);
+  const preselect = readBookingPreference(await searchParams);
   return (
     <>
       <PortalPageHeader title="Đặt lịch khám" />
