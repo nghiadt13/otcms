@@ -1,4 +1,4 @@
-import { ChevronLeft } from "lucide-react";
+import { ArrowLeft, CalendarDays, CircleAlert, UserRound } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { StatusBadge } from "@/components/admin/StatusBadge";
@@ -32,13 +32,13 @@ export function ExaminationResultView({
   const sections = buildResultSections(result);
   const incomplete = result.status === "INCOMPLETE";
   return (
-    <div className="min-w-0 space-y-6 sm:space-y-8">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+    <div className="min-w-0 space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
         <Link
           href={PATIENT_ROUTES.results}
-          className="inline-flex min-h-11 items-center gap-1 rounded-md text-base font-medium text-primary underline-offset-4 hover:underline focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-none"
+          className="inline-flex min-h-11 items-center gap-2 rounded-md text-base font-semibold text-primary underline-offset-4 hover:underline focus-visible:ring-2 focus-visible:ring-ring"
         >
-          <ChevronLeft aria-hidden />
+          <ArrowLeft aria-hidden className="size-5" />
           Kết quả khám
         </Link>
         <VisitNavigation
@@ -47,27 +47,52 @@ export function ExaminationResultView({
         />
       </div>
 
-      <PortalPageHeader
-        actions={actions}
-        title={`Kết quả khám ngày ${formatDate(result.visitDate)}`}
-        description={
-          <>
-            <span>
-              {result.patient.fullName} (
-              {CARE_RELATIONSHIP_LABELS[result.patient.relationship]})
-            </span>{" "}
-            <StatusBadge
-              tone={VISIT_STATUS_TONE[result.status]}
-              className="h-6 align-middle text-sm"
-            >
-              {VISIT_STATUS_LABELS[result.status]}
-            </StatusBadge>
-          </>
-        }
-      />
+      <header className="rounded-[12px] border bg-card px-4 pt-4 text-card-foreground sm:px-5">
+        <PortalPageHeader
+          actions={actions}
+          title="Chi tiết kết quả khám"
+          description={
+            <span className="flex flex-wrap items-center gap-x-4 gap-y-2">
+              <span className="inline-flex min-w-0 items-start gap-2">
+                <UserRound
+                  aria-hidden
+                  className="mt-0.5 size-5 shrink-0 text-primary"
+                />
+                <span className="wrap-break-word">
+                  <span className="font-semibold text-foreground">
+                    {result.patient.fullName}
+                  </span>
+                  {" ("}
+                  {CARE_RELATIONSHIP_LABELS[result.patient.relationship]}
+                  {")"}
+                </span>
+              </span>
+              <span className="inline-flex items-center gap-2">
+                <CalendarDays
+                  aria-hidden
+                  className="size-5 shrink-0 text-primary"
+                />
+                <time dateTime={result.visitDate} className="tabular-nums">
+                  {formatDate(result.visitDate)}
+                </time>
+              </span>
+              <StatusBadge
+                tone={VISIT_STATUS_TONE[result.status]}
+                className="h-auto px-2.5 py-1 text-sm"
+              >
+                {VISIT_STATUS_LABELS[result.status]}
+              </StatusBadge>
+            </span>
+          }
+        />
+      </header>
 
       {incomplete ? (
-        <Alert role="status" className="border-warning/40 bg-warning-soft">
+        <Alert
+          role="status"
+          className="rounded-[12px] border-warning/30 bg-warning-soft px-4 py-3 text-warning"
+        >
+          <CircleAlert aria-hidden />
           <AlertTitle className="text-base">
             Lượt khám chưa được bác sĩ kết luận.
           </AlertTitle>
@@ -79,16 +104,14 @@ export function ExaminationResultView({
       ) : null}
 
       {sections.length > 0 ? (
-        <nav
-          aria-label="Mục lục kết quả"
-          className="flex flex-wrap gap-x-5 gap-y-1 border-y py-2"
-        >
+        <nav aria-label="Mục lục kết quả" className="flex flex-wrap gap-2">
           {sections.map((section) => (
             <a
               key={section.id}
               href={`#${section.id}`}
-              className="inline-flex min-h-11 items-center rounded-md text-base font-medium text-primary underline-offset-4 hover:underline focus-visible:ring-2 focus-visible:ring-ring"
+              className="inline-flex min-h-11 items-center gap-2 rounded-full border border-primary/15 bg-secondary px-3 text-base font-medium text-primary hover:border-primary/40 hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 motion-reduce:transition-none"
             >
+              <section.icon aria-hidden className="size-4 shrink-0" />
               {section.shortTitle}
             </a>
           ))}

@@ -5,6 +5,7 @@ import { StatusBadge } from "@/components/admin/StatusBadge";
 import { publicButtonClass } from "@/components/brand/publicButtonStyles";
 import { formatDate } from "@/lib/format/formatDate";
 import { fetchBlob } from "@/lib/api/client";
+import { cn } from "@/lib/utils";
 import type { ResultSheetVersion } from "../types/examinationResult";
 import { useState } from "react";
 
@@ -22,17 +23,19 @@ export function ResultSheetBlock({ sheets }: { sheets: ResultSheetVersion[] }) {
     (a, b) => b.issuedAt.localeCompare(a.issuedAt) || b.version - a.version,
   );
   return (
-    <ul className="divide-y rounded-lg border">
+    <ul className="divide-y">
       {ordered.map((sheet) => {
         const current = sheet.status === "CURRENT";
         return (
           <li
             key={sheet.id ?? sheet.version}
-            className="flex flex-wrap items-center justify-between gap-3 px-4 py-3"
+            className="grid items-center gap-2 py-2.5 first:pt-0 last:pb-0 sm:grid-cols-[minmax(0,1fr)_auto] sm:gap-4"
           >
-            <div className="min-w-0 space-y-1">
-              <p className="flex flex-wrap items-center gap-2 text-base font-medium">
-                {sheet.title || `Phiên bản ${sheet.version}`}
+            <div className="min-w-0 space-y-0.5">
+              <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-base">
+                <span className="min-w-0 wrap-break-word font-semibold">
+                  {sheet.title || `Phiên bản ${sheet.version}`}
+                </span>
                 {sheet.title ? (
                   <span className="text-sm font-normal text-muted-foreground">
                     Phiên bản {sheet.version}
@@ -40,18 +43,21 @@ export function ResultSheetBlock({ sheets }: { sheets: ResultSheetVersion[] }) {
                 ) : null}
                 <StatusBadge
                   tone={current ? "success" : "neutral"}
-                  className="h-6 text-sm"
+                  className="h-auto py-0.5 text-sm"
                 >
                   {current ? "Hiện hành" : "Đã thay thế"}
                 </StatusBadge>
               </p>
               <p className="text-base text-muted-foreground tabular-nums">
-                Phát hành {formatDate(sheet.issuedAt)}
+                Phát hành{" "}
+                <time dateTime={sheet.issuedAt}>
+                  {formatDate(sheet.issuedAt)}
+                </time>
               </p>
             </div>
             <ResultSheetButton
               sheet={sheet}
-              className={publicButtonClass("secondary")}
+              className={cn(publicButtonClass("secondary"), "h-11 px-3")}
             />
           </li>
         );
@@ -93,7 +99,7 @@ function ResultSheetButton({
   };
 
   return (
-    <div className="flex flex-col items-end gap-1">
+    <div className="flex min-w-0 flex-col items-start gap-1 sm:items-end">
       <a
         aria-disabled={loading}
         className={className}

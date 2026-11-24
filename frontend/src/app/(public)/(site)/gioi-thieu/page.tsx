@@ -8,16 +8,14 @@ import { AboutPage } from "@/features/clinic-website/components/AboutPage";
 
 export const metadata: Metadata = { title: "Giới thiệu | OTCMS" };
 
-// Trang Giới thiệu (UC75): nội dung trang đã đăng, giờ làm việc và liên hệ lấy từ thông tin
-// phòng khám đang công khai.
 export default async function AboutRoutePage() {
-  const [page, { contact }] = await Promise.all([
-    getPublishedAboutPage(),
-    getPublishedWebsiteContent(),
+  const [page, websiteContent] = await Promise.all([
+    getPublishedAboutPage().catch(() => null),
+    getPublishedWebsiteContent().catch(() => null),
   ]);
   return (
-    <div className={`${publicContainerClass} py-16 lg:py-24`}>
-      <AboutPage contact={contact} page={page} />
+    <div className={`${publicContainerClass} py-8 sm:py-10 lg:py-12`}>
+      <AboutPage contact={websiteContent?.contact} page={page} />
     </div>
   );
 }

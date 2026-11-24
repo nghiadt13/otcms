@@ -1,3 +1,4 @@
+import type { LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
 
 /**
@@ -7,22 +8,29 @@ import type { ReactNode } from "react";
 export function ResultSection({
   id,
   title,
+  icon: Icon,
   children,
 }: {
   id: string;
   title: string;
+  icon: LucideIcon;
   children: ReactNode;
 }) {
   return (
     <section
       id={id}
       aria-labelledby={`${id}-title`}
-      className="scroll-mt-24 space-y-4 border-t pt-6"
+      className="min-w-0 scroll-mt-52 rounded-[12px] border bg-card text-card-foreground md:scroll-mt-28"
     >
-      <h2 id={`${id}-title`} className="text-xl font-semibold">
-        {title}
-      </h2>
-      {children}
+      <div className="flex items-center gap-3 border-b px-4 py-2.5 sm:px-5">
+        <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-secondary text-primary">
+          <Icon aria-hidden className="size-5" />
+        </span>
+        <h2 id={`${id}-title`} className="text-lg font-semibold">
+          {title}
+        </h2>
+      </div>
+      <div className="px-4 py-3 sm:px-5 sm:py-4">{children}</div>
     </section>
   );
 }

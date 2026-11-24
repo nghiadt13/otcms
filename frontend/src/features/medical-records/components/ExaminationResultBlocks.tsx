@@ -1,3 +1,12 @@
+import {
+  ClipboardList,
+  FileText,
+  FlaskConical,
+  IdCard,
+  Image as ImageIcon,
+  Pill,
+  type LucideIcon,
+} from "lucide-react";
 import type { ReactNode } from "react";
 import type {
   ExaminationResult,
@@ -16,6 +25,7 @@ export interface ResultSectionView {
   title: string;
   /** Nhãn ngắn cho mục lục. */
   shortTitle: string;
+  icon: LucideIcon;
   body: ReactNode;
 }
 
@@ -35,24 +45,44 @@ export function buildResultSections(
   }[] = [
     {
       block: "EXAMINATION",
-      view: { id: "kham", title: "Kết quả khám", shortTitle: "Khám" },
+      view: {
+        id: "kham",
+        title: "Kết quả khám",
+        shortTitle: "Khám",
+        icon: ClipboardList,
+      },
       body: result.examination && (
         <ExaminationBlock examination={result.examination} />
       ),
     },
     {
       block: "IMAGING",
-      view: { id: "hinh-anh", title: "Hình ảnh", shortTitle: "Hình ảnh" },
+      view: {
+        id: "hinh-anh",
+        title: "Hình ảnh",
+        shortTitle: "Hình ảnh",
+        icon: ImageIcon,
+      },
       body: result.imaging && <ImagingBlock items={result.imaging} />,
     },
     {
       block: "LABORATORY",
-      view: { id: "xet-nghiem", title: "Xét nghiệm", shortTitle: "Xét nghiệm" },
+      view: {
+        id: "xet-nghiem",
+        title: "Xét nghiệm",
+        shortTitle: "Xét nghiệm",
+        icon: FlaskConical,
+      },
       body: result.laboratory && <LaboratoryBlock groups={result.laboratory} />,
     },
     {
       block: "PRESCRIPTIONS",
-      view: { id: "don-thuoc", title: "Đơn thuốc", shortTitle: "Đơn thuốc" },
+      view: {
+        id: "don-thuoc",
+        title: "Đơn thuốc",
+        shortTitle: "Đơn thuốc",
+        icon: Pill,
+      },
       body: result.prescriptions && (
         <PrescriptionsBlock items={result.prescriptions} />
       ),
@@ -63,6 +93,7 @@ export function buildResultSections(
         id: "hanh-chinh",
         title: "Thông tin hành chính",
         shortTitle: "Hành chính",
+        icon: IdCard,
       },
       body: result.administrative && (
         <AdministrativeBlock info={result.administrative} />
@@ -74,6 +105,7 @@ export function buildResultSections(
         id: "phieu-ket-qua",
         title: "Phiếu kết quả",
         shortTitle: "Phiếu kết quả",
+        icon: FileText,
       },
       body: result.resultSheets && (
         <ResultSheetBlock sheets={result.resultSheets} />
@@ -92,7 +124,12 @@ export function ExaminationResultBlocks({
   sections: ResultSectionView[];
 }) {
   return sections.map((section) => (
-    <ResultSection key={section.id} id={section.id} title={section.title}>
+    <ResultSection
+      key={section.id}
+      id={section.id}
+      title={section.title}
+      icon={section.icon}
+    >
       {section.body}
     </ResultSection>
   ));

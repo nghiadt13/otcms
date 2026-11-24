@@ -12,6 +12,7 @@ const SEX_TEXT: Record<AdministrativeInfo["sex"], string> = {
 export function AdministrativeBlock({ info }: { info: AdministrativeInfo }) {
   return (
     <ResultFieldList
+      columns={2}
       items={[
         { label: "Họ và tên", value: info.fullName },
         { label: "Ngày sinh", value: formatDate(info.dateOfBirth) },

@@ -35,7 +35,7 @@ export function SiteFooter() {
   return (
     <footer className="bg-primary text-primary-foreground group-has-[#otcms-home]/site:max-md:pb-[calc(4rem+env(safe-area-inset-bottom))]">
       <div
-        className={`${publicContainerClass} grid gap-10 py-14 sm:grid-cols-2 lg:grid-cols-[1.4fr_1fr_1fr_1.5fr] lg:gap-12 lg:py-16 group-has-[#otcms-home]/site:gap-6 group-has-[#otcms-home]/site:py-7 group-has-[#otcms-home]/site:md:grid-cols-[1fr_1fr_1.2fr]`}
+        className={`${publicContainerClass} grid gap-10 py-14 sm:grid-cols-2 lg:grid-cols-[1.4fr_1fr_1fr_1.5fr] lg:gap-12 lg:py-16`}
       >
         <div>
           <OtcmsLogo tone="onBrand" />
@@ -47,7 +47,7 @@ export function SiteFooter() {
           </p>
         </div>
 
-        <FooterNav title="Liên kết nhanh">
+        <FooterNav title="Liên kết nhanh" homeTitle="Khám phá">
           {discoverLinks.map((item) => (
             <li key={item.href}>
               <Link className={footerLinkClass} href={item.href}>
@@ -55,22 +55,14 @@ export function SiteFooter() {
               </Link>
             </li>
           ))}
-          <li>
+          <li className="group-has-[#otcms-home]/site:hidden">
             <Link className={footerLinkClass} href="/#quy-trinh-kham">
               Hướng dẫn
             </Link>
           </li>
-          <li className="hidden group-has-[#otcms-home]/site:block">
-            <Link className={footerLinkClass} href="/register">
-              Đăng ký bệnh nhân
-            </Link>
-          </li>
         </FooterNav>
 
-        <FooterNav
-          title="Bệnh nhân"
-          className="group-has-[#otcms-home]/site:hidden"
-        >
+        <FooterNav title="Bệnh nhân">
           {patientLinks.map((link) => (
             <li key={link.label}>
               {link.href ? (
@@ -124,7 +116,7 @@ export function SiteFooter() {
         </section>
       </div>
 
-      <div className="border-t border-white/20 group-has-[#otcms-home]/site:hidden">
+      <div className="border-t border-white/20">
         <div
           className={`${publicContainerClass} flex flex-col gap-1 py-6 text-sm text-brand-muted sm:flex-row sm:items-center sm:justify-between`}
         >
@@ -141,16 +133,31 @@ export function SiteFooter() {
 
 function FooterNav({
   title,
+  homeTitle,
   children,
-  className,
 }: {
   title: string;
-  className?: string;
+  homeTitle?: string;
   children: ReactNode;
 }) {
+  const headingId = homeTitle ? "footer-discover-title" : undefined;
   return (
-    <nav aria-label={title} className={className}>
-      <h2 className="text-base font-semibold">{title}</h2>
+    <nav
+      aria-label={homeTitle ? undefined : title}
+      aria-labelledby={headingId}
+    >
+      <h2 className="text-base font-semibold" id={headingId}>
+        {homeTitle ? (
+          <>
+            <span className="group-has-[#otcms-home]/site:hidden">{title}</span>
+            <span className="hidden group-has-[#otcms-home]/site:inline">
+              {homeTitle}
+            </span>
+          </>
+        ) : (
+          title
+        )}
+      </h2>
       <ul className="mt-4 space-y-3 text-base">{children}</ul>
     </nav>
   );

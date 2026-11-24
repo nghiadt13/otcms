@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { Toaster } from "@/components/ui/sonner";
 import {
@@ -67,6 +73,49 @@ describe("ResultDetailScreen", () => {
     expect(screen.getByText("Cao")).toBeInTheDocument();
     expect(screen.getByText("Thấp")).toBeInTheDocument();
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  });
+
+  it("giữ mục lục, các cột xét nghiệm và đường dẫn xem kết quả liên quan", async () => {
+    render(
+      <ResultDetailScreen
+        reviewAction={
+          <a href="/portal/reviews/new?visitId=vis-an-done">Viết đánh giá</a>
+        }
+        visitId="vis-an-done"
+      />,
+    );
+    const contents = await screen.findByRole("navigation", {
+      name: "Mục lục kết quả",
+    });
+    const links = within(contents).getAllByRole("link");
+    expect(links).toHaveLength(6);
+    for (const link of links) {
+      const anchor = link.getAttribute("href") ?? "";
+      expect(anchor).toMatch(/^#/);
+      expect(document.getElementById(anchor.slice(1))).toBeInTheDocument();
+    }
+    const laboratory = screen.getByRole("table", { name: "Xét nghiệm máu" });
+    const uricAcid = within(laboratory).getByRole("row", { name: /Acid uric/ });
+    expect(
+      within(uricAcid)
+        .getAllByRole("cell")
+        .map((cell) => cell.textContent),
+    ).toEqual([
+      expect.stringContaining("512 µmol/L"),
+      expect.stringContaining("202–416 (nam)"),
+      "Cao",
+    ]);
+    expect(screen.getByRole("link", { name: "Xem ảnh" })).toHaveAttribute(
+      "href",
+      "/portal/images/std-an-xray-1",
+    );
+    expect(screen.getByRole("link", { name: "Xem đơn thuốc" })).toHaveAttribute(
+      "href",
+      "/portal/prescriptions/pres-an-1",
+    );
+    expect(
+      screen.getByRole("link", { name: "Viết đánh giá" }),
+    ).toBeInTheDocument();
   });
 
   it("phiếu kết quả: bản cũ ghi Đã thay thế, bản hiện hành mở PDF ở tab mới", async () => {

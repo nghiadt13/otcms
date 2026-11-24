@@ -31,9 +31,12 @@ const AREA_PATHS: ReadonlySet<string> = new Set([
 // họ tên, giới tính, ngày sinh từ hồ sơ "Bản thân" của `patient-profiles`.
 export function PortalAreaFrame({ children }: { children: ReactNode }) {
   const pathname = usePathname();
-  return AREA_PATHS.has(pathname) ? (
+  const isResultDemo =
+    process.env.NODE_ENV === "development" &&
+    pathname === `${PATIENT_ROUTES.results}/demo`;
+  return AREA_PATHS.has(pathname) || isResultDemo ? (
     <AreaShellWithPerson
-      boxed={pathname !== PATIENT_ROUTES.account}
+      boxed={!isResultDemo && pathname !== PATIENT_ROUTES.account}
       compactOnMobile={pathname === PATIENT_ROUTES.reviews}
     >
       {children}
