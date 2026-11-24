@@ -30,12 +30,12 @@ describe("FeaturedServices", () => {
   it("hiện giá công khai theo định dạng Việt Nam và liên kết tới bảng giá đầy đủ", async () => {
     render(<FeaturedServices services={services} />);
     expect(
-      screen.getByRole("heading", { name: "Dịch vụ chính" }),
+      screen.getByRole("heading", { name: "Dịch vụ tại phòng khám" }),
     ).toBeVisible();
     expect(screen.getByText("250.000 ₫")).toBeInTheDocument();
     expect(screen.getByText("180.000 ₫")).toBeInTheDocument();
     expect(
-      screen.getByRole("link", { name: /Xem bảng giá đầy đủ/ }),
+      screen.getByRole("link", { name: /Xem tất cả dịch vụ/ }),
     ).toHaveAttribute("href", "/services");
   });
 

@@ -288,7 +288,7 @@ class RescheduleAppointmentT024PostgresIntegrationTest {
         jdbc.update("insert into invoices (id, invoice_number, patient_profile_id, appointment_id, source_type, "
                         + "source_fingerprint, status, created_by_account_id) values (?, ?, ?, ?, 'APPOINTMENT', ?, 'PAID', ?)",
                 invoiceId, "INV-T024-" + invoiceId.toString().substring(0, 8), profileId, appointmentId,
-                "fp-" + invoiceId, creatorId);
+                invoiceId.toString().replace("-", "").repeat(2), creatorId);
     }
 
     private UUID insertAppointment(UUID profileId, UUID creator, Instant start, String purpose) {
