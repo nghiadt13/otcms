@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  Activity,
   CalendarDays,
   FileText,
   KeyRound,
@@ -43,6 +44,7 @@ const AREA_GROUPS: readonly (readonly AreaLink[])[] = [
       href: PATIENT_ROUTES.appointments,
       icon: CalendarDays,
     },
+    { label: "Lượt khám hôm nay", href: PATIENT_ROUTES.visits, icon: Activity },
     { label: "Kết quả khám", href: PATIENT_ROUTES.results, icon: FileText },
     { label: "Đánh giá", href: PATIENT_ROUTES.reviews, icon: Star },
     { label: "Đơn thuốc", href: PATIENT_ROUTES.prescriptions, icon: Pill },
