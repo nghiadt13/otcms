@@ -6,19 +6,23 @@ import type { PatientAppointment } from "../../types/patientAppointment";
 import { visitHrefOf } from "./patientAppointmentPresentation";
 
 // Nút của chi tiết lịch. Mỗi nút chỉ hiện khi `allowedActions` của BE có việc tương ứng (hoặc
-// lượt khám đã có). Không có nút đổi giờ (BR-22): muốn đổi thì hủy rồi đặt lịch mới.
+// lượt khám đã có): lịch chưa trả phí chỉ được hủy (>= 2 giờ trước giờ hẹn) hoặc trả online;
+// lịch đã trả phí chỉ được đổi lịch (>= 2 giờ trước giờ hẹn, tối đa 2 lần).
 
 export function PatientAppointmentActions({
   appointment,
   onRequestCancel,
+  onRequestReschedule,
 }: {
   appointment: PatientAppointment;
   onRequestCancel: () => void;
+  onRequestReschedule: () => void;
 }) {
   const canPay = appointment.allowedActions.includes("payExamFee");
   const canCancel = appointment.allowedActions.includes("cancel");
+  const canReschedule = appointment.allowedActions.includes("reschedule");
   const visitHref = visitHrefOf(appointment.visitId);
-  if (!canPay && !canCancel && !visitHref) return null;
+  if (!canPay && !canCancel && !canReschedule && !visitHref) return null;
 
   return (
     <div className="space-y-4">
@@ -38,6 +42,15 @@ export function PatientAppointmentActions({
           >
             Thanh toán trực tuyến
           </Link>
+        ) : null}
+        {canReschedule ? (
+          <button
+            className={cn(publicButtonClass("secondary"), "w-full sm:w-auto")}
+            onClick={onRequestReschedule}
+            type="button"
+          >
+            Đổi lịch hẹn
+          </button>
         ) : null}
         {canCancel ? (
           <button

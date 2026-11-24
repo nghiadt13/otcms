@@ -6,6 +6,7 @@ import { peekCurrentAccount } from "@/lib/auth/currentAccountApi";
 import { listLinkedProfiles } from "@/lib/patient-scope/linkedProfilesApi";
 import type { LinkedProfile } from "@/lib/patient-scope/types";
 import type { AppointmentStatus } from "@/lib/domain/clinicVisit";
+import type { RescheduleSlot } from "../components/RescheduleAppointmentDialog";
 import { vnIsoOf } from "../schema/bookingTime";
 import { isPatientCancellable } from "../schema/patientCancelWindow";
 import type {
@@ -39,6 +40,9 @@ interface AppointmentDto {
   examFeePaid: boolean | null;
   visitId: string | null;
   sourceVisitId: string | null;
+  patientRescheduleCount?: number | null;
+  remainingReschedules?: number | null;
+  maxPatientReschedules?: number | null;
 }
 
 interface AppointmentPageDto {
@@ -84,8 +88,9 @@ async function linkedProfilesById(
 }
 
 /**
- * Việc người bệnh làm được (BE không trả danh sách này). Hủy chỉ khi lịch Đã đặt, chưa tới giờ và còn đủ
- * hạn tự hủy; trả online khi phí dịch vụ có giá và chưa trả.
+ * Việc người bệnh làm được (BE không trả danh sách này):
+ * - Chưa trả phí: được hủy (>= 2 giờ trước giờ hẹn) và trả online; không tự đổi lịch.
+ * - Đã trả phí: không tự hủy; được tự đổi lịch (>= 2 giờ trước giờ hẹn và còn lượt trong tối đa 2 lần).
  */
 function allowedActionsOf(
   status: AppointmentStatus,
@@ -94,8 +99,16 @@ function allowedActionsOf(
 ): PatientAppointmentAction[] {
   if (status !== "BOOKED" || Date.parse(dto.startTime) <= now) return [];
   const actions: PatientAppointmentAction[] = [];
-  if (isPatientCancellable(dto.startTime, now)) actions.push("cancel");
-  if (dto.servicePrice != null && !dto.examFeePaid) actions.push("payExamFee");
+  const feePaid = dto.examFeePaid === true;
+  const maxReschedules = dto.maxPatientReschedules ?? 2;
+  const count = dto.patientRescheduleCount ?? 0;
+  const remaining =
+    dto.remainingReschedules ?? Math.max(0, maxReschedules - count);
+  if (!feePaid && isPatientCancellable(dto.startTime, now))
+    actions.push("cancel");
+  if (feePaid && isPatientCancellable(dto.startTime, now) && remaining > 0)
+    actions.push("reschedule");
+  if (dto.servicePrice != null && !feePaid) actions.push("payExamFee");
   return actions;
 }
 
@@ -108,6 +121,11 @@ function toPatientAppointment(
   const now = Date.now();
   const expired = Date.parse(dto.startTime) <= now;
   const feePaid = dto.examFeePaid === true;
+  const maxPatientReschedules = dto.maxPatientReschedules ?? 2;
+  const patientRescheduleCount = dto.patientRescheduleCount ?? 0;
+  const remainingReschedules =
+    dto.remainingReschedules ??
+    Math.max(0, maxPatientReschedules - patientRescheduleCount);
   // Lịch đã bắt đầu mà chưa thanh toán được đóng như lịch đã hủy. Nếu đã trả,
   // giữ trạng thái để nhân viên xử lý nhưng không cho người bệnh thao tác tiếp.
   const status =
@@ -143,6 +161,9 @@ function toPatientAppointment(
             : "PENDING_PAYMENT",
     },
     doctorUnavailable: false,
+    patientRescheduleCount,
+    remainingReschedules,
+    maxPatientReschedules,
     allowedActions: allowedActionsOf(status, dto, now),
   };
 }
@@ -152,6 +173,10 @@ const BACKEND_TO_MSG: Record<string, `MSG-${string}`> = {
   APPOINTMENT_NOT_FOUND: "MSG-29",
   APPOINTMENT_NOT_CHANGEABLE: "MSG-32",
   APPOINTMENT_CHANGE_TOO_LATE: "MSG-32",
+  VALIDATION_FAILED: "MSG-31",
+  BOOKING_WINDOW_VIOLATION: "MSG-31",
+  BOOKING_TIME_IN_PAST: "MSG-30",
+  DOCTOR_NOT_ELIGIBLE: "MSG-24",
 };
 
 function toAppointmentApiError(error: unknown): unknown {
@@ -216,6 +241,46 @@ export async function cancelMyAppointment(
     const dto = await apiRequest<AppointmentDto>(
       `/api/v1/appointments/${id}/cancel`,
       { method: "POST", body: JSON.stringify({}) },
+    );
+    return toPatientAppointment(dto, await linkedProfilesById());
+  } catch (error) {
+    throw toAppointmentApiError(error);
+  }
+}
+
+/** GET /api/v1/appointments/{id}/reschedule-availability */
+export async function getMyRescheduleSlots(
+  id: string,
+  date: string,
+  signal?: AbortSignal,
+): Promise<RescheduleSlot[]> {
+  try {
+    const params = new URLSearchParams({ from: date, to: date });
+    const result = await apiRequest<{ slots: RescheduleSlot[] }>(
+      `/api/v1/appointments/${encodeURIComponent(id)}/reschedule-availability?${params}`,
+      { signal },
+    );
+    return result.slots;
+  } catch (error) {
+    throw toAppointmentApiError(error);
+  }
+}
+
+/** PATCH /api/v1/appointments/{id}/reschedule */
+export async function rescheduleMyAppointment(
+  id: string,
+  input: { doctorId: string; startTime: string },
+): Promise<PatientAppointment> {
+  try {
+    const dto = await apiRequest<AppointmentDto>(
+      `/api/v1/appointments/${encodeURIComponent(id)}/reschedule`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({
+          doctorId: input.doctorId,
+          startTime: input.startTime,
+        }),
+      },
     );
     return toPatientAppointment(dto, await linkedProfilesById());
   } catch (error) {

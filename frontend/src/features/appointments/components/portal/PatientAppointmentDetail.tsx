@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { useState, type ReactNode } from "react";
+import { useCallback, useState, type ReactNode } from "react";
 import { ChevronLeft } from "lucide-react";
 import { StatusBadge } from "@/components/admin/StatusBadge";
 import { PortalPageHeader } from "@/components/patient/PortalPageHeader";
@@ -17,10 +17,15 @@ import {
 import { todayIsoDate } from "@/lib/format/formatDate";
 import { formatAppMessage, messageFromError } from "@/lib/messages/appMessages";
 import { PATIENT_ROUTES } from "@/lib/routes/patientRoutes";
+import {
+  getMyRescheduleSlots,
+  rescheduleMyAppointment,
+} from "../../api/patientAppointmentSource";
 import { usePatientAppointment } from "../../hooks/usePatientAppointment";
 import { usePatientExamQueueEntry } from "../../hooks/usePatientExamQueueEntry";
 import { dateOfStart } from "../../schema/bookingTime";
 import type { PatientAppointment } from "../../types/patientAppointment";
+import { RescheduleAppointmentDialog } from "../RescheduleAppointmentDialog";
 import { PatientAppointmentActions } from "./PatientAppointmentActions";
 import { PatientArrivalQrCheckIn } from "./PatientArrivalQrCheckIn";
 import { PatientAppointmentFacts } from "./PatientAppointmentFacts";
@@ -42,6 +47,12 @@ export function PatientAppointmentDetail({ id }: { id: string }) {
   const { profiles } = useLinkedProfiles();
   const queue = usePatientExamQueueEntry(appointment?.visitId ?? null);
   const [cancelOpen, setCancelOpen] = useState(false);
+  const [rescheduleOpen, setRescheduleOpen] = useState(false);
+  const loadRescheduleSlots = useCallback(
+    (date: string, signal: AbortSignal) =>
+      getMyRescheduleSlots(id, date, signal),
+    [id],
+  );
 
   if (error && isApiError(error) && error.code === "MSG-29") notFound();
 
@@ -71,11 +82,17 @@ export function PatientAppointmentDetail({ id }: { id: string }) {
   // Check-in QR chỉ trong ngày hẹn, khi phí đã xong (A7); trong ngày không có khung giờ.
   const canArriveByQr =
     appointment.status === "BOOKED" && isToday && feeSettled;
-  // Còn dưới hạn tự hủy: không có nút hủy, nhắc bằng MSG-32 (plan B1).
+  // Còn dưới hạn tự hủy (lịch chưa thanh toán): không có nút hủy, nhắc bằng MSG-32 (plan B1).
   const cancelWindowClosed =
     appointment.status === "BOOKED" &&
     !started &&
+    !paid &&
     !appointment.allowedActions.includes("cancel");
+  const maxReschedules = appointment.maxPatientReschedules ?? 2;
+  const remainingReschedules =
+    appointment.remainingReschedules ??
+    Math.max(0, maxReschedules - (appointment.patientRescheduleCount ?? 0));
+  const canSelfReschedule = appointment.allowedActions.includes("reschedule");
 
   return (
     <DetailFrame
@@ -117,6 +134,15 @@ export function PatientAppointmentDetail({ id }: { id: string }) {
           {formatAppMessage("MSG-32")}
         </p>
       ) : null}
+      {appointment.status === "BOOKED" && !started && paid ? (
+        <p className="text-base text-muted-foreground">
+          {canSelfReschedule
+            ? `Lịch hẹn đã thanh toán không thể tự hủy trực tuyến. Bạn có thể đổi lịch tối đa ${maxReschedules} lần trước giờ hẹn ít nhất 2 giờ (còn ${remainingReschedules}/${maxReschedules} lượt). Nếu cần hỗ trợ hoàn tiền hoặc thay đổi đặc biệt, vui lòng liên hệ quầy lễ tân.`
+            : remainingReschedules <= 0
+              ? `Bạn đã sử dụng hết ${maxReschedules}/${maxReschedules} lượt đổi lịch trực tuyến. Lịch hẹn đã thanh toán không thể tự hủy trực tuyến; nếu cần hỗ trợ đặc biệt, vui lòng liên hệ quầy lễ tân.`
+              : "Đã quá hạn tự đổi lịch (ít nhất 2 giờ trước giờ hẹn). Lịch hẹn đã thanh toán không thể tự hủy trực tuyến; nếu cần hỗ trợ đặc biệt, vui lòng liên hệ quầy lễ tân."}
+        </p>
+      ) : null}
       {appointment.status === "BOOKED" && !started ? (
         <p className="text-base text-muted-foreground">
           {arrivalNote(patientCode)}
@@ -125,6 +151,7 @@ export function PatientAppointmentDetail({ id }: { id: string }) {
       <PatientAppointmentActions
         appointment={appointment}
         onRequestCancel={() => setCancelOpen(true)}
+        onRequestReschedule={() => setRescheduleOpen(true)}
       />
       <PatientCancelDialog
         appointment={appointment}
@@ -132,6 +159,20 @@ export function PatientAppointmentDetail({ id }: { id: string }) {
         onOpenChange={setCancelOpen}
         onReload={reload}
         open={cancelOpen}
+      />
+      <RescheduleAppointmentDialog
+        currentDoctorId={appointment.doctor.id}
+        loadSlots={loadRescheduleSlots}
+        onClose={() => setRescheduleOpen(false)}
+        onConfirm={async (slot) => {
+          const updated = await rescheduleMyAppointment(appointment.id, {
+            doctorId: slot.doctorId,
+            startTime: slot.startTime,
+          });
+          replace(updated);
+        }}
+        open={rescheduleOpen}
+        requireReason={false}
       />
     </DetailFrame>
   );

@@ -26,11 +26,13 @@ export function RescheduleAppointmentDialog({
   loadSlots,
   onConfirm,
   currentDoctorId,
+  requireReason = true,
 }: {
   open: boolean;
   onClose: () => void;
   /** R3 has a success toast only for doctor reassignment (MSG-27); a time-only change shows none yet. */
   currentDoctorId?: string | null;
+  requireReason?: boolean;
   loadSlots: (date: string, signal: AbortSignal) => Promise<RescheduleSlot[]>;
   onConfirm: (slot: RescheduleSlot, reason: string) => Promise<void>;
 }) {
@@ -57,11 +59,11 @@ export function RescheduleAppointmentDialog({
     const slot = slots?.find(
       (item) => `${item.doctorId}|${item.startTime}` === selection,
     );
-    if (!slot || !reason.trim()) return;
+    if (!slot || (requireReason && !reason.trim())) return;
     setPending(true);
     try {
       await onConfirm(slot, reason.trim());
-      if (slot.doctorId !== currentDoctorId)
+      if (requireReason && slot.doctorId !== currentDoctorId)
         notifySuccess("MSG-27", { doctor: slot.doctorDisplayName });
       setReason("");
       onClose();
@@ -82,7 +84,9 @@ export function RescheduleAppointmentDialog({
         <DialogHeader>
           <DialogTitle>Đổi giờ hẹn</DialogTitle>
           <DialogDescription>
-            Chọn giờ và bác sĩ còn trống, rồi nhập lý do.
+            {requireReason
+              ? "Chọn giờ và bác sĩ còn trống, rồi nhập lý do."
+              : "Chọn ngày, giờ và bác sĩ còn trống."}
           </DialogDescription>
         </DialogHeader>
         <label className="grid gap-2">
@@ -124,21 +128,23 @@ export function RescheduleAppointmentDialog({
             </select>
           </label>
         )}
-        <label className="grid gap-2">
-          Lý do đổi giờ
-          <textarea
-            className="min-h-24 rounded-md border p-2"
-            maxLength={1000}
-            value={reason}
-            onChange={(e) => setReason(e.target.value)}
-          />
-        </label>
+        {requireReason ? (
+          <label className="grid gap-2">
+            Lý do đổi giờ
+            <textarea
+              className="min-h-24 rounded-md border p-2"
+              maxLength={1000}
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+            />
+          </label>
+        ) : null}
         <DialogFooter>
           <Button variant="outline" disabled={pending} onClick={onClose}>
             Đóng
           </Button>
           <Button
-            disabled={pending || !selection || !reason.trim()}
+            disabled={pending || !selection || (requireReason && !reason.trim())}
             onClick={() => void submit()}
           >
             Xác nhận

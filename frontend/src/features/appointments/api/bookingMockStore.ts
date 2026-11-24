@@ -97,6 +97,23 @@ export function changeStoredAppointmentDoctor(
   );
 }
 
+/** Đổi ngày giờ / bác sĩ của một lịch trong kho chung (dùng cho mock bệnh nhân tự đổi lịch). */
+export function rescheduleStoredAppointment(
+  id: string,
+  change: { doctor: DoctorRef; roomName: string; startAt: string },
+): void {
+  records = records.map((record): StoredAppointment =>
+    record.id === id
+      ? {
+          ...record,
+          doctor: { ...change.doctor },
+          roomName: change.roomName,
+          startAt: change.startAt,
+        }
+      : record,
+  );
+}
+
 /** Mã lịch kế tiếp: "apt-9001", "apt-9002"… (ổn định cho test). */
 export function nextAppointmentId(): string {
   sequence += 1;

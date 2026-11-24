@@ -132,3 +132,34 @@ it("keeps the reschedule dialog open and reports the backend error", async () =>
   await waitFor(() => expect(notifyError).toHaveBeenCalledWith(error));
   expect(onClose).not.toHaveBeenCalled();
 });
+
+it("allows patient reschedule without reason when requireReason is false", async () => {
+  vi.mocked(notifySuccess).mockClear();
+  const slot = {
+    doctorId: "d2",
+    doctorDisplayName: "Bác sĩ Hai",
+    startTime: "2026-11-20T02:00:00Z",
+  };
+  const confirm = vi.fn().mockResolvedValue(undefined);
+  const onClose = vi.fn();
+  render(
+    <RescheduleAppointmentDialog
+      open
+      requireReason={false}
+      onClose={onClose}
+      loadSlots={vi.fn().mockResolvedValue([slot])}
+      onConfirm={confirm}
+    />,
+  );
+  expect(screen.queryByLabelText("Lý do đổi giờ")).not.toBeInTheDocument();
+  await userEvent.selectOptions(
+    await screen.findByLabelText("Giờ và bác sĩ"),
+    `${slot.doctorId}|${slot.startTime}`,
+  );
+  const submitButton = screen.getByRole("button", { name: "Xác nhận" });
+  expect(submitButton).toBeEnabled();
+  await userEvent.click(submitButton);
+  await waitFor(() => expect(confirm).toHaveBeenCalledWith(slot, ""));
+  expect(notifySuccess).not.toHaveBeenCalled();
+  expect(onClose).toHaveBeenCalled();
+});

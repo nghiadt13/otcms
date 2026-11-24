@@ -9,3 +9,5 @@ const source = isTest ? mock : live;
 export const listMyAppointments = source.listMyAppointments;
 export const getMyAppointment = source.getMyAppointment;
 export const cancelMyAppointment = source.cancelMyAppointment;
+export const getMyRescheduleSlots = source.getMyRescheduleSlots;
+export const rescheduleMyAppointment = source.rescheduleMyAppointment;

@@ -23,7 +23,9 @@ vi.mock("@/lib/auth/currentAccountApi", () => ({
 
 import {
   getMyAppointment,
+  getMyRescheduleSlots,
   listMyAppointments,
+  rescheduleMyAppointment,
 } from "./patientAppointmentLiveApi";
 
 const dto = (examFeePaid: boolean) => ({
@@ -126,19 +128,34 @@ describe("patientAppointmentLiveApi expired appointments", () => {
   });
 });
 
-// Đồng hồ ở beforeEach: 31/10/2026 09:00 giờ VN. Hạn tự hủy 120 phút (plan mục 3, A11).
-describe("patientAppointmentLiveApi hạn tự hủy 120 phút", () => {
-  it("còn đúng 120 phút: được hủy", async () => {
+// Đồng hồ ở beforeEach: 31/10/2026 09:00 giờ VN. Hạn tự hủy/đổi lịch 120 phút (plan mục 3, A11).
+describe("patientAppointmentLiveApi hạn tự hủy và đổi lịch 120 phút", () => {
+  it("đã thanh toán còn đúng 120 phút: được đổi lịch, không được hủy", async () => {
     apiRequest.mockResolvedValueOnce({
       ...dto(true),
       startTime: "2026-10-31T11:00:00+07:00",
+      patientRescheduleCount: 0,
+      remainingReschedules: 2,
+      maxPatientReschedules: 2,
     });
     const appointment = await getMyAppointment("apt-past");
     expect(appointment.status).toBe("BOOKED");
-    expect(appointment.allowedActions).toEqual(["cancel"]);
+    expect(appointment.allowedActions).toEqual(["reschedule"]);
   });
 
-  it("còn 119 phút: không có nút hủy, lịch vẫn Đã đặt", async () => {
+  it("đã thanh toán hết 2 lượt đổi lịch: không còn nút đổi lịch", async () => {
+    apiRequest.mockResolvedValueOnce({
+      ...dto(true),
+      startTime: "2026-10-31T12:00:00+07:00",
+      patientRescheduleCount: 2,
+      remainingReschedules: 0,
+      maxPatientReschedules: 2,
+    });
+    const appointment = await getMyAppointment("apt-past");
+    expect(appointment.allowedActions).toEqual([]);
+  });
+
+  it("đã thanh toán còn 119 phút: không có nút đổi lịch hay hủy, lịch vẫn Đã đặt", async () => {
     apiRequest.mockResolvedValueOnce({
       ...dto(true),
       startTime: "2026-10-31T10:59:00+07:00",
@@ -148,7 +165,7 @@ describe("patientAppointmentLiveApi hạn tự hủy 120 phút", () => {
     expect(appointment.allowedActions).toEqual([]);
   });
 
-  it("chưa thanh toán còn đủ hạn: được hủy và trả online", async () => {
+  it("chưa thanh toán còn đủ hạn: được hủy và trả online, không được đổi lịch", async () => {
     apiRequest.mockResolvedValueOnce({
       ...dto(false),
       startTime: "2026-10-31T12:00:00+07:00",
@@ -164,5 +181,49 @@ describe("patientAppointmentLiveApi hạn tự hủy 120 phút", () => {
     });
     const appointment = await getMyAppointment("apt-past");
     expect(appointment.allowedActions).toEqual(["payExamFee"]);
+  });
+});
+
+describe("patientAppointmentLiveApi reschedule", () => {
+  it("gọi GET reschedule-availability và PATCH reschedule đúng endpoint", async () => {
+    const slot = {
+      doctorId: "doctor-2",
+      doctorDisplayName: "BS. Hai",
+      startTime: "2026-11-01T09:00:00+07:00",
+    };
+    apiRequest.mockResolvedValueOnce({ slots: [slot] });
+    const slots = await getMyRescheduleSlots("apt-1", "2026-11-01");
+    expect(slots).toEqual([slot]);
+    expect(apiRequest).toHaveBeenLastCalledWith(
+      "/api/v1/appointments/apt-1/reschedule-availability?from=2026-11-01&to=2026-11-01",
+      { signal: undefined },
+    );
+
+    apiRequest.mockResolvedValueOnce({
+      ...dto(true),
+      id: "apt-1",
+      doctorId: "doctor-2",
+      doctorDisplayName: "BS. Hai",
+      startTime: "2026-11-01T09:00:00+07:00",
+      patientRescheduleCount: 1,
+      remainingReschedules: 1,
+      maxPatientReschedules: 2,
+    });
+    const updated = await rescheduleMyAppointment("apt-1", {
+      doctorId: "doctor-2",
+      startTime: "2026-11-01T09:00:00+07:00",
+    });
+    expect(apiRequest).toHaveBeenLastCalledWith(
+      "/api/v1/appointments/apt-1/reschedule",
+      {
+        method: "PATCH",
+        body: JSON.stringify({
+          doctorId: "doctor-2",
+          startTime: "2026-11-01T09:00:00+07:00",
+        }),
+      },
+    );
+    expect(updated.remainingReschedules).toBe(1);
+    expect(updated.allowedActions).toEqual(["reschedule"]);
   });
 });

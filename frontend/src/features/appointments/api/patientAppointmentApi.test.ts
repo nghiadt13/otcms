@@ -141,10 +141,10 @@ describe("listMyAppointments", () => {
 });
 
 describe("getMyAppointment", () => {
-  it("lịch đã thanh toán: không có thao tác thanh toán, chỉ được hủy", async () => {
+  it("lịch đã thanh toán: không có thao tác thanh toán hay hủy, được đổi lịch", async () => {
     const item = await getMyAppointment("apt-1003");
     expect(item.examFee).toEqual({ amount: 200000, status: "PAID" });
-    expect(item.allowedActions).toEqual(["cancel"]);
+    expect(item.allowedActions).toEqual(["reschedule"]);
   });
 
   it("lịch chưa thanh toán: được hủy và được trả online", async () => {

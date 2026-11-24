@@ -139,7 +139,7 @@ afterEach(() => {
 });
 
 describe("PatientAppointmentDetail: lịch đã thanh toán (Lan)", () => {
-  it("ghi người khám và quan hệ, phí đã trả; không có nút thanh toán; có nút hủy và câu không đổi giờ", async () => {
+  it("ghi người khám và quan hệ, phí đã trả; không có nút thanh toán hay hủy; có nút đổi lịch và hướng dẫn", async () => {
     render(<PatientAppointmentDetail id="apt-1003" />);
 
     expect(
@@ -156,11 +156,15 @@ describe("PatientAppointmentDetail: lịch đã thanh toán (Lan)", () => {
       screen.queryByRole("link", { name: "Thanh toán trực tuyến" }),
     ).not.toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "Hủy lịch hẹn" }),
+      screen.queryByRole("button", { name: "Hủy lịch hẹn" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Đổi lịch hẹn" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByText("Muốn đổi giờ? Hủy lịch này rồi đặt lịch mới."),
+      screen.getByText(/Lịch hẹn đã thanh toán không thể tự hủy trực tuyến/),
     ).toBeInTheDocument();
+    expect(screen.getByText(/còn 2\/2 lượt/)).toBeInTheDocument();
   });
 
   it("nhắc mã BN của người khám này ở quầy", async () => {
@@ -170,17 +174,36 @@ describe("PatientAppointmentDetail: lịch đã thanh toán (Lan)", () => {
     ).toBeInTheDocument();
   });
 
-  it("hộp thoại hủy nói rõ phí đã trả không được hoàn lại (BR-53)", async () => {
+  it("đổi lịch hẹn thành công không cần nhập lý do và giảm số lượt còn lại", async () => {
     const user = userEvent.setup();
     render(<PatientAppointmentDetail id="apt-1003" />);
     await user.click(
-      await screen.findByRole("button", { name: "Hủy lịch hẹn" }),
+      await screen.findByRole("button", { name: "Đổi lịch hẹn" }),
+    );
+    const rescheduleDialog = screen.getByRole("dialog");
+    expect(
+      within(rescheduleDialog).queryByLabelText("Lý do đổi giờ"),
+    ).not.toBeInTheDocument();
+    const select = await within(rescheduleDialog).findByLabelText(
+      "Giờ và bác sĩ",
+    );
+    const options = within(select).getAllByRole("option");
+    const futureSlotOption = options.find((opt) =>
+      (opt as HTMLOptionElement).value.includes("14:00"),
+    );
+    expect(futureSlotOption).toBeDefined();
+    await user.selectOptions(
+      select,
+      (futureSlotOption as HTMLOptionElement).value,
+    );
+    await user.click(
+      within(rescheduleDialog).getByRole("button", { name: "Xác nhận" }),
     );
 
-    expect(dialog()).toHaveTextContent(
-      `Phí khám ${money(200000)} đã thanh toán trực tuyến sẽ không được hoàn lại.`,
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
     );
-    expect(dialog()).toHaveTextContent("giờ này được mở cho người khác");
+    expect(screen.getByText(/còn 1\/2 lượt/)).toBeInTheDocument();
   });
 });
 

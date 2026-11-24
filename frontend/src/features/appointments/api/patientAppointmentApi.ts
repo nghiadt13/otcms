@@ -17,12 +17,15 @@ import type {
   PatientAppointmentAction,
   PatientAppointmentQuery,
 } from "../types/patientAppointment";
+import type { RescheduleSlot } from "../components/RescheduleAppointmentDialog";
+import { vnIsoAt } from "../schema/bookingTime";
 import { isPatientCancellable } from "../schema/patientCancelWindow";
-import { BOOKABLE_SERVICES, doctorById } from "./bookingMockCatalog";
+import { BOOKABLE_SERVICES, BOOKING_DOCTORS, doctorById } from "./bookingMockCatalog";
 import {
   bookingMockNow,
   cancelStoredAppointment,
   readStoredAppointments,
+  rescheduleStoredAppointment,
 } from "./bookingMockStore";
 import {
   RACE_APPOINTMENT_ID,
@@ -42,25 +45,37 @@ const latency = (signal?: AbortSignal) =>
 
 /** Lịch riêng khu bệnh nhân đã hủy trong phiên (lịch dùng chung đổi thẳng trong kho chung). */
 const cancelledOwnIds = new Set<string>();
+/** Số lần người bệnh đã tự đổi lịch trong phiên mock (tối đa 2). */
+const patientRescheduleCounts = new Map<string, number>();
 
-/** Chỉ dùng trong test và demo: quên các lần hủy lịch riêng khu bệnh nhân. */
+/** Chỉ dùng trong test và demo: quên các lần hủy/đổi lịch riêng khu bệnh nhân. */
 export function resetPatientAppointmentMock(): void {
   cancelledOwnIds.clear();
+  patientRescheduleCounts.clear();
 }
 
 /**
- * Việc làm được theo trạng thái, mô phỏng BE: chỉ lịch Đã đặt chưa tới giờ; hủy khi còn đủ hạn tự hủy
- * (120 phút); phí chưa trả mới trả online.
+ * Việc làm được theo trạng thái, mô phỏng BE:
+ * - Chưa trả phí: hủy khi còn >= 120 phút; trả online khi PENDING_PAYMENT.
+ * - Đã trả phí: không tự hủy; tự đổi lịch khi còn >= 120 phút và còn lượt (tối đa 2).
  */
 function allowedActionsOf(
   status: AppointmentStatus,
   feeStatus: ExamFeeStatus,
   startAt: string,
+  remainingReschedules: number,
 ): PatientAppointmentAction[] {
   const now = bookingMockNow().getTime();
   if (status !== "BOOKED" || Date.parse(startAt) <= now) return [];
   const actions: PatientAppointmentAction[] = [];
-  if (isPatientCancellable(startAt, now)) actions.push("cancel");
+  if (feeStatus !== "PAID" && isPatientCancellable(startAt, now))
+    actions.push("cancel");
+  if (
+    feeStatus === "PAID" &&
+    isPatientCancellable(startAt, now) &&
+    remainingReschedules > 0
+  )
+    actions.push("reschedule");
   if (feeStatus === "PENDING_PAYMENT") actions.push("payExamFee");
   return actions;
 }
@@ -72,6 +87,13 @@ function withPatient(
   projection: Projection,
   profile: LinkedProfile,
 ): PatientAppointment {
+  const maxPatientReschedules = 2;
+  const patientRescheduleCount =
+    patientRescheduleCounts.get(projection.id) ?? 0;
+  const remainingReschedules = Math.max(
+    0,
+    maxPatientReschedules - patientRescheduleCount,
+  );
   return {
     ...projection,
     patient: {
@@ -79,10 +101,14 @@ function withPatient(
       fullName: profile.fullName,
       relationship: profile.relationship,
     },
+    patientRescheduleCount,
+    remainingReschedules,
+    maxPatientReschedules,
     allowedActions: allowedActionsOf(
       projection.status,
       projection.examFee.status,
       projection.startAt,
+      remainingReschedules,
     ),
   };
 }
@@ -249,7 +275,11 @@ export async function cancelMyAppointment(
 ): Promise<PatientAppointment> {
   await latency();
   const current = findMine(id);
-  if (current.status !== "BOOKED" || id === RACE_APPOINTMENT_ID)
+  if (
+    current.status !== "BOOKED" ||
+    id === RACE_APPOINTMENT_ID ||
+    current.examFee.status === "PAID"
+  )
     mockFail(409, "MSG-32");
   if (!isPatientCancellable(current.startAt, bookingMockNow().getTime()))
     mockFail(422, "MSG-32");
@@ -259,5 +289,79 @@ export async function cancelMyAppointment(
     cancelledOwnIds.add(id);
     markMockAppointmentCancelled(id);
   }
+  return findMine(id);
+}
+
+/** GET /api/v1/appointments/{id}/reschedule-availability (mock cho test) */
+export async function getMyRescheduleSlots(
+  id: string,
+  date: string,
+  signal?: AbortSignal,
+): Promise<RescheduleSlot[]> {
+  await latency(signal);
+  const current = findMine(id);
+  const now = bookingMockNow().getTime();
+  if (
+    current.status !== "BOOKED" ||
+    current.examFee.status !== "PAID" ||
+    (current.remainingReschedules ?? 2) <= 0
+  )
+    mockFail(409, "MSG-32");
+  if (!isPatientCancellable(current.startAt, now)) mockFail(422, "MSG-32");
+  const times = ["08:30", "09:30", "14:00"];
+  const slots: RescheduleSlot[] = [];
+  for (const doctor of BOOKING_DOCTORS) {
+    for (const time of times) {
+      const startTime = vnIsoAt(date, time);
+      if (Date.parse(startTime) <= now) continue;
+      if (
+        doctor.id === current.doctor.id &&
+        Date.parse(startTime) === Date.parse(current.startAt)
+      )
+        continue;
+      slots.push({
+        doctorId: doctor.id,
+        doctorDisplayName: doctor.fullName,
+        startTime,
+      });
+    }
+  }
+  return slots;
+}
+
+/** PATCH /api/v1/appointments/{id}/reschedule (mock cho test) */
+export async function rescheduleMyAppointment(
+  id: string,
+  input: { doctorId: string; startTime: string },
+): Promise<PatientAppointment> {
+  await latency();
+  const current = findMine(id);
+  const now = bookingMockNow().getTime();
+  if (
+    current.status !== "BOOKED" ||
+    id === RACE_APPOINTMENT_ID ||
+    current.examFee.status !== "PAID" ||
+    (current.remainingReschedules ?? 2) <= 0
+  )
+    mockFail(409, "MSG-32");
+  if (!isPatientCancellable(current.startAt, now)) mockFail(422, "MSG-32");
+  if (Date.parse(input.startTime) <= now) mockFail(422, "MSG-30");
+  if (
+    input.doctorId === current.doctor.id &&
+    Date.parse(input.startTime) === Date.parse(current.startAt)
+  )
+    mockFail(400, "MSG-31");
+  const doctor = doctorById(input.doctorId);
+  if (!doctor) mockFail(422, "MSG-24");
+
+  rescheduleStoredAppointment(id, {
+    doctor: { id: doctor.id, fullName: doctor.fullName },
+    roomName: doctor.room,
+    startAt: input.startTime,
+  });
+  patientRescheduleCounts.set(
+    id,
+    (patientRescheduleCounts.get(id) ?? 0) + 1,
+  );
   return findMine(id);
 }

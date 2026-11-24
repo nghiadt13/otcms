@@ -11,7 +11,7 @@ import type { DoctorRef } from "./appointment";
 // Ngày theo YYYY-MM-DD, thời điểm ISO có +07:00, tiền số nguyên VND, enum UPPER_SNAKE.
 
 /** Việc người bệnh làm được với một lịch. */
-export type PatientAppointmentAction = "cancel" | "payExamFee";
+export type PatientAppointmentAction = "cancel" | "payExamFee" | "reschedule";
 
 /** Tab: sắp tới (Đã đặt, sớm trước) hoặc đã qua (các trạng thái khác, mới trước). */
 export type AppointmentWhen = "upcoming" | "past";
@@ -34,6 +34,11 @@ export interface PatientAppointment {
   examFee: { amount: number; status: ExamFeeStatus };
   /** Bác sĩ vắng và chưa có người thay (UC22 AF1): lịch vẫn Đã đặt. */
   doctorUnavailable: boolean;
+  /** Số lần người bệnh đã tự đổi lịch (không tính lễ tân/quản trị). */
+  patientRescheduleCount?: number;
+  /** Số lần tự đổi lịch còn lại (tối đa 2). */
+  remainingReschedules?: number;
+  maxPatientReschedules?: number;
   allowedActions: PatientAppointmentAction[];
 }
 

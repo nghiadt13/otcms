@@ -77,7 +77,7 @@ describe("formatAppMessage", () => {
       "Chưa thể hoàn tất khám: cần có chẩn đoán chính và mọi chỉ định đã có kết quả (kể cả kết quả đọc phim) hoặc đã hủy.",
     );
     expect(formatAppMessage("MSG-93")).toBe(
-      "Khoản đã thanh toán không được hoàn lại, kể cả khi hủy lịch hẹn. Vui lòng kiểm tra kỹ trước khi thanh toán hoặc hủy.",
+      "Khoản đã thanh toán không được hoàn lại. Lịch hẹn đã thanh toán không thể tự hủy trực tuyến; bạn có thể đổi lịch tối đa 2 lần trước giờ hẹn ít nhất 2 giờ.",
     );
     expect(formatAppMessage("MSG-94")).toBe(
       "Bạn chưa thanh toán phí khám nên chưa thể tiếp nhận. Vui lòng thanh toán trực tuyến hoặc tại quầy lễ tân.",

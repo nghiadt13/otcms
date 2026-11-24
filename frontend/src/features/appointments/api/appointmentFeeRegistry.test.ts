@@ -101,7 +101,7 @@ describe("kho phí khám dùng chung: đặt mới, thanh toán, hủy", () => {
     expect(findMockAppointmentFee(binh.id)).toBeUndefined();
   });
 
-  it("thanh toán đã ghi vào kho: lịch chưa trả thành PAID, danh sách và chi tiết đều thấy; chỉ còn Hủy", async () => {
+  it("thanh toán đã ghi vào kho: lịch chưa trả thành PAID, danh sách và chi tiết đều thấy; chỉ còn Đổi lịch", async () => {
     markMockAppointmentFeePaid("apt-1001");
 
     expect(
@@ -110,14 +110,14 @@ describe("kho phí khám dùng chung: đặt mới, thanh toán, hủy", () => {
     ).toBe("PAID");
     const item = await getMyAppointment("apt-1001");
     expect(item.examFee).toEqual({ amount: 200000, status: "PAID" });
-    expect(item.allowedActions).toEqual(["cancel"]);
+    expect(item.allowedActions).toEqual(["reschedule"]);
   });
 
   it("lịch riêng khu bệnh nhân đã trả (apt-race) cũng thành PAID ở chi tiết", async () => {
     markMockAppointmentFeePaid(RACE_APPOINTMENT_ID);
     const item = await getMyAppointment(RACE_APPOINTMENT_ID);
     expect(item.examFee.status).toBe("PAID");
-    expect(item.allowedActions).toEqual(["cancel"]);
+    expect(item.allowedActions).toEqual(["reschedule"]);
   });
 
   it("hủy lịch chưa trả: kho ghi Đã hủy, phí vẫn chưa trả nhưng không còn là khoản phải trả", async () => {
@@ -135,10 +135,13 @@ describe("kho phí khám dùng chung: đặt mới, thanh toán, hủy", () => {
     );
   });
 
-  it("hủy lịch đã trả: phí giữ là đã trả (không hoàn tiền)", async () => {
-    await cancelMyAppointment("apt-1003");
+  it("lịch đã trả không được bệnh nhân tự hủy: vẫn BOOKED và phí giữ PAID", async () => {
+    await expect(cancelMyAppointment("apt-1003")).rejects.toMatchObject({
+      status: 409,
+      code: "MSG-32",
+    });
     expect(findMockAppointmentFee("apt-1003")).toMatchObject({
-      appointmentStatus: "CANCELLED",
+      appointmentStatus: "BOOKED",
       examFeeStatus: "PAID",
     });
   });

@@ -5,7 +5,9 @@ import { readStoredAppointments, resetBookingMock } from "./bookingMockStore";
 import {
   cancelMyAppointment,
   getMyAppointment,
+  getMyRescheduleSlots,
   listMyAppointments,
+  rescheduleMyAppointment,
   resetPatientAppointmentMock,
 } from "./patientAppointmentApi";
 import { RACE_APPOINTMENT_ID } from "./patientAppointmentMockData";
@@ -46,12 +48,13 @@ describe("cancelMyAppointment", () => {
     expect(upcoming.items.map((row) => row.id)).not.toContain("apt-1001");
   });
 
-  it("hủy lịch đã thanh toán vẫn được (phí không hoàn lại, xử lý ở giao diện)", async () => {
-    const item = await cancelMyAppointment("apt-1003");
-    expect(item).toMatchObject({
-      status: "CANCELLED",
-      examFee: { status: "PAID" },
+  it("lịch đã thanh toán không được tự hủy → 409 MSG-32", async () => {
+    expect(await errorOf(cancelMyAppointment("apt-1003"))).toMatchObject({
+      status: 409,
+      code: "MSG-32",
     });
+    const item = await getMyAppointment("apt-1003");
+    expect(item.status).toBe("BOOKED");
   });
 
   it("hủy lịch riêng khu bệnh nhân (bác sĩ vắng): chuyển sang Đã qua", async () => {
@@ -109,5 +112,46 @@ describe("cancelMyAppointment hạn tự hủy 120 phút", () => {
 
     vi.setSystemTime(start - 120 * 60_000);
     expect((await cancelMyAppointment("apt-1001")).status).toBe("CANCELLED");
+  });
+});
+
+describe("rescheduleMyAppointment", () => {
+  it("đổi lịch đã thanh toán tối đa 2 lần; lần thứ 3 bị chặn 409 MSG-32", async () => {
+    const slots = await getMyRescheduleSlots("apt-1003", "2026-10-29");
+    expect(slots.length).toBeGreaterThan(1);
+
+    const first = await rescheduleMyAppointment("apt-1003", {
+      doctorId: slots[0].doctorId,
+      startTime: slots[0].startTime,
+    });
+    expect(first.remainingReschedules).toBe(1);
+    expect(first.allowedActions).toEqual(["reschedule"]);
+
+    const second = await rescheduleMyAppointment("apt-1003", {
+      doctorId: slots[1].doctorId,
+      startTime: slots[1].startTime,
+    });
+    expect(second.remainingReschedules).toBe(0);
+    expect(second.allowedActions).toEqual([]);
+
+    expect(
+      await errorOf(
+        rescheduleMyAppointment("apt-1003", {
+          doctorId: slots[0].doctorId,
+          startTime: slots[0].startTime,
+        }),
+      ),
+    ).toMatchObject({ status: 409, code: "MSG-32" });
+  });
+
+  it("lịch chưa thanh toán không được tự đổi lịch → 409 MSG-32", async () => {
+    expect(
+      await errorOf(
+        rescheduleMyAppointment("apt-1001", {
+          doctorId: "doctor-ha",
+          startTime: "2026-10-29T09:30:00+07:00",
+        }),
+      ),
+    ).toMatchObject({ status: 409, code: "MSG-32" });
   });
 });
