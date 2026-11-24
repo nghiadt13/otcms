@@ -11,6 +11,7 @@ import fu.fa26.sep490.g58.otcms_be.appointment.model.dto.request.RescheduleAppoi
 import fu.fa26.sep490.g58.otcms_be.appointment.model.dto.request.UpdateAppointmentStatusRequest;
 import fu.fa26.sep490.g58.otcms_be.appointment.model.dto.response.AppointmentResponse;
 import fu.fa26.sep490.g58.otcms_be.appointment.model.dto.response.CheckInResponse;
+import fu.fa26.sep490.g58.otcms_be.appointment.service.AppointmentRescheduleCountQueryService;
 import fu.fa26.sep490.g58.otcms_be.appointment.service.CancelAppointmentCommand;
 import fu.fa26.sep490.g58.otcms_be.appointment.service.CancelAppointmentService;
 import fu.fa26.sep490.g58.otcms_be.appointment.service.CheckInAppointmentCommand;
@@ -25,11 +26,13 @@ import fu.fa26.sep490.g58.otcms_be.appointment.service.RescheduleAppointmentComm
 import fu.fa26.sep490.g58.otcms_be.appointment.service.RescheduleAppointmentService;
 import fu.fa26.sep490.g58.otcms_be.appointment.service.UpdateAppointmentStatusCommand;
 import fu.fa26.sep490.g58.otcms_be.appointment.service.UpdateAppointmentStatusService;
+import fu.fa26.sep490.g58.otcms_be.billing.service.AppointmentInvoicePaidStatusQueryService;
 import fu.fa26.sep490.g58.otcms_be.common.security.AccountRole;
 import fu.fa26.sep490.g58.otcms_be.common.security.AuthenticatedAccount;
 import fu.fa26.sep490.g58.otcms_be.common.web.CorrelationIdFilter;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -41,6 +44,7 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.net.URI;
+import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
@@ -53,11 +57,24 @@ public class AppointmentBookingController {
     private final CheckInAppointmentService checkInAppointment;
     private final MarkAppointmentNoShowService markNoShowAppointment;
     private final UpdateAppointmentStatusService updateAppointmentStatus;
+    private final AppointmentInvoicePaidStatusQueryService billingStatus;
+    private final AppointmentRescheduleCountQueryService rescheduleCounts;
 
     public AppointmentBookingController(CreateAppointmentService createAppointment,
             RescheduleAppointmentService rescheduleAppointment, CancelAppointmentService cancelAppointment,
             ReassignAppointmentService reassignAppointment, CheckInAppointmentService checkInAppointment,
             MarkAppointmentNoShowService markNoShowAppointment, UpdateAppointmentStatusService updateAppointmentStatus) {
+        this(createAppointment, rescheduleAppointment, cancelAppointment, reassignAppointment, checkInAppointment,
+                markNoShowAppointment, updateAppointmentStatus, null, null);
+    }
+
+    @Autowired
+    public AppointmentBookingController(CreateAppointmentService createAppointment,
+            RescheduleAppointmentService rescheduleAppointment, CancelAppointmentService cancelAppointment,
+            ReassignAppointmentService reassignAppointment, CheckInAppointmentService checkInAppointment,
+            MarkAppointmentNoShowService markNoShowAppointment, UpdateAppointmentStatusService updateAppointmentStatus,
+            AppointmentInvoicePaidStatusQueryService billingStatus,
+            AppointmentRescheduleCountQueryService rescheduleCounts) {
         this.createAppointment = createAppointment;
         this.rescheduleAppointment = rescheduleAppointment;
         this.cancelAppointment = cancelAppointment;
@@ -65,6 +82,8 @@ public class AppointmentBookingController {
         this.checkInAppointment = checkInAppointment;
         this.markNoShowAppointment = markNoShowAppointment;
         this.updateAppointmentStatus = updateAppointmentStatus;
+        this.billingStatus = billingStatus;
+        this.rescheduleCounts = rescheduleCounts;
     }
 
     @PatchMapping("/api/v1/appointments/{id}/status")
@@ -139,7 +158,7 @@ public class AppointmentBookingController {
     }
 
     @PatchMapping("/api/v1/appointments/{id}/reschedule")
-    @PreAuthorize("hasAnyAuthority('ROLE_RECEPTIONIST', 'ROLE_ADMIN')")
+    @PreAuthorize("hasAnyAuthority('ROLE_PATIENT', 'ROLE_RECEPTIONIST', 'ROLE_ADMIN')")
     public ResponseEntity<AppointmentResponse> reschedule(@PathVariable UUID id,
             @Valid @RequestBody RescheduleAppointmentRequest body,
             @AuthenticationPrincipal AuthenticatedAccount account, HttpServletRequest request) {
@@ -152,8 +171,18 @@ public class AppointmentBookingController {
         };
         var result = rescheduleAppointment.reschedule(id, new RescheduleAppointmentCommand(account.accountId(), actor,
                 body.getStartTime(), body.getDoctorId(), body.getReason(), CorrelationIdFilter.current(request)));
+        AppointmentResponse response = AppointmentMapper.toResponse(result);
+        if (billingStatus != null) {
+            Boolean paid = billingStatus.paidStatus(List.of(result.id())).get(result.id());
+            response = response.withExamFeePaid(paid);
+        }
+        if (rescheduleCounts != null) {
+            int count = rescheduleCounts.countPatientReschedules(result.id());
+            response = response.withPatientRescheduleStats(
+                    count, AppointmentRescheduleCountQueryService.MAX_PATIENT_RESCHEDULES);
+        }
         return ResponseEntity.ok().header(CorrelationIdFilter.HEADER, CorrelationIdFilter.current(request))
-                .body(AppointmentMapper.toResponse(result));
+                .body(response);
     }
 
     @PostMapping("/api/v1/appointments")

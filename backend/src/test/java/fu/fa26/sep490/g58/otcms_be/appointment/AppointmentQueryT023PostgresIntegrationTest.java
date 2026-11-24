@@ -45,16 +45,31 @@ class AppointmentQueryT023PostgresIntegrationTest {
     }
 
     @AfterEach void cleanup() {
-        if (service != null) {
-            jdbc.update("delete from appointments where service_id=?", service);
-            jdbc.update("delete from doctor_services where service_id=?", service);
-            jdbc.update("delete from clinic_services where id=?", service);
+        String triggerMode = jdbc.queryForObject("select tgenabled::text from pg_trigger "
+                        + "where tgrelid = 'audit_logs'::regclass and tgname = 'tr_audit_logs_immutable'",
+                String.class);
+        jdbc.execute("alter table audit_logs disable trigger tr_audit_logs_immutable");
+        try {
+            if (service != null) {
+                jdbc.update("delete from audit_logs where source = 'appointment_audits' and entity_id in "
+                        + "(select id from appointments where service_id = ?)", service);
+                jdbc.update("delete from appointments where service_id=?", service);
+                jdbc.update("delete from doctor_services where service_id=?", service);
+                jdbc.update("delete from clinic_services where id=?", service);
+            }
+            if (doctor != null) jdbc.update("delete from staff_profiles where id=?", doctor);
+            if (patient != null) jdbc.update("delete from patient_profiles where id=?", patient);
+            if (otherPatient != null) jdbc.update("delete from patient_profiles where id=?", otherPatient);
+            for (UUID id : new UUID[]{patientAccount, otherAccount, receptionist, doctorAccount}) if (id != null) jdbc.update("delete from accounts where id=?", id);
+            service = null;
+        } finally {
+            switch (triggerMode) {
+                case "D" -> jdbc.execute("alter table audit_logs disable trigger tr_audit_logs_immutable");
+                case "R" -> jdbc.execute("alter table audit_logs enable replica trigger tr_audit_logs_immutable");
+                case "A" -> jdbc.execute("alter table audit_logs enable always trigger tr_audit_logs_immutable");
+                default -> jdbc.execute("alter table audit_logs enable trigger tr_audit_logs_immutable");
+            }
         }
-        if (doctor != null) jdbc.update("delete from staff_profiles where id=?", doctor);
-        if (patient != null) jdbc.update("delete from patient_profiles where id=?", patient);
-        if (otherPatient != null) jdbc.update("delete from patient_profiles where id=?", otherPatient);
-        for (UUID id : new UUID[]{patientAccount, otherAccount, receptionist, doctorAccount}) if (id != null) jdbc.update("delete from accounts where id=?", id);
-        service = null;
     }
 
     @Test void patientListIsScopedAndInclusiveDateFiltersAndPaginationAreStable() throws Exception {
@@ -75,11 +90,23 @@ class AppointmentQueryT023PostgresIntegrationTest {
     @Test void detailReturnsApprovedDtoAndToDateIsInclusiveInClinicZone() throws Exception {
         UUID own = jdbc.queryForObject("select id from appointments where patient_profile_id=? and start_time=?", UUID.class,
                 patient, Timestamp.from(Instant.parse("2026-10-12T17:00:00Z")));
+        Instant now = Instant.parse("2026-10-01T00:00:00Z");
+        jdbc.update("insert into audit_logs (entity_id, actor_account_id, actor_type, source, category, action, record_type, occurred_at, correlation_id) "
+                        + "values (?, ?, 'PATIENT', 'appointment_audits', 'APPOINTMENT', 'RESCHEDULED', 'APPOINTMENT', ?, ?)",
+                own, patientAccount, Timestamp.from(now), UUID.randomUUID().toString());
+        jdbc.update("insert into audit_logs (entity_id, actor_account_id, actor_type, source, category, action, record_type, occurred_at, correlation_id) "
+                        + "values (?, ?, 'RECEPTIONIST', 'appointment_audits', 'APPOINTMENT', 'RESCHEDULED', 'APPOINTMENT', ?, ?)",
+                own, receptionist, Timestamp.from(now), UUID.randomUUID().toString());
         mvc.perform(get("/api/v1/appointments/{id}", own).with(actor(patientAccount, AccountType.PATIENT)).with(csrf()))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.id").value(own.toString()))
-                .andExpect(jsonPath("$.purpose").value("private purpose"));
+                .andExpect(jsonPath("$.purpose").value("private purpose"))
+                .andExpect(jsonPath("$.patientRescheduleCount").value(1))
+                .andExpect(jsonPath("$.remainingReschedules").value(1))
+                .andExpect(jsonPath("$.maxPatientReschedules").value(2));
         mvc.perform(get("/api/v1/appointments").with(actor(receptionist, AccountType.RECEPTIONIST)).with(csrf()).param("to", "2026-10-13"))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.totalElements").value(1));
+                .andExpect(status().isOk()).andExpect(jsonPath("$.totalElements").value(1))
+                .andExpect(jsonPath("$.items[0].patientRescheduleCount").value(1))
+                .andExpect(jsonPath("$.items[0].remainingReschedules").value(1));
     }
 
     @Test void receptionistAndDoctorListsUseClinicAndCurrentDoctorScopes() throws Exception {

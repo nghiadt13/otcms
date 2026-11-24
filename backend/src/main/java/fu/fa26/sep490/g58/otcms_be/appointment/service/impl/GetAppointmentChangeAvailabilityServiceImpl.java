@@ -5,12 +5,14 @@ import fu.fa26.sep490.g58.otcms_be.appointment.exception.AppointmentAvailability
 import fu.fa26.sep490.g58.otcms_be.appointment.repository.AppointmentChangeRepository;
 import fu.fa26.sep490.g58.otcms_be.appointment.service.AppointmentAvailabilityQuery;
 import fu.fa26.sep490.g58.otcms_be.appointment.service.AppointmentAvailabilitySlot;
+import fu.fa26.sep490.g58.otcms_be.appointment.service.AppointmentRescheduleCountQueryService;
 import fu.fa26.sep490.g58.otcms_be.appointment.service.GenerateAvailableSlotsService;
 import fu.fa26.sep490.g58.otcms_be.appointment.service.GetAppointmentChangeAvailabilityService;
 
 import fu.fa26.sep490.g58.otcms_be.appointment.model.AvailableSlot;
 import fu.fa26.sep490.g58.otcms_be.appointment.model.SlotAvailabilityRequest;
 import fu.fa26.sep490.g58.otcms_be.appointment.model.SlotServiceContext;
+import fu.fa26.sep490.g58.otcms_be.billing.service.AppointmentInvoicePaidStatusQueryService;
 import fu.fa26.sep490.g58.otcms_be.config.AppointmentBookingProperties;
 import fu.fa26.sep490.g58.otcms_be.patient.service.AuthorizePatientProfileService;
 import fu.fa26.sep490.g58.otcms_be.servicecatalog.service.ServiceDoctorAssignmentQueryService;
@@ -36,11 +38,15 @@ public class GetAppointmentChangeAvailabilityServiceImpl implements GetAppointme
     private final GenerateAvailableSlotsService slotEngine;
     private final AppointmentBookingProperties properties;
     private final Clock clock;
+    private final AppointmentInvoicePaidStatusQueryService invoicePaidStatus;
+    private final AppointmentRescheduleCountQueryService rescheduleCounts;
 
     public GetAppointmentChangeAvailabilityServiceImpl(AppointmentChangeRepository appointments,
             AuthorizePatientProfileService patientAuthorization,
             ServiceDoctorAssignmentQueryService assignments, StaffAvailabilityProviderQueryService providers,
-            GenerateAvailableSlotsService slotEngine, AppointmentBookingProperties properties, Clock clock) {
+            GenerateAvailableSlotsService slotEngine, AppointmentBookingProperties properties, Clock clock,
+            AppointmentInvoicePaidStatusQueryService invoicePaidStatus,
+            AppointmentRescheduleCountQueryService rescheduleCounts) {
         this.appointments = appointments;
         this.patientAuthorization = patientAuthorization;
         this.assignments = assignments;
@@ -48,6 +54,8 @@ public class GetAppointmentChangeAvailabilityServiceImpl implements GetAppointme
         this.slotEngine = slotEngine;
         this.properties = properties;
         this.clock = clock;
+        this.invoicePaidStatus = invoicePaidStatus;
+        this.rescheduleCounts = rescheduleCounts;
     }
 
     @Override
@@ -66,9 +74,19 @@ public class GetAppointmentChangeAvailabilityServiceImpl implements GetAppointme
         }
         requireConfirmed(appointment);
         Instant now = Instant.now(clock);
-        if (actor == AppointmentAvailabilityQuery.Audience.PUBLIC
-                && appointment.startTime().isBefore(now.plus(properties.patientChangeDeadlineMinutes(), ChronoUnit.MINUTES))) {
-            throw new AppointmentAvailabilityException("APPOINTMENT_CHANGE_TOO_LATE");
+        if (actor == AppointmentAvailabilityQuery.Audience.PUBLIC) {
+            boolean paid = Boolean.TRUE.equals(
+                    invoicePaidStatus.paidStatus(List.of(appointmentId)).get(appointmentId));
+            if (!paid) {
+                throw new AppointmentAvailabilityException("APPOINTMENT_NOT_CHANGEABLE");
+            }
+            if (rescheduleCounts.countPatientReschedules(appointmentId)
+                    >= AppointmentRescheduleCountQueryService.MAX_PATIENT_RESCHEDULES) {
+                throw new AppointmentAvailabilityException("APPOINTMENT_NOT_CHANGEABLE");
+            }
+            if (appointment.startTime().isBefore(now.plus(properties.patientChangeDeadlineMinutes(), ChronoUnit.MINUTES))) {
+                throw new AppointmentAvailabilityException("APPOINTMENT_CHANGE_TOO_LATE");
+            }
         }
         validateWindow(fromDate, toDate);
         Set<UUID> assigned = Set.copyOf(assignments.findActiveDoctorProfileIds(appointment.serviceId()));
@@ -76,8 +94,14 @@ public class GetAppointmentChangeAvailabilityServiceImpl implements GetAppointme
                 .map(StaffAvailabilityProviderQueryService.AvailabilityProvider::doctorProfileId)
                 .filter(assigned::contains).collect(Collectors.toSet());
         if (eligible.isEmpty()) return List.of();
-        return generate(appointment, eligible, fromDate, toDate)
-                .stream().filter(slot -> !slot.startTime().isBefore(now)).toList();
+        return generate(appointment, eligible, fromDate, toDate).stream()
+                .filter(slot -> actor == AppointmentAvailabilityQuery.Audience.PUBLIC
+                        ? slot.startTime().isAfter(now)
+                        : !slot.startTime().isBefore(now))
+                .filter(slot -> actor != AppointmentAvailabilityQuery.Audience.PUBLIC
+                        || !(slot.doctorId().equals(appointment.doctorProfileId())
+                                && slot.startTime().equals(appointment.startTime())))
+                .toList();
     }
 
     @Override

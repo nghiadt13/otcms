@@ -12,6 +12,7 @@ import fu.fa26.sep490.g58.otcms_be.appointment.exception.AppointmentBookingExcep
 import fu.fa26.sep490.g58.otcms_be.appointment.repository.AppointmentCancellationRepository;
 import fu.fa26.sep490.g58.otcms_be.appointment.service.CancelAppointmentCommand;
 import fu.fa26.sep490.g58.otcms_be.appointment.service.CancelAppointmentService;
+import fu.fa26.sep490.g58.otcms_be.billing.service.AppointmentInvoicePaidStatusQueryService;
 import fu.fa26.sep490.g58.otcms_be.billing.service.BillingRefundService;
 
 import fu.fa26.sep490.g58.otcms_be.config.AppointmentBookingProperties;
@@ -30,6 +31,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.List;
 import java.util.UUID;
 import java.util.function.Supplier;
 
@@ -44,13 +46,30 @@ public class CancelAppointmentServiceImpl implements CancelAppointmentService {
     private final NotificationPublisher notifications;
     private final StaffAvailabilityProviderQueryService doctors;
     private final BillingRefundService fees;
+    private final AppointmentInvoicePaidStatusQueryService invoicePaidStatus;
     /** Null in plain unit tests (no transaction manager): the body then simply runs without a transaction. */
     private final TransactionTemplate transaction;
 
     public CancelAppointmentServiceImpl(CoordinationGuardService guard, AppointmentCancellationRepository appointments,
             AuthorizePatientProfileService patientAuthorization, AppointmentBookingProperties properties, Clock clock,
             NotificationPublisher notifications, StaffAvailabilityProviderQueryService doctors, BillingRefundService fees, AuditLogWriter auditLogWriter) {
-        this(guard, appointments, patientAuthorization, properties, clock, null, null, notifications, doctors, fees, null, auditLogWriter);
+        this(guard, appointments, patientAuthorization, properties, clock, null, null, notifications, doctors, fees, null, auditLogWriter, null);
+    }
+
+    public CancelAppointmentServiceImpl(CoordinationGuardService guard, AppointmentCancellationRepository appointments,
+            AuthorizePatientProfileService patientAuthorization, AppointmentBookingProperties properties, Clock clock,
+            NotificationPublisher notifications, StaffAvailabilityProviderQueryService doctors, BillingRefundService fees,
+            AuditLogWriter auditLogWriter, AppointmentInvoicePaidStatusQueryService invoicePaidStatus) {
+        this(guard, appointments, patientAuthorization, properties, clock, null, null, notifications, doctors, fees, null, auditLogWriter, invoicePaidStatus);
+    }
+
+    public CancelAppointmentServiceImpl(CoordinationGuardService guard, AppointmentCancellationRepository appointments,
+            AuthorizePatientProfileService patientAuthorization, AppointmentBookingProperties properties, Clock clock,
+            AppointmentLifecycleRepository lifecycle, VisitScheduledCareService visits,
+            NotificationPublisher notifications, StaffAvailabilityProviderQueryService doctors,
+            BillingRefundService fees, PlatformTransactionManager transactionManager, AuditLogWriter auditLogWriter) {
+        this(guard, appointments, patientAuthorization, properties, clock, lifecycle, visits, notifications, doctors,
+                fees, transactionManager, auditLogWriter, null);
     }
 
     @Autowired
@@ -58,7 +77,8 @@ public class CancelAppointmentServiceImpl implements CancelAppointmentService {
             AuthorizePatientProfileService patientAuthorization, AppointmentBookingProperties properties, Clock clock,
             AppointmentLifecycleRepository lifecycle, VisitScheduledCareService visits,
             NotificationPublisher notifications, StaffAvailabilityProviderQueryService doctors,
-            BillingRefundService fees, PlatformTransactionManager transactionManager, AuditLogWriter auditLogWriter) {
+            BillingRefundService fees, PlatformTransactionManager transactionManager, AuditLogWriter auditLogWriter,
+            AppointmentInvoicePaidStatusQueryService invoicePaidStatus) {
         this.auditLogWriter = auditLogWriter;
         this.transaction = transactionManager == null ? null : new TransactionTemplate(transactionManager);
         this.fees = fees;
@@ -69,6 +89,7 @@ public class CancelAppointmentServiceImpl implements CancelAppointmentService {
         this.clock = clock;
         this.notifications = notifications;
         this.doctors = doctors;
+        this.invoicePaidStatus = invoicePaidStatus;
     }
 
     /** Runs in one transaction: the appointment and its exam-fee item change together (D7: no automatic refunds). */
@@ -113,6 +134,9 @@ public class CancelAppointmentServiceImpl implements CancelAppointmentService {
             throw new AppointmentBookingException("APPOINTMENT_NOT_CHANGEABLE");
         }
         if (!"CONFIRMED".equals(current.status())) throw new AppointmentBookingException("APPOINTMENT_NOT_CHANGEABLE");
+        if (command.actor() == CancelAppointmentCommand.Actor.PATIENT && isExamFeePaid(appointmentId)) {
+            throw new AppointmentBookingException("APPOINTMENT_NOT_CHANGEABLE");
+        }
         if (command.actor() == CancelAppointmentCommand.Actor.PATIENT
                 && current.startTime().isBefore(now.plus(properties.patientChangeDeadlineMinutes(), ChronoUnit.MINUTES))) {
             throw new AppointmentBookingException("APPOINTMENT_CHANGE_TOO_LATE");
@@ -144,6 +168,11 @@ public class CancelAppointmentServiceImpl implements CancelAppointmentService {
         } else {
             fees.voidUnpaidAppointmentFee(appointment.id());
         }
+    }
+
+    private boolean isExamFeePaid(UUID appointmentId) {
+        return invoicePaidStatus != null
+                && Boolean.TRUE.equals(invoicePaidStatus.paidStatus(List.of(appointmentId)).get(appointmentId));
     }
 
     private void publishCancellation(CancellableAppointment appointment, CancelAppointmentCommand command) {

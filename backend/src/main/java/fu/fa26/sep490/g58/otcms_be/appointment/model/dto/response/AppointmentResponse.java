@@ -28,6 +28,9 @@ public class AppointmentResponse {
     private final Boolean examFeePaid;
     private final String patientName;
     private final Instant paymentDeadline;
+    private final Integer patientRescheduleCount;
+    private final Integer remainingReschedules;
+    private final Integer maxPatientReschedules;
     public AppointmentResponse(UUID id, UUID patientProfileId, UUID serviceId, String serviceName, BigDecimal servicePrice, UUID doctorId, String doctorDisplayName, String status, String bookingSource, String purpose, Instant startTime, Instant endTime, int durationMinutes, int bufferMinutes, Instant occupiedUntil, UUID visitId, UUID sourceVisitId, Instant createdAt, Instant updatedAt) {
         this(id, patientProfileId, serviceId, serviceName, servicePrice, doctorId, doctorDisplayName, status,
                 bookingSource, purpose, startTime, endTime, durationMinutes, bufferMinutes, occupiedUntil,
@@ -57,6 +60,17 @@ public class AppointmentResponse {
             String purpose, Instant startTime, Instant endTime, int durationMinutes, int bufferMinutes,
             Instant occupiedUntil, UUID visitId, UUID sourceVisitId, Instant createdAt, Instant updatedAt,
             Boolean examFeePaid, String patientName, Instant paymentDeadline) {
+        this(id, patientProfileId, serviceId, serviceName, servicePrice, doctorId, doctorDisplayName, status,
+                bookingSource, purpose, startTime, endTime, durationMinutes, bufferMinutes, occupiedUntil,
+                visitId, sourceVisitId, createdAt, updatedAt, examFeePaid, patientName, paymentDeadline,
+                null, null, null);
+    }
+    public AppointmentResponse(UUID id, UUID patientProfileId, UUID serviceId, String serviceName,
+            BigDecimal servicePrice, UUID doctorId, String doctorDisplayName, String status, String bookingSource,
+            String purpose, Instant startTime, Instant endTime, int durationMinutes, int bufferMinutes,
+            Instant occupiedUntil, UUID visitId, UUID sourceVisitId, Instant createdAt, Instant updatedAt,
+            Boolean examFeePaid, String patientName, Instant paymentDeadline,
+            Integer patientRescheduleCount, Integer remainingReschedules, Integer maxPatientReschedules) {
         this.paymentDeadline = paymentDeadline;
         this.patientName = patientName;
         this.id = id;
@@ -79,6 +93,9 @@ public class AppointmentResponse {
         this.createdAt = createdAt;
         this.updatedAt = updatedAt;
         this.examFeePaid = examFeePaid;
+        this.patientRescheduleCount = patientRescheduleCount;
+        this.remainingReschedules = remainingReschedules;
+        this.maxPatientReschedules = maxPatientReschedules;
     }
     public UUID getId() { return id; }
     public UUID id() { return id; }
@@ -124,10 +141,24 @@ public class AppointmentResponse {
     public String patientName() { return patientName; }
     public Instant getPaymentDeadline() { return paymentDeadline; }
     public Instant paymentDeadline() { return paymentDeadline; }
+    public Integer getPatientRescheduleCount() { return patientRescheduleCount; }
+    public Integer patientRescheduleCount() { return patientRescheduleCount; }
+    public Integer getRemainingReschedules() { return remainingReschedules; }
+    public Integer remainingReschedules() { return remainingReschedules; }
+    public Integer getMaxPatientReschedules() { return maxPatientReschedules; }
+    public Integer maxPatientReschedules() { return maxPatientReschedules; }
     public AppointmentResponse withExamFeePaid(Boolean paid) {
         return new AppointmentResponse(id, patientProfileId, serviceId, serviceName, servicePrice, doctorId,
                 doctorDisplayName, status, bookingSource, purpose, startTime, endTime, durationMinutes,
                 bufferMinutes, occupiedUntil, visitId, sourceVisitId, createdAt, updatedAt, paid, patientName,
-                paymentDeadline);
+                paymentDeadline, patientRescheduleCount, remainingReschedules, maxPatientReschedules);
+    }
+    public AppointmentResponse withPatientRescheduleStats(int count, int max) {
+        int safeCount = Math.max(0, count);
+        int safeMax = Math.max(0, max);
+        return new AppointmentResponse(id, patientProfileId, serviceId, serviceName, servicePrice, doctorId,
+                doctorDisplayName, status, bookingSource, purpose, startTime, endTime, durationMinutes,
+                bufferMinutes, occupiedUntil, visitId, sourceVisitId, createdAt, updatedAt, examFeePaid, patientName,
+                paymentDeadline, safeCount, Math.max(0, safeMax - safeCount), safeMax);
     }
 }

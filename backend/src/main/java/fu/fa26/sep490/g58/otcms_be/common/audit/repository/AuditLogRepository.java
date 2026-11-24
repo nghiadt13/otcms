@@ -2,6 +2,8 @@ package fu.fa26.sep490.g58.otcms_be.common.audit.repository;
 
 import fu.fa26.sep490.g58.otcms_be.common.audit.model.AuditLogJpaEntity;
 import java.time.Instant;
+import java.util.Collection;
+import java.util.List;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -31,4 +33,22 @@ public interface AuditLogRepository extends Repository<AuditLogJpaEntity, UUID> 
 
     long countBySourceAndActionAndOutcomeAndIdentifierHmacAndOccurredAtAfter(
             String source, String action, String outcome, String identifierHmac, Instant since);
+
+    long countBySourceAndActionAndEntityIdAndActorType(
+            String source, String action, UUID entityId, String actorType);
+
+    @Query("""
+            select a.entityId, count(a)
+            from AuditLogJpaEntity a
+            where a.source = :source
+              and a.action = :action
+              and a.actorType = :actorType
+              and a.entityId in :entityIds
+            group by a.entityId
+            """)
+    List<Object[]> countByEntityIdsAndSourceAndActionAndActorType(
+            @Param("entityIds") Collection<UUID> entityIds,
+            @Param("source") String source,
+            @Param("action") String action,
+            @Param("actorType") String actorType);
 }

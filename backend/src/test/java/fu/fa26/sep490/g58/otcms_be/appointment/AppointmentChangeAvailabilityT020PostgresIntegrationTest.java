@@ -110,16 +110,33 @@ class AppointmentChangeAvailabilityT020PostgresIntegrationTest {
     @AfterEach
     void cleanUp() {
         if (serviceId == null) return;
-        jdbc.update("delete from appointments where id in (?, ?, ?)",
-                confirmedAppointmentId, pastAppointmentId, cancelledAppointmentId);
-        jdbc.update("delete from doctor_services where service_id = ?", serviceId);
-        jdbc.update("delete from work_shifts where staff_profile_id in (?, ?)",
-                currentDoctorId, replacementDoctorId);
-        jdbc.update("delete from staff_profiles where id in (?, ?)", currentDoctorId, replacementDoctorId);
-        jdbc.update("delete from patient_profiles where id in (?, ?)", patientProfileId, otherPatientProfileId);
-        jdbc.update("delete from accounts where id in (?, ?, ?, ?, ?)", patientAccountId, otherPatientAccountId,
-                receptionistAccountId, currentDoctorAccountId, replacementDoctorAccountId);
-        jdbc.update("delete from clinic_services where id = ?", serviceId);
+        String triggerMode = jdbc.queryForObject("select tgenabled::text from pg_trigger "
+                        + "where tgrelid = 'audit_logs'::regclass and tgname = 'tr_audit_logs_immutable'",
+                String.class);
+        jdbc.execute("alter table audit_logs disable trigger tr_audit_logs_immutable");
+        try {
+            jdbc.update("delete from audit_logs where source = 'appointment_audits' and entity_id in (?, ?, ?)",
+                    confirmedAppointmentId, pastAppointmentId, cancelledAppointmentId);
+            jdbc.update("delete from invoices where appointment_id in (?, ?, ?)",
+                    confirmedAppointmentId, pastAppointmentId, cancelledAppointmentId);
+            jdbc.update("delete from appointments where id in (?, ?, ?)",
+                    confirmedAppointmentId, pastAppointmentId, cancelledAppointmentId);
+            jdbc.update("delete from doctor_services where service_id = ?", serviceId);
+            jdbc.update("delete from work_shifts where staff_profile_id in (?, ?)",
+                    currentDoctorId, replacementDoctorId);
+            jdbc.update("delete from staff_profiles where id in (?, ?)", currentDoctorId, replacementDoctorId);
+            jdbc.update("delete from patient_profiles where id in (?, ?)", patientProfileId, otherPatientProfileId);
+            jdbc.update("delete from accounts where id in (?, ?, ?, ?, ?)", patientAccountId, otherPatientAccountId,
+                    receptionistAccountId, currentDoctorAccountId, replacementDoctorAccountId);
+            jdbc.update("delete from clinic_services where id = ?", serviceId);
+        } finally {
+            switch (triggerMode) {
+                case "D" -> jdbc.execute("alter table audit_logs disable trigger tr_audit_logs_immutable");
+                case "R" -> jdbc.execute("alter table audit_logs enable replica trigger tr_audit_logs_immutable");
+                case "A" -> jdbc.execute("alter table audit_logs enable always trigger tr_audit_logs_immutable");
+                default -> jdbc.execute("alter table audit_logs enable trigger tr_audit_logs_immutable");
+            }
+        }
     }
 
     @Test
@@ -142,18 +159,40 @@ class AppointmentChangeAvailabilityT020PostgresIntegrationTest {
     }
 
     @Test
-    void rescheduleAvailabilityEnforcesProfileScopeRoleAndPatientChangeDeadline() throws Exception {
+    void rescheduleAvailabilityEnforcesProfileScopeRolePaidStatusAndPatientChangeDeadline() throws Exception {
         mvc.perform(get(reschedulePath()).with(actor(otherPatientAccountId, AccountType.PATIENT))
                         .param("from", CHANGE_DATE.toString()).param("to", CHANGE_DATE.toString()))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.error.code").value("MSG-29"));
 
+        // Unpaid confirmed appointment cannot be rescheduled by patient
+        mvc.perform(get(reschedulePath()).with(actor(patientAccountId, AccountType.PATIENT))
+                        .param("from", CHANGE_DATE.toString()).param("to", CHANGE_DATE.toString()))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error.code").value("MSG-32"));
+
+        // Paid confirmed appointment >= 2h away returns eligible slots, excluding current (doctor, startTime)
+        insertPaidInvoice(confirmedAppointmentId, patientProfileId, patientAccountId);
+        jdbc.update("update staff_profiles set accepting_new_bookings = true, in_active_directory = true where id = ?",
+                currentDoctorId);
+        mvc.perform(get(reschedulePath()).with(actor(patientAccountId, AccountType.PATIENT))
+                        .param("from", CHANGE_DATE.toString()).param("to", CHANGE_DATE.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.slots[?(@.doctorId == '" + currentDoctorId + "' && @.startTime == '" + APPOINTMENT_START + "')]").isEmpty())
+                .andExpect(jsonPath("$.slots[?(@.doctorId == '" + currentDoctorId + "' && @.startTime != '" + APPOINTMENT_START + "')]").isNotEmpty())
+                .andExpect(jsonPath("$.slots[?(@.doctorId == '" + replacementDoctorId + "' && @.startTime == '" + APPOINTMENT_START + "')]").isNotEmpty());
+
+        // Paid appointment inside 2h deadline is blocked with 422 MSG-32
+        insertPaidInvoice(pastAppointmentId, patientProfileId, patientAccountId);
+        mvc.perform(get(reschedulePath(pastAppointmentId)).with(actor(patientAccountId, AccountType.PATIENT))
+                        .param("from", CHANGE_DATE.toString()).param("to", CHANGE_DATE.toString()))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.error.code").value("MSG-32"));
+
+        // Staff keeps full access without 2h or paid restrictions
         mvc.perform(get(reschedulePath()).with(actor(UUID.randomUUID(), AccountType.ADMIN))
                         .param("from", CHANGE_DATE.toString()).param("to", CHANGE_DATE.toString()))
                 .andExpect(status().isOk());
-
-        mvc.perform(get(reschedulePath(pastAppointmentId)).with(actor(patientAccountId, AccountType.PATIENT))
-                        .param("from", CHANGE_DATE.toString()).param("to", CHANGE_DATE.toString()))
-                .andExpect(status().isForbidden());
     }
 
     @Test
@@ -230,6 +269,14 @@ class AppointmentChangeAvailabilityT020PostgresIntegrationTest {
                         + "values (?, ?, ?, ?, ?, 'RECEPTIONIST_ASSISTED', 'T020 integration fixture', ?, ?, 30, 5, ?)",
                 id, patientId, serviceId, doctorId, status, Timestamp.from(start),
                 Timestamp.from(start.plusSeconds(1800)), creatorId);
+    }
+
+    private void insertPaidInvoice(UUID appointmentId, UUID profileId, UUID creatorId) {
+        UUID invoiceId = UUID.randomUUID();
+        jdbc.update("insert into invoices (id, invoice_number, patient_profile_id, appointment_id, source_type, "
+                        + "source_fingerprint, status, created_by_account_id) values (?, ?, ?, ?, 'APPOINTMENT', ?, 'PAID', ?)",
+                invoiceId, "INV-T020-" + invoiceId.toString().substring(0, 8), profileId, appointmentId,
+                "fp-" + invoiceId, creatorId);
     }
 
     private Timestamp shiftStart() {

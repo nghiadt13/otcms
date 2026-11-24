@@ -86,6 +86,8 @@ class CancelAppointmentT025PostgresIntegrationTest {
         try {
             if (service != null) {
                 jdbc.update("delete from audit_logs where source = 'appointment_audits' and entity_id in (select id from appointments where service_id = ?)", service);
+                jdbc.update("delete from invoice_items where invoice_id in (select id from invoices where appointment_id in (select id from appointments where service_id = ?))", service);
+                jdbc.update("delete from invoices where appointment_id in (select id from appointments where service_id = ?)", service);
                 jdbc.update("delete from appointments where service_id = ?", service);
                 jdbc.update("delete from doctor_services where service_id = ?", service);
                 jdbc.update("delete from clinic_services where id = ?", service);
@@ -194,6 +196,28 @@ class CancelAppointmentT025PostgresIntegrationTest {
                         .contentType("application/json").content("{}"))
                 .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("MSG-31"));
         assertEquals("CONFIRMED", jdbc.queryForObject("select status from appointments where id = ?", String.class, appointment));
+    }
+
+    @Test
+    void patientCannotSelfCancelPaidAppointmentWhileAdminStillCan() throws Exception {
+        UUID invoiceId = UUID.randomUUID();
+        jdbc.update("insert into invoices (id, invoice_number, patient_profile_id, appointment_id, source_type, "
+                        + "source_fingerprint, status, created_by_account_id) values (?, ?, ?, ?, 'APPOINTMENT', ?, 'PAID', ?)",
+                invoiceId, "INV-T025-" + invoiceId.toString().substring(0, 8), patientProfile, appointment,
+                "fp-" + invoiceId, patientAccount);
+
+        mvc.perform(post("/api/v1/appointments/{id}/cancel", appointment)
+                        .with(actor(patientAccount, AccountType.PATIENT)).with(csrf())
+                        .contentType("application/json").content("{}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error.code").value("MSG-32"));
+        assertEquals("CONFIRMED", jdbc.queryForObject("select status from appointments where id = ?", String.class, appointment));
+
+        mvc.perform(post("/api/v1/appointments/{id}/cancel", appointment)
+                        .with(actor(adminAccount, AccountType.ADMIN)).with(csrf())
+                        .contentType("application/json").content("{\"reason\":\"Clinic closed\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("CANCELLED"));
     }
 
     private UUID insertAppointment(UUID profileId, UUID creator, Instant start, String purpose) {

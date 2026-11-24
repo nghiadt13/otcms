@@ -66,7 +66,7 @@ public class AppointmentAvailabilityController {
     }
 
     @GetMapping("/api/v1/appointments/{appointmentId}/reschedule-availability")
-    @PreAuthorize("hasAnyAuthority('ROLE_RECEPTIONIST', 'ROLE_ADMIN')")
+    @PreAuthorize("hasAnyAuthority('ROLE_PATIENT', 'ROLE_RECEPTIONIST', 'ROLE_ADMIN')")
     @ResponseStatus(HttpStatus.OK)
     public AppointmentAvailabilityResponse rescheduleAvailability(@org.springframework.web.bind.annotation.PathVariable String appointmentId,
             @RequestParam(required = false) String from, @RequestParam(required = false) String to) {

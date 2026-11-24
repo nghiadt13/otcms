@@ -11,6 +11,7 @@ import fu.fa26.sep490.g58.otcms_be.appointment.repository.*;
 import fu.fa26.sep490.g58.otcms_be.appointment.service.impl.*;
 import fu.fa26.sep490.g58.otcms_be.appointment.model.AvailableSlot;
 import fu.fa26.sep490.g58.otcms_be.appointment.model.SlotAvailabilityRequest;
+import fu.fa26.sep490.g58.otcms_be.billing.service.AppointmentInvoicePaidStatusQueryService;
 import fu.fa26.sep490.g58.otcms_be.config.AppointmentBookingProperties;
 import fu.fa26.sep490.g58.otcms_be.common.service.CoordinationGuardService;
 import fu.fa26.sep490.g58.otcms_be.patient.exception.PatientAuthorizationDeniedException;
@@ -24,6 +25,7 @@ import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -45,6 +47,8 @@ class RescheduleAppointmentServiceImplT024Test {
     private final GenerateAvailableSlotsService slots = mock(GenerateAvailableSlotsService.class);
     private final fu.fa26.sep490.g58.otcms_be.staff.service.StaffAvailabilityProviderQueryService doctors = mock(fu.fa26.sep490.g58.otcms_be.staff.service.StaffAvailabilityProviderQueryService.class);
     private final fu.fa26.sep490.g58.otcms_be.servicecatalog.service.ServiceDoctorAssignmentQueryService assignments = mock(fu.fa26.sep490.g58.otcms_be.servicecatalog.service.ServiceDoctorAssignmentQueryService.class);
+    private final AppointmentInvoicePaidStatusQueryService invoicePaidStatus = mock(AppointmentInvoicePaidStatusQueryService.class);
+    private final AppointmentRescheduleCountQueryService rescheduleCounts = mock(AppointmentRescheduleCountQueryService.class);
     private RescheduleAppointmentServiceImpl handler;
     private ReschedulableAppointment current;
 
@@ -55,7 +59,8 @@ class RescheduleAppointmentServiceImplT024Test {
         handler = new RescheduleAppointmentServiceImpl(guard, appointments, auth, slots, properties,
                 Clock.fixed(now, ZoneId.of("UTC")),
                 mock(fu.fa26.sep490.g58.otcms_be.notification.service.NotificationPublisher.class),
-                doctors, org.mockito.Mockito.mock(fu.fa26.sep490.g58.otcms_be.common.audit.AuditLogWriter.class), assignments);
+                doctors, org.mockito.Mockito.mock(fu.fa26.sep490.g58.otcms_be.common.audit.AuditLogWriter.class), assignments,
+                invoicePaidStatus, rescheduleCounts);
         when(assignments.findActiveDoctorProfileIds(serviceId)).thenReturn(List.of(doctorId));
         when(doctors.findAcceptingDoctorsInActiveDirectory()).thenReturn(List.of(new fu.fa26.sep490.g58.otcms_be.staff.service.StaffAvailabilityProviderQueryService.AvailabilityProvider(doctorId, "Doctor", true)));
         current = new ReschedulableAppointment(appointmentId, patientId, serviceId,
@@ -64,6 +69,8 @@ class RescheduleAppointmentServiceImplT024Test {
         when(appointments.findForUpdate(appointmentId)).thenReturn(Optional.of(current));
         when(auth.authorize(accountId, patientId)).thenReturn(new AuthorizePatientProfileService.AuthorizedPatientProfile(
                 patientId, AuthorizePatientProfileService.AuthorizationScope.SELF));
+        when(invoicePaidStatus.paidStatus(List.of(appointmentId))).thenReturn(Map.of(appointmentId, false));
+        when(rescheduleCounts.countPatientReschedules(appointmentId)).thenReturn(0);
     }
 
     @Test
@@ -137,7 +144,7 @@ class RescheduleAppointmentServiceImplT024Test {
     }
 
     @Test
-    void patientCannotRescheduleOwnBookingAtAnyTimeAndNothingIsWritten() {
+    void patientCannotRescheduleUnpaidBookingAndNothingIsWritten() {
         Instant target = now.plusSeconds(3 * 86400L);
         var command = new RescheduleAppointmentCommand(accountId, RescheduleAppointmentCommand.Actor.PATIENT,
                 OffsetDateTime.ofInstant(target, ZoneId.of("UTC")), null, UUID.randomUUID().toString());
@@ -148,6 +155,65 @@ class RescheduleAppointmentServiceImplT024Test {
         verify(auth).authorize(accountId, patientId);
         verifyNoInteractions(slots);
         verify(appointments, never()).reschedule(any(), any(), any(), any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void patientCanReschedulePaidBookingWithoutReasonWithinTwoTimesAndTwoHourDeadline() {
+        when(invoicePaidStatus.paidStatus(List.of(appointmentId))).thenReturn(Map.of(appointmentId, true));
+        when(rescheduleCounts.countPatientReschedules(appointmentId)).thenReturn(1);
+        UUID replacement = UUID.randomUUID();
+        when(assignments.findActiveDoctorProfileIds(serviceId)).thenReturn(List.of(doctorId, replacement));
+        when(doctors.findAcceptingDoctorsInActiveDirectory()).thenReturn(List.of(
+                new fu.fa26.sep490.g58.otcms_be.staff.service.StaffAvailabilityProviderQueryService.AvailabilityProvider(doctorId, "Doctor", true),
+                new fu.fa26.sep490.g58.otcms_be.staff.service.StaffAvailabilityProviderQueryService.AvailabilityProvider(replacement, "Replacement", true)));
+        Instant target = now.plusSeconds(2 * 86400L);
+        var expected = new CreatedAppointment(appointmentId, patientId, serviceId, replacement, "CONFIRMED",
+                "PATIENT_ONLINE", "knee pain", target, target.plusSeconds(1800), 30, 5,
+                target.plusSeconds(2100), null, null, current.createdAt(), now);
+        when(slots.generate(any())).thenReturn(List.of(new AvailableSlot(serviceId, replacement, target,
+                target.plusSeconds(1800), target.plusSeconds(2100))));
+        when(appointments.reschedule(current, replacement, target, target.plusSeconds(1800), accountId,
+                "PATIENT", null, now, "corr-1")).thenReturn(expected);
+
+        var result = handler.reschedule(appointmentId, new RescheduleAppointmentCommand(accountId,
+                RescheduleAppointmentCommand.Actor.PATIENT, OffsetDateTime.ofInstant(target, ZoneId.of("UTC")),
+                replacement, "   ", "corr-1"));
+
+        assertEquals(expected, result);
+        verify(appointments).reschedule(current, replacement, target, target.plusSeconds(1800), accountId,
+                "PATIENT", null, now, "corr-1");
+    }
+
+    @Test
+    void patientRescheduleRejectsMaxCountReachedUnderTwoHoursAndSameSlot() {
+        when(invoicePaidStatus.paidStatus(List.of(appointmentId))).thenReturn(Map.of(appointmentId, true));
+        Instant target = now.plusSeconds(3 * 86400L);
+
+        when(rescheduleCounts.countPatientReschedules(appointmentId)).thenReturn(2);
+        assertEquals("APPOINTMENT_NOT_CHANGEABLE", assertThrows(AppointmentBookingException.class,
+                () -> handler.reschedule(appointmentId, new RescheduleAppointmentCommand(accountId,
+                        RescheduleAppointmentCommand.Actor.PATIENT, OffsetDateTime.ofInstant(target, ZoneId.of("UTC")),
+                        null, "corr-max"))).code());
+
+        when(rescheduleCounts.countPatientReschedules(appointmentId)).thenReturn(0);
+        current = new ReschedulableAppointment(appointmentId, patientId, serviceId, doctorId, "CONFIRMED",
+                "knee pain", now.plusSeconds(119 * 60L), now.plusSeconds(119 * 60L + 1800), 30, 5,
+                "PATIENT_ONLINE", null, null, now.minusSeconds(86400));
+        when(appointments.findForUpdate(appointmentId)).thenReturn(Optional.of(current));
+        assertEquals("APPOINTMENT_CHANGE_TOO_LATE", assertThrows(AppointmentBookingException.class,
+                () -> handler.reschedule(appointmentId, new RescheduleAppointmentCommand(accountId,
+                        RescheduleAppointmentCommand.Actor.PATIENT, OffsetDateTime.ofInstant(target, ZoneId.of("UTC")),
+                        null, "corr-late"))).code());
+
+        current = new ReschedulableAppointment(appointmentId, patientId, serviceId, doctorId, "CONFIRMED",
+                "knee pain", target, target.plusSeconds(1800), 30, 5,
+                "PATIENT_ONLINE", null, null, now.minusSeconds(86400));
+        when(appointments.findForUpdate(appointmentId)).thenReturn(Optional.of(current));
+        assertEquals("VALIDATION_FAILED", assertThrows(AppointmentBookingException.class,
+                () -> handler.reschedule(appointmentId, new RescheduleAppointmentCommand(accountId,
+                        RescheduleAppointmentCommand.Actor.PATIENT, OffsetDateTime.ofInstant(target, ZoneId.of("UTC")),
+                        doctorId, null, "corr-same"))).code());
+        verifyNoInteractions(slots);
     }
 
     @Test

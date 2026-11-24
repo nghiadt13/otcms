@@ -9,6 +9,7 @@ import fu.fa26.sep490.g58.otcms_be.appointment.exception.*;
 import fu.fa26.sep490.g58.otcms_be.appointment.service.*;
 import fu.fa26.sep490.g58.otcms_be.appointment.repository.*;
 import fu.fa26.sep490.g58.otcms_be.appointment.service.impl.*;
+import fu.fa26.sep490.g58.otcms_be.billing.service.AppointmentInvoicePaidStatusQueryService;
 import fu.fa26.sep490.g58.otcms_be.config.AppointmentBookingProperties;
 import fu.fa26.sep490.g58.otcms_be.common.service.CoordinationGuardService;
 import fu.fa26.sep490.g58.otcms_be.notification.service.NotificationPublisher;
@@ -23,6 +24,8 @@ import org.mockito.InOrder;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -48,6 +51,7 @@ class CancelAppointmentServiceImplT025Test {
     private final NotificationPublisher notifications = mock(NotificationPublisher.class);
     private final StaffAvailabilityProviderQueryService doctors = mock(StaffAvailabilityProviderQueryService.class);
     private final fu.fa26.sep490.g58.otcms_be.billing.service.BillingRefundService fees = mock(fu.fa26.sep490.g58.otcms_be.billing.service.BillingRefundService.class);
+    private final AppointmentInvoicePaidStatusQueryService invoicePaidStatus = mock(AppointmentInvoicePaidStatusQueryService.class);
     /** Without the checked-in collaborators (patient and online paths only). */
     private CancelAppointmentServiceImpl handler;
     /** With the lifecycle and visit collaborators (checked-in paths). */
@@ -59,9 +63,12 @@ class CancelAppointmentServiceImplT025Test {
         var properties = new AppointmentBookingProperties(30, 120, 30, 15, 15,
                 ZoneId.of("Asia/Ho_Chi_Minh"), new AppointmentBookingProperties.PublicRateLimit(60, 60), 15, 30000L, false);
         var clock = Clock.fixed(now, ZoneId.of("UTC"));
-        handler = new CancelAppointmentServiceImpl(guard, appointments, auth, properties, clock, notifications, doctors, fees, org.mockito.Mockito.mock(fu.fa26.sep490.g58.otcms_be.common.audit.AuditLogWriter.class));
+        handler = new CancelAppointmentServiceImpl(guard, appointments, auth, properties, clock, notifications, doctors, fees,
+                org.mockito.Mockito.mock(fu.fa26.sep490.g58.otcms_be.common.audit.AuditLogWriter.class), invoicePaidStatus);
         fullHandler = new CancelAppointmentServiceImpl(guard, appointments, auth, properties, clock, lifecycle, visits,
-                notifications, doctors, fees, null, org.mockito.Mockito.mock(fu.fa26.sep490.g58.otcms_be.common.audit.AuditLogWriter.class));
+                notifications, doctors, fees, null,
+                org.mockito.Mockito.mock(fu.fa26.sep490.g58.otcms_be.common.audit.AuditLogWriter.class), invoicePaidStatus);
+        when(invoicePaidStatus.paidStatus(List.of(appointmentId))).thenReturn(Map.of(appointmentId, false));
         current = appointment("CONFIRMED", now.plusSeconds(86400), null);
         when(appointments.findForUpdate(appointmentId)).thenReturn(Optional.of(current));
         when(auth.authorize(accountId, patientId)).thenReturn(new AuthorizePatientProfileService.AuthorizedPatientProfile(
@@ -169,6 +176,22 @@ class CancelAppointmentServiceImplT025Test {
                         CancelAppointmentCommand.Actor.ADMIN, "ops reason", "trace-id"))).code());
         verifyNoInteractions(visits, lifecycle, notifications);
         verify(appointments, never()).cancel(any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void patientCannotSelfCancelPaidAppointmentWhileStaffStillCan() {
+        when(invoicePaidStatus.paidStatus(List.of(appointmentId))).thenReturn(Map.of(appointmentId, true));
+        assertEquals("APPOINTMENT_NOT_CHANGEABLE", assertThrows(AppointmentBookingException.class,
+                () -> handler.cancel(appointmentId, new CancelAppointmentCommand(accountId,
+                        CancelAppointmentCommand.Actor.PATIENT, null, "trace-id"))).code());
+        verify(appointments, never()).cancel(any(), any(), any(), any(), any(), any());
+
+        var expected = cancelledResult(current);
+        when(appointments.cancel(current, adminAccountId, "ADMIN", "clinic fault", now, "trace-id")).thenReturn(expected);
+        var staffResult = handler.cancel(appointmentId, new CancelAppointmentCommand(adminAccountId,
+                CancelAppointmentCommand.Actor.ADMIN, "clinic fault", "trace-id", true));
+        assertEquals(expected, staffResult);
+        verify(fees).refundAppointmentFee(appointmentId, "clinic fault", current.startTime());
     }
 
     private CancellableAppointment appointment(String status, Instant start, UUID linkedVisit) {

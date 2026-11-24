@@ -1,5 +1,6 @@
 package fu.fa26.sep490.g58.otcms_be.appointment.controller;
 
+import fu.fa26.sep490.g58.otcms_be.appointment.service.AppointmentRescheduleCountQueryService;
 import fu.fa26.sep490.g58.otcms_be.appointment.service.AppointmentSearchFilter;
 import fu.fa26.sep490.g58.otcms_be.billing.service.AppointmentInvoicePaidStatusQueryService;
 import fu.fa26.sep490.g58.otcms_be.appointment.service.AppointmentSearchPage;
@@ -31,10 +32,13 @@ public class AppointmentQueryController {
     private final GetAppointmentsService handler;
     private final AppointmentBookingProperties properties;
     private final AppointmentInvoicePaidStatusQueryService billingStatus;
+    private final AppointmentRescheduleCountQueryService rescheduleCounts;
     private final java.time.Clock clock;
     public AppointmentQueryController(GetAppointmentsService handler, AppointmentBookingProperties properties,
-            AppointmentInvoicePaidStatusQueryService billingStatus, java.time.Clock clock) {
-        this.handler = handler; this.properties = properties; this.billingStatus = billingStatus; this.clock = clock;
+            AppointmentInvoicePaidStatusQueryService billingStatus,
+            AppointmentRescheduleCountQueryService rescheduleCounts, java.time.Clock clock) {
+        this.handler = handler; this.properties = properties; this.billingStatus = billingStatus;
+        this.rescheduleCounts = rescheduleCounts; this.clock = clock;
     }
 
     @GetMapping("/api/v1/appointments")
@@ -61,9 +65,17 @@ public class AppointmentQueryController {
         AppointmentSearchPage result = handler.list(account.accountId(), account.accountRole(), new AppointmentSearchFilter(lower, upper, normalizedStatus,
                 uuid(doctorId), uuid(patientProfileId), patientWindow, patientWindow == null ? null : clock.instant()), p, s);
         var responses = result.items().stream().map(AppointmentMapper::toResponse).toList();
-        var paidByAppointment = billingStatus.paidStatus(responses.stream().map(AppointmentResponse::getId).toList());
-        var items = responses.stream().map(item -> item.withExamFeePaid(item.getServicePrice() == null
-                ? null : paidByAppointment.getOrDefault(item.getId(), false))).toList();
+        var ids = responses.stream().map(AppointmentResponse::getId).toList();
+        var paidByAppointment = billingStatus.paidStatus(ids);
+        var reschedulesByAppointment = rescheduleCounts.countPatientReschedules(ids);
+        var items = responses.stream()
+                .map(item -> item
+                        .withExamFeePaid(item.getServicePrice() == null
+                                ? null : paidByAppointment.getOrDefault(item.getId(), false))
+                        .withPatientRescheduleStats(
+                                reschedulesByAppointment.getOrDefault(item.getId(), 0),
+                                AppointmentRescheduleCountQueryService.MAX_PATIENT_RESCHEDULES))
+                .toList();
         return ResponseEntity.ok().header(CorrelationIdFilter.HEADER, CorrelationIdFilter.current(request))
                 .body(new AppointmentPageResponse(items, result.page(), result.size(), result.totalElements(), result.totalPages()));
     }
@@ -76,8 +88,10 @@ public class AppointmentQueryController {
         AppointmentResponse response = AppointmentMapper.toResponse(result);
         Boolean paid = response.getServicePrice() == null ? null
                 : billingStatus.paidStatus(java.util.List.of(response.getId())).getOrDefault(response.getId(), false);
+        int rescheduleCount = rescheduleCounts.countPatientReschedules(response.getId());
         return ResponseEntity.ok().header(CorrelationIdFilter.HEADER, CorrelationIdFilter.current(request))
-                .body(response.withExamFeePaid(paid));
+                .body(response.withExamFeePaid(paid).withPatientRescheduleStats(
+                        rescheduleCount, AppointmentRescheduleCountQueryService.MAX_PATIENT_RESCHEDULES));
     }
 
     private static int integer(String raw, int fallback) {

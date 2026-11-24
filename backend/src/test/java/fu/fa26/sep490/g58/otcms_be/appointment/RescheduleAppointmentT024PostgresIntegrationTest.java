@@ -93,6 +93,7 @@ class RescheduleAppointmentT024PostgresIntegrationTest {
             if (service != null) {
                 jdbc.update("delete from audit_logs where source = 'appointment_audits' and entity_id in "
                         + "(select id from appointments where service_id = ?)", service);
+                jdbc.update("delete from invoices where appointment_id in (select id from appointments where service_id = ?)", service);
                 jdbc.update("delete from appointments where service_id = ?", service);
                 jdbc.update("delete from doctor_services where service_id = ?", service);
                 jdbc.update("delete from clinic_services where id = ?", service);
@@ -141,16 +142,90 @@ class RescheduleAppointmentT024PostgresIntegrationTest {
     }
 
     @Test
-    void patientCannotRescheduleOwnBookingAndNothingIsWritten() throws Exception {
+    void patientCannotRescheduleUnpaidBookingAndNothingIsWritten() throws Exception {
         mvc.perform(patch("/api/v1/appointments/{id}/reschedule", appointment)
                         .with(actor(patientAccount, AccountType.PATIENT)).with(csrf())
                         .header("X-Correlation-ID", CORRELATION).contentType("application/json")
                         .content("{\"startTime\":\"" + TARGET_START + "\"}"))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error.code").value("MSG-32"));
         assertEquals(OLD_START, jdbc.queryForObject("select start_time from appointments where id = ?", Timestamp.class,
                 appointment).toInstant());
         assertEquals(0, jdbc.queryForObject("select count(*) from audit_logs where source = 'appointment_audits' and entity_id = ? "
                 + "and action = 'RESCHEDULED'", Integer.class, appointment));
+    }
+
+    @Test
+    void patientCanReschedulePaidBookingUpToTwoTimesWithoutCountingStaffReschedules() throws Exception {
+        insertPaidInvoice(appointment, patientProfile, patientAccount);
+        Instant thirdSlot = Instant.parse("2026-10-16T04:00:00Z");
+
+        // Staff reschedule does NOT count toward patient's 2-time limit
+        mvc.perform(patch("/api/v1/appointments/{id}/reschedule", appointment)
+                        .with(actor(receptionistAccount, AccountType.RECEPTIONIST)).with(csrf())
+                        .contentType("application/json")
+                        .content("{\"startTime\":\"" + TARGET_START + "\",\"reason\":\"Staff moved once\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.patientRescheduleCount").value(0))
+                .andExpect(jsonPath("$.remainingReschedules").value(2));
+
+        // Same slot (current doctor + current startTime) is rejected with 400 MSG-31
+        mvc.perform(patch("/api/v1/appointments/{id}/reschedule", appointment)
+                        .with(actor(patientAccount, AccountType.PATIENT)).with(csrf())
+                        .contentType("application/json")
+                        .content("{\"startTime\":\"" + TARGET_START + "\",\"doctorId\":\"" + doctorProfile + "\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.code").value("MSG-31"));
+
+        // Patient 1st reschedule (no reason required)
+        mvc.perform(patch("/api/v1/appointments/{id}/reschedule", appointment)
+                        .with(actor(patientAccount, AccountType.PATIENT)).with(csrf())
+                        .header("X-Correlation-ID", CORRELATION).contentType("application/json")
+                        .content("{\"startTime\":\"" + OLD_START + "\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.examFeePaid").value(true))
+                .andExpect(jsonPath("$.patientRescheduleCount").value(1))
+                .andExpect(jsonPath("$.remainingReschedules").value(1))
+                .andExpect(jsonPath("$.maxPatientReschedules").value(2));
+
+        // Patient 2nd reschedule (switch to another eligible doctor at same time)
+        replacementAccount = account("DOCTOR", "replacement-p");
+        replacementProfile = UUID.randomUUID();
+        jdbc.update("insert into staff_profiles (is_doctor, id, account_id, display_name, photo_url, work_contact, specialties, "
+                        + "qualifications, biography, consultation_information, publicly_visible, accepting_new_bookings, in_active_directory) "
+                        + "values (true, ?, ?, 'Replacement P', '', 'private', '', '', '', '', true, true, true)",
+                replacementProfile, replacementAccount);
+        jdbc.update("insert into doctor_services (doctor_profile_id, service_id, active) values (?, ?, true)",
+                replacementProfile, service);
+        jdbc.update("insert into work_shifts (id, staff_profile_id, starts_at, ends_at) values (?, ?, ?, ?)",
+                UUID.randomUUID(), replacementProfile, Timestamp.from(Instant.parse("2026-10-16T02:00:00Z")),
+                Timestamp.from(Instant.parse("2026-10-16T05:00:00Z")));
+
+        mvc.perform(patch("/api/v1/appointments/{id}/reschedule", appointment)
+                        .with(actor(patientAccount, AccountType.PATIENT)).with(csrf())
+                        .contentType("application/json")
+                        .content("{\"startTime\":\"" + OLD_START + "\",\"doctorId\":\"" + replacementProfile + "\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.doctorId").value(replacementProfile.toString()))
+                .andExpect(jsonPath("$.patientRescheduleCount").value(2))
+                .andExpect(jsonPath("$.remainingReschedules").value(0));
+
+        // Patient 3rd attempt blocked (409 MSG-32)
+        mvc.perform(patch("/api/v1/appointments/{id}/reschedule", appointment)
+                        .with(actor(patientAccount, AccountType.PATIENT)).with(csrf())
+                        .contentType("application/json")
+                        .content("{\"startTime\":\"" + thirdSlot + "\"}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error.code").value("MSG-32"));
+
+        // Receptionist still has no 2-time limit
+        mvc.perform(patch("/api/v1/appointments/{id}/reschedule", appointment)
+                        .with(actor(receptionistAccount, AccountType.RECEPTIONIST)).with(csrf())
+                        .contentType("application/json")
+                        .content("{\"startTime\":\"" + thirdSlot + "\",\"reason\":\"Staff override\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.patientRescheduleCount").value(2))
+                .andExpect(jsonPath("$.remainingReschedules").value(0));
     }
 
     @Test
@@ -181,7 +256,7 @@ class RescheduleAppointmentT024PostgresIntegrationTest {
         mvc.perform(patch("/api/v1/appointments/{id}/reschedule", appointment)
                         .with(actor(otherPatientAccount, AccountType.PATIENT)).with(csrf()).contentType("application/json")
                         .content("{\"startTime\":\"" + TARGET_START + "\"}"))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isNotFound()).andExpect(jsonPath("$.error.code").value("MSG-29"));
         mvc.perform(patch("/api/v1/appointments/{id}/reschedule", appointment)
                         .with(actor(receptionistAccount, AccountType.RECEPTIONIST)).with(csrf()).contentType("application/json")
                         .content("{\"startTime\":\"" + TARGET_START + "\",\"reason\":\" \"}"))
@@ -206,6 +281,14 @@ class RescheduleAppointmentT024PostgresIntegrationTest {
                 + "and action = 'CREATED'", Integer.class, appointment));
         assertEquals(0, jdbc.queryForObject("select count(*) from audit_logs where source = 'appointment_audits' and entity_id = ? "
                 + "and action = 'RESCHEDULED'", Integer.class, appointment));
+    }
+
+    private void insertPaidInvoice(UUID appointmentId, UUID profileId, UUID creatorId) {
+        UUID invoiceId = UUID.randomUUID();
+        jdbc.update("insert into invoices (id, invoice_number, patient_profile_id, appointment_id, source_type, "
+                        + "source_fingerprint, status, created_by_account_id) values (?, ?, ?, ?, 'APPOINTMENT', ?, 'PAID', ?)",
+                invoiceId, "INV-T024-" + invoiceId.toString().substring(0, 8), profileId, appointmentId,
+                "fp-" + invoiceId, creatorId);
     }
 
     private UUID insertAppointment(UUID profileId, UUID creator, Instant start, String purpose) {
