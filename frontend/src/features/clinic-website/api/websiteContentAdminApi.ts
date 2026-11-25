@@ -84,6 +84,12 @@ export function updateWebsiteContent(
     .then(detail)
     .catch(rethrowContentError);
 }
+export function deleteWebsiteArticle(id: string): Promise<void> {
+  return apiRequest<void>(`${root}/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+  }).catch(rethrowContentError);
+}
+
 export async function uploadWebsiteImage(
   file: File,
 ): Promise<WebsiteContentImageResult> {

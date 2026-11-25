@@ -45,11 +45,14 @@ type DiscardRequest =
 export function useWebsiteContentEditor(
   editId: string | null,
   onFinish: (result: EditorResult) => void,
+  initialType: WebsiteContentForm["type"] = "",
 ) {
-  const [form, setForm] = useState<WebsiteContentForm>(emptyWebsiteContentForm);
-  const [baseline, setBaseline] = useState(() =>
-    JSON.stringify(emptyWebsiteContentForm()),
-  );
+  const [form, setForm] = useState<WebsiteContentForm>(() => ({
+    ...emptyWebsiteContentForm(),
+    type: initialType,
+  }));
+  const [baseline, setBaseline] = useState(() => JSON.stringify(form));
+  const [hiddenArticle, setHiddenArticle] = useState(false);
   const [loading, setLoading] = useState(editId !== null);
   const [errors, setErrors] = useState<WebsiteContentFormErrors>({});
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -64,6 +67,10 @@ export function useWebsiteContentEditor(
     getWebsiteContent(editId, controller.signal)
       .then((detail) => {
         const loaded = fromDetail(detail);
+        setHiddenArticle(
+          detail.type === "HEALTH_ARTICLE" &&
+            !detail.allowedActions.includes("viewOnWebsite"),
+        );
         setForm(loaded);
         setBaseline(JSON.stringify(loaded));
         setLoading(false);
@@ -147,7 +154,9 @@ export function useWebsiteContentEditor(
         editId === null
           ? await createWebsiteContent(toCreatePayload(form))
           : await updateWebsiteContent(editId, toUpdatePayload(form));
-      notifySuccess(PUBLISHED_TEXT);
+      notifySuccess(
+        hiddenArticle ? "Đã lưu bài viết đang ẩn." : PUBLISHED_TEXT,
+      );
       onFinish({ kind: editId === null ? "created" : "updated", detail });
     } catch (err) {
       setConfirmOpen(false);
@@ -173,6 +182,7 @@ export function useWebsiteContentEditor(
 
   return {
     form,
+    hiddenArticle,
     errors,
     loading,
     isEdit: editId !== null,

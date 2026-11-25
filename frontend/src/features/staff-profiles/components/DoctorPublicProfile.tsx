@@ -5,7 +5,7 @@ import { publicButtonClass } from "@/components/brand/publicButtonStyles";
 import type { PublicDoctor } from "../types/publicDoctor";
 import { DoctorOpenTimesSection } from "./DoctorOpenTimesSection";
 
-// Hồ sơ bác sĩ công khai (UC16 bước 3–4): ảnh và chuyên môn, giới thiệu, thông tin khám,
+// Hồ sơ bác sĩ công khai: ảnh, chuyên khoa, bằng cấp, tiểu sử,
 // lịch nhận khám 7 ngày với giờ còn trống và nút đặt lịch.
 // Each free time opens booking with this doctor preselected; the generic booking button does not.
 export function DoctorPublicProfile({ doctor }: { doctor: PublicDoctor }) {
@@ -34,35 +34,33 @@ export function DoctorPublicProfile({ doctor }: { doctor: PublicDoctor }) {
       </div>
 
       <div className="min-w-0">
-        {doctor.qualifications ? (
-          <p className="text-lg font-medium text-primary">
-            {doctor.qualifications}
-          </p>
-        ) : null}
-        <h1 className="mt-2 text-4xl font-semibold tracking-tight text-balance sm:text-5xl">
+        <h1 className="text-4xl font-semibold tracking-tight text-balance sm:text-5xl">
           {doctor.fullName}
         </h1>
-        {doctor.specialties.length > 0 ? (
-          <p className="mt-4 text-lg text-muted-foreground">
-            {doctor.specialties.join(" · ")}
-          </p>
-        ) : null}
 
-        <section aria-labelledby="doctor-bio-title" className="mt-10">
+        <dl className="mt-6 grid gap-5 rounded-2xl border bg-card p-6 sm:grid-cols-2">
+          <div>
+            <dt className="text-sm font-semibold text-muted-foreground">Chuyên khoa</dt>
+            <dd className="mt-2 leading-7">
+              {doctor.specialties.join(" · ") || "Chưa cập nhật"}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-sm font-semibold text-muted-foreground">
+              Bằng cấp, trình độ
+            </dt>
+            <dd className="mt-2 leading-7 whitespace-pre-line">
+              {doctor.qualifications.trim() || "Chưa cập nhật"}
+            </dd>
+          </div>
+        </dl>
+
+        <section aria-labelledby="doctor-bio-title" className="mt-8">
           <h2 className="text-2xl font-semibold" id="doctor-bio-title">
-            Giới thiệu
+            Tiểu sử, giới thiệu
           </h2>
-          <p className="mt-3 text-lg leading-8 text-pretty whitespace-pre-line">
-            {doctor.biography}
-          </p>
-        </section>
-
-        <section aria-labelledby="doctor-consult-title" className="mt-10">
-          <h2 className="text-2xl font-semibold" id="doctor-consult-title">
-            Thông tin khám
-          </h2>
-          <p className="mt-3 text-lg leading-8 text-pretty whitespace-pre-line">
-            {doctor.consultationInfo}
+          <p className="mt-3 leading-8 whitespace-pre-line">
+            {doctor.biography.trim() || "Chưa cập nhật"}
           </p>
         </section>
 

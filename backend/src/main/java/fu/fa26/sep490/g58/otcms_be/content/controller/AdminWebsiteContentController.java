@@ -57,6 +57,13 @@ public class AdminWebsiteContentController {
         return ClinicContentDtoMapper.detail(content.update(id, mapper.input(input.type(), input.title(), input.body(), input.imageUrl()),
             actor == null ? null : actor.accountId()));
     }
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> delete(@PathVariable UUID id,
+        @AuthenticationPrincipal AuthenticatedAccount actor) {
+        content.deleteArticle(id, actor == null ? null : actor.accountId());
+        return ResponseEntity.noContent().build();
+    }
+
     @PostMapping(value = "/images", consumes = "multipart/form-data")
     public ResponseEntity<ImageUploadResponse> upload(@RequestPart("file") MultipartFile file) throws java.io.IOException {
         var image = content.upload(file.getBytes(), file.getContentType());

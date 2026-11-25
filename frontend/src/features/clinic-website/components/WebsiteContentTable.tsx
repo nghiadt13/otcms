@@ -1,4 +1,4 @@
-import { ExternalLink, Pencil } from "lucide-react";
+import { ExternalLink, Pencil, Trash2 } from "lucide-react";
 import {
   RowActionsMenu,
   type RowAction,
@@ -32,14 +32,16 @@ type Props = {
   onPageChange: (page: number) => void;
   onRetry: () => void;
   onEdit: (item: WebsiteContentListItem) => void;
+  onDelete: (item: WebsiteContentListItem) => void;
 };
 
-const COLUMN_COUNT = 6;
+const COLUMN_COUNT = 7;
 
 /** Chỉ vẽ hành động có trong `allowedActions` của bản ghi. */
 function rowActions(
   item: WebsiteContentListItem,
   onEdit: Props["onEdit"],
+  onDelete: Props["onDelete"],
 ): RowAction[] {
   const actions: RowAction[] = [];
   if (item.allowedActions.includes("edit"))
@@ -61,6 +63,14 @@ function rowActions(
           "noopener,noreferrer",
         ),
     });
+  if (item.allowedActions.includes("delete"))
+    actions.push({
+      key: "delete",
+      label: "Ngừng hiển thị",
+      icon: Trash2,
+      destructive: true,
+      onSelect: () => onDelete(item),
+    });
   return actions;
 }
 
@@ -75,6 +85,7 @@ export function WebsiteContentTable({
   onPageChange,
   onRetry,
   onEdit,
+  onDelete,
 }: Props) {
   return (
     <>
@@ -84,6 +95,7 @@ export function WebsiteContentTable({
             <TableRow>
               <TableHead>Tiêu đề</TableHead>
               <TableHead>Loại</TableHead>
+              <TableHead>Trạng thái</TableHead>
               <TableHead>Ngày đăng</TableHead>
               <TableHead>Cập nhật lần cuối</TableHead>
               <TableHead>Người đăng</TableHead>
@@ -102,7 +114,7 @@ export function WebsiteContentTable({
               emptyText={
                 isFiltered
                   ? "Không có nội dung khớp bộ lọc. Đổi từ khóa hoặc chọn loại khác."
-                  : "Chưa có nội dung nào. Bấm Thêm nội dung để đăng nội dung đầu tiên."
+                  : "Chưa có nội dung nào. Bấm Thêm bài viết để đăng bài đầu tiên."
               }
             />
             {!loading && !error
@@ -114,6 +126,11 @@ export function WebsiteContentTable({
                     <TableCell>
                       {WEBSITE_CONTENT_TYPE_LABELS[item.type]}
                     </TableCell>
+                    <TableCell>
+                      {item.allowedActions.includes("viewOnWebsite")
+                        ? "Đang hiển thị"
+                        : "Đã ngừng hiển thị"}
+                    </TableCell>
                     <TableCell className="tabular-nums">
                       {formatDateTime(item.publishedAt)}
                     </TableCell>
@@ -124,7 +141,7 @@ export function WebsiteContentTable({
                     <TableCell>
                       <RowActionsMenu
                         label={item.title}
-                        actions={rowActions(item, onEdit)}
+                        actions={rowActions(item, onEdit, onDelete)}
                       />
                     </TableCell>
                   </TableRow>

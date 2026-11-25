@@ -51,6 +51,8 @@ const ACTION_TEMPLATES: Record<ActivityAction, string> = {
   CREATE_SERVICE: "Tạo dịch vụ",
   UPDATE_SERVICE: "Sửa dịch vụ",
   CHANGE_SERVICE_STATUS: "Đổi trạng thái dịch vụ",
+  DELETE_CONTENT: "Xóa bài viết",
+  UNPUBLISH_CONTENT: "Ngừng hiển thị bài viết",
   UPDATE_CONTENT: "Sửa nội dung website",
   CREATE_ANNOUNCEMENT: "Tạo thông báo",
   UPDATE_ANNOUNCEMENT: "Sửa thông báo",

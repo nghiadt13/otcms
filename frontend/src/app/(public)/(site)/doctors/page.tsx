@@ -12,7 +12,7 @@ export default async function DoctorsPage() {
   return (
     <div className={`${publicContainerClass} py-16 lg:py-24`}>
       <PublicPageHeader
-        description="Bác sĩ chỉnh hình đang nhận khám. Chọn một bác sĩ để xem chuyên môn và lịch nhận khám 7 ngày tới."
+        description="Xem chuyên khoa, bằng cấp và giới thiệu của từng bác sĩ."
         title="Đội ngũ bác sĩ"
       />
       <DoctorDirectory doctors={items} />

@@ -70,7 +70,11 @@ public class ClinicContentDtoMapper {
         return body instanceof MarkdownBody markdown ? new MarkdownBodyResponse(markdown.text()) : contact((ClinicContact) body);
     }
     private static List<String> actions(WebsiteContent content) {
-        return content.status().equals("PUBLISHED") ? List.of("edit", "viewOnWebsite") : List.of("edit");
+        boolean published = "PUBLISHED".equals(content.status());
+        if (content.type() == ContentType.HEALTH_ARTICLE) {
+            return published ? List.of("edit", "viewOnWebsite", "delete") : List.of("edit");
+        }
+        return published ? List.of("edit", "viewOnWebsite") : List.of("edit");
     }
     public static WebsiteSummaryResponse summary(WebsiteContent content) {
         return new WebsiteSummaryResponse(content.id(), content.type(), content.title(), content.publishedAt(),

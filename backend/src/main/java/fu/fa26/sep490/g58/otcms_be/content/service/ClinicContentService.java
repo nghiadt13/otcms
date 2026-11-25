@@ -16,12 +16,14 @@ public interface ClinicContentService {
     WebsiteContent detail(UUID id);
     WebsiteContent create(WebsiteContentInput input, UUID actor);
     WebsiteContent update(UUID id, WebsiteContentInput input, UUID actor);
+    void deleteArticle(UUID id, UUID actor);
     WebsiteImage upload(byte[] bytes, String contentType);
     WebsiteImage.Content image(UUID id);
     WebsiteContent publicArticle(UUID id);
     WebsiteContent publicAbout();
     ClinicContact publicContact();
     List<WebsiteContent> publicArticles();
+    ContentPage<WebsiteContent> publicArticles(int page, int size);
     AnnouncementOptions options();
     ContentPage<ClinicAnnouncement> announcements(String q, String audience, String from, String to, int page, int size, boolean publicOnly);
     ContentPage<ClinicAnnouncement> patientAnnouncements(int page, int size);

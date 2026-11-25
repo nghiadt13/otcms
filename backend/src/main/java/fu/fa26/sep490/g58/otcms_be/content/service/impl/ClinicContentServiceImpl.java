@@ -72,12 +72,28 @@ public class ClinicContentServiceImpl implements ClinicContentService {
         var current = detail(id);
         var now = Instant.now();
         var next = new WebsiteContent(id, current.type(), text(input.title(), 200, "MSG-69", true), "",
-            body(current.type(), input.body()), WebsiteImageValidator.imageId(input.imageUrl(), current.type(), store), "PUBLISHED",
+            body(current.type(), input.body()), WebsiteImageValidator.imageId(input.imageUrl(), current.type(), store), current.status(),
             current.publishedAt(), now, current.createdBy(), actor, current.publishedBy(), current.version() + 1);
         var saved = store.update(next, current.version());
         store.audit(actor, "CONTENT", "UPDATE_CONTENT", id, saved.title(), now);
         return saved;
     }
+    @Override
+    @Transactional
+    public void deleteArticle(UUID id, UUID actor) {
+        actor(actor);
+        var article = detail(id);
+        if (article.type() != ContentType.HEALTH_ARTICLE) {
+            throw new ContentOperationException(ContentOperationException.Reason.INVALID_CONTENT);
+        }
+        if (!"PUBLISHED".equals(article.status())) return;
+        var now = Instant.now();
+        store.update(new WebsiteContent(id, article.type(), article.title(), article.summary(),
+            article.body(), article.imageId(), "DRAFT", article.publishedAt(), now,
+            article.createdBy(), actor, article.publishedBy(), article.version() + 1), article.version());
+        store.audit(actor, "CONTENT", "UNPUBLISH_CONTENT", id, article.title(), now);
+    }
+
     @Override
     @Transactional
     public WebsiteImage upload(byte[] bytes, String contentType) {
@@ -126,7 +142,13 @@ public class ClinicContentServiceImpl implements ClinicContentService {
     }
     @Override
     public List<WebsiteContent> publicArticles() {
-        return store.contents(new ClinicContentRepository.Filters("HEALTH_ARTICLE", "", "", null, null, 0, 6), true).items();
+        return publicArticles(0, 6).items();
+    }
+
+    @Override
+    public ContentPage<WebsiteContent> publicArticles(int page, int size) {
+        page(page, size);
+        return store.contents(new ClinicContentRepository.Filters("HEALTH_ARTICLE", "", "", null, null, page, size), true);
     }
     @Override
     public AnnouncementOptions options() {

@@ -4,7 +4,7 @@ import type { ClinicContact } from "./websiteContent";
 // (bản công khai {contact, hero}); không dùng chung tên để tránh nhầm.
 export type WebsiteContentType =
   "CLINIC_INFO" | "HEALTH_ARTICLE" | "ABOUT_PAGE";
-export type WebsiteContentAction = "edit" | "viewOnWebsite";
+export type WebsiteContentAction = "edit" | "viewOnWebsite" | "delete";
 
 export const WEBSITE_CONTENT_TYPES: WebsiteContentType[] = [
   "CLINIC_INFO",

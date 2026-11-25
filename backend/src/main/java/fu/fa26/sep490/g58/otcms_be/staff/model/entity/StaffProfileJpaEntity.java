@@ -87,6 +87,12 @@ public class StaffProfileJpaEntity {
         this.consultationInformation = consultationInformation;
     }
 
+    public void updateIntroduction(String specialties, String qualifications, String biography) {
+        this.specialties = specialties;
+        this.qualifications = qualifications;
+        this.biography = biography;
+    }
+
     /** Doctor profile update from the staff screen. */
     public void updateDoctorProfile(String name, String contact, String specialties, String qualifications,
             String biography, String consultationInformation, boolean visible) {

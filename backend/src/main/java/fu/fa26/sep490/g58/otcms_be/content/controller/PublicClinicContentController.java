@@ -36,6 +36,12 @@ public class PublicClinicContentController {
         }
         return ClinicContentDtoMapper.about(page);
     }
+    @GetMapping("/articles")
+    public PageResponse<fu.fa26.sep490.g58.otcms_be.content.model.dto.ClinicContentDtos.ArticleSummaryResponse> articles(
+        @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "12") int size) {
+        return ClinicContentDtoMapper.page(content.publicArticles(page, size), ClinicContentDtoMapper::articleSummary);
+    }
+
     @GetMapping("/articles/{id}")
     public PublicArticleResponse article(@PathVariable UUID id) {
         return ClinicContentDtoMapper.publicArticle(content.publicArticle(id));

@@ -1,5 +1,7 @@
 import { cache } from "react";
 import { publicApiRequest } from "@/lib/api/client";
+import type { PageResponse } from "@/lib/api/pagination";
+import type { PublicArticleSummary } from "../types/websiteContent";
 import { ApiError } from "@/lib/api/apiError";
 import { apiBaseUrl } from "@/lib/api/apiBaseUrl";
 import type {
@@ -33,6 +35,19 @@ export async function getPublishedAboutPage(): Promise<PublicAboutPage | null> {
     return rethrowContentError(error);
   }
 }
+export async function listPublishedHealthArticles(page: number) {
+  const result = await publicApiRequest<PageResponse<PublicArticleSummary>>(
+    `${root}/articles?page=${page}&size=12`,
+  ).catch(rethrowContentError);
+  return {
+    ...result,
+    items: result.items.map((article) => ({
+      ...article,
+      imageUrl: url(article.imageUrl),
+    })),
+  };
+}
+
 export async function getPublishedHealthArticle(
   id: string,
 ): Promise<PublicHealthArticle> {

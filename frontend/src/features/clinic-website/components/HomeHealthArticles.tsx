@@ -5,8 +5,10 @@ import { formatDate } from "@/lib/format/formatDate";
 import type { PublicArticleSummary } from "../types/websiteContent";
 export function HomeHealthArticles({
   articles,
+  archive = false,
 }: {
   articles: PublicArticleSummary[];
+  archive?: boolean;
 }) {
   if (!articles.length) return null;
   return (
@@ -58,6 +60,14 @@ export function HomeHealthArticles({
             </article>
           ))}
         </div>
+        {!archive && (
+          <Link
+            href="/bai-viet"
+            className="mt-6 inline-block font-semibold text-primary hover:underline"
+          >
+            Xem tất cả bài viết
+          </Link>
+        )}
       </div>
     </section>
   );

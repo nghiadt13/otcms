@@ -56,3 +56,23 @@ it("uses actual load failures with retry instead of the old magic search values"
     expect(request.mock.calls.at(-1)![0]).toContain("loi-dich-vu"),
   );
 });
+
+it("opens the article editor and fills a sample without publishing it", async () => {
+  render(<WebsiteContentManagement />);
+  const user = userEvent.setup();
+  await user.click(screen.getByRole("button", { name: "Thêm bài viết" }));
+  const dialog = within(
+    await screen.findByRole("dialog", { name: "Thêm bài viết" }),
+  );
+  expect(dialog.getByLabelText(/Loại nội dung/)).toHaveValue("HEALTH_ARTICLE");
+  await user.click(dialog.getByRole("button", { name: "Chuẩn bị đi khám" }));
+  expect(dialog.getByLabelText(/Tiêu đề/)).toHaveValue(
+    "Cần chuẩn bị gì khi đi khám chấn thương chỉnh hình?",
+  );
+  expect(
+    (dialog.getByLabelText(/^Nội dung/) as HTMLTextAreaElement).value,
+  ).toContain("Trước khi đến phòng khám");
+  expect(request.mock.calls.some(([, init]) => init?.method === "POST")).toBe(
+    false,
+  );
+});

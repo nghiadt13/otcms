@@ -6,8 +6,14 @@ import {
   HomeMobileBookingBar,
   HomeMobileShortcuts,
 } from "@/features/clinic-website/components/HomeMobileActions";
+import { getPublishedWebsiteContent } from "@/features/clinic-website/api/websiteContentApi";
+import { HomeHealthArticles } from "@/features/clinic-website/components/HomeHealthArticles";
 import { HomeVisitSteps } from "@/features/clinic-website/components/HomeVisitSteps";
-import { FeaturedReviewsSection } from "@/features/patient-reviews/components/FeaturedReviews";
+
+async function PublishedHealthArticles() {
+  const content = await getPublishedWebsiteContent().catch(() => null);
+  return <HomeHealthArticles articles={content?.articles ?? []} />;
+}
 
 export default function HomePage() {
   return (
@@ -18,7 +24,7 @@ export default function HomePage() {
       <HomeDoctorIntro />
       <HomeVisitSteps />
       <Suspense fallback={null}>
-        <FeaturedReviewsSection />
+        <PublishedHealthArticles />
       </Suspense>
       <HomeMobileBookingBar />
     </div>

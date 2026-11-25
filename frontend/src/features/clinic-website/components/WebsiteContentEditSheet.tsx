@@ -26,6 +26,7 @@ import {
   WEBSITE_CONTENT_TYPE_LABELS,
   type WebsiteContentType,
 } from "../types/websiteContentAdmin";
+import { healthArticleSamples } from "../schema/healthArticleSamples";
 import { WebsiteContentArticleFields } from "./WebsiteContentArticleFields";
 import { WebsiteContentClinicInfoFields } from "./WebsiteContentClinicInfoFields";
 import { WebsiteContentField } from "./WebsiteContentField";
@@ -34,23 +35,40 @@ import { WebsiteContentPreviewDialog } from "./WebsiteContentPreviewDialog";
 type Props = {
   /** null = thêm mới; có id = sửa (tải chi tiết trong Sheet). */
   editId: string | null;
+  initialType?: WebsiteContentType | "";
   onFinish: (result: EditorResult) => void;
 };
 
 /** Sheet rộng để thêm/sửa nội dung. Mọi ghi dữ liệu là "Đăng", luôn qua hộp xác nhận. */
-export function WebsiteContentEditSheet({ editId, onFinish }: Props) {
-  const editor = useWebsiteContentEditor(editId, onFinish);
+export function WebsiteContentEditSheet({
+  editId,
+  initialType,
+  onFinish,
+}: Props) {
+  const editor = useWebsiteContentEditor(editId, onFinish, initialType);
   const { form, errors, isEdit, loading, publishing } = editor;
-  const publishLabel = isEdit ? "Đăng bản cập nhật" : "Đăng nội dung";
+  const publishLabel = editor.hiddenArticle
+    ? "Lưu thay đổi"
+    : isEdit
+      ? "Đăng bản cập nhật"
+      : "Đăng nội dung";
 
   return (
     <>
       <Sheet open onOpenChange={(open) => !open && editor.requestClose()}>
         <SheetContent className="gap-0 data-[side=right]:w-full data-[side=right]:sm:max-w-3xl">
           <SheetHeader className="border-b">
-            <SheetTitle>{isEdit ? "Sửa nội dung" : "Thêm nội dung"}</SheetTitle>
+            <SheetTitle>
+              {isEdit
+                ? "Sửa nội dung"
+                : initialType === "HEALTH_ARTICLE"
+                  ? "Thêm bài viết"
+                  : "Thêm nội dung"}
+            </SheetTitle>
             <SheetDescription>
-              Nội dung sẽ hiển thị công khai ngay khi đăng.
+              {editor.hiddenArticle
+                ? "Bài viết vẫn ẩn sau khi lưu."
+                : "Nội dung sẽ hiển thị công khai ngay khi đăng."}
             </SheetDescription>
           </SheetHeader>
 
@@ -105,6 +123,30 @@ export function WebsiteContentEditSheet({ editId, onFinish }: Props) {
                     </NativeSelect>
                   )}
                 </WebsiteContentField>
+
+                {!isEdit && form.type === "HEALTH_ARTICLE" ? (
+                  <fieldset className="rounded-lg border p-3">
+                    <legend className="px-1 text-sm font-medium">
+                      Bài viết mẫu
+                    </legend>
+                    <div className="flex flex-wrap gap-2">
+                      {healthArticleSamples.map(({ label, title, body }) => (
+                        <Button
+                          key={label}
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={Boolean(
+                            form.title.trim() || form.body.trim(),
+                          )}
+                          onClick={() => editor.patchForm({ title, body })}
+                        >
+                          {label}
+                        </Button>
+                      ))}
+                    </div>
+                  </fieldset>
+                ) : null}
 
                 <WebsiteContentField
                   id="content-title"
@@ -180,8 +222,18 @@ export function WebsiteContentEditSheet({ editId, onFinish }: Props) {
       <ConfirmActionDialog
         open={editor.confirmOpen}
         onOpenChange={editor.setConfirmOpen}
-        title={isEdit ? "Đăng bản cập nhật này?" : "Đăng nội dung này?"}
-        description="Nội dung sẽ hiển thị công khai ngay."
+        title={
+          editor.hiddenArticle
+            ? "Lưu thay đổi?"
+            : isEdit
+              ? "Đăng bản cập nhật này?"
+              : "Đăng nội dung này?"
+        }
+        description={
+          editor.hiddenArticle
+            ? "Bài viết vẫn ẩn trên website."
+            : "Nội dung sẽ hiển thị công khai ngay."
+        }
         confirmLabel={publishLabel}
         pendingLabel="Đang đăng..."
         cancelLabel="Quay lại"
