@@ -3,7 +3,7 @@ import type { DoctorOpenDay } from "../types/publicDoctor";
 import { dayMonthVi, weekdayShortVi } from "../utils/availabilityDayLabel";
 import { DoctorOpenTimeChips } from "./DoctorOpenTimeChips";
 
-// The 7-day schedule on the doctor page: one row per day. Free times are links to booking;
+// The 7-day schedule on the doctor page: one card per day. Free times are links to booking;
 // a day without free times shows "Hết giờ".
 export function DoctorOpenTimesByDay({
   doctorId,
@@ -13,13 +13,13 @@ export function DoctorOpenTimesByDay({
   days: readonly DoctorOpenDay[];
 }) {
   return (
-    <ul className="divide-y divide-border overflow-hidden rounded-2xl border bg-card">
+    <ul className="grid grid-flow-col auto-cols-[minmax(8.5rem,1fr)] gap-3 overflow-x-auto pb-2 xl:grid-cols-7">
       {days.map((day) => (
         <li
-          className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-start sm:justify-between sm:gap-6"
+          className="flex min-w-0 flex-col items-start gap-3 rounded-2xl border bg-card p-3"
           key={day.date}
         >
-          <span className="text-lg font-medium tabular-nums sm:min-w-32 sm:pt-1">
+          <span className="font-semibold whitespace-nowrap tabular-nums">
             {weekdayShortVi(day.date)} {dayMonthVi(day.date)}
           </span>
           {day.times.length > 0 ? (

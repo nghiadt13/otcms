@@ -9,13 +9,13 @@ import {
   NativeSelectOption,
 } from "@/components/ui/native-select";
 import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetFooter,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   useWebsiteContentEditor,
@@ -55,24 +55,24 @@ export function WebsiteContentEditSheet({
 
   return (
     <>
-      <Sheet open onOpenChange={(open) => !open && editor.requestClose()}>
-        <SheetContent className="gap-0 data-[side=right]:w-full data-[side=right]:sm:max-w-3xl">
-          <SheetHeader className="border-b">
-            <SheetTitle>
+      <Dialog open onOpenChange={(open) => !open && editor.requestClose()}>
+        <DialogContent className="flex max-h-[calc(100dvh-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-3xl">
+          <DialogHeader className="shrink-0 border-b p-4 pr-12">
+            <DialogTitle>
               {isEdit
                 ? "Sửa nội dung"
                 : initialType === "HEALTH_ARTICLE"
                   ? "Thêm bài viết"
                   : "Thêm nội dung"}
-            </SheetTitle>
-            <SheetDescription>
+            </DialogTitle>
+            <DialogDescription>
               {editor.hiddenArticle
                 ? "Bài viết vẫn ẩn sau khi lưu."
                 : "Nội dung sẽ hiển thị công khai ngay khi đăng."}
-            </SheetDescription>
-          </SheetHeader>
+            </DialogDescription>
+          </DialogHeader>
 
-          <div className="flex-1 overflow-y-auto p-4">
+          <div className="min-h-0 flex-1 overflow-y-auto p-4">
             {loading ? (
               <div
                 className="grid gap-4"
@@ -189,7 +189,7 @@ export function WebsiteContentEditSheet({
             )}
           </div>
 
-          <SheetFooter className="border-t sm:flex-row-reverse sm:justify-start">
+          <DialogFooter className="m-0 shrink-0 sm:flex-row-reverse sm:justify-start">
             <Button
               disabled={loading || publishing}
               onClick={editor.requestPublish}
@@ -210,9 +210,9 @@ export function WebsiteContentEditSheet({
             >
               Hủy
             </Button>
-          </SheetFooter>
-        </SheetContent>
-      </Sheet>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <WebsiteContentPreviewDialog
         open={editor.previewOpen}

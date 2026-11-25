@@ -14,7 +14,7 @@ import {
 export function DoctorOpenTimesSection({ doctorId }: { doctorId: string }) {
   const { openTimes, loading, failed, reload } = usePublicDoctorOpenTimes();
   return (
-    <section aria-labelledby="doctor-availability-title" className="mt-10">
+    <section aria-labelledby="doctor-availability-title">
       <h2 className="text-2xl font-semibold" id="doctor-availability-title">
         Lịch nhận khám 7 ngày tới
       </h2>

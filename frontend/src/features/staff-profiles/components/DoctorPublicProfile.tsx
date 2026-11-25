@@ -40,7 +40,9 @@ export function DoctorPublicProfile({ doctor }: { doctor: PublicDoctor }) {
 
         <dl className="mt-6 grid gap-5 rounded-2xl border bg-card p-6 sm:grid-cols-2">
           <div>
-            <dt className="text-sm font-semibold text-muted-foreground">Chuyên khoa</dt>
+            <dt className="text-sm font-semibold text-muted-foreground">
+              Chuyên khoa
+            </dt>
             <dd className="mt-2 leading-7">
               {doctor.specialties.join(" · ") || "Chưa cập nhật"}
             </dd>
@@ -63,7 +65,9 @@ export function DoctorPublicProfile({ doctor }: { doctor: PublicDoctor }) {
             {doctor.biography.trim() || "Chưa cập nhật"}
           </p>
         </section>
+      </div>
 
+      <div className="min-w-0 lg:col-span-2">
         <DoctorOpenTimesSection doctorId={doctor.id} />
 
         <PublicBookAppointmentLink

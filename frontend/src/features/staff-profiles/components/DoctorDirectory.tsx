@@ -27,11 +27,16 @@ export function DoctorDirectory({ doctors }: { doctors: PublicDoctor[] }) {
   return (
     <ul className="mt-12 grid gap-x-8 gap-y-12 sm:grid-cols-2 lg:grid-cols-3">
       {doctors.map((doctor) => (
-        <li key={doctor.id}>
-          <DoctorCard doctor={doctor} />
+        <li
+          key={doctor.id}
+          className="grid grid-rows-[1fr_auto] justify-items-start gap-4"
+        >
+          <div className="w-full min-w-0">
+            <DoctorCard doctor={doctor} />
+          </div>
           <Link
             aria-label={`Chi tiết về bác sĩ ${doctor.fullName}`}
-            className={publicButtonClass("secondary") + " mt-4"}
+            className={publicButtonClass("secondary")}
             href={`/doctors/${encodeURIComponent(doctor.id)}`}
           >
             Chi tiết về bác sĩ
