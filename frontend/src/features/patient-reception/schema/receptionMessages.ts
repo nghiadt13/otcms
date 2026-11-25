@@ -1,4 +1,5 @@
 import { InvoiceNotPayableError } from "@/lib/api/billingApi";
+import { isApiError } from "@/lib/api/apiError";
 import { formatAppMessage, messageFromError } from "@/lib/messages/appMessages";
 import { formatCurrencyVnd } from "@/lib/format/formatCurrencyVnd";
 import type { ReceptionCommand, ReceptionState } from "../types";
@@ -37,6 +38,17 @@ export function paymentErrorText(cause: unknown) {
   return cause instanceof InvoiceNotPayableError
     ? formatAppMessage("MSG-49")
     : messageFromError(cause);
+}
+
+export function checkInErrorText(cause: unknown) {
+  if (
+    isApiError(cause) &&
+    cause.status === 409 &&
+    cause.errorCode === "PATIENT_HAS_OPEN_VISIT"
+  ) {
+    return "Bệnh nhân đã có lượt khám đang mở. Vui lòng vào mục Tiến trình lượt khám để tìm và tiếp tục xử lý lượt khám hiện tại.";
+  }
+  return messageFromError(cause);
 }
 
 /** MSG-88 của mock: số thứ tự và phòng của các entry vừa tạo cho bệnh nhân trong ngày. */

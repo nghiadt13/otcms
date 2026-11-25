@@ -89,6 +89,70 @@ describe("hồ sơ bệnh nhân live", () => {
       screen.getByRole("button", { name: /Dùng hồ sơ Nguyễn An/ }),
     ).toBeInTheDocument();
   });
+  it.each([
+    [
+      new ApiError(409, { errorCode: "MSG-18" }),
+      "Hồ sơ bệnh nhân đã tồn tại",
+      "Tìm và mở hồ sơ hiện có",
+    ],
+    [
+      new ApiError(503, { errorCode: "DEPENDENCY_UNAVAILABLE" }),
+      "Hệ thống đang bận",
+      "Kiểm tra lại hồ sơ hiện có trước khi thử lưu lại",
+    ],
+    [
+      new ApiError(500, { errorCode: "MSG-04" }),
+      "Không thể hoàn tất yêu cầu",
+      "Vui lòng thử lại sau",
+    ],
+  ])(
+    "hiển thị hướng xử lý khi POST trả về %s",
+    async (error, message, action) => {
+      vi.mocked(apiRequest)
+        .mockResolvedValueOnce({ items: [] })
+        .mockRejectedValueOnce(error);
+      render(
+        <ReceptionProvider>
+          <PatientSearchScreen />
+        </ReceptionProvider>,
+      );
+      fireEvent.click(screen.getByRole("button", { name: "Tạo hồ sơ" }));
+      fill();
+      const dialog = within(screen.getByRole("dialog"));
+      const submit = dialog.getByRole("button", { name: "Tạo hồ sơ" });
+      fireEvent.click(submit);
+
+      const alert = await dialog.findByRole("alert");
+      expect(alert).toHaveTextContent(message);
+      expect(alert).toHaveTextContent(action);
+      expect(dialog.getByLabelText("Họ và tên *")).toHaveValue("Nguyễn An");
+      expect(submit).toBeEnabled();
+      expect(apiRequest).toHaveBeenCalledTimes(2);
+      expect(apiRequest).toHaveBeenLastCalledWith(
+        "/api/v1/patient-profiles",
+        expect.objectContaining({ method: "POST" }),
+      );
+    },
+  );
+  it("giữ hướng dẫn xác minh khi yêu cầu tìm hồ sơ trả về MSG-18", async () => {
+    vi.mocked(apiRequest).mockRejectedValueOnce(
+      new ApiError(409, { errorCode: "MSG-18" }),
+    );
+    render(
+      <ReceptionProvider>
+        <PatientSearchScreen />
+      </ReceptionProvider>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Tạo hồ sơ" }));
+    fill();
+    const dialog = within(screen.getByRole("dialog"));
+    fireEvent.click(dialog.getByRole("button", { name: "Tạo hồ sơ" }));
+
+    expect(await dialog.findByRole("alert")).toHaveTextContent(
+      "Chưa xác định được đúng hồ sơ",
+    );
+    expect(apiRequest).toHaveBeenCalledTimes(1);
+  });
   it("đọc chi tiết và cập nhật cùng phiên bản", async () => {
     vi.mocked(apiRequest)
       .mockResolvedValueOnce({ content: [detail] })

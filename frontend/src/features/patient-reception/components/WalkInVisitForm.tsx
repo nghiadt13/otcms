@@ -17,7 +17,7 @@ import {
   type ReceptionWalkIn,
   type WalkInSuggestion,
 } from "../api/receptionWalkInLiveApi";
-import { queuedFeedbackText } from "../schema/receptionMessages";
+import { checkInErrorText, queuedFeedbackText } from "../schema/receptionMessages";
 import { money, SelectField } from "./ReceptionUi";
 import { WalkInFeeStep } from "./WalkInFeeStep";
 import { PaymentReceiptDialog } from "./PaymentReceiptDialog";
@@ -107,7 +107,7 @@ export function WalkInVisitForm({
         setFeeDue({ visitId: visit.visitId, serviceId });
       }
     } catch (cause) {
-      setError(messageFromError(cause));
+      setError(checkInErrorText(cause));
     } finally {
       setBusy(false);
     }

@@ -16,6 +16,7 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
 import java.util.ArrayList;
+import java.util.regex.Pattern;
 import fu.fa26.sep490.g58.otcms_be.common.api.ErrorResponse.FieldError;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
@@ -27,6 +28,8 @@ import org.springframework.transaction.annotation.Transactional;
 public class PatientProfileServiceImpl implements PatientProfileService {
     private static final Set<String> GENDERS = Set.of("MALE", "FEMALE", "OTHER");
     private static final Set<String> PHONE_OWNERS = Set.of("PATIENT", "GUARDIAN");
+    private static final Pattern PROFILE_UUID = Pattern.compile(
+            "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}");
     private final PatientProfileDirectory profiles;
     private final CoordinationGuardService coordinationGuard;
     private final ReceptionistAccountAccessService receptionists;
@@ -44,9 +47,20 @@ public class PatientProfileServiceImpl implements PatientProfileService {
         if (query.isBlank() || query.length() > 100 || page < 0 || size < 1 || size > 50) {
             throw new PatientProfileException("VALIDATION_FAILED");
         }
-        var result = profiles.search(query, phoneSearchTerm(rawQuery), PageRequest.of(page, size));
+        var pageable = PageRequest.of(page, size);
+        String uuidQuery = query.strip();
+        if (PROFILE_UUID.matcher(uuidQuery).matches()) {
+            var profile = profiles.findProfile(UUID.fromString(uuidQuery));
+            if (profile.isEmpty()) {
+                return Page.empty(pageable);
+            }
+            List<PatientProfile> content = page == 0 ? List.of(toModel(profile.get())) : List.of();
+            return new PageImpl<>(content, pageable, 1);
+        }
+
+        var result = profiles.search(query, phoneSearchTerm(rawQuery), pageable);
         List<PatientProfile> content = result.getContent().stream().map(this::toModel).toList();
-        return new PageImpl<>(content, PageRequest.of(page, size), result.getTotalElements());
+        return new PageImpl<>(content, pageable, result.getTotalElements());
     }
 
     @Transactional

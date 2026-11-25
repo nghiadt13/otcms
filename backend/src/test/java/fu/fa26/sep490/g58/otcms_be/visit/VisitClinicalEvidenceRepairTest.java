@@ -9,6 +9,7 @@ import fu.fa26.sep490.g58.otcms_be.clinical.repository.ClinicalExaminationReposi
 import fu.fa26.sep490.g58.otcms_be.clinical.service.impl.ClinicalFollowUpEvidenceQueryServiceImpl;
 import fu.fa26.sep490.g58.otcms_be.staff.service.DoctorProfileIdentityQueryService;
 import fu.fa26.sep490.g58.otcms_be.visit.exception.*;
+import fu.fa26.sep490.g58.otcms_be.visit.repository.ClinicVisitJpaRepository;
 import fu.fa26.sep490.g58.otcms_be.visit.repository.VisitRoomJpaRepository;
 import fu.fa26.sep490.g58.otcms_be.visit.repository.VisitWorkflowRepository;
 import fu.fa26.sep490.g58.otcms_be.visit.service.VisitExamQueueService;
@@ -25,7 +26,8 @@ class VisitClinicalEvidenceRepairTest {
     final ClinicalExaminationRepository examinations = mock(ClinicalExaminationRepository.class);
     final ClinicalFollowUpEvidenceQueryServiceImpl clinical = new ClinicalFollowUpEvidenceQueryServiceImpl(examinations);
     final VisitWorkflowRepository repository = mock(VisitWorkflowRepository.class);
-    final VisitWorkflowServiceImpl visits = new VisitWorkflowServiceImpl(repository, Clock.fixed(Instant.EPOCH, ZoneOffset.UTC),
+    final VisitWorkflowServiceImpl visits = new VisitWorkflowServiceImpl(repository, mock(ClinicVisitJpaRepository.class),
+            Clock.fixed(Instant.EPOCH, ZoneOffset.UTC),
             mock(WalkInVisitLifecycleService.class), clinical, mock(VisitExamQueueService.class),
             mock(DoctorProfileIdentityQueryService.class), mock(VisitRoomJpaRepository.class), mock(fu.fa26.sep490.g58.otcms_be.visit.service.impl.VisitAuditRecorder.class));
 

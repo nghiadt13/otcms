@@ -37,6 +37,12 @@ const CHECK_IN_FAILURES: Readonly<
 export function arrivalFailureOf(cause: unknown): ArrivalFailure {
   const error = isApiError(cause) ? cause : undefined;
   const errorCode = error?.errorCode;
+  if (error?.status === 409 && errorCode === "PATIENT_HAS_OPEN_VISIT") {
+    return {
+      message: "Bạn đã có lượt khám đang mở.",
+      hint: "Vui lòng nhờ lễ tân hướng dẫn tiếp tục lượt khám hiện tại.",
+    };
+  }
   if (
     error?.fieldErrors?.some(
       ({ field, code }) => field === "proof" && code === "MSG-37",

@@ -191,6 +191,26 @@ describe("PatientArrivalQrCheckIn: check-in bị từ chối", () => {
     expect(onRecorded).not.toHaveBeenCalled();
   });
 
+  it("hướng dẫn người bệnh gặp lễ tân khi đã có lượt khám đang mở", async () => {
+    apiRequest.mockRejectedValueOnce(
+      new ApiError(409, { errorCode: "PATIENT_HAS_OPEN_VISIT" }),
+    );
+    const onRecorded = vi.fn();
+    render(
+      <PatientArrivalQrCheckIn
+        appointment={appointment}
+        onRecorded={onRecorded}
+      />,
+    );
+
+    await submitQr(userEvent.setup(), "busy-visit-proof");
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Bạn đã có lượt khám đang mở.");
+    expect(alert).toHaveTextContent("nhờ lễ tân hướng dẫn tiếp tục lượt khám hiện tại");
+    expect(onRecorded).not.toHaveBeenCalled();
+  });
+
   it("lỗi không rõ mã: báo MSG-04", async () => {
     apiRequest.mockRejectedValueOnce(new ApiError(500, {}));
     const user = userEvent.setup();

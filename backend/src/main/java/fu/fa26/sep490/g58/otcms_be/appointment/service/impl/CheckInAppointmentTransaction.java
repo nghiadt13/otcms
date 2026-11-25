@@ -75,10 +75,8 @@ public class CheckInAppointmentTransaction {
         guard.acquire();
 
         // A successful authorized replay takes precedence over current lifecycle, clinic-day and fee state.
-        // A key that this actor used for another appointment is not a replay here; record() rejects it below.
-        var replay = idempotency.find(IdempotencyScope.APPOINTMENT_CHECKIN, command.actorAccountId(), key)
-                .filter(held -> appointmentId.equals(held.resourceId()));
-        if (replay.isPresent()) {
+        var replay = idempotency.find(IdempotencyScope.APPOINTMENT_CHECKIN, command.actorAccountId(), key);
+        if (replay.isPresent() && appointmentId.equals(replay.get().resourceId())) {
             if (!replay.get().matches(requestFingerprint)) {
                 throw new AppointmentBookingException("IDEMPOTENCY_CONFLICT");
             }
@@ -110,6 +108,9 @@ public class CheckInAppointmentTransaction {
         }
         requireStartsOnClinicDay(current.startTime());
         requireExamFeePaid(appointmentId);
+        if (replay.isPresent()) {
+            throw new AppointmentBookingException("IDEMPOTENCY_CONFLICT");
+        }
 
         ReceptionWorkflowService.CheckInResult receptionResult;
         try {

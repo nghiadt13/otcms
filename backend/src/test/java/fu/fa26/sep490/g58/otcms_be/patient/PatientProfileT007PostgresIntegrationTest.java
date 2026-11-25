@@ -2,6 +2,8 @@ package fu.fa26.sep490.g58.otcms_be.patient;
 
 import fu.fa26.sep490.g58.otcms_be.auth.repository.PatientProfileRepository;
 import fu.fa26.sep490.g58.otcms_be.auth.service.PatientProfileDirectory;
+import fu.fa26.sep490.g58.otcms_be.common.security.AccountRole;
+import fu.fa26.sep490.g58.otcms_be.common.security.AuthenticatedAccount;
 import fu.fa26.sep490.g58.otcms_be.patient.exception.PatientProfileException;
 import fu.fa26.sep490.g58.otcms_be.patient.service.PatientProfileService;
 import fu.fa26.sep490.g58.otcms_be.support.LocalPostgresTest;
@@ -15,7 +17,11 @@ import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.dao.CannotAcquireLockException;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -24,6 +30,11 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 import static org.junit.jupiter.api.Assertions.*;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.*;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest @LocalPostgresTest @Transactional @AutoConfigureMockMvc
 class PatientProfileT007PostgresIntegrationTest {
@@ -101,9 +112,13 @@ class PatientProfileT007PostgresIntegrationTest {
                 "Stale", "0912345678", "PATIENT", dob, "OTHER", null, null, null, initial.version())).getMessage());
     }
     @Test void nullNationalIdAndSameNationalIdOnDifferentProfilesAreAllowed() {
-        service.create(actor, "First Patient", "0912345678", "PATIENT", dob, "OTHER", "Address", "SHARED", "PASSPORT");
-        service.create(actor, "Second Patient", "0912345678", "PATIENT", dob, "OTHER", "Address", "SHARED", "PASSPORT");
+        var first = service.create(actor, "First Patient", "0912345678", "PATIENT", dob, "OTHER", "Address", "SHARED", "PASSPORT");
+        var second = service.create(actor, "Second Patient", "0912345678", "PATIENT", dob, "OTHER", "Address", "SHARED", "PASSPORT");
         var guest = service.create(actor, "Third Patient", "0912345678", "PATIENT", dob, "OTHER", "Address", null, null);
+        em.flush();
+        assertEquals(3, jdbc.queryForObject(
+                "select count(*) from patient_profiles where phone_canonical = ? and id in (?, ?, ?)",
+                Integer.class, "+84912345678", first.id(), second.id(), guest.id()));
         assertNull(service.detail(actor, guest.id()).nationalId());
     }
     @Test @Transactional(propagation = Propagation.NOT_SUPPORTED)
@@ -136,23 +151,107 @@ class PatientProfileT007PostgresIntegrationTest {
     @Test @Transactional(propagation = Propagation.NOT_SUPPORTED)
     void competingCreatesUseTheExistingCoordinationGuardToPreventDuplicates() throws Exception {
         String name = "Concurrent " + UUID.randomUUID();
+        UUID secondActor = UUID.randomUUID();
+        account(secondActor, "RECEPTIONIST");
         var pool = Executors.newFixedThreadPool(2);
         var start = new CountDownLatch(1);
         try {
-            List<Future<String>> results = new ArrayList<>();
-            for (int i = 0; i < 2; i++) results.add(pool.submit(() -> {
-                if (!start.await(10, TimeUnit.SECONDS)) throw new IllegalStateException("Create start timeout");
-                try {
-                    service.create(actor, name, "0912345678", "PATIENT", dob, "OTHER", "Address", null, null);
-                    return "CREATED";
-                } catch (PatientProfileException rejected) { return rejected.getMessage(); }
+            List<Future<MvcResult>> results = new ArrayList<>();
+            for (UUID receptionist : List.of(actor, secondActor)) results.add(pool.submit(() -> {
+                assertTrue(start.await(10, TimeUnit.SECONDS));
+                return createRequest(receptionist, name);
             }));
             start.countDown();
-            var outcomes = new ArrayList<String>();
-            for (var result : results) outcomes.add(result.get(20, TimeUnit.SECONDS));
-            assertEquals(Set.of("CREATED", "PATIENT_PROFILE_DUPLICATE"), new HashSet<>(outcomes));
-            assertEquals(1, jdbc.queryForObject("select count(*) from patient_profiles where full_name=?", Integer.class, name));
+            MvcResult first = results.get(0).get(20, TimeUnit.SECONDS);
+            MvcResult second = results.get(1).get(20, TimeUnit.SECONDS);
+            assertEquals(Set.of(201, 409), new HashSet<>(List.of(first.getResponse().getStatus(), second.getResponse().getStatus())));
+            assertError(first.getResponse().getStatus() == 409 ? first : second, 409, "MSG-18");
+            assertOnePatientNamed(name);
         } finally { pool.shutdownNow(); }
+    }
+
+    @Test @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    void sequentialCreateReturnsConflictForNormalizedDuplicate() throws Exception {
+        String name = "Sequential " + UUID.randomUUID();
+        assertEquals(201, createRequest(actor, name).getResponse().getStatus());
+
+        var duplicate = createRequest(actor, "  " + name.toUpperCase(Locale.ROOT) + "  ", "+84 912 345 678");
+        assertError(duplicate, 409, "MSG-18");
+        assertEquals("PATIENT_PROFILE_DUPLICATE",
+                assertInstanceOf(PatientProfileException.class, duplicate.getResolvedException()).getMessage());
+        assertOnePatientNamed(name);
+    }
+
+    @Test @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    void createTimesOutWhileAnotherReceptionistTransactionStillHoldsTheGuard() throws Exception {
+        String name = "Lock timeout " + UUID.randomUUID();
+        String phone = "0987654321";
+        UUID secondActor = UUID.randomUUID();
+        account(secondActor, "RECEPTIONIST");
+        var firstCreated = new CountDownLatch(1);
+        var finishFirst = new CountDownLatch(1);
+        var pool = Executors.newSingleThreadExecutor();
+        try {
+            var first = pool.submit(() -> new TransactionTemplate(transactions).executeWithoutResult(status -> {
+                try {
+                    assertEquals(201, createRequest(actor, name, phone).getResponse().getStatus());
+                    firstCreated.countDown();
+                    assertTrue(finishFirst.await(15, TimeUnit.SECONDS));
+                } catch (InterruptedException error) {
+                    Thread.currentThread().interrupt();
+                    throw new AssertionError(error);
+                } catch (Exception error) {
+                    throw new AssertionError(error);
+                }
+            }));
+            assertTrue(firstCreated.await(10, TimeUnit.SECONDS));
+            mvc.perform(get("/api/v1/patient-profiles/matches").with(receptionistAuth(secondActor))
+                            .param("phone", phone).param("dateOfBirth", dob.toString()).param("fullName", name))
+                    .andExpect(status().isOk()).andExpect(jsonPath("$.items").isEmpty());
+            MvcResult timedOut = createRequest(secondActor, name, phone);
+            assertError(timedOut, 503, "DEPENDENCY_UNAVAILABLE");
+            var failure = assertInstanceOf(CannotAcquireLockException.class, timedOut.getResolvedException());
+            var sql = assertInstanceOf(java.sql.SQLException.class, failure.getMostSpecificCause());
+            assertEquals("55P03", sql.getSQLState());
+            finishFirst.countDown();
+            first.get(10, TimeUnit.SECONDS);
+
+            assertError(createRequest(secondActor, name, phone), 409, "MSG-18");
+            assertOnePatientNamed(name);
+        } finally {
+            finishFirst.countDown();
+            pool.shutdownNow();
+        }
+    }
+
+    private MvcResult createRequest(UUID receptionist, String name) throws Exception {
+        return createRequest(receptionist, name, "0912345678");
+    }
+
+    private MvcResult createRequest(UUID receptionist, String name, String phone) throws Exception {
+        return mvc.perform(post("/api/v1/patient-profiles").with(receptionistAuth(receptionist)).with(csrf())
+                .contentType("application/json").content("""
+                {"fullName":"%s","phone":"%s","phoneOwnerType":"PATIENT","dateOfBirth":"2000-01-02",
+                 "gender":"OTHER","address":"Address"}
+                """.formatted(name, phone))).andReturn();
+    }
+
+    private org.springframework.test.web.servlet.request.RequestPostProcessor receptionistAuth(UUID receptionist) {
+        var account = new AuthenticatedAccount(receptionist, AccountRole.RECEPTIONIST, UUID.randomUUID());
+        var auth = new UsernamePasswordAuthenticationToken(account, null, List.of(new SimpleGrantedAuthority("ROLE_RECEPTIONIST")));
+        return authentication(auth);
+    }
+
+    private void assertError(MvcResult result, int status, String code) throws Exception {
+        String body = result.getResponse().getContentAsString();
+        assertEquals(status, result.getResponse().getStatus(), body);
+        var error = tools.jackson.databind.json.JsonMapper.builder().build().readTree(body).get("error");
+        assertEquals(code, error.get("code").asText());
+        assertFalse(error.get("message").asText().isBlank());
+    }
+
+    private void assertOnePatientNamed(String name) {
+        assertEquals(1, jdbc.queryForObject("select count(*) from patient_profiles where full_name=?", Integer.class, name));
     }
     @Test void openApiDocumentsNewAndExistingPatientRoutesWithoutRemovingOtherFeatures() throws Exception {
         var response = mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/v3/api-docs"))

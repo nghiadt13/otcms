@@ -15,7 +15,7 @@ import {
   type ReceptionArrival,
   type ReceptionCheckIn,
 } from "../api/receptionLiveApi";
-import { paymentErrorText } from "../schema/receptionMessages";
+import { checkInErrorText, paymentErrorText } from "../schema/receptionMessages";
 import { CounterPaymentForm } from "./CounterPaymentForm";
 import { PaymentReceiptDialog } from "./PaymentReceiptDialog";
 import { timeText } from "./ReceptionUi";
@@ -89,7 +89,7 @@ export function CheckInAppointmentRow({
       checkInKey.current = null;
       onCheckedIn(result);
     } catch (cause) {
-      setError(messageFromError(cause));
+      setError(checkInErrorText(cause));
     } finally {
       setBusy(false);
     }

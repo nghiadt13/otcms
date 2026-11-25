@@ -10,6 +10,11 @@ import java.util.*;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.*;
+import org.springframework.dao.CannotAcquireLockException;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
@@ -18,7 +23,8 @@ class PatientProfileServiceTest {
     final ReceptionistAccountAccessService receptionists = mock(ReceptionistAccountAccessService.class);
     final CoordinationGuardService guard = mock(CoordinationGuardService.class);
     final PatientProfileServiceImpl service = new PatientProfileServiceImpl(directory, guard, receptionists);
-    final UUID actor = UUID.randomUUID(), id = UUID.randomUUID();
+    static final String PROFILE_ID = "01234567-89ab-cdef-0123-456789abcdef";
+    final UUID actor = UUID.randomUUID(), id = UUID.fromString(PROFILE_ID);
     final LocalDate dob = LocalDate.of(2000, 1, 2);
     final String phone = "+84912345678";
 
@@ -27,6 +33,78 @@ class PatientProfileServiceTest {
     void code(String expected, org.junit.jupiter.api.function.Executable action) {
         assertEquals(expected, assertThrows(PatientProfileException.class, action).getMessage());
     }
+
+    @ParameterizedTest
+    @ValueSource(strings = {PROFILE_ID, "01234567-89AB-CDEF-0123-456789ABCDEF", " \t" + PROFILE_ID + "\n "})
+    void searchFindsExactProfileByUuid(String query) {
+        when(directory.findProfile(id)).thenReturn(Optional.of(record("Nguyễn An")));
+
+        var result = service.search(query, 0, 20);
+
+        assertEquals(1, result.getTotalElements());
+        assertEquals(id, result.getContent().getFirst().id());
+        assertEquals("Nguyễn An", result.getContent().getFirst().fullName());
+        verify(directory).findProfile(id);
+        verifyNoMoreInteractions(directory);
+    }
+
+    @Test
+    void searchReturnsEmptyPageForUnknownUuid() {
+        when(directory.findProfile(id)).thenReturn(Optional.empty());
+
+        assertEquals(Page.empty(PageRequest.of(2, 10)), service.search(PROFILE_ID, 2, 10));
+        verify(directory).findProfile(id);
+        verifyNoMoreInteractions(directory);
+    }
+
+    @Test
+    void searchReturnsEmptyLaterPageWithMatchingUuidTotal() {
+        when(directory.findProfile(id)).thenReturn(Optional.of(record("Nguyễn An")));
+
+        var result = service.search(PROFILE_ID, 1, 5);
+
+        assertTrue(result.isEmpty());
+        assertEquals(PageRequest.of(1, 5), result.getPageable());
+        assertEquals(1, result.getTotalElements());
+        assertEquals(1, result.getTotalPages());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"01234567-89ab-cdef-0123-456789abcdeg", "1-2-3-4-5"})
+    void malformedUuidUsesExistingSearch(String query) {
+        var pageable = PageRequest.of(0, 20);
+        when(directory.search(eq(query), nullable(String.class), eq(pageable))).thenReturn(Page.empty(pageable));
+
+        assertTrue(service.search(query, 0, 20).isEmpty());
+        verify(directory).search(eq(query), nullable(String.class), eq(pageable));
+        verifyNoMoreInteractions(directory);
+    }
+
+    @ParameterizedTest
+    @CsvSource(value = {"  Nguyễn   An  |Nguyễn An|", "0912 345 678|0912 345 678|+84912345678"},
+            delimiter = '|', ignoreLeadingAndTrailingWhitespace = false)
+    void searchPreservesNameAndPhoneQueries(String query, String normalizedName, String phoneTerm) {
+        var pageable = PageRequest.of(0, 1);
+        when(directory.search(normalizedName, phoneTerm, pageable))
+                .thenReturn(new PageImpl<>(List.of(record("Nguyễn An")), pageable, 3));
+
+        var result = service.search(query, 0, 1);
+
+        assertEquals(id, result.getContent().getFirst().id());
+        assertEquals(pageable, result.getPageable());
+        assertEquals(3, result.getTotalElements());
+    }
+
+    @Test
+    void searchValidatesQueryAndPaginationBeforeLookup() {
+        code("VALIDATION_FAILED", () -> service.search("  ", 0, 20));
+        code("VALIDATION_FAILED", () -> service.search("a".repeat(101), 0, 20));
+        code("VALIDATION_FAILED", () -> service.search(PROFILE_ID, -1, 20));
+        code("VALIDATION_FAILED", () -> service.search(PROFILE_ID, 0, 0));
+        code("VALIDATION_FAILED", () -> service.search(PROFILE_ID, 0, 51));
+        verifyNoInteractions(directory);
+    }
+
     @Test void noMatchesReturnsEmpty() {
         when(directory.match(phone, dob, null)).thenReturn(List.of());
         assertTrue(service.matches(actor, "0912 345 678", dob, null).isEmpty());
@@ -81,6 +159,25 @@ class PatientProfileServiceTest {
         code("PATIENT_PROFILE_DUPLICATE", () -> service.create(actor, " Nguyễn  An ", phone,
                 "PATIENT", dob, "OTHER", "Address", null, null));
         verify(directory, never()).create(any(), any());
+    }
+    @Test void createAbortsBeforeCheckingDuplicatesWhenGuardAcquisitionTimesOut() {
+        var timeout = new CannotAcquireLockException("Lock timeout");
+        doThrow(timeout).when(guard).acquire();
+
+        var failure = assertThrows(CannotAcquireLockException.class, () -> service.create(actor, "Nguyễn An", phone,
+                "PATIENT", dob, "OTHER", "Address", null, null));
+
+        assertSame(timeout, failure);
+        verifyNoInteractions(directory);
+    }
+    @Test void createPropagatesUnrelatedPersistenceFailure() {
+        var rejected = new DataIntegrityViolationException("Unrelated constraint");
+        when(directory.create(any(), eq("PATIENT"))).thenThrow(rejected);
+
+        var failure = assertThrows(DataIntegrityViolationException.class, () -> service.create(actor, "Nguyễn An",
+                phone, "PATIENT", dob, "OTHER", "Address", null, null));
+
+        assertSame(rejected, failure);
     }
     @ParameterizedTest @NullAndEmptySource @ValueSource(strings = {"  "})
     void createRequiresAddress(String address) {

@@ -200,6 +200,25 @@ class AppointmentArrivalT053PostgresIntegrationTest {
     }
 
     @Test
+    void qrCheckInWithAnotherOpenVisitRollsBackNewArrivalClaim() throws Exception {
+        UUID first = appointment(NOW.plusSeconds(600), patientProfile);
+        UUID second = appointment(NOW.plusSeconds(7200), patientProfile);
+        String proof = issueProof();
+        mvc.perform(recordQr(first, patientAccount, proof)).andExpect(status().isOk());
+
+        mvc.perform(recordQr(second, patientAccount, proof))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error.code").value("PATIENT_HAS_OPEN_VISIT"));
+
+        assertNoArrival(second);
+        assertEquals("CONFIRMED", jdbc.queryForObject("select status from appointments where id = ?", String.class, second));
+        assertEquals(1, jdbc.queryForObject("select count(*) from visits where patient_profile_id = ? and status = 'OPEN'",
+                Integer.class, patientProfile));
+        assertEquals(1, jdbc.queryForObject("select count(*) from audit_logs where source = 'appointment_audits' "
+                + "and entity_id = ?", Integer.class, second));
+    }
+
+    @Test
     void manualReceptionistFallbackIsAuditedIdempotentAndRejectsPatient() throws Exception {
         UUID target = appointment(NOW.plusSeconds(3600), patientProfile);
         String body = "{\"reason\":\"Helped patient scan QR\"}";

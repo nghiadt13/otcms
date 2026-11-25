@@ -57,6 +57,8 @@ class CheckInAppointmentT027PostgresIntegrationTest {
     private UUID patientAccount;
     private UUID receptionistAccount;
     private UUID patientProfile;
+    private UUID secondPatientAccount;
+    private UUID secondPatientProfile;
     private UUID doctorAccount;
     private UUID doctorProfile;
     private UUID service;
@@ -108,7 +110,8 @@ class CheckInAppointmentT027PostgresIntegrationTest {
             if (doctorProfile != null) jdbc.update("delete from queue_entries where stage = 'EXAM' and doctor_profile_id = ?", doctorProfile);
             if (doctorProfile != null) jdbc.update("delete from staff_profiles where id = ?", doctorProfile);
             if (patientProfile != null) jdbc.update("delete from patient_profiles where id = ?", patientProfile);
-            for (UUID id : new UUID[]{patientAccount, receptionistAccount, doctorAccount}) {
+            if (secondPatientProfile != null) jdbc.update("delete from patient_profiles where id = ?", secondPatientProfile);
+            for (UUID id : new UUID[]{patientAccount, receptionistAccount, doctorAccount, secondPatientAccount}) {
                 if (id != null) {
                     // idempotency_records has no FK to appointments, so its rows survive the cascade above.
                     jdbc.update("delete from idempotency_records where owner_id = ?", id);
@@ -222,9 +225,12 @@ class CheckInAppointmentT027PostgresIntegrationTest {
     @Test
     void appointmentsWithTheSameDoctorGetConsecutiveQueueNumbersInCheckInOrder() throws Exception {
         // 13:30 clinic time: clear of the default appointment's occupied range (12:30 to 13:05) under the doctor exclusion.
-        UUID second = insertAppointment(NOW.plusSeconds(5400), "T027 second with same doctor");
+        secondPatientAccount = account("PATIENT", "second-patient");
+        secondPatientProfile = patient(secondPatientAccount);
+        UUID second = insertAppointment(NOW.plusSeconds(5400), "T027 second with same doctor",
+                secondPatientProfile, secondPatientAccount);
 
-        mvc.perform(checkIn(second, receptionistAccount, "t027-queue-second"))
+        mvc.perform(checkIn(second, receptionistAccount, "t027-queue-second", secondPatientProfile))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.queueNumber").value(1));
         mvc.perform(checkIn(appointment, receptionistAccount, "t027-queue-first"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.queueNumber").value(2));
@@ -384,18 +390,22 @@ class CheckInAppointmentT027PostgresIntegrationTest {
     }
 
     private UUID insertAppointment(Instant start, String purpose) {
+        return insertAppointment(start, purpose, patientProfile, patientAccount);
+    }
+
+    private UUID insertAppointment(Instant start, String purpose, UUID profile, UUID account) {
         UUID id = UUID.randomUUID();
         appointments.add(id);
         jdbc.update("insert into appointments (id, patient_profile_id, service_id, doctor_profile_id, status, "
                         + "booking_source, purpose, start_time, end_time, duration_minutes, buffer_minutes, created_by_account_id) "
                         + "values (?, ?, ?, ?, 'CONFIRMED', 'PATIENT_ONLINE', ?, ?, ?, 30, 5, ?)",
-                id, patientProfile, service, doctorProfile, purpose, Timestamp.from(start), Timestamp.from(start.plusSeconds(1800)), patientAccount);
+                id, profile, service, doctorProfile, purpose, Timestamp.from(start), Timestamp.from(start.plusSeconds(1800)), account);
         jdbc.update("insert into audit_logs (source, category, action, record_type, entity_id, record_label, "
                         + "actor_account_id, actor_type, after_state, occurred_at, correlation_id) "
                         + "values ('appointment_audits', 'APPOINTMENT', 'CREATED', 'APPOINTMENT', ?, ?, ?, 'PATIENT', "
                         + "jsonb_build_object('status', 'CONFIRMED', 'doctorProfileId', cast(? as uuid), "
                         + "'startTime', cast(? as timestamptz), 'endTime', cast(? as timestamptz)), ?, ?)",
-                id, id.toString(), patientAccount, doctorProfile, Timestamp.from(start), Timestamp.from(start.plusSeconds(1800)),
+                id, id.toString(), account, doctorProfile, Timestamp.from(start), Timestamp.from(start.plusSeconds(1800)),
                 Timestamp.from(NOW), UUID.randomUUID().toString());
         return id;
     }

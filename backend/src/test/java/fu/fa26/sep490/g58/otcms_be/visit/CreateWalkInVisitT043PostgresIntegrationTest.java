@@ -18,6 +18,8 @@ import java.util.concurrent.Executors;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
@@ -30,11 +32,14 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.test.web.servlet.RequestBuilder;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -133,15 +138,161 @@ class CreateWalkInVisitT043PostgresIntegrationTest {
     }
 
     @Test
-    void sameKeyFromAnotherReceptionistCreatesOwnVisit() {
+    void sameKeyFromAnotherReceptionistCreatesOwnVisitForDifferentPatient() {
         secondReceptionist = account(AccountType.RECEPTIONIST, "second-receptionist");
         var first = walkIns.create(walkInCommand(receptionist, "t043-shared-key"));
         visitIds.add(first.visitId());
-        var second = walkIns.create(walkInCommand(secondReceptionist, "t043-shared-key"));
+        var secondCommand = walkInCommand(secondReceptionist, otherPatientProfile, "t043-shared-key");
+        var second = walkIns.create(secondCommand);
         visitIds.add(second.visitId());
         org.junit.jupiter.api.Assertions.assertNotEquals(first.visitId(), second.visitId());
         assertEquals(2, jdbc.queryForObject("select count(*) from visits v join idempotency_records r on r.resource_id = v.id and r.scope = 'WALK_IN_VISIT' where r.idempotency_key = 't043-shared-key' and v.created_by_account_id in (?, ?)", Integer.class, receptionist, secondReceptionist));
-        assertEquals(second.visitId(), walkIns.create(walkInCommand(secondReceptionist, "t043-shared-key")).visitId());
+        assertEquals(otherPatientProfile, second.patientProfileId());
+        assertEquals(second.visitId(), walkIns.create(secondCommand).visitId());
+    }
+
+    @Test
+    void rejectsSequentialDuplicateWithDifferentKeyWithoutWritingEvidence() throws Exception {
+        jdbc.update("update clinic_services set price = 250000 where id = ?", serviceId);
+        var created = walkIns.create(walkInCommand(receptionist, "t043-first"));
+        visitIds.add(created.visitId());
+
+        mvc.perform(create(patientProfile, null, "t043-duplicate", receptionist, AccountType.RECEPTIONIST))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error.code").value("PATIENT_HAS_OPEN_VISIT"));
+
+        assertSingleWalkInEvidence("PENDING_PAYMENT");
+    }
+
+    @Test
+    void concurrentRequestsFromDifferentReceptionistsWithDifferentKeysCreateOneOpenVisit() throws Exception {
+        secondReceptionist = account(AccountType.RECEPTIONIST, "second-receptionist");
+        CountDownLatch ready = new CountDownLatch(2);
+        CountDownLatch start = new CountDownLatch(1);
+        ExecutorService workers = Executors.newFixedThreadPool(2);
+        try {
+            var first = workers.submit(() -> createAtBarrier(receptionist, "t043-race-a", ready, start));
+            var second = workers.submit(() -> createAtBarrier(secondReceptionist, "t043-race-b", ready, start));
+            assertTrue(ready.await(10, TimeUnit.SECONDS));
+            start.countDown();
+            var responses = List.of(first.get(20, TimeUnit.SECONDS), second.get(20, TimeUnit.SECONDS));
+            visitIds.addAll(jdbc.queryForList("select id from visits where patient_profile_id = ?", UUID.class,
+                    patientProfile));
+            assertEquals(List.of(201, 409), responses.stream()
+                    .map(result -> result.getResponse().getStatus()).sorted().toList());
+            var rejected = responses.stream().filter(result -> result.getResponse().getStatus() == 409)
+                    .findFirst().orElseThrow();
+            jsonPath("$.error.code").value("PATIENT_HAS_OPEN_VISIT").match(rejected);
+            assertSingleWalkInEvidence("WAITING");
+        } finally {
+            start.countDown();
+            workers.shutdownNow();
+        }
+    }
+
+    @Test
+    void rejectsWalkInWhenAnEarlierScheduledVisitIsOpen() throws Exception {
+        UUID appointment = insertAppointment(patientProfile, patientAccount);
+        mvc.perform(checkIn(appointment, "t043-scheduled-check-in"))
+                .andExpect(status().isOk());
+        UUID visit = jdbc.queryForObject("select visit_id from appointments where id = ?", UUID.class, appointment);
+        visitIds.add(visit);
+        testClock.set(NOW.plusSeconds(3 * 3600)); // Next clinic date, with the doctor still on shift.
+
+        mvc.perform(create(patientProfile, null, "t043-scheduled-open", receptionist, AccountType.RECEPTIONIST))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error.code").value("PATIENT_HAS_OPEN_VISIT"));
+        assertEquals(List.of(visit), jdbc.queryForList("select id from visits where patient_profile_id = ?",
+                UUID.class, patientProfile));
+    }
+
+    @Test
+    void rejectsScheduledCheckInWhenWalkInAlreadyExists() throws Exception {
+        UUID appointment = insertAppointment(patientProfile, patientAccount);
+        var created = walkIns.create(walkInCommand(receptionist, "t043-walk-in-first"));
+        visitIds.add(created.visitId());
+
+        mvc.perform(checkIn(appointment, "t043-blocked-check-in"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error.code").value("PATIENT_HAS_OPEN_VISIT"));
+        assertUnchangedAppointment(appointment);
+        assertSingleWalkInEvidence("WAITING");
+    }
+
+    @Test
+    void competingWalkInAndScheduledCheckInLeaveOneOpenVisit() throws Exception {
+        UUID appointment = insertAppointment(patientProfile, patientAccount);
+        var outcomes = raceRequests(create(patientProfile, null, "t043-mixed-walk-in", receptionist,
+                AccountType.RECEPTIONIST), checkIn(appointment, "t043-mixed-check-in"));
+        var walkIn = outcomes.get(0);
+        var scheduled = outcomes.get(1);
+        UUID visit = trackSingleOpenVisit();
+
+        if (walkIn.getResponse().getStatus() == 201) {
+            assertOpenVisitConflict(scheduled);
+            assertUnchangedAppointment(appointment);
+            assertSingleWalkInEvidence("WAITING");
+        } else {
+            assertOpenVisitConflict(walkIn);
+            status().isOk().match(scheduled);
+            assertScheduledEvidence(appointment, visit);
+            assertEquals(0, jdbc.queryForObject("select count(*) from idempotency_records where scope = 'WALK_IN_VISIT' "
+                    + "and owner_id = ?", Integer.class, receptionist));
+        }
+    }
+
+    @Test
+    void competingCheckInsForDifferentAppointmentsOfSamePatientLeaveOneOpenVisit() throws Exception {
+        UUID first = insertAppointment(patientProfile, patientAccount, NOW.plusSeconds(600));
+        UUID second = insertAppointment(patientProfile, patientAccount);
+        var outcomes = raceRequests(checkIn(first, "t043-scheduled-a"), checkIn(second, "t043-scheduled-b"));
+        UUID visit = trackSingleOpenVisit();
+
+        int winner = outcomes.get(0).getResponse().getStatus() == 200 ? 0 : 1;
+        status().isOk().match(outcomes.get(winner));
+        assertOpenVisitConflict(outcomes.get(1 - winner));
+        var competingAppointments = List.of(first, second);
+        assertScheduledEvidence(competingAppointments.get(winner), visit);
+        assertUnchangedAppointment(competingAppointments.get(1 - winner));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"CLOSED", "INCOMPLETE"})
+    void historicalVisitDoesNotBlockScheduledCheckIn(String historicalStatus) throws Exception {
+        UUID appointment = insertAppointment(patientProfile, patientAccount);
+        UUID historical = insertHistoricalVisit(historicalStatus);
+
+        mvc.perform(checkIn(appointment, "t043-check-in-after-history")).andExpect(status().isOk());
+
+        UUID visit = jdbc.queryForObject("select visit_id from appointments where id = ?", UUID.class, appointment);
+        visitIds.add(visit);
+        assertScheduledEvidence(appointment, visit);
+        assertEquals(historicalStatus, jdbc.queryForObject("select status from visits where id = ?", String.class,
+                historical));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"CLOSED", "INCOMPLETE"})
+    void historicalVisitDoesNotBlockNewWalkIn(String statusValue) throws Exception {
+        UUID historical = insertHistoricalVisit(statusValue);
+        var created = walkIns.create(walkInCommand(receptionist, "t043-after-history"));
+        visitIds.add(created.visitId());
+        assertEquals("OPEN", jdbc.queryForObject("select status from visits where id = ?", String.class,
+                created.visitId()));
+        assertEquals(statusValue, jdbc.queryForObject("select status from visits where id = ?", String.class,
+                historical));
+    }
+
+    private UUID insertHistoricalVisit(String statusValue) {
+        UUID historical = UUID.randomUUID();
+        visitIds.add(historical);
+        Timestamp earlier = Timestamp.from(NOW.minusSeconds(8 * 86_400));
+        jdbc.update("insert into visits (id, patient_profile_id, source, arrived_at, checked_in_at, "
+                        + "created_by_account_id, status, incomplete_at) values (?, ?, 'WALK_IN', ?, ?, ?, ?, ?)",
+                historical, patientProfile, earlier, earlier, receptionist, statusValue,
+                "INCOMPLETE".equals(statusValue) ? Timestamp.from(NOW.minusSeconds(3600)) : null);
+
+        return historical;
     }
 
     @Test
@@ -158,9 +309,108 @@ class CreateWalkInVisitT043PostgresIntegrationTest {
     }
 
     private fu.fa26.sep490.g58.otcms_be.visit.service.CreateWalkInVisitCommand walkInCommand(UUID actorId, String key) {
+        return walkInCommand(actorId, patientProfile, key);
+    }
+
+    private fu.fa26.sep490.g58.otcms_be.visit.service.CreateWalkInVisitCommand walkInCommand(
+            UUID actorId, UUID profile, String key) {
         return new fu.fa26.sep490.g58.otcms_be.visit.service.CreateWalkInVisitCommand(actorId,
-                fu.fa26.sep490.g58.otcms_be.common.security.AccountRole.RECEPTIONIST, patientProfile, null,
+                fu.fa26.sep490.g58.otcms_be.common.security.AccountRole.RECEPTIONIST, profile, null,
                 doctorProfile, serviceId, key, CORRELATION);
+    }
+
+    private MvcResult createAtBarrier(UUID actor, String key,
+            CountDownLatch ready, CountDownLatch start) throws Exception {
+        ready.countDown();
+        assertTrue(start.await(10, TimeUnit.SECONDS));
+        return mvc.perform(create(patientProfile, null, key, actor, AccountType.RECEPTIONIST)).andReturn();
+    }
+
+    private List<MvcResult> raceRequests(RequestBuilder first, RequestBuilder second) throws Exception {
+        var ready = new CountDownLatch(2);
+        var start = new CountDownLatch(1);
+        var workers = Executors.newFixedThreadPool(2);
+        try {
+            var firstResult = workers.submit(() -> requestAtBarrier(first, ready, start));
+            var secondResult = workers.submit(() -> requestAtBarrier(second, ready, start));
+            assertTrue(ready.await(10, TimeUnit.SECONDS));
+            start.countDown();
+            return List.of(firstResult.get(20, TimeUnit.SECONDS), secondResult.get(20, TimeUnit.SECONDS));
+        } finally {
+            start.countDown();
+            workers.shutdownNow();
+        }
+    }
+
+    private MvcResult requestAtBarrier(RequestBuilder request, CountDownLatch ready, CountDownLatch start)
+            throws Exception {
+        ready.countDown();
+        assertTrue(start.await(10, TimeUnit.SECONDS));
+        return mvc.perform(request).andReturn();
+    }
+
+    private UUID trackSingleOpenVisit() {
+        var rows = jdbc.queryForList("select id from visits where patient_profile_id = ?", UUID.class, patientProfile);
+        visitIds.addAll(rows);
+        assertEquals(1, rows.size());
+        assertEquals("OPEN", jdbc.queryForObject("select status from visits where id = ?", String.class, rows.getFirst()));
+        return rows.getFirst();
+    }
+
+    private void assertOpenVisitConflict(MvcResult result) throws Exception {
+        status().isConflict().match(result);
+        jsonPath("$.error.code").value("PATIENT_HAS_OPEN_VISIT").match(result);
+    }
+
+    private void assertUnchangedAppointment(UUID appointment) {
+        assertEquals(1, jdbc.queryForObject("select count(*) from appointments where id = ? "
+                + "and status = 'CONFIRMED' and visit_id is null", Integer.class, appointment));
+        assertEquals(1, jdbc.queryForObject("select count(*) from audit_logs where source = 'appointment_audits' "
+                + "and entity_id = ?", Integer.class, appointment));
+        assertEquals(0, jdbc.queryForObject("select count(*) from idempotency_records where scope = 'APPOINTMENT_CHECKIN' "
+                + "and resource_id = ?", Integer.class, appointment));
+        assertNoBillingEvidence();
+    }
+
+    private void assertScheduledEvidence(UUID appointment, UUID visit) {
+        assertEquals(1, jdbc.queryForObject("select count(*) from appointments where id = ? "
+                + "and status = 'CHECKED_IN' and visit_id = ?", Integer.class, appointment, visit));
+        assertEquals(1, jdbc.queryForObject("select count(*) from visits where id = ? and source = 'SCHEDULED' "
+                + "and status = 'OPEN'", Integer.class, visit));
+        assertEquals(List.of("EXAM"), jdbc.queryForList(
+                "select stage from queue_entries where visit_id = ? order by stage", String.class, visit));
+        assertEquals(1, jdbc.queryForObject("select count(*) from audit_logs where source = 'appointment_audits' "
+                + "and entity_id = ? and action = 'STATUS_CHANGED'", Integer.class, appointment));
+        assertEquals(0, jdbc.queryForObject("select count(*) from audit_logs where action = 'WALK_IN_CREATED' "
+                + "and actor_account_id = ?", Integer.class, receptionist));
+        assertEquals(1, jdbc.queryForObject("select count(*) from idempotency_records where scope = 'APPOINTMENT_CHECKIN' "
+                + "and resource_id = ?", Integer.class, appointment));
+        assertNoBillingEvidence();
+    }
+
+    private void assertSingleWalkInEvidence(String examStatus) {
+        assertEquals(1, jdbc.queryForObject("select count(*) from visits where patient_profile_id = ?",
+                Integer.class, patientProfile));
+        UUID visit = jdbc.queryForObject("select id from visits where patient_profile_id = ? and status = 'OPEN'",
+                UUID.class, patientProfile);
+        assertEquals(List.of("EXAM", "RECEPTION"), jdbc.queryForList(
+                "select stage from queue_entries where visit_id = ? order by stage", String.class, visit));
+        assertEquals(examStatus, jdbc.queryForObject(
+                "select status from queue_entries where visit_id = ? and stage = 'EXAM'", String.class, visit));
+        assertEquals(1, jdbc.queryForObject("select count(*) from audit_logs where action = 'WALK_IN_CREATED' "
+                + "and actor_account_id in (?, ?)", Integer.class,
+                receptionist, secondReceptionist));
+        assertEquals(1, jdbc.queryForObject("select count(*) from idempotency_records where scope = 'WALK_IN_VISIT' "
+                + "and owner_id in (?, ?)", Integer.class, receptionist, secondReceptionist));
+        assertNoBillingEvidence();
+    }
+
+    private void assertNoBillingEvidence() {
+        assertEquals(0, jdbc.queryForObject("select count(*) from invoices where patient_profile_id = ?",
+                Integer.class, patientProfile));
+        assertEquals(0, jdbc.queryForObject("select count(*) from payment_attempts p "
+                + "join invoices i on i.id = p.invoice_id where i.patient_profile_id = ?", Integer.class,
+                patientProfile));
     }
 
     private void raceWalkIn(UUID actor, UUID patient, String key, CountDownLatch ready, CountDownLatch start,
@@ -187,6 +437,10 @@ class CreateWalkInVisitT043PostgresIntegrationTest {
         jdbc.execute("alter table audit_logs disable trigger tr_audit_logs_no_truncate");
         jdbc.execute("alter table audit_logs disable trigger tr_audit_logs_immutable");
         try {
+            for (UUID appointmentId : appointmentIds) {
+                jdbc.update("update appointments set status = 'CANCELLED', visit_id = null "
+                        + "where id = ? and visit_id is not null", appointmentId);
+            }
             for (UUID visitId : visitIds) {
                 jdbc.update("delete from audit_logs where source = 'walk_in_reception_queue_history' and entity_id = ?", visitId);
                 jdbc.update("delete from queue_entries where stage = 'RECEPTION' and visit_id = ?", visitId);
@@ -387,9 +641,12 @@ class CreateWalkInVisitT043PostgresIntegrationTest {
     }
 
     private UUID insertAppointment(UUID patientId, UUID patientOwnerAccountId) {
+        return insertAppointment(patientId, patientOwnerAccountId, NOW.plusSeconds(3600));
+    }
+
+    private UUID insertAppointment(UUID patientId, UUID patientOwnerAccountId, Instant start) {
         UUID id = UUID.randomUUID();
         appointmentIds.add(id);
-        Instant start = NOW.plusSeconds(3600);
         jdbc.update("insert into appointments (id, patient_profile_id, service_id, doctor_profile_id, status, "
                         + "booking_source, purpose, start_time, end_time, duration_minutes, buffer_minutes, created_by_account_id) "
                         + "values (?, ?, ?, ?, 'CONFIRMED', 'PATIENT_ONLINE', 'T043 prior appointment', ?, ?, 30, 5, ?)",
@@ -403,6 +660,14 @@ class CreateWalkInVisitT043PostgresIntegrationTest {
                 id, patientOwnerAccountId, doctorProfile, Timestamp.from(start), Timestamp.from(start.plusSeconds(1800)),
                 Timestamp.from(NOW), UUID.randomUUID().toString());
         return id;
+    }
+
+    private MockHttpServletRequestBuilder checkIn(UUID appointment, String key) {
+        return post("/api/v1/appointments/{id}/check-in", appointment)
+                .with(actor(receptionist, AccountType.RECEPTIONIST)).with(csrf())
+                .header("Idempotency-Key", key).header("X-Correlation-ID", CORRELATION)
+                .contentType("application/json")
+                .content("{\"verifiedPatientProfileId\":\"" + patientProfile + "\"}");
     }
 
     private UUID account(AccountType type, String suffix) {

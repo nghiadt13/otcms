@@ -38,15 +38,27 @@ const emptyInput: ReceptionPatientInput = {
   nationalId: null,
   identityDocumentType: null,
 };
-function errorText(error: unknown, mode: "create" | "update" | "read") {
+function errorText(
+  error: unknown,
+  mode: "match" | "create" | "update" | "read",
+) {
   if (isApiError(error)) {
     if (error.status === 400 || error.status === 422)
       return formatAppMessage("MSG-17");
-    if (error.status === 409 && mode === "create")
-      return formatAppMessage("MSG-18");
+    if (mode === "create" && error.status === 409 && error.code === "MSG-18")
+      return "Hồ sơ bệnh nhân đã tồn tại. Tìm và mở hồ sơ hiện có.";
+    if (
+      (mode === "match" || mode === "create") &&
+      error.status === 503 &&
+      error.errorCode === "DEPENDENCY_UNAVAILABLE"
+    )
+      return "Hệ thống đang bận. Kiểm tra lại hồ sơ hiện có trước khi thử lưu lại.";
     if (error.status === 409 && error.code === "MSG-16")
       return formatAppMessage("MSG-16");
-    if ((error.status === 403 || error.status === 404) && mode !== "create")
+    if (
+      (mode === "read" || mode === "update") &&
+      (error.status === 403 || error.status === 404)
+    )
       return formatAppMessage("MSG-19");
   }
   return messageFromError(error);
@@ -100,6 +112,7 @@ function PatientForm({
     }
     setPending(true);
     setError("");
+    let mode: "match" | "create" | "update" = patient ? "update" : "match";
     try {
       if (patient) {
         const saved = await updatePatientProfile(
@@ -121,11 +134,12 @@ function PatientForm({
         setError(formatAppMessage("MSG-18"));
         return;
       }
+      mode = "create";
       const saved = await createPatientProfile(input);
       notifySuccess("MSG-84");
       onSaved(saved.patientProfileId);
     } catch (cause) {
-      setError(errorText(cause, patient ? "update" : "create"));
+      setError(errorText(cause, mode));
     } finally {
       setPending(false);
     }

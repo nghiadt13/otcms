@@ -17,6 +17,7 @@ import fu.fa26.sep490.g58.otcms_be.visit.repository.VisitWorkflowRepository;
 import fu.fa26.sep490.g58.otcms_be.visit.repository.VisitWorkflowRepository.CheckInData;
 import fu.fa26.sep490.g58.otcms_be.visit.model.ExamQueueTicket;
 import fu.fa26.sep490.g58.otcms_be.visit.model.entity.VisitRoomJpaEntity;
+import fu.fa26.sep490.g58.otcms_be.visit.repository.ClinicVisitJpaRepository;
 import fu.fa26.sep490.g58.otcms_be.visit.repository.VisitRoomJpaRepository;
 import fu.fa26.sep490.g58.otcms_be.visit.service.VisitExamQueueService;
 import fu.fa26.sep490.g58.otcms_be.staff.service.DoctorProfileIdentityQueryService;
@@ -35,6 +36,7 @@ public class VisitWorkflowServiceImpl implements VisitWorkflowService, Reception
     /** Shortest care interval written for a scheduled examination; the interval is an estimate, not a booking. */
     private static final Duration MINIMUM_CARE_INTERVAL = Duration.ofMinutes(30);
     private final VisitWorkflowRepository workflowRepository;
+    private final ClinicVisitJpaRepository visits;
     private final Clock clock;
     private final WalkInVisitLifecycleService walkInLifecycle;
     private final fu.fa26.sep490.g58.otcms_be.clinical.service.ClinicalFollowUpEvidenceQueryService clinical;
@@ -43,12 +45,13 @@ public class VisitWorkflowServiceImpl implements VisitWorkflowService, Reception
     private final VisitRoomJpaRepository visitRooms;
     private final VisitAuditRecorder audit;
 
-    public VisitWorkflowServiceImpl(VisitWorkflowRepository workflowRepository, Clock clock,
+    public VisitWorkflowServiceImpl(VisitWorkflowRepository workflowRepository, ClinicVisitJpaRepository visits, Clock clock,
             WalkInVisitLifecycleService walkInLifecycle,
             fu.fa26.sep490.g58.otcms_be.clinical.service.ClinicalFollowUpEvidenceQueryService clinical,
             VisitExamQueueService examQueue, DoctorProfileIdentityQueryService doctorProfiles,
             VisitRoomJpaRepository visitRooms, VisitAuditRecorder audit) {
         this.workflowRepository = workflowRepository; this.clock = clock; this.walkInLifecycle = walkInLifecycle;
+        this.visits = visits;
         this.clinical = clinical; this.examQueue = examQueue; this.doctorProfiles = doctorProfiles;
         this.visitRooms = visitRooms;
         this.audit = audit;
@@ -175,6 +178,10 @@ public class VisitWorkflowServiceImpl implements VisitWorkflowService, Reception
         }
         Instant checkedInAt = Instant.now(clock);
         if (workflowRepository.hasVisitFromAppointment(command.appointmentId())) throw new ReceptionWorkflowException("VISIT_LINK_CONFLICT");
+        // The appointment transaction already holds the same guard as walk-in creation.
+        if (visits.existsByPatientProfileIdAndStatus(command.patientProfileId(), "OPEN")) {
+            throw new ReceptionWorkflowException("PATIENT_HAS_OPEN_VISIT");
+        }
 
         // Clinic day and exam fee are decided by the appointment side before this call; a recorded arrival only
         // supplies the arrival time, whatever that time is.

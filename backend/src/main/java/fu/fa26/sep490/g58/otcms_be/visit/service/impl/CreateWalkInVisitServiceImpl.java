@@ -105,6 +105,10 @@ public class CreateWalkInVisitServiceImpl implements CreateWalkInVisitService {
             throw new VisitOperationException("ACCESS_DENIED");
         }
 
+        if (visits.existsByPatientProfileIdAndStatus(command.patientProfileId(), "OPEN")) {
+            throw new VisitOperationException("PATIENT_HAS_OPEN_VISIT");
+        }
+
         Instant arrivedAt = clock.instant();
         requireDoctorOnShift(command.doctorProfileId(), arrivedAt);
         BigDecimal fee = requireExaminationFee(command.serviceId());

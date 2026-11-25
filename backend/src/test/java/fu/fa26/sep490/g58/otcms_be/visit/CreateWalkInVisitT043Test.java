@@ -120,9 +120,24 @@ class CreateWalkInVisitT043Test {
                 fingerprint(priorAppointmentId, DOCTOR, SERVICE), visitCaptor.getValue().getId());
         verify(examQueue).createPendingPayment(any(), eq(DOCTOR), eq(SERVICE), eq(ARRIVAL));
         verify(examQueue, never()).enqueueWaiting(any(), any(), any(), any());
-        var order = inOrder(guard, idempotency);
+        var order = inOrder(guard, idempotency, receptionists, visits);
         order.verify(guard).acquire();
         order.verify(idempotency).find(IdempotencyScope.WALK_IN_VISIT, ACTOR, "key-1");
+        order.verify(receptionists).isActiveReceptionistAccount(ACTOR);
+        order.verify(visits).existsByPatientProfileIdAndStatus(PATIENT, "OPEN");
+        order.verify(visits).saveAndFlush(any(ClinicVisitJpaEntity.class));
+    }
+
+    @Test
+    void openVisitRejectsNewRequestWithoutCreatingEvidence() {
+        when(visits.existsByPatientProfileIdAndStatus(PATIENT, "OPEN")).thenReturn(true);
+
+        var failure = assertThrows(VisitOperationException.class, () -> service.create(command(null, DOCTOR, SERVICE)));
+
+        assertEquals("PATIENT_HAS_OPEN_VISIT", failure.code());
+        verify(visits, never()).saveAndFlush(any());
+        verify(idempotency, never()).record(any(), any(), any(), any(), any());
+        verifyNoInteractions(audits, queueEntries, examQueue);
     }
 
     @Test
@@ -160,6 +175,7 @@ class CreateWalkInVisitT043Test {
         assertEquals("Phong kham 1", result.roomLabel());
         verify(guard).acquire();
         verifyNoInteractions(schedules);
+        verify(visits, never()).existsByPatientProfileIdAndStatus(any(), any());
         verify(idempotency, never()).record(any(), any(), any(), any(), any());
         verify(visits, never()).saveAndFlush(any());
         verifyNoInteractions(audits);
@@ -176,6 +192,7 @@ class CreateWalkInVisitT043Test {
 
         assertEquals("IDEMPOTENCY_CONFLICT", failure.code());
         verify(guard).acquire();
+        verify(visits, never()).existsByPatientProfileIdAndStatus(any(), any());
         verify(visits, never()).saveAndFlush(any());
         verifyNoInteractions(audits);
     }

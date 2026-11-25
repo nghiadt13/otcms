@@ -19,6 +19,7 @@ import fu.fa26.sep490.g58.otcms_be.visit.model.ExamQueueEntry;
 import fu.fa26.sep490.g58.otcms_be.visit.model.ExamQueueTicket;
 import fu.fa26.sep490.g58.otcms_be.visit.model.VisitExamStatus;
 import fu.fa26.sep490.g58.otcms_be.visit.model.entity.VisitRoomJpaEntity;
+import fu.fa26.sep490.g58.otcms_be.visit.repository.ClinicVisitJpaRepository;
 import fu.fa26.sep490.g58.otcms_be.visit.repository.VisitRoomJpaRepository;
 import fu.fa26.sep490.g58.otcms_be.visit.repository.VisitWorkflowRepository;
 import fu.fa26.sep490.g58.otcms_be.visit.service.ReceptionWorkflowService;
@@ -47,10 +48,11 @@ class VisitWorkflowCheckInServiceImplTest {
     private final UUID roomId = UUID.randomUUID();
     private final Instant now = Instant.parse("2026-10-14T05:00:00Z");
     private final VisitWorkflowRepository repository = mock(VisitWorkflowRepository.class);
+    private final ClinicVisitJpaRepository clinicVisits = mock(ClinicVisitJpaRepository.class);
     private final VisitExamQueueService examQueue = mock(VisitExamQueueService.class);
     private final DoctorProfileIdentityQueryService doctorProfiles = mock(DoctorProfileIdentityQueryService.class);
     private final VisitRoomJpaRepository visitRooms = mock(VisitRoomJpaRepository.class);
-    private final VisitWorkflowServiceImpl visits = new VisitWorkflowServiceImpl(repository,
+    private final VisitWorkflowServiceImpl visits = new VisitWorkflowServiceImpl(repository, clinicVisits,
             Clock.fixed(now, ZoneOffset.UTC), mock(WalkInVisitLifecycleService.class),
             mock(ClinicalFollowUpEvidenceQueryService.class), examQueue, doctorProfiles, visitRooms, mock(fu.fa26.sep490.g58.otcms_be.visit.service.impl.VisitAuditRecorder.class));
     private final ExamQueueTicket ticket = new ExamQueueTicket(1, doctorId, "Dr. A", roomId, "Room 2");
@@ -72,6 +74,16 @@ class VisitWorkflowCheckInServiceImplTest {
         assertEquals(ticket, result.ticket());
         verify(repository).insertCheckInVisit(eq(result.visitId()), any());
         verify(examQueue).enqueueWaiting(result.visitId(), doctorId, null, now);
+    }
+
+    @Test
+    void openVisitRejectsScheduledCheckInBeforeAnyInsertOrQueueWork() {
+        when(clinicVisits.existsByPatientProfileIdAndStatus(patientId, "OPEN")).thenReturn(true);
+
+        assertEquals("PATIENT_HAS_OPEN_VISIT", assertThrows(ReceptionWorkflowException.class,
+                () -> visits.checkInAtomically(command(doctorId))).code());
+        verify(repository, never()).insertCheckInVisit(any(), any());
+        verifyNoInteractions(examQueue);
     }
 
     @Test

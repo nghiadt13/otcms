@@ -12,6 +12,8 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.transaction.annotation.Propagation;
 
 public interface ClinicVisitJpaRepository extends JpaRepository<ClinicVisitJpaEntity, UUID> {
+    boolean existsByPatientProfileIdAndStatus(UUID patientProfileId, String status);
+
     @Query("""
             select v from ClinicVisitJpaEntity v
             where (:patientId is null or v.patientProfileId = :patientId)

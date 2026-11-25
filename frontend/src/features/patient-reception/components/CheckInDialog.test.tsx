@@ -372,14 +372,23 @@ describe("CheckInDialog (tiếp nhận tại quầy)", () => {
     );
   });
 
-  it("check-in bị backend từ chối vì chưa thu phí hiện MSG-94", async () => {
+  it.each([
+    [
+      new ApiError(409, { code: "MSG-94" }),
+      "Bạn chưa thanh toán phí khám nên chưa thể tiếp nhận.",
+    ],
+    [
+      new ApiError(409, { errorCode: "PATIENT_HAS_OPEN_VISIT" }),
+      "Bệnh nhân đã có lượt khám đang mở. Vui lòng vào mục Tiến trình lượt khám để tìm và tiếp tục xử lý lượt khám hiện tại.",
+    ],
+  ])("hiển thị hướng dẫn khi check-in lịch hẹn bị từ chối (%s)", async (error, message) => {
     const user = userEvent.setup();
     feePaid = true;
     appointments = [appointment({ examFeePaid: true })];
     const base = request.getMockImplementation()!;
     request.mockImplementation(async (path: string, init?: RequestInit) => {
       if (path === "/api/v1/appointments/apt-1/check-in")
-        throw new ApiError(409, { code: "MSG-94" });
+        throw error;
       return base(path, init);
     });
     renderDialog({ appointmentId: "apt-1" });
@@ -391,9 +400,7 @@ describe("CheckInDialog (tiếp nhận tại quầy)", () => {
       await screen.findByRole("button", { name: "Check-in lịch hẹn" }),
     );
 
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Bạn chưa thanh toán phí khám nên chưa thể tiếp nhận.",
-    );
+    expect(await screen.findByRole("alert")).toHaveTextContent(message);
     expect(toast.success).not.toHaveBeenCalled();
   });
 
@@ -463,6 +470,43 @@ describe("CheckInDialog (tiếp nhận tại quầy)", () => {
     expect(request).toHaveBeenCalledWith(
       "/api/v1/visits/v-walk/exam-queue-entry",
     );
+  });
+
+  it.each([
+    [
+      new ApiError(409, { errorCode: "PATIENT_HAS_OPEN_VISIT" }),
+      "Bệnh nhân đã có lượt khám đang mở. Vui lòng vào mục Tiến trình lượt khám để tìm và tiếp tục xử lý lượt khám hiện tại.",
+    ],
+    [
+      new ApiError(503, { errorCode: "DEPENDENCY_UNAVAILABLE" }),
+      formatAppMessage("MSG-04"),
+    ],
+  ])("walk-in hiển thị đúng thông báo khi API trả lỗi %s", async (error, message) => {
+    const user = userEvent.setup();
+    const base = request.getMockImplementation()!;
+    request.mockImplementation(async (path: string, init?: RequestInit) => {
+      if (path === "/api/v1/visits/walk-ins" && init?.method === "POST") {
+        throw error;
+      }
+      return base(path, init);
+    });
+    renderDialog();
+
+    await user.click(
+      screen.getByRole("button", { name: "Xác minh hồ sơ bệnh nhân" }),
+    );
+    const service = await screen.findByLabelText("Dịch vụ khám");
+    await waitFor(() =>
+      expect(within(service).getByRole("option", { name: /Khám/ })).toBeInTheDocument(),
+    );
+    await user.selectOptions(service, "svc-kham");
+    await user.click(
+      screen.getByRole("button", { name: "Tạo lượt khám trực tiếp" }),
+    );
+
+    expect(await screen.findByText(message)).toHaveAttribute("role", "alert");
+    expect(screen.queryByRole("dialog", { name: "Thu phí khám" })).toBeNull();
+    expect(toast.success).not.toHaveBeenCalled();
   });
 
   it("walk-in chọn sẵn gợi ý đầu, hiện số chờ và cho đổi bác sĩ", async () => {
