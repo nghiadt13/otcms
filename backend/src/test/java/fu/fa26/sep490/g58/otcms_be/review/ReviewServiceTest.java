@@ -3,6 +3,8 @@ package fu.fa26.sep490.g58.otcms_be.review;
 import fu.fa26.sep490.g58.otcms_be.common.audit.AuditLogWriter;
 import fu.fa26.sep490.g58.otcms_be.common.audit.AuditEntry;
 import fu.fa26.sep490.g58.otcms_be.auth.service.PatientProfileDirectory;
+import fu.fa26.sep490.g58.otcms_be.patient.service.DependentProfileService;
+import fu.fa26.sep490.g58.otcms_be.patient.model.dto.DependentDtos;
 import fu.fa26.sep490.g58.otcms_be.review.exception.ReviewOperationException;
 import fu.fa26.sep490.g58.otcms_be.review.model.ReviewStatus;
 import fu.fa26.sep490.g58.otcms_be.review.model.dto.ReviewDtos.*;
@@ -27,6 +29,7 @@ import static org.mockito.ArgumentMatchers.*;
 class ReviewServiceTest {
     final PatientReviewRepository reviews = mock(PatientReviewRepository.class);
     final AuditLogWriter history = mock(AuditLogWriter.class);
+    final DependentProfileService dependents = mock(DependentProfileService.class);
     final OwnPatientProfileService own = mock(OwnPatientProfileService.class);
     final PatientProfileDirectory profiles = mock(PatientProfileDirectory.class);
     final VisitReviewSourceService visits = mock(VisitReviewSourceService.class);
@@ -36,8 +39,9 @@ class ReviewServiceTest {
             profileId, account, "Private patient", null, null, null, null);
     final ReviewServiceImpl service = new ReviewServiceImpl(reviews, history, own, profiles, visits,
             Clock.fixed(now, ZoneOffset.UTC), source -> source,
-            mock(fu.fa26.sep490.g58.otcms_be.notification.service.NotificationPublisher.class));
+            mock(fu.fa26.sep490.g58.otcms_be.notification.service.NotificationPublisher.class), dependents);
     @BeforeEach void setup() {
+        when(dependents.list(any())).thenReturn(new DependentDtos.Items<>(List.of()));
         when(own.requireOwnProfile(account)).thenReturn(profile);
         when(profiles.findPatientProfile(account)).thenReturn(Optional.of(profileId));
         when(profiles.findProfile(profileId)).thenReturn(Optional.of(profile));
@@ -72,6 +76,27 @@ class ReviewServiceTest {
         when(reviews.findByPatientProfileIdOrderBySubmittedAtDescIdDesc(profileId)).thenReturn(List.of(existing));
         assertTrue(service.eligible(account).items().isEmpty());
     }
+    @Test void confirmedDependentCanBeReviewedButPendingDependentCannot() {
+        UUID dependent = UUID.randomUUID();
+        UUID pending = UUID.randomUUID();
+        when(dependents.list(account)).thenReturn(new DependentDtos.Items<>(List.of(
+                new DependentDtos.ProfileItem(dependent, "QA child", null, null, "CHILD", "CONFIRMED", UUID.randomUUID()),
+                new DependentDtos.ProfileItem(pending, "QA pending", null, null, "CHILD", "PENDING_OTP", UUID.randomUUID()))));
+        var source = new VisitReviewSourceService.Source(visitId, dependent, "CLOSED", now, "Doctor", "Examination");
+        when(visits.closedVisits(dependent)).thenReturn(List.of(source));
+        when(visits.find(visitId)).thenReturn(Optional.of(source));
+        assertEquals("CHILD", service.eligible(account).items().getFirst().patient().relationship());
+        assertEquals("QA child", service.submit(account,
+                new SubmitReviewRequest(visitId, 5, "A valid review")).patient().fullName());
+
+        var review = PatientReviewJpaEntity.submit(visitId, dependent, account, 5, "A valid review", now);
+        when(reviews.findByAuthorAccountIdOrderBySubmittedAtDescIdDesc(account)).thenReturn(List.of(review));
+        assertEquals(review.getId(), service.mine(account).items().getFirst().id());
+
+        source(pending, "CLOSED");
+        expectSubmit(403);
+    }
+
     @Test void submitPendingTrimmedAndHistory() {
         var result = service.submit(account, new SubmitReviewRequest(visitId, 5, "  A valid review  "));
         assertEquals(ReviewStatus.PENDING, result.status()); assertEquals("A valid review", result.text());

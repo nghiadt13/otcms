@@ -16,10 +16,10 @@ import org.springframework.web.bind.annotation.*;
 
 @RestController
 @PreAuthorize("hasAuthority('ROLE_PATIENT')")
-@Tag(name = "Patient reviews", description = "UC59: reviews of the authenticated Patient's own profile; dependents are excluded.")
+@Tag(name = "Patient reviews", description = "UC59: reviews of the authenticated Patient and confirmed linked profiles.")
 @ApiResponses({
         @ApiResponse(responseCode = "401", description = "Authentication required"),
-        @ApiResponse(responseCode = "403", description = "Patient role required, or MSG-56: visit/profile outside own scope",
+        @ApiResponse(responseCode = "403", description = "Patient role required, or MSG-56: visit/profile outside authorized scope",
                 content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))),
         @ApiResponse(responseCode = "500", description = "MSG-04: request processing failed",
                 content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class)))})
@@ -27,17 +27,17 @@ public class PatientReviewController {
     private final ReviewService reviews;
     public PatientReviewController(ReviewService reviews) { this.reviews = reviews; }
     @GetMapping("/api/v1/me/reviews/eligible-visits")
-    @Operation(summary = "List visits eligible for review", description = "Returns own CLOSED visits without an existing review. CLOSED corresponds to SRS Completed. No account/profile selector is accepted.")
+    @Operation(summary = "List visits eligible for review", description = "Returns CLOSED visits of the patient or confirmed linked profiles without an existing review. CLOSED corresponds to SRS Completed. No account/profile selector is accepted.")
     @ApiResponse(responseCode = "200", description = "Unpaged items of eligible visits, newest visit date first")
     public Items<EligibleVisit> eligible(@Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedAccount actor) {
         return reviews.eligible(actor.accountId());
     }
     @GetMapping("/api/v1/me/reviews")
-    @Operation(summary = "List my submitted reviews", description = "Returns reviews for the current account's own profile, newest submission first, including all moderation states and any clinic reply.")
+    @Operation(summary = "List my submitted reviews", description = "Returns reviews authored by the current account for profiles it can access, newest submission first, including all moderation states and any clinic reply.")
     @ApiResponse(responseCode = "200", description = "Unpaged items; patient review content is named text")
     public Items<MyReview> mine(@Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedAccount actor) { return reviews.mine(actor.accountId()); }
     @PostMapping("/api/v1/reviews")
-    @Operation(summary = "Submit a clinic review", description = "Creates one PENDING review per own CLOSED visit, SUBMIT history and notifications to active Admins atomically. Text is trimmed; integer rating is 1–5.")
+    @Operation(summary = "Submit a clinic review", description = "Creates one PENDING review per authorized CLOSED visit, SUBMIT history and notifications to active Admins atomically. Text is trimmed; integer rating is 1–5.")
     @ApiResponses({
             @ApiResponse(responseCode = "201", description = "Review created in PENDING state"),
             @ApiResponse(responseCode = "400", description = "MSG-57: invalid fields; fieldErrors is at the response root",

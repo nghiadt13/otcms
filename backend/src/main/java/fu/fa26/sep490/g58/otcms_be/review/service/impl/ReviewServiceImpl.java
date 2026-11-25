@@ -5,6 +5,8 @@ import fu.fa26.sep490.g58.otcms_be.notification.model.NotificationMessages;
 import fu.fa26.sep490.g58.otcms_be.notification.service.NotificationPublisher;
 
 import fu.fa26.sep490.g58.otcms_be.auth.service.PatientProfileDirectory;
+import fu.fa26.sep490.g58.otcms_be.patient.exception.CareRelationshipException;
+import fu.fa26.sep490.g58.otcms_be.patient.service.DependentProfileService;
 import fu.fa26.sep490.g58.otcms_be.review.exception.ReviewOperationException;
 import fu.fa26.sep490.g58.otcms_be.review.model.ReviewStatus;
 import fu.fa26.sep490.g58.otcms_be.review.model.dto.ReviewDtos.*;
@@ -31,31 +33,63 @@ public class ReviewServiceImpl implements ReviewService {
     private final Clock clock;
     private final ReviewVisitContextService visitContext;
     private final NotificationPublisher notifications;
+    private final DependentProfileService dependents;
     public ReviewServiceImpl(PatientReviewRepository reviews, AuditLogWriter audit,
             OwnPatientProfileService ownProfiles, PatientProfileDirectory profiles,
             VisitReviewSourceService visits, Clock clock, ReviewVisitContextService visitContext,
-            NotificationPublisher notifications) {
+            NotificationPublisher notifications, DependentProfileService dependents) {
         this.reviews = reviews; this.audit = audit; this.ownProfiles = ownProfiles;
         this.profiles = profiles; this.visits = visits; this.clock = clock; this.visitContext = visitContext;
         this.notifications = notifications;
+        this.dependents = dependents;
     }
     public Items<EligibleVisit> eligible(UUID accountId) {
         // New account without its own profile yet: nothing to review, not an error.
         if (profiles.findPatientProfile(accountId).isEmpty()) return new Items<>(List.of());
-        var profile = ownProfiles.requireOwnProfile(accountId);
+        var scope = reviewPatients(accountId);
         var reviewed = new HashSet<UUID>();
-        reviews.findByPatientProfileIdOrderBySubmittedAtDescIdDesc(profile.id()).forEach(r -> reviewed.add(r.getVisitId()));
-        return new Items<>(visits.closedVisits(profile.id()).stream()
-                .filter(v -> profile.id().equals(v.patientProfileId()) && "CLOSED".equals(v.status()) && !reviewed.contains(v.id()))
+        for (UUID profileId : scope.keySet()) {
+            reviews.findByPatientProfileIdOrderBySubmittedAtDescIdDesc(profileId)
+                    .forEach(review -> reviewed.add(review.getVisitId()));
+        }
+        return new Items<>(scope.keySet().stream()
+                .flatMap(profileId -> visits.closedVisits(profileId).stream()
+                        .filter(visit -> profileId.equals(visit.patientProfileId())))
+                .filter(visit -> "CLOSED".equals(visit.status()) && !reviewed.contains(visit.id()))
+                .sorted(Comparator.comparing(VisitReviewSourceService.Source::arrivedAt).reversed()
+                        .thenComparing(VisitReviewSourceService.Source::id))
                 .map(visitContext::enrich)
-                .map(v -> new EligibleVisit(v.id(), date(v.arrivedAt()), v.serviceName(), patient(profile))).toList());
+                .map(visit -> new EligibleVisit(visit.id(), date(visit.arrivedAt()), visit.serviceName(),
+                        scope.get(visit.patientProfileId())))
+                .toList());
     }
+
     public Items<MyReview> mine(UUID accountId) {
         if (profiles.findPatientProfile(accountId).isEmpty()) return new Items<>(List.of());
-        var profile = ownProfiles.requireOwnProfile(accountId);
-        return new Items<>(reviews.findByPatientProfileIdOrderBySubmittedAtDescIdDesc(profile.id()).stream()
-                .map(r -> mine(r, profile)).toList());
+        var scope = reviewPatients(accountId);
+        return new Items<>(reviews.findByAuthorAccountIdOrderBySubmittedAtDescIdDesc(accountId).stream()
+                .filter(review -> scope.containsKey(review.getPatientProfileId()))
+                .map(review -> mine(review, scope.get(review.getPatientProfileId())))
+                .toList());
     }
+
+    private Map<UUID, Patient> reviewPatients(UUID accountId) {
+        var own = ownProfiles.requireOwnProfile(accountId);
+        Map<UUID, Patient> scope = new LinkedHashMap<>();
+        scope.put(own.id(), new Patient(own.fullName(), "SELF"));
+        try {
+            for (var dependent : dependents.list(accountId).items()) {
+                if ("CONFIRMED".equals(dependent.linkStatus())) {
+                    scope.putIfAbsent(dependent.patientProfileId(),
+                            new Patient(dependent.fullName(), dependent.relationship()));
+                }
+            }
+        } catch (CareRelationshipException denied) {
+            throw new ReviewOperationException(403, "MSG-56");
+        }
+        return scope;
+    }
+
     @Transactional
     public MyReview submit(UUID accountId, SubmitReviewRequest request) {
         var errors = new ArrayList<FieldError>();
@@ -64,19 +98,19 @@ public class ReviewServiceImpl implements ReviewService {
         if (request == null || !validText(request.text(), 10)) errors.add(new FieldError("text", "MSG-57"));
         if (request == null || request.visitId() == null) errors.add(new FieldError("visitId", "MSG-57"));
         if (!errors.isEmpty()) throw new ReviewOperationException(400, "MSG-57", errors);
-        var profile = ownProfiles.requireOwnProfile(accountId);
-        var visit = visits.find(request.visitId()).filter(v -> profile.id().equals(v.patientProfileId()))
+        var scope = reviewPatients(accountId);
+        var visit = visits.find(request.visitId()).filter(v -> scope.containsKey(v.patientProfileId()))
                 .orElseThrow(() -> new ReviewOperationException(403, "MSG-56"));
         if (!"CLOSED".equals(visit.status()) || reviews.existsByVisitId(visit.id())) conflict();
         var now = clock.instant();
-        var review = PatientReviewJpaEntity.submit(visit.id(), profile.id(), accountId,
+        var review = PatientReviewJpaEntity.submit(visit.id(), visit.patientProfileId(), accountId,
                 request.rating(), request.text().trim(), now);
         reviews.saveAndFlush(review);
         recordModeration(review, "SUBMIT", null, accountId, now);
         var context = visitContext.enrich(visit);
         notifications.publishToRole(fu.fa26.sep490.g58.otcms_be.common.security.AccountRole.ADMIN,
                 NotificationMessages.reviewSubmitted(review.getId(), visit.arrivedAt(), context.doctorName(), request.rating()));
-        return mine(review, profile);
+        return mine(review, scope.get(visit.patientProfileId()));
     }
     public PublicReviewPage published(int page, int size, String sort) {
         var spec = (Specification<PatientReviewJpaEntity>) (r, q, b) -> b.equal(r.get("status"), ReviewStatus.PUBLISHED);
@@ -166,10 +200,10 @@ public class ReviewServiceImpl implements ReviewService {
     private PatientReviewJpaEntity require(UUID id) {
         return reviews.findById(id).orElseThrow(() -> new ReviewOperationException(404, "MSG-50"));
     }
-    private MyReview mine(PatientReviewJpaEntity review, PatientProfileDirectory.ProfileRecord profile) {
+    private MyReview mine(PatientReviewJpaEntity review, Patient patient) {
         var source = source(review);
         return new MyReview(review.getId(), review.getVisitId(), date(source.arrivedAt()), review.getRating(),
-                review.getContent(), review.getStatus(), review.getReplyText(), time(review.getSubmittedAt()), patient(profile));
+                review.getContent(), review.getStatus(), review.getReplyText(), time(review.getSubmittedAt()), patient);
     }
     private ReviewListItem item(PatientReviewJpaEntity r) {
         var source = source(r);
@@ -201,7 +235,6 @@ public class ReviewServiceImpl implements ReviewService {
         return length >= minimum && length <= 1000;
     }
     private static void conflict() { throw new ReviewOperationException(409, "MSG-56"); }
-    private static Patient patient(PatientProfileDirectory.ProfileRecord profile) { return new Patient(profile.fullName(), "SELF"); }
     private static LocalDate date(Instant instant) { return instant.atZone(ZONE).toLocalDate(); }
     private static OffsetDateTime time(Instant instant) { return instant.atZone(ZONE).toOffsetDateTime(); }
 }

@@ -6,6 +6,8 @@ import fu.fa26.sep490.g58.otcms_be.appointment.config.AppointmentWebConfiguratio
 import fu.fa26.sep490.g58.otcms_be.appointment.web.PublicRequestRateLimitInterceptor;
 import fu.fa26.sep490.g58.otcms_be.auth.security.JwtTokenService;
 import fu.fa26.sep490.g58.otcms_be.auth.service.*;
+import fu.fa26.sep490.g58.otcms_be.patient.model.dto.DependentDtos;
+import fu.fa26.sep490.g58.otcms_be.patient.service.DependentProfileService;
 import fu.fa26.sep490.g58.otcms_be.common.security.*;
 import fu.fa26.sep490.g58.otcms_be.common.web.ProductionReadinessGateInterceptor;
 import fu.fa26.sep490.g58.otcms_be.config.*;
@@ -53,6 +55,7 @@ class ReviewTextValidationHttpTest {
     @MockitoBean ProductionReadinessGateInterceptor productionReadinessGateInterceptor;
     final PatientReviewRepository reviews = mock(PatientReviewRepository.class);
     final AuditLogWriter history = mock(AuditLogWriter.class);
+    final DependentProfileService dependents = mock(DependentProfileService.class);
     final OwnPatientProfileService own = mock(OwnPatientProfileService.class);
     final PatientProfileDirectory profiles = mock(PatientProfileDirectory.class);
     final VisitReviewSourceService visits = mock(VisitReviewSourceService.class);
@@ -62,13 +65,14 @@ class ReviewTextValidationHttpTest {
     UUID reviewId;
     @BeforeEach void application() {
         var profile = new PatientProfileDirectory.ProfileRecord(profileId, account, "Test patient", null, null, null, null);
+        when(dependents.list(any())).thenReturn(new DependentDtos.Items<>(List.of()));
         when(own.requireOwnProfile(any())).thenReturn(profile);
         when(profiles.findProfile(profileId)).thenReturn(Optional.of(profile));
         when(visits.find(visitId)).thenReturn(Optional.of(new VisitReviewSourceService.Source(visitId, profileId, "CLOSED", now, "Doctor", "Service")));
         var review = PatientReviewJpaEntity.submit(visitId, profileId, account, 5, "Valid review text", now);
         reviewId = review.getId(); when(reviews.findById(reviewId)).thenReturn(Optional.of(review));
         var real = new ReviewServiceImpl(reviews, history, own, profiles, visits, Clock.fixed(now, ZoneOffset.UTC),
-                source -> source, mock(NotificationPublisher.class));
+                source -> source, mock(NotificationPublisher.class), dependents);
         when(service.submit(any(), any())).thenAnswer(invocation -> real.submit(invocation.getArgument(0), invocation.getArgument(1)));
         when(service.reply(any(), any(), any())).thenAnswer(invocation -> real.reply(invocation.getArgument(0), invocation.getArgument(1), invocation.getArgument(2)));
     }

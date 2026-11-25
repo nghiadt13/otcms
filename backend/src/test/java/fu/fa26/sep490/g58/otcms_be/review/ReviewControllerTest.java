@@ -127,7 +127,8 @@ class ReviewControllerTest {
                 mock(fu.fa26.sep490.g58.otcms_be.auth.service.PatientProfileDirectory.class),
                 mock(fu.fa26.sep490.g58.otcms_be.visit.service.VisitReviewSourceService.class),
                 java.time.Clock.systemUTC(), source -> source,
-                mock(fu.fa26.sep490.g58.otcms_be.notification.service.NotificationPublisher.class));
+                mock(fu.fa26.sep490.g58.otcms_be.notification.service.NotificationPublisher.class),
+                mock(fu.fa26.sep490.g58.otcms_be.patient.service.DependentProfileService.class));
         when(reviews.list(any(), any(), any(), any(), any(), anyInt(), anyInt(), any())).thenAnswer(i ->
                 real.list(i.getArgument(0), i.getArgument(1), i.getArgument(2), i.getArgument(3),
                         i.getArgument(4), i.getArgument(5), i.getArgument(6), i.getArgument(7)));
