@@ -13,7 +13,7 @@ type ProblemDetail = {
   params?: Record<string, string | number>;
   fieldErrors?: ApiFieldError[];
   /** Hình lỗi của backend: `{ error: { code, message } }`. */
-  error?: { code?: string };
+  error?: { code?: string; message?: string };
 };
 
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
@@ -50,6 +50,11 @@ async function toApiError(response: Response): Promise<ApiError> {
   }
   return new ApiError(response.status, {
     ...problem,
+    detail:
+      problem.detail ??
+      (problem.error?.message?.startsWith("Không thể đặt lịch tái khám:")
+        ? problem.error.message
+        : undefined),
     errorCode: problem.error?.code,
   });
 }
@@ -61,7 +66,15 @@ export async function publicApiRequest<T>(
 ): Promise<T> {
   const headers = new Headers(init.headers);
   if (!headers.has("Accept")) headers.set("Accept", "application/json");
-  const response = await fetch(`${apiBaseUrl}${path}`, {
+  // Browser calls may intentionally use a relative URL so Next's same-origin
+  // rewrite can proxy the request. Server Components need an absolute backend URL.
+  const requestBaseUrl =
+    typeof window !== "undefined" || /^https?:\/\//i.test(apiBaseUrl)
+      ? apiBaseUrl
+      : (
+          process.env.OTCMS_INTERNAL_API_BASE_URL ?? "http://localhost:8080"
+        ).replace(/\/+$/, "");
+  const response = await fetch(`${requestBaseUrl}${path}`, {
     ...init,
     headers,
     cache: "no-store",

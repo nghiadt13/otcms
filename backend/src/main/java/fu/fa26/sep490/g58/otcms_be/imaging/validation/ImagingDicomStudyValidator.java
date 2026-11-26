@@ -295,9 +295,37 @@ public class ImagingDicomStudyValidator {
         if (file.accessionIssuer == null) { evidence.add("ACCESSION_ISSUER_MISSING"); unknown = true; }
         if (unknown) return ImagingVerificationStatus.UNKNOWN;
 
+        boolean hasAssignedIdentity = assignedWork.dicomPatientId() != null
+                || assignedWork.dicomPatientIssuer() != null
+                || assignedWork.dicomAccessionNumber() != null
+                || assignedWork.dicomAccessionLocalNamespace() != null;
+        if (hasAssignedIdentity) {
+            if (assignedWork.dicomPatientId() == null || assignedWork.dicomPatientIssuer() == null
+                    || assignedWork.dicomAccessionNumber() == null
+                    || assignedWork.dicomAccessionLocalNamespace() == null) {
+                evidence.add("ASSIGNED_DICOM_IDENTITY_INCOMPLETE");
+                return ImagingVerificationStatus.UNKNOWN;
+            }
+            if (!assignedWork.dicomPatientId().equals(file.patientId)
+                    || !assignedWork.dicomPatientIssuer().equals(file.patientIssuer)) {
+                evidence.add("PATIENT_OWNER_MISMATCH");
+            }
+            String expectedAccessionIssuer = "LOCAL=" + assignedWork.dicomAccessionLocalNamespace();
+            if (!assignedWork.dicomAccessionNumber().equals(file.accessionNumber)
+                    || !expectedAccessionIssuer.equals(file.accessionIssuer)) {
+                evidence.add("REQUEST_OWNER_MISMATCH");
+            }
+            if (evidence.contains("PATIENT_OWNER_MISMATCH") || evidence.contains("REQUEST_OWNER_MISMATCH")) {
+                return ImagingVerificationStatus.MISMATCH;
+            }
+            evidence.add("PATIENT_OWNER_MATCH");
+            evidence.add("REQUEST_OWNER_MATCH");
+            return ImagingVerificationStatus.CONFIRMED_MATCH;
+        }
+
+        // Compatibility fallback for older callers that do not yet provide database-backed identity values.
         UUID mappedPatient = lookup(identityMappings.getPatientOwnerByIssuer(), file.patientIssuer, file.patientId);
-        UUID mappedRequest = lookup(identityMappings.getRequestByAccessionIssuer(),
-                file.accessionIssuer, file.accessionNumber);
+        UUID mappedRequest = lookup(identityMappings.getRequestByAccessionIssuer(), file.accessionIssuer, file.accessionNumber);
         if (mappedPatient == null) { evidence.add("PATIENT_ISSUER_MAPPING_UNKNOWN"); unknown = true; }
         else if (!mappedPatient.equals(assignedWork.patientId())) evidence.add("PATIENT_OWNER_MISMATCH");
         if (mappedRequest == null) { evidence.add("ACCESSION_ISSUER_MAPPING_UNKNOWN"); unknown = true; }

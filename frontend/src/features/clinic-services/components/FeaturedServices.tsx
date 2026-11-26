@@ -2,11 +2,12 @@ import { ArrowRight } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { publicContainerClass } from "@/components/brand/publicLayout";
+import { publicAssetPath } from "@/lib/publicAssetPath";
 import { formatClinicServicePrice } from "../formatClinicServicePrice";
 import type { PublicService } from "../types/clinicService";
 
 // Chỉ chọn ảnh minh họa; tên, giá, liên kết và mô tả luôn dùng danh mục công khai.
-function serviceImage(name: string) {
+function serviceImage(name: string): `/images/${string}` {
   const folded = name
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
@@ -59,7 +60,7 @@ export function FeaturedServices({ services }: { services: PublicService[] }) {
                     className="object-cover transition-transform duration-300 group-hover:scale-105 motion-reduce:transform-none motion-reduce:transition-none"
                     fill
                     sizes="(min-width: 1280px) 389px, (min-width: 1024px) 33vw, (min-width: 640px) 50vw, 96px"
-                    src={serviceImage(service.name)}
+                    src={publicAssetPath(serviceImage(service.name))}
                   />
                 </div>
                 <div className="flex min-w-0 flex-1 flex-col p-4 sm:p-5">

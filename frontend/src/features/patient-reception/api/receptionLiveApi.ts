@@ -102,6 +102,7 @@ export function updatePatientProfile(
 export type ReceptionAppointment = {
   id: string;
   patientProfileId: string;
+  patientCode?: string | null;
   patientName: string | null;
   serviceId: string;
   serviceName: string | null;
@@ -205,6 +206,24 @@ export function listReceptionAppointments(
   return apiRequest<ReceptionAppointmentPage>(`/api/v1/appointments${params}`, {
     signal,
   });
+}
+
+export type ReceptionClinicService = {
+  id: string;
+  name: string;
+  description: string | null;
+  type: "EXAMINATION" | "IMAGING" | "LABORATORY";
+  price: number;
+  durationMinutes: number;
+  active: boolean;
+};
+
+/** Service catalog visible to reception staff; served by the live clinic catalog. */
+export function listReceptionClinicServices(signal?: AbortSignal) {
+  return apiRequest<{ items: ReceptionClinicService[] }>(
+    "/api/v1/staff/clinic-services",
+    { signal },
+  );
 }
 
 export function getReceptionAppointment(id: string, signal?: AbortSignal) {

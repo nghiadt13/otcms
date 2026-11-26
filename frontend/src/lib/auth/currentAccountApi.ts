@@ -14,6 +14,7 @@ export type CurrentAccount = {
   /** Tên đăng nhập và vai trò của nhân viên, có trong GET /api/v1/me. */
   username?: string | null;
   role?: string | null;
+  status?: "ACTIVE" | "INACTIVE";
   /** Có giá trị khi tài khoản đã có ảnh đại diện; ảnh thật tải qua `accountAvatarCache`. */
   avatarUrl?: string | null;
 };

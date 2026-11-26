@@ -1,5 +1,5 @@
-import { ScheduleScreen } from "@/features/imaging/components/ScheduleScreen";
+import { redirect } from "next/navigation";
 
 export default function Page() {
-  return <ScheduleScreen />;
+  redirect("/imaging");
 }

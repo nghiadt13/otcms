@@ -10,9 +10,9 @@ import fu.fa26.sep490.g58.otcms_be.clinical.repository.*;
 import fu.fa26.sep490.g58.otcms_be.clinical.service.*;
 import fu.fa26.sep490.g58.otcms_be.clinical.service.ClinicalImagingRequestService.*;
 import fu.fa26.sep490.g58.otcms_be.clinical.service.impl.*;
-import fu.fa26.sep490.g58.otcms_be.common.idempotency.IdempotencyReplay;
-import fu.fa26.sep490.g58.otcms_be.common.idempotency.IdempotencyScope;
-import fu.fa26.sep490.g58.otcms_be.common.idempotency.IdempotencyStore;
+import fu.fa26.sep490.g58.otcms_be.idempotency.model.dto.IdempotencyReplay;
+import fu.fa26.sep490.g58.otcms_be.idempotency.model.IdempotencyScope;
+import fu.fa26.sep490.g58.otcms_be.idempotency.service.IdempotencyService;
 import java.sql.SQLException;
 import java.time.*;
 import java.util.*;
@@ -89,7 +89,7 @@ class ClinicalImagingRequestConcurrencyTest {
         var writer = mock(ClinicalOrderingTransactionService.class);
         var orders = mock(ServiceOrderRepository.class);
         var rounds = mock(ClinicalOrderingRoundRepository.class);
-        var store = mock(IdempotencyStore.class);
+        var store = mock(IdempotencyService.class);
         String hash = ClinicalImagingRequestFingerprint.fingerprint(command);
         UUID roundId = UUID.randomUUID();
         var winner = new ServiceOrderJpaEntity("SO-WINNER", roundId, visitId,

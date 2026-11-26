@@ -17,7 +17,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { ApiError } from "@/lib/api/apiError";
 import { formatCurrencyVnd } from "@/lib/format/formatCurrencyVnd";
-import { notifyError } from "@/lib/messages/notify";
+import { notifyError, notifyWarning } from "@/lib/messages/notify";
 import { cn } from "@/lib/utils";
 import { getDoctorExamApi } from "../api/doctorExamApi";
 import { useAsyncAction } from "../hooks/useAsyncAction";
@@ -51,6 +51,7 @@ export function OrderServicesSheet({
   visitId,
   catalog,
   laboratoryEnabled,
+  existingOrders,
   onSubmitted,
 }: {
   open: boolean;
@@ -58,6 +59,7 @@ export function OrderServicesSheet({
   visitId: string;
   catalog: readonly CatalogService[];
   laboratoryEnabled: boolean;
+  existingOrders: readonly ParaclinicalOrder[];
   onSubmitted: (orders: ParaclinicalOrder[]) => void;
 }) {
   const [kind, setKind] = useState<ServiceKind>("IMAGING");
@@ -72,6 +74,11 @@ export function OrderServicesSheet({
   const selected = catalog.filter((service) => service.id in draft);
   const otherKindSelected = selected.length > 0 && selected[0].kind !== kind;
   const laboratorySelectionLocked = kind === "LABORATORY" && !laboratoryEnabled;
+  const alreadyOrdered = (serviceId: string) =>
+    existingOrders.some(
+      (order) =>
+        order.serviceId === serviceId && order.status !== "CANCELLED",
+    );
 
   const patch = (
     id: string,
@@ -84,6 +91,16 @@ export function OrderServicesSheet({
 
   async function submit() {
     if (selected.length === 0 || !consent) return;
+    const duplicateServices = selected.filter((service) =>
+      alreadyOrdered(service.id),
+    );
+    if (duplicateServices.length > 0) {
+      const names = duplicateServices.map((service) => service.name).join(", ");
+      notifyWarning(
+        `${names} đã được chỉ định trong lượt khám này. Hãy hủy chỉ định cũ trước khi gửi lại.`,
+      );
+      return;
+    }
     const found = validateDraft(draft, catalog);
     setErrors(found);
     if (Object.keys(found).length) {
@@ -317,7 +334,9 @@ export function OrderServicesSheet({
             </Button>
             <Button
               type="button"
-              disabled={pending || selected.length === 0 || !consent}
+              disabled={
+                pending || selected.length === 0 || !consent
+              }
               onClick={() => void submit()}
             >
               {pending ? "Đang gửi..." : "Gửi chỉ định"}

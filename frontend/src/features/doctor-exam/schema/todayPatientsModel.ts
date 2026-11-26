@@ -35,6 +35,14 @@ function fold(text: string): string {
     .toLowerCase();
 }
 
+function patientSearchText(patient: TodayPatient): string {
+  return fold(
+    [patient.patientName, patient.patientCode]
+      .filter(Boolean)
+      .join(" "),
+  );
+}
+
 /** Thứ tự nhóm trên màn hình: số nhỏ lên trước. */
 const GROUP_ORDER: Record<TodayStatus, number> = {
   IN_EXAMINATION: 0,
@@ -75,13 +83,7 @@ export function filterPatients(
   return sortTodayPatients(
     patients
       .filter((patient) => filter === "ALL" || patient.status === filter)
-      .filter(
-        (patient) =>
-          !needle ||
-          fold(`${patient.patientName} ${patient.patientCode ?? ""}`).includes(
-            needle,
-          ),
-      ),
+      .filter((patient) => !needle || patientSearchText(patient).includes(needle)),
   );
 }
 

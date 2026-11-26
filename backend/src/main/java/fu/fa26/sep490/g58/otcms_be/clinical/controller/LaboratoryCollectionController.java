@@ -21,16 +21,20 @@ public class LaboratoryCollectionController {
     private final LaboratoryCollectionService service;
     public LaboratoryCollectionController(LaboratoryCollectionService service) { this.service = service; }
     public record CollectionRequest(@NotNull @AssertTrue Boolean identityConfirmed) { }
-    public record ApprovalRequest(@NotNull @AssertTrue Boolean checked, @NotNull Boolean critical, String contactedDoctor, java.time.Instant contactedAt) { }
+    public record ApprovalRequest(@NotNull @AssertTrue Boolean checked, @NotNull Boolean critical) { }
     @PostMapping("/result-approval")
     public ResponseEntity<Void> approve(@PathVariable UUID orderId, @Valid @RequestBody ApprovalRequest request, @AuthenticationPrincipal AuthenticatedAccount actor) {
-        service.approve(orderId, actor, request.checked(), request.critical(), request.contactedDoctor(), request.contactedAt());
+        service.approve(orderId, actor, request.checked(), request.critical());
         return ResponseEntity.noContent().cacheControl(CacheControl.noStore()).build();
     }
     public record ResultDraftRequest(@NotNull @Size(min = 1, max = 200) java.util.List<fu.fa26.sep490.g58.otcms_be.diagnostic.model.LaboratoryResultValue> values) { }
     @GetMapping("/result-draft")
     public ResponseEntity<?> readDraft(@PathVariable UUID orderId, @AuthenticationPrincipal AuthenticatedAccount actor) {
         return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(java.util.Map.of("values", service.readDraft(orderId, actor)));
+    }
+    @GetMapping("/result")
+    public ResponseEntity<?> readResult(@PathVariable UUID orderId, @AuthenticationPrincipal AuthenticatedAccount actor) {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(java.util.Map.of("values", service.readResult(orderId, actor)));
     }
     @PutMapping("/result-draft")
     public ResponseEntity<?> saveDraft(@PathVariable UUID orderId, @Valid @RequestBody ResultDraftRequest request,

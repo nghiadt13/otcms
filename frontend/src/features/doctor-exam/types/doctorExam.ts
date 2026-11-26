@@ -147,6 +147,7 @@ export type ParaclinicalOrder = {
   code: string | null;
   round: number | null;
   kind: ServiceKind;
+  serviceId: string;
   serviceName: string;
   bodyArea: string;
   clinicalReason: string;
@@ -199,9 +200,19 @@ export type PastVisit = {
   status: VisitStatus;
   primaryDiagnosis: string | null;
   advice: string | null;
+  adviceSections?: Array<{ label: string; text: string }>;
   prescriptions: number;
+  prescriptionItems?: Array<{ medicine: string; dose: string; frequency: string; usage: string }>;
   imaging: string[];
+  imagingStudies?: Array<{ imagingType: string | null; findingsText: string | null; studyRef: string | null }>;
   laboratory: string[];
+};
+
+export type PastVisitPage = {
+  items: PastVisit[];
+  page: number;
+  size: number;
+  total: number;
 };
 
 export type ResultSheet = {

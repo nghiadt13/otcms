@@ -24,6 +24,11 @@ public class ImagingAssignedWorkAuthorizationService {
         return policy.requireAssignedWork(actorAccountId, requestId, attemptId, ownerDecision);
     }
 
+    public ImagingAssignedWork requireAssignedWork(UUID actorAccountId, UUID requestId) {
+        ImagingAssignedWork ownerDecision = ownerPort.requireAssignedImagingWork(actorAccountId, requestId);
+        return policy.requireAssignedWork(actorAccountId, requestId, ownerDecision.attemptId(), ownerDecision);
+    }
+
     public void requireStatusRead(UUID actorAccountId, UUID requestId) {
         ownerPort.requireStatusRead(actorAccountId, requestId);
     }

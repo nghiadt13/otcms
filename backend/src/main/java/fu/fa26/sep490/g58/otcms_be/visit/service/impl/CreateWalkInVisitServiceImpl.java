@@ -1,8 +1,8 @@
 package fu.fa26.sep490.g58.otcms_be.visit.service.impl;
 
 import fu.fa26.sep490.g58.otcms_be.auth.service.ReceptionistAccountAccessService;
-import fu.fa26.sep490.g58.otcms_be.common.idempotency.IdempotencyScope;
-import fu.fa26.sep490.g58.otcms_be.common.idempotency.IdempotencyStore;
+import fu.fa26.sep490.g58.otcms_be.idempotency.model.IdempotencyScope;
+import fu.fa26.sep490.g58.otcms_be.idempotency.service.IdempotencyService;
 import fu.fa26.sep490.g58.otcms_be.common.security.AccountRole;
 import fu.fa26.sep490.g58.otcms_be.common.service.CoordinationGuardService;
 import fu.fa26.sep490.g58.otcms_be.servicecatalog.exception.ClinicServiceException;
@@ -46,7 +46,7 @@ public class CreateWalkInVisitServiceImpl implements CreateWalkInVisitService {
 
     private final CoordinationGuardService coordinationGuard;
     private final ClinicVisitJpaRepository visits;
-    private final IdempotencyStore idempotency;
+    private final IdempotencyService idempotency;
     private final WalkInReceptionQueueEntryJpaRepository queueEntries;
     private final VisitAuditRecorder audit;
     private final ReceptionistAccountAccessService receptionists;
@@ -58,7 +58,7 @@ public class CreateWalkInVisitServiceImpl implements CreateWalkInVisitService {
     private final Clock clock;
 
     public CreateWalkInVisitServiceImpl(CoordinationGuardService coordinationGuard, ClinicVisitJpaRepository visits,
-            IdempotencyStore idempotency, WalkInReceptionQueueEntryJpaRepository queueEntries, VisitAuditRecorder audit,
+            IdempotencyService idempotency, WalkInReceptionQueueEntryJpaRepository queueEntries, VisitAuditRecorder audit,
             ReceptionistAccountAccessService receptionists,
             VisitExamQueueService examQueue, DoctorScheduleService schedules,
             DoctorProfileIdentityQueryService doctorProfiles, GetClinicServiceCatalogService catalog,

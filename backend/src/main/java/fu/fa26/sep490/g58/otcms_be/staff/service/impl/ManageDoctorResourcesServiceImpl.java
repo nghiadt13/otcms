@@ -21,11 +21,9 @@ import fu.fa26.sep490.g58.otcms_be.staff.service.DoctorProfileIdentityQueryServi
 import fu.fa26.sep490.g58.otcms_be.staff.service.ManageDoctorResourcesService;
 import java.time.Clock;
 import java.time.Instant;
-import java.sql.Timestamp;
 import java.util.Map;
 import java.util.UUID;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -40,22 +38,21 @@ public class ManageDoctorResourcesServiceImpl implements ManageDoctorResourcesSe
     private final CoordinationGuardService guard;
     private final Clock clock;
     private final ManageVisitRoomService rooms;
-    private final JdbcTemplate jdbc;
 
     @Autowired
     public ManageDoctorResourcesServiceImpl(StaffProfileRepository profiles, DoctorWorkShiftRepository shifts,
             DoctorProfileIdentityQueryService identity, AuditLogWriter auditLogs,
             AppointmentMutationImpactService appointments, VisitMutationImpactService visits,
-            CoordinationGuardService guard, Clock clock, ManageVisitRoomService rooms, JdbcTemplate jdbc) {
+            CoordinationGuardService guard, Clock clock, ManageVisitRoomService rooms) {
         this.profiles=profiles; this.shifts=shifts; this.identity=identity; this.auditLogs=auditLogs;
-        this.appointments=appointments; this.visits=visits; this.guard=guard; this.clock=clock; this.rooms=rooms; this.jdbc=jdbc;
+        this.appointments=appointments; this.visits=visits; this.guard=guard; this.clock=clock; this.rooms=rooms;
     }
 
     public ManageDoctorResourcesServiceImpl(StaffProfileRepository profiles, DoctorWorkShiftRepository shifts,
             DoctorProfileIdentityQueryService identity, AuditLogWriter auditLogs,
             AppointmentMutationImpactService appointments, VisitMutationImpactService visits,
             CoordinationGuardService guard, Clock clock) {
-        this(profiles, shifts, identity, auditLogs, appointments, visits, guard, clock, null, null);
+        this(profiles, shifts, identity, auditLogs, appointments, visits, guard, clock, null);
     }
 
     public DoctorIntervalResponse createShift(UUID doctorId, Instant startsAt, Instant endsAt,
@@ -179,11 +176,8 @@ public class ManageDoctorResourcesServiceImpl implements ManageDoctorResourcesSe
         if (!room.active() || !"EXAMINATION".equals(room.type())) throw invalid();
     }
     private void ensureRoomAvailable(UUID roomId, Instant startsAt, Instant endsAt, UUID ignoreId) {
-        if (roomId == null || jdbc == null) return;
-        Integer count = jdbc.queryForObject("""
-                SELECT count(*) FROM work_shifts WHERE room_id=? AND starts_at < ? AND ends_at > ? AND (?::uuid IS NULL OR id<>?)
-                """, Integer.class, roomId, Timestamp.from(endsAt), Timestamp.from(startsAt), ignoreId, ignoreId);
-        if (count != null && count > 0) throw new DoctorProfileException("DOCTOR_SHIFT_OVERLAP");
+        if (roomId != null && shifts.existsRoomOverlap(roomId, startsAt, endsAt, ignoreId))
+            throw new DoctorProfileException("DOCTOR_SHIFT_OVERLAP");
     }
     private boolean covers(Instant from, Instant to, Instant bookingFrom, Instant bookingTo) {
         return !from.isAfter(bookingFrom) && !to.isBefore(bookingTo);

@@ -7,7 +7,7 @@ import fu.fa26.sep490.g58.otcms_be.clinical.exception.ClinicalOperationException
 import fu.fa26.sep490.g58.otcms_be.clinical.repository.*;
 import fu.fa26.sep490.g58.otcms_be.clinical.service.*;
 import fu.fa26.sep490.g58.otcms_be.clinical.service.impl.*;
-import fu.fa26.sep490.g58.otcms_be.common.idempotency.IdempotencyStore;
+import fu.fa26.sep490.g58.otcms_be.idempotency.service.IdempotencyService;
 import fu.fa26.sep490.g58.otcms_be.common.service.CoordinationGuardService;
 import java.time.*;
 import java.util.*;
@@ -25,7 +25,7 @@ class ClinicalClosureCoordinationTest {
     @Test void orderCancellationAcquiresSharedGuardBeforeReadingOrders() {
         var ordering = new fu.fa26.sep490.g58.otcms_be.clinical.service.impl.ClinicalOrderingServiceImpl(
                 mock(ClinicalOrderPreparationService.class), mock(ClinicalOrderingTransactionService.class), orders, rounds,
-                Clock.systemUTC(), guard);
+                Clock.systemUTC(), guard, mock(ClinicalOrderCancellationBillingPort.class));
         doThrow(new IllegalStateException("guard unavailable")).when(guard).acquire();
         assertThrows(IllegalStateException.class, () -> ordering.cancel(UUID.randomUUID(), "Declined"));
         verifyNoInteractions(orders);
@@ -33,7 +33,7 @@ class ClinicalClosureCoordinationTest {
 
     @Test void delayedOrderWriterRechecksClosedVisitAfterGuardBeforeAnyPersistence() {
         doAnswer(call -> { when(visits.getVisitContext(visit)).thenReturn(new VisitClinicalContextPort.ClinicalVisitContext(visit, patient, doctor, false)); return null; }).when(guard).acquire();
-        var writer = new ClinicalOrderingTransactionService(orders, rounds, Clock.systemUTC(), guard, preparation, mock(IdempotencyStore.class));
+        var writer = new ClinicalOrderingTransactionService(orders, rounds, Clock.systemUTC(), guard, preparation, mock(IdempotencyService.class));
         assertEquals("MSG-42", assertThrows(ClinicalOperationException.class, () -> writer.createRound(visit, patient, doctor, List.of())).code());
         var sequence = inOrder(guard, visits); sequence.verify(guard).acquire(); sequence.verify(visits).getVisitContext(visit);
         verifyNoInteractions(orders, rounds);
@@ -55,7 +55,7 @@ class ClinicalClosureCoordinationTest {
         var prep = mock(ClinicalOrderPreparationService.class);
         var tx = new ClinicalImagingRequestTransactionService(prep, mock(ClinicalOrderingTransactionService.class),
                 orders, rounds, Clock.systemUTC(), guard, mock(fu.fa26.sep490.g58.otcms_be.clinical.service.VisitConclusionPort.class),
-                mock(IdempotencyStore.class));
+                mock(IdempotencyService.class));
         doThrow(new IllegalStateException("guard unavailable")).when(guard).acquire();
         var command = new ClinicalImagingRequestService.ImagingRequestCommand(visit, doctor, "key", List.of(), true);
         assertThrows(IllegalStateException.class, () -> tx.submit(command, "fingerprint"));

@@ -6,41 +6,33 @@ import {
   isReceptionSectionAvailable,
   type ReceptionSection,
 } from "../navigation";
-import { useReception } from "./ReceptionProvider";
-import { DataLoading } from "./ReceptionUi";
 import { IntakeScreen } from "./IntakeScreen";
 import { PatientSearchScreen } from "./PatientScreens";
 import { AppointmentScreen } from "./AppointmentScreen";
 import { QueueScreen } from "./QueueScreen";
 import { PaymentHistoryScreen } from "./PaymentHistoryScreen";
 import { PaymentItemsScreen } from "./PaymentItemsScreen";
-import { ResultScreen, VisitScreen } from "./VisitScreens";
-import { NoticeScreen, ReferenceScreen } from "./ReferenceScreens";
+import { VisitScreen } from "./LiveVisitScreens";
+import { LiveResultScreen } from "./LiveResultScreen";
+import { ReferenceScreen } from "./ReferenceScreens";
 import { ClinicalRoundOrdersScreen } from "./ClinicalRoundOrdersScreen";
-import { AccountScreen } from "./AccountScreen";
 import { StaffRoomsScreen } from "@/components/rooms/StaffRoomsScreen";
 
 export function ReceptionScreen({
   section,
   appointmentActions,
+  accountComponent: AccountComponent,
+  notificationsComponent: NotificationsComponent,
 }: {
   section: ReceptionSection;
   appointmentActions?: ComponentType<{
     appointment: ReceptionAppointment;
     onChanged: () => void;
   }>;
+  accountComponent?: ComponentType;
+  notificationsComponent?: ComponentType;
 }) {
-  const { data, loading, error } = useReception();
   if (!isReceptionSectionAvailable(section)) return <ReceptionSectionLocked />;
-  if (section === "visits") return <VisitScreen />;
-  if (!data)
-    return loading ? (
-      <DataLoading />
-    ) : (
-      <p role="status">
-        {error ? "Chọn Thử lại để tải dữ liệu." : "Dữ liệu chưa sẵn sàng."}
-      </p>
-    );
   switch (section) {
     case "":
       return <IntakeScreen />;
@@ -50,6 +42,8 @@ export function ReceptionScreen({
       return <AppointmentScreen Actions={appointmentActions} />;
     case "queues":
       return <QueueScreen />;
+    case "visits":
+      return <VisitScreen />;
     case "orders":
       return <ClinicalRoundOrdersScreen />;
     case "payments":
@@ -57,16 +51,17 @@ export function ReceptionScreen({
     case "payment-history":
       return <PaymentHistoryScreen />;
     case "results":
-      return <ResultScreen />;
+      return <LiveResultScreen />;
     case "rooms":
       return <StaffRoomsScreen />;
     case "services":
-    case "schedule":
-      return <ReferenceScreen key={section} type={section} />;
+      return <ReferenceScreen />;
     case "notifications":
-      return <NoticeScreen />;
+      return NotificationsComponent ? <NotificationsComponent /> : null;
     case "account":
-      return <AccountScreen />;
+      return AccountComponent ? <AccountComponent /> : null;
+    default:
+      return null;
   }
 }
 

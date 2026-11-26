@@ -13,6 +13,7 @@ import { PublicBookAppointmentLink } from "@/components/brand/PublicBookAppointm
 import { PublicPageHeader } from "@/components/brand/PublicPageHeader";
 import { publicButtonClass } from "@/components/brand/publicButtonStyles";
 import { Card } from "@/components/ui/card";
+import { publicAssetPath } from "@/lib/publicAssetPath";
 import { clinicContact, hotlineTelHref } from "../siteNavigation";
 import type { ClinicContact, PublicAboutPage } from "../types/websiteContent";
 import { WebsiteContentBody } from "./WebsiteContentBody";
@@ -84,7 +85,7 @@ export function AboutPage({
             className="object-cover"
             fill
             sizes="(min-width: 1280px) 608px, (min-width: 768px) 50vw, 100vw"
-            src="/images/home/clinic-consultation.jpg"
+            src={publicAssetPath("/images/home/clinic-consultation.jpg")}
           />
         </div>
       </div>

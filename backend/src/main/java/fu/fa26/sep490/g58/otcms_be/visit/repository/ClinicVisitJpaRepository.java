@@ -75,13 +75,28 @@ public interface ClinicVisitJpaRepository extends JpaRepository<ClinicVisitJpaEn
     @Query("""
             select v from ClinicVisitJpaEntity v
             where v.patientProfileId = :patientId and v.id <> :currentId and v.arrivedAt <= :before
-                and ((v.status = 'CLOSED' and exists (select a.id from VisitCareAssignmentJpaEntity a where a.visitId = v.id and a.status = 'COMPLETED'))
-                    or v.status = 'INCOMPLETE')
+                and v.status = 'CLOSED'
+                and exists (select a.id from VisitCareAssignmentJpaEntity a where a.visitId = v.id and a.status = 'COMPLETED')
             order by v.arrivedAt desc, v.id desc
             """)
     org.springframework.data.domain.Page<ClinicVisitJpaEntity> findHistoricalVisits(
             @Param("patientId") UUID patientProfileId, @Param("currentId") UUID currentVisitId,
             @Param("before") java.time.Instant before, org.springframework.data.domain.Pageable pageable);
+
+    @Query("""
+            select v from ClinicVisitJpaEntity v
+            where v.patientProfileId = :patientId and v.id <> :currentId and v.arrivedAt <= :before
+                and v.status = 'CLOSED'
+                and exists (select a.id from VisitCareAssignmentJpaEntity a where a.visitId = v.id and a.status = 'COMPLETED')
+                and (:filterByDate = false or (v.arrivedAt >= :fromInclusive and v.arrivedAt < :toExclusive))
+            order by v.arrivedAt desc, v.id desc
+            """)
+    org.springframework.data.domain.Page<ClinicVisitJpaEntity> findHistoricalVisitsFiltered(
+            @Param("patientId") UUID patientProfileId, @Param("currentId") UUID currentVisitId,
+            @Param("before") java.time.Instant before, @Param("filterByDate") boolean filterByDate,
+            @Param("fromInclusive") java.time.Instant fromInclusive,
+            @Param("toExclusive") java.time.Instant toExclusive,
+            org.springframework.data.domain.Pageable pageable);
 
     /**
      * Lượt của các hồ sơ trong phạm vi (BR-19) đang mở hoặc check-in từ {@code since}; bỏ lượt còn chờ thu phí.

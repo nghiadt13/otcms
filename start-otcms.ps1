@@ -1,10 +1,12 @@
-﻿$ErrorActionPreference = 'Stop'
+﻿param([switch] $BackendInIntelliJ)
+
+$ErrorActionPreference = 'Stop'
 
 # Local test launcher: this checkout (otcms, nhánh đang checkout) + otcms_dev + Orthanc/OHIF (Docker)
 # + Cloudflare tunnel. Một cổng duy nhất 3001 (nginx imaging-gateway trong compose.yaml) gom
 # /otcms (frontend 3000), /api và /dicom-web (backend 8080), /viewer (OHIF).
-$product = 'D:\Education\SEP490-FALL2026\otcms'
-$localEnv = 'D:\Education\SEP490-FALL2026\otcms\backend\.env.dev'
+$product = [System.IO.Path]::GetFullPath($PSScriptRoot)
+$localEnv = Join-Path $product 'backend/.env'
 $cloudflared = 'C:\Program Files (x86)\cloudflared\cloudflared.exe'
 $logDir = Join-Path $env:TEMP 'otcms-launch'
 $shell = (Get-Command pwsh -ErrorAction Stop).Source
@@ -55,24 +57,32 @@ try {
         try { & npm.cmd ci } finally { Pop-Location }
         if (-not (Test-Path -LiteralPath $nextCmd)) { throw "npm ci did not install next. Run it manually in $product\frontend" }
     }
-    if (-not (Test-NetConnection -ComputerName 127.0.0.1 -Port 5432 -InformationLevel Quiet -WarningAction SilentlyContinue)) {
-        throw 'PostgreSQL is not listening on 127.0.0.1:5432.'
-    }
     & docker info *> $null
     if ($LASTEXITCODE -ne 0) { throw 'Docker is not running. Start Docker Desktop first (needed for Orthanc/OHIF and the 3001 gateway).' }
+    $databasePort = 5433
+    $databasePortLine = Get-Content -LiteralPath $localEnv -Encoding UTF8 |
+        Where-Object { $_ -match '^\s*OTCMS_DB_PORT\s*=' } |
+        Select-Object -First 1
+    if ($databasePortLine -match '^\s*OTCMS_DB_PORT\s*=\s*(\d+)\s*$') {
+        $databasePort = [int] $Matches[1]
+    }
     # Stop only known OTCMS listeners; never kill an unrelated application by port alone.
+    # In IntelliJ mode, port 8080 belongs to the visible backend and must be preserved.
     # Cổng 3001 do container Docker giữ nên không nằm trong danh sách này.
-    $occupied = @(Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue | Where-Object { $_.LocalPort -in 3000, 8080 })
+    $managedPorts = if ($BackendInIntelliJ) { @(3000) } else { @(3000, 8080) }
+    $occupied = @(Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue | Where-Object { $_.LocalPort -in $managedPorts })
     $roots = [System.Collections.Generic.List[int]]::new()
+    $escapedProduct = [regex]::Escape($product)
+    $escapedLegacyProduct = [regex]::Escape('D:\Education\SEP490-FALL2026\otcms')
     foreach ($socket in $occupied) {
         $process = Get-CimInstance Win32_Process -Filter "ProcessId=$($socket.OwningProcess)"
         if (-not $process) { continue }
         $known = $false
         $rootId = [int]$process.ProcessId
-        if ($socket.LocalPort -eq 3000 -and $process.CommandLine -match '(?i)(otcms-product-test|SEP490-FALL2026\\otcms)\\frontend\\') { $known = $true }
+        if ($socket.LocalPort -eq 3000 -and $process.CommandLine -match "(?i)(?:$escapedProduct|$escapedLegacyProduct)\\frontend\\") { $known = $true }
         if ($socket.LocalPort -eq 8080 -and $process.CommandLine -match 'fu\.fa26\.sep490\.g58\.otcms_be\.OtcmsBeApplication') {
             $parent = Get-CimInstance Win32_Process -Filter "ProcessId=$($process.ParentProcessId)"
-            if ($parent -and $parent.CommandLine -match '(?i)(otcms-product-test|SEP490-FALL2026\\otcms)\\backend') {
+            if ($parent -and $parent.CommandLine -match "(?i)(?:$escapedProduct|$escapedLegacyProduct)\\backend") {
                 $known = $true
                 $rootId = [int]$parent.ProcessId
             }
@@ -80,13 +90,15 @@ try {
         if (-not $known) { throw "Port $($socket.LocalPort) is used by another application (PID $($socket.OwningProcess))." }
         if (-not $roots.Contains($rootId)) { $roots.Add($rootId) }
     }
-    foreach ($cloud in @(Get-CimInstance Win32_Process -Filter "Name='cloudflared.exe'" | Where-Object { $_.CommandLine -match '--url[ =]+http://(localhost|127\.0\.0\.1):(3001|3100)' })) {
-        Stop-ProcessTree ([int]$cloud.ProcessId)
+    if (-not $BackendInIntelliJ) {
+        foreach ($cloud in @(Get-CimInstance Win32_Process -Filter "Name='cloudflared.exe'" | Where-Object { $_.CommandLine -match '--url[ =]+http://(localhost|127\.0\.0\.1):(3001|3100)' })) {
+            Stop-ProcessTree ([int]$cloud.ProcessId)
+        }
     }
     if ($roots.Count) { Write-Host 'Stopping previous OTCMS processes...' }
     foreach ($rootId in $roots) { Stop-ProcessTree $rootId }
     if ($roots.Count) { Start-Sleep -Seconds 2 }
-    $occupied = @(Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue | Where-Object { $_.LocalPort -in 3000, 8080 })
+    $occupied = @(Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue | Where-Object { $_.LocalPort -in $managedPorts })
     if ($occupied.Count) {
         $ports = ($occupied.LocalPort | Sort-Object -Unique) -join ', '
         throw "Port(s) $ports are already in use. Stop those applications before starting OTCMS."
@@ -95,23 +107,51 @@ try {
 
     Write-Host 'Starting Orthanc, OHIF and gateway (Docker)...'
     Push-Location $product
-    try { & docker compose up -d orthanc ohif imaging-gateway } finally { Pop-Location }
+    try {
+        & docker compose --env-file $localEnv -f docker-compose.final-db.yml up -d postgres
+        if ($LASTEXITCODE -ne 0) { throw 'Could not start the final-db PostgreSQL container.' }
+        & docker compose --env-file $localEnv -f compose.yaml up -d orthanc ohif imaging-gateway
+    } finally { Pop-Location }
     if ($LASTEXITCODE -ne 0) { throw 'docker compose up failed.' }
-    Write-Host 'Starting Cloudflare tunnel...'
+    $databaseReady = $false
+    for ($i = 0; $i -lt 45 -and -not $databaseReady; $i++) {
+        $databaseReady = Test-NetConnection -ComputerName 127.0.0.1 -Port $databasePort `
+            -InformationLevel Quiet -WarningAction SilentlyContinue
+        if (-not $databaseReady) { Start-Sleep -Seconds 1 }
+    }
+    if (-not $databaseReady) { throw "PostgreSQL is not listening on 127.0.0.1:$databasePort." }
     $cfLog = Join-Path $logDir 'cloudflare.err'
-    $cloudProcess = Start-Process -FilePath $cloudflared -ArgumentList @('tunnel', '--no-autoupdate', '--url', 'http://localhost:3001') `
-        -WindowStyle Hidden -RedirectStandardOutput (Join-Path $logDir 'cloudflare.log') `
-        -RedirectStandardError $cfLog -PassThru
-    $started.Add($cloudProcess.Id)
     $publicUrl = $null
-    for ($i = 0; $i -lt 45 -and -not $publicUrl; $i++) {
-        Start-Sleep -Seconds 1
+    if ($BackendInIntelliJ) {
+        # Keep the current tunnel URL so it matches CORS settings already loaded by IntelliJ.
+        $cloudProcesses = @(Get-CimInstance Win32_Process -Filter "Name='cloudflared.exe'" -ErrorAction SilentlyContinue |
+            Where-Object { $_.CommandLine -match '--url[ =]+http://(localhost|127\.0\.0\.1):(3001|3100)' })
+        if (-not $cloudProcesses.Count) {
+            throw 'No existing Cloudflare tunnel to localhost:3001 was found. Start OTCMS normally once, then rerun with -BackendInIntelliJ.'
+        }
         if (Test-Path -LiteralPath $cfLog) {
             $match = Select-String -Path $cfLog -Pattern 'https://[a-z0-9-]+\.trycloudflare\.com' | Select-Object -First 1
             if ($match) { $publicUrl = $match.Matches[0].Value }
         }
+        if (-not $publicUrl) { throw "Could not read the existing tunnel URL from $cfLog." }
+        if (-not (Wait-Http 'http://localhost:8080/v3/api-docs' 5)) {
+            throw 'Backend in IntelliJ is not responding on port 8080. Start its Spring Boot run configuration first.'
+        }
+    } else {
+        Write-Host 'Starting Cloudflare tunnel...'
+        $cloudProcess = Start-Process -FilePath $cloudflared -ArgumentList @('tunnel', '--no-autoupdate', '--url', 'http://localhost:3001') `
+            -WindowStyle Hidden -RedirectStandardOutput (Join-Path $logDir 'cloudflare.log') `
+            -RedirectStandardError $cfLog -PassThru
+        $started.Add($cloudProcess.Id)
+        for ($i = 0; $i -lt 45 -and -not $publicUrl; $i++) {
+            Start-Sleep -Seconds 1
+            if (Test-Path -LiteralPath $cfLog) {
+                $match = Select-String -Path $cfLog -Pattern 'https://[a-z0-9-]+\.trycloudflare\.com' | Select-Object -First 1
+                if ($match) { $publicUrl = $match.Matches[0].Value }
+            }
+        }
+        if (-not $publicUrl) { throw "Cloudflare did not provide a URL. See $cfLog" }
     }
-    if (-not $publicUrl) { throw "Cloudflare did not provide a URL. See $cfLog" }
 
     $backend = @"
 `$ErrorActionPreference = 'Stop'
@@ -121,9 +161,9 @@ foreach (`$line in Get-Content -LiteralPath '$localEnv' -Encoding UTF8) {
     }
 }
 `$env:SPRING_PROFILES_ACTIVE = ''
-`$env:SPRING_DATASOURCE_URL = 'jdbc:postgresql://127.0.0.1:5432/otcms_dev'
-`$env:SPRING_DATASOURCE_USERNAME = `$env:SUPABASE_DB_USERNAME
-`$env:SPRING_DATASOURCE_PASSWORD = `$env:SUPABASE_DB_PASSWORD
+`$env:SPRING_DATASOURCE_URL = "jdbc:postgresql://127.0.0.1:$databasePort/otcms_dev"
+`$env:SPRING_DATASOURCE_USERNAME = `$env:OTCMS_DB_USERNAME
+`$env:SPRING_DATASOURCE_PASSWORD = `$env:OTCMS_DB_PASSWORD
 `$env:SERVER_PORT = '8080'
 `$origins = 'http://localhost:3000,http://127.0.0.1:3000,http://localhost:3001,http://127.0.0.1:3001,$publicUrl'
 `$env:APP_AUTH_PATIENT_ORIGINS = `$origins
@@ -142,17 +182,23 @@ Set-Location '$product\backend'
 "@
     $frontend = @"
 `$env:NEXT_BASE_PATH = '/otcms'
-`$env:NEXT_PUBLIC_API_BASE_URL = 'http://localhost:3001'
+`$env:NEXT_PUBLIC_API_BASE_URL = ''
 `$env:NEXT_PUBLIC_OHIF_VIEWER_PATH = '/viewer'
 `$env:OTCMS_DEV_API_PROXY = 'false'
 Set-Location '$product\frontend'
 & npm.cmd run dev
 "@
-    Write-Host 'Starting backend and frontend...'
-    $backendProcess = Start-LoggedPowerShell 'backend' "$product\backend" $backend
+    if ($BackendInIntelliJ) {
+        Write-Host 'Backend is running in IntelliJ; starting frontend only...'
+    } else {
+        Write-Host 'Starting backend and frontend...'
+        $backendProcess = Start-LoggedPowerShell 'backend' "$product\backend" $backend
+    }
     $frontendProcess = Start-LoggedPowerShell 'frontend' "$product\frontend" $frontend
-    Write-Host 'Waiting for backend...'
-    if (-not (Wait-Http 'http://localhost:8080/v3/api-docs' 120 $backendProcess)) { throw "Backend did not start. See $logDir\backend.log and backend.err" }
+    if (-not $BackendInIntelliJ) {
+        Write-Host 'Waiting for backend...'
+        if (-not (Wait-Http 'http://localhost:8080/v3/api-docs' 120 $backendProcess)) { throw "Backend did not start. See $logDir\backend.log and backend.err" }
+    }
     Write-Host 'Waiting for frontend...'
     if (-not (Wait-Http 'http://localhost:3001/otcms/login' 90 $frontendProcess)) { throw "Frontend did not start. See $logDir\frontend.log and frontend.err" }
     Write-Host 'Checking Cloudflare...'
@@ -161,6 +207,7 @@ Set-Location '$product\frontend'
     Write-Host ''
     Write-Host 'OTCMS is ready.' -ForegroundColor Green
     Write-Host 'Database: otcms_dev'
+    if ($BackendInIntelliJ) { Write-Host 'Backend:  IntelliJ on port 8080' }
     Write-Host 'Local:    http://localhost:3001/otcms/login'
     Write-Host "Public:   $publicUrl/otcms/login"
     Write-Host "Logs:     $logDir"

@@ -84,4 +84,10 @@ public interface AppointmentJpaRepository extends JpaRepository<AppointmentJpaEn
         }
         return false;
     }
+
+    List<AppointmentJpaEntity> findByStatusAndStartTimeGreaterThanAndStartTimeLessThanEqualOrderByStartTimeAscIdAsc(
+            String status, Instant from, Instant until);
+
+    List<AppointmentJpaEntity> findByBookingSourceAndStatusAndStartTimeLessThanAndStartTimeGreaterThanEqualOrderByStartTimeAscIdAsc(
+            String bookingSource, String status, Instant before, Instant since);
 }

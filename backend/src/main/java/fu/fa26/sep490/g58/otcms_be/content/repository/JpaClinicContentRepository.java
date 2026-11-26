@@ -11,6 +11,7 @@ import fu.fa26.sep490.g58.otcms_be.content.model.WebsiteContent;
 import fu.fa26.sep490.g58.otcms_be.content.model.WebsiteImage;
 import fu.fa26.sep490.g58.otcms_be.content.model.entity.WebsiteContentJpaEntity;
 import fu.fa26.sep490.g58.otcms_be.content.model.entity.WebsiteImageJpaEntity;
+import fu.fa26.sep490.g58.otcms_be.auth.service.AccountAuthorDirectory;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -25,11 +26,11 @@ public class JpaClinicContentRepository implements ClinicContentRepository {
     private final WebsiteContentRepository contents;
     private final WebsiteImageRepository images;
     private final AuditLogWriter auditLog;
-    private final ContentAuthorRepository authors;
+    private final AccountAuthorDirectory authors;
     private final ClinicContentEntityMapper mapper;
     public JpaClinicContentRepository(WebsiteContentRepository contents, WebsiteImageRepository images,
         AuditLogWriter auditLog,
-        ContentAuthorRepository authors, ClinicContentEntityMapper mapper) {
+        AccountAuthorDirectory authors, ClinicContentEntityMapper mapper) {
         this.contents = contents;
         this.images = images;
         this.auditLog = auditLog;

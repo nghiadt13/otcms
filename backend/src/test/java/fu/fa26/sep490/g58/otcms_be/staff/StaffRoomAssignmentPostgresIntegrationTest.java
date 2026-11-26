@@ -25,6 +25,23 @@ class StaffRoomAssignmentPostgresIntegrationTest {
     @Autowired fu.fa26.sep490.g58.otcms_be.staff.repository.StaffRoomAssignmentRepository assignmentRows;
     @Autowired StaffShiftAdminService shifts;
 
+    @Test void laboratoryTechnicianIsAssignedOnlyWithinTheActiveShiftAndRoom() {
+        UUID actor = UUID.randomUUID(), profile = UUID.randomUUID(), room = UUID.randomUUID();
+        Instant start = Instant.parse("2026-11-05T03:00:00Z"), end = start.plusSeconds(3600);
+        jdbc.update("insert into accounts(id,normalized_email,account_type,status,created_at,updated_at) values (?,?,'LAB_TECHNICIAN','ACTIVE',now(),now())", actor, actor + "@lab-assignment.test");
+        jdbc.update("insert into staff_profiles(id,account_id,display_name,work_contact) values (?,?,'Lab technician','')", profile, actor);
+        jdbc.update("insert into rooms(id,room_code,display_label,room_type) values (?,?,'Lab room','LABORATORY')", room, "LAB-" + room);
+        jdbc.update("insert into work_shifts(staff_profile_id,room_id,starts_at,ends_at) values (?,?,?,?)", profile, room, Timestamp.from(start), Timestamp.from(end));
+        assertFalse(assignments.isLabTechnicianAssigned(actor, room, start.minusSeconds(1)));
+        assertTrue(assignments.isLabTechnicianAssigned(actor, room, start));
+        assertTrue(assignments.isLabTechnicianAssigned(actor, room, end.minusSeconds(1)));
+        assertFalse(assignments.isLabTechnicianAssigned(actor, room, end));
+        assertFalse(assignments.isLabTechnicianAssigned(actor, UUID.randomUUID(), start));
+        jdbc.update("update staff_profiles set status='REMOVED' where id=?", profile);
+        entityManager.clear();
+        assertFalse(assignments.isLabTechnicianAssigned(actor, room, start));
+    }
+
     @Test void doctorShiftIsExcludedFromStaffAssignmentsAndCannotBeChanged() {
         UUID account = UUID.randomUUID(), profile = UUID.randomUUID(), room = UUID.randomUUID(), shift = UUID.randomUUID();
         var date = java.time.LocalDate.now(java.time.ZoneId.of("Asia/Ho_Chi_Minh")).plusDays(2);

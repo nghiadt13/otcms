@@ -7,6 +7,7 @@ import fu.fa26.sep490.g58.otcms_be.common.security.AuthenticatedAccount;
 import fu.fa26.sep490.g58.otcms_be.common.web.CorrelationIdFilter;
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.UUID;
+import java.time.LocalDate;
 import org.springframework.http.*;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -23,10 +24,14 @@ public class ClinicalPastMedicalRecordsController {
     @GetMapping @PreAuthorize("hasAuthority('ROLE_DOCTOR')")
     public ResponseEntity<HistoryResponse> get(@PathVariable UUID currentVisitId,
             @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) LocalDate date,
             @AuthenticationPrincipal AuthenticatedAccount account, HttpServletRequest request) {
         UUID doctorId = doctors.requireDoctorProfile(account);
+        HistoryResponse response = date == null
+                ? history.getPastMedicalRecords(currentVisitId, doctorId, account.accountId(), page, size)
+                : history.getPastMedicalRecords(currentVisitId, doctorId, account.accountId(), page, size, date);
         return ResponseEntity.ok().cacheControl(CacheControl.noStore())
                 .header(CorrelationIdFilter.HEADER, CorrelationIdFilter.current(request))
-                .body(history.getPastMedicalRecords(currentVisitId, doctorId, account.accountId(), page, size));
+                .body(response);
     }
 }

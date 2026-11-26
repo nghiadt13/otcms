@@ -3,6 +3,7 @@ package fu.fa26.sep490.g58.otcms_be.imaging.service.impl;
 import fu.fa26.sep490.g58.otcms_be.imaging.exception.ImagingOperationException;
 import fu.fa26.sep490.g58.otcms_be.imaging.exception.ImagingOperationOutcome;
 import fu.fa26.sep490.g58.otcms_be.imaging.model.ImagingOperationStatus;
+import fu.fa26.sep490.g58.otcms_be.imaging.model.ImagingDicomIdentity;
 import fu.fa26.sep490.g58.otcms_be.imaging.model.entity.enums.ImagingOperationState;
 import fu.fa26.sep490.g58.otcms_be.imaging.service.ImagingIngestService;
 import fu.fa26.sep490.g58.otcms_be.imaging.service.ImagingUploadCommand;
@@ -49,10 +50,23 @@ public class ImagingIngestApplicationService implements ImagingIngestService {
     }
 
     @Override
+    public ImagingDicomIdentity getDicomIdentity(UUID actorAccountId, UUID requestId) {
+        var work = workAuthorization.requireAssignedWork(actorAccountId, requestId);
+        if (work.dicomPatientId() == null || work.dicomPatientIssuer() == null
+                || work.dicomAccessionNumber() == null || work.dicomAccessionLocalNamespace() == null) {
+            throw new ImagingOperationException(ImagingOperationOutcome.DEPENDENCY_UNAVAILABLE);
+        }
+        return new ImagingDicomIdentity(work.dicomPatientId(), work.dicomPatientIssuer(),
+                work.dicomAccessionNumber(), work.dicomAccessionLocalNamespace());
+    }
+
+    @Override
     public ImagingOperationStatus getOperationStatus(UUID actorAccountId, UUID operationId) {
         var operation = operations.findById(operationId)
                 .orElseThrow(() -> new ImagingOperationException(ImagingOperationOutcome.UNAUTHORIZED_RECORD));
-        workAuthorization.requireAssignedWork(actorAccountId, operation.requestId(), operation.attemptId());
+        // Operation polling must remain readable after FEAT-003 links the study and moves
+        // the request to RESULT_AVAILABLE; upload authorization intentionally rejects that state.
+        workAuthorization.requireStatusRead(actorAccountId, operation.requestId());
         if (audit != null) {
             audit.recordActor(actorAccountId, "IMAGING_OPERATION_STATUS_READ", "ALLOWED", operationId,
                     operation.studyRef(), operation.requestId(), operation.attemptId(), operation.visitId(),

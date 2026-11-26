@@ -11,6 +11,8 @@ import fu.fa26.sep490.g58.otcms_be.diagnostic.service.DiagnosticPatientHistoryQu
 import fu.fa26.sep490.g58.otcms_be.visit.exception.VisitOperationException;
 import fu.fa26.sep490.g58.otcms_be.visit.service.VisitPatientHistoryQueryService;
 import java.util.*;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.*;
 
@@ -23,19 +25,25 @@ public class ClinicalPastMedicalRecordsServiceImpl implements ClinicalPastMedica
     private final ClinicalPrescriptionHistoryQueryService prescriptions;
     private final ClinicalMedicalDocumentHistoryQueryService documents;
     private final DiagnosticPatientHistoryQueryService diagnostic;
+    private final ClinicalLaboratoryHistoryQueryService laboratory;
 
     public ClinicalPastMedicalRecordsServiceImpl(DoctorAccountAccessService accounts, VisitClinicalContextPort contexts,
             VisitPatientHistoryQueryService visits, ClinicalExaminationHistoryQueryService examinations,
             ClinicalPrescriptionHistoryQueryService prescriptions, ClinicalMedicalDocumentHistoryQueryService documents,
-            DiagnosticPatientHistoryQueryService diagnostic) {
+            DiagnosticPatientHistoryQueryService diagnostic, ClinicalLaboratoryHistoryQueryService laboratory) {
         this.accounts = accounts; this.contexts = contexts; this.visits = visits; this.examinations = examinations;
-        this.prescriptions = prescriptions; this.documents = documents; this.diagnostic = diagnostic;
+        this.prescriptions = prescriptions; this.documents = documents; this.diagnostic = diagnostic; this.laboratory = laboratory;
     }
 
     // Repeatable snapshot for all owners. Only the existing Diagnostic access audit is inserted;
     // no clinical/Visit/document/prescription business data is changed.
     @Override @Transactional(isolation = Isolation.REPEATABLE_READ)
     public HistoryResponse getPastMedicalRecords(UUID currentVisitId, UUID doctorId, UUID accountId, int page, int size) {
+        return getPastMedicalRecords(currentVisitId, doctorId, accountId, page, size, null);
+    }
+    @Override @Transactional(isolation = Isolation.REPEATABLE_READ)
+    public HistoryResponse getPastMedicalRecords(UUID currentVisitId, UUID doctorId, UUID accountId, int page, int size,
+            LocalDate date) {
         if (currentVisitId == null || page < 0 || size < 1 || size > 50) throw error("MSG-39");
         if (doctorId == null || accountId == null || !accounts.isActiveDoctorAccount(accountId)) throw error("MSG-40");
         var context = contexts.getVisitContext(currentVisitId);
@@ -46,7 +54,13 @@ public class ClinicalPastMedicalRecordsServiceImpl implements ClinicalPastMedica
         UUID patientId = context.patientId();
         VisitPatientHistoryQueryService.HistoryPage history;
         try {
-            history = visits.findPastVisits(patientId, currentVisitId, page, size);
+            if (date == null) {
+                history = visits.findPastVisits(patientId, currentVisitId, page, size);
+            } else {
+                var zone = ZoneId.of("Asia/Ho_Chi_Minh");
+                history = visits.findPastVisits(patientId, currentVisitId, page, size,
+                        date.atStartOfDay(zone).toInstant(), date.plusDays(1).atStartOfDay(zone).toInstant());
+            }
         } catch (VisitOperationException exception) {
             throw error(switch (exception.code()) {
                 case "RESOURCE_NOT_FOUND" -> "MSG-41";
@@ -58,7 +72,7 @@ public class ClinicalPastMedicalRecordsServiceImpl implements ClinicalPastMedica
         Set<UUID> ids = new LinkedHashSet<>();
         for (var visit : history.items()) {
             if (!patientId.equals(visit.patientProfileId()) || currentVisitId.equals(visit.visitId())
-                    || !("CLOSED".equals(visit.status()) || "INCOMPLETE".equals(visit.status())) || !ids.add(visit.visitId())) throw error("DEPENDENCY_UNAVAILABLE");
+                    || !"CLOSED".equals(visit.status()) || !ids.add(visit.visitId())) throw error("DEPENDENCY_UNAVAILABLE");
         }
         if (ids.size() > size || history.total() < ids.size()) throw error("DEPENDENCY_UNAVAILABLE");
         var exams = examinations.findCompletedByVisitIds(ids);
@@ -81,11 +95,16 @@ public class ClinicalPastMedicalRecordsServiceImpl implements ClinicalPastMedica
             requireScope(patientId, ids, image.patientProfileId(), image.result().visitId());
             images.computeIfAbsent(image.result().visitId(), ignored -> new ArrayList<>()).add(image.result());
         }
+        Map<UUID, List<ClinicalLaboratoryHistoryQueryService.LaboratoryResultSummary>> labs = new HashMap<>();
+        for (var result : laboratory.findReleased(ids)) {
+            if (!ids.contains(result.visitId())) throw error("DEPENDENCY_UNAVAILABLE");
+            labs.computeIfAbsent(result.visitId(), ignored -> new ArrayList<>()).add(result);
+        }
         var items = history.items().stream().map(v -> {
             var exam = exams.get(v.visitId());
             return new HistoricalVisitRecord(v.visitId(), v.arrivedAt(), v.status(), exam == null ? null : exam.examination(),
                     exam == null ? null : exam.advice(), rx.get(v.visitId()), docs.getOrDefault(v.visitId(), List.of()),
-                    images.getOrDefault(v.visitId(), List.of()));
+                    images.getOrDefault(v.visitId(), List.of()), labs.getOrDefault(v.visitId(), List.of()));
         }).toList();
         return new HistoryResponse(currentVisitId, patientId, items, page, size, history.total());
     }

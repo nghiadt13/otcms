@@ -1,11 +1,22 @@
 "use client";
 
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { useRef, useState, type FormEvent } from "react";
-import { useImaging } from "../hooks/useImaging";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { apiRequest } from "@/lib/api/client";
+import {
+  ACCOUNT_AVATAR_CHANGED_EVENT,
+  loadAccountAvatarUrl,
+  notifyAccountAvatarChanged,
+} from "@/lib/auth/accountAvatarCache";
+import {
+  fetchCurrentAccount,
+  resetCurrentAccountCache,
+  type CurrentAccount,
+} from "@/lib/auth/currentAccountApi";
+import { messageFromError } from "@/lib/messages/appMessages";
 import { ActionLink } from "./ActionLink";
 import { Badge } from "./Badge";
 import { Icon } from "./Icon";
@@ -14,157 +25,240 @@ import { PageHeading } from "./PageHeading";
 import { Panel } from "./Panel";
 
 export function ProfileScreen({ edit = false }: { edit?: boolean }) {
-  const { state, update, notify } = useImaging();
   const router = useRouter();
   const input = useRef<HTMLInputElement>(null);
-  const [avatar, setAvatar] = useState(state.profile.avatar);
+  const previewUrlRef = useRef<string | null>(null);
+  const [account, setAccount] = useState<CurrentAccount | null>(null);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [file, setFile] = useState<File | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  function save(e: FormEvent) {
-    e.preventDefault();
-    update((s) => ({ ...s, profile: { ...s.profile, avatar } }));
-    notify("Đã cập nhật ảnh đại diện trong bản xem thử.");
-    router.push("/imaging/profile");
-  }
-  async function choose(file: File | undefined) {
-    if (!file) return;
+
+  useEffect(() => {
+    let active = true;
+    const load = async () => {
+      try {
+        const current = await fetchCurrentAccount();
+        if (!current) {
+          if (active) setError("Không tìm thấy tài khoản đang đăng nhập.");
+          return;
+        }
+        const image = current.avatarUrl
+          ? await loadAccountAvatarUrl(current.id)
+          : null;
+        if (active) {
+          setAccount(current);
+          setAvatarUrl(image);
+        }
+      } catch (cause) {
+        if (active) setError(messageFromError(cause));
+      } finally {
+        if (active) setLoading(false);
+      }
+    };
+    void load();
+    window.addEventListener(ACCOUNT_AVATAR_CHANGED_EVENT, load);
+    return () => {
+      active = false;
+      window.removeEventListener(ACCOUNT_AVATAR_CHANGED_EVENT, load);
+    };
+  }, []);
+
+  useEffect(
+    () => () => {
+      if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
+    },
+    [],
+  );
+
+  function chooseFile(selected: File | null) {
+    if (!selected) return;
     if (
-      !["image/png", "image/jpeg", "image/webp"].includes(file.type) ||
-      file.size > 2 * 1024 * 1024
+      !["image/png", "image/jpeg", "image/webp"].includes(selected.type) ||
+      selected.size > 2 * 1024 * 1024
     ) {
+      if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
+      previewUrlRef.current = null;
+      setPreviewUrl(null);
+      setFile(null);
+      if (input.current) input.current.value = "";
       setError("Chọn ảnh JPG, PNG hoặc WebP, tối đa 2 MB.");
       return;
     }
+    if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
+    const url = URL.createObjectURL(selected);
+    previewUrlRef.current = url;
+    setPreviewUrl(url);
+    setFile(selected);
     setError("");
-    const reader = new FileReader();
-    reader.onload = () => setAvatar(String(reader.result));
-    reader.onerror = () => setError("Không thể đọc ảnh. Vui lòng chọn lại.");
-    reader.readAsDataURL(file);
   }
+
+  async function save(event: FormEvent) {
+    event.preventDefault();
+    if (!file) {
+      router.push("/imaging/profile");
+      return;
+    }
+    setSaving(true);
+    setError("");
+    try {
+      const form = new FormData();
+      form.append("photo", file);
+      await apiRequest("/api/v1/me/avatar", { method: "PUT", body: form });
+      resetCurrentAccountCache();
+      notifyAccountAvatarChanged();
+      router.push("/imaging/profile");
+    } catch (cause) {
+      setError(messageFromError(cause));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function removeAvatar() {
+    setSaving(true);
+    setError("");
+    try {
+      await apiRequest("/api/v1/me/avatar", { method: "DELETE" });
+      resetCurrentAccountCache();
+      notifyAccountAvatarChanged();
+      setAvatarUrl(null);
+      setFile(null);
+    } catch (cause) {
+      setError(messageFromError(cause));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const name = account?.displayName || account?.username || "Tài khoản";
+  const shownAvatar = previewUrl ?? avatarUrl;
+
+  if (loading)
+    return <p role="status">Đang tải thông tin tài khoản…</p>;
+
   return (
     <>
       <PageHeading
         eyebrow="CÁ NHÂN"
-        title={edit ? "Cập nhật tài khoản" : "Tài khoản của tôi"}
-        description={
-          edit
-            ? "Thay đổi ảnh đại diện của tài khoản."
-            : "Thông tin tài khoản và hồ sơ công việc của bạn."
-        }
+        title={edit ? "Cập nhật ảnh đại diện" : "Tài khoản của tôi"}
+        description="Thông tin tài khoản được tải từ hệ thống."
       >
         {!edit && (
           <ActionLink secondary href="/imaging/profile/edit">
             <Icon name="user" />
-            Cập nhật tài khoản
+            Cập nhật ảnh đại diện
           </ActionLink>
         )}
       </PageHeading>
-      <form onSubmit={save}>
-        <div className="im-account-layout">
-          <Panel>
-            <div className="im-profile-card">
-              <div className="im-profile-avatar">
-                {(edit ? avatar : state.profile.avatar) ? (
-                  <Image
-                    src={edit ? avatar : state.profile.avatar}
-                    alt="Ảnh đại diện kỹ thuật viên"
-                    width={108}
-                    height={108}
-                    unoptimized
-                  />
-                ) : (
-                  <span>MA</span>
+      {error && <p role="alert" className="im-form-error">{error}</p>}
+      {account ? (
+        <form onSubmit={(event) => void save(event)}>
+          <div className="im-account-layout">
+            <Panel>
+              <div className="im-profile-card">
+                <div className="im-profile-avatar">
+                  {shownAvatar ? (
+                    <Image
+                      src={shownAvatar}
+                      alt="Ảnh đại diện tài khoản"
+                      width={108}
+                      height={108}
+                      unoptimized
+                    />
+                  ) : (
+                    <span>{name.slice(0, 2).toUpperCase()}</span>
+                  )}
+                </div>
+                <h2>{name}</h2>
+                <p>Kỹ thuật viên chẩn đoán hình ảnh</p>
+                {account.status && (
+                  <Badge tone={account.status === "ACTIVE" ? "green" : "amber"}>
+                    {account.status === "ACTIVE" ? "Đang hoạt động" : "Đã khóa"}
+                  </Badge>
+                )}
+                {edit && (
+                  <>
+                    <Input
+                      ref={input}
+                      aria-label="Chọn ảnh đại diện"
+                      className="im-sr-only"
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp"
+                      onChange={(event) => {
+                        chooseFile(event.target.files?.[0] ?? null);
+                      }}
+                    />
+                    <Button
+                      variant="outline"
+                      className="im-button im-button-secondary"
+                      type="button"
+                      onClick={() => input.current?.click()}
+                    >
+                      <Icon name="upload" />
+                      Chọn ảnh đại diện
+                    </Button>
+                    <small>JPG, PNG hoặc WebP · Tối đa 2 MB</small>
+                    {avatarUrl && !file && (
+                      <Button
+                        variant="ghost"
+                        type="button"
+                        disabled={saving}
+                        className="im-text-button im-danger"
+                        onClick={() => void removeAvatar()}
+                      >
+                        Xóa ảnh đại diện
+                      </Button>
+                    )}
+                  </>
                 )}
               </div>
-              <h2>{state.profile.name}</h2>
-              <p>Kỹ thuật viên chẩn đoán hình ảnh</p>
-              <Badge tone="green">Tài khoản đang hoạt động</Badge>
-              {edit && (
-                <>
-                  <Input
-                    ref={input}
-                    aria-label="Chọn ảnh đại diện"
-                    className="im-sr-only"
-                    type="file"
-                    accept="image/png,image/jpeg,image/webp"
-                    onChange={(e) => void choose(e.target.files?.[0])}
-                  />
-                  <Button
-                    variant="outline"
-                    className="im-button im-button-secondary"
-                    type="button"
-                    onClick={() => input.current?.click()}
-                  >
-                    <Icon name="upload" />
-                    Chọn ảnh đại diện
-                  </Button>
-                  <small>JPG, PNG hoặc WebP · Tối đa 2 MB</small>
-                  {avatar && (
-                    <Button
-                      variant="ghost"
-                      type="button"
-                      className="im-text-button im-danger"
-                      onClick={() => setAvatar("")}
-                    >
-                      Xóa ảnh đang chọn
-                    </Button>
-                  )}
-                  {error && (
-                    <p className="im-form-error" role="alert">
-                      {error}
-                    </p>
-                  )}
-                </>
-              )}
-            </div>
-          </Panel>
-          <Panel title="Thông tin tài khoản">
-            <dl className="im-details">
-              <div>
-                <dt>Tên đăng nhập</dt>
-                <dd>{state.profile.username}</dd>
+            </Panel>
+            <Panel title="Thông tin tài khoản">
+              <dl className="im-details">
+                <div>
+                  <dt>Tên đăng nhập</dt>
+                  <dd>{account.username || "—"}</dd>
+                </div>
+                <div>
+                  <dt>Họ và tên</dt>
+                  <dd>{account.displayName || "—"}</dd>
+                </div>
+                <div>
+                  <dt>Email</dt>
+                  <dd>{account.email}</dd>
+                </div>
+                <div>
+                  <dt>Vai trò</dt>
+                  <dd>Kỹ thuật viên chẩn đoán hình ảnh</dd>
+                </div>
+              </dl>
+              <div className="im-panel-body">
+                <Info>
+                  Hồ sơ nhân viên do Administrator quản lý. Bạn có thể cập nhật
+                  ảnh đại diện và đổi mật khẩu của tài khoản.
+                </Info>
+                {!edit && (
+                  <ActionLink secondary href="/imaging/change-password">
+                    <Icon name="lock" />
+                    Đổi mật khẩu
+                  </ActionLink>
+                )}
               </div>
-              <div>
-                <dt>Họ và tên</dt>
-                <dd>{state.profile.name}</dd>
-              </div>
-              <div>
-                <dt>Mã nhân viên</dt>
-                <dd>KTV-001</dd>
-              </div>
-              <div>
-                <dt>Vai trò</dt>
-                <dd>Kỹ thuật viên chẩn đoán hình ảnh</dd>
-              </div>
-              <div>
-                <dt>Liên hệ công việc</dt>
-                <dd>Nội bộ 105</dd>
-              </div>
-            </dl>
-            <div className="im-panel-body">
-              <Info>
-                Hồ sơ nhân viên, tên đăng nhập và vai trò do Administrator quản
-                lý. Bạn có thể cập nhật ảnh đại diện và đổi mật khẩu của mình.
-              </Info>
-              {!edit && (
-                <ActionLink secondary href="/imaging/change-password">
-                  <Icon name="lock" />
-                  Đổi mật khẩu
-                </ActionLink>
-              )}
-            </div>
-          </Panel>
-        </div>
-        {edit && (
-          <div className="im-action-footer">
-            <ActionLink secondary href="/imaging/profile">
-              Hủy
-            </ActionLink>
-            <Button className="im-button" type="submit">
-              Lưu thay đổi
-            </Button>
+            </Panel>
           </div>
-        )}
-      </form>
+          {edit && (
+            <div className="im-action-footer">
+              <ActionLink secondary href="/imaging/profile">Hủy</ActionLink>
+              <Button className="im-button" type="submit" disabled={saving}>
+                {saving ? "Đang lưu…" : "Lưu thay đổi"}
+              </Button>
+            </div>
+          )}
+        </form>
+      ) : null}
     </>
   );
 }

@@ -42,12 +42,16 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
-@WebMvcTest({ClinicalImagingRequestController.class, fu.fa26.sep490.g58.otcms_be.clinical.controller.ClinicalRoundWorkflowController.class})
+@WebMvcTest({ClinicalImagingRequestController.class, fu.fa26.sep490.g58.otcms_be.clinical.controller.ClinicalRoundWorkflowController.class,
+        fu.fa26.sep490.g58.otcms_be.clinical.controller.ClinicalLaboratoryRequestController.class})
 @Import({SecurityConfig.class, ClinicalApiExceptionHandler.class, ClinicalDoctorIdentityResolver.class,
         CorrelationIdFilter.class, ClinicalImagingRequestControllerTest.Fixture.class})
 class ClinicalImagingRequestControllerTest {
     @Autowired MockMvc mvc;
     @MockitoBean ClinicalImagingRequestService imaging;
+    @MockitoBean ClinicalLaboratoryRequestService laboratory;
+    @MockitoBean ClinicalLaboratoryDispatchService laboratoryDispatch;
+    @MockitoBean LaboratoryQueueService laboratoryQueue;
     @MockitoBean ClinicalRoundWorkflowService workflow;
     @MockitoBean DoctorProfileIdentityQueryService doctors;
     @MockitoBean JwtTokenService tokens;
@@ -71,6 +75,63 @@ class ClinicalImagingRequestControllerTest {
                     .andExpect(jsonPath("$.error.code").value("MSG-40"));
         }
         verifyNoInteractions(imaging, doctors);
+    }
+
+    @Test void laboratoryOrdersAreAvailableOnlyToDoctorsAndUseTheirResolvedProfile() throws Exception {
+        String path = "/api/v1/visits/" + visitId + "/laboratory-orders";
+        mvc.perform(get(path)).andExpect(status().isUnauthorized());
+        for (var role : AccountRole.values()) if (role != AccountRole.DOCTOR) {
+            mvc.perform(get(path).with(actor(role))).andExpect(status().isForbidden());
+        }
+        verifyNoInteractions(workflow);
+        when(workflow.listDoctorLaboratoryOrders(visitId, doctorId)).thenReturn(List.of());
+        mvc.perform(get(path).with(actor(AccountRole.DOCTOR))).andExpect(status().isOk())
+                .andExpect(header().string("Cache-Control", "no-store"))
+                .andExpect(jsonPath("$.items.length()").value(0));
+        verify(workflow).listDoctorLaboratoryOrders(visitId, doctorId);
+    }
+
+    @Test void laboratorySubmissionRequiresDoctorAndExplicitConsent() throws Exception {
+        String path = "/api/v1/visits/" + visitId + "/laboratory-requests";
+        String payload = "{\"patientConsentConfirmed\":true,\"orders\":[{\"serviceId\":\"" + serviceId
+                + "\",\"clinicalReason\":\"Reason\"}]}";
+        mvc.perform(post(path).header("Idempotency-Key", "key").contentType("application/json")
+                .content(payload).with(csrf())).andExpect(status().isUnauthorized());
+        mvc.perform(post(path).header("Idempotency-Key", "key").contentType("application/json")
+                .content(payload).with(csrf()).with(actor(AccountRole.RECEPTIONIST))).andExpect(status().isForbidden());
+        mvc.perform(post(path).header("Idempotency-Key", "key").contentType("application/json")
+                .content(payload.replace("true", "false")).with(csrf()).with(actor(AccountRole.DOCTOR)))
+                .andExpect(status().isBadRequest());
+        verifyNoInteractions(laboratory);
+        when(laboratory.submit(any())).thenReturn(new ClinicalLaboratoryRequestService.SubmissionResult(round(), false));
+        mvc.perform(post(path).header("Idempotency-Key", "key").contentType("application/json")
+                .content(payload).with(csrf()).with(actor(AccountRole.DOCTOR))).andExpect(status().isCreated());
+        verify(laboratory).submit(argThat(command -> command.visitId().equals(visitId)
+                && command.doctorProfileId().equals(doctorId) && command.orders().getFirst().serviceId().equals(serviceId)));
+    }
+
+    @Test void laboratoryDispatchRequiresReceptionistAndValidRoom() throws Exception {
+        UUID room = UUID.randomUUID();
+        String path = "/api/v1/reception/clinical-service-orders/" + orderId + "/laboratory-dispatch";
+        String body = "{\"roomId\":\"" + room + "\"}";
+        mvc.perform(post(path).contentType("application/json").content(body).with(csrf()).with(actor(AccountRole.DOCTOR)))
+                .andExpect(status().isForbidden());
+        mvc.perform(post(path).contentType("application/json").content("{}").with(csrf()).with(actor(AccountRole.RECEPTIONIST)))
+                .andExpect(status().isBadRequest());
+        verifyNoInteractions(laboratoryDispatch);
+        mvc.perform(post(path).contentType("application/json").content(body).with(csrf()).with(actor(AccountRole.RECEPTIONIST)))
+                .andExpect(status().isNoContent());
+        verify(laboratoryDispatch).assign(eq(orderId), eq(room), any());
+    }
+
+    @Test void laboratoryRoomOptionsRequireReceptionist() throws Exception {
+        String path = "/api/v1/reception/clinical-service-orders/" + orderId + "/eligible-laboratory-rooms";
+        mvc.perform(get(path).with(actor(AccountRole.DOCTOR))).andExpect(status().isForbidden());
+        verifyNoInteractions(laboratoryDispatch);
+        var room = new fu.fa26.sep490.g58.otcms_be.visit.service.LaboratoryRoomQueryService.Room(UUID.randomUUID(), "LAB-1", "Lab");
+        when(laboratoryDispatch.eligibleRooms(eq(orderId), any())).thenReturn(List.of(room));
+        mvc.perform(get(path).with(actor(AccountRole.RECEPTIONIST))).andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[0].id").value(room.id().toString()));
     }
 
     @Test void consentMustBeExplicitlyTrue() throws Exception {

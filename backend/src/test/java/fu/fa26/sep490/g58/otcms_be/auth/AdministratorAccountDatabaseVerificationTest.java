@@ -56,7 +56,10 @@ class AdministratorAccountDatabaseVerificationTest {
         var v19 = flyway(schema, "19");
         v19.migrate();
         List<UUID> ids = new ArrayList<>();
-        for (AccountType type : AccountType.values()) {
+        // V019 predates technician account types. Seed only roles accepted by
+        // the schema at that migration version before testing account/session upgrades.
+        for (AccountType type : List.of(AccountType.PATIENT, AccountType.RECEPTIONIST, AccountType.DOCTOR,
+                AccountType.OWNER, AccountType.ADMIN)) {
             UUID id = UUID.randomUUID();
             ids.add(id);
             jdbc.update("insert into " + schema + ".accounts "
@@ -71,16 +74,17 @@ class AdministratorAccountDatabaseVerificationTest {
         var originalAccounts = jdbc.queryForList("select to_jsonb(a)::text from " + schema + ".accounts a order by id", String.class);
         var originalSessions = jdbc.queryForList("select row_to_json(s)::text from " + schema + ".auth_sessions s order by id", String.class);
         assertEquals(1, flyway(schema, "20").migrate().migrationsExecuted);
-        assertEquals(1, flyway(schema, "21").migrate().migrationsExecuted);
-        flyway(schema, "21").validate();
-        assertTrue(originalAccounts.equals(jdbc.queryForList("select (to_jsonb(a) - 'username' - 'must_change_password')::text "
+        assertTrue(flyway(schema, "32").migrate().migrationsExecuted > 1);
+        assertEquals(1, flyway(schema, "33").migrate().migrationsExecuted);
+        flyway(schema, "33").validate();
+        assertTrue(originalAccounts.equals(jdbc.queryForList("select (to_jsonb(a) - 'full_name' - 'username' - 'must_change_password')::text "
                 + "from " + schema + ".accounts a order by id", String.class)), "Existing account fields must survive upgrade");
-        assertTrue(originalSessions.equals(jdbc.queryForList("select row_to_json(s)::text from " + schema + ".auth_sessions s order by id", String.class)),
+        assertTrue(originalSessions.equals(jdbc.queryForList("select row_to_json(s)::text from " + schema + ".sessions s order by id", String.class)),
                 "Existing session records must survive upgrade");
         assertEquals(ids.size(), jdbc.queryForObject("select count(*) from " + schema
                 + ".accounts where username is null and must_change_password = false", Integer.class));
-        assertEquals(List.of(19, 20, 21), jdbc.queryForList("select version::integer from " + schema
-                + ".flyway_schema_history where version in ('019','020','021','19','20','21') and success order by installed_rank", Integer.class));
+        assertEquals(List.of(19, 20, 21, 30, 31, 32, 33), jdbc.queryForList("select version::integer from " + schema
+                + ".flyway_schema_history where version in ('019','020','021','030','031','032','033') and success order by installed_rank", Integer.class));
         jdbc.update("update " + schema + ".accounts set must_change_password = true where account_type = 'ADMIN'");
         assertEquals(1, jdbc.queryForObject("select count(*) from " + schema
                 + ".accounts where account_type = 'ADMIN' and username is null and must_change_password", Integer.class));

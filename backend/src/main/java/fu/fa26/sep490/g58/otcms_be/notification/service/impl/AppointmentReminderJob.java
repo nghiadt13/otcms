@@ -1,11 +1,11 @@
 package fu.fa26.sep490.g58.otcms_be.notification.service.impl;
 
 import fu.fa26.sep490.g58.otcms_be.auth.service.NotificationRecipientDirectory;
+import fu.fa26.sep490.g58.otcms_be.appointment.service.AppointmentReminderCandidateService;
+import fu.fa26.sep490.g58.otcms_be.appointment.service.AppointmentReminderCandidateService.Candidate;
 import fu.fa26.sep490.g58.otcms_be.notification.model.NotificationMessage;
 import fu.fa26.sep490.g58.otcms_be.notification.model.NotificationMessages;
 import fu.fa26.sep490.g58.otcms_be.notification.repository.NotificationRepository;
-import fu.fa26.sep490.g58.otcms_be.notification.repository.ReminderCandidateReader;
-import fu.fa26.sep490.g58.otcms_be.notification.repository.ReminderCandidateReader.Candidate;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -35,14 +35,14 @@ public class AppointmentReminderJob {
     /** @param reminders new upcoming reminders; @param overdue new overdue notices; @param skipped duplicates or no recipient */
     public record RunResult(int reminders, int overdue, int skipped) { }
 
-    private final ReminderCandidateReader candidates;
+    private final AppointmentReminderCandidateService candidates;
     private final NotificationRepository notifications;
     private final NotificationRecipientDirectory recipients;
     private final Clock clock;
     private final boolean enabled;
     private final Duration lead;
 
-    public AppointmentReminderJob(ReminderCandidateReader candidates, NotificationRepository notifications,
+    public AppointmentReminderJob(AppointmentReminderCandidateService candidates, NotificationRepository notifications,
             NotificationRecipientDirectory recipients, Clock clock,
             @Value("${otcms.notification.reminder-job-enabled:true}") boolean enabled,
             @Value("${otcms.notification.reminder-lead-hours:24}") long leadHours) {

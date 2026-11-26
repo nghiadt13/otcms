@@ -5,6 +5,7 @@ import fu.fa26.sep490.g58.otcms_be.common.security.AuthenticatedAccount;
 import fu.fa26.sep490.g58.otcms_be.imaging.exception.ImagingOperationException;
 import fu.fa26.sep490.g58.otcms_be.imaging.exception.ImagingOperationOutcome;
 import fu.fa26.sep490.g58.otcms_be.imaging.model.dto.response.ImagingOperationResponse;
+import fu.fa26.sep490.g58.otcms_be.imaging.model.dto.response.ImagingDicomIdentityResponse;
 import fu.fa26.sep490.g58.otcms_be.imaging.service.ImagingIngestService;
 import fu.fa26.sep490.g58.otcms_be.imaging.service.ImagingUploadCommand;
 import jakarta.servlet.http.HttpServletRequest;
@@ -54,6 +55,18 @@ public class ImagingIngestController {
                     request.getContentLengthLong(), body)));
             return ResponseEntity.accepted().location(URI.create(response.statusUrl())).body(response);
         }
+    }
+
+    @GetMapping("/requests/{requestId}/dicom-identity")
+    @PreAuthorize("hasAuthority('ROLE_IMAGING_TECHNICIAN')")
+    public ResponseEntity<ImagingDicomIdentityResponse> getDicomIdentity(@PathVariable UUID requestId,
+            @AuthenticationPrincipal AuthenticatedAccount account) {
+        if (account == null || account.accountRole() != AccountRole.IMAGING_TECHNICIAN) {
+            throw new ImagingOperationException(ImagingOperationOutcome.UNAUTHORIZED_RECORD);
+        }
+        var identity = ingest.getDicomIdentity(account.accountId(), requestId);
+        return ResponseEntity.ok(new ImagingDicomIdentityResponse(identity.patientId(), identity.patientIssuer(),
+                identity.accessionNumber(), identity.accessionIssuerLocalNamespace()));
     }
 
     @GetMapping("/requests/{requestId}/attempts/{attemptId}/ingest-operations")

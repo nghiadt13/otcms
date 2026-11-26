@@ -5,7 +5,6 @@ import {
   ChevronsUpDown,
   KeyRound,
   LogOut,
-  RefreshCw,
   UserRound,
 } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -69,13 +68,7 @@ function AccountSummary({ account }: { account: CurrentAccount | null }) {
   );
 }
 
-export function ImagingAccountMenu({
-  onReset,
-  onExit,
-}: {
-  onReset: () => void;
-  onExit: () => void;
-}) {
+export function ImagingAccountMenu({ onExit }: { onExit: () => void }) {
   const { isMobile, setOpenMobile } = useSidebar();
   const [account, setAccount] = useState<CurrentAccount | null>(null);
 
@@ -133,9 +126,6 @@ export function ImagingAccountMenu({
               onClick={() => setOpenMobile(false)}
             >
               <KeyRound /> Đổi mật khẩu
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={onReset}>
-              <RefreshCw /> Khôi phục dữ liệu mẫu
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem variant="destructive" onClick={onExit}>

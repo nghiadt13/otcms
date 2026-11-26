@@ -38,14 +38,34 @@ public class DiagnosticImagingWorkAuthorizationAdapter implements ImagingWorkAut
         try {
             var decision = requests.requireAssignedImagingWork(
                     DiagnosticActor.user(actorAccountId, AccountRole.IMAGING_TECHNICIAN), requestId, attemptId);
-            return new ImagingAssignedWork(actorAccountId, decision.requestId(), decision.attemptId(),
-                    decision.visitId(), decision.patientId(), decision.assignmentVersion(), decision.currentlyAssigned());
+            return assignedWork(actorAccountId, decision);
         } catch (DiagnosticOperationException exception) {
-            DiagnosticOperationOutcome outcome = exception.outcome();
-            if (outcome == DiagnosticOperationOutcome.DEPENDENCY_UNAVAILABLE) {
-                throw new ImagingOperationException(ImagingOperationOutcome.DEPENDENCY_UNAVAILABLE);
-            }
-            throw new ImagingOperationException(ImagingOperationOutcome.UNAUTHORIZED_RECORD);
+            throw map(exception);
         }
+    }
+
+    @Override
+    public ImagingAssignedWork requireAssignedImagingWork(UUID actorAccountId, UUID requestId) {
+        try {
+            var decision = requests.requireAssignedImagingWork(
+                    DiagnosticActor.user(actorAccountId, AccountRole.IMAGING_TECHNICIAN), requestId);
+            return assignedWork(actorAccountId, decision);
+        } catch (DiagnosticOperationException exception) {
+            throw map(exception);
+        }
+    }
+
+    private ImagingAssignedWork assignedWork(UUID actorAccountId,
+            fu.fa26.sep490.g58.otcms_be.diagnostic.model.DiagnosticAssignedImagingWork decision) {
+        return new ImagingAssignedWork(actorAccountId, decision.requestId(), decision.attemptId(),
+                decision.visitId(), decision.patientId(), decision.assignmentVersion(), decision.currentlyAssigned(),
+                decision.dicomPatientId(), decision.dicomPatientIssuer(), decision.dicomAccessionNumber(),
+                decision.dicomAccessionLocalNamespace());
+    }
+
+    private ImagingOperationException map(DiagnosticOperationException exception) {
+        DiagnosticOperationOutcome outcome = exception.outcome();
+        return new ImagingOperationException(outcome == DiagnosticOperationOutcome.DEPENDENCY_UNAVAILABLE
+                ? ImagingOperationOutcome.DEPENDENCY_UNAVAILABLE : ImagingOperationOutcome.UNAUTHORIZED_RECORD);
     }
 }

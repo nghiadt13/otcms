@@ -35,7 +35,8 @@ public final class ExamQueueItemMapper {
         ExamQueueDtos.Item base = item(row, patients, doctorNames);
         ProfileRecord patient = patients.get(base.patientProfileId());
         return new ExamQueueDtos.DoctorItem(base.visitId(), base.queueNumber(), base.examStatus(), base.source(),
-                base.appointmentId(), base.patientProfileId(), base.patientName(), base.doctorProfileId(),
+                base.appointmentId(), base.patientProfileId(), patient == null ? null : patient.patientCode(),
+                base.patientName(), base.doctorProfileId(),
                 base.doctorName(), base.roomId(), base.roomLabel(), base.serviceId(), base.queuedAt(),
                 base.startedAt(), base.finishedAt(),
                 patient == null ? null : patient.dateOfBirth(),

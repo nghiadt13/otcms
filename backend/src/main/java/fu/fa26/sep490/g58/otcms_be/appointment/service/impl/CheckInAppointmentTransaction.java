@@ -2,8 +2,8 @@ package fu.fa26.sep490.g58.otcms_be.appointment.service.impl;
 
 import fu.fa26.sep490.g58.otcms_be.appointment.mapper.AppointmentAuditEntries;
 import fu.fa26.sep490.g58.otcms_be.common.audit.AuditLogWriter;
-import fu.fa26.sep490.g58.otcms_be.common.idempotency.IdempotencyScope;
-import fu.fa26.sep490.g58.otcms_be.common.idempotency.IdempotencyStore;
+import fu.fa26.sep490.g58.otcms_be.idempotency.model.IdempotencyScope;
+import fu.fa26.sep490.g58.otcms_be.idempotency.service.IdempotencyService;
 
 import fu.fa26.sep490.g58.otcms_be.appointment.exception.AppointmentBookingException;
 import fu.fa26.sep490.g58.otcms_be.appointment.exception.AppointmentQueryException;
@@ -39,7 +39,7 @@ public class CheckInAppointmentTransaction {
 
     private final CoordinationGuardService guard;
     private final AppointmentCheckInRepository appointments;
-    private final IdempotencyStore idempotency;
+    private final IdempotencyService idempotency;
     private final ReceptionWorkflowService reception;
     private final AppointmentBillingSourceService billingSources;
     private final AppointmentInvoicePaidStatusQueryService invoicePaidStatus;
@@ -47,7 +47,7 @@ public class CheckInAppointmentTransaction {
     private final Clock clock;
 
     public CheckInAppointmentTransaction(CoordinationGuardService guard, AppointmentCheckInRepository appointments,
-            IdempotencyStore idempotency, ReceptionWorkflowService reception, AppointmentBillingSourceService billingSources,
+            IdempotencyService idempotency, ReceptionWorkflowService reception, AppointmentBillingSourceService billingSources,
             AppointmentInvoicePaidStatusQueryService invoicePaidStatus, AppointmentBookingProperties properties,
             Clock clock, AuditLogWriter auditLogWriter) {
         this.auditLogWriter = auditLogWriter;

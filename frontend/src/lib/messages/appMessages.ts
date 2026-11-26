@@ -166,6 +166,12 @@ export function formatAppMessage(
 
 /** Chuỗi hiển thị cho một lỗi bất kỳ: ApiError có mã → bảng MSG, còn lại → MSG-04. */
 export function messageFromError(error: unknown): string {
+  if (
+    isApiError(error) &&
+    error.code === "MSG-29" &&
+    error.message.startsWith("Không thể đặt lịch tái khám:")
+  )
+    return error.message;
   if (isApiError(error) && error.code && error.code in APP_MESSAGES)
     return formatAppMessage(error.code, error.params);
   if (isApiError(error) && error.status === 404)

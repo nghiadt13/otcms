@@ -1,7 +1,6 @@
 import {
   Bell,
   CalendarDays,
-  CalendarClock,
   ClipboardList,
   CreditCard,
   DoorOpen,
@@ -99,13 +98,6 @@ export const receptionNavigation = [
     group: "Tra cứu",
   },
   {
-    section: "schedule",
-    title: "Ca làm việc của tôi",
-    description: "Xem lịch làm việc được phân công tại quầy tiếp nhận.",
-    icon: CalendarClock,
-    group: "Cá nhân",
-  },
-  {
     section: "notifications",
     title: "Thông báo",
     description: "Đọc các thông báo liên quan đến công việc của bạn.",
@@ -125,7 +117,7 @@ export const receptionHref = (section = "") =>
   `/reception${section ? `/${section}` : ""}`;
 export const ReceiptIcon = ReceiptText;
 
-/** Màn đã nối BE thật: mở được ở production mà không cần `NEXT_PUBLIC_RECEPTION_DEMO`. */
+/** Các màn lễ tân hiển thị dữ liệu từ API thật. */
 const LIVE_RECEPTION_SECTIONS: ReadonlySet<ReceptionSection> =
   new Set<ReceptionSection>([
     "",
@@ -136,20 +128,19 @@ const LIVE_RECEPTION_SECTIONS: ReadonlySet<ReceptionSection> =
     "orders",
     "payments",
     "payment-history",
+    "results",
     "rooms",
+    "services",
+    "notifications",
+    "account",
   ]);
 
 export function isLiveReceptionSection(section: ReceptionSection): boolean {
   return LIVE_RECEPTION_SECTIONS.has(section);
 }
 
-/** Màn còn dữ liệu giả chỉ mở ở môi trường dev/test hoặc khi bật cờ demo ở production. */
 export function isReceptionSectionAvailable(
   section: ReceptionSection,
 ): boolean {
-  if (LIVE_RECEPTION_SECTIONS.has(section)) return true;
-  return (
-    process.env.NODE_ENV !== "production" ||
-    process.env.NEXT_PUBLIC_RECEPTION_DEMO === "true"
-  );
+  return LIVE_RECEPTION_SECTIONS.has(section);
 }

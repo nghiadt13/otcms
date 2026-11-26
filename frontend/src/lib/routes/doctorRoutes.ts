@@ -4,10 +4,13 @@
 export const DOCTOR_ROUTES = {
   dashboard: "/doctor",
   todayPatients: "/doctor/today",
+  appointmentHistory: "/doctor/appointments",
+  visitProgress: "/doctor/visit-progress",
   /** Gốc workspace khám: `/doctor/visits/<visitId>[/<màn>]`. */
   visits: "/doctor/visits",
   imagingStudies: "/doctor/imaging",
   schedule: "/doctor/schedule",
+  rooms: "/doctor/rooms",
   account: "/doctor/account",
   notifications: "/doctor/notifications",
 } as const;

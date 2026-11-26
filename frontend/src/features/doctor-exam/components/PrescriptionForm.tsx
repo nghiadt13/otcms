@@ -6,7 +6,11 @@ import { StatusBadge } from "@/components/admin/StatusBadge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { FieldError } from "@/components/admin/FieldError";
-import { prescriptionItems } from "../schema/prescription";
+import { notifyWarning } from "@/lib/messages/notify";
+import {
+  prescriptionItems,
+  prescriptionLengthWarning,
+} from "../schema/prescription";
 import { getDoctorExamApi } from "../api/doctorExamApi";
 import { useAsyncAction } from "../hooks/useAsyncAction";
 import type { Prescription, PrescriptionLine } from "../types/doctorExam";
@@ -68,6 +72,12 @@ export function PrescriptionForm({
 
   async function save(issue: boolean) {
     if (disabled) return;
+    const lengthWarning = prescriptionLengthWarning(lines);
+    if (lengthWarning) {
+      setError(undefined);
+      notifyWarning(lengthWarning);
+      return;
+    }
     try {
       prescriptionItems(lines);
     } catch {

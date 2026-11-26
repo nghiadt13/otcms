@@ -22,6 +22,9 @@ public interface DiagnosticRequestService {
 
     DiagnosticAssignedImagingWork requireAssignedImagingWork(DiagnosticActor actor, UUID requestId, UUID attemptId);
 
+    /** Resolve the current attempt for an assigned imaging request. */
+    DiagnosticAssignedImagingWork requireAssignedImagingWork(DiagnosticActor actor, UUID requestId);
+
     DiagnosticRequestView cancel(DiagnosticActor actor, UUID requestId, String idempotencyKey,
             long expectedVersion, CancellationCause cause, String reason, String correlationId);
 

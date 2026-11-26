@@ -1,7 +1,10 @@
-package fu.fa26.sep490.g58.otcms_be.common.idempotency;
+package fu.fa26.sep490.g58.otcms_be.idempotency;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import fu.fa26.sep490.g58.otcms_be.idempotency.model.IdempotencyScope;
+import fu.fa26.sep490.g58.otcms_be.idempotency.model.dto.IdempotencyReplay;
+import fu.fa26.sep490.g58.otcms_be.idempotency.service.IdempotencyService;
 import fu.fa26.sep490.g58.otcms_be.support.LocalPostgresTest;
 import java.util.ArrayList;
 import java.util.List;
@@ -16,14 +19,14 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-/** V137 idempotency_records: store, find, mismatch detection and two concurrent writers on one key (real PostgreSQL). */
+/** V139 idempotency_records: store, find, mismatch detection and two concurrent writers on one key (real PostgreSQL). */
 @SpringBootTest
 @LocalPostgresTest
-class IdempotencyStoreIntegrationTest {
+class IdempotencyServiceIntegrationTest {
     private static final String FP_A = "a".repeat(64);
     private static final String FP_B = "b".repeat(64);
 
-    @Autowired IdempotencyStore store;
+    @Autowired IdempotencyService store;
     @Autowired JdbcTemplate jdbc;
 
     @Test

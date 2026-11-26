@@ -1,10 +1,5 @@
-import { VisitProgressScreen } from "@/features/imaging/components/VisitProgressScreen";
+import { redirect } from "next/navigation";
 
-export default async function Page({
-  params,
-}: {
-  params: Promise<{ visitId: string }>;
-}) {
-  const { visitId } = await params;
-  return <VisitProgressScreen id={visitId} />;
+export default function Page() {
+  redirect("/imaging/worklist");
 }

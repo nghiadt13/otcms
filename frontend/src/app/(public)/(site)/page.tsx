@@ -11,7 +11,10 @@ import { HomeHealthArticles } from "@/features/clinic-website/components/HomeHea
 import { HomeVisitSteps } from "@/features/clinic-website/components/HomeVisitSteps";
 
 async function PublishedHealthArticles() {
-  const content = await getPublishedWebsiteContent().catch(() => null);
+  const content = await getPublishedWebsiteContent().catch((error) => {
+    console.error("Không tải được nội dung bài viết trang chủ", error);
+    return null;
+  });
   return <HomeHealthArticles articles={content?.articles ?? []} />;
 }
 

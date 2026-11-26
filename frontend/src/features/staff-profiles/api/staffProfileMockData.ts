@@ -1,4 +1,5 @@
 import type { StaffRole } from "@/lib/domain/clinicRoles";
+import { publicAssetPath } from "@/lib/publicAssetPath";
 import type { DoctorInfo, EligibleStaffAccount } from "../types/staffProfile";
 
 // Kho dữ liệu giả trong bộ nhớ. Bản ghi lưu đủ trường; API dẫn ra dòng danh sách/chi tiết.
@@ -51,7 +52,7 @@ const DOCTORS: DoctorSeed[] = [
   {
     username: "bs.trung",
     displayName: "BS. Nguyễn Văn Trung",
-    photoUrl: "/images/home/doctor-senior-orthopedic.jpg",
+    photoUrl: publicAssetPath("/images/home/doctor-senior-orthopedic.jpg"),
     status: "ACTIVE",
     doctor: doctor(
       ["Cột sống", "Chấn thương thể thao"],
@@ -62,14 +63,14 @@ const DOCTORS: DoctorSeed[] = [
   {
     username: "bs.minh",
     displayName: "BS. Lê Minh Quân",
-    photoUrl: "/images/home/doctor-male-glasses.jpg",
+    photoUrl: publicAssetPath("/images/home/doctor-male-glasses.jpg"),
     status: "ACTIVE",
     doctor: doctor(["Khớp gối"], "Bác sĩ chuyên khoa II", true),
   },
   {
     username: "bs.ha",
     displayName: "ThS.BS. Trần Thu Hà",
-    photoUrl: "/images/home/doctor-female-desk.jpg",
+    photoUrl: publicAssetPath("/images/home/doctor-female-desk.jpg"),
     status: "ACTIVE",
     doctor: doctor(
       ["Phẫu thuật nội soi khớp", "Khớp vai"],

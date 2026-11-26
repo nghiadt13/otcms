@@ -178,7 +178,9 @@ public class DiagnosticRequestServiceImpl implements DiagnosticRequestService {
                 throw new DiagnosticOperationException(DiagnosticOperationOutcome.UNAUTHORIZED_RECORD);
             }
             return new DiagnosticAssignedImagingWork(requestId, attemptId, request.visitId(),
-                    request.patientId(), Long.toString(request.executionVersion()), true);
+                    request.patientId(), Long.toString(request.executionVersion()), true,
+                    request.dicomPatientId(), request.dicomPatientIssuer(), request.dicomAccessionNumber(),
+                    request.dicomAccessionLocalNamespace());
         }
         RoomEvidence room = requireRoomEvidence(request.roomId(), request.imagingType());
         if (room.roomId() == null || !request.roomId().equals(room.roomId())) {
@@ -190,7 +192,24 @@ public class DiagnosticRequestServiceImpl implements DiagnosticRequestService {
             throw new DiagnosticOperationException(DiagnosticOperationOutcome.UNAUTHORIZED_RECORD);
         }
         return new DiagnosticAssignedImagingWork(requestId, attemptId, request.visitId(),
-                request.patientId(), Long.toString(room.roomVersion()), true);
+                request.patientId(), Long.toString(room.roomVersion()), true,
+                request.dicomPatientId(), request.dicomPatientIssuer(), request.dicomAccessionNumber(),
+                request.dicomAccessionLocalNamespace());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public DiagnosticAssignedImagingWork requireAssignedImagingWork(DiagnosticActor actor, UUID requestId) {
+        requireImagingTechnician(actor);
+        if (requestId == null) {
+            throw new DiagnosticOperationException(DiagnosticOperationOutcome.UNAUTHORIZED_RECORD);
+        }
+        ImagingExecution request = requests.find(requestId)
+                .orElseThrow(() -> new DiagnosticOperationException(DiagnosticOperationOutcome.UNAUTHORIZED_RECORD));
+        if (request.attemptId() == null) {
+            throw new DiagnosticOperationException(DiagnosticOperationOutcome.UNAUTHORIZED_RECORD);
+        }
+        return requireAssignedImagingWork(actor, requestId, request.attemptId());
     }
 
     @Override

@@ -76,7 +76,8 @@ export function ExaminationForm({
   }
 
   const status = initial.status && STATUS_LABEL[initial.status];
-  const readOnly = locked || pending;
+  const examinationCompleted = initial.status === "COMPLETED";
+  const readOnly = locked || examinationCompleted || pending;
 
   return (
     <form
@@ -120,7 +121,12 @@ export function ExaminationForm({
               />
               <FieldError message={errors.examinationFindings} />
             </AdminFormField>
-            <InjuryFields input={input} errors={errors} onSet={set} />
+            <InjuryFields
+              input={input}
+              errors={errors}
+              onSet={set}
+              disabled={readOnly}
+            />
           </FormSection>
         </div>
 
@@ -151,18 +157,16 @@ export function ExaminationForm({
           <p className="text-sm text-muted-foreground">
             Lượt khám đã hoàn tất. Sửa kết quả ở tab Hoàn tất lượt khám.
           </p>
+        ) : examinationCompleted ? (
+          <p className="text-sm text-muted-foreground">
+            Ghi nhận khám đã hoàn thành và được khóa, không thể chỉnh sửa.
+          </p>
         ) : null}
         <div className="ml-auto flex gap-2">
           <Button
             type="button"
             variant="outline"
-            // BE đặt lại trạng thái DRAFT ở mọi lần lưu, nên với bản đã hoàn thành chỉ cho hoàn thành lại.
-            disabled={readOnly || initial.status === "COMPLETED"}
-            title={
-              initial.status === "COMPLETED"
-                ? "Bản đã hoàn thành: sửa xong bấm Hoàn thành ghi nhận khám"
-                : undefined
-            }
+            disabled={readOnly}
             onClick={() => void save("draft")}
           >
             Lưu nháp

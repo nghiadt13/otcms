@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Toaster } from "@/components/ui/sonner";
 import { ImagingShell } from "@/features/imaging-shell/components/ImagingShell";
 
 export const metadata: Metadata = {
@@ -8,5 +9,10 @@ export const metadata: Metadata = {
 };
 
 export default function Layout({ children }: { children: React.ReactNode }) {
-  return <ImagingShell>{children}</ImagingShell>;
+  return (
+    <>
+      <ImagingShell>{children}</ImagingShell>
+      <Toaster richColors={false} position="bottom-right" />
+    </>
+  );
 }

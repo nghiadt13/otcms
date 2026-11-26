@@ -334,6 +334,14 @@
   gap: 16px;
   padding: 20px 24px;
 }
+.im-return-toolbar {
+  align-items: flex-end;
+}
+.im-return-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
 .im-toolbar-wrap {
   flex-wrap: wrap;
   align-items: end;
@@ -435,6 +443,34 @@
   display: block;
   margin-bottom: 4px;
   color: var(--primary) !important;
+}
+.im-worklist-table {
+  table-layout: fixed;
+  width: 100%;
+}
+.im-worklist-table th:nth-child(1),
+.im-worklist-table td:nth-child(1) {
+  width: 8%;
+}
+.im-worklist-table th:nth-child(2),
+.im-worklist-table td:nth-child(2) {
+  width: 22%;
+}
+.im-worklist-table th:nth-child(3),
+.im-worklist-table td:nth-child(3) {
+  width: 40%;
+}
+.im-worklist-table th:nth-child(4),
+.im-worklist-table td:nth-child(4) {
+  width: 14%;
+}
+.im-worklist-table th:nth-child(5),
+.im-worklist-table td:nth-child(5) {
+  width: 16%;
+}
+.im-worklist-table td {
+  white-space: normal !important;
+  overflow-wrap: anywhere;
 }
 .im-order-line:hover,
 .im-id-link:hover {
@@ -2026,5 +2062,45 @@ a.im-back-link:hover {
   }
   .im-file-list {
     max-height: 112px;
+  }
+}
+@media (max-width: 767px) {
+  .im-worklist-table {
+    display: block;
+  }
+  .im-worklist-table thead {
+    display: none;
+  }
+  .im-worklist-table tbody {
+    display: grid;
+    gap: 12px;
+  }
+  .im-worklist-table tbody tr {
+    display: block;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--card);
+  }
+  .im-worklist-table tbody td {
+    display: grid;
+    grid-template-columns: minmax(92px, 32%) minmax(0, 1fr);
+    align-items: start;
+    gap: 8px;
+    width: 100%;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  .im-worklist-table tbody td:last-child {
+    border-bottom: 0;
+  }
+  .im-worklist-table tbody td::before {
+    content: attr(data-label);
+    color: var(--muted-foreground);
+    font-size: 0.75rem;
+    font-weight: 600;
+  }
+  .im-worklist-table .im-patient-cell {
+    min-width: 0;
   }
 }

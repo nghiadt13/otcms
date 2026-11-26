@@ -1,185 +1,209 @@
+[CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
     [string] $InputZip,
 
     [Parameter(Mandatory = $true)]
-    [string] $OutputZip
+    [string] $OutputZip,
+
+    [string] $RequestId,
+
+    [string] $BackendBaseUrl = $env:OTCMS_API_BASE_URL,
+
+    [string] $AccessToken,
+
+    # Manual identity fields are retained for offline archive preparation only.
+    [ValidateLength(1, 64)]
+    [string] $PatientId,
+
+    [ValidateLength(1, 64)]
+    [string] $PatientIssuer,
+
+    [ValidateLength(1, 16)]
+    [string] $AccessionNumber,
+
+    [ValidateLength(1, 64)]
+    [string] $AccessionIssuerLocalNamespace,
+
+    [string] $PatientName = '',
+
+    [string] $PatientBirthDate = '',
+
+    [ValidateSet('', 'M', 'F', 'O')]
+    [string] $PatientSex = ''
 )
 
+# Rewrites a demo DICOM ZIP using the identity assigned to an authorized imaging order.
+# For online generation, the API base URL is read from frontend/.env.local when not set in the environment.
+# If no explicit access token is supplied, the script signs in to the target backend using
+# a runtime credential prompt and immediately uses the fresh session token.
+
 $ErrorActionPreference = 'Stop'
-Add-Type -AssemblyName System.IO.Compression
-Add-Type -AssemblyName System.IO.Compression.FileSystem
 
-Add-Type -TypeDefinition @'
-using System;
-using System.IO;
-using System.Security.Cryptography;
-using System.Text;
+$backendDirectory = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
+$repositoryDirectory = [System.IO.Path]::GetFullPath((Join-Path $backendDirectory '..'))
+$mavenWrapper = Join-Path $backendDirectory 'mvnw.cmd'
+$javaSource = Join-Path $PSScriptRoot 'RekeyDicomZip.java'
+$resolvedInput = (Resolve-Path -LiteralPath $InputZip).Path
+$resolvedOutput = [System.IO.Path]::GetFullPath($OutputZip)
 
-public static class DicomUidPatcher
-{
-    public static int Find(byte[] data, int group, int element)
-    {
-        byte[] tag = {
-            (byte)(group & 0xff), (byte)((group >> 8) & 0xff),
-            (byte)(element & 0xff), (byte)((element >> 8) & 0xff)
-        };
-        for (int i = 0; i <= data.Length - 8; i++)
-        {
-            if (data[i] == tag[0] && data[i + 1] == tag[1] &&
-                data[i + 2] == tag[2] && data[i + 3] == tag[3] &&
-                data[i + 4] == (byte)'U' && data[i + 5] == (byte)'I')
-                return i;
+$hasRequestId = -not [string]::IsNullOrWhiteSpace($RequestId)
+if ($hasRequestId) {
+    if ([string]::IsNullOrWhiteSpace($BackendBaseUrl)) {
+        $frontendEnvPath = Join-Path $repositoryDirectory 'frontend/.env.local'
+        if (Test-Path -LiteralPath $frontendEnvPath -PathType Leaf) {
+            $apiBaseUrlLine = Get-Content -LiteralPath $frontendEnvPath |
+                Where-Object { $_ -match '^\s*NEXT_PUBLIC_API_BASE_URL\s*=' } |
+                Select-Object -First 1
+
+            if ($apiBaseUrlLine -match '^\s*NEXT_PUBLIC_API_BASE_URL\s*=\s*(.*?)\s*$') {
+                $BackendBaseUrl = $Matches[1].Trim()
+                if ($BackendBaseUrl.Length -ge 2) {
+                    $firstCharacter = $BackendBaseUrl[0]
+                    $lastCharacter = $BackendBaseUrl[$BackendBaseUrl.Length - 1]
+                    if (($firstCharacter -eq '"' -and $lastCharacter -eq '"') -or
+                        ($firstCharacter -eq "'" -and $lastCharacter -eq "'")) {
+                        $BackendBaseUrl = $BackendBaseUrl.Substring(1, $BackendBaseUrl.Length - 2)
+                    }
+                }
+            }
         }
-        throw new InvalidDataException("DICOM UID tag (" + group.ToString("X4") + "," + element.ToString("X4") + ") was not found.");
-    }
 
-    public static string Read(byte[] data, int group, int element)
-    {
-        int offset = Find(data, group, element);
-        int length = data[offset + 6] | (data[offset + 7] << 8);
-        if (offset + 8 + length > data.Length)
-            throw new InvalidDataException("DICOM UID value exceeds the file length.");
-        return Encoding.ASCII.GetString(data, offset + 8, length).Trim('\0', ' ');
-    }
-
-    public static void Replace(byte[] data, int group, int element, string uid)
-    {
-        int offset = Find(data, group, element);
-        int length = data[offset + 6] | (data[offset + 7] << 8);
-        if (uid.Length > length)
-            throw new InvalidDataException("Replacement UID is longer than the existing value for (" + group.ToString("X4") + "," + element.ToString("X4") + ").");
-        byte[] value = Encoding.ASCII.GetBytes(uid.PadRight(length, '\0'));
-        Buffer.BlockCopy(value, 0, data, offset + 8, length);
-    }
-
-    public static string NewUid(string root, int totalLength)
-    {
-        int digits = totalLength - root.Length;
-        if (digits < 2)
-            throw new InvalidDataException("Existing UID is too short to create a replacement.");
-        var suffix = new StringBuilder(digits);
-        using (RandomNumberGenerator rng = RandomNumberGenerator.Create())
-        {
-            byte[] random = new byte[digits];
-            rng.GetBytes(random);
-            suffix.Append((char)('1' + (random[0] % 9)));
-            for (int i = 1; i < digits; i++)
-                suffix.Append((char)('0' + (random[i] % 10)));
+        if ([string]::IsNullOrWhiteSpace($BackendBaseUrl)) {
+            $BackendBaseUrl = 'http://localhost:8080'
         }
-        return root + suffix;
     }
+    if ([string]::IsNullOrWhiteSpace($AccessToken)) {
+        $credential = Get-Credential -Message 'Sign in as the imaging technician used on the OTCMS tunnel.'
+        if (-not $credential) {
+            throw 'Imaging-technician sign-in was cancelled.'
+        }
+
+        $plainPassword = $null
+        try {
+            $plainPassword = $credential.GetNetworkCredential().Password
+            $loginBody = @{
+                username   = $credential.UserName
+                password   = $plainPassword
+                rememberMe = $false
+            } | ConvertTo-Json -Compress
+            $login = Invoke-RestMethod -Method Post `
+                -Uri "$($BackendBaseUrl.TrimEnd('/'))/api/auth/staff/login" `
+                -ContentType 'application/json' `
+                -Body $loginBody
+            $AccessToken = [string] $login.accessToken
+        } finally {
+            $plainPassword = $null
+            $loginBody = $null
+            $credential = $null
+        }
+    }
+    if ([string]::IsNullOrWhiteSpace($AccessToken)) {
+        throw 'The OTCMS staff login did not return an access token.'
+    }
+
+    # An explicitly supplied token may include quotes or wrapped lines.
+    $tokenText = [System.Text.RegularExpressions.Regex]::Replace($AccessToken, '\s+', '')
+    $tokenMatch = [System.Text.RegularExpressions.Regex]::Match(
+        $tokenText,
+        '[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+'
+    )
+    if (-not $tokenMatch.Success) {
+        throw 'AccessToken must contain a JWT. Copy the accessToken value from the latest login response.'
+    }
+    $AccessToken = $tokenMatch.Value
+
+    $baseUrl = $BackendBaseUrl.TrimEnd('/')
+    $identityUrl = "$baseUrl/api/v1/imaging/requests/$RequestId/dicom-identity"
+    $identity = Invoke-RestMethod -Method Get -Uri $identityUrl -Headers @{ Authorization = "Bearer $AccessToken" }
+    $PatientId = [string] $identity.patientId
+    $PatientIssuer = [string] $identity.patientIssuer
+    $AccessionNumber = [string] $identity.accessionNumber
+    $AccessionIssuerLocalNamespace = [string] $identity.accessionIssuerLocalNamespace
+} elseif (
+    [string]::IsNullOrWhiteSpace($PatientId) -or
+    [string]::IsNullOrWhiteSpace($PatientIssuer) -or
+    [string]::IsNullOrWhiteSpace($AccessionNumber) -or
+    [string]::IsNullOrWhiteSpace($AccessionIssuerLocalNamespace)
+) {
+    throw 'Supply RequestId for automatic identity lookup, or all four manual DICOM identity fields.'
 }
-'@
 
-$inputPath = (Resolve-Path -LiteralPath $InputZip).Path
-$outputPath = [System.IO.Path]::GetFullPath($OutputZip)
-if ([string]::Equals($inputPath, $outputPath, [StringComparison]::OrdinalIgnoreCase)) {
+if ([string]::Equals($resolvedInput, $resolvedOutput, [StringComparison]::OrdinalIgnoreCase)) {
     throw 'InputZip and OutputZip must be different files; the source archive is preserved.'
 }
-if (Test-Path -LiteralPath $outputPath) {
-    throw "Output already exists: $outputPath"
+if (Test-Path -LiteralPath $resolvedOutput) {
+    throw "Output already exists: $resolvedOutput"
+}
+if (-not (Test-Path -LiteralPath $mavenWrapper -PathType Leaf)) {
+    throw "Maven wrapper was not found: $mavenWrapper"
+}
+if (-not (Test-Path -LiteralPath $javaSource -PathType Leaf)) {
+    throw "DICOM re-key helper was not found: $javaSource"
 }
 
-$source = [System.IO.Compression.ZipFile]::OpenRead($inputPath)
-$destination = $null
+$java = Get-Command 'java' -ErrorAction SilentlyContinue
+$javac = Get-Command 'javac' -ErrorAction SilentlyContinue
+if (-not $java -or -not $javac) {
+    throw 'Java 21 (java and javac) must be available on PATH.'
+}
+
+$tempRoot = [System.IO.Path]::GetFullPath([System.IO.Path]::GetTempPath())
+$workDirectory = Join-Path $tempRoot ("otcms-dicom-rekey-" + [guid]::NewGuid().ToString('N'))
+[System.IO.Directory]::CreateDirectory($workDirectory) | Out-Null
+$classpathFile = Join-Path $workDirectory 'runtime-classpath.txt'
+
 try {
-    $dicomEntries = @($source.Entries | Where-Object { $_.FullName -match '\.dcm$' })
-    if ($dicomEntries.Count -eq 0) {
-        throw 'The ZIP does not contain any .dcm files.'
-    }
-
-    $firstStream = $dicomEntries[0].Open()
+    Push-Location $backendDirectory
     try {
-        $firstBuffer = [System.IO.MemoryStream]::new()
-        $firstStream.CopyTo($firstBuffer)
-        $firstBytes = $firstBuffer.ToArray()
-        $firstBuffer.Dispose()
+        & $mavenWrapper -q `
+            '-Dmdep.includeScope=runtime' `
+            "-Dmdep.outputFile=$classpathFile" `
+            'org.apache.maven.plugins:maven-dependency-plugin:3.8.1:build-classpath'
+        if ($LASTEXITCODE -ne 0) {
+            throw 'Maven could not resolve the backend runtime classpath.'
+        }
     } finally {
-        $firstStream.Dispose()
+        Pop-Location
     }
 
-    $oldStudyUid = [DicomUidPatcher]::Read($firstBytes, 0x0020, 0x000D)
-    $oldSeriesUid = [DicomUidPatcher]::Read($firstBytes, 0x0020, 0x000E)
-    $root = $oldStudyUid.Substring(0, $oldStudyUid.LastIndexOf('.') + 1)
-    $studyUid = [DicomUidPatcher]::NewUid($root, $oldStudyUid.Length)
-    $seriesUidMap = @{}
-    foreach ($dicomEntry in $dicomEntries) {
-        $scanStream = $dicomEntry.Open()
-        try {
-            $scanBuffer = [System.IO.MemoryStream]::new()
-            $scanStream.CopyTo($scanBuffer)
-            $scanBytes = $scanBuffer.ToArray()
-            $scanBuffer.Dispose()
-        } finally {
-            $scanStream.Dispose()
-        }
-        $scanStudyUid = [DicomUidPatcher]::Read($scanBytes, 0x0020, 0x000D)
-        if ($scanStudyUid -ne $oldStudyUid) {
-            throw "Archive contains more than one study; stopped at $($dicomEntry.FullName)."
-        }
-        $scanSeriesUid = [DicomUidPatcher]::Read($scanBytes, 0x0020, 0x000E)
-        if (-not $seriesUidMap.ContainsKey($scanSeriesUid)) {
-            $seriesUidMap[$scanSeriesUid] = [DicomUidPatcher]::NewUid($root, $scanSeriesUid.Length)
-        }
+    $runtimeClasspath = (Get-Content -LiteralPath $classpathFile -Raw).Trim()
+    if ([string]::IsNullOrWhiteSpace($runtimeClasspath)) {
+        throw 'Maven returned an empty backend runtime classpath.'
     }
-    $usedSopUids = [System.Collections.Generic.HashSet[string]]::new()
 
-    $outputDirectory = [System.IO.Path]::GetDirectoryName($outputPath)
-    [System.IO.Directory]::CreateDirectory($outputDirectory) | Out-Null
-    $fileStream = [System.IO.File]::Open($outputPath, [System.IO.FileMode]::CreateNew, [System.IO.FileAccess]::ReadWrite, [System.IO.FileShare]::None)
-    $destination = [System.IO.Compression.ZipArchive]::new($fileStream, [System.IO.Compression.ZipArchiveMode]::Create, $false)
-
-    foreach ($entry in $source.Entries) {
-        $newEntry = $destination.CreateEntry($entry.FullName, [System.IO.Compression.CompressionLevel]::Optimal)
-        if ($entry.FullName.EndsWith('/')) { continue }
-        $newEntry.LastWriteTime = $entry.LastWriteTime
-
-        $inStream = $entry.Open()
-        try {
-            $buffer = [System.IO.MemoryStream]::new()
-            $inStream.CopyTo($buffer)
-            $bytes = $buffer.ToArray()
-            $buffer.Dispose()
-        } finally {
-            $inStream.Dispose()
-        }
-
-        if ($entry.FullName -match '\.dcm$') {
-            $thisStudyUid = [DicomUidPatcher]::Read($bytes, 0x0020, 0x000D)
-            $thisSeriesUid = [DicomUidPatcher]::Read($bytes, 0x0020, 0x000E)
-            $sopUid = [DicomUidPatcher]::Read($bytes, 0x0008, 0x0018)
-            $mediaSopUid = [DicomUidPatcher]::Read($bytes, 0x0002, 0x0003)
-            if ($thisStudyUid -ne $oldStudyUid -or -not $seriesUidMap.ContainsKey($thisSeriesUid)) {
-                throw "Unexpected study or series UID; stopped at $($entry.FullName)."
-            }
-            if ($sopUid -ne $mediaSopUid) {
-                throw "SOP Instance UID differs from file meta information in $($entry.FullName)."
-            }
-
-            do { $newSopUid = [DicomUidPatcher]::NewUid($root, $sopUid.Length) }
-            while (-not $usedSopUids.Add($newSopUid))
-
-            [DicomUidPatcher]::Replace($bytes, 0x0020, 0x000D, $studyUid)
-            [DicomUidPatcher]::Replace($bytes, 0x0020, 0x000E, $seriesUidMap[$thisSeriesUid])
-            [DicomUidPatcher]::Replace($bytes, 0x0008, 0x0018, $newSopUid)
-            [DicomUidPatcher]::Replace($bytes, 0x0002, 0x0003, $newSopUid)
-        }
-
-        $outStream = $newEntry.Open()
-        try { $outStream.Write($bytes, 0, $bytes.Length) }
-        finally { $outStream.Dispose() }
+    & $javac.Source -proc:none -encoding UTF-8 -cp $runtimeClasspath -d $workDirectory $javaSource
+    if ($LASTEXITCODE -ne 0) {
+        throw 'Could not compile the DICOM re-key helper.'
     }
-} catch {
-    if ($destination) { $destination.Dispose(); $destination = $null }
-    if (Test-Path -LiteralPath $outputPath) { Remove-Item -LiteralPath $outputPath }
-    throw
+
+    $helperClasspath = "$workDirectory;$runtimeClasspath"
+    $optionalPatientName = if ([string]::IsNullOrWhiteSpace($PatientName)) { ' ' } else { $PatientName.Trim() }
+    $optionalBirthDate = if ([string]::IsNullOrWhiteSpace($PatientBirthDate)) { ' ' } else { $PatientBirthDate.Trim() }
+    $optionalSex = if ([string]::IsNullOrWhiteSpace($PatientSex)) { ' ' } else { $PatientSex.Trim() }
+    & $java.Source -cp $helperClasspath 'RekeyDicomZip' `
+        $resolvedInput `
+        $resolvedOutput `
+        $PatientId.Trim() `
+        $PatientIssuer.Trim() `
+        $AccessionNumber.Trim() `
+        $AccessionIssuerLocalNamespace.Trim() `
+        $optionalPatientName `
+        $optionalBirthDate `
+        $optionalSex
+    if ($LASTEXITCODE -ne 0) {
+        throw 'DICOM ZIP re-keying failed; the input archive was not modified.'
+    }
+    if ($hasRequestId) {
+        Write-Host "DICOM identity loaded from assigned imaging request $RequestId."
+    }
 } finally {
-    if ($destination) { $destination.Dispose() }
-    if ($source) { $source.Dispose() }
+    $resolvedTempRoot = [System.IO.Path]::GetFullPath($tempRoot).TrimEnd('\') + '\'
+    $resolvedWorkDirectory = [System.IO.Path]::GetFullPath($workDirectory)
+    if (-not $resolvedWorkDirectory.StartsWith($resolvedTempRoot, [StringComparison]::OrdinalIgnoreCase)) {
+        throw 'Refusing to remove a temporary path outside the system temp directory.'
+    }
+    if (Test-Path -LiteralPath $resolvedWorkDirectory) {
+        Remove-Item -LiteralPath $resolvedWorkDirectory -Recurse -Force
+    }
 }
-
-Write-Output "Created $outputPath"
-Write-Output "DICOM instances re-keyed: $($dicomEntries.Count)"
-Write-Output "New StudyInstanceUID: $studyUid"
-Write-Output "Series UIDs re-keyed: $($seriesUidMap.Count)"

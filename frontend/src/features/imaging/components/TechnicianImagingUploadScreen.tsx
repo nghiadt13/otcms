@@ -4,7 +4,9 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { isApiError } from "@/lib/api/apiError";
 import { APP_MESSAGES, messageFromError } from "@/lib/messages/appMessages";
+import { notifyWarning } from "@/lib/messages/notify";
 import {
   getImagingOperation,
   getLatestImagingOperation,
@@ -45,6 +47,27 @@ function operationErrorMessage(operation: ImagingOperationResponse) {
       return "Study này đã được OTCMS ghi nhận với chỉ định khác hoặc metadata khác. Không tải lặp lại; hãy kiểm tra chỉ định và chọn đúng study.";
     default:
       return operation.error?.message ?? null;
+  }
+}
+
+function uploadValidationMessage(error: unknown) {
+  if (
+    isApiError(error) &&
+    error.errorCode === "IMAGING_UNSUPPORTED_ZIP_ENTRY_TYPE"
+  ) {
+    return "ZIP chứa loại tệp không được hỗ trợ. Chỉ tải lên các tệp DICOM có đuôi .dcm.";
+  }
+  return null;
+}
+
+function quarantinedIdentityToastMessage(operation: ImagingOperationResponse) {
+  switch (operation.error?.code) {
+    case "IDENTITY_MISMATCH":
+      return "Định danh DICOM không khớp với bệnh nhân hoặc chỉ định. Study đã được cách ly và chưa lưu vào Orthanc. Hãy kiểm tra file DICOM hoặc chọn đúng study.";
+    case "IDENTITY_UNKNOWN":
+      return "Không đủ thông tin để xác minh định danh DICOM. Study đã được cách ly và chưa lưu vào Orthanc. Hãy kiểm tra thông tin bệnh nhân và chỉ định trong file DICOM.";
+    default:
+      return "Không xác minh được định danh DICOM. Study đã được cách ly và chưa lưu vào Orthanc. Hãy kiểm tra thông tin bệnh nhân và chỉ định trong file DICOM.";
   }
 }
 
@@ -157,8 +180,23 @@ export function TechnicianImagingUploadScreen({
   const [dragging, setDragging] = useState(false);
   const [refreshingWork, setRefreshingWork] = useState(false);
   const autoSendAttemptRef = useRef<string | null>(null);
+  const notifiedQuarantineOperationIdsRef = useRef(new Set<string>());
   const filesInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
+
+  const notifyQuarantinedOperation = useCallback(
+    (next: ImagingOperationResponse) => {
+      if (
+        next.state !== "QUARANTINED" ||
+        notifiedQuarantineOperationIdsRef.current.has(next.operationId)
+      ) {
+        return;
+      }
+      notifiedQuarantineOperationIdsRef.current.add(next.operationId);
+      notifyWarning(quarantinedIdentityToastMessage(next));
+    },
+    [],
+  );
 
   const refreshAssignedWork = useCallback(
     async (signal?: AbortSignal) => {
@@ -178,8 +216,9 @@ export function TechnicianImagingUploadScreen({
         : null;
       if (signal?.aborted) return;
       setOperation(latest);
+      if (latest) notifyQuarantinedOperation(latest);
     },
-    [requestId],
+    [notifyQuarantinedOperation, requestId],
   );
 
   useEffect(() => {
@@ -230,28 +269,32 @@ export function TechnicianImagingUploadScreen({
     void send();
   }, [operation?.operationId, operation?.state, send]);
 
-  const poll = useCallback(async (operationId: string, signal: AbortSignal) => {
-    while (!signal.aborted) {
-      const current = await getImagingOperation(operationId, signal);
-      setOperation(current);
-      if (
-        current.state !== "PROCESSING" &&
-        current.state !== "CONFIRMATION_PENDING"
-      )
-        return;
-      await new Promise<void>((resolve) => {
-        const timeout = window.setTimeout(resolve, 2000);
-        signal.addEventListener(
-          "abort",
-          () => {
-            window.clearTimeout(timeout);
-            resolve();
-          },
-          { once: true },
-        );
-      });
-    }
-  }, []);
+  const poll = useCallback(
+    async (operationId: string, signal: AbortSignal) => {
+      while (!signal.aborted) {
+        const current = await getImagingOperation(operationId, signal);
+        setOperation(current);
+        notifyQuarantinedOperation(current);
+        if (
+          current.state !== "PROCESSING" &&
+          current.state !== "CONFIRMATION_PENDING"
+        )
+          return;
+        await new Promise<void>((resolve) => {
+          const timeout = window.setTimeout(resolve, 2000);
+          signal.addEventListener(
+            "abort",
+            () => {
+              window.clearTimeout(timeout);
+              resolve();
+            },
+            { once: true },
+          );
+        });
+      }
+    },
+    [notifyQuarantinedOperation],
+  );
 
   useEffect(() => {
     const operationId = operation?.operationId;
@@ -293,8 +336,15 @@ export function TechnicianImagingUploadScreen({
         },
       );
       setOperation(created);
+      notifyQuarantinedOperation(created);
     } catch (cause) {
-      setError(messageFromError(cause));
+      const validationMessage = uploadValidationMessage(cause);
+      if (validationMessage) {
+        setError(validationMessage);
+        notifyWarning(validationMessage);
+      } else {
+        setError(messageFromError(cause));
+      }
     } finally {
       setBusy(false);
     }

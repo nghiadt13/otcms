@@ -12,8 +12,8 @@ import fu.fa26.sep490.g58.otcms_be.clinical.repository.*;
 import fu.fa26.sep490.g58.otcms_be.clinical.service.*;
 import fu.fa26.sep490.g58.otcms_be.clinical.service.ClinicalImagingRequestService.*;
 import fu.fa26.sep490.g58.otcms_be.clinical.service.impl.*;
-import fu.fa26.sep490.g58.otcms_be.common.idempotency.IdempotencyReplay;
-import fu.fa26.sep490.g58.otcms_be.common.idempotency.IdempotencyStore;
+import fu.fa26.sep490.g58.otcms_be.idempotency.model.dto.IdempotencyReplay;
+import fu.fa26.sep490.g58.otcms_be.idempotency.service.IdempotencyService;
 import java.math.BigDecimal;
 import java.time.*;
 import java.util.*;
@@ -35,7 +35,7 @@ class ClinicalImagingRequestServiceImplTest {
     private final UUID serviceId = UUID.randomUUID();
     private final Clock clock = Clock.fixed(Instant.parse("2026-11-04T10:30:00.123456789Z"), ZoneOffset.UTC);
     private final Map<String, IdempotencyReplay> records = new HashMap<>();
-    private final IdempotencyStore store = fakeIdempotencyStore(records);
+    private final IdempotencyService store = fakeIdempotencyService(records);
     private final ClinicalImagingRequestService service = serviceUsing(catalog);
 
     @BeforeEach void setUp() {
@@ -209,8 +209,8 @@ class ClinicalImagingRequestServiceImplTest {
     }
 
     /** In-memory stand-in for idempotency_records: one record per (scope, owner, key), like V137's unique index. */
-    private static IdempotencyStore fakeIdempotencyStore(Map<String, IdempotencyReplay> records) {
-        var store = mock(IdempotencyStore.class);
+    private static IdempotencyService fakeIdempotencyService(Map<String, IdempotencyReplay> records) {
+        var store = mock(IdempotencyService.class);
         when(store.find(any(), any(), any())).thenAnswer(call -> Optional.ofNullable(
                 records.get(recordKey(call.getArgument(0), call.getArgument(1), call.getArgument(2)))));
         when(store.record(any(), any(), any(), any(), any())).thenAnswer(call -> {

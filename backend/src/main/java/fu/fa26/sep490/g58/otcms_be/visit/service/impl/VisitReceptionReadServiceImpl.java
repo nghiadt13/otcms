@@ -156,11 +156,20 @@ public class VisitReceptionReadServiceImpl implements VisitReceptionReadService 
         Integer peopleAhead = null;
         if (active != null) peopleAhead = ((Number) active[3]).intValue();
         else if (position != null) peopleAhead = position - 1;
+        Integer queueNumber = active == null || active[0] == null
+                ? null : ((Number) active[0]).intValue();
+        if (queueNumber == null && position != null) queueNumber = position;
+        if (queueNumber == null && "OPEN".equals(row[3]) && row[10] instanceof String examStatus
+                && java.util.Set.of("WAITING", "CALLED", "IN_EXAMINATION").contains(examStatus)) {
+            queueNumber = row[9] == null ? null : ((Number) row[9]).intValue();
+        }
+        String currentRoom = active == null ? null : (String) active[2];
+        if (currentRoom == null) currentRoom = (String) row[8];
+        if (currentRoom == null) currentRoom = (String) row[11];
         return new VisitProgressResponse(visitId, (String) row[2], (String) row[3],
-                (String) row[5], instant(row[4]), position, active == null ? (String) row[8] : (String) active[2],
-                active == null || active[0] == null ? null : ((Number) active[0]).intValue(),
+                (String) row[5], instant(row[4]), position, currentRoom, queueNumber,
                 peopleAhead,
-                active != null && "CALLED".equals(active[1]), serviceOrders);
+                active != null ? "CALLED".equals(active[1]) : "CALLED".equals(row[10]), serviceOrders);
     }
 
     /** Tên phòng (nhãn hiển thị) theo mã phòng; không gọi bảng phòng khi chỉ định chưa có phòng nào. */

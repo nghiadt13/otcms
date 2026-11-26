@@ -29,25 +29,18 @@ import org.springframework.transaction.annotation.Transactional;
 @Repository
 @Transactional(propagation = Propagation.MANDATORY)
 public class ClinicalServiceOrderExecutionRepository {
-    /** Review, cancel and transfer replay keys are read from idempotency_records (latest record per order). */
     private static final String COLUMNS = """
             select o.id, o.visit_id, o.patient_id, e.ordering_doctor_account_id, o.service_id, o.room_id,
+                   p.dicom_patient_id, p.dicom_patient_issuer, o.dicom_accession_number,
+                   o.dicom_accession_local_namespace,
                    e.imaging_type, o.body_area, o.clinical_reason, e.execution_status, e.cancellation_cause,
                    e.cancellation_reason, e.attempt_id, e.technician_account_id, e.first_use_type,
                    e.first_use_event_id, e.first_use_at, e.first_use_source_id, e.study_ref,
-                   review_rec.idempotency_key as review_idempotency_key, review_rec.request_fingerprint as review_fingerprint,
-                   cancel_rec.idempotency_key as cancel_idempotency_key, cancel_rec.request_fingerprint as cancel_fingerprint,
-                   transfer_rec.idempotency_key as transfer_idempotency_key, transfer_rec.request_fingerprint as transfer_fingerprint,
                    e.version as execution_version,
                    e.created_at as created_at, e.updated_at as updated_at
             from service_orders o
             join imaging_executions e on e.service_order_id = o.id
-            left join lateral (select r.idempotency_key, r.request_fingerprint from idempotency_records r
-                    where r.scope = 'ORDER_REVIEW' and r.owner_id = o.id order by r.created_at desc limit 1) review_rec on true
-            left join lateral (select r.idempotency_key, r.request_fingerprint from idempotency_records r
-                    where r.scope = 'ORDER_CANCEL' and r.owner_id = o.id order by r.created_at desc limit 1) cancel_rec on true
-            left join lateral (select r.idempotency_key, r.request_fingerprint from idempotency_records r
-                    where r.scope = 'ORDER_TRANSFER' and r.owner_id = o.id order by r.created_at desc limit 1) transfer_rec on true
+            join patient_profiles p on p.id = o.patient_id
             where e.service_order_id is not null
             """;
     private static final String NEWEST_FIRST = " order by e.created_at desc, o.id desc";
@@ -260,13 +253,12 @@ public class ClinicalServiceOrderExecutionRepository {
             result.add(new ClinicalImagingExecutionRow(uuid(t, "id"), uuid(t, "visit_id"), uuid(t, "patient_id"),
                     uuid(t, "ordering_doctor_account_id"), uuid(t, "service_id"), uuid(t, "room_id"),
                     text(t, "imaging_type"), text(t, "body_area"), text(t, "clinical_reason"),
+                    text(t, "dicom_patient_id"), text(t, "dicom_patient_issuer"),
+                    text(t, "dicom_accession_number"), text(t, "dicom_accession_local_namespace"),
                     text(t, "execution_status"), text(t, "cancellation_cause"),
                     text(t, "cancellation_reason"), uuid(t, "attempt_id"), uuid(t, "technician_account_id"),
                     text(t, "first_use_type"), uuid(t, "first_use_event_id"), instant(t, "first_use_at"),
                     text(t, "first_use_source_id"), text(t, "study_ref"),
-                    text(t, "review_idempotency_key"), text(t, "review_fingerprint"),
-                    text(t, "cancel_idempotency_key"), text(t, "cancel_fingerprint"),
-                    text(t, "transfer_idempotency_key"), text(t, "transfer_fingerprint"),
                     ((Number) t.get("execution_version")).longValue(),
                     instant(t, "created_at"), instant(t, "updated_at")));
         }

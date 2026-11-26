@@ -92,6 +92,24 @@ class ClinicalRoundWorkflowTest {
         assertNull(result.getFirst().diagnostic()); assertEquals(2, result.getFirst().roundNumber());
         verify(preparation).requireCurrentCare(visit, doctor);
     }
+    @Test void doctorReadsOnlyLaboratoryOrdersAfterCurrentCareAuthorization() {
+        var lab = new ServiceOrderJpaEntity("LAB-1", roundId, visit, patient, serviceId,
+                "CBC", ClinicalServiceType.LABORATORY, doctor, "Reason", null, null, BigDecimal.TEN, now);
+        when(orders.findVisitOrdersByType(visit, ClinicalServiceType.LABORATORY)).thenReturn(List.of(lab));
+        var result = workflow.listDoctorLaboratoryOrders(visit, doctor);
+        assertEquals(1, result.size());
+        assertEquals(ClinicalServiceType.LABORATORY, result.getFirst().serviceType());
+        assertEquals(ServiceOrderPaymentStatus.PENDING_PAYMENT, result.getFirst().paymentStatus());
+        assertNull(result.getFirst().diagnostic());
+        var sequence = inOrder(preparation, orders);
+        sequence.verify(preparation).requireCurrentCare(visit, doctor);
+        sequence.verify(orders).findVisitOrdersByType(visit, ClinicalServiceType.LABORATORY);
+    }
+    @Test void doctorCannotReadLaboratoryOrdersWithoutCurrentCareAuthorization() {
+        doThrow(new ClinicalOperationException("MSG-40")).when(preparation).requireCurrentCare(visit, doctor);
+        assertThrows(ClinicalOperationException.class, () -> workflow.listDoctorLaboratoryOrders(visit, doctor));
+        verify(orders, never()).findVisitOrdersByType(any(), any());
+    }
     @Test void receptionQueueBatchesPatientIdentityAndOrderStatus() {
         when(orders.findByOrderingRoundIdIn(List.of(roundId))).thenReturn(List.of(order));
         when(patients.findClinicalIdentities(List.of(patient))).thenReturn(Map.of(patient,

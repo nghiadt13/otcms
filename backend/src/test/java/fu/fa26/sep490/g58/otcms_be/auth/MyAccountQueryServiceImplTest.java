@@ -6,9 +6,12 @@ import fu.fa26.sep490.g58.otcms_be.auth.model.entity.enums.AccountType;
 import fu.fa26.sep490.g58.otcms_be.auth.repository.AccountRepository;
 import fu.fa26.sep490.g58.otcms_be.auth.repository.PatientProfileRepository;
 import fu.fa26.sep490.g58.otcms_be.auth.service.impl.MyAccountQueryServiceImpl;
+import fu.fa26.sep490.g58.otcms_be.staff.service.StaffProfileAccountQueryService;
 import org.junit.jupiter.api.Test;
 
 import java.util.Optional;
+import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -19,7 +22,8 @@ import static org.mockito.Mockito.when;
 class MyAccountQueryServiceImplTest {
     private final AccountRepository accounts = mock(AccountRepository.class);
     private final PatientProfileRepository profiles = mock(PatientProfileRepository.class);
-    private final MyAccountQueryServiceImpl service = new MyAccountQueryServiceImpl(accounts, profiles);
+    private final StaffProfileAccountQueryService staffProfiles = mock(StaffProfileAccountQueryService.class);
+    private final MyAccountQueryServiceImpl service = new MyAccountQueryServiceImpl(accounts, profiles, staffProfiles);
 
     private AccountJpaEntity account(UUID id, String email, AccountType type) {
         AccountJpaEntity account = new AccountJpaEntity();
@@ -91,9 +95,24 @@ class MyAccountQueryServiceImplTest {
     @Test void doctorUsesFrontendRoleAndPreservesBackendAccountType() {
         UUID id = UUID.randomUUID();
         when(accounts.findById(id)).thenReturn(Optional.of(account(id, null, AccountType.DOCTOR)));
+        when(staffProfiles.findByAccountIds(Set.of(id))).thenReturn(Map.of(id,
+                new StaffProfileAccountQueryService.StaffProfileSummary(UUID.randomUUID(), "BS.Nguyễn Văn Xuân")));
         var view = service.find(id).orElseThrow();
         assertEquals("DOCTOR", view.accountType());
         assertEquals("ORTHOPEDIC_DOCTOR", view.role());
+        assertEquals("BS.Nguyễn Văn Xuân", view.displayName());
+    }
+
+    @Test void doctorUsesAdminStaffProfileNameBeforeStaleAccountNames() {
+        UUID id = UUID.randomUUID();
+        var doctor = account(id, "doctor@example.com", AccountType.DOCTOR);
+        doctor.setFullName("Stale account full name");
+        doctor.setDisplayName("doctor");
+        when(accounts.findById(id)).thenReturn(Optional.of(doctor));
+        when(staffProfiles.findByAccountIds(Set.of(id))).thenReturn(Map.of(id,
+                new StaffProfileAccountQueryService.StaffProfileSummary(UUID.randomUUID(), "BS. Nguyễn Văn Xuân")));
+
+        assertEquals("BS. Nguyễn Văn Xuân", service.find(id).orElseThrow().displayName());
     }
 
     @Test void legacyStaffHasEmptyPresentationUsernameWithoutChangingCredential() {

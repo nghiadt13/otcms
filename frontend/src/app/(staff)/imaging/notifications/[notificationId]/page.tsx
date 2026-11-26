@@ -1,10 +1,5 @@
-import { NotificationsScreen } from "@/features/imaging/components/NotificationsScreen";
+import { redirect } from "next/navigation";
 
-export default async function Page({
-  params,
-}: {
-  params: Promise<{ notificationId: string }>;
-}) {
-  const { notificationId } = await params;
-  return <NotificationsScreen id={notificationId} />;
+export default function Page() {
+  redirect("/imaging/notifications");
 }

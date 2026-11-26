@@ -1,6 +1,15 @@
 package fu.fa26.sep490.g58.otcms_be.clinical.repository;
-import fu.fa26.sep490.g58.otcms_be.clinical.model.entity.ServiceOrderJpaEntity; import org.springframework.data.jpa.repository.JpaRepository; import java.util.List; import java.util.UUID;
-public interface ServiceOrderRepository extends JpaRepository<ServiceOrderJpaEntity,UUID>{
+
+import fu.fa26.sep490.g58.otcms_be.clinical.model.ServiceOrderStatus;
+import fu.fa26.sep490.g58.otcms_be.clinical.model.entity.ServiceOrderJpaEntity;
+import java.util.Collection;
+import java.util.List;
+import java.util.UUID;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+public interface ServiceOrderRepository extends JpaRepository<ServiceOrderJpaEntity, UUID> {
+    List<ServiceOrderJpaEntity> findByVisitIdAndServiceIdInAndOrderStatusNot(UUID visitId,
+            Collection<UUID> serviceIds, ServiceOrderStatus orderStatus);
     interface LaboratoryAssignmentRow {
         UUID getRoomId();
         String getLabStatus();
@@ -11,10 +20,17 @@ public interface ServiceOrderRepository extends JpaRepository<ServiceOrderJpaEnt
     @org.springframework.data.jpa.repository.Query(value = "select o.id as \"orderId\", o.room_id as \"roomId\", o.lab_status as \"labStatus\" "
             + "from service_orders o join service_order_rounds r on r.id = o.ordering_round_id "
             + "where o.service_type = 'LABORATORY' "
+            + "and o.payment_status = 'PAID' and o.room_id is not null and o.lab_status is not null "
             + "and ((r.ordered_at >= :fromTime and r.ordered_at < :toTime) "
             + "or o.lab_status in ('ASSIGNED', 'COLLECTED', 'REJECTED'))", nativeQuery = true)
     List<LaboratoryQueueRow> findLaboratoryAssignments(@org.springframework.data.repository.query.Param("fromTime") java.time.Instant fromTime,
             @org.springframework.data.repository.query.Param("toTime") java.time.Instant toTime);
+    @org.springframework.data.jpa.repository.Query(value = "select o.id as \"orderId\", o.room_id as \"roomId\", o.lab_status as \"labStatus\" "
+            + "from clinical_service_orders o join clinical_ordering_rounds r on r.id = o.ordering_round_id "
+            + "where o.service_type = 'LABORATORY' and o.order_status = 'RESULTS_AVAILABLE' "
+            + "and o.lab_status = 'RESULT_AVAILABLE' and o.room_id is not null "
+            + "order by r.ordered_at desc", nativeQuery = true)
+    List<LaboratoryQueueRow> findCompletedLaboratoryAssignments();
     @org.springframework.data.jpa.repository.Query(value = "select room_id as \"roomId\", lab_status as \"labStatus\" "
             + "from service_orders where id = :orderId and service_type = 'LABORATORY'", nativeQuery = true)
     java.util.Optional<LaboratoryAssignmentRow> findLaboratoryAssignment(

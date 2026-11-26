@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { PageHeader } from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
 import { messageFromError } from "@/lib/messages/appMessages";
+import { formatVisitDisplayId } from "@/lib/format/visitDisplayId";
 import {
   createClinicalRoundInvoice,
   getBillingInvoice,
@@ -193,7 +194,7 @@ export function ClinicalRoundOrdersScreen() {
                   {round.patientName ?? "Bệnh nhân"} · Đợt #{round.roundNumber}
                 </h2>
                 <p className="text-sm text-muted-foreground">
-                  Lượt khám {round.visitId} ·{" "}
+                  Lượt khám {formatVisitDisplayId(round.visitId)} ·{" "}
                   {new Date(round.orderedAt).toLocaleString("vi-VN")}
                 </p>
                 <ul className="divide-y">

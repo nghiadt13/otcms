@@ -32,6 +32,10 @@ class ClinicalImagingRequestPostgresIntegrationTest {
     @MockitoBean fu.fa26.sep490.g58.otcms_be.staff.service.DoctorProfileIdentityQueryService doctorIdentities;
     @MockitoBean fu.fa26.sep490.g58.otcms_be.auth.service.DoctorAccountAccessService doctorAccounts;
     @Autowired ClinicalImagingRequestService service;
+    @Autowired ClinicalLaboratoryRequestService laboratoryService;
+    @Autowired fu.fa26.sep490.g58.otcms_be.clinical.integration.billing.ClinicalRoundBillingAdapter billing;
+    @Autowired fu.fa26.sep490.g58.otcms_be.diagnostic.repository.LaboratorySampleRepository samples;
+    @Autowired ClinicalLaboratoryDispatchService laboratoryDispatch;
     @Autowired JdbcTemplate jdbc;
     private final UUID doctorId = UUID.randomUUID(), patientId = UUID.randomUUID(), serviceId = UUID.randomUUID();
     private final UUID visitId = UUID.randomUUID();
@@ -78,6 +82,93 @@ class ClinicalImagingRequestPostgresIntegrationTest {
             assertEquals(1, results.stream().filter(value -> "IDEMPOTENCY_CONFLICT".equals(value)).count());
         }
         assertCounts(1);
+    }
+
+    @Test void labRoundReplaysAndUsesTheExistingRoundBillingAdapter() {
+        when(catalog.getService(serviceId)).thenReturn(new ClinicServiceCatalogPort.ClinicalServiceSnapshot(
+                serviceId, "CBC", ClinicalServiceType.LABORATORY, new BigDecimal("120000.00"), true));
+        var command = new ClinicalLaboratoryRequestService.SubmitRequest(visitId, doctorId, key, true,
+                List.of(new ClinicalLaboratoryRequestService.OrderRequest(serviceId, "Clinical reason", null)));
+        var created = laboratoryService.submit(command);
+        var replayed = laboratoryService.submit(command);
+        assertFalse(created.replayed());
+        assertTrue(replayed.replayed());
+        assertEquals(created.round(), replayed.round());
+        assertEquals(new BigDecimal("120000.00"), billing.requirePayableRound(created.round().id()).orders().getFirst().priceSnapshot());
+        billing.markRoundPaid(created.round().id());
+        var persisted = laboratoryService.submit(command).round().orders().getFirst();
+        assertEquals(fu.fa26.sep490.g58.otcms_be.clinical.model.ServiceOrderPaymentStatus.PAID, persisted.paymentStatus());
+        var conflicting = new ClinicalLaboratoryRequestService.SubmitRequest(visitId, doctorId, key, true,
+                List.of(new ClinicalLaboratoryRequestService.OrderRequest(serviceId, "Changed reason", null)));
+        assertEquals("IDEMPOTENCY_CONFLICT", assertThrows(ClinicalOperationException.class,
+                () -> laboratoryService.submit(conflicting)).code());
+        assertCounts(1);
+    }
+
+    @Test void concurrentLabSubmissionsCreateOnlyOneRound() throws Exception {
+        when(catalog.getService(serviceId)).thenReturn(new ClinicServiceCatalogPort.ClinicalServiceSnapshot(
+                serviceId, "CBC", ClinicalServiceType.LABORATORY, new BigDecimal("120000.00"), true));
+        var command = new ClinicalLaboratoryRequestService.SubmitRequest(visitId, doctorId, key, true,
+                List.of(new ClinicalLaboratoryRequestService.OrderRequest(serviceId, "Clinical reason", null)));
+        CountDownLatch ready = new CountDownLatch(2), start = new CountDownLatch(1);
+        try (var executor = Executors.newFixedThreadPool(2)) {
+            var first = executor.submit(startTogether(ready, start, () -> laboratoryService.submit(command)));
+            var second = executor.submit(startTogether(ready, start, () -> laboratoryService.submit(command)));
+            releaseWorkers(ready, start);
+            var a = first.get(30, TimeUnit.SECONDS);
+            var b = second.get(30, TimeUnit.SECONDS);
+            assertEquals(a.round(), b.round());
+            assertNotEquals(a.replayed(), b.replayed());
+        }
+        assertCounts(1);
+    }
+
+    @Test @org.springframework.transaction.annotation.Transactional
+    void laboratorySamplesPersistSeparateCollectionAttemptsWithUniqueCodes() {
+        when(catalog.getService(serviceId)).thenReturn(new ClinicServiceCatalogPort.ClinicalServiceSnapshot(
+                serviceId, "CBC", ClinicalServiceType.LABORATORY, new BigDecimal("120000.00"), true));
+        var command = new ClinicalLaboratoryRequestService.SubmitRequest(visitId, doctorId, key, true,
+                List.of(new ClinicalLaboratoryRequestService.OrderRequest(serviceId, "Reason", null)));
+        var orderId = laboratoryService.submit(command).round().orders().getFirst().orderId();
+        UUID actor = UUID.randomUUID();
+        jdbc.update("insert into accounts(id, normalized_email, account_type, status, created_at, updated_at) values (?, ?, 'LAB_TECHNICIAN', 'ACTIVE', now(), now())",
+                actor, actor + "@lab-sample.test");
+        var now = java.time.Instant.now().truncatedTo(java.time.temporal.ChronoUnit.MICROS);
+        var first = new fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.LaboratorySampleJpaEntity(
+                UUID.randomUUID(), orderId, 1, "sample-" + UUID.randomUUID(), actor, now, actor, now);
+        first.reject("Unsuitable", "Partner", actor, now);
+        samples.saveAndFlush(first);
+        var second = new fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.LaboratorySampleJpaEntity(
+                UUID.randomUUID(), orderId, 2, "sample-" + UUID.randomUUID(), actor, now, actor, now);
+        samples.saveAndFlush(second);
+        var attempts = samples.findAttempts(orderId);
+        assertEquals(List.of(2, 1), attempts.stream().map(item -> item.getAttemptNumber()).toList());
+        assertEquals("Partner", attempts.getLast().getRejectionSource());
+        assertEquals("Unsuitable", attempts.getLast().getRejectionReason());
+    }
+
+    @Test @org.springframework.transaction.annotation.Transactional
+    void paidLaboratoryOrderIsAssignedWithRealRoomAndAuditPersistence() {
+        when(catalog.getService(serviceId)).thenReturn(new ClinicServiceCatalogPort.ClinicalServiceSnapshot(
+                serviceId, "CBC", ClinicalServiceType.LABORATORY, new BigDecimal("120000.00"), true));
+        var command = new ClinicalLaboratoryRequestService.SubmitRequest(visitId, doctorId, key, true,
+                List.of(new ClinicalLaboratoryRequestService.OrderRequest(serviceId, "Reason", null)));
+        var round = laboratoryService.submit(command).round();
+        var orderId = round.orders().getFirst().orderId();
+        UUID room = UUID.randomUUID(), actor = UUID.randomUUID();
+        jdbc.update("insert into clinic_services(id,name,service_type,duration_minutes,buffer_minutes,price) values (?,?,'LABORATORY',15,0,100)", serviceId, "Lab " + serviceId);
+        jdbc.update("insert into rooms(id,room_code,display_label,room_type,capabilities) values (?,?,'Lab room','LABORATORY',array['LAB_ROOM'])", room, "LAB-" + room);
+        jdbc.update("insert into room_supported_services(room_id,service_id) values (?,?)", room, serviceId);
+        jdbc.update("insert into accounts(id,normalized_email,account_type,status,created_at,updated_at) values (?,?,'RECEPTIONIST','ACTIVE',now(),now())", actor, actor + "@lab-dispatch.test");
+        billing.markRoundPaid(round.id());
+        var receptionist = new fu.fa26.sep490.g58.otcms_be.common.security.AuthenticatedAccount(
+                actor, fu.fa26.sep490.g58.otcms_be.common.security.AccountRole.RECEPTIONIST, UUID.randomUUID());
+        laboratoryDispatch.assign(orderId, room, receptionist);
+        laboratoryDispatch.assign(orderId, room, receptionist);
+        assertThrows(ClinicalOperationException.class, () -> laboratoryDispatch.assign(orderId, UUID.randomUUID(), receptionist));
+        assertEquals(room, jdbc.queryForObject("select room_id from clinical_service_orders where id=?", UUID.class, orderId));
+        assertEquals("ASSIGNED", jdbc.queryForObject("select lab_status from clinical_service_orders where id=?", String.class, orderId));
+        assertEquals(1, jdbc.queryForObject("select count(*) from audit_logs where entity_id=? and action='ASSIGN_ROOM'", Integer.class, orderId));
     }
 
     @Test void differentKeysForSameVisitAllocateDistinctRoundNumbers() throws Exception {

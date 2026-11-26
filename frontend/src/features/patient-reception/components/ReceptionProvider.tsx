@@ -1,20 +1,10 @@
 "use client";
 
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useRef,
-  useState,
-  type ReactNode,
-} from "react";
-import { toast } from "sonner";
-import { formatAppMessage, messageFromError } from "@/lib/messages/appMessages";
-import { receptionFeedback } from "../schema/receptionMessages";
+import { createContext, useContext, type ReactNode } from "react";
 import type { ReceptionCommand, ReceptionState } from "../types";
 
 type ReceptionContextValue = {
+  /** Kept temporarily for retired prototype components; runtime screens use their own APIs. */
   data: ReceptionState | null;
   loading: boolean;
   error: string;
@@ -22,124 +12,26 @@ type ReceptionContextValue = {
   reload: () => Promise<void>;
   run: (command: ReceptionCommand) => Promise<ReceptionState | null>;
 };
-const ReceptionContext = createContext<ReceptionContextValue | null>(null);
-export function ReceptionProvider({
-  children,
-  skipDemo = false,
-}: {
-  children: ReactNode;
-  skipDemo?: boolean;
-}) {
-  const [data, setData] = useState<ReceptionState | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [pending, setPending] = useState(false);
-  const [error, setError] = useState("");
-  const busy = useRef(false);
-  const mounted = useRef(false);
-  const reload = useCallback(async () => {
-    setLoading(true);
-    setError("");
-    try {
-      const { loadReception } = await import("../api/receptionApi");
-      const next = await loadReception();
-      if (mounted.current) setData(next);
-    } catch {
-      if (mounted.current) setError(formatAppMessage("MSG-04"));
-    } finally {
-      if (mounted.current) setLoading(false);
-    }
-  }, []);
-  useEffect(() => {
-    mounted.current = true;
-    if (skipDemo)
-      return () => {
-        mounted.current = false;
-      };
-    const controller = new AbortController();
-    let refreshing = false;
-    const sync = () => {
-      if (refreshing || busy.current || controller.signal.aborted) return;
-      refreshing = true;
-      void import("../api/receptionApi")
-        .then(({ loadReception }) => loadReception())
-        .then((next) => {
-          if (!controller.signal.aborted) setData(next);
-        })
-        .catch(() => {
-          if (!controller.signal.aborted) setError(formatAppMessage("MSG-04"));
-        })
-        .finally(() => {
-          refreshing = false;
-          if (!controller.signal.aborted) setLoading(false);
-        });
-    };
-    sync();
-    const timer = setInterval(() => {
-      if (!document.hidden) sync();
-    }, 1000);
-    const onVisible = () => {
-      if (!document.hidden) sync();
-    };
-    window.addEventListener("focus", onVisible);
-    document.addEventListener("visibilitychange", onVisible);
-    return () => {
-      mounted.current = false;
-      controller.abort();
-      clearInterval(timer);
-      window.removeEventListener("focus", onVisible);
-      document.removeEventListener("visibilitychange", onVisible);
-    };
-  }, [skipDemo]);
-  async function run(command: ReceptionCommand) {
-    if (!data || busy.current) return null;
-    busy.current = true;
-    setPending(true);
-    setError("");
-    try {
-      const { executeReception } = await import("../api/receptionApi");
-      const next = await executeReception(command, data.version);
-      if (mounted.current) {
-        setData(next);
-        const feedback = receptionFeedback(command, next);
-        if (feedback) toast[feedback.tone](feedback.text);
-      }
-      return next;
-    } catch (cause) {
-      const text = messageFromError(cause);
-      if (mounted.current) {
-        setError(text);
-        toast.error(text);
-      }
-      try {
-        const { loadReception } = await import("../api/receptionApi");
-        const next = await loadReception();
-        if (mounted.current) setData(next);
-      } catch {
-        /* Keep last successful snapshot. */
-      }
-      return null;
-    } finally {
-      busy.current = false;
-      if (mounted.current) setPending(false);
-    }
-  }
+
+const liveContext: ReceptionContextValue = {
+  data: null,
+  loading: false,
+  error: "",
+  pending: false,
+  reload: async () => {},
+  run: async () => null,
+};
+
+const ReceptionContext = createContext<ReceptionContextValue>(liveContext);
+
+export function ReceptionProvider({ children }: { children: ReactNode }) {
   return (
-    <ReceptionContext.Provider
-      value={{
-        data: skipDemo ? null : data,
-        loading: skipDemo ? false : loading,
-        error: skipDemo ? "" : error,
-        pending,
-        reload,
-        run,
-      }}
-    >
+    <ReceptionContext.Provider value={liveContext}>
       {children}
     </ReceptionContext.Provider>
   );
 }
+
 export function useReception() {
-  const value = useContext(ReceptionContext);
-  if (!value) throw new Error("ReceptionProvider is required");
-  return value;
+  return useContext(ReceptionContext);
 }

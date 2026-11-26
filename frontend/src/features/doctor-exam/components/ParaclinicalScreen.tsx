@@ -131,6 +131,7 @@ export function ParaclinicalScreen() {
         onOpenChange={setSheetOpen}
         visitId={visitId}
         catalog={catalog.data ?? []}
+        existingOrders={merged}
         laboratoryEnabled={capabilities.laboratoryOrders}
         onSubmitted={(created) => {
           workspace.addSubmittedOrders(created);

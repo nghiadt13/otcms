@@ -11,6 +11,7 @@ import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -29,6 +30,7 @@ import org.springframework.transaction.annotation.Transactional;
 class AppointmentReminderJobPostgresTest {
     static final Instant NOW = Instant.parse("2026-11-18T01:00:00Z");
     @Autowired JdbcTemplate jdbc;
+    @Autowired EntityManager entityManager;
     @Autowired AppointmentReminderJob job;
     final UUID patientAccount = UUID.randomUUID(), doctorAccount = UUID.randomUUID(), staffAccount = UUID.randomUUID();
     final UUID profile = UUID.randomUUID(), orphanProfile = UUID.randomUUID(), doctor = UUID.randomUUID();
@@ -80,6 +82,7 @@ class AppointmentReminderJobPostgresTest {
         jdbc.update("update appointments set start_time=?, end_time=?, occupied_until=? where id=?",
                 Timestamp.from(NOW.plusSeconds(8 * 3600)), Timestamp.from(NOW.plusSeconds(8 * 3600 + 1800)),
                 Timestamp.from(NOW.plusSeconds(8 * 3600 + 1800)), id);
+        entityManager.clear();
         assertEquals(1, job.runOnce().reminders());
         assertEquals(0, job.runOnce().reminders());
         assertEquals(2, count("type = 'APPOINTMENT_REMINDER' and related_id = '" + id + "'"));

@@ -1,6 +1,7 @@
 package fu.fa26.sep490.g58.otcms_be.appointment.service.impl;
 
 import fu.fa26.sep490.g58.otcms_be.auth.service.PatientProfileDirectory;
+import fu.fa26.sep490.g58.otcms_be.auth.service.PatientProfileDirectory.ProfileRecord;
 import fu.fa26.sep490.g58.otcms_be.appointment.model.Row;
 import fu.fa26.sep490.g58.otcms_be.appointment.model.Filter;
 import fu.fa26.sep490.g58.otcms_be.appointment.exception.AppointmentQueryException;
@@ -76,21 +77,21 @@ public class GetAppointmentsServiceImpl implements GetAppointmentsService {
     private List<AppointmentSummary> summaries(List<Row> rows) {
         Map<UUID, Optional<String>> doctorNames = new HashMap<>();
         Map<UUID, Optional<ServiceLabel>> serviceLabels = new HashMap<>();
-        Map<UUID, Optional<String>> patientNames = new HashMap<>();
+        Map<UUID, Optional<ProfileRecord>> patientProfiles = new HashMap<>();
         return rows.stream().map(row -> summary(row,
                 doctorNames.computeIfAbsent(row.doctorId(), doctors::findDoctorDisplayName).orElse(null),
                 serviceLabels.computeIfAbsent(row.serviceId(), services::findServiceLabel).orElse(null),
-                patientNames.computeIfAbsent(row.patientProfileId(),
-                        id -> patients.findProfile(id).map(p -> p.fullName())).orElse(null))).toList();
+                patientProfiles.computeIfAbsent(row.patientProfileId(), patients::findProfile).orElse(null))).toList();
     }
 
     private static AppointmentSummary summary(Row row, String doctorDisplayName, ServiceLabel service,
-            String patientName) {
+            ProfileRecord patient) {
         return new AppointmentSummary(row.id(), row.patientProfileId(), row.serviceId(), row.doctorId(), row.status(),
                 row.bookingSource(), row.purpose(), row.startTime(), row.endTime(), row.durationMinutes(),
                 row.bufferMinutes(), row.occupiedUntil(), row.visitId(), row.sourceVisitId(), row.createdAt(), row.updatedAt(),
                 doctorDisplayName, service == null ? null : service.name(), service == null ? null : service.price(),
-                patientName, row.paymentDeadline());
+                patient == null ? null : patient.fullName(), row.paymentDeadline(),
+                patient == null ? null : patient.patientCode());
     }
 
     private Scope resolve(UUID accountId, AccountRole role) {

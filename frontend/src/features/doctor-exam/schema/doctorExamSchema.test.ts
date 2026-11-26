@@ -166,6 +166,7 @@ function order(patch: Partial<ParaclinicalOrder>): ParaclinicalOrder {
     code: null,
     round: 1,
     kind: "LABORATORY",
+    serviceId: "crp",
     serviceName: "CRP",
     bodyArea: "",
     clinicalReason: "",

@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
-import { DoctorPlaceholderPage } from "@/features/doctor-shell/components/DoctorPlaceholderPage";
+import { redirect } from "next/navigation";
 import { DOCTOR_ROUTES } from "@/lib/routes/doctorRoutes";
 
 export const metadata: Metadata = { title: "Ảnh chẩn đoán" };
 
 export default function DoctorImagingStudiesPage() {
-  return <DoctorPlaceholderPage href={DOCTOR_ROUTES.imagingStudies} />;
+  redirect(DOCTOR_ROUTES.todayPatients);
 }

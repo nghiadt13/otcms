@@ -38,13 +38,33 @@ public interface ClinicalServiceOrderExecutionPort {
     /** The diagnostic view of one dispatched imaging order (was a diagnostic_requests row + its current attempt). */
     record ImagingExecution(UUID orderId, UUID visitId, UUID patientId, UUID orderingDoctorAccountId,
             UUID serviceId, UUID roomId, String imagingType, String bodyArea, String clinicalReason,
+            String dicomPatientId, String dicomPatientIssuer, String dicomAccessionNumber,
+            String dicomAccessionLocalNamespace,
             ExecutionStatus status, String cancellationCause, String cancellationReason,
             UUID attemptId, UUID technicianAccountId, String firstUseType, UUID firstUseEventId,
             Instant firstUseAt, String firstUseSourceId, String studyRef,
             String reviewIdempotencyKey, String reviewFingerprint,
             String cancelIdempotencyKey, String cancelFingerprint,
             String transferIdempotencyKey, String transferFingerprint,
-            long executionVersion, Instant createdAt, Instant updatedAt) { }
+            long executionVersion, Instant createdAt, Instant updatedAt) {
+        /** Compatibility constructor for consumers that do not use DICOM identity fields. */
+        public ImagingExecution(UUID orderId, UUID visitId, UUID patientId, UUID orderingDoctorAccountId,
+                UUID serviceId, UUID roomId, String imagingType, String bodyArea, String clinicalReason,
+                ExecutionStatus status, String cancellationCause, String cancellationReason,
+                UUID attemptId, UUID technicianAccountId, String firstUseType, UUID firstUseEventId,
+                Instant firstUseAt, String firstUseSourceId, String studyRef,
+                String reviewIdempotencyKey, String reviewFingerprint,
+                String cancelIdempotencyKey, String cancelFingerprint,
+                String transferIdempotencyKey, String transferFingerprint,
+                long executionVersion, Instant createdAt, Instant updatedAt) {
+            this(orderId, visitId, patientId, orderingDoctorAccountId, serviceId, roomId, imagingType,
+                    bodyArea, clinicalReason, null, null, null, null, status, cancellationCause,
+                    cancellationReason, attemptId, technicianAccountId, firstUseType, firstUseEventId,
+                    firstUseAt, firstUseSourceId, studyRef, reviewIdempotencyKey, reviewFingerprint,
+                    cancelIdempotencyKey, cancelFingerprint, transferIdempotencyKey, transferFingerprint,
+                    executionVersion, createdAt, updatedAt);
+        }
+    }
 
     // ---- reads (only dispatched orders: execution_status is not null) ----------------------------------------
 

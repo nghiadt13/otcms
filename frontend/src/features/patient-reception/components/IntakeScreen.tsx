@@ -91,15 +91,18 @@ export function IntakeScreen() {
         title="Tiếp nhận bệnh nhân"
         description="Theo dõi lịch hẹn và trạng thái QR check-in hôm nay; hỗ trợ tiếp nhận tại quầy khi cần."
         actions={
-          <>
+          <div className="flex flex-wrap items-center justify-end gap-2">
             <Button variant="outline" onClick={() => setQrOpen(true)}>
-              Mã QR check-in
+              Check-in
             </Button>
             <Button onClick={() => setCheckIn({})}>
               <UserRoundPlus />
               Tiếp nhận bệnh nhân
             </Button>
-          </>
+            <RouteLink href="/reception/patients" size="default">
+              Tra cứu hoặc tạo hồ sơ
+            </RouteLink>
+          </div>
         }
       />
       <div className="mb-4 grid grid-cols-2 gap-3 rounded-lg border bg-card p-4 md:grid-cols-3">
@@ -143,7 +146,7 @@ export function IntakeScreen() {
               <th className="p-3">Bác sĩ</th>
               <th className="p-3">Phí khám</th>
               <th className="p-3">Trạng thái</th>
-              <th className="p-3">QR check-in</th>
+              <th className="p-3">Check-in</th>
               <th className="p-3">Thao tác</th>
             </tr>
           </thead>
@@ -154,7 +157,7 @@ export function IntakeScreen() {
                 <td className="p-3">
                   <PatientName
                     name={appointment.patientName ?? "Chưa có tên bệnh nhân"}
-                    code={appointment.patientProfileId}
+                    code={appointment.patientCode ?? appointment.patientProfileId}
                   />
                 </td>
                 <td className="p-3">
@@ -221,10 +224,6 @@ export function IntakeScreen() {
           </tbody>
         </table>
       </div>
-      <p className="mt-3 text-xs text-muted-foreground">
-        Bệnh nhân mới chưa có hồ sơ?{" "}
-        <RouteLink href="/reception/patients">Tra cứu hoặc tạo hồ sơ</RouteLink>
-      </p>
       {checkIn && (
         <CheckInDialog
           {...checkIn}

@@ -2,6 +2,9 @@
 
 import { useCallback, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { MyAccountProfile } from "@/features/my-account/components/MyAccountProfile";
+import { PatientNotificationsScreen } from "@/features/notifications/components/PatientNotificationsScreen";
+import type { NotificationRecordHrefResolver } from "@/features/notifications/utils/notificationRecordLinks";
 import { CancelAppointmentWithReasonDialog } from "@/features/appointments/components/CancelAppointmentWithReasonDialog";
 import { RescheduleAppointmentDialog } from "@/features/appointments/components/RescheduleAppointmentDialog";
 import {
@@ -12,6 +15,31 @@ import {
 } from "@/features/patient-reception/api/receptionLiveApi";
 import { ReceptionScreen } from "@/features/patient-reception/components/ReceptionScreen";
 import type { ReceptionSection } from "@/features/patient-reception/navigation";
+
+const resolveReceptionNotificationHref: NotificationRecordHrefResolver = (
+  record,
+) => {
+  switch (record.kind) {
+    case "APPOINTMENT":
+      return "/reception/appointments";
+    case "VISIT":
+      return "/reception/visits";
+    case "VISIT_RESULT":
+      return "/reception/results";
+    case "PAYMENT":
+      return "/reception/payment-history";
+    default:
+      return null;
+  }
+};
+
+function ReceptionNotifications() {
+  return (
+    <PatientNotificationsScreen
+      resolveRecordHref={resolveReceptionNotificationHref}
+    />
+  );
+}
 
 function AppointmentActions({
   appointment,
@@ -77,6 +105,8 @@ export function ReceptionScreenComposition({
     <ReceptionScreen
       section={section}
       appointmentActions={AppointmentActions}
+      accountComponent={MyAccountProfile}
+      notificationsComponent={ReceptionNotifications}
     />
   );
 }

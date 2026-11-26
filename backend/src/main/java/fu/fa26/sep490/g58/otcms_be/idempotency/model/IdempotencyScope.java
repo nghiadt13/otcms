@@ -1,9 +1,6 @@
-package fu.fa26.sep490.g58.otcms_be.common.idempotency;
+package fu.fa26.sep490.g58.otcms_be.idempotency.model;
 
-/**
- * Operation families that keep an idempotency key in {@code idempotency_records} (V137).
- * The name is stored as-is in the {@code scope} column, so never rename a constant.
- */
+/** Operation families that persist replay keys. These names are stored in idempotency_records.scope. */
 public enum IdempotencyScope {
     APPOINTMENT_CHECKIN,
     WALK_IN_VISIT,

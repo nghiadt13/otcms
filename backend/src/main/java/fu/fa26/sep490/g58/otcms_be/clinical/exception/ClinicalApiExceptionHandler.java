@@ -30,6 +30,7 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
     ClinicalExaminationController.class,
     AfterVisitAdviceController.class,
     ClinicalImagingRequestController.class,
+    fu.fa26.sep490.g58.otcms_be.clinical.controller.ClinicalServiceOrderCancellationController.class,
     fu.fa26.sep490.g58.otcms_be.clinical.controller.ClinicalLaboratoryRequestController.class,
     fu.fa26.sep490.g58.otcms_be.clinical.controller.LaboratoryCollectionController.class,
     fu.fa26.sep490.g58.otcms_be.clinical.controller.DoctorLaboratoryResultController.class,

@@ -1,6 +1,7 @@
 package fu.fa26.sep490.g58.otcms_be.imaging.service;
 
 import fu.fa26.sep490.g58.otcms_be.imaging.model.ImagingOperationStatus;
+import fu.fa26.sep490.g58.otcms_be.imaging.model.ImagingDicomIdentity;
 import java.util.List;
 import java.util.UUID;
 
@@ -13,6 +14,9 @@ import java.util.UUID;
 public interface ImagingIngestService {
     /** Check current owner assignment before accepting any request bytes. */
     ImagingOperationStatus upload(ImagingUploadCommand command);
+
+    /** Return database-backed DICOM identity after rechecking the technician's current request assignment. */
+    ImagingDicomIdentity getDicomIdentity(UUID actorAccountId, UUID requestId);
 
     /** Authorize the actor against the persisted operation owner before returning its state. */
     ImagingOperationStatus getOperationStatus(UUID actorAccountId, UUID operationId);

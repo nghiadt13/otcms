@@ -44,8 +44,12 @@ public class AppointmentBookingExceptionHandler {
                     "The check-in QR code has expired. Scan a new code at the reception counter.",
                     CorrelationIdFilter.current(request), List.of(new ErrorResponse.FieldError("proof", "MSG-37"))));
         }
+        String message = "FOLLOW_UP_NOT_ALLOWED".equals(exception.code())
+                ? "Chưa thể đặt lịch tái khám: cần hoàn tất ghi nhận khám và lượt khám phải có chỉ định tái khám. "
+                        + "Vui lòng kiểm tra hai điều kiện này rồi thử lại."
+                : "Appointment command was rejected";
         return ResponseEntity.status(status).body(ErrorResponse.of(AppointmentMsgCodes.of(exception.code()),
-                "Appointment command was rejected", CorrelationIdFilter.current(request)));
+                message, CorrelationIdFilter.current(request)));
     }
 
     @ExceptionHandler(HttpMessageNotReadableException.class)

@@ -1,4 +1,5 @@
 import Image from "next/image";
+import { publicAssetPath } from "@/lib/publicAssetPath";
 import styles from "./auth.module.css";
 export function AuthScaffold({ children, mode, calloutTitle, calloutText }) {
   return (
@@ -21,7 +22,7 @@ export function AuthScaffold({ children, mode, calloutTitle, calloutText }) {
               ? "(min-width: 761px) 59vw, 0px"
               : "(min-width: 821px) 45vw, 0px"
           }
-          src="/images/clinic-interior.png"
+          src={publicAssetPath("/images/clinic-interior.png")}
         />
         <div className={styles.imageCallout}>
           <strong>{calloutTitle}</strong>
