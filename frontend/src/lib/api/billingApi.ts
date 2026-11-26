@@ -145,20 +145,25 @@ export function listMyBillingInvoices(
 }
 
 /**
- * Mã thanh toán online (PayOS) cho mọi khoản còn trả được của hóa đơn. BE không nhận `itemIds`
- * ở đây: lần thanh toán online luôn gồm đủ các khoản PENDING.
+ * Mã thanh toán online (PayOS) cho các khoản đã chọn (hoặc toàn bộ khoản còn trả được nếu không
+ * truyền `itemIds`).
  */
 export function createPayOsAttempt(
   invoiceId: string,
   idempotencyKey: string,
   signal?: AbortSignal,
+  itemIds?: readonly string[],
 ): Promise<PayOsPaymentAttempt> {
+  const payload =
+    itemIds && itemIds.length > 0
+      ? { channel: "ONLINE", itemIds: [...itemIds] }
+      : { channel: "ONLINE" };
   return apiRequest<PayOsPaymentAttempt>(
     `/api/v1/invoices/${encodeURIComponent(invoiceId)}/payment-attempts`,
     {
       method: "POST",
       headers: { "Idempotency-Key": idempotencyKey },
-      body: JSON.stringify({ channel: "ONLINE" }),
+      body: JSON.stringify(payload),
       signal,
     },
   ).catch(notPayableOr(["INVOICE_NOT_PAYABLE"]));

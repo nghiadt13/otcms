@@ -82,6 +82,21 @@ public class InvoiceServiceImpl implements InvoiceService {
     @Override
     public InvoiceResponse createForClinicalRound(UUID roundId, AuthenticatedAccount actor) {
         requireReceptionist(actor);
+        return openOrGetClinicalRoundInvoice(roundId, actor.accountId());
+    }
+
+    @Override
+    public void openForClinicalRound(UUID roundId, UUID createdByAccountId) {
+        if (roundId == null || createdByAccountId == null) return;
+        if (invoices.findFirstByClinicalOrderingRoundId(roundId).isPresent()) return;
+        try {
+            openOrGetClinicalRoundInvoice(roundId, createdByAccountId);
+        } catch (BillingException ignored) {
+            // Non-billable rounds (for example zero payable orders) are skipped safely.
+        }
+    }
+
+    private InvoiceResponse openOrGetClinicalRoundInvoice(UUID roundId, UUID createdByAccountId) {
         var prior = invoices.findFirstByClinicalOrderingRoundId(roundId);
         if (prior.isPresent()) return existing(prior.get());
         try {
@@ -93,7 +108,7 @@ public class InvoiceServiceImpl implements InvoiceService {
                         order.serviceNameSnapshot(), 1, order.priceSnapshot())).toList();
                 UUID id = UUID.randomUUID();
                 var invoice = InvoiceJpaEntity.clinicalRound(id, invoiceNumber(id), source.patientId(),
-                        roundId, actor.accountId(), fingerprint("CLINICAL_ROUND", roundId, resolved));
+                        roundId, createdByAccountId, fingerprint("CLINICAL_ROUND", roundId, resolved));
                 invoices.saveAndFlush(invoice);
                 var invoiceItems = createItems(id, resolved);
                 for (int i = 0; i < invoiceItems.size(); i++) {
@@ -218,8 +233,11 @@ public class InvoiceServiceImpl implements InvoiceService {
 
     @Override
     public InvoicePageResponse listMine(AuthenticatedAccount actor, int page, int size) {
-        if (actor == null || actor.accountRole() != AccountRole.PATIENT || page < 0 || size < 1 || size > 50) {
+        if (actor == null || actor.accountRole() != AccountRole.PATIENT) {
             throw new BillingException("ACCESS_DENIED");
+        }
+        if (page < 0 || size < 1 || size > 50) {
+            throw new BillingException("VALIDATION_FAILED"); // paging is a validation error, not an access error
         }
         List<UUID> profileIds = patientAuthorization.accessibleProfileIds(actor.accountId());
         // VOID invoices are excluded by the query. Pages are cut AFTER filtering, so offsets and hasMore stay exact:

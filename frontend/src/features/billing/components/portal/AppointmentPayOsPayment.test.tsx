@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@/lib/api/apiError";
 import { AppointmentPayOsPayment } from "./AppointmentPayOsPayment";
@@ -122,5 +123,57 @@ describe("AppointmentPayOsPayment", () => {
     expect(
       await screen.findByRole("button", { name: "Hoàn tất" }),
     ).toBeInTheDocument();
+  });
+  it("cho chọn từng dịch vụ chưa thanh toán trước khi tạo mã PayOS", async () => {
+    route({
+      invoiceById: () =>
+        invoice({
+          appointmentId: null,
+          totalAmount: 450000,
+          outstandingBalance: 450000,
+          items: [
+            {
+              id: "item-1",
+              lineNumber: 1,
+              serviceId: "svc-1",
+              description: "Chụp X-quang khớp gối",
+              quantity: 1,
+              unitPrice: 250000,
+              lineTotal: 250000,
+              status: "PENDING",
+            },
+            {
+              id: "item-2",
+              lineNumber: 2,
+              serviceId: "svc-2",
+              description: "Xét nghiệm công thức máu",
+              quantity: 1,
+              unitPrice: 200000,
+              lineTotal: 200000,
+              status: "PENDING",
+            },
+          ],
+        }),
+    });
+    render(<AppointmentPayOsPayment invoiceId="inv-1" />);
+    const payButton = await screen.findByRole("button", {
+      name: "Thanh toán với PayOS",
+    });
+    // Bỏ chọn dịch vụ thứ 2 rồi bấm tạo mã PayOS
+    const checkboxes = screen.getAllByRole("checkbox");
+    await userEvent.click(checkboxes[1]);
+    await userEvent.click(payButton);
+    expect(await screen.findByLabelText("Quét mã QR")).toBeInTheDocument();
+    const postCall = request.mock.calls.find(
+      ([path, init]) =>
+        typeof path === "string" &&
+        path.endsWith("/payment-attempts") &&
+        init?.method === "POST",
+    );
+    expect(postCall).toBeDefined();
+    expect(JSON.parse(String(postCall?.[1]?.body))).toEqual({
+      channel: "ONLINE",
+      itemIds: ["item-1"],
+    });
   });
 });

@@ -19,4 +19,11 @@ public interface InvoiceService {
      * cannot be billed, or an appointment that already has an invoice.
      */
     void openForBooking(UUID appointmentId, UUID createdByAccountId);
+
+    /**
+     * Internal (no controller): opens the OPEN invoice for a just submitted clinical ordering round so patients can
+     * pay service orders online via PayOS immediately without waiting for reception. Does nothing when the round
+     * already has an invoice or has no billable orders.
+     */
+    void openForClinicalRound(UUID roundId, UUID createdByAccountId);
 }

@@ -13,9 +13,11 @@ import fu.fa26.sep490.g58.otcms_be.common.security.AccountRole;
 import fu.fa26.sep490.g58.otcms_be.common.security.AuthenticatedAccount;
 import fu.fa26.sep490.g58.otcms_be.common.service.CoordinationGuardService;
 import fu.fa26.sep490.g58.otcms_be.visit.service.LaboratoryRoomQueryService;
+import fu.fa26.sep490.g58.otcms_be.visit.service.ServiceQueueService;
 import java.time.Clock;
 import java.util.Map;
 import java.util.UUID;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -27,10 +29,19 @@ public class ClinicalLaboratoryDispatchServiceImpl implements ClinicalLaboratory
     private final CoordinationGuardService guard;
     private final AuditLogWriter audit;
     private final Clock clock;
+    private final ServiceQueueService serviceQueue;
 
     public ClinicalLaboratoryDispatchServiceImpl(ServiceOrderRepository orders, VisitClinicalContextPort visits,
             LaboratoryRoomQueryService rooms, CoordinationGuardService guard, AuditLogWriter audit, Clock clock) {
-        this.orders = orders; this.visits = visits; this.rooms = rooms; this.guard = guard; this.audit = audit; this.clock = clock;
+        this(orders, visits, rooms, guard, audit, clock, null);
+    }
+
+    @Autowired
+    public ClinicalLaboratoryDispatchServiceImpl(ServiceOrderRepository orders, VisitClinicalContextPort visits,
+            LaboratoryRoomQueryService rooms, CoordinationGuardService guard, AuditLogWriter audit, Clock clock,
+            ServiceQueueService serviceQueue) {
+        this.orders = orders; this.visits = visits; this.rooms = rooms; this.guard = guard; this.audit = audit;
+        this.clock = clock; this.serviceQueue = serviceQueue;
     }
 
     @Override
@@ -74,6 +85,7 @@ public class ClinicalLaboratoryDispatchServiceImpl implements ClinicalLaboratory
         if (!rooms.isEligibleRoom(roomId, order.getServiceId())) throw new ClinicalOperationException("MSG-39");
         var now = clock.instant();
         if (orders.assignLaboratoryRoom(orderId, roomId, now) != 1) throw new ClinicalOperationException("MSG-42");
+        if (serviceQueue != null) serviceQueue.enqueueDispatchedOrder(orderId);
         audit.record(AuditEntry.builder("laboratory", "LABORATORY", "ASSIGN_ROOM", "SERVICE_ORDER")
                 .entityId(orderId).actorAccountId(actor.accountId()).actorType("RECEPTIONIST")
                 .afterState(Map.of("roomId", roomId.toString())).occurredAt(now).build());

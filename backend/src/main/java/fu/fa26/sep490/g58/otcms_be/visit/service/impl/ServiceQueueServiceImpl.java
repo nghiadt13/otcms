@@ -134,7 +134,11 @@ public class ServiceQueueServiceImpl implements ServiceQueueService {
         return visits.findByIdForUpdate(visitId).orElse(null);
     }
 
-    /** Creates the entry of the earliest paid, roomed order that has none yet, unless the patient already waits somewhere. */
+    /**
+     * Creates the entry of the next paid, roomed order that has none yet, unless the patient already waits somewhere.
+     * Picks the eligible order whose assigned room currently has the fewest waiting patients, preferring LABORATORY
+     * first on a tie (Examination Flow).
+     */
     private void promoteNext(ClinicVisitJpaEntity visit) {
         UUID visitId = visit.getId();
         if (!queue.findOpenServiceByVisit(visitId, ServiceQueueRepository.OPEN).isEmpty()) return;
@@ -144,7 +148,10 @@ public class ServiceQueueServiceImpl implements ServiceQueueService {
                 .filter(order -> "ORDERED".equals(order.orderStatus()) && order.roomId() != null
                         && !"CANCELLED".equals(order.executionStatus()) && !queued.contains(order.orderId()))
                 .filter(order -> billing.isServiceOrderPaid(order.orderId()))
-                .findFirst();
+                .min(Comparator
+                        .comparingLong((QueueOrder order) -> queue.countOpenInRoom(
+                                order.roomId(), QueueEntryJpaEntity.STAGE_SERVICE, ServiceQueueRepository.OPEN))
+                        .thenComparingInt(order -> "LABORATORY".equals(order.serviceType()) ? 0 : 1));
         next.ifPresent(order -> enqueue(visitId, order));
     }
 

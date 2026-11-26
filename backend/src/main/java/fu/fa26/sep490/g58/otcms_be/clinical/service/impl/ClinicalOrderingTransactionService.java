@@ -1,5 +1,6 @@
 package fu.fa26.sep490.g58.otcms_be.clinical.service.impl;
 
+import fu.fa26.sep490.g58.otcms_be.clinical.event.ClinicalOrderingRoundCreatedEvent;
 import fu.fa26.sep490.g58.otcms_be.clinical.model.entity.ClinicalOrderingRoundJpaEntity;
 import fu.fa26.sep490.g58.otcms_be.clinical.exception.ClinicalOperationException;
 import fu.fa26.sep490.g58.otcms_be.clinical.model.ServiceOrderStatus;
@@ -17,6 +18,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -33,16 +36,25 @@ public class ClinicalOrderingTransactionService {
     private final fu.fa26.sep490.g58.otcms_be.common.service.CoordinationGuardService guard;
     private final ClinicalOrderPreparationService preparation;
     private final IdempotencyService store;
+    private final ApplicationEventPublisher events;
 
     public ClinicalOrderingTransactionService(ServiceOrderRepository orders, ClinicalOrderingRoundRepository rounds, Clock clock,
             fu.fa26.sep490.g58.otcms_be.common.service.CoordinationGuardService guard,
             ClinicalOrderPreparationService preparation, IdempotencyService store) {
+        this(orders, rounds, clock, guard, preparation, store, null);
+    }
+
+    @Autowired
+    public ClinicalOrderingTransactionService(ServiceOrderRepository orders, ClinicalOrderingRoundRepository rounds, Clock clock,
+            fu.fa26.sep490.g58.otcms_be.common.service.CoordinationGuardService guard,
+            ClinicalOrderPreparationService preparation, IdempotencyService store, ApplicationEventPublisher events) {
         this.orders = orders;
         this.rounds = rounds;
         this.clock = clock;
         this.guard = guard;
         this.preparation = preparation;
         this.store = store;
+        this.events = events;
     }
 
     @Transactional
@@ -95,6 +107,9 @@ public class ClinicalOrderingTransactionService {
                 order.getServiceType(), order.getRequestingDoctorId(), order.getClinicalReason(),
                 order.getBodyArea(), order.getInstructions(), order.getPriceSnapshot(),
                 order.getOrderStatus(), order.getPaymentStatus())).toList();
+        if (events != null) {
+            events.publishEvent(new ClinicalOrderingRoundCreatedEvent(roundId, doctorId));
+        }
         return new ClinicalOrderingService.RoundView(roundId, visitId, roundNumber, doctorId, now, views);
     }
 

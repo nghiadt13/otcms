@@ -4,7 +4,9 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { publicButtonClass } from "@/components/brand/publicButtonStyles";
 import { PortalPageHeader } from "@/components/patient/PortalPageHeader";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
+import { formatCurrencyVnd } from "@/lib/format/formatCurrencyVnd";
 import { formatAppMessage } from "@/lib/messages/appMessages";
 import { PATIENT_ROUTES } from "@/lib/routes/patientRoutes";
 import {
@@ -60,6 +62,8 @@ export function AppointmentPayOsPayment({
     invoiceId === undefined && appointmentId !== undefined;
   const [invoice, setInvoice] = useState<BillingInvoice | null>(null);
   const [attempt, setAttempt] = useState<PayOsPaymentAttempt | null>(null);
+  const [selectedItemIds, setSelectedItemIds] = useState<string[]>([]);
+  const [creatingAttempt, setCreatingAttempt] = useState(false);
   // BE đã từ chối thanh toán (hóa đơn VOID / INVOICE_NOT_PAYABLE): không còn tạo mã được nữa.
   const [notPayable, setNotPayable] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -105,6 +109,17 @@ export function AppointmentPayOsPayment({
         setAttempt(null);
         return;
       }
+      const pendingItems = currentInvoice.items.filter(
+        (item) => Boolean(item.id) && item.status === "PENDING",
+      );
+      const hasOpenPaymentItem = currentInvoice.items.some(
+        (item) => item.status === "PAYMENT_PENDING",
+      );
+      if (!embedded && pendingItems.length > 1 && !hasOpenPaymentItem) {
+        setSelectedItemIds(pendingItems.map((item) => item.id));
+        setAttempt(null);
+        return;
+      }
       const key = payOsIdempotencyKey(currentInvoice.id, renewKey);
       let currentAttempt: PayOsPaymentAttempt;
       try {
@@ -133,8 +148,47 @@ export function AppointmentPayOsPayment({
         setAttempt(currentAttempt);
       }
     },
-    [appointmentId, invoiceId, markNotPayable],
+    [appointmentId, embedded, invoiceId, markNotPayable],
   );
+
+  const startSelectedPayment = async (renewKey = false) => {
+    if (!invoice || selectedItemIds.length === 0 || creatingAttempt) return;
+    setCreatingAttempt(true);
+    setError(null);
+    const sortedIds = [...selectedItemIds].sort();
+    const key = payOsIdempotencyKey(
+      `${invoice.id}:${sortedIds.join(",")}`,
+      renewKey,
+    );
+    try {
+      const currentAttempt = await createPayOsAttempt(
+        invoice.id,
+        key,
+        undefined,
+        sortedIds,
+      );
+      setRemainingMs(msUntilExpiry(currentAttempt.expiresAt));
+      setAttempt(currentAttempt);
+    } catch (cause) {
+      if (cause instanceof InvoiceNotPayableError) {
+        const fresh = await getBillingInvoice(invoice.id).catch(() => null);
+        if (fresh) setInvoice(fresh);
+        if (fresh && fresh.status !== "VOID" && fresh.outstandingBalance <= 0) {
+          setAttempt(null);
+          return;
+        }
+        markNotPayable(invoice.id);
+        return;
+      }
+      setError(
+        cause instanceof Error
+          ? cause.message
+          : "Không thể tạo yêu cầu thanh toán. Vui lòng thử lại.",
+      );
+    } finally {
+      setCreatingAttempt(false);
+    }
+  };
 
   const load = useCallback(
     async (renewKey = false) => {
@@ -278,6 +332,19 @@ export function AppointmentPayOsPayment({
   const invoiceVoid = !paid && notPayable;
   // "Tạo mã mới" khi mã cũ hết hạn và hóa đơn vẫn còn dư nợ.
   const canRenew = !notPayable;
+  const selectableItems =
+    invoice?.items.filter(
+      (item) => Boolean(item.id) && item.status === "PENDING",
+    ) ?? [];
+  const showItemPicker =
+    !embedded &&
+    !paid &&
+    !invoiceVoid &&
+    attempt === null &&
+    selectableItems.length > 1;
+  const selectedTotal = selectableItems
+    .filter((item) => selectedItemIds.includes(item.id))
+    .reduce((sum, item) => sum + item.lineTotal, 0);
   return (
     <div className="space-y-5">
       {embedded ? (
@@ -338,6 +405,80 @@ export function AppointmentPayOsPayment({
       {invoiceVoid ? <PayOsInvoiceVoidNotice /> : null}
 
       {invoice ? <PayOsInvoiceCard invoice={invoice} /> : null}
+
+      {showItemPicker ? (
+        <section
+          aria-label="Chọn dịch vụ cần thanh toán"
+          className="space-y-4 rounded-xl border bg-card p-5"
+        >
+          <div className="space-y-1">
+            <h3 className="text-lg font-semibold">
+              Chọn dịch vụ cần thanh toán
+            </h3>
+            <p className="text-sm text-muted-foreground">
+              Bạn có thể chọn một hoặc nhiều dịch vụ chưa thanh toán để tạo mã
+              QR PayOS.
+            </p>
+          </div>
+          <div className="space-y-2.5">
+            {selectableItems.map((item) => {
+              const checked = selectedItemIds.includes(item.id);
+              return (
+                <label
+                  className="flex cursor-pointer items-start justify-between gap-3 rounded-lg border p-3"
+                  key={item.id}
+                >
+                  <span className="flex items-start gap-3">
+                    <Checkbox
+                      checked={checked}
+                      disabled={creatingAttempt}
+                      onCheckedChange={(value) =>
+                        setSelectedItemIds((ids) =>
+                          value === true
+                            ? [...new Set([...ids, item.id])]
+                            : ids.filter((id) => id !== item.id),
+                        )
+                      }
+                    />
+                    <span className="min-w-0 break-words font-medium">
+                      {item.description}
+                    </span>
+                  </span>
+                  <span className="shrink-0 font-semibold tabular-nums">
+                    {formatCurrencyVnd(item.lineTotal)}
+                  </span>
+                </label>
+              );
+            })}
+          </div>
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-4">
+            <p className="text-base">
+              Số tiền thanh toán:{" "}
+              <strong className="tabular-nums">
+                {formatCurrencyVnd(selectedTotal)}
+              </strong>
+            </p>
+            <div className="flex flex-wrap gap-3">
+              <button
+                className={publicButtonClass("primary")}
+                disabled={creatingAttempt || selectedItemIds.length === 0}
+                onClick={() => void startSelectedPayment()}
+                type="button"
+              >
+                {creatingAttempt
+                  ? "Đang tạo mã thanh toán..."
+                  : "Thanh toán với PayOS"}
+              </button>
+              <Link
+                className={publicButtonClass("secondary")}
+                href={returnHref}
+              >
+                Về hóa đơn
+              </Link>
+            </div>
+          </div>
+        </section>
+      ) : null}
 
       {!paid && attempt?.status === "PENDING" ? (
         <>

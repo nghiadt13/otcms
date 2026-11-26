@@ -15,9 +15,11 @@ import fu.fa26.sep490.g58.otcms_be.servicecatalog.model.ClinicServiceType;
 import fu.fa26.sep490.g58.otcms_be.servicecatalog.model.LabIndicator;
 import fu.fa26.sep490.g58.otcms_be.servicecatalog.service.GetClinicServiceCatalogService;
 import fu.fa26.sep490.g58.otcms_be.staff.service.StaffRoomAssignmentQueryService;
+import fu.fa26.sep490.g58.otcms_be.visit.service.ServiceQueueService;
 import java.time.Clock;
 import java.util.Map;
 import java.util.UUID;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -34,13 +36,26 @@ public class LaboratoryCollectionServiceImpl implements LaboratoryCollectionServ
     private final fu.fa26.sep490.g58.otcms_be.notification.service.NotificationPublisher notifications;
     private final GetClinicServiceCatalogService serviceCatalog;
     private final PatientProfileDirectory patients;
+    private final ServiceQueueService serviceQueue;
+
     public LaboratoryCollectionServiceImpl(ServiceOrderRepository orders, StaffRoomAssignmentQueryService assignments,
             LaboratorySampleService samples, CoordinationGuardService guard, AuditLogWriter audit, Clock clock,
             fu.fa26.sep490.g58.otcms_be.diagnostic.service.LaboratoryDraftService drafts,
             fu.fa26.sep490.g58.otcms_be.staff.service.DoctorProfileIdentityQueryService doctors,
             fu.fa26.sep490.g58.otcms_be.notification.service.NotificationPublisher notifications,
             GetClinicServiceCatalogService serviceCatalog, PatientProfileDirectory patients) {
-        this.orders = orders; this.assignments = assignments; this.samples = samples; this.guard = guard; this.audit = audit; this.clock = clock; this.drafts = drafts; this.doctors = doctors; this.notifications = notifications; this.serviceCatalog = serviceCatalog; this.patients = patients;
+        this(orders, assignments, samples, guard, audit, clock, drafts, doctors, notifications, serviceCatalog, patients, null);
+    }
+
+    @Autowired
+    public LaboratoryCollectionServiceImpl(ServiceOrderRepository orders, StaffRoomAssignmentQueryService assignments,
+            LaboratorySampleService samples, CoordinationGuardService guard, AuditLogWriter audit, Clock clock,
+            fu.fa26.sep490.g58.otcms_be.diagnostic.service.LaboratoryDraftService drafts,
+            fu.fa26.sep490.g58.otcms_be.staff.service.DoctorProfileIdentityQueryService doctors,
+            fu.fa26.sep490.g58.otcms_be.notification.service.NotificationPublisher notifications,
+            GetClinicServiceCatalogService serviceCatalog, PatientProfileDirectory patients,
+            ServiceQueueService serviceQueue) {
+        this.orders = orders; this.assignments = assignments; this.samples = samples; this.guard = guard; this.audit = audit; this.clock = clock; this.drafts = drafts; this.doctors = doctors; this.notifications = notifications; this.serviceCatalog = serviceCatalog; this.patients = patients; this.serviceQueue = serviceQueue;
     }
     @Override @Transactional
     public void approve(UUID orderId, AuthenticatedAccount actor, boolean checked, boolean critical) {
@@ -128,6 +143,8 @@ public class LaboratoryCollectionServiceImpl implements LaboratoryCollectionServ
         if ("COLLECTED".equals(next)) {
             var order = orders.findById(orderId).orElseThrow(() -> new ClinicalOperationException("MSG-41"));
             drafts.initialize(orderId, order.getVisitId(), sample.id(), actor.accountId(), configuredValues(order), now);
+            // Once the sample is collected, the patient leaves the lab room and may be promoted to the next service room.
+            if (serviceQueue != null) serviceQueue.complete(orderId);
         }
         audit.record(AuditEntry.builder("laboratory", "LABORATORY", next, "SERVICE_ORDER").entityId(orderId)
                 .actorAccountId(actor.accountId()).actorType("LAB_TECHNICIAN").afterState(Map.of("sampleId", sample.id().toString())).occurredAt(now).build());
