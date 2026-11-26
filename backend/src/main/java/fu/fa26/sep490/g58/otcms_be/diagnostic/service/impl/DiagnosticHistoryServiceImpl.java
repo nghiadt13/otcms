@@ -121,8 +121,26 @@ public class DiagnosticHistoryServiceImpl implements DiagnosticHistoryService {
         boolean incompleteForPatient = actorRole == AccountRole.PATIENT && "INCOMPLETE".equals(visitStatus);
         String imagesOnlyStudyRef = hasStudy && (actorRole == AccountRole.DOCTOR || incompleteForPatient)
                 ? request.studyRef() : null;
-        DiagnosticReportJpaEntity report = reports.findFirstByRequestIdAndStateOrderByReportVersionDesc(
-                request.orderId(), DiagnosticFindingsVersionState.COMPLETED).orElse(null);
+        // The treating doctor needs an unfinished draft restored when reopening the visit. Patient history must
+        // continue to expose completed/released findings only.
+        DiagnosticReportJpaEntity report = actorRole == AccountRole.DOCTOR
+                ? reports.findFirstByRequestIdAndStateOrderByReportVersionDesc(
+                        request.orderId(), DiagnosticFindingsVersionState.DRAFT)
+                        .or(() -> reports.findFirstByRequestIdAndStateOrderByReportVersionDesc(
+                                request.orderId(), DiagnosticFindingsVersionState.COMPLETED))
+                        .orElse(null)
+                : reports.findFirstByRequestIdAndStateOrderByReportVersionDesc(
+                        request.orderId(), DiagnosticFindingsVersionState.COMPLETED).orElse(null);
+        if (report != null && report.getState() == DiagnosticFindingsVersionState.DRAFT) {
+            if (actorRole == AccountRole.DOCTOR && "IMAGING".equals(report.getResultType())
+                    && request.orderId().equals(report.getRequestId()) && request.visitId().equals(report.getVisitId())
+                    && Objects.equals(request.studyRef(), report.getStudyRef())) {
+                return new DiagnosticHistoryItem(request.orderId(), request.visitId(), request.imagingType(), status,
+                        imagesOnlyStudyRef, null, report.getFindingsText(), null);
+            }
+            return new DiagnosticHistoryItem(request.orderId(), request.visitId(), request.imagingType(), status,
+                    imagesOnlyStudyRef, null, null, null);
+        }
         // The PDF is optional (UC-50 AF2): a released version needs no report, but a report must be validated.
         if (incompleteForPatient || request.status() == ClinicalServiceOrderExecutionPort.ExecutionStatus.CANCELLED
                 || report == null || report.getCompletedAt() == null || report.getReleasedAt() == null

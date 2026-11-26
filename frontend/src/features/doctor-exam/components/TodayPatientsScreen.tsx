@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { PageHeader } from "@/components/PageHeader";
 import { DoctorLoadState } from "./DoctorLoadState";
+import { StatusBadge } from "@/components/admin/StatusBadge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -17,9 +18,15 @@ import {
 } from "@/components/ui/table";
 import {
   CLINICAL_ORDER_PAYMENT_LABELS,
+  CLINICAL_ORDER_PAYMENT_TONE,
   CLINICAL_ORDER_STATUS_LABELS,
+  CLINICAL_ORDER_STATUS_TONE,
 } from "@/lib/domain/clinicVisit";
-import { formatDate, formatDateTime, todayIsoDate } from "@/lib/format/formatDate";
+import {
+  formatDate,
+  formatDateTime,
+  todayIsoDate,
+} from "@/lib/format/formatDate";
 import { cn } from "@/lib/utils";
 import { doctorVisitHref } from "@/lib/routes/doctorRoutes";
 import { useTodayPatients } from "../hooks/useDoctorData";
@@ -42,22 +49,50 @@ function PatientCell({ patient }: { patient: TodayPatient }) {
   const facts = [
     patient.age !== null ? `${patient.age} tuổi` : null,
     patient.sex,
+    patient.source === "WALK_IN" ? "Vãng lai" : "Đặt hẹn",
   ].filter(Boolean);
   return (
     <div className="min-w-0">
       <p className="break-words font-medium">{patient.patientName}</p>
-      <p className="break-words text-xs text-muted-foreground">
-        {facts.length ? facts.join(" · ") : patient.serviceName}
-      </p>
-      {patient.serviceOrders?.length ? (
-        <ul className="mt-1 space-y-0.5 text-xs">
-          {patient.serviceOrders.map((order) => (
-            <li key={order.id} className="break-words">
-              {order.serviceName} · {CLINICAL_ORDER_STATUS_LABELS[order.status]}{" "}
-              · {CLINICAL_ORDER_PAYMENT_LABELS[order.paymentStatus]}
-            </li>
-          ))}
-        </ul>
+      {facts.length ? (
+        <p className="break-words text-xs text-muted-foreground">
+          {facts.join(" · ")}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+function ServiceCell({ patient }: { patient: TodayPatient }) {
+  const orders = patient.serviceOrders ?? [];
+  return (
+    <div className="min-w-0 space-y-1">
+      <p className="break-words">{patient.serviceName}</p>
+      {orders.length ? (
+        <details>
+          <summary className="inline-flex min-h-11 cursor-pointer items-center text-sm font-medium text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+            {orders.length} chỉ định cận lâm sàng
+          </summary>
+          <ul className="space-y-2 border-t pt-2">
+            {orders.map((order) => (
+              <li key={order.id} className="space-y-1">
+                <p className="break-words text-sm font-medium">
+                  {order.serviceName}
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  <StatusBadge tone={CLINICAL_ORDER_STATUS_TONE[order.status]}>
+                    {CLINICAL_ORDER_STATUS_LABELS[order.status]}
+                  </StatusBadge>
+                  <StatusBadge
+                    tone={CLINICAL_ORDER_PAYMENT_TONE[order.paymentStatus]}
+                  >
+                    {CLINICAL_ORDER_PAYMENT_LABELS[order.paymentStatus]}
+                  </StatusBadge>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </details>
       ) : null}
     </div>
   );
@@ -65,16 +100,21 @@ function PatientCell({ patient }: { patient: TodayPatient }) {
 
 function PatientRow({
   patient,
-  index,
+  rowNumber,
 }: {
   patient: TodayPatient;
-  index: number;
+  rowNumber: number;
 }) {
   const open = canOpenVisit(patient);
   return (
     <TableRow>
       <TableCell className="w-[5%] whitespace-nowrap tabular-nums">
-        {index + 1}
+        <span>{rowNumber}</span>
+        {patient.queueNumber !== null && patient.queueNumber > 0 ? (
+          <span className="block text-xs text-muted-foreground">
+            Hàng đợi {patient.queueNumber}
+          </span>
+        ) : null}
       </TableCell>
       <TableCell className="w-[12%] whitespace-normal font-mono break-all">
         {patient.patientCode ?? "—"}
@@ -83,7 +123,7 @@ function PatientRow({
         <PatientCell patient={patient} />
       </TableCell>
       <TableCell className="w-[22%] whitespace-normal break-words">
-        {patient.serviceName}
+        <ServiceCell patient={patient} />
       </TableCell>
       <TableCell className="w-[14%] whitespace-normal tabular-nums">
         {patient.scheduledAt ? formatDateTime(patient.scheduledAt) : "—"}
@@ -126,9 +166,14 @@ export function TodayPatientsScreen() {
         title="Bệnh nhân hôm nay"
         description={`${formatDate(todayIsoDate())} · Bệnh nhân đặt hẹn và vãng lai được giao cho bạn, cùng các lượt khám đang chờ kết luận.`}
         actions={
-          <Button variant="outline" onClick={refresh}>
-            <RefreshCw aria-hidden />
-            Làm mới
+          <Button variant="outline" onClick={refresh} disabled={loading}>
+            <RefreshCw
+              aria-hidden
+              className={cn(
+                loading && "animate-spin motion-reduce:animate-none",
+              )}
+            />
+            {loading ? "Đang tải..." : "Làm mới"}
           </Button>
         }
       />
@@ -159,7 +204,7 @@ export function TodayPatientsScreen() {
             </Button>
           ))}
         </div>
-        <div className="relative ml-auto w-full sm:w-64">
+        <div className="relative ml-auto w-full sm:w-72 lg:w-80">
           <Search
             aria-hidden
             className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground"
@@ -191,42 +236,47 @@ export function TodayPatientsScreen() {
           </p>
         </div>
       ) : (
-        <div className="rounded-lg border bg-card">
-          <Table className="min-w-[48rem] table-fixed lg:min-w-0">
-            <colgroup>
-              <col className="w-[5%]" />
-              <col className="w-[12%]" />
-              <col className="w-[23%]" />
-              <col className="w-[22%]" />
-              <col className="w-[14%]" />
-              <col className="w-[10%]" />
-              <col className="w-[14%]" />
-            </colgroup>
-            <TableHeader>
-              <TableRow>
-                <TableHead>STT</TableHead>
-                <TableHead>Mã bệnh nhân</TableHead>
-                <TableHead>Tên bệnh nhân</TableHead>
-                <TableHead>Dịch vụ</TableHead>
-                <TableHead>Thời gian đặt hẹn</TableHead>
-                <TableHead>Trạng thái</TableHead>
-                <TableHead className="text-right">Tác vụ</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {rows.map((patient, index) => (
-                <PatientRow
-                  key={
-                    patient.visitId ??
-                    patient.appointmentId ??
-                    patient.patientName
-                  }
-                  patient={patient}
-                  index={index}
-                />
-              ))}
-            </TableBody>
-          </Table>
+        <div>
+          <p aria-live="polite" className="mb-2 text-sm text-muted-foreground">
+            Hiển thị {rows.length} / {data?.length ?? 0} bệnh nhân
+          </p>
+          <div className="rounded-lg border bg-card">
+            <Table className="min-w-[48rem] table-fixed lg:min-w-0">
+              <colgroup>
+                <col className="w-[5%]" />
+                <col className="w-[12%]" />
+                <col className="w-[23%]" />
+                <col className="w-[22%]" />
+                <col className="w-[14%]" />
+                <col className="w-[10%]" />
+                <col className="w-[14%]" />
+              </colgroup>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>STT</TableHead>
+                  <TableHead>Mã bệnh nhân</TableHead>
+                  <TableHead>Tên bệnh nhân</TableHead>
+                  <TableHead>Dịch vụ / chỉ định</TableHead>
+                  <TableHead>Thời gian</TableHead>
+                  <TableHead>Trạng thái</TableHead>
+                  <TableHead className="text-right">Tác vụ</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {rows.map((patient, index) => (
+                  <PatientRow
+                    key={
+                      patient.visitId ??
+                      patient.appointmentId ??
+                      patient.patientName
+                    }
+                    patient={patient}
+                    rowNumber={index + 1}
+                  />
+                ))}
+              </TableBody>
+            </Table>
+          </div>
         </div>
       )}
     </>

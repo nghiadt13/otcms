@@ -18,7 +18,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ROLE_LABELS } from "@/lib/domain/clinicRoles";
-import { ROOM_CATEGORY_LABELS } from "@/lib/domain/clinicCategories";
+import { ROOM_TYPE_LABELS } from "@/lib/domain/clinicCategories";
 import type { Shift, ShiftPeriod } from "../types/shift";
 import { dayMonthYear, weekdayShort } from "../utils/shiftWeekRange";
 
@@ -102,7 +102,7 @@ export function ShiftListView({
       <TableCell>
         <span className="block">{shift.roomName}</span>
         <span className="block text-xs text-muted-foreground">
-          {ROOM_CATEGORY_LABELS[shift.roomCategory]}
+          {ROOM_TYPE_LABELS[shift.roomCategory]}
         </span>
       </TableCell>
       <TableCell className="w-10 text-right">

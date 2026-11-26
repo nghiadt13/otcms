@@ -12,7 +12,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ROOM_CATEGORY_LABELS } from "@/lib/domain/clinicCategories";
+import { ROOM_TYPE_LABELS } from "@/lib/domain/clinicCategories";
 import { getRoom } from "../api/roomApi";
 import { notifyRoomError } from "../roomMessages";
 import { ROOM_STATUS_LABELS, type Room } from "../types/room";
@@ -72,7 +72,7 @@ export function RoomDetailSheet({
                 items={[
                   {
                     label: "Loại phòng",
-                    value: ROOM_CATEGORY_LABELS[room.type],
+                    value: ROOM_TYPE_LABELS[room.type],
                   },
                   {
                     label: "Trạng thái",
@@ -93,9 +93,11 @@ export function RoomDetailSheet({
                   {
                     label: "Dịch vụ hỗ trợ",
                     value:
-                      room.supportedServices.length > 0
-                        ? room.supportedServices.map((s) => s.name).join(", ")
-                        : "Chưa gán dịch vụ",
+                      room.type === "RECEPTION"
+                        ? "Phục vụ hỗ trợ"
+                        : room.supportedServices.length > 0
+                          ? room.supportedServices.map((s) => s.name).join(", ")
+                          : "Chưa gán dịch vụ",
                   },
                 ]}
               />

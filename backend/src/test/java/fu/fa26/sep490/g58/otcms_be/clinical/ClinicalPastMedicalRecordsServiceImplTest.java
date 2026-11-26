@@ -30,7 +30,8 @@ class ClinicalPastMedicalRecordsServiceImplTest {
     ClinicalPrescriptionHistoryQueryService rx = mock(ClinicalPrescriptionHistoryQueryService.class);
     ClinicalMedicalDocumentHistoryQueryService docs = mock(ClinicalMedicalDocumentHistoryQueryService.class);
     DiagnosticPatientHistoryQueryService images = mock(DiagnosticPatientHistoryQueryService.class);
-    ClinicalPastMedicalRecordsService service = new ClinicalPastMedicalRecordsServiceImpl(accounts, contexts, visits, exams, rx, docs, images);
+    ClinicalLaboratoryHistoryQueryService laboratory = mock(ClinicalLaboratoryHistoryQueryService.class);
+    ClinicalPastMedicalRecordsService service = new ClinicalPastMedicalRecordsServiceImpl(accounts, contexts, visits, exams, rx, docs, images, laboratory);
     UUID current = UUID.randomUUID(), patient = UUID.randomUUID(), doctor = UUID.randomUUID(), account = UUID.randomUUID();
     UUID old = UUID.randomUUID(), older = UUID.randomUUID();
     @BeforeEach void setup() {

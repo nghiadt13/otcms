@@ -114,7 +114,7 @@ public class StaffShiftAdminServiceImpl implements StaffShiftAdminService {
             var account = accounts.activeStaff(accountId).orElseThrow(() -> new StaffProfileException("STAFF_ACCOUNT_UNAVAILABLE"));
             if (account.role().name().equals("DOCTOR")) throw invalid();
             String expectedRoomType = switch (account.role().name()) {
-                case "RECEPTIONIST" -> "EXAMINATION";
+                case "RECEPTIONIST" -> "RECEPTION";
                 case "LAB_TECHNICIAN" -> "LABORATORY";
                 case "IMAGING_TECHNICIAN" -> "IMAGING";
                 default -> throw invalid();

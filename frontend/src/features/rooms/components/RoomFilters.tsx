@@ -7,9 +7,9 @@ import {
   NativeSelectOption,
 } from "@/components/ui/native-select";
 import {
-  ROOM_CATEGORY_LABELS,
-  SERVICE_CATEGORIES,
-  type ServiceCategory,
+  ROOM_TYPE_LABELS,
+  ROOM_TYPES,
+  type RoomType,
 } from "@/lib/domain/clinicCategories";
 import { useRoomServiceOptions } from "../hooks/useRoomServiceOptions";
 import {
@@ -47,13 +47,13 @@ export function RoomFilters({
         aria-label="Lọc theo loại phòng"
         value={filters.type}
         onChange={(e) =>
-          onFilterChange({ type: e.target.value as ServiceCategory | "" })
+          onFilterChange({ type: e.target.value as RoomType | "" })
         }
       >
         <NativeSelectOption value="">Mọi loại phòng</NativeSelectOption>
-        {SERVICE_CATEGORIES.map((c) => (
+        {ROOM_TYPES.map((c) => (
           <NativeSelectOption key={c} value={c}>
-            {ROOM_CATEGORY_LABELS[c]}
+            {ROOM_TYPE_LABELS[c]}
           </NativeSelectOption>
         ))}
       </NativeSelect>
