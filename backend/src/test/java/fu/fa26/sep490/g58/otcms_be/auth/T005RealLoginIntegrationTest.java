@@ -28,7 +28,7 @@ import static org.junit.jupiter.api.Assertions.*;
         "app.auth.rate-limit-hmac-secret=t005-integration-secret",
         "app.auth.login.requests=2",
         "app.auth.login.window-seconds=3600",
-        "app.auth.credential-failure.requests=2",
+        "app.auth.credential-failure.requests=5",
         "app.auth.credential-failure.window-seconds=3600",
         "app.auth.staff-network.allowed-cidrs[0]=10.20.0.0/16",
         "app.auth.staff-network.trusted-proxy-cidrs[0]=10.0.0.0/8"

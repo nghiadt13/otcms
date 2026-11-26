@@ -40,9 +40,19 @@ export function ImagingViewerLauncher({
   }
 
   return (
-    <div className="space-y-3">
+    <div
+      className={
+        purpose === "TECHNICIAN_ASSIGNED" && !error
+          ? "inline-flex"
+          : "space-y-3"
+      }
+    >
       <Button
-        className={publicButtonClass("primary")}
+        size={purpose === "TECHNICIAN_ASSIGNED" ? "sm" : undefined}
+        className={publicButtonClass(
+          "primary",
+          purpose === "TECHNICIAN_ASSIGNED" ? "sm" : "md",
+        )}
         disabled={issuing}
         aria-busy={issuing}
         onClick={() => void openViewer()}
@@ -65,11 +75,7 @@ export function ImagingViewerLauncher({
           </Button>
         </div>
       ) : null}
-      {purpose === "TECHNICIAN_ASSIGNED" && !error ? (
-        <p className="text-sm text-muted-foreground">
-          Hệ thống tự xác thực quyền được phân công khi mở study.
-        </p>
-      ) : purpose === "PATIENT_VIEW" && !error ? (
+      {purpose === "PATIENT_VIEW" && !error ? (
         <p className="text-sm text-muted-foreground">
           Hệ thống tự xác minh quyền xem study trước khi mở OHIF.
         </p>

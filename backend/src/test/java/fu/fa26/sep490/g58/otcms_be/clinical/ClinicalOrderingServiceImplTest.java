@@ -33,10 +33,11 @@ class ClinicalOrderingServiceImplTest {
             Clock.fixed(Instant.parse("2026-11-04T10:00:00Z"), ZoneOffset.UTC),
             mock(fu.fa26.sep490.g58.otcms_be.common.service.CoordinationGuardService.class),
             new fu.fa26.sep490.g58.otcms_be.clinical.service.impl.ClinicalOrderPreparationService(visits, catalog),
-            mock(fu.fa26.sep490.g58.otcms_be.common.idempotency.IdempotencyStore.class));
+            mock(fu.fa26.sep490.g58.otcms_be.idempotency.service.IdempotencyService.class));
     private final ClinicalOrderingServiceImpl service = new ClinicalOrderingServiceImpl(new fu.fa26.sep490.g58.otcms_be.clinical.service.impl.ClinicalOrderPreparationService(visits, catalog),
             writer, orders, rounds, Clock.fixed(Instant.parse("2026-11-04T10:00:00Z"), ZoneOffset.UTC),
-            mock(fu.fa26.sep490.g58.otcms_be.common.service.CoordinationGuardService.class));
+            mock(fu.fa26.sep490.g58.otcms_be.common.service.CoordinationGuardService.class),
+            mock(ClinicalOrderCancellationBillingPort.class));
 
     @BeforeEach
     void setUp() {

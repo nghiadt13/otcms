@@ -41,6 +41,13 @@ public class ClinicalLaboratoryRequestController {
         return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(java.util.Map.of("items", queue.today(account)));
     }
 
+    @GetMapping("/api/v1/laboratory/orders/history")
+    @PreAuthorize("hasAuthority('ROLE_LAB_TECHNICIAN')")
+    public ResponseEntity<java.util.Map<String, java.util.List<fu.fa26.sep490.g58.otcms_be.clinical.service.LaboratoryQueueService.Item>>> history(
+            @AuthenticationPrincipal AuthenticatedAccount account) {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(java.util.Map.of("items", queue.history(account)));
+    }
+
     @PostMapping("/api/v1/visits/{visitId}/laboratory-requests")
     @PreAuthorize("hasAuthority('ROLE_DOCTOR')")
     public ResponseEntity<ClinicalOrderingService.RoundView> submit(@PathVariable UUID visitId,

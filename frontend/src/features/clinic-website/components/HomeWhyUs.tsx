@@ -4,6 +4,7 @@ import Link from "next/link";
 import { publicButtonClass } from "@/components/brand/publicButtonStyles";
 import { publicContainerClass } from "@/components/brand/publicLayout";
 import { cn } from "@/lib/utils";
+import { publicAssetPath } from "@/lib/publicAssetPath";
 import type { HomeHeroContent } from "../types/websiteContent";
 
 // Khối hai cột ảnh + chữ: vì sao khám ở đây, và lời mời tạo tài khoản bệnh nhân
@@ -27,7 +28,7 @@ export function HomeWhyUs({ highlights }: Pick<HomeHeroContent, "highlights">) {
             className="object-cover"
             fill
             sizes="(min-width: 1024px) 50vw, 100vw"
-            src="/images/home/clinic-consultation.jpg"
+            src={publicAssetPath("/images/home/clinic-consultation.jpg")}
           />
         </div>
 

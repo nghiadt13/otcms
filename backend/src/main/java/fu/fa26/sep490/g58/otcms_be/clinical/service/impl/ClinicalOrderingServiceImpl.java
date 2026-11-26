@@ -23,16 +23,19 @@ public class ClinicalOrderingServiceImpl implements ClinicalOrderingService {
     private final ServiceOrderRepository orders;
     private final ClinicalOrderingRoundRepository rounds;
     private final Clock clock;
+    private final fu.fa26.sep490.g58.otcms_be.clinical.service.ClinicalOrderCancellationBillingPort cancellationBilling;
 
     public ClinicalOrderingServiceImpl(ClinicalOrderPreparationService preparation,
             ClinicalOrderingTransactionService writer, ServiceOrderRepository orders, ClinicalOrderingRoundRepository rounds,
-            Clock clock, fu.fa26.sep490.g58.otcms_be.common.service.CoordinationGuardService guard) {
+            Clock clock, fu.fa26.sep490.g58.otcms_be.common.service.CoordinationGuardService guard,
+            fu.fa26.sep490.g58.otcms_be.clinical.service.ClinicalOrderCancellationBillingPort cancellationBilling) {
         this.guard = guard;
         this.preparation = preparation;
         this.writer = writer;
         this.orders = orders;
         this.rounds = rounds;
         this.clock = clock;
+        this.cancellationBilling = cancellationBilling;
     }
 
     @Override
@@ -92,6 +95,34 @@ public class ClinicalOrderingServiceImpl implements ClinicalOrderingService {
             order.cancel(reason, clock.instant());
         } catch (IllegalStateException exception) {
             throw new ClinicalOperationException("MSG-08");
+        }
+        return view(orders.save(order));
+    }
+
+    @Override
+    @Transactional
+    public OrderView cancelPendingPayment(UUID orderId, UUID doctorId, String reason) {
+        if (reason == null || reason.isBlank()) throw new ClinicalOperationException("MSG-39");
+        var initial = orders.findById(orderId).orElseThrow(() -> new ClinicalOperationException("MSG-41"));
+        if (!doctorId.equals(initial.getRequestingDoctorId())) throw new ClinicalOperationException("MSG-40");
+        if (initial.getPaymentStatus() != ServiceOrderPaymentStatus.PENDING_PAYMENT
+                || initial.getOrderStatus() != ServiceOrderStatus.ORDERED) {
+            throw new ClinicalOperationException("MSG-42");
+        }
+        // Billing locks invoice/items before the shared coordination guard, matching payment settlement.
+        cancellationBilling.voidUnpaidOrder(orderId);
+        guard.acquire();
+        var order = orders.findById(orderId).orElseThrow(() -> new ClinicalOperationException("MSG-41"));
+        if (!doctorId.equals(order.getRequestingDoctorId())) throw new ClinicalOperationException("MSG-40");
+        preparation.requireCurrentCare(order.getVisitId(), doctorId);
+        if (order.getPaymentStatus() != ServiceOrderPaymentStatus.PENDING_PAYMENT
+                || order.getOrderStatus() != ServiceOrderStatus.ORDERED) {
+            throw new ClinicalOperationException("MSG-42");
+        }
+        try {
+            order.cancel(reason.trim(), clock.instant());
+        } catch (IllegalStateException exception) {
+            throw new ClinicalOperationException("MSG-42");
         }
         return view(orders.save(order));
     }

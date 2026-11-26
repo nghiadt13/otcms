@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { apiRequest } from "@/lib/api/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { toast } from "sonner";
 
 type Value = {
   indicator: string;
@@ -13,27 +14,26 @@ type Value = {
   comment: string;
   abnormal: boolean | null;
 };
-const blank = (): Value => ({
-  indicator: "",
-  value: "",
-  unit: "",
-  referenceRange: "",
-  comment: "",
-  abnormal: null,
-});
 
-export function LaboratoryResultDraft({ orderId }: { orderId: string }) {
-  const [values, setValues] = useState<Value[]>([blank()]);
+function isValidResult(value: string) {
+  return /^(?:\d+(?:\.\d+)?|\.\d+)$/.test(value.trim());
+}
+
+export function LaboratoryResultDraft({
+  orderId,
+  onIssued,
+}: {
+  orderId: string;
+  onIssued?: () => void;
+}) {
+  const [values, setValues] = useState<Value[]>([]);
   const [loading, setLoading] = useState(true);
   const [pending, setPending] = useState(false);
-  const [message, setMessage] = useState("");
   const [loadError, setLoadError] = useState(false);
   const [reload, setReload] = useState(0);
   const [dirty, setDirty] = useState(false);
   const [checked, setChecked] = useState(false);
   const [critical, setCritical] = useState("");
-  const [contactedDoctor, setContactedDoctor] = useState("");
-  const [contactedAt, setContactedAt] = useState("");
   const [issued, setIssued] = useState(false);
   useEffect(() => {
     const controller = new AbortController();
@@ -44,16 +44,14 @@ export function LaboratoryResultDraft({ orderId }: { orderId: string }) {
       .then((result) => {
         if (!controller.signal.aborted) {
           setValues(
-            result.values.length
-              ? result.values.map((v) => ({
-                  indicator: v.indicator ?? "",
-                  value: v.value ?? "",
-                  unit: v.unit ?? "",
-                  referenceRange: v.referenceRange ?? "",
-                  comment: v.comment ?? "",
-                  abnormal: v.abnormal ?? null,
-                }))
-              : [blank()],
+            result.values.map((v) => ({
+              indicator: v.indicator ?? "",
+              value: v.value ?? "",
+              unit: v.unit ?? "",
+              referenceRange: v.referenceRange ?? "",
+              comment: v.comment ?? "",
+              abnormal: v.abnormal ?? null,
+            })),
           );
           setLoadError(false);
         }
@@ -68,7 +66,6 @@ export function LaboratoryResultDraft({ orderId }: { orderId: string }) {
   }, [orderId, reload]);
   async function save() {
     setPending(true);
-    setMessage("");
     try {
       await apiRequest(
         `/api/v1/laboratory/orders/${encodeURIComponent(orderId)}/result-draft`,
@@ -76,16 +73,15 @@ export function LaboratoryResultDraft({ orderId }: { orderId: string }) {
       );
       setDirty(false);
       setChecked(false);
-      setMessage("Đã lưu bản nháp. Kết quả chưa gửi cho bác sĩ.");
+      toast.success("Đã lưu bản nháp. Kết quả chưa gửi cho bác sĩ.");
     } catch {
-      setMessage("Không thể lưu bản nháp. Vui lòng kiểm tra và thử lại.");
+      toast.error("Không thể lưu bản nháp. Vui lòng kiểm tra và thử lại.");
     } finally {
       setPending(false);
     }
   }
   async function approve() {
     setPending(true);
-    setMessage("");
     try {
       await apiRequest(
         `/api/v1/laboratory/orders/${encodeURIComponent(orderId)}/result-approval`,
@@ -94,16 +90,14 @@ export function LaboratoryResultDraft({ orderId }: { orderId: string }) {
           body: JSON.stringify({
             checked,
             critical: critical === "yes",
-            contactedDoctor: critical === "yes" ? contactedDoctor.trim() : null,
-            contactedAt:
-              critical === "yes" ? new Date(contactedAt).toISOString() : null,
           }),
         },
       );
       setIssued(true);
-      setMessage("Đã duyệt và gửi kết quả cho bác sĩ.");
+      onIssued?.();
+      toast.success("Đã gửi kết quả cho bác sĩ.");
     } catch {
-      setMessage(
+      toast.error(
         "Không thể duyệt kết quả. Kiểm tra chỉ số và trạng thái chỉ định.",
       );
     } finally {
@@ -126,12 +120,19 @@ export function LaboratoryResultDraft({ orderId }: { orderId: string }) {
         </Button>
       </div>
     );
+  if (values.length === 0)
+    return (
+      <p role="alert" className="text-sm text-destructive">
+        Dịch vụ xét nghiệm chưa có thông số được cấu hình. Vui lòng báo quản trị
+        viên kiểm tra danh mục dịch vụ.
+      </p>
+    );
   return (
     <section className="space-y-4 border-t pt-4">
       <h3 className="font-semibold">Nhập kết quả xét nghiệm</h3>
       <p className="text-sm text-muted-foreground">
-        Nhập giá trị từng chỉ số đọc từ máy xét nghiệm, kèm đơn vị và khoảng
-        tham chiếu.
+        Nhập kết quả dạng số không âm cho từng chỉ số. Tên chỉ số, đơn vị và
+        khoảng tham chiếu được cấu hình sẵn.
       </p>
       {values.map((item, index) => (
         <fieldset
@@ -153,7 +154,34 @@ export function LaboratoryResultDraft({ orderId }: { orderId: string }) {
               <span>{label}</span>
               <Input
                 value={item[field]}
+                type={field === "value" ? "number" : "text"}
+                min={field === "value" ? 0 : undefined}
+                step={field === "value" ? "any" : undefined}
+                inputMode={field === "value" ? "decimal" : undefined}
+                aria-invalid={
+                  field === "value" &&
+                  item.value.trim() !== "" &&
+                  !isValidResult(item.value)
+                }
+                readOnly={
+                  field === "indicator" ||
+                  field === "unit" ||
+                  field === "referenceRange"
+                }
+                className={
+                  field === "indicator" ||
+                  field === "unit" ||
+                  field === "referenceRange"
+                    ? "bg-muted"
+                    : undefined
+                }
                 onChange={(event) => {
+                  if (
+                    field === "indicator" ||
+                    field === "unit" ||
+                    field === "referenceRange"
+                  )
+                    return;
                   setDirty(true);
                   setChecked(false);
                   setValues((current) =>
@@ -165,6 +193,13 @@ export function LaboratoryResultDraft({ orderId }: { orderId: string }) {
                   );
                 }}
               />
+              {field === "value" &&
+                item.value.trim() !== "" &&
+                !isValidResult(item.value) && (
+                  <span className="text-destructive" role="alert">
+                    Kết quả phải là số không âm (ví dụ: 3.5).
+                  </span>
+                )}
             </label>
           ))}
           <label className="space-y-1 text-sm">
@@ -198,111 +233,74 @@ export function LaboratoryResultDraft({ orderId }: { orderId: string }) {
               <option value="abnormal">Bất thường</option>
             </select>
           </label>
-          <Button
-            variant="outline"
-            disabled={values.length === 1 || pending || issued}
-            onClick={() => {
-              setDirty(true);
-              setChecked(false);
-              setValues((current) => current.filter((_, i) => i !== index));
-            }}
-          >
-            Xóa chỉ số
-          </Button>
         </fieldset>
       ))}
       <div className="flex flex-wrap gap-2">
         <Button
-          variant="outline"
-          disabled={pending || issued || values.length >= 200}
-          onClick={() => {
-            setDirty(true);
-            setChecked(false);
-            setValues((current) => [...current, blank()]);
-          }}
-        >
-          Thêm chỉ số
-        </Button>
-        <Button
           disabled={
             pending ||
             issued ||
-            values.some((item) => !item.indicator.trim() || !item.value.trim())
+            values.some(
+              (item) => !item.indicator.trim() || !isValidResult(item.value),
+            )
           }
           onClick={() => void save()}
         >
           Lưu bản nháp
         </Button>
       </div>
-      {message && <p role="status">{message}</p>}
       {!issued && (
-        <div className="space-y-3 rounded-md border p-4">
-          <h3 className="font-semibold">Đối chiếu và gửi bác sĩ</h3>
-          <label className="flex gap-2">
-            <input
-              type="checkbox"
-              checked={checked}
-              onChange={(event) => setChecked(event.target.checked)}
-            />
-            <span>
-              Tôi đã đối chiếu bệnh nhân, mã mẫu, xét nghiệm, chỉ số, đơn vị và
-              khoảng tham chiếu với kết quả trên máy.
-            </span>
-          </label>
-          <label className="block space-y-1">
-            <span>Kết quả có giá trị nguy cấp?</span>
-            <select
-              className="w-full rounded-md border p-2"
-              value={critical}
-              onChange={(event) => setCritical(event.target.value)}
+        <>
+          <div className="space-y-3">
+            <div className="flex flex-col items-start gap-2">
+              <span id="critical-result-label" className="text-sm font-medium">
+                Kết quả có giá trị nguy cấp?
+              </span>
+              <select
+                aria-labelledby="critical-result-label"
+                className="w-48 rounded-md border bg-background p-2"
+                value={critical}
+                onChange={(event) => setCritical(event.target.value)}
+              >
+                <option value="">Chọn tình trạng</option>
+                <option value="no">Không</option>
+                <option value="yes">Có</option>
+              </select>
+            </div>
+          </div>
+          <div className="space-y-3 rounded-md border p-4">
+            <h3 className="font-semibold">Đối chiếu và gửi bác sĩ</h3>
+            <label className="flex gap-2">
+              <input
+                type="checkbox"
+                checked={checked}
+                onChange={(event) => setChecked(event.target.checked)}
+              />
+              <span>
+                Tôi đã đối chiếu bệnh nhân, mã mẫu, xét nghiệm, chỉ số, đơn vị
+                và khoảng tham chiếu với kết quả trên máy.
+              </span>
+            </label>
+            <Button
+              disabled={
+                pending ||
+                dirty ||
+                !checked ||
+                !critical ||
+                values.some(
+                  (v) =>
+                    !v.unit.trim() ||
+                    !v.referenceRange.trim() ||
+                    v.abnormal === null,
+                )
+              }
+              onClick={() => void approve()}
             >
-              <option value="">Chọn tình trạng</option>
-              <option value="no">Không</option>
-              <option value="yes">Có</option>
-            </select>
-          </label>
-          {critical === "yes" && (
-            <>
-              <p className="text-sm">
-                Liên hệ trực tiếp bác sĩ trước khi phát hành.
-              </p>
-              <label className="block">
-                Người nhận thông báo
-                <Input
-                  value={contactedDoctor}
-                  onChange={(event) => setContactedDoctor(event.target.value)}
-                />
-              </label>
-              <label className="block">
-                Thời gian liên hệ
-                <Input
-                  type="datetime-local"
-                  value={contactedAt}
-                  onChange={(event) => setContactedAt(event.target.value)}
-                />
-              </label>
-            </>
-          )}
-          <Button
-            disabled={
-              pending ||
-              dirty ||
-              !checked ||
-              !critical ||
-              values.some(
-                (v) =>
-                  !v.unit.trim() ||
-                  !v.referenceRange.trim() ||
-                  v.abnormal === null,
-              ) ||
-              (critical === "yes" && (!contactedDoctor.trim() || !contactedAt))
-            }
-            onClick={() => void approve()}
-          >
-            Duyệt và gửi bác sĩ
-          </Button>
-          {dirty && <p className="text-sm">Lưu bản nháp trước khi duyệt.</p>}
-        </div>
+              Duyệt và gửi bác sĩ
+            </Button>
+            {dirty && <p className="text-sm">Lưu bản nháp trước khi duyệt.</p>}
+          </div>
+        </>
       )}
     </section>
   );

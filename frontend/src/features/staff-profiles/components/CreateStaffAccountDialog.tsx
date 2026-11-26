@@ -22,6 +22,7 @@ import {
   type StaffRole,
 } from "@/lib/domain/clinicRoles";
 import { messageFromError } from "@/lib/messages/appMessages";
+import { isPasswordValid } from "@/lib/domain/passwordPolicy";
 import {
   createStaffAccount,
   type IssuedStaffAccount,
@@ -34,8 +35,8 @@ export function CreateStaffAccountDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
-  const [email, setEmail] = useState("");
-  const [fullName, setFullName] = useState("");
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
   const [role, setRole] = useState<StaffRole>("RECEPTIONIST");
   const [issued, setIssued] = useState<IssuedStaffAccount | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -44,10 +45,14 @@ export function CreateStaffAccountDialog({
   async function submit(event: React.FormEvent) {
     event.preventDefault();
     if (pending) return;
+    if (!username.trim() || username.trim().length > 64 || !isPasswordValid(password)) {
+      setError("Tên đăng nhập phải có tối đa 64 ký tự hợp lệ; mật khẩu cần ít nhất 8 ký tự gồm chữ và số.");
+      return;
+    }
     setPending(true);
     setError(null);
     try {
-      setIssued(await createStaffAccount({ email, fullName, role }));
+      setIssued(await createStaffAccount({ username: username.trim(), initialPassword: password, role }));
     } catch (cause) {
       setError(messageFromError(cause));
     } finally {
@@ -57,8 +62,8 @@ export function CreateStaffAccountDialog({
 
   function close() {
     setIssued(null);
-    setEmail("");
-    setFullName("");
+    setUsername("");
+    setPassword("");
     setError(null);
     onOpenChange(false);
   }
@@ -74,18 +79,17 @@ export function CreateStaffAccountDialog({
         <DialogHeader>
           <DialogTitle>Cấp tài khoản nhân viên</DialogTitle>
           <DialogDescription>
-            Nhân viên dùng email và mật khẩu tạm để đăng nhập. Sau đó tạo hồ sơ
+            Nhân viên dùng tên đăng nhập và mật khẩu khởi tạo để đăng nhập. Sau đó tạo hồ sơ
             nhân viên.
           </DialogDescription>
         </DialogHeader>
         {issued ? (
           <div className="grid gap-2 text-sm">
             <p>
-              Đã cấp tài khoản cho {issued.fullName} ({ROLE_LABELS[issued.role]}
-              ).
+              Đã cấp tài khoản {ROLE_LABELS[issued.role]}.
             </p>
             <p>
-              Email: <strong>{issued.email}</strong>
+              Tên đăng nhập: <strong>{issued.username}</strong>
             </p>
             <p>
               Mật khẩu tạm:{" "}
@@ -105,23 +109,24 @@ export function CreateStaffAccountDialog({
         ) : (
           <form className="grid gap-4" onSubmit={(event) => void submit(event)}>
             <div className="grid gap-1.5">
-              <Label htmlFor="staff-account-name">Họ tên</Label>
+              <Label htmlFor="staff-account-name">Tên đăng nhập</Label>
               <Input
                 id="staff-account-name"
-                value={fullName}
-                maxLength={100}
+                value={username}
+                maxLength={64}
                 required
-                onChange={(event) => setFullName(event.target.value)}
+                onChange={(event) => setUsername(event.target.value)}
               />
             </div>
             <div className="grid gap-1.5">
-              <Label htmlFor="staff-account-email">Email đăng nhập</Label>
+              <Label htmlFor="staff-account-email">Mật khẩu khởi tạo</Label>
               <Input
                 id="staff-account-email"
-                type="email"
-                value={email}
+                type="password"
+                autoComplete="new-password"
+                value={password}
                 required
-                onChange={(event) => setEmail(event.target.value)}
+                onChange={(event) => setPassword(event.target.value)}
               />
             </div>
             <div className="grid gap-1.5">

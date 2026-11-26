@@ -42,6 +42,7 @@ export const doctorLiveApi: DoctorExamApi = {
   getPrescription: prescription.getPrescription,
   savePrescription: prescription.savePrescription,
   listPastVisits: records.listPastVisits,
+  listPastVisitsPage: records.listPastVisitsPage,
   listResultSheets: resultSheets.listResultSheets,
   amendResult: resultSheets.amendResult,
 };

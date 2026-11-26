@@ -1,25 +1,16 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Bell, LogOut, RefreshCw } from "lucide-react";
+import { Bell, LogOut } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { SidebarTrigger } from "@/components/ui/sidebar";
-import { useImaging } from "@/features/imaging/hooks/useImaging";
+import { useUnreadNotificationCount } from "@/features/notifications/hooks/useUnreadNotificationCount";
 import { findActiveImagingItem } from "../imagingNavigation";
 
-export function ImagingHeader({
-  onReset,
-  onExit,
-}: {
-  onReset: () => void;
-  onExit: () => void;
-}) {
+export function ImagingHeader({ onExit }: { onExit: () => void }) {
   const pathname = usePathname();
-  const { state } = useImaging();
-  const unread = state.notifications.filter((n) => !n.read).length;
+  const unread = useUnreadNotificationCount();
   const currentItem = findActiveImagingItem(pathname);
-  const isOrderScreen =
-    pathname === "/imaging/orders" || pathname.startsWith("/imaging/orders/");
   return (
     <header className="flex h-14 shrink-0 items-center gap-3 border-b px-4">
       <SidebarTrigger aria-label="Mở hoặc thu gọn menu" />
@@ -31,21 +22,11 @@ export function ImagingHeader({
         {currentItem?.title ?? "Chẩn đoán hình ảnh"}
       </Link>
       <div className="ml-auto flex items-center gap-2">
-        {!isOrderScreen && (
-          <>
-            <span className="hidden text-xs text-muted-foreground md:block">
-              24/10/2026 · 09:10
-            </span>
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-label="Khôi phục dữ liệu mẫu"
-              onClick={onReset}
-            >
-              <RefreshCw />
-            </Button>
-          </>
-        )}
+        <span className="hidden text-xs text-muted-foreground md:block">
+          {new Intl.DateTimeFormat("vi-VN", { dateStyle: "medium" }).format(
+            new Date(),
+          )}
+        </span>
         <Link
           href="/imaging/notifications"
           className={buttonVariants({ variant: "ghost", size: "icon" })}

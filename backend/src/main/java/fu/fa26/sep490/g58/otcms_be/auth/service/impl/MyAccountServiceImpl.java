@@ -4,6 +4,7 @@ import fu.fa26.sep490.g58.otcms_be.auth.exception.MyAccountOperationException;
 import static fu.fa26.sep490.g58.otcms_be.auth.exception.MyAccountOperationException.Reason.*;
 import fu.fa26.sep490.g58.otcms_be.auth.model.dto.MyAccountDtos.Avatar;
 import fu.fa26.sep490.g58.otcms_be.auth.model.entity.AccountJpaEntity;
+import fu.fa26.sep490.g58.otcms_be.auth.model.entity.enums.AccountType;
 import fu.fa26.sep490.g58.otcms_be.auth.model.entity.enums.AccountStatus;
 import fu.fa26.sep490.g58.otcms_be.auth.repository.*;
 import fu.fa26.sep490.g58.otcms_be.auth.service.*;
@@ -37,6 +38,8 @@ public class MyAccountServiceImpl implements MyAccountService {
     @Override @Transactional
     public MyAccountQueryService.MyAccountView updateDisplayName(AuthenticatedAccount actor, String requested) {
         var account = require(actor, true, true);
+        if (account.getAccountType() == AccountType.DOCTOR)
+            throw new MyAccountOperationException(ACCESS_DENIED);
         String name = requested == null ? "" : requested.trim();
         int length = name.codePointCount(0, name.length());
         if (length < 2 || length > 100) throw new MyAccountOperationException(INVALID_INPUT);

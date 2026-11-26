@@ -21,6 +21,7 @@ import fu.fa26.sep490.g58.otcms_be.servicecatalog.model.*;
 import fu.fa26.sep490.g58.otcms_be.staff.service.*;
 import fu.fa26.sep490.g58.otcms_be.staff.service.impl.StaffRoomAssignmentQueryServiceImpl;
 import fu.fa26.sep490.g58.otcms_be.staff.repository.StaffRoomAssignmentRepository;
+import fu.fa26.sep490.g58.otcms_be.staff.repository.DoctorWorkShiftRepository;
 import fu.fa26.sep490.g58.otcms_be.staff.integration.diagnostic.StaffDiagnosticRoomStatusAdapter;
 import fu.fa26.sep490.g58.otcms_be.visit.repository.VisitRoomJpaRepository;
 import fu.fa26.sep490.g58.otcms_be.visit.service.impl.ImagingRoomQueueServiceImpl;
@@ -47,7 +48,7 @@ class DiagnosticPaidRegistrationTest {
     final GetClinicServiceCatalogService services = mock(GetClinicServiceCatalogService.class);
     final Clock clock = Clock.fixed(Instant.parse("2026-11-07T03:00:00Z"), ZoneOffset.UTC);
     final StaffRoomAssignmentQueryService staff = new StaffRoomAssignmentQueryServiceImpl(directory, shifts,
-            mock(fu.fa26.sep490.g58.otcms_be.staff.repository.DoctorWorkShiftRepository.class));
+            mock(DoctorWorkShiftRepository.class));
     final ImagingRoomQueueServiceImpl rooms = new ImagingRoomQueueServiceImpl(roomRows, staff, services, clock);
     final UUID order = UUID.randomUUID(), visit = UUID.randomUUID(), patient = UUID.randomUUID(), doctor = UUID.randomUUID(),
             account = UUID.randomUUID(), serviceId = UUID.randomUUID(), roomId = UUID.randomUUID(), otherRoom = UUID.randomUUID(),

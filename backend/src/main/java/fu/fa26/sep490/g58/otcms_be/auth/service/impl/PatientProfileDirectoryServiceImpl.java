@@ -55,7 +55,9 @@ public class PatientProfileDirectoryServiceImpl implements PatientProfileDirecto
         entity.setNationalId(record.nationalId());
         entity.setIdentityDocumentType(record.identityDocumentType() == null ? null
                 : IdentityDocumentType.valueOf(record.identityDocumentType()));
-        return toRecord(profiles.save(entity));
+        PatientProfileJpaEntity saved = profiles.saveAndFlush(entity);
+        String patientCode = profiles.findPatientCodeById(saved.getId()).orElseThrow();
+        return toRecord(saved, patientCode);
     }
 
     @Override
@@ -74,10 +76,15 @@ public class PatientProfileDirectoryServiceImpl implements PatientProfileDirecto
     }
 
     private ProfileRecord toRecord(PatientProfileJpaEntity entity) {
+        return toRecord(entity, entity.getPatientCode());
+    }
+
+    private ProfileRecord toRecord(PatientProfileJpaEntity entity, String patientCode) {
         return new ProfileRecord(entity.getId(), entity.getAccountId(), entity.getFullName(), entity.getPhoneCanonical(),
                 entity.getPhoneOwnerType() == null ? null : entity.getPhoneOwnerType().name(), entity.getDateOfBirth(), entity.getGender().name(),
                 entity.getAddress(), entity.getNationalId(),
-                entity.getIdentityDocumentType() == null ? null : entity.getIdentityDocumentType().name(), entity.getVersion());
+                entity.getIdentityDocumentType() == null ? null : entity.getIdentityDocumentType().name(),
+                entity.getVersion(), patientCode);
     }
 
     @Override

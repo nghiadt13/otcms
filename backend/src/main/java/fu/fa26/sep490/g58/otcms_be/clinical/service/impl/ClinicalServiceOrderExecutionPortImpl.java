@@ -1,17 +1,22 @@
 package fu.fa26.sep490.g58.otcms_be.clinical.service.impl;
 
-import fu.fa26.sep490.g58.otcms_be.clinical.repository.ClinicalServiceOrderExecutionRepository;
 import fu.fa26.sep490.g58.otcms_be.clinical.model.dto.ClinicalImagingExecutionRow;
+import fu.fa26.sep490.g58.otcms_be.clinical.repository.ClinicalServiceOrderExecutionRepository;
 import fu.fa26.sep490.g58.otcms_be.clinical.service.ClinicalServiceOrderExecutionPort;
-import fu.fa26.sep490.g58.otcms_be.common.idempotency.IdempotencyScope;
-import fu.fa26.sep490.g58.otcms_be.common.idempotency.IdempotencyStore;
+import fu.fa26.sep490.g58.otcms_be.idempotency.model.IdempotencyScope;
+import fu.fa26.sep490.g58.otcms_be.idempotency.model.dto.IdempotencyReplay;
+import fu.fa26.sep490.g58.otcms_be.idempotency.service.IdempotencyService;
 import java.time.Instant;
 import java.util.Collection;
+import java.util.EnumMap;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.function.IntSupplier;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
@@ -20,27 +25,61 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @Transactional(propagation = Propagation.MANDATORY)
 public class ClinicalServiceOrderExecutionPortImpl implements ClinicalServiceOrderExecutionPort {
+    private static final List<IdempotencyScope> REPLAY_SCOPES = List.of(
+            IdempotencyScope.ORDER_REVIEW, IdempotencyScope.ORDER_CANCEL, IdempotencyScope.ORDER_TRANSFER);
     private final ClinicalServiceOrderExecutionRepository repository;
-    private final IdempotencyStore store;
+    private final IdempotencyService store;
 
-    public ClinicalServiceOrderExecutionPortImpl(ClinicalServiceOrderExecutionRepository repository, IdempotencyStore store) {
+    public ClinicalServiceOrderExecutionPortImpl(ClinicalServiceOrderExecutionRepository repository,
+            IdempotencyService store) {
         this.repository = repository;
         this.store = store;
     }
 
-    @Override public Optional<ImagingExecution> find(UUID id) { return repository.find(id).map(this::execution); }
-    @Override public Optional<ImagingExecution> findForUpdate(UUID id) { return repository.findForUpdate(id).map(this::execution); }
-    @Override public Optional<ImagingExecution> findByStudyRef(String ref) { return repository.findByStudyRef(ref).map(this::execution); }
-    @Override public Optional<ImagingExecution> findByFirstUseEventId(UUID eventId) { return repository.findByFirstUseEventId(eventId).map(this::execution); }
-    @Override public List<ImagingExecution> findAllByOrderIds(Collection<UUID> ids) { return repository.findAllByOrderIds(ids).stream().map(this::execution).toList(); }
-    @Override public List<ImagingExecution> findAllByVisit(UUID id) { return repository.findAllByVisit(id).stream().map(this::execution).toList(); }
-    @Override public List<ImagingExecution> findAllByPatient(UUID id) { return repository.findAllByPatient(id).stream().map(this::execution).toList(); }
+    @Override
+    public Optional<ImagingExecution> find(UUID id) {
+        return repository.find(id).map(row -> executions(List.of(row)).get(0));
+    }
+
+    @Override
+    public Optional<ImagingExecution> findForUpdate(UUID id) {
+        return repository.findForUpdate(id).map(row -> executions(List.of(row)).get(0));
+    }
+
+    @Override
+    public Optional<ImagingExecution> findByStudyRef(String ref) {
+        return repository.findByStudyRef(ref).map(row -> executions(List.of(row)).get(0));
+    }
+
+    @Override
+    public Optional<ImagingExecution> findByFirstUseEventId(UUID eventId) {
+        return repository.findByFirstUseEventId(eventId).map(row -> executions(List.of(row)).get(0));
+    }
+
+    @Override
+    public List<ImagingExecution> findAllByOrderIds(Collection<UUID> ids) {
+        return executions(repository.findAllByOrderIds(ids));
+    }
+
+    @Override
+    public List<ImagingExecution> findAllByVisit(UUID id) {
+        return executions(repository.findAllByVisit(id));
+    }
+
+    @Override
+    public List<ImagingExecution> findAllByPatient(UUID id) {
+        return executions(repository.findAllByPatient(id));
+    }
     @Override public Page<ImagingExecution> page(UUID visitId, UUID patientId, UUID doctorId, UUID roomId,
             Collection<ExecutionStatus> statuses, boolean oldestFirst, Pageable pageable) {
-        return repository.page(visitId, patientId, doctorId, roomId,
-                statuses == null ? null : statuses.stream().map(Enum::name).toList(), oldestFirst, pageable).map(this::execution);
+        Page<ClinicalImagingExecutionRow> rows = repository.page(visitId, patientId, doctorId, roomId,
+                statuses == null ? null : statuses.stream().map(Enum::name).toList(), oldestFirst, pageable);
+        return new PageImpl<>(executions(rows.getContent()), rows.getPageable(), rows.getTotalElements());
     }
-    @Override public List<ImagingExecution> findPendingCreatedBefore(Instant before) { return repository.findPendingCreatedBefore(before).stream().map(this::execution).toList(); }
+    @Override
+    public List<ImagingExecution> findPendingCreatedBefore(Instant before) {
+        return executions(repository.findPendingCreatedBefore(before));
+    }
     @Override public int assignImagingRoom(UUID orderId, UUID visitId, UUID patientId, UUID serviceId, UUID roomId,
             String imagingType, UUID doctorId) {
         return repository.assignImagingRoom(orderId, visitId, patientId, serviceId, roomId, imagingType, doctorId);
@@ -53,7 +92,8 @@ public class ClinicalServiceOrderExecutionPortImpl implements ClinicalServiceOrd
         return repository.linkStudy(orderId, version, attemptId, studyRef);
     }
     @Override public int markReviewed(UUID orderId, long version, String key, String fingerprint) {
-        return keyed(IdempotencyScope.ORDER_REVIEW, orderId, key, fingerprint, () -> repository.markReviewed(orderId, version));
+        return keyed(IdempotencyScope.ORDER_REVIEW, orderId, key, fingerprint,
+                () -> repository.markReviewed(orderId, version));
     }
     @Override public int cancel(UUID orderId, long version, String cause, String reason, String key, String fingerprint) {
         return keyed(IdempotencyScope.ORDER_CANCEL, orderId, key, fingerprint,
@@ -77,13 +117,42 @@ public class ClinicalServiceOrderExecutionPortImpl implements ClinicalServiceOrd
         return changed;
     }
 
-    private ImagingExecution execution(ClinicalImagingExecutionRow row) {
+    private List<ImagingExecution> executions(List<ClinicalImagingExecutionRow> rows) {
+        if (rows.isEmpty()) return List.of();
+        List<IdempotencyReplay> replayRecords = Optional.ofNullable(store.findLatest(
+                rows.stream().map(ClinicalImagingExecutionRow::orderId).distinct().toList(), REPLAY_SCOPES))
+                .orElseGet(List::of);
+        Map<IdempotencyScope, Map<UUID, IdempotencyReplay>> replayByScopeAndOwner =
+                new EnumMap<>(IdempotencyScope.class);
+        for (IdempotencyReplay replay : replayRecords) {
+            if (replay.scope() == null || replay.ownerId() == null) continue;
+            replayByScopeAndOwner.computeIfAbsent(replay.scope(), ignored -> new HashMap<>())
+                    .put(replay.ownerId(), replay);
+        }
+        return rows.stream().map(row -> execution(row, replayByScopeAndOwner)).toList();
+    }
+
+    private ImagingExecution execution(ClinicalImagingExecutionRow row,
+            Map<IdempotencyScope, Map<UUID, IdempotencyReplay>> replayRecords) {
+        IdempotencyReplay review = replayRecords.getOrDefault(IdempotencyScope.ORDER_REVIEW, Map.of())
+                .get(row.orderId());
+        IdempotencyReplay cancel = replayRecords.getOrDefault(IdempotencyScope.ORDER_CANCEL, Map.of())
+                .get(row.orderId());
+        IdempotencyReplay transfer = replayRecords.getOrDefault(IdempotencyScope.ORDER_TRANSFER, Map.of())
+                .get(row.orderId());
         return new ImagingExecution(row.orderId(), row.visitId(), row.patientId(), row.orderingDoctorAccountId(),
                 row.serviceId(), row.roomId(), row.imagingType(), row.bodyArea(), row.clinicalReason(),
-                ExecutionStatus.valueOf(row.status()), row.cancellationCause(), row.cancellationReason(), row.attemptId(),
-                row.technicianAccountId(), row.firstUseType(), row.firstUseEventId(), row.firstUseAt(), row.firstUseSourceId(),
-                row.studyRef(), row.reviewIdempotencyKey(), row.reviewFingerprint(), row.cancelIdempotencyKey(),
-                row.cancelFingerprint(), row.transferIdempotencyKey(), row.transferFingerprint(), row.executionVersion(),
+                row.dicomPatientId(), row.dicomPatientIssuer(), row.dicomAccessionNumber(),
+                row.dicomAccessionLocalNamespace(),
+                ExecutionStatus.valueOf(row.status()), row.cancellationCause(), row.cancellationReason(),
+                row.attemptId(), row.technicianAccountId(), row.firstUseType(), row.firstUseEventId(),
+                row.firstUseAt(), row.firstUseSourceId(), row.studyRef(),
+                review == null ? null : review.idempotencyKey(),
+                review == null ? null : review.requestFingerprint(),
+                cancel == null ? null : cancel.idempotencyKey(),
+                cancel == null ? null : cancel.requestFingerprint(),
+                transfer == null ? null : transfer.idempotencyKey(),
+                transfer == null ? null : transfer.requestFingerprint(), row.executionVersion(),
                 row.createdAt(), row.updatedAt());
     }
 }

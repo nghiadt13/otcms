@@ -1,7 +1,11 @@
 import { ApiError } from "@/lib/api/apiError";
 import { apiRequest } from "@/lib/api/client";
 import type { VisitContext } from "../types/doctorExam";
-import type { MedicalHistory, PatientAppointment } from "./doctorExamApi";
+import type {
+  MedicalHistory,
+  PatientAppointment,
+  PatientAppointmentPage,
+} from "./doctorExamApi";
 
 // Phần lịch hẹn và tiền sử của bệnh nhân trong bản live: tiền sử bệnh, lịch của bệnh nhân, đặt tái
 // khám. Danh sách hôm nay, ngữ cảnh lượt và bắt đầu/kết thúc khám nằm ở doctorExamLiveQueue.ts.
@@ -10,6 +14,7 @@ import type { MedicalHistory, PatientAppointment } from "./doctorExamApi";
 export type AppointmentDto = {
   id: string;
   patientProfileId: string;
+  patientCode?: string | null;
   patientName: string | null;
   serviceName: string;
   doctorId: string;
@@ -20,6 +25,8 @@ export type AppointmentDto = {
 export type AppointmentPage = {
   items: AppointmentDto[];
   page?: number;
+  size?: number;
+  totalElements?: number;
   totalPages?: number;
 };
 
@@ -55,18 +62,35 @@ export function saveMedicalHistory(
 
 export async function listPatientAppointments(
   patientProfileId: string,
+  query: { page: number; size: number; date: string; status: string },
   signal?: AbortSignal,
-): Promise<PatientAppointment[]> {
-  const page = await apiRequest<AppointmentPage>(
-    `/api/v1/appointments?patientProfileId=${encodeURIComponent(patientProfileId)}&size=50`,
+): Promise<PatientAppointmentPage> {
+  const params = new URLSearchParams({
+    patientProfileId,
+    page: String(query.page),
+    size: String(query.size),
+  });
+  if (query.date) {
+    params.set("from", query.date);
+    params.set("to", query.date);
+  }
+  if (query.status) params.set("status", query.status);
+  const response = await apiRequest<AppointmentPage>(
+    `/api/v1/appointments?${params.toString()}`,
     { signal },
   );
-  return page.items.map((item) => ({
-    id: item.id,
-    serviceName: item.serviceName,
-    startTime: item.startTime,
-    status: item.status,
-  }));
+  return {
+    items: response.items.map((item) => ({
+      id: item.id,
+      serviceName: item.serviceName,
+      startTime: item.startTime,
+      status: item.status,
+    })),
+    page: response.page ?? query.page,
+    size: response.size ?? query.size,
+    totalElements: response.totalElements ?? response.items.length,
+    totalPages: response.totalPages ?? 1,
+  };
 }
 
 export async function bookFollowUp(

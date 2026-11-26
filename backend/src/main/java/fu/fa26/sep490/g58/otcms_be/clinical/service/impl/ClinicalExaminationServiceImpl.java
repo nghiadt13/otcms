@@ -19,11 +19,14 @@ import java.time.Clock; import java.time.Instant; import java.util.*; import jav
   ClinicalExamFieldRules.validate(c.injuryBodySite(),c.injurySide(),c.injuryMechanism(),c.injuryDescription(),c.treatmentDirections(),completed);
   var site=ClinicalExamFieldRules.trimToNull(c.injuryBodySite()); var side=ClinicalExamFieldRules.trimToNull(c.injurySide()); var mechanism=ClinicalExamFieldRules.trimToNull(c.injuryMechanism());
   Instant now=clock.instant();
-  var e=exams.findByVisitId(c.visitId()).orElseGet(()->ClinicalExaminationJpaEntity.create(c.visitId(),c.reasonForVisit(),c.symptoms(),c.examinationFindings(),site,side,mechanism,status,now));
+  var existing=exams.findByVisitId(c.visitId());
+  if(existing.isPresent()&&existing.get().getStatus()==ClinicalExaminationStatus.COMPLETED)throw new ClinicalOperationException("MSG-42");
+  var e=existing.orElseGet(()->ClinicalExaminationJpaEntity.create(c.visitId(),c.reasonForVisit(),c.symptoms(),c.examinationFindings(),site,side,mechanism,status,now));
   e.update(c.reasonForVisit(),c.symptoms(),c.examinationFindings(),site,side,mechanism,status,now);
   e.setExamFields(ClinicalExamFieldRules.trimToNull(c.injuryDescription()),ClinicalExamFieldRules.normalizeDirections(c.treatmentDirections()));
   e=exams.save(e);
   diagnoses.deleteByExaminationId(e.getId());
+  diagnoses.flush();
   for(var d:ds){if(d==null||d.type()==null||d.code()==null||!Icd10Catalog.contains(d.code()))throw new ClinicalOperationException("MSG-39");diagnoses.save(new ClinicalDiagnosisJpaEntity(e.getId(),d.code().toUpperCase(Locale.ROOT),d.type()));}
   return view(e,ds);
  }

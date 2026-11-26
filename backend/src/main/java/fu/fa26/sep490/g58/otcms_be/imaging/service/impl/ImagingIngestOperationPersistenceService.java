@@ -1,7 +1,7 @@
 package fu.fa26.sep490.g58.otcms_be.imaging.service.impl;
 
-import fu.fa26.sep490.g58.otcms_be.common.idempotency.IdempotencyScope;
-import fu.fa26.sep490.g58.otcms_be.common.idempotency.IdempotencyStore;
+import fu.fa26.sep490.g58.otcms_be.idempotency.model.IdempotencyScope;
+import fu.fa26.sep490.g58.otcms_be.idempotency.service.IdempotencyService;
 import fu.fa26.sep490.g58.otcms_be.imaging.exception.ImagingOperationException;
 import fu.fa26.sep490.g58.otcms_be.imaging.exception.ImagingOperationOutcome;
 import fu.fa26.sep490.g58.otcms_be.imaging.model.ImagingDicomStudyValidation;
@@ -20,9 +20,9 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class ImagingIngestOperationPersistenceService {
     private final ImagingStudyRepository studies;
-    private final IdempotencyStore idempotency;
+    private final IdempotencyService idempotency;
 
-    public ImagingIngestOperationPersistenceService(ImagingStudyRepository studies, IdempotencyStore idempotency) {
+    public ImagingIngestOperationPersistenceService(ImagingStudyRepository studies, IdempotencyService idempotency) {
         this.studies = studies;
         this.idempotency = idempotency;
     }

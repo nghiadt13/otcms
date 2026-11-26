@@ -41,6 +41,7 @@ export function CancelOrderDialog({
   const [reason, setReason] = useState("");
   const { pending, run } = useAsyncAction();
   const empty = !reason.trim();
+  const unpaid = order?.status === "PENDING_PAYMENT";
 
   async function confirm() {
     if (!order || empty) return;
@@ -60,30 +61,35 @@ export function CancelOrderDialog({
         <DialogHeader>
           <DialogTitle>Hủy chỉ định</DialogTitle>
           <DialogDescription>
-            {order?.serviceName}. Vui lòng chọn nguyên nhân và nhập lý do hủy.
+            {unpaid
+              ? `${order?.serviceName}. Chỉ định chưa thanh toán sẽ được hủy và có thể tạo lại.`
+              : `${order?.serviceName}. Vui lòng chọn nguyên nhân và nhập lý do hủy.`}
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
-          <div className="space-y-1.5">
-            <Label htmlFor="cancel-cause">Nguyên nhân</Label>
-            <NativeSelect
-              id="cancel-cause"
-              className="w-full"
-              value={cause}
-              onChange={(e) => setCause(e.target.value as CancelCause)}
-            >
-              {(Object.keys(CAUSES) as CancelCause[]).map((item) => (
-                <NativeSelectOption key={item} value={item}>
-                  {CAUSES[item]}
-                </NativeSelectOption>
-              ))}
-            </NativeSelect>
-          </div>
+          {!unpaid ? (
+            <div className="space-y-1.5">
+              <Label htmlFor="cancel-cause">Nguyên nhân</Label>
+              <NativeSelect
+                id="cancel-cause"
+                className="w-full"
+                value={cause}
+                onChange={(e) => setCause(e.target.value as CancelCause)}
+              >
+                {(Object.keys(CAUSES) as CancelCause[]).map((item) => (
+                  <NativeSelectOption key={item} value={item}>
+                    {CAUSES[item]}
+                  </NativeSelectOption>
+                ))}
+              </NativeSelect>
+            </div>
+          ) : null}
           <div className="space-y-1.5">
             <Label htmlFor="cancel-reason">Lý do hủy</Label>
             <Textarea
               id="cancel-reason"
               rows={3}
+              maxLength={500}
               value={reason}
               onChange={(e) => setReason(e.target.value)}
             />

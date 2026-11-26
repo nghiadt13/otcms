@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Table,
   TableBody,
@@ -12,6 +13,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { formatAppMessage, messageFromError } from "@/lib/messages/appMessages";
+import { notifySuccess } from "@/lib/messages/notify";
 import {
   callNextService,
   getServiceWorklist,
@@ -113,17 +115,22 @@ export function WorklistScreen() {
     };
   }, [roomId, refresh]);
 
-  async function run(action: () => Promise<unknown>, success: string) {
-    if (!roomId) return;
+  async function run(
+    action: () => Promise<unknown>,
+    success: string | null,
+  ): Promise<boolean> {
+    if (!roomId) return false;
     setBusy(true);
     setNotice(null);
     try {
       await action();
-      setNotice(success);
+      if (success) setNotice(success);
       setError(null);
       await refresh(roomId);
+      return true;
     } catch (cause) {
       setError(messageFromError(cause));
+      return false;
     } finally {
       setBusy(false);
     }
@@ -226,7 +233,7 @@ export function WorklistScreen() {
           />
         ) : (
           <div className="im-table-scroll">
-            <Table className="im-table">
+            <Table className="im-table im-worklist-table">
               <TableHeader>
                 <TableRow>
                   <TableHead>Số thứ tự</TableHead>
@@ -244,12 +251,12 @@ export function WorklistScreen() {
                       entry.status === "IN_EXAMINATION" ? "im-row-serving" : ""
                     }
                   >
-                    <TableCell>
+                    <TableCell data-label="Số thứ tự">
                       <strong className="im-number-text">
                         {entry.queueNumber ?? "—"}
                       </strong>
                     </TableCell>
-                    <TableCell>
+                    <TableCell data-label="Bệnh nhân">
                       <div className="im-patient-cell">
                         <PatientAvatar name={entry.patient.fullName ?? "?"} />
                         <div>
@@ -267,7 +274,7 @@ export function WorklistScreen() {
                         </div>
                       </div>
                     </TableCell>
-                    <TableCell>
+                    <TableCell data-label="Chỉ định tại phòng">
                       {entry.orders.map((order) => (
                         <div key={order.orderId}>
                           {order.paid ? (
@@ -301,12 +308,12 @@ export function WorklistScreen() {
                         </div>
                       ))}
                     </TableCell>
-                    <TableCell>
+                    <TableCell data-label="Trạng thái">
                       <Badge tone={statusTones[entry.status]}>
                         {statusLabels[entry.status]}
                       </Badge>
                     </TableCell>
-                    <TableCell>
+                    <TableCell data-label="Thao tác">
                       <div className="im-row-actions">
                         {entry.status === "CALLED" && (
                           <>
@@ -365,7 +372,7 @@ export function WorklistScreen() {
         )}
         {returning && (
           <form
-            className="im-toolbar"
+            className="im-toolbar im-return-toolbar"
             onSubmit={(event) => {
               event.preventDefault();
               const target = returning;
@@ -374,36 +381,50 @@ export function WorklistScreen() {
                   target.mode === "unable"
                     ? reportCannotPerform(target.id, target.reason)
                     : returnServiceEntry(target.id, target.reason),
-                formatAppMessage("MSG-43"),
-              ).then(() => setReturning(null));
+                target.mode === "return" ? null : formatAppMessage("MSG-43"),
+              ).then((succeeded) => {
+                if (!succeeded) return;
+                if (target.mode === "return") {
+                  notifySuccess("Đã đưa bệnh nhân trở lại hàng đợi.");
+                }
+                setReturning(null);
+              });
             }}
           >
-            <label>
+            <label className="flex min-w-64 flex-1 flex-col gap-2 text-sm font-medium">
               {returning.mode === "unable"
                 ? "Lý do không thực hiện được"
                 : "Lý do đưa trở lại hàng"}
-              <input
+              <Input
                 aria-label={
                   returning.mode === "unable"
                     ? "Lý do không thực hiện được"
                     : "Lý do đưa trở lại hàng"
                 }
+                placeholder="Nhập lý do"
                 value={returning.reason}
                 onChange={(event) =>
                   setReturning({ ...returning, reason: event.target.value })
                 }
               />
             </label>
-            <Button type="submit" disabled={busy || !returning.reason.trim()}>
-              Xác nhận
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => setReturning(null)}
-            >
-              Hủy
-            </Button>
+            <div className="im-return-actions">
+              <Button
+                type="submit"
+                size="lg"
+                disabled={busy || !returning.reason.trim()}
+              >
+                Xác nhận
+              </Button>
+              <Button
+                type="button"
+                size="lg"
+                variant="ghost"
+                onClick={() => setReturning(null)}
+              >
+                Hủy
+              </Button>
+            </div>
           </form>
         )}
       </Panel>

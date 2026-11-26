@@ -26,6 +26,12 @@ public interface DoctorWorkShiftRepository extends JpaRepository<DoctorWorkShift
     boolean existsByDoctorProfileIdAndStartsAtLessThanEqualAndEndsAtGreaterThanEqual(
             UUID doctorProfileId, Instant startsAt, Instant endsAt);
 
+    @Query("select case when count(s) > 0 then true else false end from DoctorWorkShiftJpaEntity s "
+            + "where s.roomId=:roomId and s.startsAt < :endsAt and s.endsAt > :startsAt "
+            + "and (:ignoreId is null or s.id <> :ignoreId)")
+    boolean existsRoomOverlap(@Param("roomId") UUID roomId, @Param("startsAt") Instant startsAt,
+            @Param("endsAt") Instant endsAt, @Param("ignoreId") UUID ignoreId);
+
     @Query("select s from DoctorWorkShiftJpaEntity s where s.doctorProfileId = :doctorId "
             + "and s.startsAt < :rangeEnd and s.endsAt > :rangeStart order by s.startsAt, s.id")
     List<DoctorWorkShiftJpaEntity> findInRange(@Param("doctorId") UUID doctorId,

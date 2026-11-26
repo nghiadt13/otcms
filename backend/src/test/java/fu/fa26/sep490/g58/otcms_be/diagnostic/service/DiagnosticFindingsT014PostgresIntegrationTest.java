@@ -76,6 +76,11 @@ class DiagnosticFindingsT014PostgresIntegrationTest {
         ports.addRoom(roomId, "MRI", UUID.randomUUID(), 5);
     }
 
+    @org.junit.jupiter.api.AfterEach
+    protected void cleanPatientFixture() {
+        jdbc.update("delete from patient_profiles where id = ?", patientId);
+    }
+
     @Test
     void correctionCreatesNewImmutableVersionAndOnlyChangesVisibleVersionAfterBothAcks() {
         DiagnosticRequestView request = resultAvailable();
@@ -298,7 +303,7 @@ class DiagnosticFindingsT014PostgresIntegrationTest {
 
     @TestConfiguration(proxyBeanMethods = false)
     static class ReportStorageConfiguration {
-        @Bean ReportStoragePort t014ReportStoragePort() { return new FakeReportStorage(); }
+        @Bean @org.springframework.context.annotation.Primary ReportStoragePort t014ReportStoragePort() { return new FakeReportStorage(); }
     }
 
     static class FakeReportStorage implements ReportStoragePort {

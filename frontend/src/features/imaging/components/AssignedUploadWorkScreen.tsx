@@ -4,7 +4,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { isApiError } from "@/lib/api/apiError";
 import { messageFromError } from "@/lib/messages/appMessages";
+import { notifyWarning } from "@/lib/messages/notify";
 import type { AssignedImagingUploadWork } from "../api/imagingIngestApi";
 import {
   listAssignedImagingUploadWork,
@@ -142,7 +144,16 @@ export function AssignedUploadWorkScreen() {
         `/imaging/orders/${encodeURIComponent(item.requestId)}/upload`,
       );
     } catch (cause) {
-      setError(messageFromError(cause));
+      if (
+        isApiError(cause) &&
+        (cause.code === "MSG-42" || cause.errorCode === "MSG-42")
+      ) {
+        notifyWarning(
+          "Chưa thể bắt đầu chụp. Vui lòng mở Danh sách chờ và nhấn Gọi bệnh nhân tiếp theo trước.",
+        );
+      } else {
+        setError(messageFromError(cause));
+      }
       setStarting(null);
     }
   }

@@ -152,7 +152,7 @@ class MedicalHistoryR3PostgresIntegrationTest {
         clock.now = NOW.plusSeconds(60);
         var change = body(1); change.put("allergies", "Penicillin");
         write(doctor, AccountRole.DOCTOR, own, change).andExpect(status().isOk()).andExpect(jsonPath("$.version").value(2))
-                .andExpect(jsonPath("$.updatedBy").value("Actor " + doctor))
+                .andExpect(jsonPath("$.updatedBy").value("Doctor " + doctor))
                 .andExpect(jsonPath("$.updatedAt").value("2026-11-02T10:05:05+07:00"));
         change.put("version", 2);
         clock.now = NOW.plusSeconds(90);

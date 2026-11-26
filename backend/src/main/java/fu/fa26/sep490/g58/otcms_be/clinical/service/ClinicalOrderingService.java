@@ -7,5 +7,5 @@ public interface ClinicalOrderingService {
  record RoundView(UUID id,UUID visitId,int roundNumber,UUID orderedByDoctorId,Instant orderedAt,List<OrderView> orders) { }
  /** Legacy metadata fields retained for compatibility; real Visit context has no Clinical lifecycle status. */
  record SubmitRoundResult(RoundView round, ClinicalVisitStatus previousVisitStatus, boolean requiresAwaitingConclusionTransition) { }
- SubmitRoundResult submit(SubmitRound command); OrderView getImagingOrder(UUID orderId); void markImagingResultAvailable(UUID orderId); boolean isLatestRoundReadyForReview(UUID visitId); OrderView cancel(UUID orderId,String reason);
+ SubmitRoundResult submit(SubmitRound command); OrderView getImagingOrder(UUID orderId); void markImagingResultAvailable(UUID orderId); boolean isLatestRoundReadyForReview(UUID visitId); OrderView cancel(UUID orderId,String reason); OrderView cancelPendingPayment(UUID orderId, UUID doctorId, String reason);
 }

@@ -120,14 +120,14 @@ class DoctorImagingReviewIntegrationTest {
                 .filter(row -> requestId.equals(row.getRequestId()) && row.getReportVersion() == call.<Integer>getArgument(1)).findFirst());
         when(reports.findFirstByRequestIdOrderByReportVersionDesc(requestId)).thenAnswer(call -> reportRows.values().stream()
                 .filter(row -> requestId.equals(row.getRequestId())).max(Comparator.comparingInt(DiagnosticReportJpaEntity::getReportVersion)));
-        var idempotencyRecords = new HashMap<String, fu.fa26.sep490.g58.otcms_be.common.idempotency.IdempotencyReplay>();
-        var idempotencyStore = bean(fu.fa26.sep490.g58.otcms_be.common.idempotency.IdempotencyStore.class);
+        var idempotencyRecords = new HashMap<String, fu.fa26.sep490.g58.otcms_be.idempotency.model.dto.IdempotencyReplay>();
+        var idempotencyStore = bean(fu.fa26.sep490.g58.otcms_be.idempotency.service.IdempotencyService.class);
         when(idempotencyStore.find(any(), any(), any())).thenAnswer(call -> Optional.ofNullable(
                 idempotencyRecords.get(call.getArgument(0) + "|" + call.getArgument(1) + "|" + call.getArgument(2))));
         when(idempotencyStore.record(any(), any(), any(), any(), any())).thenAnswer(call -> {
             String recordKey = call.getArgument(0) + "|" + call.getArgument(1) + "|" + call.getArgument(2);
             if (idempotencyRecords.containsKey(recordKey)) return false;
-            idempotencyRecords.put(recordKey, new fu.fa26.sep490.g58.otcms_be.common.idempotency.IdempotencyReplay(call.getArgument(3), call.getArgument(4), Instant.EPOCH));
+            idempotencyRecords.put(recordKey, new fu.fa26.sep490.g58.otcms_be.idempotency.model.dto.IdempotencyReplay(call.getArgument(3), call.getArgument(4), Instant.EPOCH));
             return true;
         });
         when(reports.findByReportIdAndRequestId(any(), eq(requestId))).thenAnswer(call -> reportRows.values().stream()

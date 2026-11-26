@@ -10,8 +10,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.when;
 
-import fu.fa26.sep490.g58.otcms_be.common.idempotency.IdempotencyScope;
-import fu.fa26.sep490.g58.otcms_be.common.idempotency.IdempotencyStore;
+import fu.fa26.sep490.g58.otcms_be.idempotency.model.IdempotencyScope;
+import fu.fa26.sep490.g58.otcms_be.idempotency.service.IdempotencyService;
 import fu.fa26.sep490.g58.otcms_be.imaging.exception.ImagingOperationException;
 import fu.fa26.sep490.g58.otcms_be.imaging.exception.ImagingOperationOutcome;
 import fu.fa26.sep490.g58.otcms_be.imaging.model.ImagingOperationRecord;
@@ -35,7 +35,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class ImagingSendServiceTest {
     @Mock ImagingStudyRepository studies;
     @Mock ImagingAuditPersistenceService audit;
-    @Mock IdempotencyStore idempotency;
+    @Mock IdempotencyService idempotency;
 
     @Test
     void sendStoresStableEventAndIdempotencyOnTheStudy() {

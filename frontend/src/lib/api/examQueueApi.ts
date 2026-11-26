@@ -51,6 +51,7 @@ export interface ExamQueueServiceOrder {
 
 /** Trường riêng cho bác sĩ (BE: DoctorItem). Chỉ định chỉ có khi lượt chờ kết luận. */
 export interface DoctorExamQueueExtras {
+  patientCode?: string | null;
   /** Tuổi tính sẵn theo ngày khám; null khi thiếu ngày sinh. */
   age?: number | null;
   serviceOrders?: ExamQueueServiceOrder[];

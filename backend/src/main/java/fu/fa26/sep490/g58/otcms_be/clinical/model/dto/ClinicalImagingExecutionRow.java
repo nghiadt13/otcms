@@ -6,7 +6,8 @@ import java.util.UUID;
 /** Projection returned by the clinical execution persistence query. */
 public record ClinicalImagingExecutionRow(UUID orderId, UUID visitId, UUID patientId, UUID orderingDoctorAccountId,
         UUID serviceId, UUID roomId, String imagingType, String bodyArea, String clinicalReason,
+        String dicomPatientId, String dicomPatientIssuer, String dicomAccessionNumber,
+        String dicomAccessionLocalNamespace,
         String status, String cancellationCause, String cancellationReason, UUID attemptId, UUID technicianAccountId,
         String firstUseType, UUID firstUseEventId, Instant firstUseAt, String firstUseSourceId, String studyRef,
-        String reviewIdempotencyKey, String reviewFingerprint, String cancelIdempotencyKey, String cancelFingerprint,
-        String transferIdempotencyKey, String transferFingerprint, long executionVersion, Instant createdAt, Instant updatedAt) { }
+        long executionVersion, Instant createdAt, Instant updatedAt) { }

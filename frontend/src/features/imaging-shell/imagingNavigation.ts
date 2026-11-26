@@ -3,9 +3,7 @@ import {
   ListOrdered,
   FileText,
   Activity,
-  Layers,
   Hospital,
-  CalendarDays,
   Bell,
   UserRound,
   LockKeyhole,
@@ -38,11 +36,6 @@ export const imagingNavGroups: ImagingNavGroup[] = [
         title: "Trạng thái chỉ định",
         icon: Activity,
       },
-      {
-        href: "/imaging/visits",
-        title: "Tiến trình lượt khám",
-        icon: Layers,
-      },
     ],
   },
   {
@@ -52,11 +45,6 @@ export const imagingNavGroups: ImagingNavGroup[] = [
         href: "/imaging/rooms",
         title: "Phòng dịch vụ",
         icon: Hospital,
-      },
-      {
-        href: "/imaging/schedule",
-        title: "Lịch làm việc",
-        icon: CalendarDays,
       },
       {
         href: "/imaging/notifications",

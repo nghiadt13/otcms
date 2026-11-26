@@ -5,6 +5,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
 import { useAdminRemoteData } from "@/hooks/useAdminRemoteData";
 import { apiRequest } from "@/lib/api/client";
+import { formatVisitDisplayId } from "@/lib/format/visitDisplayId";
 import { messageFromError } from "@/lib/messages/appMessages";
 import {
   DataTable,
@@ -24,6 +25,7 @@ import { VisitResultSheets } from "./VisitResultSheets";
 type Visit = {
   visitId: string;
   patientId: string;
+  patientCode?: string | null;
   patientName: string | null;
   status: string;
   arrivedAt: string;
@@ -81,7 +83,7 @@ export function VisitDetail({
   const v = result.data;
   return (
     <FormModal
-      title={`Tiến trình ${visitId}`}
+      title={`Tiến trình ${formatVisitDisplayId(visitId)}`}
       description="Theo dõi tiến trình lượt khám."
       onClose={onClose}
       wide
@@ -104,13 +106,15 @@ export function VisitDetail({
             </InfoRow>
             <InfoRow label="Tiếp nhận">{timeText(v.arrivedAt)}</InfoRow>
             <InfoRow label="Phòng hiện tại">{v.currentRoom ?? "—"}</InfoRow>
-            <InfoRow label="Số thứ tự">
-              {v.queueNumber ?? "—"}
-              {v.peopleAhead != null
-                ? ` · ${v.peopleAhead} người phía trước`
-                : ""}
-              {v.beingCalled ? " · Đang gọi" : ""}
-            </InfoRow>
+            {v.status === "OPEN" && (
+              <InfoRow label="Số thứ tự">
+                {v.queueNumber ?? "—"}
+                {v.peopleAhead != null
+                  ? ` · ${v.peopleAhead} người phía trước`
+                  : ""}
+                {v.beingCalled ? " · Đang gọi" : ""}
+              </InfoRow>
+            )}
           </dl>
           <section>
             <h2 className="text-lg font-semibold">Chỉ định cận lâm sàng</h2>
@@ -185,14 +189,6 @@ export function VisitScreen() {
           }
         }}
       >
-        <TextField
-          label="Tên, số điện thoại hoặc mã bệnh nhân"
-          value={keyword}
-          onChange={setKeyword}
-        />
-        <Button type="submit" disabled={searching}>
-          Tìm bệnh nhân
-        </Button>
         <SelectField
           label="Trạng thái"
           value={status}
@@ -207,6 +203,14 @@ export function VisitScreen() {
             { value: "INCOMPLETE", label: "Chưa kết luận" },
           ]}
         />
+        <TextField
+          label="Tên, số điện thoại hoặc mã bệnh nhân"
+          value={keyword}
+          onChange={setKeyword}
+        />
+        <Button type="submit" disabled={searching}>
+          Tìm bệnh nhân
+        </Button>
       </form>
       {searchError && <p role="alert">{searchError}</p>}
       {matches.map((patient) => (
@@ -259,11 +263,11 @@ export function VisitScreen() {
             rows={result.data.items.map((v) => ({
               id: v.visitId,
               cells: [
-                v.visitId,
+                formatVisitDisplayId(v.visitId),
                 <PatientName
                   key="p"
                   name={v.patientName ?? "—"}
-                  code={v.patientId}
+                  code={v.patientCode ?? v.patientId}
                 />,
                 timeText(v.arrivedAt),
                 labels[v.status] ?? v.status,

@@ -137,7 +137,7 @@ public class PaymentAttemptJpaEntity {
     public Instant getConfirmedAt() { return confirmedAt; }
     public String getReconciliationReason() { return reconciliationReason; }
 
-    /** The jsonb column provider_payload (V142): PayOS link data; null-valued keys are omitted, as the migration does. */
+    /** The jsonb column provider_payload (V144): PayOS link data; null-valued keys are omitted, as the migration does. */
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record ProviderPayload(String paymentLinkId, String checkoutUrl, String qrCode, String transferBankBin,
             String transferAccountNumber, String transferAccountName, String transferDescription) { }

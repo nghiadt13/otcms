@@ -16,7 +16,7 @@ describe("findActiveNavItem", () => {
   it("khớp cả đường dẫn con của một mục", () => {
     expect(findActiveNavItem("/doctor/today")?.href).toBe("/doctor/today");
     expect(findActiveNavItem("/doctor/imaging/study-1")?.href).toBe(
-      "/doctor/imaging",
+      undefined,
     );
   });
 
@@ -33,7 +33,7 @@ describe("findActiveBreadcrumb", () => {
     });
     expect(findActiveBreadcrumb("/doctor/schedule")).toEqual({
       groupLabel: "Làm việc",
-      itemTitle: "Lịch và phòng",
+      itemTitle: "Lịch làm việc",
     });
   });
 

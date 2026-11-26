@@ -25,6 +25,7 @@ export function InjuryFields({
   errors,
   onSet,
   idPrefix = "",
+  disabled = false,
 }: {
   input: ExaminationInput;
   errors: Partial<Record<ExaminationField, string>>;
@@ -34,6 +35,7 @@ export function InjuryFields({
   ) => void;
   /** Tiền tố id để hai form trên cùng màn hình không trùng id. */
   idPrefix?: string;
+  disabled?: boolean;
 }) {
   const directions = input.treatmentDirections ?? [];
   const toggleDirection = (code: TreatmentDirection, checked: boolean) =>
@@ -50,6 +52,7 @@ export function InjuryFields({
         <AdminFormField id={`${idPrefix}site`} label="Vị trí chấn thương">
           <Input
             id={`${idPrefix}site`}
+            disabled={disabled}
             maxLength={120}
             value={input.injuryBodySite}
             aria-invalid={!!errors.injuryBodySite}
@@ -61,6 +64,7 @@ export function InjuryFields({
           <NativeSelect
             id={`${idPrefix}side`}
             className="w-full"
+            disabled={disabled}
             value={input.injurySide}
             aria-invalid={!!errors.injurySide}
             onChange={(e) => onSet("injurySide", e.target.value)}
@@ -77,6 +81,7 @@ export function InjuryFields({
         <AdminFormField id={`${idPrefix}mechanism`} label="Cơ chế chấn thương">
           <Input
             id={`${idPrefix}mechanism`}
+            disabled={disabled}
             maxLength={1000}
             value={input.injuryMechanism}
             aria-invalid={!!errors.injuryMechanism}
@@ -91,6 +96,7 @@ export function InjuryFields({
       >
         <Textarea
           id={`${idPrefix}injury-description`}
+          disabled={disabled}
           rows={2}
           maxLength={2000}
           value={input.injuryDescription ?? ""}
@@ -99,7 +105,7 @@ export function InjuryFields({
         />
         <FieldError message={errors.injuryDescription} />
       </AdminFormField>
-      <fieldset className="space-y-2">
+      <fieldset disabled={disabled} className="space-y-2">
         <legend className="text-sm font-medium">Hướng điều trị</legend>
         <div className="grid gap-2 sm:grid-cols-2">
           {TREATMENT_DIRECTIONS.map((direction) => (
@@ -108,6 +114,7 @@ export function InjuryFields({
               className="flex items-center gap-2 text-sm"
             >
               <Checkbox
+                disabled={disabled}
                 checked={directions.includes(direction.value)}
                 onCheckedChange={(checked) =>
                   toggleDirection(direction.value, checked === true)

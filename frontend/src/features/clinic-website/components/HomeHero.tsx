@@ -5,6 +5,7 @@ import { publicButtonClass } from "@/components/brand/publicButtonStyles";
 import { publicContainerClass } from "@/components/brand/publicLayout";
 import { PublicBookAppointmentLink } from "@/components/brand/PublicBookAppointmentLink";
 import { cn } from "@/lib/utils";
+import { publicAssetPath } from "@/lib/publicAssetPath";
 
 export function HomeHero() {
   return (
@@ -53,7 +54,7 @@ export function HomeHero() {
           fill
           preload
           sizes="(min-width: 768px) 58vw, 100vw"
-          src="/images/home/hero-knee-consultation.webp"
+          src={publicAssetPath("/images/home/hero-knee-consultation.webp")}
         />
       </div>
       <div

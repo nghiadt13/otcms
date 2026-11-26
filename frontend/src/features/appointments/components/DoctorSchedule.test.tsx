@@ -1,5 +1,4 @@
 import { render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import { expect, it, vi } from "vitest";
 import { DoctorSchedule } from "./DoctorSchedule";
 
@@ -17,25 +16,13 @@ vi.mock("@/lib/api/client", () => ({
               },
             ],
           }
-        : {
-            items: [
-              {
-                id: "appointment",
-                patientName: "Nguyễn An",
-                serviceName: "Khám",
-                startTime: "2026-11-20T02:00:00Z",
-                status: "CONFIRMED",
-              },
-            ],
-            totalPages: 1,
-          },
+        : { items: [] },
     ),
   ),
 }));
 
-it("shows appointments and the doctor's shifts in separate tabs", async () => {
+it("shows the doctor's shifts", async () => {
   render(<DoctorSchedule />);
-  expect(await screen.findByText(/Nguyễn An/)).toBeInTheDocument();
-  await userEvent.click(screen.getByRole("tab", { name: "Ca làm việc" }));
   expect(await screen.findByText(/20\/11\/2026/)).toBeInTheDocument();
+  expect(screen.queryByText(/Nguyễn An/)).not.toBeInTheDocument();
 });

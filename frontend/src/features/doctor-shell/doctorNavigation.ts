@@ -1,9 +1,12 @@
 import {
-  CalendarClock,
+  Bell,
+  CalendarDays,
+  Clock3,
+  DoorOpen,
   LayoutDashboard,
   type LucideIcon,
-  ScanLine,
   Stethoscope,
+  UserRound,
 } from "lucide-react";
 import { DOCTOR_ROUTES } from "@/lib/routes/doctorRoutes";
 
@@ -32,9 +35,8 @@ export type DoctorNavGroup = {
 };
 
 // Nguồn duy nhất cho sidebar, breadcrumb và trang chờ của khu bác sĩ.
-// Chỉ gồm các màn không cần chọn bệnh nhân trước (Report 3, mục 1.4.2.5). Các màn khám là
-// tab của workspace `/doctor/visits/[visitId]` (xem doctorVisitNavigation.ts). Màn liên
-// quan nhau gom vào một mục; mỗi phần bên trong khai báo ở `parts`.
+// Các nhánh từ dashboard bác sĩ trong screen flow. Các màn khám theo một bệnh nhân là
+// tab của workspace `/doctor/visits/[visitId]` (xem doctorVisitNavigation.ts).
 // Thêm màn: thêm một mục ở đây rồi tạo `app/(doctor)/doctor/<đường-dẫn>/page.tsx`.
 export const doctorNavGroups: DoctorNavGroup[] = [
   {
@@ -77,27 +79,16 @@ export const doctorNavGroups: DoctorNavGroup[] = [
         ],
       },
       {
-        title: "Ảnh chẩn đoán",
-        href: DOCTOR_ROUTES.imagingStudies,
-        icon: ScanLine,
-        ucs: "UC49–UC50",
-        description:
-          "Các ca chụp do kỹ thuật viên gửi: xem ảnh DICOM và ghi kết luận hình ảnh.",
+        title: "Lịch sử lịch hẹn",
+        href: DOCTOR_ROUTES.appointmentHistory,
+        icon: CalendarDays,
+        ucs: "UC24",
+        description: "Xem lịch hẹn và trạng thái các lượt hẹn của bạn.",
         parts: [
           {
-            title: "Danh sách ca chụp",
-            description: "Các ca chụp thuộc phạm vi chăm sóc của bác sĩ.",
-            ucs: "UC49",
-          },
-          {
-            title: "Xem ảnh DICOM",
-            description: "Mở ca chụp, chuyển giữa các series.",
-            ucs: "UC49",
-          },
-          {
-            title: "Kết luận hình ảnh",
-            description: "Ghi kết luận cho ca chụp đã xem, có thể lưu nháp.",
-            ucs: "UC50",
+            title: "Lịch sử lịch hẹn và trạng thái",
+            description: "Tra cứu lịch hẹn theo khoảng ngày và trạng thái.",
+            ucs: "UC24",
           },
         ],
       },
@@ -105,25 +96,65 @@ export const doctorNavGroups: DoctorNavGroup[] = [
   },
   {
     label: "Làm việc",
-    standalone: true,
     items: [
       {
-        title: "Lịch và phòng",
+        title: "Lịch làm việc",
         href: DOCTOR_ROUTES.schedule,
-        icon: CalendarClock,
-        ucs: "UC25, UC64",
-        description:
-          "Ca trực của bạn, các giờ còn nhận lịch khám và tình trạng các phòng khám.",
+        icon: Clock3,
+        ucs: "UC25",
+        description: "Xem các ca làm việc của bạn.",
         parts: [
           {
             title: "Lịch làm việc",
-            description: "Ca trực của bạn và các giờ còn nhận lịch khám.",
+            description: "Ca trực của bạn theo khoảng ngày.",
             ucs: "UC25",
           },
+        ],
+      },
+      {
+        title: "Danh sách phòng",
+        href: DOCTOR_ROUTES.rooms,
+        icon: DoorOpen,
+        ucs: "UC64",
+        description: "Tra cứu phòng khám và tình trạng hoạt động.",
+        parts: [
           {
             title: "Danh sách phòng",
             description: "Các phòng khám và tình trạng sử dụng (chỉ xem).",
             ucs: "UC64",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    label: "Tài khoản",
+    items: [
+      {
+        title: "Thông báo",
+        href: DOCTOR_ROUTES.notifications,
+        icon: Bell,
+        description: "Xem thông báo và mở chi tiết thông báo.",
+        parts: [
+          {
+            title: "Danh sách thông báo",
+            description: "Các thông báo dành cho bạn.",
+          },
+          {
+            title: "Chi tiết thông báo",
+            description: "Mở nội dung đầy đủ của một thông báo.",
+          },
+        ],
+      },
+      {
+        title: "Quản lý tài khoản",
+        href: DOCTOR_ROUTES.account,
+        icon: UserRound,
+        description: "Xem và cập nhật hồ sơ tài khoản cá nhân.",
+        parts: [
+          {
+            title: "Hồ sơ tài khoản",
+            description: "Thông tin hồ sơ và cài đặt tài khoản.",
           },
         ],
       },

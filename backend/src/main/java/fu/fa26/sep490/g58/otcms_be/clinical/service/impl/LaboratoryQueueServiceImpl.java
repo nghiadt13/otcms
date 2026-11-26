@@ -42,9 +42,8 @@ public class LaboratoryQueueServiceImpl implements LaboratoryQueueService {
         var now = clock.instant();
         var zone = ZoneId.of("Asia/Ho_Chi_Minh");
         var day = LocalDate.ofInstant(now, zone);
-        boolean activeShift = assignments.hasActiveLabShift(actor.accountId(), now);
         var rows = orders.findLaboratoryAssignments(day.atStartOfDay(zone).toInstant(), day.plusDays(1).atStartOfDay(zone).toInstant())
-                .stream().filter(row -> row.getRoomId() == null ? activeShift : assignments.isLabTechnicianAssigned(actor.accountId(), row.getRoomId(), now))
+                .stream().filter(row -> assignments.isLabTechnicianAssigned(actor.accountId(), row.getRoomId(), now))
                 .collect(Collectors.toMap(ServiceOrderRepository.LaboratoryQueueRow::getOrderId, row -> row));
         if (rows.isEmpty()) return List.of();
         var found = orders.findAllById(rows.keySet());
@@ -60,5 +59,29 @@ public class LaboratoryQueueServiceImpl implements LaboratoryQueueService {
                 .sorted(Comparator.comparingInt((Item item) -> item.orderStatus().equals("RESULTS_AVAILABLE") ? 2 : item.paymentStatus().equals("PAID") ? 0 : 1)
                         .thenComparing(Item::paidAt, Comparator.nullsLast(Comparator.naturalOrder()))
                         .thenComparing(Item::orderedAt).thenComparing(Item::code)).toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<Item> history(AuthenticatedAccount actor) {
+        if (actor == null || actor.accountId() == null || actor.accountRole() != AccountRole.LAB_TECHNICIAN)
+            throw new ClinicalOperationException("MSG-40");
+        var now = clock.instant();
+        var rows = orders.findCompletedLaboratoryAssignments().stream()
+                .filter(row -> assignments.isLabTechnicianAssigned(actor.accountId(), row.getRoomId(), now))
+                .collect(Collectors.toMap(ServiceOrderRepository.LaboratoryQueueRow::getOrderId, row -> row));
+        if (rows.isEmpty()) return List.of();
+        var found = orders.findAllById(rows.keySet());
+        var names = patients.findClinicalIdentities(found.stream().map(o -> o.getPatientId()).distinct().toList());
+        var paid = payments.confirmedPaymentTimes(found.stream().map(o -> o.getOrderingRoundId()).distinct().toList());
+        var orderedAt = rounds.findAllById(found.stream().map(o -> o.getOrderingRoundId()).distinct().toList()).stream()
+                .collect(Collectors.toMap(ClinicalOrderingRoundJpaEntity::getId, ClinicalOrderingRoundJpaEntity::getOrderedAt));
+        return found.stream().map(o -> new Item(o.getId(), o.getOrderCode(),
+                names.containsKey(o.getPatientId()) ? names.get(o.getPatientId()).fullName() : null,
+                names.containsKey(o.getPatientId()) ? names.get(o.getPatientId()).dateOfBirth() : null,
+                o.getServiceNameSnapshot(), o.getClinicalReason(), o.getPaymentStatus().name(), o.getOrderStatus().name(),
+                rows.get(o.getId()).getLabStatus(), orderedAt.get(o.getOrderingRoundId()), paid.get(o.getOrderingRoundId())))
+                .sorted(Comparator.comparing(Item::orderedAt, Comparator.nullsLast(Comparator.reverseOrder()))
+                        .thenComparing(Item::code)).toList();
     }
 }

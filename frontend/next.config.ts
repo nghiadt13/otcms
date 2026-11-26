@@ -5,6 +5,10 @@ import { fileURLToPath } from "node:url";
 const nextConfig: NextConfig = {
   // Required by the local imaging viewer when Next is served under /otcms.
   basePath: process.env.NEXT_BASE_PATH || "",
+  // Public images are referenced from React components and need the same prefix as routes.
+  env: {
+    NEXT_BASE_PATH: process.env.NEXT_BASE_PATH || "",
+  },
   // Cho phép mở dev server qua Cloudflare quick tunnel (test trên điện thoại); nếu không,
   // Next chặn tài nguyên dev từ origin lạ và trang không hydrate được.
   allowedDevOrigins: ["*.trycloudflare.com"],

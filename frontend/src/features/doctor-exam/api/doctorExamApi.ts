@@ -12,14 +12,13 @@ import type {
   OrderDraftItem,
   ParaclinicalOrder,
   PastVisit,
+  PastVisitPage,
   Prescription,
   ResultSheet,
   AmendChanges,
   TodayPatient,
   VisitContext,
 } from "../types/doctorExam";
-import { doctorDemoApi } from "./doctorExamDemoApi";
-import { isDoctorDemoMode } from "./doctorDemoMode";
 import { doctorLiveApi } from "./doctorExamLiveApi";
 
 /** Tiền sử bệnh của bệnh nhân (UC12): 5 ô văn bản và phiên bản để chống ghi đè. */
@@ -38,6 +37,14 @@ export type PatientAppointment = {
   serviceName: string;
   startTime: string;
   status: string;
+};
+
+export type PatientAppointmentPage = {
+  items: PatientAppointment[];
+  page: number;
+  size: number;
+  totalElements: number;
+  totalPages: number;
 };
 
 export type FollowUpInput = {
@@ -125,12 +132,18 @@ export interface DoctorExamApi {
   ): Promise<MedicalHistory>;
   listPatientAppointments(
     patientProfileId: string,
+    query: { page: number; size: number; date: string; status: string },
     signal?: AbortSignal,
-  ): Promise<PatientAppointment[]>;
+  ): Promise<PatientAppointmentPage>;
   listPastVisits(
     currentVisitId: string,
     signal?: AbortSignal,
   ): Promise<PastVisit[]>;
+  listPastVisitsPage(
+    currentVisitId: string,
+    query: { page: number; size: number; date: string },
+    signal?: AbortSignal,
+  ): Promise<PastVisitPage>;
   listResultSheets(
     visitId: string,
     signal?: AbortSignal,
@@ -142,7 +155,7 @@ export interface DoctorExamApi {
   ): Promise<ResultSheet[]>;
 }
 
-/** Chọn bản theo từng lần gọi để công tắc demo có hiệu lực ngay, không cần tải lại module. */
+/** Runtime bác sĩ luôn truy cập backend thật. */
 export function getDoctorExamApi(): DoctorExamApi {
-  return isDoctorDemoMode() ? doctorDemoApi : doctorLiveApi;
+  return doctorLiveApi;
 }

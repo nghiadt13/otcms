@@ -16,8 +16,8 @@ import fu.fa26.sep490.g58.otcms_be.clinical.security.ClinicalDoctorIdentityResol
 import fu.fa26.sep490.g58.otcms_be.clinical.service.*;
 import fu.fa26.sep490.g58.otcms_be.clinical.service.ClinicalImagingRequestService.*;
 import fu.fa26.sep490.g58.otcms_be.clinical.service.impl.*;
-import fu.fa26.sep490.g58.otcms_be.common.idempotency.IdempotencyReplay;
-import fu.fa26.sep490.g58.otcms_be.common.idempotency.IdempotencyStore;
+import fu.fa26.sep490.g58.otcms_be.idempotency.model.dto.IdempotencyReplay;
+import fu.fa26.sep490.g58.otcms_be.idempotency.service.IdempotencyService;
 import fu.fa26.sep490.g58.otcms_be.common.security.AccountRole;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.controller.*;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.integration.*;
@@ -97,7 +97,7 @@ class DoctorCoreProductionWiringTest {
         when(rounds.findTopByVisitIdOrderByRoundNumberDesc(any())).thenAnswer(call -> roundRows.values().stream()
                 .filter(round -> round.getVisitId().equals(call.getArgument(0)))
                 .max(Comparator.comparingInt(ClinicalOrderingRoundJpaEntity::getRoundNumber)));
-        var store = bean(IdempotencyStore.class);
+        var store = bean(IdempotencyService.class);
         when(store.find(any(), any(), any())).thenAnswer(call -> Optional.ofNullable(
                 records.get(recordKey(call.getArgument(0), call.getArgument(1), call.getArgument(2)))));
         when(store.record(any(), any(), any(), any(), any())).thenAnswer(call -> {
@@ -402,7 +402,7 @@ class DoctorCoreProductionWiringTest {
                         DiagnosticReportJpaRepository.class,
                         fu.fa26.sep490.g58.otcms_be.clinical.service.ClinicalServiceOrderExecutionPort.class,
                         fu.fa26.sep490.g58.otcms_be.common.audit.AuditLogWriter.class,
-                        IdempotencyStore.class};
+                        IdempotencyService.class};
                 for (Class<?> repository : repositories) factory.registerSingleton(repository.getSimpleName(), mock(repository));
             };
         }

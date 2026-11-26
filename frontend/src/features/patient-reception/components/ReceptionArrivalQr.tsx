@@ -47,7 +47,7 @@ export function ReceptionArrivalQr({ onClose }: { onClose: () => void }) {
 
   return (
     <FormModal
-      title="Mã QR check-in tại quầy"
+      title="Check-in"
       description="Mời bệnh nhân đăng nhập, mở lịch hẹn và quét mã này để xác nhận đã đến. Mã tự làm mới định kỳ."
       onClose={onClose}
     >

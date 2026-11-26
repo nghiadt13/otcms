@@ -12,6 +12,9 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 public interface PatientProfileRepository extends JpaRepository<PatientProfileJpaEntity, UUID> {
+    @Query("select profile.patientCode from PatientProfileJpaEntity profile where profile.id = :id")
+    Optional<String> findPatientCodeById(@Param("id") UUID id);
+
     List<PatientProfileJpaEntity> findByPhoneCanonicalAndDateOfBirth(String phoneCanonical, LocalDate dateOfBirth,
             Pageable pageable);
 

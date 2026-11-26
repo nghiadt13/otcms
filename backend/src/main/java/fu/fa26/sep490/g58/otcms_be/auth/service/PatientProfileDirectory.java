@@ -27,6 +27,7 @@ import java.util.Optional;
     private final UUID id;
     private final UUID accountId;
     private final String fullName;
+    private final String patientCode;
     private final String phoneCanonical;
     private final String phoneOwnerType;
     private final LocalDate dateOfBirth;
@@ -40,9 +41,16 @@ import java.util.Optional;
     }
     public ProfileRecord(UUID id, UUID accountId, String fullName, String phoneCanonical, String phoneOwnerType,
             LocalDate dateOfBirth, String gender, String address, String nationalId, String identityDocumentType, long version) {
+        this(id, accountId, fullName, phoneCanonical, phoneOwnerType, dateOfBirth, gender,
+                address, nationalId, identityDocumentType, version, null);
+    }
+    public ProfileRecord(UUID id, UUID accountId, String fullName, String phoneCanonical, String phoneOwnerType,
+            LocalDate dateOfBirth, String gender, String address, String nationalId, String identityDocumentType,
+            long version, String patientCode) {
         this.id = id;
         this.accountId = accountId;
         this.fullName = fullName;
+        this.patientCode = patientCode;
         this.phoneCanonical = phoneCanonical;
         this.phoneOwnerType = phoneOwnerType;
         this.dateOfBirth = dateOfBirth;
@@ -58,6 +66,7 @@ import java.util.Optional;
     public UUID accountId() { return accountId; }
     public String getFullName() { return fullName; }
     public String fullName() { return fullName; }
+    public String patientCode() { return patientCode; }
     public String getPhoneCanonical() { return phoneCanonical; }
     public String phoneCanonical() { return phoneCanonical; }
     public String getPhoneOwnerType() { return phoneOwnerType; }

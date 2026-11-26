@@ -1,6 +1,7 @@
 import { Activity, CalendarCheck, FileText } from "lucide-react";
 import Image from "next/image";
 import { OtcmsLogo } from "@/components/brand/OtcmsLogo";
+import { publicAssetPath } from "@/lib/publicAssetPath";
 
 // Ba lợi ích cho bệnh nhân, bám đúng phạm vi UC (đặt lịch, theo dõi lượt khám,
 // xem kết quả đã được phòng khám phát hành). Không phải trình tự nên không đánh số.
@@ -40,7 +41,7 @@ export function AuthBrandPanel() {
             className="object-cover"
             fill
             sizes="440px"
-            src="/images/home/clinic-consultation.jpg"
+            src={publicAssetPath("/images/home/clinic-consultation.jpg")}
           />
         </div>
 

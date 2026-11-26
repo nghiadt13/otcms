@@ -41,6 +41,18 @@ let history: MedicalHistory = { ...DEMO_HISTORY };
 const wait = (signal?: AbortSignal) =>
   mockDelay(process.env.NODE_ENV === "test" ? 0 : 250, signal);
 
+function vietnamDateKey(value: string): string {
+  const parts = new Intl.DateTimeFormat("en", {
+    timeZone: "Asia/Ho_Chi_Minh",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date(value));
+  const part = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((item) => item.type === type)?.value ?? "";
+  return `${part("year")}-${part("month")}-${part("day")}`;
+}
+
 const visitOf = (id: string): DemoVisit =>
   visits[id] ?? mockFail(404, "MSG-41");
 
@@ -234,6 +246,21 @@ export const doctorDemoApi: DoctorExamApi = {
     if (patientConsentConfirmed !== true) mockFail(400, "MSG-39");
     await wait();
     const visit = visitOf(visitId);
+    const activeServiceIds = new Set(
+      visit.orders
+        .filter((order) => order.status !== "CANCELLED")
+        .map((order) => order.serviceId),
+    );
+    const requestedServiceIds = new Set<string>();
+    for (const item of items) {
+      if (
+        activeServiceIds.has(item.serviceId) ||
+        requestedServiceIds.has(item.serviceId)
+      ) {
+        mockFail(409, "MSG-42");
+      }
+      requestedServiceIds.add(item.serviceId);
+    }
     const round = Math.max(0, ...visit.orders.map((o) => o.round ?? 0)) + 1;
     const created = items.map((item, index): DemoOrder => {
       const service =
@@ -243,6 +270,7 @@ export const doctorDemoApi: DoctorExamApi = {
         code: `CD-${String(Date.now()).slice(-5)}${index}`,
         round,
         kind: service.kind === "LABORATORY" ? "LABORATORY" : "IMAGING",
+        serviceId: service.id,
         serviceName: service.name,
         bodyArea: item.bodyArea,
         clinicalReason: item.clinicalReason,
@@ -347,10 +375,10 @@ export const doctorDemoApi: DoctorExamApi = {
     history = { ...value, version: value.version + 1 };
     return { ...history };
   },
-  async listPatientAppointments(_id, signal) {
+  async listPatientAppointments(_id, query, signal) {
     await wait(signal);
     void _id;
-    return [
+    const all = [
       {
         id: "a1",
         serviceName: "Khám cơ xương khớp",
@@ -364,11 +392,38 @@ export const doctorDemoApi: DoctorExamApi = {
         status: "CONFIRMED",
       },
     ];
+    const filtered = all.filter((appointment) =>
+      (!query.status || appointment.status === query.status) &&
+      (!query.date || appointment.startTime.slice(0, 10) === query.date),
+    );
+    const start = query.page * query.size;
+    return {
+      items: filtered.slice(start, start + query.size),
+      page: query.page,
+      size: query.size,
+      totalElements: filtered.length,
+      totalPages: Math.ceil(filtered.length / query.size),
+    };
   },
   async listPastVisits(currentVisitId, signal) {
     await wait(signal);
     visitOf(currentVisitId);
     return clone(DEMO_PAST_VISITS);
+  },
+  async listPastVisitsPage(currentVisitId, query, signal) {
+    await wait(signal);
+    visitOf(currentVisitId);
+    const filtered = DEMO_PAST_VISITS.filter((item) => {
+      const visitDate = vietnamDateKey(item.visitDate);
+      return !query.date || visitDate === query.date;
+    });
+    const start = query.page * query.size;
+    return {
+      items: clone(filtered.slice(start, start + query.size)),
+      page: query.page,
+      size: query.size,
+      total: filtered.length,
+    };
   },
   async listResultSheets(visitId, signal) {
     await wait(signal);

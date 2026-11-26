@@ -121,6 +121,16 @@ class PatientProfileT007PostgresIntegrationTest {
                 Integer.class, "+84912345678", first.id(), second.id(), guest.id()));
         assertNull(service.detail(actor, guest.id()).nationalId());
     }
+
+    @Test void patientCodeSequenceExpandsPastSixDigitsWithoutTruncation() {
+        jdbc.queryForObject("select setval('patient_profile_code_seq', 999999, true)", Long.class);
+        UUID id = UUID.randomUUID();
+        jdbc.update("insert into patient_profiles(id, full_name, phone_canonical, phone_owner_type, date_of_birth, gender) "
+                + "values (?, ?, ?, 'PATIENT', ?, 'OTHER')", id, "Sequence Patient", "+84912345679", dob);
+
+        assertEquals("BN-1000000", jdbc.queryForObject(
+                "select patient_code from patient_profiles where id = ?", String.class, id));
+    }
     @Test @Transactional(propagation = Propagation.NOT_SUPPORTED)
     void concurrentManagedTransactionsAllowOnlyOneWinner() throws Exception {
         UUID id = UUID.randomUUID(); profile(id, null, "Original", "+84912345678");

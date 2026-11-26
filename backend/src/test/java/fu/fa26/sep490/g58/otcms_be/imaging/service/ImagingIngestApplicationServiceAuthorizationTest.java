@@ -31,7 +31,7 @@ class ImagingIngestApplicationServiceAuthorizationTest {
     @Mock ImagingIngestOperationPersistenceService operations;
 
     @Test
-    void statusRechecksCurrentOwnerForThePersistedRequestAndAttempt() {
+    void statusRechecksCurrentOwnerReadAccessForThePersistedRequest() {
         ImagingOperationRecord operation = operation(ImagingOperationState.PROCESSING);
         when(operations.findById(operation.id())).thenReturn(Optional.of(operation));
         ImagingIngestApplicationService service = service();
@@ -40,8 +40,7 @@ class ImagingIngestApplicationServiceAuthorizationTest {
 
         assertEquals(operation.id(), status.operationId());
         assertEquals(operation.state(), status.state());
-        verify(workAuthorization).requireAssignedWork(operation.actorAccountId(),
-                operation.requestId(), operation.attemptId());
+        verify(workAuthorization).requireStatusRead(operation.actorAccountId(), operation.requestId());
     }
 
     @Test
@@ -75,9 +74,8 @@ class ImagingIngestApplicationServiceAuthorizationTest {
     void deniedCurrentAssignmentBlocksStatusDisclosure() {
         ImagingOperationRecord operation = operation(ImagingOperationState.PROCESSING);
         when(operations.findById(operation.id())).thenReturn(Optional.of(operation));
-        when(workAuthorization.requireAssignedWork(operation.actorAccountId(),
-                operation.requestId(), operation.attemptId()))
-                .thenThrow(new ImagingOperationException(ImagingOperationOutcome.UNAUTHORIZED_RECORD));
+        doThrow(new ImagingOperationException(ImagingOperationOutcome.UNAUTHORIZED_RECORD))
+                .when(workAuthorization).requireStatusRead(operation.actorAccountId(), operation.requestId());
         ImagingIngestApplicationService service = service();
 
         ImagingOperationException denied = assertThrows(ImagingOperationException.class,

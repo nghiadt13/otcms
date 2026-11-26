@@ -140,6 +140,7 @@ function clinicalOrder(
     code: order.orderCode,
     round: order.roundNumber ?? round ?? null,
     kind: order.serviceType === "LABORATORY" ? "LABORATORY" : "IMAGING",
+    serviceId: order.serviceId,
     serviceName: order.serviceName,
     bodyArea: order.bodyArea ?? "",
     clinicalReason: order.clinicalReason,
@@ -157,7 +158,9 @@ function clinicalOrder(
         : order.paymentStatus !== "PAID"
           ? "Chờ thanh toán tại lễ tân"
           : (mapped?.note ?? "Đã thanh toán, chờ lễ tân gửi KTV"),
-    cancellable: request?.status === "PENDING",
+    cancellable:
+      order.orderStatus !== "CANCELLED" &&
+      (order.paymentStatus === "PENDING_PAYMENT" || request?.status === "PENDING"),
     imaging: request
       ? {
           requestId: request.requestId,
@@ -277,7 +280,15 @@ export async function cancelOrder(
   cause: CancelCause,
   reason: string,
 ): Promise<void> {
-  if (!order.imaging) throw new ApiError(409, { code: "MSG-42" });
+  if (!order.imaging) {
+    if (order.status !== "PENDING_PAYMENT")
+      throw new ApiError(409, { code: "MSG-42" });
+    await apiRequest<unknown>(
+      `/api/v1/clinical-service-orders/${encodeURIComponent(order.id)}/cancellations`,
+      { method: "POST", body: JSON.stringify({ reason }) },
+    );
+    return;
+  }
   const { requestId } = order.imaging;
   await apiRequest<unknown>(
     `/api/v1/imaging-requests/${encodeURIComponent(requestId)}/cancellations`,

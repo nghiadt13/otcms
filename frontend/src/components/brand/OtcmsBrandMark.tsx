@@ -1,7 +1,8 @@
 import Image from "next/image";
+import { publicAssetPath } from "@/lib/publicAssetPath";
 import { cn } from "@/lib/utils";
 
-const BRAND_MARK_SRC = "/images/brand/otcms-emblem-mark.png";
+const BRAND_MARK_SRC = publicAssetPath("/images/brand/otcms-emblem-mark.png");
 
 /**
  * Biểu tượng phòng khám (phần tròn bên trong huy hiệu: chữ thập + khớp gối), dùng chung cho logo

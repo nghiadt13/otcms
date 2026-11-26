@@ -22,6 +22,7 @@ it("requires confirmation, sends consent and tells the patient to pay at Recepti
       onOpenChange={vi.fn()}
       visitId="v"
       laboratoryEnabled={false}
+      existingOrders={[]}
       onSubmitted={vi.fn()}
       catalog={[
         {

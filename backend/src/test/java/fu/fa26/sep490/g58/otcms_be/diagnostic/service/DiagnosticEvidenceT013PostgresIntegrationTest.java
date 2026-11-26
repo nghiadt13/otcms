@@ -68,6 +68,7 @@ class DiagnosticEvidenceT013PostgresIntegrationTest {
     void cleanRows() {
         jdbc.update("delete from service_orders where visit_id = ?", visitId);
         jdbc.update("delete from service_order_rounds where visit_id = ?", visitId);
+        jdbc.update("delete from patient_profiles where id = ?", patientId);
     }
 
     @Test

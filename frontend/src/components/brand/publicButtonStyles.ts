@@ -2,10 +2,11 @@ import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 // Nút của khu public dựa trên `buttonVariants` của shadcn (components/ui/button),
-// chỉ phóng to cho người dùng phổ thông, kể cả người lớn tuổi: `md` cao h-12 chữ
-// text-base, `lg` cao h-14 cho hero. Dùng cho <Button className=...> lẫn <Link>
-// dạng nút. Mỗi màn chỉ một nút `primary`; thao tác khác dùng `secondary`.
+// hỗ trợ nút gọn `sm`, nút thường `md` và nút hero `lg`. Dùng cho <Button
+// className=...> lẫn <Link> dạng nút. Mỗi màn chỉ một nút `primary`; thao tác
+// khác dùng `secondary`.
 const sizes = {
+  sm: "h-9 gap-2 px-3 text-sm",
   md: "h-12 gap-2 px-5 text-base",
   lg: "h-14 gap-2 px-7 text-lg",
 };

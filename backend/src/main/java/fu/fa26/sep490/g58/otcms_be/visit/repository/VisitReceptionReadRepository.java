@@ -64,7 +64,10 @@ public class VisitReceptionReadRepository {
                 select v.id, v.patient_profile_id, v.source, v.status, v.arrived_at,
                        coalesce(c.step_code, v.status) as current_stage,
                        q.id as queue_entry_id, q.status as queue_status,
-                       r.room_code
+                       r.room_code,
+                       exam.queue_number as exam_queue_number,
+                       exam.status as exam_queue_status,
+                       exam_room.room_code as exam_room_code
                 from visits v
                 left join lateral (
                     select step_code from visit_assignments
@@ -72,6 +75,8 @@ public class VisitReceptionReadRepository {
                     order by starts_at desc, id desc limit 1
                 ) c on true
                 left join queue_entries q on q.visit_id = v.id and q.stage = 'RECEPTION' and q.status = 'WAITING'
+                left join queue_entries exam on exam.visit_id = v.id and exam.stage = 'EXAM'
+                left join rooms exam_room on exam_room.id = exam.room_id
                 left join lateral (
                     select room.room_code from room_reservations reservation
                     join rooms room on room.id = reservation.room_id
@@ -113,7 +118,7 @@ public class VisitReceptionReadRepository {
                        and cast(ahead.entered_at at time zone :zone as date) = cast(q.entered_at at time zone :zone as date)
                        and (ahead.sort_order, ahead.entered_at, ahead.id) < (q.sort_order, q.entered_at, q.id))
                 from queue_entries q left join rooms r on r.id = q.room_id
-                where q.visit_id = :visitId and q.stage in ('EXAM', 'SERVICE')
+                where q.visit_id = :visitId and q.stage in ('EXAM', 'SERVICE', 'RESULT_REVIEW')
                   and q.status in ('WAITING', 'CALLED', 'IN_EXAMINATION')
                 order by q.entered_at desc, q.id desc limit 1
                 """).setParameter("visitId", visitId).setParameter("zone", zone).getResultList();

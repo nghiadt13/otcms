@@ -8,6 +8,11 @@ import java.util.UUID;
 public interface ImagingWorkAuthorizationPort {
     ImagingAssignedWork requireAssignedImagingWork(UUID actorAccountId, UUID requestId, UUID attemptId);
 
+    default ImagingAssignedWork requireAssignedImagingWork(UUID actorAccountId, UUID requestId) {
+        throw new fu.fa26.sep490.g58.otcms_be.imaging.exception.ImagingOperationException(
+                fu.fa26.sep490.g58.otcms_be.imaging.exception.ImagingOperationOutcome.UNAUTHORIZED_RECORD);
+    }
+
     default void requireStatusRead(UUID actorAccountId, UUID requestId) {
         throw new fu.fa26.sep490.g58.otcms_be.imaging.exception.ImagingOperationException(
                 fu.fa26.sep490.g58.otcms_be.imaging.exception.ImagingOperationOutcome.DEPENDENCY_UNAVAILABLE);

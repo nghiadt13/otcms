@@ -1,5 +1,5 @@
-import { VisitProgressScreen } from "@/features/imaging/components/VisitProgressScreen";
+import { redirect } from "next/navigation";
 
 export default function Page() {
-  return <VisitProgressScreen />;
+  redirect("/imaging/worklist");
 }

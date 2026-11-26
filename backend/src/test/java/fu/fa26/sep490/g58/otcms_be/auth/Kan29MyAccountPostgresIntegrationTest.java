@@ -72,6 +72,10 @@ class Kan29MyAccountPostgresIntegrationTest {
     @ParameterizedTest @EnumSource(AccountType.class)
     void projectionAndPatchForEveryRole(AccountType type) throws Exception {
         UUID id = account(type, false);
+        if (type == AccountType.DOCTOR) {
+            jdbc.update("insert into staff_profiles(id, account_id, display_name, work_contact, is_doctor) "
+                    + "values (?, ?, 'Admin-managed doctor name', '', true)", UUID.randomUUID(), id);
+        }
         String bearer = token(id);
         mvc.perform(get("/api/v1/me").header("Authorization", "Bearer " + bearer))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.id").value(id.toString()))
@@ -85,16 +89,24 @@ class Kan29MyAccountPostgresIntegrationTest {
                 .andExpect(jsonPath("$.username").value("user-" + id))
                 .andExpect(jsonPath("$.mustChangePassword").value(false)).andExpect(jsonPath("$.status").value("ACTIVE"))
                 .andExpect(jsonPath("$.avatarUrl").isEmpty())
-                .andExpect(jsonPath("$.allowedActions").value(org.hamcrest.Matchers.hasItems("updateDisplayName", "updateAvatar", "changePassword")))
+                .andExpect(jsonPath("$.allowedActions").value(org.hamcrest.Matchers.hasItems("updateAvatar", "changePassword")))
+                .andExpect(jsonPath("$.allowedActions").value(type == AccountType.DOCTOR
+                        ? org.hamcrest.Matchers.not(org.hamcrest.Matchers.hasItem("updateDisplayName"))
+                        : org.hamcrest.Matchers.hasItem("updateDisplayName")))
                 .andExpect(jsonPath("$.allowedActions").value(org.hamcrest.Matchers.not(org.hamcrest.Matchers.hasItem("removeAvatar"))))
                 .andExpect(jsonPath("$.passwordHash").doesNotExist()).andExpect(jsonPath("$.failedCredentialCount").doesNotExist())
                 .andExpect(jsonPath("$.lockedUntil").doesNotExist()).andExpect(jsonPath("$.sessionId").doesNotExist());
-        mvc.perform(patch("/api/v1/me").with(csrf()).header("Authorization", "Bearer " + bearer)
-                .contentType("application/json").content("{\"displayName\":\"  Updated name  \"}"))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.displayName").value("Updated name"))
-                .andExpect(jsonPath("$.email").exists()).andExpect(jsonPath("$.status").value("ACTIVE"));
+        var update = mvc.perform(patch("/api/v1/me").with(csrf()).header("Authorization", "Bearer " + bearer)
+                .contentType("application/json").content("{\"displayName\":\"  Updated name  \"}"));
+        if (type == AccountType.DOCTOR) {
+            update.andExpect(status().isForbidden()).andExpect(jsonPath("$.error.code").value("MSG-14"));
+        } else {
+            update.andExpect(status().isOk()).andExpect(jsonPath("$.displayName").value("Updated name"))
+                    .andExpect(jsonPath("$.email").exists()).andExpect(jsonPath("$.status").value("ACTIVE"));
+        }
         mvc.perform(get("/api/v1/me").header("Authorization", "Bearer " + bearer))
-                .andExpect(jsonPath("$.displayName").value("Updated name"));
+                .andExpect(jsonPath("$.displayName").value(
+                        type == AccountType.DOCTOR ? "Admin-managed doctor name" : "Updated name"));
     }
 
     @Test void explicitDisplayNameWinsAndLegacyPatientRouteSurvives() throws Exception {
@@ -147,8 +159,13 @@ class Kan29MyAccountPostgresIntegrationTest {
                 .with(r -> { r.setMethod("PUT"); return r; }).with(csrf()).header("Authorization", "Bearer " + bearer))
                 .andExpect(status().isForbidden());
         jdbc.update("update accounts set must_change_password=false where id=?", id);
-        mvc.perform(get("/api/v1/me").header("Authorization", "Bearer " + bearer))
-                .andExpect(jsonPath("$.allowedActions").value(org.hamcrest.Matchers.hasItem("updateDisplayName")));
+        var profile = mvc.perform(get("/api/v1/me").header("Authorization", "Bearer " + bearer));
+        if (type == AccountType.DOCTOR) {
+            profile.andExpect(jsonPath("$.allowedActions").value(
+                    org.hamcrest.Matchers.not(org.hamcrest.Matchers.hasItem("updateDisplayName"))));
+        } else {
+            profile.andExpect(jsonPath("$.allowedActions").value(org.hamcrest.Matchers.hasItem("updateDisplayName")));
+        }
     }
 
     @ParameterizedTest @ValueSource(strings = {"image/jpeg", "image/png", "image/webp"})

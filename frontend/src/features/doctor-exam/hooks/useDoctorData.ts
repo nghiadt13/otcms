@@ -1,33 +1,21 @@
 "use client";
 
-import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useAdminRemoteData } from "@/hooks/useAdminRemoteData";
 import { getDoctorExamApi, type DoctorExamApi } from "../api/doctorExamApi";
-import { doctorDemoApi } from "../api/doctorExamDemoApi";
 import { doctorLiveApi } from "../api/doctorExamLiveApi";
-import {
-  isDoctorDemoMode,
-  subscribeDoctorDemoMode,
-} from "../api/doctorDemoMode";
 import type { TodayPatient } from "../types/doctorExam";
 
-// Các hook đọc dữ liệu của khu bác sĩ. Mỗi hook chọn bản API (live/demo) ở mỗi lần gọi và
-// trả { data, error, loading, refresh } như useAdminRemoteData (hủy request cũ khi đổi tham số).
+// Các hook của khu bác sĩ đọc dữ liệu từ API thật và trả
+// { data, error, loading, refresh } (hủy request cũ khi đổi tham số).
 
 export function useDoctorDemoMode(): boolean {
-  return useSyncExternalStore(
-    subscribeDoctorDemoMode,
-    isDoctorDemoMode,
-    () => false,
-  );
+  return false;
 }
 
-/**
- * Bản API cho phần render (ví dụ đọc `capabilities`). Lấy chế độ qua useSyncExternalStore để lần
- * render hydrate khớp với server (server không có localStorage nên luôn là live).
- */
+/** API thật dùng trong phần render, ví dụ để đọc `capabilities`. */
 export function useDoctorExamApi(): DoctorExamApi {
-  return useDoctorDemoMode() ? doctorDemoApi : doctorLiveApi;
+  return doctorLiveApi;
 }
 
 /** Chu kỳ tự tải lại danh sách "Bệnh nhân hôm nay" (plan 261111-0208 mục 1). */
@@ -148,21 +136,28 @@ export function useMedicalHistory(patientProfileId: string) {
   );
 }
 
-export function usePatientAppointments(patientProfileId: string) {
+export function usePatientAppointments(
+  patientProfileId: string,
+  query: { page: number; size: number; date: string; status: string },
+) {
   return useAdminRemoteData(
     useCallback(
       (signal) =>
-        getDoctorExamApi().listPatientAppointments(patientProfileId, signal),
-      [patientProfileId],
+        getDoctorExamApi().listPatientAppointments(patientProfileId, query, signal),
+      [patientProfileId, query.page, query.size, query.date, query.status],
     ),
   );
 }
 
-export function usePastVisits(currentVisitId: string) {
+export function usePastVisits(
+  currentVisitId: string,
+  query: { page: number; size: number; date: string },
+) {
   return useAdminRemoteData(
     useCallback(
-      (signal) => getDoctorExamApi().listPastVisits(currentVisitId, signal),
-      [currentVisitId],
+      (signal) =>
+        getDoctorExamApi().listPastVisitsPage(currentVisitId, query, signal),
+      [currentVisitId, query.page, query.size, query.date],
     ),
   );
 }

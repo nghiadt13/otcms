@@ -16,9 +16,9 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-import fu.fa26.sep490.g58.otcms_be.common.idempotency.IdempotencyReplay;
-import fu.fa26.sep490.g58.otcms_be.common.idempotency.IdempotencyScope;
-import fu.fa26.sep490.g58.otcms_be.common.idempotency.IdempotencyStore;
+import fu.fa26.sep490.g58.otcms_be.idempotency.model.dto.IdempotencyReplay;
+import fu.fa26.sep490.g58.otcms_be.idempotency.model.IdempotencyScope;
+import fu.fa26.sep490.g58.otcms_be.idempotency.service.IdempotencyService;
 import fu.fa26.sep490.g58.otcms_be.common.security.AccountRole;
 import fu.fa26.sep490.g58.otcms_be.common.service.CoordinationGuardService;
 import fu.fa26.sep490.g58.otcms_be.servicecatalog.exception.ClinicServiceException;
@@ -67,7 +67,7 @@ class CreateWalkInVisitT043Test {
 
     private final CoordinationGuardService guard = mock(CoordinationGuardService.class);
     private final ClinicVisitJpaRepository visits = mock(ClinicVisitJpaRepository.class);
-    private final IdempotencyStore idempotency = mock(IdempotencyStore.class);
+    private final IdempotencyService idempotency = mock(IdempotencyService.class);
     private final VisitAuditRecorder audits = mock(VisitAuditRecorder.class);
     private final WalkInReceptionQueueEntryJpaRepository queueEntries = mock(WalkInReceptionQueueEntryJpaRepository.class);
     private final VisitExamQueueService examQueue = mock(VisitExamQueueService.class);

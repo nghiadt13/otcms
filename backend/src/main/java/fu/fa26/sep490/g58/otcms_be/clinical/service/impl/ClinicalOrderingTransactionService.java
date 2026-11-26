@@ -1,17 +1,21 @@
 package fu.fa26.sep490.g58.otcms_be.clinical.service.impl;
 
 import fu.fa26.sep490.g58.otcms_be.clinical.model.entity.ClinicalOrderingRoundJpaEntity;
+import fu.fa26.sep490.g58.otcms_be.clinical.exception.ClinicalOperationException;
+import fu.fa26.sep490.g58.otcms_be.clinical.model.ServiceOrderStatus;
 import fu.fa26.sep490.g58.otcms_be.clinical.model.entity.ServiceOrderJpaEntity;
 import fu.fa26.sep490.g58.otcms_be.clinical.repository.ClinicalOrderingRoundRepository;
 import fu.fa26.sep490.g58.otcms_be.clinical.repository.ServiceOrderRepository;
 import fu.fa26.sep490.g58.otcms_be.clinical.service.ClinicServiceCatalogPort;
 import fu.fa26.sep490.g58.otcms_be.clinical.service.ClinicalOrderingService;
-import fu.fa26.sep490.g58.otcms_be.common.idempotency.IdempotencyScope;
-import fu.fa26.sep490.g58.otcms_be.common.idempotency.IdempotencyStore;
+import fu.fa26.sep490.g58.otcms_be.idempotency.model.IdempotencyScope;
+import fu.fa26.sep490.g58.otcms_be.idempotency.service.IdempotencyService;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
@@ -28,11 +32,11 @@ public class ClinicalOrderingTransactionService {
     private final Clock clock;
     private final fu.fa26.sep490.g58.otcms_be.common.service.CoordinationGuardService guard;
     private final ClinicalOrderPreparationService preparation;
-    private final IdempotencyStore store;
+    private final IdempotencyService store;
 
     public ClinicalOrderingTransactionService(ServiceOrderRepository orders, ClinicalOrderingRoundRepository rounds, Clock clock,
             fu.fa26.sep490.g58.otcms_be.common.service.CoordinationGuardService guard,
-            ClinicalOrderPreparationService preparation, IdempotencyStore store) {
+            ClinicalOrderPreparationService preparation, IdempotencyService store) {
         this.orders = orders;
         this.rounds = rounds;
         this.clock = clock;
@@ -54,7 +58,17 @@ public class ClinicalOrderingTransactionService {
         // Preparation outside this transaction may have raced with UC28. Re-read after the guard.
         var context = preparation.requireCurrentCare(visitId, doctorId);
         if (!patientId.equals(context.patientId())) {
-            throw new fu.fa26.sep490.g58.otcms_be.clinical.exception.ClinicalOperationException("MSG-39");
+            throw new ClinicalOperationException("MSG-39");
+        }
+        Set<UUID> serviceIds = new HashSet<>();
+        for (var snapshot : snapshots) {
+            if (!serviceIds.add(snapshot.service().serviceId())) {
+                throw new ClinicalOperationException("MSG-42");
+            }
+        }
+        if (!orders.findByVisitIdAndServiceIdInAndOrderStatusNot(visitId, serviceIds,
+                ServiceOrderStatus.CANCELLED).isEmpty()) {
+            throw new ClinicalOperationException("MSG-42");
         }
         int roundNumber = rounds.findTopByVisitIdOrderByRoundNumberDesc(visitId)
                 .map(previous -> previous.getRoundNumber() + 1).orElse(1);

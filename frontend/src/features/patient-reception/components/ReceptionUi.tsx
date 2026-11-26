@@ -356,14 +356,21 @@ export function PatientName({
 export function RouteLink({
   href,
   children,
+  size = "sm",
 }: {
   href: string;
   children: ReactNode;
+  size?: "default" | "sm";
 }) {
   return (
     <Link
       href={href}
-      className={buttonVariants({ variant: "outline", size: "sm" })}
+      className={buttonVariants({ variant: "outline", size })}
+      style={{
+        borderColor: "var(--border)",
+        borderStyle: "solid",
+        borderWidth: "1px",
+      }}
     >
       {children}
     </Link>

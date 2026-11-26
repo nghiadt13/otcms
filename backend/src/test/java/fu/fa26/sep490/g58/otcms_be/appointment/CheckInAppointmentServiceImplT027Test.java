@@ -9,9 +9,9 @@ import fu.fa26.sep490.g58.otcms_be.appointment.service.AppointmentBillingSourceS
 import fu.fa26.sep490.g58.otcms_be.appointment.service.CheckInAppointmentCommand;
 import fu.fa26.sep490.g58.otcms_be.appointment.service.impl.CheckInAppointmentTransaction;
 import fu.fa26.sep490.g58.otcms_be.billing.service.AppointmentInvoicePaidStatusQueryService;
-import fu.fa26.sep490.g58.otcms_be.common.idempotency.IdempotencyReplay;
-import fu.fa26.sep490.g58.otcms_be.common.idempotency.IdempotencyScope;
-import fu.fa26.sep490.g58.otcms_be.common.idempotency.IdempotencyStore;
+import fu.fa26.sep490.g58.otcms_be.idempotency.model.dto.IdempotencyReplay;
+import fu.fa26.sep490.g58.otcms_be.idempotency.model.IdempotencyScope;
+import fu.fa26.sep490.g58.otcms_be.idempotency.service.IdempotencyService;
 import fu.fa26.sep490.g58.otcms_be.common.service.CoordinationGuardService;
 import fu.fa26.sep490.g58.otcms_be.config.AppointmentBookingProperties;
 import fu.fa26.sep490.g58.otcms_be.visit.exception.ReceptionWorkflowException;
@@ -50,7 +50,7 @@ class CheckInAppointmentServiceImplT027Test {
     private final ExamQueueTicket ticket = new ExamQueueTicket(3, doctorId, "Dr. Test", null, null);
     private final CoordinationGuardService guard = mock(CoordinationGuardService.class);
     private final AppointmentCheckInRepository appointments = mock(AppointmentCheckInRepository.class);
-    private final IdempotencyStore idempotency = mock(IdempotencyStore.class);
+    private final IdempotencyService idempotency = mock(IdempotencyService.class);
     private final ReceptionWorkflowService reception = mock(ReceptionWorkflowService.class);
     private final AppointmentBillingSourceService billingSources = mock(AppointmentBillingSourceService.class);
     private final AppointmentInvoicePaidStatusQueryService invoicePaidStatus =

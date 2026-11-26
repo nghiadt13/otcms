@@ -5,9 +5,9 @@ import fu.fa26.sep490.g58.otcms_be.clinical.service.ClinicalServiceOrderExecutio
 import fu.fa26.sep490.g58.otcms_be.clinical.service.ClinicalServiceOrderExecutionPort.ImagingExecution;
 import fu.fa26.sep490.g58.otcms_be.common.audit.AuditEntry;
 import fu.fa26.sep490.g58.otcms_be.common.audit.AuditLogWriter;
-import fu.fa26.sep490.g58.otcms_be.common.idempotency.IdempotencyReplay;
-import fu.fa26.sep490.g58.otcms_be.common.idempotency.IdempotencyScope;
-import fu.fa26.sep490.g58.otcms_be.common.idempotency.IdempotencyStore;
+import fu.fa26.sep490.g58.otcms_be.idempotency.model.dto.IdempotencyReplay;
+import fu.fa26.sep490.g58.otcms_be.idempotency.model.IdempotencyScope;
+import fu.fa26.sep490.g58.otcms_be.idempotency.service.IdempotencyService;
 import fu.fa26.sep490.g58.otcms_be.common.security.AccountRole;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.exception.DiagnosticOperationException;
 import fu.fa26.sep490.g58.otcms_be.diagnostic.integration.DiagnosticPortModels.FindingsReleaseEvent;
@@ -69,13 +69,13 @@ public class DiagnosticFindingsServiceImpl implements DiagnosticFindingsService 
     private final ObjectProvider<ImagingStudyPort> studyPorts;
     private final ClinicalServiceOrderExecutionPort executions;
     private final AuditLogWriter auditWriter;
-    private final IdempotencyStore idempotency;
+    private final IdempotencyService idempotency;
 
     public DiagnosticFindingsServiceImpl(DiagnosticReportJpaRepository reports,
             DiagnosticAuthorizationPolicy authorization, ObjectProvider<VisitDiagnosticPort> visitPorts,
             ObjectProvider<ReportStoragePort> reportPorts, ObjectProvider<ImagingStudyPort> studyPorts,
             ClinicalServiceOrderExecutionPort executions, AuditLogWriter auditWriter,
-            IdempotencyStore idempotency) {
+            IdempotencyService idempotency) {
         this.reports = Objects.requireNonNull(reports, "reports");
         this.authorization = Objects.requireNonNull(authorization, "authorization");
         this.visitPorts = Objects.requireNonNull(visitPorts, "visitPorts");

@@ -5,7 +5,6 @@ import Link from "next/link";
 import { useState } from "react";
 import { PageHeader } from "@/components/PageHeader";
 import { DoctorLoadState } from "./DoctorLoadState";
-import { StatusBadge } from "@/components/admin/StatusBadge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -20,7 +19,7 @@ import {
   CLINICAL_ORDER_PAYMENT_LABELS,
   CLINICAL_ORDER_STATUS_LABELS,
 } from "@/lib/domain/clinicVisit";
-import { formatDate, formatTime, todayIsoDate } from "@/lib/format/formatDate";
+import { formatDate, formatDateTime, todayIsoDate } from "@/lib/format/formatDate";
 import { cn } from "@/lib/utils";
 import { doctorVisitHref } from "@/lib/routes/doctorRoutes";
 import { useTodayPatients } from "../hooks/useDoctorData";
@@ -43,12 +42,11 @@ function PatientCell({ patient }: { patient: TodayPatient }) {
   const facts = [
     patient.age !== null ? `${patient.age} tuổi` : null,
     patient.sex,
-    patient.patientCode,
   ].filter(Boolean);
   return (
     <div className="min-w-0">
-      <p className="truncate font-medium">{patient.patientName}</p>
-      <p className="truncate text-xs text-muted-foreground">
+      <p className="break-words font-medium">{patient.patientName}</p>
+      <p className="break-words text-xs text-muted-foreground">
         {facts.length ? facts.join(" · ") : patient.serviceName}
       </p>
       {patient.serviceOrders?.length ? (
@@ -65,31 +63,35 @@ function PatientCell({ patient }: { patient: TodayPatient }) {
   );
 }
 
-function PatientRow({ patient }: { patient: TodayPatient }) {
+function PatientRow({
+  patient,
+  index,
+}: {
+  patient: TodayPatient;
+  index: number;
+}) {
   const open = canOpenVisit(patient);
   return (
     <TableRow>
-      <TableCell className="w-14 tabular-nums">
-        {patient.queueNumber ?? "—"}
+      <TableCell className="w-[5%] whitespace-nowrap tabular-nums">
+        {index + 1}
       </TableCell>
-      <TableCell className="w-20 tabular-nums">
-        {patient.scheduledAt ? formatTime(patient.scheduledAt) : "—"}
+      <TableCell className="w-[12%] whitespace-normal font-mono break-all">
+        {patient.patientCode ?? "—"}
       </TableCell>
-      <TableCell>
+      <TableCell className="w-[23%] whitespace-normal">
         <PatientCell patient={patient} />
       </TableCell>
-      <TableCell className="hidden xl:table-cell">
+      <TableCell className="w-[22%] whitespace-normal break-words">
         {patient.serviceName}
       </TableCell>
-      <TableCell className="hidden lg:table-cell">
-        <StatusBadge tone="neutral">
-          {patient.source === "WALK_IN" ? "Vãng lai" : "Đặt hẹn"}
-        </StatusBadge>
+      <TableCell className="w-[14%] whitespace-normal tabular-nums">
+        {patient.scheduledAt ? formatDateTime(patient.scheduledAt) : "—"}
       </TableCell>
-      <TableCell>
+      <TableCell className="w-[10%] whitespace-normal">
         <TodayStatusBadge status={patient.status} />
       </TableCell>
-      <TableCell className="text-right">
+      <TableCell className="w-[14%] whitespace-normal text-right">
         {open ? (
           <Link
             href={doctorVisitHref(patient.visitId!)}
@@ -189,23 +191,30 @@ export function TodayPatientsScreen() {
           </p>
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-lg border bg-card">
-          <Table>
+        <div className="rounded-lg border bg-card">
+          <Table className="min-w-[48rem] table-fixed lg:min-w-0">
+            <colgroup>
+              <col className="w-[5%]" />
+              <col className="w-[12%]" />
+              <col className="w-[23%]" />
+              <col className="w-[22%]" />
+              <col className="w-[14%]" />
+              <col className="w-[10%]" />
+              <col className="w-[14%]" />
+            </colgroup>
             <TableHeader>
               <TableRow>
                 <TableHead>STT</TableHead>
-                <TableHead>Giờ</TableHead>
-                <TableHead>Bệnh nhân</TableHead>
-                <TableHead className="hidden xl:table-cell">Dịch vụ</TableHead>
-                <TableHead className="hidden lg:table-cell">Nguồn</TableHead>
+                <TableHead>Mã bệnh nhân</TableHead>
+                <TableHead>Tên bệnh nhân</TableHead>
+                <TableHead>Dịch vụ</TableHead>
+                <TableHead>Thời gian đặt hẹn</TableHead>
                 <TableHead>Trạng thái</TableHead>
-                <TableHead className="text-right">
-                  <span className="sr-only">Thao tác</span>
-                </TableHead>
+                <TableHead className="text-right">Tác vụ</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {rows.map((patient) => (
+              {rows.map((patient, index) => (
                 <PatientRow
                   key={
                     patient.visitId ??
@@ -213,6 +222,7 @@ export function TodayPatientsScreen() {
                     patient.patientName
                   }
                   patient={patient}
+                  index={index}
                 />
               ))}
             </TableBody>

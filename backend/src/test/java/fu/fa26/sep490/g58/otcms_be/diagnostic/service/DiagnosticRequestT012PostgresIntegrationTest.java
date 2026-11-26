@@ -102,6 +102,8 @@ class DiagnosticRequestT012PostgresIntegrationTest {
             jdbc.update("delete from service_orders where visit_id = ?", id);
             jdbc.update("delete from service_order_rounds where visit_id = ?", id);
         }
+        jdbc.update("delete from patient_profiles p where id = ? and not exists "
+                + "(select 1 from visits v where v.patient_profile_id = p.id)", patientId);
     }
 
     @Test
@@ -406,6 +408,9 @@ class DiagnosticRequestT012PostgresIntegrationTest {
         Integer exists = jdbc.queryForObject("select count(*) from service_orders where id = ?", Integer.class, orderId);
         if (exists != null && exists > 0) return;
         VisitEvidence visit = ports.visits.get(visitId);
+        jdbc.update("insert into patient_profiles (id, full_name, date_of_birth, gender) "
+                        + "values (?, 'Diagnostic fixture', date '1990-01-01', 'OTHER') on conflict (id) do nothing",
+                visit.patientId());
         UUID roundId = UUID.randomUUID();
         int roundNumber = jdbc.queryForObject("select coalesce(max(round_number), 0) + 1 "
                 + "from service_order_rounds where visit_id = ?", Integer.class, visitId);

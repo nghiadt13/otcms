@@ -18,6 +18,15 @@ import java.util.Optional;
 import java.util.UUID;
 
 public interface AccountRepository extends JpaRepository<AccountJpaEntity, UUID> {
+    interface AuthorName {
+        UUID getId();
+        String getAuthor();
+    }
+
+    @Query("select a.id as id, coalesce(a.username, a.normalizedEmail) as author "
+            + "from AccountJpaEntity a where a.id in :ids")
+    java.util.List<AuthorName> findAuthorNames(@Param("ids") java.util.Collection<UUID> ids);
+
     @Query("select a from AccountJpaEntity a where a.accountType in :types "
             + "and (:role is null or a.accountType = :role) "
             + "and (:active is null or (:active = true and a.status = "
@@ -107,4 +116,8 @@ public interface AccountRepository extends JpaRepository<AccountJpaEntity, UUID>
     @Query(value = "select avatar_storage_key from accounts where id = :id and avatar_storage_key is not null",
             nativeQuery = true)
     Optional<String> findAvatarStorageKey(@Param("id") UUID id);
+
+    @Query(value = "select update_verified_account_email(:id, :email, :verifiedAt)", nativeQuery = true)
+    String updateVerifiedEmail(@Param("id") UUID id, @Param("email") String email,
+            @Param("verifiedAt") Instant verifiedAt);
 }

@@ -5,6 +5,7 @@ import static org.mockito.Mockito.*;
 import fu.fa26.sep490.g58.otcms_be.auth.model.entity.enums.AccountType;
 import fu.fa26.sep490.g58.otcms_be.auth.service.StaffAccountDirectory;
 import fu.fa26.sep490.g58.otcms_be.staff.repository.StaffRoomAssignmentRepository;
+import fu.fa26.sep490.g58.otcms_be.staff.repository.DoctorWorkShiftRepository;
 import fu.fa26.sep490.g58.otcms_be.staff.service.impl.StaffRoomAssignmentQueryServiceImpl;
 import fu.fa26.sep490.g58.otcms_be.staff.integration.diagnostic.StaffDiagnosticRoomStatusAdapter;
 import java.time.*;
@@ -18,8 +19,31 @@ class StaffRoomAssignmentQueryServiceTest {
     final Instant at = Instant.parse("2026-11-05T05:00:00Z");
     final StaffAccountDirectory accounts = mock(StaffAccountDirectory.class);
     final StaffRoomAssignmentRepository assignments = mock(StaffRoomAssignmentRepository.class);
-    final StaffRoomAssignmentQueryServiceImpl query = new StaffRoomAssignmentQueryServiceImpl(accounts, assignments,
-            mock(fu.fa26.sep490.g58.otcms_be.staff.repository.DoctorWorkShiftRepository.class));
+    final DoctorWorkShiftRepository workShifts = mock(DoctorWorkShiftRepository.class);
+    final StaffRoomAssignmentQueryServiceImpl query = new StaffRoomAssignmentQueryServiceImpl(accounts, assignments, workShifts);
+    @Test void labTechnicianRequiresActiveAssignmentInTheSpecifiedRoom() {
+        active(AccountType.LAB_TECHNICIAN);
+        when(workShifts.hasActiveRoomAssignment(actor, room, at)).thenReturn(true);
+        assertTrue(query.isLabTechnicianAssigned(actor, room, at));
+        assertFalse(query.isLabTechnicianAssigned(actor, UUID.randomUUID(), at));
+    }
+    @ParameterizedTest @EnumSource(value = AccountType.class, names = "LAB_TECHNICIAN", mode = EnumSource.Mode.EXCLUDE)
+    void nonLabRolesCannotUseLabScope(AccountType role) {
+        active(role);
+        assertFalse(query.isLabTechnicianAssigned(actor, room, at));
+        verifyNoInteractions(workShifts);
+    }
+    @Test void labScopeRejectsMissingOrMismatchedAccountAndNullInputs() {
+        assertFalse(query.isLabTechnicianAssigned(null, room, at));
+        assertFalse(query.isLabTechnicianAssigned(actor, null, at));
+        assertFalse(query.isLabTechnicianAssigned(actor, room, null));
+        when(accounts.activeStaff(actor)).thenReturn(Optional.empty());
+        assertFalse(query.isLabTechnicianAssigned(actor, room, at));
+        when(accounts.activeStaff(actor)).thenReturn(Optional.of(new StaffAccountDirectory.Entry(
+                UUID.randomUUID(), "", "", AccountType.LAB_TECHNICIAN)));
+        assertFalse(query.isLabTechnicianAssigned(actor, room, at));
+        verifyNoInteractions(workShifts);
+    }
     @Test void activeTechnicianWithCurrentAssignmentIsAuthorizedForExactRoomAndAccount() {
         active(AccountType.IMAGING_TECHNICIAN);
         when(assignments.hasActiveAssignment(actor, room, at)).thenReturn(true);

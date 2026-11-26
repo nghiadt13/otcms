@@ -2,6 +2,7 @@ import { ArrowRight, Bone, ChevronRight, ScanLine, TestTube } from "lucide-react
 import Image from "next/image";
 import Link from "next/link";
 import { publicContainerClass } from "@/components/brand/publicLayout";
+import { publicAssetPath } from "@/lib/publicAssetPath";
 import { cn } from "@/lib/utils";
 import { publicServiceCategories } from "@/lib/routes/publicServices";
 
@@ -40,7 +41,7 @@ export function HomeServiceCategories() {
                       className="object-cover"
                       fill
                       sizes="(min-width: 768px) 33vw, (min-width: 520px) 160px, 31vw"
-                      src={`/images/home/${image}`}
+                      src={publicAssetPath(`/images/home/${image}`)}
                     />
                   </div>
                   <div className="flex min-h-[4.5rem] min-w-0 flex-1 items-center gap-2 px-2 py-2 md:min-h-20 md:gap-3 md:px-4">

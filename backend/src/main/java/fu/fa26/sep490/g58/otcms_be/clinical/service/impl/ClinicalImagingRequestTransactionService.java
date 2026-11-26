@@ -6,9 +6,9 @@ import fu.fa26.sep490.g58.otcms_be.clinical.repository.ServiceOrderRepository;
 import fu.fa26.sep490.g58.otcms_be.clinical.service.ClinicalImagingRequestService.*;
 import fu.fa26.sep490.g58.otcms_be.clinical.service.ClinicalOrderingService;
 import fu.fa26.sep490.g58.otcms_be.clinical.service.VisitConclusionPort;
-import fu.fa26.sep490.g58.otcms_be.common.idempotency.IdempotencyReplay;
-import fu.fa26.sep490.g58.otcms_be.common.idempotency.IdempotencyScope;
-import fu.fa26.sep490.g58.otcms_be.common.idempotency.IdempotencyStore;
+import fu.fa26.sep490.g58.otcms_be.idempotency.model.dto.IdempotencyReplay;
+import fu.fa26.sep490.g58.otcms_be.idempotency.model.IdempotencyScope;
+import fu.fa26.sep490.g58.otcms_be.idempotency.service.IdempotencyService;
 import java.time.Clock;
 import java.util.Comparator;
 import java.util.Optional;
@@ -25,12 +25,12 @@ public class ClinicalImagingRequestTransactionService {
     private final Clock clock;
     private final fu.fa26.sep490.g58.otcms_be.common.service.CoordinationGuardService guard;
     private final VisitConclusionPort conclusions;
-    private final IdempotencyStore store;
+    private final IdempotencyService store;
 
     public ClinicalImagingRequestTransactionService(ClinicalOrderPreparationService preparation,
             ClinicalOrderingTransactionService writer, ServiceOrderRepository orders, ClinicalOrderingRoundRepository rounds,
             Clock clock, fu.fa26.sep490.g58.otcms_be.common.service.CoordinationGuardService guard,
-            VisitConclusionPort conclusions, IdempotencyStore store) {
+            VisitConclusionPort conclusions, IdempotencyService store) {
         this.preparation = preparation;
         this.writer = writer;
         this.orders = orders;
