@@ -286,18 +286,23 @@ export function LaboratoryPreview({
                   </h1>
                   <p className="mt-2 text-sm text-muted-foreground">
                     {screen === "Lịch làm việc"
-                      ? "Ca làm việc được phân công tại phòng xét nghiệm."
+                      ? "Tra cứu ca và phòng được phân công trong từng khoảng 7 ngày."
                       : screen === "Phòng dịch vụ"
-                        ? "Phòng xét nghiệm và trạng thái hoạt động hiện tại."
+                        ? "Tra cứu phòng xét nghiệm, trạng thái hoạt động và bước tiếp theo trong ca làm việc."
                         : screen === "Thông báo"
-                          ? "Thông báo trong tài khoản của bạn."
-                          : "Thông tin tài khoản của bạn."}
+                          ? "Theo dõi nội dung, thời điểm nhận và trạng thái đọc của thông báo."
+                          : "Xem thông tin hồ sơ và tài khoản đang đăng nhập."}
                   </p>
                 </div>
                 {screen === "Lịch làm việc" ? (
                   <LaboratorySchedule />
                 ) : (
-                  <LaboratoryLiveInfo key={screen} screen={screen} />
+                  <LaboratoryLiveInfo
+                    key={screen}
+                    screen={screen}
+                    onOpenQueue={() => change("Danh sách chờ")}
+                    onOpenSchedule={() => change("Lịch làm việc")}
+                  />
                 )}
               </>
             )}

@@ -13,16 +13,18 @@ flowchart LR
     Viewer[OHIF viewer] -->|DICOMweb qua cổng kiểm quyền khi triển khai| Archive
 ```
 
+PatientID/Issuer được lưu với hồ sơ bệnh nhân; AccessionNumber/issuer được cấp duy nhất và lưu với chỉ định hình ảnh. Bộ xác minh DICOM lấy giá trị kỳ vọng qua public service của feature sở hữu chỉ định, rồi so khớp với study upload. Không dùng mapping định danh theo từng order trong cấu hình runtime.
+
 ## Backend
 
 ```text
 backend/src/main/java/fu/fa26/sep490/g58/otcms_be/
 ├── OtcmsBeApplication.java
 ├── config/                            Cấu hình tập trung (SecurityConfig, OpenAPI, properties)
-├── common/                            Mã dùng chung: security, exception, repository, web
+├── common/                            Mã dùng chung: security, exception, audit, coordination, web
 ├── auth/ patient/ appointment/        Mỗi feature chia theo lớp như `review` dưới đây
 ├── visit/ staff/ servicecatalog/
-├── billing/ notification/ review/
+├── billing/ notification/ review/ partner/
 │   ├── controller/                    Controller: HTTP, validate/map, gọi service
 │   ├── service/                       Interface service (nghiệp vụ, quyền, transaction)
 │   │   └── impl/                      Cài đặt service
@@ -33,8 +35,13 @@ backend/src/main/java/fu/fa26/sep490/g58/otcms_be/
 │   ├── exception/                     Exception nghiệp vụ mang mã MSG và handler ánh xạ HTTP
 │   ├── mapper/                        Map entity ↔ DTO khi cần
 │   └── integration/                   Client dịch vụ ngoài khi cần (ví dụ billing/integration/payos)
-└── imaging/ clinical/ reporting/      Thêm khi triển khai UC tương ứng
+├── imaging/ clinical/ reporting/      Thêm khi triển khai UC tương ứng
+└── idempotency/                       Hạ tầng dùng nội bộ: service, repository, entity, DTO
 ```
+
+`partner` sở hữu danh mục đối tác dùng chung và phân loại lĩnh vực; các feature như `clinical` gọi service công khai để xác thực đối tác theo lĩnh vực trước khi liên kết nghiệp vụ.
+
+`idempotency` là feature hạ tầng nội bộ. Các feature gọi `IdempotencyService`; repository của feature này là nơi duy nhất đọc/ghi `idempotency_records`. Không tạo controller vì không có thao tác quản trị idempotency qua HTTP.
 
 Tạo code khi triển khai UC, không thêm class rỗng. Quy tắc phụ thuộc (ARCH-01): `controller → service → repository → entity`. Controller không gọi repository và không trả entity; service không biết mã HTTP; entity không phụ thuộc web hay DTO. Feature khác gọi service công khai của feature chủ sở hữu, không truy cập trực tiếp repository hay bảng của feature đó.
 

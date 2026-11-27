@@ -42,11 +42,13 @@ function Step({
   step,
   href,
   action,
+  disabled = false,
 }: {
   title: string;
   step: StepSummary | undefined;
   href: string;
   action: string;
+  disabled?: boolean;
 }) {
   if (!step) return <Skeleton className="h-16 w-full" />;
   const Icon = STATE_ICON[step.state];
@@ -74,13 +76,24 @@ function Step({
       >
         {STATE_LABEL[step.state]}
       </StatusBadge>
-      <Link
-        href={href}
-        className={buttonVariants({ variant: "outline", size: "sm" })}
-      >
-        {action}
-        <ArrowRight aria-hidden />
-      </Link>
+      {disabled ? (
+        <button
+          type="button"
+          disabled
+          className={buttonVariants({ variant: "outline", size: "sm" })}
+        >
+          {action}
+          <ArrowRight aria-hidden />
+        </button>
+      ) : (
+        <Link
+          href={href}
+          className={buttonVariants({ variant: "outline", size: "sm" })}
+        >
+          {action}
+          <ArrowRight aria-hidden />
+        </Link>
+      )}
     </li>
   );
 }
@@ -112,6 +125,17 @@ export function VisitOverview() {
   const advice = useAdvice(visitId);
   const prescription = usePrescription(visitId);
   const href = (section: string) => doctorVisitHref(visitId, section);
+  const examStep = stepOf(examination, examinationStep);
+  const orderStep = stepOf(orders, ordersStep);
+  const treatmentSummary =
+    failed(advice) ??
+    failed(prescription) ??
+    (advice.data !== undefined && prescription.data !== undefined
+      ? treatmentStep(advice.data, prescription.data)
+      : undefined);
+  const examDone = examStep?.state === "DONE";
+  const ordersDone = orderStep?.state === "DONE";
+  const treatmentDone = treatmentSummary?.state === "DONE";
 
   return (
     <>
@@ -130,36 +154,33 @@ export function VisitOverview() {
           <ul className="divide-y">
             <Step
               title="Ghi nhận khám và chẩn đoán"
-              step={stepOf(examination, examinationStep)}
-              href={href("examination")}
-              action="Khám bệnh"
+              step={examStep}
+              href={href(examDone ? "paraclinical" : "examination")}
+              action={examDone ? "Cận lâm sàng" : "Khám bệnh"}
             />
             <Step
               title="Cận lâm sàng"
-              step={stepOf(orders, ordersStep)}
-              href={href("paraclinical")}
-              action="Chỉ định"
+              step={orderStep}
+              href={href(ordersDone ? "treatment" : "paraclinical")}
+              action={ordersDone ? "Điều trị" : "Chỉ định"}
             />
             <Step
               title="Hướng điều trị và đơn thuốc"
-              step={
-                failed(advice) ??
-                failed(prescription) ??
-                (advice.data !== undefined && prescription.data !== undefined
-                  ? treatmentStep(advice.data, prescription.data)
-                  : undefined)
-              }
-              href={href("treatment")}
-              action="Điều trị"
+              step={treatmentSummary}
+              href={href(treatmentDone ? "closing" : "treatment")}
+              action={treatmentDone ? "Hoàn tất lượt khám" : "Điều trị"}
             />
             <Step
               title="Hoàn tất lượt khám"
               step={{
                 state: "TODO",
-                summary: "Kiểm tra điều kiện rồi hoàn tất khám.",
+                summary: treatmentDone
+                  ? "Kiểm tra điều kiện rồi hoàn tất khám."
+                  : "Hoàn thành hướng điều trị và đơn thuốc trước.",
               }}
               href={href("closing")}
               action="Hoàn tất"
+              disabled={!treatmentDone}
             />
           </ul>
         </section>

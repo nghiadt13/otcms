@@ -14,6 +14,7 @@ import {
 } from "../api/receptionLiveApi";
 import {
   DAILY_RECEPTION_STATUSES,
+  effectiveReceptionStatus,
   receptionStatusValue,
 } from "../schema/intakeAppointmentStatus";
 import { CheckInDialog } from "./CheckInDialog";
@@ -73,7 +74,13 @@ export function IntakeScreen() {
     };
   }, [reload]);
   const visible = appointments.filter((item) => {
-    if (!DAILY_RECEPTION_STATUSES.has(item.status)) return false;
+    const status = effectiveReceptionStatus(
+      item.status,
+      item.startTime,
+      item.examFeePaid,
+    );
+    if (!DAILY_RECEPTION_STATUSES.has(status) && status !== "CANCELLED")
+      return false;
     if (!search) return true;
     return [item.patientName, item.patientProfileId]
       .filter((value): value is string => Boolean(value))
@@ -82,7 +89,17 @@ export function IntakeScreen() {
       );
   });
   const notCheckedInCount = appointments.filter(
-    (appointment) => appointment.status === "CONFIRMED",
+    (appointment) =>
+      effectiveReceptionStatus(
+        appointment.status,
+        appointment.startTime,
+        appointment.examFeePaid,
+      ) === "CONFIRMED",
+  ).length;
+  const appointmentCount = appointments.filter((item) =>
+    DAILY_RECEPTION_STATUSES.has(
+      effectiveReceptionStatus(item.status, item.startTime, item.examFeePaid),
+    ),
   ).length;
 
   return (
@@ -108,13 +125,7 @@ export function IntakeScreen() {
       <div className="mb-4 grid grid-cols-2 gap-3 rounded-lg border bg-card p-4 md:grid-cols-3">
         <div>
           <p className="text-xs text-muted-foreground">Lịch hẹn hôm nay</p>
-          <p className="mt-2 text-2xl font-semibold">
-            {
-              appointments.filter((item) =>
-                DAILY_RECEPTION_STATUSES.has(item.status),
-              ).length
-            }
-          </p>
+          <p className="mt-2 text-2xl font-semibold">{appointmentCount}</p>
         </div>
         <div>
           <p className="text-xs text-muted-foreground">Chưa check-in</p>
@@ -157,7 +168,9 @@ export function IntakeScreen() {
                 <td className="p-3">
                   <PatientName
                     name={appointment.patientName ?? "Chưa có tên bệnh nhân"}
-                    code={appointment.patientCode ?? appointment.patientProfileId}
+                    code={
+                      appointment.patientCode ?? appointment.patientProfileId
+                    }
                   />
                 </td>
                 <td className="p-3">
@@ -171,7 +184,15 @@ export function IntakeScreen() {
                       : "Chưa rõ"}
                 </td>
                 <td className="p-3">
-                  <Status value={receptionStatusValue(appointment.status)} />
+                  <Status
+                    value={receptionStatusValue(
+                      effectiveReceptionStatus(
+                        appointment.status,
+                        appointment.startTime,
+                        appointment.examFeePaid,
+                      ),
+                    )}
+                  />
                 </td>
                 <td className="p-3">
                   {appointment.visitId
@@ -195,7 +216,13 @@ export function IntakeScreen() {
                     >
                       Xem chi tiết
                     </Button>
-                    {["CONFIRMED", "NO_SHOW"].includes(appointment.status) && (
+                    {["CONFIRMED", "NO_SHOW"].includes(
+                      effectiveReceptionStatus(
+                        appointment.status,
+                        appointment.startTime,
+                        appointment.examFeePaid,
+                      ),
+                    ) && (
                       <Button
                         onClick={() =>
                           setCheckIn({

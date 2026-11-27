@@ -110,11 +110,6 @@ function PatientRow({
     <TableRow>
       <TableCell className="w-[5%] whitespace-nowrap tabular-nums">
         <span>{rowNumber}</span>
-        {patient.queueNumber !== null && patient.queueNumber > 0 ? (
-          <span className="block text-xs text-muted-foreground">
-            Hàng đợi {patient.queueNumber}
-          </span>
-        ) : null}
       </TableCell>
       <TableCell className="w-[12%] whitespace-normal font-mono break-all">
         {patient.patientCode ?? "—"}

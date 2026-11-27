@@ -63,7 +63,7 @@ Mở Docker Desktop, sau đó chạy PowerShell tại thư mục gốc repositor
    npm run dev
    ```
 
-   Mở `http://localhost:3000`. Cấu hình `frontend/.env.local` theo môi trường của nhóm. Nếu dùng proxy local với `NEXT_BASE_PATH=/otcms`, đặt `OTCMS_DEV_API_PROXY=true`, `NEXT_PUBLIC_API_BASE_URL=` và `NEXT_PUBLIC_OHIF_VIEWER_PATH=/viewer`, rồi khởi động lại frontend.
+   Mở `http://localhost:3000`. Cấu hình `frontend/.env.local` theo môi trường của nhóm. Nếu dùng proxy local với `NEXT_BASE_PATH=/otcms`, đặt `OTCMS_DEV_API_PROXY=true`, `NEXT_PUBLIC_API_BASE_URL=` và `NEXT_PUBLIC_OHIF_VIEWER_PATH=/viewer`, rồi khởi động lại frontend. Server Components dùng `OTCMS_INTERNAL_API_BASE_URL` (mặc định `http://localhost:8080`) để gọi backend bằng URL tuyệt đối; đổi giá trị này nếu backend không truy cập được tại địa chỉ đó từ tiến trình Next.js.
 
 Docker Compose ở đây dùng cho thử nghiệm local với dữ liệu DICOM mẫu. Không dùng `down -v` nếu cần giữ dữ liệu trong các volume.
 

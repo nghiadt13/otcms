@@ -9,6 +9,7 @@ import {
   listReceptionAppointments,
   type ReceptionAppointment,
 } from "../api/receptionLiveApi";
+import { effectiveReceptionStatus } from "../schema/intakeAppointmentStatus";
 import {
   clinicLocal,
   DataTable,
@@ -53,8 +54,11 @@ function badgeKey(status: string) {
   );
 }
 
+const effectiveStatus = (a: ReceptionAppointment) =>
+  effectiveReceptionStatus(a.status, a.startTime, a.examFeePaid);
+
 const canCheckIn = (a: ReceptionAppointment) =>
-  ["CONFIRMED", "NO_SHOW"].includes(a.status);
+  ["CONFIRMED", "NO_SHOW"].includes(effectiveStatus(a));
 const checkInHref = (a: ReceptionAppointment) =>
   `/reception?patientId=${a.patientProfileId}&appointmentId=${a.id}`;
 
@@ -89,10 +93,10 @@ function AppointmentDetails({
         </InfoRow>
         {a.purpose && <InfoRow label="Lý do khám">{a.purpose}</InfoRow>}
         <InfoRow label="Trạng thái">
-          <Status value={badgeKey(a.status)} />
+          <Status value={badgeKey(effectiveStatus(a))} />
         </InfoRow>
       </dl>
-      {a.status === "CONFIRMED" && Actions && (
+      {effectiveStatus(a) === "CONFIRMED" && Actions && (
         <Actions appointment={a} onChanged={onChanged} />
       )}
       {canCheckIn(a) && (
@@ -136,7 +140,7 @@ export function AppointmentScreen({
         {
           from: date || undefined,
           to: date || undefined,
-          status: status || undefined,
+          status: status && status !== "CANCELLED" ? status : undefined,
           patientProfileId,
         },
         controller.signal,
@@ -163,6 +167,7 @@ export function AppointmentScreen({
 
   const keyword = search.trim().toLocaleLowerCase();
   const rows = items
+    .filter((a) => !status || effectiveStatus(a) === status)
     .filter(
       (a) =>
         !keyword ||
@@ -244,7 +249,7 @@ export function AppointmentScreen({
             />,
             a.doctorDisplayName ?? "Chưa phân bác sĩ",
             a.serviceName ?? "—",
-            <Status key="status" value={badgeKey(a.status)} />,
+            <Status key="status" value={badgeKey(effectiveStatus(a))} />,
             <div key="actions" className="flex flex-wrap gap-2">
               <Button variant="outline" onClick={() => setDetail(a)}>
                 Chi tiết

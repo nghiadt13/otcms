@@ -26,7 +26,7 @@ public interface ServiceOrderRepository extends JpaRepository<ServiceOrderJpaEnt
     List<LaboratoryQueueRow> findLaboratoryAssignments(@org.springframework.data.repository.query.Param("fromTime") java.time.Instant fromTime,
             @org.springframework.data.repository.query.Param("toTime") java.time.Instant toTime);
     @org.springframework.data.jpa.repository.Query(value = "select o.id as \"orderId\", o.room_id as \"roomId\", o.lab_status as \"labStatus\" "
-            + "from clinical_service_orders o join clinical_ordering_rounds r on r.id = o.ordering_round_id "
+            + "from service_orders o join service_order_rounds r on r.id = o.ordering_round_id "
             + "where o.service_type = 'LABORATORY' and o.order_status = 'RESULTS_AVAILABLE' "
             + "and o.lab_status = 'RESULT_AVAILABLE' and o.room_id is not null "
             + "order by r.ordered_at desc", nativeQuery = true)

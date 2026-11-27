@@ -22,6 +22,7 @@ import { PageHeading } from "./PageHeading";
 import { Panel } from "./Panel";
 import { ImagingViewerLauncher } from "./ImagingViewerLauncher";
 import {
+  formatImagingDisplayCode,
   patientBirthDateLabel,
   patientDemographicSummary,
 } from "./patientIdentityPresentation";
@@ -681,7 +682,13 @@ export function TechnicianImagingUploadScreen({
                     : ""}
                 </p>
                 <p className="mt-1 break-all font-mono text-xs text-muted-foreground">
-                  Mã hồ sơ OTCMS: {work.patient.patientProfileId}
+                  Mã hồ sơ OTCMS:{" "}
+                  <span title={work.patient.patientProfileId}>
+                    {formatImagingDisplayCode(
+                      "BN",
+                      work.patient.patientProfileId,
+                    )}
+                  </span>
                 </p>
               </div>
               <div className="overflow-x-auto">
@@ -720,7 +727,12 @@ export function TechnicianImagingUploadScreen({
                             {work.patient.fullName}
                           </p>
                           <p className="mt-1 break-all font-mono text-xs text-muted-foreground">
-                            {work.patient.patientProfileId}
+                            <span title={work.patient.patientProfileId}>
+                              {formatImagingDisplayCode(
+                                "BN",
+                                work.patient.patientProfileId,
+                              )}
+                            </span>
                           </p>
                           <p className="text-xs text-muted-foreground">
                             {patientBirthDateLabel(work.patient.dateOfBirth) ||
@@ -748,10 +760,17 @@ export function TechnicianImagingUploadScreen({
                           {operation.instanceCount ?? "—"}
                         </td>
                         <td className="max-w-40 break-all border-b px-3 py-4 font-mono text-xs">
-                          {work.requestId}
+                          <span title={work.requestId}>
+                            {formatImagingDisplayCode("CD", work.requestId)}
+                          </span>
                         </td>
                         <td className="max-w-40 break-all border-b px-3 py-4 font-mono text-xs">
-                          {operation.operationId}
+                          <span title={operation.operationId}>
+                            {formatImagingDisplayCode(
+                              "OP",
+                              operation.operationId,
+                            )}
+                          </span>
                         </td>
                       </tr>
                     ) : hasPersistedStudy ? (
@@ -761,7 +780,12 @@ export function TechnicianImagingUploadScreen({
                             {work.patient.fullName}
                           </p>
                           <p className="mt-1 break-all font-mono text-xs text-muted-foreground">
-                            {work.patient.patientProfileId}
+                            <span title={work.patient.patientProfileId}>
+                              {formatImagingDisplayCode(
+                                "BN",
+                                work.patient.patientProfileId,
+                              )}
+                            </span>
                           </p>
                           <p className="text-xs text-muted-foreground">
                             {patientBirthDateLabel(work.patient.dateOfBirth) ||
@@ -781,7 +805,9 @@ export function TechnicianImagingUploadScreen({
                         <td className="border-b px-3 py-4">Đã liên kết</td>
                         <td className="border-b px-3 py-4">—</td>
                         <td className="max-w-40 break-all border-b px-3 py-4 font-mono text-xs">
-                          {work.requestId}
+                          <span title={work.requestId}>
+                            {formatImagingDisplayCode("CD", work.requestId)}
+                          </span>
                         </td>
                         <td className="max-w-40 break-all border-b px-3 py-4 font-mono text-xs">
                           {work.currentStudyRef}
@@ -850,7 +876,10 @@ export function TechnicianImagingUploadScreen({
                       {operationLabel(operation)}
                     </p>
                     <p className="mt-2 break-all font-mono text-xs text-muted-foreground">
-                      Operation: {operation.operationId}
+                      Operation:{" "}
+                      <span title={operation.operationId}>
+                        {formatImagingDisplayCode("OP", operation.operationId)}
+                      </span>
                     </p>
                     {operation.error ? (
                       <p role="alert" className="mt-2 text-sm text-destructive">
