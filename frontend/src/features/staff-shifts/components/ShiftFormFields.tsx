@@ -1,13 +1,11 @@
 "use client";
 
 import { FieldError } from "@/components/admin/FieldError";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NativeSelect } from "@/components/ui/native-select";
-import {
-  ROOM_CATEGORY_LABELS,
-  type ServiceCategory,
-} from "@/lib/domain/clinicCategories";
+import { ROOM_TYPE_LABELS, type RoomType } from "@/lib/domain/clinicCategories";
 import { ROLE_LABELS } from "@/lib/domain/clinicRoles";
 import {
   describeShiftFieldError,
@@ -33,7 +31,7 @@ type ShiftFormFieldsProps = {
   optionsError: string | null;
   onRetryOptions: () => void;
   roomChoices: RoomChoice[];
-  suggestedCategory: ServiceCategory | null;
+  suggestedCategory: RoomType | null;
   disabled: boolean;
   onChange: (patch: Partial<ShiftFormValues>) => void;
   onStaffChange: (staffId: string | undefined) => void;
@@ -136,7 +134,7 @@ export function ShiftFormFields({
       </div>
 
       <div className="grid gap-1.5">
-        <Label htmlFor="shift-room">Phòng</Label>
+        <Label htmlFor="shift-room">Phòng hoặc quầy</Label>
         <NativeSelect
           id="shift-room"
           className="w-full"
@@ -145,18 +143,34 @@ export function ShiftFormFields({
           aria-invalid={Boolean(errors.roomId)}
           onChange={(event) => onRoomChange(event.target.value)}
         >
-          <option value="">Chọn phòng</option>
+          <option value="">Chọn phòng hoặc quầy</option>
           {roomChoices.map((room) => (
             <option key={room.roomId} value={room.roomId}>
               {room.label}
             </option>
           ))}
         </NativeSelect>
+        {suggestedCategory === "RECEPTION" && roomChoices.length === 0 ? (
+          <div className="space-y-2">
+            <p className="text-sm text-muted-foreground">
+              Chưa có quầy lễ tân đang hoạt động. Tạo quầy trong mục Phòng và
+              quầy, sau đó tải lại danh sách.
+            </p>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={disabled || optionsLoading}
+              onClick={onRetryOptions}
+            >
+              {optionsLoading ? "Đang tải quầy..." : "Tải lại danh sách quầy"}
+            </Button>
+          </div>
+        ) : null}
         {suggestedCategory ? (
           <p className="text-xs text-muted-foreground">
-            Gợi ý theo vai trò:{" "}
-            {ROOM_CATEGORY_LABELS[suggestedCategory].toLowerCase()}. Bạn có thể
-            chọn phòng khác.
+            Đã lọc danh sách theo vai trò:{" "}
+            {ROOM_TYPE_LABELS[suggestedCategory].toLowerCase()}.
           </p>
         ) : null}
         <FieldError message={err("roomId")} />

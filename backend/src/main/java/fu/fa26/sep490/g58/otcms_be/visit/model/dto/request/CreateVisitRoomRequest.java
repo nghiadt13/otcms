@@ -7,7 +7,7 @@ import jakarta.validation.constraints.NotNull;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
-import fu.fa26.sep490.g58.otcms_be.servicecatalog.model.ClinicServiceType;
+import fu.fa26.sep490.g58.otcms_be.visit.model.VisitRoomType;
 
 public class CreateVisitRoomRequest {
     @NotBlank
@@ -22,7 +22,7 @@ public class CreateVisitRoomRequest {
     @Size(max = 32)
     private List<@NotBlank @Pattern(regexp = "[A-Z][A-Z0-9_]{0,63}") String> capabilities = new ArrayList<>();
 
-    private ClinicServiceType type;
+    private VisitRoomType type;
 
     @Size(max = 1000)
     private String description = "";
@@ -36,8 +36,8 @@ public class CreateVisitRoomRequest {
     public void setDisplayLabel(String displayLabel) { this.displayLabel = displayLabel; }
     public List<String> getCapabilities() { return capabilities; }
     public void setCapabilities(List<String> capabilities) { this.capabilities = capabilities; }
-    public ClinicServiceType getType() { return type; }
-    public void setType(ClinicServiceType type) { this.type = type; }
+    public VisitRoomType getType() { return type; }
+    public void setType(VisitRoomType type) { this.type = type; }
     public String getDescription() { return description; }
     public void setDescription(String description) { this.description = description; }
     public List<UUID> getServiceIds() { return serviceIds; }

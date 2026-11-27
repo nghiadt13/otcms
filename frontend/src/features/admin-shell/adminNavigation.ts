@@ -94,7 +94,7 @@ export const adminNavGroups: AdminNavGroup[] = [
         href: "/admin/rooms",
         icon: DoorOpen,
         ucs: "UC64–UC67",
-        description: "Phòng, loại phòng, dịch vụ hỗ trợ và trạng thái sử dụng.",
+        description: "Phòng dịch vụ, quầy lễ tân và trạng thái sử dụng.",
       },
       {
         title: "Dịch vụ và giá",

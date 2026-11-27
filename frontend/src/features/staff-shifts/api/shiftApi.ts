@@ -1,6 +1,6 @@
 import { apiRequest } from "@/lib/api/client";
 import { ApiError } from "@/lib/api/apiError";
-import type { ServiceCategory } from "@/lib/domain/clinicCategories";
+import type { RoomType } from "@/lib/domain/clinicCategories";
 import type { StaffRole } from "@/lib/domain/clinicRoles";
 import { addDays, todayIsoDate } from "@/lib/format/formatDate";
 import type {
@@ -79,12 +79,14 @@ const profileRole = (role: string): StaffRole | undefined =>
     : ["RECEPTIONIST", "LAB_TECHNICIAN", "IMAGING_TECHNICIAN"].includes(role)
       ? (role as StaffRole)
       : undefined;
-const roomCategory = (type: string): ServiceCategory =>
-  type === "IMAGING"
-    ? "IMAGING"
-    : type === "LABORATORY"
-      ? "LABORATORY"
-      : "EXAMINATION";
+const roomCategory = (type: string): RoomType =>
+  type === "RECEPTION"
+    ? "RECEPTION"
+    : type === "IMAGING"
+      ? "IMAGING"
+      : type === "LABORATORY"
+        ? "LABORATORY"
+        : "EXAMINATION";
 const doctorPath = (doctorId: string) =>
   `/api/v1/admin/doctors/${doctorId}/shifts` as const;
 const staffShiftsPath = "/api/v1/admin/staff-shifts" as const;
@@ -336,7 +338,7 @@ async function liveListStaffOptions(
 }
 
 async function liveListRoomOptions(
-  _category?: ServiceCategory,
+  _category?: RoomType,
   signal?: AbortSignal,
 ): Promise<RoomOptionsResponse> {
   const response = await apiRequest<VisitRooms>("/api/v1/admin/visit-rooms", {

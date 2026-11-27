@@ -9,7 +9,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { ROOM_CATEGORY_LABELS } from "@/lib/domain/clinicCategories";
+import { ROOM_TYPE_LABELS } from "@/lib/domain/clinicCategories";
 import { ROLE_LABELS } from "@/lib/domain/clinicRoles";
 import type { Shift } from "../types/shift";
 import { dayMonthYear } from "../utils/shiftWeekRange";
@@ -60,7 +60,7 @@ export function ShiftDetailSheet({
                 },
                 {
                   label: "Phòng",
-                  value: `${shift.roomName} · ${ROOM_CATEGORY_LABELS[shift.roomCategory]}`,
+                  value: `${shift.roomName} · ${ROOM_TYPE_LABELS[shift.roomCategory]}`,
                 },
               ]}
             />

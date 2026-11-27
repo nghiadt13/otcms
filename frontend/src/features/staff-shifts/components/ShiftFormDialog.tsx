@@ -59,7 +59,7 @@ export function ShiftFormDialog(props: ShiftFormDialogProps) {
           <DialogDescription>
             {target?.shift
               ? "Nhân viên của ca không đổi được. Muốn đổi người, xóa ca rồi thêm ca mới."
-              : "Mỗi ca gắn với một phòng. Nhân viên không được có hai ca chồng giờ."}
+              : "Chọn phòng hoặc quầy phù hợp với vai trò. Nhân viên không được có hai ca chồng giờ."}
           </DialogDescription>
         </DialogHeader>
         {/* Form gắn/gỡ cùng dialog nên state tự đặt lại mỗi lần mở. */}
@@ -98,15 +98,18 @@ function ShiftForm({
     editing?.role ?? staff.find((s) => s.staffId === values.staffId)?.role;
   const suggested = role ? suggestRoomCategory(role) : null;
 
-  // Phòng gợi ý lên đầu; phòng đang gắn với ca nhưng không còn Sẵn sàng vẫn hiện kèm chú thích.
+  // Chỉ cho chọn vị trí phù hợp vai trò; giữ vị trí hiện tại nếu không còn khả dụng.
+  const compatibleRooms = suggested
+    ? rooms.filter((room) => room.category === suggested)
+    : rooms;
   const roomChoices: RoomChoice[] = [
-    ...[...rooms]
+    ...[...compatibleRooms]
       .sort(
         (a, b) =>
           Number(b.category === suggested) - Number(a.category === suggested),
       )
       .map((room) => ({ roomId: room.roomId, label: room.name })),
-    ...(editing && !rooms.some((r) => r.roomId === editing.roomId)
+    ...(editing && !compatibleRooms.some((r) => r.roomId === editing.roomId)
       ? [
           {
             roomId: editing.roomId,

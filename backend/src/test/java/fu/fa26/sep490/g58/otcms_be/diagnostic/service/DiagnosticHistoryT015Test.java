@@ -203,4 +203,68 @@ class DiagnosticHistoryT015Test {
         when(request.status()).thenReturn(ExecutionStatus.CANCELLED);
         org.junit.jupiter.api.Assertions.assertNull(service.getImagingHistory(actor, null, visitId, 0, 20).items().getFirst().reportId());
     }
+
+    @Test
+    void treatingDoctorHistoryRestoresMatchingImagingDraft() {
+        UUID actorId = UUID.randomUUID();
+        UUID visitId = UUID.randomUUID();
+        UUID patientId = UUID.randomUUID();
+        UUID orderId = UUID.randomUUID();
+        DiagnosticActor actor = DiagnosticActor.user(actorId, AccountRole.DOCTOR);
+        ImagingExecution request = mock(ImagingExecution.class);
+        when(request.orderId()).thenReturn(orderId);
+        when(request.visitId()).thenReturn(visitId);
+        when(request.status()).thenReturn(ExecutionStatus.RESULT_AVAILABLE);
+        when(request.studyRef()).thenReturn("study-draft-123");
+        when(visitPort.authorizeImagingHistory(visitId, actorId)).thenReturn(
+                new VisitHistoryAuthorization(visitId, patientId, actorId, UUID.randomUUID(), "IN_PROGRESS", true));
+        when(requests.page(eq(visitId), eq(patientId), eq(null), eq(null), eq(null), eq(false), any()))
+                .thenReturn(new PageImpl<>(List.of(request), PageRequest.of(0, 20), 1));
+        DiagnosticReportJpaEntity draft = new DiagnosticReportJpaEntity(UUID.randomUUID(), orderId, visitId,
+                "study-draft-123", 1, "Draft findings", actorId, Instant.parse("2026-11-27T00:00:00Z"));
+        when(reports.findFirstByRequestIdAndStateOrderByReportVersionDesc(orderId,
+                fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.enums.DiagnosticFindingsVersionState.DRAFT))
+                .thenReturn(Optional.of(draft));
+
+        var item = service.getImagingHistory(actor, null, visitId, 0, 20).items().getFirst();
+
+        assertEquals("Draft findings", item.findingsText());
+        assertEquals("study-draft-123", item.studyRef());
+        org.junit.jupiter.api.Assertions.assertNull(item.findingsVersion());
+        org.junit.jupiter.api.Assertions.assertNull(item.reportId());
+        verify(reports).findFirstByRequestIdAndStateOrderByReportVersionDesc(orderId,
+                fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.enums.DiagnosticFindingsVersionState.DRAFT);
+        verify(reports, org.mockito.Mockito.never()).findFirstByRequestIdAndStateOrderByReportVersionDesc(orderId,
+                fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.enums.DiagnosticFindingsVersionState.COMPLETED);
+    }
+
+    @Test
+    void patientHistoryDoesNotReadOrExposeDraftFindings() {
+        UUID actorId = UUID.randomUUID();
+        UUID visitId = UUID.randomUUID();
+        UUID patientId = UUID.randomUUID();
+        UUID orderId = UUID.randomUUID();
+        DiagnosticActor actor = DiagnosticActor.user(actorId, AccountRole.PATIENT);
+        ImagingExecution request = mock(ImagingExecution.class);
+        when(request.orderId()).thenReturn(orderId);
+        when(request.visitId()).thenReturn(visitId);
+        when(request.status()).thenReturn(ExecutionStatus.RESULT_AVAILABLE);
+        when(request.studyRef()).thenReturn("study-draft-123");
+        when(visitPort.authorizeImagingHistory(visitId, actorId)).thenReturn(
+                new VisitHistoryAuthorization(visitId, patientId, null, UUID.randomUUID(), "CLOSED", true));
+        when(patientPort.authorizePatientHistory(actorId, patientId))
+                .thenReturn(new PatientHistoryAuthorization(patientId, "SELF", true));
+        when(requests.page(eq(visitId), eq(patientId), eq(null), eq(null), eq(null), eq(false), any()))
+                .thenReturn(new PageImpl<>(List.of(request), PageRequest.of(0, 20), 1));
+        when(reports.findFirstByRequestIdAndStateOrderByReportVersionDesc(orderId,
+                fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.enums.DiagnosticFindingsVersionState.COMPLETED))
+                .thenReturn(Optional.empty());
+
+        var item = service.getImagingHistory(actor, null, visitId, 0, 20).items().getFirst();
+
+        org.junit.jupiter.api.Assertions.assertNull(item.findingsText());
+        org.junit.jupiter.api.Assertions.assertNull(item.reportId());
+        verify(reports, org.mockito.Mockito.never()).findFirstByRequestIdAndStateOrderByReportVersionDesc(orderId,
+                fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.enums.DiagnosticFindingsVersionState.DRAFT);
+    }
 }

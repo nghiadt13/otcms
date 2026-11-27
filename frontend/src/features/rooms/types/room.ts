@@ -1,4 +1,4 @@
-import type { ServiceCategory } from "@/lib/domain/clinicCategories";
+import type { RoomType, ServiceCategory } from "@/lib/domain/clinicCategories";
 
 // Hình JSON đúng contract `/api/v1/admin/rooms`. Loại phòng dùng chung enum với loại dịch vụ (BR-57).
 
@@ -11,7 +11,7 @@ export type Room = {
   id: string;
   /** Tên hoặc mã phòng, duy nhất. */
   name: string;
-  type: ServiceCategory;
+  type: RoomType;
   description: string;
   status: RoomStatus;
   supportedServices: SupportedService[];
@@ -20,7 +20,7 @@ export type Room = {
 
 export type RoomCreateInput = {
   name: string;
-  type: ServiceCategory;
+  type: RoomType;
   description: string;
   serviceIds: string[];
 };
@@ -41,7 +41,7 @@ export type RoomServiceOptionsResponse = { items: RoomServiceOption[] };
 /** Bộ lọc danh sách; giá trị rỗng bị bỏ khi gửi. */
 export type RoomListFilters = {
   q: string;
-  type: ServiceCategory | "";
+  type: RoomType | "";
   status: RoomStatus | "";
   serviceId: string;
 };

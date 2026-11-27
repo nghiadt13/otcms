@@ -25,7 +25,7 @@ export function MyAccountProfile() {
   const canChangePassword = account?.allowedActions.includes("changePassword");
 
   return (
-    <div className="max-w-2xl">
+    <div className="max-w-4xl">
       <PageHeader
         title="Hồ sơ tài khoản"
         description="Tên đăng nhập, vai trò và ảnh đại diện của bạn."
@@ -51,21 +51,32 @@ export function MyAccountProfile() {
         <div className="grid gap-6">
           {account.kind === "STAFF" ? (
             <>
-              <DetailList
-                items={[
-                  { label: "Tên hiển thị", value: account.displayName },
-                  { label: "Tên đăng nhập", value: account.username },
-                  { label: "Vai trò", value: ROLE_LABELS[account.role] },
-                  {
-                    label: "Trạng thái",
-                    value: (
-                      <StatusBadge tone={STATUS_VIEW[account.status].tone}>
-                        {STATUS_VIEW[account.status].label}
-                      </StatusBadge>
-                    ),
-                  },
-                ]}
-              />
+              <section
+                aria-labelledby="account-summary-heading"
+                className="rounded-xl border bg-card p-4 sm:p-5"
+              >
+                <h2
+                  id="account-summary-heading"
+                  className="mb-4 text-lg font-semibold"
+                >
+                  Thông tin tài khoản
+                </h2>
+                <DetailList
+                  items={[
+                    { label: "Tên hiển thị", value: account.displayName },
+                    { label: "Tên đăng nhập", value: account.username },
+                    { label: "Vai trò", value: ROLE_LABELS[account.role] },
+                    {
+                      label: "Trạng thái",
+                      value: (
+                        <StatusBadge tone={STATUS_VIEW[account.status].tone}>
+                          {STATUS_VIEW[account.status].label}
+                        </StatusBadge>
+                      ),
+                    },
+                  ]}
+                />
+              </section>
               <Separator />
             </>
           ) : null}

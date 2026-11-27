@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/table";
 import { TableFrame } from "@/components/admin/TableFrame";
 import { TableStateRows } from "@/components/admin/TableStateRows";
-import { ROOM_CATEGORY_LABELS } from "@/lib/domain/clinicCategories";
+import { ROOM_TYPE_LABELS } from "@/lib/domain/clinicCategories";
 import { ROOM_STATUS_LABELS, type Room } from "../types/room";
 
 const MAX_CHIPS = 3;
@@ -105,9 +105,11 @@ function RoomRow({
   return (
     <TableRow>
       <TableCell className="font-medium">{room.name}</TableCell>
-      <TableCell>{ROOM_CATEGORY_LABELS[room.type]}</TableCell>
+      <TableCell>{ROOM_TYPE_LABELS[room.type]}</TableCell>
       <TableCell>
-        {services.length === 0 ? (
+        {room.type === "RECEPTION" ? (
+          <Badge variant="secondary">Phục vụ hỗ trợ</Badge>
+        ) : services.length === 0 ? (
           <span className="text-muted-foreground">Chưa gán dịch vụ</span>
         ) : (
           <div className="flex flex-wrap gap-1">

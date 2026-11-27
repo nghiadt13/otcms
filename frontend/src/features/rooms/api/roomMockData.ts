@@ -1,4 +1,4 @@
-import type { ServiceCategory } from "@/lib/domain/clinicCategories";
+import type { RoomType } from "@/lib/domain/clinicCategories";
 import type { Room, RoomServiceOption } from "../types/room";
 
 // Fixture riêng của feature rooms (không import clinic-services). Khi nối BE thì bỏ.
@@ -25,7 +25,7 @@ export const MOCK_IN_USE_ROOM_NAME = "CĐHA-02";
 
 type SeedRoom = {
   name: string;
-  type: ServiceCategory;
+  type: RoomType;
   description: string;
   services: number[];
   unavailable?: boolean;
