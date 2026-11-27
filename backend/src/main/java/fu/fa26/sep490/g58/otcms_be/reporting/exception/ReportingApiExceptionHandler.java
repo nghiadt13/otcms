@@ -2,12 +2,14 @@ package fu.fa26.sep490.g58.otcms_be.reporting.exception;
 
 import fu.fa26.sep490.g58.otcms_be.common.api.ErrorResponse;
 import fu.fa26.sep490.g58.otcms_be.common.web.CorrelationIdFilter;
+import fu.fa26.sep490.g58.otcms_be.reporting.controller.OwnerAnalyticsController;
+import fu.fa26.sep490.g58.otcms_be.reporting.controller.OwnerFinanceController;
 import fu.fa26.sep490.g58.otcms_be.reporting.controller.ReportingController;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-@RestControllerAdvice(assignableTypes=ReportingController.class)
+@RestControllerAdvice(assignableTypes={ReportingController.class, OwnerAnalyticsController.class, OwnerFinanceController.class})
 public class ReportingApiExceptionHandler {
     @ExceptionHandler(ReportingOperationException.class)
     public ResponseEntity<ErrorResponse> business(ReportingOperationException exception, HttpServletRequest request) {
