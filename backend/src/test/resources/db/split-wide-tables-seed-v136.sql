@@ -1,4 +1,4 @@
--- Sample rows at schema V136 (FK triggers off) to exercise V137-V142 data copy.
+-- Sample rows at schema V136 (FK triggers off) to exercise V139-V144 data copy.
 
 -- visits: one walk-in with key
 INSERT INTO visits (id, patient_profile_id, source, arrived_at, checked_in_at, created_by_account_id, walk_in_idempotency_key, walk_in_request_fingerprint)

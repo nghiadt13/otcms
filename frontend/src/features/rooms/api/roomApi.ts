@@ -5,7 +5,9 @@ import { toQueryString } from "@/lib/api/pagination";
 import { ApiError } from "@/lib/api/apiError";
 import {
   SERVICE_CATEGORIES,
+  ROOM_TYPES,
   type ServiceCategory,
+  type RoomType,
 } from "@/lib/domain/clinicCategories";
 import type {
   Room,
@@ -31,11 +33,16 @@ export function resetRoomMockStore() {
   store = buildSeedRooms();
 }
 
-const isCategory = (v: string): v is ServiceCategory =>
+const isRoomType = (v: string): v is RoomType =>
+  (ROOM_TYPES as string[]).includes(v);
+const isServiceCategory = (v: string): v is ServiceCategory =>
   (SERVICE_CATEGORIES as string[]).includes(v);
 const isStatus = (v: string): v is RoomStatus =>
   v === "AVAILABLE" || v === "UNAVAILABLE";
 const norm = (v: string) => v.trim().toLocaleLowerCase("vi");
+// The backend roomCode is an identifier and cannot contain spaces. Keep the
+// human-readable text in displayLabel while converting spaces in the code.
+const roomCodeFromLabel = (label: string) => label.trim().replace(/\s+/g, "-");
 const USE_MOCK = process.env.NODE_ENV === "test";
 
 async function liveRequest<T>(request: Promise<T>): Promise<T> {
@@ -67,7 +74,7 @@ type BackendRoom = {
   id: string;
   roomCode: string;
   displayLabel: string;
-  type: ServiceCategory;
+  type: RoomType;
   description: string;
   capabilities: string[];
   supportedServiceIds: string[];
@@ -104,7 +111,7 @@ function mapBackendRoom(room: BackendRoom, options: RoomServiceOption[]): Room {
   const byId = new Map(options.map((option) => [option.id, option]));
   return {
     id: room.id,
-    name: room.roomCode,
+    name: room.displayLabel || room.roomCode,
     type: room.type,
     description: room.description ?? "",
     status: room.active ? "AVAILABLE" : "UNAVAILABLE",
@@ -129,6 +136,12 @@ function resolveServices(ids: string[], type: ServiceCategory) {
       { field: "serviceIds", code: "MSG-62" },
     ]);
   return refs.map((s) => ({ id: s!.id, name: s!.name }));
+}
+
+function roomServiceOptions(roomType: RoomType, signal?: AbortSignal) {
+  return roomType === "RECEPTION"
+    ? Promise.resolve([] as RoomServiceOption[])
+    : backendServiceOptions(roomType, signal, true);
 }
 
 export async function listRooms(
@@ -167,7 +180,7 @@ export async function listRooms(
   const { q = "", type = "", status = "", serviceId = "" } = query;
   if (q === "khong-quyen") mockFail(403, "MSG-50");
   if (q === "loi-may-chu") mockFail(500, "MSG-04");
-  if ((type && !isCategory(type)) || (status && !isStatus(status)))
+  if ((type && !isRoomType(type)) || (status && !isStatus(status)))
     mockFail(400, "MSG-54");
 
   const keyword = norm(q);
@@ -191,7 +204,7 @@ export async function listRoomServiceOptions(
 ): Promise<RoomServiceOption[]> {
   if (!USE_MOCK) return backendServiceOptions(category, signal);
   await mockDelay(120, signal);
-  if (category && !isCategory(category)) mockFail(400, "MSG-54");
+  if (category && !isServiceCategory(category)) mockFail(400, "MSG-54");
   return clone(
     MOCK_SERVICES.filter((s) => !category || s.category === category),
   );
@@ -202,7 +215,7 @@ export async function getRoom(id: string, signal?: AbortSignal): Promise<Room> {
     const room = await liveRequest(
       apiRequest<BackendRoom>(`/api/v1/admin/visit-rooms/${id}`, { signal }),
     );
-    const options = await backendServiceOptions(room.type, signal, true);
+    const options = await roomServiceOptions(room.type, signal);
     return mapBackendRoom(room, options);
   }
   await mockDelay(120, signal);
@@ -215,22 +228,22 @@ export async function createRoom(input: RoomCreateInput): Promise<Room> {
       apiRequest<BackendRoom>("/api/v1/admin/visit-rooms", {
         method: "POST",
         body: JSON.stringify({
-          roomCode: input.name,
-          displayLabel: input.name,
+          roomCode: roomCodeFromLabel(input.name),
+          displayLabel: input.name.trim(),
           type: input.type,
           description: input.description,
           serviceIds: input.serviceIds,
         }),
       }),
     );
-    const options = await backendServiceOptions(input.type);
+    const options = await roomServiceOptions(input.type);
     return mapBackendRoom(room, options);
   }
   await mockDelay();
   const name = input.name.trim();
   if (!name)
     mockFail(400, "MSG-62", undefined, [{ field: "name", code: "MSG-62" }]);
-  if (!isCategory(input.type))
+  if (!isRoomType(input.type))
     mockFail(400, "MSG-62", undefined, [{ field: "type", code: "MSG-62" }]);
   if (store.some((r) => norm(r.name) === norm(name)))
     mockFail(409, "MSG-92", undefined, [{ field: "name", code: "MSG-92" }]);
@@ -240,7 +253,10 @@ export async function createRoom(input: RoomCreateInput): Promise<Room> {
     type: input.type,
     description: input.description.trim(),
     status: "AVAILABLE",
-    supportedServices: resolveServices(input.serviceIds, input.type),
+    supportedServices:
+      input.type === "RECEPTION"
+        ? []
+        : resolveServices(input.serviceIds, input.type),
     allowedActions: ["edit", "changeStatus"],
   };
   store = [...store, room];
@@ -263,12 +279,15 @@ export async function updateRoom(
         }),
       }),
     );
-    const options = await backendServiceOptions(room.type);
+    const options = await roomServiceOptions(room.type);
     return mapBackendRoom(room, options);
   }
   await mockDelay();
   const room = findRoom(id);
-  room.supportedServices = resolveServices(input.serviceIds, room.type);
+  room.supportedServices =
+    room.type === "RECEPTION"
+      ? []
+      : resolveServices(input.serviceIds, room.type);
   room.description = input.description.trim();
   return clone(room);
 }

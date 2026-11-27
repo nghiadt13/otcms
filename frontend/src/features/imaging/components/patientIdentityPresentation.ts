@@ -1,10 +1,19 @@
-﻿type PatientIdentity = {
+﻿const UUID_PATTERN = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
+type PatientIdentity = {
   patientProfileId: string;
   fullName: string;
   dateOfBirth: string | null;
   gender: string | null;
 };
 
+/** Short display code; the UUID remains the backend/API identifier. */
+export function formatImagingDisplayCode(
+  prefix: string,
+  identifier: string,
+): string {
+  if (!UUID_PATTERN.test(identifier)) return identifier;
+  return `${prefix.toUpperCase()}-${identifier.replaceAll("-", "").slice(0, 8).toUpperCase()}`;
+}
 export function patientAge(dateOfBirth: string | null): number | null {
   if (!dateOfBirth) return null;
   const [year, month, day] = dateOfBirth.split("-").map(Number);

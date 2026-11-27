@@ -1,6 +1,6 @@
 # Optional profile for running against the local Docker PostgreSQL instance.
 spring:
   datasource:
-    url: jdbc:postgresql://127.0.0.1:${OTCMS_DB_PORT:5433}/otcms_dev
+    url: jdbc:postgresql://127.0.0.1:${OTCMS_DB_PORT:5433}/${OTCMS_DB_NAME:otcms_dev}
     username: ${OTCMS_DB_USERNAME:postgres}
     password: ${OTCMS_DB_PASSWORD:otcms_local}

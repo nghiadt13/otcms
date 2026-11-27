@@ -24,6 +24,29 @@ NEXT_PUBLIC_OHIF_VIEWER_PATH=/viewer
 
 Không bật các cờ bỏ qua kiểm tra định danh DICOM với dữ liệu bệnh nhân thật. Khởi động lại backend và Next.js sau khi đổi biến môi trường.
 
+Định danh DICOM hiện được lưu cùng hồ sơ bệnh nhân và chỉ định hình ảnh (migration V128). Backend tự cấp accession duy nhất cho mỗi chỉ định và chỉ trả các tag đó cho kỹ thuật viên đang được phân công; không cần thêm mapping accession vào cấu hình cho từng order.
+
+## Tạo ZIP DICOM mẫu cho chỉ định
+
+`backend/scripts/rekey-dicom-zip.ps1` có thể lấy PatientID/Issuer và AccessionNumber trực tiếp từ backend. Cấu hình URL API; có thể truyền access token đang hoạt động hoặc để script mở lời nhắc đăng nhập kỹ thuật viên:
+
+```powershell
+$env:OTCMS_API_BASE_URL = 'http://localhost:3001'
+# Tùy chọn; nếu bỏ qua, script sẽ hỏi đăng nhập kỹ thuật viên.
+# $env:OTCMS_ACCESS_TOKEN = '<active access token>'
+```
+
+Sau khi chọn chỉ định đang được phân công, truyền `RequestId` cho script bằng UUID gốc hoặc mã hiển thị `CD-XXXXXXXX` (ví dụ `CD-3A3D3C05`). Với mã ngắn, script tìm UUID trong danh sách chỉ định đang được giao cho kỹ thuật viên; nếu có nhiều kết quả trùng 8 ký tự đầu, hãy dùng UUID đầy đủ. Mã `CD-…` chỉ là mã hiển thị, không cần thêm cột vào database. Backend tự tìm lượt chụp hiện hành và định danh DICOM. Mỗi lần chạy cần một đường dẫn đầu ra mới; script tự tạo Study, Series và SOP Instance UID mới:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\backend\scripts\rekey-dicom-zip.ps1 `
+  -InputZip .\output\TEST-MR-KNEE-demo-12.zip `
+  -OutputZip .\output\TEST-MR-KNEE-CD-3A3D3C05.zip `
+  -RequestId 'CD-3A3D3C05'
+```
+
+Không commit hoặc chia sẻ access token. ZIP được sinh cho đúng chỉ định được chọn và cần upload vào chính chỉ định đó.
+
 ## 2. Khởi động Docker
 
 Mở Docker Desktop, từ thư mục gốc repository chạy:

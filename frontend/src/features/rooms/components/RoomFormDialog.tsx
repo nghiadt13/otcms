@@ -20,9 +20,9 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { isApiError, toFieldErrorMap } from "@/lib/api/apiError";
 import {
-  ROOM_CATEGORY_LABELS,
-  SERVICE_CATEGORIES,
-  type ServiceCategory,
+  ROOM_TYPE_LABELS,
+  ROOM_TYPES,
+  type RoomType,
 } from "@/lib/domain/clinicCategories";
 import { formatAppMessage } from "@/lib/messages/appMessages";
 import { notifySuccess } from "@/lib/messages/notify";
@@ -60,12 +60,12 @@ export function RoomFormDialog({
       <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>
-            {room ? `Sửa phòng ${room.name}` : "Thêm phòng"}
+            {room ? `Sửa phòng ${room.name}` : "Thêm phòng hoặc quầy"}
           </DialogTitle>
           <DialogDescription>
             {room
               ? "Chỉ đổi được mô tả và dịch vụ hỗ trợ."
-              : "Dịch vụ hỗ trợ phải cùng loại với phòng."}
+              : "Phòng dịch vụ cần gắn dịch vụ cùng loại; quầy lễ tân không cần dịch vụ."}
           </DialogDescription>
         </DialogHeader>
         {/* Form gắn/gỡ cùng dialog nên state tự đặt lại mỗi lần mở. */}
@@ -93,7 +93,7 @@ function RoomForm({
 }) {
   const mode = room ? "edit" : "create";
   const [name, setName] = useState("");
-  const [type, setType] = useState<ServiceCategory | "">(room?.type ?? "");
+  const [type, setType] = useState<RoomType | "">(room?.type ?? "");
   const [description, setDescription] = useState(room?.description ?? "");
   const [serviceIds, setServiceIds] = useState<string[]>(
     room?.supportedServices.map((s) => s.id) ?? [],
@@ -102,14 +102,17 @@ function RoomForm({
   const [saving, setSaving] = useState(false);
 
   // Tải mọi dịch vụ đang cung cấp một lần, lọc theo loại phía client để đổi loại không nháy.
-  const all = useRoomServiceOptions();
-  const options = type ? all.options.filter((o) => o.category === type) : [];
+  const all = useRoomServiceOptions(undefined, type !== "RECEPTION");
+  const options =
+    type && type !== "RECEPTION"
+      ? all.options.filter((o) => o.category === type)
+      : [];
 
-  function changeType(next: ServiceCategory | "") {
+  function changeType(next: RoomType | "") {
     setType(next);
     setErrors((e) => ({ ...e, type: undefined }));
     // Đổi loại: bỏ mọi dịch vụ không còn khớp (spec 06).
-    if (next)
+    if (next && next !== "RECEPTION")
       setServiceIds((ids) => keepServiceIdsOfCategory(ids, all.options, next));
     else setServiceIds([]);
   }
@@ -133,7 +136,7 @@ function RoomForm({
           })
         : await createRoom({
             name: name.trim(),
-            type: type as ServiceCategory,
+            type: type as RoomType,
             description: description.trim(),
             serviceIds,
           });
@@ -166,7 +169,13 @@ function RoomForm({
     >
       <div className="space-y-2">
         <Label htmlFor="room-name">
-          {room ? "Tên hoặc mã phòng (chỉ đọc)" : "Tên hoặc mã phòng"}
+          {room
+            ? room.type === "RECEPTION"
+              ? "Tên hoặc mã quầy (chỉ đọc)"
+              : "Tên hoặc mã phòng (chỉ đọc)"
+            : type === "RECEPTION"
+              ? "Tên hoặc mã quầy"
+              : "Tên hoặc mã phòng"}
         </Label>
         <Input
           id="room-name"
@@ -181,20 +190,24 @@ function RoomForm({
 
       <div className="space-y-2">
         <Label htmlFor="room-type">
-          {room ? "Loại phòng (chỉ đọc)" : "Loại phòng"}
+          {room
+            ? room.type === "RECEPTION"
+              ? "Loại quầy (chỉ đọc)"
+              : "Loại phòng (chỉ đọc)"
+            : "Loại phòng"}
         </Label>
         <NativeSelect
           id="room-type"
           className="w-full"
           value={type}
-          onChange={(e) => changeType(e.target.value as ServiceCategory | "")}
+          onChange={(e) => changeType(e.target.value as RoomType | "")}
           disabled={Boolean(room) || saving}
           aria-invalid={Boolean(errors.type)}
         >
           <NativeSelectOption value="">Chọn loại phòng</NativeSelectOption>
-          {SERVICE_CATEGORIES.map((c) => (
+          {ROOM_TYPES.map((c) => (
             <NativeSelectOption key={c} value={c}>
-              {ROOM_CATEGORY_LABELS[c]}
+              {ROOM_TYPE_LABELS[c]}
             </NativeSelectOption>
           ))}
         </NativeSelect>
@@ -212,29 +225,36 @@ function RoomForm({
         />
       </div>
 
-      <div
-        className="space-y-2"
-        role="group"
-        aria-labelledby="room-services-label"
-      >
-        <Label id="room-services-label">Dịch vụ hỗ trợ</Label>
-        <RoomServicePicker
-          hasCategory={Boolean(type)}
-          options={options}
-          loading={all.loading}
-          error={all.error}
-          onRetry={all.reload}
-          selectedIds={serviceIds}
-          currentServices={room?.supportedServices}
-          onChange={(ids) => {
-            setServiceIds(ids);
-            setErrors((e) => ({ ...e, serviceIds: undefined }));
-          }}
-          disabled={saving}
-          invalid={Boolean(errors.serviceIds)}
-        />
-        {fieldMessage("serviceIds")}
-      </div>
+      {type === "RECEPTION" ? (
+        <p className="rounded-lg border border-dashed p-3 text-sm text-muted-foreground">
+          Quầy lễ tân dùng để phân ca cho nhân viên lễ tân, không cần gắn dịch
+          vụ.
+        </p>
+      ) : (
+        <div
+          className="space-y-2"
+          role="group"
+          aria-labelledby="room-services-label"
+        >
+          <Label id="room-services-label">Dịch vụ hỗ trợ</Label>
+          <RoomServicePicker
+            hasCategory={Boolean(type)}
+            options={options}
+            loading={all.loading}
+            error={all.error}
+            onRetry={all.reload}
+            selectedIds={serviceIds}
+            currentServices={room?.supportedServices}
+            onChange={(ids) => {
+              setServiceIds(ids);
+              setErrors((e) => ({ ...e, serviceIds: undefined }));
+            }}
+            disabled={saving}
+            invalid={Boolean(errors.serviceIds)}
+          />
+          {fieldMessage("serviceIds")}
+        </div>
+      )}
 
       <DialogFooter>
         <Button
@@ -249,7 +269,13 @@ function RoomForm({
           type="submit"
           disabled={saving || all.loading || Boolean(all.error)}
         >
-          {saving ? "Đang lưu..." : room ? "Lưu thay đổi" : "Thêm phòng"}
+          {saving
+            ? "Đang lưu..."
+            : room
+              ? "Lưu thay đổi"
+              : type === "RECEPTION"
+                ? "Thêm quầy lễ tân"
+                : "Thêm phòng"}
         </Button>
       </DialogFooter>
     </form>

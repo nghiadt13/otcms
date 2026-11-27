@@ -27,6 +27,7 @@ export function LaboratoryResultDraft({
   onIssued?: () => void;
 }) {
   const [values, setValues] = useState<Value[]>([]);
+  const [touchedResults, setTouchedResults] = useState<Record<number, boolean>>({});
   const [loading, setLoading] = useState(true);
   const [pending, setPending] = useState(false);
   const [loadError, setLoadError] = useState(false);
@@ -154,13 +155,16 @@ export function LaboratoryResultDraft({
               <span>{label}</span>
               <Input
                 value={item[field]}
-                type={field === "value" ? "number" : "text"}
-                min={field === "value" ? 0 : undefined}
-                step={field === "value" ? "any" : undefined}
+                type="text"
                 inputMode={field === "value" ? "decimal" : undefined}
+                onBlur={() => {
+                  if (field === "value") {
+                    setTouchedResults((current) => ({ ...current, [index]: true }));
+                  }
+                }}
                 aria-invalid={
                   field === "value" &&
-                  item.value.trim() !== "" &&
+                  touchedResults[index] === true &&
                   !isValidResult(item.value)
                 }
                 readOnly={
@@ -184,6 +188,9 @@ export function LaboratoryResultDraft({
                     return;
                   setDirty(true);
                   setChecked(false);
+                  if (field === "value") {
+                    setTouchedResults((current) => ({ ...current, [index]: true }));
+                  }
                   setValues((current) =>
                     current.map((row, i) =>
                       i === index
@@ -194,10 +201,12 @@ export function LaboratoryResultDraft({
                 }}
               />
               {field === "value" &&
-                item.value.trim() !== "" &&
+                touchedResults[index] === true &&
                 !isValidResult(item.value) && (
                   <span className="text-destructive" role="alert">
-                    Kết quả phải là số không âm (ví dụ: 3.5).
+                    {item.value.trim() === ""
+                      ? "Vui lòng nhập kết quả."
+                      : "Kết quả phải là số không âm (ví dụ: 3.5)."}
                   </span>
                 )}
             </label>

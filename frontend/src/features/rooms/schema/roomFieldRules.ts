@@ -1,10 +1,10 @@
-import type { ServiceCategory } from "@/lib/domain/clinicCategories";
+import type { RoomType, ServiceCategory } from "@/lib/domain/clinicCategories";
 import type { MsgCode } from "@/lib/api/apiError";
 import type { RoomServiceOption } from "../types/room";
 
 export type RoomFormValues = {
   name: string;
-  type: ServiceCategory | "";
+  type: RoomType | "";
   description: string;
   serviceIds: string[];
 };
@@ -26,7 +26,8 @@ export function validateRoomForm(
     if (!values.name.trim()) errors.name = "MSG-62";
     if (!values.type) errors.type = "MSG-62";
   }
-  if (values.serviceIds.length === 0) errors.serviceIds = "MSG-62";
+  if (values.type !== "RECEPTION" && values.serviceIds.length === 0)
+    errors.serviceIds = "MSG-62";
   return errors;
 }
 

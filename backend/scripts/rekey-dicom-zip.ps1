@@ -34,6 +34,7 @@ param(
 )
 
 # Rewrites a demo DICOM ZIP using the identity assigned to an authorized imaging order.
+# RequestId accepts a full UUID or an unambiguous CD-XXXXXXXX display code from assigned work.
 # For online generation, the API base URL is read from frontend/.env.local when not set in the environment.
 # If no explicit access token is supplied, the script signs in to the target backend using
 # a runtime credential prompt and immediately uses the fresh session token.
@@ -114,6 +115,37 @@ if ($hasRequestId) {
     $AccessToken = $tokenMatch.Value
 
     $baseUrl = $BackendBaseUrl.TrimEnd('/')
+    $shortCode = [System.Text.RegularExpressions.Regex]::Match(
+        $RequestId.Trim(),
+        '^(?i:CD)-(?<prefix>[0-9A-F]{8})$'
+    )
+    if ($shortCode.Success) {
+        $requestedPrefix = $shortCode.Groups['prefix'].Value.ToUpperInvariant()
+        $headers = @{ Authorization = "Bearer $AccessToken" }
+        $matches = [System.Collections.Generic.List[string]]::new()
+        $page = 0
+        $pageCount = 1
+        while ($page -lt $pageCount) {
+            $workUrl = "$baseUrl/api/v1/imaging-requests/assigned-upload-work?page=$page&size=100"
+            $workPage = Invoke-RestMethod -Method Get -Uri $workUrl -Headers $headers
+            foreach ($item in $workPage.items) {
+                $candidateId = [string] $item.requestId
+                $candidatePrefix = $candidateId.Replace('-', '').Substring(0, 8).ToUpperInvariant()
+                if ($candidatePrefix -eq $requestedPrefix) { $matches.Add($candidateId) }
+            }
+            $page++
+            $pageCount = [Math]::Max(1, [Math]::Ceiling([double] $workPage.totalElements / [Math]::Max(1, [int] $workPage.size)))
+        }
+
+        if ($matches.Count -eq 0) {
+            throw "No assigned imaging request matches $RequestId. Use the code from the assigned-upload-work list or the full UUID."
+        }
+        if ($matches.Count -gt 1) {
+            throw "The short request code $RequestId is ambiguous for this technician. Use the full request UUID."
+        }
+        $RequestId = $matches[0]
+    }
+
     $identityUrl = "$baseUrl/api/v1/imaging/requests/$RequestId/dicom-identity"
     $identity = Invoke-RestMethod -Method Get -Uri $identityUrl -Headers @{ Authorization = "Bearer $AccessToken" }
     $PatientId = [string] $identity.patientId

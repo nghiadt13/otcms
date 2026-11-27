@@ -19,6 +19,19 @@ import { OrderStatusBadge } from "./doctorStatus";
 
 const KIND_LABEL = { IMAGING: "CĐHA", LABORATORY: "Xét nghiệm" } as const;
 
+function shortOrderCode(code: string): string {
+  const separator = code.indexOf("-");
+  const prefix = separator > 0 ? code.slice(0, separator) : "";
+  const identifier = separator > 0 ? code.slice(separator + 1) : "";
+  const compactIdentifier = identifier.replaceAll("-", "");
+
+  if (/^[A-Z]{2,}$/i.test(prefix) && /^[A-Z0-9]+$/i.test(compactIdentifier)) {
+    return `${prefix.toUpperCase()}-${compactIdentifier.slice(0, 8).toUpperCase()}`;
+  }
+
+  return code;
+}
+
 /** Chỉ hiện nút hủy khi BE hủy được ngay (chưa có ảnh/kết quả, UC45 E4). */
 export function canCancel(order: ParaclinicalOrder): boolean {
   return order.cancellable;
@@ -58,11 +71,11 @@ export function OrderTable({
             <TableRow key={order.id}>
               <TableCell>
                 <p className="font-medium">{order.serviceName}</p>
-                <p className="text-xs text-muted-foreground">
+                <p className="text-xs text-muted-foreground" title={order.code}>
                   {[
                     KIND_LABEL[order.kind],
                     order.round ? `Đợt ${order.round}` : null,
-                    order.code,
+                    shortOrderCode(order.code),
                   ]
                     .filter(Boolean)
                     .join(" · ")}

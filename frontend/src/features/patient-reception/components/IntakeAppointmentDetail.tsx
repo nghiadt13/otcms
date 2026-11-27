@@ -3,7 +3,10 @@
 import type { ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import type { ReceptionAppointment } from "../api/receptionLiveApi";
-import { receptionStatusValue } from "../schema/intakeAppointmentStatus";
+import {
+  effectiveReceptionStatus,
+  receptionStatusValue,
+} from "../schema/intakeAppointmentStatus";
 import { FormModal, Status, timeText } from "./ReceptionUi";
 
 /** Chi tiết lịch hẹn trên màn tiếp nhận, kèm nút mở bước tiếp nhận khi lịch còn có thể check-in. */
@@ -16,6 +19,11 @@ export function IntakeAppointmentDetail({
   onClose: () => void;
   onCheckIn: (appointment: ReceptionAppointment) => void;
 }) {
+  const status = effectiveReceptionStatus(
+    appointment.status,
+    appointment.startTime,
+    appointment.examFeePaid,
+  );
   return (
     <FormModal
       title="Chi tiết lịch hẹn"
@@ -46,7 +54,7 @@ export function IntakeAppointmentDetail({
               : "Chưa rõ"}
         </DetailRow>
         <DetailRow label="Trạng thái">
-          <Status value={receptionStatusValue(appointment.status)} />
+          <Status value={receptionStatusValue(status)} />
         </DetailRow>
         {appointment.purpose && (
           <DetailRow label="Lý do khám">{appointment.purpose}</DetailRow>
@@ -56,7 +64,7 @@ export function IntakeAppointmentDetail({
         <Button variant="outline" onClick={onClose}>
           Đóng
         </Button>
-        {["CONFIRMED", "NO_SHOW"].includes(appointment.status) && (
+        {["CONFIRMED", "NO_SHOW"].includes(status) && (
           <Button
             onClick={() => {
               onCheckIn(appointment);

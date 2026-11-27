@@ -1,4 +1,4 @@
-import type { ServiceCategory } from "@/lib/domain/clinicCategories";
+import type { RoomType } from "@/lib/domain/clinicCategories";
 import type { StaffRole } from "@/lib/domain/clinicRoles";
 import { addDays, todayIsoDate } from "@/lib/format/formatDate";
 import type { AffectedAppointment, Shift } from "../types/shift";
@@ -22,7 +22,7 @@ export interface MockStaff {
 export interface MockRoom {
   roomId: string;
   name: string;
-  category: ServiceCategory;
+  category: RoomType;
   /** false = đang bảo trì, không xếp ca mới. */
   ready: boolean;
 }
@@ -90,6 +90,12 @@ export const MOCK_ROOMS: MockRoom[] = [
     name: "Phòng xét nghiệm 1",
     category: "LABORATORY",
     ready: false,
+  },
+  {
+    roomId: "rm-qt1",
+    name: "Quầy lễ tân 1",
+    category: "RECEPTION",
+    ready: true,
   },
 ];
 

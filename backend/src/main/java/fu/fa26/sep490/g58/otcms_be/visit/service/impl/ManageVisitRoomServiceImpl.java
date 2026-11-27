@@ -9,6 +9,7 @@ import fu.fa26.sep490.g58.otcms_be.common.exception.CoordinationGuardUnavailable
 import fu.fa26.sep490.g58.otcms_be.visit.exception.VisitOperationException;
 import fu.fa26.sep490.g58.otcms_be.visit.mapper.VisitRoomMapper;
 import fu.fa26.sep490.g58.otcms_be.visit.model.VisitRoom;
+import fu.fa26.sep490.g58.otcms_be.visit.model.VisitRoomType;
 import fu.fa26.sep490.g58.otcms_be.visit.model.entity.VisitRoomJpaEntity;
 import fu.fa26.sep490.g58.otcms_be.visit.repository.VisitRoomJpaRepository;
 import fu.fa26.sep490.g58.otcms_be.visit.service.ManageVisitRoomService;
@@ -67,17 +68,19 @@ public class ManageVisitRoomServiceImpl implements ManageVisitRoomService {
 
     @Override
     @Transactional
-    public VisitRoom create(String roomCode, String displayLabel, ClinicServiceType type, String description,
+    public VisitRoom create(String roomCode, String displayLabel, VisitRoomType type, String description,
             List<UUID> serviceIds, List<String> capabilities,
             UUID actorAccountId, String correlationId) {
         validateActorAndCorrelation(actorAccountId, correlationId);
         String normalizedCode = normalizeRoomCode(roomCode);
         String normalizedLabel = normalizeLabel(displayLabel);
-        ClinicServiceType roomType = type == null ? ClinicServiceType.EXAMINATION : type;
+        VisitRoomType roomType = type == null ? VisitRoomType.EXAMINATION : type;
         String normalizedDescription = normalizeDescription(description);
         acquireGuard();
-        Set<UUID> normalizedServiceIds = serviceIds == null && type == null
-                ? Set.of() : validateServices(serviceIds, roomType);
+        Set<UUID> normalizedServiceIds = roomType == VisitRoomType.RECEPTION
+                ? validateReceptionServices(serviceIds)
+                : serviceIds == null && type == null
+                        ? Set.of() : validateServices(serviceIds, serviceType(roomType));
         List<String> normalizedCapabilities = capabilities == null || capabilities.isEmpty()
                 ? defaultCapabilities(roomType) : normalizeCapabilities(capabilities);
         try {
@@ -106,10 +109,12 @@ public class ManageVisitRoomServiceImpl implements ManageVisitRoomService {
             String normalizedLabel = displayLabel == null ? current.getDisplayLabel() : normalizeLabel(displayLabel);
             String normalizedDescription = description == null
                     ? current.getDescription() : normalizeDescription(description);
-            ClinicServiceType roomType = parseType(current.getType());
+            VisitRoomType roomType = parseType(current.getType());
             Set<UUID> desiredServiceIds = serviceIds == null
                     ? current.getSupportedServiceIds()
-                    : validateServices(serviceIds, roomType, current.getSupportedServiceIds());
+                    : roomType == VisitRoomType.RECEPTION
+                            ? validateReceptionServices(serviceIds)
+                            : validateServices(serviceIds, serviceType(roomType), current.getSupportedServiceIds());
             Set<String> desiredCapabilities = capabilities == null || capabilities.isEmpty()
                     ? current.getCapabilities() : Set.copyOf(normalizeCapabilities(capabilities));
             if ((!current.getCapabilities().equals(desiredCapabilities)
@@ -238,6 +243,12 @@ public class ManageVisitRoomServiceImpl implements ManageVisitRoomService {
         return List.copyOf(normalized);
     }
 
+    private Set<UUID> validateReceptionServices(List<UUID> serviceIds) {
+        if (serviceIds != null && !serviceIds.isEmpty())
+            throw new VisitOperationException("VALIDATION_FAILED");
+        return Set.of();
+    }
+
     private Set<UUID> validateServices(List<UUID> serviceIds, ClinicServiceType type) {
         return validateServices(serviceIds, type, Set.of());
     }
@@ -258,20 +269,26 @@ public class ManageVisitRoomServiceImpl implements ManageVisitRoomService {
         return Set.copyOf(ids);
     }
 
-    private static List<String> defaultCapabilities(ClinicServiceType type) {
+    private static List<String> defaultCapabilities(VisitRoomType type) {
         return switch (type) {
             case EXAMINATION -> List.of("EXAM_ROOM");
             case IMAGING -> List.of("IMAGING_ROOM");
             case LABORATORY -> List.of("LAB_ROOM");
+            case RECEPTION -> List.of("RECEPTION_DESK");
         };
     }
 
-    private static ClinicServiceType parseType(String type) {
+    private static VisitRoomType parseType(String type) {
         try {
-            return ClinicServiceType.valueOf(type);
+            return VisitRoomType.valueOf(type);
         } catch (RuntimeException exception) {
             throw new VisitOperationException("VALIDATION_FAILED", exception);
         }
+    }
+
+    private static ClinicServiceType serviceType(VisitRoomType type) {
+        if (type == VisitRoomType.RECEPTION) throw new VisitOperationException("VALIDATION_FAILED");
+        return ClinicServiceType.valueOf(type.name());
     }
 
     private static String normalizeDescription(String description) {

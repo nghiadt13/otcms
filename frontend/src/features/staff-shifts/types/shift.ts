@@ -1,5 +1,5 @@
 // Hình JSON khớp 1-1 với contract `/api/v1/admin/shifts` (phase-04 mục 7).
-import type { ServiceCategory } from "@/lib/domain/clinicCategories";
+import type { RoomType } from "@/lib/domain/clinicCategories";
 import type { StaffRole } from "@/lib/domain/clinicRoles";
 
 export type ShiftAction = "edit" | "delete" | "view";
@@ -16,7 +16,7 @@ export interface Shift {
   role: StaffRole;
   roomId: string;
   roomName: string;
-  roomCategory: ServiceCategory;
+  roomCategory: RoomType;
   allowedActions: ShiftAction[];
 }
 
@@ -50,7 +50,7 @@ export interface StaffOptionsResponse {
 export interface RoomOption {
   roomId: string;
   name: string;
-  category: ServiceCategory;
+  category: RoomType;
 }
 export interface RoomOptionsResponse {
   items: RoomOption[];

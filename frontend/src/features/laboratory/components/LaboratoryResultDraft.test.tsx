@@ -25,12 +25,47 @@ beforeEach(() => {
 });
 
 describe("LaboratoryResultDraft result validation", () => {
+  it("does not show a validation warning for an untouched empty result", async () => {
+    render(<LaboratoryResultDraft orderId="order-1" />);
+    const result = await screen.findByLabelText("Kết quả");
+
+    expect(result).toHaveValue("");
+    expect(result).toHaveAttribute("inputmode", "decimal");
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Lưu bản nháp" })).toBeDisabled();
+  });
+
+  it("keeps a legacy invalid draft visible and waits for interaction before warning", async () => {
+    apiRequest.mockResolvedValueOnce({
+      values: [
+        {
+          indicator: "CRP (Protein phản ứng C)",
+          value: "legacy text",
+          unit: "mg/L",
+          referenceRange: "0 - 5",
+          comment: "",
+          abnormal: null,
+        },
+      ],
+    });
+    render(<LaboratoryResultDraft orderId="order-1" />);
+    const result = await screen.findByLabelText("Kết quả");
+
+    expect(result).toHaveValue("legacy text");
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+
+    fireEvent.blur(result);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Kết quả phải là số không âm",
+    );
+  });
+
   it("blocks saving a negative result and explains the constraint", async () => {
     render(<LaboratoryResultDraft orderId="order-1" />);
     const result = await screen.findByLabelText("Kết quả");
 
-    expect(result).toHaveAttribute("type", "number");
-    expect(result).toHaveAttribute("min", "0");
+    expect(result).toHaveAttribute("type", "text");
     fireEvent.change(result, { target: { value: "-3.5" } });
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
@@ -59,6 +94,21 @@ describe("LaboratoryResultDraft result validation", () => {
     fireEvent.change(result, { target: { value: "abc" } });
 
     expect(screen.getByRole("button", { name: "Lưu bản nháp" })).toBeDisabled();
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Kết quả phải là số không âm",
+    );
     expect(apiRequest).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows a required message only after an empty result is touched", async () => {
+    render(<LaboratoryResultDraft orderId="order-1" />);
+    const result = await screen.findByLabelText("Kết quả");
+
+    fireEvent.focus(result);
+    fireEvent.blur(result);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Vui lòng nhập kết quả.",
+    );
   });
 });

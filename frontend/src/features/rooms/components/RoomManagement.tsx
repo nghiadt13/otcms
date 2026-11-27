@@ -73,11 +73,11 @@ export function RoomManagement() {
   return (
     <>
       <PageHeader
-        title="Phòng khám"
-        description="Quản lý phòng khám, chẩn đoán hình ảnh và xét nghiệm."
+        title="Phòng và quầy"
+        description="Quản lý phòng dịch vụ và quầy lễ tân dùng để phân ca."
         actions={
           <Button className="w-full sm:w-auto" onClick={openCreate}>
-            <Plus /> Thêm phòng
+            <Plus /> Thêm phòng hoặc quầy
           </Button>
         }
       />

@@ -42,7 +42,7 @@ Ví dụ request duyệt (minh họa, các ID không có thật):
 }
 ```
 
-Đề xuất trả order ID, phiên bản mới, trạng thái, thời điểm/người duyệt và từng kết quả kèm cờ `NORMAL` / `ABNORMAL` (hoặc trạng thái khác được thống nhất). Backend phải tự xác định cờ theo khoảng tham chiếu có hiệu lực, không tin cờ do frontend gửi. Giá trị thiếu hoặc ngoài miền hợp lệ trả MSG-75 gắn `indicatorId` để FE đặt lỗi đúng ô; lỗi xung đột phiên bản hoặc trạng thái trả MSG-42 và thông tin cần thiết để tải lại.
+Quyết định hiện tại cho luồng phiếu đối tác: kỹ thuật viên chọn bắt buộc `Bình thường` hoặc `Bất thường` trên từng chỉ số; API lưu và trả lựa chọn này cùng giá trị, backend từ chối phát hành nếu chỉ số còn thiếu lựa chọn. Không suy ra trạng thái từ khoảng tham chiếu. Quyết định này thay thế đề xuất cũ bên dưới về việc backend tự tính cờ. Các trường/cơ chế khác trong hợp đồng này vẫn là đề xuất cần FE/BE thống nhất.
 
 Ví dụ request sửa sau duyệt:
 
