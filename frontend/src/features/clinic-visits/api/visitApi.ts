@@ -87,3 +87,18 @@ export function getVisitProgress(
     { signal },
   );
 }
+
+/**
+ * Dòng tóm tắt của một lượt (người khám, ngày, trạng thái) để trang chi tiết ghi rõ đây là lượt của ai.
+ * Tìm trong GET /api/v1/me/visits; lượt cũ hơn 7 ngày không còn trong danh sách thì trả null.
+ */
+export async function findVisitSummary(
+  visitId: string,
+  signal?: AbortSignal,
+): Promise<VisitSummary | null> {
+  const items = await apiRequest<VisitListItem[]>("/api/v1/me/visits", {
+    signal,
+  });
+  const item = items.find((visit) => visit.visitId === visitId);
+  return item ? summaryOf(item) : null;
+}

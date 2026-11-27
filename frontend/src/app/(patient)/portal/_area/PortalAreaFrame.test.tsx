@@ -46,6 +46,35 @@ describe("PortalAreaFrame", () => {
     expect(screen.getByText("Nội dung lịch hẹn")).toBeInTheDocument();
   });
 
+  it("Lượt khám hôm nay: giữ cột trái và chọn đúng mục", async () => {
+    pathname = "/portal/visits";
+    render(
+      <PortalAreaFrame>
+        <p>Nội dung lượt khám</p>
+      </PortalAreaFrame>,
+    );
+
+    expect(await screen.findByText("Nam, 21/07/1992")).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Lượt khám hôm nay" }),
+    ).toHaveAttribute("aria-current", "page");
+    expect(screen.getByText("Nội dung lượt khám")).toBeInTheDocument();
+  });
+
+  it("chi tiết một lượt khám: vẫn giữ cột trái, mục Lượt khám hôm nay sáng", async () => {
+    pathname = "/portal/visits/visit-1";
+    render(
+      <PortalAreaFrame>
+        <p>Tiến độ lượt khám</p>
+      </PortalAreaFrame>,
+    );
+
+    expect(await screen.findByText("Nam, 21/07/1992")).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Lượt khám hôm nay" }),
+    ).toHaveAttribute("aria-current", "page");
+  });
+
   it("màn ngoài menu (đặt lịch): không vẽ cột trái", () => {
     pathname = "/portal/appointments/new";
     render(

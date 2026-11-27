@@ -1,9 +1,10 @@
+import { RefreshCw } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import { formatTime } from "@/lib/format/formatDate";
 import { cn } from "@/lib/utils";
 
-// Dòng "Cập nhật lúc" và nút "Làm mới". Tải lại tự động lỗi chỉ hiện một dòng nhắc (không toast),
-// dữ liệu cũ vẫn nằm bên dưới.
+// Dòng "Cập nhật lúc" kèm lời nhắc tự làm mới (30 giây) và nút "Làm mới". Tải lại tự động lỗi chỉ hiện
+// một dòng nhắc (không toast), dữ liệu cũ vẫn nằm bên dưới.
 export function VisitUpdateBar({
   updatedAt,
   refreshFailedAt,
@@ -21,7 +22,7 @@ export function VisitUpdateBar({
       <div className="space-y-1">
         {updatedAt ? (
           <p className="text-sm text-muted-foreground tabular-nums">
-            Cập nhật lúc {formatTime(updatedAt)}
+            Cập nhật lúc {formatTime(updatedAt)} · tự làm mới mỗi 30 giây
           </p>
         ) : null}
         {refreshFailedAt ? (
@@ -32,13 +33,20 @@ export function VisitUpdateBar({
       </div>
       <button
         className={cn(
-          buttonVariants({ variant: "ghost" }),
-          "h-12 px-4 text-base",
+          buttonVariants({ variant: "outline" }),
+          "h-12 gap-2 px-4 text-base",
         )}
         disabled={refreshing}
         onClick={onRefresh}
         type="button"
       >
+        <RefreshCw
+          aria-hidden
+          className={cn(
+            "size-4",
+            refreshing && "animate-spin motion-reduce:animate-none",
+          )}
+        />
         {refreshing ? "Đang tải..." : "Làm mới"}
       </button>
     </div>

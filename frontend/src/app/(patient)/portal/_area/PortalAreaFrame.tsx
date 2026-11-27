@@ -20,6 +20,7 @@ const AREA_PATHS: ReadonlySet<string> = new Set([
   PATIENT_ROUTES.accountPassword,
   PATIENT_ROUTES.profiles,
   PATIENT_ROUTES.appointments,
+  PATIENT_ROUTES.visits,
   PATIENT_ROUTES.results,
   PATIENT_ROUTES.reviews,
   PATIENT_ROUTES.prescriptions,
@@ -34,7 +35,9 @@ export function PortalAreaFrame({ children }: { children: ReactNode }) {
   const isResultDemo =
     process.env.NODE_ENV === "development" &&
     pathname === `${PATIENT_ROUTES.results}/demo`;
-  return AREA_PATHS.has(pathname) || isResultDemo ? (
+  // Chi tiết một lượt khám (/portal/visits/{id}) cũng nằm trong khung để giữ menu trái như danh sách.
+  const isVisitDetail = pathname.startsWith(`${PATIENT_ROUTES.visits}/`);
+  return AREA_PATHS.has(pathname) || isResultDemo || isVisitDetail ? (
     <AreaShellWithPerson
       boxed={!isResultDemo && pathname !== PATIENT_ROUTES.account}
       compactOnMobile={pathname === PATIENT_ROUTES.reviews}

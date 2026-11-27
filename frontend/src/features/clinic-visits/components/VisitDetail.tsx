@@ -10,13 +10,14 @@ import { isApiError } from "@/lib/api/apiError";
 import { messageFromError } from "@/lib/messages/appMessages";
 import { PATIENT_ROUTES } from "@/lib/routes/patientRoutes";
 import { useVisitProgress } from "../hooks/useVisitProgress";
+import { useVisitSummary } from "../hooks/useVisitSummary";
 import { VisitLoadError } from "./VisitLoadError";
 import { VisitProgressView } from "./VisitProgressView";
 import { VisitUpdateBar } from "./VisitUpdateBar";
 
 // Chi tiết tiến độ một lượt khám (UC34). Lượt không có (404) hoặc ngoài phạm vi (403) đi tới trang
 // không tìm thấy của khu, không lộ lý do. Dữ liệu tự tải lại khi tab hiện (xem useVisitProgress).
-// Tiến độ từ BE không kèm tên người khám hay ngày khám, nên tiêu đề chỉ ghi "Tiến độ lượt khám".
+// Tiến độ từ BE không kèm tên người khám hay ngày khám: các dòng đó lấy thêm từ danh sách lượt (useVisitSummary).
 
 export function VisitDetail({ id }: { id: string }) {
   const {
@@ -28,6 +29,7 @@ export function VisitDetail({ id }: { id: string }) {
     reload,
     updatedAt,
   } = useVisitProgress(id);
+  const summary = useVisitSummary(id, updatedAt);
 
   if (isApiError(error) && (error.status === 403 || error.status === 404))
     notFound();
@@ -56,7 +58,7 @@ export function VisitDetail({ id }: { id: string }) {
         refreshing={refreshing}
         updatedAt={updatedAt}
       />
-      <VisitProgressView progress={progress} />
+      <VisitProgressView progress={progress} summary={summary} />
     </DetailFrame>
   );
 }
