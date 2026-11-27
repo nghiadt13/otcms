@@ -20,5 +20,5 @@ describe("homeRouteForAccount", () => {
 });
 
 it("chủ phòng khám vào quản trị tài khoản Admin", () => {
-  expect(homeRouteForAccount("OWNER")).toBe("/owner/accounts");
+  expect(homeRouteForAccount("OWNER")).toBe("/owner/dashboard");
 });

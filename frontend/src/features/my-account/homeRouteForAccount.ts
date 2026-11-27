@@ -10,7 +10,7 @@ import { STAFF_ROUTES } from "@/lib/routes/staffRoutes";
 // thật vẫn do backend kiểm từng thao tác.
 export function homeRouteForAccount(accountType: AccountType): string {
   if (accountType === "PATIENT") return PATIENT_ROUTES.account;
-  if (accountType === "OWNER") return "/owner/accounts";
+  if (accountType === "OWNER") return "/owner/dashboard";
   if (accountType === "ADMIN") {
     return ADMIN_ROUTES.dashboard;
   }

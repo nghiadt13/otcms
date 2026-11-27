@@ -2,8 +2,8 @@
 import { useState, type ReactNode } from "react";
 import { OtcmsBrandMark } from "@/components/brand/OtcmsBrandMark";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { ShieldCheck, LogOut } from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
+import { ChartColumn, ShieldCheck, LogOut, Wallet } from "lucide-react";
 import {
   SidebarProvider,
   Sidebar,
@@ -22,8 +22,20 @@ import { Toaster } from "@/components/ui/sonner";
 import { CurrentDateTime } from "@/components/shell/CurrentDateTime";
 import { signOut } from "@/lib/auth/authSession";
 
+const NAV_ITEMS = [
+  {
+    href: "/owner/dashboard",
+    label: "Tổng quan kinh doanh",
+    icon: ChartColumn,
+  },
+  { href: "/owner/finance", label: "Tài chính", icon: Wallet },
+  { href: "/owner/accounts", label: "Tài khoản Admin", icon: ShieldCheck },
+];
+
 export function OwnerShell({ children }: { children: ReactNode }) {
   const router = useRouter();
+  const pathname = usePathname();
+  const current = NAV_ITEMS.find((item) => pathname.startsWith(item.href));
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
   return (
@@ -34,7 +46,7 @@ export function OwnerShell({ children }: { children: ReactNode }) {
             <SidebarMenuItem>
               <SidebarMenuButton
                 size="lg"
-                render={<Link href="/owner/accounts" />}
+                render={<Link href="/owner/dashboard" />}
                 tooltip="OTCMS Chủ phòng khám"
               >
                 <OtcmsBrandMark className="size-8" />
@@ -50,16 +62,18 @@ export function OwnerShell({ children }: { children: ReactNode }) {
         </SidebarHeader>
         <SidebarContent>
           <SidebarMenu className="p-2">
-            <SidebarMenuItem>
-              <SidebarMenuButton
-                isActive
-                render={<Link href="/owner/accounts" />}
-                tooltip="Tài khoản Admin"
-              >
-                <ShieldCheck />
-                <span>Tài khoản Admin</span>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
+            {NAV_ITEMS.map(({ href, label, icon: Icon }) => (
+              <SidebarMenuItem key={href}>
+                <SidebarMenuButton
+                  isActive={current?.href === href}
+                  render={<Link href={href} />}
+                  tooltip={label}
+                >
+                  <Icon />
+                  <span>{label}</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            ))}
           </SidebarMenu>
         </SidebarContent>
         <SidebarFooter>
@@ -95,7 +109,7 @@ export function OwnerShell({ children }: { children: ReactNode }) {
         <header className="flex h-14 shrink-0 items-center gap-3 border-b px-4">
           <SidebarTrigger />
           <span className="text-sm font-medium">
-            Chủ phòng khám / Tài khoản Admin
+            Chủ phòng khám{current ? ` / ${current.label}` : ""}
           </span>
           <div className="ml-auto hidden md:block">
             <CurrentDateTime />

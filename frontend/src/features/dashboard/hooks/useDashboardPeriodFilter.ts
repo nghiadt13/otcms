@@ -15,11 +15,13 @@ import type { DashboardPeriod } from "../types/dashboardOverview";
  * Trạng thái chọn kỳ. Kỳ nhanh áp dụng ngay; sửa ô ngày chỉ đổi bản nháp
  * (bỏ chọn kỳ nhanh) và chỉ áp dụng khi bấm Xem.
  */
-export function useDashboardPeriodFilter() {
+export function useDashboardPeriodFilter(
+  initialPreset: QuickPreset = DEFAULT_PRESET,
+) {
   const [initialRange] = useState(() =>
-    quickPeriodRange(DEFAULT_PRESET, todayInVietnam()),
+    quickPeriodRange(initialPreset, todayInVietnam()),
   );
-  const [preset, setPreset] = useState<QuickPreset | null>(DEFAULT_PRESET);
+  const [preset, setPreset] = useState<QuickPreset | null>(initialPreset);
   const [draft, setDraftState] = useState<DashboardPeriod>(initialRange);
   const [applied, setApplied] = useState<DashboardPeriod>(initialRange);
   const [error, setError] = useState<string | null>(null);

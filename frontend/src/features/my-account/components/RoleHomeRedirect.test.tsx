@@ -42,7 +42,7 @@ describe("RoleHomeRedirect", () => {
   it.each([
     ["PATIENT", "/portal/account"],
     ["ADMIN", "/admin"],
-    ["OWNER", "/owner/accounts"],
+    ["OWNER", "/owner/dashboard"],
     ["RECEPTIONIST", "/reception"],
     ["IMAGING_TECHNICIAN", "/imaging"],
   ])("tài khoản %s vào %s", async (accountType, route) => {
