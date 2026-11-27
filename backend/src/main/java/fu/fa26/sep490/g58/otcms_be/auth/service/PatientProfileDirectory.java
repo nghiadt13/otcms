@@ -23,6 +23,14 @@ import java.util.Optional;
     boolean duplicateExists(String phone, LocalDate dateOfBirth, String normalizedFullName);
     ProfileRecord update(ProfileRecord profile, long expectedVersion);
 
+    /**
+     * BR-15: automatically links an unlinked profile whose email is marked as the patient's own
+     * when the account has no own profile yet and exactly one unlinked profile matches.
+     */
+    default Optional<UUID> autoLinkUnlinkedOwnProfile(UUID accountId, String normalizedEmail) {
+        return Optional.empty();
+    }
+
         static class ProfileRecord {
     private final UUID id;
     private final UUID accountId;
@@ -35,18 +43,32 @@ import java.util.Optional;
     private final String address;
     private final String nationalId;
     private final String identityDocumentType;
+    private final String email;
+    private final String emailOwnerType;
     private final long version;
     public ProfileRecord(UUID id, UUID accountId, String fullName, String phoneCanonical, String phoneOwnerType, LocalDate dateOfBirth, String gender) {
-        this(id, accountId, fullName, phoneCanonical, phoneOwnerType, dateOfBirth, gender, null, null, null, 0);
+        this(id, accountId, fullName, phoneCanonical, phoneOwnerType, dateOfBirth, gender, null, null, null, null, null, 0);
     }
     public ProfileRecord(UUID id, UUID accountId, String fullName, String phoneCanonical, String phoneOwnerType,
             LocalDate dateOfBirth, String gender, String address, String nationalId, String identityDocumentType, long version) {
         this(id, accountId, fullName, phoneCanonical, phoneOwnerType, dateOfBirth, gender,
-                address, nationalId, identityDocumentType, version, null);
+                address, nationalId, identityDocumentType, null, null, version, null);
     }
     public ProfileRecord(UUID id, UUID accountId, String fullName, String phoneCanonical, String phoneOwnerType,
             LocalDate dateOfBirth, String gender, String address, String nationalId, String identityDocumentType,
             long version, String patientCode) {
+        this(id, accountId, fullName, phoneCanonical, phoneOwnerType, dateOfBirth, gender,
+                address, nationalId, identityDocumentType, null, null, version, patientCode);
+    }
+    public ProfileRecord(UUID id, UUID accountId, String fullName, String phoneCanonical, String phoneOwnerType,
+            LocalDate dateOfBirth, String gender, String address, String nationalId, String identityDocumentType,
+            String email, String emailOwnerType, long version) {
+        this(id, accountId, fullName, phoneCanonical, phoneOwnerType, dateOfBirth, gender,
+                address, nationalId, identityDocumentType, email, emailOwnerType, version, null);
+    }
+    public ProfileRecord(UUID id, UUID accountId, String fullName, String phoneCanonical, String phoneOwnerType,
+            LocalDate dateOfBirth, String gender, String address, String nationalId, String identityDocumentType,
+            String email, String emailOwnerType, long version, String patientCode) {
         this.id = id;
         this.accountId = accountId;
         this.fullName = fullName;
@@ -58,6 +80,8 @@ import java.util.Optional;
         this.address = address;
         this.nationalId = nationalId;
         this.identityDocumentType = identityDocumentType;
+        this.email = email;
+        this.emailOwnerType = emailOwnerType;
         this.version = version;
     }
     public UUID getId() { return id; }
@@ -78,6 +102,8 @@ import java.util.Optional;
     public String address() { return address; }
     public String nationalId() { return nationalId; }
     public String identityDocumentType() { return identityDocumentType; }
+    public String email() { return email; }
+    public String emailOwnerType() { return emailOwnerType; }
     public long version() { return version; }
 }
 }

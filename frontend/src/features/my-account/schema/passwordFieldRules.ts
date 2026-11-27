@@ -1,4 +1,7 @@
-import { isPasswordValid } from "@/lib/domain/passwordPolicy";
+import {
+  isPasswordTooLong,
+  isPasswordValid,
+} from "@/lib/domain/passwordPolicy";
 
 // Validator thuần cho form đổi mật khẩu. Trả về chuỗi lỗi, hoặc null nếu hợp lệ.
 // BE kiểm lại mọi luật; đây chỉ là phản hồi sớm.
@@ -8,6 +11,7 @@ export const passwordMessages = {
   currentWrong:
     "Mật khẩu hiện tại không đúng. Kiểm tra lại, hoặc nhờ Chủ phòng khám cấp lại mật khẩu.",
   newRequired: "Nhập mật khẩu mới.",
+  newTooLong: "Mật khẩu mới tối đa 64 ký tự.",
   newInvalid:
     "Mật khẩu mới chưa đạt yêu cầu. Cần tối thiểu 8 ký tự, gồm chữ cái và chữ số.",
   newMatchesCurrent: "Mật khẩu mới phải khác mật khẩu hiện tại.",
@@ -25,6 +29,7 @@ export function validateNewPassword(
 ): string | null {
   if (value.length === 0) return passwordMessages.newRequired;
   if (value === currentPassword) return passwordMessages.newMatchesCurrent;
+  if (isPasswordTooLong(value)) return passwordMessages.newTooLong;
   return isPasswordValid(value) ? null : passwordMessages.newInvalid;
 }
 

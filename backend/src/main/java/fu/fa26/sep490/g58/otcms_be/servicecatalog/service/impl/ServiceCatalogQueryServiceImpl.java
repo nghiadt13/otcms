@@ -26,6 +26,9 @@ public class ServiceCatalogQueryServiceImpl implements ClinicServiceBookingQuery
 
     @Override
     public BookableService findActiveService(UUID serviceId, BookingAudience audience) {
+        if (serviceId == null) {
+            throw new ClinicServiceException("SERVICE_NOT_BOOKABLE");
+        }
         var service = services.findById(serviceId).map(ClinicServiceMapper::toModel)
                 .filter(value -> value.active())
                 .filter(value -> audience != BookingAudience.PUBLIC_PATIENT || value.onlineBookable())
@@ -36,6 +39,9 @@ public class ServiceCatalogQueryServiceImpl implements ClinicServiceBookingQuery
 
     @Override
     public Optional<ServiceLabel> findServiceLabel(UUID serviceId) {
+        if (serviceId == null) {
+            return Optional.empty();
+        }
         return services.findById(serviceId).map(ClinicServiceMapper::toModel)
                 .map(service -> new ServiceLabel(service.name(), service.price()));
     }

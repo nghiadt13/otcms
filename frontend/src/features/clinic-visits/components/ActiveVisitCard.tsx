@@ -14,7 +14,7 @@ import { cn } from "@/lib/utils";
 import { useVisitProgress } from "../hooks/useVisitProgress";
 import type { VisitSummary } from "../types/visitProgress";
 import { VisitQueueStatus } from "./VisitQueueStatus";
-import { visitPatientLabel } from "./visitPresentation";
+import { ticketOfProgress, visitPatientLabel } from "./visitPresentation";
 
 // Một lượt đang diễn ra trên trang chủ: người khám, trạng thái, vị trí trong hàng và lối tới chi tiết.
 // `primary` chỉ bật cho lượt đầu tiên để trang chủ có đúng một nút chính. Tự tải tiến độ riêng (cùng
@@ -28,6 +28,7 @@ export function ActiveVisitCard({
   primary?: boolean;
 }) {
   const { progress, loading, error, reload } = useVisitProgress(visit.id);
+  const ticket = progress ? ticketOfProgress(progress) : null;
 
   return (
     <section
@@ -61,8 +62,8 @@ export function ActiveVisitCard({
             Thử lại
           </button>
         </div>
-      ) : progress.queueNumber !== null ? (
-        <VisitQueueStatus progress={progress} />
+      ) : ticket ? (
+        <VisitQueueStatus ticket={ticket} />
       ) : (
         <p className="text-base text-muted-foreground">
           Hiện bạn không chờ ở phòng nào.

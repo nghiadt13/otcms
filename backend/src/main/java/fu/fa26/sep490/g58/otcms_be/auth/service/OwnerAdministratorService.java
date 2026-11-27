@@ -106,7 +106,7 @@ public class OwnerAdministratorService {
                                                   int page, int size) {
         requireOwner(actor);
         // Same zero-based page and 1..50 page-size convention as PatientProfileServiceImpl.
-        if (page < 0 || size < 1 || size > 50) {
+        if (page < 0 || size < 1 || size > 50 || (query != null && query.length() > 100)) {
             throw new AdministratorAccountException("VALIDATION_FAILED");
         }
         String term = query == null ? "" : query.trim().toLowerCase(Locale.ROOT);

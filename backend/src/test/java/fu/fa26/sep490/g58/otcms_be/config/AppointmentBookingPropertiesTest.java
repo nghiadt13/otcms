@@ -87,6 +87,8 @@ class AppointmentBookingPropertiesTest {
         assertStartupRejected("appointment.booking.clinic-time-zone=Not/A_Zone");
         assertStartupRejected("appointment.booking.public-rate-limit.requests=0");
         assertStartupRejected("appointment.booking.public-rate-limit.window-seconds=0");
+        assertStartupRejected("appointment.booking.payment-hold-minutes=0");
+        assertStartupRejected("appointment.booking.payment-hold-sweep-ms=0");
         assertStartupRejected("appointment.booking.no-show-sweep-ms=0");
     }
 

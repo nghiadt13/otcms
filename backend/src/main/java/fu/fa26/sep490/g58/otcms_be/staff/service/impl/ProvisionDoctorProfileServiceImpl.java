@@ -29,7 +29,7 @@ public class ProvisionDoctorProfileServiceImpl implements ProvisionDoctorProfile
     @Override
     @Transactional
     public DoctorProfile provision(Command command) {
-        if (command.accountId() == null || command.fullName() == null || command.fullName().isBlank()) {
+        if (command == null || command.accountId() == null || command.fullName() == null || command.fullName().isBlank()) {
             throw new DoctorProfileException("DOCTOR_PROFILE_INVALID");
         }
         coordinationGuard.acquire();

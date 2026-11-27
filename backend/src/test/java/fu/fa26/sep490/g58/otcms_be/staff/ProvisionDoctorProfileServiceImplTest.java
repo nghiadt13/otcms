@@ -79,4 +79,13 @@ class ProvisionDoctorProfileServiceImplTest {
                 () -> new ProvisionDoctorProfileServiceImpl(profiles, guard, doctorAccountTypes).provision(command)).getMessage());
         verify(profiles, never()).save(any(StaffProfileJpaEntity.class));
     }
+
+    @Test
+    void rejectsNullCommandBeforeAcquiringGuard() {
+        assertEquals("DOCTOR_PROFILE_INVALID", assertThrows(
+                fu.fa26.sep490.g58.otcms_be.staff.exception.DoctorProfileException.class,
+                () -> new ProvisionDoctorProfileServiceImpl(profiles, guard, doctorAccountTypes).provision(null))
+                .getMessage());
+        verifyNoInteractions(guard, doctorAccountTypes, profiles);
+    }
 }

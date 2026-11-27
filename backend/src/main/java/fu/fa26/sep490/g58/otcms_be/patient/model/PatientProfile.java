@@ -13,15 +13,24 @@ public class PatientProfile {
     private final String address;
     private final String nationalId;
     private final String identityDocumentType;
+    private final String email;
+    private final String emailOwnerType;
     private final boolean hasAccount;
     private final long version;
 
     public PatientProfile(UUID id, String fullName, String phoneCanonical, LocalDate dateOfBirth, String gender) {
-        this(id, fullName, phoneCanonical, dateOfBirth, gender, null, null, null, null, false, 0);
+        this(id, fullName, phoneCanonical, dateOfBirth, gender, null, null, null, null, null, null, false, 0);
     }
 
     public PatientProfile(UUID id, String fullName, String phoneCanonical, LocalDate dateOfBirth, String gender,
             String phoneOwnerType, String address, String nationalId, String identityDocumentType, boolean hasAccount, long version) {
+        this(id, fullName, phoneCanonical, dateOfBirth, gender, phoneOwnerType, address, nationalId, identityDocumentType,
+                null, null, hasAccount, version);
+    }
+
+    public PatientProfile(UUID id, String fullName, String phoneCanonical, LocalDate dateOfBirth, String gender,
+            String phoneOwnerType, String address, String nationalId, String identityDocumentType,
+            String email, String emailOwnerType, boolean hasAccount, long version) {
         this.id = id;
         this.fullName = fullName;
         this.phoneCanonical = phoneCanonical;
@@ -31,6 +40,8 @@ public class PatientProfile {
         this.address = address;
         this.nationalId = nationalId;
         this.identityDocumentType = identityDocumentType;
+        this.email = email;
+        this.emailOwnerType = emailOwnerType;
         this.hasAccount = hasAccount;
         this.version = version;
     }
@@ -78,6 +89,8 @@ public class PatientProfile {
     public String address() { return address; }
     public String nationalId() { return nationalId; }
     public String identityDocumentType() { return identityDocumentType; }
+    public String email() { return email; }
+    public String emailOwnerType() { return emailOwnerType; }
     public boolean hasAccount() { return hasAccount; }
     public long version() { return version; }
 }

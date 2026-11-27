@@ -17,4 +17,10 @@ public class PatientDiagnosticHistoryAdapter implements PatientDiagnosticHistory
         boolean authorized = actorId != null && patientId != null && access.canAccess(actorId, patientId);
         return new PatientHistoryAuthorization(patientId, authorized ? "AUTHORIZED_PATIENT_PROFILE" : null, authorized);
     }
+
+    /** accessibleProfileIds lists the account's own profile first, then its approved dependents. */
+    @Override
+    public UUID ownPatientId(UUID actorId) {
+        return access.accessibleProfileIds(actorId).stream().findFirst().orElse(null);
+    }
 }

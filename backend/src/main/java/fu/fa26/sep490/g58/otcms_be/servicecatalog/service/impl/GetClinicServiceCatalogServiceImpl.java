@@ -23,7 +23,7 @@ public class GetClinicServiceCatalogServiceImpl implements GetClinicServiceCatal
     @Override
     @Transactional(readOnly = true)
     public java.util.Map<UUID, ImagingQueueService> imagingQueueServices(java.util.Collection<UUID> serviceIds) {
-        if (serviceIds.isEmpty()) return java.util.Map.of();
+        if (serviceIds == null || serviceIds.isEmpty()) return java.util.Map.of();
         return services.findImagingQueueServices(serviceIds).stream().collect(java.util.stream.Collectors.toUnmodifiableMap(
                 row -> row.getId(), row -> new ImagingQueueService(row.getId(), row.getType(), row.getModality(), row.getActive())));
     }

@@ -86,7 +86,7 @@ public class CredentialLoginServiceImpl implements CredentialLoginService {
             return loginMatching(username, password, administrative, "STAFF", ip);
         }
         return authenticate(username, password, administrative, "STAFF", ip,
-                () -> accounts.findByUsername(username).orElse(null));
+                () -> username == null ? null : accounts.findByUsername(username).orElse(null));
     }
 
     private CredentialLoginResponse loginMatching(String email, String password,
@@ -107,6 +107,7 @@ public class CredentialLoginServiceImpl implements CredentialLoginService {
                 && portalMatches.test(account.getAccountType())
                 && usable(account, now)
                 && account.getPasswordHash() != null
+                && password != null
                 && encoder.matches(password, account.getPasswordHash());
         if (!authenticated) {
             if (account != null && portalMatches.test(account.getAccountType())) {
@@ -187,7 +188,8 @@ public class CredentialLoginServiceImpl implements CredentialLoginService {
         try {
             Mac mac = Mac.getInstance("HmacSHA256");
             mac.init(new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
-            return HexFormat.of().formatHex(mac.doFinal(value.getBytes(StandardCharsets.UTF_8)));
+            String input = value == null ? "" : value;
+            return HexFormat.of().formatHex(mac.doFinal(input.getBytes(StandardCharsets.UTF_8)));
         } catch (Exception exception) {
             throw new CredentialLoginException("RATE_LIMIT_UNAVAILABLE");
         }

@@ -27,6 +27,9 @@ public class DoctorScheduleServiceImpl implements DoctorScheduleService {
 
     @Transactional(readOnly = true)
     public List<DoctorWorkShift> forAccount(UUID accountId, Instant from, Instant to) {
+        if (accountId == null) {
+            throw new DoctorProfileException("DOCTOR_PROFILE_NOT_FOUND");
+        }
         DoctorProfile profile = profiles.findByAccountIdAndDoctorTrue(accountId).map(DoctorProfileMapper::toModel)
                 .orElseThrow(() -> new DoctorProfileException("DOCTOR_PROFILE_NOT_FOUND"));
         return forProfile(profile.id(), from, to);
@@ -35,7 +38,7 @@ public class DoctorScheduleServiceImpl implements DoctorScheduleService {
     @Transactional(readOnly = true)
     public List<DoctorWorkShift> forProfile(UUID doctorProfileId, Instant from, Instant to) {
         validateRange(from, to);
-        if (!profiles.existsByIdAndDoctorTrue(doctorProfileId)) {
+        if (doctorProfileId == null || !profiles.existsByIdAndDoctorTrue(doctorProfileId)) {
             throw new DoctorProfileException("DOCTOR_PROFILE_NOT_FOUND");
         }
         return shifts.findInRange(doctorProfileId, from, to).stream()

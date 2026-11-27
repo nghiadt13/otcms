@@ -49,4 +49,37 @@ class AdminDoctorProfileServiceTest {
         assertThrows(RuntimeException.class, () -> service.update(id, new ProfileEdit("Name", null, null, null, null, null, null)));
         verify(profiles, never()).save(any());
     }
+
+    @Test void listReturnsMappedDoctorProfiles() {
+        when(profiles.findAllDoctors()).thenReturn(List.of(profile()));
+        var list = service.list();
+        assertEquals(1, list.size());
+        assertEquals(id, list.get(0).id());
+    }
+
+    @Test void updateRejectsNullOrBlankFullNameBeforeAcquiringGuard() {
+        assertEquals("DOCTOR_PROFILE_INVALID", assertThrows(fu.fa26.sep490.g58.otcms_be.staff.exception.DoctorProfileException.class,
+                () -> service.update(id, null)).getMessage());
+        assertEquals("DOCTOR_PROFILE_INVALID", assertThrows(fu.fa26.sep490.g58.otcms_be.staff.exception.DoctorProfileException.class,
+                () -> service.update(id, new ProfileEdit("   ", null, null, null, null, null, null))).getMessage());
+        verifyNoInteractions(guard, profiles);
+    }
+
+    @Test void updateTrimsNullableFieldsToEmptyStrings() {
+        when(profiles.findByIdAndDoctorTrue(id)).thenReturn(Optional.of(profile()));
+        when(profiles.save(any())).thenAnswer(c -> c.getArgument(0));
+        var result = service.update(id, new ProfileEdit(" Dr. Minh ", null, "  ", null, " MD ", null, " Mon-Fri "));
+        assertEquals("Dr. Minh", result.fullName());
+        assertEquals("", result.photoUrl());
+        assertEquals("", result.workContact());
+        assertEquals("MD", result.qualifications());
+    }
+
+    @Test void updateRejectsNullDoctorIdAsNotFound() {
+        assertEquals("DOCTOR_PROFILE_NOT_FOUND", assertThrows(
+                fu.fa26.sep490.g58.otcms_be.staff.exception.DoctorProfileException.class,
+                () -> service.update(null, new ProfileEdit("Dr. Minh", null, null, null, null, null, null))).getMessage());
+        verify(guard).acquire();
+        verifyNoInteractions(profiles);
+    }
 }

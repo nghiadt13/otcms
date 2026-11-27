@@ -8,6 +8,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
@@ -37,6 +38,14 @@ public class BillingExceptionHandler {
         };
         return ResponseEntity.status(status).body(ErrorResponse.of(exception.code(),
                 "The billing request could not be completed", correlationId));
+    }
+
+    /** A required header such as Idempotency-Key is absent: client error, not an authentication failure. */
+    @ExceptionHandler(MissingRequestHeaderException.class)
+    public ResponseEntity<ErrorResponse> missingHeader(MissingRequestHeaderException exception,
+            HttpServletRequest request) {
+        return ResponseEntity.badRequest().body(ErrorResponse.of("VALIDATION_FAILED",
+                "The billing request could not be completed", CorrelationIdFilter.current(request)));
     }
 
     @ExceptionHandler(DataIntegrityViolationException.class)

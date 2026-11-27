@@ -22,10 +22,10 @@ public class CurrentPatientAccountService {
 
     @Transactional(readOnly = true)
     public CurrentPatientAccount get(AuthenticatedAccount actor) {
-        AccountJpaEntity account = patientAccount(actor.accountId());
+        AccountJpaEntity account = patientAccount(actor);
         String displayName = account.getDisplayName();
         if (displayName == null || displayName.isBlank()) {
-            displayName = patientProfiles.findPatientProfile(actor.accountId())
+            displayName = patientProfiles.findPatientProfile(account.getId())
                     .flatMap(patientProfiles::findProfile)
                     .map(PatientProfileDirectory.ProfileRecord::fullName)
                     .orElse(null);
@@ -44,14 +44,17 @@ public class CurrentPatientAccountService {
         int length = displayName.codePointCount(0, displayName.length());
         if (length < 2 || length > 100) throw new CurrentPatientAccountException("VALIDATION_FAILED");
 
-        AccountJpaEntity account = patientAccount(actor.accountId());
+        AccountJpaEntity account = patientAccount(actor);
         account.setDisplayName(displayName);
         accounts.save(account);
         return toResponse(account, displayName);
     }
 
-    private AccountJpaEntity patientAccount(UUID accountId) {
-        AccountJpaEntity account = accounts.findById(accountId)
+    private AccountJpaEntity patientAccount(AuthenticatedAccount actor) {
+        if (actor == null || actor.accountId() == null) {
+            throw new CurrentPatientAccountException("FORBIDDEN");
+        }
+        AccountJpaEntity account = accounts.findById(actor.accountId())
                 .orElseThrow(() -> new CurrentPatientAccountException("ACCOUNT_NOT_FOUND"));
         if (account.getAccountType() != AccountType.PATIENT) {
             throw new CurrentPatientAccountException("FORBIDDEN");

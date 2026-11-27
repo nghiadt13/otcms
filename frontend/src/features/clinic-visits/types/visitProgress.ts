@@ -36,6 +36,24 @@ export interface VisitListItem {
   roomName: string | null;
 }
 
+/** Vị trí trong một hàng phòng (BE: VisitProgressResponse.QueueInfo). */
+export interface VisitQueueInfo {
+  queueNumber: number | null;
+  status: string;
+  roomCode: string | null;
+  peopleAhead: number;
+  beingCalled: boolean;
+}
+
+/** Phiếu số đã chuẩn hoá để vẽ: dùng cho hàng khám, hàng của chỉ định và thẻ tóm tắt ở trang chủ. */
+export interface QueueTicket {
+  queueNumber: number;
+  peopleAhead: number | null;
+  beingCalled: boolean;
+  room: string | null;
+  stage: "EXAM" | "SERVICE" | null;
+}
+
 export interface VisitSummary {
   id: string;
   /** YYYY-MM-DD */
@@ -54,6 +72,8 @@ export interface VisitProgressOrder {
   roomId: string | null;
   /** Tên phòng (nhãn hiển thị) khi chỉ định đã có phòng; null khi chưa có. */
   roomName: string | null;
+  /** Vị trí trong hàng của phòng thực hiện; null khi chỉ định chưa vào hàng. */
+  queue: VisitQueueInfo | null;
 }
 
 /** Tiến độ một lượt khám (BE: VisitProgressResponse). Các trường vào hàng đợi là null khi chưa vào hàng. */
@@ -71,11 +91,15 @@ export interface VisitProgress {
   currentRoom: string | null;
   /** Số thứ tự trong hàng đang chờ. */
   queueNumber: number | null;
+  /** Hàng đang chờ là hàng khám bệnh (EXAM) hay hàng làm chỉ định (SERVICE); null khi không ở hàng phòng. */
+  queueStage: "EXAM" | "SERVICE" | null;
   /** Số người đứng trước trong hàng. */
   peopleAhead: number | null;
   /** Bệnh nhân đang được gọi vào phòng. */
   beingCalled: boolean;
   serviceOrders: VisitProgressOrder[];
+  /** Hàng khám bệnh của lượt; null khi không ở hàng khám. Tách riêng khỏi hàng của từng chỉ định. */
+  examQueue: VisitQueueInfo | null;
 }
 
 export interface VisitListQuery {

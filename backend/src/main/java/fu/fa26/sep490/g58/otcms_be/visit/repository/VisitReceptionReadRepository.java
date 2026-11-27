@@ -116,13 +116,34 @@ public class VisitReceptionReadRepository {
                      where ahead.stage = q.stage and ahead.room_id = q.room_id
                        and ahead.status in ('WAITING', 'CALLED', 'IN_EXAMINATION')
                        and cast(ahead.entered_at at time zone :zone as date) = cast(q.entered_at at time zone :zone as date)
-                       and (ahead.sort_order, ahead.entered_at, ahead.id) < (q.sort_order, q.entered_at, q.id))
+                       and (ahead.sort_order, ahead.entered_at, ahead.id) < (q.sort_order, q.entered_at, q.id)),
+                    q.stage
                 from queue_entries q left join rooms r on r.id = q.room_id
                 where q.visit_id = :visitId and q.stage in ('EXAM', 'SERVICE', 'RESULT_REVIEW')
                   and q.status in ('WAITING', 'CALLED', 'IN_EXAMINATION')
                 order by q.entered_at desc, q.id desc limit 1
                 """).setParameter("visitId", visitId).setParameter("zone", zone).getResultList();
         return rows.isEmpty() ? null : rows.getFirst();
+    }
+
+    /**
+     * Mọi hàng phòng đang chờ của lượt (khám bệnh và từng chỉ định): stage, service_order_id, số thứ tự,
+     * trạng thái, mã phòng, số người đứng trước. Mới nhất trước.
+     */
+    @SuppressWarnings("unchecked")
+    public List<Object[]> findActiveQueueEntries(UUID visitId, String zone) {
+        return entityManager.createNativeQuery("""
+                select q.stage, q.service_order_id, q.queue_number, q.status, r.room_code,
+                    (select count(*) from queue_entries ahead
+                     where ahead.stage = q.stage and ahead.room_id = q.room_id
+                       and ahead.status in ('WAITING', 'CALLED', 'IN_EXAMINATION')
+                       and cast(ahead.entered_at at time zone :zone as date) = cast(q.entered_at at time zone :zone as date)
+                       and (ahead.sort_order, ahead.entered_at, ahead.id) < (q.sort_order, q.entered_at, q.id))
+                from queue_entries q left join rooms r on r.id = q.room_id
+                where q.visit_id = :visitId and q.stage in ('EXAM', 'SERVICE')
+                  and q.status in ('WAITING', 'CALLED', 'IN_EXAMINATION')
+                order by q.entered_at desc, q.id desc
+                """).setParameter("visitId", visitId).setParameter("zone", zone).getResultList();
     }
 
 }

@@ -192,4 +192,54 @@ class ManageDoctorResourcesT032Test {
         assertEquals(java.util.Map.of("publiclyVisible", false, "acceptingNewBookings", false,
                 "inActiveDirectory", true), entry.getValue().afterState());
     }
+
+    @Test
+    void updateShiftPersistsNewIntervalRecordsAuditAndBlocksOverlapOrProtectedCoverage() {
+        Instant oldStart = START.plusSeconds(300), oldEnd = END.plusSeconds(300);
+        Instant newStart = START.plusSeconds(600), newEnd = END.plusSeconds(600);
+        var shift = new DoctorWorkShiftJpaEntity(shiftId, doctorId, oldStart, oldEnd);
+        when(profiles.existsByIdAndDoctorTrue(doctorId)).thenReturn(true);
+        when(shifts.findByIdAndDoctorProfileId(shiftId, doctorId)).thenReturn(Optional.of(shift));
+        when(shifts.findAllByDoctorProfileIdOrderByStartsAtAscIdAsc(doctorId)).thenReturn(List.of(shift));
+        when(appointments.findProtectedBookingIntervals(doctorId)).thenReturn(List.of());
+        when(visits.findActiveCareIntervals(doctorId)).thenReturn(List.of());
+        when(shifts.save(shift)).thenReturn(shift);
+        when(audits.findDoctorNames(List.of(doctorId))).thenReturn(java.util.Map.of(doctorId, "BS. An"));
+
+        var updated = service.updateShift(doctorId, shiftId, newStart, newEnd, admin, "t032-update");
+
+        assertEquals(newStart, updated.getStartsAt());
+        assertEquals(newEnd, updated.getEndsAt());
+        verify(auditLogs).record(org.mockito.ArgumentMatchers.argThat(e -> "UPDATE_STAFF_SHIFT".equals(e.action())
+                && shiftId.equals(e.entityId())));
+
+        var conflictingShift = new DoctorWorkShiftJpaEntity(UUID.randomUUID(), doctorId, newStart, newEnd);
+        when(shifts.findAllByDoctorProfileIdOrderByStartsAtAscIdAsc(doctorId)).thenReturn(List.of(shift, conflictingShift));
+        assertEquals("DOCTOR_SHIFT_OVERLAP", assertThrows(
+                fu.fa26.sep490.g58.otcms_be.staff.exception.DoctorProfileException.class,
+                () -> service.updateShift(doctorId, shiftId, newStart, newEnd, admin, "t032-overlap")).getMessage());
+    }
+
+    @Test
+    void assessImpactReportsProtectedBookingsAndRejectsInvalidArguments() {
+        assertEquals("ACCESS_DENIED", assertThrows(
+                fu.fa26.sep490.g58.otcms_be.staff.exception.DoctorProfileException.class,
+                () -> service.assessImpact(doctorId, "SHIFT", shiftId, START, END, null)).getMessage());
+        assertEquals("DOCTOR_RESOURCE_REQUEST_INVALID", assertThrows(
+                fu.fa26.sep490.g58.otcms_be.staff.exception.DoctorProfileException.class,
+                () -> service.assessImpact(doctorId, "OTHER", shiftId, START, END, admin)).getMessage());
+
+        when(profiles.existsByIdAndDoctorTrue(doctorId)).thenReturn(true);
+        var shift = new DoctorWorkShiftJpaEntity(shiftId, doctorId, START, END);
+        when(shifts.findAllByDoctorProfileIdOrderByStartsAtAscIdAsc(doctorId)).thenReturn(List.of(shift));
+        when(appointments.findProtectedBookingIntervals(doctorId)).thenReturn(List.of(
+                new AppointmentMutationImpactService.OccupiedBookingInterval(START, END)));
+        when(visits.findActiveCareIntervals(doctorId)).thenReturn(List.of());
+
+        var impact = service.assessImpact(doctorId, "SHIFT", shiftId, START.plusSeconds(3600), END.plusSeconds(3600), admin);
+
+        assertTrue(impact.isBlocked());
+        assertEquals(1, impact.getAffectedBookingCount());
+        assertFalse(impact.isActiveCareBlocks());
+    }
 }

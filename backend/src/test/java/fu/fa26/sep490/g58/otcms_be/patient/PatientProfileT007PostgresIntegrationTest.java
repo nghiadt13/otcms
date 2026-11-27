@@ -5,6 +5,7 @@ import fu.fa26.sep490.g58.otcms_be.auth.service.PatientProfileDirectory;
 import fu.fa26.sep490.g58.otcms_be.common.security.AccountRole;
 import fu.fa26.sep490.g58.otcms_be.common.security.AuthenticatedAccount;
 import fu.fa26.sep490.g58.otcms_be.patient.exception.PatientProfileException;
+import fu.fa26.sep490.g58.otcms_be.patient.service.MyPatientProfileService;
 import fu.fa26.sep490.g58.otcms_be.patient.service.PatientProfileService;
 import fu.fa26.sep490.g58.otcms_be.support.LocalPostgresTest;
 import jakarta.persistence.EntityManager;
@@ -50,6 +51,7 @@ class PatientProfileT007PostgresIntegrationTest {
         registry.add("spring.jpa.properties.hibernate.default_schema", () -> SCHEMA);
     }
     @Autowired PatientProfileService service;
+    @Autowired MyPatientProfileService myProfileService;
     @Autowired PatientProfileDirectory directory;
     @Autowired PatientProfileRepository repository;
     @Autowired EntityManager em;
@@ -319,5 +321,70 @@ class PatientProfileT007PostgresIntegrationTest {
         assertEquals("Legacy address", jdbc.queryForObject("select address from " + schema + ".patient_profiles", String.class));
         assertEquals(0, jdbc.queryForObject("select count(*) from information_schema.columns where table_schema=? "
                 + "and table_name='patient_profiles' and column_name='national_id'", Integer.class, schema));
+    }
+
+    @Test
+    void walkInEmailPersistsAndAutoLinksSingleOwnProfileOnPostgres() {
+        var walkIn = service.create(actor, "Trần Walk In", "0912345670", "PATIENT", dob, "MALE",
+                "123 Lê Lợi", null, null, "  WalkIn.Own@Example.COM ", "PATIENT");
+        em.flush();
+        em.clear();
+
+        var persisted = repository.findById(walkIn.id()).orElseThrow();
+        assertNull(persisted.getAccountId());
+        assertEquals("walkin.own@example.com", persisted.getEmail());
+        assertEquals("PATIENT", persisted.getEmailOwnerType().name());
+
+        // DB constraint rejects email without owner or unnormalized uppercase email (run in separate tx so outer tx stays healthy)
+        var requiresNew = new TransactionTemplate(transactions);
+        requiresNew.setPropagationBehavior(org.springframework.transaction.TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+        assertThrows(org.springframework.dao.DataIntegrityViolationException.class, () -> requiresNew.executeWithoutResult(st ->
+                jdbc.update("insert into patient_profiles(id, full_name, phone_canonical, phone_owner_type, date_of_birth, gender, email, email_owner_type) "
+                        + "values (?, 'Bad Pair', '+84912345699', 'PATIENT', ?, 'MALE', 'bad@example.com', null)", UUID.randomUUID(), dob)));
+        assertThrows(org.springframework.dao.DataIntegrityViolationException.class, () -> requiresNew.executeWithoutResult(st ->
+                jdbc.update("insert into patient_profiles(id, full_name, phone_canonical, phone_owner_type, date_of_birth, gender, email, email_owner_type) "
+                        + "values (?, 'Bad Case', '+84912345698', 'PATIENT', ?, 'MALE', 'UPPER@EXAMPLE.COM', 'PATIENT')", UUID.randomUUID(), dob)));
+
+        // Patient registers & verifies with that email -> auto-link attaches account_id
+        UUID patientAccountId = UUID.randomUUID();
+        account(patientAccountId, "PATIENT");
+        var linkedId = directory.autoLinkUnlinkedOwnProfile(patientAccountId, "WalkIn.Own@Example.com");
+        assertEquals(Optional.of(walkIn.id()), linkedId);
+        em.flush();
+        em.clear();
+
+        var own = myProfileService.get(new AuthenticatedAccount(patientAccountId, AccountRole.PATIENT, UUID.randomUUID()));
+        assertEquals(walkIn.id(), own.id());
+        assertEquals("walkin.own@example.com", own.email());
+        assertTrue(own.hasAccount());
+
+        // Once linked, receptionist cannot change email or emailOwnerType (UC-11 / BR-15)
+        var linkedDetail = service.detail(actor, walkIn.id());
+        assertThrows(PatientProfileException.class, () -> service.update(actor, walkIn.id(), "Trần Walk In",
+                "0912345670", "PATIENT", dob, "MALE", "123 Lê Lợi", null, null,
+                "changed@example.com", "PATIENT", linkedDetail.version()));
+    }
+
+    @Test
+    void autoLinkSkipsRelativeEmailAndAmbiguousOwnEmailsOnPostgres() {
+        var relativeProfile = service.create(actor, "Bé Con", "0912345671", "GUARDIAN", dob, "FEMALE",
+                "123 Lê Lợi", null, null, "parent@example.com", "RELATIVE");
+        var dup1 = service.create(actor, "Người Một", "0912345672", "PATIENT", dob, "MALE",
+                "123 Lê Lợi", null, null, "dup.own@example.com", "PATIENT");
+        var dup2 = service.create(actor, "Người Hai", "0912345673", "PATIENT", dob, "FEMALE",
+                "123 Lê Lợi", null, null, "dup.own@example.com", "PATIENT");
+        em.flush();
+        em.clear();
+
+        UUID parentAcc = UUID.randomUUID();
+        account(parentAcc, "PATIENT");
+        assertTrue(directory.autoLinkUnlinkedOwnProfile(parentAcc, "parent@example.com").isEmpty());
+        assertNull(repository.findById(relativeProfile.id()).orElseThrow().getAccountId());
+
+        UUID dupAcc = UUID.randomUUID();
+        account(dupAcc, "PATIENT");
+        assertTrue(directory.autoLinkUnlinkedOwnProfile(dupAcc, "dup.own@example.com").isEmpty());
+        assertNull(repository.findById(dup1.id()).orElseThrow().getAccountId());
+        assertNull(repository.findById(dup2.id()).orElseThrow().getAccountId());
     }
 }

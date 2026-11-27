@@ -1,5 +1,6 @@
 package fu.fa26.sep490.g58.otcms_be.auth.model.entity;
 
+import fu.fa26.sep490.g58.otcms_be.auth.model.entity.enums.EmailOwnerType;
 import fu.fa26.sep490.g58.otcms_be.auth.model.entity.enums.Gender;
 import fu.fa26.sep490.g58.otcms_be.auth.model.entity.enums.PhoneOwnerType;
 import fu.fa26.sep490.g58.otcms_be.auth.model.entity.enums.IdentityDocumentType;
@@ -24,6 +25,8 @@ public class PatientProfileJpaEntity {
     private String patientCode;
     @Column(name = "phone_canonical", length = 16) private String phoneCanonical;
     @Enumerated(EnumType.STRING) @Column(name = "phone_owner_type", length = 16) private PhoneOwnerType phoneOwnerType;
+    @Column(name = "email", length = 255) private String email;
+    @Enumerated(EnumType.STRING) @Column(name = "email_owner_type", length = 16) private EmailOwnerType emailOwnerType;
     @Column(name = "date_of_birth", nullable = false) private LocalDate dateOfBirth;
     @Enumerated(EnumType.STRING) @Column(nullable = false, length = 16) private Gender gender;
     @Column(columnDefinition = "text") private String address;

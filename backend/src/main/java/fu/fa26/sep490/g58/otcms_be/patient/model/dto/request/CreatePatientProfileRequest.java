@@ -13,6 +13,8 @@ public class CreatePatientProfileRequest {
     private @NotBlank String address;
     private String nationalId;
     private String identityDocumentType;
+    private String email;
+    private String emailOwnerType;
     public CreatePatientProfileRequest() { }
     public CreatePatientProfileRequest(@NotBlank String fullName, @NotBlank String phone, @NotBlank String phoneOwnerType, @NotNull LocalDate dateOfBirth, @NotBlank String gender) {
         this.fullName = fullName;
@@ -45,4 +47,10 @@ public class CreatePatientProfileRequest {
     public String getIdentityDocumentType() { return identityDocumentType; }
     public String identityDocumentType() { return identityDocumentType; }
     public void setIdentityDocumentType(String identityDocumentType) { this.identityDocumentType = identityDocumentType; }
+    public String getEmail() { return email; }
+    public String email() { return email; }
+    public void setEmail(String email) { this.email = email; }
+    public String getEmailOwnerType() { return emailOwnerType; }
+    public String emailOwnerType() { return emailOwnerType; }
+    public void setEmailOwnerType(String emailOwnerType) { this.emailOwnerType = emailOwnerType; }
 }

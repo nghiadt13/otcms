@@ -33,6 +33,7 @@ public final class ProductionReadinessGate {
     }
 
     public static ProductionReadinessGate load(ProductionReadinessProperties properties, Clock clock, ObjectMapper mapper) {
+        if (properties == null) return new ProductionReadinessGate(true);
         if (!properties.isRequired()) return new ProductionReadinessGate(false);
         try {
             if (!StringUtils.hasText(properties.getEvidenceFile())
@@ -75,7 +76,8 @@ public final class ProductionReadinessGate {
     public boolean isClosed() { return closed; }
 
     public boolean protects(String method, String path) {
-        if (!Set.of("POST", "PUT", "PATCH", "DELETE").contains(method.toUpperCase())) return false;
+        if (method == null || path == null) return false;
+        if (!Set.of("POST", "PUT", "PATCH", "DELETE").contains(method.toUpperCase(java.util.Locale.ROOT))) return false;
         if (path.equals("/api/v1/appointments") || path.equals("/api/v1/visits/walk-ins")) return true;
         if (path.matches("/api/v1/admin/doctors/[^/]+/mutation-impact")) return false;
         return path.equals("/api/v1/admin/doctor-profiles") || path.startsWith("/api/v1/admin/doctors/")

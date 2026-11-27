@@ -40,6 +40,8 @@ public class AdminDoctorProfileServiceImpl implements AdminDoctorProfileService 
         if (edit == null || edit.fullName() == null || edit.fullName().isBlank())
             throw new DoctorProfileException("DOCTOR_PROFILE_INVALID");
         guard.acquire();
+        if (doctorId == null)
+            throw new DoctorProfileException("DOCTOR_PROFILE_NOT_FOUND");
         var profile = profiles.findByIdAndDoctorTrue(doctorId)
                 .orElseThrow(() -> new DoctorProfileException("DOCTOR_PROFILE_NOT_FOUND"));
         profile.updateDoctor(edit.fullName().trim(), clean(edit.photoUrl()), clean(edit.workContact()),

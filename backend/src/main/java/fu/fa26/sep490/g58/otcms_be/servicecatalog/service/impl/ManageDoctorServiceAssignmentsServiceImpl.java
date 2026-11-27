@@ -39,7 +39,7 @@ public class ManageDoctorServiceAssignmentsServiceImpl implements ManageDoctorSe
     }
     @Override @Transactional(readOnly = true)
     public List<DoctorAssignmentResponse> list(UUID serviceId) {
-        if (!services.existsById(serviceId)) throw new ClinicServiceException("SERVICE_NOT_FOUND");
+        if (serviceId == null || !services.existsById(serviceId)) throw new ClinicServiceException("SERVICE_NOT_FOUND");
         return assignments.findByServiceIdAndActiveTrueOrderByDoctorProfileIdAsc(serviceId).stream()
                 .map(a -> new DoctorAssignmentResponse(a.id(), a.serviceId(), a.doctorProfileId())).toList();
     }

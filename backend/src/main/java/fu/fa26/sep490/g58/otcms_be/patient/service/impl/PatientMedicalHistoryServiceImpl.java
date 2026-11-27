@@ -85,7 +85,8 @@ public class PatientMedicalHistoryServiceImpl implements PatientMedicalHistorySe
         return histories.findById(profileId).filter(p -> p.getMedicalHistoryUpdatedAt() != null).map(this::response).orElseGet(MedicalHistoryResponse::empty);
     }
     private MedicalHistoryResponse response(PatientProfileJpaEntity row) {
-        String name = accounts.find(row.getMedicalHistoryUpdatedBy()).map(MyAccountQueryService.MyAccountView::displayName)
+        String name = row.getMedicalHistoryUpdatedBy() == null ? null : accounts.find(row.getMedicalHistoryUpdatedBy())
+                .map(MyAccountQueryService.MyAccountView::displayName)
                 .filter(value -> value != null && !value.isBlank()).orElse(null);
         return new MedicalHistoryResponse(row.getConditions(), row.getAllergies(), row.getProcedures(), row.getInjuries(),
                 row.getOrthopedicHistory(), row.getMedicalHistoryUpdatedAt().atZone(ZoneId.of("Asia/Ho_Chi_Minh")).toOffsetDateTime(), name, row.getMedicalHistoryVersion());

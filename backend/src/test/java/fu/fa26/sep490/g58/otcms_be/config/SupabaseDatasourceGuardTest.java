@@ -23,4 +23,14 @@ class SupabaseDatasourceGuardTest {
         assertThrows(IllegalStateException.class,
                 () -> new SupabaseDatasourceGuard("jdbc:postgresql://db.example.supabase.co:5432/postgres").validate());
     }
+
+    @Test
+    void rejectsLoopbackIpNonPostgresAndNullUrl() {
+        assertThrows(IllegalStateException.class,
+                () -> new SupabaseDatasourceGuard("jdbc:postgresql://127.0.0.1:5432/otcms_db?sslmode=require").validate());
+        assertThrows(IllegalStateException.class,
+                () -> new SupabaseDatasourceGuard("jdbc:mysql://db.example.supabase.co:3306/otcms_db?sslmode=require").validate());
+        assertThrows(IllegalStateException.class,
+                () -> new SupabaseDatasourceGuard(null).validate());
+    }
 }

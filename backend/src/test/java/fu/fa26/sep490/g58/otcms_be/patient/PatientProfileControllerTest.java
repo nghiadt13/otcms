@@ -93,8 +93,8 @@ class PatientProfileControllerTest {
         when(profiles.search(id.toString(), 0, 20)).thenReturn(Page.empty(PageRequest.of(0, 20)));
         when(profiles.matches(any(), any(), any(), any())).thenReturn(List.of());
         when(profiles.detail(any(), any())).thenReturn(profile());
-        when(profiles.create(any(), any(), any(), any(), any(), any(), any(), any(), any())).thenReturn(profile());
-        when(profiles.update(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any())).thenReturn(profile());
+        when(profiles.create(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any())).thenReturn(profile());
+        when(profiles.update(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any())).thenReturn(profile());
         mvc.perform(request(operation).with(actor(AccountRole.RECEPTIONIST)))
                 .andExpect(operation.equals("create") ? status().isCreated() : status().isOk());
     }
@@ -159,7 +159,8 @@ class PatientProfileControllerTest {
         var json = tools.jackson.databind.json.JsonMapper.builder().build().readTree(detail);
         var fields = new HashSet<String>(); json.propertyNames().forEach(fields::add);
         org.junit.jupiter.api.Assertions.assertEquals(Set.of("patientProfileId", "fullName", "phoneCanonical", "phoneOwnerType",
-                "dateOfBirth", "gender", "address", "nationalId", "identityDocumentType", "hasAccount", "version"), fields);
+                "dateOfBirth", "gender", "address", "nationalId", "identityDocumentType", "email", "emailOwnerType",
+                "hasAccount", "version"), fields);
         when(profiles.matches(any(), any(), any(), any())).thenReturn(List.of(profile()));
         var summary = mvc.perform(request("matches").with(actor(AccountRole.RECEPTIONIST)))
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
@@ -192,11 +193,11 @@ class PatientProfileControllerTest {
         when(profiles.detail(any(), any())).thenThrow(new PatientProfileException("PATIENT_PROFILE_NOT_FOUND"));
         mvc.perform(request("detail").with(actor(AccountRole.RECEPTIONIST))).andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.error.code").value("MSG-19"));
-        when(profiles.create(any(), any(), any(), any(), any(), any(), any(), any(), any()))
+        when(profiles.create(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any()))
                 .thenThrow(new PatientProfileException("PATIENT_PROFILE_DUPLICATE"));
         mvc.perform(request("create").with(actor(AccountRole.RECEPTIONIST))).andExpect(status().isConflict())
                 .andExpect(jsonPath("$.error.code").value("MSG-18"));
-        when(profiles.update(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any()))
+        when(profiles.update(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any()))
                 .thenThrow(new org.springframework.orm.ObjectOptimisticLockingFailureException("profile", id));
         mvc.perform(request("update").with(actor(AccountRole.RECEPTIONIST))).andExpect(status().isConflict())
                 .andExpect(jsonPath("$.error.code").value("MSG-16"));
@@ -214,7 +215,7 @@ class PatientProfileControllerTest {
         DataAccessException failure = status == 503
                 ? new PessimisticLockingFailureException("Temporary database failure", cause)
                 : new DataIntegrityViolationException("Unrelated constraint", cause);
-        when(profiles.create(any(), any(), any(), any(), any(), any(), any(), any(), any())).thenThrow(failure);
+        when(profiles.create(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any())).thenThrow(failure);
 
         mvc.perform(request("create").with(actor(AccountRole.RECEPTIONIST)))
                 .andExpect(status().is(status))
@@ -230,6 +231,15 @@ class PatientProfileControllerTest {
                 new fu.fa26.sep490.g58.otcms_be.patient.model.ReceptionVerificationProfile(id, "An", LocalDate.of(2000, 1, 2)));
         mvc.perform(get(ROOT + "/" + id + "/reception-verification").with(actor(AccountRole.RECEPTIONIST)))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.fullName").value("An"));
+    }
+    @Test void requireReceptionistRejectsPrincipalWithNullAccountRoleAsForbidden() throws Exception {
+        var missingRole = authentication(new UsernamePasswordAuthenticationToken(
+                new AuthenticatedAccount(actorId, null, UUID.randomUUID()),
+                null, List.of(new SimpleGrantedAuthority("ROLE_RECEPTIONIST"))));
+        mvc.perform(get(ROOT).param("query", "An").with(missingRole))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.error.code").value("MSG-19"));
+        verifyNoInteractions(profiles);
     }
     @TestConfiguration @EnableWebSecurity @EnableConfigurationProperties(SessionSecurityProperties.class)
     static class Fixture { }

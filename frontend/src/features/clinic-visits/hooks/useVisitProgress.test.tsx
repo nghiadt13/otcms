@@ -25,6 +25,8 @@ const progressAt = (peopleAhead: number): VisitProgress => ({
   queuePosition: null,
   currentRoom: "Phòng khám 2",
   queueNumber: 12,
+  queueStage: "EXAM",
+  examQueue: null,
   peopleAhead,
   beingCalled: false,
   serviceOrders: [],

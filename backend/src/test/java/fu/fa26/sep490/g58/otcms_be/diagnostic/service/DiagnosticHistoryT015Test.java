@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -146,7 +147,9 @@ class DiagnosticHistoryT015Test {
     void historyRejectsMissingOrDualScopeAndInvalidPageBounds() {
         DiagnosticActor actor = DiagnosticActor.user(UUID.randomUUID(), AccountRole.PATIENT);
 
-        assertThrows(IllegalArgumentException.class, () -> service.getImagingHistory(actor, null, null, 0, 20));
+        // A patient with no filter lists their own studies (UC-51); only other roles need an explicit scope.
+        DiagnosticActor doctor = DiagnosticActor.user(UUID.randomUUID(), AccountRole.DOCTOR);
+        assertThrows(IllegalArgumentException.class, () -> service.getImagingHistory(doctor, null, null, 0, 20));
         assertThrows(IllegalArgumentException.class,
                 () -> service.getImagingHistory(actor, UUID.randomUUID(), UUID.randomUUID(), 0, 20));
         assertThrows(IllegalArgumentException.class,
@@ -266,5 +269,82 @@ class DiagnosticHistoryT015Test {
         org.junit.jupiter.api.Assertions.assertNull(item.reportId());
         verify(reports, org.mockito.Mockito.never()).findFirstByRequestIdAndStateOrderByReportVersionDesc(orderId,
                 fu.fa26.sep490.g58.otcms_be.diagnostic.model.entity.enums.DiagnosticFindingsVersionState.DRAFT);
+    }
+
+    @Test
+    void patientHistoryWithoutFilterUsesOwnProfile() {
+        UUID actorId = UUID.randomUUID();
+        UUID ownPatientId = UUID.randomUUID();
+        DiagnosticActor actor = DiagnosticActor.user(actorId, AccountRole.PATIENT);
+        when(patientPort.ownPatientId(actorId)).thenReturn(ownPatientId);
+        when(patientPort.authorizePatientHistory(actorId, ownPatientId))
+                .thenReturn(new PatientHistoryAuthorization(ownPatientId, "SELF", true));
+        when(requests.page(eq(null), eq(ownPatientId), eq(null), eq(null), eq(null), eq(false), any()))
+                .thenReturn(new PageImpl<>(List.of(), PageRequest.of(0, 20), 0));
+
+        DiagnosticHistoryPage result = service.getImagingHistory(actor, null, null, 0, 20);
+
+        assertEquals(0, result.totalItems());
+        verify(patientPort).authorizePatientHistory(actorId, ownPatientId);
+        verify(requests).page(eq(null), eq(ownPatientId), eq(null), eq(null), eq(null), eq(false), any());
+        ArgumentCaptor<AuditEntry> audit = ArgumentCaptor.forClass(AuditEntry.class);
+        verify(historyAudits).record(audit.capture());
+        assertEquals("PATIENT", audit.getValue().recordType());
+        assertEquals(ownPatientId, audit.getValue().entityId());
+    }
+
+    @Test
+    void patientWithoutOwnProfileGetsEmptyHistoryWithoutQueryOrAudit() {
+        UUID actorId = UUID.randomUUID();
+        DiagnosticActor actor = DiagnosticActor.user(actorId, AccountRole.PATIENT);
+        when(patientPort.ownPatientId(actorId)).thenReturn(null);
+
+        DiagnosticHistoryPage result = service.getImagingHistory(actor, null, null, 0, 20);
+
+        assertEquals(List.of(), result.items());
+        assertEquals(0, result.totalItems());
+        verify(patientPort, never()).authorizePatientHistory(any(), any());
+        verifyNoInteractions(requests, historyAudits);
+    }
+
+    @Test
+    void nonPatientHistoryWithoutScopeIsStillRejectedWithoutProfileFallback() {
+        DiagnosticActor doctor = DiagnosticActor.user(UUID.randomUUID(), AccountRole.DOCTOR);
+
+        assertThrows(IllegalArgumentException.class, () -> service.getImagingHistory(doctor, null, null, 0, 20));
+        verifyNoInteractions(patientPort, requests, historyAudits);
+    }
+
+    @Test
+    void patientDependentHistoryOutsideScopeIsUnauthorizedRecord() {
+        UUID actorId = UUID.randomUUID();
+        UUID patientId = UUID.randomUUID();
+        DiagnosticActor actor = DiagnosticActor.user(actorId, AccountRole.PATIENT);
+        when(patientPort.authorizePatientHistory(actorId, patientId))
+                .thenReturn(new PatientHistoryAuthorization(patientId, null, false));
+
+        DiagnosticOperationException exception = assertThrows(DiagnosticOperationException.class,
+                () -> service.getImagingHistory(actor, patientId, null, 0, 20));
+
+        assertEquals(DiagnosticOperationOutcome.UNAUTHORIZED_RECORD, exception.outcome());
+        verifyNoInteractions(requests, historyAudits);
+    }
+
+    @Test
+    void patientVisitHistoryOutsideScopeStaysRecordNotFound() {
+        UUID actorId = UUID.randomUUID();
+        UUID visitId = UUID.randomUUID();
+        UUID patientId = UUID.randomUUID();
+        DiagnosticActor actor = DiagnosticActor.user(actorId, AccountRole.PATIENT);
+        when(visitPort.authorizeImagingHistory(visitId, actorId)).thenReturn(
+                new VisitHistoryAuthorization(visitId, patientId, UUID.randomUUID(), null, "CLOSED", true));
+        when(patientPort.authorizePatientHistory(actorId, patientId))
+                .thenReturn(new PatientHistoryAuthorization(patientId, null, false));
+
+        DiagnosticOperationException exception = assertThrows(DiagnosticOperationException.class,
+                () -> service.getImagingHistory(actor, null, visitId, 0, 20));
+
+        assertEquals(DiagnosticOperationOutcome.RECORD_NOT_FOUND, exception.outcome());
+        verifyNoInteractions(requests, historyAudits);
     }
 }

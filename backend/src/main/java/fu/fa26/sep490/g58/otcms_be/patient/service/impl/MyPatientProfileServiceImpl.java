@@ -31,7 +31,8 @@ public class MyPatientProfileServiceImpl implements MyPatientProfileService {
 
     @Override @Transactional
     public PatientProfile create(AuthenticatedAccount actor, CreateMyPatientProfileRequest r) {
-        if (actor == null || actor.accountRole() != AccountRole.PATIENT || !identities.isActivePatient(actor.accountId()))
+        if (actor == null || actor.accountId() == null || actor.accountRole() != AccountRole.PATIENT
+                || !identities.isActivePatient(actor.accountId()))
             throw new MyPatientProfileException(ACCESS_DENIED);
         if (r == null) throw new MyPatientProfileException(INVALID_INPUT);
         requireNationalId(r.nationalId());
@@ -63,7 +64,7 @@ public class MyPatientProfileServiceImpl implements MyPatientProfileService {
         try {
             validated = AdministrativeProfileFields.record(existing.id(), existing.accountId(), r.fullName(), r.phone(),
                     r.phoneOwnerType(), r.dateOfBirth(), r.gender(), r.address(), r.nationalId(),
-                    r.identityDocumentType(), r.version(), false, false);
+                    r.identityDocumentType(), existing.email(), existing.emailOwnerType(), r.version(), false, false);
         } catch (PatientProfileException invalid) {
             throw new MyPatientProfileException(INVALID_INPUT, invalid.fieldErrors().stream()
                     .map(f -> new FieldError(f.field(), "MSG-08")).toList());
@@ -78,7 +79,8 @@ public class MyPatientProfileServiceImpl implements MyPatientProfileService {
     }
 
     private ProfileRecord own(AuthenticatedAccount actor) {
-        if (actor == null || actor.accountRole() != AccountRole.PATIENT || !identities.isActivePatient(actor.accountId()))
+        if (actor == null || actor.accountId() == null || actor.accountRole() != AccountRole.PATIENT
+                || !identities.isActivePatient(actor.accountId()))
             throw new MyPatientProfileException(ACCESS_DENIED);
         var id = profiles.findPatientProfile(actor.accountId()).orElseThrow(() -> new MyPatientProfileException(NOT_FOUND));
         var record = profiles.findProfile(id).orElseThrow(() -> new MyPatientProfileException(NOT_FOUND));
@@ -88,6 +90,7 @@ public class MyPatientProfileServiceImpl implements MyPatientProfileService {
 
     private PatientProfile model(ProfileRecord p) {
         return new PatientProfile(p.id(), p.fullName(), p.phoneCanonical(), p.dateOfBirth(), p.gender(),
-                p.phoneOwnerType(), p.address(), p.nationalId(), p.identityDocumentType(), p.accountId() != null, p.version());
+                p.phoneOwnerType(), p.address(), p.nationalId(), p.identityDocumentType(),
+                p.email(), p.emailOwnerType(), p.accountId() != null, p.version());
     }
 }

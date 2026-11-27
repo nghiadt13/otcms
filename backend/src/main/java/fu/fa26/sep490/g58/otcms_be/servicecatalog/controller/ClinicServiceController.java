@@ -92,6 +92,11 @@ public class ClinicServiceController {
     @PreAuthorize("hasAuthority('ROLE_ADMIN')")
     public ServiceResponse update(@PathVariable UUID serviceId, @Valid @RequestBody ServiceRequest request,
             @AuthenticationPrincipal AuthenticatedAccount actor, HttpServletRequest http) {
+        // The service type is fixed after creation (it decides which orders and rooms use the service):
+        // refuse a different type instead of silently ignoring it.
+        if (request.type() != null && request.type() != catalog.getService(serviceId).type()) {
+            throw new fu.fa26.sep490.g58.otcms_be.servicecatalog.exception.ClinicServiceException("SERVICE_REQUEST_INVALID");
+        }
         return mapper.toResponse(auditMutation.execute("UPDATED", actor, CorrelationIdFilter.current(http),
                 () -> update.update(serviceId, request.name(), request.description(), request.price(),
                         request.durationMinutes(), request.bufferMinutes(), request.onlineBookable(),

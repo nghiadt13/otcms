@@ -1,4 +1,4 @@
-import { passwordPolicy } from "@/lib/domain/passwordPolicy";
+import { isPasswordTooLong, passwordPolicy } from "@/lib/domain/passwordPolicy";
 import type { PatientRegistrationInput } from "../types/auth";
 
 // Kiểm tra phía trình duyệt chỉ để báo lỗi sớm; backend/credential authority vẫn
@@ -30,6 +30,7 @@ export function validateStaffUsername(value: string): string | undefined {
 
 export function validatePassword(value: string): string | undefined {
   if (!value) return "Nhập mật khẩu.";
+  if (isPasswordTooLong(value)) return "Mật khẩu tối đa 64 ký tự.";
   if (!passwordPolicy.every((rule) => rule.test(value)))
     return "Mật khẩu chưa đạt yêu cầu bên dưới.";
 }

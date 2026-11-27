@@ -1,16 +1,23 @@
 import { DoorOpen } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { VisitProgress } from "../types/visitProgress";
+import type { QueueTicket } from "../types/visitProgress";
 import { queueAheadText } from "./visitPresentation";
 
-// Vị trí của bệnh nhân trong hàng đang chờ, dạng "phiếu số": ô số thứ tự bên trái (nội dung chính, có nhãn
-// chữ, chữ số đều nhau), bên phải là phòng, câu nói còn bao nhiêu người trước và lời nhắc việc cần làm.
-// Khi đang được gọi, vùng này đổi sang nền xanh thành công và nhắc vào phòng ngay. Chỉ gọi khi lượt đã vào hàng.
+// Vị trí của bệnh nhân trong một hàng, dạng "phiếu số": ô số thứ tự bên trái (nội dung chính, có nhãn chữ,
+// chữ số đều nhau), bên phải là câu còn bao nhiêu người trước, phòng và lời nhắc. Khi đang được gọi, vùng
+// này đổi sang nền xanh thành công và nhắc vào phòng ngay. Dùng cho thẻ tóm tắt ở trang chủ (trang chi tiết
+// dùng VisitNextAction và VisitTimeline).
 
-export function VisitQueueStatus({ progress }: { progress: VisitProgress }) {
-  const text = queueAheadText(progress);
-  const called = progress.beingCalled;
-  const room = progress.currentRoom ?? "Chưa có phòng";
+const WAIT_HINT = {
+  EXAM: "Bạn đang xếp hàng chờ bác sĩ khám.",
+  SERVICE: "Bạn đang xếp hàng chờ làm chỉ định tại phòng này.",
+  NONE: "Bạn đang xếp hàng chờ.",
+} as const;
+
+export function VisitQueueStatus({ ticket }: { ticket: QueueTicket }) {
+  const text = queueAheadText(ticket);
+  const called = ticket.beingCalled;
+  const room = ticket.room ?? "Chưa có phòng";
   return (
     <div
       className={cn(
@@ -21,7 +28,7 @@ export function VisitQueueStatus({ progress }: { progress: VisitProgress }) {
       <div className="flex w-24 shrink-0 flex-col items-center justify-center rounded-lg bg-card px-3 py-4 sm:w-28">
         <p className="text-sm text-muted-foreground">Số thứ tự</p>
         <p className="text-5xl font-semibold tabular-nums">
-          {progress.queueNumber}
+          {ticket.queueNumber}
         </p>
       </div>
       <div className="flex min-w-0 flex-1 flex-col justify-center gap-1.5">
@@ -46,7 +53,7 @@ export function VisitQueueStatus({ progress }: { progress: VisitProgress }) {
         <p className="text-sm text-muted-foreground">
           {called
             ? "Vui lòng vào phòng ngay để không lỡ lượt."
-            : "Hãy ở gần khu vực chờ để không lỡ lượt. Số người trước bạn tự cập nhật."}
+            : `${WAIT_HINT[ticket.stage ?? "NONE"]} Hãy ở gần khu vực chờ để không lỡ lượt.`}
         </p>
       </div>
     </div>

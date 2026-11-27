@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { VisitProgress } from "../types/visitProgress";
 import {
-  orderRoomText,
   queueAheadText,
   visitDateLabel,
   visitPatientLabel,
@@ -61,22 +60,5 @@ describe("queueAheadText", () => {
 
   it("chưa vào hàng (không có số người trước): trả chuỗi rỗng", () => {
     expect(queueAheadText(position({ peopleAhead: null }))).toBe("");
-  });
-});
-
-describe("orderRoomText", () => {
-  it("có tên phòng thì ghi tên phòng", () => {
-    expect(orderRoomText({ roomId: "room-1", roomName: "Phòng X-quang" })).toBe(
-      "Phòng thực hiện: Phòng X-quang",
-    );
-  });
-
-  it("có mã phòng nhưng chưa có tên thì nói đã có phòng; không có gì thì nói chưa có", () => {
-    expect(orderRoomText({ roomId: "room-1", roomName: null })).toBe(
-      "Đã có phòng thực hiện",
-    );
-    expect(orderRoomText({ roomId: null, roomName: null })).toBe(
-      "Chưa có phòng thực hiện",
-    );
   });
 });

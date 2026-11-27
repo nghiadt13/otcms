@@ -25,8 +25,10 @@ public class ActivityLogServiceImpl implements ActivityLogService {
     public ActivityLogPage list(String from, String to, String action, String record, String actor,
         int page, int size) {
         try {
-            LocalDate start = clean(from).isEmpty() ? null : LocalDate.parse(from);
-            LocalDate end = clean(to).isEmpty() ? null : LocalDate.parse(to);
+            String f = clean(from);
+            String t = clean(to);
+            LocalDate start = f.isEmpty() ? null : LocalDate.parse(f);
+            LocalDate end = t.isEmpty() ? null : LocalDate.parse(t);
             String category = clean(action);
             if ((start != null && end != null && start.isAfter(end)) || page < 0 || size < 1 || size > 100
                 || (!category.isEmpty() && !CATEGORIES.contains(category))

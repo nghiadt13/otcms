@@ -37,7 +37,15 @@ const emptyInput: ReceptionPatientInput = {
   address: "",
   nationalId: null,
   identityDocumentType: null,
+  email: null,
+  emailOwnerType: null,
 };
+
+function emailOwnerLabel(owner: ReceptionPatientDetail["emailOwnerType"]) {
+  if (owner === "PATIENT") return "Bệnh nhân";
+  if (owner === "RELATIVE") return "Người thân";
+  return "";
+}
 function errorText(
   error: unknown,
   mode: "match" | "create" | "update" | "read",
@@ -84,9 +92,12 @@ function PatientForm({
           address: patient.address ?? "",
           nationalId: patient.nationalId,
           identityDocumentType: patient.identityDocumentType,
+          email: patient.email ?? null,
+          emailOwnerType: patient.emailOwnerType ?? null,
         }
       : emptyInput,
   );
+  const emailLocked = Boolean(patient?.hasAccount);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
   const [candidates, setCandidates] = useState<ReceptionPatient[]>([]);
@@ -100,16 +111,25 @@ function PatientForm({
   }
   async function submit(e: FormEvent) {
     e.preventDefault();
+    const trimmedEmail = input.email?.trim() || null;
+    const effectiveEmailOwner = trimmedEmail ? input.emailOwnerType : null;
     if (
       !input.fullName.trim() ||
       !input.phone.trim() ||
       !input.dateOfBirth ||
       !input.address.trim() ||
-      (input.nationalId && !input.identityDocumentType)
+      (input.nationalId && !input.identityDocumentType) ||
+      (trimmedEmail && !effectiveEmailOwner) ||
+      (!trimmedEmail && input.emailOwnerType)
     ) {
       setError(formatAppMessage("MSG-17"));
       return;
     }
+    const payload: ReceptionPatientInput = {
+      ...input,
+      email: trimmedEmail,
+      emailOwnerType: effectiveEmailOwner,
+    };
     setPending(true);
     setError("");
     let mode: "match" | "create" | "update" = patient ? "update" : "match";
@@ -117,7 +137,7 @@ function PatientForm({
       if (patient) {
         const saved = await updatePatientProfile(
           patient.patientProfileId,
-          input,
+          payload,
           patient.version,
         );
         notifySuccess("MSG-84");
@@ -125,9 +145,9 @@ function PatientForm({
         return;
       }
       const matches = await matchReceptionPatients(
-        input.phone,
-        input.dateOfBirth,
-        input.fullName,
+        payload.phone,
+        payload.dateOfBirth,
+        payload.fullName,
       );
       if (matches.items.length) {
         setCandidates(matches.items);
@@ -135,7 +155,7 @@ function PatientForm({
         return;
       }
       mode = "create";
-      const saved = await createPatientProfile(input);
+      const saved = await createPatientProfile(payload);
       notifySuccess("MSG-84");
       onSaved(saved.patientProfileId);
     } catch (cause) {
@@ -230,7 +250,44 @@ function PatientForm({
             onChange={(v) => change("address", v)}
             disabled={pending}
           />
+          <TextField
+            label="Email"
+            type="email"
+            value={input.email ?? ""}
+            onChange={(v) => {
+              const nextEmail = v || null;
+              setInput((prev) => ({
+                ...prev,
+                email: nextEmail,
+                emailOwnerType: nextEmail ? prev.emailOwnerType : null,
+              }));
+              setError("");
+              setCandidates([]);
+            }}
+            disabled={pending || emailLocked}
+          />
+          <SelectField
+            label="Chủ email"
+            value={input.emailOwnerType ?? ""}
+            onChange={(v) =>
+              change(
+                "emailOwnerType",
+                (v || null) as ReceptionPatientInput["emailOwnerType"],
+              )
+            }
+            options={[
+              { value: "", label: "Không có" },
+              { value: "PATIENT", label: "Bệnh nhân" },
+              { value: "RELATIVE", label: "Người thân" },
+            ]}
+            disabled={pending || emailLocked}
+          />
         </div>
+        {emailLocked && (
+          <p className="text-xs text-muted-foreground">
+            Hồ sơ đã liên kết tài khoản nên không thể thay đổi email và chủ email.
+          </p>
+        )}
         {error && (
           <p role="alert" className="text-destructive">
             {error}
@@ -388,6 +445,13 @@ export function PatientSearchScreen() {
                     : "Khác"}
               </InfoRow>
               <InfoRow label="Số điện thoại">{detail.phoneCanonical}</InfoRow>
+              <InfoRow label="Email">
+                {detail.email
+                  ? detail.emailOwnerType
+                    ? `${detail.email} (${emailOwnerLabel(detail.emailOwnerType)})`
+                    : detail.email
+                  : "Chưa cung cấp"}
+              </InfoRow>
               <InfoRow label="Địa chỉ">
                 {detail.address || "Chưa cung cấp"}
               </InfoRow>

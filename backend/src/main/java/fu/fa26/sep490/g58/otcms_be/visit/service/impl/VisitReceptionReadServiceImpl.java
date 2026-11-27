@@ -145,13 +145,24 @@ public class VisitReceptionReadServiceImpl implements VisitReceptionReadService 
         var roomsByOrder = roomQueues.findServicesForVisit(visitId).stream()
                 .filter(q -> q.getServiceOrderId() != null && q.getRoomId() != null)
                 .collect(java.util.stream.Collectors.toMap(q -> q.getServiceOrderId(), q -> q.getRoomId(), (a, b) -> a));
+        // Hàng khám bệnh và hàng của từng chỉ định lấy riêng theo stage và service_order_id, không đoán từ hàng mới nhất.
+        VisitProgressResponse.QueueInfo examQueue = null;
+        Map<UUID, VisitProgressResponse.QueueInfo> queueByOrder = new java.util.HashMap<>();
+        for (Object[] entry : reads.findActiveQueueEntries(visitId, booking.clinicTimeZone().getId())) {
+            var info = new VisitProgressResponse.QueueInfo(
+                    entry[2] == null ? null : ((Number) entry[2]).intValue(), (String) entry[3], (String) entry[4],
+                    ((Number) entry[5]).intValue(), "CALLED".equals(entry[3]));
+            if ("EXAM".equals(entry[0])) { if (examQueue == null) examQueue = info; }
+            else if (entry[1] != null) queueByOrder.putIfAbsent(asUuid(entry[1]), info);
+        }
         var orderRows = orders.findByVisit(visitId);
         var namesByRoom = roomNames(orderRows.stream()
                 .map(order -> roomsByOrder.getOrDefault(order.id(), order.roomId())).toList());
         var serviceOrders = orderRows.stream().map(order -> {
             UUID roomId = roomsByOrder.getOrDefault(order.id(), order.roomId());
             return new VisitProgressResponse.ServiceOrder(order.id(), order.code(), order.serviceName(),
-                    order.status(), order.paymentStatus(), roomId, roomId == null ? null : namesByRoom.get(roomId));
+                    order.status(), order.paymentStatus(), roomId, roomId == null ? null : namesByRoom.get(roomId),
+                    queueByOrder.get(order.id()));
         }).toList();
         Integer peopleAhead = null;
         if (active != null) peopleAhead = ((Number) active[3]).intValue();
@@ -168,8 +179,8 @@ public class VisitReceptionReadServiceImpl implements VisitReceptionReadService 
         if (currentRoom == null) currentRoom = (String) row[11];
         return new VisitProgressResponse(visitId, (String) row[2], (String) row[3],
                 (String) row[5], instant(row[4]), position, currentRoom, queueNumber,
-                peopleAhead,
-                active != null ? "CALLED".equals(active[1]) : "CALLED".equals(row[10]), serviceOrders);
+                peopleAhead, active == null ? null : (String) active[4],
+                active != null ? "CALLED".equals(active[1]) : "CALLED".equals(row[10]), serviceOrders, examQueue);
     }
 
     /** Tên phòng (nhãn hiển thị) theo mã phòng; không gọi bảng phòng khi chỉ định chưa có phòng nào. */

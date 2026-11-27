@@ -16,6 +16,13 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 @RestControllerAdvice(basePackages = "fu.fa26.sep490.g58.otcms_be.imaging.controller")
 @Order(Ordered.HIGHEST_PRECEDENCE)
 public class ImagingApiExceptionHandler {
+    /** Wrong role on an imaging endpoint. */
+    @ExceptionHandler(org.springframework.security.access.AccessDeniedException.class)
+    public ResponseEntity<ErrorResponse> accessDenied(HttpServletRequest request) {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(ErrorResponse.of("UNAUTHORIZED_RECORD",
+                "Imaging request was rejected", CorrelationIdFilter.current(request)));
+    }
+
     @ExceptionHandler(ConstraintViolationException.class)
     public ResponseEntity<ErrorResponse> invalidRequest(ConstraintViolationException exception,
             HttpServletRequest request) {

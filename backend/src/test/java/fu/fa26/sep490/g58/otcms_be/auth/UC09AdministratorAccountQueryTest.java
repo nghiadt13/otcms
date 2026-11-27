@@ -192,6 +192,14 @@ class UC09AdministratorAccountQueryTest {
         verifyNoInteractions(accounts);
     }
 
+    @Test
+    void overlongQueryIsRejectedBeforeSearching() {
+        var error = assertThrows(AdministratorAccountException.class,
+                () -> service.list(owner(), "a".repeat(101), null, 0, 20));
+        assertEquals("VALIDATION_FAILED", error.getMessage());
+        verifyNoInteractions(accounts);
+    }
+
     private AccountJpaEntity account(AccountType type) {
         var account = new AccountJpaEntity();
         account.setId(UUID.randomUUID());

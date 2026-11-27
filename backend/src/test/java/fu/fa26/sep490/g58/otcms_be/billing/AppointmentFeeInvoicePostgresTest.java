@@ -9,6 +9,7 @@ import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 import org.junit.jupiter.api.Test;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -51,6 +52,17 @@ class AppointmentFeeInvoicePostgresTest extends HoldBillingTestSupport {
 
         var ids = invoices.listMine(patient, 0, 10).items().stream().map(i -> i.id()).toList();
         assertEquals(List.of(shown), ids);
+    }
+
+    @Test
+    void listMineRejectsBadPagingAsMsg39AndOtherRolesAsAccessDenied() {
+        assertEquals("VALIDATION_FAILED", assertThrows(BillingException.class, () -> invoices.listMine(patient, -1, 10)).code());
+        assertEquals("VALIDATION_FAILED", assertThrows(BillingException.class, () -> invoices.listMine(patient, 0, 0)).code());
+        assertEquals("VALIDATION_FAILED", assertThrows(BillingException.class, () -> invoices.listMine(patient, 0, 51)).code());
+        assertEquals("ACCESS_DENIED", assertThrows(BillingException.class,
+                () -> invoices.listMine(receptionist, 0, 10)).code());
+        assertEquals("ACCESS_DENIED", assertThrows(BillingException.class, () -> invoices.listMine(null, 0, 10)).code());
+        assertDoesNotThrow(() -> invoices.listMine(patient, 0, 50));
     }
 
     @Test

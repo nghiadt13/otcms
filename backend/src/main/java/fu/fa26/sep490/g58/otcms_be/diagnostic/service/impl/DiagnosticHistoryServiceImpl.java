@@ -59,6 +59,14 @@ public class DiagnosticHistoryServiceImpl implements DiagnosticHistoryService {
     public DiagnosticHistoryPage getImagingHistory(DiagnosticActor actor, UUID patientId, UUID visitId,
             int page, int size) {
         requirePage(page, size);
+        // UC-51 step 2: a patient opening Diagnostic Images without a filter sees their own studies.
+        if (patientId == null && visitId == null && actor != null && actor.kind() == DiagnosticActor.Kind.USER
+                && actor.role() == AccountRole.PATIENT) {
+            PatientDiagnosticHistoryPort port = patientPorts.getIfAvailable();
+            if (port == null) throw unavailable();
+            patientId = port.ownPatientId(actor.accountId());
+            if (patientId == null) return new DiagnosticHistoryPage(List.of(), page, size, 0); // no profile yet: empty, not an error
+        }
         if ((patientId == null) == (visitId == null)) {
             throw new IllegalArgumentException("Exactly one of patientId or visitId is required");
         }
@@ -86,7 +94,9 @@ public class DiagnosticHistoryServiceImpl implements DiagnosticHistoryService {
             PatientHistoryAuthorization patientAuthorization = authorizePatientHistory(actor.accountId(),
                     authorizedPatientId);
             if (!patientAuthorization.authorized() || !authorizedPatientId.equals(patientAuthorization.patientId())) {
-                throw unavailable();
+                // UC-51 E1 / BR-19: a profile outside the actor's own or approved-dependent scope is access denied.
+                throw patientId != null ? new DiagnosticOperationException(DiagnosticOperationOutcome.UNAUTHORIZED_RECORD)
+                        : unavailable();
             }
         } else {
             throw unavailable();

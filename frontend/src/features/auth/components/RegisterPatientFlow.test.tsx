@@ -57,6 +57,17 @@ describe("RegisterPatientFlow", () => {
     expect(screen.queryByLabelText(/Số điện thoại/)).toBeNull();
   });
 
+  it("ẩn điều kiện tối đa 64 ký tự lúc bình thường và chỉ hiện khi nhập vượt quá", async () => {
+    const user = userEvent.setup();
+    render(<RegisterPatientFlow />);
+    const password = screen.getByLabelText(/^Mật khẩu/);
+
+    expect(screen.queryByText(/Tối đa 64 ký tự/)).toBeNull();
+
+    await user.type(password, `${"a".repeat(64)}1`);
+    expect(screen.getByText("Tối đa 64 ký tự")).toBeInTheDocument();
+  });
+
   it("báo lỗi MSG-08 và giữ ở bước 1 khi thiếu thông tin", async () => {
     render(<RegisterPatientFlow />);
     await userEvent.click(screen.getByRole("button", { name: "Tiếp tục" }));

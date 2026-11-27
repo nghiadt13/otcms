@@ -46,12 +46,17 @@ export type ReceptionPatient = {
   dateOfBirth: string;
 };
 
+export type EmailOwnerType = "PATIENT" | "RELATIVE";
+
 export type ReceptionPatientDetail = ReceptionPatient & {
   phoneOwnerType: "PATIENT" | "GUARDIAN";
   gender: "MALE" | "FEMALE" | "OTHER";
   address: string | null;
   nationalId: string | null;
   identityDocumentType: "CCCD" | "PERSONAL_ID" | "PASSPORT" | null;
+  email?: string | null;
+  emailOwnerType?: EmailOwnerType | null;
+  hasAccount?: boolean;
   version: number;
 };
 export type ReceptionPatientInput = {
@@ -63,6 +68,8 @@ export type ReceptionPatientInput = {
   address: string;
   nationalId: string | null;
   identityDocumentType: "CCCD" | "PERSONAL_ID" | "PASSPORT" | null;
+  email: string | null;
+  emailOwnerType: EmailOwnerType | null;
 };
 export function getReceptionPatient(id: string) {
   return apiRequest<ReceptionPatientDetail>(

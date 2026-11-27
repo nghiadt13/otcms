@@ -67,7 +67,8 @@ public class PatientProfileController {
     public ResponseEntity<PatientProfileResponse> create(@Valid @RequestBody CreatePatientProfileRequest request) {
         requireReceptionist();
         PatientProfile saved = profiles.create(actorId(), request.fullName(), request.phone(), request.phoneOwnerType(),
-                request.dateOfBirth(), request.gender(), request.address(), request.nationalId(), request.identityDocumentType());
+                request.dateOfBirth(), request.gender(), request.address(), request.nationalId(),
+                request.identityDocumentType(), request.email(), request.emailOwnerType());
         return ResponseEntity.status(HttpStatus.CREATED).body(mapper.toResponse(saved));
     }
 
@@ -113,7 +114,7 @@ public class PatientProfileController {
             @Valid @RequestBody UpdatePatientProfileRequest request) {
         var result = profiles.update(actorId(), id, request.fullName(), request.phone(), request.phoneOwnerType(),
                 request.dateOfBirth(), request.gender(), request.address(), request.nationalId(),
-                request.identityDocumentType(), request.version());
+                request.identityDocumentType(), request.email(), request.emailOwnerType(), request.version());
         return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(mapper.toDetail(result));
     }
 
@@ -127,7 +128,7 @@ public class PatientProfileController {
     private void requireReceptionist() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication == null || !(authentication.getPrincipal() instanceof AuthenticatedAccount actor)
-                || !"RECEPTIONIST".equals(actor.accountRole().name()))
+                || actor.accountRole() == null || !"RECEPTIONIST".equals(actor.accountRole().name()))
             throw new PatientProfileException("FORBIDDEN");
     }
 

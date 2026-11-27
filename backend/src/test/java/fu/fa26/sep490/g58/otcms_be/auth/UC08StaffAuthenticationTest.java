@@ -129,6 +129,24 @@ class UC08StaffAuthenticationTest {
         verifyNoInteractions(credentials, sessions);
     }
 
+    @Test
+    void directServiceLoginSupportsRememberMeFalseAndPropagatesStaffLoginFailure() {
+        UUID id = UUID.randomUUID();
+        var issued = issued(id, false);
+        when(credentials.loginStaff("reception.one", "pass-123", "127.0.0.1"))
+                .thenReturn(new CredentialLoginResponse(id, "RECEPTIONIST"));
+        when(sessions.create(id, "127.0.0.1", "agent", false)).thenReturn(issued);
+
+        assertSame(issued, authentication.login("reception.one", "pass-123", "127.0.0.1", "agent", false, false));
+        verify(sessions).create(id, "127.0.0.1", "agent", false);
+
+        when(credentials.loginStaff("reception.one", "wrong", "127.0.0.1"))
+                .thenThrow(new CredentialLoginException("AUTHENTICATION_FAILED"));
+        assertThrows(CredentialLoginException.class,
+                () -> authentication.login("reception.one", "wrong", "127.0.0.1", "agent", false, true));
+        verifyNoMoreInteractions(sessions);
+    }
+
     private StaffLoginController controller(List<String> allowed) {
         var network = new StaffNetworkPolicy();
         network.setAllowedCidrs(allowed);

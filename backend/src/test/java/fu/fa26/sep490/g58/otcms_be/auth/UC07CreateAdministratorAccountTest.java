@@ -183,6 +183,16 @@ class UC07CreateAdministratorAccountTest {
         assertFalse(first.equals(second));
     }
 
+    @Test
+    void invalidPasswordIsRejectedBeforeLockOrPersistence() {
+        for (String password : new String[]{null, "short", "onlyletters", "12345678"}) {
+            var error = assertThrows(AdministratorAccountException.class,
+                    () -> service.create(actor(AccountRole.OWNER), "admin.valid", password));
+            assertEquals("VALIDATION_FAILED", error.getMessage());
+        }
+        verifyNoInteractions(accounts, concurrency, passwords);
+    }
+
     private AuthenticatedAccount actor(AccountRole role) {
         return new AuthenticatedAccount(UUID.randomUUID(), role, UUID.randomUUID());
     }

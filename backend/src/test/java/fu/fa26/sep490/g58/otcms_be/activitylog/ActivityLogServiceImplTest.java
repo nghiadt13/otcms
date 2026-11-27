@@ -51,4 +51,35 @@ class ActivityLogServiceImplTest {
         }
     }
 
+    @Test void listLeavesAbsentDateBoundsNullAndTextFiltersEmpty() {
+        when(reader.list(any())).thenReturn(new ActivityLogRepository.Page(List.of(), 0, 20, 0L, 0));
+        handler.list(null, null, null, null, null, 0, 20);
+        var criteria = ArgumentCaptor.forClass(ActivityLogRepository.Criteria.class);
+        verify(reader).list(criteria.capture());
+        assertNull(criteria.getValue().from());
+        assertNull(criteria.getValue().until());
+        assertEquals("", criteria.getValue().category());
+    }
+
+    @Test void listRejectsPageOffsetThatOverflowsInt() {
+        assertEquals("MSG-54", assertThrows(ActivityLogOperationException.class,
+                () -> handler.list(null, null, null, null, null, Integer.MAX_VALUE, 100)).getMessage());
+        verifyNoInteractions(reader);
+    }
+
+    @Test void detailRejectsIdLongerThan128Characters() {
+        assertEquals("MSG-50", assertThrows(ActivityLogOperationException.class,
+                () -> handler.detail("a".repeat(129))).getMessage());
+        verifyNoInteractions(reader);
+    }
+
+    @Test void listTrimsWhitespaceAroundDateBounds() {
+        when(reader.list(any())).thenReturn(new ActivityLogRepository.Page(List.of(), 0, 20, 0L, 0));
+        handler.list(" 2026-11-01 ", " 2026-11-01 ", "", "", "", 0, 20);
+        var criteria = ArgumentCaptor.forClass(ActivityLogRepository.Criteria.class);
+        verify(reader).list(criteria.capture());
+        assertEquals(Instant.parse("2026-10-31T17:00:00Z"), criteria.getValue().from());
+        assertEquals(Instant.parse("2026-11-01T17:00:00Z"), criteria.getValue().until());
+    }
+
 }

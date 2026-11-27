@@ -86,8 +86,11 @@ public class PatientProfileServiceImpl implements PatientProfileService {
     @Override
     @Transactional(readOnly = true)
     public ReceptionVerificationProfile getReceptionVerificationProfile(UUID actorAccountId, UUID patientProfileId) {
-        if (!receptionists.isActiveReceptionistAccount(actorAccountId)) {
+        if (actorAccountId == null || !receptionists.isActiveReceptionistAccount(actorAccountId)) {
             throw new PatientProfileException("FORBIDDEN");
+        }
+        if (patientProfileId == null) {
+            throw new PatientProfileException("PATIENT_PROFILE_NOT_FOUND");
         }
         ProfileRecord profile = profiles.findProfile(patientProfileId)
                 .orElseThrow(() -> new PatientProfileException("PATIENT_PROFILE_NOT_FOUND"));
@@ -97,7 +100,8 @@ public class PatientProfileServiceImpl implements PatientProfileService {
     private PatientProfile toModel(ProfileRecord profile) {
         return new PatientProfile(profile.id(), profile.fullName(), profile.phoneCanonical(),
                 profile.dateOfBirth(), profile.gender(), profile.phoneOwnerType(), profile.address(), profile.nationalId(),
-                profile.identityDocumentType(), profile.accountId() != null, profile.version());
+                profile.identityDocumentType(), profile.email(), profile.emailOwnerType(),
+                profile.accountId() != null, profile.version());
     }
 
     @Override
@@ -121,10 +125,10 @@ public class PatientProfileServiceImpl implements PatientProfileService {
     @Override
     @Transactional
     public PatientProfile create(UUID actorAccountId, String name, String phone, String owner, LocalDate dob,
-            String gender, String address, String nationalId, String documentType) {
+            String gender, String address, String nationalId, String documentType, String email, String emailOwner) {
         requireActiveReceptionist(actorAccountId);
         ProfileRecord record = administrativeRecord(UUID.randomUUID(), null, name, phone, owner, dob, gender,
-                address, nationalId, documentType, 0, true);
+                address, nationalId, documentType, email, emailOwner, 0, true);
         coordinationGuard.acquire();
         if (profiles.duplicateExists(record.phoneCanonical(), record.dateOfBirth(), record.fullName()))
             throw new PatientProfileException("PATIENT_PROFILE_DUPLICATE");
@@ -141,28 +145,44 @@ public class PatientProfileServiceImpl implements PatientProfileService {
     @Override
     @Transactional
     public PatientProfile update(UUID actorAccountId, UUID patientProfileId, String name, String phone, String owner,
-            LocalDate dob, String gender, String address, String nationalId, String documentType, Long version) {
+            LocalDate dob, String gender, String address, String nationalId, String documentType,
+            String email, String emailOwner, Long version) {
         requireActiveReceptionist(actorAccountId);
         if (version == null || version < 0) throw invalid("version");
         ProfileRecord existing = requiredProfile(patientProfileId);
         if (existing.version() != version) throw new PatientProfileException("STALE_VERSION");
+        String normalizedEmail = AdministrativeProfileFields.normalizeEmail(email);
+        String normalizedEmailOwner = AdministrativeProfileFields.optionalText(emailOwner);
+        if (normalizedEmailOwner != null) normalizedEmailOwner = normalizedEmailOwner.toUpperCase(Locale.ROOT);
+        // UC-11 / BR-15: email and email owner can be changed only while the profile is unlinked.
+        if (existing.accountId() != null) {
+            boolean emailChanged = !java.util.Objects.equals(normalizedEmail, existing.email());
+            boolean ownerChanged = !java.util.Objects.equals(normalizedEmailOwner, existing.emailOwnerType());
+            if (emailChanged || ownerChanged) {
+                throw invalid(emailChanged ? "email" : "emailOwnerType");
+            }
+        }
         ProfileRecord record = administrativeRecord(patientProfileId, existing.accountId(), name, phone, owner, dob,
-                gender, address, nationalId, documentType, version, false);
+                gender, address, nationalId, documentType, normalizedEmail, normalizedEmailOwner, version, false);
         return toModel(profiles.update(record, version));
     }
 
     private ProfileRecord requiredProfile(UUID id) {
+        if (id == null) {
+            throw new PatientProfileException("PATIENT_PROFILE_NOT_FOUND");
+        }
         return profiles.findProfile(id).orElseThrow(() -> new PatientProfileException("PATIENT_PROFILE_NOT_FOUND"));
     }
 
     private void requireActiveReceptionist(UUID actor) {
-        if (!receptionists.isActiveReceptionistAccount(actor)) throw new PatientProfileException("ACCESS_DENIED");
+        if (actor == null || !receptionists.isActiveReceptionistAccount(actor)) throw new PatientProfileException("ACCESS_DENIED");
     }
 
     private ProfileRecord administrativeRecord(UUID id, UUID accountId, String name, String phone, String owner,
-            LocalDate dob, String gender, String address, String nationalId, String type, long version, boolean creating) {
+            LocalDate dob, String gender, String address, String nationalId, String type,
+            String email, String emailOwner, long version, boolean creating) {
         return AdministrativeProfileFields.record(id, accountId, name, phone, owner, dob, gender, address,
-                nationalId, type, version, creating, false);
+                nationalId, type, email, emailOwner, version, creating, false);
     }
 
     private String normalizeName(String value) { return AdministrativeProfileFields.normalizeName(value); }

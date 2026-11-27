@@ -31,7 +31,7 @@ public class DeactivateClinicServiceServiceImpl implements DeactivateClinicServi
         ClinicServiceValidation.ensureId(serviceId);
         if (actor == null || actor.accountId() == null || actor.accountRole() != AccountRole.ADMIN)
             throw new ClinicServiceException("ACCESS_DENIED");
-        if (correlationId == null || correlationId.isBlank())
+        if (correlationId == null || correlationId.isBlank() || correlationId.length() > 128)
             throw new ClinicServiceException("SERVICE_REQUEST_INVALID");
         coordinationGuard.acquire();
         var service = services.findById(serviceId).orElseThrow(() -> new ClinicServiceException("SERVICE_NOT_FOUND"));

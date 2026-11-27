@@ -17,6 +17,13 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 @RestControllerAdvice(assignableTypes = {AppointmentBookingController.class, AppointmentFollowUpController.class,
         fu.fa26.sep490.g58.otcms_be.appointment.controller.AppointmentArrivalController.class})
 public class AppointmentBookingExceptionHandler {
+    /** Wrong role on a booking/arrival endpoint (MSG-50 = access denied in the appointment flow). */
+    @ExceptionHandler(org.springframework.security.access.AccessDeniedException.class)
+    public ResponseEntity<ErrorResponse> accessDenied(HttpServletRequest request) {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(ErrorResponse.of("MSG-50", "Access denied",
+                fu.fa26.sep490.g58.otcms_be.common.web.CorrelationIdFilter.current(request)));
+    }
+
     @ExceptionHandler(AppointmentBookingException.class)
     public ResponseEntity<ErrorResponse> handle(AppointmentBookingException exception, HttpServletRequest request) {
         HttpStatus status = switch (exception.code()) {

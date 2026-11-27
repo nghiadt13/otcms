@@ -8,6 +8,7 @@ import fu.fa26.sep490.g58.otcms_be.auth.model.entity.enums.AccountType;
 import fu.fa26.sep490.g58.otcms_be.auth.model.entity.enums.AccountStatus;
 import fu.fa26.sep490.g58.otcms_be.auth.repository.*;
 import fu.fa26.sep490.g58.otcms_be.auth.service.*;
+import fu.fa26.sep490.g58.otcms_be.common.security.AccountRole;
 import fu.fa26.sep490.g58.otcms_be.common.security.AuthenticatedAccount;
 import fu.fa26.sep490.g58.otcms_be.common.storage.ObjectStoragePort;
 import java.time.Instant;
@@ -75,6 +76,12 @@ public class MyAccountServiceImpl implements MyAccountService {
     @Override @Transactional(readOnly = true)
     public Avatar avatar(AuthenticatedAccount actor, UUID accountId) {
         require(actor, false, true);
+        // Avatars are personal data: a patient reads only their own (the UI never asks for another's); staff and
+        // administrators may read others, as the KAN-29 tests expect.
+        if (actor.accountRole() == AccountRole.PATIENT && !actor.accountId().equals(accountId))
+            throw new MyAccountOperationException(AVATAR_NOT_FOUND); // looks exactly like a missing avatar
+        if (accountId == null)
+            throw new MyAccountOperationException(AVATAR_NOT_FOUND);
         var owner = accounts.findById(accountId).filter(a -> a.getAvatarContentType() != null)
                 .orElseThrow(() -> new MyAccountOperationException(AVATAR_NOT_FOUND));
         byte[] content = accounts.findAvatarStorageKey(accountId).flatMap(storage::get)
@@ -117,6 +124,10 @@ public class MyAccountServiceImpl implements MyAccountService {
     /** Deletes the replaced object only after the change commits, so a rollback keeps the old avatar readable. */
     private void deleteAfterCommit(String key) {
         if (key == null) return;
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            deleteQuietly(key);
+            return;
+        }
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override public void afterCommit() { deleteQuietly(key); }
         });

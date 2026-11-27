@@ -19,7 +19,7 @@ public class AuditClinicServiceMutation {
     @Transactional
     public ClinicService execute(String action,AuthenticatedAccount actor,String correlationId,Supplier<ClinicService> command) {
         if(actor==null || actor.accountId()==null || actor.accountRole()!=AccountRole.ADMIN) throw new ClinicServiceException("ACCESS_DENIED");
-        if(correlationId==null || correlationId.isBlank() || !java.util.Set.of("CREATED","UPDATED").contains(action))
+        if(correlationId==null || correlationId.isBlank() || correlationId.length()>128 || !java.util.Set.of("CREATED","UPDATED").contains(action))
             throw new ClinicServiceException("SERVICE_REQUEST_INVALID");
         var result=command.get();
         services.flush();

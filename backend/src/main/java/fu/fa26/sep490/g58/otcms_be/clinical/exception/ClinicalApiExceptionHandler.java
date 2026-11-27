@@ -78,7 +78,8 @@ public class ClinicalApiExceptionHandler {
     }
 
     @ExceptionHandler({HttpMessageNotReadableException.class, MethodArgumentTypeMismatchException.class,
-            MissingRequestHeaderException.class, org.springframework.web.HttpMediaTypeNotSupportedException.class})
+            MissingRequestHeaderException.class, org.springframework.web.HttpMediaTypeNotSupportedException.class,
+            jakarta.validation.ConstraintViolationException.class})
     public ResponseEntity<ErrorResponse> transport(Exception error, HttpServletRequest request) {
         return problem(400, "VALIDATION_FAILED", List.of(), request);
     }

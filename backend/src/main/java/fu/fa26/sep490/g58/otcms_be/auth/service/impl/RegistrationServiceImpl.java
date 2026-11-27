@@ -16,6 +16,7 @@ import fu.fa26.sep490.g58.otcms_be.common.audit.AuditEntry;
 import fu.fa26.sep490.g58.otcms_be.common.audit.AuditLogWriter;
 import fu.fa26.sep490.g58.otcms_be.common.audit.repository.AuditLogRepository;
 import fu.fa26.sep490.g58.otcms_be.auth.service.EmailDeliveryService;
+import fu.fa26.sep490.g58.otcms_be.auth.service.PatientProfileDirectory;
 import fu.fa26.sep490.g58.otcms_be.auth.service.RegistrationService;
 import fu.fa26.sep490.g58.otcms_be.config.AuthProperties;
 import org.springframework.security.crypto.factory.PasswordEncoderFactories;
@@ -49,20 +50,28 @@ public class RegistrationServiceImpl implements RegistrationService {
     private final PasswordEncoder passwordEncoder = PasswordEncoderFactories.createDelegatingPasswordEncoder();
     private final EmailOtpService otp;
     private final AuthConcurrencyRepository concurrency;
+    private final PatientProfileDirectory patientProfiles;
 
     public RegistrationServiceImpl(AccountRepository accounts, VerificationCodeRepository challenges,
                                    AuditLogWriter auditWriter, AuditLogRepository auditLogs,
                                    EmailDeliveryService emailDelivery,
                                    AuthProperties properties, AuthConcurrencyRepository concurrency) {
         this(accounts, challenges, auditWriter, auditLogs, emailDelivery, properties, concurrency,
-                new EmailOtpServiceImpl());
+                new EmailOtpServiceImpl(), null);
+    }
+
+    public RegistrationServiceImpl(AccountRepository accounts, VerificationCodeRepository challenges,
+            AuditLogWriter auditWriter, AuditLogRepository auditLogs,
+            EmailDeliveryService emailDelivery, AuthProperties properties, AuthConcurrencyRepository concurrency,
+            EmailOtpService otp) {
+        this(accounts, challenges, auditWriter, auditLogs, emailDelivery, properties, concurrency, otp, null);
     }
 
     @Autowired
     public RegistrationServiceImpl(AccountRepository accounts, VerificationCodeRepository challenges,
             AuditLogWriter auditWriter, AuditLogRepository auditLogs,
             EmailDeliveryService emailDelivery, AuthProperties properties, AuthConcurrencyRepository concurrency,
-            EmailOtpService otp) {
+            EmailOtpService otp, PatientProfileDirectory patientProfiles) {
         this.otp = otp;
         this.accounts = accounts;
         this.challenges = challenges;
@@ -71,6 +80,7 @@ public class RegistrationServiceImpl implements RegistrationService {
         this.emailDelivery = emailDelivery;
         this.properties = properties;
         this.concurrency = concurrency;
+        this.patientProfiles = patientProfiles;
     }
 
     @Override
@@ -151,6 +161,15 @@ public class RegistrationServiceImpl implements RegistrationService {
         account.setUpdatedAt(now);
         accounts.save(account);
         challenges.save(challenge);
+        if (patientProfiles != null) {
+            UUID verifiedAccountId = account.getId();
+            patientProfiles.autoLinkUnlinkedOwnProfile(verifiedAccountId, account.getNormalizedEmail())
+                    .ifPresent(profileId -> auditWriter.record(AuditEntry.builder(
+                            "auth_audits", "AUTH", "AUTO_LINK_WALK_IN_PROFILE", "PATIENT_PROFILE")
+                            .entityId(profileId).visibleInActivityLog(false).occurredAt(now)
+                            .outcome("LINKED").metadata(Map.of("accountId", verifiedAccountId.toString()))
+                            .build()));
+        }
     }
 
     @Override
@@ -169,6 +188,10 @@ public class RegistrationServiceImpl implements RegistrationService {
     }
 
     private void validate(RegistrationRequest request) {
+        if (request == null || request.fullName() == null || request.email() == null || request.email().isBlank()
+                || request.password() == null || request.confirmPassword() == null) {
+            throw new RegistrationException("VALIDATION_FAILED");
+        }
         String password = request.password();
         if (!PasswordPolicy.isValid(password) || !request.patientConsent()
                 || !password.equals(request.confirmPassword()))

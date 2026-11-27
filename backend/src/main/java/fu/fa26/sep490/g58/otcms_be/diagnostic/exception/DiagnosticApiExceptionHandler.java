@@ -26,6 +26,13 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
         fu.fa26.sep490.g58.otcms_be.diagnostic.controller.DiagnosticAcquisitionController.class})
 @Order(Ordered.HIGHEST_PRECEDENCE)
 public class DiagnosticApiExceptionHandler {
+    /** Wrong role: same body as an unauthorized record, so diagnostic callers see one consistent 403. */
+    @ExceptionHandler(org.springframework.security.access.AccessDeniedException.class)
+    public ResponseEntity<ErrorResponse> accessDenied(HttpServletRequest request) {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(ErrorResponse.of("NOT_AVAILABLE",
+                "Diagnostic request operation was rejected", CorrelationIdFilter.current(request)));
+    }
+
     @ExceptionHandler(DiagnosticOperationException.class)
     public ResponseEntity<ErrorResponse> operation(DiagnosticOperationException exception,
             HttpServletRequest request) {
@@ -59,7 +66,8 @@ public class DiagnosticApiExceptionHandler {
     }
 
     @ExceptionHandler({MethodArgumentNotValidException.class, HttpMessageNotReadableException.class,
-            MethodArgumentTypeMismatchException.class, IllegalArgumentException.class})
+            MethodArgumentTypeMismatchException.class, IllegalArgumentException.class,
+            jakarta.validation.ConstraintViolationException.class})
     public ResponseEntity<ErrorResponse> invalid(Exception exception, HttpServletRequest request) {
         return ResponseEntity.badRequest().body(ErrorResponse.of(isFindings(request.getRequestURI()) ? "MSG-39" : "VALIDATION_FAILED", "Invalid diagnostic request",
                 CorrelationIdFilter.current(request)));

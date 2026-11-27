@@ -79,6 +79,7 @@ public class StaffShiftAdminServiceImpl implements StaffShiftAdminService {
     @Transactional
     @Override
     public StaffShiftResponse update(UUID id, StaffShiftRequest request) {
+        if (request == null) throw invalid();
         Existing existing = existing(id);
         if (!existing.startsAt().isAfter(Instant.now())) throw new StaffProfileException("STAFF_SHIFT_NOT_EDITABLE");
         UUID staffId = existing.staffId();

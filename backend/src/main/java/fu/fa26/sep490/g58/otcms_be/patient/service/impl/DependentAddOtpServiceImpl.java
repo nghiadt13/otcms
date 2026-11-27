@@ -15,6 +15,7 @@ import fu.fa26.sep490.g58.otcms_be.patient.service.DependentProfileService;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Objects;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -72,9 +73,10 @@ public class DependentAddOtpServiceImpl implements DependentAddOtpService {
     @Transactional(propagation = Propagation.NEVER)
     public AddOtpResult resend(UUID actor, UUID requestId) {
         requirePatient(actor);
+        if (requestId == null) throw new CareRelationshipException("CARE_LINK_NOT_FOUND");
         var stored = transactions.execute(status -> {
             var row = requests.findByIdForUpdate(requestId)
-                    .filter(r -> r.getAccountId().equals(actor)).orElse(null);
+                    .filter(r -> Objects.equals(r.getAccountId(), actor)).orElse(null);
             if (row == null) throw new CareRelationshipException("CARE_LINK_NOT_FOUND");
             if (row.getConsumedAt() != null || row.getPayload() == null) throw new CareRelationshipException("CARE_LINK_NOT_AVAILABLE");
             return toRequest(row);
@@ -86,15 +88,18 @@ public class DependentAddOtpServiceImpl implements DependentAddOtpService {
     @Transactional(propagation = Propagation.NEVER)
     public LinkResult verify(UUID actor, UUID requestId, String code) {
         requirePatient(actor);
+        if (requestId == null) throw new CareRelationshipException("CARE_LINK_NOT_FOUND");
         // The attempt counter must commit even when the code is wrong, so the outcome is returned
         // (committing) and the failure is thrown only after the transaction has closed.
         AddDependentRequest confirmed = transactions.execute(status -> {
             guard.acquire();
             var row = requests.findByIdForUpdate(requestId)
-                    .filter(r -> r.getAccountId().equals(actor)).orElse(null);
+                    .filter(r -> Objects.equals(r.getAccountId(), actor)).orElse(null);
             if (row == null) throw new CareRelationshipException("CARE_LINK_NOT_FOUND");
             Instant now = clock.instant();
-            if (row.getConsumedAt() != null || row.getSupersededAt() != null || !row.getExpiresAt().isAfter(now)
+            if (row.getConsumedAt() != null || row.getSupersededAt() != null
+                    || row.getExpiresAt() == null || !row.getExpiresAt().isAfter(now)
+                    || row.getPayload() == null
                     || row.getFailedAttempts() >= EmailOtpService.MAX_FAILED_ATTEMPTS) return null;
             if (code == null || !code.matches("[0-9]{6}") || !otp.matches(code, row.getCodeHash())) {
                 row.setFailedAttempts(row.getFailedAttempts() + 1);

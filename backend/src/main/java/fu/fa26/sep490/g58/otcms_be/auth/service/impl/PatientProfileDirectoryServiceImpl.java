@@ -1,11 +1,13 @@
 package fu.fa26.sep490.g58.otcms_be.auth.service.impl;
 import fu.fa26.sep490.g58.otcms_be.auth.service.PatientProfileDirectory;
 
+import fu.fa26.sep490.g58.otcms_be.auth.model.entity.enums.EmailOwnerType;
 import fu.fa26.sep490.g58.otcms_be.auth.model.entity.enums.Gender;
 import fu.fa26.sep490.g58.otcms_be.auth.model.entity.PatientProfileJpaEntity;
 import fu.fa26.sep490.g58.otcms_be.auth.model.entity.enums.PhoneOwnerType;
 import fu.fa26.sep490.g58.otcms_be.auth.model.entity.enums.IdentityDocumentType;
 import java.util.List;
+import java.util.Locale;
 import java.time.LocalDate;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
@@ -55,6 +57,9 @@ public class PatientProfileDirectoryServiceImpl implements PatientProfileDirecto
         entity.setNationalId(record.nationalId());
         entity.setIdentityDocumentType(record.identityDocumentType() == null ? null
                 : IdentityDocumentType.valueOf(record.identityDocumentType()));
+        entity.setEmail(record.email());
+        entity.setEmailOwnerType(record.emailOwnerType() == null ? null
+                : EmailOwnerType.valueOf(record.emailOwnerType()));
         PatientProfileJpaEntity saved = profiles.saveAndFlush(entity);
         String patientCode = profiles.findPatientCodeById(saved.getId()).orElseThrow();
         return toRecord(saved, patientCode);
@@ -84,6 +89,8 @@ public class PatientProfileDirectoryServiceImpl implements PatientProfileDirecto
                 entity.getPhoneOwnerType() == null ? null : entity.getPhoneOwnerType().name(), entity.getDateOfBirth(), entity.getGender().name(),
                 entity.getAddress(), entity.getNationalId(),
                 entity.getIdentityDocumentType() == null ? null : entity.getIdentityDocumentType().name(),
+                entity.getEmail(),
+                entity.getEmailOwnerType() == null ? null : entity.getEmailOwnerType().name(),
                 entity.getVersion(), patientCode);
     }
 
@@ -126,8 +133,35 @@ public class PatientProfileDirectoryServiceImpl implements PatientProfileDirecto
         entity.setNationalId(record.nationalId());
         entity.setIdentityDocumentType(record.identityDocumentType() == null ? null
                 : IdentityDocumentType.valueOf(record.identityDocumentType()));
+        // UC-11 / BR-15: email and email owner can only be changed while the profile is unlinked.
+        if (entity.getAccountId() == null) {
+            entity.setEmail(record.email());
+            entity.setEmailOwnerType(record.emailOwnerType() == null ? null
+                    : EmailOwnerType.valueOf(record.emailOwnerType()));
+        }
         // Keep account linkage and the managed version untouched. Hibernate guards the UPDATE with its version.
         profiles.flush();
         return toRecord(entity);
+    }
+
+    @Override
+    @Transactional
+    public Optional<UUID> autoLinkUnlinkedOwnProfile(UUID accountId, String normalizedEmail) {
+        if (accountId == null || normalizedEmail == null || normalizedEmail.isBlank()) {
+            return Optional.empty();
+        }
+        if (profiles.findByAccountId(accountId).isPresent()) {
+            return Optional.empty();
+        }
+        String email = normalizedEmail.trim().toLowerCase(Locale.ROOT);
+        var candidates = profiles.findUnlinkedByEmailAndOwnerForUpdate(
+                email, EmailOwnerType.PATIENT, PageRequest.of(0, 2));
+        if (candidates.size() != 1) {
+            return Optional.empty();
+        }
+        var profile = candidates.getFirst();
+        profile.setAccountId(accountId);
+        profiles.saveAndFlush(profile);
+        return Optional.of(profile.getId());
     }
 }

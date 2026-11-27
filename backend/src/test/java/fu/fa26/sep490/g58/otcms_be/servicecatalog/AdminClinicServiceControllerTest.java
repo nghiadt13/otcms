@@ -98,6 +98,26 @@ class AdminClinicServiceControllerTest {
                 .andExpect(jsonPath("$.items[0].indicators[0].refMale.min").value(13));
     }
 
+    @Test void updateRejectsMismatchedServiceTypeWithMsg66() throws Exception {
+        var existing = new fu.fa26.sep490.g58.otcms_be.servicecatalog.model.ClinicService(
+                id, "Consult", "Desc",
+                fu.fa26.sep490.g58.otcms_be.servicecatalog.model.ClinicServiceType.EXAMINATION,
+                java.math.BigDecimal.TEN, java.time.Duration.ofMinutes(20), java.time.Duration.ZERO,
+                true, true);
+        when(catalog.getService(id)).thenReturn(existing);
+
+        mvc.perform(put(base + "/" + id).with(user("admin").roles("ADMIN")).with(csrf())
+                        .contentType("application/json")
+                        .content("""
+                                {"name":"Consult","description":"Desc","price":10.00,"durationMinutes":20,"bufferMinutes":0,"type":"IMAGING","onlineBookable":true}
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.code").value("MSG-66"));
+
+        verify(catalog).getService(id);
+        verifyNoInteractions(update, auditMutation);
+    }
+
     @TestConfiguration @EnableWebSecurity @EnableConfigurationProperties(SessionSecurityProperties.class)
     static class Fixture { }
 }

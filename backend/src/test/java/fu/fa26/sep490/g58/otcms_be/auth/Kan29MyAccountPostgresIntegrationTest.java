@@ -182,6 +182,10 @@ class Kan29MyAccountPostgresIntegrationTest {
         String other = token(account(AccountType.ADMIN, false));
         mvc.perform(get("/api/v1/accounts/" + patient + "/avatar").header("Authorization", "Bearer " + other))
                 .andExpect(status().isOk()).andExpect(content().bytes(bytes)).andExpect(content().contentType(type));
+        // IT-BUG-06: another patient must not read it; it looks like a missing avatar.
+        String otherPatient = token(account(AccountType.PATIENT, false));
+        mvc.perform(get("/api/v1/accounts/" + patient + "/avatar").header("Authorization", "Bearer " + otherPatient))
+                .andExpect(status().isNotFound());
         for (int i=0;i<2;i++) mvc.perform(delete("/api/v1/me/avatar").with(csrf()).header("Authorization", "Bearer " + token))
                 .andExpect(status().isNoContent());
         mvc.perform(get("/api/v1/me").header("Authorization", "Bearer " + token)).andExpect(jsonPath("$.avatarUrl").isEmpty());

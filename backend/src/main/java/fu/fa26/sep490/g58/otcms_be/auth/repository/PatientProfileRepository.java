@@ -1,7 +1,10 @@
 package fu.fa26.sep490.g58.otcms_be.auth.repository;
 
 import fu.fa26.sep490.g58.otcms_be.auth.model.entity.PatientProfileJpaEntity;
+import fu.fa26.sep490.g58.otcms_be.auth.model.entity.enums.EmailOwnerType;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import java.util.UUID;
@@ -43,4 +46,11 @@ public interface PatientProfileRepository extends JpaRepository<PatientProfileJp
             String fullName, String phoneCanonical, Pageable pageable);
     Optional<PatientProfileJpaEntity> findByIdAndAccountIdIsNotNull(UUID id);
     Optional<PatientProfileJpaEntity> findByAccountId(UUID accountId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select p from PatientProfileJpaEntity p where p.accountId is null and p.email = :email and p.emailOwnerType = :ownerType")
+    List<PatientProfileJpaEntity> findUnlinkedByEmailAndOwnerForUpdate(
+            @Param("email") String email,
+            @Param("ownerType") EmailOwnerType ownerType,
+            Pageable pageable);
 }

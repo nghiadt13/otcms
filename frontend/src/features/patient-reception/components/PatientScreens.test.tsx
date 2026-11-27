@@ -201,4 +201,79 @@ describe("hồ sơ bệnh nhân live", () => {
       "Thông tin hồ sơ chưa hợp lệ",
     );
   });
+  it("gửi email cùng chủ email khi tạo hồ sơ và hiển thị trong chi tiết", async () => {
+    const withEmail = {
+      ...detail,
+      email: "an@example.com",
+      emailOwnerType: "PATIENT" as const,
+      hasAccount: false,
+    };
+    vi.mocked(apiRequest)
+      .mockResolvedValueOnce({ items: [] })
+      .mockResolvedValueOnce(withEmail)
+      .mockResolvedValueOnce(withEmail);
+    render(
+      <ReceptionProvider>
+        <PatientSearchScreen />
+      </ReceptionProvider>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Tạo hồ sơ" }));
+    fill();
+    fireEvent.change(screen.getByLabelText("Email"), {
+      target: { value: "an@example.com" },
+    });
+    fireEvent.click(
+      within(screen.getByRole("dialog")).getByRole("button", {
+        name: "Tạo hồ sơ",
+      }),
+    );
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Thông tin hồ sơ chưa hợp lệ",
+    );
+    fireEvent.change(screen.getByLabelText("Chủ email"), {
+      target: { value: "PATIENT" },
+    });
+    fireEvent.click(
+      within(screen.getByRole("dialog")).getByRole("button", {
+        name: "Tạo hồ sơ",
+      }),
+    );
+    await screen.findByRole("dialog", { name: "Nguyễn An" });
+    expect(apiRequest).toHaveBeenCalledWith(
+      "/api/v1/patient-profiles",
+      expect.objectContaining({
+        method: "POST",
+        body: expect.stringContaining('"email":"an@example.com"'),
+      }),
+    );
+    expect(
+      screen.getByText("an@example.com (Bệnh nhân)"),
+    ).toBeInTheDocument();
+  });
+  it("khóa trường email và chủ email khi sửa hồ sơ đã gắn tài khoản", async () => {
+    const linked = {
+      ...detail,
+      email: "an@example.com",
+      emailOwnerType: "PATIENT" as const,
+      hasAccount: true,
+    };
+    vi.mocked(apiRequest)
+      .mockResolvedValueOnce({ content: [linked] })
+      .mockResolvedValueOnce(linked);
+    render(
+      <ReceptionProvider>
+        <PatientSearchScreen />
+      </ReceptionProvider>,
+    );
+    fireEvent.change(
+      screen.getByLabelText("Tên, số điện thoại hoặc mã bệnh nhân"),
+      { target: { value: "An" } },
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Tìm bệnh nhân" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Mở hồ sơ" }));
+    await screen.findByRole("dialog", { name: "Nguyễn An" });
+    fireEvent.click(screen.getByRole("button", { name: "Sửa thông tin" }));
+    expect(screen.getByLabelText("Email")).toBeDisabled();
+    expect(screen.getByLabelText("Chủ email")).toBeDisabled();
+  });
 });

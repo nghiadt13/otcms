@@ -21,7 +21,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
-import org.springframework.security.access.AccessDeniedException;
 
 @Service
 public class StaffProfileAdminService {
@@ -42,7 +41,10 @@ public class StaffProfileAdminService {
     public StaffProfilesPageResponse list(String q, String role, String status, Boolean isPublic, int page, int size) {
         if (page < 0 || size < 1 || size > 100) throw invalid();
         String term = q == null ? "" : q.trim().toLowerCase(Locale.ROOT);
-        if (term.length() > 100 || (status != null && !List.of("ACTIVE", "REMOVED").contains(status))) throw invalid();
+        if (term.length() > 100
+                || (status != null && !status.isBlank() && !List.of("ACTIVE", "REMOVED").contains(status))) {
+            throw invalid();
+        }
         List<StaffProfileResponse> matched = profiles.findAll().stream().map(this::response)
                 .filter(p -> term.isEmpty() || p.displayName().toLowerCase(Locale.ROOT).contains(term)
                         || p.username().toLowerCase(Locale.ROOT).contains(term))
@@ -137,9 +139,10 @@ public class StaffProfileAdminService {
     @Transactional
     public StaffProfileResponse savePhoto(UUID id, byte[] bytes, String type) {
         StaffProfileJpaEntity profile = findActive(id);
+        if (bytes == null) throw invalid();
         validatePhoto(bytes, type);
         String previousKey = profile.photoStorageKey();
-        String newKey = bytes == null ? null : uploadPhoto(id, bytes, type);
+        String newKey = uploadPhoto(id, bytes, type);
         try {
             if (newKey != null) profile.photo(newKey, type);
             if (profile.isDoctor()) profile.updatePhotoUrl(photoPath(id));
@@ -154,7 +157,7 @@ public class StaffProfileAdminService {
 
     private void validatePhoto(byte[] bytes, String type) {
         if (bytes == null) return;
-        if (bytes.length == 0 || bytes.length > 2 * 1024 * 1024
+        if (bytes.length == 0 || bytes.length > 2 * 1024 * 1024 || type == null
                 || !List.of("image/jpeg", "image/png", "image/webp").contains(type)) throw invalid();
         boolean signature = switch (type) {
             case "image/jpeg" -> bytes.length >= 3 && (bytes[0] & 255) == 0xFF
@@ -216,14 +219,16 @@ public class StaffProfileAdminService {
         StaffProfileJpaEntity profile = find(id);
         if (!"ACTIVE".equals(profile.status()) || profile.photoStorageKey() == null)
             throw new StaffProfileException("STAFF_PROFILE_NOT_FOUND");
+        // A private photo looks exactly like a missing one, so outsiders cannot probe which profiles exist.
         if (!admin && !(profile.isDoctor() && profile.publiclyVisible() && profile.inActiveDirectory()))
-            throw new AccessDeniedException("Staff photo is private");
+            throw new StaffProfileException("STAFF_PROFILE_NOT_FOUND");
         byte[] content = storage.get(profile.photoStorageKey()).orElseThrow(() ->
                 new StaffProfileException("STAFF_PROFILE_NOT_FOUND"));
         return new StaffPhoto(content, profile.photoContentType());
     }
 
     private StaffProfileJpaEntity find(UUID id) {
+        if (id == null) throw new StaffProfileException("STAFF_PROFILE_NOT_FOUND");
         return profiles.findById(id).orElseThrow(() -> new StaffProfileException("STAFF_PROFILE_NOT_FOUND"));
     }
     private StaffProfileJpaEntity findActive(UUID id) {

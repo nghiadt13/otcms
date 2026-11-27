@@ -222,4 +222,41 @@ class PatientProfileServiceTest {
         code("ACCESS_DENIED", () -> service.update(actor, id, "An", phone, "PATIENT", dob, "OTHER", null, null, null, 0L));
         verifyNoInteractions(directory, guard);
     }
+
+    @Test void detailAndUpdateGuardNullActorAndNullProfileId() {
+        code("ACCESS_DENIED", () -> service.detail(null, id));
+        code("ACCESS_DENIED", () -> service.update(null, id, "An", phone, "PATIENT", dob, "OTHER", null, null, null, 0L));
+        code("PATIENT_PROFILE_NOT_FOUND", () -> service.detail(actor, null));
+        code("PATIENT_PROFILE_NOT_FOUND", () -> service.update(actor, null, "An", phone, "PATIENT", dob, "OTHER", null, null, null, 0L));
+        verifyNoInteractions(directory);
+    }
+
+    @Test void receptionVerificationGuardsNullActorAndNullProfileId() {
+        code("FORBIDDEN", () -> service.getReceptionVerificationProfile(null, id));
+        code("PATIENT_PROFILE_NOT_FOUND", () -> service.getReceptionVerificationProfile(actor, null));
+        verifyNoInteractions(directory);
+    }
+
+    @Test void matchesRejectsInvalidRefinementNameLengthWhenMultipleCandidatesExist() {
+        when(directory.match(phone, dob, null)).thenReturn(List.of(record("An"), record("Bình")));
+        code("VALIDATION_FAILED", () -> service.matches(actor, phone, dob, "A"));
+        code("VALIDATION_FAILED", () -> service.matches(actor, phone, dob, "a".repeat(101)));
+        verify(directory, never()).match(eq(phone), eq(dob), anyString());
+    }
+
+    @Test void legacyFiveArgCreateNormalizesFieldsAndRejectsInvalidInputs() {
+        when(directory.create(any(), eq("GUARDIAN"))).thenAnswer(call -> call.getArgument(0));
+        var created = service.create("  Nguyễn   An ", "0912345678", "guardian", dob, "female");
+        assertEquals("Nguyễn An", created.fullName());
+        assertEquals(phone, created.phoneCanonical());
+        assertEquals("GUARDIAN", created.phoneOwnerType());
+        assertEquals("FEMALE", created.gender());
+        verify(guard).acquire();
+
+        code("VALIDATION_FAILED", () -> service.create("A", "0912345678", "PATIENT", dob, "MALE"));
+        code("VALIDATION_FAILED", () -> service.create("Nguyễn An", "bad", "PATIENT", dob, "MALE"));
+        code("VALIDATION_FAILED", () -> service.create("Nguyễn An", "0912345678", "OTHER", dob, "MALE"));
+        code("VALIDATION_FAILED", () -> service.create("Nguyễn An", "0912345678", "PATIENT", LocalDate.now().plusDays(2), "MALE"));
+        code("VALIDATION_FAILED", () -> service.create("Nguyễn An", "0912345678", "PATIENT", dob, "UNKNOWN"));
+    }
 }

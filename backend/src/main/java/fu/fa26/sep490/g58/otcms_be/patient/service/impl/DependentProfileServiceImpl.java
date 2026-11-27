@@ -105,7 +105,8 @@ public class DependentProfileServiceImpl implements DependentProfileService, Cou
         if (!Objects.equals(challenge.getAccountId(), profile.accountId())
                 || !Objects.equals(link.confirmingAccountId(), profile.accountId())
                 || challenge.getConsumedAt() != null || challenge.getSupersededAt() != null
-                || !challenge.getExpiresAt().isAfter(now) || challenge.getFailedAttempts() >= EmailOtpService.MAX_FAILED_ATTEMPTS)
+                || challenge.getExpiresAt() == null || !challenge.getExpiresAt().isAfter(now)
+                || challenge.getFailedAttempts() >= EmailOtpService.MAX_FAILED_ATTEMPTS)
             throw new CareOtpInvalidException();
         if (code == null || !code.matches("[0-9]{6}") || !otp.matches(code, challenge.getCodeHash())) {
             challenge.setFailedAttempts(challenge.getFailedAttempts() + 1);
@@ -232,7 +233,8 @@ public class DependentProfileServiceImpl implements DependentProfileService, Cou
         var current = profile(profileId);
         var input = AdministrativeProfileFields.record(profileId, current.accountId(), request.fullName(), request.phone(),
                 current.phoneOwnerType(), request.dateOfBirth(), request.gender(), request.address(), request.nationalId(),
-                request.identityDocumentType(), current.version(), false, current.accountId() == null && current.phoneOwnerType() == null);
+                request.identityDocumentType(), current.email(), current.emailOwnerType(), current.version(), false,
+                current.accountId() == null && current.phoneOwnerType() == null);
         return detail(profiles.update(input, current.version()));
     }
 
@@ -321,7 +323,10 @@ public class DependentProfileServiceImpl implements DependentProfileService, Cou
         if (link.state() == State.REVOKED) throw missing();
         if (link.state() != State.REQUESTED || link.pendingReason() != reason) throw unavailable();
     }
-    private ProfileRecord profile(UUID id) { return profiles.findProfile(id).orElseThrow(DependentProfileServiceImpl::missing); }
+    private ProfileRecord profile(UUID id) {
+        if (id == null) throw missing();
+        return profiles.findProfile(id).orElseThrow(DependentProfileServiceImpl::missing);
+    }
     private String recipientEmail(ProfileRecord profile) {
         if (profile.accountId() == null) return null;
         return accounts.find(profile.accountId()).map(MyAccountQueryService.MyAccountView::email)
@@ -336,7 +341,8 @@ public class DependentProfileServiceImpl implements DependentProfileService, Cou
     }
     private static PatientProfileDetailResponse detail(ProfileRecord p) {
         return new PatientProfileDetailResponse(p.id(), p.fullName(), p.phoneCanonical(), p.phoneOwnerType(), p.dateOfBirth(),
-                p.gender(), p.address(), p.nationalId(), p.identityDocumentType(), p.accountId() != null, p.version());
+                p.gender(), p.address(), p.nationalId(), p.identityDocumentType(), p.email(), p.emailOwnerType(),
+                p.accountId() != null, p.version());
     }
     static String maskEmail(String email) {
         if (email == null || email.isBlank()) return "***";

@@ -44,4 +44,13 @@ class T009SmtpEmailDeliveryTest {
         assertThrows(MailSendException.class, () -> new SmtpEmailDelivery(sender, properties).sendVerificationCode("p@example.test", "123456", null));
         verify(sender, times(2)).createMimeMessage();
     }
+
+    @Test void doesNotRetryPermanentAuthenticationFailure() {
+        JavaMailSender sender = mock(JavaMailSender.class);
+        when(sender.createMimeMessage()).thenThrow(new org.springframework.mail.MailAuthenticationException("bad credentials"));
+        EmailProperties properties = new EmailProperties(true, "smtp.gmail.com", 587, "sender@example.test", "secret", "sender@example.test", 5000, 10000, 10000, 2);
+        assertThrows(org.springframework.mail.MailAuthenticationException.class,
+                () -> new SmtpEmailDelivery(sender, properties).sendVerificationCode("p@example.test", "123456", null));
+        verify(sender, times(1)).createMimeMessage();
+    }
 }

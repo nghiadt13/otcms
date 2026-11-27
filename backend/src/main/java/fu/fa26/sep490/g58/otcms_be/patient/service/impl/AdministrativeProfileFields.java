@@ -13,9 +13,20 @@ public final class AdministrativeProfileFields {
     private AdministrativeProfileFields() { }
     private static final Set<String> GENDERS = Set.of("MALE", "FEMALE", "OTHER");
     private static final Set<String> PHONE_OWNERS = Set.of("PATIENT", "GUARDIAN");
+    private static final Set<String> EMAIL_OWNERS = Set.of("PATIENT", "RELATIVE");
+    private static final java.util.regex.Pattern EMAIL_PATTERN =
+            java.util.regex.Pattern.compile("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$");
+
     public static ProfileRecord record(UUID id, UUID accountId, String rawName, String rawPhone, String rawOwner,
             LocalDate dob, String rawGender, String rawAddress, String rawNationalId, String rawDocumentType,
             long version, boolean creating, boolean nullableContact) {
+        return record(id, accountId, rawName, rawPhone, rawOwner, dob, rawGender, rawAddress, rawNationalId,
+                rawDocumentType, null, null, version, creating, nullableContact);
+    }
+
+    public static ProfileRecord record(UUID id, UUID accountId, String rawName, String rawPhone, String rawOwner,
+            LocalDate dob, String rawGender, String rawAddress, String rawNationalId, String rawDocumentType,
+            String rawEmail, String rawEmailOwner, long version, boolean creating, boolean nullableContact) {
         String name = normalizeName(rawName);
         String phone = canonicalPhone(rawPhone);
         String owner = rawOwner == null ? "" : rawOwner.trim().toUpperCase(Locale.ROOT);
@@ -23,6 +34,9 @@ public final class AdministrativeProfileFields {
         String address = rawAddress == null ? null : rawAddress.trim();
         String nationalId = optionalText(rawNationalId);
         String documentType = optionalText(rawDocumentType);
+        String email = normalizeEmail(rawEmail);
+        String emailOwner = optionalText(rawEmailOwner);
+        if (emailOwner != null) emailOwner = emailOwner.toUpperCase(Locale.ROOT);
         var errors = new ArrayList<FieldError>();
         if (name.length() < 2 || name.length() > 100) errors.add(field("fullName"));
         if (phone == null && (!nullableContact || rawPhone != null && !rawPhone.isBlank())) errors.add(field("phone"));
@@ -34,8 +48,19 @@ public final class AdministrativeProfileFields {
         if ((nationalId != null && documentType == null) || (documentType != null
                 && !Set.of("CCCD", "PERSONAL_ID", "PASSPORT").contains(documentType)))
             errors.add(field("identityDocumentType"));
+        if (email != null && (email.length() > 255 || !EMAIL_PATTERN.matcher(email).matches()))
+            errors.add(field("email"));
+        if ((email != null && emailOwner == null) || (email == null && emailOwner != null)
+                || (emailOwner != null && !EMAIL_OWNERS.contains(emailOwner)))
+            errors.add(field("emailOwnerType"));
         if (!errors.isEmpty()) throw new PatientProfileException("VALIDATION_FAILED", errors);
-        return new ProfileRecord(id, accountId, name, phone, owner.isEmpty() ? null : owner, dob, gender, address, nationalId, documentType, version);
+        return new ProfileRecord(id, accountId, name, phone, owner.isEmpty() ? null : owner, dob, gender, address,
+                nationalId, documentType, email, emailOwner, version);
+    }
+
+    public static String normalizeEmail(String raw) {
+        String text = optionalText(raw);
+        return text == null ? null : text.toLowerCase(Locale.ROOT);
     }
 
     public static String optionalText(String text) { return text == null || text.isBlank() ? null : text.trim(); }

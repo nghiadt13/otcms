@@ -134,5 +134,29 @@ class T008PasswordRecoveryServiceTest {
         service.reset(new ResetPasswordRequest("token","new-password-123"),AccountType.PATIENT); verify(sessions).revokeAll(a.getId()); assertNotNull(c.getConsumedAt());
     }
 
+    @Test void resetResetPatientOtpAndChangeHandleNullInputsAndNullCurrentPasswordSafely() {
+        assertEquals("VALIDATION_FAILED", assertThrows(PasswordRecoveryException.class,
+                () -> service.reset(null, AccountType.PATIENT)).getMessage());
+        assertEquals("VALIDATION_FAILED", assertThrows(PasswordRecoveryException.class,
+                () -> service.reset(new ResetPasswordRequest("token", "ValidPass1"), null)).getMessage());
+        assertEquals("PASSWORD_RESET_TOKEN_INVALID", assertThrows(PasswordRecoveryException.class,
+                () -> service.reset(new ResetPasswordRequest(null, "ValidPass1"), AccountType.PATIENT)).getMessage());
+        assertEquals("PASSWORD_RESET_TOKEN_INVALID", assertThrows(PasswordRecoveryException.class,
+                () -> service.reset(new ResetPasswordRequest("   ", "ValidPass1"), AccountType.PATIENT)).getMessage());
+        assertEquals("MSG-77", assertThrows(PasswordRecoveryException.class,
+                () -> service.resetPatientOtp(null)).getMessage());
+        assertEquals("VALIDATION_FAILED", assertThrows(PasswordRecoveryException.class,
+                () -> service.change(UUID.randomUUID(), null)).getMessage());
+        assertEquals("AUTHENTICATION_FAILED", assertThrows(PasswordRecoveryException.class,
+                () -> service.change(null, new ChangePasswordRequest("old", "ValidPass1"))).getMessage());
+
+        AccountJpaEntity a = account(AccountStatus.ACTIVE);
+        a.setPasswordHash("existing-hash");
+        when(accounts.findByIdForUpdate(a.getId())).thenReturn(Optional.of(a));
+        assertEquals("CURRENT_PASSWORD_INVALID", assertThrows(PasswordRecoveryException.class,
+                () -> service.change(a.getId(), new ChangePasswordRequest(null, "ValidPass1"))).getMessage());
+        verify(encoder, never()).matches(isNull(), anyString());
+    }
+
     private AccountJpaEntity account(AccountStatus status){AccountJpaEntity a=new AccountJpaEntity();a.setId(UUID.randomUUID());a.setNormalizedEmail("user@example.test");a.setAccountType(AccountType.PATIENT);a.setStatus(status);a.setCreatedAt(Instant.EPOCH);a.setUpdatedAt(Instant.EPOCH);return a;}
 }

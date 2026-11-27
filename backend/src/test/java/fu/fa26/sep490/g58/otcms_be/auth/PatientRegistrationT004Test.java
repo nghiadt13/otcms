@@ -177,6 +177,60 @@ class PatientRegistrationT004Test {
                 && "auth_audits".equals(a.source()) && "EMAIL_VERIFICATION".equals(a.action()) && !a.visibleInActivityLog()));
     }
 
+    @Test
+    void resendOtpTreatsMissingEmailAsUnknownAccount() {
+        AccountRepository accounts = mock(AccountRepository.class);
+        VerificationCodeRepository challenges = mock(VerificationCodeRepository.class);
+        EmailDeliveryService mail = mock(EmailDeliveryService.class);
+        RegistrationServiceImpl service = new RegistrationServiceImpl(accounts, challenges,
+                mock(AuditLogWriter.class), mock(AuditLogRepository.class), mail, properties(), mock(AuthConcurrencyRepository.class));
+
+        assertDoesNotThrow(() -> service.resendOtp(null));
+        verify(accounts).findByNormalizedEmail("");
+        verifyNoInteractions(challenges, mail);
+    }
+
+    @Test
+    void resendOtpIgnoresNonPendingPatientAccount() {
+        AccountRepository accounts = mock(AccountRepository.class);
+        VerificationCodeRepository challenges = mock(VerificationCodeRepository.class);
+        EmailDeliveryService mail = mock(EmailDeliveryService.class);
+        RegistrationServiceImpl service = new RegistrationServiceImpl(accounts, challenges,
+                mock(AuditLogWriter.class), mock(AuditLogRepository.class), mail, properties(), mock(AuthConcurrencyRepository.class));
+        UUID id = UUID.randomUUID();
+        AccountJpaEntity active = new AccountJpaEntity();
+        active.setId(id);
+        active.setNormalizedEmail("alice@example.com");
+        active.setAccountType(AccountType.PATIENT);
+        active.setStatus(AccountStatus.ACTIVE);
+        when(accounts.findByNormalizedEmail("alice@example.com")).thenReturn(java.util.Optional.of(active));
+
+        assertDoesNotThrow(() -> service.resendOtp("alice@example.com"));
+        verifyNoInteractions(challenges, mail);
+    }
+
+    @Test
+    void resendOtpStopsWhenResendQuotaReached() {
+        AccountRepository accounts = mock(AccountRepository.class);
+        VerificationCodeRepository challenges = mock(VerificationCodeRepository.class);
+        EmailDeliveryService mail = mock(EmailDeliveryService.class);
+        RegistrationServiceImpl service = new RegistrationServiceImpl(accounts, challenges,
+                mock(AuditLogWriter.class), mock(AuditLogRepository.class), mail, properties(), mock(AuthConcurrencyRepository.class));
+        UUID id = UUID.randomUUID();
+        AccountJpaEntity pending = new AccountJpaEntity();
+        pending.setId(id);
+        pending.setNormalizedEmail("alice@example.com");
+        pending.setAccountType(AccountType.PATIENT);
+        pending.setStatus(AccountStatus.PENDING_VERIFICATION);
+        when(accounts.findByNormalizedEmail("alice@example.com")).thenReturn(java.util.Optional.of(pending));
+        when(accounts.findByIdForUpdate(id)).thenReturn(java.util.Optional.of(pending));
+        when(challenges.countByAccountIdAndPurposeAndCreatedAtAfter(eq(id), eq(VerificationPurpose.EMAIL_VERIFY), any())).thenReturn(3L);
+
+        assertDoesNotThrow(() -> service.resendOtp("alice@example.com"));
+        verify(challenges, never()).save(any());
+        verifyNoInteractions(mail);
+    }
+
     private RegistrationServiceImpl service() {
         return new RegistrationServiceImpl(mock(AccountRepository.class),
                 mock(VerificationCodeRepository.class), mock(AuditLogWriter.class),

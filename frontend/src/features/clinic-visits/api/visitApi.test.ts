@@ -168,6 +168,8 @@ const progressBody = (patch: Partial<VisitProgress> = {}): VisitProgress => ({
   queuePosition: null,
   currentRoom: "Phòng khám 2",
   queueNumber: 12,
+  queueStage: "EXAM",
+  examQueue: null,
   peopleAhead: 3,
   beingCalled: false,
   serviceOrders: [],

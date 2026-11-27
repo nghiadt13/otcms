@@ -1,6 +1,7 @@
 package fu.fa26.sep490.g58.otcms_be.config;
 
 import fu.fa26.sep490.g58.otcms_be.auth.security.JwtAuthenticationFilter;
+import jakarta.servlet.DispatcherType;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -36,6 +37,9 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .exceptionHandling(errors -> errors.authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
                 .authorizeHttpRequests(authorize -> authorize
+                        // sendError(...) (403 access denied, CSRF failure, unhandled 400/500) makes the container
+                        // re-dispatch to /error; without this the real status is replaced by an empty 401.
+                        .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
                         .requestMatchers("/api/auth/**", "/swagger-ui/**", "/swagger-ui.html",
                                 "/v3/api-docs", "/v3/api-docs/**", "/api/v1/payment-webhooks/payos",
                                 "/dicom-web/**").permitAll()

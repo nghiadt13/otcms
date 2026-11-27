@@ -109,8 +109,11 @@ public class PasswordRecoveryServiceImpl implements PasswordRecoveryService {
     @Override
     @Transactional
     public void reset(ResetPasswordRequest request, AccountType portal) {
-        if (!PasswordPolicy.isValid(request.newPassword())) {
+        if (request == null || portal == null || !PasswordPolicy.isValid(request.newPassword())) {
             throw new PasswordRecoveryException("VALIDATION_FAILED");
+        }
+        if (request.token() == null || request.token().isBlank()) {
+            throw new PasswordRecoveryException("PASSWORD_RESET_TOKEN_INVALID");
         }
         String tokenHash = hash(request.token());
         // Match reissue's account -> challenge order and read supersession after acquiring the account lock.
@@ -148,6 +151,7 @@ public class PasswordRecoveryServiceImpl implements PasswordRecoveryService {
     @Override
     @Transactional(noRollbackFor = PasswordRecoveryException.class)
     public void resetPatientOtp(PatientOtpResetRequest request) {
+        if (request == null) throw new PasswordRecoveryException("MSG-77");
         if (!PasswordPolicy.isValid(request.newPassword())) throw new PasswordRecoveryException("VALIDATION_FAILED");
         AccountJpaEntity found = accounts.findByNormalizedEmail(normalize(request.email()))
                 .filter(a -> a.getAccountType() == AccountType.PATIENT)
@@ -181,12 +185,16 @@ public class PasswordRecoveryServiceImpl implements PasswordRecoveryService {
     @Override
     @Transactional
     public void change(UUID accountId, ChangePasswordRequest request) {
-        if (!PasswordPolicy.isValid(request.newPassword())) {
+        if (request == null || !PasswordPolicy.isValid(request.newPassword())) {
             throw new PasswordRecoveryException("VALIDATION_FAILED");
+        }
+        if (accountId == null) {
+            throw new PasswordRecoveryException("AUTHENTICATION_FAILED");
         }
         AccountJpaEntity account = accounts.findByIdForUpdate(accountId)
                 .orElseThrow(() -> new PasswordRecoveryException("AUTHENTICATION_FAILED"));
         if (account.getStatus() != AccountStatus.ACTIVE || account.getPasswordHash() == null
+                || request.currentPassword() == null
                 || !encoder.matches(request.currentPassword(), account.getPasswordHash())) {
             throw new PasswordRecoveryException("CURRENT_PASSWORD_INVALID");
         }

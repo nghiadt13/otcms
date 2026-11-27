@@ -55,6 +55,7 @@ class VisitProgressAuthorizationTest {
         verify(profiles).findDoctorProfileId(account);
         verify(reads).findProgress(visit);
         verify(reads).findActiveRoomQueue(visit, "Asia/Ho_Chi_Minh");
+        verify(reads).findActiveQueueEntries(visit, "Asia/Ho_Chi_Minh");
         verifyNoMoreInteractions(reads);
     }
     @Test void wrongDoctorAndClosedOrNonClinicalVisitDeniedBeforeProjection() {
@@ -94,16 +95,24 @@ class VisitProgressAuthorizationTest {
 
     @Test void progressIncludesQueueAndOrderStatusAfterPatientAuthorization() {
         when(reads.findProgress(visit)).thenReturn(row(patient));
-        when(reads.findActiveRoomQueue(visit, "Asia/Ho_Chi_Minh")).thenReturn(new Object[]{7, "CALLED", "R1", 2L});
+        when(reads.findActiveRoomQueue(visit, "Asia/Ho_Chi_Minh")).thenReturn(new Object[]{7, "CALLED", "R1", 2L, "SERVICE"});
         UUID orderId = UUID.randomUUID();
+        when(reads.findActiveQueueEntries(visit, "Asia/Ho_Chi_Minh")).thenReturn(List.of(
+                new Object[]{"SERVICE", orderId, 4, "WAITING", "LAB-1", 1L},
+                new Object[]{"EXAM", null, 9, "IN_EXAMINATION", "EXAM-1", 0L}));
         when(orders.findByVisit(visit)).thenReturn(List.of(
                 new fu.fa26.sep490.g58.otcms_be.clinical.service.ClinicalVisitOrderQueryService.Order(
                         orderId, "O1", "Imaging", "ORDERED", "PAID", null)));
         var result = service.getProgress(actor(AccountRole.PATIENT), visit);
         assertEquals(7, result.queueNumber());
         assertEquals(2, result.peopleAhead());
+        assertEquals("SERVICE", result.queueStage());
         assertTrue(result.beingCalled());
         assertEquals("PAID", result.serviceOrders().getFirst().paymentStatus());
+        var orderQueue = result.serviceOrders().getFirst().queue();
+        assertEquals(4, orderQueue.queueNumber()); assertEquals(1, orderQueue.peopleAhead());
+        assertEquals("WAITING", orderQueue.status());
+        assertEquals(9, result.examQueue().queueNumber()); assertEquals("EXAM-1", result.examQueue().roomCode());
         verify(patients).authorize(account, patient);
     }
     @Test void anonymousAdminOwnerAndTechnicianDeniedWithoutInventedRoomScope() {

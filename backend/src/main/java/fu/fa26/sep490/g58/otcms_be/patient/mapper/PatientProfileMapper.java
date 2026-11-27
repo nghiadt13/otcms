@@ -18,6 +18,7 @@ public class PatientProfileMapper {
     public PatientProfileDetailResponse toDetail(PatientProfile profile) {
         return new PatientProfileDetailResponse(profile.id(), profile.fullName(), profile.phoneCanonical(),
                 profile.phoneOwnerType(), profile.dateOfBirth(), profile.gender(), profile.address(),
-                profile.nationalId(), profile.identityDocumentType(), profile.hasAccount(), profile.version());
+                profile.nationalId(), profile.identityDocumentType(), profile.email(), profile.emailOwnerType(),
+                profile.hasAccount(), profile.version());
     }
 }
