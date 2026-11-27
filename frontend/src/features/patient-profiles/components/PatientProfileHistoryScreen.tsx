@@ -76,7 +76,10 @@ function HistoryContent({ profileId }: { profileId: string }) {
   if (!history.history) return <HistorySkeleton />;
   return (
     <>
-      <p className="text-base text-muted-foreground">
+      <p
+        className="rounded-lg border bg-muted/30 px-4 py-3 text-sm text-muted-foreground"
+        role="status"
+      >
         {lastUpdatedText(history.history)}
       </p>
       <MedicalHistoryEditor

@@ -11,6 +11,7 @@ import { medicalHistoryErrorMessage } from "../api/medicalHistoryErrors";
 import { isStaleHistoryError } from "../api/patientProfileErrors";
 import {
   invalidHistoryFields,
+  MAX_HISTORY_TEXT_LENGTH,
   MEDICAL_HISTORY_SECTIONS,
   trimHistoryText,
 } from "../schema/medicalHistoryRules";
@@ -31,7 +32,16 @@ function textsOf(history: MedicalHistory): MedicalHistoryTexts {
   };
 }
 
-/** Lưu từng mục với đủ năm giá trị đã lưu + mục đang sửa. Chỉ một request ghi mỗi lúc. */
+const FIELD_GUIDANCE: Record<MedicalHistoryField, string> = {
+  conditions: "Ghi bệnh đã được chẩn đoán và điều trị đang dùng, nếu có.",
+  allergies: "Ghi tên thuốc hoặc tác nhân và phản ứng đã gặp, nếu có.",
+  procedures: "Ghi phẫu thuật/thủ thuật đã thực hiện và thời điểm, nếu nhớ.",
+  injuries: "Ghi chấn thương đáng chú ý, thời điểm và tình trạng hiện tại.",
+  orthopedicHistory:
+    "Ghi bệnh xương khớp, điều trị hoặc dụng cụ chỉnh hình đã sử dụng.",
+};
+
+/** Chỉnh sửa tiền sử theo một bản nháp thống nhất và lưu toàn bộ bằng một thao tác. */
 export function MedicalHistoryEditor({
   history,
   canEdit,
@@ -48,9 +58,7 @@ export function MedicalHistoryEditor({
   const [drafts, setDrafts] = useState<MedicalHistoryTexts>(() =>
     textsOf(history),
   );
-  const [pendingField, setPendingField] = useState<MedicalHistoryField | null>(
-    null,
-  );
+  const [pending, setPending] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<
     Partial<Record<MedicalHistoryField, string>>
   >({});
@@ -58,52 +66,54 @@ export function MedicalHistoryEditor({
   const [stale, setStale] = useState(false);
   const [reloading, setReloading] = useState(false);
   const inFlight = useRef(false);
+  const dirtyFields = MEDICAL_HISTORY_SECTIONS.filter(
+    ({ field }) => drafts[field] !== baseline[field],
+  );
+  const recordedSections = MEDICAL_HISTORY_SECTIONS.filter(
+    ({ field }) => drafts[field].trim().length > 0,
+  ).length;
 
-  async function saveField(field: MedicalHistoryField) {
-    if (!canEdit || stale || inFlight.current) return;
-    const next = {
-      ...textsOf(baseline),
-      [field]: drafts[field],
+  async function saveAll() {
+    if (!canEdit || stale || inFlight.current || dirtyFields.length === 0)
+      return;
+
+    const next: MedicalHistoryUpdate = {
+      ...drafts,
       version: baseline.version,
     };
     const errors: Partial<Record<MedicalHistoryField, string>> = {};
-    for (const { field: name } of MEDICAL_HISTORY_SECTIONS) {
-      next[name] = trimHistoryText(next[name]);
+    for (const { field } of MEDICAL_HISTORY_SECTIONS) {
+      next[field] = trimHistoryText(next[field]);
     }
     const invalid = invalidHistoryFields(next);
-    for (const { field: name } of MEDICAL_HISTORY_SECTIONS) {
-      if (invalid.includes(name)) errors[name] = formatAppMessage("MSG-20");
+    for (const field of invalid) {
+      if (field in drafts) {
+        errors[field as MedicalHistoryField] = formatAppMessage("MSG-20");
+      }
     }
     setFieldErrors(errors);
     setFailure(null);
     if (invalid.length > 0) return;
 
     inFlight.current = true;
-    setPendingField(field);
+    setPending(true);
     try {
       const saved = await onSave(next);
       setBaseline(saved);
-      setDrafts((current) => ({
-        ...textsOf(saved),
-        ...Object.fromEntries(
-          MEDICAL_HISTORY_SECTIONS.filter(
-            ({ field: name }) =>
-              name !== field && current[name] !== baseline[name],
-          ).map(({ field: name }) => [name, current[name]]),
-        ),
-      }));
+      setDrafts(textsOf(saved));
+      setFieldErrors({});
       notifySuccess("MSG-84");
     } catch (error) {
       if (isStaleHistoryError(error)) setStale(true);
       else if (
         isApiError(error) &&
         (error.code === "MSG-20" || error.status === 400)
-      )
-        setFieldErrors({ [field]: formatAppMessage("MSG-20") });
-      else setFailure(medicalHistoryErrorMessage(error));
+      ) {
+        setFailure(formatAppMessage("MSG-20"));
+      } else setFailure(medicalHistoryErrorMessage(error));
     } finally {
       inFlight.current = false;
-      setPendingField(null);
+      setPending(false);
     }
   }
 
@@ -127,7 +137,19 @@ export function MedicalHistoryEditor({
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-5">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-muted/30 px-4 py-3">
+        <p className="text-sm text-muted-foreground" role="status">
+          Đã ghi {recordedSections}/{MEDICAL_HISTORY_SECTIONS.length} mục. Mục
+          để trống có nghĩa là chưa ghi nhận, không khẳng định là không có.
+        </p>
+        {dirtyFields.length > 0 ? (
+          <span className="text-sm font-medium text-foreground">
+            {dirtyFields.length} mục chưa lưu
+          </span>
+        ) : null}
+      </div>
+
       {stale ? (
         <Alert variant="destructive">
           <AlertDescription className="space-y-3 text-base">
@@ -138,7 +160,7 @@ export function MedicalHistoryEditor({
               onClick={() => void reload()}
               type="button"
             >
-              {reloading ? "Đang tải lại..." : "Tải lại"}
+              {reloading ? "Đang tải lại..." : "Tải dữ liệu mới nhất"}
             </button>
           </AlertDescription>
         </Alert>
@@ -153,55 +175,88 @@ export function MedicalHistoryEditor({
           Tiền sử của hồ sơ này chỉ xem được từ tài khoản của bạn.
         </p>
       ) : null}
-      {MEDICAL_HISTORY_SECTIONS.map(({ field, label }) => {
-        const titleId = `${id}-${field}-title`;
-        const errorId = `${id}-${field}-error`;
-        const error = fieldErrors[field];
-        const busy = pendingField === field;
-        return (
-          <section className="space-y-3" key={field}>
-            <h2 className="text-lg font-semibold" id={titleId}>
-              {label}
-            </h2>
-            <Textarea
-              aria-describedby={error ? errorId : undefined}
-              aria-invalid={error ? true : undefined}
+
+      <div className="grid gap-4 md:grid-cols-2">
+        {MEDICAL_HISTORY_SECTIONS.map(({ field, label }) => {
+          const titleId = `${id}-${field}-title`;
+          const inputId = `${id}-${field}`;
+          const hintId = `${id}-${field}-hint`;
+          const errorId = `${id}-${field}-error`;
+          const error = fieldErrors[field];
+          return (
+            <section
               aria-labelledby={titleId}
-              className="min-h-28 text-base"
-              disabled={!canEdit || pendingField !== null || reloading || stale}
-              id={`${id}-${field}`}
-              onChange={(event) =>
-                setDrafts((current) => ({
-                  ...current,
-                  [field]: event.target.value,
-                }))
-              }
-              value={drafts[field]}
-            />
-            {error ? (
-              <p className="text-sm text-destructive" id={errorId} role="alert">
-                {error}
-              </p>
-            ) : null}
-            {canEdit ? (
-              <button
-                aria-label={`Lưu ${label}`}
-                className={publicButtonClass("secondary")}
-                disabled={
-                  drafts[field] === baseline[field] ||
-                  pendingField !== null ||
-                  stale ||
-                  reloading
-                }
-                onClick={() => void saveField(field)}
-                type="button"
-              >
-                {busy ? "Đang lưu..." : "Lưu"}
-              </button>
-            ) : null}
-          </section>
-        );
-      })}
+              className="min-w-0 space-y-3 rounded-lg border bg-background p-4 sm:p-5"
+              key={field}
+            >
+              <div className="space-y-1">
+                <h2 className="font-semibold" id={titleId}>
+                  <label htmlFor={inputId}>{label}</label>
+                </h2>
+                <p className="text-sm text-muted-foreground" id={hintId}>
+                  {FIELD_GUIDANCE[field]}
+                </p>
+              </div>
+              <Textarea
+                aria-describedby={error ? `${hintId} ${errorId}` : hintId}
+                aria-invalid={error ? true : undefined}
+                className="min-h-28 resize-y text-base"
+                disabled={!canEdit || pending || reloading || stale}
+                id={inputId}
+                maxLength={MAX_HISTORY_TEXT_LENGTH}
+                onChange={(event) => {
+                  setDrafts((current) => ({
+                    ...current,
+                    [field]: event.target.value,
+                  }));
+                  setFieldErrors((current) => ({
+                    ...current,
+                    [field]: undefined,
+                  }));
+                  setFailure(null);
+                }}
+                value={drafts[field]}
+              />
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                {error ? (
+                  <p
+                    className="text-sm text-destructive"
+                    id={errorId}
+                    role="alert"
+                  >
+                    {error}
+                  </p>
+                ) : (
+                  <span />
+                )}
+                <p className="text-sm text-muted-foreground">
+                  {drafts[field].length.toLocaleString("vi-VN")} /{" "}
+                  {MAX_HISTORY_TEXT_LENGTH.toLocaleString("vi-VN")}
+                </p>
+              </div>
+            </section>
+          );
+        })}
+      </div>
+
+      {canEdit ? (
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-4">
+          <p className="text-sm text-muted-foreground">
+            {dirtyFields.length > 0
+              ? "Lưu một lần để cập nhật tất cả mục đã chỉnh sửa."
+              : "Mọi thay đổi đã được lưu."}
+          </p>
+          <button
+            aria-busy={pending}
+            className={publicButtonClass("primary")}
+            disabled={dirtyFields.length === 0 || pending || stale || reloading}
+            onClick={() => void saveAll()}
+            type="button"
+          >
+            {pending ? "Đang lưu tiền sử..." : "Lưu tất cả thay đổi"}
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -13,8 +13,8 @@ import { isoToDateOfBirthText } from "@/features/patient-profiles/schema/dateOfB
 import { PATIENT_ROUTES } from "@/lib/routes/patientRoutes";
 
 // Các màn gốc của menu "khu cá nhân" (cột trái của `PersonalAreaShell`). Đặt khung ở layout để
-// bấm qua lại giữa các mục vẫn giữ nguyên menu trái, nội dung mới chỉ thay ở cột phải. Màn con
-// (chi tiết, form đặt lịch, thanh toán...) vẫn dùng khung một cột như trước.
+// bấm qua lại giữa các mục vẫn giữ nguyên menu trái, nội dung mới chỉ thay ở cột phải. Một số màn
+// chi tiết thuộc khu cá nhân (lượt khám, kết quả, study, đơn thuốc và thanh toán) cũng giữ khung.
 const AREA_PATHS: ReadonlySet<string> = new Set([
   PATIENT_ROUTES.account,
   PATIENT_ROUTES.accountPassword,
@@ -22,6 +22,7 @@ const AREA_PATHS: ReadonlySet<string> = new Set([
   PATIENT_ROUTES.appointments,
   PATIENT_ROUTES.visits,
   PATIENT_ROUTES.results,
+  PATIENT_ROUTES.images,
   PATIENT_ROUTES.reviews,
   PATIENT_ROUTES.prescriptions,
   PATIENT_ROUTES.payments,
@@ -35,9 +36,27 @@ export function PortalAreaFrame({ children }: { children: ReactNode }) {
   const isResultDemo =
     process.env.NODE_ENV === "development" &&
     pathname === `${PATIENT_ROUTES.results}/demo`;
-  // Chi tiết một lượt khám (/portal/visits/{id}) cũng nằm trong khung để giữ menu trái như danh sách.
+  // Chi tiết lượt khám, kết quả, study và đơn thuốc cũng nằm trong khung như màn danh sách.
   const isVisitDetail = pathname.startsWith(`${PATIENT_ROUTES.visits}/`);
-  return AREA_PATHS.has(pathname) || isResultDemo || isVisitDetail ? (
+  const isResultDetail = pathname.startsWith(`${PATIENT_ROUTES.results}/`);
+  const isImageDetail = pathname.startsWith(`${PATIENT_ROUTES.images}/`);
+  const isReviewDetail = pathname.startsWith(`${PATIENT_ROUTES.reviews}/`);
+  const isPrescriptionDetail = pathname.startsWith(
+    `${PATIENT_ROUTES.prescriptions}/`,
+  );
+  const isPaymentDetail = pathname.startsWith(`${PATIENT_ROUTES.payments}/`);
+  const isProfileHistory =
+    pathname.startsWith(`${PATIENT_ROUTES.profiles}/`) &&
+    pathname.endsWith("/history");
+  return AREA_PATHS.has(pathname) ||
+    isResultDemo ||
+    isVisitDetail ||
+    isResultDetail ||
+    isImageDetail ||
+    isReviewDetail ||
+    isPrescriptionDetail ||
+    isPaymentDetail ||
+    isProfileHistory ? (
     <AreaShellWithPerson
       boxed={!isResultDemo && pathname !== PATIENT_ROUTES.account}
       compactOnMobile={pathname === PATIENT_ROUTES.reviews}

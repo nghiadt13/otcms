@@ -94,7 +94,10 @@ export function PersonalAreaShell({
                   const active =
                     pathname === link.href ||
                     (link.href !== PATIENT_ROUTES.account &&
-                      pathname.startsWith(`${link.href}/`));
+                      pathname.startsWith(`${link.href}/`)) ||
+                    (link.href === PATIENT_ROUTES.results &&
+                      (pathname === PATIENT_ROUTES.images ||
+                        pathname.startsWith(`${PATIENT_ROUTES.images}/`)));
                   return (
                     <li key={link.href}>
                       <Link
