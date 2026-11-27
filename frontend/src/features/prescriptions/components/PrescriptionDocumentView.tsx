@@ -96,8 +96,8 @@ export function PrescriptionDocumentView({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {document.items.map((item) => (
-                <TableRow key={item.medicine}>
+              {document.items.map((item, lineIndex) => (
+                <TableRow key={lineIndex}>
                   <TableCell className="font-medium whitespace-normal">
                     {item.medicine}
                   </TableCell>

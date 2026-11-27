@@ -3,9 +3,10 @@
 import { useState, type FormEvent } from "react";
 import { PageHeader } from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
-import { isApiError } from "@/lib/api/apiError";
+import { isApiError, toFieldErrorMap } from "@/lib/api/apiError";
 import { formatAppMessage, messageFromError } from "@/lib/messages/appMessages";
 import { notifySuccess } from "@/lib/messages/notify";
+import { clinicDate, isDate } from "../schema/receptionRules";
 import {
   createPatientProfile,
   getReceptionPatient,
@@ -72,6 +73,56 @@ function errorText(
   return messageFromError(error);
 }
 
+const fieldMessages = {
+  fullName: "Nhập họ và tên từ 2 đến 100 ký tự.",
+  dateOfBirth: "Nhập ngày sinh hợp lệ, không ở tương lai.",
+  phone:
+    "Nhập số điện thoại hợp lệ, gồm 8 đến 15 chữ số sau khi chuẩn hóa mã quốc gia.",
+  phoneOwnerType: "Chọn chủ số điện thoại.",
+  gender: "Chọn giới tính.",
+  address: "Nhập địa chỉ liên hệ.",
+  identityDocumentType: "Chọn loại giấy tờ tương ứng với số đã nhập.",
+  nationalId: "Số định danh hoặc hộ chiếu tối đa 20 ký tự.",
+  email: "Nhập địa chỉ email hợp lệ, ví dụ ten@example.com.",
+  emailOwnerType: "Chọn chủ email của địa chỉ đã nhập.",
+};
+
+type ProfileFieldErrors = Partial<typeof fieldMessages>;
+
+function validateProfile(input: ReceptionPatientInput, emailLocked: boolean) {
+  const errors: ProfileFieldErrors = {};
+  const name = input.fullName.trim().replace(/\s+/g, " ").normalize("NFC");
+  const phone = input.phone
+    .replace(/[\s().-]/g, "")
+    .replace(/^00/, "+")
+    .replace(/^0/, "+84")
+    .replace(/^\+/, "");
+  const email = input.email?.trim();
+  const documentNumber = input.nationalId?.trim();
+
+  if (name.length < 2 || name.length > 100)
+    errors.fullName = fieldMessages.fullName;
+  if (!isDate(input.dateOfBirth) || input.dateOfBirth > clinicDate())
+    errors.dateOfBirth = fieldMessages.dateOfBirth;
+  if (!/^\d{8,15}$/.test(phone)) errors.phone = fieldMessages.phone;
+  if (!input.address.trim()) errors.address = fieldMessages.address;
+  if (documentNumber && documentNumber.length > 20)
+    errors.nationalId = fieldMessages.nationalId;
+  if (documentNumber && !input.identityDocumentType)
+    errors.identityDocumentType = fieldMessages.identityDocumentType;
+  if (
+    !emailLocked &&
+    email &&
+    (email.length > 255 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
+  )
+    errors.email = fieldMessages.email;
+  if (!emailLocked && email && !input.emailOwnerType)
+    errors.emailOwnerType = fieldMessages.emailOwnerType;
+  if (!emailLocked && !email && input.emailOwnerType)
+    errors.email = "Nhập email hoặc bỏ chọn chủ email.";
+  return errors;
+}
+
 function PatientForm({
   patient,
   onClose,
@@ -100,6 +151,11 @@ function PatientForm({
   const emailLocked = Boolean(patient?.hasAccount);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
+  const [submitted, setSubmitted] = useState(false);
+  const [serverErrors, setServerErrors] = useState<ProfileFieldErrors>({});
+  const fieldErrors = submitted
+    ? { ...serverErrors, ...validateProfile(input, emailLocked) }
+    : {};
   const [candidates, setCandidates] = useState<ReceptionPatient[]>([]);
   function change<K extends keyof ReceptionPatientInput>(
     key: K,
@@ -107,24 +163,17 @@ function PatientForm({
   ) {
     setInput((prev) => ({ ...prev, [key]: value }));
     setError("");
+    setServerErrors({});
     setCandidates([]);
   }
   async function submit(e: FormEvent) {
     e.preventDefault();
     const trimmedEmail = input.email?.trim() || null;
     const effectiveEmailOwner = trimmedEmail ? input.emailOwnerType : null;
-    if (
-      !input.fullName.trim() ||
-      !input.phone.trim() ||
-      !input.dateOfBirth ||
-      !input.address.trim() ||
-      (input.nationalId && !input.identityDocumentType) ||
-      (trimmedEmail && !effectiveEmailOwner) ||
-      (!trimmedEmail && input.emailOwnerType)
-    ) {
-      setError(formatAppMessage("MSG-17"));
-      return;
-    }
+    setSubmitted(true);
+    setServerErrors({});
+    setError("");
+    if (Object.keys(validateProfile(input, emailLocked)).length) return;
     const payload: ReceptionPatientInput = {
       ...input,
       email: trimmedEmail,
@@ -159,7 +208,21 @@ function PatientForm({
       notifySuccess("MSG-84");
       onSaved(saved.patientProfileId);
     } catch (cause) {
-      setError(errorText(cause, mode));
+      const errors: ProfileFieldErrors = {};
+      if (isApiError(cause) && (cause.status === 400 || cause.status === 422)) {
+        const reported = toFieldErrorMap(cause.fieldErrors);
+        for (const field of Object.keys(
+          fieldMessages,
+        ) as (keyof ProfileFieldErrors)[]) {
+          if (
+            reported[field] &&
+            !(emailLocked && (field === "email" || field === "emailOwnerType"))
+          )
+            errors[field] = fieldMessages[field];
+        }
+      }
+      setServerErrors(errors);
+      if (!Object.keys(errors).length) setError(errorText(cause, mode));
     } finally {
       setPending(false);
     }
@@ -175,6 +238,7 @@ function PatientForm({
         <div className="grid gap-4 sm:grid-cols-2">
           <TextField
             label="Họ và tên *"
+            error={fieldErrors.fullName}
             value={input.fullName}
             onChange={(v) => change("fullName", v)}
             disabled={pending}
@@ -182,6 +246,7 @@ function PatientForm({
           <TextField
             label="Ngày sinh *"
             type="date"
+            error={fieldErrors.dateOfBirth}
             value={input.dateOfBirth}
             onChange={(v) => change("dateOfBirth", v)}
             disabled={pending}
@@ -189,12 +254,14 @@ function PatientForm({
           <TextField
             label="Số điện thoại *"
             type="tel"
+            error={fieldErrors.phone}
             value={input.phone}
             onChange={(v) => change("phone", v)}
             disabled={pending}
           />
           <SelectField
             label="Chủ số điện thoại"
+            error={fieldErrors.phoneOwnerType}
             value={input.phoneOwnerType}
             onChange={(v) =>
               change(
@@ -210,6 +277,7 @@ function PatientForm({
           />
           <SelectField
             label="Giới tính *"
+            error={fieldErrors.gender}
             value={input.gender}
             onChange={(v) =>
               change("gender", v as ReceptionPatientInput["gender"])
@@ -223,6 +291,7 @@ function PatientForm({
           />
           <SelectField
             label="Loại giấy tờ"
+            error={fieldErrors.identityDocumentType}
             value={input.identityDocumentType ?? ""}
             onChange={(v) =>
               change(
@@ -240,12 +309,14 @@ function PatientForm({
           />
           <TextField
             label="Số định danh / hộ chiếu"
+            error={fieldErrors.nationalId}
             value={input.nationalId ?? ""}
             onChange={(v) => change("nationalId", v || null)}
             disabled={pending}
           />
           <TextField
             label="Địa chỉ *"
+            error={fieldErrors.address}
             value={input.address}
             onChange={(v) => change("address", v)}
             disabled={pending}
@@ -253,6 +324,7 @@ function PatientForm({
           <TextField
             label="Email"
             type="email"
+            error={fieldErrors.email}
             value={input.email ?? ""}
             onChange={(v) => {
               const nextEmail = v || null;
@@ -262,12 +334,14 @@ function PatientForm({
                 emailOwnerType: nextEmail ? prev.emailOwnerType : null,
               }));
               setError("");
+              setServerErrors({});
               setCandidates([]);
             }}
             disabled={pending || emailLocked}
           />
           <SelectField
             label="Chủ email"
+            error={fieldErrors.emailOwnerType}
             value={input.emailOwnerType ?? ""}
             onChange={(v) =>
               change(
@@ -285,7 +359,8 @@ function PatientForm({
         </div>
         {emailLocked && (
           <p className="text-xs text-muted-foreground">
-            Hồ sơ đã liên kết tài khoản nên không thể thay đổi email và chủ email.
+            Hồ sơ đã liên kết tài khoản nên không thể thay đổi email và chủ
+            email.
           </p>
         )}
         {error && (

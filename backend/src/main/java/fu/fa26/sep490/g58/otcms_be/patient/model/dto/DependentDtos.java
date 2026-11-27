@@ -24,5 +24,6 @@ public final class DependentDtos {
     public record ProfileItem(UUID patientProfileId, String fullName, LocalDate dateOfBirth, String gender,
             String relationship, String linkStatus, UUID linkId) { }
     public record CounterItem(UUID linkId, UUID patientProfileId, String fullName, LocalDate dateOfBirth,
-            String gender, String nationalId, String identityDocumentType, Relationship relationship, Instant requestedAt) { }
+            String gender, String nationalId, String identityDocumentType, Relationship relationship, Instant requestedAt,
+            String requesterName, String requesterEmail) { }
 }

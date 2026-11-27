@@ -269,8 +269,10 @@ public class DependentProfileServiceImpl implements DependentProfileService, Cou
             var p = profile(entity.getDependentPatientProfileId());
             if (!term.isEmpty() && !AdministrativeProfileFields.normalizeName(p.fullName()).toLowerCase(Locale.ROOT).contains(folded)
                     && (p.nationalId() == null || !p.nationalId().contains(term))) continue;
+            var requester = accounts.find(entity.getRequesterAccountId()).orElse(null);
             result.add(new CounterItem(entity.getId(), p.id(), p.fullName(), p.dateOfBirth(), p.gender(),
-                    p.nationalId(), p.identityDocumentType(), entity.getRelationship(), entity.getRequestedAt()));
+                    p.nationalId(), p.identityDocumentType(), entity.getRelationship(), entity.getRequestedAt(),
+                    requester == null ? null : requester.displayName(), requester == null ? null : requester.email()));
         }
         return new Items<>(List.copyOf(result));
     }

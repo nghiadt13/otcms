@@ -102,7 +102,7 @@ export function Field({
       {children(id)}
       {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
       {error && (
-        <p role="alert" className="text-xs text-destructive">
+        <p id={`${id}-error`} role="alert" className="text-xs text-destructive">
           {error}
         </p>
       )}
@@ -145,6 +145,7 @@ export function TextField({
           disabled={disabled}
           required={required}
           aria-invalid={!!error}
+          aria-describedby={error ? `${id}-error` : undefined}
           min={min}
           max={max}
           autoComplete={autoComplete}
@@ -160,15 +161,17 @@ export function SelectField({
   onChange,
   options,
   disabled,
+  error,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   options: { value: string; label: string }[];
   disabled?: boolean;
+  error?: string;
 }) {
   return (
-    <Field label={label}>
+    <Field label={label} error={error}>
       {(id) => (
         <NativeSelect
           id={id}
@@ -176,6 +179,8 @@ export function SelectField({
           value={value}
           onChange={(e) => onChange(e.target.value)}
           disabled={disabled}
+          aria-invalid={!!error}
+          aria-describedby={error ? `${id}-error` : undefined}
         >
           {options.map((o) => (
             <NativeSelectOption key={o.value} value={o.value}>

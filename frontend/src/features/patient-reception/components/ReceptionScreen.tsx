@@ -8,6 +8,7 @@ import {
 } from "../navigation";
 import { IntakeScreen } from "./IntakeScreen";
 import { PatientSearchScreen } from "./PatientScreens";
+import { CounterCareLinksScreen } from "./CounterCareLinksScreen";
 import { AppointmentScreen } from "./AppointmentScreen";
 import { QueueScreen } from "./QueueScreen";
 import { PaymentHistoryScreen } from "./PaymentHistoryScreen";
@@ -38,6 +39,8 @@ export function ReceptionScreen({
       return <IntakeScreen />;
     case "patients":
       return <PatientSearchScreen />;
+    case "care-links":
+      return <CounterCareLinksScreen />;
     case "appointments":
       return <AppointmentScreen Actions={appointmentActions} />;
     case "queues":

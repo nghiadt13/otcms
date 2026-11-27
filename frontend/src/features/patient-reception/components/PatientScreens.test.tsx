@@ -201,6 +201,50 @@ describe("hồ sơ bệnh nhân live", () => {
       "Thông tin hồ sơ chưa hợp lệ",
     );
   });
+  it("đánh dấu từng ô sai và xóa lỗi khi sửa ô đó", () => {
+    render(
+      <ReceptionProvider>
+        <PatientSearchScreen />
+      </ReceptionProvider>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Tạo hồ sơ" }));
+    fill();
+    const dialog = within(screen.getByRole("dialog"));
+    for (const [label, value] of [
+      ["Ngày sinh *", "2099-01-01"],
+      ["Số điện thoại *", "123"],
+      ["Số định danh / hộ chiếu", "1234567890"],
+      ["Email", "a"],
+    ])
+      fireEvent.change(dialog.getByLabelText(label), { target: { value } });
+    fireEvent.click(dialog.getByRole("button", { name: "Tạo hồ sơ" }));
+
+    for (const label of [
+      "Ngày sinh *",
+      "Số điện thoại *",
+      "Loại giấy tờ",
+      "Email",
+      "Chủ email",
+    ]) {
+      const input = dialog.getByLabelText(label);
+      expect(input).toHaveAttribute("aria-invalid", "true");
+      expect(input).toHaveAccessibleDescription(/.+/);
+    }
+    expect(apiRequest).not.toHaveBeenCalled();
+
+    const email = dialog.getByLabelText("Email");
+    fireEvent.change(email, { target: { value: "" } });
+    expect(email).toHaveAttribute("aria-invalid", "false");
+    expect(dialog.getByLabelText("Chủ email")).toHaveAttribute(
+      "aria-invalid",
+      "false",
+    );
+    expect(dialog.getByLabelText("Ngày sinh *")).toHaveAttribute(
+      "aria-invalid",
+      "true",
+    );
+  });
+
   it("gửi email cùng chủ email khi tạo hồ sơ và hiển thị trong chi tiết", async () => {
     const withEmail = {
       ...detail,
@@ -228,7 +272,7 @@ describe("hồ sơ bệnh nhân live", () => {
       }),
     );
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Thông tin hồ sơ chưa hợp lệ",
+      "Chọn chủ email của địa chỉ đã nhập.",
     );
     fireEvent.change(screen.getByLabelText("Chủ email"), {
       target: { value: "PATIENT" },
@@ -246,9 +290,7 @@ describe("hồ sơ bệnh nhân live", () => {
         body: expect.stringContaining('"email":"an@example.com"'),
       }),
     );
-    expect(
-      screen.getByText("an@example.com (Bệnh nhân)"),
-    ).toBeInTheDocument();
+    expect(screen.getByText("an@example.com (Bệnh nhân)")).toBeInTheDocument();
   });
   it("khóa trường email và chủ email khi sửa hồ sơ đã gắn tài khoản", async () => {
     const linked = {

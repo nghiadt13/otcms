@@ -33,6 +33,13 @@ export const receptionNavigation = [
     group: "Tiếp nhận",
   },
   {
+    section: "care-links",
+    title: "Xác minh người thân",
+    description: "Đối chiếu giấy tờ và xác nhận yêu cầu liên kết hồ sơ.",
+    icon: FileCheck2,
+    group: "Tiếp nhận",
+  },
+  {
     section: "appointments",
     title: "Lịch hẹn",
     description: "Đặt lịch và sắp xếp bác sĩ thay thế khi vắng ca.",
@@ -122,6 +129,7 @@ const LIVE_RECEPTION_SECTIONS: ReadonlySet<ReceptionSection> =
   new Set<ReceptionSection>([
     "",
     "patients",
+    "care-links",
     "appointments",
     "queues",
     "visits",
