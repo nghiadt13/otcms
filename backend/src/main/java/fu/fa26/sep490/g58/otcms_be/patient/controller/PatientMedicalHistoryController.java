@@ -14,7 +14,6 @@ import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/v1/patient-profiles/{id}/medical-history")
-@PreAuthorize("hasAnyAuthority('ROLE_PATIENT','ROLE_DOCTOR')")
 @ApiResponses({@ApiResponse(responseCode = "400", description = "VALIDATION_FAILED / MSG-20"),
         @ApiResponse(responseCode = "401", description = "Authentication required"),
         @ApiResponse(responseCode = "403", description = "ACCESS_DENIED / MSG-19"),
@@ -27,15 +26,17 @@ public class PatientMedicalHistoryController {
     public PatientMedicalHistoryController(PatientMedicalHistoryService histories) { this.histories = histories; }
 
     @GetMapping
-    @Operation(summary = "Read medical history and allergies", description = "Active PATIENT self/confirmed dependent or active DOCTOR. "
-            + "Temporary R3 doctor relation policy. No stored row returns empty strings and version 0 without inserting.")
+    @PreAuthorize("hasAnyAuthority('ROLE_PATIENT','ROLE_DOCTOR')")
+    @Operation(summary = "Read medical history and allergies", description = "Active DOCTOR in charge reads current working history; "
+            + "active PATIENT reads published history (for self or confirmed dependent) once examination results are published.")
     public ResponseEntity<MedicalHistoryResponse> get(@AuthenticationPrincipal AuthenticatedAccount actor, @PathVariable UUID id) {
         return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(histories.get(actor, id));
     }
 
     @PutMapping
-    @Operation(summary = "Replace all five medical-history texts", description = "CSRF required. Texts are trimmed, then limited to 2000 UTF-16 units. "
-            + "Version 0 creates version 1; matching positive version increments; stale versions return 409. Actor/time are server-owned.")
+    @PreAuthorize("hasAuthority('ROLE_DOCTOR')")
+    @Operation(summary = "Replace all five medical-history texts (Doctor only)", description = "Responsible active DOCTOR only. CSRF required. "
+            + "Texts are trimmed, then limited to 2000 UTF-16 units. Version 0 creates version 1; matching positive version increments; stale versions return 409.")
     public ResponseEntity<MedicalHistoryResponse> update(@AuthenticationPrincipal AuthenticatedAccount actor,
             @PathVariable UUID id, @Valid @RequestBody UpdateMedicalHistoryRequest request) {
         return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(histories.update(actor, id, request));

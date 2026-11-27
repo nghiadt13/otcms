@@ -38,12 +38,12 @@ public class PatientMedicalHistoryServiceImpl implements PatientMedicalHistorySe
     @Override public MedicalHistoryResponse get(AuthenticatedAccount actor, UUID profileId) {
         requireActor(actor);
         authorizeTarget(actor, profileId);
-        return read(profileId);
+        return actor.accountRole() == AccountRole.PATIENT ? readPublished(profileId) : readWorking(profileId);
     }
 
     @Override @Transactional
     public MedicalHistoryResponse update(AuthenticatedAccount actor, UUID profileId, UpdateMedicalHistoryRequest request) {
-        requireActor(actor);
+        requireDoctorActor(actor);
         // Share KAN-26's revoke coordination; only local DB work occurs while held.
         guard.acquire();
         authorizeTarget(actor, profileId);
@@ -61,7 +61,7 @@ public class PatientMedicalHistoryServiceImpl implements PatientMedicalHistorySe
                 ? histories.insertInitial(profileId, conditions, allergies, procedures, injuries, orthopedic, now, actor.accountId())
                 : histories.updateIfVersion(profileId, conditions, allergies, procedures, injuries, orthopedic, now, actor.accountId(), request.version());
         if (written != 1) throw new MedicalHistoryException("STALE_VERSION");
-        return read(profileId);
+        return readWorking(profileId);
     }
 
     private void requireActor(AuthenticatedAccount actor) {
@@ -73,6 +73,10 @@ public class PatientMedicalHistoryServiceImpl implements PatientMedicalHistorySe
         };
         if (!active) throw denied();
     }
+    private void requireDoctorActor(AuthenticatedAccount actor) {
+        if (actor == null || actor.accountId() == null || actor.accountRole() != AccountRole.DOCTOR) throw denied();
+        if (!doctors.isActiveDoctorAccount(actor.accountId())) throw denied();
+    }
     private void authorizeTarget(AuthenticatedAccount actor, UUID profileId) {
         if (profileId == null) throw missing();
         if (actor.accountRole() == AccountRole.PATIENT) {
@@ -81,16 +85,34 @@ public class PatientMedicalHistoryServiceImpl implements PatientMedicalHistorySe
         } else if (!doctorRelations.isResponsibleDoctor(actor.accountId(), profileId)) throw denied();
         if (profiles.findProfile(profileId).isEmpty()) throw missing();
     }
-    private MedicalHistoryResponse read(UUID profileId) {
-        return histories.findById(profileId).filter(p -> p.getMedicalHistoryUpdatedAt() != null).map(this::response).orElseGet(MedicalHistoryResponse::empty);
+    private MedicalHistoryResponse readWorking(UUID profileId) {
+        return histories.findById(profileId).filter(p -> p.getMedicalHistoryUpdatedAt() != null).map(this::workingResponse).orElseGet(MedicalHistoryResponse::empty);
     }
-    private MedicalHistoryResponse response(PatientProfileJpaEntity row) {
-        String name = row.getMedicalHistoryUpdatedBy() == null ? null : accounts.find(row.getMedicalHistoryUpdatedBy())
+    private MedicalHistoryResponse readPublished(UUID profileId) {
+        return histories.findById(profileId)
+                .map(PatientProfileJpaEntity::getPublishedMedicalHistory)
+                .filter(p -> p.publishedAt() != null)
+                .map(this::publishedResponse)
+                .orElseGet(MedicalHistoryResponse::empty);
+    }
+    private MedicalHistoryResponse workingResponse(PatientProfileJpaEntity row) {
+        return new MedicalHistoryResponse(safeText(row.getConditions()), safeText(row.getAllergies()), safeText(row.getProcedures()),
+                safeText(row.getInjuries()), safeText(row.getOrthopedicHistory()),
+                row.getMedicalHistoryUpdatedAt().atZone(ZoneId.of("Asia/Ho_Chi_Minh")).toOffsetDateTime(),
+                resolveDisplayName(row.getMedicalHistoryUpdatedBy()), row.getMedicalHistoryVersion());
+    }
+    private MedicalHistoryResponse publishedResponse(PatientProfileJpaEntity.PublishedMedicalHistory published) {
+        return new MedicalHistoryResponse(safeText(published.conditions()), safeText(published.allergies()),
+                safeText(published.procedures()), safeText(published.injuries()), safeText(published.orthopedicHistory()),
+                published.publishedAt().atZone(ZoneId.of("Asia/Ho_Chi_Minh")).toOffsetDateTime(),
+                resolveDisplayName(published.publishedBy()), published.version());
+    }
+    private String resolveDisplayName(UUID accountId) {
+        return accountId == null ? null : accounts.find(accountId)
                 .map(MyAccountQueryService.MyAccountView::displayName)
                 .filter(value -> value != null && !value.isBlank()).orElse(null);
-        return new MedicalHistoryResponse(row.getConditions(), row.getAllergies(), row.getProcedures(), row.getInjuries(),
-                row.getOrthopedicHistory(), row.getMedicalHistoryUpdatedAt().atZone(ZoneId.of("Asia/Ho_Chi_Minh")).toOffsetDateTime(), name, row.getMedicalHistoryVersion());
     }
+    private static String safeText(String value) { return value == null ? "" : value; }
     private String text(String value, String field, List<FieldError> errors) {
         if (value == null) { errors.add(new FieldError(field, "MSG-20")); return ""; }
         String trimmed = value.trim();

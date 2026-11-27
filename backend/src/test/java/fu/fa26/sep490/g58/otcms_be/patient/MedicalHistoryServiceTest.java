@@ -62,15 +62,21 @@ class MedicalHistoryServiceTest {
         assertFalse(adapter.isResponsibleDoctor(actor, target));
         assertFalse(adapter.isResponsibleDoctor(actor, null));
     }
-    @Test void staleWriteDoesNotReadOrReturnHistory() {
+    @Test void patientCannotUpdateMedicalHistory() {
         when(patients.isActivePatient(actor)).thenReturn(true);
-        when(access.canAccess(actor, target)).thenReturn(true);
+        error("ACCESS_DENIED", () -> service.update(principal(AccountRole.PATIENT), target,
+                new UpdateMedicalHistoryRequest("", "", "", "", "", 0L)));
+        verifyNoInteractions(guard, access, profiles, histories);
+    }
+    @Test void staleWriteDoesNotReadOrReturnHistory() {
+        when(doctors.isActiveDoctorAccount(actor)).thenReturn(true);
+        when(relations.isResponsibleDoctor(actor, target)).thenReturn(true);
         when(profiles.findProfile(target)).thenReturn(Optional.of(new PatientProfileDirectory.ProfileRecord(
                 target, actor, "Patient", null, null, LocalDate.of(2000, 1, 2), "OTHER")));
-        error("STALE_VERSION", () -> service.update(principal(AccountRole.PATIENT), target,
+        error("STALE_VERSION", () -> service.update(principal(AccountRole.DOCTOR), target,
                 new UpdateMedicalHistoryRequest("", "", "", "", "", 1L)));
-        var order = inOrder(guard, access, histories);
-        order.verify(guard).acquire(); order.verify(access).canAccess(actor, target);
+        var order = inOrder(guard, relations, histories);
+        order.verify(guard).acquire(); order.verify(relations).isResponsibleDoctor(actor, target);
         order.verify(histories).updateIfVersion(target, "", "", "", "", "", Instant.EPOCH, actor, 1);
         verify(histories, never()).findById(any()); verify(histories, never()).save(any());
     }
@@ -80,9 +86,11 @@ class MedicalHistoryServiceTest {
         when(profiles.findProfile(target)).thenReturn(Optional.of(new PatientProfileDirectory.ProfileRecord(
                 target, actor, "Patient", null, null, LocalDate.of(2000, 1, 2), "OTHER")));
         var row = mock(fu.fa26.sep490.g58.otcms_be.auth.model.entity.PatientProfileJpaEntity.class);
-        when(row.getMedicalHistoryUpdatedBy()).thenReturn(actor); when(row.getMedicalHistoryUpdatedAt()).thenReturn(Instant.EPOCH);
+        when(row.getPublishedMedicalHistory()).thenReturn(
+                new fu.fa26.sep490.g58.otcms_be.auth.model.entity.PatientProfileJpaEntity.PublishedMedicalHistory(
+                        "", "", "", "", "", Instant.EPOCH, actor, 1L));
         when(histories.findById(target)).thenReturn(Optional.of(row));
-        when(accounts.find(actor)).thenReturn(Optional.of(new MyAccountQueryService.MyAccountView(actor, "PATIENT", "private@example.test", "Editor")));
+        when(accounts.find(actor)).thenReturn(Optional.of(new MyAccountQueryService.MyAccountView(actor, "DOCTOR", "private@example.test", "Editor")));
         assertEquals("Editor", service.get(principal(AccountRole.PATIENT), target).updatedBy());
         when(accounts.find(actor)).thenReturn(Optional.empty());
         assertNull(service.get(principal(AccountRole.PATIENT), target).updatedBy());

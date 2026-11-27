@@ -1,5 +1,6 @@
 package fu.fa26.sep490.g58.otcms_be.auth.model.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import fu.fa26.sep490.g58.otcms_be.auth.model.entity.enums.EmailOwnerType;
 import fu.fa26.sep490.g58.otcms_be.auth.model.entity.enums.Gender;
 import fu.fa26.sep490.g58.otcms_be.auth.model.entity.enums.PhoneOwnerType;
@@ -8,6 +9,8 @@ import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 import java.time.LocalDate;
 import java.time.Instant;
 import java.util.UUID;
@@ -41,6 +44,14 @@ public class PatientProfileJpaEntity {
     @Column(name = "medical_history_updated_at", insertable = false, updatable = false) private Instant medicalHistoryUpdatedAt;
     @Column(name = "medical_history_updated_by", insertable = false, updatable = false) private UUID medicalHistoryUpdatedBy;
     @Column(name = "medical_history_version", nullable = false, insertable = false, updatable = false) private long medicalHistoryVersion;
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "published_medical_history", columnDefinition = "jsonb", insertable = false, updatable = false)
+    private PublishedMedicalHistory publishedMedicalHistory;
     // Null marks the unsaved @Version state for Spring Data; Hibernate initializes it on insert.
     @Version @Column(nullable = false) private Long version;
+
+    /** Published medical-history snapshot (V154), updated when a visit closes so patients only see published records. */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record PublishedMedicalHistory(String conditions, String allergies, String procedures,
+            String injuries, String orthopedicHistory, Instant publishedAt, UUID publishedBy, long version) { }
 }

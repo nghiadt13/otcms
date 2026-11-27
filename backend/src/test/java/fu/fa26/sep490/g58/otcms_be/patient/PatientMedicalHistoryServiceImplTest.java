@@ -45,8 +45,22 @@ class PatientMedicalHistoryServiceImplTest {
                 target, actor, "Patient", null, null, LocalDate.of(2000, 1, 2), "OTHER")));
     }
 
+    void doctorCanReachProfile() {
+        when(doctors.isActiveDoctorAccount(actor)).thenReturn(true);
+        when(relations.isResponsibleDoctor(actor, target)).thenReturn(true);
+        when(profiles.findProfile(target)).thenReturn(Optional.of(new PatientProfileDirectory.ProfileRecord(
+                target, UUID.randomUUID(), "Patient", null, null, LocalDate.of(2000, 1, 2), "OTHER")));
+    }
+
     // Answer-based mock: no when(...) inside another stubbing call (avoids UnfinishedStubbing).
     fu.fa26.sep490.g58.otcms_be.auth.model.entity.PatientProfileJpaEntity savedRow(Instant updatedAt, UUID updatedBy) {
+        return savedRow(updatedAt, updatedBy, updatedAt == null ? null
+                : new fu.fa26.sep490.g58.otcms_be.auth.model.entity.PatientProfileJpaEntity.PublishedMedicalHistory(
+                        "c", "a", "p", "i", "o", updatedAt, updatedBy, 3L));
+    }
+
+    fu.fa26.sep490.g58.otcms_be.auth.model.entity.PatientProfileJpaEntity savedRow(Instant updatedAt, UUID updatedBy,
+            fu.fa26.sep490.g58.otcms_be.auth.model.entity.PatientProfileJpaEntity.PublishedMedicalHistory published) {
         return mock(fu.fa26.sep490.g58.otcms_be.auth.model.entity.PatientProfileJpaEntity.class,
                 invocation -> switch (invocation.getMethod().getName()) {
                     case "getMedicalHistoryUpdatedBy" -> updatedBy;
@@ -57,6 +71,7 @@ class PatientMedicalHistoryServiceImplTest {
                     case "getInjuries" -> "i";
                     case "getOrthopedicHistory" -> "o";
                     case "getMedicalHistoryVersion" -> 3L;
+                    case "getPublishedMedicalHistory" -> published;
                     default -> null;
                 });
     }
@@ -132,9 +147,24 @@ class PatientMedicalHistoryServiceImplTest {
         assertNull(service.get(principal(AccountRole.PATIENT), target).updatedBy());
     }
 
-    @Test void updateRejectsNullHistoryRequest() {
+    @Test void patientSeesEmptyWhenDoctorWroteWorkingHistoryNotYetPublished() {
         patientCanReachProfile();
-        error("VALIDATION_FAILED", () -> service.update(principal(AccountRole.PATIENT), target, null));
+        when(histories.findById(target)).thenReturn(Optional.of(savedRow(Instant.EPOCH, actor, null)));
+
+        assertEquals(MedicalHistoryResponse.empty(), service.get(principal(AccountRole.PATIENT), target));
+        verifyNoInteractions(accounts);
+    }
+
+    @Test void updateRejectsPatientActor() {
+        patientCanReachProfile();
+        error("ACCESS_DENIED", () -> service.update(principal(AccountRole.PATIENT), target,
+                new UpdateMedicalHistoryRequest("", "", "", "", "", 0L)));
+        verifyNoInteractions(guard, histories);
+    }
+
+    @Test void updateRejectsNullHistoryRequest() {
+        doctorCanReachProfile();
+        error("VALIDATION_FAILED", () -> service.update(principal(AccountRole.DOCTOR), target, null));
         verifyNoInteractions(histories);
     }
 
@@ -145,40 +175,40 @@ class PatientMedicalHistoryServiceImplTest {
     }
 
     @Test void updateRejectsNegativeVersion() {
-        patientCanReachProfile();
-        error("VALIDATION_FAILED", () -> service.update(principal(AccountRole.PATIENT), target,
+        doctorCanReachProfile();
+        error("VALIDATION_FAILED", () -> service.update(principal(AccountRole.DOCTOR), target,
                 new UpdateMedicalHistoryRequest("", "", "", "", "", -1L)));
         verifyNoInteractions(histories);
     }
 
     @Test void updateRejectsMissingVersion() {
-        patientCanReachProfile();
-        error("VALIDATION_FAILED", () -> service.update(principal(AccountRole.PATIENT), target,
+        doctorCanReachProfile();
+        error("VALIDATION_FAILED", () -> service.update(principal(AccountRole.DOCTOR), target,
                 new UpdateMedicalHistoryRequest("", "", "", "", "", null)));
         verifyNoInteractions(histories);
     }
 
     @Test void updateRejectsNullTextField() {
-        patientCanReachProfile();
-        error("VALIDATION_FAILED", () -> service.update(principal(AccountRole.PATIENT), target,
+        doctorCanReachProfile();
+        error("VALIDATION_FAILED", () -> service.update(principal(AccountRole.DOCTOR), target,
                 new UpdateMedicalHistoryRequest("ok", null, "ok", "ok", "ok", 0L)));
         verifyNoInteractions(histories);
     }
 
     @Test void updateRejectsTextLongerThan2000Characters() {
-        patientCanReachProfile();
-        error("VALIDATION_FAILED", () -> service.update(principal(AccountRole.PATIENT), target,
+        doctorCanReachProfile();
+        error("VALIDATION_FAILED", () -> service.update(principal(AccountRole.DOCTOR), target,
                 new UpdateMedicalHistoryRequest("x".repeat(2001), "", "", "", "", 0L)));
         verifyNoInteractions(histories);
     }
 
     @Test void updateAcceptsExactly2000CharactersAndTrimsBeforeInsertingInitialHistory() {
-        patientCanReachProfile();
+        doctorCanReachProfile();
         when(histories.insertInitial(eq(target), anyString(), anyString(), anyString(), anyString(), anyString(),
                 any(), eq(actor))).thenReturn(1);
         when(histories.findById(target)).thenReturn(Optional.empty());
 
-        MedicalHistoryResponse response = service.update(principal(AccountRole.PATIENT), target,
+        MedicalHistoryResponse response = service.update(principal(AccountRole.DOCTOR), target,
                 new UpdateMedicalHistoryRequest("  " + "x".repeat(2000) + "  ", "a", "p", "i", "o", 0L));
 
         assertEquals(MedicalHistoryResponse.empty(), response);
@@ -187,13 +217,13 @@ class PatientMedicalHistoryServiceImplTest {
     }
 
     @Test void updateWithPositiveVersionUsesVersionedUpdateAndReturnsStoredHistory() {
-        patientCanReachProfile();
+        doctorCanReachProfile();
         when(histories.updateIfVersion(eq(target), anyString(), anyString(), anyString(), anyString(), anyString(),
                 any(), eq(actor), eq(3L))).thenReturn(1);
         when(histories.findById(target)).thenReturn(Optional.of(savedRow(Instant.EPOCH, actor)));
-        when(accounts.find(actor)).thenReturn(Optional.of(new MyAccountQueryService.MyAccountView(actor, "PATIENT", "x@example.test", "Editor")));
+        when(accounts.find(actor)).thenReturn(Optional.of(new MyAccountQueryService.MyAccountView(actor, "DOCTOR", "x@example.test", "Editor")));
 
-        MedicalHistoryResponse response = service.update(principal(AccountRole.PATIENT), target,
+        MedicalHistoryResponse response = service.update(principal(AccountRole.DOCTOR), target,
                 new UpdateMedicalHistoryRequest("c", "a", "p", "i", "o", 3L));
 
         assertEquals("c", response.conditions());
@@ -203,11 +233,11 @@ class PatientMedicalHistoryServiceImplTest {
     }
 
     @Test void updateReportsStaleVersionWhenNoRowWasWritten() {
-        patientCanReachProfile();
+        doctorCanReachProfile();
         when(histories.updateIfVersion(eq(target), anyString(), anyString(), anyString(), anyString(), anyString(),
                 any(), eq(actor), eq(2L))).thenReturn(0);
 
-        error("STALE_VERSION", () -> service.update(principal(AccountRole.PATIENT), target,
+        error("STALE_VERSION", () -> service.update(principal(AccountRole.DOCTOR), target,
                 new UpdateMedicalHistoryRequest("c", "a", "p", "i", "o", 2L)));
         verify(histories, never()).findById(any());
     }

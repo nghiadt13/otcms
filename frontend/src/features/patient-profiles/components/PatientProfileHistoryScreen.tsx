@@ -13,7 +13,7 @@ import { medicalHistoryErrorMessage } from "../api/medicalHistoryErrors";
 import { useMedicalHistory } from "../hooks/useMedicalHistory";
 import { useMedicalHistoryProfiles } from "../hooks/useMedicalHistoryProfiles";
 import type { MedicalHistory } from "../types/patientProfile";
-import { MedicalHistoryEditor } from "./MedicalHistoryEditor";
+import { MedicalHistorySummary } from "./MedicalHistorySummary";
 import { PortalLoadError } from "./PortalLoadError";
 
 export function PatientProfileHistoryScreen({
@@ -76,18 +76,19 @@ function HistoryContent({ profileId }: { profileId: string }) {
   if (!history.history) return <HistorySkeleton />;
   return (
     <>
-      <p
-        className="rounded-lg border bg-muted/30 px-4 py-3 text-sm text-muted-foreground"
-        role="status"
-      >
-        {lastUpdatedText(history.history)}
+      <p className="text-base text-muted-foreground">
+        Tiền sử bệnh do bác sĩ ghi nhận và được hiển thị sau khi kết quả khám
+        được phát hành.
       </p>
-      <MedicalHistoryEditor
-        canEdit
-        history={history.history}
-        onReload={history.refresh}
-        onSave={history.save}
-      />
+      {history.history.updatedAt ? (
+        <p
+          className="rounded-lg border bg-muted/30 px-4 py-3 text-sm text-muted-foreground"
+          role="status"
+        >
+          {lastUpdatedText(history.history)}
+        </p>
+      ) : null}
+      <MedicalHistorySummary history={history.history} />
     </>
   );
 }

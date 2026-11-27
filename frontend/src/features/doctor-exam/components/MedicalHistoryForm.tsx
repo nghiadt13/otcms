@@ -8,8 +8,8 @@ import { getDoctorExamApi, type MedicalHistory } from "../api/doctorExamApi";
 import { useAsyncAction } from "../hooks/useAsyncAction";
 import { FormSection } from "./FormSection";
 
-// Tiền sử bệnh, dị ứng và tiền sử chỉnh hình của bệnh nhân (UC12). Bác sĩ và bệnh nhân cùng sửa
-// được; `version` chống ghi đè khi hai bên sửa cùng lúc (BE trả 409 nếu lệch phiên bản).
+// Tiền sử bệnh, dị ứng và tiền sử chỉnh hình của bệnh nhân (UC12). Chỉ bác sĩ phụ trách ghi nhận;
+// bệnh nhân xem được bản đã công bố sau khi kết quả khám được phát hành. `version` chống ghi đè đồng thời (409).
 
 const FIELDS: Array<{
   key: Exclude<keyof MedicalHistory, "version">;
@@ -46,7 +46,7 @@ export function MedicalHistoryForm({
   return (
     <FormSection
       title="Tiền sử và dị ứng"
-      description="Thông tin dùng chung với hồ sơ của bệnh nhân."
+      description="Bác sĩ ghi nhận trong quá trình khám; bệnh nhân xem được sau khi kết quả khám được phát hành."
       disabled={pending}
     >
       <div className="grid gap-4 lg:grid-cols-2">

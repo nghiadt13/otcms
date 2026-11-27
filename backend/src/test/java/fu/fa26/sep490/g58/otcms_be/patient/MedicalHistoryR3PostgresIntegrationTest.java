@@ -52,6 +52,7 @@ class MedicalHistoryR3PostgresIntegrationTest {
     @Autowired PatientMedicalHistoryRepository histories;
     @Autowired PlatformTransactionManager manager;
     @Autowired PatientProfileAccessService access;
+    @Autowired org.springframework.context.ApplicationEventPublisher events;
     @Autowired HistoryClock clock;
     final JsonMapper json = JsonMapper.builder().findAndAddModules().build();
     UUID patient, own, doctor, ownCareVisit;
@@ -134,62 +135,92 @@ class MedicalHistoryR3PostgresIntegrationTest {
         empty(fetch(caller, role, target)); assertEquals(0, count(target));
         assertEquals(1, jdbc.queryForObject("select count(*) from staff_profiles where account_id=?", Integer.class, doctor));
     }
-    @Test void firstPutTrimsPersistsActorAndClockThenGetReturnsExactFields() throws Exception {
+    void publishVisit(UUID visitId, UUID doctorAccountId) {
+        UUID docProfile = doctorProfile(doctorAccountId);
+        new TransactionTemplate(manager).executeWithoutResult(status -> {
+            jdbc.update("update visits set status='CLOSED' where id=?", visitId);
+            events.publishEvent(new fu.fa26.sep490.g58.otcms_be.visit.event.VisitCompletedEvent(visitId, docProfile));
+        });
+    }
+
+    @Test void firstPutByDoctorTrimsPersistsAndOnlyBecomesVisibleToPatientAfterVisitCompletion() throws Exception {
         var body = body(0); FIELDS.forEach(field -> body.put(field, "  Đau  khớp\nDòng hai e\u0301  "));
         body.put("updatedBy", "not-the-actor@example.test"); body.put("updatedAt", "1900-01-01");
-        var saved = response(write(patient, AccountRole.PATIENT, own, body).andExpect(status().isOk())
+        var saved = response(write(doctor, AccountRole.DOCTOR, own, body).andExpect(status().isOk())
                 .andExpect(header().string("Cache-Control", "no-store")));
         FIELDS.forEach(field -> assertEquals("Đau  khớp\nDòng hai e\u0301", saved.get(field).asText()));
-        assertEquals(1, saved.get("version").asLong()); assertEquals("Actor " + patient, saved.get("updatedBy").asText());
+        assertEquals(1, saved.get("version").asLong()); assertEquals("Doctor " + doctor, saved.get("updatedBy").asText());
         assertEquals("2026-11-02T10:04:05+07:00", saved.get("updatedAt").asText()); assertEquals(8, saved.size());
-        assertEquals(patient, jdbc.queryForObject("select medical_history_updated_by from patient_profiles where id=?", UUID.class, own));
+        assertEquals(doctor, jdbc.queryForObject("select medical_history_updated_by from patient_profiles where id=?", UUID.class, own));
         assertEquals(Timestamp.from(NOW), jdbc.queryForObject("select medical_history_updated_at from patient_profiles where id=?", Timestamp.class, own));
-        var fetched = response(fetch(doctor, AccountRole.DOCTOR, own).andExpect(status().isOk())); assertEquals(saved, fetched);
-        assertFalse(fetched.toString().contains("@example.test")); assertFalse(fetched.has("patientProfileId"));
+        var doctorFetched = response(fetch(doctor, AccountRole.DOCTOR, own).andExpect(status().isOk()));
+        assertEquals(saved, doctorFetched);
+        assertFalse(doctorFetched.toString().contains("@example.test")); assertFalse(doctorFetched.has("patientProfileId"));
+
+        // Before visit completion / result publication, patient still sees empty history.
+        empty(fetch(patient, AccountRole.PATIENT, own));
+
+        // After visit completes, patient sees the published snapshot.
+        publishVisit(ownCareVisit, doctor);
+        var patientFetched = response(fetch(patient, AccountRole.PATIENT, own).andExpect(status().isOk()));
+        assertEquals(saved, patientFetched);
+
+        // Subsequent in-progress doctor edits do not leak to the patient until the next visit completes.
+        UUID secondVisit = currentCare(doctor, own);
+        var draftEdit = body(1); draftEdit.put("allergies", "Draft only during second visit");
+        write(doctor, AccountRole.DOCTOR, own, draftEdit).andExpect(status().isOk())
+                .andExpect(jsonPath("$.allergies").value("Draft only during second visit"));
+        assertEquals("Đau  khớp\nDòng hai e\u0301",
+                response(fetch(patient, AccountRole.PATIENT, own).andExpect(status().isOk())).get("allergies").asText());
+        publishVisit(secondVisit, doctor);
+        assertEquals("Draft only during second visit",
+                response(fetch(patient, AccountRole.PATIENT, own).andExpect(status().isOk())).get("allergies").asText());
     }
     @Test void updateChangesActorAndUnchangedTextStillIncrements() throws Exception {
-        write(patient, AccountRole.PATIENT, own, body(0)).andExpect(status().isOk());
+        UUID secondDoctor = account(AccountRole.DOCTOR);
+        currentCare(secondDoctor, own);
+        write(doctor, AccountRole.DOCTOR, own, body(0)).andExpect(status().isOk());
         clock.now = NOW.plusSeconds(60);
         var change = body(1); change.put("allergies", "Penicillin");
-        write(doctor, AccountRole.DOCTOR, own, change).andExpect(status().isOk()).andExpect(jsonPath("$.version").value(2))
-                .andExpect(jsonPath("$.updatedBy").value("Doctor " + doctor))
+        write(secondDoctor, AccountRole.DOCTOR, own, change).andExpect(status().isOk()).andExpect(jsonPath("$.version").value(2))
+                .andExpect(jsonPath("$.updatedBy").value("Doctor " + secondDoctor))
                 .andExpect(jsonPath("$.updatedAt").value("2026-11-02T10:05:05+07:00"));
         change.put("version", 2);
         clock.now = NOW.plusSeconds(90);
-        write(patient, AccountRole.PATIENT, own, change).andExpect(status().isOk()).andExpect(jsonPath("$.version").value(3))
+        write(doctor, AccountRole.DOCTOR, own, change).andExpect(status().isOk()).andExpect(jsonPath("$.version").value(3))
                 .andExpect(jsonPath("$.updatedAt").value("2026-11-02T10:05:35+07:00"));
-        jdbc.update("update patient_profiles set full_name='Renamed editor' where id=?", own);
-        fetch(doctor, AccountRole.DOCTOR, own).andExpect(status().isOk()).andExpect(jsonPath("$.updatedBy").value("Renamed editor"));
+        jdbc.update("update staff_profiles set display_name='Renamed doctor' where account_id=?", doctor);
+        fetch(doctor, AccountRole.DOCTOR, own).andExpect(status().isOk()).andExpect(jsonPath("$.updatedBy").value("Renamed doctor"));
     }
     @ParameterizedTest @ValueSource(strings = {"conditions", "allergies", "procedures", "injuries", "orthopedicHistory"})
     void eachFieldAccepts2000AfterTrimAndRejects2001(String field) throws Exception {
         var value = body(0); value.put(field, "  " + "x".repeat(2000) + " \n");
-        write(patient, AccountRole.PATIENT, own, value).andExpect(status().isOk());
+        write(doctor, AccountRole.DOCTOR, own, value).andExpect(status().isOk());
         value.put("version", 1); value.put(field, "x".repeat(2001));
-        write(patient, AccountRole.PATIENT, own, value).andExpect(status().isBadRequest())
+        write(doctor, AccountRole.DOCTOR, own, value).andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error.code").value("MSG-20"))
                 .andExpect(jsonPath("$.error.message").value("Thông tin tiền sử bệnh chưa hợp lệ. Vui lòng kiểm tra và chỉnh sửa."))
                 .andExpect(jsonPath("$.fieldErrors[0].field").value(field)).andExpect(jsonPath("$.fieldErrors[0].code").value("MSG-20"));
-        fetch(patient, AccountRole.PATIENT, own).andExpect(status().isOk()).andExpect(jsonPath("$.version").value(1));
+        fetch(doctor, AccountRole.DOCTOR, own).andExpect(status().isOk()).andExpect(jsonPath("$.version").value(1));
     }
     @ParameterizedTest @ValueSource(strings = {"conditions", "allergies", "procedures", "injuries", "orthopedicHistory"})
     void everyTextRequiresStringAndPresence(String field) throws Exception {
         for (Object invalid : Arrays.asList(null, 42, true, List.of("text"), Map.of("value", "text"))) {
             var value = body(0); value.put(field, invalid);
-            write(patient, AccountRole.PATIENT, own, value).andExpect(status().isBadRequest())
+            write(doctor, AccountRole.DOCTOR, own, value).andExpect(status().isBadRequest())
                     .andExpect(jsonPath("$.error.code").value("MSG-20"));
         }
         var absent = body(0); absent.remove(field);
-        write(patient, AccountRole.PATIENT, own, absent).andExpect(status().isBadRequest()); assertEquals(0, count(own));
+        write(doctor, AccountRole.DOCTOR, own, absent).andExpect(status().isBadRequest()); assertEquals(0, count(own));
     }
     @Test void supplementaryCharactersCountUtf16AndWhitespaceOnlyBecomesEmpty() throws Exception {
         var value = body(0); value.put("conditions", "😀".repeat(1000));
-        write(patient, AccountRole.PATIENT, own, value).andExpect(status().isOk());
+        write(doctor, AccountRole.DOCTOR, own, value).andExpect(status().isOk());
         value.put("version", 1); value.put("conditions", "😀".repeat(1001));
-        write(patient, AccountRole.PATIENT, own, value).andExpect(status().isBadRequest());
+        write(doctor, AccountRole.DOCTOR, own, value).andExpect(status().isBadRequest());
         FIELDS.forEach(field -> value.put(field, " \n\t\r  "));
-        write(patient, AccountRole.PATIENT, own, value).andExpect(status().isOk()).andExpect(jsonPath("$.version").value(2));
-        var result = response(fetch(patient, AccountRole.PATIENT, own)); FIELDS.forEach(field -> assertEquals("", result.get(field).asText()));
+        write(doctor, AccountRole.DOCTOR, own, value).andExpect(status().isOk()).andExpect(jsonPath("$.version").value(2));
+        var result = response(fetch(doctor, AccountRole.DOCTOR, own)); FIELDS.forEach(field -> assertEquals("", result.get(field).asText()));
     }
     static Stream<Arguments> invalidVersions() {
         return Stream.of(null, "0", "1.0", 0.0, -1, true, List.of(0), Map.of("value", 0), new java.math.BigInteger("9223372036854775808"))
@@ -197,25 +228,27 @@ class MedicalHistoryR3PostgresIntegrationTest {
     }
     @ParameterizedTest @MethodSource("invalidVersions")
     void versionCannotBeCoerced(Object version) throws Exception {
-        write(patient, AccountRole.PATIENT, own, body(version)).andExpect(status().isBadRequest())
+        write(doctor, AccountRole.DOCTOR, own, body(version)).andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error.code").value("MSG-20")); assertEquals(0, count(own));
     }
     @Test void missingVersionAndMalformedBodyAreValidationErrors() throws Exception {
         var value = body(0); value.remove("version");
-        write(patient, AccountRole.PATIENT, own, value).andExpect(status().isBadRequest());
-        mvc.perform(put(path(own)).with(actor(patient, AccountRole.PATIENT)).with(csrf()).contentType("application/json").content("{"))
+        write(doctor, AccountRole.DOCTOR, own, value).andExpect(status().isBadRequest());
+        mvc.perform(put(path(own)).with(actor(doctor, AccountRole.DOCTOR)).with(csrf()).contentType("application/json").content("{"))
                 .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("MSG-20"));
     }
     @ParameterizedTest @EnumSource(AccountRole.class)
     void roleMatrixForGetAndPut(AccountRole role) throws Exception {
         UUID caller = role == AccountRole.PATIENT ? patient : account(role);
         if (role == AccountRole.DOCTOR) currentCare(caller, own);
-        int expected = role == AccountRole.PATIENT || role == AccountRole.DOCTOR ? 200 : 403;
-        var first = fetch(caller, role, own).andExpect(status().is(expected));
-        var second = write(caller, role, own, body(0)).andExpect(status().is(expected));
-        if (expected == 403) {
-            first.andExpect(jsonPath("$.error.code").value("MSG-19"));
-            second.andExpect(jsonPath("$.error.code").value("MSG-19")); assertEquals(0, count(own));
+        int expectedGet = role == AccountRole.PATIENT || role == AccountRole.DOCTOR ? 200 : 403;
+        int expectedPut = role == AccountRole.DOCTOR ? 200 : 403;
+        var first = fetch(caller, role, own).andExpect(status().is(expectedGet));
+        var second = write(caller, role, own, body(0)).andExpect(status().is(expectedPut));
+        if (expectedGet == 403) first.andExpect(jsonPath("$.error.code").value("MSG-19"));
+        if (expectedPut == 403) {
+            second.andExpect(jsonPath("$.error.code").value("MSG-19"));
+            if (role != AccountRole.DOCTOR) assertEquals(0, count(own));
         }
     }
     static Stream<Arguments> inactiveActors() {
@@ -242,7 +275,7 @@ class MedicalHistoryR3PostgresIntegrationTest {
         jdbc.update("delete from patient_profiles where id=?", own);
         assertFalse(access.canAccess(patient, target));
         fetch(patient, AccountRole.PATIENT, target).andExpect(status().isNotFound());
-        write(patient, AccountRole.PATIENT, target, body(0)).andExpect(status().isNotFound()); assertEquals(0, count(target));
+        write(patient, AccountRole.PATIENT, target, body(0)).andExpect(status().isForbidden()); assertEquals(0, count(target));
     }
     @ParameterizedTest @ValueSource(strings = {"OTP", "COUNTER", "REVOKED", "UNRELATED", "MISSING"})
     void inaccessibleAndMissingTargetsHaveSamePatientError(String state) throws Exception {
@@ -254,18 +287,26 @@ class MedicalHistoryR3PostgresIntegrationTest {
         }
         if (!state.equals("MISSING")) {
             var seed = body(0); seed.put("allergies", "Private clinical text");
-            currentCare(doctor, target);
+            UUID depVisit = currentCare(doctor, target);
             write(doctor, AccountRole.DOCTOR, target, seed).andExpect(status().isOk());
+            publishVisit(depVisit, doctor);
         }
         fetch(patient, AccountRole.PATIENT, target).andExpect(status().isNotFound()).andExpect(jsonPath("$.error.code").value("MSG-19"))
                 .andExpect(jsonPath("$.error.message").value("Không thể truy cập hồ sơ bệnh nhân này. Vui lòng kiểm tra lại thông tin hoặc quyền truy cập."));
-        write(patient, AccountRole.PATIENT, target, body(0)).andExpect(status().isNotFound());
+        write(patient, AccountRole.PATIENT, target, body(0)).andExpect(status().isForbidden());
         if (!state.equals("MISSING")) assertEquals(1L, jdbc.queryForObject("select medical_history_version from patient_profiles where id=?", Long.class, target));
     }
-    @Test void confirmedDependentPutUsesRequesterAsEditorAndMissingTargetRespectsActorScope() throws Exception {
+    @Test void confirmedDependentReadOnlyShowsPublishedHistoryAndMissingTargetRespectsActorScope() throws Exception {
         UUID target = profile(null); link(target, null);
-        write(patient, AccountRole.PATIENT, target, body(0)).andExpect(status().isOk()).andExpect(jsonPath("$.updatedBy").value("Actor " + patient));
-        assertEquals(patient, jdbc.queryForObject("select medical_history_updated_by from patient_profiles where id=?", UUID.class, target));
+        UUID depVisit = currentCare(doctor, target);
+        var seed = body(0); seed.put("allergies", "Dependent allergy");
+        write(doctor, AccountRole.DOCTOR, target, seed).andExpect(status().isOk()).andExpect(jsonPath("$.updatedBy").value("Doctor " + doctor));
+        empty(fetch(patient, AccountRole.PATIENT, target));
+        publishVisit(depVisit, doctor);
+        fetch(patient, AccountRole.PATIENT, target).andExpect(status().isOk())
+                .andExpect(jsonPath("$.allergies").value("Dependent allergy"))
+                .andExpect(jsonPath("$.updatedBy").value("Doctor " + doctor));
+        write(patient, AccountRole.PATIENT, target, body(1)).andExpect(status().isForbidden());
         UUID missing = UUID.randomUUID();
         // Current-care authorization precedes existence lookup for Doctors (retired R3 shortcut).
         fetch(doctor, AccountRole.DOCTOR, missing).andExpect(status().isForbidden())
@@ -273,7 +314,7 @@ class MedicalHistoryR3PostgresIntegrationTest {
         write(doctor, AccountRole.DOCTOR, missing, body(0)).andExpect(status().isForbidden());
         fetch(patient, AccountRole.PATIENT, missing).andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.error.code").value("MSG-19"));
-        write(patient, AccountRole.PATIENT, missing, body(0)).andExpect(status().isNotFound());
+        write(patient, AccountRole.PATIENT, missing, body(0)).andExpect(status().isForbidden());
     }
     @Test void activeDoctorWithoutProfileOrCurrentCareCannotReadOrWrite() throws Exception {
         UUID unrelatedDoctor = account(AccountRole.DOCTOR);
@@ -290,12 +331,12 @@ class MedicalHistoryR3PostgresIntegrationTest {
     @Test void anonymousAndCsrfAreNotWeakened() throws Exception {
         mvc.perform(get(path(own))).andExpect(status().isUnauthorized());
         mvc.perform(put(path(own)).with(csrf()).contentType("application/json").content(json.writeValueAsString(body(0)))).andExpect(status().isUnauthorized());
-        mvc.perform(put(path(own)).with(actor(patient, AccountRole.PATIENT)).contentType("application/json").content(json.writeValueAsString(body(0)))).andExpect(status().isForbidden());
+        mvc.perform(put(path(own)).with(actor(doctor, AccountRole.DOCTOR)).contentType("application/json").content(json.writeValueAsString(body(0)))).andExpect(status().isForbidden());
         assertEquals(0, count(own));
     }
     @Test void staleAndPositiveVersionWithoutRowNeverWrite() throws Exception {
-        write(patient, AccountRole.PATIENT, own, body(1)).andExpect(status().isConflict()).andExpect(jsonPath("$.error.code").value("MSG-16"));
-        assertEquals(0, count(own)); write(patient, AccountRole.PATIENT, own, body(0)).andExpect(status().isOk());
+        write(doctor, AccountRole.DOCTOR, own, body(1)).andExpect(status().isConflict()).andExpect(jsonPath("$.error.code").value("MSG-16"));
+        assertEquals(0, count(own)); write(doctor, AccountRole.DOCTOR, own, body(0)).andExpect(status().isOk());
         for (int version : List.of(0, 2)) write(doctor, AccountRole.DOCTOR, own, body(version)).andExpect(status().isConflict())
                 .andExpect(jsonPath("$.error.message").value("Không thể hoàn tất yêu cầu. Hãy tải lại trạng thái trước khi thử lại."));
         assertEquals(1L, jdbc.queryForObject("select medical_history_version from patient_profiles where id=?", Long.class, own));
@@ -311,20 +352,22 @@ class MedicalHistoryR3PostgresIntegrationTest {
     }
     @ParameterizedTest @ValueSource(booleans = {true, false})
     void actualHttpCreateAndUpdateRacesHaveExactlyOneWinner(boolean firstCreate) throws Exception {
-        if (!firstCreate) write(patient, AccountRole.PATIENT, own, body(0)).andExpect(status().isOk());
+        UUID secondDoctor = account(AccountRole.DOCTOR);
+        currentCare(secondDoctor, own);
+        if (!firstCreate) write(doctor, AccountRole.DOCTOR, own, body(0)).andExpect(status().isOk());
         int version = firstCreate ? 0 : 1;
-        fetch(patient, AccountRole.PATIENT, own).andExpect(jsonPath("$.version").value(version));
         fetch(doctor, AccountRole.DOCTOR, own).andExpect(jsonPath("$.version").value(version));
-        var a = body(version); a.put("conditions", "Patient wins");
-        var b = body(version); b.put("conditions", "Doctor wins");
-        var replies = race(() -> write(patient, AccountRole.PATIENT, own, a).andReturn().getResponse(),
-                () -> write(doctor, AccountRole.DOCTOR, own, b).andReturn().getResponse());
+        fetch(secondDoctor, AccountRole.DOCTOR, own).andExpect(jsonPath("$.version").value(version));
+        var a = body(version); a.put("conditions", "Doctor A wins");
+        var b = body(version); b.put("conditions", "Doctor B wins");
+        var replies = race(() -> write(doctor, AccountRole.DOCTOR, own, a).andReturn().getResponse(),
+                () -> write(secondDoctor, AccountRole.DOCTOR, own, b).andReturn().getResponse());
         assertEquals(List.of(200, 409), replies.stream().map(r -> r.getStatus()).sorted().toList());
         var loser = replies.stream().filter(r -> r.getStatus() == 409).findFirst().orElseThrow();
         assertEquals("MSG-16", json.readTree(loser.getContentAsString()).get("error").get("code").asText());
-        boolean patientWon = replies.getFirst().getStatus() == 200;
-        assertEquals(patientWon ? "Patient wins" : "Doctor wins", jdbc.queryForObject("select conditions from patient_profiles where id=?", String.class, own));
-        assertEquals(patientWon ? patient : doctor, jdbc.queryForObject("select medical_history_updated_by from patient_profiles where id=?", UUID.class, own));
+        boolean firstWon = replies.getFirst().getStatus() == 200;
+        assertEquals(firstWon ? "Doctor A wins" : "Doctor B wins", jdbc.queryForObject("select conditions from patient_profiles where id=?", String.class, own));
+        assertEquals(firstWon ? doctor : secondDoctor, jdbc.queryForObject("select medical_history_updated_by from patient_profiles where id=?", UUID.class, own));
         assertEquals(1, count(own)); assertEquals(version + 1L, jdbc.queryForObject("select medical_history_version from patient_profiles where id=?", Long.class, own));
     }
     @Test void repositoryInsertRaceUsesIndependentRealTransactionsWithoutGlobalGuard() throws Exception {
@@ -333,27 +376,29 @@ class MedicalHistoryR3PostgresIntegrationTest {
             Callable<Integer> insert = () -> new TransactionTemplate(manager).execute(status -> {
                 try { assertTrue(start.await(10, TimeUnit.SECONDS)); }
                 catch (InterruptedException interrupted) { Thread.currentThread().interrupt(); throw new IllegalStateException("Interrupted test"); }
-                return histories.insertInitial(own, "", "", "", "", "", NOW, patient);
+                return histories.insertInitial(own, "", "", "", "", "", NOW, doctor);
             });
             var a = pool.submit(insert); var b = pool.submit(insert); start.countDown();
             assertEquals(List.of(0, 1), Stream.of(a.get(10, TimeUnit.SECONDS), b.get(10, TimeUnit.SECONDS)).sorted().toList());
             assertEquals(1, count(own));
         }
     }
-    @Test void revokeRaceAndRequestAfterCommittedRevokeCannotWrite() throws Exception {
+    @Test void revokeRemovesPatientReadAccess() throws Exception {
         UUID target = profile(null); link(target, null);
-        var replies = race(() -> write(patient, AccountRole.PATIENT, target, body(0)).andReturn().getResponse(),
-                () -> mvc.perform(delete("/api/v1/me/dependents/{id}", target).with(actor(patient, AccountRole.PATIENT)).with(csrf())).andReturn().getResponse());
-        assertTrue(List.of(200, 404).contains(replies.getFirst().getStatus())); assertEquals(204, replies.getLast().getStatus());
-        int before = count(target); assertEquals(replies.getFirst().getStatus() == 200 ? 1 : 0, before);
+        UUID depVisit = currentCare(doctor, target);
+        var seed = body(0); seed.put("allergies", "Before revoke");
+        write(doctor, AccountRole.DOCTOR, target, seed).andExpect(status().isOk());
+        publishVisit(depVisit, doctor);
+        fetch(patient, AccountRole.PATIENT, target).andExpect(status().isOk()).andExpect(jsonPath("$.allergies").value("Before revoke"));
+        mvc.perform(delete("/api/v1/me/dependents/{id}", target).with(actor(patient, AccountRole.PATIENT)).with(csrf())).andExpect(status().isNoContent());
         assertFalse(access.canAccess(patient, target));
-        write(patient, AccountRole.PATIENT, target, body(before)).andExpect(status().isNotFound()); assertEquals(before, count(target));
+        fetch(patient, AccountRole.PATIENT, target).andExpect(status().isNotFound());
         assertEquals(1, jdbc.queryForObject("select count(*) from patient_profiles where id=?", Integer.class, target));
     }
     @Test void profileVersionDoesNotChangeMedicalHistoryVersion() throws Exception {
-        write(patient, AccountRole.PATIENT, own, body(0)).andExpect(status().isOk());
+        write(doctor, AccountRole.DOCTOR, own, body(0)).andExpect(status().isOk());
         jdbc.update("update patient_profiles set version=version+1 where id=?", own);
-        write(patient, AccountRole.PATIENT, own, body(1)).andExpect(status().isOk())
+        write(doctor, AccountRole.DOCTOR, own, body(1)).andExpect(status().isOk())
                 .andExpect(jsonPath("$.version").value(2));
     }
     @Test void schemaEnforcesUniquenessReferencesDefaultsLengthsAndVersion() {
